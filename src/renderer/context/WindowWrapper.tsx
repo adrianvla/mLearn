@@ -11,6 +11,7 @@ import { FlashcardProvider } from './FlashcardContext';
 import { FlashcardCreationChoiceModal } from '../components/flashcard';
 import { ServerProvider, useServer } from './ServerContext';
 import { InstallProgressProvider, useInstallProgress } from './InstallProgressContext';
+import { hashWord } from '../services/srsAlgorithm';
 import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
@@ -204,13 +205,6 @@ const ActivityRuntimeBridge: Component = () => {
 };
 
 
-async function computeSha256(text: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
 
 const GlobalEulaModal: Component = () => {
   const { settings, updateSettings, isLoading } = useSettings();
@@ -225,7 +219,7 @@ const GlobalEulaModal: Component = () => {
     const bridge = getBridge();
     const cleanup = bridge.server.onLegalDocumentReceive(async (content) => {
       setEulaContent(content);
-      const hash = await computeSha256(content);
+      const hash = await hashWord(content);
       setCurrentHash(hash);
     });
     bridge.server.getLegalDocument('EULA');

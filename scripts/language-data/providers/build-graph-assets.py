@@ -29,6 +29,22 @@ FREEDICT_INDEX_URL = "https://freedict.org/freedict-database.json"
 TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 ENTITY_KINDS = {"dictionary-entry", "lexeme", "surface", "sense", "pronunciation", "character", "morpheme", "grammar-pattern"}
 RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-gender", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related"}
+# Mirror of GraphDomain in src/shared/graph/types.ts: the runtime treats a
+# missing `domain` as 'common', and DEFAULT_ENABLED_DOMAINS (['common']) keeps
+# specialized domains out of ordinary learning/prediction.
+GRAPH_DOMAINS = {"common", "names", "archaic", "technical", "dialectal"}
+# Proper-noun/name-domain markers on Jitendex (JMdict-derived) term rows:
+# JMdict's name-type misc codes plus Jitendex's mythology badge codes.
+# fem/masc ("female/male term or language") are part-of-speech, not names.
+NAME_DOMAIN_CODES = frozenset({
+    "surname", "place", "unclass", "unc", "company", "product", "organization", "full",
+    "given", "person", "station", "deity", "char", "obj", "creat", "leg", "myth",
+    "group", "ev", "work", "relg", "chmyth", "grmyth", "jpmyth", "rommyth",
+})
+# Title text that also identifies a name-domain badge, covering codes Jitendex
+# may spell differently across revisions ("unclassified" for `unc` has no
+# "name" substring).
+NAME_DOMAIN_TITLE_PARTS = ("name", "person", "deity", "mytholog", "legend", "unclassified")
 
 
 def log(message: str) -> None:
@@ -74,15 +90,17 @@ class Graph:
         self.source_versions = source_versions
         self.entities: dict[str, dict[str, object]] = {}
         self.relations: dict[tuple[str, str, str, str], dict[str, str]] = {}
-
-    def entity(self, entity_id: str, kind: str, label: str = "", grammar: dict[str, object] | None = None) -> str:
+    def entity(self, entity_id: str, kind: str, label: str = "", grammar: dict[str, object] | None = None, domain: str | None = None) -> str:
         assert kind in ENTITY_KINDS
+        assert domain is None or domain in GRAPH_DOMAINS
         if entity_id not in self.entities:
             entity: dict[str, object] = {"id": entity_id, "kind": kind}
             if label:
                 entity["label"] = label
             if grammar:
                 entity["grammar"] = grammar
+            if domain:
+                entity["domain"] = domain
             self.entities[entity_id] = entity
         return entity_id
 
@@ -153,6 +171,29 @@ def text_content(value: object) -> list[str]:
     return []
 
 
+def is_name_domain(content: object) -> bool:
+    """Whether a Yomitan term row's structured content carries proper-noun/name-domain
+    markers: JMdict name-type misc codes (person, place, work, unclassified name, ...)
+    or Jitendex mythology badges. fem/masc are "female/male term or language" (a
+    part-of-speech), so they are deliberately not markers."""
+
+    def visit(node: object) -> bool:
+        if isinstance(node, dict):
+            data = node.get("data")
+            code = data.get("code") if isinstance(data, dict) else None
+            title = node.get("title")
+            if isinstance(code, str) and code in NAME_DOMAIN_CODES:
+                return True
+            if isinstance(title, str) and any(part in title.lower() for part in NAME_DOMAIN_TITLE_PARTS):
+                return True
+            return any(visit(child) for child in node.values())
+        if isinstance(node, list):
+            return any(visit(child) for child in node)
+        return False
+
+    return visit(content)
+
+
 def grammar_entity_id(language: str, pattern: str) -> str:
     return f"{language}:grammar:{normalized(pattern)}"
 
@@ -198,25 +239,35 @@ def build_ja() -> tuple[int, int, int]:
             patterns = {f"p{pitch.get('position')}" for pitch in payload.get("pitches", []) if isinstance(pitch, dict) and isinstance(pitch.get("position"), int)}
             if reading and patterns:
                 pitch_by_term_reading.setdefault((str(term), reading), set()).update(patterns)
+    surveys: list[tuple[str, str, object, object, bool]] = []
     for path in sorted(JITENDEX_DIR.glob("term_bank_*.json")):
         for row in json.loads(path.read_text(encoding="utf-8")):
             if len(row) < 7 or not row[6]:
                 continue
-            term, reading, glosses, sequence = str(row[0]), str(row[1] or row[0]), row[5], row[6]
-            entry = graph.entity(f"ja:entry:{sequence}", "dictionary-entry", term)
-            surface = graph.entity(surface_id("ja", term), "surface", term)
-            pronunciation = graph.entity(f"ja:pron:{reading}", "pronunciation", reading)
-            graph.relation(surface, entry, "realizes", "jitendex")
-            graph.relation(surface, pronunciation, "has-pronunciation", "jitendex")
-            graph.relation(entry, pronunciation, "has-reading", "jitendex")
-            for pattern in pitch_by_term_reading.get((term, reading), set()):
-                prosody = graph.entity(f"ja:prosody:{pattern}", "grammar-pattern", pattern)
-                graph.relation(surface, prosody, "has-prosodic-pattern", "kanjium-pitch")
-            for index, gloss in enumerate(text_content(glosses)[:3], start=1):
-                gloss = normalized(gloss)
-                if gloss:
-                    sense = graph.entity(f"ja:sense:{sequence}:{index}", "sense", gloss)
-                    graph.relation(entry, sense, "has-sense", "jitendex")
+            surveys.append((str(row[0]), str(row[1] or row[0]), row[5], row[6], is_name_domain(row[5])))
+    # Name-domain marking is survey-based: a surface shared between a name row and
+    # a common row (e.g. レア "Rhea" / レア "rare") stays common so a name sense can
+    # never hide a common homograph, while an entry is names when any of its rows
+    # (same ent_seq) carries a name marker. Duplicate rows of a name sequence
+    # without badges (JMdict re-lists an entry per reading) do not demote it.
+    name_sequences = {sequence for _, _, _, sequence, name_domain in surveys if name_domain}
+    common_terms = {term for term, _, _, sequence, name_domain in surveys if not name_domain and sequence not in name_sequences}
+    for term, reading, glosses, sequence, _ in surveys:
+        entry = graph.entity(f"ja:entry:{sequence}", "dictionary-entry", term, domain="names" if sequence in name_sequences else None)
+        surface_domain = "names" if sequence in name_sequences and term not in common_terms else None
+        surface = graph.entity(surface_id("ja", term), "surface", term, domain=surface_domain)
+        pronunciation = graph.entity(f"ja:pron:{reading}", "pronunciation", reading)
+        graph.relation(surface, entry, "realizes", "jitendex")
+        graph.relation(surface, pronunciation, "has-pronunciation", "jitendex")
+        graph.relation(entry, pronunciation, "has-reading", "jitendex")
+        for pattern in pitch_by_term_reading.get((term, reading), set()):
+            prosody = graph.entity(f"ja:prosody:{pattern}", "grammar-pattern", pattern)
+            graph.relation(surface, prosody, "has-prosodic-pattern", "kanjium-pitch")
+        for index, gloss in enumerate(text_content(glosses)[:3], start=1):
+            gloss = normalized(gloss)
+            if gloss:
+                sense = graph.entity(f"ja:sense:{sequence}:{index}", "sense", gloss, domain="names" if sequence in name_sequences else None)
+                graph.relation(entry, sense, "has-sense", "jitendex")
     return graph.write()
 
 

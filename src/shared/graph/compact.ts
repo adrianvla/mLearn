@@ -2,6 +2,7 @@ import { GraphLoadError } from './load';
 import {
   GRAPH_SCHEMA_VERSION,
   RELATION_CATEGORY,
+  type GraphEntity,
   type GraphEntityKind,
   type GraphRelationType,
   type LinguisticGraphAsset,
@@ -19,9 +20,9 @@ import {
  * entities (hash-prefix on demand), consider string-table interning or a
  * keyed on-disk index so resident size tracks the artifact (ja artifact is
  * 132 MB / 30 MB gzipped), not 8× it. Related transient cost: Electron main's
- * LinguisticGraphService.toLingualGraph() rebuilds full plain-object
- * replicas per projection request; compact-native traversal in
- * buildKnowledgeProjection removes that spike too.
+ * LinguisticGraphService caches one full plain-object replica per loaded
+ * language (built on first projection use); compact-native traversal in
+ * buildKnowledgeProjection would remove that replica too.
  */
 
 /** Order-stable wire ids shared by compact graph producers and consumers. */
@@ -34,8 +35,9 @@ export const COMPACT_RELATION_TYPES = [
   'inflection-of', 'lemma-of', 'realizes', 'has-sense', 'has-pronunciation', 'has-gender', 'has-prosodic-pattern',
   'has-character', 'has-reading', 'has-morpheme', 'orthographic-variant-of', 'component-of', 'derived-from',
   'semantically-related', 'morphologically-related',
+  // Appended last so every pre-existing wire id stays order-stable; never reorder.
+  'contrasts-with',
 ] as const satisfies readonly GraphRelationType[];
-
 const COMPACT_DOMAINS = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
 const KIND_IDS = new Map(COMPACT_ENTITY_KINDS.map((kind, id) => [kind, id]));
 const TYPE_IDS = new Map<GraphRelationType, number>(COMPACT_RELATION_TYPES.map((type, id) => [type, id]));
@@ -52,6 +54,8 @@ export interface CompactAssetJSON {
     kindIds: number[];
     domainIds: number[];
     labelStringIds: number[];
+    /** Present only when at least one entity carries grammar metadata; -1 = none. Holds the JSON of GraphEntity['grammar']. */
+    grammarStringIds?: number[];
   };
   relations: {
     offsets: number[];
@@ -81,6 +85,8 @@ export interface CompactLingualGraph {
   readonly relationTransparency?: Float32Array;
   readonly relationPredictability?: Float32Array;
   readonly relationProvenanceStringIds?: Int32Array;
+  /** Decoded grammar metadata per entity ordinal (undefined where absent). Present only when the asset carries grammar. */
+  readonly entityGrammar?: readonly (GraphEntity['grammar'] | undefined)[];
   readonly denseOf: Map<string, number>;
   readonly persistentOf: readonly string[];
   readonly surfaceHashToLocalId: Map<number, number>;
@@ -95,7 +101,7 @@ function validateCompact(compact: CompactAssetJSON): void {
   if (compact.schemaVersion !== GRAPH_SCHEMA_VERSION) {
     throw new GraphLoadError(`Unsupported compact graph schemaVersion ${compact.schemaVersion} (expected ${GRAPH_SCHEMA_VERSION})`);
   }
-  const { kindIds, domainIds, labelStringIds } = compact.entities;
+  const { kindIds, domainIds, labelStringIds, grammarStringIds } = compact.entities;
   const { offsets, targets, typeIds } = compact.relations;
   if (kindIds.length !== domainIds.length || kindIds.length !== labelStringIds.length || offsets.length !== kindIds.length + 1
     || targets.length !== typeIds.length || offsets[offsets.length - 1] !== targets.length
@@ -104,7 +110,8 @@ function validateCompact(compact: CompactAssetJSON): void {
     || kindIds.some((id) => COMPACT_ENTITY_KINDS[id] === undefined)
     || domainIds.some((id) => COMPACT_DOMAINS[id] === undefined && id !== 0)
     || targets.some((id) => !Number.isInteger(id) || id < 0 || id >= kindIds.length)
-    || typeIds.some((id) => COMPACT_RELATION_TYPES[id] === undefined)) {
+    || typeIds.some((id) => COMPACT_RELATION_TYPES[id] === undefined)
+    || (grammarStringIds !== undefined && grammarStringIds.length !== kindIds.length)) {
     throw new GraphLoadError('Invalid compact graph array lengths');
   }
 }
@@ -136,6 +143,8 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     entityIds.set(entity.id, entityIds.size);
     stringId(entity.id);
   }
+  const grammarStringIds: number[] = [];
+  let hasGrammar = false;
   for (const entity of asset.entities) {
     const kindId = KIND_IDS.get(entity.kind);
     const domainId = DOMAIN_IDS.get(entity.domain);
@@ -143,6 +152,12 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     kindIds.push(kindId);
     domainIds.push(domainId);
     labelStringIds.push(entity.label === undefined ? -1 : stringId(entity.label));
+    if (entity.grammar !== undefined) {
+      grammarStringIds.push(stringId(JSON.stringify(entity.grammar)));
+      hasGrammar = true;
+    } else {
+      grammarStringIds.push(-1);
+    }
   }
 
   const adjacency = Array.from({ length: kindIds.length }, () => [] as Array<{ target: number; type: number; confidence?: number; transparency?: number; predictability?: number; provenance?: number }>);
@@ -196,7 +211,7 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     generatedAt: asset.generatedAt,
     sourceVersions: asset.sourceVersions,
     stringTable,
-    entities: { kindIds, domainIds, labelStringIds },
+    entities: { kindIds, domainIds, labelStringIds, ...(hasGrammar ? { grammarStringIds } : {}) },
     relations: {
       offsets, targets, typeIds,
       ...(hasConfidence ? { confidence } : {}),
@@ -221,6 +236,9 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
   const relationTransparency = compact.relations.transparency === undefined ? undefined : Float32Array.from(compact.relations.transparency);
   const relationPredictability = compact.relations.predictability === undefined ? undefined : Float32Array.from(compact.relations.predictability);
   const relationProvenanceStringIds = compact.relations.provenanceStringIds === undefined ? undefined : Int32Array.from(compact.relations.provenanceStringIds);
+  const entityGrammar = compact.entities.grammarStringIds === undefined
+    ? undefined
+    : compact.entities.grammarStringIds.map((id) => id < 0 ? undefined : JSON.parse(stringTable[id]) as GraphEntity['grammar']);
   const persistentOf = stringTable.slice(0, entityKindIds.length);
   const denseOf = new Map<string, number>();
   for (let dense = 0; dense < persistentOf.length; dense += 1) denseOf.set(persistentOf[dense], dense);
@@ -241,6 +259,7 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
     relationTransparency,
     relationPredictability,
     relationProvenanceStringIds,
+    entityGrammar,
     denseOf,
     persistentOf,
     surfaceHashToLocalId,

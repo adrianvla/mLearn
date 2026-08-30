@@ -1,8 +1,47 @@
 {
   "mlearn": {
     "GraphInspector": {
-      "Title": "Inspecteur de graphe", "Unavailable": "Le graphe de langue actif n’est pas installé.", "SelectEntity": "Sélectionnez une entité du graphe.", "Capabilities": "Capacités", "identity": "Identité", "property": "Propriétés", "support": "Aide associée", "SupportCaption": "Associé — pas une connaissance. Les liens d’aide ne transmettent jamais la connaissance.", "Details": "Détails développeur", "Target": "Cible", "Projection": "Projection", "Retention": "Rétention", "Evidence": "Preuve", "NoDirectEvidence": "Pas encore de preuve directe.", "PredictionFirewall": "La prédiction est séparée de la preuve directe.",
-      "State": { "Known": "Connu avec preuve", "Learning": "Apprentissage", "Predicted": "Prédit", "Unmeasured": "Non mesuré", "Excluded": "Exclu" }
+      "Title": "Inspecteur de graphe",
+      "Unavailable": "Le graphe de langue actif n’est pas installé.",
+      "SelectEntity": "Sélectionnez une entité du graphe.",
+      "Capabilities": "Capacités",
+      "identity": "Identité",
+      "property": "Propriétés",
+      "support": "Aide associée",
+      "SupportCaption": "Associé — pas une connaissance. Les liens d’aide ne transmettent jamais la connaissance.",
+      "Details": "Détails développeur",
+      "Target": "Cible",
+      "Projection": "Projection",
+      "Retention": "Rétention",
+      "Evidence": "Preuve",
+      "NoDirectEvidence": "Pas encore de preuve directe.",
+      "PredictionFirewall": "La prédiction est séparée de la preuve directe.",
+      "State": {
+        "Known": "Connu avec preuve",
+        "Learning": "Apprentissage",
+        "Predicted": "Prédit",
+        "Unmeasured": "Non mesuré",
+        "Excluded": "Exclu"
+      },
+      "Neighborhood": {
+        "Title": "Graphe local",
+        "Toggle": "Graphe",
+        "Empty": "Aucune relation autour de cet élément.",
+        "Truncated": "{shown} relations affichées sur {total}.",
+        "NotInGraph": "Cet élément ne fait pas partie du graphe de langue.",
+        "OpenInWindow": "Ouvrir dans l’inspecteur de graphe",
+        "Loading": "Chargement du voisinage…",
+        "State": {
+          "EvidenceBackedKnown": "Connu avec preuve",
+          "ClaimedKnown": "Connu (déclaré)",
+          "ClaimedLearning": "Apprentissage (déclaré)",
+          "ClaimedUnknown": "Non acquis (déclaré)",
+          "Learning": "Apprentissage",
+          "Unknown": "Non acquis",
+          "Predicted": "Prédit",
+          "Unmeasured": "Non mesuré"
+        }
+      }
     },
     "Management": {
       "ChooseGroup": "Choisir une classe ou un groupe",
@@ -550,7 +589,9 @@
         "UnknownWords": "Mots inconnus",
         "Words": "Mots",
         "WordLevelDistribution": "Distribution des niveaux de mots",
-        "WordLevels": "Niveaux de mots"
+        "WordLevels": "Niveaux de mots",
+        "Lexical": "Lexique",
+        "Structural": "Structurel"
       },
       "StopRecording": "Arrêter l'enregistrement",
       "StopStreaming": "Stop",
@@ -1294,26 +1335,119 @@
       }
     },
     "Rating": {
-      "Compact": { "AllFluent": "Tout fluide", "AllEasy": "Tout facile", "Adjust": "Ajuster" },
+      "Compact": {
+        "AllFluent": "Tout fluide",
+        "AllEasy": "Tout facile",
+        "Adjust": "Ajuster"
+      },
       "Matrix": {
         "Missed": "Raté",
         "Struggled": "Laborieux",
-  "Fluent": "Fluide",
-  "Easy": "Facile",
+        "Fluent": "Fluide",
+        "Easy": "Facile",
         "AllFluent": "Tout était fluide",
         "EverythingElseFluent": "Le reste était fluide",
-  "AllFluentKey": "F",
+        "AllFluentKey": "F",
         "PendingHint": "Qualité (1–3), puis touche d’aspect"
       }
     },
     "Knowledge": {
-      "Capability": { "surface-recognition": "Reconnaissance", "surface-reading": "Lecture", "pronunciation-production": "Prononciation" },
-      "LegacySource": { "Prefix": "Source de preuve : ", "None": "Aucune" },
-      "Basis": {"Claim": "Déclaration explicite", "Evidence": "Preuve", "Unmeasured": "Non mesuré", "Prediction": "Prédit", "Excluded": "Exclu"},
-      "OverrideWarning": { "Confirm": "Modifier quand même", "DontRemind": "Ne plus me rappeler", "Message": "Ce statut possède déjà des preuves. La modification ajoute une déclaration manuelle sans effacer ces preuves.", "Title": "Remplacement de connaissance" },
-      "Popup": { "Overall": "Global", "Basis": "Base", "Rate": "Évaluer", "Inspect": "Inspecter" },
-      "Projection": {"Capabilities": "Capacités de connaissance", "AspectClaims": "Aspects", "Details": "Détails", "Graph": "Graphe", "Unavailable": "Les détails de connaissance ne sont pas disponibles.", "Evidence": {"Known": "Connu étayé", "Learning": "En apprentissage étayé", "Title": "Preuves actives", "None": "Aucune preuve active.", "Claim": "Déclaration : {status}", "ClaimCleared": "Déclaration annulée"}, "Predicted": "Prédit", "Unmeasured": "Non mesuré", "Excluded": "Exclu", "Because": "Parce que :", "Strength": "Aisance {ease} · vu {seen} · survolé {hovered}", "Retention": "Pression {pressure} · échéance {due}", "Tabs": {"Identity": "Identité & relations", "Targets": "Cibles", "EvidenceHistory": "Preuves & historique", "Prediction": "Prédiction"}, "Claim": {"Known": "Déclaration explicite : connu", "Learning": "Déclaration explicite : en apprentissage", "Unmeasured": "Déclaration explicite : non mesuré"}, "ClaimOverride": "Déclaration explicite — remplace les preuves", "Identity": {"Surface": "Surface", "Canonical": "Forme canonique", "Reading": "Lecture", "Senses": "Sens", "NotInstalled": "Le graphe linguistique n’est pas installé.", "Install": "Installer les données linguistiques", "NoGraph": "Aucune donnée de graphe pour cet élément.", "None": "Aucune"}, "Provenance": "Provenance", "FullGraph": "Ouvrir le graphe complet", "Prediction": {"None": "Aucune prédiction."}},
-      "Aspect": { "Grammar": "Grammaire",
+      "Capability": {
+        "surface-recognition": "Reconnaissance",
+        "surface-reading": "Lecture",
+        "pronunciation-production": "Prononciation"
+      },
+      "LegacySource": {
+        "Prefix": "Source de preuve : ",
+        "None": "Aucune"
+      },
+      "Basis": {
+        "Claim": "Déclaration explicite",
+        "Evidence": "Preuve",
+        "Unmeasured": "Non mesuré",
+        "Prediction": "Prédit",
+        "Excluded": "Exclu"
+      },
+      "OverrideWarning": {
+        "Confirm": "Modifier quand même",
+        "DontRemind": "Ne plus me rappeler",
+        "Message": "Ce statut possède déjà des preuves. La modification ajoute une déclaration manuelle sans effacer ces preuves.",
+        "Title": "Remplacement de connaissance"
+      },
+      "Popup": {
+        "Overall": "Global",
+        "Basis": "Base",
+        "Rate": "Évaluer",
+        "Inspect": "Inspecter"
+      },
+      "Projection": {
+        "Excluded": "Exclu de l’apprentissage",
+        "Why": {
+          "Claim": "Votre déclaration",
+          "Evidence": "Preuves issues de {count} révisions SRS",
+          "Predicted": "Prédit d’après le support du graphe",
+          "PredictedLinks": "Prédit via {count} chemins de support du graphe",
+          "Passive": "Vu {count} fois en lecture — l’exposition passive est de la familiarité, pas une preuve",
+          "Unmeasured": "Rien de mesuré pour l’instant"
+        },
+        "Capabilities": "Capacités de connaissance",
+        "AspectClaims": "Aspects",
+        "Details": "Connaissance du mot",
+        "Graph": "Graphe",
+        "Unavailable": "Les détails de connaissance ne sont pas disponibles.",
+        "Evidence": {
+          "Known": "Connu étayé",
+          "Learning": "En apprentissage étayé",
+          "Unknown": "Fondé sur des preuves : inconnu",
+          "Title": "Preuves actives",
+          "None": "Aucune preuve active.",
+          "Claim": "Déclaration : {status}",
+          "ClaimCleared": "Déclaration annulée"
+        },
+        "Predicted": "Prédit",
+        "Unmeasured": "Non mesuré",
+        "Because": "Parce que :",
+        "Strength": "Aisance {ease} · vu {seen} · survolé {hovered}",
+        "Retention": "Pression {pressure} · échéance {due}",
+        "Tabs": {
+          "Identity": "Identité & relations",
+          "Targets": "Cibles",
+          "EvidenceHistory": "Preuves & historique",
+          "Prediction": "Prédiction"
+        },
+        "Claim": {
+          "Known": "Déclaration explicite : connu",
+          "Learning": "Déclaration explicite : en apprentissage",
+          "Unmeasured": "Déclaration explicite : non mesuré",
+          "Unknown": "Déclaration explicite : inconnu"
+        },
+        "ClaimOverride": "Déclaration explicite — remplace les preuves",
+        "Identity": {
+          "Surface": "Surface",
+          "Canonical": "Forme canonique",
+          "Senses": "Sens",
+          "NotInstalled": "Le graphe linguistique n’est pas installé.",
+          "Install": "Installer les données linguistiques",
+          "NoGraph": "Aucune donnée de graphe pour cet élément.",
+          "None": "Aucune",
+          "NotInGraph": "Cet élément apparenté ne fait pas partie du graphe linguistique.",
+          "BackToWord": "Retour à {word}",
+          "Viewing": "Relations de {label}",
+          "Sections": {
+            "Pronunciations": "Prononciations",
+            "Morphology": "Morphologie",
+            "Characters": "Caractères",
+            "Grammar": "Grammaire"
+          }
+        },
+        "Provenance": "Provenance",
+        "FullGraph": "Ouvrir le graphe complet",
+        "Prediction": {
+          "None": "Aucune prédiction."
+        }
+      },
+      "Aspect": {
+        "Grammar": "Grammaire",
         "Meaning": "Sens",
         "Reading": "Lecture",
         "Prosody": "Prosodie",
@@ -1324,7 +1458,9 @@
       "AspectInherited": "(hérité)",
       "Untracked": "Non suivi",
       "History": {
-        "Empty": "Pas encore d'historique de connaissance.", "Today": "Aujourd'hui", "Yesterday": "Hier",
+        "Empty": "Pas encore d'historique de connaissance.",
+        "Today": "Aujourd'hui",
+        "Yesterday": "Hier",
         "Kind": {
           "Status": "Changement de statut",
           "Review": "Révision",
@@ -1341,7 +1477,9 @@
           "Grammar": "Grammaire"
         }
       },
-      "Actions": { "ClearOverride": "Annuler le remplacement" }
+      "Actions": {
+        "ClearOverride": "Annuler le remplacement"
+      }
     },
     "LevelStudy": {
       "Title": "Étude par niveau",
@@ -1355,7 +1493,8 @@
         "Description": "Étudiez des mots organisés par niveau. Suivez vos progrès et ajoutez des mots aux flashcards."
       },
       "Coverage": {
-        "Title": "Couverture des mots par niveau", "Assessed": "évalué",
+        "Title": "Couverture des mots par niveau",
+        "Assessed": "évalué",
         "UpTo": "Mots jusqu'à",
         "AllLevels": "Mots de tous les niveaux",
         "SetLevelHint": "Définissez votre niveau d'apprentissage dans les paramètres",
@@ -2827,7 +2966,8 @@
       },
       "Columns": {
         "Level": "Niveau",
-        "Status": "Statut", "Knowledge": "Connaissance",
+        "Status": "Statut",
+        "Knowledge": "Connaissance",
         "TrackedBy": "Suivi par",
         "Translation": "Traduction",
         "Word": "Mot"
@@ -2888,7 +3028,7 @@
         "Unknown": "Inconnu"
       },
       "TimesSeen": "Vu {count} fois",
-      "Knowledge": { },
+      "Knowledge": {},
       "AnkiModifyWarning": {
         "Title": "Modifier les cartes Anki",
         "Message": "Cela modifiera l'aisance et la position de vos cartes Anki pour ce mot. Les nouvelles cartes seront déplacées en tête de la file de révision.",
@@ -2899,7 +3039,11 @@
       "AnkiEase": "Aisance Anki : {ease}",
       "AnkiUpdateSuccess": "{count} carte(s) Anki mise(s) à jour",
       "AnkiUpdateRepositioned": "{count} carte(s) mise(s) à jour, {repositioned} nouvelle(s) carte(s) repositionnée(s)",
-      "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki"
+      "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki",
+      "Compound": {
+        "Title": "Mot composé",
+        "Ambiguous": "Plusieurs lectures"
+      }
     },
     "ConnectionStatus": {
       "Connected": "Connecté",

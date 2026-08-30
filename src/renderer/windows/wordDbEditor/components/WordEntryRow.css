@@ -11,6 +11,27 @@
   transition: background 0.15s ease;
 }
 
+/* Expanded local graph view (GraphNeighborhoodViz host) */
+.entry__graph {
+  width: 100%;
+  padding: 0.35rem 1rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.entry__graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.entry__graph-note {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+
 .entry:hover {
   background: var(--border-color);
 }

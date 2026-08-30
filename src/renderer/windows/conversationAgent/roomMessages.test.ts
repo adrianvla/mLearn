@@ -91,6 +91,36 @@ describe('renderCompiledContext', () => {
     };
     expect(renderCompiledContext(ctx, [p1], 'You')).toBe('## Persona\nx');
   });
+  it('renders the grammar exposure line with unmeasured phrasing when present', () => {
+    const ctx: CompiledContext = {
+      persona: { text: 'x', facets: {} },
+      negativeKnowledge: [],
+      relationships: [],
+      memories: [],
+      openLoops: [],
+      recentThreadEvents: [],
+      learnerProjection: { failedWords: ['難しい'], grammarPoints: ['てform'], grammarExposure: ['ている', '〜てしまう'] },
+    };
+    const out = renderCompiledContext(ctx, [p1], 'You');
+    expect(out).toContain('Grammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): ている, 〜てしまう');
+    // Exposure patterns must not leak into the demonstrated-failure phrasings.
+    expect(out).toContain('Grammar points selected for practice: てform');
+  });
+
+  it('omits the grammar exposure line when absent', () => {
+    const ctx: CompiledContext = {
+      persona: { text: 'x', facets: {} },
+      negativeKnowledge: [],
+      relationships: [],
+      memories: [],
+      openLoops: [],
+      recentThreadEvents: [],
+      learnerProjection: { grammarPoints: ['てform'] },
+    };
+    const out = renderCompiledContext(ctx, [p1], 'You');
+    expect(out).not.toContain('Grammar seen repeatedly');
+    expect(out).toContain('Grammar points selected for practice: てform');
+  });
 });
 
 describe('messageText', () => {

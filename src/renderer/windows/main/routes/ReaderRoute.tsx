@@ -32,6 +32,7 @@ import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../../utils/levelPercentages';
+import { buildGrammarExposure } from '../../../utils/grammarExposure';
 import {
   getReaderCollatePagesForLanguage,
   getReaderFirstPageSingleForLanguage,
@@ -75,6 +76,7 @@ import { scrollReaderToPageStart } from './readerNavigation';
 import { readerTextThemeClass } from './readerTextThemes';
 import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
+import { createGrammarEncounterRecorder, journalGrammarEncountersForTokenGroups } from '../../../../shared/grammar/encounters';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { getColoredProsodyConfig, coloredProsodyNeedsDictionaryLookup } from '../../../utils/coloredProsody';
@@ -210,7 +212,10 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const [tokenParagraphs, setTokenParagraphs] = createSignal<Token[][]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
   const { settings } = useSettings();
-  const { currentLangData, getLanguageFeatures } = useLanguage();
+  const { currentLangData, getLanguageFeatures, supportsGrammar } = useLanguage();
+  const flashcardCtx = useFlashcards();
+  // REQ39: one encounter per pattern per reader page display.
+  const grammarEncounterRecorder = createGrammarEncounterRecorder('reader');
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const text = () => props.page.text ?? '';
@@ -263,6 +268,20 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
             dictionaryTargetLanguage: dictionaryTargetLanguage(),
             tokenizerCapabilities: tokenizerCapabilities(),
           });
+          // REQ39: journal grammar occurrences for reader text as factual-exposure encounters.
+          if (supportsGrammar()) {
+            const languageData = currentLangData();
+            const grammar = languageData?.grammar;
+            if (grammar?.length) {
+              queueMicrotask(() => {
+                journalGrammarEncountersForTokenGroups(flashcardCtx, grammarEncounterRecorder, props.page.id, nextTokenParagraphs, {
+                  language: settings.language,
+                  grammar,
+                  languageData,
+                });
+              });
+            }
+          }
         }
       })
       .catch(() => {
@@ -998,6 +1017,9 @@ export const ReaderRoute: Component = () => {
     setIsAddingAllSidebarWords(false);
   }));
 
+  // REQ39: OCR pages are displayed concurrently — per-page encounter state, reset per fresh OCR pass.
+  const ocrGrammarEncounterRecorder = createGrammarEncounterRecorder('reader-ocr', { exclusive: false });
+
   const handlePageTokenData = (pageId: string, entries: Array<{ boxIndex: number; box: OcrBox; tokens: Token[]; contextPhrase: string }>) => {
     const nextEntries: ReaderPageWordSource[] = [];
 
@@ -1021,6 +1043,24 @@ export const ReaderRoute: Component = () => {
     }
 
     setOcrPageWords(pageId, nextEntries);
+
+    // REQ39: journal grammar occurrences for OCR'd page text as factual-exposure encounters.
+    // Dedupe is per page with reset on a fresh (empty) token pass, so incremental box fills
+    // and overlay re-renders cannot flood the journal.
+    if (supportsGrammar()) {
+      const languageData = currentLangData();
+      const grammar = languageData?.grammar;
+      if (!grammar?.length) return;
+      if (entries.length === 0) {
+        ocrGrammarEncounterRecorder.reset(pageId);
+        return;
+      }
+      journalGrammarEncountersForTokenGroups(flashcardCtx, ocrGrammarEncounterRecorder, pageId, entries.map((entry) => entry.tokens), {
+        language: settings.language,
+        grammar,
+        languageData,
+      });
+    }
   };
 
   const getAnchorRectForWord = (entry: ReaderPageWordSource): DOMRect | null => {
@@ -2627,15 +2667,6 @@ export const ReaderRoute: Component = () => {
     // Track word encounter for passive knowledge
     flashcardCtx.trackWordSeen(getReaderPassiveTrackingWord(token, tokenizerCapabilities()), token.reading, undefined, settings.language);
 
-    // Track grammar encounters in OCR context
-    if (supportsGrammar() && contextPhrase) {
-      // Detect grammar in the context phrase tokens (simplified single-token case)
-      const detectedPatterns = detectGrammarInText([token]);
-      for (const pattern of detectedPatterns) {
-        flashcardCtx.trackGrammarEncountered(pattern.pattern, pattern.level, settings.language);
-      }
-    }
-
     // Store context phrase for LLM explain and flashcard example
     setOcrContextPhrase(contextPhrase);
 
@@ -2698,7 +2729,7 @@ export const ReaderRoute: Component = () => {
     const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
     const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
     const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
-    const level = difficulty.lexical;
+    const level = difficulty.headline;
     const levelNames = langCtx.getFreqLevelNames();
 
     // Only include words encountered in this specific media. Refine ease with
@@ -2720,6 +2751,10 @@ export const ReaderRoute: Component = () => {
 
     const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
+    // Exposure-ranked practice candidates: repeatedly encountered in the
+    // canonical knowledge store without any failure. Unmeasured signals only —
+    // failed patterns stay in failedGrammar above.
+    const grammarExposure = buildGrammarExposure(s.grammarEncountered, (pattern) => flashcardCtx.getGrammarKnowledge(pattern, settings.language));
 
     const context: ConversationAgentContext = {
       mediaName: name,
@@ -2730,6 +2765,7 @@ export const ReaderRoute: Component = () => {
       language: lang,
       failedWords,
       failedGrammar,
+      grammarExposure,
       wordLevelPercentages: wordLevels,
       grammarLevelPercentages: grammarLevels,
     };

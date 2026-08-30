@@ -6,6 +6,7 @@
 import { createSignal } from 'solid-js';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
+import { hashWord } from './srsAlgorithm';
 
 // Stats signals
 const [timeWatchedSeconds, setTimeWatchedSeconds] = createSignal<number>(0);
@@ -73,15 +74,12 @@ export function updateTimeWatched(seconds: number): void {
 }
 
 /**
- * Generate unique identifier for a word (base64 hash)
+ * Generate unique identifier for a word: first 16 hex chars of the SHA-256
+ * digest (lowercase). Persisted as flashcard and media IDs — the output shape
+ * must not change or existing stores break.
  */
 export async function toUniqueIdentifier(word: string): Promise<string> {
-  // Simple hash function for browser compatibility
-  const encoded = new TextEncoder().encode(word);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex.substring(0, 16); // Use first 16 chars as ID
+  return (await hashWord(word)).slice(0, 16);
 }
 
 /**

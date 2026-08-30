@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS, KNOWLEDGE_ASPECTS, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { getUserDataPath } from '../utils/platform';
@@ -16,6 +16,7 @@ const SAVE_DEBOUNCE_MS = 300;
 let eventLog: KnowledgeEventLog = {};
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
+let readyPromise: Promise<void> = Promise.resolve();
 
 function getKnowledgeEventsPath(): string {
   return path.join(getUserDataPath(), FILE_NAME);
@@ -37,9 +38,9 @@ function isoWeekKey(timestamp: number): string {
   return `${date.getUTCFullYear()}-${week}`;
 }
 
-const VALID_KINDS = new Set(['status', 'review', 'rating', 'rollup', 'retraction']);
+const VALID_KINDS = new Set(['status', 'review', 'rating', 'rollup', 'claim', 'retraction']);
 const VALID_ASPECTS = new Set<string>([...KNOWLEDGE_ASPECTS, 'grammar']);
-const VALID_SOURCES = new Set([...KNOWLEDGE_SOURCES, 'manual', 'grammar']);
+const VALID_SOURCES = new Set<string>([...KNOWLEDGE_SOURCES, 'manual', 'grammar', 'migration']);
 
 function isAttemptId(value: unknown): boolean {
   return typeof value === 'string' || typeof value === 'number';
@@ -152,20 +153,29 @@ function scheduleSave(): void {
   }, SAVE_DEBOUNCE_MS);
 }
 
-export async function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog> {
-  try {
-    const filePath = getKnowledgeEventsPath();
-    const loaded = normalizeLog(JSON.parse(await fs.promises.readFile(filePath, 'utf-8')) as unknown);
-    const consolidated = applyRetention(consolidateKnowledgeEvents(loaded, now));
-    eventLog = consolidated;
-    if (JSON.stringify(loaded) !== JSON.stringify(consolidated)) await saveKnowledgeEvents();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      log.error('Failed to load knowledge events:', error);
+/** Resolves once the event log has finished loading from disk; IPC handlers gate on this. */
+export function whenKnowledgeEventsReady(): Promise<void> {
+  return readyPromise;
+}
+
+export function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog> {
+  const load = (async () => {
+    try {
+      const filePath = getKnowledgeEventsPath();
+      const loaded = normalizeLog(JSON.parse(await fs.promises.readFile(filePath, 'utf-8')) as unknown);
+      const consolidated = applyRetention(consolidateKnowledgeEvents(loaded, now));
+      eventLog = consolidated;
+      if (JSON.stringify(loaded) !== JSON.stringify(consolidated)) await saveKnowledgeEvents();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        log.error('Failed to load knowledge events:', error);
+      }
+      eventLog = {};
     }
-    eventLog = {};
-  }
-  return getKnowledgeEvents(Object.keys(eventLog));
+    return getKnowledgeEvents(Object.keys(eventLog));
+  })();
+  readyPromise = load.then(() => undefined);
+  return load;
 }
 
 export async function saveKnowledgeEvents(): Promise<void> {
@@ -194,6 +204,9 @@ export async function appendKnowledgeEvents(eventsByKey: KnowledgeEventLog): Pro
     eventLog[key] = retainKnowledgeEvents([...(eventLog[key] ?? []), ...events]);
   }
   scheduleSave();
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);
+  }
 }
 
 export function getKnowledgeEvents(keys: readonly string[]): KnowledgeEventLog {
@@ -212,12 +225,21 @@ export function getKnowledgeEventsForLanguage(language: string): KnowledgeEventL
 export function setupKnowledgeEventsIPC(): void {
   void loadKnowledgeEvents();
 
-  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, async (event, eventsByKey: KnowledgeEventLog) => {
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, async (_event, eventsByKey: KnowledgeEventLog) => {
+    await whenKnowledgeEventsReady();
     await appendKnowledgeEvents(eventsByKey);
-    event.sender.send(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);
     return true;
   });
-  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, (_event, keys: string[]) => getKnowledgeEvents(keys));
-  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY_LANGUAGE, (_event, language: string) => getKnowledgeEventsForLanguage(language));
-  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, (_event, key: string) => getKnowledgeEvents([key]));
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, async (_event, keys: string[]) => {
+    await whenKnowledgeEventsReady();
+    return getKnowledgeEvents(keys);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY_LANGUAGE, async (_event, language: string) => {
+    await whenKnowledgeEventsReady();
+    return getKnowledgeEventsForLanguage(language);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, async (_event, key: string) => {
+    await whenKnowledgeEventsReady();
+    return getKnowledgeEvents([key]);
+  });
 }

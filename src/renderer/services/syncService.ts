@@ -8,7 +8,7 @@
  */
 
 import type { Settings, Flashcard, FlashcardStore } from '../../shared/types';
-import { getNodeServer } from '../../shared/backends/nodeServerAdapter';
+import { getNodeServer, FlashcardSyncConflictError } from '../../shared/backends/nodeServerAdapter';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.services.sync");
@@ -103,31 +103,61 @@ function mergeSettings(local: Settings, remote: Settings): Partial<Settings> | n
 
 /**
  * Pull remote flashcards and merge by UUID.
+ * Returns the revision of the pulled remote store (even when the merge
+ * produced no local data changes), or undefined when nothing was pulled.
  */
-async function pullFlashcards(): Promise<void> {
-  if (!callbacks) return;
+async function pullFlashcards(): Promise<number | undefined> {
+  if (!callbacks) return undefined;
   const server = getNodeServer();
   try {
     const remote = await server.getFlashcards();
-    if (!remote) return;
+    if (!remote) return undefined;
 
     const local = callbacks.getLocalFlashcards();
     const merged = mergeFlashcardStores(local, remote);
     if (merged) {
+      // Stamp the server revision this local view is now based on; pushes
+      // echo it back so the server can detect stale snapshots.
+      merged.rev = remote.rev;
       callbacks.onFlashcardsReceived(merged);
     }
+    return remote.rev;
   } catch (e) {
     log.error("error", e);
     // Will be handled by overall sync error
+    return undefined;
   }
 }
 
 /**
- * Push local flashcards to remote.
+ * Push local flashcards to remote. `store.rev` is the revision last pulled
+ * from the server; a 409 means the desktop advanced since then. Re-pull
+ * (re-GET + local merge) and re-POST once; a second 409 is a real sync
+ * conflict and surfaces through the existing error path.
  */
 async function pushFlashcards(store: FlashcardStore): Promise<void> {
   const server = getNodeServer();
-  await server.saveFlashcards(store);
+  try {
+    await server.saveFlashcards(store);
+    return;
+  } catch (e) {
+    if (!(e instanceof FlashcardSyncConflictError)) throw e;
+  }
+
+  const pulledRev = await pullFlashcards();
+  const fresh = callbacks?.getLocalFlashcards();
+  if (!fresh) return;
+  try {
+    // Echo the revision just pulled, even when the re-merge produced no
+    // local data changes (the local store may then still carry an older rev).
+    await server.saveFlashcards({ ...fresh, rev: pulledRev ?? fresh.rev });
+  } catch (e) {
+    if (e instanceof FlashcardSyncConflictError) {
+      log.error('Flashcard sync conflict: server revision advanced again during retry', e);
+      setStatus('error');
+    }
+    throw e;
+  }
 }
 
 /**

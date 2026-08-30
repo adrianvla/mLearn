@@ -83,7 +83,6 @@ interface MockDeps {
   getLanguageFeatures: () => LanguageFeatures;
   getMediaContext: () => ConversationAgentContext | null;
   flashcardCtx: {
-    getWordKnowledge: (_word: string) => { ease: number; timesSeen: number } | undefined;
     trackGrammarFailed: (_pattern: string) => void;
     trackGrammarEncountered: (_pattern: string) => void;
   };
@@ -110,7 +109,6 @@ function createMockDeps(overrides?: Partial<MockDeps>): MockDeps {
     getLanguageFeatures: () => DEFAULT_LANGUAGE_FEATURES,
     getMediaContext: () => null,
     flashcardCtx: {
-      getWordKnowledge: vi.fn<(_word: string) => { ease: number; timesSeen: number } | undefined>(),
       trackGrammarFailed: vi.fn<(_pattern: string) => void>(),
       trackGrammarEncountered: vi.fn<(_pattern: string) => void>(),
     },
@@ -1546,6 +1544,38 @@ describe('createConversationAgent', () => {
       expect(toolMsg.content).toContain('て-form');
     });
 
+    it('lists exposure-ranked grammar as unmeasured practice candidates, not failures', async () => {
+      const mediaCtx: ConversationAgentContext = {
+        mediaName: 'My Anime',
+        mediaType: 'video',
+        mediaHash: 'hash123',
+        assessedLevel: 3,
+        assessedLevelName: 'N3',
+        language: 'ja',
+        failedWords: [],
+        failedGrammar: [
+          { pattern: 'て-form', ease: 2.0, timesFailed: 1 },
+        ],
+        grammarExposure: [{ pattern: '〜てしまう', timesEncountered: 5 }],
+        wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+        grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      };
+
+      const deps = createMockDeps({ getMediaContext: () => mediaCtx });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('stats?', [], callbacks);
+      sendDone([{ id: 'ms1', name: 'get_media_stats', arguments: {} }]);
+
+      await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+
+      const followUpMessages = mockBridge.llm.llmStream.mock.calls[1][0];
+      const toolMsg = followUpMessages.find((m: { role: string }) => m.role === 'tool');
+      expect(toolMsg.content).toContain('unmeasured');
+      expect(toolMsg.content).toContain('〜てしまう (5x)');
+    });
+
     it('returns no-media message when context is null', async () => {
       const deps = createMockDeps({ getMediaContext: () => null });
       const agent = createConversationAgent(deps);
@@ -2204,6 +2234,30 @@ describe('createConversationAgent', () => {
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       expect(messages[0].content).toContain('Attack on Titan');
       expect(messages[0].content).toContain('巨人');
+    });
+
+    it('labels repeated-seen grammar as unmeasured exposure candidates, distinct from failures', () => {
+      const mediaCtx: ConversationAgentContext = {
+        mediaName: 'Attack on Titan',
+        mediaType: 'video',
+        mediaHash: 'h1',
+        assessedLevel: null,
+        assessedLevelName: '',
+        language: 'ja',
+        failedWords: [],
+        failedGrammar: [{ pattern: 'て-form', ease: 2.0, timesFailed: 1 }],
+        grammarExposure: [{ pattern: '〜てしまう', timesEncountered: 5 }],
+        wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+        grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      };
+      const deps = createMockDeps({ isVoiceMode: () => true, getMediaContext: () => mediaCtx });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hi', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('Grammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): 〜てしまう');
     });
   });
 

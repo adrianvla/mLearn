@@ -262,7 +262,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   });
 
   const statusLabel = createMemo(() => (
-    knowledgeStatusLabelKey(effectiveStatus(), comprehensiveResult().basis)
+    t(knowledgeStatusLabelKey(effectiveStatus(), comprehensiveResult().basis))
   ));
 
   return (

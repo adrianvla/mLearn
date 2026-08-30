@@ -1,4 +1,5 @@
 import { SRS_EASE } from '../../shared/constants';
+import { grammarEntityId } from '../../shared/graph/load';
 import type { LearnableTarget } from '../../shared/graph/types';
 import type { Candidate } from './types';
 
@@ -41,6 +42,22 @@ export interface ProbeCooldownState {
   cooldownMs: number;
   uncertaintyFloor: number;
   cooldowns: ReadonlyMap<string, number>;
+}
+
+export interface GrammarEncounterEntry {
+  pattern: string;
+  language: string;
+  /** Passive exposure count (timesEncountered from the grammar knowledge store / evidence replay). */
+  timesEncountered: number;
+  /** True when recorded evidence or an explicit claim already measures the pattern. */
+  measured: boolean;
+}
+
+export interface GrammarEncounterOptions {
+  /** Patterns below this passive exposure count are not offered yet. */
+  minEncounters?: number;
+  /** Exposure count mapped to a full relevance score. Defaults to twice minEncounters. */
+  saturationCount?: number;
 }
 
 export function retentionDueCandidates(cards: readonly FlashcardLike[], nowMs: number): Candidate[] {
@@ -90,6 +107,32 @@ export function weakTargetCandidates(entries: readonly WeakTargetEntry[]): Candi
       scores: {
         'curriculum-relevance': clamp((entry.ease - SRS_EASE.MIN) / learningRange),
       },
+    }));
+}
+
+/**
+ * REQ39 exposure source: repeatedly-seen-but-unmeasured grammar patterns gain
+ * candidate priority through the teaching policy's weighted pick. Pure selector
+ * over the caller-supplied exposure snapshot — never writes knowledge.
+ */
+export function grammarEncounterCandidates(
+  entries: readonly GrammarEncounterEntry[],
+  options: GrammarEncounterOptions = {},
+): Candidate[] {
+  const minEncounters = options.minEncounters ?? 3;
+  const saturation = Math.max(1, options.saturationCount ?? minEncounters * 2);
+  return entries
+    .filter((entry) => !entry.measured && entry.timesEncountered >= minEncounters)
+    .map((entry) => ({
+      key: grammarEntityId(entry.language, entry.pattern),
+      language: entry.language,
+      targets: [{
+        entityId: grammarEntityId(entry.language, entry.pattern),
+        capability: 'grammar-recognition',
+      }],
+      origin: 'grammar',
+      scores: { 'curriculum-relevance': clamp(entry.timesEncountered / saturation) },
+      meta: { pattern: entry.pattern, timesEncountered: entry.timesEncountered },
     }));
 }
 

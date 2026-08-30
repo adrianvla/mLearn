@@ -5,6 +5,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { SubtitleContainer } from './SubtitleContainer';
 import type { LanguageData, Token } from '../../../shared/types';
@@ -31,6 +32,9 @@ const mockIsWordKnownComprehensiveSync = vi.fn((_word: string, language?: string
 const mockIsWordSettledSync = vi.fn((word: string, language?: string) => mockIsWordKnownComprehensiveSync(word, language));
 const mockTrackWordSeen = vi.fn();
 const mockCancelWordHover = vi.fn();
+const mockSupportsGrammar = vi.fn(() => false);
+const mockTrackGrammarFailed = vi.fn();
+const mockTrackGrammarEncountered = vi.fn();
 const mockTranslateWord = vi.fn().mockResolvedValue({
   data: [{ definitions: ['test definition'], reading: 'test reading' }],
 });
@@ -41,7 +45,7 @@ vi.mock('../../context', () => ({
     isTranslatable: () => true,
     isTokenTranslatable: () => true,
     detectGrammarInText: () => [],
-    supportsGrammar: () => false,
+    supportsGrammar: () => mockSupportsGrammar(),
     currentLangData: () => mockLanguageData,
     getCanonicalForm: mockGetCanonicalForm,
     getLanguageFeatures: () => ({ supportsReadings: false, prosodyRenderer: undefined, supportsProsody: false }),
@@ -61,8 +65,8 @@ vi.mock('../../context', () => ({
     trackWordHovered: vi.fn(),
     cancelWordHover: mockCancelWordHover,
     trackWordSeen: mockTrackWordSeen,
-    trackGrammarFailed: vi.fn(),
-    trackGrammarEncountered: vi.fn(),
+    trackGrammarFailed: mockTrackGrammarFailed,
+    trackGrammarEncountered: mockTrackGrammarEncountered,
     ignoreWordForLanguage: vi.fn(),
     store: { wordKnowledge: {} },
   }),
@@ -114,6 +118,9 @@ describe('SubtitleContainer', () => {
     mockIsWordKnownComprehensiveSync.mockClear();
     mockTrackWordSeen.mockClear();
     mockCancelWordHover.mockClear();
+    mockTrackGrammarFailed.mockClear();
+    mockTrackGrammarEncountered.mockClear();
+    mockSupportsGrammar.mockReturnValue(false);
     mockTranslateWord.mockReset();
     mockTranslateWord.mockResolvedValue({
       data: [{ definitions: ['test definition'], reading: 'test reading' }],
@@ -572,4 +579,114 @@ describe('SubtitleContainer', () => {
     dispose();
     mockSettings.hardcoreMode = false;
   });
+
+  // REQ39: grammar immersion loop — occurrences detected during normal
+  // immersion are journaled as factual-exposure encounters (rollups), one per
+  // pattern per subtitle display.
+  const grammarLanguageData: LanguageData = {
+    name: 'English',
+    textProcessing: { tokenJoinSeparator: ' ' },
+    runtime: { nlp: { tokenizer: { type: 'spacy', capabilities: ['segments'] } } },
+    grammar: [
+      { pattern: 'hello world', meaning: 'greeting', level: 1 },
+    ],
+  };
+
+  const renderSubtitle = (tokens: () => Token[]) => render(
+    () => (
+      <SubtitleContainer
+        tokens={tokens()}
+        originalText="hello world"
+        isLoading={false}
+      />
+    ),
+    container,
+  );
+
+  it('journals a grammar encounter with span and confidence when a subtitle with a pattern is shown', async () => {
+    mockSupportsGrammar.mockReturnValue(true);
+    mockLanguageData = grammarLanguageData;
+
+    const dispose = renderSubtitle(() => mockTokens);
+
+    await vi.waitFor(() => expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(1));
+    expect(mockTrackGrammarEncountered).toHaveBeenCalledWith('hello world', {
+      confidence: 0.65,
+      span: { start: 0, end: 2 },
+      origin: 'subtitle:literal',
+    });
+
+    dispose();
+  });
+
+  it('aggregates repeated detections of the same pattern within one subtitle into a single encounter', async () => {
+    mockSupportsGrammar.mockReturnValue(true);
+    mockLanguageData = grammarLanguageData;
+    const [tokens, setTokens] = createSignal<Token[]>(mockTokens);
+
+    const dispose = renderSubtitle(tokens);
+
+    await vi.waitFor(() => expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(1));
+
+    // Same subtitle line re-detected via a fresh token array (identical content)
+    setTokens([...mockTokens]);
+    const flush = Promise.withResolvers<void>();
+    setTimeout(flush.resolve, 0);
+    await flush.promise;
+    expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(1);
+
+    dispose();
+  });
+
+  it('journals a new encounter when the pattern reappears in a later subtitle line', async () => {
+    mockSupportsGrammar.mockReturnValue(true);
+    mockLanguageData = grammarLanguageData;
+    const [tokens, setTokens] = createSignal<Token[]>(mockTokens);
+
+    const dispose = renderSubtitle(tokens);
+
+    await vi.waitFor(() => expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(1));
+
+    setTokens([
+      { word: 'well', surface: 'well', actual_word: 'well', type: 'adverb', partOfSpeech: 'adverb' },
+      { word: 'hello', surface: 'hello', actual_word: 'hello', type: 'noun', partOfSpeech: 'noun' },
+      { word: 'world', surface: 'world', actual_word: 'world', type: 'noun', partOfSpeech: 'noun' },
+    ]);
+
+    await vi.waitFor(() => expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(2));
+    expect(mockTrackGrammarEncountered).toHaveBeenLastCalledWith('hello world', {
+      confidence: 0.65,
+      span: { start: 1, end: 3 },
+      origin: 'subtitle:literal',
+    });
+
+    dispose();
+  });
+
+  it('does not create mastery evidence from passive subtitle exposure', async () => {
+    mockSupportsGrammar.mockReturnValue(true);
+    mockLanguageData = grammarLanguageData;
+
+    const dispose = renderSubtitle(() => mockTokens);
+
+    await vi.waitFor(() => expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(1));
+    expect(mockTrackGrammarFailed).not.toHaveBeenCalled();
+
+    dispose();
+  });
+
+  it('does not journal grammar encounters when grammar recognition is unsupported', async () => {
+    mockSupportsGrammar.mockReturnValue(false);
+    mockLanguageData = grammarLanguageData;
+
+    const dispose = renderSubtitle(() => mockTokens);
+
+    const flush = Promise.withResolvers<void>();
+    setTimeout(flush.resolve, 0);
+    await flush.promise;
+    expect(mockTrackGrammarEncountered).not.toHaveBeenCalled();
+
+    dispose();
+  });
+
 });

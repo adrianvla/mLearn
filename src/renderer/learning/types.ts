@@ -30,7 +30,16 @@ export interface Candidate {
   word?: string;
   language: string;
   targets: LearnableTarget[];
-  origin: 'retention' | 'curriculum' | 'calibration' | 'weak-target' | 'probe' | 'media';
+  origin:
+    | 'retention'
+    | 'curriculum'
+    | 'calibration'
+    | 'weak-target'
+    | 'probe'
+    | 'media'
+    | 'grammar'
+    /** Reserved extension point for future external teacher-assignment sources. No built-in source emits it; the policy falls through to TEACH. */
+    | 'assignment';
   scores: Partial<Record<ScoreDimension, number>>;
   meta?: Record<string, unknown>;
 }

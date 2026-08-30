@@ -113,6 +113,13 @@ describe('statsService', () => {
       const id2 = await toUniqueIdentifier('consistent');
       expect(id1).toBe(id2);
     });
+
+    it('returns the exact pinned SHA-256 prefix for fixed inputs (drift guard)', async () => {
+      const { toUniqueIdentifier } = await import('./statsService');
+      expect(await toUniqueIdentifier('hello')).toBe('2cf24dba5fb0a30e');
+      expect(await toUniqueIdentifier('日本語')).toBe('77710aedc74ecfa3');
+      expect(await toUniqueIdentifier('')).toBe('e3b0c44298fc1c14');
+    });
   });
 
   describe('setupVideoTracking', () => {

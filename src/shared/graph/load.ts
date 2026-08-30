@@ -3,7 +3,6 @@ import {
   RELATION_CATEGORY,
   type GraphDomain,
   type GraphEntity,
-  type GraphEntityKind,
   type GraphRelation,
   type LinguisticGraphAsset,
   type RelationCategory,
@@ -90,10 +89,6 @@ export function identityNeighbors(graph: LingualGraph, id: string): string[] {
   return relationsOf(graph, id, { category: 'identity' }).map((relation) =>
     relation.from === id ? relation.to : relation.from,
   );
-}
-
-export function entitiesOfKind(graph: LingualGraph, kind: GraphEntityKind): GraphEntity[] {
-  return [...graph.nodes.values()].filter((entity) => entity.kind === kind);
 }
 
 export function entitiesInDomains(graph: LingualGraph, enabled: readonly GraphDomain[]): GraphEntity[] {

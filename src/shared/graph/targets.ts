@@ -49,11 +49,6 @@ export function learnableTargetsFor(graph: LingualGraph, entities: readonly Grap
   return targets;
 }
 
-/** Current user-facing aspect vocabulary resolved to its typed capability. */
-export function capabilityForAspect(aspect: KnowledgeAspect): CapabilityKind {
-  return ASPECT_CAPABILITY[aspect];
-}
-
 /** Surface-scoped aspects resolve on the presented form's own hash only — family unification must never apply to them. */
 export function isSurfaceScopedAspect(aspect: KnowledgeAspect): boolean {
   return SURFACE_SCOPED_CAPABILITIES.includes(ASPECT_CAPABILITY[aspect]);

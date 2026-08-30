@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   calibrationUnmeasuredCandidates,
   curriculumCandidates,
+  grammarEncounterCandidates,
   mediaOpportunityCandidates,
   probeCandidates,
   retentionDueCandidates,
@@ -117,5 +118,39 @@ describe('curriculum, media, and suggested sources', () => {
     expect(curriculumCandidates(items)[0].origin).toBe('curriculum');
     expect(mediaOpportunityCandidates(items)[0].origin).toBe('media');
     expect(suggestedLearningCandidates(items)[0].origin).toBe('curriculum');
+  });
+});
+
+describe('grammarEncounterCandidates', () => {
+  it('emits grammar candidates for unmeasured patterns above the exposure floor', () => {
+    const candidates = grammarEncounterCandidates([
+      { pattern: 'past tense', language: 'de', timesEncountered: 12, measured: false },
+      { pattern: 'negation', language: 'de', timesEncountered: 4, measured: false },
+      { pattern: 'subjunctive', language: 'de', timesEncountered: 9, measured: true },
+      { pattern: 'rare', language: 'de', timesEncountered: 2, measured: false },
+    ]);
+
+    expect(candidates).toHaveLength(2);
+    expect(candidates[0]).toMatchObject({
+      key: 'de:grammar:past tense',
+      language: 'de',
+      origin: 'grammar',
+      targets: [{ entityId: 'de:grammar:past tense', capability: 'grammar-recognition' }],
+      meta: { pattern: 'past tense', timesEncountered: 12 },
+    });
+    expect(candidates[0].scores['curriculum-relevance']).toBe(1);
+    expect(candidates[1].scores['curriculum-relevance']).toBeCloseTo(4 / 6);
+  });
+
+  it('honors custom floors and stays a pure selector over its inputs', () => {
+    const entries = Object.freeze([
+      Object.freeze({ pattern: 'conditional', language: 'fr', timesEncountered: 7, measured: false }),
+    ]);
+
+    const candidates = grammarEncounterCandidates(entries, { minEncounters: 5, saturationCount: 7 });
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].scores['curriculum-relevance']).toBe(1);
+    expect(entries).toEqual([{ pattern: 'conditional', language: 'fr', timesEncountered: 7, measured: false }]);
   });
 });

@@ -18,6 +18,7 @@ import { extractReadingValue } from '../../utils/translationCacheParsers';
 import { sanitizeHtml } from '../../utils/sanitizeHtml';
 import { getLanguageCssDirection, getSubtitleFontFamily, getTokenJoinSeparator } from '../../../shared/languageFeatures';
 import { detectGrammarOccurrences, type GrammarOccurrence } from '../../../shared/grammar/occurrences';
+import { createGrammarEncounterRecorder, journalGrammarEncounters } from '../../../shared/grammar/encounters';
 import './SubtitleContainer.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -57,9 +58,11 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
   const [translationData, setTranslationData] = createSignal<TranslationResponse | null>(null);
-  const [wordStatus, setWordStatus] = createSignal<WordStatus>('unknown');
   const [currentHoverToken, setCurrentHoverToken] = createSignal<Token | null>(null);
+  const [wordStatus, setWordStatus] = createSignal<WordStatus>('unknown');
   const [grammarOccurrences, setGrammarOccurrences] = createSignal<GrammarOccurrence[]>([]);
+  // REQ39: journal grammar occurrences as factual-exposure encounters, one per pattern per subtitle line.
+  const grammarEncounterRecorder = createGrammarEncounterRecorder('subtitle');
   
   // Explainer popup state
   const [explainerOpen, setExplainerOpen] = createSignal(false);
@@ -284,12 +287,18 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       return;
     }
     const grammar = languageData.grammar;
-    queueMicrotask(() => setGrammarOccurrences(detectGrammarOccurrences({
-      language: settings.language,
-      grammar,
-      tokens,
-      languageData,
-    })));
+    queueMicrotask(() => {
+      const detected = detectGrammarOccurrences({
+        language: settings.language,
+        grammar,
+        tokens,
+        languageData,
+      });
+      setGrammarOccurrences(detected);
+      if (detected.length === 0) return;
+      const subtitleKey = tokens.map((token) => token.surface ?? token.word).join('|');
+      journalGrammarEncounters(flashcardCtx, grammarEncounterRecorder, subtitleKey, detected);
+    });
   });
 
   // Pre-fetch translations for all translatable words when subtitle appears

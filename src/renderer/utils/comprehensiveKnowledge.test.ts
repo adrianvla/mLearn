@@ -71,9 +71,25 @@ describe('getComprehensiveWordStatusWithSource (Tier-2 semantics)', () => {
     expect(result.evidenceStatus).toBe('unknown');
   });
 
-  it('pure passive exposure never establishes Known (honesty cap at learning)', () => {
+  it('pure passive exposure is untracked — never Learning, never evidence-backed', () => {
     const deps = makeDeps({
       wordKnowledge: { 'ru:hash:слово': entry({ ease: 2.6, timesSeen: 50, lastEvidenceSource: 'passiveTracking' }) },
+    });
+
+    const result = getComprehensiveWordStatusWithSource('слово', deps);
+
+    // REQ13: familiarity (timesSeen 50, high ease) proves nothing epistemic.
+    expect(result.status).toBe('unknown');
+    expect(result.basis).toBe('unmeasured');
+    expect(result.evidenceStatus).toBe('unknown');
+    // Familiarity counts survive for familiarity consumers.
+    expect(result.timesSeen).toBe(50);
+    expect(result.ease).toBe(2.6);
+  });
+
+  it('an explicit status marker without the active flag stays measured and capped at learning', () => {
+    const deps = makeDeps({
+      wordKnowledge: { 'ru:hash:слово': entry({ ease: 2.6, timesSeen: 50, lastStatusChange: 5 }) },
     });
 
     const result = getComprehensiveWordStatusWithSource('слово', deps);

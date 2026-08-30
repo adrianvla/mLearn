@@ -6,11 +6,19 @@ import type { GraphNeighborhood } from '../../../shared/graph/ipc';
 import { getBridge } from '../../../shared/bridges';
 import { WindowWrapper, useFlashcards, useGraph, useLocalization, useSettings } from '../../context';
 import { openGraphInspector } from '../../services/openGraphInspector';
+import { GraphNeighborhoodViz } from '../../components/common';
 import './GraphInspector.css';
 
 const classes: RelationCategory[] = ['identity', 'property', 'support'];
 const targetStates: Record<TargetState, string> = {
-  'evidence-backed-known': 'Known', learning: 'Learning', predicted: 'Predicted', unmeasured: 'Unmeasured', excluded: 'Excluded',
+  'evidence-backed-known': 'Known',
+  'claimed-known': 'Known (claim)',
+  'claimed-learning': 'Learning (claim)',
+  'claimed-unknown': 'Unknown (claim)',
+  learning: 'Learning',
+  unknown: 'Unknown',
+  predicted: 'Predicted',
+  unmeasured: 'Unmeasured',
 };
 
 export const GraphInspectorContent: Component = () => {
@@ -55,6 +63,14 @@ export const GraphInspectorContent: Component = () => {
     <Show when={!graph.meta().ready}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.Unavailable')}</p></Show>
     <Show when={graph.meta().ready && !neighborhood()}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.SelectEntity')}</p></Show>
     <Show when={neighborhood()}>
+      <section class="graph-inspector__section">
+        <h2>{t('mlearn.GraphInspector.Neighborhood.Title')}</h2>
+        <GraphNeighborhoodViz
+          neighborhood={neighborhood()!}
+          centerState={explanation()?.state}
+          onSelect={(id) => { setSelectedCapability(undefined); setEntityId(id); }}
+        />
+      </section>
       <section class="graph-inspector__targets"><h2>{t('mlearn.GraphInspector.Capabilities')}</h2><For each={capabilitiesFor(neighborhood()!)}>{(capability) => <button type="button" class="graph-inspector__chip" onClick={() => setSelectedCapability(capability)}>{capability}</button>}</For></section>
       <For each={classes}>{(category) => <section class={`graph-inspector__section graph-inspector__section--${category}`}>
         <h2>{t(`mlearn.GraphInspector.${category}`)}</h2><Show when={category === 'support'}><p>{t('mlearn.GraphInspector.SupportCaption')}</p></Show>

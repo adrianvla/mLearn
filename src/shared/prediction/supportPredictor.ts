@@ -78,7 +78,9 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
   }
 
   const compound = input.compound && decomposeGermanCompound(input.compound.surface, germanLexicon(graph));
-  if (compound?.source === 'generated') {
+  // Conservative: only a UNIQUE generated parse extends support. An ambiguous
+  // compound receives no prediction credit from its preferred parse alone.
+  if (compound?.source === 'generated' && !compound.ambiguous) {
     const parts = leafLemmas(compound.parts);
     const knownParts = parts.filter(input.compound!.isKnownPart);
     const credit = compound.confidence * knownParts.length / Math.max(1, parts.length);

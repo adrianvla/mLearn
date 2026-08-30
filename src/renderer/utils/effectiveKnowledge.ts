@@ -6,12 +6,21 @@ import type { PassiveWordKnowledge } from '../../shared/types';
  *
  * One rule, no voting, no per-surface overrides:
  *
- *   effective status = active explicit claim ?? evidence-derived status
+ *   effective status = active explicit claim ?? active evidence classification ?? unmeasured
  *
  * - A claim is the user's own statement (journal kind 'claim'); it overrides
  *   the *classification* while the underlying evidence (ease) stays intact.
- * - Without a claim, the evidence projection (replayed ease vs thresholds)
- *   classifies the word.
+ * - Active evidence (SRS review, Anki, attempt rating, migration — any
+ *   non-passiveTracking source) classifies the word through the ease bands.
+ * - Pure passive exposure is FAMILIARITY, never epistemic evidence (REQ13):
+ *   no claim + no hasActiveEvidence + no explicit status marker resolves to
+ *   basis 'unmeasured' / status 'unknown' — it renders Untracked everywhere.
+ *   timesSeen/timesHovered/ease stay visible as familiarity; `hasEvidence`
+ *   stays true so familiarity consumers keep working.
+ * - Fallback for mixed entries (explicit status marker present but the
+ *   active-evidence flag missing — legacy/half-synced rows): the passive
+ *   Known→Learning honesty cap still applies so exposure alone can never
+ *   display Known.
  * - No entry → unmeasured/unknown. `excluded` (ignore policy) is orthogonal:
  *   it never changes the status, consumers must gate on it separately.
  *
@@ -55,14 +64,21 @@ export function effectiveStateFromEntry(
   if (!entry) {
     return { status: 'unknown', basis: 'unmeasured', evidenceStatus: 'unknown', hasEvidence: false, ease: 0 };
   }
-  // Honesty rule: pure passive exposure never establishes Known — display
-  // familiarity caps at Learning. "Known" evidence requires an active source
-  // (SRS review, Anki, attempt rating, migration import) or an explicit claim.
+  const hasActiveEvidence = entry.hasActiveEvidence === true;
+  const hasExplicitStatusMarker = entry.lastStatusChange !== undefined;
+  // REQ13: passive-only exposure (no claim, no active evidence, no explicit
+  // status marker) is familiarity — it measures nothing epistemic.
+  const passiveOnly = !hasActiveEvidence && !hasExplicitStatusMarker;
+  // Honesty rules: pure passive evidenceStatus is Unknown (no measurement);
+  // for mixed rows without the active flag, Known still caps at Learning so
+  // exposure alone can never demonstrate Known.
   const rawEvidenceStatus = evidenceStatusFromEase(entry.ease, thresholds);
-  const evidenceStatus = rawEvidenceStatus === 'known' && entry.hasActiveEvidence !== true
-    ? 'learning'
-    : rawEvidenceStatus;
-  const hasEvidence = entry.timesSeen > 0 || entry.timesHovered > 0 || entry.lastStatusChange !== undefined || entry.ease > 0;
+  const evidenceStatus = passiveOnly
+    ? 'unknown'
+    : rawEvidenceStatus === 'known' && !hasActiveEvidence
+      ? 'learning'
+      : rawEvidenceStatus;
+  const hasEvidence = entry.timesSeen > 0 || entry.timesHovered > 0 || hasActiveEvidence || hasExplicitStatusMarker;
   if (entry.claim !== undefined) {
     return {
       status: entry.claim,
@@ -72,6 +88,9 @@ export function effectiveStateFromEntry(
       hasEvidence,
       ease: entry.ease,
     };
+  }
+  if (passiveOnly) {
+    return { status: 'unknown', basis: 'unmeasured', evidenceStatus, hasEvidence, ease: entry.ease };
   }
   return {
     status: evidenceStatus,

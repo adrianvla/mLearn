@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GRAMMAR_ENCOUNTER_EASE_BUMP, GRAMMAR_FAIL_EASE_PENALTY, initialGrammarEase } from '../utils/grammarPolicy';
 import { grammarEvidenceKey, grammarRecognitionEvidence, grammarTarget, replayGrammarRecognition } from './evidence';
 
 describe('grammar capability evidence', () => {
@@ -38,5 +39,36 @@ describe('grammar capability evidence', () => {
     };
 
     expect(replayGrammarRecognition([migrated])).toMatchObject({ ease: 2.7, timesEncountered: 8, timesFailed: 2 });
+  });
+
+  it('derives ease from encounter/failure deltas when no outcome is recorded', () => {
+    const encounter = grammarRecognitionEvidence('ja', 'ている', { t: 1, kind: 'rollup', timesSeenDelta: 1, origin: 'grammar-encounter' });
+    const failure = grammarRecognitionEvidence('ja', 'ている', { t: 2, kind: 'rollup', grammarFailedDelta: 1, origin: 'grammar-failure' });
+
+    const projection = replayGrammarRecognition([encounter, failure]);
+    expect(projection).toMatchObject({ timesEncountered: 1, timesFailed: 1, firstSeen: 1, lastSeen: 2 });
+    expect(projection!.ease).toBeCloseTo(initialGrammarEase() + GRAMMAR_ENCOUNTER_EASE_BUMP - GRAMMAR_FAIL_EASE_PENALTY, 10);
+  });
+
+  it('explicit outcomes override delta-derived ease in mixed logs', () => {
+    const encounter = grammarRecognitionEvidence('ja', 'ている', { t: 1, kind: 'rollup', timesSeenDelta: 1, origin: 'grammar-encounter' });
+    const migrated = {
+      ...grammarRecognitionEvidence('ja', 'ている', { t: 2, kind: 'rollup' }),
+      origin: 'grammar-legacy-migration',
+      easeAfter: 3.1,
+      timesSeenDelta: 2,
+      grammarFailedDelta: 1,
+    };
+    const after = grammarRecognitionEvidence('ja', 'ている', { t: 3, kind: 'rollup', grammarFailedDelta: 1, origin: 'grammar-failure' });
+
+    const projection = replayGrammarRecognition([encounter, migrated, after]);
+    expect(projection).toMatchObject({ timesEncountered: 3, timesFailed: 2 });
+    expect(projection!.ease).toBeCloseTo(Math.max(3.1 - GRAMMAR_FAIL_EASE_PENALTY, 0), 10);
+  });
+
+  it('floors delta-derived failures at the policy floor', () => {
+    const failure = grammarRecognitionEvidence('ja', 'ている', { t: 1, kind: 'rollup', grammarFailedDelta: 10, origin: 'grammar-failure' });
+
+    expect(replayGrammarRecognition([failure])!.ease).toBe(0);
   });
 });

@@ -6,6 +6,7 @@
 
 import { Component, createSignal, createMemo, For, Show, onMount, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
+import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { CheckboxCard, EmptyState, HintText, VideoIcon, BookIcon } from '../common';
@@ -17,13 +18,10 @@ interface MediaSelectorProps {
   onSelectionChange: (selected: TutorMediaSelection[]) => void;
 }
 
-  // Legacy ease-band heuristic — predicted unfamiliarity, not direct evidence.
-  // Rewires to grammar-target projection reads when the grammar substrate lands.
-  const getFailedGrammarThreshold = (settings: { easeThresholdKnown: number }) => settings.easeThresholdKnown;
-
 export const MediaSelector: Component<MediaSelectorProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
+  const flashcardCtx = useFlashcards();
 
   const [allMedia, setAllMedia] = createSignal<MediaStats[]>([]);
   const [excludedWords, setExcludedWords] = createSignal<Set<string>>(new Set());
@@ -52,10 +50,16 @@ export const MediaSelector: Component<MediaSelectorProps> = (props) => {
       .sort((a, b) => a.ease - b.ease);
   };
 
-  // Get failed grammar for a given media
+  // Failed grammar = direct evidence the learner struggled — the replayed
+  // grammar projection (timesFailed > 0), or the media's own failure counter
+  // for patterns the projection has not materialized yet. The old ease-band
+  // threshold predicted unfamiliarity instead of observing it.
+  const isFailedGrammar = (g: MediaStatsGrammarEntry): boolean =>
+    g.timesFailed > 0 || (flashcardCtx.getGrammarKnowledge(g.pattern, settings.language)?.timesFailed ?? 0) > 0;
+
   const getFailedGrammar = (media: MediaStats): MediaStatsGrammarEntry[] => {
     return Object.values(media.grammarEncountered)
-      .filter(g => g.ease < getFailedGrammarThreshold(settings))
+      .filter(isFailedGrammar)
       .sort((a, b) => a.ease - b.ease);
   };
 

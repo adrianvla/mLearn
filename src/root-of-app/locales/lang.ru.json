@@ -1,8 +1,47 @@
 {
   "mlearn": {
     "GraphInspector": {
-      "Title": "Инспектор графа", "Unavailable": "Граф активного языка не установлен.", "SelectEntity": "Выберите сущность графа.", "Capabilities": "Навыки", "identity": "Идентичность", "property": "Свойства", "support": "Связанная поддержка", "SupportCaption": "Связано — не знание. Связи поддержки не передают знание.", "Details": "Сведения разработчика", "Target": "Цель", "Projection": "Проекция", "Retention": "Удержание", "Evidence": "Доказательства", "NoDirectEvidence": "Прямых доказательств пока нет.", "PredictionFirewall": "Прогноз отделён от прямых доказательств.",
-      "State": { "Known": "Известно на основе доказательств", "Learning": "Изучается", "Predicted": "Прогноз", "Unmeasured": "Не измерено", "Excluded": "Исключено" }
+      "Title": "Инспектор графа",
+      "Unavailable": "Граф активного языка не установлен.",
+      "SelectEntity": "Выберите сущность графа.",
+      "Capabilities": "Навыки",
+      "identity": "Идентичность",
+      "property": "Свойства",
+      "support": "Связанная поддержка",
+      "SupportCaption": "Связано — не знание. Связи поддержки не передают знание.",
+      "Details": "Сведения разработчика",
+      "Target": "Цель",
+      "Projection": "Проекция",
+      "Retention": "Удержание",
+      "Evidence": "Доказательства",
+      "NoDirectEvidence": "Прямых доказательств пока нет.",
+      "PredictionFirewall": "Прогноз отделён от прямых доказательств.",
+      "State": {
+        "Known": "Известно на основе доказательств",
+        "Learning": "Изучается",
+        "Predicted": "Прогноз",
+        "Unmeasured": "Не измерено",
+        "Excluded": "Исключено"
+      },
+      "Neighborhood": {
+        "Title": "Локальный граф",
+        "Toggle": "Граф",
+        "Empty": "Вокруг этого элемента нет связей.",
+        "Truncated": "Показано связей: {shown} из {total}.",
+        "NotInGraph": "Этот элемент не входит в языковой граф.",
+        "OpenInWindow": "Открыть в инспекторе графа",
+        "Loading": "Загрузка окрестности…",
+        "State": {
+          "EvidenceBackedKnown": "Известно на основе доказательств",
+          "ClaimedKnown": "Известно (заявлено)",
+          "ClaimedLearning": "Изучается (заявлено)",
+          "ClaimedUnknown": "Неизвестно (заявлено)",
+          "Learning": "Изучается",
+          "Unknown": "Неизвестно",
+          "Predicted": "Прогноз",
+          "Unmeasured": "Не измерено"
+        }
+      }
     },
     "Management": {
       "ChooseGroup": "Выберите класс или группу",
@@ -550,7 +589,9 @@
         "UnknownWords": "Неизвестные слова",
         "Words": "Слова",
         "WordLevelDistribution": "Распределение слов по уровням",
-        "WordLevels": "Уровни слов"
+        "WordLevels": "Уровни слов",
+        "Lexical": "Лексика",
+        "Structural": "Структура"
       },
       "StopRecording": "Остановить запись",
       "StopStreaming": "Стоп",
@@ -1294,26 +1335,119 @@
       }
     },
     "Rating": {
-      "Compact": { "AllFluent": "Всё бегло", "AllEasy": "Всё легко", "Adjust": "Настроить" },
+      "Compact": {
+        "AllFluent": "Всё бегло",
+        "AllEasy": "Всё легко",
+        "Adjust": "Настроить"
+      },
       "Matrix": {
         "Missed": "Не вспомнил",
         "Struggled": "С трудом",
-  "Fluent": "Легко",
-  "Easy": "Легко",
+        "Fluent": "Легко",
+        "Easy": "Легко",
         "AllFluent": "Всё легко",
         "EverythingElseFluent": "Остальное легко",
-  "AllFluentKey": "F",
+        "AllFluentKey": "F",
         "PendingHint": "Оценка (1–3), затем клавиша аспекта"
       }
     },
     "Knowledge": {
-      "Capability": { "surface-recognition": "Распознавание", "surface-reading": "Чтение", "pronunciation-production": "Произношение" },
-      "LegacySource": { "Prefix": "Источник доказательств: ", "None": "Нет" },
-      "Basis": {"Claim": "Явное утверждение", "Evidence": "Подтверждено", "Unmeasured": "Не измерялось", "Prediction": "Прогноз", "Excluded": "Исключено"},
-      "OverrideWarning": { "Confirm": "Всё равно изменить", "DontRemind": "Больше не напоминать", "Message": "Для этого статуса уже есть доказательства. Изменение добавляет ручное утверждение, но не удаляет доказательства.", "Title": "Переопределение знаний" },
-      "Popup": { "Overall": "Итого", "Basis": "Основание", "Rate": "Оценить", "Inspect": "Подробнее" },
-      "Projection": {"Capabilities": "Возможности знаний", "AspectClaims": "Аспекты", "Details": "Подробности", "Graph": "Граф", "Unavailable": "Сведения о знаниях недоступны.", "Evidence": {"Known": "Известно по доказательствам", "Learning": "Изучается по доказательствам", "Title": "Активные доказательства", "None": "Нет активных доказательств.", "Claim": "Утверждение: {status}", "ClaimCleared": "Утверждение снято"}, "Predicted": "Прогноз", "Unmeasured": "Не измерено", "Excluded": "Исключено", "Because": "Потому что:", "Strength": "Ease {ease} · видено {seen} · наведено {hovered}", "Retention": "Давление {pressure} · срок {due}", "Tabs": {"Identity": "Идентичность и связи", "Targets": "Цели", "EvidenceHistory": "Доказательства и история", "Prediction": "Прогноз"}, "Claim": {"Known": "Явное утверждение: известно", "Learning": "Явное утверждение: изучается", "Unmeasured": "Явное утверждение: не измерено"}, "ClaimOverride": "Явное утверждение — переопределяет доказательства", "Identity": {"Surface": "Поверхность", "Canonical": "Каноническая форма", "Reading": "Чтение", "Senses": "Значения", "NotInstalled": "Языковой граф не установлен.", "Install": "Установить языковые данные", "NoGraph": "Нет данных графа для этого элемента.", "None": "Нет"}, "Provenance": "Происхождение", "FullGraph": "Открыть полный граф", "Prediction": {"None": "Прогноза нет."}},
-      "Aspect": { "Grammar": "Грамматика",
+      "Capability": {
+        "surface-recognition": "Распознавание",
+        "surface-reading": "Чтение",
+        "pronunciation-production": "Произношение"
+      },
+      "LegacySource": {
+        "Prefix": "Источник доказательств: ",
+        "None": "Нет"
+      },
+      "Basis": {
+        "Claim": "Явное утверждение",
+        "Evidence": "Подтверждено",
+        "Unmeasured": "Не измерялось",
+        "Prediction": "Прогноз",
+        "Excluded": "Исключено"
+      },
+      "OverrideWarning": {
+        "Confirm": "Всё равно изменить",
+        "DontRemind": "Больше не напоминать",
+        "Message": "Для этого статуса уже есть доказательства. Изменение добавляет ручное утверждение, но не удаляет доказательства.",
+        "Title": "Переопределение знаний"
+      },
+      "Popup": {
+        "Overall": "Итого",
+        "Basis": "Основание",
+        "Rate": "Оценить",
+        "Inspect": "Подробнее"
+      },
+      "Projection": {
+        "Excluded": "Исключено из изучения",
+        "Why": {
+          "Claim": "Ваша отметка",
+          "Evidence": "Свидетельства из {count} повторений SRS",
+          "Predicted": "Предсказано по поддержке графа",
+          "PredictedLinks": "Предсказано через {count} путей поддержки графа",
+          "Passive": "Встречалось {count} раз при чтении — пассивное знакомство не является свидетельством",
+          "Unmeasured": "Пока ничего не измерено"
+        },
+        "Capabilities": "Возможности знаний",
+        "AspectClaims": "Аспекты",
+        "Details": "Знание слова",
+        "Graph": "Граф",
+        "Unavailable": "Сведения о знаниях недоступны.",
+        "Evidence": {
+          "Known": "Известно по доказательствам",
+          "Learning": "Изучается по доказательствам",
+          "Unknown": "На основе доказательств: неизвестно",
+          "Title": "Активные доказательства",
+          "None": "Нет активных доказательств.",
+          "Claim": "Утверждение: {status}",
+          "ClaimCleared": "Утверждение снято"
+        },
+        "Predicted": "Прогноз",
+        "Unmeasured": "Не измерено",
+        "Because": "Потому что:",
+        "Strength": "Ease {ease} · видено {seen} · наведено {hovered}",
+        "Retention": "Давление {pressure} · срок {due}",
+        "Tabs": {
+          "Identity": "Идентичность и связи",
+          "Targets": "Цели",
+          "EvidenceHistory": "Доказательства и история",
+          "Prediction": "Прогноз"
+        },
+        "Claim": {
+          "Known": "Явное утверждение: известно",
+          "Learning": "Явное утверждение: изучается",
+          "Unmeasured": "Явное утверждение: не измерено",
+          "Unknown": "Явное утверждение: неизвестно"
+        },
+        "ClaimOverride": "Явное утверждение — переопределяет доказательства",
+        "Identity": {
+          "Surface": "Поверхность",
+          "Canonical": "Каноническая форма",
+          "Senses": "Значения",
+          "NotInstalled": "Языковой граф не установлен.",
+          "Install": "Установить языковые данные",
+          "NoGraph": "Нет данных графа для этого элемента.",
+          "None": "Нет",
+          "NotInGraph": "Этот связанный элемент отсутствует в языковом графе.",
+          "BackToWord": "Назад к {word}",
+          "Viewing": "Связи {label}",
+          "Sections": {
+            "Pronunciations": "Произношения",
+            "Morphology": "Морфология",
+            "Characters": "Знаки",
+            "Grammar": "Грамматика"
+          }
+        },
+        "Provenance": "Происхождение",
+        "FullGraph": "Открыть полный граф",
+        "Prediction": {
+          "None": "Прогноза нет."
+        }
+      },
+      "Aspect": {
+        "Grammar": "Грамматика",
         "Meaning": "Значение",
         "Reading": "Чтение",
         "Prosody": "Просодия",
@@ -1324,7 +1458,9 @@
       "AspectInherited": "(унаследовано)",
       "Untracked": "Не отслеживается",
       "History": {
-        "Empty": "Истории знания пока нет.", "Today": "Сегодня", "Yesterday": "Вчера",
+        "Empty": "Истории знания пока нет.",
+        "Today": "Сегодня",
+        "Yesterday": "Вчера",
         "Kind": {
           "Status": "Смена статуса",
           "Review": "Повторение",
@@ -1341,7 +1477,9 @@
           "Grammar": "Грамматика"
         }
       },
-      "Actions": { "ClearOverride": "Отменить переопределение" }
+      "Actions": {
+        "ClearOverride": "Отменить переопределение"
+      }
     },
     "LevelStudy": {
       "Title": "Изучение по уровням",
@@ -1355,7 +1493,8 @@
         "Description": "Изучайте слова, сгруппированные по уровню. Отслеживайте прогресс и добавляйте слова в карточки."
       },
       "Coverage": {
-        "Title": "Охват слов по уровням", "Assessed": "оценено",
+        "Title": "Охват слов по уровням",
+        "Assessed": "оценено",
         "UpTo": "Слова до уровня",
         "AllLevels": "Слова всех уровней",
         "SetLevelHint": "Укажите свой уровень в настройках",
@@ -2827,7 +2966,8 @@
       },
       "Columns": {
         "Level": "Уровень",
-        "Status": "Состояние", "Knowledge": "Знания",
+        "Status": "Состояние",
+        "Knowledge": "Знания",
         "TrackedBy": "Источник",
         "Translation": "Перевод",
         "Word": "Слово"
@@ -2888,7 +3028,7 @@
         "Unknown": "Неизвестное"
       },
       "TimesSeen": "Увидено {count} раз",
-      "Knowledge": { },
+      "Knowledge": {},
       "AnkiModifyWarning": {
         "Title": "Изменить карточки Anki",
         "Message": "Это изменит лёгкость и позицию ваших карточек Anki для этого слова. Новые карточки будут перемещены в начало очереди.",
@@ -2899,7 +3039,11 @@
       "AnkiEase": "Anki Ease: {ease}",
       "AnkiUpdateSuccess": "Обновлено {count} карточек Anki",
       "AnkiUpdateRepositioned": "Обновлено {count} карточек, перемещено {repositioned} новых",
-      "AnkiUpdateFailed": "Не удалось обновить карточки Anki"
+      "AnkiUpdateFailed": "Не удалось обновить карточки Anki",
+      "Compound": {
+        "Title": "Сложное слово",
+        "Ambiguous": "Несколько разборов"
+      }
     },
     "ConnectionStatus": {
       "Connected": "Подключено",

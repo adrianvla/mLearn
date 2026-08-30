@@ -2,7 +2,9 @@ import type { FlashcardStore, Flashcard, LanguageDataMap, PassiveWordKnowledge, 
 import { canonicalLanguage } from '../../shared/languageVariants';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { calculateWordStats } from '../../shared/utils/wordStats';
-import { hashWordSync } from './srsAlgorithm';
+import { deriveSyncKnowledgeJournal, sanitizeSyncedKnowledgeEntry } from '../../shared/sync/flashcardMerge';
+import { appendEvents } from './knowledgeEvents';
+import { hashWord, hashWordSync } from './srsAlgorithm';
 import { getLogger } from '../../shared/utils/logger';
 
 const CHUNK_SIZE = 16000;
@@ -52,12 +54,13 @@ export function splitTextIntoChunks(text: string, chunkSize: number = CHUNK_SIZE
   return chunks;
 }
 
+/**
+ * Full 64-char lowercase hex SHA-256 of a word. Used as the suffix of
+ * wordToCardMap / wordStatsMap keys in synced stores — the output shape must
+ * not change or existing stores break.
+ */
 export async function toUniqueIdentifier(word: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(word);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashWord(word);
 }
 
 function stripMediaUrls(store: FlashcardStore): FlashcardStore {
@@ -85,11 +88,17 @@ export async function mergeFlashcards(
 
   // Epistemic entries merge per-entry LWW (claim timestamp wins): a stale
   // device snapshot can no longer revert a newer claim/evidence write.
+  // Sanitization strips epistemic truth the remote payload cannot prove
+  // (active-evidence / explicit-status markers); every applied entry is
+  // collected so it lands in the journal before the merged store returns.
+  const appliedKnowledge: Array<[string, PassiveWordKnowledge]> = [];
   if (remoteStore.wordKnowledge) {
     for (const [lk, remoteEntry] of Object.entries(remoteStore.wordKnowledge)) {
       const localEntry = merged.wordKnowledge[lk];
       if (!localEntry || entryRecency(remoteEntry) > entryRecency(localEntry)) {
-        merged.wordKnowledge[lk] = remoteEntry;
+        const sanitized = sanitizeSyncedKnowledgeEntry(remoteEntry, localEntry);
+        merged.wordKnowledge[lk] = sanitized;
+        appliedKnowledge.push([lk, sanitized]);
       }
     }
   }
@@ -105,7 +114,7 @@ export async function mergeFlashcards(
         ?? merged.wordKnowledge[wordHash]?.word;
       if (word) {
         const existing = merged.wordKnowledge[wordHash];
-        merged.wordKnowledge[wordHash] = {
+        const synthesized: PassiveWordKnowledge = {
           ease: existing?.ease ?? 0,
           lastSeen: existing?.lastSeen ?? Date.now(),
           timesSeen: existing?.timesSeen ?? 0,
@@ -115,6 +124,8 @@ export async function mergeFlashcards(
           claim: 'known',
           claimAt: Math.max(existing?.claimAt ?? 0, Date.now()),
         };
+        merged.wordKnowledge[wordHash] = synthesized;
+        appliedKnowledge.push([wordHash, synthesized]);
       } else {
         merged.knownUntracked[wordHash] = true;
       }
@@ -271,6 +282,15 @@ export async function mergeFlashcards(
     }
   }
   merged.wordStatsMap = newWordStatsMap;
+
+  // Journal-first ingestion (REQ59): the epistemic state this merge
+  // materialized lands as provenance-marked journal events before the merged
+  // store is returned, so the receiving device's replay rebuilds it instead of
+  // trusting an unproven remote snapshot. A failed append aborts the merge —
+  // materialized state must never outrun its journal coverage.
+  if (appliedKnowledge.length > 0) {
+    await appendEvents(deriveSyncKnowledgeJournal(appliedKnowledge));
+  }
 
   return merged;
 }

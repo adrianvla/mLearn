@@ -151,11 +151,14 @@ export function getComprehensiveWordStatusWithSource(
   }
 
   if (bestEvidence) {
+    // The effective basis rides along: pure passive entries (familiarity only,
+    // REQ13) resolve unmeasured/unknown — Untracked — never evidence-backed
+    // Learning/Unknown. Active evidence keeps basis 'evidence'.
     return {
-      status: bestEvidence.effective.evidenceStatus,
-      basis: 'evidence',
+      status: bestEvidence.effective.status,
+      basis: bestEvidence.effective.basis,
       evidenceStatus: bestEvidence.effective.evidenceStatus,
-      source: sourceLabel('evidence', bestEvidence.evidenceSource),
+      source: sourceLabel(bestEvidence.effective.basis, bestEvidence.evidenceSource),
       timesSeen: bestEvidence.timesSeen,
       matchedWord: bestEvidence.matchedWord,
       ease: bestEvidence.effective.ease,

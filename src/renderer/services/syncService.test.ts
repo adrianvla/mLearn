@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Settings, FlashcardStore, Flashcard, WordCandidate } from '@shared/types';
+import { FlashcardSyncConflictError } from '@shared/backends/nodeServerAdapter';
 import type { SyncCallbacks, SyncStatus } from './syncService';
 
 function makeSettings(overrides: Partial<Settings> = {}): Settings {
@@ -128,10 +129,10 @@ describe('syncService', () => {
     };
 
     vi.doMock('@shared/backends/nodeServerAdapter', () => ({
+      FlashcardSyncConflictError,
       getNodeServer: () => mockServer,
     }));
   });
-
   afterEach(async () => {
     const mod = await loadModule();
     mod.stopSync();
@@ -686,6 +687,84 @@ describe('syncService', () => {
       const { triggerSync } = await loadModule();
       expect(() => triggerSync()).not.toThrow();
       await flushInitialSync();
+    });
+  });
+  describe('flashcard push conflicts (409)', () => {
+    it('re-pulls, re-merges locally, and re-POSTs once when the push is rejected as stale', async () => {
+      const { startSync, queueFlashcardsPush, getSyncStatus } = await loadModule();
+      let currentLocal = makeStore({
+        rev: 5,
+        flashcards: { c1: makeFlashcard({ id: 'c1', lastUpdated: 999 }) },
+      });
+      const onFlashcardsReceived = vi.fn();
+      const cbs: SyncCallbacks = {
+        onStatusChange: vi.fn(),
+        onSettingsReceived: vi.fn(),
+        // Mirrors the app contract: applying a received merge updates the
+        // local store that the next push reads.
+        onFlashcardsReceived: (merged: FlashcardStore) => {
+          currentLocal = merged;
+          onFlashcardsReceived(merged);
+        },
+        getLocalSettings: () => makeSettings(),
+        getLocalFlashcards: () => currentLocal,
+      };
+
+      startSync(cbs);
+      await flushInitialSync();
+      mockServer.saveFlashcards.mockClear();
+
+      mockServer.saveFlashcards.mockRejectedValueOnce(new FlashcardSyncConflictError());
+      mockServer.getFlashcards.mockResolvedValue(
+        makeStore({
+          rev: 9,
+          flashcards: {
+            c1: makeFlashcard({ id: 'c1', lastUpdated: 100 }),
+            c2: makeFlashcard({ id: 'c2', lastUpdated: 100 }),
+          },
+        })
+      );
+
+      queueFlashcardsPush(currentLocal);
+      await flushInitialSync();
+      // The immediate push (0) is rejected as stale; the retry (1) re-POSTs
+      // the re-merged store carrying the freshly pulled rev. Later poll
+      // retries of the still-pending queue may follow.
+      expect(mockServer.saveFlashcards.mock.calls.length).toBeGreaterThanOrEqual(2);
+      const retryPayload = mockServer.saveFlashcards.mock.calls[1][0] as FlashcardStore;
+      expect(retryPayload.rev).toBe(9);
+      expect(retryPayload.flashcards.c1?.lastUpdated).toBe(999);
+      expect(retryPayload.flashcards.c2).toBeDefined();
+      expect(onFlashcardsReceived).toHaveBeenCalled();
+      expect(getSyncStatus()).toBe('synced');
+    });
+
+    it('surfaces a sync conflict through the error path when the retry is also rejected', async () => {
+      const { startSync, queueFlashcardsPush, getSyncStatus } = await loadModule();
+      let currentLocal = makeStore({ rev: 5 });
+      const onStatusChange = vi.fn();
+      const cbs: SyncCallbacks = {
+        onStatusChange,
+        onSettingsReceived: vi.fn(),
+        onFlashcardsReceived: (merged: FlashcardStore) => {
+          currentLocal = merged;
+        },
+        getLocalSettings: () => makeSettings(),
+        getLocalFlashcards: () => currentLocal,
+      };
+
+      startSync(cbs);
+      await flushInitialSync();
+
+      mockServer.saveFlashcards.mockRejectedValue(new FlashcardSyncConflictError());
+      queueFlashcardsPush(currentLocal);
+      await flushInitialSync();
+
+      // Immediate push and its retry both rejected; queued-poll retries may
+      // follow, but the conflict must surface through the error path.
+      expect(mockServer.saveFlashcards.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(getSyncStatus()).toBe('error');
+      expect(onStatusChange).toHaveBeenCalledWith('error');
     });
   });
 });

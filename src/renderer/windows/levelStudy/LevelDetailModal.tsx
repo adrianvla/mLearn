@@ -7,8 +7,9 @@ import { createVirtualizer } from '../../hooks/useVirtualizer';
 import {
   getWordLevelStatus,
   buildLearningWordSet,
-  resolveLevelStudyWordFrequency,
+  buildPassiveOnlyWordSet,
   getLevelStudyLevelNames,
+  resolveLevelStudyWordFrequency,
   BEYOND_EXAM_LEVEL,
 } from '../../utils/wordLevelStats';
 import { buildKnownWordSetFromStore, buildTrackedWordSet } from '../../utils/knowledgeUtils';
@@ -86,6 +87,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
         : undefined;
       const knownSet = buildKnownWordSetFromStore(store, knownThreshold, ankiKeys?.known);
       const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
+      const passiveOnlySet = buildPassiveOnlyWordSet(store);
       const trackedSet = buildTrackedWordSet(store, lang, ankiKeys);
 
       const result: WordListItem[] = [];
@@ -94,7 +96,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
         if (props.level === BEYOND_EXAM_LEVEL) {
           if (isDisplayableFrequencyLevel(entry.raw_level, levelNames, langData)) continue;
         } else if (entry.raw_level !== props.level) continue;
-        const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet, language.getCanonicalFormForLanguage);
+        const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet, language.getCanonicalFormForLanguage, passiveOnlySet);
         result.push({ word, reading: entry.reading || '', status });
       }
       return result.sort((a, b) => a.word.localeCompare(b.word));

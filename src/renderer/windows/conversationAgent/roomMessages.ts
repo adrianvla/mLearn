@@ -109,6 +109,9 @@ export function renderCompiledContext(
         ? `Grammar points likely unfamiliar (predicted, not measured): ${lp.grammarPoints.join(', ')}`
         : `Grammar points selected for practice: ${lp.grammarPoints.join(', ')}`);
     }
+    if (lp.grammarExposure && lp.grammarExposure.length > 0) {
+      parts.push(`Grammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): ${lp.grammarExposure.join(', ')}`);
+    }
     if (parts.length > 0) sections.push(`## Learner\n${parts.join('\n')}`);
   }
   if (ctx.threadMedia) {

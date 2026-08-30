@@ -1,6 +1,7 @@
 import { grammarEntityId } from '../graph/load';
 import type { CapabilityKind, LearnableTarget } from '../graph/types';
 import { stripRetractions, type AttemptId, type KnowledgeEvent } from '../knowledgeEvents';
+import { applyGrammarEncounter, applyGrammarFailure, initialGrammarEase } from '../utils/grammarPolicy';
 
 export type GrammarCapability = Extract<CapabilityKind,
   'grammar-recognition' | 'grammar-comprehension' | 'grammar-formation' | 'grammar-production'>;
@@ -51,9 +52,23 @@ export function replayGrammarRecognition(events: readonly KnowledgeEvent[]): Gra
   let timesEncountered = 0;
   let timesFailed = 0;
   for (const event of active) {
-    if (event.easeAfter !== undefined) ease = event.easeAfter;
     timesEncountered += event.timesSeenDelta ?? 0;
     timesFailed += event.grammarFailedDelta ?? 0;
+    if (event.easeAfter !== undefined) {
+      // Explicit recorded outcome wins (Anki ratings, legacy migration rollups).
+      ease = event.easeAfter;
+      continue;
+    }
+    // Observation rows (encounter/failure deltas only) move ease along the
+    // grammarPolicy anchors, seeded at the initial ease — identical to the
+    // arithmetic the legacy in-place tracker applied.
+    const encounters = event.timesSeenDelta ?? 0;
+    const failures = event.grammarFailedDelta ?? 0;
+    if (encounters === 0 && failures === 0) continue;
+    let next = ease ?? initialGrammarEase();
+    for (let i = 0; i < encounters; i++) next = applyGrammarEncounter(next);
+    for (let i = 0; i < failures; i++) next = applyGrammarFailure(next);
+    ease = next;
   }
   if (ease === undefined) return null;
   return { ease, timesEncountered, timesFailed, firstSeen: active[0].t, lastSeen: active[active.length - 1].t };

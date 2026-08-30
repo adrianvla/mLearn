@@ -23,6 +23,7 @@ import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, getRecentProgressPercent, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { captureVideoFrameForFlashcard } from '../../../services/flashcardImageCapture';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../../utils/levelPercentages';
+import { buildGrammarExposure } from '../../../utils/grammarExposure';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
 import { bulkAddWords } from '../../../utils/bulkAddWords';
@@ -1308,7 +1309,7 @@ export const VideoRoute: Component = () => {
     const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
     const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
     const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
-    const level = difficulty.lexical;
+    const level = difficulty.headline;
     const levelNames = langCtx.getFreqLevelNames();
 
     // Collect failed words: merge per-media stats with the canonical resolver
@@ -1331,6 +1332,10 @@ export const VideoRoute: Component = () => {
 
     const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
+    // Exposure-ranked practice candidates: repeatedly encountered in the
+    // canonical knowledge store without any failure. Unmeasured signals only —
+    // failed patterns stay in failedGrammar above.
+    const grammarExposure = buildGrammarExposure(s.grammarEncountered, (pattern) => flashcardCtx.getGrammarKnowledge(pattern, settings.language));
 
     const context: ConversationAgentContext = {
       mediaName: name,
@@ -1341,6 +1346,7 @@ export const VideoRoute: Component = () => {
       language: lang,
       failedWords,
       failedGrammar,
+      grammarExposure,
       wordLevelPercentages: wordLevels,
       grammarLevelPercentages: grammarLevels,
       characterContext: buildCharacterContext(subtitles.subtitles().map((sub) => sub.text), {

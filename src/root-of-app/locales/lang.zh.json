@@ -1,8 +1,47 @@
 {
   "mlearn": {
     "GraphInspector": {
-      "Title": "图谱检查器", "Unavailable": "当前语言图谱尚未安装。", "SelectEntity": "请选择一个图谱实体。", "Capabilities": "能力", "identity": "身份", "property": "属性", "support": "相关支持", "SupportCaption": "相关——不是知识。支持链接不会继承知识。", "Details": "开发者详情", "Target": "目标", "Projection": "投影", "Retention": "保持", "Evidence": "证据", "NoDirectEvidence": "尚无直接证据。", "PredictionFirewall": "预测与直接证据分离。",
-      "State": { "Known": "有证据支持的已知", "Learning": "学习中", "Predicted": "预测", "Unmeasured": "未测量", "Excluded": "已排除" }
+      "Title": "图谱检查器",
+      "Unavailable": "当前语言图谱尚未安装。",
+      "SelectEntity": "请选择一个图谱实体。",
+      "Capabilities": "能力",
+      "identity": "身份",
+      "property": "属性",
+      "support": "相关支持",
+      "SupportCaption": "相关——不是知识。支持链接不会继承知识。",
+      "Details": "开发者详情",
+      "Target": "目标",
+      "Projection": "投影",
+      "Retention": "保持",
+      "Evidence": "证据",
+      "NoDirectEvidence": "尚无直接证据。",
+      "PredictionFirewall": "预测与直接证据分离。",
+      "State": {
+        "Known": "有证据支持的已知",
+        "Learning": "学习中",
+        "Predicted": "预测",
+        "Unmeasured": "未测量",
+        "Excluded": "已排除"
+      },
+      "Neighborhood": {
+        "Title": "局部关系图",
+        "Toggle": "图谱",
+        "Empty": "该项周围暂无关系。",
+        "Truncated": "已显示 {total} 条关系中的 {shown} 条。",
+        "NotInGraph": "该词条不在语言图谱中。",
+        "OpenInWindow": "在图谱检查器中打开",
+        "Loading": "正在加载邻域…",
+        "State": {
+          "EvidenceBackedKnown": "有证据支持的已知",
+          "ClaimedKnown": "已知（声明）",
+          "ClaimedLearning": "学习中（声明）",
+          "ClaimedUnknown": "未知（声明）",
+          "Learning": "学习中",
+          "Unknown": "未知",
+          "Predicted": "预测",
+          "Unmeasured": "未测量"
+        }
+      }
     },
     "Management": {
       "ChooseGroup": "选择班级或小组",
@@ -550,7 +589,9 @@
         "UnknownWords": "未知单词",
         "Words": "单词",
         "WordLevelDistribution": "单词等级分布",
-        "WordLevels": "单词等级"
+        "WordLevels": "单词等级",
+        "Lexical": "词汇",
+        "Structural": "结构"
       },
       "StopRecording": "停止录音",
       "StopStreaming": "停止",
@@ -1294,26 +1335,119 @@
       }
     },
     "Rating": {
-      "Compact": { "AllFluent": "全部流利", "AllEasy": "全部简单", "Adjust": "调整" },
+      "Compact": {
+        "AllFluent": "全部流利",
+        "AllEasy": "全部简单",
+        "Adjust": "调整"
+      },
       "Matrix": {
         "Missed": "没想起来",
         "Struggled": "费劲",
-  "Fluent": "流利",
-  "Easy": "简单",
+        "Fluent": "流利",
+        "Easy": "简单",
         "AllFluent": "全部流利",
         "EverythingElseFluent": "其余全部流利",
-  "AllFluentKey": "F",
+        "AllFluentKey": "F",
         "PendingHint": "先按等级（1–3），再按方面键"
       }
     },
     "Knowledge": {
-      "Capability": { "surface-recognition": "识别", "surface-reading": "读音", "pronunciation-production": "发音" },
-      "LegacySource": { "Prefix": "证据来源：", "None": "无" },
-      "Basis": {"Claim": "明确申告", "Evidence": "有依据", "Unmeasured": "未测量", "Prediction": "预测", "Excluded": "已排除"},
-      "OverrideWarning": { "Confirm": "仍要更改", "DontRemind": "不再提醒", "Message": "此状态已有证据。更改会添加手动声明，但不会清除该证据。", "Title": "知识覆盖" },
-      "Popup": { "Overall": "总体", "Basis": "依据", "Rate": "评价", "Inspect": "检查" },
-      "Projection": {"Capabilities": "知识能力", "AspectClaims": "侧面", "Details": "详情", "Graph": "图谱", "Unavailable": "知识详情不可用。", "Evidence": {"Known": "有证据支持的已掌握", "Learning": "有证据支持的学习中", "Title": "有效证据", "None": "没有有效证据。", "Claim": "申告：{status}", "ClaimCleared": "申告已清除"}, "Predicted": "预测", "Unmeasured": "未测量", "Excluded": "已排除", "Because": "因为：", "Strength": "难度 {ease} · 已见 {seen} · 已悬停 {hovered}", "Retention": "压力 {pressure} · 到期 {due}", "Tabs": {"Identity": "身份与关系", "Targets": "目标", "EvidenceHistory": "证据与历史", "Prediction": "预测"}, "Claim": {"Known": "明确申告：已掌握", "Learning": "明确申告：学习中", "Unmeasured": "明确申告：未测量"}, "ClaimOverride": "明确申告 — 覆盖证据", "Identity": {"Surface": "表层形式", "Canonical": "规范形式", "Reading": "读音", "Senses": "词义", "NotInstalled": "语言图谱未安装。", "Install": "安装语言数据", "NoGraph": "此词条没有图谱数据。", "None": "无"}, "Provenance": "来源", "FullGraph": "打开完整图谱", "Prediction": {"None": "无预测。"}},
-      "Aspect": { "Grammar": "语法",
+      "Capability": {
+        "surface-recognition": "识别",
+        "surface-reading": "读音",
+        "pronunciation-production": "发音"
+      },
+      "LegacySource": {
+        "Prefix": "证据来源：",
+        "None": "无"
+      },
+      "Basis": {
+        "Claim": "明确申告",
+        "Evidence": "有依据",
+        "Unmeasured": "未测量",
+        "Prediction": "预测",
+        "Excluded": "已排除"
+      },
+      "OverrideWarning": {
+        "Confirm": "仍要更改",
+        "DontRemind": "不再提醒",
+        "Message": "此状态已有证据。更改会添加手动声明，但不会清除该证据。",
+        "Title": "知识覆盖"
+      },
+      "Popup": {
+        "Overall": "总体",
+        "Basis": "依据",
+        "Rate": "评价",
+        "Inspect": "检查"
+      },
+      "Projection": {
+        "Excluded": "已排除出学习",
+        "Why": {
+          "Claim": "你的标记",
+          "Evidence": "来自 {count} 次 SRS 复习的证据",
+          "Predicted": "根据图谱支持预测",
+          "PredictedLinks": "通过 {count} 条图谱支持路径预测",
+          "Passive": "阅读中见过 {count} 次 — 被动接触只是熟悉度，不是证据",
+          "Unmeasured": "尚无任何测量"
+        },
+        "Capabilities": "知识能力",
+        "AspectClaims": "侧面",
+        "Details": "单词知识",
+        "Graph": "图谱",
+        "Unavailable": "知识详情不可用。",
+        "Evidence": {
+          "Known": "有证据支持的已掌握",
+          "Learning": "有证据支持的学习中",
+          "Unknown": "基于证据：不了解",
+          "Title": "有效证据",
+          "None": "没有有效证据。",
+          "Claim": "申告：{status}",
+          "ClaimCleared": "申告已清除"
+        },
+        "Predicted": "预测",
+        "Unmeasured": "未测量",
+        "Because": "因为：",
+        "Strength": "难度 {ease} · 已见 {seen} · 已悬停 {hovered}",
+        "Retention": "压力 {pressure} · 到期 {due}",
+        "Tabs": {
+          "Identity": "身份与关系",
+          "Targets": "目标",
+          "EvidenceHistory": "证据与历史",
+          "Prediction": "预测"
+        },
+        "Claim": {
+          "Known": "明确申告：已掌握",
+          "Learning": "明确申告：学习中",
+          "Unmeasured": "明确申告：未测量",
+          "Unknown": "明确申告：不了解"
+        },
+        "ClaimOverride": "明确申告 — 覆盖证据",
+        "Identity": {
+          "Surface": "表层形式",
+          "Canonical": "规范形式",
+          "Senses": "词义",
+          "NotInstalled": "语言图谱未安装。",
+          "Install": "安装语言数据",
+          "NoGraph": "此词条没有图谱数据。",
+          "None": "无",
+          "NotInGraph": "该关联项不在语言图谱中。",
+          "BackToWord": "返回 {word}",
+          "Viewing": "{label} 的关系",
+          "Sections": {
+            "Pronunciations": "发音",
+            "Morphology": "形态",
+            "Characters": "汉字",
+            "Grammar": "语法"
+          }
+        },
+        "Provenance": "来源",
+        "FullGraph": "打开完整图谱",
+        "Prediction": {
+          "None": "无预测。"
+        }
+      },
+      "Aspect": {
+        "Grammar": "语法",
         "Meaning": "词义",
         "Reading": "读音",
         "Prosody": "韵律",
@@ -1324,7 +1458,9 @@
       "AspectInherited": "(继承)",
       "Untracked": "未追踪",
       "History": {
-        "Empty": "暂无知识历史。", "Today": "今天", "Yesterday": "昨天",
+        "Empty": "暂无知识历史。",
+        "Today": "今天",
+        "Yesterday": "昨天",
         "Kind": {
           "Status": "状态变更",
           "Review": "复习",
@@ -1341,7 +1477,9 @@
           "Grammar": "语法"
         }
       },
-      "Actions": { "ClearOverride": "清除覆盖" }
+      "Actions": {
+        "ClearOverride": "清除覆盖"
+      }
     },
     "LevelStudy": {
       "Title": "等级学习",
@@ -1355,7 +1493,8 @@
         "Description": "按等级学习单词。跟踪进度并添加到闪卡。"
       },
       "Coverage": {
-        "Title": "等级单词覆盖率", "Assessed": "已评估",
+        "Title": "等级单词覆盖率",
+        "Assessed": "已评估",
         "UpTo": "学习级别以内的单词",
         "AllLevels": "所有级别的单词",
         "SetLevelHint": "在设置中设定学习级别",
@@ -2827,7 +2966,8 @@
       },
       "Columns": {
         "Level": "等级",
-        "Status": "状态", "Knowledge": "知识",
+        "Status": "状态",
+        "Knowledge": "知识",
         "TrackedBy": "追踪来源",
         "Translation": "翻译",
         "Word": "单词"
@@ -2888,7 +3028,7 @@
         "Unknown": "未知"
       },
       "TimesSeen": "已见{count}次",
-      "Knowledge": { },
+      "Knowledge": {},
       "AnkiModifyWarning": {
         "Title": "修改 Anki 卡片",
         "Message": "这将修改此单词的 Anki 卡片的难度系数和位置。新卡片将移到复习队列的前面。",
@@ -2899,7 +3039,11 @@
       "AnkiEase": "Anki 难度系数：{ease}",
       "AnkiUpdateSuccess": "已更新 {count} 张 Anki 卡片",
       "AnkiUpdateRepositioned": "已更新 {count} 张卡片，重新定位了 {repositioned} 张新卡片",
-      "AnkiUpdateFailed": "更新 Anki 卡片失败"
+      "AnkiUpdateFailed": "更新 Anki 卡片失败",
+      "Compound": {
+        "Title": "复合词",
+        "Ambiguous": "多种解析"
+      }
     },
     "ConnectionStatus": {
       "Connected": "已连接",

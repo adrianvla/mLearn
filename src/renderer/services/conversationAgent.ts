@@ -47,7 +47,6 @@ interface AgentDeps {
   getLanguageFeatures: () => LanguageFeatures;
   getMediaContext: () => ConversationAgentContext | null;
   flashcardCtx: {
-    getWordKnowledge: (word: string) => { ease: number; timesSeen: number } | undefined;
     trackGrammarFailed: (pattern: string) => void;
     trackGrammarEncountered: (pattern: string) => void;
   };
@@ -690,7 +689,10 @@ The learner is ${mediaCtx.mediaType === 'video' ? 'watching' : 'reading'}: "${me
         .sort((a, b) => a.ease - b.ease)
         .slice(0, 10)
         .map((w) => w.word);
-      prompt += `\nWords the learner struggles with: ${topFailed.join(', ')}`;
+      prompt += `\nWords the learner seems to struggle with (based on hover/lookup signals while consuming this media — unfamiliarity hints, not measured failures): ${topFailed.join(', ')}`;
+    }
+    if (mediaCtx.grammarExposure && mediaCtx.grammarExposure.length > 0) {
+      prompt += `\nGrammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): ${mediaCtx.grammarExposure.map((g) => g.pattern).join(', ')}`;
     }
   }
 
@@ -914,6 +916,9 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
         for (const g of ctx.failedGrammar.slice(0, 15)) {
           lines.push(`  - ${g.pattern} (ease: ${g.ease.toFixed(2)}, failed: ${g.timesFailed}x)`);
         }
+      }
+      if (ctx.grammarExposure && ctx.grammarExposure.length > 0) {
+        lines.push(`\nExposure-ranked practice candidates (unmeasured — seen repeatedly without failure, not demonstrated failures): ${ctx.grammarExposure.map((g) => `${g.pattern} (${g.timesEncountered}x)`).join(', ')}`);
       }
 
       if (ctx.wordLevelPercentages.entries.length > 0) {

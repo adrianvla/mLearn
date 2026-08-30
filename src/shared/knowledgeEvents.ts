@@ -21,9 +21,40 @@ export type EvidenceAspect = KnowledgeAspect | 'grammar';
  */
 export type AttemptId = string;
 
-// One id per logical learner response (one physical rating / one profile
-// submit). All observation events sharing an attemptId belong to the same
-// attempt — unique ids count attempts, events count aspect observations.
+/**
+ * What kind of task produced an attempt. Provenance for horizon-sensitive
+ * projection (a scaffolded welcome review is weaker evidence than a cold SRS
+ * recall). Written only when genuinely known — absent, never guessed.
+ */
+export type AttemptTaskType =
+  | 'srs-review'
+  | 'word-sync'
+  | 'welcome-review'
+  | 'reader'
+  | 'video'
+  | 'ocr'
+  | 'anki-import';
+
+/**
+ * Scaffolds the task showed during the attempt (translation, furigana reading,
+ * prosody hint). `true` = scaffold was visible while the learner responded.
+ */
+export interface AttemptScaffolds {
+  reading?: boolean;
+  translation?: boolean;
+  prosody?: boolean;
+}
+
+/**
+ * Versions of the reference data the observation was recorded under, so future
+ * re-projections can tell which graph schema / package generation an attempt
+ * predates. Only written where meaningfully available.
+ */
+export interface EventSourceVersions {
+  graphSchemaVersion?: number;
+  packageVersions?: Record<string, string>;
+}
+
 export function nextAttemptId(): AttemptId {
   return crypto.randomUUID();
 }
@@ -62,10 +93,25 @@ export interface KnowledgeEvent {
   /** Response latency of the attempt (interaction start → rating), stored for calibration; never overrides the learner's report. */
   latencyMs?: number;
   /**
+   * What task produced the attempt (REQ3/REQ52 attempt metadata). Provenance
+   * only — projection may weigh a scaffolded task differently from a cold
+   * recall, but presence alone never changes the evidence rule. Absent = the
+   * writer did not know the task type.
+   */
+  taskType?: AttemptTaskType;
+  /** Scaffolds visible to the learner during the attempt (presentation provenance). */
+  scaffolds?: AttemptScaffolds;
+  /** Reference-data versions the observation was recorded under (re-projection provenance). */
+  sourceVersions?: EventSourceVersions;
+  /**
    * Retraction tombstone (kind: 'retraction'): marks every event sharing this
    * attemptId as undone (undo/rerate). Append-only bookkeeping — projections
    * must exclude both retracted events and these tombstones via stripRetractions.
    */
+  /** Grammar-encounter provenance: detector confidence for the matched occurrence (0–1). Absent = not measured. */
+  confidence?: number;
+  /** Grammar-encounter provenance: character span of the matched occurrence within the presented surface. */
+  span?: { start: number; end: number };
   retracts?: AttemptId;
   /** The exact surface the learner was shown, independent of the storage key's primary form. Presentation provenance — never fan out observations from it. */
   presentedSurface?: string;

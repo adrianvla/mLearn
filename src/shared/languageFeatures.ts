@@ -1227,6 +1227,10 @@ export function languageSupportsProsody(data?: LanguageData | null): boolean {
   return Boolean(getLanguageProsodyType(data));
 }
 
+export function languageSupportsCompoundSplitting(data?: LanguageData | null): boolean {
+  return data?.compoundSplitting === true;
+}
+
 export function getProsodyPositionFromContent(
   content?: Pick<FlashcardContent, 'prosody'> | null,
   _data?: LanguageData | null,

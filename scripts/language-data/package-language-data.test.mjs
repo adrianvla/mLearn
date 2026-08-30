@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { createLanguageDataRelease } from './package-language-data.mjs';
+import { loadGraphCompact } from './graph-compact.mjs';
 
 let tempDir;
 
@@ -17,6 +19,10 @@ function extractTarGz(archivePath, destination) {
   execFileSync('tar', ['-xzf', archivePath, '-C', destination], { stdio: 'pipe' });
 }
 
+function sha256(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
 function findArchivePath(outputDir, relativeDir, prefix) {
   const archiveDir = path.join(outputDir, relativeDir);
   const matches = fs.readdirSync(archiveDir)
@@ -24,6 +30,54 @@ function findArchivePath(outputDir, relativeDir, prefix) {
     .sort();
   assert.equal(matches.length, 1, `Expected one content-hashed archive in ${archiveDir}`);
   return path.join(archiveDir, matches[0]);
+}
+
+function syntheticPlainGraph(language) {
+  return {
+    schemaVersion: 1,
+    language,
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    sourceVersions: { 'test-dictionary': '1.0.0' },
+    entities: [
+      { id: `${language}:lexeme:1`, kind: 'lexeme', domain: 'common', label: 'alpha' },
+      { id: `${language}:surface:1`, kind: 'surface', label: 'Alpha' },
+      { id: `${language}:sense:1`, kind: 'sense', label: 'meaning' },
+    ],
+    relations: [
+      { from: `${language}:lexeme:1`, to: `${language}:surface:1`, type: 'realizes', confidence: 1 },
+      { from: `${language}:lexeme:1`, to: `${language}:sense:1`, type: 'has-sense' },
+    ],
+  };
+}
+
+function prepareGraphLanguageSource(graphJsonText) {
+  const sourceRoot = path.join(tempDir, 'root-of-app');
+  const languagesDir = path.join(sourceRoot, 'languages');
+  const outputDir = path.join(tempDir, 'frontend', 'public', 'language-data');
+  const catalogPath = path.join(tempDir, 'frontend', 'public', 'language-catalog.json');
+  const overridesDir = path.join(tempDir, 'overrides');
+  fs.mkdirSync(languagesDir, { recursive: true });
+  fs.mkdirSync(overridesDir, { recursive: true });
+  fs.writeFileSync(path.join(languagesDir, 'aa.json'), JSON.stringify({
+    name: 'Alpha',
+    languageData: {
+      version: 'aa-package-v1',
+      minimumAppVersion: '2.7.0',
+      assets: [
+        { id: 'linguistic-graph', path: 'languages/aa.graph.json', bundledPath: 'languages/aa.graph.json', required: false },
+      ],
+    },
+  }), 'utf-8');
+  if (graphJsonText !== undefined) {
+    fs.writeFileSync(path.join(languagesDir, 'aa.graph.json'), graphJsonText, 'utf-8');
+  }
+  return { sourceRoot, outputDir, catalogPath, overridesDir, languagesDir };
+}
+
+function extractBundledGraphFile(outputDir, extractDirName) {
+  const extractDir = path.join(tempDir, extractDirName);
+  extractTarGz(findArchivePath(outputDir, 'aa', 'language-package-v1-'), extractDir);
+  return path.join(extractDir, 'files', 'languages', 'aa.graph.json');
 }
 
 function relativeArchivePath(outputDir, archivePath) {
@@ -85,6 +139,91 @@ describe('package-language-data', () => {
       createLanguageDataRelease({ sourceRoot, outputDir, catalogPath, overridesDir }),
       /minimumAppVersion for aa must use semantic major\.minor\.patch format/,
     );
+  });
+
+  it('skips compact graph assets when scanning the languages source directory', async () => {
+    const sourceRoot = path.join(tempDir, 'root-of-app');
+    const languagesDir = path.join(sourceRoot, 'languages');
+    const outputDir = path.join(tempDir, 'frontend', 'public', 'language-data');
+    const catalogPath = path.join(tempDir, 'frontend', 'public', 'language-catalog.json');
+    const overridesDir = path.join(tempDir, 'overrides');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.mkdirSync(overridesDir, { recursive: true });
+    fs.writeFileSync(path.join(languagesDir, 'aa.json'), JSON.stringify({
+      name: 'Alpha',
+      languageData: {
+        version: 'aa-package-v1',
+        minimumAppVersion: '2.7.0',
+        assets: [],
+      },
+    }), 'utf-8');
+    fs.writeFileSync(path.join(languagesDir, 'aa.graph.json'), JSON.stringify({ schemaVersion: 1, language: 'aa' }), 'utf-8');
+
+    await createLanguageDataRelease({ sourceRoot, outputDir, catalogPath, overridesDir });
+
+    const catalog = readJson(catalogPath);
+    assert.deepEqual(Object.keys(catalog.languages).sort(), ['aa']);
+    assert.equal(catalog.languages.aa.files.some((file) => file.path.includes('aa.graph.json')), false);
+  });
+
+  it('converts a declared plain linguistic graph into the compact asset inside the bundle', async () => {
+    const { sourceRoot, outputDir, catalogPath, overridesDir, languagesDir } =
+      prepareGraphLanguageSource(JSON.stringify(syntheticPlainGraph('aa')));
+
+    await createLanguageDataRelease({ sourceRoot, outputDir, catalogPath, overridesDir });
+
+    const bundledGraphPath = extractBundledGraphFile(outputDir, 'aa-plain-graph-extract');
+    assert.equal(fs.existsSync(bundledGraphPath), true);
+    const bundledGraph = readJson(bundledGraphPath);
+    assert.equal(bundledGraph.language, 'aa');
+    assert.equal(Array.isArray(bundledGraph.entities), false, 'compact asset must not carry a plain entities array');
+    assert.equal(Array.isArray(bundledGraph.stringTable), true);
+    assert.ok(bundledGraph.stringTable.length > 0);
+
+    const recorded = readJson(catalogPath).languages.aa.files.find((file) => file.path === 'languages/aa.graph.json');
+    assert.ok(recorded, 'catalog must record the bundled graph asset');
+    assert.equal(recorded.sizeBytes, fs.statSync(bundledGraphPath).size);
+    assert.equal(recorded.sha256, sha256(bundledGraphPath));
+
+    const { decodeCompact } = await loadGraphCompact();
+    const graph = decodeCompact(bundledGraph);
+    assert.equal(graph.entityKindIds.length, 3);
+    assert.equal(graph.relationTargets.length, 4);
+    assert.equal(graph.has('aa:lexeme:1'), true);
+    assert.equal(readJson(path.join(languagesDir, 'aa.graph.json')).entities.length, 3, 'source plain graph must not be mutated');
+  });
+
+  it('passes an already-compact linguistic graph through unchanged', async () => {
+    const { encodeCompact } = await loadGraphCompact();
+    const compactText = JSON.stringify(encodeCompact(syntheticPlainGraph('aa')));
+    const { sourceRoot, outputDir, catalogPath, overridesDir, languagesDir } =
+      prepareGraphLanguageSource(compactText);
+
+    await createLanguageDataRelease({ sourceRoot, outputDir, catalogPath, overridesDir });
+
+    const bundledGraphPath = extractBundledGraphFile(outputDir, 'aa-compact-graph-extract');
+    assert.equal(
+      fs.readFileSync(bundledGraphPath).equals(fs.readFileSync(path.join(languagesDir, 'aa.graph.json'))),
+      true,
+      'an already-compact graph must be copied byte-for-byte',
+    );
+    const recorded = readJson(catalogPath).languages.aa.files.find((file) => file.path === 'languages/aa.graph.json');
+    assert.equal(recorded.sizeBytes, Buffer.byteLength(compactText));
+    assert.equal(recorded.sha256, sha256(bundledGraphPath));
+  });
+
+  it('never bundles a plain linguistic graph unconverted', async () => {
+    const plainText = JSON.stringify(syntheticPlainGraph('aa'));
+    const { sourceRoot, outputDir, catalogPath, overridesDir } = prepareGraphLanguageSource(plainText);
+
+    await createLanguageDataRelease({ sourceRoot, outputDir, catalogPath, overridesDir });
+
+    const bundledGraphPath = extractBundledGraphFile(outputDir, 'aa-unconverted-extract');
+    const bundledText = fs.readFileSync(bundledGraphPath, 'utf-8');
+    assert.notEqual(bundledText, plainText, 'the plain source must not reach the bundle verbatim');
+    const bundledGraph = JSON.parse(bundledText);
+    assert.equal(Array.isArray(bundledGraph.entities), false);
+    assert.equal(Array.isArray(bundledGraph.stringTable), true);
   });
 
   it('publishes a ranked German frequency asset without claiming Goethe exam coverage', () => {

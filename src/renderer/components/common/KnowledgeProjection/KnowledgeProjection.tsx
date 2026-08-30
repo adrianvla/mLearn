@@ -1,7 +1,7 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
-import { RELATION_CATEGORY, type RelationCategory } from '../../../../shared/graph/types';
+import { RELATION_CATEGORY, type GraphRelationType, type RelationCategory } from '../../../../shared/graph/types';
 import type { GraphNeighborhood, GraphRelatedNode, GraphWordLookup, KnowledgeProjection, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
 import type { WordStatus } from '../../../../shared/constants';
 import { KNOWLEDGE_ASPECT_LABEL_KEYS as ASPECT_LABEL_KEYS } from '../../../../shared/constants';
@@ -11,13 +11,13 @@ import { useOptionalGraph } from '../../../context/GraphContext';
 import { KnowledgeHistoryTimeline, type HistoryEvent } from '../KnowledgeHistoryTimeline';
 import { PillBtn } from '../Button';
 import './KnowledgeProjection.css';
+import type { WordKnowledgeModel } from './wordKnowledgeModel';
 
-type Tone = 'evidence' | 'claim' | 'predicted' | 'unmeasured' | 'excluded';
+type Tone = 'evidence' | 'claim' | 'predicted' | 'unmeasured';
 /** Four-tab per-word inspector; the capability-tab view remains for callers without a surface. */
 export type InspectorTab = 'identity' | 'targets' | 'evidence' | 'prediction';
 
 export const knowledgeTone = (state: Pick<KnowledgeProjectionState, 'basis' | 'classification'>): Tone => {
-  if (state.classification === 'excluded' || state.basis === 'excluded') return 'excluded';
   if (state.basis === 'claim') return 'claim';
   if (state.basis === 'evidence') return 'evidence';
   if (state.basis === 'prediction') return 'predicted';
@@ -26,12 +26,43 @@ export const knowledgeTone = (state: Pick<KnowledgeProjectionState, 'basis' | 'c
 
 export const knowledgeStateLabelKey = (state: Pick<KnowledgeProjectionState, 'basis' | 'classification'>): string => {
   const tone = knowledgeTone(state);
-  if (tone === 'claim') {
-    const label = state.classification === 'known' ? 'Known' : state.classification === 'learning' ? 'Learning' : 'Unmeasured';
-    return `mlearn.Knowledge.Projection.Claim.${label}`;
+  if (tone === 'claim' || tone === 'evidence') {
+    const kind = tone === 'claim' ? 'Claim' : 'Evidence';
+    const label = state.classification === 'known' ? 'Known' : state.classification === 'learning' ? 'Learning' : 'Unknown';
+    return `mlearn.Knowledge.Projection.${kind}.${label}`;
   }
-  if (tone === 'evidence') return `mlearn.Knowledge.Projection.Evidence.${state.classification === 'known' ? 'Known' : 'Learning'}`;
   return `mlearn.Knowledge.Projection.${tone[0].toUpperCase()}${tone.slice(1)}`;
+};
+
+export interface KnowledgeWhy {
+  key: string;
+  params?: Record<string, string>;
+}
+
+/**
+ * REQ29 WHY narrative: one human-readable line per capability state, composed
+ * only from the fields the explanation assembly reports on the payload
+ * (evidence counts/sources, claim, prediction reasons, passive familiarity).
+ * No truth arithmetic here — the mapping is presentation, not classification.
+ */
+export const knowledgeWhyNarrative = (state: Pick<KnowledgeProjectionState, 'basis' | 'classification' | 'evidence' | 'evidenceSourceCounts' | 'strength' | 'prediction'>): KnowledgeWhy => {
+  if (state.basis === 'claim') return { key: 'mlearn.Knowledge.Projection.Why.Claim' };
+  if (state.basis === 'evidence') {
+    const reviews = Object.values(state.evidenceSourceCounts).reduce((sum, count) => sum + count, 0);
+    return { key: 'mlearn.Knowledge.Projection.Why.Evidence', params: { count: String(reviews > 0 ? reviews : state.evidence.length) } };
+  }
+  if (state.basis === 'prediction') {
+    const links = state.prediction?.reasons.length ?? 0;
+    return links > 0
+      ? { key: 'mlearn.Knowledge.Projection.Why.PredictedLinks', params: { count: String(links) } }
+      : { key: 'mlearn.Knowledge.Projection.Why.Predicted' };
+  }
+  // Unmeasured basis: passive-only familiarity is preserved on the payload —
+  // exposure counts stay familiarity, never evidence (REQ13).
+  const seen = state.strength?.timesSeen ?? 0;
+  return seen > 0
+    ? { key: 'mlearn.Knowledge.Projection.Why.Passive', params: { count: String(seen) } }
+    : { key: 'mlearn.Knowledge.Projection.Why.Unmeasured' };
 };
 
 interface ProjectionProps {
@@ -57,19 +88,29 @@ export const KnowledgeCapabilityChips: Component<ProjectionProps> = (props) => {
   </Show>;
 };
 
-interface KnowledgeProjectionDrawerProps extends ProjectionProps {
+interface KnowledgeProjectionDrawerProps {
+  /** Graph projection payload. Legacy input when no model is supplied. */
+  projection?: KnowledgeProjection | undefined;
   open: boolean;
   onClose: () => void;
   onGraph?: (entityId: string) => void;
+  /** Recenter the host graph view on an entity (Identity-tab relation navigation). */
+  onSelectEntity?: (entityId: string) => void;
   /** Surface text; when present the drawer becomes the four-tab per-word inspector. */
   surface?: string;
-  /** Full knowledge journal for the surface (including claim events). */
+  /**
+   * Composed aggregate (comprehensive status + projection + events) — the
+   * canonical drawer input. When absent, the legacy per-resolver props are
+   * composed at the boundary with the same aggregate shape.
+   */
+  model?: WordKnowledgeModel;
+  /** Full knowledge journal for the surface (including claim events). Legacy input when no model is supplied. */
   events?: KnowledgeEvent[];
   /** Tab to show when the drawer opens. */
   initialTab?: InspectorTab;
   /** Deliberate word-level claim editing (inspector only). Absent = read-only. */
   onWordClaim?: (claim: WordStatus | null) => void;
-  /** The active word-level claim, when the comprehensive resolver reports one. */
+  /** The active word-level claim, when the comprehensive resolver reports one. Legacy input when no model is supplied. */
   wordClaim?: WordStatus | null;
   /** Deliberate aspect claim editing (inspector only). Absent = read-only. */
   onAspectClaim?: (aspect: ReadableAspect, claim: WordStatus | null) => void;
@@ -77,6 +118,14 @@ interface KnowledgeProjectionDrawerProps extends ProjectionProps {
   aspectStates?: readonly { aspect: ReadableAspect; status: WordStatus; claim?: WordStatus }[];
 }
 const CATEGORIES: RelationCategory[] = ['identity', 'property', 'support'];
+/**
+ * REQ29 identity completeness: morphology and character/component relations
+ * leave the generic category groups for dedicated labeled sections (grammar
+ * connections come from the projection's grammar-pattern targets). Sections
+ * render only when the payload carries them.
+ */
+const MORPHOLOGY_RELATIONS: ReadonlySet<GraphRelationType> = new Set(['has-morpheme', 'morphologically-related']);
+const CHARACTER_RELATIONS: ReadonlySet<GraphRelationType> = new Set(['has-character', 'component-of']);
 const INSPECTOR_TABS: { key: InspectorTab; label: string }[] = [
   { key: 'identity', label: 'mlearn.Knowledge.Projection.Tabs.Identity' },
   { key: 'targets', label: 'mlearn.Knowledge.Projection.Tabs.Targets' },
@@ -123,6 +172,39 @@ const KnowledgeClaimControls: Component<{
   );
 };
 
+/**
+ * One relation row: the row itself navigates (recenter the drawer/host graph
+ * on that entity, REQ63); opening the graph-inspector window stays a secondary
+ * affordance via onOpen.
+ */
+const KnowledgeRelationRow: Component<{
+  relationType?: string;
+  label: string;
+  meta?: string;
+  entityId: string;
+  onNavigate: (entityId: string) => void;
+  onOpen?: (entityId: string) => void;
+  openLabel: string;
+}> = (props) => (
+  <li>
+    <button type="button" class="knowledge-drawer__relation" onClick={() => props.onNavigate(props.entityId)}>
+      <Show when={props.relationType}><span class="knowledge-drawer__rel-type">{props.relationType}</span></Show>
+      <strong>{props.label}</strong>
+      <Show when={props.meta}><small>{props.meta}</small></Show>
+    </button>
+    <Show when={props.onOpen}>
+      <button type="button" class="knowledge-drawer__relation-open" title={props.openLabel} aria-label={props.openLabel} onClick={() => props.onOpen?.(props.entityId)}>↗</button>
+    </Show>
+  </li>
+);
+
+/** REQ29: one human-readable WHY line under each capability state in the Targets tab. */
+const KnowledgeWhyLine: Component<{ state: KnowledgeProjectionState }> = (props) => {
+  const { t } = useLocalization();
+  const why = createMemo(() => knowledgeWhyNarrative(props.state));
+  return <span class="knowledge-drawer__why">{t(why().key, why().params)}</span>;
+};
+
 interface TimelineRow {
   t: number;
   kind: KnowledgeEvent['kind'] | 'evidence';
@@ -141,9 +223,21 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const [lookup, setLookup] = createSignal<GraphWordLookup | null>(null);
   const [neighborhood, setNeighborhood] = createSignal<GraphNeighborhood | null>(null);
   const [lookupState, setLookupState] = createSignal<'idle' | 'loading' | 'ready' | 'missing'>('idle');
+  /** Relations-fetch lifecycle for the identity tab (independent of the surface identity payload). */
+  const [relationsState, setRelationsState] = createSignal<'idle' | 'loading' | 'ready'>('idle');
+  /** REQ63 navigation target; undefined = the word's own surface is the center. */
+  const [focusedId, setFocusedId] = createSignal<string | undefined>();
 
   const inspector = createMemo(() => props.surface !== undefined && props.surface.trim().length > 0);
-  const states = createMemo(() => props.projection?.targets.flatMap((target) => target.states.map((state) => ({ state, entityId: target.targetRef.id }))) ?? []);
+  // REQ34 canonical aggregate: composed by the host when available, otherwise
+  // legacy props are composed at the boundary into the same shape.
+  const model = createMemo<WordKnowledgeModel>(() => props.model ?? {
+    projection: props.projection,
+    events: props.events,
+    wordClaim: props.wordClaim ?? null,
+    excluded: false,
+  });
+  const states = createMemo(() => model().projection?.targets.flatMap((target) => target.states.map((state) => ({ state, entityId: target.targetRef.id }))) ?? []);
   const active = createMemo(() => states()[Math.min(selected(), Math.max(states().length - 1, 0))]);
 
   createEffect(() => {
@@ -154,29 +248,46 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     const surface = props.surface;
     if (!surface || !props.open || !inspector()) return;
     let disposed = false;
+    setFocusedId(undefined);
     setLookupState('loading');
     void graph.lookupWord({ surface }).then((result) => {
       if (disposed) return;
-      if (!result) {
-        setLookup(null);
-        setNeighborhood(null);
-        setLookupState('missing');
-        return;
-      }
       setLookup(result);
-      return graph.getNeighborhood({ entityId: result.surfaceId, depth: 1 }).then((next) => {
-        if (disposed) return;
-        setNeighborhood(next);
-        setLookupState('ready');
-      });
+      setLookupState(result ? 'ready' : 'missing');
     }).catch(() => {
       if (disposed) return;
       setLookup(null);
-      setNeighborhood(null);
       setLookupState('missing');
     });
     onCleanup(() => { disposed = true; });
   });
+
+  // Neighborhood of the inspected entity: the surface itself, or the relation
+  // targeted by Identity-tab navigation. Absence degrades honestly.
+  createEffect(() => {
+    if (!props.open || !inspector() || !graph.meta().ready) return;
+    const target = focusedId() ?? lookup()?.surfaceId;
+    if (!target) return;
+    let disposed = false;
+    setRelationsState('loading');
+    void graph.getNeighborhood({ entityId: target, depth: 1 }).then((next) => {
+      if (disposed) return;
+      setNeighborhood(next);
+      setRelationsState('ready');
+    }).catch(() => {
+      if (disposed) return;
+      setNeighborhood(null);
+      setRelationsState('ready');
+    });
+    onCleanup(() => { disposed = true; });
+  });
+
+  /** REQ63: recenter drawer relations and the host graph view on one entity. */
+  const navigateTo = (entityId: string) => {
+    setFocusedId(entityId);
+    props.onSelectEntity?.(entityId);
+  };
+  const exitFocus = () => setFocusedId(undefined);
 
   /**
    * Relations display under their real ontology category. The graph never
@@ -187,9 +298,16 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
    */
   const grouped = createMemo(() => {
     const groups: Record<RelationCategory, GraphRelatedNode[]> = { identity: [], property: [], support: [] };
-    for (const relation of neighborhood()?.relations ?? []) groups[RELATION_CATEGORY[relation.relationType]].push(relation);
+    for (const relation of neighborhood()?.relations ?? []) {
+      if (MORPHOLOGY_RELATIONS.has(relation.relationType) || CHARACTER_RELATIONS.has(relation.relationType)) continue;
+      groups[RELATION_CATEGORY[relation.relationType]].push(relation);
+    }
     return groups;
   });
+  const morphologyRelations = createMemo(() => (neighborhood()?.relations ?? []).filter((relation) => MORPHOLOGY_RELATIONS.has(relation.relationType)));
+  const characterRelations = createMemo(() => (neighborhood()?.relations ?? []).filter((relation) => CHARACTER_RELATIONS.has(relation.relationType)));
+  /** Grammar connections: grammar-pattern targets the projection carries for this surface. */
+  const grammarTargets = createMemo(() => (model().projection?.targets ?? []).filter((target) => target.targetRef.kind === 'grammar-pattern'));
 
   const labelFor = (entityId: string): string | undefined => {
     const nb = neighborhood();
@@ -199,7 +317,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   };
 
   const canonicalForm = createMemo(() => lookup()?.lexemes[0]?.label ?? lookup()?.entries[0]?.label);
-  const reading = createMemo(() => lookup()?.pronunciations[0]?.label);
+  const pronunciations = createMemo(() => lookup()?.pronunciations ?? []);
   const senseCount = () => lookup()?.senses.length ?? 0;
 
   const canInstall = () => {
@@ -209,14 +327,14 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
 
   /** Journal rows for the timeline: retractions and retracted events applied away. */
   const journalEvents = createMemo<HistoryEvent[]>(() => (
-    props.events ? readActiveEvidence(props.events).filter(
+    model().events ? readActiveEvidence(model().events!).filter(
       (event): event is HistoryEvent => event.kind !== 'retraction',
     ) : []
   ));
 
   const timeline = createMemo<TimelineRow[]>(() => {
-    if (props.events && props.events.length > 0) {
-      return props.events.map((event) => ({
+    if (model().events && model().events!.length > 0) {
+      return model().events!.map((event) => ({
         t: event.t,
         kind: event.kind,
         source: event.source,
@@ -249,7 +367,10 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     <aside class="knowledge-drawer" aria-label={t('mlearn.Knowledge.Projection.Details')}>
       <header class="knowledge-drawer__header">
         <strong>{t('mlearn.Knowledge.Projection.Details')}</strong>
-        <button type="button" class="knowledge-drawer__close" onClick={props.onClose} aria-label={t('mlearn.Global.Close')}>×</button>
+        <span class="knowledge-drawer__header-end">
+          <Show when={model().excluded}><span class="knowledge-drawer__excluded">{t('mlearn.Knowledge.Projection.Excluded')}</span></Show>
+          <button type="button" class="knowledge-drawer__close" onClick={props.onClose} aria-label={t('mlearn.Global.Close')}>×</button>
+        </span>
       </header>
       <Show when={inspector()} fallback={
         <Show when={states().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Unavailable')}</p>}>
@@ -285,28 +406,118 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
               <Show when={canInstall()}><button type="button" class="knowledge-drawer__install" onClick={() => installLanguageData(settings.language)}>{t('mlearn.Knowledge.Projection.Identity.Install')}</button></Show>
             </div>
           }>
-            <Show when={lookupState() !== 'loading' && lookup() === null} fallback={
-              <Show when={lookupState() !== 'loading' && lookup() !== null}>
+            <Show when={lookupState() === 'missing'} fallback={
+              <Show when={lookupState() === 'ready'}>
                 <dl class="knowledge-drawer__identity">
                   <div><dt>{t('mlearn.Knowledge.Projection.Identity.Surface')}</dt><dd>{props.surface}</dd></div>
                   <Show when={canonicalForm()}><div><dt>{t('mlearn.Knowledge.Projection.Identity.Canonical')}</dt><dd>{canonicalForm()}</dd></div></Show>
-                  <Show when={reading()}><div><dt>{t('mlearn.Knowledge.Projection.Identity.Reading')}</dt><dd>{reading()}</dd></div></Show>
                   <Show when={senseCount() > 0}><div><dt>{t('mlearn.Knowledge.Projection.Identity.Senses')}</dt><dd>{String(senseCount())}</dd></div></Show>
                 </dl>
-                <For each={CATEGORIES}>{(category) => <section class={`knowledge-drawer__section knowledge-drawer__section--${category}`}>
-                  <h3>{t(`mlearn.GraphInspector.${category}`)}</h3>
-                  <Show when={category === 'support'}><p class="knowledge-drawer__caption">{t('mlearn.GraphInspector.SupportCaption')}</p></Show>
-                  <Show when={grouped()[category].length > 0} fallback={<p class="knowledge-drawer__none">{t('mlearn.Knowledge.Projection.Identity.None')}</p>}>
-                    <ul class="knowledge-drawer__relations">
-                      <For each={grouped()[category]}>{(relation) => <li>
-                        <span class="knowledge-drawer__rel-type">{relation.relationType}</span>
-                        <strong>{relation.label ?? relation.id}</strong>
-                        <Show when={relationMetadata(relation)}>{(metaText) => <small>{metaText()}</small>}</Show>
-                      </li>}</For>
-                    </ul>
+                <Show when={focusedId()}>
+                  {(id) => <div class="knowledge-drawer__focus">
+                    <span>{t('mlearn.Knowledge.Projection.Identity.Viewing', { label: labelFor(id()) ?? id() })}</span>
+                    <button type="button" class="knowledge-drawer__focus-close" onClick={exitFocus} aria-label={t('mlearn.Knowledge.Projection.Identity.BackToWord', { word: props.surface ?? '' })}>×</button>
+                  </div>}
+                </Show>
+                <Show when={(neighborhood()?.centerStates?.length ?? 0) > 0}>
+                  <div class="knowledge-capability-chips knowledge-drawer__center-states">
+                    <For each={neighborhood()!.centerStates}>{(centerState) => <span class={`knowledge-chip knowledge-chip--${knowledgeTone(centerState)}`}>
+                      {t(`mlearn.Knowledge.Capability.${centerState.capability}`)} · {t(knowledgeStateLabelKey(centerState))}
+                    </span>}</For>
+                  </div>
+                </Show>
+                <Show when={relationsState() === 'loading'}>
+                  <p class="knowledge-drawer__none">{t('mlearn.GraphInspector.Neighborhood.Loading')}</p>
+                </Show>
+                <Show when={relationsState() === 'ready'}>
+                  <Show when={neighborhood()} fallback={
+                    <Show when={focusedId()}>
+                      <div class="knowledge-drawer__degraded">
+                        <p>{t('mlearn.Knowledge.Projection.Identity.NotInGraph')}</p>
+                        <button type="button" class="knowledge-drawer__install" onClick={exitFocus}>{t('mlearn.Knowledge.Projection.Identity.BackToWord', { word: props.surface ?? '' })}</button>
+                      </div>
+                    </Show>
+                  }>
+                    <Show when={pronunciations().length > 0}>
+                      <section class="knowledge-drawer__section knowledge-drawer__section--identity">
+                        <h3>{t('mlearn.Knowledge.Projection.Identity.Sections.Pronunciations')}</h3>
+                        <ul class="knowledge-drawer__relations">
+                          <For each={pronunciations()}>{(node) => <KnowledgeRelationRow
+                            label={node.label ?? node.id}
+                            entityId={node.id}
+                            onNavigate={navigateTo}
+                            onOpen={props.onGraph}
+                            openLabel={t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}
+                          />}</For>
+                        </ul>
+                      </section>
+                    </Show>
+                    <For each={CATEGORIES}>{(category) => <section class={`knowledge-drawer__section knowledge-drawer__section--${category}`}>
+                      <h3>{t(`mlearn.GraphInspector.${category}`)}</h3>
+                      <Show when={category === 'support'}><p class="knowledge-drawer__caption">{t('mlearn.GraphInspector.SupportCaption')}</p></Show>
+                      <Show when={grouped()[category].length > 0} fallback={<p class="knowledge-drawer__none">{t('mlearn.Knowledge.Projection.Identity.None')}</p>}>
+                        <ul class="knowledge-drawer__relations">
+                          <For each={grouped()[category]}>{(relation) => <KnowledgeRelationRow
+                            relationType={relation.relationType}
+                            label={relation.label ?? relation.id}
+                            meta={relationMetadata(relation)}
+                            entityId={relation.id}
+                            onNavigate={navigateTo}
+                            onOpen={props.onGraph}
+                            openLabel={t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}
+                          />}</For>
+                        </ul>
+                      </Show>
+                    </section>}</For>
+                    <Show when={morphologyRelations().length > 0}>
+                      <section class="knowledge-drawer__section knowledge-drawer__section--property">
+                        <h3>{t('mlearn.Knowledge.Projection.Identity.Sections.Morphology')}</h3>
+                        <ul class="knowledge-drawer__relations">
+                          <For each={morphologyRelations()}>{(relation) => <KnowledgeRelationRow
+                            relationType={relation.relationType}
+                            label={relation.label ?? relation.id}
+                            meta={relationMetadata(relation)}
+                            entityId={relation.id}
+                            onNavigate={navigateTo}
+                            onOpen={props.onGraph}
+                            openLabel={t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}
+                          />}</For>
+                        </ul>
+                      </section>
+                    </Show>
+                    <Show when={characterRelations().length > 0}>
+                      <section class="knowledge-drawer__section knowledge-drawer__section--property">
+                        <h3>{t('mlearn.Knowledge.Projection.Identity.Sections.Characters')}</h3>
+                        <ul class="knowledge-drawer__relations">
+                          <For each={characterRelations()}>{(relation) => <KnowledgeRelationRow
+                            relationType={relation.relationType}
+                            label={relation.label ?? relation.id}
+                            meta={relationMetadata(relation)}
+                            entityId={relation.id}
+                            onNavigate={navigateTo}
+                            onOpen={props.onGraph}
+                            openLabel={t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}
+                          />}</For>
+                        </ul>
+                      </section>
+                    </Show>
+                    <Show when={grammarTargets().length > 0}>
+                      <section class="knowledge-drawer__section knowledge-drawer__section--support">
+                        <h3>{t('mlearn.Knowledge.Projection.Identity.Sections.Grammar')}</h3>
+                        <ul class="knowledge-drawer__relations">
+                          <For each={grammarTargets()}>{(target) => <KnowledgeRelationRow
+                            label={labelFor(target.targetRef.id) ?? target.targetRef.id}
+                            entityId={target.targetRef.id}
+                            onNavigate={navigateTo}
+                            onOpen={props.onGraph}
+                            openLabel={t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}
+                          />}</For>
+                        </ul>
+                      </section>
+                    </Show>
+                    <Show when={props.onGraph}><button type="button" class="knowledge-drawer__graph" onClick={() => props.onGraph?.(neighborhood()!.center.id)}>{t('mlearn.Knowledge.Projection.FullGraph')}</button></Show>
                   </Show>
-                </section>}</For>
-                <Show when={props.onGraph && neighborhood()}><button type="button" class="knowledge-drawer__graph" onClick={() => props.onGraph?.(neighborhood()!.center.id)}>{t('mlearn.Knowledge.Projection.FullGraph')}</button></Show>
+                </Show>
               </Show>
             }>
               <p class="knowledge-drawer__degraded">{t('mlearn.Knowledge.Projection.Identity.NoGraph')}</p>
@@ -318,7 +529,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
           <Show when={props.onWordClaim}>
             <section class="knowledge-drawer__section knowledge-drawer__section--claims">
               <h3>{t('mlearn.Knowledge.Popup.Overall')}</h3>
-              <KnowledgeClaimControls claim={props.wordClaim} onClaim={props.onWordClaim!} />
+              <KnowledgeClaimControls claim={model().wordClaim} onClaim={props.onWordClaim!} />
             </section>
           </Show>
           <Show when={props.onAspectClaim && (props.aspectStates?.length ?? 0) > 0}>
@@ -333,11 +544,12 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
             </section>
           </Show>
           <Show when={states().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Unavailable')}</p>}>
-            <For each={props.projection?.targets}>{(target) => <section class="knowledge-drawer__target">
+            <For each={model().projection?.targets}>{(target) => <section class="knowledge-drawer__target">
               <h3>{labelFor(target.targetRef.id) ?? target.targetRef.id}</h3>
               <For each={target.states}>{(state) => <div class={`knowledge-drawer__state knowledge-state--${knowledgeTone(state)}`}>
                 <span class="knowledge-drawer__cap">{t(`mlearn.Knowledge.Capability.${state.capability}`)}</span>
                 <strong>{t(knowledgeStateLabelKey(state))}</strong>
+                <KnowledgeWhyLine state={state} />
                 <Show when={state.basis !== 'claim'}><span class="knowledge-drawer__basis">{t(basisLabelKey(state))}</span></Show>
                 <Show when={state.basis === 'claim' && state.evidence.length > 0}><small class="knowledge-drawer__override">{t('mlearn.Knowledge.Projection.ClaimOverride')}</small></Show>
                 <Show when={state.strength}>{(strength) => <small class="knowledge-drawer__strength">{t('mlearn.Knowledge.Projection.Strength', { ease: strength().ease.toFixed(2), seen: String(strength().timesSeen), hovered: String(strength().timesHovered) })}</small>}</Show>
@@ -404,7 +616,6 @@ function basisLabelKey(state: KnowledgeProjectionState): string {
     case 'claim': return 'mlearn.Knowledge.Basis.Claim';
     case 'evidence': return 'mlearn.Knowledge.Basis.Evidence';
     case 'prediction': return 'mlearn.Knowledge.Basis.Predicted';
-    case 'excluded': return 'mlearn.Knowledge.Basis.Excluded';
     default: return 'mlearn.Knowledge.Basis.Unmeasured';
   }
 }

@@ -82,4 +82,27 @@ describe('aspectCapabilitySummary meaning row', () => {
     expect(row.untracked).toBe(true);
     expect(knowledgeStatusLabelKey(row.status, row.basis, row.untracked)).toBe(UNTRACKED_LABEL_KEY);
   });
+
+  it('an unmeasured projection over an unknown resolver state renders Untracked (passive-only consistency)', () => {
+    // Graph projection says unmeasured (pure passive familiarity — REQ13);
+    // the local resolver agrees (unknown/unmeasured). The row must render
+    // Untracked, never Unknown, regardless of the caller's untracked flag.
+    const projectionState = {
+      basis: 'unmeasured',
+      classification: 'unmeasured',
+      evidence: [],
+      evidenceSourceCounts: {},
+    } as unknown as KnowledgeProjection['targets'][number]['states'][number];
+    const row = aspectCapabilitySummary(
+      'meaning',
+      { status: 'unknown', untracked: false },
+      meaningResult(),
+      projectionState,
+    );
+
+    expect(row.basis).toBe('unmeasured');
+    expect(row.status).toBe('unknown');
+    expect(row.untracked).toBe(true);
+    expect(knowledgeStatusLabelKey(row.status, row.basis, row.untracked)).toBe(UNTRACKED_LABEL_KEY);
+  });
 });

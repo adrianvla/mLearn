@@ -114,7 +114,14 @@ export function aspectCapabilitySummary(
       };
     }
     // Excluded/unmeasured projection: the status stays honest from the resolver.
-    return { aspect, labelKey, status: effective.status, basis: 'unmeasured', untracked: effective.untracked === true };
+    // An unmeasured projection over an unknown resolver state is Untracked
+    // (passive-only familiarity included — REQ13), never Unknown.
+    return {
+      aspect, labelKey,
+      status: effective.status,
+      basis: 'unmeasured',
+      untracked: effective.untracked === true || isUntrackedKnowledge(effective.status, 'unmeasured'),
+    };
   }
   if (aspect === 'meaning') {
     // The resolver's basis is authoritative (always present on Tier-2 results):

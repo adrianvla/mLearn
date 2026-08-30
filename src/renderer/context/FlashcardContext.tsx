@@ -11,7 +11,8 @@ import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardCo
 import { type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedAspect } from '../../shared/graph/targets';
 import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
-import { applyGrammarEncounter, applyGrammarFailure, classifyGrammarStatus, initialGrammarEase } from '../../shared/utils/grammarPolicy';
+import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
+import { effectiveStateFromEntry, type EffectiveWordState } from '../utils/effectiveKnowledge';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
@@ -39,9 +40,8 @@ import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
 import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, type AspectStatusResult } from '../utils/aspectKnowledge';
 import { appendEvents, getEventLogForLanguage } from '../services/knowledgeEvents';
-import { accumulateWordSeen, flushKnowledgeRollup, setKnowledgeRollupTodayFn } from '../services/knowledgeRollup';
-import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
-import { nextAttemptId, type AttemptId } from '../../shared/knowledgeEvents';
+import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
+import { nextAttemptId, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { selectEncounterBatch } from '../learning/engine';
 import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
@@ -345,7 +345,7 @@ interface FlashcardContextValue {
   clearAllWordSyncSeen: () => void;
 
   // Grammar knowledge tracking
-  trackGrammarEncountered: (pattern: string, level?: number, language?: string) => void;
+  trackGrammarEncountered: (pattern: string, levelOrOpts?: number | GrammarEncounterOptions, language?: string) => void;
   trackGrammarFailed: (pattern: string, level?: number, language?: string) => void;
   getGrammarKnowledge: (pattern: string, language?: string) => GrammarKnowledgeEntry | undefined;
 
@@ -590,6 +590,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},
       suggestedFlashcards: partial.suggestedFlashcards || {},
       wordSyncSeen: partial.wordSyncSeen || {},
+      ...(partial.rev !== undefined ? { rev: partial.rev } : {}),
       version: CURRENT_VERSION,
   };
 }
@@ -601,9 +602,67 @@ function knowledgeEntryRecency(entry: PassiveWordKnowledge): number {
 
 /**
  * Cross-window convergence for knowledge collections: per-entry LWW instead of
- * whole-store replace. A stale snapshot can no longer revert a newer claim or
- * evidence write made in another window.
+ * whole-store replace. A stale snapshot can no longer revert a newer claim,
+ * evidence write, candidate count, suggestion, or day stat made in another
+ * window.
  */
+
+/** wordCandidates LWW: the higher encounter count wins; ties break on lastSeen. */
+function mergeWordCandidates(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [lk, entry] of Object.entries(incoming.wordCandidates)) {
+    const current = local.wordCandidates[lk];
+    if (!current || entry.count > current.count || (entry.count === current.count && entry.lastSeen > current.lastSeen)) {
+      local.wordCandidates[lk] = entry;
+    }
+  }
+}
+
+/**
+ * grammarKnowledge LWW: concurrent windows replay the same evidence journal,
+ * so the encounter count is the recency signal; at equal counts the higher
+ * ease wins (a failure lowers ease without adding an encounter).
+ */
+function mergeGrammarKnowledge(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [lk, entry] of Object.entries(incoming.grammarKnowledge)) {
+    const current = local.grammarKnowledge[lk];
+    if (
+      !current
+      || entry.timesEncountered > current.timesEncountered
+      || (entry.timesEncountered === current.timesEncountered && entry.ease > current.ease)
+    ) {
+      local.grammarKnowledge[lk] = entry;
+    }
+  }
+}
+
+/** suggestedFlashcards LWW: the most recently seen suggestion wins. */
+function mergeSuggestedFlashcards(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [lk, entry] of Object.entries(incoming.suggestedFlashcards)) {
+    const current = local.suggestedFlashcards[lk];
+    if (!current || entry.lastSeen > current.lastSeen) local.suggestedFlashcards[lk] = entry;
+  }
+}
+
+/** dailyStats: union per day+language, max per counter (concurrent windows each increment their own copy). */
+function mergeDailyStats(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [date, perLanguage] of Object.entries(incoming.dailyStats)) {
+    if (local.dailyStats[date] === undefined) local.dailyStats[date] = {};
+    for (const [lang, stats] of Object.entries(perLanguage)) {
+      const current = local.dailyStats[date][lang];
+      local.dailyStats[date][lang] = current
+        ? {
+            date: stats.date || current.date,
+            newCardsStudied: Math.max(current.newCardsStudied, stats.newCardsStudied),
+            reviewCardsStudied: Math.max(current.reviewCardsStudied, stats.reviewCardsStudied),
+            lapses: Math.max(current.lapses, stats.lapses),
+            timeSpent: Math.max(current.timeSpent, stats.timeSpent),
+            graduated: Math.max(current.graduated, stats.graduated),
+          }
+        : stats;
+    }
+  }
+}
+
 function mergeKnowledgeMaps(local: FlashcardStore, incoming: FlashcardStore): void {
   for (const [lk, entry] of Object.entries(incoming.wordKnowledge)) {
     const current = local.wordKnowledge[lk];
@@ -621,6 +680,10 @@ function mergeKnowledgeMaps(local: FlashcardStore, incoming: FlashcardStore): vo
   for (const [lk, seen] of Object.entries(incoming.wordSyncSeen)) {
     if (seen > (local.wordSyncSeen[lk] ?? 0)) local.wordSyncSeen[lk] = seen;
   }
+  mergeWordCandidates(local, incoming);
+  mergeGrammarKnowledge(local, incoming);
+  mergeSuggestedFlashcards(local, incoming);
+  mergeDailyStats(local, incoming);
 }
 
 /**
@@ -676,13 +739,28 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         byLanguage.set(language, keys);
       }
     }));
-
     // 2. Evidence backfill for keys the journal has never seen.
     const additions: KnowledgeEventLog = { ...claimBackfill };
     const languages = new Set(byLanguage.keys());
     for (const lk of Object.keys(store.wordKnowledge)) {
       if (lk.includes(':')) languages.add(lk.split(':')[0]);
     }
+    // A materialized row proves active provenance when it was last written by
+    // an explicit-status source or links graduated SRS cards (legacy SRS-as-
+    // truth). REQ25: passive-only rows must backfill as passiveTracking — a
+    // 'migration' row is an ACTIVE source on replay and would promote pure
+    // exposure into active evidence.
+    const hasLinkedGraduatedCards = (lk: string): boolean =>
+      (store.wordToCardMap[lk] ?? []).some((id) => {
+        const card = store.flashcards[id];
+        return Boolean(card) && card.state !== 'new';
+      });
+    const isPassiveOnlyRow = (lk: string, entry: PassiveWordKnowledge): boolean =>
+      entry.claim === undefined
+      && entry.hasActiveEvidence !== true
+      && entry.lastStatusChange === undefined
+      && (entry.lastEvidenceSource === undefined || entry.lastEvidenceSource === 'passiveTracking')
+      && !hasLinkedGraduatedCards(lk);
     for (const language of languages) {
       let eventLog: KnowledgeEventLog;
       try {
@@ -699,7 +777,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         additions[lk] = [{
           t: entry.lastSeen || now,
           kind: 'rollup',
-          source: 'migration',
+          source: isPassiveOnlyRow(lk, entry) ? 'passiveTracking' : 'migration',
           aspect: 'meaning',
           origin: 'legacy-projection-backfill',
           easeAfter: entry.ease,
@@ -734,7 +812,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   }
 };
 
-  /** Imports legacy counters once as recognition-only, provenance-marked evidence. */
+  /**
+   * Imports legacy counters once as recognition-only, provenance-marked
+   * evidence, then (re)materializes the grammar cache. The active language is
+   * always materialized — even with no legacy entries — so a cache rebuilt
+   * from scratch (fresh store, corruption, migration) recovers every pattern
+   * that has active journal evidence.
+   */
   const migrateLegacyGrammarKnowledge = async (entries: Record<string, GrammarKnowledgeEntry>): Promise<void> => {
     const grouped = new Map<string, GrammarKnowledgeEntry[]>();
     for (const entry of Object.values(entries)) {
@@ -743,7 +827,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       group.push(entry);
       grouped.set(language, group);
     }
-    for (const [language, group] of grouped) {
+    const languages = new Set(grouped.keys());
+    languages.add(settings.language);
+    for (const language of languages) {
+      const group = grouped.get(language) ?? [];
       try {
         const eventLog = await getEventLogForLanguage(language);
         const additions: KnowledgeEventLog = {};
@@ -759,28 +846,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           }];
         }
         if (Object.keys(additions).length > 0) await appendEvents(additions);
-        setStore(produce((state) => {
-          for (const entry of group) {
-            const projection = replayGrammarRecognition([
-              ...(eventLog[grammarEvidenceKey(language, entry.pattern, 'grammar-recognition')] ?? []),
-              ...(additions[grammarEvidenceKey(language, entry.pattern, 'grammar-recognition')] ?? []),
-            ]);
-            if (!projection) continue;
-            const entryKey = state.grammarKnowledge[langKey(language, entry.pattern)]
-              ? langKey(language, entry.pattern)
-              : Object.entries(state.grammarKnowledge).find(([, value]) =>
-                value.pattern === entry.pattern && (value.language ?? language) === language,
-              )?.[0];
-            if (!entryKey) continue;
-            const current = state.grammarKnowledge[entryKey];
-            if (!current) continue;
-            current.ease = projection.ease;
-            current.timesEncountered = projection.timesEncountered;
-            current.timesFailed = projection.timesFailed;
-            current.lastSeen = projection.lastSeen;
-          }
-        }));
-        saveFlashcards();
+        await materializeGrammarKnowledge(
+          language,
+          group.map((entry) => ({ pattern: entry.pattern, level: entry.level })),
+        );
       } catch (error) {
         log.warn('grammar evidence migration failed:', error);
       }
@@ -1443,6 +1512,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         intervalAfter: updated.interval,
         schedulerCardId: card.id,
         ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
+        // REQ3/REQ52: an SRS review is a known task type. Scaffolds are not
+        // structurally known on this path (card presentation varies) — omitted
+        // rather than guessed.
+        taskType: 'srs-review',
       }],
     }).catch((e) => log.warn('knowledge event append failed:', e));
 
@@ -2870,21 +2943,24 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     return store.wordKnowledge[langKey(settings.language, wordHash)];
   };
 
-  // Check if word is known by built-in SRS passive ease (ease >= known threshold)
+  // Knowledge lookups route through THE canonical resolver (effectiveKnowledge):
+  // a claim decides, ACTIVE evidence classifies through the ease bands, and
+  // pure passive familiarity is never Known/Learning (REQ13 — no independent
+  // raw-ease arithmetic here).
+  const effectiveWordState = (lk: string): EffectiveWordState =>
+    effectiveStateFromEntry(store.wordKnowledge[lk], {
+      learning: settings.srsLearningThreshold / 1000,
+      known: settings.known_ease_threshold / 1000,
+    });
+
   const isWordKnown = (wordHash: string): boolean => {
     const lk = wordHash.includes(':') ? wordHash : langKey(settings.language, wordHash);
-    const k = store.wordKnowledge[lk];
-    if (!k) return false;
-    return k.ease >= (settings.known_ease_threshold / 1000);
+    return effectiveWordState(lk).status === 'known';
   };
 
-  // Check if word is in the learning range by built-in SRS passive ease
   const isWordLearning = (wordHash: string): boolean => {
     const lk = wordHash.includes(':') ? wordHash : langKey(settings.language, wordHash);
-    const k = store.wordKnowledge[lk];
-    if (!k) return false;
-    const ease = k.ease;
-    return ease >= (settings.srsLearningThreshold / 1000) && ease < (settings.known_ease_threshold / 1000);
+    return effectiveWordState(lk).status === 'learning';
   };
 
   // Convenience: check if word is known by raw word text (sync hash)
@@ -3033,7 +3109,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     ease: number,
     reading?: string,
     language = settings.language,
-    opts?: { emitTransitionEvents?: boolean; attemptId?: AttemptId },
+    opts?: { emitTransitionEvents?: boolean; attemptId?: AttemptId; taskType?: AttemptTaskType; scaffolds?: AttemptScaffolds; sourceVersions?: EventSourceVersions },
   ): string[] => {
     // Multi-hash rule (#230): the resolver reads every surface-form hash, so a
     // single-hash rating write is shadowed by sibling forms' stale entries.
@@ -3097,6 +3173,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             t: now, kind: 'rating', source: 'manual', aspect: 'meaning',
             fromStatus, toStatus, easeBefore, easeAfter: eased,
             ...(opts?.attemptId !== undefined ? { attemptId: opts.attemptId } : {}),
+            ...(opts?.taskType ? { taskType: opts.taskType } : {}),
+            ...(opts?.scaffolds ? { scaffolds: opts.scaffolds } : {}),
+            ...(opts?.sourceVersions ? { sourceVersions: opts.sourceVersions } : {}),
           }];
         }
       }
@@ -3146,11 +3225,26 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         if (claim === null) {
           delete entry.claim;
           delete entry.claimAt;
+          // Clearing a claim must not fabricate evidence metadata: a
+          // claim-only entry (no observations) drops back to unmeasured by
+          // removing the materialized cache entry entirely — the journal
+          // still holds the claim history. Evidence-backed entries keep
+          // their replayed facts.
+          const hasRealEvidence = (entry.timesSeen ?? 0) > 0
+            || (entry.timesHovered ?? 0) > 0
+            || entry.hasActiveEvidence === true
+            || (entry.aspects !== undefined && Object.keys(entry.aspects).length > 0)
+            || (entry.ease !== undefined && entry.ease > SRS.MIN_EASE);
+          if (!hasRealEvidence) {
+            delete s.wordKnowledge[lk];
+          }
         } else {
+          // A claim is not a status change: lastStatusChange (an evidence
+          // fingerprint) is never touched by the claim path; claimAt drives
+          // merge recency.
           entry.claim = claim;
           entry.claimAt = now;
         }
-        entry.lastStatusChange = now;
         claimEvents[lk] = [{
           t: now,
           kind: 'claim',
@@ -3330,6 +3424,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       attemptId?: AttemptId;
       /** Presenting channel (e.g. 'word-sync') — replay derives policy markers from it. */
       origin?: string;
+      /** What task produced the attempt (REQ3/REQ52) — provenance only, written when known. */
+      taskType?: AttemptTaskType;
+      /** Scaffolds visible during the attempt — written when the caller knows them. */
+      scaffolds?: AttemptScaffolds;
+      /** Reference-data versions at observation time — written when meaningfully available. */
+      sourceVersions?: EventSourceVersions;
     },
   ): { attemptId: AttemptId } => {
     const language = options?.language ?? settings.language;
@@ -3371,7 +3471,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         }
       }
       if (demonstrated.includes('meaning') && (before.ease ?? 0) < settings.easeThresholdLearning) {
-        setWordKnowledgeEase(word, settings.easeThresholdLearning, undefined, language);
+        setWordKnowledgeEase(word, settings.easeThresholdLearning, undefined, language, {
+          taskType: options?.taskType,
+        });
       }
     }
 
@@ -3391,6 +3493,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       // different primary family form. Never fan observations out from this.
       presentedSurface: word,
       ...(options?.method ? { method: options.method } : {}),
+      // REQ3/REQ52 attempt metadata: write only what is genuinely known. The
+      // word-sync rating route is recognized by its origin when the caller
+      // did not pass an explicit task type.
+      ...(options?.taskType ? { taskType: options.taskType } : options?.origin === 'word-sync' ? { taskType: 'word-sync' satisfies AttemptTaskType } : {}),
+      ...(options?.scaffolds ? { scaffolds: options.scaffolds } : {}),
+      ...(options?.sourceVersions ? { sourceVersions: options.sourceVersions } : {}),
       ...(options?.latencyMs !== undefined ? { latencyMs: options.latencyMs } : {}),
       ...(options?.origin ? { origin: options.origin } : {}),
       fromStatus: before.status,
@@ -3600,84 +3708,129 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   // Grammar Knowledge
   // ========================
 
-  // Grammar counters are the recognition-target read model. Every update is
-  // capability-scoped journal evidence; formation and production remain empty
-  // until a task actually measures them.
-  const appendGrammarEvent = (
+  // Grammar counters are the recognition-target read model. The materialized
+  // grammarKnowledge cache has exactly one writer — this replay (the store
+  // loader aside): trackers append observation rows to the evidence journal
+  // and the projection below rebuilds entries from ACTIVE evidence.
+  let grammarReplayChain: Promise<void> = Promise.resolve();
+  const materializeGrammarKnowledge = async (
+    language: string,
+    seeds: Array<{ pattern: string; level?: number }> = [],
+  ): Promise<void> => {
+    let eventLog: KnowledgeEventLog;
+    try {
+      eventLog = await getEventLogForLanguage(language);
+    } catch (e) {
+      log.warn('grammar projection recompute failed to load events:', e);
+      return;
+    }
+    // Presentation data (pattern, level, language) is not evidence-derived:
+    // existing entries and the caller's seed carry it; every epistemic field
+    // (ease, counters, lastSeen) comes from the replay.
+    const levels = new Map<string, number | undefined>();
+    for (const seed of seeds) {
+      if (!levels.has(seed.pattern)) levels.set(seed.pattern, seed.level);
+    }
+    for (const entry of Object.values(store.grammarKnowledge)) {
+      if ((entry.language ?? settings.language) !== language) continue;
+      if (!levels.has(entry.pattern)) levels.set(entry.pattern, entry.level);
+    }
+    // Rebuild criterion: the cache must be reconstructable from active
+    // evidence alone, so patterns are also enumerated from the journal's
+    // recognition-evidence keys — seeds and surviving entries only add
+    // presentation hints. Key shape: `${language}:grammar:` +
+    // `${language}:grammar:${pattern}` + ':grammar-recognition'.
+    const recognitionSuffix = ':grammar-recognition';
+    const grammarKeyPrefix = `${language}:grammar:`;
+    for (const key of Object.keys(eventLog)) {
+      if (!key.startsWith(grammarKeyPrefix) || !key.endsWith(recognitionSuffix)) continue;
+      const entityId = key.slice(grammarKeyPrefix.length, key.length - recognitionSuffix.length);
+      if (!entityId.startsWith(grammarKeyPrefix)) continue;
+      const pattern = entityId.slice(grammarKeyPrefix.length);
+      if (pattern && !levels.has(pattern)) levels.set(pattern, undefined);
+    }
+    setStore(produce((s) => {
+      for (const [pattern, level] of levels) {
+        const lk = langKey(language, pattern);
+        const projection = replayGrammarRecognition(eventLog[grammarEvidenceKey(language, pattern, 'grammar-recognition')] ?? []);
+        if (!projection) {
+          // No active evidence → no materialized entry.
+          delete s.grammarKnowledge[lk];
+          continue;
+        }
+        const existing = s.grammarKnowledge[lk];
+        s.grammarKnowledge[lk] = {
+          pattern,
+          ease: projection.ease,
+          timesEncountered: projection.timesEncountered,
+          timesFailed: projection.timesFailed,
+          lastSeen: projection.lastSeen,
+          // 0 is the level placeholder — a seedless load-time pass may stamp
+          // it first; a caller's explicit level must still win.
+          level: existing?.level || level || 0,
+          language,
+        };
+      }
+    }));
+    saveFlashcards();
+  };
+
+  // Serialize materializations so a rapid tracker burst always lands the
+  // full-log replay last (each run re-reads the whole language log).
+  const queueGrammarMaterialize = (language: string, seeds: Array<{ pattern: string; level?: number }>): void => {
+    grammarReplayChain = grammarReplayChain
+      .then(() => materializeGrammarKnowledge(language, seeds))
+      .catch((e) => log.warn('grammar materialization failed:', e));
+  };
+
+  // Track that a grammar pattern was passively encountered. Writes ONLY an
+  // evidence observation (encounter delta); the materialized cache is
+  // refreshed by replay, never mutated here.
+  /**
+   * Factual grammar exposure rollup. REQ39 provider side: accepts the shared
+   * GrammarEncounterOptions contract — `(pattern, opts)` from the encounter
+   * journal — while legacy positional callers keep working as
+   * `(pattern, level?, language?)`. Provenance (confidence/span/origin) rides
+   * on the appended rollup event; encounters never touch ratings or claims.
+   */
+  const trackGrammarEncountered = (
     pattern: string,
-    lang: string,
-    now: number,
-    easeAfter: number,
-    failed: boolean,
-    timesSeenDelta = 0,
+    levelOrOpts: number | GrammarEncounterOptions = 0,
+    language = settings.language,
   ) => {
-    const thresholds = { learning: passiveLearningEaseThreshold(), known: passiveKnownEaseThreshold() };
-    const toStatus = classifyGrammarStatus(easeAfter, thresholds);
+    const opts = typeof levelOrOpts === 'object' ? levelOrOpts : undefined;
+    const level = typeof levelOrOpts === 'number' ? levelOrOpts : 0;
     appendEvents({
-      [grammarEvidenceKey(lang, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(lang, pattern, {
-        t: now,
-        kind: 'status',
-        toStatus,
-        easeAfter,
-        ...(timesSeenDelta ? { timesSeenDelta } : {}),
-        ...(failed ? { grammarFailedDelta: 1 } : {}),
+      [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(language, pattern, {
+        t: Date.now(),
+        kind: 'rollup',
+        timesSeenDelta: 1,
+        ...(opts?.confidence !== undefined ? { confidence: opts.confidence } : {}),
+        ...(opts?.span ? { span: opts.span } : {}),
+        // A caller-supplied presenting surface beats the generic marker.
+        origin: opts?.origin ?? 'grammar-encounter',
       })],
-    }).catch((e) => log.warn('knowledge event append failed:', e));
+    })
+      .then(() => queueGrammarMaterialize(language, [{ pattern, level }]))
+      .catch((e) => log.warn('grammar evidence append failed:', e));
   };
 
-  // Track that a grammar pattern was passively encountered
-  const trackGrammarEncountered = (pattern: string, level = 0, language = settings.language) => {
-    const lang = language;
-    const lk = langKey(lang, pattern);
-    const now = Date.now();
-    setStore(produce((s) => {
-      if (!s.grammarKnowledge[lk]) {
-        s.grammarKnowledge[lk] = {
-          pattern,
-          ease: initialGrammarEase(),
-          timesEncountered: 0,
-          timesFailed: 0,
-          lastSeen: now,
-          level,
-          language: lang,
-        };
-      }
-      const g = s.grammarKnowledge[lk];
-      g.timesEncountered++;
-      g.lastSeen = now;
-      g.ease = applyGrammarEncounter(g.ease);
-      appendGrammarEvent(pattern, lang, now, g.ease, false, 1);
-    }));
-    saveFlashcards();
-  };
-
-  // Track that user struggled with a grammar pattern
+  // Track that user struggled with a grammar pattern. Same single-writer path:
+  // a failure delta in the journal, cache updated by replay.
   const trackGrammarFailed = (pattern: string, level = 0, language = settings.language) => {
-    const lang = language;
-    const lk = langKey(lang, pattern);
-    const now = Date.now();
-    setStore(produce((s) => {
-      if (!s.grammarKnowledge[lk]) {
-        s.grammarKnowledge[lk] = {
-          pattern,
-          ease: initialGrammarEase(),
-          timesEncountered: 0,
-          timesFailed: 0,
-          lastSeen: now,
-          level,
-          language: lang,
-        };
-      }
-      const g = s.grammarKnowledge[lk];
-      g.timesFailed++;
-      g.lastSeen = now;
-      g.ease = applyGrammarFailure(g.ease);
-      appendGrammarEvent(pattern, lang, now, g.ease, true);
-    }));
-    saveFlashcards();
+    appendEvents({
+      [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(language, pattern, {
+        t: Date.now(),
+        kind: 'rollup',
+        grammarFailedDelta: 1,
+        origin: 'grammar-failure',
+      })],
+    })
+      .then(() => queueGrammarMaterialize(language, [{ pattern, level }]))
+      .catch((e) => log.warn('grammar evidence append failed:', e));
   };
 
-  // Get grammar knowledge entry
+  // Get grammar knowledge entry — serves the replay-materialized cache.
   const getGrammarKnowledge = (pattern: string, language = settings.language): GrammarKnowledgeEntry | undefined => {
     const lk = pattern.includes(':') && store.grammarKnowledge[pattern]
       ? pattern
@@ -4234,13 +4387,13 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     setKnowledgeRollupTodayFn(() => SRS.getTodayDateString(newDayHour()));
-    window.addEventListener('beforeunload', flushOnUnload);
+    // REQ25 crash-window hardening: event-driven flush on beforeunload +
+    // visibilitychange→hidden (installed in knowledgeRollup, no timers).
+    installPassiveFlushHooks();
 
     loadFlashcards();
     startSession();
   });
-
-  const flushOnUnload = () => { void flushKnowledgeRollup(); };
 
   onCleanup(() => {
     // Flush any pending save before cleanup
@@ -4248,7 +4401,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
       clearTimeout(saveTimer);
       saveFlashcardsImmediate();
     }
-    window.removeEventListener('beforeunload', flushOnUnload);
+    uninstallPassiveFlushHooks();
     void flushKnowledgeRollup();
     // Remove all IPC listeners
     for (const cleanup of ipcCleanups) cleanup();

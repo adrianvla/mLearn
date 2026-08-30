@@ -755,20 +755,23 @@ describe('assessMediaDifficulty', () => {
     totalOccurrences: 200,
   };
 
-  it('headline lexical equals assessMediaLevel on the fixture (behavior preserved)', () => {
-    expect(assessMediaDifficulty(fixture).lexical).toBe(assessMediaLevel(fixture));
-    expect(assessMediaDifficulty(fixture).lexical).toBe(2);
+  it('headline equals assessMediaLevel when no grammar distribution exists (behavior preserved)', () => {
+    const estimate = assessMediaDifficulty(fixture);
+    expect(estimate.lexical).toBe(assessMediaLevel(fixture));
+    expect(estimate.lexical).toBe(2);
+    expect(estimate.headline).toBe(2);
   });
 
-  it('returns the documented components shape with structural reserved as null', () => {
+  it('returns the documented components shape with headline, lexical, and structural reserved as null', () => {
     const estimate = assessMediaDifficulty(fixture);
     expect(estimate).toEqual({
       lexical: estimate.lexical,
+      headline: estimate.lexical,
       components: { lexical: estimate.lexical, grammar: null, structural: null },
     });
   });
 
-  it('computes the grammar component from a supplied grammar distribution without touching the headline', () => {
+  it('computes the grammar component and blends it into the headline by data volume', () => {
     const grammar: LevelPercentages = {
       entries: [
         { level: 1, levelName: 'G1', uniquePercent: 60, occurrencePercent: 60, uniqueCount: 3, occurrenceCount: 3 },
@@ -778,10 +781,39 @@ describe('assessMediaDifficulty', () => {
       totalOccurrences: 5,
     };
     const estimate = assessMediaDifficulty(fixture, grammar);
-    expect(estimate.lexical).toBe(assessMediaLevel(fixture));
-    expect(estimate.components.lexical).toBe(estimate.lexical);
+    // 100 unique words at level 2 + 5 unique grammar points at level 1:
+    // round((2*100 + 1*5) / 105) = 2 — a small grammar sample barely moves a word-heavy media.
+    expect(estimate.components.lexical).toBe(2);
     expect(estimate.components.grammar).toBe(1);
+    expect(estimate.headline).toBe(2);
     expect(estimate.components.structural).toBeNull();
+  });
+
+  it('pulls the headline toward grammar when grammar data dominates the volume', () => {
+    const denseGrammar: LevelPercentages = {
+      entries: [
+        { level: 5, levelName: 'G5', uniquePercent: 100, occurrencePercent: 100, uniqueCount: 300, occurrenceCount: 300 },
+      ],
+      totalUnique: 300,
+      totalOccurrences: 300,
+    };
+    const estimate = assessMediaDifficulty(fixture, denseGrammar);
+    // round((2*100 + 5*300) / 400) = 4.
+    expect(estimate.headline).toBe(4);
+  });
+
+  it('falls back to the grammar estimate when no word data exists', () => {
+    const noWords: LevelPercentages = { entries: [], totalUnique: 0, totalOccurrences: 0 };
+    const grammar: LevelPercentages = {
+      entries: [
+        { level: 3, levelName: 'G3', uniquePercent: 100, occurrencePercent: 100, uniqueCount: 7, occurrenceCount: 7 },
+      ],
+      totalUnique: 7,
+      totalOccurrences: 7,
+    };
+    const estimate = assessMediaDifficulty(noWords, grammar);
+    expect(estimate.lexical).toBeNull();
+    expect(estimate.headline).toBe(3);
   });
 
   it('never consumes learner-relative inputs: only level distributions + language metadata', () => {
@@ -799,10 +831,11 @@ describe('assessMediaDifficulty', () => {
     expect(assessMediaDifficulty(data).components.lexical).toBe(1);
   });
 
-  it('returns null components when no data is available', () => {
+  it('returns null headline and components when no data is available', () => {
     const empty: LevelPercentages = { entries: [], totalUnique: 0, totalOccurrences: 0 };
     expect(assessMediaDifficulty(empty)).toEqual({
       lexical: null,
+      headline: null,
       components: { lexical: null, grammar: null, structural: null },
     });
   });

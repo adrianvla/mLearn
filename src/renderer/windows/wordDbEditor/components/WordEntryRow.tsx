@@ -5,11 +5,13 @@
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, PillLabel, AnkiHoverPreview, KnowledgeCapabilityChips, KnowledgeProjectionDrawer, type InspectorTab } from '../../../components/common';
+import { Btn, GraphNeighborhoodViz, PillLabel, AnkiHoverPreview, KnowledgeCapabilityChips, KnowledgeProjectionDrawer, type InspectorTab } from '../../../components/common';
+import { assembleWordKnowledgeModel } from '../../../components/common/KnowledgeProjection/wordKnowledgeModel';
 import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../../context';
+import { useOptionalGraph } from '../../../context/GraphContext';
 import { cacheVersion, getCachedTranslation, getCachedReading, fetchTranslation, type WordLookupCandidateOptions } from '../../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { ankiCacheVersion, findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
@@ -36,11 +38,12 @@ import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
 import { getBridge } from '../../../../shared/bridges';
 import { getAvailableAspects } from '../../../../shared/types';
-import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
+import type { GraphNeighborhood, KnowledgeProjection } from '../../../../shared/graph/ipc';
 import { openGraphInspector } from '../../../services/openGraphInspector';
 import { getEvents, eventsVersion } from '../../../services/knowledgeEvents';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
+import { assembleTargetExplanation, type TargetState } from '../../../../shared/graph/explanations';
 
 const log = getLogger("renderer.wordDbEditor.wordEntryRow");
 
@@ -149,7 +152,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
-  const { getWordTrackingSync, getAspectStatus, getComprehensiveWordStatusWithSourceSync, setWordClaim, setAspectStatus, clearAspectClaim } = useFlashcards();
+  const { getWordTrackingSync, getAspectStatus, getComprehensiveWordStatusWithSourceSync, setWordClaim, setAspectStatus, clearAspectClaim, store } = useFlashcards();
+  const graph = useOptionalGraph();
   const [projection, setProjection] = createSignal<KnowledgeProjection>();
   const [showKnowledgeDetails, setShowKnowledgeDetails] = createSignal(false);
   const [drawerTab, setDrawerTab] = createSignal<InspectorTab>('targets');
@@ -204,6 +208,58 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     }
     onCleanup(() => { disposed = true; });
   });
+  // Bounded local graph view, expanded on demand; node clicks recenter in place.
+  const [showGraph, setShowGraph] = createSignal(false);
+  const [graphEntityId, setGraphEntityId] = createSignal<string>();
+  const [neighborhood, setNeighborhood] = createSignal<GraphNeighborhood | null>(null);
+  // Track the entry's graph surface id as the projection resolves; resets on entry swap.
+  createEffect(() => {
+    setGraphEntityId(projection()?.surfaceId);
+    setNeighborhood(null);
+  });
+  createEffect(() => {
+    if (!showGraph()) return;
+    const id = graphEntityId();
+    if (!id || !graph.meta().ready) return;
+    let disposed = false;
+    void graph.getNeighborhood({ entityId: id, depth: 1 }).then((next) => {
+      if (!disposed) setNeighborhood(next);
+    }).catch(() => {
+      if (!disposed) setNeighborhood(null);
+    });
+    onCleanup(() => { disposed = true; });
+  });
+  // Active knowledge events OF THE SELECTED GRAPH ENTITY (not just the row's
+  // original word), so the state chip and the center label always refer to the
+  // same node after an in-place recenter.
+  const [graphEvents, setGraphEvents] = createSignal<KnowledgeEvent[]>([]);
+  createEffect(() => {
+    if (!showGraph()) return;
+    const hash = graphEntityId()?.match(/:surface:([a-f0-9]{64})$/i)?.[1];
+    if (!hash) {
+      setGraphEvents([]);
+      return;
+    }
+    let disposed = false;
+    void getEvents([`${settings.language}:${hash}`]).then((selected) => {
+      if (!disposed) setGraphEvents(selected);
+    }).catch(() => {
+      if (!disposed) setGraphEvents([]);
+    });
+    onCleanup(() => { disposed = true; });
+  });
+  // Center learner state via the shared explanation assembly; mastery is never computed here.
+  const graphCenterState = createMemo<TargetState | undefined>(() => (
+    showGraph() ? assembleTargetExplanation('surface-recognition', graphEvents(), store.meta).state : undefined
+  ));
+
+  // REQ34 canonical drawer aggregate: one composition of the comprehensive
+  // resolver, the projection, and the journal — the drawer consumes this shape.
+  const wordKnowledge = createMemo(() => assembleWordKnowledgeModel({
+    comprehensive: meaningStatus(),
+    projection: projection(),
+    events: events(),
+  }));
 
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
@@ -423,6 +479,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   });
   
   return (
+    <>
     <div class="entry" ref={rowRef}>
       <div class="col word">
         <WordWithReading
@@ -501,16 +558,16 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         />
         <KnowledgeCapabilityChips projection={projection()} />
         <Btn variant="ghost" size="sm" onClick={() => { setDrawerTab('targets'); setShowKnowledgeDetails(true); }}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
+        <Btn variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Btn>
         <KnowledgeProjectionDrawer
-          projection={projection()}
+          model={wordKnowledge()}
           open={showKnowledgeDetails()}
           onClose={() => setShowKnowledgeDetails(false)}
           onGraph={(entityId) => openGraphInspector({ entityId })}
+          onSelectEntity={setGraphEntityId}
           surface={props.entry.word}
-          events={events()}
           initialTab={drawerTab()}
           onWordClaim={(claim) => setWordClaim(props.entry.word, claim, settings.language)}
-          wordClaim={meaningStatus().basis === 'claim' ? meaningStatus().status : null}
           onAspectClaim={(aspect, claim) => {
             if (claim === null) clearAspectClaim(props.entry.word, aspect, settings.language);
             else setAspectStatus(props.entry.word, aspect, claim, 'manual', settings.language);
@@ -599,6 +656,30 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         </Show>
       </div>
     </div>
+    <Show when={showGraph()}>
+      <section class="entry__graph">
+        <header class="entry__graph-header">
+          <strong>{t('mlearn.GraphInspector.Neighborhood.Title')}</strong>
+          <Show when={graphEntityId()}>
+            {(id) => <Btn variant="ghost" size="sm" onClick={() => openGraphInspector({ entityId: id() })}>{t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}</Btn>}
+          </Show>
+        </header>
+        <Show when={graph.meta().ready} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Unavailable')}</p>}>
+          <Show when={graphEntityId()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
+            <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.Loading')}</p>}>
+              {(value) => (
+                <GraphNeighborhoodViz
+                  neighborhood={value()}
+                  centerState={graphCenterState()}
+                  onSelect={setGraphEntityId}
+                />
+              )}
+            </Show>
+          </Show>
+        </Show>
+      </section>
+    </Show>
+    </>
   );
 };
 

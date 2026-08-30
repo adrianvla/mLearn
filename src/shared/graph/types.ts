@@ -29,19 +29,6 @@ export type GraphDomain = 'common' | 'names' | 'archaic' | 'technical' | 'dialec
 /** Specialized domains (names etc.) are excluded from ordinary learning/prediction unless explicitly enabled. */
 export const DEFAULT_ENABLED_DOMAINS: readonly GraphDomain[] = ['common'];
 
-/** Vocabulary taxonomy facets (§14): linguistic organization metadata for browsing/grouping — never learner state. */
-export interface GraphFacets {
-  partOfSpeech?: string[];
-  semanticType?: string[];
-  register?: string;
-  topicDomain?: string;
-  morphologicalClass?: string;
-  transitivity?: 'transitive' | 'intransitive' | 'ditransitive';
-  /** Corpus frequency rank where the source provides one (lower = more frequent). */
-  frequencyRank?: number;
-  /** Exam/framework level tags, e.g. { system: 'JLPT', level: 'N3' }. */
-  levels?: Array<{ system: string; level: string }>;
-}
 
 export interface GraphEntity {
   /** Persistent across graph rebuilds while the underlying identity is stable. Convention: `${language}:${kind}:${localId}`. */
@@ -49,8 +36,6 @@ export interface GraphEntity {
   kind: GraphEntityKind;
   domain?: GraphDomain;
   label?: string;
-  /** Taxonomy facets — present only where source data provides them honestly. */
-  facets?: GraphFacets;
   /** Existing language-package grammar metadata, present only on grammar patterns. */
   grammar?: {
     meaning: string;

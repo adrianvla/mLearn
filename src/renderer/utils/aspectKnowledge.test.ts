@@ -51,14 +51,14 @@ const easeFor = (status: WordStatus) => (status === 'known' ? 1.8 : status === '
 const ALL = ['meaning', 'reading', 'prosody'] as const;
 
 describe('getAspectStatusSync', () => {
-  it('passive-only exposure caps at learning; active evidence establishes known', () => {
+  it('passive-only exposure stays unmeasured; active evidence establishes known', () => {
     const lk = langKey('ja', hashWordSync('猫'));
     // Pure passive ease growth (42 displays above the known threshold) —
-    // display familiarity alone must not establish Known.
+    // familiarity alone is not an epistemic measurement: unmeasured/unknown.
     const passive = makeDeps({
       wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 42, lastStatusChange: undefined }) },
     });
-    expect(getAspectStatusSync('猫', 'meaning', passive).status).toBe('learning');
+    expect(getAspectStatusSync('猫', 'meaning', passive).status).toBe('unknown');
     // The same entry with active evidence (SRS/attempt rating) reads as known.
     const rated = makeDeps({
       wordKnowledge: { [lk]: makeEntry({ ease: 2.0, timesSeen: 42, hasActiveEvidence: true }) },

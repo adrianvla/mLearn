@@ -10,6 +10,7 @@
 import type {
   FlashcardStore,
   LanguageData,
+  PassiveWordKnowledge,
   WordFrequencyEntry,
   WordFrequencyMap,
 } from '../../shared/types';
@@ -80,6 +81,31 @@ function wordKey(language: string, word: string, canonicalizeWord?: Canonicalize
 }
 
 /**
+ * Pure passive exposure is familiarity, never epistemic evidence — mirrors
+ * effectiveKnowledge.ts exactly: no claim, no active-evidence marker, no
+ * explicit status change. Such words are Untracked, never Learning/Unknown.
+ */
+export function isPurePassiveKnowledgeEntry(knowledge: PassiveWordKnowledge): boolean {
+  return knowledge.claim === undefined
+    && knowledge.hasActiveEvidence !== true
+    && knowledge.lastStatusChange === undefined;
+}
+
+/**
+ * Build a Set of language-prefixed hashes whose knowledge entries carry only
+ * passive familiarity (seen/hovered, no active evidence, no claim, no explicit
+ * status change). The untracked buckets count these as untracked even though
+ * buildTrackedWordSet includes every wordKnowledge key.
+ */
+export function buildPassiveOnlyWordSet(store: FlashcardStore): Set<string> {
+  const passiveOnly = new Set<string>();
+  for (const [lk, knowledge] of Object.entries(store.wordKnowledge)) {
+    if (isPurePassiveKnowledgeEntry(knowledge)) passiveOnly.add(lk);
+  }
+  return passiveOnly;
+}
+
+/**
  * Build a Set of word hashes that are considered "learning".
  *
  * A word is learning if:
@@ -87,7 +113,8 @@ function wordKey(language: string, word: string, canonicalizeWord?: Canonicalize
  * - OR its resolved effective state is 'learning' (mirrors
  *   effectiveKnowledge.effectiveStateFromEntry: an explicit claim decides the
  *   classification — only a 'learning' claim admits the word; without a claim,
- *   evidence ease classifies, with passive-only exposure capped at Learning)
+ *   ACTIVE evidence ease classifies, with the known band gated on
+ *   hasActiveEvidence. Pure passive exposure is untracked, never learning)
  * - OR it exists as a word candidate (auto-tracked for potential flashcards)
  */
 export function buildLearningWordSet(
@@ -111,14 +138,19 @@ export function buildLearningWordSet(
     }
   }
 
-  // Passive knowledge — the canonical effective-state rule (no raw ease band
-  // inference): a claim decides ('learning' admits the word; 'known'/'unknown'
-  // claims keep it out), otherwise evidence ease classifies with the known band
-  // gated on hasActiveEvidence — passive-only high ease caps at Learning.
+  // Knowledge-derived learning — the canonical effective-state rule (no raw
+  // ease band inference): a claim decides ('learning' admits the word;
+  // 'known'/'unknown' claims keep it out), otherwise ACTIVE evidence ease
+  // classifies with the known band gated on hasActiveEvidence. Pure passive
+  // entries (familiarity only) never land here — they are untracked (REQ13).
   for (const [lk, knowledge] of Object.entries(store.wordKnowledge)) {
     if (knowledge.claim !== undefined) {
       if (knowledge.claim === 'learning') learning.add(lk);
-    } else if (knowledge.ease >= learningEase && (knowledge.ease < knownEase || knowledge.hasActiveEvidence !== true)) {
+    } else if (
+      !isPurePassiveKnowledgeEntry(knowledge)
+      && knowledge.ease >= learningEase
+      && (knowledge.ease < knownEase || knowledge.hasActiveEvidence !== true)
+    ) {
       learning.add(lk);
     }
   }
@@ -157,12 +189,15 @@ export function getWordLevelStatus(
   learningSet: Set<string>,
   trackedSet: Set<string>,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  passiveOnlySet?: ReadonlySet<string>,
 ): WordLevelStatus {
   const lk = wordKey(language, word, canonicalizeWord);
 
   if (knownSet.has(lk)) return 'known';
   if (learningSet.has(lk)) return 'learning';
-  if (trackedSet.has(lk)) return 'unknown';
+  // Pure passive familiarity is untracked even though every wordKnowledge key
+  // is "tracked" — exposure alone is not an epistemic measurement (REQ13).
+  if (trackedSet.has(lk) && !passiveOnlySet?.has(lk)) return 'unknown';
   return 'untracked';
 }
 
@@ -275,6 +310,7 @@ export function computeLevelStats(
   );
   const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
   const trackedSet = buildTrackedWordSet(store, language, ankiKeys);
+  const passiveOnlySet = buildPassiveOnlyWordSet(store);
 
   return [...levelBuckets.entries()]
     .sort(([a], [b]) => compareFrequencyLevelsForDisplay(a, b, languageData))
@@ -290,7 +326,9 @@ export function computeLevelStats(
           known++;
         } else if (learningSet.has(lk)) {
           learning++;
-        } else if (trackedSet.has(lk)) {
+        } else if (trackedSet.has(lk) && !passiveOnlySet.has(lk)) {
+          // Tracked via the wordKnowledge scan, but the entry carries only
+          // passive familiarity — it counts as untracked (REQ13).
           unknown++;
         }
       }
@@ -453,6 +491,7 @@ export function computeBeyondExamLevelStats(
   );
   const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
   const trackedSet = buildTrackedWordSet(store, language, ankiKeys);
+  const passiveOnlySet = buildPassiveOnlyWordSet(store);
 
   let known = 0;
   let learning = 0;
@@ -469,7 +508,9 @@ export function computeBeyondExamLevelStats(
       known++;
     } else if (learningSet.has(lk)) {
       learning++;
-    } else if (trackedSet.has(lk)) {
+    } else if (trackedSet.has(lk) && !passiveOnlySet.has(lk)) {
+      // Tracked via the wordKnowledge scan, but the entry carries only passive
+      // familiarity — it counts as untracked (REQ13).
       unknown++;
     } else {
       untracked++;

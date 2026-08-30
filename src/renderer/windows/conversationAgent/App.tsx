@@ -333,6 +333,9 @@ export const ConversationContent: Component = () => {
         ...(media?.failedGrammar ?? []).sort((a, b) => a.ease - b.ease).slice(0, 10).map((g) => g.pattern),
         ...(tutor?.selectedGrammar ?? []).map((g) => g.pattern),
       ],
+      // Exposure signal only (patterns repeatedly seen, never failed) — kept
+      // out of grammarPoints so prediction never masquerades as failure.
+      grammarExposure: media?.grammarExposure?.map((g) => g.pattern),
       levelEstimate: level > 0 ? (getLevelName(level) ?? undefined) : media?.assessedLevelName ?? undefined,
     };
   };
@@ -351,6 +354,7 @@ export const ConversationContent: Component = () => {
       language: context?.language ?? settings.language,
       failedWords: context?.failedWords ?? [],
       failedGrammar: context?.failedGrammar ?? [],
+      grammarExposure: context?.grammarExposure ?? [],
       wordLevelPercentages: context?.wordLevelPercentages ?? { entries: [], totalUnique: 0, totalOccurrences: 0 },
       grammarLevelPercentages: context?.grammarLevelPercentages ?? { entries: [], totalUnique: 0, totalOccurrences: 0 },
       subtitleHistory: media.subtitleHistory,

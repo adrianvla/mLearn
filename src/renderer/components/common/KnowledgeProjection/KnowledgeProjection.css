@@ -47,6 +47,23 @@
 .knowledge-drawer__prediction ul { margin: var(--spacing-1) 0; padding-left: 1rem; }
 .knowledge-drawer__prediction .knowledge-drawer__label { color: var(--color-warning); }
 
+/* REQ63 relation navigation: the row recenters, the window affordance is secondary. */
+.knowledge-drawer__relation { display: flex; gap: 0.4rem; align-items: baseline; flex: 1; background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.knowledge-drawer__relation:hover strong { color: var(--color-primary); }
+.knowledge-drawer__relation-open { background: none; border: none; padding: 0 0.15rem; color: var(--text-secondary); font-size: var(--font-size-sm); cursor: pointer; }
+.knowledge-drawer__relation-open:hover { color: var(--color-primary); }
+.knowledge-drawer__focus { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-2); margin: var(--spacing-2) 0; padding: 0.3rem 0.5rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-secondary); font-size: var(--font-size-sm); }
+.knowledge-drawer__focus-close { background: none; border: none; color: var(--text-secondary); font-size: 1rem; line-height: 1; cursor: pointer; }
+.knowledge-drawer__focus-close:hover { color: var(--color-primary); }
+.knowledge-drawer__center-states { margin: var(--spacing-2) 0; }
+
+/* REQ29 exclusion visibility: teaching policy, orthogonal to knowledge status. */
+.knowledge-drawer__header-end { display: inline-flex; align-items: center; gap: var(--spacing-2); }
+.knowledge-drawer__excluded { border: 1px dashed var(--border-color); border-radius: var(--radius-sm); padding: 0 0.4rem; color: var(--text-secondary); font-size: var(--font-size-xs); text-decoration: line-through; white-space: nowrap; }
+
+/* REQ29 WHY narrative line. */
+.knowledge-drawer__why { display: block; margin-top: 0.15rem; color: var(--text-secondary); font-size: var(--font-size-xs); }
+
 /* Deliberate claim editing (word-level + per-aspect rows). */
 .knowledge-drawer__section--claims { display: grid; gap: var(--spacing-2); }
 .knowledge-drawer__claim-row { display: flex; align-items: center; gap: var(--spacing-2); }

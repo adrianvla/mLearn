@@ -209,21 +209,19 @@ export function assessMediaLevel(wordPercentages: LevelPercentages, languageData
 /**
  * Component breakdown of a media difficulty estimate.
  *
- * Components are deliberately kept separate from the headline `lexical`
- * number so future difficulty sources can be fused without changing today's
- * assessed value. No component is ever a learner-relative projection: every
- * slot is an objective property of the media content (level distributions +
- * language metadata only).
+ * Components are kept separate from the fused `headline` so each difficulty
+ * source stays inspectable. No component is ever a learner-relative
+ * projection: every slot is an objective property of the media content
+ * (level distributions + language metadata only).
  */
 export interface MediaDifficultyComponents {
-  /** Lexical (vocabulary frequency) difficulty — the current headline. */
+  /** Lexical (vocabulary frequency) difficulty — the 2^n-weighted word-level estimate. */
   lexical: number | null;
   /**
    * Grammar difficulty (level distribution of the grammar points used in the
    * media), computed with the same weighted rule when grammar distribution
-   * data is supplied. Currently an observation slot: it is computed at call
-   * sites that already carry `grammarLevelPercentages`, but is NOT fused into
-   * the headline `lexical` number, so current assessed values are unchanged.
+   * data is supplied. Fused into the headline proportionally to its data
+   * volume; also surfaced on its own for the component breakdown UI.
    */
   grammar: number | null;
   /**
@@ -234,8 +232,19 @@ export interface MediaDifficultyComponents {
 }
 
 export interface MediaDifficultyEstimate {
-  /** Headline difficulty. Today this equals the lexical component. */
+  /**
+   * Pure lexical (vocabulary frequency) difficulty. Retained under its
+   * historical name for consumers that specifically want the lexical
+   * component; the media headline is `headline`.
+   */
   lexical: number | null;
+  /**
+   * Headline difficulty shown to the learner. With no grammar distribution it
+   * equals `lexical` exactly (legacy behavior). When both components are
+   * estimated, it is the data-volume-weighted mean of the two component
+   * estimates, rounded back to a discrete level (see `assessMediaDifficulty`).
+   */
+  headline: number | null;
   components: MediaDifficultyComponents;
 }
 
@@ -245,8 +254,18 @@ export interface MediaDifficultyEstimate {
  * `lexical` reproduces `assessMediaLevel` exactly (same inputs → same value).
  * `components.grammar` is populated from the optional grammar distribution
  * (objective unique counts only — the weighted rule never consumes learner
- * failure weights), while the headline stays unchanged to preserve current
- * behavior. No projection/learner inputs are accepted.
+ * failure weights). No projection/learner inputs are accepted.
+ *
+ * Headline fusion (REQ48): both components are 2^n-weighted content
+ * estimates; the headline combines them with the same objective rationale —
+ * an arithmetic mean of the two level estimates weighted by how much data
+ * backs each component (`totalUnique` items of its distribution). A media
+ * with 400 unique words and 4 grammar points therefore stays essentially
+ * lexical, while a grammar-dense media moves the headline toward the grammar
+ * estimate. The mean is rounded to the nearest integer because every
+ * consumer (level-name labels, pill visual ranks, persisted stats) treats
+ * the headline as a discrete level. `structural` stays honestly null: no
+ * sentence-complexity estimator exists yet.
  */
 export function assessMediaDifficulty(
   wordPercentages: LevelPercentages,
@@ -257,8 +276,17 @@ export function assessMediaDifficulty(
   const grammar = grammarPercentages
     ? estimateWeightedLevel(grammarPercentages, compareGrammarLevelsByDifficulty, languageData)
     : null;
+  const lexicalVolume = lexical == null ? 0 : wordPercentages.totalUnique;
+  const grammarVolume = grammar == null ? 0 : grammarPercentages?.totalUnique ?? 0;
+  const volume = lexicalVolume + grammarVolume;
+  const headline = lexical == null && grammar == null
+    ? null
+    : volume === 0
+      ? lexical ?? grammar
+      : Math.round(((lexical ?? 0) * lexicalVolume + (grammar ?? 0) * grammarVolume) / volume);
   return {
     lexical,
+    headline,
     components: {
       lexical,
       grammar,

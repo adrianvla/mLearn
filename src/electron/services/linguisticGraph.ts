@@ -4,9 +4,9 @@ import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { COMPACT_RELATION_TYPES, decodeCompact, type CompactAssetJSON, type RuntimeCompactGraph } from '../../shared/graph/compact';
-import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../../shared/graph/ipc';
+import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodCenterState, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../../shared/graph/ipc';
 import { RELATION_CATEGORY, type GraphRelation, type GraphRelationType, type LinguisticGraphAsset } from '../../shared/graph/types';
-import { loadLinguisticGraph } from '../../shared/graph/load';
+import { loadLinguisticGraph, type LingualGraph } from '../../shared/graph/load';
 import { buildKnowledgeProjection } from './knowledgeProjection';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
@@ -17,6 +17,13 @@ type LoadedGraph = {
   language: string;
   graph: RuntimeCompactGraph;
   relationCount: number;
+  /**
+   * Plain-graph replica for projections, built lazily on first projection use
+   * and cached on the loaded asset instance. Invalidation is structural: every
+   * (re)load of a language creates a fresh LoadedGraph without a replica, and
+   * only one language stays loaded at a time, so at most one replica is held.
+   */
+  plainGraph?: LingualGraph;
 };
 
 const notInstalledMeta = (): GraphMeta => ({ entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' });
@@ -136,7 +143,35 @@ export class LinguisticGraphService {
     const limit = Math.min(Math.max(query.limit ?? 80, 1), 200);
     const relationTypes = COMPACT_RELATION_TYPES.filter((type) => !classes || classes.has(RELATION_CATEGORY[type]));
     const relations = this.related(loaded.graph, query.entityId, relationTypes).slice(0, limit);
-    return { center, centerDenseId: dense, relationCount: relations.length, relations };
+    const centerStates = center.kind === 'surface' ? await this.centerStates(loaded, language, query.entityId) : undefined;
+    return { center, centerDenseId: dense, relationCount: relations.length, relations, ...(centerStates?.length ? { centerStates } : {}) };
+  }
+
+  /**
+   * Center-surface learner states (classification, basis) from the same
+   * buildKnowledgeProjection the inspector uses — one payload instead of a
+   * serial per-node call. Best effort: any failure degrades to absence.
+   */
+  private async centerStates(loaded: LoadedGraph, language: string, surfaceId: string): Promise<GraphNeighborhoodCenterState[] | undefined> {
+    try {
+      const prefix = `${language}:surface:`;
+      const hash = surfaceId.startsWith(prefix) ? surfaceId.slice(prefix.length) : undefined;
+      if (!hash) return undefined;
+      const [{ loadFlashcards }, { getKnowledgeEvents }] = await Promise.all([
+        import('./flashcardStorage'),
+        import('./knowledgeEvents'),
+      ]);
+      const [store, events] = await Promise.all([
+        loadFlashcards(),
+        Promise.resolve(getKnowledgeEvents([`${language}:${hash}`])),
+      ]);
+      const projection = buildKnowledgeProjection(this.toLingualGraph(loaded), surfaceId, events[`${language}:${hash}`] ?? [], store.meta);
+      return projection.targets
+        .filter((target) => target.targetRef.id === surfaceId)
+        .flatMap((target) => target.states.map(({ capability, classification, basis }) => ({ capability, classification, basis })));
+    } catch {
+      return undefined;
+    }
   }
 
   async getTargetsForSurfaces(language: string, inputs: GraphLookupInput[]): Promise<GraphSurfaceTargets[]> {
@@ -164,7 +199,13 @@ export class LinguisticGraphService {
     }
   }
 
-  private toLingualGraph(loaded: LoadedGraph) {
+  private toLingualGraph(loaded: LoadedGraph): LingualGraph {
+    if (!loaded.plainGraph) loaded.plainGraph = this.buildLingualGraph(loaded);
+    return loaded.plainGraph;
+  }
+
+  /** Full plain-graph replica of the compact graph; expensive, so cached per loaded asset. */
+  private buildLingualGraph(loaded: LoadedGraph): LingualGraph {
     const { graph } = loaded;
     const domains = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
     const entities = graph.persistentOf.map((id, dense) => {
@@ -175,6 +216,7 @@ export class LinguisticGraphService {
         kind: graph.nodeKind(id)!,
         ...(domain ? { domain } : {}),
         ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}),
+        ...(graph.entityGrammar?.[dense] ? { grammar: graph.entityGrammar[dense] } : {}),
       };
     });
     const relations: GraphRelation[] = [];

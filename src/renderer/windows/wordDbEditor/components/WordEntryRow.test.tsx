@@ -9,6 +9,12 @@ import type { LanguageData } from '../../../../shared/types';
 const mockGetCard = vi.fn();
 const mockGetKnowledgeProjection = vi.fn();
 let lastDrawerProps: { open?: boolean; initialTab?: string; surface?: string } | null = null;
+const getNeighborhoodMock = vi.fn();
+const getEventsMock = vi.fn();
+const openGraphInspectorMock = vi.fn();
+let lastVizProps: { neighborhood?: { center: { label?: string } }; centerState?: string; onSelect?: (id: string) => void } | null = null;
+const hashA = 'a'.repeat(64);
+const hashB = 'b'.repeat(64);
 const getWordTrackingSyncMock = vi.fn((_word: string): { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string } => ({ tracker: 'anki' }));
 const findAnkiWordMatchMock = vi.fn((): { word: string; lookupKey: string; cards: never[] } | null => null);
 const extractProsodyDataMock = vi.fn();
@@ -44,6 +50,7 @@ vi.mock('../../../context', () => ({
   }),
   useFlashcards: () => ({
     getWordTrackingSync: getWordTrackingSyncMock,
+    store: { meta: { learningSteps: [1], relearnSteps: [1], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 365 } },
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
     getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
   }),
@@ -93,6 +100,10 @@ vi.mock('../../../components/common', () => ({
       </span>
     </span>
   ),
+  GraphNeighborhoodViz: (props: { neighborhood?: { center: { label?: string } }; centerState?: string; onSelect?: (id: string) => void }) => {
+    lastVizProps = props;
+    return <div data-testid="graph-viz-stub" onClick={() => props.onSelect?.(`ja:surface:${hashB}`)} />;
+  },
   KnowledgeCapabilityChips: () => <span data-testid="knowledge-chips" />,
   KnowledgeProjectionDrawer: (props: { open?: boolean; initialTab?: string; surface?: string }) => {
     lastDrawerProps = props;
@@ -100,12 +111,15 @@ vi.mock('../../../components/common', () => ({
   },
 }));
 
+
+vi.mock('../../../context/GraphContext', () => ({
+  useOptionalGraph: () => ({ meta: () => ({ ready: true }), getNeighborhood: getNeighborhoodMock }),
+}));
 vi.mock('../../../../shared/bridges', () => ({
   getBridge: () => ({ graph: { getKnowledgeProjection: mockGetKnowledgeProjection } }),
 }));
-
 vi.mock('../../../services/knowledgeEvents', () => ({
-  getEvents: async () => [],
+  getEvents: getEventsMock,
   eventsVersion: () => 0,
 }));
 
@@ -113,7 +127,7 @@ vi.mock('../../../services/srsAlgorithm', () => ({
   hashWordSync: (word: string) => `hash:${word.length}`,
 }));
 
-vi.mock('../../../services/openGraphInspector', () => ({ openGraphInspector: () => undefined }));
+vi.mock('../../../services/openGraphInspector', () => ({ openGraphInspector: openGraphInspectorMock }));
 
 vi.mock('../../../components/language-specific', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../components/language-specific')>();
@@ -177,6 +191,12 @@ describe('WordEntryRow', () => {
     mockGetKnowledgeProjection.mockReset();
     mockGetKnowledgeProjection.mockResolvedValue({ status: 'unavailable', targets: [] });
     lastDrawerProps = null;
+    getNeighborhoodMock.mockReset();
+    getNeighborhoodMock.mockResolvedValue(null);
+    getEventsMock.mockReset();
+    getEventsMock.mockResolvedValue([]);
+    openGraphInspectorMock.mockReset();
+    lastVizProps = null;
     getWordTrackingSyncMock.mockReset();
     getWordTrackingSyncMock.mockImplementation(() => ({ tracker: 'anki' }));
     findAnkiWordMatchMock.mockReset();
@@ -1424,6 +1444,72 @@ describe('WordEntryRow', () => {
     expect(inspectBtn).not.toBeUndefined();
     inspectBtn!.click();
     expect(lastDrawerProps).toMatchObject({ open: true, initialTab: 'targets', surface: '猫' });
+    dispose();
+  });
+  it('expands the local graph view for the entry and recensters state and label together', async () => {
+    mockGetKnowledgeProjection.mockResolvedValue({ status: 'ready', surfaceId: `ja:surface:${hashA}`, targets: [] });
+    const rating = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', rating: 'good', easeAfter: 2.8, attemptId: 'active' };
+    getNeighborhoodMock.mockImplementation((query: { entityId: string }) => Promise.resolve(
+      query.entityId === `ja:surface:${hashA}`
+        ? {
+            center: { id: `ja:surface:${hashA}`, kind: 'surface', label: '殖える' },
+            centerDenseId: 1,
+            relationCount: 1,
+            relations: [{ id: `ja:surface:${hashB}`, kind: 'surface', label: '増える', relationType: 'semantically-related' }],
+          }
+        : {
+            center: { id: `ja:surface:${hashB}`, kind: 'surface', label: '増える' },
+            centerDenseId: 2,
+            relationCount: 0,
+            relations: [],
+          },
+    ));
+    getEventsMock.mockImplementation((keys: readonly string[]) => Promise.resolve(
+      keys.includes(`ja:${hashB}`) ? [rating] : [],
+    ));
+
+    // Dynamic import is the harness convention in this file: the vi.mock registrations above must run before the module loads.
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('殖える')}
+        levelNames={{ 0: 'JLPT N5' }}
+        onStatusChange={() => undefined}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    await flushAsync();
+    await flushAsync();
+    expect(container.querySelector('[data-testid="graph-viz-stub"]')).toBeNull();
+
+    const toggle = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.Toggle');
+    expect(toggle).not.toBeUndefined();
+    toggle!.click();
+    await flushAsync();
+    await flushAsync();
+
+    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashA}`, depth: 1 }));
+    expect(container.querySelector('[data-testid="graph-viz-stub"]')).not.toBeNull();
+    expect(lastVizProps?.neighborhood?.center.label).toBe('殖える');
+    expect(lastVizProps?.centerState).toBe('unmeasured');
+
+    // Open in the full inspector window for the currently selected entity.
+    const openInWindow = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.OpenInWindow');
+    expect(openInWindow).not.toBeUndefined();
+    openInWindow!.click();
+    expect(openGraphInspectorMock).toHaveBeenCalledWith({ entityId: `ja:surface:${hashA}` });
+
+    // Recenter on the support neighbor: label AND learner state must switch together.
+    container.querySelector<HTMLElement>('[data-testid="graph-viz-stub"]')!.click();
+    await flushAsync();
+    await flushAsync();
+    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashB}`, depth: 1 }));
+    expect(lastVizProps?.neighborhood?.center.label).toBe('増える');
+    expect(lastVizProps?.centerState).toBe('evidence-backed-known');
+    expect(openGraphInspectorMock).toHaveBeenLastCalledWith({ entityId: `ja:surface:${hashA}` });
+
     dispose();
   });
 });

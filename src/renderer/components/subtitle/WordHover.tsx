@@ -5,7 +5,7 @@
  */
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onCleanup, onMount } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, type TranslationEntry, type WordFrequencyMap } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { useOptionalGraph } from '../../context/GraphContext';
 import { toUniqueIdentifier } from '../../services/statsService';
@@ -33,9 +33,10 @@ import { showToast } from '../common/Feedback/Toast';
 import { getTokenLookupWord, getTokenWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
-import { getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
+import { getFrequencyLevelVisualRank, languageSupportsCompoundSplitting } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
+import { decomposeGermanCompound, type GermanCompoundAnalysis, type GermanCompoundLexicon } from '../../../shared/graph/morphology/deCompounds';
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
@@ -53,6 +54,41 @@ const UI_NAVBAR_HEIGHT = 48;  // .reader-nav height: 48px
 const UI_SIDEBAR_WIDTH = 160; // .reader-sidebar width: 160px
 const UI_STATUSBAR_HEIGHT = 30; // .reader-status height: 30px
 const UI_BOUNDARY_PADDING = 12; // Small padding from UI elements
+
+// ============ German compound decomposition (REQ42) ============
+
+const MIN_COMPOUND_PART_LENGTH = 3; // Must match deCompounds MIN_PART_LENGTH.
+
+/** Per-frequency-map cache so repeated hovers never rebuild the lexicon. */
+const compoundLexiconCache = new WeakMap<object, GermanCompoundLexicon>();
+
+/** The splitter lexicon is the language's own frequency vocabulary. */
+function compoundLexiconFor(freq: WordFrequencyMap | undefined): GermanCompoundLexicon {
+  if (!freq || typeof freq !== 'object') return new Map();
+  const cached = compoundLexiconCache.get(freq);
+  if (cached) return cached;
+  const lexicon: GermanCompoundLexicon = new Map(
+    Object.keys(freq)
+      .filter((surface) => surface.length >= MIN_COMPOUND_PART_LENGTH)
+      .map((surface) => [surface.toLocaleLowerCase('de'), { lemma: surface }]),
+  );
+  compoundLexiconCache.set(freq, lexicon);
+  return lexicon;
+}
+
+/**
+ * Decompose a hovered surface with the shared splitter, or null when the
+ * language has no compound capability, the word is too short to hold two
+ * parts, or the result is not a generated multi-part split (attested single
+ * lexemes are not compounds and render no tree).
+ */
+export function compoundAnalysisFor(word: string, languageData: LanguageData | null | undefined, freq: WordFrequencyMap | undefined): GermanCompoundAnalysis | null {
+  if (!languageSupportsCompoundSplitting(languageData)) return null;
+  const normalized = word.trim();
+  if (normalized.length < 2 * MIN_COMPOUND_PART_LENGTH) return null;
+  const analysis = decomposeGermanCompound(normalized, compoundLexiconFor(freq));
+  return analysis?.source === 'generated' ? analysis : null;
+}
 
 export interface WordHoverProps {
   token: Token;
@@ -95,7 +131,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { meta: graphMeta, getTargetsForSurfaces } = useOptionalGraph();
   const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusWithSourceSync, getAspectStatus, setWordClaim, setAspectStatus, clearAspectClaim } = useFlashcards();
-  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
+  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants, getWordFrequency } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -176,6 +212,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     tokenizerCapabilities: tokenizerCapabilities(),
     languageData: currentLangData(),
   }));
+
+  // REQ42: real decomposition from the shared splitter, shown only when the
+  // surface actually splits into parts.
+  const compoundAnalysis = createMemo(() => compoundAnalysisFor(actualWord(), currentLangData(), getWordFrequency()));
   
   // REACTIVE: Get current ease from flashcard if tracked
   const currentEase = createMemo(() => {
@@ -747,6 +787,17 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   </For>
                 </Show>
               </Show>
+
+              {/* REQ42: German compound decomposition tree */}
+              <Show when={compoundAnalysis()}>
+                {(analysis) => (
+                  <>
+                    <hr />
+                    <CompoundDecomposition analysis={analysis()} t={t} />
+                  </>
+                )}
+              </Show>
+
             </Show>
           </div>
 
@@ -878,3 +929,35 @@ const AnkiDuplicateWarningModal: Component<{
     </Modal>
   );
 };
+
+// ============ German compound decomposition tree (REQ42) ============
+
+/** Render depth rows of the decomposition: level parts joined by '+', deeper levels behind '→'. */
+export function CompoundDecomposition(props: {
+  analysis: GermanCompoundAnalysis;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const depthRows = createMemo(() => {
+    const rows: string[] = [];
+    let level = [...props.analysis.parts];
+    while (level.length > 0) {
+      rows.push(level.map((part) => part.lemma).join(' + '));
+      level = level.flatMap((part) => [...(part.parts ?? [])]);
+    }
+    return rows;
+  });
+
+  return (
+    <div class="hover-compound">
+      <div class="hover-compound__label">{props.t('mlearn.WordHover.Compound.Title')}</div>
+      <For each={depthRows()}>
+        {(row, depth) => (
+          <div class="hover-compound__row">{depth() > 0 ? '→ ' : ''}{row}</div>
+        )}
+      </For>
+      <Show when={props.analysis.ambiguous}>
+        <div class="hover-compound__note">{props.t('mlearn.WordHover.Compound.Ambiguous')}</div>
+      </Show>
+    </div>
+  );
+}

@@ -26,6 +26,7 @@
     "showReadingAnnotations": false,
     "showProsody": false
   },
+  "compoundSplitting": true,
   "languageData": {
     "version": "de-package-2026.07.19",
     "sourceVersions": {

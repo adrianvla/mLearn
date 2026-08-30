@@ -1,14 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { hashWordSync } from './srsAlgorithm';
 import type { LanguageData } from '../../shared/types';
 
 const mockGetAnkiWords = vi.fn<() => Promise<string[]>>();
 const mockGetAnkiWordStatuses = vi.fn<() => Promise<Array<{ word: string; factor?: number; queue?: number; type?: number }>>>();
+const mockQueryKnowledgeEvents = vi.fn<(keys: string[]) => Promise<Record<string, unknown[]>>>();
+const mockAppendKnowledgeEvents = vi.fn<(events: Record<string, unknown[]>) => Promise<boolean>>();
 
 vi.mock('../../shared/backends', () => ({
   getBackend: () => ({
     getAnkiWords: mockGetAnkiWords,
     getAnkiWordStatuses: mockGetAnkiWordStatuses,
   }),
+}));
+vi.mock('../../shared/bridges', () => ({
+  getBridge: () => ({
+    knowledgeEvents: { queryKnowledgeEvents: mockQueryKnowledgeEvents },
+  }),
+}));
+vi.mock('./knowledgeEvents', () => ({
+  appendEvents: mockAppendKnowledgeEvents,
 }));
 
 describe('ankiWordsCache', () => {
@@ -52,6 +63,10 @@ describe('ankiWordsCache', () => {
     mockGetAnkiWords.mockResolvedValue(['仲間']);
     mockGetAnkiWordStatuses.mockReset();
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '仲間', factor: 1300, queue: 0, type: 0 }]);
+    mockQueryKnowledgeEvents.mockReset();
+    mockQueryKnowledgeEvents.mockResolvedValue({});
+    mockAppendKnowledgeEvents.mockReset();
+    mockAppendKnowledgeEvents.mockResolvedValue(true);
   });
 
   it('returns the first matching candidate word from the cache', async () => {
@@ -59,6 +74,46 @@ describe('ankiWordsCache', () => {
     await refreshAnkiWordsCache();
     expect(findWordInAnkiCache(['なかま', '仲間'])).toBe('仲間');
     expect(findWordInAnkiCache(['仲間', 'なかま'])).toBe('仲間');
+  });
+
+  it('materializes a first-sight Anki status once, then stays silent on a restart-equivalent refresh', async () => {
+    mockGetAnkiWordStatuses.mockResolvedValue([{ word: '仲間', factor: 2300, queue: 2, type: 2 }]);
+    const options = { language: 'ja', languageData: latinLanguage, ankiLearningThreshold: 1500, ankiKnownThreshold: 1800 };
+    const lk = `ja:${hashWordSync('仲間')}`;
+
+    const { refreshAnkiWordsCache } = await import('./ankiWordsCache');
+    await refreshAnkiWordsCache({ ...options });
+
+    expect(mockAppendKnowledgeEvents).toHaveBeenCalledTimes(1);
+    const firstBatch = mockAppendKnowledgeEvents.mock.calls[0][0];
+    expect(firstBatch[lk][0]).toMatchObject({ source: 'anki', fromStatus: 'unknown', toStatus: 'known', easeAfter: 1.8 });
+    expect(mockQueryKnowledgeEvents).toHaveBeenCalledWith([lk]);
+
+    vi.resetModules();
+    const restarted = await import('./ankiWordsCache');
+    mockQueryKnowledgeEvents.mockResolvedValue({
+      [lk]: [{ t: 1, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known', easeAfter: 1.8 }],
+    });
+    mockAppendKnowledgeEvents.mockClear();
+    await restarted.refreshAnkiWordsCache({ ...options });
+    expect(mockAppendKnowledgeEvents).not.toHaveBeenCalled();
+  });
+
+  it('writes exactly one diff event when the Anki bank status actually changed', async () => {
+    mockGetAnkiWordStatuses.mockResolvedValue([{ word: '仲間', factor: 2300, queue: 2, type: 2 }]);
+    const options = { language: 'ja', languageData: latinLanguage, ankiLearningThreshold: 1500, ankiKnownThreshold: 1800 };
+    const lk = `ja:${hashWordSync('仲間')}`;
+
+    vi.resetModules();
+    const mod = await import('./ankiWordsCache');
+    mockQueryKnowledgeEvents.mockResolvedValue({
+      [lk]: [{ t: 1, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'learning', easeAfter: 1.55 }],
+    });
+    await mod.refreshAnkiWordsCache({ ...options });
+
+    expect(mockAppendKnowledgeEvents).toHaveBeenCalledTimes(1);
+    const batch = mockAppendKnowledgeEvents.mock.calls[0][0];
+    expect(batch[lk][0]).toMatchObject({ source: 'anki', fromStatus: 'learning', toStatus: 'known' });
   });
 
   it('returns null when none of the candidate forms exist in Anki', async () => {

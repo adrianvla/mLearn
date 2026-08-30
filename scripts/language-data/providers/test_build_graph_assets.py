@@ -126,6 +126,61 @@ class BuildGraphAssetsTest(unittest.TestCase):
 
             senses = [relation for relation in relations if relation["type"] == "has-sense"]
             self.assertEqual([relation["to"] for relation in senses], ["ja:sense:1001:1"])
+    def test_ja_marks_name_domain_entries_and_keeps_shared_surfaces_common(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "root-of-app"
+            jitendex = root / "dictionaries" / "jitendex-yomitan"
+            jitendex.mkdir(parents=True)
+            person = {"tag": "span", "title": "full name of a particular person", "data": {"code": "person"}, "content": "person"}
+            myth = {"tag": "span", "title": "Greek mythology", "data": {"code": "grmyth"}, "content": "grmyth"}
+            fem = {"tag": "span", "title": "female term or language", "data": {"code": "fem"}, "content": "fem"}
+
+            def row(term, reading, sequence, *badges, gloss="meaning"):
+                content = list(badges) + [{"data": {"content": "glossary"}, "content": [{"tag": "li", "content": gloss}]}]
+                return [term, reading, "", "", 0, [{"type": "structured-content", "content": content}], sequence]
+
+            (jitendex / "term_bank_1.json").write_text(json.dumps([
+                row("ナポレオン", "ナポレオン", 200001, person, gloss="Napoleon"),
+                row("レア", "レア", 200002, myth, gloss="Rhea"),
+                row("レア", "レア", 200003, gloss="rare"),
+                row("わよ", "わよ", 200004, fem, gloss="sentence-ending particle"),
+            ]), encoding="utf-8")
+            builder = _load_builder(root)
+            builder.build_ja()
+            graph = json.loads((root / "languages" / "ja.graph.json").read_text(encoding="utf-8"))
+            entities = {entity["id"]: entity for entity in graph["entities"]}
+
+            self.assertEqual(entities["ja:entry:200001"]["domain"], "names")
+            self.assertEqual(entities[builder.surface_id("ja", "ナポレオン")]["domain"], "names")
+            self.assertEqual(entities["ja:sense:200001:1"]["domain"], "names")
+
+            self.assertEqual(entities["ja:entry:200002"]["domain"], "names")
+            self.assertNotIn("domain", entities["ja:entry:200003"])
+            self.assertNotIn("domain", entities["ja:sense:200003:1"])
+            self.assertNotIn("domain", entities[builder.surface_id("ja", "レア")])
+
+            self.assertNotIn("domain", entities["ja:entry:200004"])
+            self.assertNotIn("domain", entities[builder.surface_id("ja", "わよ")])
+
+    def test_ja_name_domain_covers_any_name_row_of_a_sequence(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "root-of-app"
+            jitendex = root / "dictionaries" / "jitendex-yomitan"
+            jitendex.mkdir(parents=True)
+            person = {"tag": "span", "title": "full name of a particular person", "data": {"code": "person"}, "content": "person"}
+            (jitendex / "term_bank_1.json").write_text(json.dumps([
+                ["孔子", "こうし", "", "", 0, [{"type": "structured-content", "content": [person, {"data": {"content": "glossary"}, "content": [{"tag": "li", "content": "Confucius"}]}]}], 200005],
+                ["孔子", "くじ", "", "", 0, [{"type": "structured-content", "content": [{"data": {"content": "glossary"}, "content": [{"tag": "li", "content": "Confucius"}]}]}], 200005],
+            ]), encoding="utf-8")
+            builder = _load_builder(root)
+            builder.build_ja()
+            graph = json.loads((root / "languages" / "ja.graph.json").read_text(encoding="utf-8"))
+            entities = {entity["id"]: entity for entity in graph["entities"]}
+
+            self.assertEqual(entities["ja:entry:200005"]["domain"], "names")
+            self.assertEqual(entities[builder.surface_id("ja", "孔子")]["domain"], "names")
+            self.assertEqual(entities["ja:sense:200005:1"]["domain"], "names")
+
 
     def test_ru_graph_retains_gender_stressed_reading_and_inflected_forms(self):
         with tempfile.TemporaryDirectory() as temp_dir:

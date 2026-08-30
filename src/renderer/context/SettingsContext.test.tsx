@@ -1131,4 +1131,94 @@ describe('SettingsProvider', () => {
     expect(closeFn).toHaveBeenCalledOnce();
     vi.unstubAllGlobals();
   });
+
+  describe('broadcast recency guard (REQ58)', () => {
+    class FakeBroadcastChannel {
+      static instances: FakeBroadcastChannel[] = [];
+      posts: Array<{ type: string; settings?: Settings; rev?: number }> = [];
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      constructor(public name: string) {
+        FakeBroadcastChannel.instances.push(this);
+      }
+      postMessage(message: { type: string; settings?: Settings; rev?: number }): void {
+        this.posts.push(message);
+      }
+      close(): void {}
+      /** Simulate another window's broadcast arriving at this one. */
+      receive(message: { type: string; settings?: Settings; rev?: number }): void {
+        this.onmessage?.({ data: message } as MessageEvent);
+      }
+    }
+
+    async function mountWithFakeChannel() {
+      FakeBroadcastChannel.instances = [];
+      vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel);
+      const { ctx, dispose } = await mountProvider();
+      const channel = FakeBroadcastChannel.instances[0];
+      return { ctx, channel, dispose };
+    }
+
+    it('stamps outgoing broadcasts with a monotonic revision', async () => {
+      const { ctx, channel, dispose } = await mountWithFakeChannel();
+      settingsCb(makeSettings({ language: 'en' }));
+
+      ctx.updateSetting('language', 'de');
+      const first = channel.posts.at(-1);
+      expect(typeof first?.rev).toBe('number');
+      expect(first?.rev).toBeGreaterThan(0);
+
+      ctx.updateSetting('language', 'fr');
+      const second = channel.posts.at(-1);
+      expect(second?.rev).toBeGreaterThan(first?.rev ?? 0);
+      dispose();
+      vi.unstubAllGlobals();
+    });
+
+    it('applies a fresh broadcast but ignores a stale one so newer local state survives', async () => {
+      const { ctx, channel, dispose } = await mountWithFakeChannel();
+      settingsCb(makeSettings({ language: 'en' }));
+
+      ctx.updateSetting('language', 'de');
+      const ownRev = channel.posts.at(-1)?.rev ?? 0;
+
+      // A stale window's snapshot (older revision) must not revert the local change.
+      channel.receive({ type: 'update', settings: makeSettings({ language: 'ja' }), rev: ownRev - 1 });
+      expect(ctx.settings.language).toBe('de');
+
+      // A genuinely fresh broadcast still applies.
+      channel.receive({ type: 'update', settings: makeSettings({ language: 'fr' }), rev: ownRev + 1 });
+      expect(ctx.settings.language).toBe('fr');
+      dispose();
+      vi.unstubAllGlobals();
+    });
+
+    it('ignores broadcasts older than the last applied broadcast revision', async () => {
+      const { ctx, channel, dispose } = await mountWithFakeChannel();
+      settingsCb(makeSettings({ language: 'en' }));
+
+      channel.receive({ type: 'update', settings: makeSettings({ language: 'de' }), rev: 200 });
+      expect(ctx.settings.language).toBe('de');
+
+      channel.receive({ type: 'update', settings: makeSettings({ language: 'fr' }), rev: 100 });
+      expect(ctx.settings.language).toBe('de');
+
+      channel.receive({ type: 'update', settings: makeSettings({ language: 'ja' }), rev: 300 });
+      expect(ctx.settings.language).toBe('ja');
+      dispose();
+      vi.unstubAllGlobals();
+    });
+
+    it('still applies legacy broadcasts that carry no revision', async () => {
+      const { ctx, channel, dispose } = await mountWithFakeChannel();
+      settingsCb(makeSettings({ language: 'en' }));
+
+      channel.receive({ type: 'update', settings: makeSettings({ language: 'fr' }) });
+      expect(ctx.settings.language).toBe('fr');
+
+      channel.receive({ type: 'update', settings: makeSettings({ language: 'de' }) });
+      expect(ctx.settings.language).toBe('de');
+      dispose();
+      vi.unstubAllGlobals();
+    });
+  });
 });

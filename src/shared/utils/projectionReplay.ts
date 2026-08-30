@@ -1,5 +1,6 @@
 import type { KnowledgeEvent, WordStatus } from '../knowledgeEvents';
 import { stripRetractions } from '../knowledgeEvents';
+import { normalizeEvidenceEase, statusToEase } from './knowledgeStrength';
 
 /**
  * Recomputable learner projection for one surface-hash key.
@@ -39,6 +40,18 @@ export interface ReplayProjection {
 /** Sources whose explicit outcome marks an intentional status change (the passive-cap marker). */
 const EXPLICIT_STATUS_SOURCES = new Set(['manual', 'srs', 'anki']);
 
+/**
+ * Every evidence row must replay to a state: the normalized recorded ease, or
+ * — when a writer recorded only the status outcome (e.g. Anki status diffs) —
+ * the canonical ease that status maps back to. Explicit sources only; passive
+ * rows never contribute a status-derived outcome.
+ */
+function outcomeEase(event: KnowledgeEvent): number | undefined {
+  if (event.easeAfter !== undefined) return normalizeEvidenceEase(event.source, event.easeAfter);
+  if (event.toStatus !== undefined && EXPLICIT_STATUS_SOURCES.has(event.source)) return statusToEase(event.toStatus);
+  return undefined;
+}
+
 export function replayKeyProjection(events: readonly KnowledgeEvent[]): ReplayProjection | null {
   const active = stripRetractions(events);
   if (active.length === 0) return null;
@@ -65,10 +78,11 @@ export function replayKeyProjection(events: readonly KnowledgeEvent[]): ReplayPr
       case 'rating':
       case 'status':
       case 'review': {
-        if (event.easeAfter !== undefined) ease = event.easeAfter;
         evidenceSource = event.source;
         hasEvidence = true;
         if (event.source !== 'passiveTracking') hasActiveEvidence = true;
+        const nextEase = outcomeEase(event);
+        if (nextEase !== undefined) ease = nextEase;
         if (
           event.toStatus !== undefined
           && EXPLICIT_STATUS_SOURCES.has(event.source)
@@ -81,7 +95,8 @@ export function replayKeyProjection(events: readonly KnowledgeEvent[]): ReplayPr
         break;
       }
       case 'rollup': {
-        if (event.easeAfter !== undefined) ease = event.easeAfter;
+        const nextEase = outcomeEase(event);
+        if (nextEase !== undefined) ease = nextEase;
         evidenceSource = event.source;
         hasEvidence = true;
         if (event.source !== 'passiveTracking') hasActiveEvidence = true;

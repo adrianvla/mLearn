@@ -30,6 +30,27 @@
   flex-shrink: 0;
 }
 
+/* Component breakdown directly under the assessed-level headline */
+.ca-stats-difficulty-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+}
+
+.ca-stats-breakdown-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.ca-stats-breakdown-label,
+.ca-stats-breakdown-value {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
 .ca-stats-content {
   min-height: 0;
 }

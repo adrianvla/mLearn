@@ -3,13 +3,17 @@ import fs from 'fs';
 import path from 'path';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
-import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
+import { IPC_CHANNELS } from '../../shared/constants';
+import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 
 let tempDir: TempDir;
 const warn = vi.fn();
+const ipcHandle = vi.fn();
+const getAllWindows = vi.fn();
 
 vi.mock('electron', () => ({
-  ipcMain: { handle: vi.fn(), on: vi.fn() },
+  ipcMain: { handle: ipcHandle, on: vi.fn() },
+  BrowserWindow: { getAllWindows },
 }));
 
 vi.mock('../utils/platform', () => ({
@@ -39,6 +43,8 @@ function event(t: number, overrides: Partial<KnowledgeEvent> = {}): KnowledgeEve
 beforeEach(async () => {
   tempDir = createTempDir();
   warn.mockReset();
+  ipcHandle.mockReset();
+  getAllWindows.mockReset().mockReturnValue([]);
   vi.resetModules();
   mod = await import('./knowledgeEvents');
   await mod.loadKnowledgeEvents(now);
@@ -155,6 +161,19 @@ describe('knowledge event validation on reload', () => {
     expect(kept).toContainEqual(orthographyEvent);
   });
 
+  it('keeps explicit claims and migration-sourced events through a reload', async () => {
+    const claim = event(now, { kind: 'claim', source: 'manual', toStatus: 'known' });
+    const migration = event(now + 1, { kind: 'status', source: 'migration', toStatus: 'known', easeAfter: 1.8 });
+
+    await mod.appendKnowledgeEvents({ 'de:one': [claim, migration] });
+    await mod.saveKnowledgeEvents();
+    await mod.loadKnowledgeEvents(now);
+
+    const kept = mod.getKnowledgeEvents(['de:one'])['de:one'];
+    expect(kept).toContainEqual(claim);
+    expect(kept).toContainEqual(migration);
+  });
+
   it('drops malformed events on load (non-attempt-id attemptId)', async () => {
     const file = path.join(tempDir.tmpDir, 'knowledge-events.json');
     fs.writeFileSync(file, JSON.stringify({
@@ -167,5 +186,35 @@ describe('knowledge event validation on reload', () => {
     await mod.loadKnowledgeEvents(now);
 
     expect(mod.getKnowledgeEvents(['ja:x'])['ja:x']).toEqual([event(now)]);
+  });
+});
+
+describe('knowledge event IPC readiness and broadcast', () => {
+  it('notifies every browser window after an append', async () => {
+    const sendFirst = vi.fn();
+    const sendSecond = vi.fn();
+    getAllWindows.mockReturnValue([
+      { isDestroyed: () => false, webContents: { send: sendFirst } },
+      { isDestroyed: () => false, webContents: { send: sendSecond } },
+    ]);
+
+    await mod.appendKnowledgeEvents({ 'ja:one': [event(now, { kind: 'status', toStatus: 'learning' })] });
+
+    expect(sendFirst).toHaveBeenCalledWith(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);
+    expect(sendSecond).toHaveBeenCalledWith(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);
+  });
+
+  it('serves events written to disk to a query that lands before the initial load finishes', async () => {
+    const stored = event(now, { kind: 'status', toStatus: 'learning' });
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'knowledge-events.json'), JSON.stringify({ 'ja:early': [stored] }));
+
+    mod.setupKnowledgeEventsIPC();
+    const queryHandler = ipcHandle.mock.calls
+      .find(([channel]) => channel === IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY)?.[1];
+    expect(queryHandler).toBeTypeOf('function');
+
+    await expect(
+      (queryHandler as (_event: unknown, keys: string[]) => Promise<KnowledgeEventLog>)(undefined, ['ja:early']),
+    ).resolves.toEqual({ 'ja:early': [stored] });
   });
 });

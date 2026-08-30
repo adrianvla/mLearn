@@ -35,6 +35,18 @@ export interface NodeServerAdapter {
   ping(): Promise<boolean>;
 }
 
+/**
+ * Thrown by {@link HttpNodeServerAdapter.saveFlashcards} when the server
+ * answers HTTP 409: the submitted store snapshot carries an older revision
+ * than the persisted one. Callers must re-pull, re-merge locally, and re-push.
+ */
+export class FlashcardSyncConflictError extends Error {
+  constructor() {
+    super('Flashcard store push rejected: server has a newer revision (409)');
+    this.name = 'FlashcardSyncConflictError';
+  }
+}
+
 export class HttpNodeServerAdapter implements NodeServerAdapter {
   private readonly baseUrl: string;
   private readonly authToken?: string;
@@ -88,6 +100,7 @@ export class HttpNodeServerAdapter implements NodeServerAdapter {
       headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(store),
     });
+    if (res.status === 409) throw new FlashcardSyncConflictError();
     if (!res.ok) throw new Error(`Failed to save flashcards: ${res.status}`);
   }
 

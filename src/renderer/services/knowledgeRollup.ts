@@ -70,8 +70,36 @@ export async function flushKnowledgeRollup(): Promise<void> {
 
 /** Test hook — resets all module state. */
 export function resetKnowledgeRollupForTests(): void {
+  uninstallPassiveFlushHooks();
   buckets.clear();
   currentDay = null;
   todayFn = () => new Date().toISOString().slice(0, 10);
   flushInFlight = null;
+}
+
+/**
+ * Crash-window hardening (REQ25): passive rollups accumulate in memory until a
+ * flush, so a crash loses everything pending. These event-driven hooks shrink
+ * that window — flush when the window closes or is hidden. Event-driven only:
+ * no timers (repo rule). Idempotent to install; renderer wiring calls install
+ * on mount and uninstall on cleanup.
+ */
+const passiveFlushCleanups: Array<() => void> = [];
+
+export function installPassiveFlushHooks(): void {
+  if (passiveFlushCleanups.length > 0) return;
+  const flush = () => { void flushKnowledgeRollup(); };
+  const onVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') flush();
+  };
+  window.addEventListener('beforeunload', flush);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  passiveFlushCleanups.push(() => {
+    window.removeEventListener('beforeunload', flush);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  });
+}
+
+export function uninstallPassiveFlushHooks(): void {
+  for (const cleanup of passiveFlushCleanups.splice(0)) cleanup();
 }

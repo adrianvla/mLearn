@@ -30,6 +30,19 @@ export interface GraphNeighborhood {
   centerDenseId: number;
   relationCount: number;
   relations: GraphRelatedNode[];
+  /**
+   * Learner (classification, basis) per capability of the CENTER surface only,
+   * projected with the same assembly as the knowledge projection. Relation
+   * nodes stay unprojected. Optional: absent for non-surface centers and when
+   * the projection is unavailable, so existing consumers are unaffected.
+   */
+  centerStates?: GraphNeighborhoodCenterState[];
+}
+
+export interface GraphNeighborhoodCenterState {
+  capability: CapabilityKind;
+  classification: KnowledgeProjectionClassification;
+  basis: KnowledgeProjectionBasis;
 }
 
 export interface GraphNeighborhoodQuery {
@@ -58,8 +71,8 @@ export interface GraphSurfaceTargets {
   lookup: GraphWordLookup | null;
 }
 
-export type KnowledgeProjectionBasis = 'evidence' | 'claim' | 'prediction' | 'unmeasured' | 'excluded';
-export type KnowledgeProjectionClassification = 'known' | 'learning' | 'predicted' | 'unmeasured' | 'excluded';
+export type KnowledgeProjectionBasis = 'evidence' | 'claim' | 'prediction' | 'unmeasured';
+export type KnowledgeProjectionClassification = 'known' | 'learning' | 'unknown' | 'predicted' | 'unmeasured';
 
 export interface KnowledgeProjectionEvidence {
   timestamp: number;

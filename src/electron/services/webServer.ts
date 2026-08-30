@@ -22,6 +22,8 @@ import { getAppPath, getResourcePath } from '../utils/platform';
 import { loadSettings, loadLangData, saveSettings } from './settings';
 import { getMainWindow, getOverlayWindow, launchOverlayWindow, updateOverlayGeometry } from './windowManager';
 import { loadFlashcards, saveFlashcards } from './flashcardStorage';
+import { mergeFlashcardStoresWithJournal } from '../../shared/sync/flashcardMerge';
+import { appendKnowledgeEvents, saveKnowledgeEvents } from './knowledgeEvents';
 import { loadLocalization } from './localization';
 import { getAnkiCard, getAnkiWordsPayload, refreshAnkiCards } from './ankiService';
 import { getLogger } from '../../shared/utils/logger';
@@ -859,6 +861,15 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           if (incoming && typeof incoming === 'object' && 'tetheredServerEnabled' in incoming) {
             delete incoming.tetheredServerEnabled;
           }
+          // LWW guard: a stale tethered-client snapshot must not revert newer
+          // desktop settings. Reject with the persisted state so the client can
+          // rebase. Requests without lastModified (legacy clients) still save.
+          const persisted = loadSettings();
+          if (typeof incoming.lastModified === 'number' && incoming.lastModified < persisted.lastModified) {
+            const { cloudAuthAccessToken: _sa, cloudAuthToken: _sb, ...safeSettings } = persisted;
+            sendJsonResponse(res, { status: 'stale', stale: true, settings: safeSettings });
+            return;
+          }
           await saveSettings(incoming);
           const ankiResult = await refreshAnkiCards(incoming);
           notifyAnkiRefreshResult(ankiResult);
@@ -885,8 +896,30 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
       req.on('end', async () => {
         try {
           const incoming = JSON.parse(body);
-          await saveFlashcards(incoming);
-          sendJsonResponse(res, { status: 'ok' });
+          const currentStore = await loadFlashcards();
+          // Revision gate: a snapshot tagged with an older rev describes a
+          // store state the desktop has already moved past (e.g. a word was
+          // unignored). Merging it could resurrect deletions, so reject with
+          // the current store — the client must re-pull, re-apply its local
+          // delta, and re-push. Legacy payloads without a rev still merge.
+          if (typeof incoming.rev === 'number' && incoming.rev < (currentStore.rev ?? 0)) {
+            sendJsonResponse(res, { error: 'Stale flashcard store revision', status: 'stale', stale: true, store: currentStore }, 409);
+            return;
+          }
+          // Defense-in-depth per-entry merge for equal/newer/legacy revs.
+          // saveFlashcards bumps the store revision on persist; the response
+          // reports the merged, bumped store.
+          // REQ59: epistemic state from the tethered client lands as
+          // provenance-marked journal events (origin 'sync') and is flushed to
+          // disk BEFORE the merged store persists — the journal, not the
+          // materialized merge, is the source of truth.
+          const { store: mergedStore, journal } = mergeFlashcardStoresWithJournal(currentStore, incoming);
+          if (Object.keys(journal).length > 0) {
+            await appendKnowledgeEvents(journal);
+            await saveKnowledgeEvents();
+          }
+          await saveFlashcards(mergedStore);
+          sendJsonResponse(res, { status: 'ok', store: mergedStore });
         } catch (e) {
           log.error("error", e);
           sendJsonResponse(res, { error: 'Invalid JSON' }, 400);

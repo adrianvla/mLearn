@@ -12,9 +12,12 @@ import type { AnkiWordStatusRecord } from '../../shared/backends/types';
 import type { LanguageData } from '../../shared/types';
 import { getResolvedScriptProfile } from '../../shared/languageScriptProfile';
 import { normalizeWordLookupText } from '../../shared/utils/textUtils';
+import { statusToEase } from '../../shared/utils/knowledgeStrength';
 import { getLogger } from '../../shared/utils/logger';
 import type { WordStatus } from '../../shared/constants';
 import { hashWordSync } from './srsAlgorithm';
+import { getBridge } from '../../shared/bridges';
+import { stripRetractions } from '../../shared/knowledgeEvents';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { appendEvents } from './knowledgeEvents';
@@ -116,7 +119,7 @@ function getActiveCacheEntry(): AnkiWordsCacheEntry {
   return getCacheEntry();
 }
 
-function diffAnkiStatuses(signature: string, language: string, cards: AnkiWordStatusRecord[]): void {
+async function diffAnkiStatuses(signature: string, language: string, cards: AnkiWordStatusRecord[]): Promise<void> {
   const cfg = diffConfigBySignature.get(signature);
   if (!cfg) return;
   const byWord = new Map<string, AnkiWordStatusRecord[]>();
@@ -125,18 +128,43 @@ function diffAnkiStatuses(signature: string, language: string, cards: AnkiWordSt
     if (existing) existing.push(card);
     else byWord.set(card.word, [card]);
   }
-  const eventsByKey: Record<string, KnowledgeEvent[]> = {};
-  const now = Date.now();
+  const computed = new Map<string, WordStatus>();
+  const lksByWord = new Map<string, string>();
   for (const [word, wordCards] of byWord) {
     const toStatus = getAnkiWordKnowledgeStatus(wordCards, cfg.learning, cfg.known);
     if (!toStatus || toStatus === 'unknown') continue;
-    const lk = `${language}:${hashWordSync(word)}`;
+    computed.set(word, toStatus);
+    lksByWord.set(word, `${language}:${hashWordSync(word)}`);
+  }
+  if (computed.size === 0) return;
+  // Baseline from the journal: the durable record of the last asserted Anki
+  // status. Without it every restart would re-assert unknown→known for the
+  // whole bank (thousands of duplicate rows per launch).
+  const missingPriors = [...new Set(lksByWord.values())].filter((lk) => !lastAnkiStatusByLk.has(lk));
+  if (missingPriors.length > 0) {
+    try {
+      const priorLog = await getBridge().knowledgeEvents.queryKnowledgeEvents(missingPriors);
+      for (const [lk, events] of Object.entries(priorLog)) {
+        const prior = stripRetractions(events)
+          .filter((event) => event.source === 'anki' && event.kind === 'status' && event.toStatus !== undefined)
+          .at(-1)?.toStatus;
+        if (prior !== undefined) lastAnkiStatusByLk.set(lk, prior);
+      }
+    } catch (e) {
+      log.warn('anki status prior lookup failed:', e);
+    }
+  }
+  const eventsByKey: Record<string, KnowledgeEvent[]> = {};
+  const now = Date.now();
+  for (const [word, toStatus] of computed) {
+    const lk = lksByWord.get(word)!;
     const fromStatus = lastAnkiStatusByLk.get(lk) ?? 'unknown';
     lastAnkiStatusByLk.set(lk, toStatus);
     if (fromStatus !== toStatus) {
       eventsByKey[lk] = [{
         t: now, kind: 'status', source: 'anki', aspect: 'meaning',
         fromStatus, toStatus,
+        easeAfter: statusToEase(toStatus),
       }];
     }
   }
@@ -217,7 +245,7 @@ function startEntryFetch(
       entry.wordCardsMap = nextMap;
       entry.fetched = true;
       entry.lastError = null;
-      diffAnkiStatuses(getCacheSignature(options), options?.language ?? '', cards);
+      await diffAnkiStatuses(getCacheSignature(options), options?.language ?? '', cards);
     } catch (e) {
       log.error("error", e);
       // Silently fail — this cache entry stays empty

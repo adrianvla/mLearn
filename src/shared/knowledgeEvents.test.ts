@@ -78,6 +78,11 @@ describe('stripRetractions', () => {
       attemptId: nextAttemptId(),
       presentedSurface: '食べた',
       targetRef: { kind: 'grammar-pattern', id: 'ている' },
+      taskType: 'reader',
+      scaffolds: { reading: true, translation: true },
+      sourceVersions: { graphSchemaVersion: 1 },
+      confidence: 0.65,
+      span: { start: 3, end: 6 },
     });
     const otherAttempt = nextAttemptId();
     const events = [

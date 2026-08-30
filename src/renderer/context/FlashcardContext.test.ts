@@ -4,6 +4,9 @@ import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { Rating } from '../services/srsAlgorithm';
 import * as SRS from '../services/srsAlgorithm';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
+import { GRAMMAR_ENCOUNTER_EASE_BUMP, GRAMMAR_FAIL_EASE_PENALTY, initialGrammarEase } from '../../shared/utils/grammarPolicy';
+import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
+import { UNTRACKED_LABEL_KEY, knowledgeStatusLabelKey } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
 
 // ── IPC callback captures ────────────────────────────────────────────
 let flashcardsCb: (store: FlashcardStore) => void;
@@ -112,6 +115,8 @@ vi.mock('../services/knowledgeEvents', () => ({
 vi.mock('../services/knowledgeRollup', () => ({
   accumulateWordSeen: mockAccumulateWordSeen,
   flushKnowledgeRollup: mockFlushKnowledgeRollup,
+  installPassiveFlushHooks: vi.fn(),
+  uninstallPassiveFlushHooks: vi.fn(),
   setKnowledgeRollupTodayFn: vi.fn(),
 }));
 
@@ -325,9 +330,9 @@ type FlashcardCtx = {
   isWordKnownByText: (word: string, language?: string) => boolean;
   isWordLearningByText: (word: string, language?: string) => boolean;
   getComprehensiveWordStatusSync: (word: string, language?: string) => 'unknown' | 'learning' | 'known';
-  getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => { status: 'unknown' | 'learning' | 'known'; source: string; timesSeen: number; matchedWord?: string; ease?: number };
+  getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => { status: 'unknown' | 'learning' | 'known'; basis: 'claim' | 'evidence' | 'unmeasured'; claim?: 'unknown' | 'learning' | 'known'; evidenceStatus: 'unknown' | 'learning' | 'known'; source: string; timesSeen: number; matchedWord?: string; ease?: number };
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
-  trackGrammarEncountered: (pattern: string, level?: number, language?: string) => void;
+  trackGrammarEncountered: (pattern: string, levelOrOpts?: number | { confidence?: number; span?: { start: number; end: number }; origin?: string }, language?: string) => void;
   setWordClaim: (word: string, claim: 'unknown' | 'learning' | 'known' | null, language?: string) => void;
   restoreWordSyncRating: (
     word: string,
@@ -547,6 +552,14 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore());
     expect(ctx.isLoading()).toBe(false);
     expect(Object.keys(ctx.store.flashcards)).toHaveLength(0);
+    dispose();
+  });
+
+  it('preserves the sync revision from the received store (CAS push path)', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({ rev: 7 }));
+    expect(ctx.isLoading()).toBe(false);
+    expect(ctx.store.rev).toBe(7);
     dispose();
   });
 
@@ -1739,11 +1752,11 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    // Passive-only sibling ease (no active evidence) caps at learning — the
+    // Passive-only sibling ease (no active evidence) is untracked — the REQ13
     // honesty rule — and the claim must still win over it on every form hash.
     expect(ctx.getComprehensiveWordStatusWithSourceSync('さすが')).toMatchObject({
-      status: 'learning',
-      basis: 'evidence',
+      status: 'unknown',
+      basis: 'unmeasured',
       matchedWord: '流石',
     });
 
@@ -1765,6 +1778,60 @@ describe('FlashcardProvider', () => {
       Object.entries(byKey as Record<string, Array<Record<string, unknown>>>).flatMap(([lk, events]) => events.map((e) => ({ lk, ...e }))));
     expect(claimEvents.some((e) => e.lk === sasugaKanjiLk && e.toStatus === 'unknown')).toBe(true);
     expect(claimEvents.every((e) => e.aspect === 'meaning')).toBe(true);
+    dispose();
+  });
+
+  it('clearing a claim on an unmeasured word drops the fabricated entry back to untracked', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => [word]);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    ctx.setWordClaim('会う', 'known', 'ja');
+    const lk = `ja:${(await import('../services/srsAlgorithm')).hashWordSync('会う')}`;
+    expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
+
+    ctx.setWordClaim('会う', null, 'ja');
+
+    // No evidence exists behind the claim — the cache entry must be removed,
+    // not left as a fabricated negative-evidence fingerprint.
+    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+    expect(ctx.getComprehensiveWordStatusWithSourceSync('会う', 'ja')).toMatchObject({
+      status: 'unknown',
+      basis: 'unmeasured',
+    });
+    dispose();
+  });
+
+  it('clearing a claim keeps evidence-backed facts and drops only the override', async () => {
+    mockGetWordVariants.mockImplementation((word: string) => [word]);
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('さすが')}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          word: 'さすが',
+          language: 'ja',
+          ease: 1.9,
+          lastSeen: 1,
+          timesSeen: 12,
+          timesHovered: 0,
+          hasActiveEvidence: true,
+        },
+      },
+    }));
+
+    ctx.setWordClaim('さすが', 'known');
+    expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
+
+    ctx.setWordClaim('さすが', null);
+
+    const entry = ctx.store.wordKnowledge[lk];
+    expect(entry?.claim).toBeUndefined();
+    expect(entry?.ease).toBe(1.9);
+    expect(entry?.timesSeen).toBe(12);
+    // Evidence returns to the honest classification (active evidence ≥ known anchor).
+    expect(ctx.getComprehensiveWordStatusWithSourceSync('さすが').status).toBe('known');
     dispose();
   });
 
@@ -2459,42 +2526,94 @@ describe('FlashcardProvider', () => {
   });
 
   // ─── Priority 2: Grammar tracking ─────────────────────────────────
-  it('trackGrammarEncountered creates entry and bumps ease', async () => {
+  it('trackGrammarEncountered writes a recognition evidence event and the replayed cache reflects it', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-    const SRS = await import('../services/srsAlgorithm');
 
     ctx.trackGrammarEncountered('てform', 3);
-    const grammar = ctx.getGrammarKnowledge('てform');
-    expect(grammar).toBeDefined();
-    expect(grammar!.timesEncountered).toBe(1);
-    expect(grammar!.ease).toBeCloseTo(SRS.MIN_EASE + 0.01, 2);
-    expect(grammar!.level).toBe(3);
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('てform')).toBeDefined());
+
+    // Single-writer: the observation lands in the evidence journal...
+    expect(mockAppendEvents).toHaveBeenCalledTimes(1);
+    const [[events]] = mockAppendEvents.mock.calls;
+    const [event] = Object.values(events as Record<string, Array<Record<string, unknown>>>)[0];
+    expect(event).toMatchObject({
+      source: 'grammar',
+      aspect: 'grammar',
+      kind: 'rollup',
+      origin: 'grammar-encounter',
+      timesSeenDelta: 1,
+      targetRef: { kind: 'grammar-pattern', capability: 'grammar-recognition' },
+    });
+    expect(event.easeAfter).toBeUndefined();
+    expect(event.grammarFailedDelta).toBeUndefined();
+
+    // ...and the materialized cache is the replay of that event.
+    const grammar = ctx.getGrammarKnowledge('てform')!;
+    expect(grammar.timesEncountered).toBe(1);
+    expect(grammar.timesFailed).toBe(0);
+    expect(grammar.ease).toBeCloseTo(initialGrammarEase() + GRAMMAR_ENCOUNTER_EASE_BUMP, 5);
+    expect(grammar.level).toBe(3);
+    expect(grammar.language).toBe('ja');
     dispose();
   });
 
-  it('trackGrammarFailed decreases ease', async () => {
+  it('trackGrammarFailed records grammarFailedDelta and the replayed cache reflects it', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
     ctx.trackGrammarEncountered('ないform');
     ctx.trackGrammarFailed('ないform');
-    const grammar = ctx.getGrammarKnowledge('ないform');
-    expect(grammar).toBeDefined();
-    expect(grammar!.timesFailed).toBe(1);
-    expect(grammar!.ease).toBeLessThan(2.5);
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('ないform')?.timesFailed).toBe(1));
+
+    const grammar = ctx.getGrammarKnowledge('ないform')!;
+    expect(grammar.timesEncountered).toBe(1);
+    expect(grammar.timesFailed).toBe(1);
+    expect(grammar.ease).toBeCloseTo(
+      Math.max(initialGrammarEase() + GRAMMAR_ENCOUNTER_EASE_BUMP - GRAMMAR_FAIL_EASE_PENALTY, 0),
+      5,
+    );
+    const appended = mockAppendEvents.mock.calls.flatMap(
+      (call) => Object.values(call[0] as Record<string, Array<Record<string, unknown>>>).flat(),
+    );
+    const failureEvent = appended.find((event) => event.origin === 'grammar-failure');
+    expect(failureEvent).toMatchObject({ source: 'grammar', aspect: 'grammar', grammarFailedDelta: 1 });
+    expect(failureEvent!.timesSeenDelta).toBeUndefined();
+    expect(failureEvent!.easeAfter).toBeUndefined();
     dispose();
   });
 
-  it('trackGrammarEncountered increments counter on repeated calls', async () => {
+  it('trackGrammarEncountered increments the replayed counter on repeated calls', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
     ctx.trackGrammarEncountered('ている');
     ctx.trackGrammarEncountered('ている');
     ctx.trackGrammarEncountered('ている');
-    const grammar = ctx.getGrammarKnowledge('ている');
-    expect(grammar!.timesEncountered).toBe(3);
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('ている')?.timesEncountered).toBe(3));
+    dispose();
+  });
+
+  it('grammar materialization rebuilds cache entries from journal evidence alone', async () => {
+    const { ctx, dispose } = await mountProvider();
+    // The journal already carries recognition evidence (persisted event store)
+    // while the materialized cache starts empty — fresh store on a new machine,
+    // cache corruption, or a future migration. Load must rebuild from evidence.
+    mockAppendEvents.mock.calls.push([{
+      [grammarEvidenceKey('ja', 'てform', 'grammar-recognition')]: [
+        grammarRecognitionEvidence('ja', 'てform', { t: 1, kind: 'rollup', timesSeenDelta: 1, origin: 'grammar-encounter' }),
+        grammarRecognitionEvidence('ja', 'てform', { t: 2, kind: 'rollup', grammarFailedDelta: 1, origin: 'grammar-failure' }),
+      ],
+    }]);
+
+    flashcardsCb(makeEmptyStore());
+
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('てform')?.timesFailed).toBe(1));
+    expect(ctx.getGrammarKnowledge('てform')?.timesEncountered).toBe(1);
+    expect(ctx.getGrammarKnowledge('てform')?.ease).toBeCloseTo(
+      Math.max(initialGrammarEase() + GRAMMAR_ENCOUNTER_EASE_BUMP - GRAMMAR_FAIL_EASE_PENALTY, 0),
+      5,
+    );
     dispose();
   });
 
@@ -2502,10 +2621,10 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-
     ctx.trackGrammarEncountered('verb-case:genitive', 4, 'ru');
     ctx.trackGrammarFailed('verb-case:genitive', 4, 'ru');
 
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('verb-case:genitive', 'ru')?.timesFailed).toBe(1));
     const ruGrammar = ctx.getGrammarKnowledge('verb-case:genitive', 'ru');
     const jaGrammar = ctx.getGrammarKnowledge('verb-case:genitive', 'ja');
     expect(ruGrammar?.language).toBe('ru');
@@ -2563,7 +2682,77 @@ describe('FlashcardProvider', () => {
       timesSeenDelta: 6,
       grammarFailedDelta: 2,
     });
-    expect(ctx.getGrammarKnowledge('ている')).toMatchObject({ ease: 2.8, timesEncountered: 6, timesFailed: 2 });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('ている')).toMatchObject({ ease: 2.8, timesEncountered: 6, timesFailed: 2 }));
+    dispose();
+  });
+
+  it('crash recovery: journal-empty passive rows backfill as passiveTracking and render Untracked (REQ25)', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('受動')}`;
+    mockAppendEvents.mockClear();
+    // Materialized passive-only row (a crash lost its rollup): seen/hovered,
+    // tiny ease, no active markers, no claim, no linked cards.
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 0.05, lastSeen: 1, firstSeen: 1, timesSeen: 3, timesHovered: 1,
+          word: '受動', language: 'ja', lastEvidenceSource: 'passiveTracking',
+        },
+      },
+    }));
+
+    // The store load runs the legacy epistemic migration against the empty journal.
+    await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
+    const backfillCall = mockAppendEvents.mock.calls.find(([byKey]) =>
+      Object.keys(byKey as Record<string, unknown>)[0] === lk);
+    expect(backfillCall).toBeDefined();
+    const [backfill] = Object.values(backfillCall![0] as Record<string, Array<Record<string, unknown>>>)[0];
+    // NOT source 'migration' — that is an active source on replay and would
+    // promote pure exposure into active evidence.
+    expect(backfill).toMatchObject({
+      kind: 'rollup',
+      source: 'passiveTracking',
+      origin: 'legacy-projection-backfill',
+      easeAfter: 0.05,
+      timesSeenDelta: 3,
+    });
+
+    // Replay of the recovered row yields NO active evidence.
+    const projection = replayKeyProjection([backfill as unknown as Parameters<typeof replayKeyProjection>[0][number]]);
+    expect(projection?.hasActiveEvidence).toBe(false);
+    expect(projection?.hasEvidence).toBe(true);
+
+    // The word renders Untracked everywhere — never Learning/Unknown/Known.
+    const resolved = ctx.getComprehensiveWordStatusWithSourceSync('受動');
+    expect(resolved.status).toBe('unknown');
+    expect(resolved.basis).toBe('unmeasured');
+    expect(knowledgeStatusLabelKey(resolved.status, resolved.basis)).toBe(UNTRACKED_LABEL_KEY);
+    dispose();
+  });
+
+  it('crash recovery: rows with active provenance keep the migration backfill', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('能動')}`;
+    mockAppendEvents.mockClear();
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 2.2, lastSeen: 1, timesSeen: 2, timesHovered: 0,
+          word: '能動', language: 'ja',
+          hasActiveEvidence: true, lastEvidenceSource: 'manual', lastStatusChange: 1,
+        },
+      },
+    }));
+
+    await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
+    const backfillCall = mockAppendEvents.mock.calls.find(([byKey]) =>
+      Object.keys(byKey as Record<string, unknown>)[0] === lk);
+    const [backfill] = Object.values(backfillCall![0] as Record<string, Array<Record<string, unknown>>>)[0];
+    expect(backfill).toMatchObject({ kind: 'rollup', source: 'migration', origin: 'legacy-projection-backfill' });
+    const projection = replayKeyProjection([backfill as unknown as Parameters<typeof replayKeyProjection>[0][number]]);
+    expect(projection?.hasActiveEvidence).toBe(true);
     dispose();
   });
 
@@ -2701,6 +2890,74 @@ describe('FlashcardProvider', () => {
     vi.unstubAllGlobals();
   });
 
+  it('BroadcastChannel merges wordCandidates, grammarKnowledge, suggestedFlashcards, and dailyStats per-entry', async () => {
+    const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
+    const closeFn = vi.fn();
+    function MockBroadcastChannel() {
+      return {
+        postMessage: vi.fn(),
+        close: closeFn,
+        set onmessage(fn: ((event: MessageEvent) => void) | null) { state.handler = fn; },
+        get onmessage() { return state.handler; },
+      };
+    }
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
+
+    const { ctx, dispose } = await mountProvider();
+    const candidateKey = 'ja:学校';
+    const grammarKey = 'ja:てform';
+    const suggestionKey = 'ja:候補';
+    const today = '2026-08-30';
+    flashcardsCb(makeEmptyStore({
+      wordCandidates: { [candidateKey]: { count: 5, lastSeen: 200, word: '学校', language: 'ja' } },
+      grammarKnowledge: {
+        [grammarKey]: { pattern: 'てform', ease: 1.31, timesEncountered: 3, timesFailed: 0, lastSeen: 200, level: 1, language: 'ja' },
+      },
+      suggestedFlashcards: { [suggestionKey]: { id: 's1', word: '候補', language: 'ja', createdAt: 100, lastSeen: 200, count: 1 } },
+      dailyStats: { [today]: { ja: { date: today, newCardsStudied: 3, reviewCardsStudied: 1, lapses: 0, timeSpent: 100, graduated: 0 } } },
+    }));
+
+    // Incoming NEWER entries win per collection.
+    const remoteNewer = makeEmptyStore({
+      wordCandidates: { [candidateKey]: { count: 7, lastSeen: 300, word: '学校', language: 'ja' } },
+      grammarKnowledge: {
+        [grammarKey]: { pattern: 'てform', ease: 1.32, timesEncountered: 4, timesFailed: 0, lastSeen: 300, level: 1, language: 'ja' },
+      },
+      suggestedFlashcards: { [suggestionKey]: { id: 's1', word: '候補', language: 'ja', createdAt: 100, lastSeen: 300, count: 2 } },
+      dailyStats: { [today]: { ja: { date: today, newCardsStudied: 1, reviewCardsStudied: 2, lapses: 1, timeSpent: 500, graduated: 1 } } },
+    });
+    state.handler!({ data: { type: 'update', store: remoteNewer } } as MessageEvent);
+
+    expect(ctx.store.wordCandidates[candidateKey]?.count).toBe(7);
+    expect(ctx.store.grammarKnowledge[grammarKey]?.timesEncountered).toBe(4);
+    expect(ctx.store.suggestedFlashcards[suggestionKey]?.lastSeen).toBe(300);
+    expect(ctx.store.dailyStats[today]?.ja).toEqual({
+      date: today, newCardsStudied: 3, reviewCardsStudied: 2, lapses: 1, timeSpent: 500, graduated: 1,
+    });
+
+    // Incoming STALE entries must not revert the newer local writes.
+    const remoteStale = makeEmptyStore({
+      wordCandidates: { [candidateKey]: { count: 2, lastSeen: 400, word: '学校', language: 'ja' } },
+      grammarKnowledge: {
+        [grammarKey]: { pattern: 'てform', ease: 5, timesEncountered: 1, timesFailed: 0, lastSeen: 400, level: 1, language: 'ja' },
+      },
+      suggestedFlashcards: { [suggestionKey]: { id: 's1', word: '候補', language: 'ja', createdAt: 100, lastSeen: 100, count: 9 } },
+      dailyStats: { [today]: { ja: { date: today, newCardsStudied: 0, reviewCardsStudied: 0, lapses: 0, timeSpent: 10, graduated: 0 } } },
+    });
+    state.handler!({ data: { type: 'update', store: remoteStale } } as MessageEvent);
+
+    // Lower candidate count loses despite a newer lastSeen; fewer grammar
+    // encounters lose despite a higher ease.
+    expect(ctx.store.wordCandidates[candidateKey]?.count).toBe(7);
+    expect(ctx.store.grammarKnowledge[grammarKey]?.timesEncountered).toBe(4);
+    expect(ctx.store.suggestedFlashcards[suggestionKey]?.lastSeen).toBe(300);
+    expect(ctx.store.dailyStats[today]?.ja).toEqual({
+      date: today, newCardsStudied: 3, reviewCardsStudied: 2, lapses: 1, timeSpent: 500, graduated: 1,
+    });
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
   // ─── Priority 2: updateMeta ───────────────────────────────────────
   it('updateMeta modifies store.meta and refreshes queue', async () => {
     const { ctx, dispose } = await mountProvider();
@@ -2786,7 +3043,7 @@ describe('FlashcardProvider', () => {
   });
 
   // ─── Priority 2: isWordKnown / isWordKnownByText ─────────────────
-  it('isWordKnownByText returns true when ease exceeds threshold', async () => {
+  it('isWordKnownByText is false for pure passive ease — Known requires active evidence', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('上手');
@@ -2800,6 +3057,31 @@ describe('FlashcardProvider', () => {
           timesHovered: 0,
           word: '上手',
           language: 'ja',
+        },
+      },
+    }));
+
+    // REQ13: high passive ease is familiarity, never epistemic Known.
+    expect(ctx.isWordKnownByText('上手')).toBe(false);
+    dispose();
+  });
+
+  it('isWordKnownByText is true when active evidence backs the high ease', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('上手');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 4.5,
+          lastSeen: Date.now(),
+          timesSeen: 100,
+          timesHovered: 0,
+          word: '上手',
+          language: 'ja',
+          hasActiveEvidence: true,
+          lastEvidenceSource: 'srs',
         },
       },
     }));
@@ -2850,6 +3132,10 @@ describe('FlashcardProvider', () => {
           timesHovered: 0,
           word: 'كتب',
           language: 'ar',
+          // Language-targeting is the point of this test; Known still needs
+          // active evidence, so seed it (REQ13).
+          hasActiveEvidence: true,
+          lastEvidenceSource: 'srs',
         },
       },
     }));
@@ -4465,5 +4751,213 @@ describe('recordAttempt logs no-transition submissions', () => {
     expect(ctx.store.wordKnowledge[lk]?.lastEvidenceSource).toBe('manual');
     dispose();
     mockSettings.language = 'ja';
+  });
+});
+// ── REQ15: claim override persistence ─────────────────────────────────
+describe('claim override persistence (REQ15)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    setupMockImplementations();
+  });
+  it('set claim Learning over evidence Known → reload → evidence intact → clear restores', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const word = '学習';
+    const lk = `ja:${SRS.hashWordSync(word)}`;
+    // Journal already holds the SRS review evidence (persisted store) — seeded
+    // BEFORE the load so the legacy migration sees journal history for the key
+    // and skips its rollup backfill.
+    await mockAppendEvents({
+      [lk]: [{ t: 1, kind: 'review', source: 'srs', aspect: 'meaning', rating: 'good', easeAfter: 2.6 }],
+    });
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 2.6, lastSeen: 1, timesSeen: 4, timesHovered: 0, word, language: 'ja',
+          hasActiveEvidence: true, lastEvidenceSource: 'srs',
+        },
+      },
+    }));
+
+    // 1. Claim Learning over evidence Known: effective Learning, basis claim,
+    //    evidence classification stays visible.
+    ctx.setWordClaim(word, 'learning');
+    const claimed = ctx.getComprehensiveWordStatusWithSourceSync(word);
+    expect(claimed).toMatchObject({ status: 'learning', basis: 'claim', claim: 'learning', evidenceStatus: 'known' });
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.6);
+
+    // 2. Simulate store reload: the persisted materialized store comes back
+    //    through the bridge (claim + evidence are part of it) and the load
+    //    re-runs the journal reconciliation.
+    const persisted = JSON.parse(JSON.stringify(ctx.store));
+    flashcardsCb(persisted);
+    const reloaded = ctx.getComprehensiveWordStatusWithSourceSync(word);
+    expect(reloaded).toMatchObject({ status: 'learning', basis: 'claim', evidenceStatus: 'known' });
+    // Evidence intact, nothing fabricated: ease unchanged, no negative rows.
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.6);
+    expect(ctx.store.wordKnowledge[lk]?.hasActiveEvidence).toBe(true);
+    const journal = await mockGetEventLogForLanguage('ja');
+    expect(journal[lk].map((e) => e.kind).sort()).toEqual(['claim', 'review']);
+    const projection = replayKeyProjection(journal[lk] as Parameters<typeof replayKeyProjection>[0]);
+    expect(projection).toMatchObject({ claim: 'learning', ease: 2.6, hasActiveEvidence: true });
+
+    // 3. Cross-window: the persisted store arrives as a second-window update
+    //    (BroadcastChannel harness) AFTER the local claim was cleared — the
+    //    claim LWW merge restores it, evidence ease unchanged.
+    ctx.setWordClaim(word, null);
+    const cleared = ctx.getComprehensiveWordStatusWithSourceSync(word);
+    expect(cleared).toMatchObject({ status: 'known', basis: 'evidence', evidenceStatus: 'known' });
+    expect(cleared.claim).toBeUndefined();
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.6);
+
+    const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
+    vi.stubGlobal('BroadcastChannel', function MockBroadcastChannel() {
+      return {
+        postMessage: vi.fn(),
+        close: vi.fn(),
+        set onmessage(fn: ((event: MessageEvent) => void) | null) { state.handler = fn; },
+        get onmessage() { return state.handler; },
+      };
+    });
+    const { ctx: windowB, dispose: disposeB } = await mountProvider();
+    flashcardsCb(makeEmptyStore()); // window B starts from its own (empty) view
+    state.handler!({ data: { type: 'update', store: persisted } } as MessageEvent);
+    expect(windowB.store.wordKnowledge[lk]?.claim).toBe('learning');
+    expect(windowB.store.wordKnowledge[lk]?.ease).toBe(2.6);
+    expect(windowB.getComprehensiveWordStatusWithSourceSync(word)).toMatchObject({ status: 'learning', basis: 'claim' });
+    disposeB();
+    vi.unstubAllGlobals();
+    dispose();
+  });
+});
+// ── REQ3/REQ52: attempt metadata completeness ─────────────────────────
+describe('attempt task metadata (REQ3/REQ52)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    setupMockImplementations();
+  });
+  it('recordAttempt writes taskType/scaffolds/sourceVersions onto the observation and replay round-trips them', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+    ctx.recordAttempt('学校', 'meaning', 'fluent', {
+      language: 'ja2',
+      taskType: 'word-sync',
+      scaffolds: { reading: true, translation: true },
+      sourceVersions: { graphSchemaVersion: 1 },
+    });
+    await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
+
+    const events = mockAppendEvents.mock.calls
+      .flatMap(([byKey]) => Object.values(byKey as Record<string, Array<Record<string, unknown>>>))
+      .flat()
+      .filter((e) => e.kind === 'rating');
+    const observation = events.find((e) => e.taskType === 'word-sync');
+    expect(observation).toBeDefined();
+    expect(observation).toMatchObject({
+      quality: 'fluent',
+      taskType: 'word-sync',
+      scaffolds: { reading: true, translation: true },
+      sourceVersions: { graphSchemaVersion: 1 },
+    });
+
+    // Round-trip: journal → replay keeps the attempt as active evidence and
+    // the metadata stays on the journaled rows for horizon-sensitive projection.
+    const journal = await mockGetEventLogForLanguage('ja2');
+    const journaled = Object.values(journal).flat().find((e) => e.attemptId !== undefined);
+    expect(journaled).toMatchObject({ taskType: 'word-sync', scaffolds: { reading: true, translation: true } });
+    const projection = replayKeyProjection(
+      Object.values(journal).flat() as Parameters<typeof replayKeyProjection>[0],
+    );
+    expect(projection?.hasActiveEvidence).toBe(true);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('a word-sync origin implies the word-sync task type when the caller omits one', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+    ctx.recordAttempt('学校', 'meaning', 'struggled', { language: 'ja2', origin: 'word-sync' });
+    await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
+
+    const observation = mockAppendEvents.mock.calls
+      .flatMap(([byKey]) => Object.values(byKey as Record<string, Array<Record<string, unknown>>>))
+      .flat()
+      .find((e) => e.kind === 'rating');
+    expect(observation).toMatchObject({ origin: 'word-sync', taskType: 'word-sync' });
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('answerCard tags SRS reviews with the srs-review task type', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'task-card', state: 'new', language: 'ja2' });
+    flashcardsCb(makeEmptyStore({
+      flashcards: { 'task-card': card },
+      wordToCardMap: { [`ja2:${SRS.hashWordSync('テスト')}`]: ['task-card'] },
+    }));
+    mockAppendEvents.mockClear();
+    ctx.answerCard('good', 'task-card');
+    await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
+
+    const review = mockAppendEvents.mock.calls
+      .flatMap(([byKey]) => Object.values(byKey as Record<string, Array<Record<string, unknown>>>))
+      .flat()
+      .find((e) => e.kind === 'review');
+    expect(review).toMatchObject({ kind: 'review', source: 'srs', taskType: 'srs-review' });
+    dispose();
+    mockSettings.language = 'ja';
+  });
+});
+
+// ── REQ39 provider side: grammar encounter provenance ─────────────────
+describe('trackGrammarEncountered encounter opts (REQ39)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    setupMockImplementations();
+  });
+  it('carries confidence/span/origin onto the rollup event and keeps legacy positional calls', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+    ctx.trackGrammarEncountered('てform', { confidence: 0.65, span: { start: 0, end: 1 }, origin: 'subtitle:literal' });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('てform')).toBeDefined());
+
+    const [[byKey]] = mockAppendEvents.mock.calls;
+    const [event] = Object.values(byKey as Record<string, Array<Record<string, unknown>>>)[0];
+    expect(event).toMatchObject({
+      kind: 'rollup',
+      source: 'grammar',
+      timesSeenDelta: 1,
+      confidence: 0.65,
+      span: { start: 0, end: 1 },
+      origin: 'subtitle:literal',
+    });
+    // Encounters are factual exposure — never mastery evidence.
+    expect(event.easeAfter).toBeUndefined();
+    dispose();
+  });
+
+  it('positional (pattern, level, language) callers keep their behavior', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+    ctx.trackGrammarEncountered('ないform', 4, 'ru');
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('ないform', 'ru')).toBeDefined());
+
+    const [[byKey]] = mockAppendEvents.mock.calls;
+    const [event] = Object.values(byKey as Record<string, Array<Record<string, unknown>>>)[0];
+    expect(event).toMatchObject({ kind: 'rollup', timesSeenDelta: 1, origin: 'grammar-encounter' });
+    expect(event.confidence).toBeUndefined();
+    expect(event.span).toBeUndefined();
+    dispose();
   });
 });

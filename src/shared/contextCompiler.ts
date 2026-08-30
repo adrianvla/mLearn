@@ -40,6 +40,12 @@ export interface LearnerProjection {
    */
   wordsBasis?: 'evidence' | 'prediction';
   grammarBasis?: 'evidence' | 'prediction';
+  /**
+   * Patterns repeatedly passively encountered but never failed — exposure-ranked
+   * practice candidates. Prediction/exposure signal only; must never be
+   * presented as demonstrated failure (unlike grammarPoints).
+   */
+  grammarExposure?: string[];
 }
 
 /** One participant's redacted view of the world, ready for prompt assembly. */

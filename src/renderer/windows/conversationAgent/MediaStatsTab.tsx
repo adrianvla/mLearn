@@ -25,7 +25,7 @@ import {
   BarChartIcon,
 } from '../../components/common';
 import type { TabItem } from '../../components/common';
-import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../utils/levelPercentages';
+import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty, type MediaDifficultyComponents } from '../../utils/levelPercentages';
 import {
   formatFrequencyLevelLabel,
   formatGrammarLevelLabel,
@@ -53,6 +53,8 @@ interface MediaView {
   allGrammar: Array<{ pattern: string; ease: number; timesFailed: number; level: number | null; failed: boolean }>;
   wordLevelEntries: LevelPercentageEntry[];
   grammarLevelEntries: LevelPercentageEntry[];
+  /** Objective component estimates behind the headline (lexical/grammar/structural). */
+  difficultyComponents: MediaDifficultyComponents;
   totalUniqueWords: number;
   totalWords: number;
   totalGrammar: number;
@@ -99,7 +101,6 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     getBridge().mediaStats.listMediaStats();
     if (cleanup) onCleanup(cleanup);
   });
-
   /** Build a normalized MediaView from a ConversationAgentContext (live context from parent route) */
   const contextView = createMemo((): MediaView | null => {
     const ctx = props.context;
@@ -114,18 +115,26 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     });
     const failedWords = ctx.failedWords.map(enrichWord);
     const failedGrammar = ctx.failedGrammar.map(enrichGrammar);
+    // REQ48: recompute the headline from the context's own level
+    // distributions so the live view fuses grammar exactly like saved stats.
+    const difficulty = assessMediaDifficulty(
+      ctx.wordLevelPercentages ?? { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      ctx.grammarLevelPercentages ?? null,
+      langCtx.currentLangData(),
+    );
     return {
       mediaName: ctx.mediaName,
       mediaType: ctx.mediaType,
       mediaHash: ctx.mediaHash,
-      assessedLevel: ctx.assessedLevel,
-      assessedLevelName: ctx.assessedLevelName,
+      assessedLevel: difficulty.headline,
+      assessedLevelName: formatFrequencyLevelLabel(difficulty.headline, langCtx.getFreqLevelNames(), langCtx.currentLangData()),
       failedWords,
       failedGrammar,
       allWords: failedWords.map((w) => ({ ...w, failed: true })),
       allGrammar: failedGrammar.map((g) => ({ ...g, failed: true })),
       wordLevelEntries: ctx.wordLevelPercentages?.entries || [],
       grammarLevelEntries: ctx.grammarLevelPercentages?.entries || [],
+      difficultyComponents: difficulty.components,
       totalUniqueWords: ctx.wordLevelPercentages?.totalUnique || 0,
       totalWords: Object.keys(ctx.failedWords).length, // approximate
       totalGrammar: Object.keys(ctx.failedGrammar).length,
@@ -142,7 +151,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     const wordLevels = computeWordLevelPercentages(stats, freqLookup, langCtx.currentLangData());
     const grammarLevels = computeGrammarLevelPercentages(stats, grammarLookup, langCtx.currentLangData());
     const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
-    const level = difficulty.lexical;
+    const level = difficulty.headline;
     const levelNames = langCtx.getFreqLevelNames();
 
     // Use per-media wordsEncountered only; refine ease with the canonical
@@ -190,6 +199,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
       allGrammar,
       wordLevelEntries: wordLevels.entries,
       grammarLevelEntries: grammarLevels.entries,
+      difficultyComponents: difficulty.components,
       totalUniqueWords: wordLevels.totalUnique,
       totalWords: Object.keys(stats.wordsEncountered).length,
       totalGrammar: Object.keys(stats.grammarEncountered).length,
@@ -359,6 +369,31 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                     {v().assessedLevelName}
                   </PillLabel>
                 </Show>
+              </div>
+              {/* Component breakdown next to the headline (REQ48): lexical /
+                  grammar feed the fuse, structural is honestly not measured. */}
+              <div class="ca-stats-difficulty-breakdown">
+                <DifficultyChip
+                  label={t('mlearn.ConversationAgent.Stats.Lexical')}
+                  level={v().difficultyComponents.lexical}
+                  levelLabel={formatFrequencyLevelLabel(v().difficultyComponents.lexical, langCtx.getFreqLevelNames(), langCtx.currentLangData())}
+                  visualLevel={v().difficultyComponents.lexical == null
+                    ? undefined
+                    : getFrequencyLevelVisualRank(v().difficultyComponents.lexical!, langCtx.getFreqLevelNames(), langCtx.currentLangData())}
+                />
+                <DifficultyChip
+                  label={t('mlearn.ConversationAgent.Stats.Grammar')}
+                  level={v().difficultyComponents.grammar}
+                  levelLabel={formatGrammarLevelLabel(v().difficultyComponents.grammar, langCtx.getGrammarLevelNames(), langCtx.currentLangData())}
+                  visualLevel={v().difficultyComponents.grammar == null
+                    ? undefined
+                    : getGrammarLevelVisualRank(v().difficultyComponents.grammar!, langCtx.getGrammarLevelNames(), langCtx.currentLangData())}
+                />
+                <DifficultyChip
+                  label={t('mlearn.ConversationAgent.Stats.Structural')}
+                  level={null}
+                  levelLabel=""
+                />
               </div>
 
               {/* Sub-tab bar */}
@@ -611,3 +646,25 @@ const LevelBars: Component<LevelBarsProps> = (props) => {
     </div>
   );
 };
+
+// ============ Difficulty Breakdown Chip ============
+
+/** One labeled slot of the difficulty breakdown: a level pill when measured, an honest em dash when not. */
+const DifficultyChip: Component<{
+  label: string;
+  level: number | null;
+  levelLabel: string;
+  visualLevel?: number;
+}> = (props) => (
+  <span class="ca-stats-breakdown-item">
+    <span class="ca-stats-breakdown-label">{props.label}</span>
+    <Show
+      when={props.level != null && props.levelLabel}
+      fallback={<span class="ca-stats-breakdown-value">—</span>}
+    >
+      <PillLabel level={props.level ?? undefined} visualLevel={props.visualLevel}>
+        {props.levelLabel}
+      </PillLabel>
+    </Show>
+  </span>
+);

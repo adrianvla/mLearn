@@ -252,6 +252,15 @@ describe('context compiler', () => {
     expect(ctx.learnerProjection).toEqual(proj);
   });
 
+  it('passes grammarExposure through as an exposure-only signal', () => {
+    const a = participant({ id: 'A' });
+    const proj = { grammarPoints: ['てform'], grammarExposure: ['ている', '〜てしまう'] };
+
+    const ctx = compileContext({ participant: a, participants: [a], seaEvents: [], learnerProjection: proj });
+    expect(ctx.learnerProjection?.grammarExposure).toEqual(['ている', '〜てしまう']);
+    expect(ctx.learnerProjection?.grammarPoints).toEqual(['てform']);
+  });
+
   it('exposes the caller projection with witnessed relationship state', () => {
     const sea = [belief(1, 'A', 'relationship', 'Trusts the user.', ['A', 'user'], { toId: 'user' })];
     const a = participant({ id: 'A' });

@@ -701,16 +701,35 @@ export const SettingsProvider: ParentComponent = (props) => {
   const showProsody = () => prosodyVisible(settings);
   const setProsodyVisible = (show: boolean) => updateSetting('showProsody', show);
 
-  // Broadcast settings to other windows
+  // Broadcast settings to other windows. Each message carries a monotonic
+  // revision so receivers can ignore anything that cannot be newer than what
+  // they already applied or produced themselves (REQ58: a stale window must
+  // not be able to revert newer settings).
+  let lastSettingsBroadcastRev = 0;
   const broadcastSettingsUpdate = (settingsSnapshot: Settings) => {
     if (broadcastChannel) {
-      broadcastChannel.postMessage({ type: 'update', settings: settingsSnapshot });
+      // Strictly increasing per sender, so same-millisecond updates advance.
+      lastSettingsBroadcastRev = Math.max(lastSettingsBroadcastRev + 1, Date.now());
+      broadcastChannel.postMessage({
+        type: 'update',
+        settings: settingsSnapshot,
+        rev: lastSettingsBroadcastRev,
+      });
     }
   };
 
   // Handle settings from other windows
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.settings) {
+      // Monotonic recency guard: a message whose revision is not newer than
+      // the last revision this window applied or broadcast itself is stale
+      // and must not revert newer state. Legacy messages without a rev
+      // (older builds) still apply.
+      const rev = event.data.rev;
+      if (typeof rev === 'number' && rev > 0) {
+        if (rev <= lastSettingsBroadcastRev) return;
+        lastSettingsBroadcastRev = rev;
+      }
       if (!hasLoaded()) {
         const incomingSettings = normalizeReaderImageAppearance(
           normalizeSignedOutActiveGroup(event.data.settings as Settings),

@@ -71,4 +71,32 @@ describe('prediction firewall', () => {
     expect(prediction.supportPath).toHaveLength(3);
     expect(prediction.kind).toBe('prediction');
   });
+
+  it('grants no generated-compound credit when the preferred parse is ambiguous', () => {
+    const deGraph = loadLinguisticGraph({
+      ...fixture,
+      language: 'de',
+      entities: [
+        ...['Nach', 'Nacht', 'Tisch', 'isch'].flatMap((label) => [
+          { id: `de:surface:${label}`, kind: 'surface' as const, label },
+          { id: `de:entry:${label}`, kind: 'dictionary-entry' as const },
+        ]),
+        { id: 'de:surface:unseen-nachtisch', kind: 'surface' as const, label: 'Nachtisch' },
+      ],
+      relations: ['Nach', 'Nacht', 'Tisch', 'isch'].map((label) => ({ from: `de:surface:${label}`, to: `de:entry:${label}`, type: 'realizes' as const })),
+    });
+    const input = {
+      graph: deGraph, direct: null,
+      target: { entityId: 'de:surface:unseen-nachtisch', capability: 'sense-recognition' as const },
+      classify: () => 'unknown' as const,
+      compound: { surface: 'Nachtisch', isKnownPart: () => true },
+    };
+    const ambiguous = predictTargetAccessibility(input);
+    // Control: identical graph without the compound hint. The blocked credit
+    // must leave the prediction at the no-support baseline.
+    const baseline = predictTargetAccessibility({ ...input, compound: undefined });
+    expect(ambiguous.pSuccess).toBe(baseline.pSuccess);
+    expect(ambiguous.pSuccess).toBeLessThan(0.1);
+    expect(ambiguous.supportPath.some((hop) => hop.via === 'generated-compound')).toBe(false);
+  });
 });

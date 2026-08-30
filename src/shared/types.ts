@@ -1454,6 +1454,8 @@ export interface LanguageData {
   prosody?: LanguageProsodyConfig;
   /** Grammatical-gender lexical knowledge supported by this language's data. */
   gender?: LanguageGenderConfig;
+  /** Productive compound splitting supported by this language's lexical data. */
+  compoundSplitting?: boolean;
   /** Character-level study/decomposition behavior. */
   characterStudy?: LanguageCharacterStudyConfig;
   /** Reader layout defaults supplied by the language package. */
@@ -1888,6 +1890,13 @@ export interface FlashcardStore {
   wordSyncSeen: Record<string, number>;
   /** Version for migrations */
   version: number;
+  /**
+   * Monotonic store revision for sync conflict gating. Bumped on every
+   * persisted write (flashcardStorage.saveFlashcards). Sync clients echo the
+   * rev they last pulled when pushing; the server answers an older rev with
+   * HTTP 409 so a stale snapshot cannot resurrect deleted entries.
+   */
+  rev?: number;
 }
 
 /**
@@ -2584,6 +2593,8 @@ export interface ConversationAgentContext {
   failedGrammar: MediaStatsGrammarEntry[];
   wordLevelPercentages: LevelPercentages;
   grammarLevelPercentages: LevelPercentages;
+  /** Patterns repeatedly encountered in this media without any failure — exposure-ranked practice candidates (unmeasured signals, NOT demonstrated failures). */
+  grammarExposure?: Array<{ pattern: string; timesEncountered: number }>;
   characterContext?: string;
   subtitleHistory?: string[];
   /** Draft message to seed the composer with and send once the window is ready. */

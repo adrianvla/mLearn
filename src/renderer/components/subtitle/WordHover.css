@@ -233,6 +233,25 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   align-items: center;
 }
 
+/* German compound decomposition tree (REQ42) — ordered after readings */
+.hover-compound {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  order: 3;
+}
+
+.hover-compound__label,
+.hover-compound__note {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.hover-compound__row {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
 .hover_loading {
   display: flex;
   align-items: center;

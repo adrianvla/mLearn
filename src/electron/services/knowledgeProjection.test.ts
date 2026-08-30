@@ -33,7 +33,7 @@ describe('buildKnowledgeProjection', () => {
     ], policy, 10);
 
     const meaning = result.targets.find((target) => target.targetRef.id === senseId)!.states[0];
-    expect(meaning).toMatchObject({ classification: 'learning', basis: 'evidence', evidenceSourceCounts: { anki: 1, passiveTracking: 3 }, lastDirectSuccess: 1 });
+    expect(meaning).toMatchObject({ classification: 'known', basis: 'evidence', evidenceSourceCounts: { anki: 1, passiveTracking: 3 }, lastDirectSuccess: 1 });
     expect(meaning.evidence).toHaveLength(2);
     expect(meaning.retention).toMatchObject({ dueAt: expect.any(Number), pressure: expect.any(Number) });
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
@@ -199,6 +199,6 @@ describe('buildKnowledgeProjection', () => {
   it('maps claim statuses onto a displayed classification', () => {
     expect(claimClassification('known')).toBe('known');
     expect(claimClassification('learning')).toBe('learning');
-    expect(claimClassification('unknown')).toBe('unmeasured');
+    expect(claimClassification('unknown')).toBe('unknown');
   });
 });

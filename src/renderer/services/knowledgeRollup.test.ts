@@ -9,8 +9,10 @@ vi.mock('./knowledgeEvents', () => ({
 import {
   accumulateWordSeen,
   flushKnowledgeRollup,
+  installPassiveFlushHooks,
   setKnowledgeRollupTodayFn,
   resetKnowledgeRollupForTests,
+  uninstallPassiveFlushHooks,
 } from './knowledgeRollup';
 
 beforeEach(() => {
@@ -18,6 +20,11 @@ beforeEach(() => {
   setKnowledgeRollupTodayFn(() => '2026-08-15');
   mockAppendEvents.mockClear();
 });
+
+/** Drains the fire-and-forget flush chain deterministically (no timers). */
+async function drainMicrotasks(): Promise<void> {
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+}
 
 describe('knowledgeRollup', () => {
   it('buckets multiple accumulations for the same lk into one event', async () => {
@@ -80,5 +87,44 @@ describe('knowledgeRollup', () => {
     // Buckets cleared before the append attempt — no double-send on next flush.
     await flushKnowledgeRollup();
     expect(mockAppendEvents).toHaveBeenCalledTimes(1);
+  });
+
+
+  it('installPassiveFlushHooks flushes pending rollups on beforeunload (crash-window hardening)', async () => {
+    installPassiveFlushHooks();
+    accumulateWordSeen('ja:abc', 1.4, 1);
+    window.dispatchEvent(new Event('beforeunload'));
+    // Drain the fire-and-forget flush.
+    await flushKnowledgeRollup();
+    expect(mockAppendEvents).toHaveBeenCalledTimes(1);
+    expect(mockAppendEvents.mock.calls[0][0]['ja:abc'][0].timesSeenDelta).toBe(1);
+    uninstallPassiveFlushHooks();
+  });
+
+  it('installPassiveFlushHooks flushes pending rollups on visibilitychange→hidden only', async () => {
+    installPassiveFlushHooks();
+    const visibility = document['visibilityState'];
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+    accumulateWordSeen('ja:abc', 1.4, 1);
+    document.dispatchEvent(new Event('visibilitychange'));
+    await drainMicrotasks();
+    expect(mockAppendEvents).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flushKnowledgeRollup();
+    expect(mockAppendEvents).toHaveBeenCalledTimes(1);
+
+    Object.defineProperty(document, 'visibilityState', { value: visibility, configurable: true });
+    uninstallPassiveFlushHooks();
+  });
+
+  it('uninstall detaches the hooks — no flush after removal', async () => {
+    installPassiveFlushHooks();
+    uninstallPassiveFlushHooks();
+    accumulateWordSeen('ja:abc', 1.4, 1);
+    window.dispatchEvent(new Event('beforeunload'));
+    await drainMicrotasks();
+    expect(mockAppendEvents).not.toHaveBeenCalled();
   });
 });
