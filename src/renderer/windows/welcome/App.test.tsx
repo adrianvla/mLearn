@@ -42,6 +42,12 @@ const translations: Record<string, string> = {
   'mlearn.Installer.Buttons.InstallLanguageData': 'Install Selected Language Data',
   'mlearn.Installer.Buttons.FinishSetup': 'Finish Setup',
   'mlearn.Installer.Alerts.NetworkError': 'Network error',
+  'mlearn.Installer.Alerts.NetworkOfflineTitle': 'Connection problem',
+  'mlearn.Installer.Alerts.NetworkOfflineMessage': "mLearn can't reach the download servers. Check your internet connection — the download retries and resumes automatically.",
+  'mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Title': 'Local AI features are unavailable on this Mac',
+  'mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Description': "This Mac's Intel processor has no built-in AI acceleration, so local AI components cannot be installed. mLearn's built-in chat AI still works on the CPU (slower).",
+  'mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Unavailable': 'Not available on this Mac',
+  'mlearn.Installer.PlatformWarnings.WindowsCudaRecommended': 'An NVIDIA GPU is recommended for realtime voice. Voice also runs on the CPU, but responses will be slower.',
   'mlearn.LocaleNames.en': 'English',
   'mlearn.LocaleNames.de': 'German',
   'mlearn.LocaleNames.fr': 'French',
@@ -70,6 +76,8 @@ let testLanguages: LanguageRecord;
 let languageDataCatalog: () => LanguageDataStatus[];
 let setLanguageDataCatalog: (value: LanguageDataStatus[]) => LanguageDataStatus[];
 let installerStateHandler: ((state: { success?: boolean; inProgress?: boolean; waiting?: boolean; options?: { includeLLM?: boolean; includeOCR?: boolean; includeVoice?: boolean } }) => void) | undefined;
+let installStartedHandler: ((options: { includeLLM?: boolean; includeOCR?: boolean; includeVoice?: boolean; platformWarnings?: string[] }) => void) | undefined;
+let installerNetworkErrorHandler: ((payload: { message: string; detail?: string }) => void) | undefined;
 let settingsHandler: ((settings: TestSettings) => void) | undefined;
 let settingsSavedHandler: (() => void) | undefined;
 const saveSettingsMock = vi.fn();
@@ -110,9 +118,15 @@ vi.mock('../../../shared/bridges', () => ({
       startInstall: vi.fn(),
       onPythonSuccess: vi.fn(() => cleanup),
       onPipProgress: vi.fn(() => cleanup),
-      onInstallStarted: vi.fn(() => cleanup),
+      onInstallStarted: vi.fn((callback: typeof installStartedHandler) => {
+        installStartedHandler = callback;
+        return cleanup;
+      }),
       onInstallerAwaitingChoice: vi.fn(() => cleanup),
-      onInstallerNetworkError: vi.fn(() => cleanup),
+      onInstallerNetworkError: vi.fn((callback: typeof installerNetworkErrorHandler) => {
+        installerNetworkErrorHandler = callback;
+        return cleanup;
+      }),
       onInstallerState: vi.fn((callback: typeof installerStateHandler) => {
         installerStateHandler = callback;
         return cleanup;
@@ -152,22 +166,30 @@ vi.mock('../../components/common', () => ({
       <span>{props.subtitle}</span>
     </button>
   ),
-  AlertBanner: (props: { title?: string; message?: string }) => <div>{props.title}{props.message}</div>,
+  AlertBanner: (props: { title?: string; message?: string; closable?: boolean; onClose?: () => void }) => (
+    <div>
+      {props.title}
+      {props.message}
+      {props.closable ? <button type="button" data-testid="alert-close" onClick={props.onClose}>Dismiss</button> : null}
+    </div>
+  ),
   LogConsole: (props: { title?: string; logs?: Array<{ message: string }> }) => (
     <div>
       <div>{props.title}</div>
       {props.logs?.map((entry) => <div data-testid="log-entry">{entry.message}</div>)}
     </div>
   ),
-  CheckboxCard: (props: { title: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) => (
+  CheckboxCard: (props: { title: string; description: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void; children?: JSX.Element }) => (
     <label>
       <input
         type="checkbox"
         checked={props.checked}
+        disabled={props.disabled}
         onChange={(event) => props.onChange(event.currentTarget.checked)}
       />
       {props.title}
       {props.description}
+      {props.children}
     </label>
   ),
   ProgressBar: () => <div>progress</div>,
@@ -205,6 +227,8 @@ describe('WelcomeApp', () => {
       },
     ]);
     installerStateHandler = undefined;
+    installStartedHandler = undefined;
+    installerNetworkErrorHandler = undefined;
     settingsHandler = undefined;
     settingsSavedHandler = undefined;
     saveSettingsMock.mockReset();
@@ -648,6 +672,139 @@ describe('WelcomeApp', () => {
     restartCallback?.();
 
     expect(completeInitialSetupMock).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('shows the Intel panel and disables the AI component toggles on intel-no-onboard-ai', async () => {
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+    installStartedHandler?.({
+      includeLLM: true,
+      includeOCR: true,
+      includeVoice: true,
+      platformWarnings: ['intel-no-onboard-ai'],
+    });
+    // Install finished and the installer is back at the component selection screen;
+    // the warnings from INSTALL_STARTED persist there.
+    installerStateHandler?.({ waiting: true, options: { includeLLM: true, includeOCR: true, includeVoice: true } });
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Local AI features are unavailable on this Mac');
+      expect(container.textContent).toContain('Not available on this Mac');
+    });
+
+    const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+    expect(checkboxes).toHaveLength(3);
+    expect(checkboxes.every((checkbox) => checkbox.disabled)).toBe(true);
+    // LLM stays selected because the builtin chat LLM keeps working on CPU
+    expect(checkboxes[0]!.checked).toBe(true);
+    expect(checkboxes[1]!.checked).toBe(false);
+    expect(checkboxes[2]!.checked).toBe(false);
+    expect(container.textContent).not.toContain('NVIDIA GPU');
+
+    installerStateHandler?.({ success: true });
+    const languageSelect = container.querySelector('select');
+    languageSelect!.value = 'de';
+    languageSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Install Selected Language Data');
+    });
+    const continueButton = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Install Selected Language Data'));
+    continueButton?.click();
+
+    expect(installLanguageDataMock).toHaveBeenCalledWith('de', 'en', {
+      includeLLM: true,
+      includeOCR: false,
+      includeVoice: false,
+    });
+
+    dispose();
+  });
+
+  it('shows and dismisses the Windows CUDA recommendation notice', async () => {
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+    installStartedHandler?.({
+      includeLLM: true,
+      includeOCR: true,
+      includeVoice: true,
+      platformWarnings: ['windows-cuda-recommended'],
+    });
+    installerStateHandler?.({ waiting: true, options: { includeLLM: true, includeOCR: true, includeVoice: true } });
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('An NVIDIA GPU is recommended for realtime voice');
+    });
+    expect(container.textContent).not.toContain('Local AI features are unavailable');
+
+    const dismiss = container.querySelector('[data-testid="alert-close"]') as HTMLButtonElement | null;
+    expect(dismiss).toBeTruthy();
+    dismiss!.click();
+
+    await vi.waitFor(() => {
+      expect(container.textContent).not.toContain('An NVIDIA GPU is recommended');
+    });
+
+    dispose();
+  });
+
+  it('shows no platform warnings when the payload carries none', async () => {
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+    installStartedHandler?.({ includeLLM: true, includeOCR: true, includeVoice: true });
+    installerStateHandler?.({ waiting: true, options: { includeLLM: true, includeOCR: true, includeVoice: true } });
+
+    await vi.waitFor(() => {
+      const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+      expect(checkboxes).toHaveLength(3);
+      expect(checkboxes.every((checkbox) => !checkbox.disabled)).toBe(true);
+    });
+    expect(container.textContent).not.toContain('NVIDIA GPU');
+    expect(container.textContent).not.toContain('Local AI features are unavailable');
+
+    dispose();
+  });
+
+  it('classifies offline-style network errors with retry and resume guidance', async () => {
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+    installerNetworkErrorHandler?.({
+      message: 'getaddrinfo EAI_AGAIN downloads.mlearn.app',
+      detail: 'fetch failed',
+    });
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Connection problem');
+      expect(container.textContent).toContain('retries and resumes automatically');
+      expect(container.textContent).toContain('getaddrinfo EAI_AGAIN downloads.mlearn.app');
+    });
+
+    dispose();
+  });
+
+  it('keeps the generic network error title for non-offline failures', async () => {
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+
+    settingsHandler?.(testSettings);
+    installerNetworkErrorHandler?.({ message: 'Checksum mismatch for python-3.11.tar.gz' });
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('Network error');
+    });
+    expect(container.textContent).not.toContain('Connection problem');
+    expect(container.textContent).not.toContain('retries and resumes automatically');
+
     dispose();
   });
 });

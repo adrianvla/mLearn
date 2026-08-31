@@ -659,7 +659,8 @@
         "UploadSample": "Téléverser un échantillon vocal",
         "VoiceSample": "Clone vocal en streaming",
         "LightweightVoice": "Voix légère",
-        "SystemVoice": "Voix système"
+        "SystemVoice": "Voix système",
+        "CpuWarning": "La voix en temps réel peut laguer car la synthèse s'exécute sur le CPU. La qualité vocale n'est pas affectée."
       },
       "Memory": {
         "ClearAll": "Effacer toutes les mémoires",
@@ -1259,7 +1260,9 @@
         "ComponentsRequired": "Configuration requise"
       },
       "Alerts": {
-        "NetworkError": "Une erreur réseau s'est produite. Vérifiez votre connexion et réessayez."
+        "NetworkError": "Une erreur réseau s'est produite. Vérifiez votre connexion et réessayez.",
+        "NetworkOfflineTitle": "Problème de connexion",
+        "NetworkOfflineMessage": "mLearn ne peut pas joindre les serveurs de téléchargement. Vérifiez votre connexion Internet — le téléchargement se réessaie et reprend automatiquement là où il s'était arrêté."
       },
       "Buttons": {
         "Continue": "Continuer",
@@ -1332,6 +1335,14 @@
         "DisplayLanguage": "Langue de l'application : {language}",
         "DictionaryLanguage": "Langue du dictionnaire : {language}",
         "NotAvailable": "non disponible"
+      },
+      "PlatformWarnings": {
+        "IntelNoOnboardAi": {
+          "Title": "Les fonctionnalités d'IA locales sont indisponibles sur ce Mac",
+          "Description": "Le processeur Intel de ce Mac n'a pas d'accélération IA intégrée : les composants locaux de voix, d'OCR et de modèles d'IA ne peuvent pas être installés. L'IA de chat intégrée de mLearn fonctionne toujours et s'exécute sur le CPU (plus lent).",
+          "Unavailable": "Indisponible sur ce Mac"
+        },
+        "WindowsCudaRecommended": "Un GPU NVIDIA est recommandé pour la voix en temps réel. La voix fonctionne aussi sur le CPU, mais les réponses seront plus lentes."
       }
     },
     "Rating": {

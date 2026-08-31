@@ -659,7 +659,8 @@
         "UploadSample": "上传语音样本",
         "VoiceSample": "流式语音克隆",
         "LightweightVoice": "轻量语音",
-        "SystemVoice": "系统语音"
+        "SystemVoice": "系统语音",
+        "CpuWarning": "语音正在 CPU 上运行，实时语音可能会出现延迟。语音质量不受影响。"
       },
       "Memory": {
         "ClearAll": "清除所有记忆",
@@ -1259,7 +1260,9 @@
         "ComponentsRequired": "需要设置"
       },
       "Alerts": {
-        "NetworkError": "发生网络错误。请检查您的连接后重试。"
+        "NetworkError": "发生网络错误。请检查您的连接后重试。",
+        "NetworkOfflineTitle": "连接问题",
+        "NetworkOfflineMessage": "mLearn 无法连接下载服务器。请检查您的网络连接——下载会自动重试并从断点继续。"
       },
       "Buttons": {
         "CancelInstall": "取消安装",
@@ -1332,6 +1335,14 @@
         "DisplayLanguage": "显示语言：{language}",
         "DictionaryLanguage": "词典语言：{language}",
         "NotAvailable": "不可用"
+      },
+      "PlatformWarnings": {
+        "IntelNoOnboardAi": {
+          "Title": "此 Mac 上无法使用本地 AI 功能",
+          "Description": "此 Mac 的 Intel 处理器没有内置 AI 加速，因此无法安装本地语音、OCR 和本地 AI 模型组件。mLearn 的内置聊天 AI 仍可使用，并在 CPU 上运行（较慢）。",
+          "Unavailable": "此 Mac 上不可用"
+        },
+        "WindowsCudaRecommended": "实时语音建议使用 NVIDIA GPU。语音也可以在 CPU 上运行，但响应会较慢。"
       }
     },
     "Rating": {

@@ -130,9 +130,11 @@ export const ComponentsTab: Component = () => {
       if (engine) installedOcrEngines.add(engine);
       const ttsConfig = data.runtime?.tts;
       const ttsEngine = ttsConfig?.engine;
-      if (ttsEngine) installedTtsEngines.add(normalizeTtsEngine(ttsEngine));
-      if (ttsConfig?.kokoroLangCode) installedTtsEngines.add('kokoro');
+      // The backend resolves the Qwen3 variant (MLX vs Torch) per platform, so any
+      // language declaring qwen3LanguageName offers Qwen3 TTS on every platform.
       if (ttsConfig?.qwen3LanguageName) installedTtsEngines.add('qwen3');
+      if (ttsConfig?.kokoroLangCode) installedTtsEngines.add('kokoro');
+      if (ttsEngine) installedTtsEngines.add(normalizeTtsEngine(ttsEngine));
       if (data.runtime?.stt?.whisperLanguage) hasInstalledSttRuntime = true;
     }
 

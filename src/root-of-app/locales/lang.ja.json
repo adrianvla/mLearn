@@ -659,7 +659,8 @@
         "UploadSample": "音声サンプルをアップロード",
         "VoiceSample": "ストリーミング音声クローン",
         "LightweightVoice": "軽量ボイス",
-        "SystemVoice": "システムボイス"
+        "SystemVoice": "システムボイス",
+        "CpuWarning": "音声処理が CPU で実行されているため、リアルタイム音声が遅れる場合があります。音声品質には影響しません。"
       },
       "Memory": {
         "ClearAll": "すべての記憶を消去",
@@ -1259,7 +1260,9 @@
         "ComponentsRequired": "セットアップが必要です"
       },
       "Alerts": {
-        "NetworkError": "ネットワークエラーが発生しました。接続を確認してもう一度お試しください。"
+        "NetworkError": "ネットワークエラーが発生しました。接続を確認してもう一度お試しください。",
+        "NetworkOfflineTitle": "接続の問題",
+        "NetworkOfflineMessage": "mLearn はダウンロードサーバーに接続できません。インターネット接続を確認してください。ダウンロードは中断した場所から自動的に再試行・再開されます。"
       },
       "Buttons": {
         "Continue": "続行",
@@ -1332,6 +1335,14 @@
         "DisplayLanguage": "表示言語: {language}",
         "DictionaryLanguage": "辞書言語: {language}",
         "NotAvailable": "利用できません"
+      },
+      "PlatformWarnings": {
+        "IntelNoOnboardAi": {
+          "Title": "この Mac ではローカル AI 機能を利用できません",
+          "Description": "この Mac の Intel プロセッサーには AI アクセラレーションが内蔵されていないため、ローカルの音声・OCR・AI モデルコンポーネントをインストールできません。mLearn の内蔵チャット AI は引き続き動作し、CPU で実行されます（低速）。",
+          "Unavailable": "この Mac では利用できません"
+        },
+        "WindowsCudaRecommended": "リアルタイム音声には NVIDIA GPU を推奨します。CPU でも音声は動作しますが、応答が遅くなります。"
       }
     },
     "Rating": {

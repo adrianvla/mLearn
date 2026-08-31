@@ -8,7 +8,7 @@ import { Component, Show, createSignal, createEffect, createMemo, onMount, onCle
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallerState, type LanguageDataCatalogStatus, type LanguageDataMap, type PipProgress } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallStartedPayload, type InstallerState, type LanguageDataCatalogStatus, type LanguageDataMap, type PipProgress } from '../../../shared/types';
 import { Panel, Btn, AlertBanner, LogConsole, CheckboxCard, ProgressBar, Select } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 import './welcome.css';
@@ -21,6 +21,15 @@ const log = getLogger("renderer.welcome.app");
 const CLICK_TO_BEGIN_KEY = 'mlearn.Installer.Instructions.ClickToBegin';
 const NOT_STARTED_KEY = 'mlearn.Installer.Status.NotStarted';
 const COMPLETE_KEY = 'mlearn.Installer.Status.Complete';
+const PLATFORM_WARNING_INTEL_NO_ONBOARD_AI = 'intel-no-onboard-ai';
+const PLATFORM_WARNING_WINDOWS_CUDA_RECOMMENDED = 'windows-cuda-recommended';
+/** INSTALL_STARTED payloads carry machine-readable platform warnings (InstallOptions.platformWarnings). */
+/** Offline-style transport failures — downloads retry and resume automatically. */
+const OFFLINE_ERROR_PATTERN = /(network|offline|econnaborted|econnrefused|econnreset|enetunreach|etimedout|eai_again|enotfound|getaddrinfo|socket hang up|fetch failed|internet disconnected|timed?\s?out)/i;
+
+function isOfflineStyleNetworkError(...parts: Array<string | undefined | null>): boolean {
+  return parts.some((part) => typeof part === 'string' && OFFLINE_ERROR_PATTERN.test(part));
+}
 
 interface LanguageOption {
   code: string;
@@ -118,10 +127,19 @@ const WelcomeContent: Component = () => {
   const [statusLogs, setStatusLogs] = createSignal<LogEntry[]>([{ message: t(CLICK_TO_BEGIN_KEY), level: 'info' }]);
   const [overallStatus, setOverallStatus] = createSignal(t(NOT_STARTED_KEY));
   const [networkError, setNetworkError] = createSignal<string | null>(null);
+  const [platformWarnings, setPlatformWarnings] = createSignal<ReadonlySet<string>>(new Set());
+  const [cudaNoticeDismissed, setCudaNoticeDismissed] = createSignal(false);
+  const [networkErrorOffline, setNetworkErrorOffline] = createSignal(false);
 
   const [includeLLM, setIncludeLLM] = createSignal(true);
   const [includeOCR, setIncludeOCR] = createSignal(true);
   const [includeVoice, setIncludeVoice] = createSignal(true);
+  const intelNoOnboardAi = () => platformWarnings().has(PLATFORM_WARNING_INTEL_NO_ONBOARD_AI);
+  const windowsCudaRecommended = () => platformWarnings().has(PLATFORM_WARNING_WINDOWS_CUDA_RECOMMENDED);
+  // On Intel Macs without onboard AI the local OCR and voice runtimes cannot be
+  // installed; the builtin chat LLM stays available on CPU, so the LLM choice is kept.
+  const effectiveIncludeOcr = () => includeOCR() && !intelNoOnboardAi();
+  const effectiveIncludeVoice = () => includeVoice() && !intelNoOnboardAi();
 
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>(resolveInitialLanguageCode(settings.language, availableLanguageCodes()));
   const [selectedUILanguage, setSelectedUILanguage] = createSignal<string>(resolveInitialUILanguageCode(settings.uiLanguage, uiLanguageCodes));
@@ -180,15 +198,16 @@ const WelcomeContent: Component = () => {
 
     setInstallationStarted(true);
     setNetworkError(null);
+    setNetworkErrorOffline(false);
     setProgress(5);
     setOverallStatus(t('mlearn.Installer.Status.Installing'));
     setStatusLogs([]);
     logInfo(includeLLM() ? t('mlearn.Installer.Status.LlmWillInstall') : t('mlearn.Installer.Status.LlmSkip'));
-    logInfo(includeOCR() ? t('mlearn.Installer.Status.OcrWillInstall') : t('mlearn.Installer.Status.OcrSkip'));
-    logInfo(includeVoice() ? t('mlearn.Installer.Status.VoiceWillInstall') : t('mlearn.Installer.Status.VoiceSkip'));
+    logInfo(effectiveIncludeOcr() ? t('mlearn.Installer.Status.OcrWillInstall') : t('mlearn.Installer.Status.OcrSkip'));
+    logInfo(effectiveIncludeVoice() ? t('mlearn.Installer.Status.VoiceWillInstall') : t('mlearn.Installer.Status.VoiceSkip'));
 
     try {
-      getBridge().installer.startInstall({ includeLLM: includeLLM(), includeOCR: includeOCR(), includeVoice: includeVoice() });
+      getBridge().installer.startInstall({ includeLLM: includeLLM(), includeOCR: effectiveIncludeOcr(), includeVoice: effectiveIncludeVoice() });
     } catch (e) {
       log.error('Failed to start installation:', e);
       setOverallStatus(t('mlearn.Installer.Status.CouldNotStart'));
@@ -280,8 +299,8 @@ const WelcomeContent: Component = () => {
       language: languageCode,
       uiLanguage: selectedUILanguage(),
       llmEnabled: includeLLM(),
-      ocrEnabled: includeOCR(),
-      voiceEnabled: includeVoice(),
+      ocrEnabled: effectiveIncludeOcr(),
+      voiceEnabled: effectiveIncludeVoice(),
     };
     if (dictionaryTarget) {
       settingsToSave.dictionaryTargetLanguages = {
@@ -337,8 +356,8 @@ const WelcomeContent: Component = () => {
     logInfo(t('mlearn.Installer.Status.InstallingLanguageData'));
     installLanguageData(languageCode, selectedDictionaryTargetLanguage() || undefined, {
       includeLLM: includeLLM(),
-      includeOCR: includeOCR(),
-      includeVoice: includeVoice(),
+      includeOCR: effectiveIncludeOcr(),
+      includeVoice: effectiveIncludeVoice(),
     });
   };
 
@@ -420,6 +439,10 @@ const WelcomeContent: Component = () => {
     }));
 
     ipcCleanups.push(bridge.installer.onInstallStarted((opts: InstallOptions) => {
+      // The runtime payload is InstallStartedPayload; the bridge signature still says InstallOptions
+      const { platformWarnings } = opts as InstallStartedPayload;
+      setPlatformWarnings(new Set<string>(platformWarnings));
+      setCudaNoticeDismissed(false);
       if (!installationStarted()) {
         setInstallationStarted(true);
         setIncludeLLM(opts.includeLLM ?? true);
@@ -435,8 +458,10 @@ const WelcomeContent: Component = () => {
     ipcCleanups.push(bridge.installer.onInstallerNetworkError((payload: { message: string; detail?: string }) => {
       const message = typeof payload === 'string' ? payload : payload.message;
       const detail = typeof payload === 'object' ? payload.detail : undefined;
+      const offline = isOfflineStyleNetworkError(message, detail);
+      setNetworkErrorOffline(offline);
       if (detail) logInfo(detail);
-      setOverallStatus(message);
+      setOverallStatus(offline ? t('mlearn.Installer.Alerts.NetworkOfflineTitle') : message);
       setNetworkError(detail ? `${message}\n\nDetails: ${detail}` : message);
       setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR(), includeVoice: includeVoice() });
     }));
@@ -541,8 +566,11 @@ const WelcomeContent: Component = () => {
 
     const error = languageDataInstallError();
     if (error?.language === languageCode) {
+      setNetworkErrorOffline(isOfflineStyleNetworkError(error.error));
       setNetworkError(error.error);
-      setOverallStatus(t('mlearn.Installer.Status.ErrorOccurred'));
+      setOverallStatus(isOfflineStyleNetworkError(error.error)
+        ? t('mlearn.Installer.Alerts.NetworkOfflineTitle')
+        : t('mlearn.Installer.Status.ErrorOccurred'));
       setPendingLanguageInstall(null);
       return;
     }
@@ -600,25 +628,63 @@ const WelcomeContent: Component = () => {
         </p>
 
         <Show when={!installationStarted() && !installationCompleted()}>
+          <Show when={intelNoOnboardAi()}>
+            <AlertBanner
+              variant="warning"
+              title={t('mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Title')}
+              message={t('mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Description')}
+              class="welcome-window__platform-warning"
+            />
+          </Show>
+          <Show when={windowsCudaRecommended() && !cudaNoticeDismissed()}>
+            <AlertBanner
+              variant="info"
+              message={t('mlearn.Installer.PlatformWarnings.WindowsCudaRecommended')}
+              closable
+              onClose={() => setCudaNoticeDismissed(true)}
+              class="welcome-window__platform-warning"
+            />
+          </Show>
           <div class="welcome-window__options">
             <CheckboxCard
               checked={includeLLM()}
               onChange={setIncludeLLM}
+              disabled={intelNoOnboardAi()}
               title={t('mlearn.Installer.Components.ExplainAi.Title')}
               description={t('mlearn.Installer.Components.ExplainAi.Description')}
-            />
+            >
+              <Show when={intelNoOnboardAi()}>
+                <span class="welcome-window__option-unavailable">
+                  {t('mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Unavailable')}
+                </span>
+              </Show>
+            </CheckboxCard>
             <CheckboxCard
-              checked={includeOCR()}
+              checked={!intelNoOnboardAi() && includeOCR()}
               onChange={setIncludeOCR}
+              disabled={intelNoOnboardAi()}
               title={t('mlearn.Installer.Components.Reader.Title')}
               description={t('mlearn.Installer.Components.Reader.Description')}
-            />
+            >
+              <Show when={intelNoOnboardAi()}>
+                <span class="welcome-window__option-unavailable">
+                  {t('mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Unavailable')}
+                </span>
+              </Show>
+            </CheckboxCard>
             <CheckboxCard
-              checked={includeVoice()}
+              checked={!intelNoOnboardAi() && includeVoice()}
               onChange={setIncludeVoice}
+              disabled={intelNoOnboardAi()}
               title={t('mlearn.Installer.Components.Voice.Title')}
               description={t('mlearn.Installer.Components.Voice.Description')}
-            />
+            >
+              <Show when={intelNoOnboardAi()}>
+                <span class="welcome-window__option-unavailable">
+                  {t('mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Unavailable')}
+                </span>
+              </Show>
+            </CheckboxCard>
           </div>
         </Show>
 
@@ -732,10 +798,17 @@ const WelcomeContent: Component = () => {
         <Show when={networkError()}>
           <AlertBanner
             variant="error"
-            title={t('mlearn.Installer.Alerts.NetworkError')}
-            message={networkError()!}
+            title={t(networkErrorOffline()
+              ? 'mlearn.Installer.Alerts.NetworkOfflineTitle'
+              : 'mlearn.Installer.Alerts.NetworkError')}
+            message={networkErrorOffline()
+              ? `${t('mlearn.Installer.Alerts.NetworkOfflineMessage')}\n${networkError()!}`
+              : networkError()!}
             closable
-            onClose={() => setNetworkError(null)}
+            onClose={() => {
+              setNetworkError(null);
+              setNetworkErrorOffline(false);
+            }}
           />
         </Show>
 
