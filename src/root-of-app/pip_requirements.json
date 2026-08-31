@@ -18,6 +18,11 @@
     "transformers==5.12.1",
     "sentencepiece==0.2.1"
   ],
+  "llm-windows": [
+    "torch==2.10.0+cu128",
+    "transformers==5.12.1",
+    "sentencepiece==0.2.1"
+  ],
   "voice": [
     "torch==2.10.0",
     "torchaudio==2.10.0",

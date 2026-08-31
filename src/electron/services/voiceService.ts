@@ -272,6 +272,44 @@ export function resolveVoiceInstallGroupNames(
   return groups;
 }
 
+// Windows torch wheels pinned to CUDA builds (torch==*+cu128) resolve only
+// from the PyTorch CUDA index — PyPI ships CPU-only Windows wheels.
+const PYTORCH_CUDA_INDEX_URL = 'https://download.pytorch.org/whl/cu128';
+
+/**
+ * pip argv for one package group. Windows installs go through the bundled
+ * python (-m pip); CUDA-bearing groups additionally need the PyTorch index.
+ */
+export function buildPipArgs(windows: boolean, group: string, packages: string[]): string[] {
+  if (!windows) {
+    return ['install', ...packages];
+  }
+  const needsCudaIndex = group === 'voice-windows' || group === 'qwen3-tts-torch';
+  return [
+    '-m',
+    'pip',
+    'install',
+    ...packages,
+    ...(needsCudaIndex ? ['--extra-index-url', PYTORCH_CUDA_INDEX_URL] : []),
+  ];
+}
+
+// close(null) means pip died by signal. Only an intentional cancel counts as
+// a clean abort; a null exit code without that flag is an unexpected failure.
+let pipAbortRequested = false;
+let activePipProcess: ChildProcess | null = null;
+
+/** Marks the in-flight voice package install as aborted and kills its pip process. */
+export function cancelVoicePackageInstall(): void {
+  if (!activePipProcess) return;
+  pipAbortRequested = true;
+  try {
+    activePipProcess.kill('SIGKILL');
+  } catch (e) {
+    log.error('[VoiceService] Failed to kill pip process:', e);
+  }
+}
+
 async function installVoicePackages(
   onProgress: (status: VoiceModelStatus) => void,
   includeQwen3 = false,
@@ -284,6 +322,7 @@ async function installVoicePackages(
     return true;
   }
 
+  pipAbortRequested = false;
   const totalPackages = groups.reduce((sum, group) => sum + group.packages.length, 0);
   const pipExecutable = getPipExecutablePath();
   const envPath = path.join(getResourcePath(), 'env');
@@ -321,14 +360,13 @@ async function installVoicePackages(
 
   const installGroup = (group: { name: string; packages: string[] }): Promise<boolean> =>
     new Promise((resolve) => {
-      const pipArgs = isWindows
-        ? ['-m', 'pip', 'install', ...group.packages]
-        : ['install', ...group.packages];
+      const pipArgs = buildPipArgs(isWindows, group.name, group.packages);
       const executable = isWindows ? getPythonExecutablePath() : pipExecutable;
 
       log.info(`[VoiceService] Installing voice package group '${group.name}':`, group.packages.join(', '));
 
       const pipProcess = spawn(executable, pipArgs, { cwd: envPath });
+      activePipProcess = pipProcess;
 
       let outputBuffer = '';
 
@@ -347,13 +385,26 @@ async function installVoicePackages(
 
       pipProcess.on('close', (code) => {
         if (outputBuffer.trim()) processLine(outputBuffer);
-        if (code === 0 || code === null) {
+        if (activePipProcess === pipProcess) {
+          activePipProcess = null;
+        }
+        if (code === 0) {
           log.info(`[VoiceService] Voice package group '${group.name}' installed successfully`);
           resolve(true);
+          return;
+        }
+        if (code === null && pipAbortRequested) {
+          // Killed by an intentional cancel — not an install error.
+          log.info(`[VoiceService] Voice package group '${group.name}' install aborted`);
+          resolve(false);
+          return;
+        }
+        if (code === null) {
+          log.error(`[VoiceService] pip install for group '${group.name}' terminated unexpectedly without an exit code`);
         } else {
           log.error(`[VoiceService] pip install for group '${group.name}' failed with code:`, code);
-          resolve(false);
         }
+        resolve(false);
       });
 
       pipProcess.on('error', (err) => {
@@ -366,6 +417,10 @@ async function installVoicePackages(
   for (let i = 0; i < groups.length; i++) {
     const ok = await installGroup(groups[i]);
     if (ok) continue;
+    if (pipAbortRequested) {
+      // Intentional cancel — do not start the remaining groups.
+      return false;
+    }
     failedGroups.push(groups[i].name);
     if (i === 0) {
       // The first group (voice / voice-windows) is essential — abort.

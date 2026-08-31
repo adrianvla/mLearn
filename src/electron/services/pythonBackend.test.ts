@@ -1853,6 +1853,7 @@ describe('pythonBackend', () => {
       core: ['core-pkg'],
       ocr: ['ocr-pkg'],
       llm: ['llm-pkg'],
+      'llm-windows': ['llm-win-pkg'],
       voice: ['voice-pkg'],
       'voice-windows': ['voice-win-pkg'],
       'qwen3-tts': ['tts-mlx-pkg'],
@@ -1874,11 +1875,15 @@ describe('pythonBackend', () => {
       ]);
     });
 
-    it('replaces voice with the CUDA variant on Windows', () => {
+    it('replaces llm and voice with the CUDA variants on Windows', () => {
       expect(mod.buildPipRequirementList(allComponents, syntheticConfig, 'win32-x64')).toEqual([
-        'core-pkg', 'ocr-pkg', 'llm-pkg', 'voice-win-pkg', 'tts-torch-pkg',
+        'core-pkg', 'ocr-pkg', 'llm-win-pkg', 'voice-win-pkg', 'tts-torch-pkg',
       ]);
       expect(mod.buildPipRequirementList(coreOnly, syntheticConfig, 'win32-x64')).toEqual(['core-pkg']);
+      // An llm-only Windows install still gets the explicit +cu128 pin group.
+      expect(mod.buildPipRequirementList({ includeLLM: true, includeOCR: false, includeVoice: false }, syntheticConfig, 'win32-x64')).toEqual([
+        'core-pkg', 'llm-win-pkg',
+      ]);
     });
 
     it('strips every AI group on Intel Macs down to core only', () => {
@@ -1891,7 +1896,8 @@ describe('pythonBackend', () => {
       const extraIndexByGroup = Object.fromEntries(winGroups.map((group) => [group.name, group.extraIndexUrl]));
       expect(extraIndexByGroup['core']).toBeUndefined();
       expect(extraIndexByGroup['ocr']).toBeUndefined();
-      expect(extraIndexByGroup['llm']).toBe(CUDA_INDEX);
+      expect(extraIndexByGroup['llm-windows']).toBe(CUDA_INDEX);
+      expect(extraIndexByGroup['llm']).toBeUndefined();
       expect(extraIndexByGroup['voice-windows']).toBe(CUDA_INDEX);
       expect(extraIndexByGroup['qwen3-tts-torch']).toBe(CUDA_INDEX);
 
@@ -2069,7 +2075,7 @@ describe('pythonBackend', () => {
       await closeGroupsSequentially(spawns, [0, 0, 0, 0]);
       await installPromise;
 
-      // core, llm, voice-windows, qwen3-tts-torch (language group empty by default)
+      // core, llm-windows, voice-windows, qwen3-tts-torch (language group empty by default)
       expect(spawns).toHaveLength(4);
       for (const spawn of spawns) {
         expect(spawn.args[0]).toBe('-m');
@@ -2082,6 +2088,26 @@ describe('pythonBackend', () => {
         expect(indexArg).toBeGreaterThan(-1);
         expect(spawn.args[indexArg + 1]).toBe('https://download.pytorch.org/whl/cu128');
       }
+      // The llm group pins the CUDA wheel explicitly, not via index preference.
+      expect(spawns[1]?.args).toContain('torch==2.10.0+cu128');
+      expect(spawns[1]?.args).not.toContain('torch==2.10.0');
+    });
+
+    it('installs the pinned CUDA torch for an llm-only Windows install', async () => {
+      await setupInstaller('win32', 'x64', true);
+      mockGetCurrentWindow.mockReturnValue({ webContents: { send: vi.fn() } });
+      const { spawns } = capturePipSpawns();
+
+      const installPromise = mod.startPythonInstall({ includeLLM: true, includeOCR: false, includeVoice: false });
+      await closeGroupsSequentially(spawns, [0, 0]);
+      await installPromise;
+
+      expect(spawns).toHaveLength(2);
+      expect(spawns[0]?.args).not.toContain('--extra-index-url');
+      const llmArgs = spawns[1]?.args ?? [];
+      expect(llmArgs).toContain('--extra-index-url');
+      expect(llmArgs).toContain('torch==2.10.0+cu128');
+      expect(llmArgs).not.toContain('torch==2.10.0');
     });
 
 

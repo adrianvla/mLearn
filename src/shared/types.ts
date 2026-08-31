@@ -2333,8 +2333,9 @@ export interface PipRequirementsConfig {
   core: string[];
   ocr: string[];
   llm: string[];
+  /** CUDA (torch) LLM packages for Windows; replaces `llm` on win32 installs. */
+  'llm-windows'?: string[];
   voice?: string[];
-  /** CUDA (torch) voice packages for Windows; replaces `voice` on win32 installs. */
   'voice-windows'?: string[];
   /** Qwen3 TTS engine backed by MLX (Apple Silicon only). */
   'qwen3-tts'?: string[];

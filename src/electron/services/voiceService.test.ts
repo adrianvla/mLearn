@@ -133,6 +133,7 @@ type SpawnEventCallback = (...args: unknown[]) => void;
 class MockChildProcess {
   stdout = { on: vi.fn() };
   stderr = { on: vi.fn() };
+  kill = vi.fn();
   private _listeners = new Map<string, SpawnEventCallback[]>();
 
   on(event: string, cb: SpawnEventCallback) {
@@ -1680,6 +1681,25 @@ describe('resolveVoiceInstallGroupNames — platform package group matrix', () =
   });
 });
 
+describe('buildPipArgs — Windows CUDA extra index', () => {
+  const packages = ['torch==2.10.0+cu128'];
+  const cudaIndexArgs = ['--extra-index-url', 'https://download.pytorch.org/whl/cu128'];
+
+  it('posix: plain install args, never an extra index', () => {
+    expect(mod.buildPipArgs(false, 'voice', packages)).toEqual(['install', ...packages]);
+    expect(mod.buildPipArgs(false, 'voice-windows', packages)).toEqual(['install', ...packages]);
+    expect(mod.buildPipArgs(false, 'qwen3-tts-torch', packages)).toEqual(['install', ...packages]);
+  });
+
+  it('windows: -m pip via python; CUDA index only for CUDA-bearing groups', () => {
+    expect(mod.buildPipArgs(true, 'voice', packages)).toEqual(['-m', 'pip', 'install', ...packages]);
+    expect(mod.buildPipArgs(true, 'core', packages)).toEqual(['-m', 'pip', 'install', ...packages]);
+    expect(mod.buildPipArgs(true, 'qwen3-tts', packages)).toEqual(['-m', 'pip', 'install', ...packages]);
+    expect(mod.buildPipArgs(true, 'voice-windows', packages)).toEqual(['-m', 'pip', 'install', ...packages, ...cudaIndexArgs]);
+    expect(mod.buildPipArgs(true, 'qwen3-tts-torch', packages)).toEqual(['-m', 'pip', 'install', ...packages, ...cudaIndexArgs]);
+  });
+});
+
 describe('VOICE_MODEL_DOWNLOAD — platform-correct package groups', () => {
   function mockBackendStatuses(ttsModelName: string): void {
     httpGetFn.mockImplementation((opts: { path?: string } | string, cb: (res: FakeResponse) => void) => {
@@ -1745,6 +1765,7 @@ describe('VOICE_MODEL_DOWNLOAD — platform-correct package groups', () => {
       expect(pipArgs).not.toContain('sentencepiece>=0.2.0');
     }
     expect(pipArgs).not.toContain('win-voice-pkg');
+    expect(pipSpawnArgs()).not.toContain('--extra-index-url');
   });
 
   it('detects the torch qwen3 model name via the Qwen3 prefix and installs the qwen3 engine group', async () => {
@@ -1770,6 +1791,52 @@ describe('VOICE_MODEL_DOWNLOAD — platform-correct package groups', () => {
     expect(pipArgs).toContain('faster-whisper');
     expect(pipArgs).not.toContain('mlx-only-marker');
     expect(pipArgs).not.toContain('torch-only-marker');
+  });
+});
+
+describe('VOICE_MODEL_DOWNLOAD — pip close(null) semantics', () => {
+  function mockBackendOffline(): void {
+    httpGetFn.mockImplementation((_url: string, _cb: unknown) => ({
+      on: (_evt: string, cb: (e: Error) => void) => {
+        if (_evt === 'error') Promise.resolve().then(() => cb(new Error('backend not running')));
+        return { on: vi.fn() };
+      },
+    }));
+  }
+
+  it('treats close(null) without a cancel as an unexpected failure', async () => {
+    mockBackendOffline();
+    mockPipRequirements = { voice: ['faster-whisper'] };
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const mockChildProcess = new MockChildProcess();
+    spawnFn.mockReturnValue(mockChildProcess);
+
+    const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
+    await flushMicrotasks();
+    mockChildProcess._emit('close', null);
+    await handlerPromise;
+
+    const errorCall = event.sender.send.mock.calls.find((c) => c[1]?.error === 'voice-packages-install-failed');
+    expect(errorCall).toBeTruthy();
+  });
+
+  it('treats close(null) after cancelVoicePackageInstall as an intentional abort', async () => {
+    mockBackendOffline();
+    mockPipRequirements = { voice: ['faster-whisper'] };
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const mockChildProcess = new MockChildProcess();
+    spawnFn.mockReturnValue(mockChildProcess);
+
+    const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
+    await flushMicrotasks();
+
+    mod.cancelVoicePackageInstall();
+    expect(mockChildProcess.kill).toHaveBeenCalledWith('SIGKILL');
+
+    mockChildProcess._emit('close', null);
+    await handlerPromise;
   });
 });
 

@@ -628,10 +628,10 @@ const FALLBACK_PIP_REQUIREMENTS: PipRequirementsConfig = {
     'python-multipart==0.0.22',
     'setuptools',
     'wheel',
-    'websockets==16.0',
   ],
   ocr: [],
   llm: ['torch==2.10.0', 'transformers==5.12.1', 'sentencepiece==0.2.1'],
+  'llm-windows': ['torch==2.10.0+cu128', 'transformers==5.12.1', 'sentencepiece==0.2.1'],
   voice: ['torch==2.10.0', 'torchaudio==2.10.0', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2'],
   'voice-windows': ['torch==2.10.0+cu128', 'torchaudio==2.10.0+cu128', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2', 'nvidia-cudnn-cu12==9.25.1.1', 'nvidia-cublas-cu12==12.8.5.5'],
   'qwen3-tts': ['mlx==0.31.1', 'mlx-metal==0.31.1', 'mlx-lm==0.31.2', 'mlx-audio==0.4.4', 'transformers==5.12.1', 'tokenizers==0.22.1', 'huggingface-hub==1.21.0', 'soundfile==0.13.1'],
@@ -665,7 +665,7 @@ export interface PipInstallGroup {
  * Platform component matrix:
  * - darwin-arm64: core + [ocr] + [llm] + [voice + qwen3-tts + mlx-stt]
  * - linux-x64:    core + [ocr] + [llm] + [voice + qwen3-tts-torch]
- * - win32-x64:    core + [ocr] + [llm] + [voice-windows + qwen3-tts-torch];
+ * - win32-x64:    core + [ocr] + [llm-windows + voice-windows + qwen3-tts-torch];
  *                 the CUDA-bearing groups install from the pytorch cu128 index
  * - darwin-x64:   core only — AI groups are stripped, but language "core"
  *                 component (tokenizer) packages still install
@@ -683,12 +683,16 @@ export function buildPipInstallGroups(
   if (selected.includeOCR && config.ocr.length > 0) {
     groups.push({ name: 'ocr', packages: [...config.ocr] });
   }
-  if (selected.includeLLM && config.llm.length > 0) {
-    groups.push({
-      name: 'llm',
-      packages: [...config.llm],
-      extraIndexUrl: platform === 'win32-x64' ? CUDA_EXTRA_INDEX_URL : undefined,
-    });
+  if (selected.includeLLM) {
+    if (platform === 'win32-x64') {
+      // Explicit +cu128 pins: bare torch pins from PyPI are CPU-only on Windows,
+      // so GPU selection must not rely on cross-index local-version preference.
+      if (config['llm-windows']?.length) {
+        groups.push({ name: 'llm-windows', packages: [...config['llm-windows']], extraIndexUrl: CUDA_EXTRA_INDEX_URL });
+      }
+    } else if (config.llm.length > 0) {
+      groups.push({ name: 'llm', packages: [...config.llm] });
+    }
   }
   if (selected.includeVoice) {
     if (platform === 'win32-x64') {
