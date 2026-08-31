@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
 import type { VoiceModelStatus } from '../../shared/types';
@@ -154,15 +154,23 @@ vi.mock('child_process', () => ({
   spawn: (...args: unknown[]) => spawnFn(...args),
 }));
 
+const platformFlags = vi.hoisted(() => ({ isLinux: false, isMac: false, isWindows: false }));
+
 vi.mock('../utils/platform', () => ({
   getAppPath: vi.fn(() => '/app'),
   getResourcePath: vi.fn(() => '/resources'),
   getPipExecutablePath: vi.fn(() => '/env/bin/pip'),
   getPythonExecutablePath: vi.fn(() => '/env/bin/python'),
   getBundledDistElectronPath: vi.fn((...segments: string[]) => ['/dist-electron', ...segments].join('/')),
-  isLinux: false,
-  isMac: false,
-  isWindows: false,
+  get isLinux() {
+    return platformFlags.isLinux;
+  },
+  get isMac() {
+    return platformFlags.isMac;
+  },
+  get isWindows() {
+    return platformFlags.isWindows;
+  },
 }));
 
 const loadSettingsFn = vi.fn();
@@ -185,11 +193,20 @@ function createFakeEvent(opts?: { destroyed?: boolean }) {
   return { sender: createSender(opts?.destroyed ?? false) };
 }
 
+interface FakeResponse {
+  statusCode: number;
+  headers: Record<string, string>;
+  resume: Mock;
+  destroy: Mock;
+  on(event: string, cb: (...args: unknown[]) => void): unknown;
+  _emit(event: string, ...args: unknown[]): void;
+}
+
 function makeFakeResponse(
   statusCode: number,
   _payload: Buffer | string,
   headers: Record<string, string> = {},
-) {
+): FakeResponse {
   const listeners = new Map<string, ((...args: unknown[]) => void)[]>();
   return {
     statusCode,
@@ -271,6 +288,9 @@ beforeEach(async () => {
   lastCreatedWebSocket = null;
   mockQuitToken = 'test-token';
   mockQuitTokenAvailableCallback = null;
+  platformFlags.isLinux = false;
+  platformFlags.isMac = false;
+  platformFlags.isWindows = false;
 
   existsSyncFn.mockReturnValue(false);
   readFileSyncFn.mockReturnValue('[]');
@@ -450,6 +470,99 @@ describe('VOICE_MODEL_STATUS handler', () => {
     };
     expect(result.sttDownloaded).toBe(false);
     expect(result.ttsDownloaded).toBe(false);
+  });
+});
+
+describe('VOICE_MODEL_STATUS — device/cpuWarning relay', () => {
+  function mockStatusEndpoint(sttStatus: Record<string, unknown>, ttsStatus: Record<string, unknown>): void {
+    httpGetFn.mockImplementation((opts: { path?: string } | string, cb: (res: FakeResponse) => void) => {
+      const urlPath = typeof opts === 'string' ? opts : (opts.path ?? '');
+      const payload = urlPath.includes('/voice/stt/status')
+        ? sttStatus
+        : urlPath.includes('/voice/tts/status')
+          ? ttsStatus
+          : { downloaded: true, downloading: false, progress: 1 };
+      const body = JSON.stringify(payload);
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
+      cb(fakeRes);
+      Promise.resolve().then(() => {
+        fakeRes._emit('data', body);
+        fakeRes._emit('end');
+      });
+      return { on: vi.fn() };
+    });
+  }
+
+  it('attaches device cpu and cpuWarning when the backend TTS status reports device cpu', async () => {
+    mod.setupVoiceIPC();
+    mockStatusEndpoint(
+      { downloaded: true, downloading: false, progress: 1, device: 'cpu' },
+      { downloaded: true, downloading: false, progress: 1, device: 'cpu' },
+    );
+    const result = await handleHandlers.get('voice-model-status')?.({}, 'en') as {
+      device?: string; cpuWarning?: boolean;
+    };
+    expect(result.device).toBe('cpu');
+    expect(result.cpuWarning).toBe(true);
+  });
+
+  it('relays non-cpu device without setting cpuWarning', async () => {
+    mod.setupVoiceIPC();
+    mockStatusEndpoint(
+      { downloaded: true, downloading: false, progress: 1, device: 'mps' },
+      { downloaded: true, downloading: false, progress: 1, device: 'cuda' },
+    );
+    const result = await handleHandlers.get('voice-model-status')?.({}, 'en') as {
+      device?: string; cpuWarning?: boolean;
+    };
+    expect(result.device).toBe('cuda');
+    expect(result.cpuWarning).toBeUndefined();
+  });
+
+  it('omits device and cpuWarning when the backend does not report a device', async () => {
+    mod.setupVoiceIPC();
+    mockStatusEndpoint(
+      { downloaded: true, downloading: false, progress: 1 },
+      { downloaded: true, downloading: false, progress: 1 },
+    );
+    const result = await handleHandlers.get('voice-model-status')?.({}, 'en') as {
+      device?: string; cpuWarning?: boolean;
+    };
+    expect(result.device).toBeUndefined();
+    expect(result.cpuWarning).toBeUndefined();
+  });
+});
+
+describe('VOICE_TTS_GENERATE — realtime TTS status cpuWarning relay', () => {
+  it('attaches cpuWarning to the TTS status when the backend reports device cpu', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true, device: 'cpu' }));
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Hello', 'en', 1.0, undefined, 'qwen3');
+    await flushMicrotasks();
+
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', {
+      generating: true,
+      playing: false,
+      modelLoading: false,
+      cpuWarning: true,
+    });
+  });
+
+  it('omits cpuWarning when the backend does not report device cpu', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Hello', 'en', 1.0, undefined, 'qwen3');
+    await flushMicrotasks();
+
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', {
+      generating: true,
+      playing: false,
+      modelLoading: false,
+    });
   });
 });
 
@@ -1081,14 +1194,19 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
 
     const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'fa');
     await flushMicrotasks();
-    mockChildProcess._emit('close', 1);
+    mockChildProcess._emit('close', 0);
+    await flushMicrotasks();
+    mockChildProcess._emit('close', 0);
     await handlerPromise;
 
-    expect(spawnFn).toHaveBeenCalledWith(
-      '/env/bin/pip',
-      expect.arrayContaining(['install', 'faster-whisper', 'qwen3-tts-package']),
-      expect.any(Object),
-    );
+    const pipArgs = spawnFn.mock.calls
+      .filter((c) => c[0] === '/env/bin/pip')
+      .flatMap((c) => c[1] as string[]);
+    expect(pipArgs).toEqual(expect.arrayContaining(['install', 'faster-whisper']));
+    if (IS_APPLE_SILICON_RUNTIME) {
+      // Per-group pip spawns: the qwen3 engine group is its own call.
+      expect(pipArgs).toContain('qwen3-tts-package');
+    }
   });
 
   it('downloads TTS models for the requested language', async () => {
@@ -1343,6 +1461,70 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
   });
 });
 
+describe('generateSystemTTS — Linux espeak-ng probe', () => {
+  function enoentError(binary: string): Error {
+    const err = new Error(`spawn ${binary} ENOENT`);
+    (err as NodeJS.ErrnoException).code = 'ENOENT';
+    return err;
+  }
+
+  function collectExecFileCallbacks(): Array<(err: Error | null) => void> {
+    const callbacks: Array<(err: Error | null) => void> = [];
+    execFileFn.mockImplementation((_command: string, _args: string[], cb: (err: Error | null) => void) => {
+      callbacks.push(cb);
+      return { kill: vi.fn() };
+    });
+    return callbacks;
+  }
+
+  it('falls back from espeak-ng to espeak when espeak-ng is missing', async () => {
+    platformFlags.isLinux = true;
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const callbacks = collectExecFileCallbacks();
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Hello linux', 'en', 1.0, undefined, 'system');
+    await flushMicrotasks();
+
+    expect(execFileFn).toHaveBeenNthCalledWith(1, 'espeak-ng', expect.any(Array), expect.any(Function));
+    callbacks[0]?.(enoentError('espeak-ng'));
+    await flushMicrotasks();
+
+    expect(execFileFn).toHaveBeenNthCalledWith(2, 'espeak', expect.any(Array), expect.any(Function));
+    callbacks[1]?.(null);
+    await flushMicrotasks();
+
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', { generating: false, playing: false });
+    expect(event.sender.send).not.toHaveBeenCalledWith(
+      'voice-tts-status',
+      expect.objectContaining({ error: expect.anything() }),
+    );
+  });
+
+  it('emits a user-visible TTS status error when neither espeak-ng nor espeak exists', async () => {
+    platformFlags.isLinux = true;
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const callbacks = collectExecFileCallbacks();
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Hello linux', 'en', 1.0, undefined, 'system');
+    await flushMicrotasks();
+
+    callbacks[0]?.(enoentError('espeak-ng'));
+    await flushMicrotasks();
+    callbacks[1]?.(enoentError('espeak'));
+    await flushMicrotasks();
+
+    expect(execFileFn).toHaveBeenCalledTimes(2);
+    const errorStatus = event.sender.send.mock.calls.find(
+      (c) => c[0] === 'voice-tts-status' && c[1] && typeof c[1] === 'object' && 'error' in c[1],
+    );
+    expect(errorStatus).toBeTruthy();
+    expect(errorStatus?.[1]).toMatchObject({ generating: false, playing: false });
+    expect(String((errorStatus?.[1] as { error: string }).error)).toContain('espeak-ng');
+  });
+});
+
 describe('VOICE_TTS_GENERATE handler — removed cloud TTS stream', () => {
   it('does not call the online streaming service when cloud provider is specified', async () => {
     mod.setupVoiceIPC();
@@ -1361,10 +1543,11 @@ describe('VOICE_TTS_GENERATE handler — removed cloud TTS stream', () => {
 });
 
 // Wave 1: MLX STT conditional install & dynamic STT model name.
-// loadMlxSttPackages/installVoicePackages/isAppleSilicon/DEFAULT_STT_MODEL_NAME
-// are module-internal — tests exercise them via VOICE_MODEL_DOWNLOAD and
-// VOICE_MODEL_STATUS handlers. Platform assertions use the real
-// process.platform/process.arch (never mocked).
+// installVoicePackages/isAppleSilicon/DEFAULT_STT_MODEL_NAME are
+// module-internal — tests exercise them via VOICE_MODEL_DOWNLOAD and
+// VOICE_MODEL_STATUS handlers plus the exported resolveVoiceInstallGroupNames
+// matrix. Platform assertions use the real process.platform/process.arch
+// (never mocked).
 
 const IS_APPLE_SILICON_RUNTIME = process.platform === 'darwin' && process.arch === 'arm64';
 const EXPECTED_DEFAULT_STT_MODEL = IS_APPLE_SILICON_RUNTIME
@@ -1392,18 +1575,19 @@ describe('MLX STT conditional install — loadMlxSttPackages via VOICE_MODEL_DOW
 
     const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
     await flushMicrotasks();
-    // Emit non-zero exit to short-circuit the post-install model download loop
-    mockChildProcess._emit('close', 1);
+    mockChildProcess._emit('close', 0);
+    await flushMicrotasks();
+    mockChildProcess._emit('close', 0);
     await handlerPromise;
 
-    const spawnCall = spawnFn.mock.calls.find((c) => (c[0] as string) === '/env/bin/pip');
-    expect(spawnCall).toBeTruthy();
-    const spawnArgs = spawnCall?.[1] as string[];
+    const pipArgs = spawnFn.mock.calls
+      .filter((c) => c[0] === '/env/bin/pip')
+      .flatMap((c) => c[1] as string[]);
 
     if (IS_APPLE_SILICON_RUNTIME) {
-      expect(spawnArgs).toEqual(expect.arrayContaining(['sentencepiece>=0.2.0']));
+      expect(pipArgs).toContain('sentencepiece>=0.2.0');
     } else {
-      expect(spawnArgs).not.toContain('sentencepiece>=0.2.0');
+      expect(pipArgs).not.toContain('sentencepiece>=0.2.0');
     }
   });
 
@@ -1457,19 +1641,135 @@ describe('installVoicePackages — includeMlxStt flag controls mlx-stt inclusion
 
     const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
     await flushMicrotasks();
-    mockChildProcess._emit('close', 1);
+    mockChildProcess._emit('close', 0);
+    await flushMicrotasks();
+    mockChildProcess._emit('close', 0);
     await handlerPromise;
 
-    const spawnCall = spawnFn.mock.calls.find((c) => (c[0] as string) === '/env/bin/pip');
-    expect(spawnCall).toBeTruthy();
-    const spawnArgs = spawnCall?.[1] as string[];
+    const pipArgs = spawnFn.mock.calls
+      .filter((c) => c[0] === '/env/bin/pip')
+      .flatMap((c) => c[1] as string[]);
 
     if (IS_APPLE_SILICON_RUNTIME) {
-      expect(spawnArgs).toEqual(expect.arrayContaining(['install', 'faster-whisper', 'sentencepiece>=0.2.0']));
+      expect(pipArgs).toEqual(expect.arrayContaining(['install', 'faster-whisper', 'sentencepiece>=0.2.0']));
     } else {
-      expect(spawnArgs).toEqual(expect.arrayContaining(['install', 'faster-whisper']));
-      expect(spawnArgs).not.toContain('sentencepiece>=0.2.0');
+      expect(pipArgs).toEqual(expect.arrayContaining(['install', 'faster-whisper']));
+      expect(pipArgs).not.toContain('sentencepiece>=0.2.0');
     }
+  });
+});
+
+describe('resolveVoiceInstallGroupNames — platform package group matrix', () => {
+  it('Apple Silicon: voice + qwen3-tts + mlx-stt, never torch or windows groups', () => {
+    expect(mod.resolveVoiceInstallGroupNames(true, false, true, true)).toEqual(['voice', 'qwen3-tts', 'mlx-stt']);
+    expect(mod.resolveVoiceInstallGroupNames(true, true, true, true)).toEqual(['voice', 'qwen3-tts', 'mlx-stt']);
+    expect(mod.resolveVoiceInstallGroupNames(true, false, true, false)).toEqual(['voice', 'qwen3-tts']);
+    expect(mod.resolveVoiceInstallGroupNames(true, false, false, true)).toEqual(['voice', 'mlx-stt']);
+    expect(mod.resolveVoiceInstallGroupNames(true, false, false, false)).toEqual(['voice']);
+  });
+
+  it('Windows: voice-windows + qwen3-tts-torch, never mlx or qwen3-tts groups', () => {
+    expect(mod.resolveVoiceInstallGroupNames(false, true, true, true)).toEqual(['voice-windows', 'qwen3-tts-torch']);
+    expect(mod.resolveVoiceInstallGroupNames(false, true, true, false)).toEqual(['voice-windows', 'qwen3-tts-torch']);
+    expect(mod.resolveVoiceInstallGroupNames(false, true, false, false)).toEqual(['voice-windows']);
+  });
+
+  it('Linux: voice + qwen3-tts-torch, never mlx or windows groups', () => {
+    expect(mod.resolveVoiceInstallGroupNames(false, false, true, true)).toEqual(['voice', 'qwen3-tts-torch']);
+    expect(mod.resolveVoiceInstallGroupNames(false, false, false, false)).toEqual(['voice']);
+  });
+});
+
+describe('VOICE_MODEL_DOWNLOAD — platform-correct package groups', () => {
+  function mockBackendStatuses(ttsModelName: string): void {
+    httpGetFn.mockImplementation((opts: { path?: string } | string, cb: (res: FakeResponse) => void) => {
+      const urlPath = typeof opts === 'string' ? opts : (opts.path ?? '');
+      const isTtsStatus = urlPath.includes('/voice/tts/status');
+      const body = JSON.stringify({
+        downloaded: false,
+        downloading: false,
+        progress: 0,
+        modelName: isTtsStatus ? ttsModelName : 'openai/whisper-small',
+      });
+      const fakeRes = makeFakeResponse(200, Buffer.from(body));
+      cb(fakeRes);
+      Promise.resolve().then(() => {
+        fakeRes._emit('data', body);
+        fakeRes._emit('end');
+      });
+      return { on: vi.fn() };
+    });
+  }
+
+  async function runDownloadWithPackages(packages: Record<string, string[]>, ttsModelName: string): Promise<void> {
+    mockPipRequirements = packages;
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    mockBackendStatuses(ttsModelName);
+    const mockChildProcess = new MockChildProcess();
+    spawnFn.mockReturnValue(mockChildProcess);
+    const handlerPromise = onHandlers.get('voice-model-download')?.(event, 'en');
+    // Settle every per-group pip spawn in sequence; the same mock child is
+    // reused, and extra close events on an already-resolved group are no-ops.
+    for (let i = 0; i < 5; i++) {
+      await flushMicrotasks();
+      mockChildProcess._emit('close', 0);
+    }
+    await handlerPromise;
+  }
+
+  function pipSpawnArgs(): string[] {
+    return spawnFn.mock.calls
+      .filter((c) => c[0] === '/env/bin/pip')
+      .flatMap((c) => c[1] as string[]);
+  }
+
+  it('torch TTS engine installs mlx groups on Apple Silicon and the torch group elsewhere', async () => {
+    await runDownloadWithPackages({
+      voice: ['faster-whisper'],
+      'voice-windows': ['win-voice-pkg'],
+      'qwen3-tts': ['mlx-audio'],
+      'qwen3-tts-torch': ['torch-tts-dep'],
+      'mlx-stt': ['sentencepiece>=0.2.0'],
+    }, 'Qwen3-TTS-12Hz-1.7B-Torch');
+
+    const pipArgs = pipSpawnArgs();
+    expect(pipArgs).toContain('install');
+    expect(pipArgs).toContain('faster-whisper');
+    if (IS_APPLE_SILICON_RUNTIME) {
+      expect(pipArgs).toEqual(expect.arrayContaining(['mlx-audio', 'sentencepiece>=0.2.0']));
+      expect(pipArgs).not.toContain('torch-tts-dep');
+    } else {
+      expect(pipArgs).toEqual(expect.arrayContaining(['torch-tts-dep']));
+      expect(pipArgs).not.toContain('mlx-audio');
+      expect(pipArgs).not.toContain('sentencepiece>=0.2.0');
+    }
+    expect(pipArgs).not.toContain('win-voice-pkg');
+  });
+
+  it('detects the torch qwen3 model name via the Qwen3 prefix and installs the qwen3 engine group', async () => {
+    await runDownloadWithPackages({
+      voice: ['faster-whisper'],
+      'qwen3-tts': ['mlx-only-marker'],
+      'qwen3-tts-torch': ['torch-only-marker'],
+    }, 'Qwen3-TTS-12Hz-1.7B-Torch');
+
+    const pipArgs = pipSpawnArgs();
+    const qwen3GroupInstalled = pipArgs.includes('mlx-only-marker') || pipArgs.includes('torch-only-marker');
+    expect(qwen3GroupInstalled).toBe(true);
+  });
+
+  it('does not install qwen3 groups for lowercase qwen3 model names (prefix match is case-sensitive)', async () => {
+    await runDownloadWithPackages({
+      voice: ['faster-whisper'],
+      'qwen3-tts': ['mlx-only-marker'],
+      'qwen3-tts-torch': ['torch-only-marker'],
+    }, 'openai-qwen3-tts-mini');
+
+    const pipArgs = pipSpawnArgs();
+    expect(pipArgs).toContain('faster-whisper');
+    expect(pipArgs).not.toContain('mlx-only-marker');
+    expect(pipArgs).not.toContain('torch-only-marker');
   });
 });
 
