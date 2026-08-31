@@ -24,8 +24,16 @@ const flushIo = async (): Promise<void> => {
 
 type HeaderRecorder = { headers: Record<string, string> | undefined };
 
+interface ServeOptions {
+  statusCode: number;
+  headers?: Record<string, string>;
+  body?: string;
+  /** Drop the connection after the headers once `partialBody` was written. */
+  failMidStream?: { emit: 'aborted' | 'error'; partialBody: string; error?: Error };
+}
+
 function serveSuccess(
-  options: { statusCode: number; headers?: Record<string, string>; body?: string },
+  options: ServeOptions,
   opts: { headers?: Record<string, string> } | undefined,
   callback: (res: unknown) => void,
   recorder?: HeaderRecorder,
@@ -40,6 +48,14 @@ function serveSuccess(
     },
     resume: vi.fn(),
     pipe: (stream: { write: (chunk: Buffer) => boolean; end: () => void }) => {
+      if (options.failMidStream) {
+        const { emit, partialBody, error } = options.failMidStream;
+        const chunk = Buffer.from(partialBody);
+        handlers['data']?.forEach((cb) => cb(chunk));
+        stream.write(chunk);
+        handlers[emit]?.forEach((cb) => cb(error ?? new Error('aborted')));
+        return;
+      }
       const chunk = Buffer.from(options.body ?? '');
       handlers['data']?.forEach((cb) => cb(chunk));
       stream.write(chunk);
@@ -57,8 +73,8 @@ function failingRequest(error: Error): { on: ReturnType<typeof vi.fn> } {
   };
 }
 
-/** Serve one successful response body through the stream-mocking dance. */
-function httpsServes(options: { statusCode: number; headers?: Record<string, string>; body?: string }, recorder?: HeaderRecorder): void {
+/** Serve one response (success or mid-stream abort) for every request. */
+function httpsServes(options: ServeOptions, recorder?: HeaderRecorder): void {
   mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
     serveSuccess(options, opts, callback, recorder);
     return { on: vi.fn() };
@@ -219,6 +235,80 @@ describe('downloadManager', () => {
 
     expect(call).toBe(2);
     expect(fs.readFileSync(destPath, 'utf-8')).toBe('archive');
+    expect(fs.existsSync(`${destPath}.downloading`)).toBe(false);
+  });
+
+  it('rejects with a network-classified error after repeated mid-stream aborts and resumes partial bytes', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    let attempts = 0;
+    const rangeHeaders: Array<string | undefined> = [];
+    mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
+      attempts += 1;
+      rangeHeaders.push(opts?.headers?.Range);
+      serveSuccess(
+        {
+          statusCode: attempts === 1 ? 200 : 206,
+          headers: attempts === 1 ? {} : { 'content-range': 'bytes 3-6/6' },
+          failMidStream: { emit: 'aborted', partialBody: 'abc' },
+        },
+        opts,
+        callback,
+      );
+      return { on: vi.fn() };
+    });
+
+    const promise = downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
+    const assertion = expect(promise).rejects.toSatisfy((error: unknown) => (
+      error instanceof DownloadError && error.network && /aborted/.test(error.message)
+    ));
+    // Real turns let each attempt's partial bytes flush to disk before the
+    // faked backoff fires the next attempt.
+    await flushIo();
+    await vi.advanceTimersByTimeAsync(500);
+    await flushIo();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushIo();
+    await assertion;
+
+    expect(attempts).toBe(3);
+    // Each retry resumes from the bytes already on disk (3, then 6).
+    expect(rangeHeaders[1]).toBe('bytes=3-');
+    expect(rangeHeaders[2]).toBe('bytes=6-');
+  });
+
+
+  it('recovers from a mid-stream abort by resuming on the next attempt', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    let attempts = 0;
+    const rangeHeaders: Array<string | undefined> = [];
+    mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
+      attempts += 1;
+      rangeHeaders.push(opts?.headers?.Range);
+      if (attempts === 1) {
+        serveSuccess(
+          { statusCode: 200, headers: {}, failMidStream: { emit: 'aborted', partialBody: 'abc' } },
+          opts,
+          callback,
+        );
+        return { on: vi.fn() };
+      }
+      serveSuccess(
+        { statusCode: 206, headers: { 'content-range': 'bytes 3-7/7' }, body: 'defg' },
+        opts,
+        callback,
+      );
+      return { on: vi.fn() };
+    });
+
+    const promise = downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
+    await flushIo();
+    await vi.advanceTimersByTimeAsync(500);
+    await flushIo();
+    await promise;
+
+    expect(attempts).toBe(2);
+    expect(rangeHeaders[1]).toBe('bytes=3-');
+    expect(fs.readFileSync(destPath, 'utf-8')).toBe('abcdefg');
     expect(fs.existsSync(`${destPath}.downloading`)).toBe(false);
   });
 });

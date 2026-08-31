@@ -120,7 +120,7 @@ function downloadOnce(
   let resolveDownload: () => void = () => {};
   let rejectDownload: (error: DownloadError) => void = () => {};
   const promise = new Promise<void>((resolve, reject) => { resolveDownload = resolve; rejectDownload = reject; });
-  const reject2 = (error: unknown) => rejectDownload(classifyError(error));
+  const reject2 = (error: unknown): void => { rejectDownload(classifyError(error)); };
 
   let resumeFrom = 0;
   try {
@@ -133,6 +133,31 @@ function downloadOnce(
   let downloadedBytes = resumeFrom;
   let expectedBytes = 0;
 
+  // Single-settlement guard shared by the success path and every failure path
+  // (transport errors, mid-stream aborts after the response headers, file
+  // errors) so a dropped connection can never leave the promise pending and
+  // can never double-settle. End-after-abort is a no-op.
+  let settled = false;
+  let activeRequest: http.ClientRequest | null = null;
+  let activeFileStream: fs.WriteStream | null = null;
+
+  const settleFailure = (error: unknown): void => {
+    if (settled) return;
+    settled = true;
+    try { activeRequest?.destroy(); } catch { /* already torn down */ }
+    // end() (not destroy()) so buffered partial bytes are flushed to disk for
+    // the next attempt's Range resume.
+    try { activeFileStream?.end(); } catch { /* already torn down */ }
+    // Keep the partial file so a later attempt can resume via Range.
+    reject2(error);
+  };
+
+  const settleSuccess = (): void => {
+    if (settled) return;
+    settled = true;
+    resolveDownload();
+  };
+
   const emitProgress = () => {
     onProgress?.({
       downloadedBytes,
@@ -143,7 +168,7 @@ function downloadOnce(
 
   const doRequest = (reqUrl: string, redirectCount = 0) => {
     if (redirectCount > 5) {
-      reject2(classifyError(new Error('Too many redirects')));
+      settleFailure(new Error('Too many redirects'));
       return;
     }
 
@@ -175,7 +200,7 @@ function downloadOnce(
 
       if (status !== 200 && status !== 206) {
         res.resume();
-        reject2(classifyError(new Error(`HTTP ${status}`)));
+        settleFailure(new Error(`HTTP ${status}`));
         return;
       }
 
@@ -195,7 +220,17 @@ function downloadOnce(
       emitProgress();
 
       const fileStream = fs.createWriteStream(tempPath, { flags: resumeFrom > 0 ? 'a' : 'w' });
+      activeFileStream = fileStream;
       let lastEmit = 0;
+
+      res.on('aborted', () => {
+        // Connection dropped after the response headers — retryable outage.
+        settleFailure(new DownloadError('Connection aborted mid-download', { network: true }));
+      });
+
+      res.on('error', (err: Error) => {
+        settleFailure(err);
+      });
 
       res.on('data', (chunk: Buffer) => {
         downloadedBytes += chunk.length;
@@ -213,12 +248,15 @@ function downloadOnce(
 
       fileStream.on('finish', () => {
         fileStream.close(() => {
+          // A failure-path end() also triggers finish; never promote a
+          // partial file to the destination.
+          if (settled) return;
           try {
             fs.renameSync(tempPath, destPath);
             emitProgress();
-            resolveDownload();
+            settleSuccess();
           } catch (err) {
-            reject2(classifyError(err));
+            settleFailure(err);
           }
         });
       });
@@ -226,12 +264,13 @@ function downloadOnce(
       fileStream.on('error', (err) => {
         res.resume();
         // Keep the partial file so a later attempt can resume.
-        reject2(classifyError(err));
+        settleFailure(err);
       });
     });
 
+    activeRequest = req;
     req.on('error', (err) => {
-      reject2(classifyError(err));
+      settleFailure(err);
     });
   };
 
