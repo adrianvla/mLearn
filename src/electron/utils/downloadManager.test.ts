@@ -239,7 +239,9 @@ describe('downloadManager', () => {
   });
 
   it('rejects with a network-classified error after repeated mid-stream aborts and resumes partial bytes', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    // Real backoff (0.5s + 1s) is the controlled delay here: the retry must
+    // start only after the failed attempt's write stream flushed and closed,
+    // and that close is real I/O — faking the timer would race it.
     let attempts = 0;
     const rangeHeaders: Array<string | undefined> = [];
     mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
@@ -261,13 +263,6 @@ describe('downloadManager', () => {
     const assertion = expect(promise).rejects.toSatisfy((error: unknown) => (
       error instanceof DownloadError && error.network && /aborted/.test(error.message)
     ));
-    // Real turns let each attempt's partial bytes flush to disk before the
-    // faked backoff fires the next attempt.
-    await flushIo();
-    await vi.advanceTimersByTimeAsync(500);
-    await flushIo();
-    await vi.advanceTimersByTimeAsync(1000);
-    await flushIo();
     await assertion;
 
     expect(attempts).toBe(3);
@@ -276,9 +271,9 @@ describe('downloadManager', () => {
     expect(rangeHeaders[2]).toBe('bytes=6-');
   });
 
-
   it('recovers from a mid-stream abort by resuming on the next attempt', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    // Real 0.5s backoff: the retry must wait for the aborted attempt's stream
+    // to flush and close (real I/O) — a faked timer would race the close.
     let attempts = 0;
     const rangeHeaders: Array<string | undefined> = [];
     mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
@@ -300,11 +295,7 @@ describe('downloadManager', () => {
       return { on: vi.fn() };
     });
 
-    const promise = downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
-    await flushIo();
-    await vi.advanceTimersByTimeAsync(500);
-    await flushIo();
-    await promise;
+    await downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
 
     expect(attempts).toBe(2);
     expect(rangeHeaders[1]).toBe('bytes=3-');

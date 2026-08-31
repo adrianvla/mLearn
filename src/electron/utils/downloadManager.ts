@@ -140,16 +140,22 @@ function downloadOnce(
   let settled = false;
   let activeRequest: http.ClientRequest | null = null;
   let activeFileStream: fs.WriteStream | null = null;
-
   const settleFailure = (error: unknown): void => {
     if (settled) return;
     settled = true;
     try { activeRequest?.destroy(); } catch { /* already torn down */ }
-    // end() (not destroy()) so buffered partial bytes are flushed to disk for
-    // the next attempt's Range resume.
-    try { activeFileStream?.end(); } catch { /* already torn down */ }
-    // Keep the partial file so a later attempt can resume via Range.
-    reject2(error);
+    const stream = activeFileStream;
+    if (!stream || stream.destroyed || stream.writableEnded) {
+      // Nothing buffered (or already closed) — reject immediately.
+      reject2(error);
+      return;
+    }
+    // end() (not destroy()) flushes buffered partial bytes to disk for the
+    // next attempt's Range resume. Hold the reject until 'close' so the fd is
+    // released BEFORE the retry opens the partial file — otherwise the next
+    // attempt can interleave writes with this stream and corrupt the resume.
+    stream.once('close', () => reject2(error));
+    stream.end();
   };
 
   const settleSuccess = (): void => {
