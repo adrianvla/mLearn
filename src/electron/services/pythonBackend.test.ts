@@ -201,6 +201,11 @@ const mockRuntimeCatalog = {
       sha256: MOCK_ARCHIVE_SHA256,
       sizeBytes: 7,
     },
+    'win32-x64': {
+      url: 'https://example.com/python-win32-x64.tar.gz',
+      sha256: MOCK_ARCHIVE_SHA256,
+      sizeBytes: 7,
+    },
   },
 };
 
@@ -213,6 +218,13 @@ vi.mock('../utils/downloadManager', () => ({
 }));
 
 const originalNodeEnv = process.env.NODE_ENV;
+
+/** Drive the event loop until the predicate holds (pip spawns land on I/O turns). */
+async function waitForCalls(predicate: () => boolean, maxTurns = 100): Promise<void> {
+  for (let turn = 0; turn < maxTurns && !predicate(); turn++) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
 
 describe('pythonBackend', () => {
   let mod: typeof import('./pythonBackend');
@@ -259,11 +271,24 @@ describe('pythonBackend', () => {
     fs.mkdirSync('/tmp/test-userdata', { recursive: true });
     fs.writeFileSync('/tmp/test-userdata/python-version.txt', '1.0.0');
 
-    // Default spawn mock: --version checks complete (close 0), all other
-    // processes stay alive (no close event). The reconciliation pip install
-    // is guarded by pip existence and won't spawn in test mode.
+    // Default spawn mock: --version checks and pip installs complete (close 0),
+    // all other processes stay alive (no close event). Tests that need a pip
+    // process to remain running override this with their own spawn factory.
     mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
       if (Array.isArray(args) && args[0] === '--version') {
+        return {
+          stdout: { on: vi.fn() },
+          stderr: { on: vi.fn() },
+          on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+            if (event === 'close') handler(0);
+          }),
+          kill: vi.fn(),
+          killed: false,
+        };
+      }
+      // pip installs and install verification (-c import checks) complete
+      // immediately so awaited install flows resolve.
+      if (Array.isArray(args) && (args[0] === 'install' || (args[0] === '-m' && args[1] === 'pip') || args[0] === '-c')) {
         return {
           stdout: { on: vi.fn() },
           stderr: { on: vi.fn() },
@@ -391,20 +416,16 @@ describe('pythonBackend', () => {
         fs.writeFileSync(path.join(binDir, 'pip3'), '');
         fs.writeFileSync(path.join(binDir, 'python3'), '');
       });
-      mockSpawn.mockReturnValue({
-        stdout: { on: vi.fn() },
-        stderr: { on: vi.fn() },
-        on: vi.fn(),
-        kill: vi.fn(),
-        killed: false,
-      });
-
       await mod.startPythonInstall({ includeLLM: false, includeOCR: true, includeVoice: false });
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await waitForCalls(() => mockSpawn.mock.calls.some((call) => (
+        Array.isArray(call[1]) && call[1].includes('ja-ocr-engine')
+      )));
 
+      // Per-group installs: language component packages ride in their own group
       const pipInstallCall = mockSpawn.mock.calls.find((call) => (
-        Array.isArray(call[1]) && call[1][0] === 'install'
+        Array.isArray(call[1]) && call[1].includes('ja-ocr-engine')
       ));
+      expect(pipInstallCall).toBeDefined();
       expect(pipInstallCall?.[1]).toEqual(expect.arrayContaining([
         'ja-ocr-engine',
         'ja-ocr-runtime',
@@ -993,30 +1014,44 @@ describe('pythonBackend', () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
-      await mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
+      // Keep the first pip group running so the install stays in progress.
+      let firstPipClose: ((code: number | null) => void) | undefined;
+      mockSpawn.mockImplementationOnce(() => ({
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, handler: (code: number | null) => void) => {
+          if (event === 'close') firstPipClose = handler;
+        }),
+        kill: vi.fn(),
+        killed: false,
+      }));
+
+      const firstInstall = mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
+      await waitForCalls(() => firstPipClose !== undefined);
+
       const sendCount = mockWebContents.send.mock.calls.length;
       await mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
 
       expect(mockWebContents.send.mock.calls.length).toBe(sendCount);
+
+      firstPipClose?.(0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await firstInstall;
     });
 
-    it('sends INSTALL_STARTED with options', async () => {
+    it('sends INSTALL_STARTED with options and platform warnings', async () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
       const options = { includeLLM: false, includeOCR: true, includeVoice: false };
       await mod.startPythonInstall(options);
 
-      expect(mockWebContents.send).toHaveBeenCalledWith('install-started', options);
-    });
-
-    it('fetches the runtime catalog via https', async () => {
-      const mockWebContents = { send: vi.fn() };
-      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
-
-      await mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
-
-      expect(mockHttpsGet).toHaveBeenCalled();
+      expect(mockWebContents.send).toHaveBeenCalledWith('install-started', expect.objectContaining({
+        includeLLM: false,
+        includeOCR: true,
+        includeVoice: false,
+        platformWarnings: expect.any(Array),
+      }));
     });
 
     it('falls back to a probed mirror runtime catalog when the default is unreachable', async () => {
@@ -1076,26 +1111,29 @@ describe('pythonBackend', () => {
         fs.writeFileSync(path.join(binDir, 'pip3'), '');
         fs.writeFileSync(path.join(binDir, 'python3'), '');
       });
-      mockSpawn.mockReturnValue({
-        stdout: { on: vi.fn() },
-        stderr: { on: vi.fn() },
-        on: vi.fn(),
-        kill: vi.fn(),
-        killed: false,
-      });
 
       await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: true });
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await waitForCalls(() => mockSpawn.mock.calls.some((call) => (
+        Array.isArray(call[1]) && call[1].includes('ja-voice-extra-one')
+      )));
 
-      const pipInstallCall = mockSpawn.mock.calls.find((call) => (
-        Array.isArray(call[1]) && call[1][0] === 'install'
+      // Per-group installs: pinned app packages land in the voice group while
+      // language-declared packages ride in a separate later group.
+      const voiceGroupCall = mockSpawn.mock.calls.find((call) => (
+        Array.isArray(call[1]) && call[1].some((arg) => /^kokoro(==|$)/.test(String(arg)))
       ));
-      expect(pipInstallCall?.[1]).toEqual(expect.arrayContaining([
-        // kokoro is version-pinned in pip_requirements.json — match the name, not the pin
-        expect.stringMatching(/^kokoro(==|$)/),
+      expect(voiceGroupCall).toBeDefined();
+
+      const languageGroupCall = mockSpawn.mock.calls.find((call) => (
+        Array.isArray(call[1]) && call[1].includes('ja-voice-extra-one')
+      ));
+      expect(languageGroupCall?.[1]).toEqual(expect.arrayContaining([
         'ja-voice-extra-one',
         'ja-voice-extra-two',
       ]));
+      expect(mockSpawn.mock.calls.indexOf(languageGroupCall!)).toBeGreaterThan(
+        mockSpawn.mock.calls.indexOf(voiceGroupCall!),
+      );
     });
 
     it('starts the backend after a successful component installation', async () => {
@@ -1143,12 +1181,13 @@ describe('pythonBackend', () => {
         };
       });
 
-      await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      const installPromise = mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+      await waitForCalls(() => pipClose !== undefined);
 
       expect(pipClose).toBeDefined();
       pipClose?.(0);
       await new Promise((resolve) => setTimeout(resolve, 0));
+      await installPromise;
 
       expect(mockSpawn.mock.calls.some((call) => call[0] === '/bin/sh')).toBe(true);
     });
@@ -1233,12 +1272,13 @@ describe('pythonBackend', () => {
         };
       });
 
-      await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      const installPromise = mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+      await waitForCalls(() => pipClose !== undefined);
 
       expect(pipClose).toBeDefined();
       pipClose?.(0);
       await new Promise((resolve) => setTimeout(resolve, 0));
+      await installPromise;
 
       expect(verificationCommand).toBe('/tmp/test-userdata/env/bin/python3');
       expect(verificationCommand).not.toBe(repoPythonPath);
@@ -1293,12 +1333,13 @@ describe('pythonBackend', () => {
         };
       });
 
-      await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      const installPromise = mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+      await waitForCalls(() => pipClose !== undefined);
 
       expect(pipClose).toBeDefined();
       pipClose?.(0);
       await new Promise((resolve) => setTimeout(resolve, 0));
+      await installPromise;
 
       expect(mockSpawn.mock.calls.some((call) => call[0] === '/bin/sh')).toBe(true);
     });
@@ -1314,7 +1355,8 @@ describe('pythonBackend', () => {
         fs.writeFileSync(path.join(binDir, 'python3'), '');
       });
 
-      let pipClose: ((code: number | null) => void) | undefined;
+      // One pip spawn per group (core, then ocr) — close them in order.
+      const pipCloseHandlers: Array<(code: number | null) => void> = [];
       let verificationScript = '';
       mockSpawn.mockImplementation((cmd: string, args: string[]) => {
         if (args[0] === 'install') {
@@ -1322,7 +1364,7 @@ describe('pythonBackend', () => {
             stdout: { on: vi.fn() },
             stderr: { on: vi.fn() },
             on: vi.fn((event: string, handler: (code: number | null) => void) => {
-              if (event === 'close') pipClose = handler;
+              if (event === 'close') pipCloseHandlers.push(handler);
             }),
             kill: vi.fn(),
             killed: false,
@@ -1360,12 +1402,14 @@ describe('pythonBackend', () => {
         };
       });
 
-      await mod.startPythonInstall({ includeLLM: false, includeOCR: true, includeVoice: false });
+      const installPromise = mod.startPythonInstall({ includeLLM: false, includeOCR: true, includeVoice: false });
+      await waitForCalls(() => pipCloseHandlers.length >= 1);
+      // The app-level ocr group is empty in pip_requirements.json and no
+      // language OCR packages are installed, so only core spawns.
+      expect(pipCloseHandlers).toHaveLength(1);
+      pipCloseHandlers[0]?.(0);
       await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(pipClose).toBeDefined();
-      pipClose?.(0);
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await installPromise;
 
       expect(verificationScript).toContain('import fastapi');
       expect(verificationScript).not.toContain('manga_ocr');
@@ -1801,5 +1845,419 @@ describe('pythonBackend', () => {
       expect(() => listeners[0]({})).not.toThrow();
     });
 
+  });
+
+  describe('installer platform matrix', () => {
+    const CUDA_INDEX = 'https://download.pytorch.org/whl/cu128';
+    const syntheticConfig = {
+      core: ['core-pkg'],
+      ocr: ['ocr-pkg'],
+      llm: ['llm-pkg'],
+      voice: ['voice-pkg'],
+      'voice-windows': ['voice-win-pkg'],
+      'qwen3-tts': ['tts-mlx-pkg'],
+      'qwen3-tts-torch': ['tts-torch-pkg'],
+      'mlx-stt': ['mlx-stt-pkg'],
+    };
+    const allComponents = { includeLLM: true, includeOCR: true, includeVoice: true };
+    const coreOnly = { includeLLM: false, includeOCR: false, includeVoice: false };
+
+    it('installs the mlx TTS/STT stack on Apple Silicon', () => {
+      expect(mod.buildPipRequirementList(allComponents, syntheticConfig, 'darwin-arm64')).toEqual([
+        'core-pkg', 'ocr-pkg', 'llm-pkg', 'voice-pkg', 'tts-mlx-pkg', 'mlx-stt-pkg',
+      ]);
+    });
+
+    it('installs voice plus torch TTS on Linux', () => {
+      expect(mod.buildPipRequirementList(allComponents, syntheticConfig, 'linux-x64')).toEqual([
+        'core-pkg', 'ocr-pkg', 'llm-pkg', 'voice-pkg', 'tts-torch-pkg',
+      ]);
+    });
+
+    it('replaces voice with the CUDA variant on Windows', () => {
+      expect(mod.buildPipRequirementList(allComponents, syntheticConfig, 'win32-x64')).toEqual([
+        'core-pkg', 'ocr-pkg', 'llm-pkg', 'voice-win-pkg', 'tts-torch-pkg',
+      ]);
+      expect(mod.buildPipRequirementList(coreOnly, syntheticConfig, 'win32-x64')).toEqual(['core-pkg']);
+    });
+
+    it('strips every AI group on Intel Macs down to core only', () => {
+      expect(mod.buildPipRequirementList(allComponents, syntheticConfig, 'darwin-x64')).toEqual(['core-pkg']);
+      expect(mod.buildPipRequirementList(coreOnly, syntheticConfig, 'darwin-x64')).toEqual(['core-pkg']);
+    });
+
+    it('adds the cu128 extra index exactly for CUDA-bearing Windows groups', () => {
+      const winGroups = mod.buildPipInstallGroups(allComponents, syntheticConfig, 'win32-x64');
+      const extraIndexByGroup = Object.fromEntries(winGroups.map((group) => [group.name, group.extraIndexUrl]));
+      expect(extraIndexByGroup['core']).toBeUndefined();
+      expect(extraIndexByGroup['ocr']).toBeUndefined();
+      expect(extraIndexByGroup['llm']).toBe(CUDA_INDEX);
+      expect(extraIndexByGroup['voice-windows']).toBe(CUDA_INDEX);
+      expect(extraIndexByGroup['qwen3-tts-torch']).toBe(CUDA_INDEX);
+
+      // Linux resolves CUDA torch from PyPI — no extra index anywhere.
+      for (const group of mod.buildPipInstallGroups(allComponents, syntheticConfig, 'linux-x64')) {
+        expect(group.extraIndexUrl).toBeUndefined();
+      }
+      // OCR-only Windows installs must not touch the CUDA index.
+      for (const group of mod.buildPipInstallGroups({ includeLLM: false, includeOCR: true, includeVoice: false }, syntheticConfig, 'win32-x64')) {
+        expect(group.extraIndexUrl).toBeUndefined();
+      }
+    });
+
+    it('keeps language core packages but drops language ocr/llm/voice packages on Intel Macs', () => {
+      mockInstalledLanguageData = {
+        ja: {
+          name: 'Japanese',
+          translatable: [],
+          colour_codes: {},
+          settings: { fixed: {} },
+          runtime: {
+            python: {
+              packagesByComponent: {
+                core: ['ja-core-tok'],
+                ocr: ['ja-ocr-pkg'],
+                llm: ['ja-llm-pkg'],
+                voice: ['ja-voice-pkg'],
+              },
+            },
+          },
+        },
+      };
+
+      const packages = mod.buildPipRequirementList(allComponents, syntheticConfig, 'darwin-x64');
+      expect(packages).toContain('core-pkg');
+      expect(packages).toContain('ja-core-tok');
+      expect(packages).not.toContain('ja-ocr-pkg');
+      expect(packages).not.toContain('ja-llm-pkg');
+      expect(packages).not.toContain('ja-voice-pkg');
+    });
+  });
+
+
+  describe('per-group pip installs', () => {
+    const REAL_PLATFORM_DESCRIPTOR = Object.getOwnPropertyDescriptor(process, 'platform');
+    const REAL_ARCH_DESCRIPTOR = Object.getOwnPropertyDescriptor(process, 'arch');
+
+    interface CapturedSpawn {
+      cmd: string;
+      args: string[];
+      closeHandlers: Array<(code: number | null) => void>;
+      stdoutHandlers: Array<(data: Buffer) => void>;
+    }
+
+    function useProcessPlatform(platform: NodeJS.Platform, arch: string): void {
+      Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+      Object.defineProperty(process, 'arch', { value: arch, configurable: true });
+    }
+
+    function mockPlatformModule(isWindows: boolean): void {
+      vi.doMock('../utils/platform', () => ({
+        getResourcePath: vi.fn(() => mockPlatformPaths.resourcePath),
+        getAppPath: vi.fn(() => mockPlatformPaths.appPath),
+        getUserDataPath: vi.fn(() => '/tmp/test-userdata'),
+        getPythonExecutablePath: vi.fn(() => mockPlatformPaths.pythonExecutablePath),
+        getPipExecutablePath: vi.fn(() => mockPlatformPaths.pipExecutablePath),
+        getRuntimeTarget: vi.fn(() => (isWindows ? 'win32-x64' : 'darwin-arm64')),
+        getBundledDistElectronPath: vi.fn((...segments: string[]) => path.join(process.cwd(), 'src/root-of-app', ...segments)),
+        isPackaged: false,
+        isWindows,
+      }));
+    }
+
+    /** Re-import pythonBackend for a specific platform and mock a full install run. */
+    async function setupInstaller(platform: NodeJS.Platform, arch: string, isWindows: boolean): Promise<void> {
+      useProcessPlatform(platform, arch);
+      mockPlatformModule(isWindows);
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: MockHttpRes) => void) => {
+        const catalogJson = JSON.stringify(mockRuntimeCatalog);
+        const res = createMockHttpRes(200);
+        res.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+          if (event === 'data') cb(Buffer.from(catalogJson));
+          if (event === 'end') cb();
+          return res;
+        });
+        callback(res);
+        return createMockHttpReq();
+      });
+      mockTarExtract.mockImplementationOnce(async (options: { cwd: string }) => {
+        const binDir = path.join(options.cwd, 'python-runtime', 'bin');
+        fs.mkdirSync(binDir, { recursive: true });
+        if (isWindows) {
+          fs.writeFileSync(path.join(options.cwd, 'python-runtime', 'python.exe'), '');
+        } else {
+          fs.writeFileSync(path.join(binDir, 'pip3'), '');
+          fs.writeFileSync(path.join(binDir, 'python3'), '');
+        }
+      });
+    }
+
+    /** Capture pip group spawns; --version and -c checks close 0, everything else stays alive. */
+    function capturePipSpawns(): { spawns: CapturedSpawn[] } {
+      const spawns: CapturedSpawn[] = [];
+      mockSpawn.mockImplementation((cmd: string, args: string[]) => {
+        if (args[0] === 'install' || (args[0] === '-m' && args[1] === 'pip')) {
+          const entry: CapturedSpawn = { cmd, args, closeHandlers: [], stdoutHandlers: [] };
+          spawns.push(entry);
+          return {
+            stdout: { on: vi.fn((event: string, handler: (data: Buffer) => void) => {
+              if (event === 'data') entry.stdoutHandlers.push(handler);
+            }) },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (code: number | null) => void) => {
+              if (event === 'close') entry.closeHandlers.push(handler);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        if (args[0] === '-c' || args[0] === '--version') {
+          return {
+            stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (...handlerArgs: unknown[]) => void) => {
+              if (event === 'close') handler(0);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        return {
+          stdout: { on: vi.fn() },
+          stderr: { on: vi.fn() },
+          on: vi.fn(),
+          kill: vi.fn(),
+          killed: false,
+        };
+      });
+      return { spawns };
+    }
+
+    /** Groups install sequentially: close each one to trigger the next spawn. */
+    async function closeGroupsSequentially(spawns: CapturedSpawn[], codes: readonly number[]): Promise<void> {
+      for (const [index, code] of codes.entries()) {
+        await waitForCalls(() => spawns.length > index);
+        spawns[index]?.closeHandlers[0]?.(code);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+
+    function statusMessagesFrom(send: { mock: { calls: unknown[][] } }): string[] {
+      return send.mock.calls
+        .filter((call) => call[0] === 'server-status-update')
+        .map((call) => call[1] as string);
+    }
+
+    afterEach(() => {
+      if (REAL_PLATFORM_DESCRIPTOR && REAL_ARCH_DESCRIPTOR) {
+        Object.defineProperty(process, 'platform', REAL_PLATFORM_DESCRIPTOR);
+        Object.defineProperty(process, 'arch', REAL_ARCH_DESCRIPTOR);
+      }
+      mockPlatformModule(false);
+      vi.resetModules();
+    });
+
+    it('spawns one pip per group on Windows and injects the cu128 index only for CUDA groups', async () => {
+      await setupInstaller('win32', 'x64', true);
+      const send = vi.fn();
+      mockGetCurrentWindow.mockReturnValue({ webContents: { send } });
+      const { spawns } = capturePipSpawns();
+      const installPromise = mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
+      await closeGroupsSequentially(spawns, [0, 0, 0, 0]);
+      await installPromise;
+
+      // core, llm, voice-windows, qwen3-tts-torch (language group empty by default)
+      expect(spawns).toHaveLength(4);
+      for (const spawn of spawns) {
+        expect(spawn.args[0]).toBe('-m');
+      }
+      expect(spawns[0]?.args).not.toContain('--extra-index-url');
+      const startedPayload = send.mock.calls.find((call) => call[0] === 'install-started')?.[1] as { platformWarnings?: string[] };
+      expect(startedPayload?.platformWarnings).toEqual(['windows-cuda-recommended']);
+      for (const spawn of spawns.slice(1)) {
+        const indexArg = spawn.args.indexOf('--extra-index-url');
+        expect(indexArg).toBeGreaterThan(-1);
+        expect(spawn.args[indexArg + 1]).toBe('https://download.pytorch.org/whl/cu128');
+      }
+    });
+
+
+    it('falls back to mirrors only after retrying the primary catalog twice', async () => {
+      await setupInstaller('darwin', 'arm64', false);
+      mockGetCurrentWindow.mockReturnValue({ webContents: { send: vi.fn() } });
+      let primaryCalls = 0;
+      mockHttpsGet.mockImplementation((url: string, callback: (res: MockHttpRes) => void) => {
+        if (url === DEFAULT_RUNTIME_CATALOG_URL) {
+          primaryCalls += 1;
+          if (primaryCalls < 3) {
+            const req = createMockHttpReq();
+            queueMicrotask(() => req._callbacks['error']?.forEach((cb) => { cb(new Error('read ECONNRESET')); }));
+            return req;
+          }
+        }
+        const catalogJson = JSON.stringify(mockRuntimeCatalog);
+        const res = createMockHttpRes(200);
+        res.on.mockImplementation((event: string, cb: (...args: unknown[]) => void) => {
+          if (event === 'data') cb(Buffer.from(catalogJson));
+          if (event === 'end') cb();
+          return res;
+        });
+        callback(res);
+        return createMockHttpReq();
+      });
+
+      await mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+
+      expect(primaryCalls).toBe(3);
+      expect(mockHttpsGet.mock.calls.some((call) => call[0].startsWith('https://mirror'))).toBe(false);
+    });
+    it('installs core first, continues when an optional group fails, and completes', async () => {
+      await setupInstaller('darwin', 'arm64', false);
+      const send = vi.fn();
+      mockGetCurrentWindow.mockReturnValue({ webContents: { send } });
+      const { spawns } = capturePipSpawns();
+
+      const installPromise = mod.startPythonInstall({ includeLLM: true, includeOCR: false, includeVoice: true });
+      await closeGroupsSequentially(spawns, [0, 1, 0, 0, 0]);
+      await installPromise;
+
+      // core, llm, voice, qwen3-tts, mlx-stt (language group empty by default)
+      expect(spawns).toHaveLength(5);
+
+      const messages = statusMessagesFrom(send);
+      expect(messages.some((message) => message.includes('llm'))).toBe(true);
+      expect(mockSpawn.mock.calls.some((call) => call[0] === '/bin/sh')).toBe(true);
+    });
+
+    it('treats a core group failure as fatal and returns to the choice state', async () => {
+      await setupInstaller('darwin', 'arm64', false);
+      const mockWebContents = { send: vi.fn() };
+      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
+      const { spawns } = capturePipSpawns();
+
+      const installPromise = mod.startPythonInstall({ includeLLM: true, includeOCR: false, includeVoice: false });
+      await waitForCalls(() => spawns.length >= 1);
+
+      expect(spawns).toHaveLength(1);
+      spawns[0]?.closeHandlers[0]?.(1);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await installPromise;
+
+      // No further group spawns, no backend start, installer back at choice.
+      expect(spawns).toHaveLength(1);
+      expect(mockSpawn.mock.calls.some((call) => call[0] === '/bin/sh')).toBe(false);
+      expect(mockWebContents.send).toHaveBeenCalledWith('installer-awaiting-choice');
+    });
+
+    it('installs no AI packages on Intel Macs but keeps language core packages', async () => {
+      mockInstalledLanguageData = {
+        ja: {
+          name: 'Japanese',
+          translatable: [],
+          colour_codes: {},
+          settings: { fixed: {} },
+          runtime: {
+            python: {
+              packagesByComponent: {
+                core: ['ja-core-tok'],
+                voice: ['ja-voice-pkg'],
+              },
+            },
+          },
+        },
+      };
+      await setupInstaller('darwin', 'x64', false);
+      mockGetCurrentWindow.mockReturnValue({ webContents: { send: vi.fn() } });
+      const { spawns } = capturePipSpawns();
+      const installPromise = mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
+      await closeGroupsSequentially(spawns, [0, 0]);
+      await installPromise;
+
+      // core + language group only
+      expect(spawns).toHaveLength(2);
+      const allArgs = spawns.flatMap((spawn) => spawn.args);
+      expect(allArgs).toContain('ja-core-tok');
+      expect(allArgs).not.toContain('ja-voice-pkg');
+      for (const arg of allArgs) {
+        expect(String(arg)).not.toMatch(/torch|mlx|paddle|kokoro|whisper/);
+      }
+    });
+
+    it('emits resolving heartbeats while pip is silent and stops after the first progress line', async () => {
+      await setupInstaller('darwin', 'arm64', false);
+      const send = vi.fn();
+      mockGetCurrentWindow.mockReturnValue({ webContents: { send } });
+      const { spawns } = capturePipSpawns();
+      // Fake only the heartbeat interval; real timers drive the setup chain.
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+
+      const installPromise = mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+      await waitForCalls(() => spawns.length >= 1);
+      expect(spawns).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      const heartbeatAt = (): string[] => statusMessagesFrom(send).filter((message) => message.startsWith('Resolving packages'));
+      expect(heartbeatAt()).toEqual(['Resolving packages… 5s']);
+
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(heartbeatAt()).toEqual(['Resolving packages… 5s', 'Resolving packages… 10s', 'Resolving packages… 15s']);
+
+      spawns[0]?.stdoutHandlers[0]?.(Buffer.from('Collecting numpy\n'));
+      await vi.advanceTimersByTimeAsync(20000);
+      // No heartbeat after the first Collecting line.
+      expect(heartbeatAt()).toHaveLength(3);
+
+      spawns[0]?.closeHandlers[0]?.(0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await installPromise;
+    });
+
+    it('treats a null pip exit during CANCEL_INSTALL as an abort, not a failure', async () => {
+      await setupInstaller('darwin', 'arm64', false);
+      const mockWebContents = { send: vi.fn() };
+      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
+      const { spawns } = capturePipSpawns();
+      mod.setupPythonBackendIPC();
+
+      const installPromise = mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+      await waitForCalls(() => spawns.length >= 1);
+      expect(spawns).toHaveLength(1);
+
+      const cancelListeners = mockIpcListeners.get('cancel-install') || [];
+      cancelListeners[0]?.({});
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      spawns[0]?.closeHandlers[0]?.(null);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await installPromise;
+
+      const messages = statusMessagesFrom(mockWebContents.send);
+      expect(messages.some((message) => message.startsWith('ERROR:'))).toBe(false);
+      // No verification spawn and no backend start after the abort.
+      expect(mockSpawn.mock.calls.some((call) => call[1]?.[0] === '-c')).toBe(false);
+      expect(mockSpawn.mock.calls.some((call) => call[0] === '/bin/sh')).toBe(false);
+      expect(mockWebContents.send).toHaveBeenCalledWith('installer-awaiting-choice');
+    });
+
+    it('treats a null pip exit without a cancel as an unexpected failure', async () => {
+      await setupInstaller('darwin', 'arm64', false);
+      const mockWebContents = { send: vi.fn() };
+      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
+      const { spawns } = capturePipSpawns();
+
+      const installPromise = mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+      await waitForCalls(() => spawns.length >= 1);
+
+      spawns[0]?.closeHandlers[0]?.(null);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await installPromise;
+
+      const messages = statusMessagesFrom(mockWebContents.send);
+      expect(messages.some((message) => message.startsWith('ERROR:'))).toBe(true);
+      expect(mockSpawn.mock.calls.some((call) => call[1]?.[0] === '-c')).toBe(false);
+      expect(mockWebContents.send).toHaveBeenCalledWith('installer-awaiting-choice');
+    });
   });
 });

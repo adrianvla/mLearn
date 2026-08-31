@@ -2096,6 +2096,15 @@ export interface InstallOptions {
   includeVoice?: boolean;
 }
 
+/**
+ * Payload broadcast with IPC_CHANNELS.INSTALL_STARTED. Extends the user's
+ * component selection with platform-specific caveats the renderer can surface
+ * (stable machine keys, e.g. "intel-no-onboard-ai", "windows-cuda-recommended").
+ */
+export interface InstallStartedPayload extends InstallOptions {
+  platformWarnings: string[];
+}
+
 export interface InstallerState {
   waiting: boolean;
   inProgress: boolean;
@@ -2325,7 +2334,13 @@ export interface PipRequirementsConfig {
   ocr: string[];
   llm: string[];
   voice?: string[];
+  /** CUDA (torch) voice packages for Windows; replaces `voice` on win32 installs. */
+  'voice-windows'?: string[];
+  /** Qwen3 TTS engine backed by MLX (Apple Silicon only). */
   'qwen3-tts'?: string[];
+  /** Qwen3 TTS engine backed by torch/qwen-tts (Linux and Windows installs). */
+  'qwen3-tts-torch'?: string[];
+  /** Extra sentencepiece models for MLX-based STT (Apple Silicon only). */
   'mlx-stt'?: string[];
 }
 
@@ -2690,6 +2705,8 @@ export interface VoiceModelStatus {
   sttModelName?: string;
   ttsModelName?: string;
   sttEngine?: string;
+  /** Compute device the local voice models run on ('cuda' | 'mps' | 'cpu'). */
+  device?: 'cuda' | 'mps' | 'cpu';
 }
 
 export interface VoiceSTTResult {
