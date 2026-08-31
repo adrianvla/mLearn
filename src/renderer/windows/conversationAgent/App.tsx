@@ -314,21 +314,29 @@ export const ConversationContent: Component = () => {
   const youLabel = () => t('mlearn.Room.You') || 'You';
   // Learner state as one implicit projection: media-scoped failures + level +
   // (compat) legacy tutor selections, until the tutorConfig merge lands fully.
-  // Words are evidence-backed (user failed-marks + explicit selections).
-  // Grammar mixes explicit selections with legacy ease-heuristic media stats,
-  // so its basis stays 'prediction' until grammar targets/projection land.
+  // Media failures reconcile against the canonical knowledge resolver: a word
+  // the journal settles (evidence-backed known or teaching-excluded) never
+  // reaches the tutor as a failure, however stale media ease ranks it.
+  // Explicit tutor selections bypass reconciliation — they are practice
+  // assignments, not failure inferences. Grammar mixes explicit selections
+  // with legacy ease-heuristic media stats, so its basis stays 'prediction'
+  // until grammar targets/projection land.
   const learnerProjection = (): LearnerProjection => {
     const media = mediaContext();
     const tutor = tutorSelections();
     const level = Number(settings.learningLanguageLevels?.[settings.language] ?? 0);
+    const notSettled = (word: string): boolean => !flashcardCtx.isWordSettledSync(word, settings.language);
+    const mediaFailures = (media?.failedWords ?? [])
+      .sort((a, b) => a.ease - b.ease)
+      .slice(0, 15)
+      .map((w) => w.word)
+      .filter(notSettled);
+    const selectedWords = (tutor?.selectedWords ?? []).map((w) => w.word);
     return {
       language: promptLangName(),
       wordsBasis: 'evidence',
       grammarBasis: 'prediction',
-      failedWords: [
-        ...(media?.failedWords ?? []).sort((a, b) => a.ease - b.ease).slice(0, 15).map((w) => w.word),
-        ...(tutor?.selectedWords ?? []).map((w) => w.word),
-      ],
+      failedWords: [...new Set([...mediaFailures, ...selectedWords])],
       grammarPoints: [
         ...(media?.failedGrammar ?? []).sort((a, b) => a.ease - b.ease).slice(0, 10).map((g) => g.pattern),
         ...(tutor?.selectedGrammar ?? []).map((g) => g.pattern),

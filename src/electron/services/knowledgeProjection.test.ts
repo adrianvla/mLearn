@@ -201,4 +201,38 @@ describe('buildKnowledgeProjection', () => {
     expect(claimClassification('learning')).toBe('learning');
     expect(claimClassification('unknown')).toBe('unknown');
   });
+  it('keeps specialized-domain entities out of learnable targets', () => {
+    const namesSurface = `ja:surface:${'b'.repeat(64)}`;
+    const mixedSurface = `ja:surface:${'c'.repeat(64)}`;
+    const domains = loadLinguisticGraph({
+      schemaVersion: 1,
+      language: 'ja',
+      generatedAt: '',
+      sourceVersions: {},
+      entities: [
+        { id: namesSurface, kind: 'surface', label: 'レア', domain: 'names' },
+        { id: 'ja:dictionary-entry:rhea', kind: 'dictionary-entry', domain: 'names' },
+        { id: 'ja:sense:rhea', kind: 'sense', label: 'Rhea', domain: 'names' },
+        { id: mixedSurface, kind: 'surface', label: 'レア' },
+        { id: 'ja:dictionary-entry:rare', kind: 'dictionary-entry' },
+        { id: 'ja:sense:rare', kind: 'sense', label: 'rare' },
+      ],
+      relations: [
+        { from: namesSurface, to: 'ja:dictionary-entry:rhea', type: 'realizes' },
+        { from: 'ja:dictionary-entry:rhea', to: 'ja:sense:rhea', type: 'has-sense' },
+        { from: mixedSurface, to: 'ja:dictionary-entry:rare', type: 'realizes' },
+        { from: mixedSurface, to: 'ja:dictionary-entry:rhea', type: 'realizes' },
+        { from: 'ja:dictionary-entry:rare', to: 'ja:sense:rare', type: 'has-sense' },
+        { from: 'ja:dictionary-entry:rhea', to: 'ja:sense:rhea', type: 'has-sense' },
+      ],
+    });
+    // A names-domain surface projects zero learnable targets.
+    expect(buildKnowledgeProjection(domains, namesSurface, [], policy).targets).toHaveLength(0);
+    // A shared homograph surface keeps the common sense and drops the names entry's sense.
+    const mixed = buildKnowledgeProjection(domains, mixedSurface, [], policy);
+    const targetIds = mixed.targets.map((target) => target.targetRef.id);
+    expect(targetIds).toContain(mixedSurface);
+    expect(targetIds).not.toContain('ja:sense:rhea');
+    expect(targetIds).not.toContain('ja:dictionary-entry:rhea');
+  });
 });

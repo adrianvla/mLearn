@@ -128,6 +128,9 @@ vi.mock('../../../shared/backends', () => ({
 
 let testSettings: typeof DEFAULT_SETTINGS;
 
+// Words the canonical knowledge resolver reports settled (evidence-known or
+// excluded); mutated per test to drive learner-projection reconciliation.
+let settledWords = new Set<string>();
 vi.mock('../../context', () => ({
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   useSettings: () => ({
@@ -160,6 +163,7 @@ vi.mock('../../context', () => ({
   }),
   useFlashcards: () => ({
     getWordKnowledge: () => undefined,
+    isWordSettledSync: (word: string) => settledWords.has(word),
     trackGrammarFailed: vi.fn(),
     trackGrammarEncountered: vi.fn(),
   }),
@@ -336,6 +340,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     mockBridge.world.updateThread.mockClear();
     mockBridge.llm.llmStream.mockClear();
     mockBackend.tokenize.mockClear();
+    settledWords = new Set();
   });
 
   afterEach(() => {
@@ -469,6 +474,67 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const [messages] = mockBridge.llm.llmStream.mock.calls.at(-1) as [{ content: string }[]];
     expect(messages[0].content).toContain('猫');
     expect(messages[0].content).toContain('て-form');
+  });
+
+  it('filters journal-settled words out of media failures in the learner projection', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    settledWords = new Set(['犬']);
+    windowContextCallback({
+      roomId: 'room-a',
+      threadId: 'thread-a',
+      mediaHash: 'video-1',
+      mediaName: 'Episode One',
+      mediaType: 'video',
+      assessedLevel: null,
+      assessedLevelName: 'N3',
+      language: 'ja',
+      failedWords: [{ word: '犬', ease: -2 }, { word: '消える', ease: -1 }],
+      failedGrammar: [],
+      wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+    });
+    const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea).toBeTruthy());
+    textarea.value = 'hello';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const sendButton = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
+    await vi.waitFor(() => expect(sendButton.disabled).toBe(false));
+    sendButton.click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    const [messages] = mockBridge.llm.llmStream.mock.calls.at(-1) as [{ content: string }[]];
+    // 消える is an unsettled failure and reaches the tutor; 犬 is journal-settled and must not.
+    expect(messages[0].content).toContain('消える');
+    expect(messages[0].content).not.toContain('犬');
+  });
+
+  it('keeps explicit tutor selections even when the word is journal-settled', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    settledWords = new Set(['犬']);
+    windowContextCallback({
+      roomId: 'room-a',
+      threadId: 'thread-a',
+      tutorConfig: {
+        selectedGrammar: [],
+        selectedWords: [{ word: '犬', ease: 1 }],
+        selectedMedia: [],
+        customInstructions: 'Practice dogs',
+      },
+    });
+    const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea).toBeTruthy());
+    textarea.value = 'hello';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const sendButton = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
+    await vi.waitFor(() => expect(sendButton.disabled).toBe(false));
+    sendButton.click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    const [messages] = mockBridge.llm.llmStream.mock.calls.at(-1) as [{ content: string }[]];
+    // Selections are assignments, not failure inferences — reconciliation never vetoes them.
+    expect(messages[0].content).toContain('犬');
   });
 
   it('uses a single chat shell with header overflow controls', async () => {

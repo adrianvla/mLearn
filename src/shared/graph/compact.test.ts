@@ -56,9 +56,11 @@ describe('CompactLingualGraph', () => {
     const compact = decodeCompact(encoded);
     const h0 = surfaceEntityId('ja', 'h-0');
     const h1 = surfaceEntityId('ja', 'h-1');
-    // Appended last: every pre-existing relation keeps its wire id, contrasts-with takes the next free slot.
-    expect(COMPACT_RELATION_TYPES.at(-1)).toBe('contrasts-with');
-    const contrastsWithId = COMPACT_RELATION_TYPES.length - 1;
+    // Appended last: every pre-existing relation keeps its wire id;
+    // contrasts-with keeps slot 15, has-pos takes the next free slot.
+    expect(COMPACT_RELATION_TYPES[15]).toBe('contrasts-with');
+    expect(COMPACT_RELATION_TYPES.at(-1)).toBe('has-pos');
+    const contrastsWithId = COMPACT_RELATION_TYPES.indexOf('contrasts-with');
     expect(encoded.relations.typeIds.filter((typeId) => typeId === contrastsWithId)).toHaveLength(2);
     expect(compact.neighborsByCategory(h0, 'support')).toEqual([h1]);
     expect(compact.neighborsByCategory(h1, 'support')).toEqual([h0]);

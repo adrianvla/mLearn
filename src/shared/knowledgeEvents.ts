@@ -172,3 +172,100 @@ export function stripRetractedLog(log: KnowledgeEventLog): KnowledgeEventLog {
       .filter(([, events]) => events.length > 0),
   );
 }
+
+// ─── Retention policy (shared by the desktop journal and mobile shards) ───
+
+/** Evidence older than this is consolidated: old rollups collapse to one per ISO week. */
+export const KNOWLEDGE_EVENTS_ROLLUP_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+/** Upper bound on retained rollups per key; the anchor event is always protected. */
+export const KNOWLEDGE_EVENTS_MAX_ROLLUPS_PER_KEY = 500;
+
+function isoWeekKey(timestamp: number): string {
+  const date = new Date(timestamp);
+  const day = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - day + 3);
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+  const firstDay = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDay + 3);
+  const week = 1 + Math.round((date.getTime() - firstThursday.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  return `${date.getUTCFullYear()}-${week}`;
+}
+
+/**
+ * Consolidate stale bookkeeping without touching epistemic truth: only
+ * `rollup` events older than the retention window collapse, one per ISO week
+ * (latest values, summed encounter deltas). Claims, retractions, ratings, and
+ * statuses are never dropped, so replay stays equivalent.
+ */
+export function consolidateKnowledgeEvents(logEntries: KnowledgeEventLog, now = Date.now()): KnowledgeEventLog {
+  const cutoff = now - KNOWLEDGE_EVENTS_ROLLUP_RETENTION_MS;
+  const result: KnowledgeEventLog = {};
+
+  for (const [key, events] of Object.entries(logEntries)) {
+    const weekly = new Map<string, { latestIndex: number; event: KnowledgeEvent; timesSeenDelta: number }>();
+    for (let index = 1; index < events.length; index++) {
+      const entry = events[index];
+      if (entry.kind !== 'rollup' || entry.t >= cutoff) continue;
+      const week = isoWeekKey(entry.t);
+      const existing = weekly.get(week);
+      if (existing) {
+        existing.timesSeenDelta += entry.timesSeenDelta ?? 0;
+        if (entry.t >= existing.event.t) {
+          existing.latestIndex = index;
+          existing.event = entry;
+        }
+      } else {
+        weekly.set(week, { latestIndex: index, event: entry, timesSeenDelta: entry.timesSeenDelta ?? 0 });
+      }
+    }
+
+    if (weekly.size === 0) {
+      result[key] = [...events];
+      continue;
+    }
+
+    const latestByIndex = new Map<number, KnowledgeEvent>();
+    const consolidatedIndexes = new Set<number>();
+    for (const value of weekly.values()) {
+      latestByIndex.set(value.latestIndex, { ...value.event, timesSeenDelta: value.timesSeenDelta });
+    }
+    for (let index = 1; index < events.length; index++) {
+      const entry = events[index];
+      if (entry.kind === 'rollup' && entry.t < cutoff) consolidatedIndexes.add(index);
+    }
+
+    result[key] = events.flatMap((entry, index) => {
+      if (!consolidatedIndexes.has(index)) return [entry];
+      const consolidated = latestByIndex.get(index);
+      return consolidated ? [consolidated] : [];
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Bound journal growth by removing the oldest removable rollups once a key
+ * exceeds the rollup budget. Index 0 (the anchor) and every non-rollup event
+ * are always retained.
+ */
+export function retainKnowledgeEvents(events: readonly KnowledgeEvent[]): KnowledgeEvent[] {
+  const retained = [...events];
+  const firstEvent = retained[0];
+  const removable = retained
+    .map((event, index) => ({ event, index }))
+    .filter(({ event, index }) => index > 0 && event.kind === 'rollup')
+    .sort((a, b) => a.event.t - b.event.t || a.index - b.index);
+  const rollupCount = retained.filter(({ kind }) => kind === 'rollup').length;
+  const protectedAnchorIsRollup = firstEvent?.kind === 'rollup';
+  const allowedRollups = KNOWLEDGE_EVENTS_MAX_ROLLUPS_PER_KEY + (protectedAnchorIsRollup ? 1 : 0);
+  const removeCount = Math.max(0, rollupCount - allowedRollups);
+  const indicesToRemove = new Set(removable.slice(0, removeCount).map(({ index }) => index));
+  return retained.filter((_, index) => !indicesToRemove.has(index));
+}
+
+export function applyKnowledgeEventRetention(logEntries: KnowledgeEventLog): KnowledgeEventLog {
+  return Object.fromEntries(
+    Object.entries(logEntries).map(([key, events]) => [key, retainKnowledgeEvents(events)]),
+  );
+}

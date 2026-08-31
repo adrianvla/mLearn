@@ -78,6 +78,7 @@ export type GraphRelationType =
   | 'has-sense'
   | 'has-pronunciation'
   | 'has-gender'
+  | 'has-pos'
   | 'has-prosodic-pattern'
   | 'has-character'
   | 'has-reading'
@@ -97,6 +98,7 @@ export const RELATION_CATEGORY: Record<GraphRelationType, RelationCategory> = {
   'has-sense': 'property',
   'has-pronunciation': 'property',
   'has-gender': 'property',
+  'has-pos': 'property',
   'has-prosodic-pattern': 'property',
   'has-character': 'property',
   'has-reading': 'property',

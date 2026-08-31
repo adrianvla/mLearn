@@ -37,6 +37,7 @@ export const COMPACT_RELATION_TYPES = [
   'semantically-related', 'morphologically-related',
   // Appended last so every pre-existing wire id stays order-stable; never reorder.
   'contrasts-with',
+  'has-pos',
 ] as const satisfies readonly GraphRelationType[];
 const COMPACT_DOMAINS = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
 const KIND_IDS = new Map(COMPACT_ENTITY_KINDS.map((kind, id) => [kind, id]));

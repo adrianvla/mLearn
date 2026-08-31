@@ -50,6 +50,7 @@ import type {
   VoiceModelStatus,
   VoiceSample,
 } from '../types';
+import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, type KnowledgeEventLog } from '../knowledgeEvents';
 import type { AppUpdateState } from '../appUpdate';
 import type { IntegrateThreadResult, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
@@ -1576,12 +1577,126 @@ const mediaStatsBridge: MediaStatsBridge = {
   },
 };
 
+/**
+ * Tier-2 knowledge event journal, persisted on-device. One Preferences shard
+ * per language (`mlearn-knowledge-events:<language>`); event keys are
+ * `<language>:<hash>`, so shard routing is the key prefix. Mirrors the
+ * desktop journal contract (append → query → change notification) and shares
+ * its retention policy (consolidateKnowledgeEvents + retain) — evidence is
+ * consolidated, never silently dropped.
+ */
+const KNOWLEDGE_EVENTS_PREFIX = 'mlearn-knowledge-events';
+const knowledgeEventsChangeListeners = new Set<() => void>();
+const knowledgeEventWriteQueues = new Map<string, Promise<void>>();
+
+function knowledgeEventsStorageKey(language: string): string {
+  return `${KNOWLEDGE_EVENTS_PREFIX}:${language}`;
+}
+
+function languageOfEventKey(key: string): string {
+  const separator = key.indexOf(':');
+  return separator === -1 ? key : key.slice(0, separator);
+}
+async function loadKnowledgeEventsForLanguage(language: string): Promise<KnowledgeEventLog> {
+  const raw = await storageGet(knowledgeEventsStorageKey(language));
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as KnowledgeEventLog;
+  } catch (e) {
+    log.error('[CapacitorBridge] Failed to parse knowledge events shard, starting empty:', language, e);
+    return {};
+  }
+}
+
+/**
+ * Serialize the whole read-modify-write transaction per shard: concurrent
+ * appends for one language queue behind each other, so a stale load can
+ * never overwrite a just-written shard.
+ */
+async function updateKnowledgeEventsForLanguage(
+  language: string,
+  update: (eventLog: KnowledgeEventLog) => KnowledgeEventLog,
+): Promise<void> {
+  const previous = knowledgeEventWriteQueues.get(language) ?? Promise.resolve();
+  const task = previous.then(async () => {
+    const updated = update(await loadKnowledgeEventsForLanguage(language));
+    await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(updated));
+  });
+  knowledgeEventWriteQueues.set(language, task.catch(() => {}));
+  await task;
+}
+
+function notifyKnowledgeEventsChanged(): void {
+  for (const listener of [...knowledgeEventsChangeListeners]) {
+    try {
+      listener();
+    } catch (e) {
+      log.error('[CapacitorBridge] knowledge events change listener failed:', e);
+    }
+  }
+}
+
 const knowledgeEventsBridge: KnowledgeEventsBridge = {
-  appendKnowledgeEvents: async () => false,
-  queryKnowledgeEvents: async () => ({}),
-  queryKnowledgeEventsForLanguage: async () => ({}),
-  getKnowledgeEvents: async () => ({}),
-  onKnowledgeEventsChanged: noopCleanup,
+  async appendKnowledgeEvents(eventsByKey: KnowledgeEventLog) {
+    const incomingByLanguage = new Map<string, KnowledgeEventLog>();
+    let appended = 0;
+    for (const [key, events] of Object.entries(eventsByKey)) {
+      if (!Array.isArray(events) || events.length === 0) continue;
+      const language = languageOfEventKey(key);
+      const shard = incomingByLanguage.get(language) ?? {};
+      shard[key] = [...(shard[key] ?? []), ...events];
+      incomingByLanguage.set(language, shard);
+      appended += events.length;
+    }
+    if (appended === 0) return false;
+    for (const [language, shard] of incomingByLanguage) {
+      await updateKnowledgeEventsForLanguage(language, (existing) => {
+        for (const [key, events] of Object.entries(shard)) {
+          existing[key] = [...(existing[key] ?? []), ...events];
+        }
+        // Identical policy to the desktop journal: consolidate stale rollups
+        // and retain within the rollup budget — never drop claims/retractions.
+        return applyKnowledgeEventRetention(consolidateKnowledgeEvents(existing));
+      });
+    }
+    notifyKnowledgeEventsChanged();
+    return true;
+  },
+
+  async queryKnowledgeEvents(keys: string[]) {
+    const wantedByLanguage = new Map<string, Set<string>>();
+    for (const key of keys) {
+      const language = languageOfEventKey(key);
+      const wanted = wantedByLanguage.get(language) ?? new Set<string>();
+      wanted.add(key);
+      wantedByLanguage.set(language, wanted);
+    }
+    const result: KnowledgeEventLog = {};
+    for (const [language, wanted] of wantedByLanguage) {
+      const shard = await loadKnowledgeEventsForLanguage(language);
+      for (const key of Object.keys(shard)) {
+        if (wanted.has(key) && shard[key]?.length) result[key] = shard[key];
+      }
+    }
+    return result;
+  },
+
+  async queryKnowledgeEventsForLanguage(language: string) {
+    return loadKnowledgeEventsForLanguage(language);
+  },
+
+  async getKnowledgeEvents(key: string) {
+    const shard = await loadKnowledgeEventsForLanguage(languageOfEventKey(key));
+    const events = shard[key];
+    return events?.length ? { [key]: events } : {};
+  },
+
+  onKnowledgeEventsChanged(callback: () => void) {
+    knowledgeEventsChangeListeners.add(callback);
+    return () => {
+      knowledgeEventsChangeListeners.delete(callback);
+    };
+  },
 };
 
 // ============================================================================
@@ -1913,6 +2028,13 @@ const worldBridge: WorldBridge = {
   },
 };
 
+/**
+ * Explicitly unavailable: mobile has no language-data distribution path
+ * (localization.installLanguageData is unsupported here), so no graph asset
+ * can be installed or loaded on-device. Wiring this requires the mobile
+ * package-download feature first — the UI degrades honestly via
+ * GraphMeta.status 'unavailable'.
+ */
 const graphBridge: GraphBridge = {
   async getGraphMeta() {
     return { entityCount: 0, relationCount: 0, ready: false, status: 'unavailable' };

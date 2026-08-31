@@ -28,7 +28,7 @@ LEGACY_SOURCE_FILES = {"nouns": 10, "verbs": 6, "adjectives": 4, "others": 4}
 FREEDICT_INDEX_URL = "https://freedict.org/freedict-database.json"
 TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 ENTITY_KINDS = {"dictionary-entry", "lexeme", "surface", "sense", "pronunciation", "character", "morpheme", "grammar-pattern"}
-RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-gender", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related"}
+RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-gender", "has-pos", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related"}
 # Mirror of GraphDomain in src/shared/graph/types.ts: the runtime treats a
 # missing `domain` as 'common', and DEFAULT_ENABLED_DOMAINS (['common']) keeps
 # specialized domains out of ordinary learning/prediction.
@@ -227,6 +227,36 @@ def add_grammar_from_metadata(graph: Graph) -> None:
         graph.entity(grammar_entity_id(graph.language, pattern), "grammar-pattern", pattern, construction)
 
 
+# JMdict short POS codes (Jitendex renders them as structured-content spans
+# carrying data.code); anything outside this set is a field/misc tag, not POS.
+JMDICT_POS_CODES = frozenset({
+    "n", "pn", "n-adv", "n-t", "n-suf", "n-pref", "pron", "ctr",
+    "adj-i", "adj-ix", "adj-na", "adj-no", "adj-pref", "adj-t", "adj-f",
+    "adj-kari", "adj-ku", "adj-nari", "adj-shiku", "adj-ts",
+    "v1", "v1-s", "v2a-s", "v2b-s", "v2c-s", "v2d-s", "v2e-s", "v2f-s", "v2g-s",
+    "v2h-s", "v2i-s", "v2j-s", "v2k-s", "v2l-s", "v2m-s", "v2n-s", "v2o-s",
+    "v2p-s", "v2q-s", "v2r-s", "v2t-s", "v2w-s", "v2y-s", "v2z-s",
+    "v4h", "v4r", "v4t",
+    "v5aru", "v5b", "v5g", "v5k", "v5k-s", "v5m", "v5n", "v5r", "v5r-s", "v5s",
+    "v5t", "v5u", "v5u-s", "v5uru", "v5z",
+    "vz", "vi", "vk", "vn", "vr", "vs", "vs-c", "vs-i", "vs-s", "vt",
+    "aux", "aux-v", "aux-adj", "cop", "int", "adv", "adv-to", "conj", "pref", "suf", "exp",
+})
+
+
+def structured_pos_codes(content: object, found: set[str]) -> None:
+    if isinstance(content, dict):
+        data = content.get("data")
+        code = data.get("code") if isinstance(data, dict) else None
+        if isinstance(code, str) and code in JMDICT_POS_CODES:
+            found.add(code)
+        for value in content.values():
+            structured_pos_codes(value, found)
+    elif isinstance(content, list):
+        for value in content:
+            structured_pos_codes(value, found)
+
+
 def build_ja() -> tuple[int, int, int]:
     graph = Graph("ja", {"dictionary": "jitendex-2024.10.07.0", "pitchAccent": "pitch1"})
     add_grammar_from_metadata(graph)
@@ -263,6 +293,11 @@ def build_ja() -> tuple[int, int, int]:
         for pattern in pitch_by_term_reading.get((term, reading), set()):
             prosody = graph.entity(f"ja:prosody:{pattern}", "grammar-pattern", pattern)
             graph.relation(surface, prosody, "has-prosodic-pattern", "kanjium-pitch")
+        pos_codes: set[str] = set()
+        structured_pos_codes(glosses, pos_codes)
+        for code in sorted(pos_codes):
+            pos_entity = graph.entity(f"ja:pos:{code}", "grammar-pattern", code)
+            graph.relation(entry, pos_entity, "has-pos", "jitendex")
         for index, gloss in enumerate(text_content(glosses)[:3], start=1):
             gloss = normalized(gloss)
             if gloss:
@@ -448,12 +483,21 @@ def build_es() -> tuple[int, int, int]:
         entry = graph.entity(dictionary_entry_id("es", {"headword": headword, "pos": record.get("pos"), "data": payload}), "dictionary-entry", headword)
         surface = graph.entity(surface_id("es", headword), "surface", headword)
         graph.relation(surface, entry, "realizes", "freedict")
+        pos = normalized(record.get("pos")).lower()
+        if pos:
+            pos_entity = graph.entity(f"es:pos:{pos}", "grammar-pattern", pos)
+            graph.relation(entry, pos_entity, "has-pos", "freedict")
         for index, gloss in enumerate(payload.get("glosses", [])[:3], start=1):
             gloss = normalized(gloss)
             if gloss:
                 sense = graph.entity(f"{entry}:sense:{index}", "sense", gloss)
                 graph.relation(entry, sense, "has-sense", "freedict")
     return graph.write()
+
+
+# Wiktionary-style part-of-speech labels used by the kaikki.org payload;
+# CHAR/X and unknown markers are not grammatical POS.
+CU_POS_TAGS = frozenset({"NOUN", "VERB", "ADJ", "ADV", "PRON", "PROPN", "NUM", "ADP", "CCONJ", "DET", "PART", "INTJ"})
 
 
 def build_cu() -> tuple[int, int, int]:
@@ -469,6 +513,10 @@ def build_cu() -> tuple[int, int, int]:
         graph.relation(lemma_surface, entry, "realizes", "kaikki-wiktionary")
         if headword != lemma:
             graph.relation(form_surface, lemma_surface, "inflection-of", "kaikki-wiktionary")
+        pos_tags = [str(tag) for tag in (payload.get("partOfSpeech") or []) if str(tag) in CU_POS_TAGS]
+        for tag in pos_tags[:3]:
+            pos_entity = graph.entity(f"cu:pos:{tag}", "grammar-pattern", tag)
+            graph.relation(entry, pos_entity, "has-pos", "kaikki-wiktionary")
         reading = normalized(payload.get("reading"))
         if reading:
             pronunciation = graph.entity(f"cu:pron:{hashlib.sha256(reading.encode('utf-8')).hexdigest()}", "pronunciation", reading)

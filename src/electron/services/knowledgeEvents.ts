@@ -2,14 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS, KNOWLEDGE_ASPECTS, KNOWLEDGE_SOURCES } from '../../shared/constants';
-import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, retainKnowledgeEvents, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
+export { consolidateKnowledgeEvents, retainKnowledgeEvents };
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.knowledgeEvents');
 const FILE_NAME = 'knowledge-events.json';
-const ROLLUP_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-const MAX_ROLLUPS_PER_KEY = 500;
 const WARN_TOTAL_EVENTS_PER_KEY = 2000;
 const SAVE_DEBOUNCE_MS = 300;
 
@@ -27,16 +26,6 @@ function enqueueWrite(fn: () => Promise<void>): Promise<void> {
   return writeQueue;
 }
 
-function isoWeekKey(timestamp: number): string {
-  const date = new Date(timestamp);
-  const day = (date.getUTCDay() + 6) % 7;
-  date.setUTCDate(date.getUTCDate() - day + 3);
-  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
-  const firstDay = (firstThursday.getUTCDay() + 6) % 7;
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDay + 3);
-  const week = 1 + Math.round((date.getTime() - firstThursday.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  return `${date.getUTCFullYear()}-${week}`;
-}
 
 const VALID_KINDS = new Set(['status', 'review', 'rating', 'rollup', 'claim', 'retraction']);
 const VALID_ASPECTS = new Set<string>([...KNOWLEDGE_ASPECTS, 'grammar']);
@@ -77,73 +66,6 @@ function normalizeLog(value: unknown): KnowledgeEventLog {
   return logEntries;
 }
 
-export function consolidateKnowledgeEvents(logEntries: KnowledgeEventLog, now = Date.now()): KnowledgeEventLog {
-  const cutoff = now - ROLLUP_RETENTION_MS;
-  const result: KnowledgeEventLog = {};
-
-  for (const [key, events] of Object.entries(logEntries)) {
-    const weekly = new Map<string, { latestIndex: number; event: KnowledgeEvent; timesSeenDelta: number }>();
-    for (let index = 1; index < events.length; index++) {
-      const entry = events[index];
-      if (entry.kind !== 'rollup' || entry.t >= cutoff) continue;
-      const week = isoWeekKey(entry.t);
-      const existing = weekly.get(week);
-      if (existing) {
-        existing.timesSeenDelta += entry.timesSeenDelta ?? 0;
-        if (entry.t >= existing.event.t) {
-          existing.latestIndex = index;
-          existing.event = entry;
-        }
-      } else {
-        weekly.set(week, { latestIndex: index, event: entry, timesSeenDelta: entry.timesSeenDelta ?? 0 });
-      }
-    }
-
-    if (weekly.size === 0) {
-      result[key] = [...events];
-      continue;
-    }
-
-    const latestByIndex = new Map<number, KnowledgeEvent>();
-    const consolidatedIndexes = new Set<number>();
-    for (const value of weekly.values()) {
-      latestByIndex.set(value.latestIndex, { ...value.event, timesSeenDelta: value.timesSeenDelta });
-    }
-    for (let index = 1; index < events.length; index++) {
-      const entry = events[index];
-      if (entry.kind === 'rollup' && entry.t < cutoff) consolidatedIndexes.add(index);
-    }
-
-    result[key] = events.flatMap((entry, index) => {
-      if (!consolidatedIndexes.has(index)) return [entry];
-      const consolidated = latestByIndex.get(index);
-      return consolidated ? [consolidated] : [];
-    });
-  }
-
-  return result;
-}
-
-export function retainKnowledgeEvents(events: readonly KnowledgeEvent[]): KnowledgeEvent[] {
-  const retained = [...events];
-  const firstEvent = retained[0];
-  const removable = retained
-    .map((event, index) => ({ event, index }))
-    .filter(({ event, index }) => index > 0 && event.kind === 'rollup')
-    .sort((a, b) => a.event.t - b.event.t || a.index - b.index);
-  const rollupCount = retained.filter(({ kind }) => kind === 'rollup').length;
-  const protectedAnchorIsRollup = firstEvent?.kind === 'rollup';
-  const allowedRollups = MAX_ROLLUPS_PER_KEY + (protectedAnchorIsRollup ? 1 : 0);
-  const removeCount = Math.max(0, rollupCount - allowedRollups);
-  const indicesToRemove = new Set(removable.slice(0, removeCount).map(({ index }) => index));
-  return retained.filter((_, index) => !indicesToRemove.has(index));
-}
-
-function applyRetention(logEntries: KnowledgeEventLog): KnowledgeEventLog {
-  return Object.fromEntries(
-    Object.entries(logEntries).map(([key, events]) => [key, retainKnowledgeEvents(events)]),
-  );
-}
 
 function scheduleSave(): void {
   if (saveTimer) clearTimeout(saveTimer);
@@ -163,7 +85,7 @@ export function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog
     try {
       const filePath = getKnowledgeEventsPath();
       const loaded = normalizeLog(JSON.parse(await fs.promises.readFile(filePath, 'utf-8')) as unknown);
-      const consolidated = applyRetention(consolidateKnowledgeEvents(loaded, now));
+      const consolidated = applyKnowledgeEventRetention(consolidateKnowledgeEvents(loaded, now));
       eventLog = consolidated;
       if (JSON.stringify(loaded) !== JSON.stringify(consolidated)) await saveKnowledgeEvents();
     } catch (error) {
@@ -179,7 +101,7 @@ export function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog
 }
 
 export async function saveKnowledgeEvents(): Promise<void> {
-  eventLog = applyRetention(eventLog);
+  eventLog = applyKnowledgeEventRetention(eventLog);
   for (const [key, events] of Object.entries(eventLog)) {
     if (events.length > WARN_TOTAL_EVENTS_PER_KEY) {
       log.warn(`[knowledgeEvents] ${key} has ${events.length} events; retaining all protected history`);

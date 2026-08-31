@@ -5,6 +5,7 @@ import { relationsOf, type LingualGraph } from '../../shared/graph/load';
 import { learnableTargetsFor } from '../../shared/graph/targets';
 import { predictTargetAccessibility } from '../../shared/prediction/supportPredictor';
 import { easeToStatus } from '../../shared/utils/knowledgeStrength';
+import { DEFAULT_ENABLED_DOMAINS, type GraphDomain, type GraphEntity } from '../../shared/graph/types';
 import type { RetentionPolicy } from '../../shared/srs/retentionScheduler';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 
@@ -29,22 +30,33 @@ function classificationOf(state: TargetState): { classification: KnowledgeProjec
   }
 }
 
+/**
+ * Builds the canonical per-surface learning projection. Specialized domains
+ * (names etc.) stay out of ordinary learning/prediction: a domain-excluded
+ * surface yields zero learnable targets, and domain-excluded entries/senses
+ * reached through a shared homograph surface never generate targets either.
+ * Explicit inspection surfaces (lookup/neighborhood) stay unfiltered.
+ */
 export function buildKnowledgeProjection(
   graph: LingualGraph,
   surfaceId: string,
   events: readonly KnowledgeEvent[],
   policy: RetentionPolicy,
   now = Date.now(),
+  enabledDomains: readonly GraphDomain[] = DEFAULT_ENABLED_DOMAINS,
 ): KnowledgeProjection {
+  const domainEnabled = (entity: GraphEntity | undefined): entity is GraphEntity =>
+    entity !== undefined && (!entity.domain || enabledDomains.includes(entity.domain));
   const surface = graph.nodes.get(surfaceId);
-  if (!surface) return { status: 'ready', surfaceId, targets: [] };
+  if (!domainEnabled(surface)) return { status: 'ready', surfaceId, targets: [] };
   const entries = relationsOf(graph, surfaceId).filter((relation) => relation.type === 'realizes')
     .map((relation) => relation.from === surfaceId ? relation.to : relation.from);
   const entities = [surface, ...entries.flatMap((entryId) => relationsOf(graph, entryId)
     .filter((relation) => relation.type === 'has-sense')
     .map((relation) => relation.from === entryId ? relation.to : relation.from)
     .map((id) => graph.nodes.get(id))
-    .filter((entity): entity is NonNullable<typeof entity> => entity !== undefined))];
+    .filter((entity): entity is NonNullable<typeof entity> => entity !== undefined))]
+    .filter(domainEnabled);
   const targets = learnableTargetsFor(graph, entities);
   const groups = new Map<string, KnowledgeProjectionTarget>();
 

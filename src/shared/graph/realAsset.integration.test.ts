@@ -73,6 +73,15 @@ describe.skipIf(!hasAsset('ja'))('real ja graph asset — representative items (
       expect(surfacesByLabel(graph, label).length).toBeGreaterThan(0);
     }
   });
+  it('食べる realizes an entry carrying part-of-speech property data', async () => {
+    const graph = await loadReal('ja');
+    const taberu = surfacesByLabel(graph, '食べる');
+    expect(taberu.length).toBeGreaterThan(0);
+    const entryIds = relationsOf(graph, taberu[0].id).filter((relation) => relation.type === 'realizes')
+      .map((relation) => relation.from === taberu[0].id ? relation.to : relation.from);
+    const entryRelationTypes = new Set(entryIds.flatMap((id) => relationsOf(graph, id).map((relation) => relation.type)));
+    expect(entryRelationTypes.has('has-pos')).toBe(true);
+  });
 });
 
 describe.skipIf(!hasAsset('de'))('real de graph asset', () => {
@@ -96,5 +105,21 @@ describe.skipIf(!hasAsset('zh'))('real zh graph asset', () => {
     const graph = await loadReal('zh');
     const prosody = [...graph.asset.relations].filter((r) => r.type === 'has-prosodic-pattern');
     expect(prosody.length).toBeGreaterThan(0);
+  });
+});
+
+describe.skipIf(!hasAsset('es'))('real es graph asset', () => {
+  it('Spanish entries carry part-of-speech property relations', async () => {
+    const graph = await loadReal('es');
+    const pos = [...graph.asset.relations].filter((relation) => relation.type === 'has-pos');
+    expect(pos.length).toBeGreaterThan(0);
+  });
+});
+
+describe.skipIf(!hasAsset('cu'))('real cu graph asset', () => {
+  it('Church Slavonic emits inflection identity and part-of-speech data', async () => {
+    const graph = await loadReal('cu');
+    expect([...graph.asset.relations].some((relation) => relation.type === 'inflection-of')).toBe(true);
+    expect([...graph.asset.relations].some((relation) => relation.type === 'has-pos')).toBe(true);
   });
 });

@@ -1851,3 +1851,116 @@ describe('Backend URL helpers', () => {
     expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('7753'), expect.any(Object));
   });
 });
+
+describe('knowledgeEvents bridge (Capacitor journal)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  const event = (t: number) => ({ t, kind: 'rating', source: 'srs', aspect: 'meaning', rating: 'good' }) as never;
+
+  it('appends events, persists them, and round-trips through get/query', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const appended = await bridge.knowledgeEvents.appendKnowledgeEvents({
+      'ja:abc': [event(1), event(2)],
+    });
+    expect(appended).toBe(true);
+
+    expect(await bridge.knowledgeEvents.getKnowledgeEvents('ja:abc')).toEqual({
+      'ja:abc': [event(1), event(2)],
+    });
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['ja:abc', 'ja:missing'])).toEqual({
+      'ja:abc': [event(1), event(2)],
+    });
+    // A second append merges instead of replacing.
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:abc': [event(3)] });
+    expect(await bridge.knowledgeEvents.getKnowledgeEvents('ja:abc')).toEqual({
+      'ja:abc': [event(1), event(2), event(3)],
+    });
+  });
+
+  it('routes shards by key prefix and isolates languages', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    await bridge.knowledgeEvents.appendKnowledgeEvents({
+      'ja:one': [event(1)],
+      'de:two': [event(2)],
+    });
+
+    expect(await bridge.knowledgeEvents.getKnowledgeEvents('de:two')).toEqual({ 'de:two': [event(2)] });
+    const deShard = await bridge.knowledgeEvents.queryKnowledgeEventsForLanguage('de');
+    expect(Object.keys(deShard)).toEqual(['de:two']);
+  });
+
+  it('returns false without persisting or notifying for an empty log', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const changed = vi.fn();
+    const off = bridge.knowledgeEvents.onKnowledgeEventsChanged(changed);
+    expect(await bridge.knowledgeEvents.appendKnowledgeEvents({})).toBe(false);
+    expect(await bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:empty': [] })).toBe(false);
+    expect(changed).not.toHaveBeenCalled();
+    off();
+  });
+
+  it('notifies change listeners on append and honors unsubscribe', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const changed = vi.fn();
+    const off = bridge.knowledgeEvents.onKnowledgeEventsChanged(changed);
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:abc': [event(1)] });
+    expect(changed).toHaveBeenCalledTimes(1);
+    off();
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:abc': [event(2)] });
+    expect(changed).toHaveBeenCalledTimes(1);
+  });
+
+  it('consolidates stale rollups per ISO week without dropping epistemic events', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const base = now - 95 * day; // well past the 90-day retention window
+    const oldRollup = (t: number) => ({ t, kind: 'rollup', source: 'srs', aspect: 'meaning', timesSeenDelta: 1 }) as never;
+    await bridge.knowledgeEvents.appendKnowledgeEvents({
+      'ja:hist': [
+        event(now - 10 * day),
+        oldRollup(base),
+        oldRollup(base + 2 * 60 * 60 * 1000), // same ISO week as base → collapses into it
+        oldRollup(base + 8 * day),            // guaranteed different ISO week → retained
+        { t: base, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' } as never,
+      ],
+    });
+    const stored = await bridge.knowledgeEvents.getKnowledgeEvents('ja:hist');
+    const events = stored['ja:hist']!;
+    const rollups = events.filter((e) => e.kind === 'rollup');
+    // Two stale rollups in one ISO week collapse to the later one; the third week is kept.
+    expect(rollups).toHaveLength(2);
+    // Claims survive regardless of age — retention never touches epistemic events.
+    expect(events.filter((e) => e.kind === 'claim')).toHaveLength(1);
+    // The anchor event is always retained.
+    expect(events[0].kind).toBe('rating');
+  });
+
+  it('keeps unconsolidated history intact when nothing is stale', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const recent = Array.from({ length: 2100 }, (_, t) => event(t));
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:recent': recent });
+    const stored = await bridge.knowledgeEvents.getKnowledgeEvents('ja:recent');
+    expect(stored['ja:recent']).toHaveLength(2100);
+  });
+
+  it('serializes concurrent appends so neither loses events', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    await Promise.all([
+      bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:race': [event(1)] }),
+      bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:race': [event(2)] }),
+    ]);
+    const stored = await bridge.knowledgeEvents.getKnowledgeEvents('ja:race');
+    expect(stored['ja:race']).toHaveLength(2);
+  });
+});
