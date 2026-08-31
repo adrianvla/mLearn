@@ -1,7 +1,8 @@
 /**
  * Capacitor Bridge Implementation
  *
- * Implements PlatformBridge for mobile (Capacitor) and web (tethered) platforms.
+ * Implements PlatformBridge for the Capacitor/mobile platform, plus the
+ * 'web' platform fallback (Vite dev server only — no web frontend ships).
  * Uses @capacitor/preferences for storage, HTTP for backend communication,
  * and Web APIs for speech. Methods not applicable on mobile return no-ops.
  */
