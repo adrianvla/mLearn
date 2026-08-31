@@ -39,5 +39,24 @@
   ],
   "mlx-stt": [
     "sentencepiece==0.2.1"
+  ],
+  "qwen3-tts-torch": [
+    "qwen-tts==0.1.1",
+    "accelerate==1.14.0",
+    "librosa==1.0.0",
+    "transformers==5.12.1",
+    "tokenizers==0.22.1",
+    "huggingface-hub==1.21.0"
+  ],
+  "voice-windows": [
+    "torch==2.10.0+cu128",
+    "torchaudio==2.10.0+cu128",
+    "faster_whisper==1.2.1",
+    "kokoro==0.9.4",
+    "soundfile==0.13.1",
+    "silero-vad",
+    "onnxruntime==1.24.2",
+    "nvidia-cudnn-cu12==9.25.1.1",
+    "nvidia-cublas-cu12==12.8.5.5"
   ]
 }
