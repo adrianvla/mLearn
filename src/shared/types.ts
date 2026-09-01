@@ -2335,6 +2335,8 @@ export interface PipRequirementsConfig {
   llm: string[];
   /** CUDA (torch) LLM packages for Windows; replaces `llm` on win32 installs. */
   'llm-windows'?: string[];
+  /** LLM packages for Linux; transformers pinned to the qwen-tts-compatible line. */
+  'llm-linux'?: string[];
   voice?: string[];
   'voice-windows'?: string[];
   /** Qwen3 TTS engine backed by MLX (Apple Silicon only). */

@@ -17,22 +17,25 @@ from routes import voice
 
 
 def _install_fake_qwen_tts(monkeypatch):
-    """Install a fake qwen_tts module; returns the Qwen3TTSModel class."""
+    """Install a fake qwen_tts module mirroring the real qwen-tts==0.1.1 API.
+
+    Real API (wheel source): Qwen3TTSModel.from_pretrained(repo, **kwargs)
+    forwards kwargs to AutoModel.from_pretrained (device_map=, dtype=) and the
+    wrapper has NO .to() — so the fake deliberately omits it to catch drift.
+    """
     created = []
 
     class FakeQwen3TTSModel:
         def __init__(self):
-            self.device = None
+            self.from_pretrained_kwargs = None
             created.append(self)
 
         @classmethod
-        def from_pretrained(cls, model_id):
+        def from_pretrained(cls, model_id, **kwargs):
             assert model_id == "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
-            return cls()
-
-        def to(self, device):
-            self.device = device
-            return self
+            instance = cls()
+            instance.from_pretrained_kwargs = dict(kwargs)
+            return instance
 
     FakeQwen3TTSModel.created = created
     module = types.ModuleType("qwen_tts")
@@ -68,7 +71,12 @@ def _fake_torch(monkeypatch, *, cuda=False, mps=False):
     class FakeBackends:
         mps = FakeMps()
 
-    fake = types.SimpleNamespace(cuda=FakeCuda(), backends=FakeBackends)
+    fake = types.SimpleNamespace(
+        cuda=FakeCuda(),
+        backends=FakeBackends(),
+        bfloat16="bf16-sentinel",
+        float32="f32-sentinel",
+    )
     monkeypatch.setattr(voice.config, "torch", fake)
     return fake
 
@@ -92,6 +100,53 @@ def _qwen3_japanese_runtime(monkeypatch):
         "_tts_runtime",
         lambda language: {"qwen3LanguageName": "Japanese"} if language == "ja" else {},
     )
+
+
+class FakeCloneModel:
+    """Fake mirroring the real qwen-tts==0.1.1 generation surface.
+
+    Real API: create_voice_clone_prompt(ref_audio, ref_text) ->
+    List[VoiceClonePromptItem]; generate_voice_clone(text, language=None,
+    ref_audio=None, ref_text=None, x_vector_only_mode=False,
+    voice_clone_prompt=None, non_streaming_mode=False, **kwargs) ->
+    Tuple[List[np.ndarray], int]. There is no `speed` and no bare generate().
+    """
+
+    sample_rate = 24000
+
+    def __init__(self):
+        self.prompt_calls = []
+        self.clone_calls = []
+
+    def create_voice_clone_prompt(self, ref_audio, ref_text=None, x_vector_only_mode=False):
+        self.prompt_calls.append({"ref_audio": ref_audio, "ref_text": ref_text})
+        return [{"ref_audio": ref_audio, "ref_text": ref_text}]
+
+    def generate_voice_clone(
+        self,
+        text,
+        language=None,
+        ref_audio=None,
+        ref_text=None,
+        x_vector_only_mode=False,
+        voice_clone_prompt=None,
+        non_streaming_mode=False,
+        **kwargs,
+    ):
+        self.clone_calls.append(
+            {
+                "text": text,
+                "language": language,
+                "voice_clone_prompt": voice_clone_prompt,
+                "non_streaming_mode": non_streaming_mode,
+                **kwargs,
+            }
+        )
+        texts = text if isinstance(text, list) else [text]
+        wavs = [
+            np.full(4, float(i + 1), dtype=np.float32) for i in range(len(texts))
+        ]
+        return wavs, self.sample_rate
 
 
 # ── Engine resolution chain ──
@@ -169,7 +224,7 @@ def test_resolve_tts_engine_cloud_provider_maps_to_qwen3_torch_on_non_apple(monk
 # ── Loader ──
 
 
-def test_qwen3_torch_loader_uses_cuda_when_available(monkeypatch):
+def test_qwen3_torch_loader_passes_device_and_dtype_to_from_pretrained(monkeypatch):
     FakeModel = _install_fake_qwen_tts(monkeypatch)
     _fake_torch(monkeypatch, cuda=True)
     monkeypatch.setitem(sys.modules, "sox", types.ModuleType("sox"))
@@ -181,13 +236,14 @@ def test_qwen3_torch_loader_uses_cuda_when_available(monkeypatch):
     model = voice._ensure_qwen3_torch_loaded()
 
     assert isinstance(model, FakeModel)
-    assert model.device == "cuda"
+    # Real API: placement happens in from_pretrained kwargs, there is no .to().
+    assert model.from_pretrained_kwargs == {"device_map": "cuda", "dtype": "bf16-sentinel"}
     assert voice._qwen3_torch_model is model
     assert voice._qwen3_torch_model_loading is False
 
 
-def test_qwen3_torch_loader_falls_back_to_cpu(monkeypatch):
-    FakeModel = _install_fake_qwen_tts(monkeypatch)
+def test_qwen3_torch_loader_falls_back_to_cpu_fp32(monkeypatch):
+    _install_fake_qwen_tts(monkeypatch)
     _fake_torch(monkeypatch, cuda=False)
     monkeypatch.setitem(sys.modules, "sox", types.ModuleType("sox"))
     monkeypatch.setattr(voice, "_qwen3_torch_download_info", lambda: (0, None))
@@ -197,12 +253,11 @@ def test_qwen3_torch_loader_falls_back_to_cpu(monkeypatch):
 
     model = voice._ensure_qwen3_torch_loaded()
 
-    assert model.device == "cpu"
+    assert model.from_pretrained_kwargs == {"device_map": "cpu", "dtype": "f32-sentinel"}
 
 
 def test_qwen3_torch_loader_is_cached(monkeypatch):
     _install_fake_qwen_tts(monkeypatch)
-    _fake_torch(monkeypatch, cuda=False)
     sentinel = object()
     monkeypatch.setattr(voice, "_qwen3_torch_model", sentinel)
 
@@ -218,98 +273,81 @@ def test_qwen3_torch_voice_prompt_cache_is_keyed_by_path_and_mtime(tmp_path):
     audio_path.write_bytes(b"RIFF")
     voice._qwen3_torch_voice_prompts.clear()
 
-    calls = []
-
-    class FakeModel:
-        def create_voice_clone_prompt(self, ref_audio, ref_text):
-            calls.append((ref_audio, ref_text))
-            return {"prompt": len(calls)}
-
-    model = FakeModel()
+    model = FakeCloneModel()
 
     first = voice._qwen3_torch_voice_prompt(model, str(audio_path))
     second = voice._qwen3_torch_voice_prompt(model, str(audio_path))
 
+    # Real API returns List[VoiceClonePromptItem]; the cache stores it as-is.
     assert first == second
-    assert calls == [(str(audio_path), "reference transcript")]
+    assert isinstance(first, list)
+    assert model.prompt_calls == [
+        {"ref_audio": str(audio_path), "ref_text": "reference transcript"}
+    ]
 
     future = time.time() + 30
     os.utime(audio_path, (future, future))
 
     third = voice._qwen3_torch_voice_prompt(model, str(audio_path))
+    assert third is not first  # distinct cache entry (equal payload, new key)
+    assert len(model.prompt_calls) == 2
+    assert len(voice._qwen3_torch_voice_prompts) == 2
 
-    assert third != first
-    assert len(calls) == 2
-    assert voice._qwen3_torch_voice_prompts
 
+def test_qwen3_torch_voice_sample_is_required(tmp_path, monkeypatch):
+    monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
+    req = voice.TTSRequest(text="Hello.", language="ja", provider="qwen3")
+    try:
+        voice._qwen3_torch_voice_sample(req)
+    except RuntimeError as exc:
+        assert "Qwen3-TTS voice cloning requires a voice sample" in str(exc)
+    else:
+        raise AssertionError("expected missing voice sample to fail")
 
-def test_qwen3_torch_voice_prompt_is_none_without_sample():
-    voice._qwen3_torch_voice_prompts.clear()
+    audio_path = tmp_path / "sample.wav"
+    audio_path.write_bytes(b"RIFF")
+    req_with_sample = voice.TTSRequest(
+        text="Hello.",
+        language="ja",
+        provider="qwen3",
+        voiceSamplePath=str(audio_path),
+    )
 
-    assert voice._qwen3_torch_voice_prompt(object(), None) is None
+    assert voice._qwen3_torch_voice_sample(req_with_sample) == str(audio_path)
 
 
 # ── Full WAV generation ──
 
 
-def test_qwen3_torch_full_wav_uses_plain_generate_without_voice_sample(monkeypatch):
-    _fake_torch(monkeypatch, cuda=False)
-    _install_fake_soundfile(monkeypatch)
-    _qwen3_japanese_runtime(monkeypatch)
-
-    generated = []
-
-    class FakeModel:
-        def generate(self, text, speed):
-            generated.append((text, speed))
-            return np.array([[0.1, -0.2, 0.3]], dtype=np.float32)
-
-        def generate_voice_clone(self, **_kwargs):
-            raise AssertionError("voice clone must not run without a voice sample")
-
-    monkeypatch.setattr(voice, "_ensure_qwen3_torch_loaded", lambda: FakeModel())
-    req = voice.TTSRequest(text="Hello.", language="ja", provider="qwen3")
-
-    response = asyncio.run(voice._generate_tts_qwen3_torch(req, "ja"))
-
-    assert generated == [("<|Japanese|>Hello.", 1.0)]
-    assert response.body == b"RIFF-fake"
-    assert response.media_type == "audio/wav"
-    assert response.headers["x-sample-rate"] == "24000"
-    assert json.loads(response.headers["x-sentence-boundaries"]) == [
-        {"index": 0, "text": "Hello.", "sampleOffset": 0, "sampleCount": 3}
-    ]
-
-
-def test_qwen3_torch_full_wav_clones_voice_and_unwraps_sample_rate(tmp_path, monkeypatch):
+def test_qwen3_torch_full_wav_uses_real_generate_voice_clone_contract(
+    tmp_path, monkeypatch
+):
     audio_path = tmp_path / "sample.wav"
     (tmp_path / "sample.txt").write_text("exact reference transcript", encoding="utf-8")
     audio_path.write_bytes(b"RIFF")
     monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
-    _fake_torch(monkeypatch, cuda=False)
     _install_fake_soundfile(monkeypatch)
     _qwen3_japanese_runtime(monkeypatch)
     voice._qwen3_torch_voice_prompts.clear()
 
-    class FakeModel:
-        def __init__(self):
-            self.clone_kwargs = None
+    model = FakeCloneModel()
+    # Two wavs from one batched call must be concatenated into one WAV.
+    model.sample_rate = 32000
 
-        def create_voice_clone_prompt(self, ref_audio, ref_text):
-            return {"ref_audio": ref_audio, "ref_text": ref_text}
-
-        def generate_voice_clone(self, text, voice_clone_prompt, speed):
-            self.clone_kwargs = {
+    def _two_wav_generate(text, language=None, voice_clone_prompt=None,
+                          non_streaming_mode=False, **kwargs):
+        model.clone_calls.append(
+            {
                 "text": text,
+                "language": language,
                 "voice_clone_prompt": voice_clone_prompt,
-                "speed": speed,
+                "non_streaming_mode": non_streaming_mode,
+                **kwargs,
             }
-            return (np.array([0.5, -0.5, 0.25, -0.25]), 32000)
+        )
+        return [np.full(4, 1.0, dtype=np.float32), np.full(4, 2.0, dtype=np.float32)], 32000
 
-        def generate(self, **_kwargs):
-            raise AssertionError("plain generate must not run when a clone prompt exists")
-
-    model = FakeModel()
+    model.generate_voice_clone = _two_wav_generate
     monkeypatch.setattr(voice, "_ensure_qwen3_torch_loaded", lambda: model)
     req = voice.TTSRequest(
         text="こんにちは。",
@@ -321,44 +359,50 @@ def test_qwen3_torch_full_wav_clones_voice_and_unwraps_sample_rate(tmp_path, mon
 
     response = asyncio.run(voice._generate_tts_qwen3_torch(req, "ja"))
 
-    assert model.clone_kwargs["text"] == "<|Japanese|>こんにちは。"
-    assert model.clone_kwargs["voice_clone_prompt"] == {
-        "ref_audio": str(audio_path),
-        "ref_text": "exact reference transcript",
-    }
-    assert model.clone_kwargs["speed"] == 0.9
+    call = model.clone_calls[0]
+    assert call["text"] == "こんにちは。"  # no <|Lang|> prefix — qwen_tts wraps text itself
+    assert call["language"] == "Japanese"  # language is an argument, not a prefix
+    assert call["voice_clone_prompt"] == [
+        {"ref_audio": str(audio_path), "ref_text": "exact reference transcript"}
+    ]
+    assert call["non_streaming_mode"] is True
+    assert "speed" not in call  # qwen_tts has no speed parameter
+    assert model.prompt_calls == [
+        {"ref_audio": str(audio_path), "ref_text": "exact reference transcript"}
+    ]
+
+    assert response.body == b"RIFF-fake"
+    assert response.media_type == "audio/wav"
     assert response.headers["x-sample-rate"] == "32000"
     assert json.loads(response.headers["x-sentence-boundaries"]) == [
-        {"index": 0, "text": "こんにちは。", "sampleOffset": 0, "sampleCount": 4}
+        {"index": 0, "text": "こんにちは。", "sampleOffset": 0, "sampleCount": 8}
     ]
 
 
-def test_qwen3_torch_full_wav_requires_transcript_for_cloning(tmp_path, monkeypatch):
-    audio_path = tmp_path / "sample.wav"
-    audio_path.write_bytes(b"RIFF")
+def test_qwen3_torch_full_wav_requires_voice_sample(tmp_path, monkeypatch):
     monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
-    _fake_torch(monkeypatch, cuda=False)
-    monkeypatch.setattr(voice, "_ensure_qwen3_torch_loaded", lambda: object())
-    req = voice.TTSRequest(
-        text="Hello.",
-        language="ja",
-        provider="qwen3",
-        voiceSamplePath=str(audio_path),
-    )
+    _qwen3_japanese_runtime(monkeypatch)
+    monkeypatch.setattr(voice, "_ensure_qwen3_torch_loaded", lambda: FakeCloneModel())
+    req = voice.TTSRequest(text="Hello.", language="ja", provider="qwen3")
 
     try:
         asyncio.run(voice._generate_tts_qwen3_torch(req, "ja"))
     except RuntimeError as exc:
-        assert "transcribed voice sample" in str(exc)
+        assert "Qwen3-TTS voice cloning requires a voice sample" in str(exc)
     else:
-        raise AssertionError("expected missing transcript to fail")
+        raise AssertionError("expected missing voice sample to fail")
 
 
-# ── Sentence-level streaming ──
+# ── Chunked generation (WS streaming) ──
 
 
-def test_qwen3_torch_streaming_yields_per_sentence_chunks(monkeypatch):
-    _fake_torch(monkeypatch, cuda=False)
+def test_qwen3_torch_streaming_batches_sentences_and_yields_per_item(
+    tmp_path, monkeypatch
+):
+    audio_path = tmp_path / "sample.wav"
+    (tmp_path / "sample.txt").write_text("reference transcript", encoding="utf-8")
+    audio_path.write_bytes(b"RIFF")
+    monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
     _qwen3_japanese_runtime(monkeypatch)
     monkeypatch.setattr(
         voice.config,
@@ -366,78 +410,136 @@ def test_qwen3_torch_streaming_yields_per_sentence_chunks(monkeypatch):
         lambda language: {"sentenceTerminators": ["。"]} if language == "ja" else {},
     )
 
-    texts = []
-
-    class FakeModel:
-        def generate(self, text, speed):
-            texts.append((text, speed))
-            return np.array([float(len(texts))] * 4, dtype=np.float32)
-
-    monkeypatch.setattr(voice, "_ensure_qwen3_torch_loaded", lambda: FakeModel())
+    model = FakeCloneModel()
+    monkeypatch.setattr(voice, "_ensure_qwen3_torch_loaded", lambda: model)
     req = voice.TTSRequest(
         text="こんにちは。元気ですか。はい。",
         language="ja",
         provider="qwen3",
+        voiceSamplePath=str(audio_path),
         speed=1.2,
     )
 
     chunks = list(voice._iter_qwen3_torch_tts_chunks(req, "ja"))
 
+    call = model.clone_calls[0]
+    # One batched call: text is the sentence list, language passed once.
+    assert call["text"] == ["こんにちは。", "元気ですか。", "はい。"]
+    assert call["language"] == "Japanese"
+    assert call["non_streaming_mode"] is True
+    assert "speed" not in call
+    assert all("<|" not in part for part in call["text"])
+
     assert [chunk["chunkIndex"] for chunk in chunks] == [0, 1, 2]
     assert [chunk["isFinal"] for chunk in chunks] == [False, False, True]
     assert all(chunk["sampleRate"] == 24000 for chunk in chunks)
     assert all(chunk["audio"].dtype.name == "float32" for chunk in chunks)
-    assert texts == [
-        ("<|Japanese|>こんにちは。", 1.2),
-        ("<|Japanese|>元気ですか。", 1.2),
-        ("<|Japanese|>はい。", 1.2),
+    assert [chunk["audio"].tolist() for chunk in chunks] == [
+        [1.0, 1.0, 1.0, 1.0],
+        [2.0, 2.0, 2.0, 2.0],
+        [3.0, 3.0, 3.0, 3.0],
     ]
 
 
-def test_qwen3_torch_streaming_uses_clone_prompt_per_sentence(tmp_path, monkeypatch):
-    audio_path = tmp_path / "sample.wav"
-    (tmp_path / "sample.txt").write_text("reference transcript", encoding="utf-8")
-    audio_path.write_bytes(b"RIFF")
+def test_qwen3_torch_streaming_requires_voice_sample(tmp_path, monkeypatch):
     monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
-    _fake_torch(monkeypatch, cuda=False)
     _qwen3_japanese_runtime(monkeypatch)
+    monkeypatch.setattr(voice, "_ensure_qwen3_torch_loaded", lambda: FakeCloneModel())
+    req = voice.TTSRequest(text="Hello.", language="ja", provider="qwen3")
+
+    try:
+        list(voice._iter_qwen3_torch_tts_chunks(req, "ja"))
+    except RuntimeError as exc:
+        assert "Qwen3-TTS voice cloning requires a voice sample" in str(exc)
+    else:
+        raise AssertionError("expected missing voice sample to fail")
+
+
+# ── HTTP/WS endpoint dispatch ──
+
+
+def _torch_tts_app(monkeypatch, *, sample):
+    app = FastAPI()
+    app.include_router(voice.router)
     monkeypatch.setattr(
-        voice.config,
-        "language_text_processing_config_for_language",
-        lambda language: {"sentenceTerminators": ["。"]} if language == "ja" else {},
+        voice, "_resolve_tts_engine", lambda _language, _provider=None: "qwen3-torch"
     )
-    voice._qwen3_torch_voice_prompts.clear()
+    monkeypatch.setattr(voice, "_reload_tts_settings", lambda: None)
+    monkeypatch.setattr(
+        voice,
+        "_validate_voice_sample_path",
+        lambda path: "/validated/sample.wav" if (sample and path) else None,
+    )
+    return app
 
-    class FakeModel:
-        def __init__(self):
-            self.clone_calls = 0
 
-        def create_voice_clone_prompt(self, ref_audio, ref_text):
-            return {"ref_audio": ref_audio}
+def test_tts_generate_with_sample_uses_torch_generator(monkeypatch):
+    app = _torch_tts_app(monkeypatch, sample=True)
+    calls = []
 
-        def generate_voice_clone(self, text, voice_clone_prompt, speed):
-            self.clone_calls += 1
-            return np.zeros(2, dtype=np.float32)
+    async def fake_torch(req, language):
+        calls.append(("torch", language, req.voiceSamplePath))
+        return {"engine": "torch"}
 
-        def generate(self, **_kwargs):
-            raise AssertionError("plain generate must not run when cloning")
+    async def fail_kokoro(_req, _language):
+        raise AssertionError("kokoro must not run when a voice sample exists")
 
-    model = FakeModel()
-    monkeypatch.setattr(voice, "_ensure_qwen3_torch_loaded", lambda: model)
-    req = voice.TTSRequest(
-        text="こんにちは。はい。",
-        language="ja",
-        provider="qwen3",
-        voiceSamplePath=str(audio_path),
+    monkeypatch.setattr(voice, "_generate_tts_qwen3_torch", fake_torch)
+    monkeypatch.setattr(voice, "_generate_tts_kokoro", fail_kokoro)
+
+    response = TestClient(app).post(
+        "/voice/tts",
+        json={
+            "text": "Hello.",
+            "language": "ja",
+            "provider": "qwen3",
+            "voiceSamplePath": "/tmp/sample.wav",
+        },
     )
 
-    chunks = list(voice._iter_qwen3_torch_tts_chunks(req, "ja"))
-
-    assert model.clone_calls == 2
-    assert [chunk["isFinal"] for chunk in chunks] == [False, True]
+    assert response.json() == {"engine": "torch"}
+    assert calls == [("torch", "ja", "/tmp/sample.wav")]
 
 
-# ── WebSocket streaming dispatch ──
+def test_tts_generate_without_sample_falls_back_to_kokoro(monkeypatch):
+    app = _torch_tts_app(monkeypatch, sample=False)
+    monkeypatch.setattr(
+        voice,
+        "_tts_runtime",
+        lambda language: {"kokoroLangCode": "j"} if language == "ja" else {},
+    )
+    calls = []
+
+    async def fake_kokoro(req, language):
+        calls.append(("kokoro", language))
+        return {"engine": "kokoro"}
+
+    async def fail_torch(_req, _language):
+        raise AssertionError("torch generation must not run without a voice sample")
+
+    monkeypatch.setattr(voice, "_generate_tts_kokoro", fake_kokoro)
+    monkeypatch.setattr(voice, "_generate_tts_qwen3_torch", fail_torch)
+
+    response = TestClient(app).post(
+        "/voice/tts",
+        json={"text": "こんにちは。", "language": "ja", "provider": "qwen3"},
+    )
+
+    assert response.json() == {"engine": "kokoro"}
+    assert calls == [("kokoro", "ja")]
+
+
+def test_tts_generate_without_sample_and_without_kokoro_requires_sample(monkeypatch):
+    app = _torch_tts_app(monkeypatch, sample=False)
+    monkeypatch.setattr(voice, "_tts_runtime", lambda _language: {})
+
+    response = TestClient(app).post(
+        "/voice/tts",
+        json={"text": "Hallo.", "language": "de", "provider": "qwen3"},
+    )
+
+    assert response.status_code == 500
+    assert "Qwen3-TTS voice cloning requires a voice sample" in response.json()["detail"]
 
 
 def test_voice_tts_stream_websocket_dispatches_to_torch_generator(monkeypatch):
@@ -446,6 +548,11 @@ def test_voice_tts_stream_websocket_dispatches_to_torch_generator(monkeypatch):
         voice, "_resolve_tts_engine", lambda _language, _provider=None: "qwen3-torch"
     )
     monkeypatch.setattr(voice, "_qwen3_torch_model", object())
+    monkeypatch.setattr(
+        voice,
+        "_validate_voice_sample_path",
+        lambda path: "/validated/sample.wav" if path else None,
+    )
 
     def fake_torch_chunks(_req, _language):
         used.append("torch")
@@ -466,7 +573,14 @@ def test_voice_tts_stream_websocket_dispatches_to_torch_generator(monkeypatch):
     app.include_router(voice.router)
 
     with TestClient(app).websocket_connect("/voice/tts/stream") as websocket:
-        websocket.send_json({"text": "Hello.", "language": "en", "provider": "qwen3"})
+        websocket.send_json(
+            {
+                "text": "Hello.",
+                "language": "en",
+                "provider": "qwen3",
+                "voiceSamplePath": "/tmp/sample.wav",
+            }
+        )
         status = websocket.receive_json()
         audio_meta = websocket.receive_json()
         audio_bytes = websocket.receive_bytes()
@@ -482,6 +596,23 @@ def test_voice_tts_stream_websocket_dispatches_to_torch_generator(monkeypatch):
     assert audio_meta["isFinal"] is True
     assert voice.np.frombuffer(audio_bytes, dtype="<f4").tolist() == [0.25, -0.25]
     assert done == {"type": "done"}
+
+
+def test_voice_tts_stream_websocket_requires_voice_sample_for_torch(monkeypatch):
+    monkeypatch.setattr(
+        voice, "_resolve_tts_engine", lambda _language, _provider=None: "qwen3-torch"
+    )
+    monkeypatch.setattr(voice, "_qwen3_torch_model", object())
+
+    app = FastAPI()
+    app.include_router(voice.router)
+
+    with TestClient(app).websocket_connect("/voice/tts/stream") as websocket:
+        websocket.send_json({"text": "Hello.", "language": "ja", "provider": "qwen3"})
+        message = websocket.receive_json()
+
+    assert message["type"] == "error"
+    assert "Qwen3-TTS voice cloning requires a voice sample" in message["message"]
 
 
 # ── Status endpoints ──

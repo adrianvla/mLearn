@@ -631,11 +631,15 @@ const FALLBACK_PIP_REQUIREMENTS: PipRequirementsConfig = {
   ],
   ocr: [],
   llm: ['torch==2.10.0', 'transformers==5.12.1', 'sentencepiece==0.2.1'],
-  'llm-windows': ['torch==2.10.0+cu128', 'transformers==5.12.1', 'sentencepiece==0.2.1'],
+  'llm-windows': ['torch==2.10.0+cu128', 'transformers==4.57.3', 'sentencepiece==0.2.1'],
+  'llm-linux': ['torch==2.10.0', 'transformers==4.57.3', 'sentencepiece==0.2.1'],
   voice: ['torch==2.10.0', 'torchaudio==2.10.0', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2'],
   'voice-windows': ['torch==2.10.0+cu128', 'torchaudio==2.10.0+cu128', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2', 'nvidia-cudnn-cu12==9.25.1.1', 'nvidia-cublas-cu12==12.8.5.5'],
   'qwen3-tts': ['mlx==0.31.1', 'mlx-metal==0.31.1', 'mlx-lm==0.31.2', 'mlx-audio==0.4.4', 'transformers==5.12.1', 'tokenizers==0.22.1', 'huggingface-hub==1.21.0', 'soundfile==0.13.1'],
-  'qwen3-tts-torch': ['qwen-tts==0.1.1', 'accelerate==1.14.0', 'librosa==1.0.0', 'transformers==5.12.1', 'tokenizers==0.22.1', 'huggingface-hub==1.21.0'],
+  // qwen-tts==0.1.1 requires transformers==4.57.3 / accelerate==1.12.0 exactly
+  // and huggingface-hub>=0.34,<1.0 — no hub pin here, transformers resolves it.
+  // librosa 1.x needs Python >=3.12; the bundled runtime is 3.11.
+  'qwen3-tts-torch': ['qwen-tts==0.1.1', 'transformers==4.57.3', 'accelerate==1.12.0', 'librosa==0.10.2.post1', 'tokenizers==0.22.1'],
   'mlx-stt': ['sentencepiece==0.2.1'],
 };
 
@@ -664,11 +668,14 @@ export interface PipInstallGroup {
 /**
  * Platform component matrix:
  * - darwin-arm64: core + [ocr] + [llm] + [voice + qwen3-tts + mlx-stt]
- * - linux-x64:    core + [ocr] + [llm] + [voice + qwen3-tts-torch]
+ * - linux-x64:    core + [ocr] + [llm-linux] + [voice + qwen3-tts-torch]
  * - win32-x64:    core + [ocr] + [llm-windows + voice-windows + qwen3-tts-torch];
  *                 the CUDA-bearing groups install from the pytorch cu128 index
  * - darwin-x64:   core only — AI groups are stripped, but language "core"
  *                 component (tokenizer) packages still install
+ * llm-windows/llm-linux pin transformers 4.57.3 to stay compatible with the
+ * qwen-tts engine installed by qwen3-tts-torch in the same env; the Apple mlx
+ * stack keeps its own transformers line.
  * The installed language component packages ride as a final optional group so
  * one bad language package cannot block the backend from starting.
  */
@@ -689,6 +696,12 @@ export function buildPipInstallGroups(
       // so GPU selection must not rely on cross-index local-version preference.
       if (config['llm-windows']?.length) {
         groups.push({ name: 'llm-windows', packages: [...config['llm-windows']], extraIndexUrl: CUDA_EXTRA_INDEX_URL });
+      }
+    } else if (platform === 'linux-x64') {
+      // Linux LLM shares the env with qwen3-tts-torch, so transformers stays
+      // on the qwen-tts-compatible 4.57.3 line; PyPI torch is CUDA-capable.
+      if (config['llm-linux']?.length) {
+        groups.push({ name: 'llm-linux', packages: [...config['llm-linux']] });
       }
     } else if (config.llm.length > 0) {
       groups.push({ name: 'llm', packages: [...config.llm] });

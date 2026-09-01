@@ -861,7 +861,15 @@ async def voice_tts_generate(req: TTSRequest):
         if engine == "qwen3":
             return await _generate_tts_qwen3(req, requested_language)
         if engine == "qwen3-torch":
-            return await _generate_tts_qwen3_torch(req, requested_language)
+            if _validate_voice_sample_path(req.voiceSamplePath):
+                return await _generate_tts_qwen3_torch(req, requested_language)
+            # Base checkpoint has no zero-shot voice — mirror the resolver fallback.
+            if _kokoro_lang_code(requested_language):
+                log.warning(
+                    f"qwen3-torch requires a voice sample; falling back to Kokoro for '{requested_language}'"
+                )
+                return await _generate_tts_kokoro(req, requested_language)
+            raise RuntimeError("Qwen3-TTS voice cloning requires a voice sample")
         if engine == "kokoro":
             return await _generate_tts_kokoro(req, requested_language)
         return await _generate_tts_language_adapter(req, engine, requested_language)
@@ -1199,7 +1207,6 @@ _qwen3_torch_voice_prompts: dict[str, object] = {}  # clone prompts keyed by "pa
 
 _QWEN3_TORCH_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
 _QWEN3_TORCH_MODEL_NAME = "Qwen3-TTS-12Hz-1.7B-Torch"
-_QWEN3_TORCH_SAMPLE_RATE = 24000
 
 
 def _install_sox_shim():
@@ -1298,7 +1305,15 @@ def _ensure_qwen3_torch_loaded():
             from qwen_tts import Qwen3TTSModel
 
             device = _get_qwen3_torch_device()
-            _qwen3_torch_model = Qwen3TTSModel.from_pretrained(_QWEN3_TORCH_MODEL_ID).to(device)
+            torch = config.torch
+            _torch = importlib.import_module("torch") if torch is None else torch
+            # qwen_tts has no .to(); placement goes through from_pretrained kwargs
+            # (bf16 on CUDA, fp32 on CPU — bf16 matmuls are unsupported on some CPUs).
+            _qwen3_torch_model = Qwen3TTSModel.from_pretrained(
+                _QWEN3_TORCH_MODEL_ID,
+                device_map=device,
+                dtype=_torch.bfloat16 if device == "cuda" else _torch.float32,
+            )
             stop_monitor.set()
             _set_tts_progress(1.0, model_name=_QWEN3_TORCH_MODEL_NAME)
             _qwen3_torch_model_loading = False
@@ -1327,31 +1342,36 @@ def _qwen3_torch_voice_prompt(model, sample_path: str | None):
     return prompt
 
 
-def _qwen3_torch_generate(model, text: str, voice_prompt, speed: float):
-    """Run one torch Qwen3 generation; returns the raw model output (wav or (wav, sr))."""
-    if voice_prompt is not None:
-        return model.generate_voice_clone(
-            text=text,
-            voice_clone_prompt=voice_prompt,
-            speed=speed,
-        )
-    return model.generate(text=text, speed=speed)
+def _qwen3_torch_voice_sample(req: TTSRequest) -> str:
+    """Require a validated voice sample: the Base checkpoint has no zero-shot voice."""
+    safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
+    if not safe_voice_path:
+        raise RuntimeError("Qwen3-TTS voice cloning requires a voice sample")
+    return safe_voice_path
 
 
-def _qwen3_torch_wav_to_audio(wav) -> tuple[np.ndarray, int]:
-    """Normalize a torch/numpy wav (or (wav, sr) tuple) to a flat float32 array + sample rate."""
-    sample_rate = _QWEN3_TORCH_SAMPLE_RATE
-    if isinstance(wav, (tuple, list)):
-        if len(wav) >= 2:
-            wav, sample_rate = wav[0], int(wav[1])
-        else:
-            wav = wav[0]
-    torch = config.torch
-    _torch = importlib.import_module("torch") if torch is None else torch
-    tensor_cls = getattr(_torch, "Tensor", None)
-    if tensor_cls is not None and isinstance(wav, tensor_cls):
-        wav = wav.detach().cpu().numpy()
-    return np.asarray(wav, dtype=np.float32).reshape(-1), sample_rate
+def _qwen3_torch_generate(model, text, voice_prompt, language_code: str):
+    """Run one qwen_tts voice-clone generation; returns (List[np.ndarray], sample_rate).
+
+    qwen_tts validates `language` case-insensitively against the model's
+    supported languages (codec_language_id keys, e.g. 'Japanese'), so the
+    capitalized metadata name is passed as the language argument — the text is
+    wrapped internally (chat template) and must NOT carry a <|Lang|> prefix.
+    TTSRequest.speed is NOT honored: qwen_tts exposes no speed parameter and
+    unknown kwargs are forwarded into the HF generate() call.
+    """
+    return model.generate_voice_clone(
+        text=text,
+        language=language_code,
+        voice_clone_prompt=voice_prompt,
+        non_streaming_mode=True,
+    )
+
+
+def _qwen3_torch_audio_chunks(wavs, sample_rate: int) -> tuple[list, int]:
+    """Flatten a generate_voice_clone result (List[np.ndarray], sr) to float32 chunks."""
+    chunks = [np.asarray(w, dtype=np.float32).reshape(-1) for w in wavs]
+    return chunks, int(sample_rate)
 
 
 async def _generate_tts_qwen3_torch(req: TTSRequest, language: str):
@@ -1360,24 +1380,25 @@ async def _generate_tts_qwen3_torch(req: TTSRequest, language: str):
     def _run_sync():
         model = _ensure_qwen3_torch_loaded()
         _voice_touch()
-        safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
+        safe_voice_path = _qwen3_torch_voice_sample(req)
         voice_prompt = _qwen3_torch_voice_prompt(model, safe_voice_path)
         lang_code = _qwen3_lang_code(language)
-        wav = _qwen3_torch_generate(model, f"<|{lang_code}|>{req.text}", voice_prompt, req.speed)
-        audio, sr = _qwen3_torch_wav_to_audio(wav)
-        if audio.size == 0:
+        wavs, sr = _qwen3_torch_generate(model, req.text, voice_prompt, lang_code)
+        audio_chunks, sr = _qwen3_torch_audio_chunks(wavs, sr)
+        if not audio_chunks or sum(chunk.size for chunk in audio_chunks) == 0:
             raise HTTPException(status_code=500, detail="No audio generated")
 
+        combined = np.concatenate(audio_chunks)
         import soundfile as sf
 
         buf = io.BytesIO()
-        sf.write(buf, audio, sr, format="WAV", subtype="PCM_16")
+        sf.write(buf, combined, sr, format="WAV", subtype="PCM_16")
         buf.seek(0)
         sentence_boundaries = [{
             "index": 0,
             "text": req.text,
             "sampleOffset": 0,
-            "sampleCount": len(audio),
+            "sampleCount": len(combined),
         }]
         return buf.read(), sentence_boundaries, sr
 
@@ -1395,23 +1416,26 @@ async def _generate_tts_qwen3_torch(req: TTSRequest, language: str):
 
 
 def _iter_qwen3_torch_tts_chunks(req: TTSRequest, language: str):
-    """Sentence-level streaming for the torch engine (qwen_tts has no chunk API).
+    """Chunk streaming for the torch engine.
 
-    Yields the same chunk dicts as the MLX engine: {audio, chunkIndex, sampleRate, isFinal}.
+    qwen_tts returns one wav per input text (batched), so the request text is
+    split into sentences and generated in a single batched call; each returned
+    wav becomes one chunk with the same shape as the MLX engine
+    ({audio, chunkIndex, sampleRate, isFinal}).
     """
     model = _ensure_qwen3_torch_loaded()
     _voice_touch()
-    safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
+    safe_voice_path = _qwen3_torch_voice_sample(req)
     voice_prompt = _qwen3_torch_voice_prompt(model, safe_voice_path)
     lang_code = _qwen3_lang_code(language)
 
     sentences = _split_into_sentences(req.text, language)
     if not sentences:
         sentences = [req.text]
-    last_index = len(sentences) - 1
-    for chunk_index, sentence in enumerate(sentences):
-        wav = _qwen3_torch_generate(model, f"<|{lang_code}|>{sentence}", voice_prompt, req.speed)
-        audio, sample_rate = _qwen3_torch_wav_to_audio(wav)
+    wavs, sample_rate = _qwen3_torch_generate(model, sentences, voice_prompt, lang_code)
+    audio_chunks, sample_rate = _qwen3_torch_audio_chunks(wavs, sample_rate)
+    last_index = len(audio_chunks) - 1
+    for chunk_index, audio in enumerate(audio_chunks):
         yield {
             "audio": audio,
             "chunkIndex": chunk_index,
@@ -1449,6 +1473,13 @@ async def voice_tts_stream_ws(websocket: WebSocket):
             await websocket.send_json({
                 "type": "error",
                 "message": f"Streaming TTS requires qwen3; got '{engine}'",
+            })
+            return
+
+        if engine == "qwen3-torch" and not _validate_voice_sample_path(req.voiceSamplePath):
+            await websocket.send_json({
+                "type": "error",
+                "message": "Qwen3-TTS voice cloning requires a voice sample",
             })
             return
 

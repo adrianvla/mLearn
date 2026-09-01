@@ -431,6 +431,26 @@ describe('pythonBackend', () => {
         'ja-ocr-runtime',
       ]));
     });
+
+    it('keeps transformers pins resolvable for qwen-tts sharing one env on win/linux', () => {
+      const requirements = JSON.parse(mod.readResourceFile('pip_requirements.json')) as Record<string, string[]>;
+
+      // qwen-tts==0.1.1 wheel metadata requires these exact versions.
+      expect(requirements['qwen3-tts-torch']).toEqual(expect.arrayContaining([
+        'qwen-tts==0.1.1',
+        'transformers==4.57.3',
+        'accelerate==1.12.0',
+        // librosa 1.x needs Python >=3.12; the bundled runtime is 3.11.
+        'librosa==0.11.0',
+      ]));
+      // Groups sharing the env with qwen3-tts-torch must use the same line.
+      expect(requirements['llm-linux']).toContain('transformers==4.57.3');
+      expect(requirements['llm-windows']).toContain('transformers==4.57.3');
+      // The Apple mlx stack never co-installs with qwen3-tts-torch.
+      expect(requirements.llm).toContain('transformers==5.12.1');
+      expect(requirements['qwen3-tts']).toContain('transformers==5.12.1');
+    });
+
   });
 
   describe('getPythonProcess', () => {
@@ -1854,6 +1874,7 @@ describe('pythonBackend', () => {
       ocr: ['ocr-pkg'],
       llm: ['llm-pkg'],
       'llm-windows': ['llm-win-pkg'],
+      'llm-linux': ['llm-linux-pkg'],
       voice: ['voice-pkg'],
       'voice-windows': ['voice-win-pkg'],
       'qwen3-tts': ['tts-mlx-pkg'],
@@ -1869,9 +1890,9 @@ describe('pythonBackend', () => {
       ]);
     });
 
-    it('installs voice plus torch TTS on Linux', () => {
+    it('installs llm-linux, voice and torch TTS on Linux', () => {
       expect(mod.buildPipRequirementList(allComponents, syntheticConfig, 'linux-x64')).toEqual([
-        'core-pkg', 'ocr-pkg', 'llm-pkg', 'voice-pkg', 'tts-torch-pkg',
+        'core-pkg', 'ocr-pkg', 'llm-linux-pkg', 'voice-pkg', 'tts-torch-pkg',
       ]);
     });
 
@@ -1898,6 +1919,7 @@ describe('pythonBackend', () => {
       expect(extraIndexByGroup['ocr']).toBeUndefined();
       expect(extraIndexByGroup['llm-windows']).toBe(CUDA_INDEX);
       expect(extraIndexByGroup['llm']).toBeUndefined();
+      expect(extraIndexByGroup['llm-linux']).toBeUndefined();
       expect(extraIndexByGroup['voice-windows']).toBe(CUDA_INDEX);
       expect(extraIndexByGroup['qwen3-tts-torch']).toBe(CUDA_INDEX);
 
@@ -2090,7 +2112,8 @@ describe('pythonBackend', () => {
       }
       // The llm group pins the CUDA wheel explicitly, not via index preference.
       expect(spawns[1]?.args).toContain('torch==2.10.0+cu128');
-      expect(spawns[1]?.args).not.toContain('torch==2.10.0');
+      expect(spawns[1]?.args).toContain('transformers==4.57.3');
+      expect(spawns[1]?.args).not.toContain('transformers==5.12.1');
     });
 
     it('installs the pinned CUDA torch for an llm-only Windows install', async () => {
@@ -2108,6 +2131,30 @@ describe('pythonBackend', () => {
       expect(llmArgs).toContain('--extra-index-url');
       expect(llmArgs).toContain('torch==2.10.0+cu128');
       expect(llmArgs).not.toContain('torch==2.10.0');
+    });
+
+    it('keeps one qwen-tts-compatible transformers line across linux llm and tts groups', async () => {
+      await setupInstaller('linux', 'x64', false);
+      useProcessPlatform('linux', 'x64');
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+      mockGetCurrentWindow.mockReturnValue({ webContents: { send: vi.fn() } });
+      const { spawns } = capturePipSpawns();
+
+      const installPromise = mod.startPythonInstall({ includeLLM: true, includeOCR: false, includeVoice: true });
+      await closeGroupsSequentially(spawns, [0, 0, 0, 0]);
+      await installPromise;
+
+      // core, llm-linux, voice, qwen3-tts-torch (language group empty by default)
+      expect(spawns).toHaveLength(4);
+      const llmAndTtsArgs = spawns.slice(1).flatMap((spawn) => spawn.args)
+        .filter((arg) => arg.startsWith('transformers=='));
+      expect(llmAndTtsArgs).toHaveLength(2);
+      expect(new Set(llmAndTtsArgs)).toEqual(new Set(['transformers==4.57.3']));
+      // No extra index on Linux — PyPI torch is CUDA-capable.
+      for (const spawn of spawns) {
+        expect(spawn.args).not.toContain('--extra-index-url');
+      }
     });
 
 

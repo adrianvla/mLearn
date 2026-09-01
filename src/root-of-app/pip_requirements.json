@@ -20,7 +20,12 @@
   ],
   "llm-windows": [
     "torch==2.10.0+cu128",
-    "transformers==5.12.1",
+    "transformers==4.57.3",
+    "sentencepiece==0.2.1"
+  ],
+  "llm-linux": [
+    "torch==2.10.0",
+    "transformers==4.57.3",
     "sentencepiece==0.2.1"
   ],
   "voice": [
@@ -47,11 +52,10 @@
   ],
   "qwen3-tts-torch": [
     "qwen-tts==0.1.1",
-    "accelerate==1.14.0",
-    "librosa==1.0.0",
-    "transformers==5.12.1",
-    "tokenizers==0.22.1",
-    "huggingface-hub==1.21.0"
+    "transformers==4.57.3",
+    "accelerate==1.12.0",
+    "librosa==0.11.0",
+    "tokenizers==0.22.1"
   ],
   "voice-windows": [
     "torch==2.10.0+cu128",
