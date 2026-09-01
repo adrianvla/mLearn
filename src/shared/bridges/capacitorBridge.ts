@@ -1217,6 +1217,10 @@ const installerBridge: InstallerBridge = {
   onInstallerNetworkError: noopCleanup,
   onInstallerState: noopCleanup,
   onPipProgress: noopCleanup,
+  getComponentsState: noop,
+  uninstallComponents: noop,
+  onComponentsState: noopCleanup,
+  onComponentsUninstalled: noopCleanup,
 };
 
 // ============================================================================

@@ -3254,19 +3254,32 @@
       "Actions": {
         "Install": "インストール",
         "Update": "更新",
-        "RepairRuntime": "ランタイムコンポーネントを修復"
+        "RepairRuntime": "ランタイムコンポーネントを修復",
+        "Removing": "削除中…"
       },
       "Status": {
         "installed": "インストール済み",
         "missing": "未インストール",
         "outdated": "更新あり",
-        "error": "エラー"
+        "error": "エラー",
+        "NotInstalled": "未インストール"
       },
       "LanguageData": {
         "CoreTitle": "{language} の言語パッケージ",
         "CoreDescription": "{language} のコアランタイムデータです。",
         "DictionaryDescription": "{language} の定義を {target} で表示します。",
         "SizeStatus": "{installed} / {total}"
+      },
+      "SizeApprox": "おおよそのサイズ: {size}",
+      "Toast": {
+        "RemovedTitle": "コンポーネントを削除しました",
+        "RemovedMessage": "{removed} 個のパッケージを削除しました。他の有効なコンポーネントで必要な {kept} 個は保持されました。",
+        "AbortedTitle": "削除をスキップしました",
+        "AbortedMessage": "何も削除されていません: {reason}"
+      },
+      "Capability": {
+        "Gpu": "GPU（CUDA）",
+        "Cpu": "CPU"
       }
     },
     "Diagnostics": {

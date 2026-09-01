@@ -31,6 +31,9 @@ import type {
   VoiceSessionError,
   VoiceSample,
   PipProgress,
+  PythonComponentId,
+  PythonComponentInfo,
+  ComponentsUninstallResult,
   SystemMemoryInfo,
   CloudLLMTier,
 } from '../types';
@@ -215,6 +218,10 @@ export interface InstallerBridge {
   onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) => () => void;
   onInstallerState: (callback: (state: InstallerState) => void) => () => void;
   onPipProgress: (callback: (progress: PipProgress) => void) => () => void;
+  getComponentsState: () => void;
+  uninstallComponents: (ids: PythonComponentId[]) => void;
+  onComponentsState: (callback: (components: PythonComponentInfo[]) => void) => () => void;
+  onComponentsUninstalled: (callback: (result: ComponentsUninstallResult) => void) => () => void;
 }
 
 export interface LLMBridge {

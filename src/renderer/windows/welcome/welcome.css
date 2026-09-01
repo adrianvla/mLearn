@@ -83,6 +83,12 @@
   line-height: var(--line-height-relaxed);
 }
 
+.welcome-window__option-size {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
 /* Setup sentence */
 .welcome-window__setup-sentence,
 .welcome-window__dictionary-target {

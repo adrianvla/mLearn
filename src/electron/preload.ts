@@ -6,7 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEventLog } from '../shared/knowledgeEvents';
@@ -278,6 +278,12 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.INSTALLER_STATE, (_event, state) => callback(state)),
   onPipProgress: (callback: (progress: { packageName: string; current: number; total: number; action: string }) => void) =>
     ipcOn(IPC_CHANNELS.PIP_PROGRESS, (_event, progress) => callback(progress)),
+  getComponentsState: () => ipcRenderer.send(IPC_CHANNELS.GET_COMPONENTS_STATE),
+  uninstallComponents: (ids: PythonComponentId[]) => ipcRenderer.send(IPC_CHANNELS.UNINSTALL_COMPONENTS, ids),
+  onComponentsState: (callback: (components: PythonComponentInfo[]) => void) =>
+    ipcOn(IPC_CHANNELS.COMPONENTS_STATE, (_event, components) => callback(components)),
+  onComponentsUninstalled: (callback: (result: ComponentsUninstallResult) => void) =>
+    ipcOn(IPC_CHANNELS.COMPONENTS_UNINSTALLED, (_event, result) => callback(result)),
 
   // ========== UI ==========
   onOpenSettings: (callback: (section?: string) => void) =>

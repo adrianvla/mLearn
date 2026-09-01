@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
+import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from './types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
@@ -144,6 +144,10 @@ sendLogRecord: (record: unknown) => void;
   onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) => () => void;
   onInstallerState: (callback: (state: InstallerState) => void) => () => void;
   onPipProgress: (callback: (progress: PipProgress) => void) => () => void;
+  getComponentsState: () => void;
+  uninstallComponents: (ids: PythonComponentId[]) => void;
+  onComponentsState: (callback: (components: PythonComponentInfo[]) => void) => () => void;
+  onComponentsUninstalled: (callback: (result: ComponentsUninstallResult) => void) => () => void;
   
   // Clipboard & UI
   writeToClipboard: (text: string) => void;

@@ -1960,6 +1960,79 @@ describe('pythonBackend', () => {
       expect(packages).not.toContain('ja-llm-pkg');
       expect(packages).not.toContain('ja-voice-pkg');
     });
+    it('falls back to CPU wheel groups when no NVIDIA GPU is present', () => {
+      const cpuConfig = {
+        ...syntheticConfig,
+        'llm-windows-cpu': ['llm-win-cpu-pkg'],
+        'voice-windows-cpu': ['voice-win-cpu-pkg'],
+        'llm-linux-cpu': ['llm-linux-cpu-pkg'],
+        'voice-linux-cpu': ['voice-linux-cpu-pkg'],
+      };
+      const cpuIndex = 'https://download.pytorch.org/whl/cpu';
+
+      const winGroups = Object.fromEntries(
+        mod.buildPipInstallGroups(allComponents, cpuConfig, 'win32-x64', false).map((group) => [group.name, group]),
+      );
+      expect(winGroups['llm-windows']).toBeUndefined();
+      expect(winGroups['llm-windows-cpu']?.packages).toEqual(['llm-win-cpu-pkg']);
+      expect(winGroups['llm-windows-cpu']?.extraIndexUrl).toBeUndefined();
+      expect(winGroups['voice-windows']).toBeUndefined();
+      expect(winGroups['voice-windows-cpu']?.packages).toEqual(['voice-win-cpu-pkg']);
+      expect(winGroups['qwen3-tts-torch']?.extraIndexUrl).toBeUndefined();
+
+      const linuxGroups = Object.fromEntries(
+        mod.buildPipInstallGroups(allComponents, cpuConfig, 'linux-x64', false).map((group) => [group.name, group]),
+      );
+      expect(linuxGroups['llm-linux']).toBeUndefined();
+      expect(linuxGroups['llm-linux-cpu']?.packages).toEqual(['llm-linux-cpu-pkg']);
+      expect(linuxGroups['llm-linux-cpu']?.extraIndexUrl).toBe(cpuIndex);
+      expect(linuxGroups['voice']).toBeUndefined();
+      expect(linuxGroups['voice-linux-cpu']?.packages).toEqual(['voice-linux-cpu-pkg']);
+      expect(linuxGroups['voice-linux-cpu']?.extraIndexUrl).toBe(cpuIndex);
+
+      // Apple Silicon selection ignores the GPU flag entirely.
+      const macGroups = mod.buildPipInstallGroups(allComponents, cpuConfig, 'darwin-arm64', false);
+      expect(macGroups.map((group) => group.name)).toContain('llm');
+      expect(macGroups.map((group) => group.name)).toContain('qwen3-tts');
+    });
+
+    it('plans removals that keep packages required by remaining components', () => {
+      const removalConfig = {
+        ...syntheticConfig,
+        'voice-windows': ['voice-win-pkg', 'nvidia-cudnn-cu12==9.25.1.1'],
+        'llm-windows': ['llm-win-pkg', 'nvidia-cudnn-cu12==9.25.1.1'],
+      };
+      // Disabling voice on Windows must not claim cudnn — llm-windows keeps it.
+      const plan = mod.computeComponentRemovalPlan(
+        { llm: true, ocr: true, voice: true },
+        ['voice'],
+        removalConfig,
+        'win32-x64',
+        true,
+      );
+      expect(plan).not.toBeNull();
+      expect(plan!.candidates).toEqual(expect.arrayContaining(['voice-win-pkg', 'nvidia-cudnn-cu12', 'tts-torch-pkg']));
+      expect(plan!.roots).toEqual(expect.arrayContaining(['llm-win-pkg', 'nvidia-cudnn-cu12==9.25.1.1', 'core-pkg']));
+      // The Python probe makes the final call; the plan only feeds candidates/roots.
+      expect(plan!.candidates).not.toContain('llm-win-pkg');
+
+      // Nothing to remove when the component is not enabled.
+      expect(mod.computeComponentRemovalPlan(
+        { llm: true, ocr: false, voice: false },
+        ['voice'],
+        removalConfig,
+        'darwin-arm64',
+        false,
+      )).toBeNull();
+    });
+  });
+
+  describe('optional component lifecycle', () => {
+    it('skips removal when the managed Python runtime is absent', async () => {
+      const result = await mod.uninstallComponents(['voice']);
+      expect(result.removed).toEqual([]);
+      expect(result.abortedReason).toBe('Python runtime is not installed');
+    });
   });
 
 
@@ -2045,6 +2118,21 @@ describe('pythonBackend', () => {
         if (args[0] === '-c' || args[0] === '--version') {
           return {
             stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (...handlerArgs: unknown[]) => void) => {
+              if (event === 'close') handler(0);
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        if (cmd === 'nvidia-smi') {
+          // Driver probe: report an NVIDIA GPU so CUDA group selection matches
+          // the pre-CPU-fallback expectations in this suite.
+          return {
+            stdout: { on: vi.fn((event: string, handler: (data: Buffer) => void) => {
+              if (event === 'data') handler(Buffer.from('GPU 0: NVIDIA Test GPU'));
+            }) },
             stderr: { on: vi.fn() },
             on: vi.fn((event: string, handler: (...handlerArgs: unknown[]) => void) => {
               if (event === 'close') handler(0);

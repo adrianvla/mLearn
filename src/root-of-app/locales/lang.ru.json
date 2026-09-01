@@ -3254,19 +3254,32 @@
       "Actions": {
         "Install": "Установить",
         "Update": "Обновить",
-        "RepairRuntime": "Восстановить компоненты среды"
+        "RepairRuntime": "Восстановить компоненты среды",
+        "Removing": "Удаление…"
       },
       "Status": {
         "installed": "Установлено",
         "missing": "Отсутствует",
         "outdated": "Устарело",
-        "error": "Ошибка"
+        "error": "Ошибка",
+        "NotInstalled": "Не установлено"
       },
       "LanguageData": {
         "CoreTitle": "Языковой пакет {language}",
         "CoreDescription": "Основные runtime-данные для {language}.",
         "DictionaryDescription": "Определения для {language} на {target}.",
         "SizeStatus": "{installed} из {total}"
+      },
+      "SizeApprox": "Примерный размер: {size}",
+      "Toast": {
+        "RemovedTitle": "Компоненты удалены",
+        "RemovedMessage": "Пакетов удалено: {removed}; оставлено для других компонентов: {kept}.",
+        "AbortedTitle": "Удаление пропущено",
+        "AbortedMessage": "Ничего не удалено: {reason}"
+      },
+      "Capability": {
+        "Gpu": "GPU (CUDA)",
+        "Cpu": "CPU"
       }
     },
     "Diagnostics": {

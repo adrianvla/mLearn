@@ -12,7 +12,7 @@ import { spawn, exec, execSync, ChildProcess } from 'child_process';
 import { ipcMain, app, BrowserWindow } from 'electron';
 import * as tar from 'tar';
 import { IPC_CHANNELS, PYTHON_BACKEND_PORT, DEFAULT_RUNTIME_CATALOG_URL, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
-import type { InstallOptions, InstallStartedPayload, InstallerState, PipRequirementsConfig, PipProgress, RuntimeCatalog, RuntimeCatalogEntry } from '../../shared/types';
+import type { ComponentsUninstallResult, InstallOptions, InstallStartedPayload, InstallerState, PipRequirementsConfig, PipProgress, PythonComponentId, PythonComponentInfo, RuntimeCatalog, RuntimeCatalogEntry } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import {
   getResourcePath,
@@ -158,8 +158,32 @@ const PACKAGE_SIZE_ESTIMATES_BYTES: Readonly<Record<string, number>> = {
 const WIN32_VOICE_CUDA_EXTRA_BYTES = 3000 * 1024 * 1024;
 
 // PyPI ships CPU-only torch wheels on Windows; CUDA builds come from the
-// pytorch cu128 index, injected per group at pip invocation time.
+// pytorch cu128 index, injected per group at pip invocation time. CPU builds
+// for Linux (where PyPI torch bundles CUDA) come from the cpu index.
 const CUDA_EXTRA_INDEX_URL = 'https://download.pytorch.org/whl/cu128';
+const CPU_EXTRA_INDEX_URL = 'https://download.pytorch.org/whl/cpu';
+
+// NVIDIA GPUs are the only hardware the CUDA wheel groups accelerate. The
+// driver ships nvidia-smi, so its presence is the cheapest reliable probe.
+let nvidiaGpuProbe: Promise<boolean> | null = null;
+export function hasNvidiaGpu(): Promise<boolean> {
+  if (!nvidiaGpuProbe) {
+    nvidiaGpuProbe = new Promise<boolean>((resolve) => {
+      if (!(isWindows || process.platform === 'linux')) {
+        resolve(false);
+        return;
+      }
+      let sawNvidia = false;
+      const probe = spawn('nvidia-smi', ['-L'], { windowsHide: true });
+      probe.stdout.on('data', (chunk) => {
+        if (String(chunk).includes('NVIDIA')) sawNvidia = true;
+      });
+      probe.on('error', () => resolve(false));
+      probe.on('close', () => resolve(sawNvidia));
+    });
+  }
+  return nvidiaGpuProbe;
+}
 
 type InstallerPlatform = 'darwin-arm64' | 'darwin-x64' | 'win32-x64' | 'linux-x64';
 
@@ -642,6 +666,12 @@ const FALLBACK_PIP_REQUIREMENTS: PipRequirementsConfig = {
   // 1.x, which needs Python >=3.12.
   'qwen3-tts-torch': ['qwen-tts==0.1.1', 'transformers==4.57.3', 'accelerate==1.12.0', 'librosa==0.11.0', 'tokenizers==0.22.1'],
   'mlx-stt': ['sentencepiece==0.2.1'],
+  // CPU-wheel variants for machines without an NVIDIA GPU. Windows PyPI torch
+  // is already CPU-only; Linux needs +cpu local versions from the cpu index.
+  'llm-windows-cpu': ['torch==2.10.0', 'transformers==4.57.3', 'sentencepiece==0.2.1'],
+  'voice-windows-cpu': ['torch==2.10.0', 'torchaudio==2.10.0', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2'],
+  'llm-linux-cpu': ['torch==2.10.0+cpu', 'transformers==4.57.3', 'sentencepiece==0.2.1'],
+  'voice-linux-cpu': ['torch==2.10.0+cpu', 'torchaudio==2.10.0+cpu', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2'],
 };
 
 function loadPipRequirementsConfig(): PipRequirementsConfig {
@@ -667,13 +697,15 @@ export interface PipInstallGroup {
 }
 
 /**
- * Platform component matrix:
- * - darwin-arm64: core + [ocr] + [llm] + [voice + qwen3-tts + mlx-stt]
- * - linux-x64:    core + [ocr] + [llm-linux] + [voice + qwen3-tts-torch]
- * - win32-x64:    core + [ocr] + [llm-windows + voice-windows + qwen3-tts-torch];
- *                 the CUDA-bearing groups install from the pytorch cu128 index
- * - darwin-x64:   core only — AI groups are stripped, but language "core"
- *                 component (tokenizer) packages still install
+ * Platform component matrix (GPU = NVIDIA present, probed via nvidia-smi):
+ * - darwin-arm64:        core + [ocr] + [llm] + [voice + qwen3-tts + mlx-stt]
+ * - linux-x64 (GPU):     core + [ocr] + [llm-linux] + [voice + qwen3-tts-torch]
+ * - linux-x64 (no GPU):  core + [ocr] + [llm-linux-cpu] + [voice-linux-cpu + qwen3-tts-torch]
+ * - win32-x64 (GPU):     core + [ocr] + [llm-windows + voice-windows + qwen3-tts-torch];
+ *                        the CUDA-bearing groups install from the pytorch cu128 index
+ * - win32-x64 (no GPU):  core + [ocr] + [llm-windows-cpu + voice-windows-cpu + qwen3-tts-torch]
+ * - darwin-x64:          core only — AI groups are stripped, but language "core"
+ *                        component (tokenizer) packages still install
  * llm-windows/llm-linux pin transformers 4.57.3 to stay compatible with the
  * qwen-tts engine installed by qwen3-tts-torch in the same env; the Apple mlx
  * stack keeps its own transformers line.
@@ -684,6 +716,7 @@ export function buildPipInstallGroups(
   options: InstallOptions,
   config: PipRequirementsConfig = loadPipRequirementsConfig(),
   platform: InstallerPlatform = getInstallerPlatform(),
+  gpu: boolean = true,
 ): PipInstallGroup[] {
   const selected = resolveEffectiveInstallOptions(options, platform);
   const groups: PipInstallGroup[] = [{ name: 'core', packages: [...config.core] }];
@@ -695,14 +728,18 @@ export function buildPipInstallGroups(
     if (platform === 'win32-x64') {
       // Explicit +cu128 pins: bare torch pins from PyPI are CPU-only on Windows,
       // so GPU selection must not rely on cross-index local-version preference.
-      if (config['llm-windows']?.length) {
-        groups.push({ name: 'llm-windows', packages: [...config['llm-windows']], extraIndexUrl: CUDA_EXTRA_INDEX_URL });
+      // Without an NVIDIA GPU the CPU group installs plain PyPI wheels.
+      const llmWinKey = gpu ? 'llm-windows' : 'llm-windows-cpu';
+      if (config[llmWinKey]?.length) {
+        groups.push({ name: llmWinKey, packages: [...config[llmWinKey]], extraIndexUrl: gpu ? CUDA_EXTRA_INDEX_URL : undefined });
       }
     } else if (platform === 'linux-x64') {
       // Linux LLM shares the env with qwen3-tts-torch, so transformers stays
-      // on the qwen-tts-compatible 4.57.3 line; PyPI torch is CUDA-capable.
-      if (config['llm-linux']?.length) {
-        groups.push({ name: 'llm-linux', packages: [...config['llm-linux']] });
+      // on the qwen-tts-compatible 4.57.3 line. PyPI torch is CUDA-capable;
+      // CPU machines need +cpu local versions from the cpu index.
+      const llmLinuxKey = gpu ? 'llm-linux' : 'llm-linux-cpu';
+      if (config[llmLinuxKey]?.length) {
+        groups.push({ name: llmLinuxKey, packages: [...config[llmLinuxKey]], extraIndexUrl: gpu ? undefined : CPU_EXTRA_INDEX_URL });
       }
     } else if (config.llm.length > 0) {
       groups.push({ name: 'llm', packages: [...config.llm] });
@@ -710,25 +747,33 @@ export function buildPipInstallGroups(
   }
   if (selected.includeVoice) {
     if (platform === 'win32-x64') {
-      if (config['voice-windows']?.length) {
-        groups.push({ name: 'voice-windows', packages: [...config['voice-windows']], extraIndexUrl: CUDA_EXTRA_INDEX_URL });
+      const voiceWinKey = gpu ? 'voice-windows' : 'voice-windows-cpu';
+      if (config[voiceWinKey]?.length) {
+        groups.push({ name: voiceWinKey, packages: [...config[voiceWinKey]], extraIndexUrl: gpu ? CUDA_EXTRA_INDEX_URL : undefined });
       }
       if (config['qwen3-tts-torch']?.length) {
-        groups.push({ name: 'qwen3-tts-torch', packages: [...config['qwen3-tts-torch']], extraIndexUrl: CUDA_EXTRA_INDEX_URL });
+        groups.push({ name: 'qwen3-tts-torch', packages: [...config['qwen3-tts-torch']], extraIndexUrl: gpu ? CUDA_EXTRA_INDEX_URL : undefined });
       }
     } else {
-      if (config.voice?.length) {
-        groups.push({ name: 'voice', packages: [...config.voice] });
-      }
-      if (platform === 'linux-x64' && config['qwen3-tts-torch']?.length) {
-        groups.push({ name: 'qwen3-tts-torch', packages: [...config['qwen3-tts-torch']] });
-      }
-      if (platform === 'darwin-arm64') {
-        if (config['qwen3-tts']?.length) {
-          groups.push({ name: 'qwen3-tts', packages: [...config['qwen3-tts']] });
+      if (platform === 'linux-x64') {
+        const voiceLinuxKey = gpu ? 'voice' : 'voice-linux-cpu';
+        if (config[voiceLinuxKey]?.length) {
+          groups.push({ name: voiceLinuxKey, packages: [...config[voiceLinuxKey]], extraIndexUrl: gpu ? undefined : CPU_EXTRA_INDEX_URL });
         }
-        if (config['mlx-stt']?.length) {
-          groups.push({ name: 'mlx-stt', packages: [...config['mlx-stt']] });
+        if (config['qwen3-tts-torch']?.length) {
+          groups.push({ name: 'qwen3-tts-torch', packages: [...config['qwen3-tts-torch']], extraIndexUrl: gpu ? undefined : CPU_EXTRA_INDEX_URL });
+        }
+      } else {
+        if (config.voice?.length) {
+          groups.push({ name: 'voice', packages: [...config.voice] });
+        }
+        if (platform === 'darwin-arm64') {
+          if (config['qwen3-tts']?.length) {
+            groups.push({ name: 'qwen3-tts', packages: [...config['qwen3-tts']] });
+          }
+          if (config['mlx-stt']?.length) {
+            groups.push({ name: 'mlx-stt', packages: [...config['mlx-stt']] });
+          }
         }
       }
     }
@@ -1418,7 +1463,7 @@ async function reconcileComponentPackages(): Promise<void> {
 
   const installPlatform = getInstallerPlatform();
   installAborted = false;
-  const groups = buildPipInstallGroups(options, undefined, installPlatform);
+  const groups = buildPipInstallGroups(options, undefined, installPlatform, await hasNvidiaGpu());
   const packageCount = groups.reduce((sum, group) => sum + group.packages.length, 0);
   if (packageCount === 0) return;
 
@@ -1451,6 +1496,238 @@ async function reconcileComponentPackages(): Promise<void> {
       log.warn(`Language requirement reconciliation failed for ${language}:`, e);
     }
   }
+}
+
+// ============================================================================
+// Optional component management (opt-in/opt-out of heavyweight packages)
+// ============================================================================
+
+const PYTHON_COMPONENT_IDS: readonly PythonComponentId[] = ['llm', 'ocr', 'voice'];
+
+const COMPONENT_SETTINGS_FLAGS: Readonly<Record<PythonComponentId, 'llmEnabled' | 'ocrEnabled' | 'voiceEnabled'>> = {
+  llm: 'llmEnabled',
+  ocr: 'ocrEnabled',
+  voice: 'voiceEnabled',
+};
+
+/** Import probes for the "installed" state; OCR rides on per-language packages. */
+const COMPONENT_PROBE_MODULES: Readonly<Record<PythonComponentId, readonly string[] | null>> = {
+  llm: ['torch', 'transformers'],
+  voice: ['faster_whisper'],
+  ocr: null,
+};
+
+/** Approximate download+install footprint per platform/GPU, for size disclosure. */
+function getComponentSizeLabel(id: PythonComponentId, platform: InstallerPlatform, gpu: boolean): string {
+  if (platform === 'darwin-x64') return '—';
+  if (id === 'ocr') return '~600 MB + language data';
+  if (id === 'llm') {
+    if (platform === 'darwin-arm64') return '~550 MB';
+    if (platform === 'win32-x64') return gpu ? '~3.5 GB (CUDA)' : '~250 MB';
+    return gpu ? '~2.5–3 GB (CUDA)' : '~300 MB';
+  }
+  // voice
+  if (platform === 'darwin-arm64') return '~320 MB (incl. on-device TTS)';
+  if (platform === 'win32-x64') return gpu ? '~4.5 GB (CUDA)' : '~700 MB';
+  return gpu ? '~3 GB (CUDA)' : '~800 MB';
+}
+
+function normalizeRequirementName(requirement: string): string {
+  const withoutMarker = requirement.split(';')[0];
+  const name = withoutMarker.split(/[\[<>=!~\s]/)[0];
+  return name.trim().toLowerCase().replace(/_/g, '-');
+}
+
+function componentEnabledOptions(enabled: Record<PythonComponentId, boolean>): InstallOptions {
+  return {
+    includeLLM: enabled.llm,
+    includeOCR: enabled.ocr,
+    includeVoice: enabled.voice ?? false,
+  };
+}
+
+/**
+ * Compute the dependency-safe removal inputs for disabling `removeIds`.
+ * Candidates are the disabled component's own groups; roots are every package
+ * declared by the remaining enabled groups (incl. core + language packages).
+ * Returns null when nothing is removable. Pure — unit tested.
+ */
+export function computeComponentRemovalPlan(
+  enabled: Record<PythonComponentId, boolean>,
+  removeIds: PythonComponentId[],
+  config: PipRequirementsConfig,
+  platform: InstallerPlatform,
+  gpu: boolean,
+): { candidates: string[]; roots: string[] } | null {
+  const remainingEnabled: Record<PythonComponentId, boolean> = { ...enabled };
+  const onlyRemoved: Record<PythonComponentId, boolean> = { llm: false, ocr: false, voice: false };
+  for (const id of removeIds) {
+    // Never plan removals for components that are not currently enabled —
+    // repeated or stale opt-out requests must be no-ops.
+    if (!enabled[id]) continue;
+    remainingEnabled[id] = false;
+    onlyRemoved[id] = true;
+  }
+
+  const sharedArgs = [config, platform, gpu] as const;
+  const disabledGroups = buildPipInstallGroups(componentEnabledOptions(onlyRemoved), ...sharedArgs)
+    .filter((group) => group.name !== 'core' && group.name !== 'language');
+  if (disabledGroups.length === 0) return null;
+
+  const remainingGroups = buildPipInstallGroups(componentEnabledOptions(remainingEnabled), ...sharedArgs);
+
+  const candidates = new Set<string>();
+  for (const group of disabledGroups) {
+    for (const requirement of group.packages) candidates.add(normalizeRequirementName(requirement));
+  }
+  const roots = new Set<string>();
+  for (const group of remainingGroups) {
+    for (const requirement of group.packages) roots.add(requirement);
+  }
+  return { candidates: [...candidates], roots: [...roots] };
+}
+
+function resolveUninstallPlanScriptPath(): string {
+  return resolveResourceFilePath('pip_uninstall_plan.py');
+}
+
+/** Run the dependency-closure probe in the managed Python env. */
+async function runUninstallPlanProbe(candidates: string[], roots: string[]): Promise<{ remove: string[]; keep: string[] }> {
+  const plan = await new Promise<{ remove?: string[]; keep?: string[]; error?: string }>((resolve) => {
+    const probe = spawn(
+      resolvePythonExecutablePath(),
+      [resolveUninstallPlanScriptPath(), JSON.stringify(candidates), JSON.stringify(roots)],
+      { cwd: envPath, windowsHide: true },
+    );
+    let output = '';
+    probe.stdout.on('data', (chunk) => { output += String(chunk); });
+    probe.stderr.on('data', (chunk) => { output += String(chunk); });
+    probe.on('error', (error) => resolve({ error: String(error) }));
+    probe.on('close', () => {
+      try {
+        resolve(JSON.parse(output.trim()));
+      } catch {
+        resolve({ error: `unparseable probe output: ${output.slice(0, 200)}` });
+      }
+    });
+  });
+  if (plan.error || !Array.isArray(plan.remove) || !Array.isArray(plan.keep)) {
+    throw new Error(`dependency probe failed: ${plan.error || 'unknown'}`);
+  }
+  return { remove: plan.remove, keep: plan.keep };
+}
+
+/**
+ * Uninstall the pip packages behind disabled components. Removal is
+ * dependency-safe: the probe keeps anything transitively required by the
+ * remaining enabled components (e.g. cudnn/cublas while CUDA torch stays), and
+ * any probe failure aborts without uninstalling anything.
+ */
+export async function uninstallComponents(ids: PythonComponentId[]): Promise<ComponentsUninstallResult> {
+  const result: ComponentsUninstallResult = { ids, removed: [], kept: [] };
+  if (ids.length === 0) return result;
+  const pipExecutable = resolvePipExecutablePath();
+  if (!fs.existsSync(pipExecutable)) {
+    result.abortedReason = 'Python runtime is not installed';
+    return result;
+  }
+  if (installInProgress) {
+    result.abortedReason = 'An installation is already in progress';
+    return result;
+  }
+
+  const settings = loadSettings();
+  const enabled: Record<PythonComponentId, boolean> = {
+    llm: settings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled,
+    ocr: settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled,
+    voice: settings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled,
+  };
+  const platform = getInstallerPlatform();
+  const gpu = await hasNvidiaGpu();
+  const plan = computeComponentRemovalPlan(enabled, ids, loadPipRequirementsConfig(), platform, gpu);
+  if (!plan || plan.candidates.length === 0) {
+    result.kept = [];
+    return result;
+  }
+
+  let removable: string[];
+  try {
+    const probe = await runUninstallPlanProbe(plan.candidates, plan.roots);
+    removable = probe.remove;
+    result.kept = probe.keep;
+  } catch (e) {
+    log.warn('Component uninstall aborted:', e);
+    result.abortedReason = e instanceof Error ? e.message : String(e);
+    return result;
+  }
+  if (removable.length === 0) return result;
+
+  installAborted = false;
+  sendStatusUpdate(`Removing ${removable.length} unused component packages...`);
+  const exitCode = await new Promise<number | null>((resolve) => {
+    const uninstallProcess = spawn(
+      resolvePythonExecutablePath(),
+      ['-m', 'pip', 'uninstall', '-y', ...removable],
+      { cwd: envPath, windowsHide: true },
+    );
+    let output = '';
+    uninstallProcess.stdout.on('data', (chunk) => { output += String(chunk); });
+    uninstallProcess.stderr.on('data', (chunk) => { output += String(chunk); });
+    uninstallProcess.on('error', () => resolve(-1));
+    uninstallProcess.on('close', (code) => {
+      log.info(`pip uninstall exit ${code}: ${output.slice(-500)}`);
+      resolve(code);
+    });
+  });
+  if (exitCode !== 0) {
+    result.abortedReason = `pip uninstall failed with exit code ${exitCode}`;
+    return result;
+  }
+  result.removed = removable;
+  sendStatusUpdate('Component packages removed');
+  // The running backend may hold removed modules in memory — reload it so the
+  // env on disk and the running process agree.
+  restartPythonBackend();
+  return result;
+}
+
+async function probeComponentInstalled(id: PythonComponentId): Promise<boolean | null> {
+  const modules = COMPONENT_PROBE_MODULES[id];
+  if (!modules) return null;
+  const pythonPath = resolvePythonExecutablePath();
+  if (!fs.existsSync(pythonPath)) return false;
+  const script = modules
+    .map((mod) => `try:\n    import ${mod}\n    print("OK:${mod}")\nexcept Exception:\n    print("MISSING:${mod}")`)
+    .join('\n');
+  const output = await new Promise<string>((resolve) => {
+    const probe = spawn(pythonPath, ['-c', script], { cwd: envPath, windowsHide: true });
+    let buffer = '';
+    probe.stdout.on('data', (chunk) => { buffer += String(chunk); });
+    probe.stderr.on('data', (chunk) => { buffer += String(chunk); });
+    probe.on('error', () => resolve(''));
+    probe.on('close', () => resolve(buffer));
+  });
+  return modules.every((mod) => output.includes(`OK:${mod}`));
+}
+
+/** Full component state for the renderer's component/module UX. */
+export async function getPythonComponentsState(): Promise<PythonComponentInfo[]> {
+  const settings = loadSettings();
+  const platform = getInstallerPlatform();
+  const gpu = await hasNvidiaGpu();
+  const states = await Promise.all(PYTHON_COMPONENT_IDS.map(async (id): Promise<PythonComponentInfo> => {
+    const flag = COMPONENT_SETTINGS_FLAGS[id];
+    const supported = platform !== 'darwin-x64';
+    return {
+      id,
+      enabled: supported ? Boolean(settings[flag] ?? DEFAULT_SETTINGS[flag]) : false,
+      supported,
+      gpuAccelerated: supported && gpu && (id === 'llm' || id === 'voice'),
+      sizeLabel: getComponentSizeLabel(id, platform, gpu),
+      installed: supported ? await probeComponentInstalled(id) : null,
+    };
+  }));
+  return states;
 }
 
 export async function findPython(): Promise<boolean> {
@@ -1564,7 +1841,8 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
 
   sendStatusUpdate('Resolving Python runtime...');
 
-  const pipGroups = buildPipInstallGroups(options, undefined, installPlatform);
+  const gpuProbe = await hasNvidiaGpu();
+  const pipGroups = buildPipInstallGroups(options, undefined, installPlatform, gpuProbe);
   log.info('Pip packages:', pipGroups.map((group) => `${group.name} (${group.packages.length})`).join(', '));
 
   // Fetch runtime catalog and resolve the target-specific archive entry
@@ -1831,5 +2109,32 @@ export function setupPythonBackendIPC(): void {
 
   ipcMain.on(IPC_CHANNELS.GET_BACKEND_TOKEN, (event) => {
     event.reply(IPC_CHANNELS.BACKEND_TOKEN_CHANGED, quitToken);
+  });
+
+  ipcMain.on(IPC_CHANNELS.GET_COMPONENTS_STATE, async (event) => {
+    try {
+      event.reply(IPC_CHANNELS.COMPONENTS_STATE, await getPythonComponentsState());
+    } catch (e) {
+      log.error('Failed to collect component state:', e);
+      event.reply(IPC_CHANNELS.COMPONENTS_STATE, []);
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.UNINSTALL_COMPONENTS, async (event, rawIds) => {
+    const ids = Array.isArray(rawIds)
+      ? rawIds.filter((id): id is PythonComponentId => PYTHON_COMPONENT_IDS.includes(id))
+      : [];
+    try {
+      const result = await uninstallComponents(ids);
+      event.reply(IPC_CHANNELS.COMPONENTS_UNINSTALLED, result);
+    } catch (e) {
+      log.error('Component uninstall failed:', e);
+      event.reply(IPC_CHANNELS.COMPONENTS_UNINSTALLED, {
+        ids,
+        removed: [],
+        kept: [],
+        abortedReason: e instanceof Error ? e.message : String(e),
+      } satisfies ComponentsUninstallResult);
+    }
   });
 }

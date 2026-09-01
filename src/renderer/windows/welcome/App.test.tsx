@@ -91,6 +91,7 @@ vi.mock('../../context', () => ({
   useSettings: () => ({
     settings: testSettings,
     updateSettings: updateSettingsMock,
+    isLoading: () => false,
   }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string | number>) => {
@@ -132,6 +133,10 @@ vi.mock('../../../shared/bridges', () => ({
         return cleanup;
       }),
       requestInstallerState: vi.fn(),
+      getComponentsState: vi.fn(),
+      uninstallComponents: vi.fn(),
+      onComponentsState: vi.fn(() => cleanup),
+      onComponentsUninstalled: vi.fn(() => cleanup),
     },
     server: {
       onServerStatusUpdate: vi.fn(() => cleanup),
@@ -211,7 +216,7 @@ describe('WelcomeApp', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    testSettings = { language: 'fr' };
+    testSettings = { language: 'fr', llmEnabled: true, ocrEnabled: true, voiceEnabled: true };
     testLanguages = {
       ja: { name: 'Japanese', name_translated: '日本語' },
       de: { name: 'German', name_translated: 'Deutsch' },

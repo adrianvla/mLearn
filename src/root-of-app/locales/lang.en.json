@@ -3254,19 +3254,32 @@
       "Actions": {
         "Install": "Install",
         "Update": "Update",
-        "RepairRuntime": "Repair runtime components"
+        "RepairRuntime": "Repair runtime components",
+        "Removing": "Removing…"
       },
       "Status": {
         "installed": "Installed",
         "missing": "Missing",
         "outdated": "Outdated",
-        "error": "Error"
+        "error": "Error",
+        "NotInstalled": "Not installed"
       },
       "LanguageData": {
         "CoreTitle": "{language} language package",
         "CoreDescription": "Core runtime data for {language}.",
         "DictionaryDescription": "Definitions for {language} in {target}.",
         "SizeStatus": "{installed} of {total}"
+      },
+      "SizeApprox": "Approx. size: {size}",
+      "Toast": {
+        "RemovedTitle": "Components removed",
+        "RemovedMessage": "{removed} package(s) removed; {kept} kept for other enabled components.",
+        "AbortedTitle": "Removal skipped",
+        "AbortedMessage": "Nothing was removed: {reason}"
+      },
+      "Capability": {
+        "Gpu": "GPU (CUDA)",
+        "Cpu": "CPU"
       }
     },
     "Diagnostics": {

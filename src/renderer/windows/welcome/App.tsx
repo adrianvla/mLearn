@@ -8,7 +8,7 @@ import { Component, Show, createSignal, createEffect, createMemo, onMount, onCle
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallStartedPayload, type InstallerState, type LanguageDataCatalogStatus, type LanguageDataMap, type PipProgress } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallStartedPayload, type InstallerState, type LanguageDataCatalogStatus, type LanguageDataMap, type PipProgress, type PythonComponentId, type PythonComponentInfo } from '../../../shared/types';
 import { Panel, Btn, AlertBanner, LogConsole, CheckboxCard, ProgressBar, Select } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 import './welcome.css';
@@ -99,7 +99,7 @@ function resolveInitialUILanguageCode(preferredLanguage: string | undefined, ava
 }
 
 const WelcomeContent: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, isLoading: settingsLoading } = useSettings();
   const { t, changeLanguage, isLoaded: isLocalizationLoaded } = useLocalization();
   const {
     langData,
@@ -134,6 +134,12 @@ const WelcomeContent: Component = () => {
   const [includeLLM, setIncludeLLM] = createSignal(true);
   const [includeOCR, setIncludeOCR] = createSignal(true);
   const [includeVoice, setIncludeVoice] = createSignal(true);
+  const [componentState, setComponentState] = createSignal<Partial<Record<PythonComponentId, PythonComponentInfo>>>({});
+  const isComponentSupported = (id: PythonComponentId): boolean => {
+    const info = componentState()[id];
+    return info ? info.supported : true;
+  };
+  const componentUnsupported = (id: PythonComponentId): boolean => !isComponentSupported(id);
   const intelNoOnboardAi = () => platformWarnings().has(PLATFORM_WARNING_INTEL_NO_ONBOARD_AI);
   const windowsCudaRecommended = () => platformWarnings().has(PLATFORM_WARNING_WINDOWS_CUDA_RECOMMENDED);
   // On Intel Macs without onboard AI the local OCR and voice runtimes cannot be
@@ -142,6 +148,15 @@ const WelcomeContent: Component = () => {
   const effectiveIncludeVoice = () => includeVoice() && !intelNoOnboardAi();
 
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>(resolveInitialLanguageCode(settings.language, availableLanguageCodes()));
+
+  // Component choices default to the profile's opt-in flags (false on genuinely
+  // new profiles — heavyweight stacks install only when selected here).
+  createEffect(() => {
+    if (settingsLoading() || installationStarted() || installationCompleted()) return;
+    setIncludeLLM(Boolean(settings.llmEnabled) && isComponentSupported('llm'));
+    setIncludeOCR(Boolean(settings.ocrEnabled) && isComponentSupported('ocr') && !intelNoOnboardAi());
+    setIncludeVoice(Boolean(settings.voiceEnabled) && isComponentSupported('voice') && !intelNoOnboardAi());
+  });
   const [selectedUILanguage, setSelectedUILanguage] = createSignal<string>(resolveInitialUILanguageCode(settings.uiLanguage, uiLanguageCodes));
   const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => {
     const status = getLanguageDataStatus(code);
@@ -386,6 +401,12 @@ const WelcomeContent: Component = () => {
   onMount(() => {
     const bridge = getBridge();
 
+    ipcCleanups.push(bridge.installer.onComponentsState((components) => {
+      const byId: Partial<Record<PythonComponentId, PythonComponentInfo>> = {};
+      for (const info of components) byId[info.id] = info;
+      setComponentState(byId);
+    }));
+    bridge.installer.getComponentsState();
     ipcCleanups.push(bridge.installer.onPythonSuccess((success: boolean) => {
       if (success) installCompleted();
     }));
@@ -647,42 +668,51 @@ const WelcomeContent: Component = () => {
           </Show>
           <div class="welcome-window__options">
             <CheckboxCard
-              checked={includeLLM()}
+              checked={!componentUnsupported('llm') && includeLLM()}
               onChange={setIncludeLLM}
-              disabled={intelNoOnboardAi()}
+              disabled={intelNoOnboardAi() || componentUnsupported('llm')}
               title={t('mlearn.Installer.Components.ExplainAi.Title')}
               description={t('mlearn.Installer.Components.ExplainAi.Description')}
             >
-              <Show when={intelNoOnboardAi()}>
+              <Show when={intelNoOnboardAi() || componentUnsupported('llm')}>
                 <span class="welcome-window__option-unavailable">
                   {t('mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Unavailable')}
                 </span>
               </Show>
+              <Show when={componentState().llm?.sizeLabel} keyed>
+                {(size) => <span class="welcome-window__option-size">{t('mlearn.ComponentsTab.SizeApprox', { size })}</span>}
+              </Show>
             </CheckboxCard>
             <CheckboxCard
-              checked={!intelNoOnboardAi() && includeOCR()}
+              checked={!intelNoOnboardAi() && !componentUnsupported('ocr') && includeOCR()}
               onChange={setIncludeOCR}
-              disabled={intelNoOnboardAi()}
+              disabled={intelNoOnboardAi() || componentUnsupported('ocr')}
               title={t('mlearn.Installer.Components.Reader.Title')}
               description={t('mlearn.Installer.Components.Reader.Description')}
             >
-              <Show when={intelNoOnboardAi()}>
+              <Show when={intelNoOnboardAi() || componentUnsupported('ocr')}>
                 <span class="welcome-window__option-unavailable">
                   {t('mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Unavailable')}
                 </span>
               </Show>
+              <Show when={componentState().ocr?.sizeLabel} keyed>
+                {(size) => <span class="welcome-window__option-size">{t('mlearn.ComponentsTab.SizeApprox', { size })}</span>}
+              </Show>
             </CheckboxCard>
             <CheckboxCard
-              checked={!intelNoOnboardAi() && includeVoice()}
+              checked={!intelNoOnboardAi() && !componentUnsupported('voice') && includeVoice()}
               onChange={setIncludeVoice}
-              disabled={intelNoOnboardAi()}
+              disabled={intelNoOnboardAi() || componentUnsupported('voice')}
               title={t('mlearn.Installer.Components.Voice.Title')}
               description={t('mlearn.Installer.Components.Voice.Description')}
             >
-              <Show when={intelNoOnboardAi()}>
+              <Show when={intelNoOnboardAi() || componentUnsupported('voice')}>
                 <span class="welcome-window__option-unavailable">
                   {t('mlearn.Installer.PlatformWarnings.IntelNoOnboardAi.Unavailable')}
                 </span>
+              </Show>
+              <Show when={componentState().voice?.sizeLabel} keyed>
+                {(size) => <span class="welcome-window__option-size">{t('mlearn.ComponentsTab.SizeApprox', { size })}</span>}
               </Show>
             </CheckboxCard>
           </div>

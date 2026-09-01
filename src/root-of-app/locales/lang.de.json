@@ -3254,19 +3254,32 @@
       "Actions": {
         "Install": "Installieren",
         "Update": "Aktualisieren",
-        "RepairRuntime": "Laufzeitkomponenten reparieren"
+        "RepairRuntime": "Laufzeitkomponenten reparieren",
+        "Removing": "Wird entfernt…"
       },
       "Status": {
         "installed": "Installiert",
         "missing": "Fehlt",
         "outdated": "Veraltet",
-        "error": "Fehler"
+        "error": "Fehler",
+        "NotInstalled": "Nicht installiert"
       },
       "LanguageData": {
         "CoreTitle": "Sprachpaket {language}",
         "CoreDescription": "Kern-Laufzeitdaten für {language}.",
         "DictionaryDescription": "Definitionen für {language} auf {target}.",
         "SizeStatus": "{installed} von {total}"
+      },
+      "SizeApprox": "Ungefähre Größe: {size}",
+      "Toast": {
+        "RemovedTitle": "Komponenten entfernt",
+        "RemovedMessage": "{removed} Paket(e) entfernt; {kept} für andere aktivierte Komponenten behalten.",
+        "AbortedTitle": "Entfernen übersprungen",
+        "AbortedMessage": "Es wurde nichts entfernt: {reason}"
+      },
+      "Capability": {
+        "Gpu": "GPU (CUDA)",
+        "Cpu": "CPU"
       }
     },
     "Diagnostics": {

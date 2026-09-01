@@ -160,6 +160,10 @@ export const IPC_CHANNELS = {
   INSTALLER_NETWORK_ERROR: 'installer-network-error',
   PIP_PROGRESS: 'pip-progress',
   CANCEL_INSTALL: 'cancel-install',
+  GET_COMPONENTS_STATE: 'get-components-state',
+  COMPONENTS_STATE: 'components-state',
+  UNINSTALL_COMPONENTS: 'uninstall-components',
+  COMPONENTS_UNINSTALLED: 'components-uninstalled',
   
   // UI
   SHOW_SETTINGS: 'show-settings',

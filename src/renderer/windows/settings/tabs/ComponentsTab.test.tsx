@@ -7,6 +7,7 @@ import type { LanguageDataMap } from '../../../../shared/types';
 
 const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
+const uninstallComponentsMock = vi.fn();
 const installLanguageDataMock = vi.fn();
 let languageDataInstallErrorMock: { language: string; dictionaryTargetLanguage?: string; error: string } | null = null;
 let managedSettingKey: string | null = null;
@@ -180,6 +181,10 @@ vi.mock('../../../../shared/bridges', () => ({
   getBridge: () => ({
     installer: {
       startInstall: startInstallMock,
+      getComponentsState: vi.fn(),
+      uninstallComponents: uninstallComponentsMock,
+      onComponentsState: vi.fn(() => () => {}),
+      onComponentsUninstalled: vi.fn(() => () => {}),
     },
   }),
 }));

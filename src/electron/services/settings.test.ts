@@ -227,6 +227,45 @@ describe('loadSettings', () => {
 
     expect(settings.language).toBe('fa');
   });
+  it('seeds opt-in component flags to false for a genuinely new profile', () => {
+    // No settings file, no language data.
+    const settings = mod.loadSettings();
+
+    expect(settings.llmEnabled).toBe(false);
+    expect(settings.ocrEnabled).toBe(false);
+    expect(settings.voiceEnabled).toBe(false);
+  });
+
+  it('keeps enabled component defaults for a legacy settings file without component keys', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({ language: 'de' }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.language).toBe('de');
+    expect(settings.llmEnabled).toBe(DEFAULT_SETTINGS.llmEnabled);
+    expect(settings.ocrEnabled).toBe(DEFAULT_SETTINGS.ocrEnabled);
+    expect(settings.voiceEnabled).toBe(DEFAULT_SETTINGS.voiceEnabled);
+  });
+
+  it('keeps enabled component defaults when only language data exists (single and multi language)', () => {
+    const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(langsDir, { recursive: true });
+    fs.writeFileSync(path.join(langsDir, 'ja.json'), JSON.stringify({ name: 'Japanese' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'ja.freq.json'), JSON.stringify({ freq: [] }), 'utf-8');
+
+    const single = mod.loadSettings();
+    expect(single.llmEnabled).toBe(DEFAULT_SETTINGS.llmEnabled);
+    expect(single.language).toBe('ja');
+
+    fs.writeFileSync(path.join(langsDir, 'de.json'), JSON.stringify({ name: 'German' }), 'utf-8');
+    fs.writeFileSync(path.join(langsDir, 'de.freq.json'), JSON.stringify({ freq: [] }), 'utf-8');
+
+    const multi = mod.loadSettings();
+    expect(multi.llmEnabled).toBe(DEFAULT_SETTINGS.llmEnabled);
+    expect(multi.ocrEnabled).toBe(DEFAULT_SETTINGS.ocrEnabled);
+    expect(multi.voiceEnabled).toBe(DEFAULT_SETTINGS.voiceEnabled);
+  });
 });
 
 describe('loadSettings migration', () => {

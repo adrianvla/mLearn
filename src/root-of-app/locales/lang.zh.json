@@ -3254,19 +3254,32 @@
       "Actions": {
         "Install": "安装",
         "Update": "更新",
-        "RepairRuntime": "修复运行时组件"
+        "RepairRuntime": "修复运行时组件",
+        "Removing": "正在移除…"
       },
       "Status": {
         "installed": "已安装",
         "missing": "缺失",
         "outdated": "已过期",
-        "error": "错误"
+        "error": "错误",
+        "NotInstalled": "未安装"
       },
       "LanguageData": {
         "CoreTitle": "{language} 语言包",
         "CoreDescription": "{language} 的核心运行时数据。",
         "DictionaryDescription": "{language} 的 {target} 释义。",
         "SizeStatus": "{installed} / {total}"
+      },
+      "SizeApprox": "预计大小：{size}",
+      "Toast": {
+        "RemovedTitle": "组件已移除",
+        "RemovedMessage": "已移除 {removed} 个包；为其他启用的组件保留了 {kept} 个。",
+        "AbortedTitle": "已跳过移除",
+        "AbortedMessage": "未移除任何内容：{reason}"
+      },
+      "Capability": {
+        "Gpu": "GPU（CUDA）",
+        "Cpu": "CPU"
       }
     },
     "Diagnostics": {

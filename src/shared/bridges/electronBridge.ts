@@ -205,6 +205,10 @@ const installerBridge: InstallerBridge = {
   onInstallerNetworkError: (cb) => getIPC().onInstallerNetworkError(cb),
   onInstallerState: (cb) => getIPC().onInstallerState(cb),
   onPipProgress: (cb) => getIPC().onPipProgress(cb),
+  getComponentsState: () => getIPC().getComponentsState(),
+  uninstallComponents: (ids) => getIPC().uninstallComponents(ids),
+  onComponentsState: (cb) => getIPC().onComponentsState(cb),
+  onComponentsUninstalled: (cb) => getIPC().onComponentsUninstalled(cb),
 };
 
 const llmBridge: LLMBridge = {

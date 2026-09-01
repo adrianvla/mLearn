@@ -2123,6 +2123,32 @@ export interface PipProgress {
   action: string;
 }
 
+/** User-facing optional Python components (settings: llmEnabled/ocrEnabled/voiceEnabled). */
+export type PythonComponentId = 'llm' | 'ocr' | 'voice';
+
+export interface PythonComponentInfo {
+  id: PythonComponentId;
+  /** Effective settings flag after platform stripping. */
+  enabled: boolean;
+  /** False when the platform cannot run this component at all (Intel Macs). */
+  supported: boolean;
+  /** True when the install would use CUDA/GPU-accelerated wheels. */
+  gpuAccelerated: boolean;
+  /** Approximate download+install footprint, human readable ("~550 MB"). */
+  sizeLabel: string;
+  /** null when install state cannot be probed reliably (e.g. OCR language packages). */
+  installed: boolean | null;
+}
+
+export interface ComponentsUninstallResult {
+  ids: PythonComponentId[];
+  removed: string[];
+  /** Packages that stay because another enabled component still needs them. */
+  kept: string[];
+  /** Set when the dependency probe failed — nothing was removed. */
+  abortedReason?: string;
+}
+
 export interface PromptOptions {
   title: string;
   desc: string;
@@ -2335,10 +2361,18 @@ export interface PipRequirementsConfig {
   llm: string[];
   /** CUDA (torch) LLM packages for Windows; replaces `llm` on win32 installs. */
   'llm-windows'?: string[];
+  /** CPU-wheel LLM packages for Windows machines without an NVIDIA GPU. */
+  'llm-windows-cpu'?: string[];
   /** LLM packages for Linux; transformers pinned to the qwen-tts-compatible line. */
   'llm-linux'?: string[];
+  /** CPU-wheel LLM packages for Linux machines without an NVIDIA GPU. */
+  'llm-linux-cpu'?: string[];
   voice?: string[];
   'voice-windows'?: string[];
+  /** CPU-wheel voice packages for Windows machines without an NVIDIA GPU. */
+  'voice-windows-cpu'?: string[];
+  /** CPU-wheel voice packages for Linux machines without an NVIDIA GPU. */
+  'voice-linux-cpu'?: string[];
   /** Qwen3 TTS engine backed by MLX (Apple Silicon only). */
   'qwen3-tts'?: string[];
   /** Qwen3 TTS engine backed by torch/qwen-tts (Linux and Windows installs). */
