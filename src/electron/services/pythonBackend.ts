@@ -638,8 +638,9 @@ const FALLBACK_PIP_REQUIREMENTS: PipRequirementsConfig = {
   'qwen3-tts': ['mlx==0.31.1', 'mlx-metal==0.31.1', 'mlx-lm==0.31.2', 'mlx-audio==0.4.4', 'transformers==5.12.1', 'tokenizers==0.22.1', 'huggingface-hub==1.21.0', 'soundfile==0.13.1'],
   // qwen-tts==0.1.1 requires transformers==4.57.3 / accelerate==1.12.0 exactly
   // and huggingface-hub>=0.34,<1.0 — no hub pin here, transformers resolves it.
-  // librosa 1.x needs Python >=3.12; the bundled runtime is 3.11.
-  'qwen3-tts-torch': ['qwen-tts==0.1.1', 'transformers==4.57.3', 'accelerate==1.12.0', 'librosa==0.10.2.post1', 'tokenizers==0.22.1'],
+  // librosa==0.11.0 ships a py3-none-any wheel (Requires-Python >=3.8); avoid
+  // 1.x, which needs Python >=3.12.
+  'qwen3-tts-torch': ['qwen-tts==0.1.1', 'transformers==4.57.3', 'accelerate==1.12.0', 'librosa==0.11.0', 'tokenizers==0.22.1'],
   'mlx-stt': ['sentencepiece==0.2.1'],
 };
 
