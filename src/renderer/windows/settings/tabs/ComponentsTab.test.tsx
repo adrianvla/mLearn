@@ -410,6 +410,56 @@ describe('ComponentsTab', () => {
     dispose();
   });
 
+  it('lists qwen3 TTS from the language declaration alone on every platform', async () => {
+    testLangData = {
+      ja: {
+        name: 'Japanese',
+        settings: { fixed: {} },
+        runtime: {
+          tts: {
+            qwen3LanguageName: 'ja',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    expect(container.textContent).toContain('Qwen3 TTS model');
+    expect(container.textContent).not.toContain('Kokoro TTS model');
+
+    dispose();
+  });
+
+  it('lists kokoro and qwen3 side by side when a language declares both', async () => {
+    testLangData = {
+      ja: {
+        name: 'Japanese',
+        settings: { fixed: {} },
+        runtime: {
+          tts: {
+            engine: 'kokoro',
+            kokoroLangCode: 'j',
+            qwen3LanguageName: 'ja',
+          },
+          stt: {
+            whisperLanguage: 'ja',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    const text = container.textContent ?? '';
+    expect((text.match(/Kokoro TTS model/gu) ?? []).length).toBe(1);
+    expect((text.match(/Qwen3 TTS model/gu) ?? []).length).toBe(1);
+
+    dispose();
+  });
+
   it('only lists TTS runtimes declared by installed language metadata', async () => {
     testLangData = {
       de: {

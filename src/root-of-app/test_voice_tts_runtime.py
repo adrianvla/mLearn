@@ -119,6 +119,7 @@ def test_qwen3_tts_language_name_comes_from_language_runtime(monkeypatch):
 
 def test_tts_engine_resolver_falls_back_from_kokoro_to_qwen3_for_language(monkeypatch):
     monkeypatch.setattr(voice, "_tts_provider", "kokoro")
+    monkeypatch.setattr(voice, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(
         voice,
         "_tts_runtime",
@@ -134,6 +135,7 @@ def test_tts_engine_resolver_normalizes_removed_cloud_provider_to_qwen3(monkeypa
         "_tts_runtime",
         lambda language: {"qwen3LanguageName": "english"} if language == "en" else {},
     )
+    monkeypatch.setattr(voice, "_is_apple_silicon", lambda: True)
 
     assert voice._resolve_tts_engine("en", "cloud") == "qwen3"
 
@@ -164,6 +166,7 @@ def test_reload_tts_settings_normalizes_removed_cloud_provider(tmp_path, monkeyp
 def test_tts_status_reports_qwen3_when_kokoro_provider_falls_back(monkeypatch):
     monkeypatch.setattr(voice, "_tts_provider", "kokoro")
     monkeypatch.setattr(voice, "_qwen3_tts_model", object())
+    monkeypatch.setattr(voice, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(voice, "_tts_runtime", lambda language: {"qwen3LanguageName": "persian"} if language == "fa" else {})
     monkeypatch.setattr(voice, "_reload_tts_settings", lambda: None)
     mlx_audio = types.ModuleType("mlx_audio")
@@ -177,6 +180,7 @@ def test_tts_status_reports_qwen3_when_kokoro_provider_falls_back(monkeypatch):
     assert result["downloaded"] is True
     assert result["loaded"] is True
     assert result["modelName"] == "Qwen3-TTS-12Hz-0.6B-MLX"
+    assert result["device"] == "mps"
 
 
 def test_qwen3_reference_pair_requires_transcript_for_voice_clone(tmp_path, monkeypatch):
@@ -333,11 +337,11 @@ def test_voice_stream_vad_mode_uses_silero_vad_for_speech_start(monkeypatch):
 
     class FakeSttModel:
         def transcribe(self, *_args, **_kwargs):
-            return [], {}
+            return [], types.SimpleNamespace(language="en")
 
     monkeypatch.setattr(voice.config, "torch", FakeTorch())
     monkeypatch.setattr(voice, "_ensure_vad_loaded", lambda: {"model": FakeVadModel(), "utils": ()})
-    monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: FakeSttModel())
+    monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: {"model": FakeSttModel(), "engine": "faster-whisper", "model_id": "small"})
     monkeypatch.setattr(voice, "_resolve_tts_engine", lambda _language, _provider=None: "unavailable")
     monkeypatch.setattr(voice, "_stt_runtime", lambda _language: {})
 
@@ -400,7 +404,7 @@ def test_voice_stream_vad_hysteresis_keeps_uncertain_speech_in_one_utterance(mon
     class FakeSttModel:
         def transcribe(self, speech_np, **_kwargs):
             transcribe_durations.append(len(speech_np) / 16000)
-            return [types.SimpleNamespace(text="お前が動いてるようになった")], {}
+            return [types.SimpleNamespace(text="お前が動いてるようになった")], types.SimpleNamespace(language="ja")
 
     def fake_monotonic():
         clock["value"] += 0.04
@@ -409,7 +413,7 @@ def test_voice_stream_vad_hysteresis_keeps_uncertain_speech_in_one_utterance(mon
     monkeypatch.setattr(voice.config, "torch", FakeTorch())
     monkeypatch.setattr(voice.time, "monotonic", fake_monotonic)
     monkeypatch.setattr(voice, "_ensure_vad_loaded", lambda: {"model": FakeVadModel(), "utils": ()})
-    monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: FakeSttModel())
+    monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: {"model": FakeSttModel(), "engine": "faster-whisper", "model_id": "small"})
     monkeypatch.setattr(voice, "_resolve_tts_engine", lambda _language, _provider=None: "unavailable")
     monkeypatch.setattr(
         voice,
@@ -491,6 +495,7 @@ def test_voice_stream_passes_requested_tts_provider_to_warmup(monkeypatch):
 def test_voice_download_models_uses_resolved_qwen3_fallback(monkeypatch):
     calls = []
     monkeypatch.setattr(voice, "_tts_provider", "kokoro")
+    monkeypatch.setattr(voice, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(voice, "_tts_runtime", lambda language: {"qwen3LanguageName": "persian"} if language == "fa" else {})
     monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: calls.append("stt"))
     monkeypatch.setattr(voice, "_ensure_qwen3_tts_loaded", lambda: calls.append("qwen3"))
@@ -504,6 +509,7 @@ def test_voice_download_models_uses_resolved_qwen3_fallback(monkeypatch):
 
 def test_tts_generate_uses_resolved_qwen3_fallback(monkeypatch):
     monkeypatch.setattr(voice, "_tts_provider", "kokoro")
+    monkeypatch.setattr(voice, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(voice, "_tts_runtime", lambda language: {"qwen3LanguageName": "persian"} if language == "fa" else {})
     monkeypatch.setattr(voice, "_reload_tts_settings", lambda: None)
 
@@ -524,6 +530,7 @@ def test_tts_generate_uses_resolved_qwen3_fallback(monkeypatch):
 def test_tts_generate_uses_active_language_for_blank_request_language(monkeypatch):
     monkeypatch.setattr(voice.config, "LANGUAGE", "fa")
     monkeypatch.setattr(voice, "_tts_provider", "kokoro")
+    monkeypatch.setattr(voice, "_is_apple_silicon", lambda: True)
     monkeypatch.setattr(voice, "_tts_runtime", lambda language: {"qwen3LanguageName": "persian"} if language == "fa" else {})
     monkeypatch.setattr(voice, "_reload_tts_settings", lambda: None)
 

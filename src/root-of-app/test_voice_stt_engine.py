@@ -165,6 +165,31 @@ class VoiceSttEngineTests(unittest.TestCase):
         with mock.patch.object(voice, "_get_stt_device", return_value="cpu"):
             self.assertEqual(getattr(voice, "_stt_default_model_id")("faster-whisper"), "small")
 
+    def test_stt_status_device_mps_for_mlx_engine(self):
+        """STT status reports 'mps' when the MLX engine is selected on Apple Silicon."""
+        with mock.patch.object(voice, "_get_stt_engine", return_value="mlx"), \
+                mock.patch.object(voice, "_stt_language_hint", return_value=None):
+            result = asyncio.run(getattr(voice, "voice_stt_status")("ja"))
+
+        self.assertEqual(result["device"], "mps")
+
+    def test_stt_status_device_cuda_for_faster_whisper_engine(self):
+        """STT status reports the CTranslate2 compute device for faster-whisper."""
+        with mock.patch.object(voice, "_get_stt_engine", return_value="faster-whisper"), \
+                mock.patch.object(voice, "_stt_language_hint", return_value=None), \
+                mock.patch.object(voice, "_get_stt_device", return_value="cuda"):
+            result = asyncio.run(getattr(voice, "voice_stt_status")("en"))
+
+        self.assertEqual(result["device"], "cuda")
+
+    def test_stt_status_device_cpu_for_faster_whisper_engine(self):
+        with mock.patch.object(voice, "_get_stt_engine", return_value="faster-whisper"), \
+                mock.patch.object(voice, "_stt_language_hint", return_value=None), \
+                mock.patch.object(voice, "_get_stt_device", return_value="cpu"):
+            result = asyncio.run(getattr(voice, "voice_stt_status")("en"))
+
+        self.assertEqual(result["device"], "cpu")
+
 
 if __name__ == "__main__":
     unittest.main()

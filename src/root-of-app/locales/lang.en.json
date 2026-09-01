@@ -659,7 +659,8 @@
         "UploadSample": "Upload voice sample",
         "VoiceSample": "Streaming voice clone",
         "LightweightVoice": "Lightweight voice",
-        "SystemVoice": "System voice"
+        "SystemVoice": "System voice",
+        "CpuWarning": "Realtime voice may lag because speech is running on the CPU. Voice quality is unaffected."
       },
       "Memory": {
         "ClearAll": "Clear all memories",
@@ -1259,7 +1260,9 @@
         "ComponentsRequired": "Setup Required"
       },
       "Alerts": {
-        "NetworkError": "Network error occurred. Please check your connection and try again."
+        "NetworkError": "Network error occurred. Please check your connection and try again.",
+        "NetworkOfflineTitle": "Connection problem",
+        "NetworkOfflineMessage": "mLearn can't reach the download servers. Check your internet connection — the download retries and resumes automatically from where it left off."
       },
       "Buttons": {
         "CancelInstall": "Cancel Installation",
@@ -1332,6 +1335,14 @@
         "DisplayLanguage": "Display language: {language}",
         "DictionaryLanguage": "Dictionary language: {language}",
         "NotAvailable": "not available"
+      },
+      "PlatformWarnings": {
+        "IntelNoOnboardAi": {
+          "Title": "Local AI features are unavailable on this Mac",
+          "Description": "This Mac's Intel processor has no built-in AI acceleration, so the local voice, OCR, and local AI model components cannot be installed. mLearn's built-in chat AI still works and runs on the CPU (slower).",
+          "Unavailable": "Not available on this Mac"
+        },
+        "WindowsCudaRecommended": "An NVIDIA GPU is recommended for realtime voice. Voice also runs on the CPU, but responses will be slower."
       }
     },
     "Rating": {

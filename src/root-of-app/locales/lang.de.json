@@ -659,7 +659,8 @@
         "UploadSample": "Stimmprobe hochladen",
         "VoiceSample": "Streaming-Stimmklon",
         "LightweightVoice": "Leichte Stimme",
-        "SystemVoice": "Systemstimme"
+        "SystemVoice": "Systemstimme",
+        "CpuWarning": "Echtzeit-Sprache kann verzögert sein, da die Sprachverarbeitung auf der CPU läuft. Die Sprachqualität ist nicht betroffen."
       },
       "Memory": {
         "ClearAll": "Alle Erinnerungen löschen",
@@ -1259,7 +1260,9 @@
         "ComponentsRequired": "Einrichtung erforderlich"
       },
       "Alerts": {
-        "NetworkError": "Ein Netzwerkfehler ist aufgetreten. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+        "NetworkError": "Ein Netzwerkfehler ist aufgetreten. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+        "NetworkOfflineTitle": "Verbindungsproblem",
+        "NetworkOfflineMessage": "mLearn kann die Download-Server nicht erreichen. Prüfe deine Internetverbindung – der Download wird automatisch wiederholt und von der abgebrochenen Stelle fortgesetzt."
       },
       "Buttons": {
         "Continue": "Weiter",
@@ -1332,6 +1335,14 @@
         "DisplayLanguage": "Anzeigesprache: {language}",
         "DictionaryLanguage": "Wörterbuchsprache: {language}",
         "NotAvailable": "nicht verfügbar"
+      },
+      "PlatformWarnings": {
+        "IntelNoOnboardAi": {
+          "Title": "Lokale KI-Funktionen sind auf diesem Mac nicht verfügbar",
+          "Description": "Der Intel-Prozessor dieses Macs hat keine eingebaute KI-Beschleunigung, daher können die lokalen Sprach-, OCR- und KI-Modellkomponenten nicht installiert werden. mLearns eingebaute Chat-KI funktioniert weiterhin und läuft auf der CPU (langsamer).",
+          "Unavailable": "Auf diesem Mac nicht verfügbar"
+        },
+        "WindowsCudaRecommended": "Für Echtzeit-Sprache wird eine NVIDIA-GPU empfohlen. Sprache läuft auch auf der CPU, die Antworten sind dann aber langsamer."
       }
     },
     "Rating": {

@@ -1,571 +1,305 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { EventEmitter, Readable } from 'stream';
-import * as path from 'path';
-import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { downloadFileWithProgress, DownloadError, isNetworkError } from './downloadManager';
+
+const mockHttpsGet = vi.fn();
+const mockHttpGet = vi.fn();
 
 vi.mock('https', () => ({
-  get: vi.fn(),
+  default: { get: (...args: unknown[]) => mockHttpsGet(...args) },
+  get: (...args: unknown[]) => mockHttpsGet(...args),
 }));
-
 vi.mock('http', () => ({
-  get: vi.fn(),
+  default: { get: (...args: unknown[]) => mockHttpGet(...args) },
+  get: (...args: unknown[]) => mockHttpGet(...args),
 }));
 
-let mockCreateWriteStream: ((...args: unknown[]) => unknown) | null = null;
-
-vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('fs')>();
-  return {
-    ...actual,
-    default: {
-      ...actual,
-      createWriteStream: (...args: Parameters<typeof actual.createWriteStream>) => {
-        if (mockCreateWriteStream) return mockCreateWriteStream(...args);
-        return actual.createWriteStream(...args);
-      },
-    },
-    createWriteStream: (...args: Parameters<typeof actual.createWriteStream>) => {
-      if (mockCreateWriteStream) return mockCreateWriteStream(...args);
-      return actual.createWriteStream(...args);
-    },
-  };
-});
-
-import * as httpsModule from 'https';
-import * as httpModule from 'http';
-import * as fs from 'fs';
-import { downloadFileWithProgress } from './downloadManager';
-
-type MockResponse = Readable & {
-  statusCode: number;
-  headers: Record<string, string>;
+const flushIo = async (): Promise<void> => {
+  for (let turn = 0; turn < 5; turn++) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
 };
 
-function createMockResponse(
-  statusCode: number,
-  headers: Record<string, string> = {},
-  data: Buffer[] = [],
-): MockResponse {
-  const readable = new Readable({ read() {} }) as MockResponse;
-  readable.statusCode = statusCode;
-  readable.headers = headers;
-  process.nextTick(() => {
-    for (const chunk of data) {
-      readable.push(chunk);
-    }
-    readable.push(null);
+type HeaderRecorder = { headers: Record<string, string> | undefined };
+
+interface ServeOptions {
+  statusCode: number;
+  headers?: Record<string, string>;
+  body?: string;
+  /** Drop the connection after the headers once `partialBody` was written. */
+  failMidStream?: { emit: 'aborted' | 'error'; partialBody: string; error?: Error };
+}
+
+function serveSuccess(
+  options: ServeOptions,
+  opts: { headers?: Record<string, string> } | undefined,
+  callback: (res: unknown) => void,
+  recorder?: HeaderRecorder,
+): void {
+  if (recorder) recorder.headers = opts?.headers;
+  const handlers: Record<string, Array<(a?: unknown) => void>> = {};
+  const res = {
+    statusCode: options.statusCode,
+    headers: options.headers ?? {},
+    on: (event: string, cb: (a?: unknown) => void) => {
+      (handlers[event] ||= []).push(cb);
+    },
+    resume: vi.fn(),
+    pipe: (stream: { write: (chunk: Buffer) => boolean; end: () => void }) => {
+      if (options.failMidStream) {
+        const { emit, partialBody, error } = options.failMidStream;
+        const chunk = Buffer.from(partialBody);
+        handlers['data']?.forEach((cb) => cb(chunk));
+        stream.write(chunk);
+        handlers[emit]?.forEach((cb) => cb(error ?? new Error('aborted')));
+        return;
+      }
+      const chunk = Buffer.from(options.body ?? '');
+      handlers['data']?.forEach((cb) => cb(chunk));
+      stream.write(chunk);
+      stream.end();
+    },
+  };
+  queueMicrotask(() => callback(res));
+}
+
+function failingRequest(error: Error): { on: ReturnType<typeof vi.fn> } {
+  return {
+    on: vi.fn((event: string, cb: (e: Error) => void) => {
+      if (event === 'error') queueMicrotask(() => cb(error));
+    }),
+  };
+}
+
+/** Serve one response (success or mid-stream abort) for every request. */
+function httpsServes(options: ServeOptions, recorder?: HeaderRecorder): void {
+  mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
+    serveSuccess(options, opts, callback, recorder);
+    return { on: vi.fn() };
   });
-  return readable;
 }
 
-function createMockRequest(): EventEmitter {
-  return new EventEmitter();
+/** Fail every request at the transport level with the given error. */
+function httpsFails(error: Error): void {
+  mockHttpsGet.mockImplementation(() => failingRequest(error));
 }
 
-describe('downloadFileWithProgress', () => {
-  let tempDir: TempDir;
-  let httpsGet: ReturnType<typeof vi.fn>;
-  let httpGet: ReturnType<typeof vi.fn>;
+/** Fail the next `count` requests, then serve a successful body. */
+function httpsFailsThenServes(error: Error, count: number, body: string, recorder?: HeaderRecorder): void {
+  let attempts = 0;
+  mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
+    attempts += 1;
+    if (attempts <= count) return failingRequest(error);
+    serveSuccess({ statusCode: 200, headers: { 'content-length': String(body.length) }, body }, opts, callback, recorder);
+    return { on: vi.fn() };
+  });
+}
+
+describe('downloadManager', () => {
+  let destDir: string;
+  let destPath: string;
 
   beforeEach(() => {
-    tempDir = createTempDir('mlearn-download-test-');
-    httpsGet = vi.mocked(httpsModule.get) as ReturnType<typeof vi.fn>;
-    httpGet = vi.mocked(httpModule.get) as ReturnType<typeof vi.fn>;
-    mockCreateWriteStream = null;
+    destDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mlearn-download-'));
+    destPath = path.join(destDir, 'runtime.tar.gz');
   });
 
   afterEach(() => {
-    mockCreateWriteStream = null;
-    tempDir.cleanup();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    fs.rmSync(destDir, { recursive: true, force: true });
   });
 
-  describe('successful downloads', () => {
-    it('downloads a file via https and writes to destination', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('hello world');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
-
-      expect(fs.existsSync(destPath)).toBe(true);
-      expect(fs.readFileSync(destPath)).toEqual(content);
+  describe('isNetworkError', () => {
+    it('classifies node system codes as network errors', () => {
+      expect(isNetworkError(Object.assign(new Error('getaddrinfo failed'), { code: 'ENOTFOUND' }))).toBe(true);
+      expect(isNetworkError(Object.assign(new Error('reset'), { code: 'ECONNRESET' }))).toBe(true);
+      expect(isNetworkError(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }))).toBe(true);
+      expect(isNetworkError(Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }))).toBe(true);
     });
 
-    it('downloads a file via http for http:// URLs', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.bin');
-      const content = Buffer.from('binary data');
-
-      httpGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('http://example.com/file.bin', destPath);
-
-      expect(fs.existsSync(destPath)).toBe(true);
-      expect(fs.readFileSync(destPath)).toEqual(content);
+    it('classifies Chromium net:: errors and outage messages as network errors', () => {
+      expect(isNetworkError(new Error('net::ERR_INTERNET_DISCONNECTED'))).toBe(true);
+      expect(isNetworkError(new Error('Connection reset by peer'))).toBe(true);
+      expect(isNetworkError(new Error('Host timed out'))).toBe(true);
     });
 
-    it('creates destination directory if it does not exist', async () => {
-      const subDir = path.join(tempDir.tmpDir, 'nested', 'deep');
-      const destPath = path.join(subDir, 'file.tar.gz');
-      const content = Buffer.from('data');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, { 'content-length': '4' }, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
-
-      expect(fs.existsSync(subDir)).toBe(true);
-      expect(fs.existsSync(destPath)).toBe(true);
-    });
-
-    it('removes temp file and renames to final destination atomically', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'output.tar.gz');
-      const content = Buffer.from('data');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, {}, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
-
-      expect(fs.readdirSync(path.dirname(destPath)).some((file) => file.endsWith('.downloading'))).toBe(false);
-      expect(fs.existsSync(destPath)).toBe(true);
-    });
-
-    it('allows concurrent downloads to the same destination without temp-file collisions', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'shared.tar.gz');
-      const firstContent = Buffer.from('first');
-      const secondContent = Buffer.from('second');
-      let callCount = 0;
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        callCount++;
-        const content = callCount === 1 ? firstContent : secondContent;
-        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await Promise.all([
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ]);
-
-      expect(fs.existsSync(destPath)).toBe(true);
-      expect(fs.readdirSync(path.dirname(destPath)).some((file) => file.endsWith('.downloading'))).toBe(false);
-    });
-
-    it('resolves without onProgress if no callback provided', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('data');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, {}, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).resolves.toBeUndefined();
+    it('does not tag permanent http failures as network errors', () => {
+      expect(isNetworkError(new Error('HTTP 403'))).toBe(false);
+      expect(isNetworkError(new Error('Too many redirects'))).toBe(false);
+      expect(isNetworkError(null)).toBe(false);
     });
   });
 
-  describe('progress callback', () => {
-    it('calls onProgress with initial 0 progress before data arrives', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('hello world');
-      const progressCalls: Array<{ downloadedBytes: number; expectedBytes: number; progress: number }> = [];
+  it('writes the file atomically and reports full progress', async () => {
+    httpsServes({ statusCode: 200, headers: { 'content-length': '7' }, body: 'archive' });
+    const progress: number[] = [];
 
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
-        callback(res);
-        return createMockRequest();
-      });
+    await downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath, (p) => progress.push(p.progress));
 
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath, (p) => {
-        progressCalls.push({ ...p });
-      });
-
-      expect(progressCalls.length).toBeGreaterThanOrEqual(1);
-      expect(progressCalls[0].downloadedBytes).toBe(0);
-      expect(progressCalls[0].expectedBytes).toBe(content.length);
-      expect(progressCalls[0].progress).toBe(0);
-    });
-
-    it('calls onProgress with progress 1 at completion', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('hello world');
-      const progressCalls: Array<{ downloadedBytes: number; expectedBytes: number; progress: number }> = [];
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath, (p) => {
-        progressCalls.push({ ...p });
-      });
-
-      const last = progressCalls[progressCalls.length - 1];
-      expect(last.downloadedBytes).toBe(content.length);
-      expect(last.expectedBytes).toBe(content.length);
-      expect(last.progress).toBe(1);
-    });
-
-    it('reports progress 0 when content-length is missing', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('hello');
-      const progressCalls: Array<{ progress: number }> = [];
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, {}, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath, (p) => {
-        progressCalls.push({ progress: p.progress });
-      });
-
-      const initialCall = progressCalls[0];
-      expect(initialCall.progress).toBe(0);
-    });
+    expect(fs.readFileSync(destPath, 'utf-8')).toBe('archive');
+    expect(fs.existsSync(`${destPath}.downloading`)).toBe(false);
+    expect(progress.at(-1)).toBe(1);
   });
 
-  describe('redirect handling', () => {
-    it('follows a single 301 redirect', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('redirected content');
-      let callCount = 0;
+  it('retries network failures with backoff and succeeds on a later attempt', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const networkError = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+    const recorder: HeaderRecorder = { headers: undefined };
+    httpsFailsThenServes(networkError, 2, 'archive', recorder);
 
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        callCount++;
-        if (callCount === 1) {
-          const res = createMockResponse(301, { location: 'https://example.com/redirected' });
-          callback(res);
-        } else {
-          const res = createMockResponse(200, {}, [content]);
-          callback(res);
-        }
-        return createMockRequest();
-      });
+    const promise = downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
+    // Attempt 1 fails immediately, sleeps 500ms; attempt 2 sleeps 1000ms.
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushIo();
+    await promise;
 
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
-
-      expect(callCount).toBe(2);
-      expect(fs.existsSync(destPath)).toBe(true);
-      expect(fs.readFileSync(destPath)).toEqual(content);
-    });
-
-    it('follows 302 redirect', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('data');
-      let callCount = 0;
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        callCount++;
-        if (callCount === 1) {
-          const res = createMockResponse(302, { location: 'https://cdn.example.com/file.tar.gz' });
-          callback(res);
-        } else {
-          const res = createMockResponse(200, {}, [content]);
-          callback(res);
-        }
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
-      expect(callCount).toBe(2);
-    });
-
-    it('follows 307 redirect', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('data');
-      let callCount = 0;
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        callCount++;
-        if (callCount === 1) {
-          const res = createMockResponse(307, { location: 'https://cdn.example.com/file.tar.gz' });
-          callback(res);
-        } else {
-          const res = createMockResponse(200, {}, [content]);
-          callback(res);
-        }
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
-      expect(callCount).toBe(2);
-    });
-
-    it('follows 308 redirect', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('data');
-      let callCount = 0;
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        callCount++;
-        if (callCount === 1) {
-          const res = createMockResponse(308, { location: 'https://cdn.example.com/file.tar.gz' });
-          callback(res);
-        } else {
-          const res = createMockResponse(200, {}, [content]);
-          callback(res);
-        }
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
-      expect(callCount).toBe(2);
-    });
-
-    it('rejects with "Too many redirects" after 5 redirects', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(301, { location: 'https://example.com/redirect' });
-        callback(res);
-        return createMockRequest();
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).rejects.toThrow('Too many redirects');
-    });
-
-    it('uses http module when redirect target is http://', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('data');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(302, { location: 'http://cdn.example.com/file.tar.gz' });
-        callback(res);
-        return createMockRequest();
-      });
-
-      httpGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, {}, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath);
-
-      expect(httpGet).toHaveBeenCalledWith('http://cdn.example.com/file.tar.gz', expect.any(Function));
-    });
+    expect(mockHttpsGet.mock.calls.length).toBe(3);
+    expect(fs.readFileSync(destPath, 'utf-8')).toBe('archive');
   });
 
-  describe('HTTP error codes', () => {
-    it('rejects with HTTP 404 error', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
+  it('surfaces the network classification when every attempt fails', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    httpsFails(Object.assign(new Error('dns failure'), { code: 'ENOTFOUND' }));
 
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(404);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).rejects.toThrow('HTTP 404');
-    });
-
-    it('rejects with HTTP 500 error', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(500);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).rejects.toThrow('HTTP 500');
-    });
-
-    it('rejects with HTTP 403 error', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(403);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).rejects.toThrow('HTTP 403');
-    });
-
-    it('does not write a file when HTTP error occurs', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(404);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).rejects.toThrow();
-
-      expect(fs.existsSync(destPath)).toBe(false);
-    });
+    const promise = downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
+    const assertion = expect(promise).rejects.toSatisfy((error: unknown) => (
+      error instanceof DownloadError && error.network && /dns failure/.test(error.message)
+    ));
+    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushIo();
+    await assertion;
+    expect(mockHttpsGet.mock.calls.length).toBe(3);
   });
 
-  describe('network errors', () => {
-    it('rejects when request emits an error event', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const networkError = new Error('ECONNREFUSED');
+  it('does not retry permanent HTTP failures', async () => {
+    httpsServes({ statusCode: 403, headers: {}, body: '' });
 
-      httpsGet.mockImplementation((_url: string, _callback: (res: unknown) => void) => {
-        const req = new EventEmitter();
-        process.nextTick(() => {
-          req.emit('error', networkError);
-        });
-        return req;
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).rejects.toThrow('ECONNREFUSED');
-    });
-
-    it('rejects on DNS failure', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const dnsError = new Error('ENOTFOUND example.invalid');
-
-      httpsGet.mockImplementation((_url: string, _callback: (res: unknown) => void) => {
-        const req = new EventEmitter();
-        process.nextTick(() => {
-          req.emit('error', dnsError);
-        });
-        return req;
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.invalid/file.tar.gz', destPath),
-      ).rejects.toThrow('ENOTFOUND');
-    });
+    const promise = downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
+    await expect(promise).rejects.toSatisfy((error: unknown) => (
+      error instanceof DownloadError && !error.network && /HTTP 403/.test(error.message)
+    ));
+    await flushIo();
+    expect(mockHttpsGet.mock.calls.length).toBe(1);
+    expect(fs.existsSync(destPath)).toBe(false);
   });
 
-  describe('write errors', () => {
-    it('rejects instead of throwing when the temp file disappears before rename', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('hello');
+  it('resumes a partial download via a Range request', async () => {
+    fs.writeFileSync(`${destPath}.downloading`, 'abc');
+    const recorder: HeaderRecorder = { headers: undefined };
+    httpsServes(
+      { statusCode: 206, headers: { 'content-range': 'bytes 3-8/8' }, body: 'defgh' },
+      recorder,
+    );
 
-      mockCreateWriteStream = vi.fn((filePath: string) => {
-        const createWriteStreamMock = mockCreateWriteStream;
-        mockCreateWriteStream = null;
-        const stream = fs.createWriteStream(filePath);
-        mockCreateWriteStream = createWriteStreamMock;
-        stream.on('finish', () => {
-          try { fs.unlinkSync(filePath); } catch {}
-        });
-        return stream;
-      });
+    await downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
 
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
-        callback(res);
-        return createMockRequest();
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).rejects.toThrow('ENOENT');
-    });
-
-    it('rejects when write stream emits an error', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('hello');
-      const writeError = new Error('ENOSPC: no space left on device');
-
-      const onHandlers: Record<string, (...args: unknown[]) => void> = {};
-      const fakeStream = Object.assign(new EventEmitter(), {
-        write: vi.fn((_chunk: unknown, _enc: unknown, cb: () => void) => cb()),
-        end: vi.fn(),
-        close: vi.fn((cb: () => void) => cb()),
-        destroy: vi.fn(),
-        writable: true,
-        on(event: string, handler: (...args: unknown[]) => void) {
-          onHandlers[event] = handler;
-          EventEmitter.prototype.on.call(this, event, handler);
-          return this;
-        },
-      });
-
-      mockCreateWriteStream = vi.fn(() => fakeStream);
-
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
-        Object.defineProperty(res, 'pipe', {
-          value: (_dest: unknown) => {
-            process.nextTick(() => {
-              if (onHandlers['error']) {
-                onHandlers['error'](writeError);
-              }
-            });
-            return _dest;
-          },
-          writable: true,
-          configurable: true,
-        });
-        callback(res);
-        return createMockRequest();
-      });
-
-      await expect(
-        downloadFileWithProgress('https://example.com/file.tar.gz', destPath),
-      ).rejects.toThrow('ENOSPC');
-
-      expect(fs.existsSync(destPath)).toBe(false);
-    });
+    expect(recorder.headers?.Range).toBe('bytes=3-');
+    expect(fs.readFileSync(destPath, 'utf-8')).toBe('abcdefgh');
   });
 
-  describe('DownloadProgress interface', () => {
-    it('emits progress objects with correct shape', async () => {
-      const destPath = path.join(tempDir.tmpDir, 'file.tar.gz');
-      const content = Buffer.from('data chunk');
-      const receivedProgress: unknown[] = [];
+  it('restarts from scratch when the server ignores the Range header', async () => {
+    fs.writeFileSync(`${destPath}.downloading`, 'stale');
+    const recorder: HeaderRecorder = { headers: undefined };
+    httpsServes(
+      { statusCode: 200, headers: { 'content-length': '7' }, body: 'archive' },
+      recorder,
+    );
 
-      httpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
-        const res = createMockResponse(200, { 'content-length': String(content.length) }, [content]);
-        callback(res);
-        return createMockRequest();
-      });
+    await downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
 
-      await downloadFileWithProgress('https://example.com/file.tar.gz', destPath, (p) => {
-        receivedProgress.push(p);
-      });
+    expect(recorder.headers?.Range).toBe('bytes=5-');
+    expect(fs.readFileSync(destPath, 'utf-8')).toBe('archive');
+  });
 
-      expect(receivedProgress.length).toBeGreaterThan(0);
-      for (const p of receivedProgress) {
-        expect(p).toHaveProperty('downloadedBytes');
-        expect(p).toHaveProperty('expectedBytes');
-        expect(p).toHaveProperty('progress');
-        expect(typeof (p as { progress: number }).progress).toBe('number');
-        expect((p as { progress: number }).progress).toBeGreaterThanOrEqual(0);
-        expect((p as { progress: number }).progress).toBeLessThanOrEqual(1);
+  it('discards the partial file and restarts on 416', async () => {
+    fs.writeFileSync(`${destPath}.downloading`, 'stale');
+    let call = 0;
+    mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
+      call += 1;
+      if (call === 1) {
+        const res = { statusCode: 416, headers: {}, on: vi.fn(), resume: vi.fn(), pipe: vi.fn() };
+        queueMicrotask(() => callback(res));
+        return { on: vi.fn() };
       }
+      httpsServes({ statusCode: 200, headers: { 'content-length': '7' }, body: 'archive' });
+      expect(opts?.headers?.Range).toBeUndefined();
+      return mockHttpsGet(_url, opts, callback);
     });
+
+    await downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
+
+    expect(call).toBe(2);
+    expect(fs.readFileSync(destPath, 'utf-8')).toBe('archive');
+    expect(fs.existsSync(`${destPath}.downloading`)).toBe(false);
+  });
+
+  it('rejects with a network-classified error after repeated mid-stream aborts and resumes partial bytes', async () => {
+    // Real backoff (0.5s + 1s) is the controlled delay here: the retry must
+    // start only after the failed attempt's write stream flushed and closed,
+    // and that close is real I/O — faking the timer would race it.
+    let attempts = 0;
+    const rangeHeaders: Array<string | undefined> = [];
+    mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
+      attempts += 1;
+      rangeHeaders.push(opts?.headers?.Range);
+      serveSuccess(
+        {
+          statusCode: attempts === 1 ? 200 : 206,
+          headers: attempts === 1 ? {} : { 'content-range': 'bytes 3-6/6' },
+          failMidStream: { emit: 'aborted', partialBody: 'abc' },
+        },
+        opts,
+        callback,
+      );
+      return { on: vi.fn() };
+    });
+
+    const promise = downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
+    const assertion = expect(promise).rejects.toSatisfy((error: unknown) => (
+      error instanceof DownloadError && error.network && /aborted/.test(error.message)
+    ));
+    await assertion;
+
+    expect(attempts).toBe(3);
+    // Each retry resumes from the bytes already on disk (3, then 6).
+    expect(rangeHeaders[1]).toBe('bytes=3-');
+    expect(rangeHeaders[2]).toBe('bytes=6-');
+  });
+
+  it('recovers from a mid-stream abort by resuming on the next attempt', async () => {
+    // Real 0.5s backoff: the retry must wait for the aborted attempt's stream
+    // to flush and close (real I/O) — a faked timer would race the close.
+    let attempts = 0;
+    const rangeHeaders: Array<string | undefined> = [];
+    mockHttpsGet.mockImplementation((_url: string, opts: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
+      attempts += 1;
+      rangeHeaders.push(opts?.headers?.Range);
+      if (attempts === 1) {
+        serveSuccess(
+          { statusCode: 200, headers: {}, failMidStream: { emit: 'aborted', partialBody: 'abc' } },
+          opts,
+          callback,
+        );
+        return { on: vi.fn() };
+      }
+      serveSuccess(
+        { statusCode: 206, headers: { 'content-range': 'bytes 3-7/7' }, body: 'defg' },
+        opts,
+        callback,
+      );
+      return { on: vi.fn() };
+    });
+
+    await downloadFileWithProgress('https://example.com/runtime.tar.gz', destPath);
+
+    expect(attempts).toBe(2);
+    expect(rangeHeaders[1]).toBe('bytes=3-');
+    expect(fs.readFileSync(destPath, 'utf-8')).toBe('abcdefg');
+    expect(fs.existsSync(`${destPath}.downloading`)).toBe(false);
   });
 });

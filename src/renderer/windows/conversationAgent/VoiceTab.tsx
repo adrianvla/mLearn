@@ -21,7 +21,7 @@ import {
 import type { SelectOption } from '../../components/common';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { ChatBubble } from './ChatBubble';
-import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, VoiceVadEvent, Token, VoiceSessionStatus, VoiceCallTTSProvider } from '../../../shared/types';
+import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceVadEvent, Token, VoiceSessionStatus, VoiceCallTTSProvider } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
@@ -120,6 +120,14 @@ type ScheduledVoiceNudge = {
   prompt?: string;
 };
 
+/** Compute hints carried by voice status IPC payloads. */
+type VoiceDeviceHint = {
+  /** Device the voice service uses for speech compute ('cuda' | 'mps' | 'cpu'). */
+  device?: 'cuda' | 'mps' | 'cpu';
+  /** Pre-derived CPU-performance warning from the voice service. */
+  cpuWarning?: boolean;
+};
+
 function voiceTtsChoiceFromProvider(provider: VoiceCallTTSProvider | undefined): VoiceTtsChoice {
   switch (provider) {
     case 'qwen3': return 'voice-clone';
@@ -204,6 +212,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [ttsChoice, setTtsChoice] = createSignal<VoiceTtsChoice>(
     voiceTtsChoiceFromProvider(settings.ttsProvider ?? DEFAULT_SETTINGS.ttsProvider),
   );
+  // True when the active voice status reports CPU-only speech compute
+  const [cpuVoiceWarning, setCpuVoiceWarning] = createSignal(false);
+  const applyVoiceDeviceStatus = (status: VoiceTtsStatus | VoiceModelStatus | null | undefined) => {
+    // VOICE_TTS_STATUS and model-status relays attach device/cpuWarning at runtime;
+    // payloads without compute hints (older backend builds) never clear the flag
+    const hint = status as VoiceDeviceHint | null | undefined;
+    if (!status || (hint?.device === undefined && hint?.cpuWarning === undefined)) return;
+    setCpuVoiceWarning(hint.cpuWarning === true || hint.device === 'cpu');
+  };
 
   // Refs
   let messagesRef: HTMLDivElement | undefined;
@@ -659,6 +676,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       const status = await getBridge().voice.voiceCheckModels(language);
       if (status) {
         setModelStatus(status);
+        applyVoiceDeviceStatus(status);
         setIsDownloading(status.downloading);
         if (status.downloading) {
           setDownloadProgress(Math.round(status.progress * 100));
@@ -680,7 +698,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // IPC Listeners
   // ============================================================================
 
-  // Set up IPC listeners once on mount, clean up on unmount
   onMount(() => {
     const bridge = getBridge();
     const cleanups: Array<() => void> = [];
@@ -690,6 +707,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // Model download progress
     cleanups.push(bridge.voice.onVoiceModelProgress((status) => {
       setModelStatus(status);
+      applyVoiceDeviceStatus(status);
       setIsDownloading(status.downloading);
       setDownloadProgress(Math.round(status.progress * 100));
     }));
@@ -744,6 +762,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // TTS status
     cleanups.push(bridge.voice.onVoiceTtsStatus((status) => {
       log.info('[VoiceTab] TTS status', status);
+      applyVoiceDeviceStatus(status);
       if (status.error) {
         ttsHadError = true;
         addDebugEvent('TTS error', status.error, 'error');
@@ -1660,6 +1679,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       {/* Main voice UI (models ready) */}
       <Show when={!isChecking() && modelsReady() && !isDownloading()}>
         <div class="voice-call-area">
+          {/* CPU compute warning — status-driven, never blocks session controls */}
+          <Show when={cpuVoiceWarning()}>
+            <AlertBanner
+              variant="warning"
+              message={t('mlearn.ConversationAgent.Voice.CpuWarning')}
+              size="sm"
+              class="voice-cpu-warning"
+            />
+          </Show>
           <Show
             when={showAdvancedUi()}
             fallback={

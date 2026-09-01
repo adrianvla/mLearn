@@ -12,7 +12,7 @@ import { spawn, exec, execSync, ChildProcess } from 'child_process';
 import { ipcMain, app, BrowserWindow } from 'electron';
 import * as tar from 'tar';
 import { IPC_CHANNELS, PYTHON_BACKEND_PORT, DEFAULT_RUNTIME_CATALOG_URL, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
-import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress, RuntimeCatalog, RuntimeCatalogEntry } from '../../shared/types';
+import type { InstallOptions, InstallStartedPayload, InstallerState, PipRequirementsConfig, PipProgress, RuntimeCatalog, RuntimeCatalogEntry } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import {
   getResourcePath,
@@ -32,7 +32,7 @@ import { getLanguagePythonRequirementsForInstall } from '../../shared/languageFe
 import { getPythonExecutableCandidates } from './pythonRuntimePaths';
 import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
 import { probeMirrorCatalog } from './catalogMirrors';
-import { downloadFileWithProgress } from '../utils/downloadManager';
+import { downloadFileWithProgress, isNetworkError } from '../utils/downloadManager';
 
 const pyLog = getLogger('python');
 const lifecycleLog = getLogger('python.lifecycle');
@@ -134,6 +134,9 @@ const quitTokenListeners = new Set<(token: string) => void>();
 let pendingCriticalError: string | null = null;
 let pendingStartupStatusMessage: string | null = null;
 let activePipProcess: ChildProcess | null = null;
+// Set by the CANCEL_INSTALL handler so the pip close handler can tell a
+// user-initiated abort (null exit code) from an unexpected kill.
+let installAborted = false;
 let selectedPythonExecutablePath: string | null = null;
 const plannedBackendShutdowns = new WeakSet<ChildProcess>();
 let backendRestartAfterExit: ChildProcess | null = null;
@@ -148,6 +151,48 @@ const PACKAGE_SIZE_ESTIMATES_BYTES: Readonly<Record<string, number>> = {
   voice: 4000 * 1024 * 1024,
   python: 150 * 1024 * 1024,
 };
+
+
+// Windows voice installs pin CUDA torch wheels (+cu128), roughly 3 GB beyond
+// the base voice estimate.
+const WIN32_VOICE_CUDA_EXTRA_BYTES = 3000 * 1024 * 1024;
+
+// PyPI ships CPU-only torch wheels on Windows; CUDA builds come from the
+// pytorch cu128 index, injected per group at pip invocation time.
+const CUDA_EXTRA_INDEX_URL = 'https://download.pytorch.org/whl/cu128';
+
+type InstallerPlatform = 'darwin-arm64' | 'darwin-x64' | 'win32-x64' | 'linux-x64';
+
+// Stable machine keys surfaced to the renderer via the INSTALL_STARTED payload.
+const PLATFORM_WARNINGS: Readonly<Record<InstallerPlatform, readonly string[]>> = {
+  'darwin-arm64': [],
+  'darwin-x64': ['intel-no-onboard-ai'],
+  'win32-x64': ['windows-cuda-recommended'],
+  'linux-x64': [],
+};
+
+function getInstallerPlatform(): InstallerPlatform {
+  if (isWindows) return 'win32-x64';
+  if (isAppleSilicon) return 'darwin-arm64';
+  if (process.platform === 'darwin') return 'darwin-x64';
+  return 'linux-x64';
+}
+
+
+/**
+ * Options after platform degradation. Intel Macs have no onboard AI stack, so
+ * every AI component is stripped: only core app packages and the language
+ * "core" component (tokenizer) packages install.
+ */
+function resolveEffectiveInstallOptions(
+  options: InstallOptions,
+  platform: InstallerPlatform = getInstallerPlatform(),
+): InstallOptions {
+  if (platform === 'darwin-x64') {
+    return { includeLLM: false, includeOCR: false, includeVoice: false };
+  }
+  return options;
+}
 
 // Paths
 const resPath = getResourcePath();
@@ -225,6 +270,32 @@ function fetchRuntimeCatalog(catalogUrl: string): Promise<RuntimeCatalog> {
     };
     doRequest(catalogUrl);
   });
+}
+
+function sleep(ms: number): Promise<void> {
+  let wake: () => void = () => {};
+  const promise = new Promise<void>((resolve) => { wake = resolve; });
+  setTimeout(wake, ms);
+  return promise;
+}
+
+const RUNTIME_CATALOG_ATTEMPTS = 3;
+const RUNTIME_CATALOG_RETRY_BACKOFF_MS = 400;
+
+/** Retry the catalog fetch twice with a short backoff before mirror probing. */
+async function fetchRuntimeCatalogWithRetry(catalogUrl: string): Promise<RuntimeCatalog> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= RUNTIME_CATALOG_ATTEMPTS; attempt++) {
+    try {
+      return await fetchRuntimeCatalog(catalogUrl);
+    } catch (e) {
+      lastError = e;
+      if (attempt < RUNTIME_CATALOG_ATTEMPTS) {
+        await sleep(RUNTIME_CATALOG_RETRY_BACKOFF_MS * attempt);
+      }
+    }
+  }
+  throw lastError;
 }
 
 function computeSha256(filePath: string): string {
@@ -542,67 +613,327 @@ function handleInstallerFailure(message: string, options?: { detail?: string; em
   }
 }
 
-// Load pip requirements config
+// Load pip requirements config. Groups introduced for Windows/Linux CUDA
+// support may be absent from older bundled pip_requirements.json copies, so
+// any missing key falls back to the built-in defaults below.
+const FALLBACK_PIP_REQUIREMENTS: PipRequirementsConfig = {
+  core: [
+    'pip',
+    'uvicorn==0.41.0',
+    'fastapi==0.129.2',
+    'pydantic==2.12.5',
+    'beautifulsoup4==4.14.3',
+    'pillow==12.1.1',
+    'numpy==2.4.2',
+    'python-multipart==0.0.22',
+    'setuptools',
+    'wheel',
+  ],
+  ocr: [],
+  llm: ['torch==2.10.0', 'transformers==5.12.1', 'sentencepiece==0.2.1'],
+  'llm-windows': ['torch==2.10.0+cu128', 'transformers==4.57.3', 'sentencepiece==0.2.1'],
+  'llm-linux': ['torch==2.10.0', 'transformers==4.57.3', 'sentencepiece==0.2.1'],
+  voice: ['torch==2.10.0', 'torchaudio==2.10.0', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2'],
+  'voice-windows': ['torch==2.10.0+cu128', 'torchaudio==2.10.0+cu128', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2', 'nvidia-cudnn-cu12==9.25.1.1', 'nvidia-cublas-cu12==12.8.5.5'],
+  'qwen3-tts': ['mlx==0.31.1', 'mlx-metal==0.31.1', 'mlx-lm==0.31.2', 'mlx-audio==0.4.4', 'transformers==5.12.1', 'tokenizers==0.22.1', 'huggingface-hub==1.21.0', 'soundfile==0.13.1'],
+  // qwen-tts==0.1.1 requires transformers==4.57.3 / accelerate==1.12.0 exactly
+  // and huggingface-hub>=0.34,<1.0 — no hub pin here, transformers resolves it.
+  // librosa==0.11.0 ships a py3-none-any wheel (Requires-Python >=3.8); avoid
+  // 1.x, which needs Python >=3.12.
+  'qwen3-tts-torch': ['qwen-tts==0.1.1', 'transformers==4.57.3', 'accelerate==1.12.0', 'librosa==0.11.0', 'tokenizers==0.22.1'],
+  'mlx-stt': ['sentencepiece==0.2.1'],
+};
+
 function loadPipRequirementsConfig(): PipRequirementsConfig {
+  let config: PipRequirementsConfig;
   try {
-    const data = readResourceFile('pip_requirements.json');
-    return JSON.parse(data);
+    config = JSON.parse(readResourceFile('pip_requirements.json'));
   } catch (e) {
     log.error('Failed to load pip requirements config:', e);
-    return {
-      core: [
-        'pip',
-        'uvicorn==0.41.0',
-        'fastapi==0.129.2',
-        'pydantic==2.12.5',
-        'beautifulsoup4==4.14.3',
-        'pillow==12.1.1',
-        'numpy==2.4.2',
-        'python-multipart==0.0.22',
-        'setuptools',
-        'wheel',
-        'websockets==16.0',
-      ],
-      ocr: [],
-      llm: ['torch==2.10.0', 'transformers==5.12.1', 'sentencepiece==0.2.1'],
-      voice: ['torch==2.10.0', 'torchaudio==2.10.0', 'faster_whisper==1.2.1', 'kokoro==0.9.4', 'soundfile==0.13.1', 'silero-vad', 'onnxruntime==1.24.2'],
-      'qwen3-tts': ['mlx==0.31.1', 'mlx-metal==0.31.1', 'mlx-lm==0.31.2', 'mlx-audio==0.4.4', 'transformers==5.12.1', 'tokenizers==0.22.1', 'huggingface-hub==1.21.0', 'soundfile==0.13.1'],
-      'mlx-stt': ['sentencepiece==0.2.1'],
-    };
+    config = { ...FALLBACK_PIP_REQUIREMENTS };
   }
+  for (const group of Object.keys(FALLBACK_PIP_REQUIREMENTS) as (keyof PipRequirementsConfig)[]) {
+    const fallback = FALLBACK_PIP_REQUIREMENTS[group];
+    if (!config[group] && fallback) config[group] = fallback;
+  }
+  return config;
 }
 
-// Build pip requirement list based on options
-function buildPipRequirementList(options: InstallOptions): string[] {
-  const config = loadPipRequirementsConfig();
-  const packages = [...config.core];
-  
-  if (options.includeOCR) {
-    packages.push(...config.ocr);
+/** One pip invocation: a named package group with an optional extra wheel index. */
+export interface PipInstallGroup {
+  name: string;
+  packages: string[];
+  extraIndexUrl?: string;
+}
+
+/**
+ * Platform component matrix:
+ * - darwin-arm64: core + [ocr] + [llm] + [voice + qwen3-tts + mlx-stt]
+ * - linux-x64:    core + [ocr] + [llm-linux] + [voice + qwen3-tts-torch]
+ * - win32-x64:    core + [ocr] + [llm-windows + voice-windows + qwen3-tts-torch];
+ *                 the CUDA-bearing groups install from the pytorch cu128 index
+ * - darwin-x64:   core only — AI groups are stripped, but language "core"
+ *                 component (tokenizer) packages still install
+ * llm-windows/llm-linux pin transformers 4.57.3 to stay compatible with the
+ * qwen-tts engine installed by qwen3-tts-torch in the same env; the Apple mlx
+ * stack keeps its own transformers line.
+ * The installed language component packages ride as a final optional group so
+ * one bad language package cannot block the backend from starting.
+ */
+export function buildPipInstallGroups(
+  options: InstallOptions,
+  config: PipRequirementsConfig = loadPipRequirementsConfig(),
+  platform: InstallerPlatform = getInstallerPlatform(),
+): PipInstallGroup[] {
+  const selected = resolveEffectiveInstallOptions(options, platform);
+  const groups: PipInstallGroup[] = [{ name: 'core', packages: [...config.core] }];
+
+  if (selected.includeOCR && config.ocr.length > 0) {
+    groups.push({ name: 'ocr', packages: [...config.ocr] });
   }
-  if (options.includeLLM) {
-    packages.push(...config.llm);
-  }
-  if (options.includeVoice && config.voice) {
-    packages.push(...config.voice);
-    if (config['qwen3-tts']) {
-      packages.push(...config['qwen3-tts']);
+  if (selected.includeLLM) {
+    if (platform === 'win32-x64') {
+      // Explicit +cu128 pins: bare torch pins from PyPI are CPU-only on Windows,
+      // so GPU selection must not rely on cross-index local-version preference.
+      if (config['llm-windows']?.length) {
+        groups.push({ name: 'llm-windows', packages: [...config['llm-windows']], extraIndexUrl: CUDA_EXTRA_INDEX_URL });
+      }
+    } else if (platform === 'linux-x64') {
+      // Linux LLM shares the env with qwen3-tts-torch, so transformers stays
+      // on the qwen-tts-compatible 4.57.3 line; PyPI torch is CUDA-capable.
+      if (config['llm-linux']?.length) {
+        groups.push({ name: 'llm-linux', packages: [...config['llm-linux']] });
+      }
+    } else if (config.llm.length > 0) {
+      groups.push({ name: 'llm', packages: [...config.llm] });
     }
-    if (config['mlx-stt'] && isAppleSilicon) {
-      packages.push(...config['mlx-stt']);
+  }
+  if (selected.includeVoice) {
+    if (platform === 'win32-x64') {
+      if (config['voice-windows']?.length) {
+        groups.push({ name: 'voice-windows', packages: [...config['voice-windows']], extraIndexUrl: CUDA_EXTRA_INDEX_URL });
+      }
+      if (config['qwen3-tts-torch']?.length) {
+        groups.push({ name: 'qwen3-tts-torch', packages: [...config['qwen3-tts-torch']], extraIndexUrl: CUDA_EXTRA_INDEX_URL });
+      }
+    } else {
+      if (config.voice?.length) {
+        groups.push({ name: 'voice', packages: [...config.voice] });
+      }
+      if (platform === 'linux-x64' && config['qwen3-tts-torch']?.length) {
+        groups.push({ name: 'qwen3-tts-torch', packages: [...config['qwen3-tts-torch']] });
+      }
+      if (platform === 'darwin-arm64') {
+        if (config['qwen3-tts']?.length) {
+          groups.push({ name: 'qwen3-tts', packages: [...config['qwen3-tts']] });
+        }
+        if (config['mlx-stt']?.length) {
+          groups.push({ name: 'mlx-stt', packages: [...config['mlx-stt']] });
+        }
+      }
     }
   }
-  packages.push(...getLanguagePythonRequirementsForInstall(loadLangData(), options));
-  
-  return packages;
+
+  const languagePackages = getLanguagePythonRequirementsForInstall(loadLangData(), selected);
+  if (languagePackages.length > 0) {
+    groups.push({ name: 'language', packages: languagePackages });
+  }
+
+  return groups.filter((group) => group.packages.length > 0);
+}
+
+/**
+ * Flat package list across all platform groups — used for logging and tests.
+ * The install flows spawn one pip per group instead (see installPipGroups).
+ */
+export function buildPipRequirementList(
+  options: InstallOptions,
+  config: PipRequirementsConfig = loadPipRequirementsConfig(),
+  platform: InstallerPlatform = getInstallerPlatform(),
+): string[] {
+  return buildPipInstallGroups(options, config, platform).flatMap((group) => group.packages);
 }
 
 function estimateRequiredBytes(options: InstallOptions): number {
+  const platform = getInstallerPlatform();
+  const selected = resolveEffectiveInstallOptions(options, platform);
   let total = PACKAGE_SIZE_ESTIMATES_BYTES.python + PACKAGE_SIZE_ESTIMATES_BYTES.core;
-  if (options.includeOCR) total += PACKAGE_SIZE_ESTIMATES_BYTES.ocr;
-  if (options.includeLLM) total += PACKAGE_SIZE_ESTIMATES_BYTES.llm;
-  if (options.includeVoice) total += PACKAGE_SIZE_ESTIMATES_BYTES.voice;
+  if (selected.includeOCR) total += PACKAGE_SIZE_ESTIMATES_BYTES.ocr;
+  if (selected.includeLLM) total += PACKAGE_SIZE_ESTIMATES_BYTES.llm;
+  if (selected.includeVoice) {
+    total += PACKAGE_SIZE_ESTIMATES_BYTES.voice;
+    if (platform === 'win32-x64') total += WIN32_VOICE_CUDA_EXTRA_BYTES;
+  }
   return total;
+}
+
+// --- Per-group pip installation ---
+
+const PIP_HEARTBEAT_INTERVAL_MS = 5000;
+
+// pip output fragments that indicate a network outage rather than a package
+// problem. Word boundaries keep package names like "networkx" untagged.
+const PIP_NETWORK_ERROR_PATTERN = /\b(timed out|timeout|connection|temporary failure|network|ssl ?error)\b/i;
+
+type PipGroupResult = { status: 'ok' } | { status: 'failed'; message: string } | { status: 'aborted' };
+
+interface InstallPipGroupsCallbacks {
+  onStatus: (message: string) => void;
+  onPipProgress?: (progress: PipProgress) => void;
+}
+
+function buildPipInstallArgs(group: PipInstallGroup): string[] {
+  const args = isWindows ? ['-m', 'pip', 'install'] : ['install'];
+  if (group.extraIndexUrl) args.push('--extra-index-url', group.extraIndexUrl);
+  args.push(...group.packages);
+  return args;
+}
+
+/**
+ * Run one pip spawn for a single package group. While pip has not yet produced
+ * its first Collecting/Downloading/already-satisfied line, a heartbeat status
+ * line is emitted every ~5s so the installer never looks hung during
+ * dependency resolution.
+ */
+function installPipGroup(
+  group: PipInstallGroup,
+  callbacks: InstallPipGroupsCallbacks,
+  seenPackages: Set<string>,
+): Promise<PipGroupResult> {
+  let resolveGroupResult: (result: PipGroupResult) => void = () => {};
+  const promise = new Promise<PipGroupResult>((resolve) => { resolveGroupResult = resolve; });
+  const pipProcess = spawn(isWindows ? resolvePythonExecutablePath() : resolvePipExecutablePath(), buildPipInstallArgs(group), {
+    cwd: envPath,
+  });
+  activePipProcess = pipProcess;
+
+  let pipOutputBuffer = '';
+  let sawProgressLine = false;
+  let heartbeatSeconds = 0;
+  let settled = false;
+
+  const heartbeat = setInterval(() => {
+    if (sawProgressLine) {
+      clearInterval(heartbeat);
+      return;
+    }
+    heartbeatSeconds += PIP_HEARTBEAT_INTERVAL_MS / 1000;
+    callbacks.onStatus(`Resolving packages… ${heartbeatSeconds}s`);
+  }, PIP_HEARTBEAT_INTERVAL_MS);
+
+  const settle = (result: PipGroupResult) => {
+    if (settled) return;
+    settled = true;
+    clearInterval(heartbeat);
+    if (activePipProcess === pipProcess) activePipProcess = null;
+    resolveGroupResult(result);
+  };
+
+  const processPipLines = (raw: string, isError: boolean): void => {
+    const cleaned = stripAnsi(raw);
+    // Buffer partial lines — pip can chunk output mid-line
+    pipOutputBuffer += cleaned;
+    const lines = pipOutputBuffer.split(/\r?\n/);
+    // Keep last element as buffer (may be incomplete)
+    pipOutputBuffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Skip pure progress bar lines (━, █, etc.)
+      if (/^[━╺╸█░▓▒─\s]+$/.test(trimmed)) continue;
+
+      if (isError) {
+        if (PIP_NETWORK_ERROR_PATTERN.test(trimmed)) {
+          callbacks.onStatus(`NETWORK ERROR: ${trimmed}`);
+        } else {
+          // Filter out pip's non-error stderr (e.g. deprecation warnings, "already satisfied" notices)
+          const lower = trimmed.toLowerCase();
+          if (lower.includes('warning') && !lower.includes('error')) {
+            callbacks.onStatus(trimmed);
+          } else {
+            callbacks.onStatus(`ERROR: ${trimmed}`);
+          }
+        }
+      } else {
+        callbacks.onStatus(trimmed);
+      }
+
+      const progress = parsePipLine(trimmed, seenPackages);
+      if (progress) {
+        if (!sawProgressLine
+          && (progress.action === 'collecting' || progress.action === 'downloading' || progress.action === 'satisfied')) {
+          sawProgressLine = true;
+          clearInterval(heartbeat);
+        }
+        callbacks.onPipProgress?.(progress);
+      }
+    }
+  };
+
+  pipProcess.stdout.on('data', (data: Buffer) => {
+    log.info(`pip (${group.name}):`, data.toString());
+    processPipLines(data.toString(), false);
+  });
+
+  pipProcess.stderr.on('data', (data: Buffer) => {
+    log.error(`pip error (${group.name}):`, data.toString());
+    processPipLines(data.toString(), true);
+  });
+
+  pipProcess.on('error', (err) => {
+    log.error(`pip (${group.name}) failed to start:`, err);
+    settle({ status: 'failed', message: `pip install for ${group.name} packages failed to start: ${err.message}` });
+  });
+
+  pipProcess.on('close', (code) => {
+    if (code === 0) {
+      log.info(`pip (${group.name}) completed successfully`);
+      settle({ status: 'ok' });
+      return;
+    }
+    // pip reports a null code when it is killed instead of exiting. The
+    // CANCEL_INSTALL handler kills the active pip process and already returns
+    // the installer to its choice state, so a null code counts as an
+    // intentional abort only while the cancel flag is set; any other null
+    // exit is an unexpected failure (crash or external kill).
+    if (code === null && installAborted) {
+      log.info(`pip (${group.name}) aborted by user`);
+      settle({ status: 'aborted' });
+      return;
+    }
+    const message = code === null
+      ? `pip install for ${group.name} packages exited without a return code (process was killed)`
+      : `pip exited with code ${code} while installing ${group.name} packages`;
+    settle({ status: 'failed', message });
+  });
+
+  return promise;
+}
+
+/**
+ * Install groups sequentially: core first (its failure is fatal), then each
+ * optional group in its own pip spawn. An optional group failure only logs a
+ * warning and continues so the backend can still start. A user abort
+ * (CANCEL_INSTALL) stops the remaining groups without any success/failure
+ * modal — the cancel handler already put the installer back into its choice
+ * state.
+ */
+async function installPipGroups(groups: PipInstallGroup[], callbacks: InstallPipGroupsCallbacks): Promise<void> {
+  const seenPackages = new Set<string>();
+  for (const group of groups) {
+    if (installAborted) return;
+    const result = await installPipGroup(group, callbacks, seenPackages);
+    if (result.status === 'aborted') return;
+    if (result.status === 'failed') {
+      if (group.name === 'core') {
+        throw new Error(result.message);
+      }
+      log.warn(`Optional package group "${group.name}" failed: ${result.message}`);
+      callbacks.onStatus(`WARNING: Optional "${group.name}" package installation failed; continuing without it`);
+    }
+  }
 }
 
 function formatBytes(bytes: number): string {
@@ -632,9 +963,13 @@ async function checkDiskSpace(targetPath: string): Promise<number> {
 
 async function verifyPythonInstallation(options: InstallOptions): Promise<boolean> {
   const pythonPath = resolvePythonExecutablePath();
+  // Import checks follow what was actually selected after platform stripping
+  // (darwin-x64 installs no torch stack, so it verifies only the web core).
+  const selected = resolveEffectiveInstallOptions(options);
   const imports = ['fastapi', 'uvicorn'];
-  if (options.includeLLM) imports.push('torch', 'transformers');
+  if (selected.includeLLM) imports.push('torch', 'transformers');
 
+  // {e} stays literal — Python interpolates it inside its own f-string.
   const script = imports.map(mod => `try:\n    import ${mod}\nexcept Exception as e:\n    print(f"FAIL:${mod}:{e}")`).join('\n');
 
   return new Promise((resolve) => {
@@ -1081,56 +1416,37 @@ async function reconcileComponentPackages(): Promise<void> {
     includeVoice: settings.voiceEnabled ?? DEFAULT_SETTINGS.voiceEnabled,
   };
 
-  const packages = buildPipRequirementList(options);
-  if (packages.length === 0) return;
+  const installPlatform = getInstallerPlatform();
+  installAborted = false;
+  const groups = buildPipInstallGroups(options, undefined, installPlatform);
+  const packageCount = groups.reduce((sum, group) => sum + group.packages.length, 0);
+  if (packageCount === 0) return;
 
-  log.info(`Reconciling ${packages.length} component packages...`);
+  log.info(`Reconciling ${packageCount} component packages across groups: ${groups.map((group) => group.name).join(', ')}`);
   // Emit INSTALL_STARTED so the install progress modal appears
-  broadcastInstallEvent(IPC_CHANNELS.INSTALL_STARTED, options);
-  sendStatusUpdate(`Installing ${packages.length} component packages...`);
+  broadcastInstallEvent(IPC_CHANNELS.INSTALL_STARTED, { ...options, platformWarnings: [...PLATFORM_WARNINGS[installPlatform]] } satisfies InstallStartedPayload);
+  sendStatusUpdate(`Installing ${packageCount} component packages...`);
 
-  const pipArgs = isWindows
-    ? ['-m', 'pip', 'install', ...packages]
-    : ['install', ...packages];
+  try {
+    await installPipGroups(groups, { onStatus: sendStatusUpdate, onPipProgress: sendPipProgress });
+  } catch (e) {
+    // Core group failure: surface it, but startup continues (findPython logs it).
+    log.warn('Component package reconciliation failed:', e);
+    throw e;
+  }
+  if (installAborted) return;
+  log.info('Component package reconciliation complete');
+  sendStatusUpdate('Starting Python backend...');
+  // Signal completion so the install progress modal dismisses
+  broadcastInstallEvent(IPC_CHANNELS.SUCCESSFUL_INSTALL, true);
 
-  await new Promise<void>((resolve, reject) => {
-    const pipProcess = spawn(
-      isWindows ? resolvePythonExecutablePath() : pipExecutable,
-      pipArgs,
-      { cwd: envPath },
-    );
-    pipProcess.stdout.on('data', (data) => {
-      const line = data.toString().trim();
-      if (line) {
-        log.info(`reconcile pip: ${line}`);
-        sendStatusUpdate(line);
-      }
-    });
-    pipProcess.stderr.on('data', (data) => {
-      const line = data.toString().trim();
-      if (line) {
-        log.warn(`reconcile pip: ${line}`);
-      }
-    });
-    pipProcess.on('error', reject);
-    pipProcess.on('close', (code) => {
-      if (code === 0 || code === null) {
-        log.info('Component package reconciliation complete');
-        sendStatusUpdate('Starting Python backend...');
-        // Signal completion so the install progress modal dismisses
-        broadcastInstallEvent(IPC_CHANNELS.SUCCESSFUL_INSTALL, true);
-        resolve();
-      } else {
-        reject(new Error(`Component reconciliation pip install exited ${code}`));
-      }
-    });
-  });
-
-  // Also reconcile language-level requirements for the active language
+  // Also reconcile language-level requirements for the active language.
+  // On degraded platforms (darwin-x64) the stripped options keep language
+  // ocr/llm/voice component packages from installing.
   const language = settings.language;
   if (language) {
     try {
-      await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), options);
+      await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), resolveEffectiveInstallOptions(options, installPlatform));
     } catch (e) {
       log.warn(`Language requirement reconciliation failed for ${language}:`, e);
     }
@@ -1230,6 +1546,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
   installInProgress = true;
   pythonSuccessInstall = false;
   selectedPythonExecutablePath = null;
+  installAborted = false;
 
   const selectedComponents = ['Python runtime'];
   if (options.includeLLM) selectedComponents.push('Local language model support');
@@ -1237,16 +1554,18 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
   if (options.includeVoice) selectedComponents.push('Voice & TTS support');
   log.info('Installing:', selectedComponents.join(', '));
 
+  const installPlatform = getInstallerPlatform();
+  const effectiveOptions = resolveEffectiveInstallOptions(options, installPlatform);
   try {
-    broadcastInstallEvent(IPC_CHANNELS.INSTALL_STARTED, options);
+    broadcastInstallEvent(IPC_CHANNELS.INSTALL_STARTED, { ...options, platformWarnings: [...PLATFORM_WARNINGS[installPlatform]] } satisfies InstallStartedPayload);
   } catch (e) {
     log.error("error", e);
   }
 
   sendStatusUpdate('Resolving Python runtime...');
 
-  const pipRequirements = buildPipRequirementList(options);
-  log.info('Pip packages:', pipRequirements.join(', '));
+  const pipGroups = buildPipInstallGroups(options, undefined, installPlatform);
+  log.info('Pip packages:', pipGroups.map((group) => `${group.name} (${group.packages.length})`).join(', '));
 
   // Fetch runtime catalog and resolve the target-specific archive entry
   let catalogEntry: RuntimeCatalogEntry;
@@ -1255,7 +1574,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
     const runtimeCatalogUrl = loadSettings().runtimeCatalogUrl?.trim() || DEFAULT_RUNTIME_CATALOG_URL;
     let catalog: RuntimeCatalog;
     try {
-      catalog = await fetchRuntimeCatalog(runtimeCatalogUrl);
+      catalog = await fetchRuntimeCatalogWithRetry(runtimeCatalogUrl);
     } catch (primaryError) {
       log.warn('Runtime catalog unavailable, probing mirrors:', primaryError);
       const mirrored = await probeMirrorCatalog(runtimeCatalogUrl, loadSettings().catalogMirrorDomain, fetchRuntimeCatalog);
@@ -1326,7 +1645,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
       selectedPythonExecutablePath = getUserDataPythonExecutablePath();
       sendStatusUpdate('Extraction complete, installing libraries...');
 
-      if (pipRequirements.length === 0) {
+      if (pipGroups.length === 0) {
         writeRuntimeReceipt(catalogEntry, catalogVersion);
         installInProgress = false;
         pythonSuccessInstall = true;
@@ -1334,87 +1653,36 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
         return;
       }
 
-      const pipExecutable = resolvePipExecutablePath();
-      const pipArgs = isWindows ? ['-m', 'pip', 'install', ...pipRequirements] : ['install', ...pipRequirements];
+      try {
+        // Core group first (failure fatal), then one pip spawn per optional
+        // group; optional group failures only warn and let the backend start.
+        await installPipGroups(pipGroups, { onStatus: sendStatusUpdate, onPipProgress: sendPipProgress });
+      } catch (error) {
+        log.error('pip install failed:', error);
+        handleInstallerFailure(error instanceof Error ? error.message : 'Package installation failed');
+        return;
+      }
+      installInProgress = false;
+      if (installAborted) {
+        // User cancelled: CANCEL_INSTALL already restored the choice state.
+        return;
+      }
 
-      const pipProcess = spawn(isWindows ? resolvePythonExecutablePath() : pipExecutable, pipArgs, {
-        cwd: envPath,
-      });
-      activePipProcess = pipProcess;
-
-      const seenPackages = new Set<string>();
-      let pipOutputBuffer = '';
-
-      const processPipLines = (raw: string, isError: boolean): void => {
-        const cleaned = stripAnsi(raw);
-        // Buffer partial lines — pip can chunk output mid-line
-        pipOutputBuffer += cleaned;
-        const lines = pipOutputBuffer.split(/\r?\n/);
-        // Keep last element as buffer (may be incomplete)
-        pipOutputBuffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          // Skip pure progress bar lines (━, █, etc.)
-          if (/^[━╺╸█░▓▒─\s]+$/.test(trimmed)) continue;
-
-          if (isError) {
-            // Filter out pip's non-error stderr (e.g. deprecation warnings, "already satisfied" notices)
-            const lower = trimmed.toLowerCase();
-            if (lower.includes('warning') && !lower.includes('error')) {
-              sendStatusUpdate(trimmed);
-              continue;
-            }
-            sendStatusUpdate(`ERROR: ${trimmed}`);
-          } else {
-            sendStatusUpdate(trimmed);
-          }
-
-          const progress = parsePipLine(trimmed, seenPackages);
-          if (progress) {
-            sendPipProgress(progress);
-          }
-        }
-      };
-
-      pipProcess.stdout.on('data', (data) => {
-        log.info('pip:', data.toString());
-        processPipLines(data.toString(), false);
-      });
-
-      pipProcess.stderr.on('data', (data) => {
-        log.error('pip error:', data.toString());
-        processPipLines(data.toString(), true);
-      });
-
-      pipProcess.on('close', async (code) => {
-        activePipProcess = null;
-        installInProgress = false;
-        if (code === 0 || code === null) {
-          sendStatusUpdate('Verifying installation...');
-          const verified = await verifyPythonInstallation(options);
-          if (verified) {
-            log.info('Installation complete');
-            pythonSuccessInstall = true;
-            writeRuntimeReceipt(catalogEntry, catalogVersion);
-            setInstalledPythonVersion(app.getVersion());
-            sendStatusUpdate('Installation complete');
-            await pythonFound();
-          } else {
-            log.error('Installation verification failed');
-            waitingForInstallChoice = true;
-            sendStatusUpdate('ERROR: Installation verification failed');
-            getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
-          }
-        } else {
-          log.error('pip install failed with code:', code);
-          waitingForInstallChoice = true;
-          sendStatusUpdate(`ERROR: pip exited with code ${code}`);
-          getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
-        }
-      });
+      sendStatusUpdate('Verifying installation...');
+      const verified = await verifyPythonInstallation(effectiveOptions);
+      if (verified) {
+        log.info('Installation complete');
+        pythonSuccessInstall = true;
+        writeRuntimeReceipt(catalogEntry, catalogVersion);
+        setInstalledPythonVersion(app.getVersion());
+        sendStatusUpdate('Installation complete');
+        await pythonFound();
+      } else {
+        log.error('Installation verification failed');
+        waitingForInstallChoice = true;
+        sendStatusUpdate('ERROR: Installation verification failed');
+        getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+      }
     } catch (error) {
       log.error('Extraction/installation failed:', error);
       handleInstallerFailure('Installation failed', {
@@ -1425,7 +1693,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
     log.error('Download failed:', error);
     handleInstallerFailure('Download failed', {
       detail: error instanceof Error ? error.message : 'Unknown error',
-      emitNetworkError: true,
+      emitNetworkError: isNetworkError(error),
     });
   }
 }
@@ -1531,6 +1799,9 @@ export function setupPythonBackendIPC(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.CANCEL_INSTALL, () => {
+    // Flag the abort before killing so the pip close handler sees a
+    // user-initiated abort (null exit code), not an unexpected failure.
+    installAborted = true;
     if (activePipProcess) {
       activePipProcess.kill('SIGTERM');
       activePipProcess = null;

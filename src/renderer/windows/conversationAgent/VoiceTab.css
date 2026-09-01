@@ -9,6 +9,13 @@
   overflow: hidden;
 }
 
+/* ------ CPU compute warning (status-driven, non-blocking) ------ */
+
+.voice-cpu-warning {
+  flex-shrink: 0;
+  margin: 0 var(--spacing-4) var(--spacing-3);
+}
+
 /* ------ Model download section ------ */
 
 .voice-download-section {
