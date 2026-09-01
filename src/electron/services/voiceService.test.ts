@@ -257,6 +257,26 @@ function makeJsonHttpRequestMock(payload: object, extraHeaders: Record<string, s
   };
 }
 
+/** GET mock that answers /voice/stt/status and /voice/tts/status separately. */
+function mockStatusEndpoint(sttStatus: Record<string, unknown>, ttsStatus: Record<string, unknown>): void {
+  httpGetFn.mockImplementation((opts: { path?: string } | string, cb: (res: FakeResponse) => void) => {
+    const urlPath = typeof opts === 'string' ? opts : (opts.path ?? '');
+    const payload = urlPath.includes('/voice/stt/status')
+      ? sttStatus
+      : urlPath.includes('/voice/tts/status')
+        ? ttsStatus
+        : { downloaded: true, downloading: false, progress: 1 };
+    const body = JSON.stringify(payload);
+    const fakeRes = makeFakeResponse(200, Buffer.from(body));
+    cb(fakeRes);
+    Promise.resolve().then(() => {
+      fakeRes._emit('data', body);
+      fakeRes._emit('end');
+    });
+    return { on: vi.fn() };
+  });
+}
+
 function buildMinimalWavBuffer(pcmByteCount: number): Buffer {
   const buf = Buffer.alloc(44 + pcmByteCount);
   buf.write('RIFF', 0);
@@ -475,25 +495,6 @@ describe('VOICE_MODEL_STATUS handler', () => {
 });
 
 describe('VOICE_MODEL_STATUS — device/cpuWarning relay', () => {
-  function mockStatusEndpoint(sttStatus: Record<string, unknown>, ttsStatus: Record<string, unknown>): void {
-    httpGetFn.mockImplementation((opts: { path?: string } | string, cb: (res: FakeResponse) => void) => {
-      const urlPath = typeof opts === 'string' ? opts : (opts.path ?? '');
-      const payload = urlPath.includes('/voice/stt/status')
-        ? sttStatus
-        : urlPath.includes('/voice/tts/status')
-          ? ttsStatus
-          : { downloaded: true, downloading: false, progress: 1 };
-      const body = JSON.stringify(payload);
-      const fakeRes = makeFakeResponse(200, Buffer.from(body));
-      cb(fakeRes);
-      Promise.resolve().then(() => {
-        fakeRes._emit('data', body);
-        fakeRes._emit('end');
-      });
-      return { on: vi.fn() };
-    });
-  }
-
   it('attaches device cpu and cpuWarning when the backend TTS status reports device cpu', async () => {
     mod.setupVoiceIPC();
     mockStatusEndpoint(
@@ -599,6 +600,7 @@ describe('VOICE_TTS_GENERATE — realtime TTS status cpuWarning relay', () => {
       generating: true,
       playing: false,
       modelLoading: false,
+      device: 'cpu',
       cpuWarning: true,
     });
   });
@@ -615,6 +617,63 @@ describe('VOICE_TTS_GENERATE — realtime TTS status cpuWarning relay', () => {
       generating: true,
       playing: false,
       modelLoading: false,
+    });
+  });
+
+  it('warns in initial and poll sends when only STT runs on cpu (tts cuda + stt cpu)', async () => {
+    vi.useFakeTimers();
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    mockStatusEndpoint(
+      { loaded: true, device: 'cpu' },
+      { loaded: false, downloading: true, progress: 0.5, device: 'cuda' },
+    );
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Hello', 'en', 1.0, undefined, 'qwen3');
+    await vi.advanceTimersByTimeAsync(2100);
+
+    const sends = event.sender.send.mock.calls.filter((c) => c[0] === 'voice-tts-status');
+    expect(sends[0]?.[1]).toMatchObject({ modelLoading: true, device: 'cuda', cpuWarning: true });
+    const pollSend = sends.find((c) => c[1] && 'downloadProgress' in c[1]);
+    expect(pollSend?.[1]).toMatchObject({ downloadProgress: 0.5, device: 'cuda', cpuWarning: true });
+  });
+
+  it('warns with cpu device during active generation when tts runs on cpu (tts cpu + stt cuda)', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    mockStatusEndpoint(
+      { loaded: true, device: 'cuda' },
+      { loaded: true, device: 'cpu' },
+    );
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Hello', 'en', 1.0, undefined, 'qwen3');
+    await flushMicrotasks();
+
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', {
+      generating: true,
+      playing: false,
+      modelLoading: false,
+      device: 'cpu',
+      cpuWarning: true,
+    });
+  });
+
+  it('omits cpuWarning during active generation when both models run on cuda', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    mockStatusEndpoint(
+      { loaded: true, device: 'cuda' },
+      { loaded: true, device: 'cuda' },
+    );
+
+    onHandlers.get('voice-tts-generate')?.(event, 'Hello', 'en', 1.0, undefined, 'qwen3');
+    await flushMicrotasks();
+
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', {
+      generating: true,
+      playing: false,
+      modelLoading: false,
+      device: 'cuda',
     });
   });
 });

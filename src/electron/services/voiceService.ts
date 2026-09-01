@@ -499,6 +499,34 @@ function parseBackendDevice(value: unknown): VoiceDevice | undefined {
   return value === 'cuda' || value === 'mps' || value === 'cpu' ? value : undefined;
 }
 
+interface VoiceDeviceHints {
+  device?: VoiceDevice;
+  cpuWarning?: boolean;
+}
+
+/**
+ * Single source of truth for device hints relayed to the renderer: `device`
+ * is the display device (TTS wins, STT fallback), `cpuWarning` fires when
+ * either model runs on cpu - STT is the time-critical stage of the realtime
+ * voice agent and must not be masked by a GPU TTS.
+ */
+function deriveDeviceHints(
+  sttRes: Record<string, unknown> | null,
+  ttsRes: Record<string, unknown> | null,
+): VoiceDeviceHints {
+  const ttsDevice = ttsRes ? parseBackendDevice(ttsRes.device) : undefined;
+  const sttDevice = sttRes ? parseBackendDevice(sttRes.device) : undefined;
+  const hints: VoiceDeviceHints = {};
+  const device = ttsDevice ?? sttDevice;
+  if (device) {
+    hints.device = device;
+  }
+  if (ttsDevice === 'cpu' || sttDevice === 'cpu') {
+    hints.cpuWarning = true;
+  }
+  return hints;
+}
+
 async function checkModelStatus(language: string): Promise<VoiceModelStatusPayload> {
   const status: VoiceModelStatusPayload = {
     sttDownloaded: false,
@@ -528,16 +556,11 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatusPaylo
     if (backendSttEngine) {
       status.sttEngine = backendSttEngine;
     }
-    const ttsDevice = parseBackendDevice(ttsRes.device);
-    const sttDevice = parseBackendDevice(sttRes.device);
-    // Display precedence: TTS device wins, STT as fallback. The CPU warning
-    // fires when either model runs on cpu — STT is the time-critical stage
-    // of the realtime voice agent and must not be masked by a GPU TTS.
-    const device = ttsDevice ?? sttDevice;
-    if (device) {
-      status.device = device;
+    const hints = deriveDeviceHints(sttRes, ttsRes);
+    if (hints.device) {
+      status.device = hints.device;
     }
-    if (ttsDevice === 'cpu' || sttDevice === 'cpu') {
+    if (hints.cpuWarning) {
       status.cpuWarning = true;
     }
   } catch (err) {
@@ -855,21 +878,25 @@ async function generateTTS(
 
   // Check if TTS model is loaded — if not, signal that model loading is in progress
   let modelLoading = false;
-  let ttsCpuWarning = false;
+  let deviceHints: VoiceDeviceHints = {};
   try {
-    const ttsStatus = await fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language }));
+    const [sttStatus, ttsStatus] = await Promise.all([
+      fetchJson(API_ENDPOINTS.voiceSttStatus),
+      fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language })),
+    ]);
     modelLoading = !(ttsStatus.loaded as boolean);
-    ttsCpuWarning = parseBackendDevice(ttsStatus.device) === 'cpu';
+    deviceHints = deriveDeviceHints(sttStatus, ttsStatus);
   } catch (e) {
     log.error("error", e);
-    // If status check fails, proceed without the flag
+    // If status checks fail, proceed without the hints
   }
 
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
     generating: true,
     playing: false,
     modelLoading,
-    ...(ttsCpuWarning ? { cpuWarning: true } : {}),
+    ...(deviceHints.device ? { device: deviceHints.device } : {}),
+    ...(deviceHints.cpuWarning ? { cpuWarning: true } : {}),
   });
 
   // Poll model loading progress while waiting for the TTS response
@@ -881,13 +908,18 @@ async function generateTTS(
         return;
       }
       try {
-        const s = await fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language }));
+        const [sttStatus, s] = await Promise.all([
+          fetchJson(API_ENDPOINTS.voiceSttStatus),
+          fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language })),
+        ]);
+        const hints = deriveDeviceHints(sttStatus, s);
         sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
           generating: true,
           playing: false,
           modelLoading: !(s.loaded as boolean) || ((s.downloading as boolean) ?? false),
           downloadProgress: s.progress as number ?? 0,
-          ...(parseBackendDevice(s.device) === 'cpu' ? { cpuWarning: true } : {}),
+          ...(hints.device ? { device: hints.device } : {}),
+          ...(hints.cpuWarning ? { cpuWarning: true } : {}),
         });
       } catch (e) {
         log.error("error", e);
