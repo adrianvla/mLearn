@@ -530,12 +530,14 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatusPaylo
     }
     const ttsDevice = parseBackendDevice(ttsRes.device);
     const sttDevice = parseBackendDevice(sttRes.device);
-    // TTS device wins — it drives the realtime CPU warning; STT as fallback.
+    // Display precedence: TTS device wins, STT as fallback. The CPU warning
+    // fires when either model runs on cpu — STT is the time-critical stage
+    // of the realtime voice agent and must not be masked by a GPU TTS.
     const device = ttsDevice ?? sttDevice;
     if (device) {
       status.device = device;
     }
-    if (ttsDevice === 'cpu') {
+    if (ttsDevice === 'cpu' || sttDevice === 'cpu') {
       status.cpuWarning = true;
     }
   } catch (err) {

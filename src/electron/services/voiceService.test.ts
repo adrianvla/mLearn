@@ -507,6 +507,58 @@ describe('VOICE_MODEL_STATUS — device/cpuWarning relay', () => {
     expect(result.cpuWarning).toBe(true);
   });
 
+  it('warns when only STT runs on cpu (tts cuda + stt cpu) while device stays cuda', async () => {
+    mod.setupVoiceIPC();
+    mockStatusEndpoint(
+      { downloaded: true, downloading: false, progress: 1, device: 'cpu' },
+      { downloaded: true, downloading: false, progress: 1, device: 'cuda' },
+    );
+    const result = await handleHandlers.get('voice-model-status')?.({}, 'en') as {
+      device?: string; cpuWarning?: boolean;
+    };
+    expect(result.device).toBe('cuda');
+    expect(result.cpuWarning).toBe(true);
+  });
+
+  it('warns and reports cpu device when TTS runs on cpu (tts cpu + stt cuda)', async () => {
+    mod.setupVoiceIPC();
+    mockStatusEndpoint(
+      { downloaded: true, downloading: false, progress: 1, device: 'cuda' },
+      { downloaded: true, downloading: false, progress: 1, device: 'cpu' },
+    );
+    const result = await handleHandlers.get('voice-model-status')?.({}, 'en') as {
+      device?: string; cpuWarning?: boolean;
+    };
+    expect(result.device).toBe('cpu');
+    expect(result.cpuWarning).toBe(true);
+  });
+
+  it('does not warn when both models run on cuda', async () => {
+    mod.setupVoiceIPC();
+    mockStatusEndpoint(
+      { downloaded: true, downloading: false, progress: 1, device: 'cuda' },
+      { downloaded: true, downloading: false, progress: 1, device: 'cuda' },
+    );
+    const result = await handleHandlers.get('voice-model-status')?.({}, 'en') as {
+      device?: string; cpuWarning?: boolean;
+    };
+    expect(result.device).toBe('cuda');
+    expect(result.cpuWarning).toBeUndefined();
+  });
+
+  it('warns from an stt-only cpu device when tts does not report a device', async () => {
+    mod.setupVoiceIPC();
+    mockStatusEndpoint(
+      { downloaded: true, downloading: false, progress: 1, device: 'cpu' },
+      { downloaded: true, downloading: false, progress: 1 },
+    );
+    const result = await handleHandlers.get('voice-model-status')?.({}, 'en') as {
+      device?: string; cpuWarning?: boolean;
+    };
+    expect(result.device).toBe('cpu');
+    expect(result.cpuWarning).toBe(true);
+  });
+
   it('relays non-cpu device without setting cpuWarning', async () => {
     mod.setupVoiceIPC();
     mockStatusEndpoint(
