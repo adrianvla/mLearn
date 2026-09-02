@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { writeCompactGraphAsset } from './graph-compact.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..', '..');
@@ -185,6 +186,11 @@ function isDictionaryAsset(asset) {
     String(asset.path ?? '').startsWith('dictionaries/');
 }
 
+function isGraphAsset(asset) {
+  return asset.id === 'linguistic-graph' ||
+    String(asset.path ?? '').endsWith('.graph.json');
+}
+
 function isGeneratedLanguageMetadataAsset(language, asset) {
   return asset.path === `languages/${language}.json` ||
     asset.id === 'language-metadata';
@@ -286,7 +292,7 @@ function cleanAsset(asset, stagedPath) {
   };
 }
 
-function copyPayloadFile(sourceRoot, language, asset, stagingDir) {
+async function copyPayloadFile(sourceRoot, language, asset, stagingDir) {
   const bundledPath = asset.bundledPath || asset.path;
   const sourcePath = path.join(sourceRoot, bundledPath);
   if (!fs.existsSync(sourcePath)) {
@@ -294,13 +300,24 @@ function copyPayloadFile(sourceRoot, language, asset, stagingDir) {
   }
 
   const outputPath = path.join(stagingDir, 'files', asset.path);
+  // Plain LinguisticGraphAsset sources are converted to the compact runtime
+  // format on the way into the bundle (the source file itself is never
+  // mutated); already-compact graphs and all other assets are copied verbatim.
+  if (isGraphAsset(asset) && await writeCompactGraphAsset(sourcePath, outputPath)) {
+    return cleanAsset(asset, outputPath);
+  }
+
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.copyFileSync(sourcePath, outputPath);
   return cleanAsset(asset, outputPath);
 }
 
-function copyPayloadFiles(sourceRoot, language, assets, stagingDir) {
-  return assets.map((asset) => copyPayloadFile(sourceRoot, language, asset, stagingDir));
+async function copyPayloadFiles(sourceRoot, language, assets, stagingDir) {
+  const files = [];
+  for (const asset of assets) {
+    files.push(await copyPayloadFile(sourceRoot, language, asset, stagingDir));
+  }
+  return files;
 }
 
 function buildInstalledMetadata(metadata, coreFiles, dictionaryPacks) {
@@ -407,7 +424,7 @@ async function createArchive({
   fs.mkdirSync(path.join(stagingDir, 'files'), { recursive: true });
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const files = copyPayloadFiles(sourceRoot, language, assets, stagingDir);
+  const files = await copyPayloadFiles(sourceRoot, language, assets, stagingDir);
   if (includeLanguageMetadata) {
     files.push(writeLanguageMetadata(sourceRoot, language, metadata, files, dictionaryPacks, stagingDir));
   }
@@ -541,7 +558,7 @@ export async function createLanguageDataRelease(options = {}) {
 
   for (const fileName of fs.readdirSync(languagesDir).sort()) {
     if (!fileName.endsWith('.json')) continue;
-    if (fileName.endsWith('.freq.json') || fileName.endsWith('.t2s.json')) continue;
+    if (fileName.endsWith('.freq.json') || fileName.endsWith('.t2s.json') || fileName.endsWith('.graph.json')) continue;
     const language = path.basename(fileName, '.json');
     const metadata = applyLanguageMetadataOverride(
       releaseOptions,

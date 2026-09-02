@@ -42,6 +42,12 @@
         "required": true
       },
       {
+        "id": "linguistic-graph",
+        "path": "languages/ja.graph.json",
+        "bundledPath": "languages/ja.graph.json",
+        "required": false
+      },
+      {
         "id": "language-metadata",
         "path": "languages/ja.json",
         "required": true

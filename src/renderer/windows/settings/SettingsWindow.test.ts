@@ -8,11 +8,20 @@ const getWindowContextMock = vi.fn();
 let openSettingsHandler: ((section?: string) => void) | undefined;
 let windowContextHandler: ((context: Record<string, unknown> | null) => void) | undefined;
 
+let mockSettings = { devMode: false };
+
+vi.mock('./EventAuditPanel', () => ({ EventAuditPanel: () => null }));
+
 vi.mock('../../context', () => ({
+  useSettings: () => ({
+    settings: mockSettings,
+    updateSettings: vi.fn(),
+  }),
   useLocalization: () => ({
     t: (key: string) => {
       const labels: Record<string, string> = {
         'mlearn.Settings.Tabs.General': 'General',
+        'mlearn.Settings.Tabs.EventAudit': 'Event journal',
         'mlearn.Settings.Tabs.Behaviour': 'Behaviour',
         'mlearn.Settings.Tabs.Appearance': 'Appearance',
         'mlearn.Settings.Tabs.SRS': 'SRS',
@@ -157,5 +166,24 @@ describe('SettingsContent', () => {
     expect(selectedTab?.querySelector('.tab-label')?.textContent).toContain('About');
 
     dispose();
+  });
+
+  it('shows the event journal tab only in dev mode', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const { SettingsContent } = await import('./SettingsWindow');
+
+    mockSettings = { devMode: false };
+    let dispose = render(() => SettingsContent({}), container);
+    expect(Array.from(container.querySelectorAll('[role="tab"] .tab-label')).some((label) => label.textContent?.includes('Event journal'))).toBe(false);
+    dispose();
+
+    mockSettings = { devMode: true };
+    dispose = render(() => SettingsContent({}), container);
+    expect(Array.from(container.querySelectorAll('[role="tab"] .tab-label')).some((label) => label.textContent?.includes('Event journal'))).toBe(true);
+    dispose();
+
+    container.remove();
+    mockSettings = { devMode: false };
   });
 });

@@ -11,12 +11,14 @@ import { SubtitleWord } from './SubtitleWord';
 import { WordHover, WordStatus } from './WordHover';
 import { ExplainerPopup } from './ExplainerPopup';
 import { initWordLookupBridge } from '../../services/wordLookupService';
-import { tokensToPlainText } from '../../utils/phraseExtraction';
+import { tokensToPlainText } from '../../../shared/languageFeatures';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
 import { sanitizeHtml } from '../../utils/sanitizeHtml';
 import { getLanguageCssDirection, getSubtitleFontFamily, getTokenJoinSeparator } from '../../../shared/languageFeatures';
+import { detectGrammarOccurrences, type GrammarOccurrence } from '../../../shared/grammar/occurrences';
+import { createGrammarEncounterRecorder, journalGrammarEncounters } from '../../../shared/grammar/encounters';
 import './SubtitleContainer.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -56,8 +58,11 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
   const [translationData, setTranslationData] = createSignal<TranslationResponse | null>(null);
-  const [wordStatus, setWordStatus] = createSignal<WordStatus>('unknown');
   const [currentHoverToken, setCurrentHoverToken] = createSignal<Token | null>(null);
+  const [wordStatus, setWordStatus] = createSignal<WordStatus>('unknown');
+  const [grammarOccurrences, setGrammarOccurrences] = createSignal<GrammarOccurrence[]>([]);
+  // REQ39: journal grammar occurrences as factual-exposure encounters, one per pattern per subtitle line.
+  const grammarEncounterRecorder = createGrammarEncounterRecorder('subtitle');
   
   // Explainer popup state
   const [explainerOpen, setExplainerOpen] = createSignal(false);
@@ -247,7 +252,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       // Non-translatable tokens (particles, punctuation) don't affect known status
       if (!isTokenTranslatable(t)) return true;
       const word = getTokenLookupWord(t, tokenizerCapabilities());
-      return flashcardCtx.isWordKnownComprehensiveSync(word, settings.language);
+      return flashcardCtx.isWordSettledSync(word, settings.language);
     });
   });
 
@@ -273,6 +278,29 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     forceHide();
   });
 
+  // This is deferred so sentence analysis never blocks the subtitle paint path.
+  createEffect(() => {
+    const tokens = props.tokens;
+    const languageData = currentLangData();
+    if (!supportsGrammar() || !languageData?.grammar?.length || tokens.length === 0) {
+      setGrammarOccurrences([]);
+      return;
+    }
+    const grammar = languageData.grammar;
+    queueMicrotask(() => {
+      const detected = detectGrammarOccurrences({
+        language: settings.language,
+        grammar,
+        tokens,
+        languageData,
+      });
+      setGrammarOccurrences(detected);
+      if (detected.length === 0) return;
+      const subtitleKey = tokens.map((token) => token.surface ?? token.word).join('|');
+      journalGrammarEncounters(flashcardCtx, grammarEncounterRecorder, subtitleKey, detected);
+    });
+  });
+
   // Pre-fetch translations for all translatable words when subtitle appears
   // This populates the translation cache for reading annotations and faster hover
   createEffect(() => {
@@ -294,14 +322,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
       // Passive word tracking
       flashcardCtx.trackWordSeen(lookupWord, token.reading, PASSIVE_SUBTITLE_EASE_BUMP, settings.language);
-    }
-
-    // Passive grammar encounter tracking
-    if (supportsGrammar()) {
-      const matched = detectGrammarInText(tokens);
-      for (const g of matched) {
-        flashcardCtx.trackGrammarEncountered(g.pattern, g.level, settings.language);
-      }
     }
 
     // Pre-fetch translations for all translatable words
@@ -340,10 +360,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
       if (!displayWord) continue;
 
-      // Skip known words unless liveTranslatorIncludeKnown is enabled
+      // Skip settled words (known or explicitly excluded) unless liveTranslatorIncludeKnown is enabled
       if (!settings.liveTranslatorIncludeKnown) {
-        const isKnown = flashcardCtx.isWordKnownComprehensiveSync(lookupWord, settings.language);
-        if (isKnown) continue;
+        if (flashcardCtx.isWordSettledSync(lookupWord, settings.language)) continue;
       }
 
       // Deduplicate within this subtitle to avoid double-translating the same word
@@ -387,6 +406,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     <>
       <div
         class={getContainerClass()}
+        role="presentation"
         onMouseEnter={() => setHardcorePeek(true)}
         onMouseLeave={() => setHardcorePeek(false)}
       >
@@ -462,6 +482,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             subtitleEnd={props.subtitleEnd}
             videoSrc={props.videoSrc}
             lastScreenshot={props.lastScreenshot}
+            grammarOccurrences={grammarOccurrences()}
           />
         ) : null}
       </Show>

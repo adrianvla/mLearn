@@ -1,0 +1,242 @@
+// @vitest-environment happy-dom
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from 'solid-js/web';
+import type { Flashcard, LanguageData, PassiveWordKnowledge } from '../../../../shared/types';
+import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
+import type { HistoryCurvePoint, SourceReignBand } from '../../../utils/knowledgeHistory';
+import { WordHistoryPanel } from './WordHistoryPanel';
+
+const h = vi.hoisted(() => ({
+  wordGetter: (() => '') as () => string,
+  aspectGetter: (() => 'meaning') as () => string,
+  events: [] as KnowledgeEvent[],
+  points: [] as HistoryCurvePoint[],
+  bands: [] as SourceReignBand[],
+  currentLang: { name: 'Japanese', settings: { fixed: {} } } as LanguageData,
+  wordKnowledge: {} as Record<string, PassiveWordKnowledge>,
+  flashcards: {} as Record<string, Flashcard>,
+}));
+
+vi.mock('../../../context', () => ({
+  useSettings: () => ({ settings: { language: 'ja' } }),
+  useLanguage: () => ({
+    currentLangData: () => h.currentLang,
+  }),
+  useFlashcards: () => ({
+    store: { wordKnowledge: h.wordKnowledge, flashcards: h.flashcards },
+    // New contract: reading carries an explicit record (visible tab — the
+    // tab-switch test needs one); every other aspect is untracked (hidden tab).
+    getAspectStatus: (_word: string, aspect: string) => (
+      aspect === 'reading'
+        ? { status: 'learning', ease: 1.55, source: 'Manual', inherited: false }
+        : { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true }
+    ),
+  }),
+  useLocalization: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock('../../../hooks/useKnowledgeHistory', () => ({
+  useKnowledgeHistory: (word: () => string, aspect: () => string) => {
+    h.wordGetter = word;
+    h.aspectGetter = aspect;
+    return {
+      events: () => h.events,
+      replay: () => ({ points: h.points, bands: h.bands }),
+    };
+  },
+}));
+
+const richLanguageData: LanguageData = {
+  name: 'Japanese',
+  settings: { fixed: {} },
+  textProcessing: {
+    scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+    readingAnnotation: { type: 'script-reading' },
+  },
+  prosody: { type: 'japanese-pitch-accent' },
+};
+
+const knowledgeEntry = (word: string): PassiveWordKnowledge => ({
+  ease: 2.5,
+  lastSeen: 1,
+  timesSeen: 1,
+  timesHovered: 0,
+  word,
+});
+
+const makeFlashcard = (id: string, front: string): Flashcard => ({
+  id,
+  language: 'ja',
+  content: { type: 'word', front, back: 'x' },
+  state: 'review',
+  ease: 2.5,
+  interval: 0,
+  dueDate: 0,
+  reviews: 1,
+  lapses: 0,
+  learningStep: 0,
+  createdAt: 1000,
+  lastReviewed: 0,
+  lastUpdated: 1000,
+});
+
+const searchInput = (container: HTMLDivElement): HTMLInputElement => {
+  const input = container.querySelector('input');
+  if (!input) throw new Error('search input not rendered');
+  return input as HTMLInputElement;
+};
+
+const typeQuery = (container: HTMLDivElement, value: string): void => {
+  const input = searchInput(container);
+  input.value = value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
+const tabButton = (container: HTMLDivElement, label: string): HTMLButtonElement => {
+  const button = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === label);
+  if (!button) throw new Error(`tab ${label} not rendered`);
+  return button as HTMLButtonElement;
+};
+
+describe('WordHistoryPanel', () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    h.wordGetter = () => '';
+    h.aspectGetter = () => 'meaning';
+    h.events = [];
+    h.points = [];
+    h.bands = [];
+    h.currentLang = { name: 'Japanese', settings: { fixed: {} } };
+    h.wordKnowledge = {};
+    h.flashcards = {};
+  });
+
+  afterEach(() => {
+    container.remove();
+    vi.clearAllMocks();
+  });
+
+  it('renders the word search input with the localized placeholder', () => {
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    expect(searchInput(container).getAttribute('placeholder')).toBe(
+      'mlearn.Statistics.WordHistory.SearchPlaceholder',
+    );
+    expect(container.textContent).toContain('mlearn.Statistics.WordHistory.Title');
+    expect(container.textContent).toContain('mlearn.Statistics.WordHistory.Prompt');
+
+    dispose();
+  });
+
+  it('feeds the history hook the entered word and renders the full graph', () => {
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'apple');
+
+    expect(h.wordGetter()).toBe('apple');
+    expect(container.querySelector('.khistory-mode-full')).not.toBeNull();
+
+    dispose();
+  });
+
+  it('renders one timeline event row per journal event with transition and source labels', () => {
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    h.events = [
+      { t: 1000, kind: 'status', source: 'srs', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known' },
+      { t: 2000, kind: 'review', source: 'passiveTracking', aspect: 'meaning', rating: 'good' },
+    ];
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'apple');
+
+    const rows = Array.from(container.querySelectorAll('.knowledge-timeline__event'));
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.textContent).toContain('mlearn.Knowledge.History.Kind.Review');
+    expect(rows[0]!.textContent).toContain('mlearn.Knowledge.History.Source.PassiveTracking');
+    expect(rows[1]!.textContent).toContain('mlearn.Knowledge.History.Kind.Status');
+    expect(rows[1]!.textContent).toContain('mlearn.WordHover.Status.Unknown');
+    expect(rows[1]!.textContent).toContain('→');
+    expect(rows[1]!.textContent).toContain('mlearn.WordHover.Status.Known');
+    expect(rows[1]!.textContent).toContain('mlearn.Knowledge.History.Source.Srs');
+
+    dispose();
+  });
+
+  it('shows the empty state when the selected word has no events', () => {
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'apple');
+
+    expect(container.querySelector('.knowledge-timeline')).toBeNull();
+    expect(container.textContent).toContain('mlearn.Statistics.WordHistory.Empty');
+
+    dispose();
+  });
+
+  it('hides the strength curve when the history is too thin to chart', () => {
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    h.events = [
+      { t: 1000, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' },
+    ];
+    h.points = [{ t: 1000, strength: 0.9, source: 'manual', kind: 'claim', event: h.events[0] }];
+    h.bands = [{ from: 1000, to: 2000, source: 'manual' }];
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'apple');
+
+    expect(container.querySelector('.knowledge-timeline__event')).not.toBeNull();
+    expect(container.querySelector('.khistory-svg')).toBeNull();
+    expect(container.querySelector('.khistory-tabs')).not.toBeNull();
+
+    dispose();
+  });
+
+  it('shows the empty state when the selected word has no events', () => {
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'apple');
+
+    expect(container.querySelector('.knowledge-timeline')).toBeNull();
+    expect(container.textContent).toContain('mlearn.Statistics.WordHistory.Empty');
+
+    dispose();
+  });
+
+  it('lists matching tracked words from knowledge entries and flashcard fronts', () => {
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    h.wordKnowledge['de:xyz'] = knowledgeEntry('apfel');
+    h.flashcards['c1'] = makeFlashcard('c1', 'appletree');
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'app');
+
+    const matchLabels = Array.from(container.querySelectorAll('.word-history-match')).map((b) => b.textContent);
+    expect(matchLabels).toContain('apple');
+    expect(matchLabels).toContain('appletree');
+    expect(matchLabels).not.toContain('apfel');
+
+    dispose();
+  });
+
+  it('switches the history hook aspect when a graph tab is clicked', () => {
+    h.currentLang = richLanguageData;
+    h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
+    const dispose = render(() => <WordHistoryPanel />, container);
+
+    typeQuery(container, 'apple');
+    expect(h.aspectGetter()).toBe('meaning');
+
+    tabButton(container, 'mlearn.Knowledge.Aspect.Reading').click();
+
+    expect(h.aspectGetter()).toBe('reading');
+
+    dispose();
+  });
+});

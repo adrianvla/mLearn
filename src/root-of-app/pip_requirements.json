@@ -18,6 +18,16 @@
     "transformers==5.12.1",
     "sentencepiece==0.2.1"
   ],
+  "llm-windows": [
+    "torch==2.10.0+cu128",
+    "transformers==4.57.3",
+    "sentencepiece==0.2.1"
+  ],
+  "llm-linux": [
+    "torch==2.10.0",
+    "transformers==4.57.3",
+    "sentencepiece==0.2.1"
+  ],
   "voice": [
     "torch==2.10.0",
     "torchaudio==2.10.0",
@@ -39,5 +49,51 @@
   ],
   "mlx-stt": [
     "sentencepiece==0.2.1"
+  ],
+  "qwen3-tts-torch": [
+    "qwen-tts==0.1.1",
+    "transformers==4.57.3",
+    "accelerate==1.12.0",
+    "librosa==0.11.0",
+    "tokenizers==0.22.1"
+  ],
+  "voice-windows": [
+    "torch==2.10.0+cu128",
+    "torchaudio==2.10.0+cu128",
+    "faster_whisper==1.2.1",
+    "kokoro==0.9.4",
+    "soundfile==0.13.1",
+    "silero-vad",
+    "onnxruntime==1.24.2",
+    "nvidia-cudnn-cu12==9.25.1.1",
+    "nvidia-cublas-cu12==12.8.5.5"
+  ],
+  "llm-windows-cpu": [
+    "torch==2.10.0",
+    "transformers==4.57.3",
+    "sentencepiece==0.2.1"
+  ],
+  "voice-windows-cpu": [
+    "torch==2.10.0",
+    "torchaudio==2.10.0",
+    "faster_whisper==1.2.1",
+    "kokoro==0.9.4",
+    "soundfile==0.13.1",
+    "silero-vad",
+    "onnxruntime==1.24.2"
+  ],
+  "llm-linux-cpu": [
+    "torch==2.10.0+cpu",
+    "transformers==4.57.3",
+    "sentencepiece==0.2.1"
+  ],
+  "voice-linux-cpu": [
+    "torch==2.10.0+cpu",
+    "torchaudio==2.10.0+cpu",
+    "faster_whisper==1.2.1",
+    "kokoro==0.9.4",
+    "soundfile==0.13.1",
+    "silero-vad",
+    "onnxruntime==1.24.2"
   ]
 }

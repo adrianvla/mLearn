@@ -12,9 +12,11 @@ import type {
   LLMStreamChunk,
   ToolCall,
 } from '../../shared/types';
+import type { SocialTone, TurnSocialState } from '../../shared/socialState';
+import { SOCIAL_TONES } from '../../shared/socialState';
+import type { LanguageFeatures } from '../context/LanguageContext';
 import { getBridge } from '../../shared/bridges';
 import { getLogger } from '../../shared/utils/logger';
-import type { LanguageFeatures } from '../context/LanguageContext';
 
 const log = getLogger("renderer.services.checkerAgent");
 
@@ -25,6 +27,8 @@ const log = getLogger("renderer.services.checkerAgent");
 export interface CheckerResult {
   corrections: MistakeWidgetData[];
   safety: ConversationSafetyFlag | null;
+  /** Affective climate verdict for the reviewed message, when the model reported one. */
+  socialClimate: TurnSocialState | null;
   error?: 'quota' | 'generic';
 }
 
@@ -140,6 +144,26 @@ const SAFE_TOOL: LLMToolDefinition = {
   },
 };
 
+const SOCIAL_CLIMATE_TOOL: LLMToolDefinition = {
+  name: 'report_social_climate',
+  description: 'Optionally report the learner\'s emotional climate when the reviewed message clearly shows frustration, uncertainty, excitement, confidence, or withdrawal. Omit this call entirely when the message is emotionally flat or ambiguous.',
+  parameters: {
+    type: 'object',
+    properties: {
+      tone: {
+        type: 'string',
+        enum: ['frustrated', 'uncertain', 'excited', 'confident', 'withdrawn', 'neutral'],
+        description: 'The overall affective tone of the reviewed message.',
+      },
+      evidence: {
+        type: 'string',
+        description: 'One short sentence naming the concrete signals in the message itself (punctuation, casing, repetition). Never include numbers or scores.',
+      },
+    },
+    required: ['tone', 'evidence'],
+  },
+};
+
 // ============================================================================
 // System Prompt
 // ============================================================================
@@ -211,6 +235,16 @@ function buildCheckerPrompt(
 - Do NOT correct text that is not in ${langName} — the message may mix languages occasionally.
 - Do NOT correct names.
 - Do NOT correct anything if it's just to rewrite the sentence.`;
+  }
+
+  if (includeCorrections) {
+    prompt += `
+
+## Social Climate (optional)
+- If the reviewed message clearly shows an emotional climate, ALSO call the "report_social_climate" tool.
+- "tone" must be one of: "frustrated", "uncertain", "excited", "confident", "withdrawn", "neutral".
+- "evidence" must name the concrete signals from the reviewed message itself (punctuation, casing, repetition, phrasing). Never include numbers or scores.
+- Omit "report_social_climate" entirely when the climate is neutral, mixed, or unclear. It never replaces the other tools.`;
   }
 
   if (includeSafety && includeCorrections) {
@@ -294,6 +328,9 @@ export function createCheckerAgent(): CheckerAgentInstance {
       if (includeCorrections) {
         tools.push(CORRECTION_TOOL);
       }
+      if (includeCorrections) {
+        tools.push(SOCIAL_CLIMATE_TOOL);
+      }
 
       log.info('[CheckerAgent] Prompt:', JSON.stringify(messages, null, 2));
 
@@ -308,7 +345,7 @@ export function createCheckerAgent(): CheckerAgentInstance {
           streamCleanup = null;
           const lower = chunk.error.toLowerCase();
           const isQuota = lower.includes('quota') || lower.includes('rate limit');
-          resolve({ corrections: [], safety: null, error: isQuota ? 'quota' : 'generic' });
+          resolve({ corrections: [], safety: null, socialClimate: null, error: isQuota ? 'quota' : 'generic' });
           return;
         }
 
@@ -327,7 +364,7 @@ export function createCheckerAgent(): CheckerAgentInstance {
           streamCleanup = null;
 
           if (aborted) {
-            resolve({ corrections: [], safety: null });
+            resolve({ corrections: [], safety: null, socialClimate: null });
             return;
           }
 
@@ -355,6 +392,7 @@ function parseCheckerToolCalls(
 ): CheckerResult {
   const corrections: MistakeWidgetData[] = [];
   let safety: ConversationSafetyFlag | null = null;
+  let socialClimate: TurnSocialState | null = null;
 
   // Process structured tool calls
   for (const tc of toolCalls) {
@@ -376,13 +414,18 @@ function parseCheckerToolCalls(
       continue;
     }
 
+    if (tc.name === 'report_social_climate') {
+      socialClimate = socialClimate ?? parseSocialClimateEntry(tc.arguments);
+      continue;
+    }
+
     if (tc.name === 'flag_self_harm_risk') {
       safety = mergeSafetyFlags(safety, parseSafetyEntry(tc.arguments, sourceText));
     }
   }
 
   // Fallback: parse tool calls from plain text content
-  if ((corrections.length === 0 || !safety) && content) {
+  if ((corrections.length === 0 || !safety || !socialClimate) && content) {
     const parsed = parseToolCallsFromContent(content);
     for (const tc of parsed) {
       if (tc.name === 'suggest_corrections') {
@@ -403,13 +446,18 @@ function parseCheckerToolCalls(
         continue;
       }
 
+      if (tc.name === 'report_social_climate') {
+        socialClimate = socialClimate ?? parseSocialClimateEntry(tc.arguments);
+        continue;
+      }
+
       if (tc.name === 'flag_self_harm_risk') {
         safety = mergeSafetyFlags(safety, parseSafetyEntry(tc.arguments, sourceText));
       }
     }
   }
 
-  return { corrections, safety };
+  return { corrections, safety, socialClimate };
 }
 
 function parseCorrectionEntry(entry: Record<string, unknown>): MistakeWidgetData | null {
@@ -429,6 +477,14 @@ function parseCorrectionEntry(entry: Record<string, unknown>): MistakeWidgetData
     source: 'checker',
     alternatives: alternatives && alternatives.length > 0 ? alternatives : undefined,
   };
+}
+
+function parseSocialClimateEntry(args: Record<string, unknown>): TurnSocialState | null {
+  const tone = typeof args.tone === 'string' ? args.tone.trim().toLowerCase() : '';
+  if (!SOCIAL_TONES.has(tone as SocialTone)) return null;
+  const evidence = typeof args.evidence === 'string' ? args.evidence.trim() : '';
+  if (!evidence) return null;
+  return { tone: tone as SocialTone, evidence, source: 'checker' };
 }
 
 function normalizeCheckerText(value: string): string {
@@ -506,7 +562,7 @@ function mergeSafetyFlags(
 function parseToolCallsFromContent(content: string): ToolCall[] {
   const toolCalls: ToolCall[] = [];
 
-  const pattern = /(suggest_corrections|flag_self_harm_risk|mark_safe)\s*\(\s*(\{[\s\S]*?\})?\s*\)/g;
+  const pattern = /(suggest_corrections|flag_self_harm_risk|mark_safe|report_social_climate)\s*\(\s*(\{[\s\S]*?\})?\s*\)/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(content)) !== null) {
     try {
@@ -526,7 +582,7 @@ function parseToolCallsFromContent(content: string): ToolCall[] {
 
   // Pattern without parentheses
   if (toolCalls.length === 0) {
-    const noParen = /(suggest_corrections|flag_self_harm_risk|mark_safe)\s*(\{[\s\S]*?\})?/g;
+    const noParen = /(suggest_corrections|flag_self_harm_risk|mark_safe|report_social_climate)\s*(\{[\s\S]*?\})?/g;
     while ((match = noParen.exec(content)) !== null) {
       try {
         const args = match[2]

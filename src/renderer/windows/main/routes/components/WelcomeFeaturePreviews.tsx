@@ -9,7 +9,7 @@ import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
 import type { LevelStats } from '../../../../utils/wordLevelStats';
 import type { RecentWordRow, WeekStatDay } from '../welcomeSelectors';
-import type { Rating } from '../../../../services/srsAlgorithm';
+import type { AttemptQuality } from '../../../../../shared/constants';
 import './WelcomeFeaturePreviews.css';
 
 export interface WelcomeMediaPreviewProps {
@@ -106,9 +106,8 @@ export const WelcomeReaderPreview: Component<WelcomeMediaPreviewProps> = (props)
 };
 
 export interface WelcomeFlashcardRating {
-  quality: Rating;
+  quality: AttemptQuality;
   label: string;
-  time: string;
 }
 
 export interface WelcomeFlashcardPreviewProps {
@@ -121,7 +120,7 @@ export interface WelcomeFlashcardPreviewProps {
   openLabel: string;
   ratingButtons: WelcomeFlashcardRating[];
   onOpen: () => void;
-  onRate: (quality: Rating) => void;
+  onRate: (quality: AttemptQuality) => void;
 }
 
 /** Compact reviewer: click flips the real due card, then rate it to advance; empty/loading keeps a deck shell. */
@@ -192,7 +191,6 @@ export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = 
                 onClick={() => props.onRate(btn.quality)}
               >
                 <span class="wfv-flashcard-rating-label">{btn.label}</span>
-                <span class="wfv-flashcard-rating-time">{btn.time}</span>
               </button>
             )}
           </For>
@@ -390,6 +388,8 @@ export interface WelcomeLevelPreviewProps {
   active: LevelStats | null;
   chips: LevelStats[];
   titleLabel: string;
+  assessedLabel?: string;
+  knownLabel?: string;
   emptyLabel: string;
   onOpen: () => void;
 }
@@ -412,8 +412,14 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
         <button
           type="button"
           class="wfv-level-dial-wrap"
+          aria-label={
+            props.coverage === null
+              ? props.emptyLabel
+              : props.assessedLabel
+                ? `${props.titleLabel}: ${props.coverage.pct}% (${props.assessedLabel})`
+                : `${props.titleLabel}: ${props.coverage.pct}%`
+          }
           onClick={props.onOpen}
-          aria-label={props.coverage === null ? props.emptyLabel : `${props.titleLabel}: ${props.coverage.pct}%`}
         >
           <svg class="wfv-level-dial" viewBox="0 0 100 100" role="img" aria-hidden="true">
             <circle class="wfv-level-track" cx="50" cy="50" r="44" pathLength="100" />
@@ -441,13 +447,16 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
             <div class="wfv-level-side">
               <Show when={props.active}>
                 {(active) => (
-                  <span class="wfv-level-chip wfv-level-chip-active">
+                  <span
+                    class="wfv-level-chip wfv-level-chip-active"
+                    title={props.knownLabel ? `${props.knownLabel}: ${knownPct(active())}%` : undefined}
+                  >
                     <span class="wfv-level-chip-name">{active().name}</span>
                     <span class="wfv-level-chip-pct">{knownPct(active())}%</span>
                   </span>
                 )}
               </Show>
-              <p class="wfv-level-status">{coverage().tracked} / {coverage().total}</p>
+              <p class="wfv-level-status">{coverage().tracked} / {coverage().total}{props.assessedLabel ? ` ${props.assessedLabel}` : ''}</p>
             </div>
           )}
         </Show>
@@ -456,7 +465,10 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
         <div class="wfv-level-chips">
           <For each={remainingChips()}>
             {(chip) => (
-              <span class="wfv-level-chip">
+              <span
+                class="wfv-level-chip"
+                title={props.knownLabel ? `${props.knownLabel}: ${knownPct(chip)}%` : undefined}
+              >
                 <span class="wfv-level-chip-name">{chip.name}</span>
                 <span class="wfv-level-chip-pct">{knownPct(chip)}%</span>
               </span>

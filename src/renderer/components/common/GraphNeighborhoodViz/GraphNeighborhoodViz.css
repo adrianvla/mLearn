@@ -1,0 +1,81 @@
+/**
+ * Bounded local neighborhood graph styles.
+ * Edge stroke color AND dash pattern distinguish the three RelationCategory
+ * values; learner-state chips distinguish evidence / claim / predicted /
+ * unmeasured families. Colors only via theme CSS variables.
+ */
+
+.graph-viz { min-width: 0; }
+
+.graph-viz__svg {
+  display: block;
+  width: 100%;
+  max-width: 660px;
+  height: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.graph-viz__empty { color: var(--text-secondary); }
+
+/* Typed edges: identity solid, property dashed, support dotted. */
+.graph-viz__edge { stroke-width: 1.5; fill: none; }
+.graph-viz__edge--identity { stroke: var(--color-success); }
+.graph-viz__edge--property { stroke: var(--color-primary); stroke-dasharray: 6 3; }
+.graph-viz__edge--support { stroke: var(--color-warning); stroke-dasharray: 2 4; }
+
+.graph-viz__arrow--identity { fill: var(--color-success); }
+.graph-viz__arrow--property { fill: var(--color-primary); }
+.graph-viz__arrow--support { fill: var(--color-warning); }
+
+.graph-viz__node { cursor: pointer; }
+.graph-viz__node circle { fill: var(--bg-primary); stroke-width: 1.5; transition: stroke-width 0.15s ease; }
+.graph-viz__node:hover circle,
+.graph-viz__node:focus circle { stroke-width: 3; }
+.graph-viz__node--identity circle { stroke: var(--color-success); }
+.graph-viz__node--property circle { stroke: var(--color-primary); }
+.graph-viz__node--support circle { stroke: var(--color-warning); }
+.graph-viz__node--center { cursor: default; }
+.graph-viz__node--center circle { stroke: var(--text-primary); stroke-width: 2.5; }
+
+.graph-viz__label { fill: var(--text-primary); font-size: 12px; pointer-events: none; }
+.graph-viz__node--center .graph-viz__label { font-weight: var(--font-weight-semibold); }
+
+/* Learner state families: evidence-backed, claimed, measured-but-not-known,
+   predicted, unmeasured — never conflated. */
+.graph-viz__state-dot--evidence-backed-known { fill: var(--color-success); }
+.graph-viz__state-dot--claimed-known,
+.graph-viz__state-dot--claimed-learning,
+.graph-viz__state-dot--claimed-unknown { fill: var(--color-primary); }
+.graph-viz__state-dot--learning,
+.graph-viz__state-dot--unknown { fill: var(--color-info); }
+.graph-viz__state-dot--predicted { fill: var(--color-warning); }
+.graph-viz__state-dot--unmeasured { fill: var(--text-secondary); }
+
+.graph-viz__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.graph-viz__legend { padding: 0 0.35rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+.graph-viz__legend--identity { border-color: var(--color-success); border-style: solid; }
+.graph-viz__legend--property { border-color: var(--color-primary); border-style: dashed; }
+.graph-viz__legend--support { border-color: var(--color-warning); border-style: dotted; }
+
+.graph-viz__chip { padding: 0 0.4rem; border: 1px solid var(--border-color); border-radius: var(--radius-sm); white-space: nowrap; }
+.graph-viz__chip--evidence-backed-known { border-color: var(--color-success); color: var(--color-success); }
+.graph-viz__chip--claimed-known,
+.graph-viz__chip--claimed-learning,
+.graph-viz__chip--claimed-unknown { border-color: var(--color-primary); color: var(--color-primary); }
+.graph-viz__chip--learning,
+.graph-viz__chip--unknown { border-color: var(--color-info); color: var(--color-info); }
+.graph-viz__chip--predicted { border-color: var(--color-warning); color: var(--color-warning); border-style: dashed; }
+.graph-viz__chip--unmeasured { border-color: var(--text-secondary); color: var(--text-secondary); border-style: dashed; }
+
+.graph-viz__truncated { font-variant-numeric: tabular-nums; }

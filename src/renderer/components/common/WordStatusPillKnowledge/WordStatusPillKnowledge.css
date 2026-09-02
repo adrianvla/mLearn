@@ -1,0 +1,30 @@
+.word-status-knowledge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  width: min(300px, calc(100vw - var(--spacing-4)));
+  min-width: 220px;
+}
+
+.word-status-knowledge__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.word-status-knowledge__summary strong { color: var(--text-primary); }
+.word-status-knowledge__close { margin-left: auto; padding: 0 var(--spacing-1); }
+.word-status-knowledge__source { color: var(--text-secondary); font-size: var(--font-size-2xs); }
+
+.word-status-knowledge__status { font-size: var(--font-size-2xs); font-weight: 600; }
+.word-status-knowledge__status--unknown { color: var(--color-danger); }
+.word-status-knowledge__status--learning { color: var(--color-warning); }
+.word-status-knowledge__status--known { color: var(--color-success); }
+.word-status-knowledge__status--untracked { color: var(--text-tertiary); }
+
+.word-status-knowledge__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-1);
+}

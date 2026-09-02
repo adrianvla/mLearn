@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { LanguageData, Token } from '../../shared/types';
 import {
-    tokensToPlainText,
     tokensToColoredHtml,
     cleanContextPhrase,
-    getContextPhrase,
     formatForClipboard,
-    truncatePhrase,
 } from './phraseExtraction';
 
 function token(word: string, type: string = '', overrides: Partial<Token> = {}): Token {
@@ -47,15 +44,6 @@ const latinLanguage: LanguageData = {
     },
 };
 
-const thaiLanguage: LanguageData = {
-    name: 'Thai Language',
-    colour_codes: {},
-    settings: { fixed: {} },
-    textProcessing: {
-      scriptProfile: { acceptedScripts: ['Thai'] },
-    },
-    };
-
 const kanaKanjiLanguage: LanguageData = {
     name: 'Kana Kanji Language',
     colour_codes: {},
@@ -70,49 +58,6 @@ const kanaKanjiLanguage: LanguageData = {
         },
     },
 };
-
-describe('tokensToPlainText', () => {
-    it('returns empty string for empty array', () => {
-        expect(tokensToPlainText([])).toBe('');
-    });
-
-    it('returns empty string for null-ish input', () => {
-        expect(tokensToPlainText(null as unknown as Token[])).toBe('');
-    });
-
-    it('returns surface value when token has surface', () => {
-        expect(tokensToPlainText([token('word', '', { surface: 'surf' })])).toBe('surf');
-    });
-
-    it('returns word value when token has no surface', () => {
-        expect(tokensToPlainText([token('hello')])).toBe('hello');
-    });
-
-    it('joins multiple tokens without separator', () => {
-        expect(tokensToPlainText([token('foo'), token('bar'), token('baz')])).toBe('foobarbaz');
-    });
-
-    it('joins multiple tokens with language metadata separators', () => {
-        expect(tokensToPlainText([token('foo'), token('bar'), token('baz')], latinLanguage)).toBe('foo bar baz');
-        expect(tokensToPlainText([token('日本'), token('語'), token('を')], kanaKanjiLanguage)).toBe('日本語を');
-    });
-
-    it('mixes surface and word across tokens', () => {
-        const tokens: Token[] = [
-            token('word1', '', { surface: 'surf1' }),
-            token('word2'),
-        ];
-        expect(tokensToPlainText(tokens)).toBe('surf1word2');
-    });
-
-    it('contributes empty string for token with neither surface nor word', () => {
-        const tokens: Token[] = [
-            token('', '', {}),
-            token('end'),
-        ];
-        expect(tokensToPlainText(tokens)).toBe('end');
-    });
-});
 
 describe('tokensToColoredHtml', () => {
     it('returns empty string for empty array', () => {
@@ -278,32 +223,6 @@ describe('cleanContextPhrase', () => {
     });
 });
 
-describe('getContextPhrase', () => {
-    it('returns empty string when both context and fallback are undefined', () => {
-        expect(getContextPhrase(undefined)).toBe('');
-    });
-
-    it('returns cleaned fallback when context is undefined', () => {
-        expect(getContextPhrase(undefined, '  hello  ')).toBe('hello');
-    });
-
-    it('returns metadata-free context without stripping parenthetical readings', () => {
-        expect(getContextPhrase('漢字(かんじ)')).toBe('漢字(かんじ)');
-    });
-
-    it('prefers context over fallback when both are provided', () => {
-        expect(getContextPhrase('context text', 'fallback text')).toBe('context text');
-    });
-
-    it('falls back to fallback when context is empty string', () => {
-        expect(getContextPhrase('', 'fallback')).toBe('fallback');
-    });
-
-    it('returns empty string when both are empty strings', () => {
-        expect(getContextPhrase('', '')).toBe('');
-    });
-});
-
 describe('formatForClipboard', () => {
     it('formats metadata-free parenthetical readings without stripping them', () => {
         expect(formatForClipboard('漢字(かんじ)')).toBe('漢字(かんじ)');
@@ -338,81 +257,3 @@ describe('formatForClipboard', () => {
     });
 });
 
-describe('truncatePhrase', () => {
-    it('returns phrase as-is when null', () => {
-        const result = truncatePhrase(null as unknown as string);
-        expect(result).toBeNull();
-    });
-
-    it('returns phrase as-is when undefined', () => {
-        const result = truncatePhrase(undefined as unknown as string);
-        expect(result).toBeUndefined();
-    });
-
-    it('returns phrase as-is when shorter than maxLength', () => {
-        expect(truncatePhrase('short', 100)).toBe('short');
-    });
-
-    it('returns phrase as-is when exactly equal to maxLength', () => {
-        const phrase = 'a'.repeat(100);
-        expect(truncatePhrase(phrase, 100)).toBe(phrase);
-    });
-
-    it('truncates CJK text at maxLength and appends ellipsis', () => {
-        const phrase = 'あ'.repeat(110);
-        const result = truncatePhrase(phrase, 100);
-        expect(result).toBe('あ'.repeat(100) + '…');
-    });
-
-    it('truncates segmentless languages at maxLength from metadata', () => {
-        const phrase = 'ก'.repeat(75) + ' ' + 'ข'.repeat(40);
-        const result = truncatePhrase(phrase, 100, thaiLanguage, 'th');
-        expect(result).toBe(phrase.slice(0, 100) + '…');
-    });
-
-    it('infers segmentless script truncation when metadata is unavailable', () => {
-        const phrase = 'က'.repeat(75) + ' ' + 'ခ'.repeat(40);
-        const result = truncatePhrase(phrase, 100);
-        expect(result).toBe(phrase.slice(0, 100) + '…');
-    });
-
-    it('uses single ellipsis character not three dots', () => {
-        const phrase = 'あ'.repeat(110);
-        const result = truncatePhrase(phrase, 100);
-        expect(result).toContain('…');
-        expect(result).not.toContain('...');
-    });
-
-    it('breaks Latin text at word boundary when last space is after 70% of maxLength', () => {
-        // Build: 75 a's + space + 25 b's = 101 chars, space at position 75 (> 70)
-        const phrase = 'a'.repeat(75) + ' ' + 'b'.repeat(25);
-        const result = truncatePhrase(phrase, 100);
-        expect(result).toBe('a'.repeat(75) + '…');
-    });
-
-    it('uses the language profile over incidental segmentless characters', () => {
-        const phrase = 'a'.repeat(75) + ' 漢字 ' + 'b'.repeat(25);
-        const result = truncatePhrase(phrase, 100, latinLanguage, 'en');
-        expect(result).toBe('a'.repeat(75) + ' 漢字…');
-    });
-
-    it('truncates Latin text at hard limit when no good word boundary exists', () => {
-        // No space at all — falls through to hard truncation
-        const phrase = 'a'.repeat(110);
-        const result = truncatePhrase(phrase, 100);
-        expect(result).toBe('a'.repeat(100) + '…');
-    });
-
-    it('truncates Latin text at hard limit when last space is before 70% of maxLength', () => {
-        // Space at position 10 (< 70% of 100), then 100 more chars
-        const phrase = 'a'.repeat(10) + ' ' + 'b'.repeat(100);
-        const result = truncatePhrase(phrase, 100);
-        expect(result).toBe('a'.repeat(10) + ' ' + 'b'.repeat(89) + '…');
-    });
-
-    it('uses default maxLength of 100', () => {
-        const phrase = 'a'.repeat(110);
-        const result = truncatePhrase(phrase);
-        expect(result?.length).toBe(101);
-    });
-});

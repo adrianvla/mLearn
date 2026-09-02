@@ -3,19 +3,25 @@
  * SRS review interface with Anki-like rating buttons
  */
 
-import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
+import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
+import { selectNextEncounter } from '../../learning/engine';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
-import { Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
+import { Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
-import type { ButtonVariant } from '../common/Button/Button';
-import type { Rating } from '../../services/srsAlgorithm';
+import { getAvailableAspects } from '../../../shared/types';
+import { getTestedAspects } from '../../../shared/languageFeatures';
+import { qualityToSrsRating, type AttemptQuality } from '../../../shared/constants';
+import { nextAttemptId } from '../../../shared/knowledgeEvents';
+import { prerequisitesOf } from '../../utils/aspectKnowledge';
+import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
+import type { KnowledgeAspect } from '../../../shared/constants';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
@@ -29,6 +35,9 @@ export interface FlashcardReviewProps {
   onComplete?: () => void;
   onClose?: () => void;
   style?: JSX.CSSProperties;
+  /** Session-local review focus mode (never persisted). */
+  reviewMode?: KnowledgeAspect;
+  onReviewModeChange?: (mode: KnowledgeAspect) => void;
 }
 
 export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
@@ -37,17 +46,16 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     store,
     queueCounts,
     getCurrentCard,
-    getPreviewDueDates,
     answerCard,
     buryCard,
     removeFlashcard,
     undoLastAction,
     canUndo,
     refreshQueue,
-    dueDateToString,
     generateExampleSentenceWithLLM,
     updateFlashcardContent,
     updateFlashcard,
+    recordAttempt,
   } = useFlashcards();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
@@ -92,10 +100,186 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   // Current card
-  const currentCard = createMemo(() => getCurrentCard());
+  const currentDecision = createMemo(() => {
+    const fallback = getCurrentCard();
+    if (!fallback) return null;
+    const language = languageForCard(fallback);
+    return selectNextEncounter({
+      preset: 'RETENTION',
+      nowMs: Date.now(),
+      reviewQueueEntries: [{
+        id: fallback.id,
+        word: fallback.content.front,
+        language,
+        targets: [{ entityId: `${language}:surface:${fallback.content.front}`, capability: 'surface-recognition' }],
+        dueDate: fallback.dueDate,
+        interval: fallback.interval,
+        suspended: fallback.suspended,
+        buried: fallback.buried,
+      }],
+    });
+  });
 
-  // Preview due dates for buttons
-  const previewDates = createMemo(() => getPreviewDueDates());
+  const currentCard = createMemo(() => {
+    const fallback = getCurrentCard();
+    if (!fallback) return null;
+    const decision = currentDecision();
+    return decision?.action === 'DEFER'
+      ? fallback
+      : store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
+  });
+
+  const cardHasReadingData = (card: Flashcard): boolean => {
+    const r = card.content.reading;
+    return !!r && r !== card.content.front;
+  };
+
+  const cardHasProsodyData = (card: Flashcard): boolean => {
+    const p = card.content.prosody;
+    return !!p && (p.position !== undefined || !!p.display);
+  };
+
+  // Review modes available for the current card: language capability
+  // (getAvailableAspects) intersected with per-card data presence.
+  const availableAspects = createMemo<KnowledgeAspect[]>(() => {
+    const card = currentCard();
+    if (!card) return ['meaning'];
+    const supported = getAvailableAspects(languageDataForCard(card) ?? undefined);
+    const aspects: KnowledgeAspect[] = ['meaning'];
+    if (supported.includes('reading')) aspects.push('reading');
+    if (supported.includes('prosody') && cardHasProsodyData(card)) aspects.push('prosody');
+    return aspects;
+  });
+
+  const effectiveMode = createMemo<KnowledgeAspect>(() => {
+    const mode = props.reviewMode ?? 'meaning';
+    return availableAspects().includes(mode) ? mode : 'meaning';
+  });
+
+  // Fall back to meaning when the active mode is unavailable for the next card.
+  createEffect(on(
+    () => currentCard()?.id,
+    () => {
+      const mode = props.reviewMode ?? 'meaning';
+      if (mode !== 'meaning' && !availableAspects().includes(mode)) {
+        props.onReviewModeChange?.('meaning');
+      }
+    }
+  ));
+
+  const modeOptions = createMemo(() => (
+    availableAspects().map((aspect) => ({
+      value: aspect,
+      label: t(aspect === 'meaning'
+        ? 'mlearn.Flashcards.Review.Modes.Meaning'
+        : aspect === 'reading'
+          ? 'mlearn.Flashcards.Review.Modes.Reading'
+          : 'mlearn.Flashcards.Review.Modes.Prosody'),
+    }))
+  ));
+
+  // Matrix rows: aspects THIS card interaction tests (shared tested/supplied gate).
+  const testedAspects = createMemo(() => {
+    const card = currentCard();
+    if (!card) return ['meaning'] as const;
+    return getTestedAspects({
+      languageData: languageDataForCard(card),
+      surface: card.content.front,
+      hasReadingData: cardHasReadingData(card),
+      hasProsodyData: cardHasProsodyData(card),
+    });
+  });
+
+  const ratingMode = createMemo(() => currentDecision()?.encounter.task.ratingMode ?? 'profile');
+
+  // Word-presentation task: the card front had to be read to reach a finer
+  // aspect, so the prerequisite chain is demonstrated (task-mediated; an
+  // audio-only task would pass []).
+  const demonstratedFor = (aspect: KnowledgeAspect) => prerequisitesOf(
+    aspect, getAvailableAspects(languageDataForCard(currentCard()!) ?? undefined),
+  );
+
+  const handleRate = (aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => {
+    const card = currentCard();
+    if (!card || !showAnswer()) return;
+    const elapsed = getElapsedTime();
+    cardShownAt = 0;
+
+    stopTts();
+    batch(() => {
+      setShowAnswer(false);
+      const { attemptId } = recordAttempt(card.content.front, aspect, quality, {
+        language: languageForCard(card),
+        method: opts?.method,
+        demonstrated: demonstratedFor(aspect),
+        latencyMs: elapsed,
+      });
+      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, elapsed, { attemptId });
+      if (completed) {
+        setCardsAnswered(prev => prev + 1);
+      }
+    });
+  };
+
+  const handleAllFluent = (opts?: RateOptions) => {
+    const card = currentCard();
+    if (!card || !showAnswer()) return;
+    const elapsed = getElapsedTime();
+    cardShownAt = 0;
+
+    stopTts();
+    batch(() => {
+      setShowAnswer(false);
+      // One physical submit (Space/Enter all-fluent) = ONE logical attempt:
+      // every tested aspect observation shares the same attemptId.
+      const attemptId = nextAttemptId();
+      for (const aspect of testedAspects()) {
+        recordAttempt(card.content.front, aspect, 'fluent', {
+          language: languageForCard(card),
+          method: opts?.method,
+          demonstrated: demonstratedFor(aspect),
+          latencyMs: elapsed,
+          attemptId,
+        });
+      }
+      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, elapsed, { attemptId });
+      if (completed) {
+        setCardsAnswered(prev => prev + 1);
+      }
+    });
+  };
+
+  const handleProfileSubmit = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
+    const card = currentCard();
+    if (!card || !showAnswer() || observations.length === 0) return;
+    const elapsed = getElapsedTime();
+    cardShownAt = 0;
+    const qualityRank: Record<AttemptQuality, number> = { missed: 0, struggled: 1, fluent: 2 };
+    const schedulerQuality = observations.reduce<AttemptQuality>(
+      (worst, observation) => qualityRank[observation.quality] < qualityRank[worst] ? observation.quality : worst,
+      'fluent',
+    );
+
+    stopTts();
+    batch(() => {
+      setShowAnswer(false);
+      const attemptId = nextAttemptId();
+      for (const observation of observations) {
+        recordAttempt(card.content.front, observation.aspect, observation.quality, {
+          language: languageForCard(card),
+          method: observation.method ?? opts?.method,
+          demonstrated: demonstratedFor(observation.aspect),
+          latencyMs: elapsed,
+          attemptId,
+        });
+      }
+      const completed = answerCard(qualityToSrsRating(
+        schedulerQuality,
+        schedulerQuality === 'fluent' && (opts?.easy ?? observations.every((observation) => observation.easy)),
+      ), card.id, elapsed, { attemptId });
+      if (completed) setCardsAnswered(prev => prev + 1);
+    });
+  };
 
   // Counts
   const counts = createMemo(() => queueCounts());
@@ -109,6 +293,19 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Keyboard shortcuts
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target;
+      const buttonTarget = target instanceof HTMLElement && target.matches('button, [role="button"]');
+
+      // Space/Enter reveal only. Prevent native button activation first, so a
+      // focused rating cell cannot turn Space into a concealed rating action.
+      if (e.key === ' ' || e.key === 'Enter') {
+        if (isRatingKeyIgnored(e) && !buttonTarget) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isComplete() && currentCard() && !showAnswer()) setShowAnswer(true);
+        return;
+      }
+
       // Shared press semantics: ignore held-down key repeats and typing in
       // editable/control elements (single source of truth with Word Sync).
       if (isRatingKeyIgnored(e)) return;
@@ -126,45 +323,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
       if (!currentCard()) return;
 
-      // Space to show answer, or rate Good if answer is shown
-      if (e.key === ' ' || e.key === 'Enter') {
+      if (!showAnswer()) {
+        if (e.key === 'b') {
+          e.preventDefault();
+          handleBury();
+        } else if (e.key === 'x') {
+          e.preventDefault();
+          handleRemove();
+        }
+      } else if (e.key === 'b') {
         e.preventDefault();
-        if (!showAnswer()) {
-          setShowAnswer(true);
-        } else {
-          handleRating('good');
-        }
-        return;
-      }
-
-      // Rating keys (only when answer is shown)
-      if (showAnswer()) {
-        switch (e.key) {
-          case '1':
-            e.preventDefault();
-            handleRating('again');
-            break;
-          case '2':
-            e.preventDefault();
-            handleRating('hard');
-            break;
-          case '3':
-            e.preventDefault();
-            handleRating('good');
-            break;
-          case '4':
-            e.preventDefault();
-            handleRating('easy');
-            break;
-          case 'b':
-            e.preventDefault();
-            handleBury();
-            break;
-          case 'x':
-            e.preventDefault();
-            handleRemove();
-            break;
-        }
+        handleBury();
       }
     };
 
@@ -210,23 +379,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       playTts(card.id, card.content.example!, languageForCard(card), 'example');
     }
   ));
-
-  const handleRating = (quality: Rating) => {
-    const card = currentCard();
-    if (!card) return;
-
-    const elapsed = getElapsedTime();
-    cardShownAt = 0;
-
-    stopTts();
-    batch(() => {
-      setShowAnswer(false);
-      const completed = answerCard(quality, card.id, elapsed);
-      if (completed) {
-        setCardsAnswered(prev => prev + 1);
-      }
-    });
-  };
 
   const handleUndo = () => {
     const actionType = undoLastAction();
@@ -324,42 +476,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   // Rating buttons config with time estimates
-  const ratingButtons = createMemo(() => {
-    const dates = previewDates();
-    if (!dates) return [];
-
-    return [
-      {
-        quality: 'again' as Rating,
-        label: t('mlearn.Flashcards.Review.Again'),
-        variant: 'danger' as ButtonVariant,
-        time: dueDateToString(dates.again),
-        key: '1'
-      },
-      {
-        quality: 'hard' as Rating,
-        label: t('mlearn.Flashcards.Review.Hard'),
-        variant: 'warning' as ButtonVariant,
-        time: dueDateToString(dates.hard),
-        key: '2'
-      },
-      {
-        quality: 'good' as Rating,
-        label: t('mlearn.Flashcards.Review.Ok'),
-        variant: 'success' as ButtonVariant,
-        time: dueDateToString(dates.good),
-        key: '3'
-      },
-      {
-        quality: 'easy' as Rating,
-        label: t('mlearn.Flashcards.Review.Easy'),
-        variant: 'primary' as ButtonVariant,
-        time: dueDateToString(dates.easy),
-        key: '4'
-      },
-    ];
-  });
-
+  
   // Get state label variant
   const getStateLabelVariant = (card: Flashcard) => {
     switch (card.state) {
@@ -415,6 +532,18 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </div>
 
           <div class="flashcard-header-actions">
+            <Show when={availableAspects().length > 1}>
+              <label class="flashcard-mode-select" for="flashcard-review-mode">
+                <span class="flashcard-mode-select__label">{t('mlearn.Flashcards.Review.Modes.Label')}</span>
+                <Select
+                  id="flashcard-review-mode"
+                  options={modeOptions()}
+                  value={effectiveMode()}
+                  onChange={(e) => props.onReviewModeChange?.(e.currentTarget.value as KnowledgeAspect)}
+                  class="flashcard-mode-select__control"
+                />
+              </label>
+            </Show>
             <ToggleSwitch
               checked={settings.flashcardStealthMode}
               onChange={(checked) => updateSetting('flashcardStealthMode', checked)}
@@ -542,6 +671,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   ttsMetadata={ttsMetadata()}
                   onRegenerateExample={handleRegenerateExample}
                   regeneratingExample={regeneratingExample()}
+                  reviewMode={effectiveMode()}
               />
             )}
           </Show>
@@ -559,20 +689,18 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           {/* Rating buttons */}
           <Show when={!isComplete() && currentCard() && showAnswer()}>
             <div class="flashcard-rating-buttons">
-              <For each={ratingButtons()}>
-                {(btn) => (
-                    <Button
-                        buttonType="default"
-                        variant={btn.variant}
-                        class="flashcard-rating-btn"
-                        onClick={() => handleRating(btn.quality)}
-                        title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}
-                    >
-                      <span class="flashcard-rating-label">{btn.label}</span>
-                      <span class="flashcard-rating-time">{btn.time}</span>
-                    </Button>
-                )}
-              </For>
+              <RatingMatrix
+                aspects={testedAspects()}
+                keyboardMode={settings.ratingKeyboardMode}
+                armed={showAnswer() && !!currentCard() && !isComplete()}
+                mode={ratingMode()}
+                resetKey={currentCard()?.id}
+                compact
+                initialDraftsFluent={ratingMode() === 'profile'}
+                onRate={handleRate}
+                onAllFluent={handleAllFluent}
+                onProfileSubmit={handleProfileSubmit}
+              />
             </div>
           </Show>
         </div>

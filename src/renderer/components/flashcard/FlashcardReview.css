@@ -46,7 +46,7 @@
   justify-content: space-between;
   align-items: center;
   width: max-content;
-  max-width: 800px;
+  max-width: 950px;
   padding: 0.5rem 1rem;
   background: var(--bg);
   backdrop-filter: var(--backdrop-filter);
@@ -64,6 +64,39 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
+}
+
+/* Review focus mode selector */
+.flashcard-mode-select {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.flashcard-mode-select__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.flashcard-mode-select__control {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.5rem;
+}
+
+/* Failure attribution buttons (ghost, secondary next to ratings) */
+.flashcard-attribution-btn {
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.flashcard-attribution-btn:hover {
+  background: var(--panel-bg-hover);
+  color: var(--text-primary);
 }
 
 /* Ensure header buttons match badge height */
@@ -161,9 +194,9 @@
   flex-direction: column;
   gap: var(--spacing-4);
   width: 100%;
-  max-width: 600px;
+  max-width: 700px;
   position: sticky;
-  bottom: var(--spacing-4);
+  /*bottom: var(--spacing-4);*/
   padding: var(--spacing-4) 0;
   z-index: var(--z-foreground);
   margin-top: auto;

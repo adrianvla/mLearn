@@ -43,6 +43,71 @@ function sha256(value: string | Buffer): string {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
+// COMPACT_ENTITY_KINDS wire ids: dictionary-entry=0, lexeme=1, surface=2, sense=3, …
+const GRAPH_KIND = { LEXEME: 1, SURFACE: 2, SENSE: 3 };
+
+function makeGraphAssetBytes(entities: Array<{ id: string; kindId: number }>): string {
+  return JSON.stringify({
+    schemaVersion: 1,
+    language: 'zz',
+    generatedAt: '2026-01-01T00:00:00Z',
+    sourceVersions: {},
+    stringTable: entities.map((entry) => entry.id),
+    entities: {
+      kindIds: entities.map((entry) => entry.kindId),
+      domainIds: entities.map(() => 0),
+      labelStringIds: entities.map(() => -1),
+    },
+    relations: {
+      offsets: new Array(entities.length + 1).fill(0),
+      targets: [],
+      typeIds: [],
+    },
+    meta: { surfaceHashStringIds: [], surfaceLocalIds: [] },
+  });
+}
+
+async function makeGraphBundleLangData(tempRoot: string, version: string, graphBytes: string): Promise<LanguageDataMap> {
+  const archiveSourceDir = path.join(tempRoot, 'archive-source');
+  const archivePath = path.join(tempRoot, 'zz.tar.gz');
+  const manifest = {
+    schemaVersion: 1,
+    language: 'zz',
+    version,
+    files: [
+      {
+        id: 'linguistic-graph',
+        path: 'languages/zz.graph.json',
+        sizeBytes: Buffer.byteLength(graphBytes),
+        sha256: sha256(graphBytes),
+        required: true,
+      },
+    ],
+  };
+  fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+  fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify(manifest), 'utf-8');
+  fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'zz.graph.json'), graphBytes, 'utf-8');
+  await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+  return makeLangData({
+    languageData: {
+      version,
+      bundle: {
+        url: 'https://example.com/language-data/zz.tar.gz',
+        sizeBytes: fs.statSync(archivePath).size,
+        sha256: sha256(fs.readFileSync(archivePath)),
+      },
+      assets: manifest.files,
+    },
+  });
+}
+
+function mockDownloadServesLatestArchive(tempRoot: string): void {
+  mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+    fs.copyFileSync(path.join(tempRoot, 'zz.tar.gz'), destPath);
+  });
+}
+
 describe('languageDataService', () => {
   let mod: typeof import('./languageDataService');
 
@@ -1051,4 +1116,65 @@ describe('languageDataService', () => {
       ),
     ).rejects.toThrow('Invalid language data asset path');
   });
+
+  describe('graph package identity guard (REQ56)', () => {
+    const installedGraphPath = () => path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json');
+
+    it('installs a fresh graph package without a diff baseline', async () => {
+      const graphV1 = makeGraphAssetBytes([{ id: 'zz:surface:abc', kindId: GRAPH_KIND.SURFACE }]);
+      const langDataV1 = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v1', graphV1);
+      mockDownloadServesLatestArchive(tempDir.tmpDir);
+
+      const status = await mod.ensureLanguageDataInstalled('zz', langDataV1);
+
+      expect(status.installed).toBe(true);
+      expect(fs.readFileSync(installedGraphPath(), 'utf-8')).toBe(graphV1);
+    });
+
+    it('fails conservative when an update remaps an entity id to a different kind', async () => {
+      const graphV1 = makeGraphAssetBytes([
+        { id: 'zz:surface:abc', kindId: GRAPH_KIND.SURFACE },
+        { id: 'zz:sense:1', kindId: GRAPH_KIND.SENSE },
+      ]);
+      const langDataV1 = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v1', graphV1);
+      mockDownloadServesLatestArchive(tempDir.tmpDir);
+      await mod.ensureLanguageDataInstalled('zz', langDataV1);
+
+      // Same id, different kind — learner evidence on zz:surface:abc would be orphaned.
+      const graphV2 = makeGraphAssetBytes([
+        { id: 'zz:surface:abc', kindId: GRAPH_KIND.LEXEME },
+        { id: 'zz:sense:1', kindId: GRAPH_KIND.SENSE },
+      ]);
+      const langDataV2 = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v2', graphV2);
+
+      await expect(mod.ensureLanguageDataInstalled('zz', langDataV2)).rejects.toThrow(/changed kind/);
+
+      // The installed graph and the install receipt are untouched: old asset stays loadable.
+      expect(fs.readFileSync(installedGraphPath(), 'utf-8')).toBe(graphV1);
+      const receipt = JSON.parse(fs.readFileSync(
+        path.join(tempDir.tmpDir, 'language-data', '.install-receipts', 'zz.json'),
+        'utf-8',
+      )) as { version?: string };
+      expect(receipt.version).toBe('bundle-v1');
+    });
+
+    it('installs a graph update that keeps entity kinds stable', async () => {
+      const graphV1 = makeGraphAssetBytes([{ id: 'zz:surface:abc', kindId: GRAPH_KIND.SURFACE }]);
+      const langDataV1 = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v1', graphV1);
+      mockDownloadServesLatestArchive(tempDir.tmpDir);
+      await mod.ensureLanguageDataInstalled('zz', langDataV1);
+
+      const graphV2 = makeGraphAssetBytes([
+        { id: 'zz:surface:abc', kindId: GRAPH_KIND.SURFACE },
+        { id: 'zz:sense:new', kindId: GRAPH_KIND.SENSE },
+      ]);
+      const langDataV2 = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v2', graphV2);
+
+      const status = await mod.ensureLanguageDataInstalled('zz', langDataV2);
+
+      expect(status.installed).toBe(true);
+      expect(fs.readFileSync(installedGraphPath(), 'utf-8')).toBe(graphV2);
+    });
+  });
 });
+

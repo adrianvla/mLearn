@@ -89,11 +89,6 @@ vi.mock('../components/flashcard', () => ({
   FlashcardCreationChoiceModal: () => <div />,
 }));
 
-vi.mock('../services/statsService', () => ({
-  getLocalStorageMigrationInfo: () => ({ occurred: false, migratedWordCount: 0 }),
-  resetLocalStorageMigrationInfo: vi.fn(),
-}));
-
 vi.mock('./migrationSignals', () => ({
   consumePendingFlashcardMigration: vi.fn(() => undefined),
   setMigrationListenerReady: vi.fn(),

@@ -11,6 +11,7 @@
 
 import {DEFAULT_SETTINGS, Flashcard, FlashcardMeta, ReviewQueue} from '../../shared/types';
 import { SRS_EASE } from '../../shared/constants';
+import { scheduleAfterAnswer } from '../../shared/srs/retentionScheduler';
 
 // Time constants
 const MINUTE = 60 * 1000;
@@ -217,13 +218,9 @@ export function dueDateToString(dueDate: number, t?: (key: string, params?: Reco
 /**
  * Default metadata
  */
-export function getDefaultMeta(newDayHour: number = 4): FlashcardMeta {
-    const today = getTodayDateString(newDayHour);
+export function getDefaultMeta(_newDayHour: number = 4): FlashcardMeta {
     return {
         perLanguage: {},
-        newCardsToday: 0,
-        reviewsToday: 0,
-        newCardsDate: today,
         maxNewCardsPerDay: 20,
         maxNewCardsPerDayLearning: 20,
         maxReviewsPerDay: -1, // -1 = unlimited
@@ -264,7 +261,7 @@ function calculateNewEase(currentEase: number, rating: Rating): number {
 /**
  * Answer a card with a rating and return the updated card
  */
-export function answerCard(card: Flashcard, rating: Rating, meta: FlashcardMeta): Flashcard {
+export function legacyAnswerCard(card: Flashcard, rating: Rating, meta: FlashcardMeta): Flashcard {
     const now = Date.now();
     const updated: Flashcard = {
         ...card,
@@ -284,6 +281,36 @@ export function answerCard(card: Flashcard, rating: Rating, meta: FlashcardMeta)
         default:
             return updated;
     }
+}
+
+/** Scheduler-backed compatibility adapter for legacy flashcard consumers. */
+export function answerCard(card: Flashcard, rating: Rating, meta: FlashcardMeta): Flashcard {
+    const now = Date.now();
+    const prior = card.retentionCache ?? {
+        state: card.state,
+        ease: card.ease,
+        interval: card.interval,
+        dueAt: card.dueDate,
+        reviews: card.reviews,
+        lapses: card.lapses,
+        learningStep: card.learningStep,
+        lastReviewed: card.lastReviewed,
+        provenance: 'migrated-scheduler-cache' as const,
+    };
+    const retentionCache = scheduleAfterAnswer(prior, rating, meta, now);
+    return {
+        ...card,
+        state: retentionCache.state,
+        ease: retentionCache.ease,
+        interval: retentionCache.interval,
+        dueDate: retentionCache.dueAt,
+        reviews: retentionCache.reviews,
+        lapses: retentionCache.lapses,
+        learningStep: retentionCache.learningStep,
+        lastReviewed: retentionCache.lastReviewed,
+        lastUpdated: now,
+        retentionCache,
+    };
 }
 
 /**
@@ -353,6 +380,8 @@ function answerLearningCard(card: Flashcard, rating: Rating, meta: FlashcardMeta
     const now = Date.now();
     const steps = meta.learningSteps;
     const currentStep = card.learningStep;
+    let hardDelay: number;
+    let nextStep: number;
 
     switch (rating) {
         case 'again':
@@ -365,7 +394,7 @@ function answerLearningCard(card: Flashcard, rating: Rating, meta: FlashcardMeta
 
         case 'hard':
             // Repeat current step with 1.5x delay
-            const hardDelay = steps[currentStep] * MINUTE * 1.5;
+            hardDelay = steps[currentStep] * MINUTE * 1.5;
             return {
                 ...card,
                 dueDate: now + hardDelay,
@@ -373,7 +402,7 @@ function answerLearningCard(card: Flashcard, rating: Rating, meta: FlashcardMeta
 
         case 'good':
             // Move to next step or graduate
-            const nextStep = currentStep + 1;
+            nextStep = currentStep + 1;
             if (nextStep >= steps.length) {
                 // Graduate
                 return {
@@ -412,11 +441,17 @@ function answerLearningCard(card: Flashcard, rating: Rating, meta: FlashcardMeta
 function answerReviewCard(card: Flashcard, rating: Rating, meta: FlashcardMeta): Flashcard {
     const now = Date.now();
     const relearnSteps = meta.relearnSteps;
+    let lapseInterval: number;
+    let hardInterval: number;
+    let modifier: number;
+    let goodInterval: number;
+    let easyModifier: number;
+    let easyInterval: number;
 
     switch (rating) {
         case 'again':
             // Lapse - move to relearning
-            const lapseInterval = Math.max(1 * DAY, card.interval * 0.5); // At least 1 day, 50% of previous
+            lapseInterval = Math.max(1 * DAY, card.interval * 0.5); // At least 1 day, 50% of previous
             return {
                 ...card,
                 state: 'relearning',
@@ -429,7 +464,7 @@ function answerReviewCard(card: Flashcard, rating: Rating, meta: FlashcardMeta):
 
         case 'hard':
             // Increase interval slightly (1.2x), decrease ease
-            const hardInterval = Math.min(
+            hardInterval = Math.min(
                 card.interval * 1.2,
                 meta.maxInterval * DAY
             );
@@ -443,8 +478,8 @@ function answerReviewCard(card: Flashcard, rating: Rating, meta: FlashcardMeta):
 
         case 'good':
             // Normal interval increase (ease factor)
-            const modifier = meta.reviewIntervalModifier / 100;
-            const goodInterval = Math.min(
+            modifier = meta.reviewIntervalModifier / 100;
+            goodInterval = Math.min(
                 card.interval * card.ease * modifier,
                 meta.maxInterval * DAY
             );
@@ -458,8 +493,8 @@ function answerReviewCard(card: Flashcard, rating: Rating, meta: FlashcardMeta):
 
         case 'easy':
             // Large interval increase (ease factor * bonus)
-            const easyModifier = meta.reviewIntervalModifier / 100;
-            const easyInterval = Math.min(
+            easyModifier = meta.reviewIntervalModifier / 100;
+            easyInterval = Math.min(
                 card.interval * card.ease * EASE_BONUS * easyModifier,
                 meta.maxInterval * DAY
             );
@@ -480,6 +515,9 @@ function answerRelearningCard(card: Flashcard, rating: Rating, meta: FlashcardMe
     const now = Date.now();
     const steps = meta.relearnSteps;
     const currentStep = card.learningStep;
+    let hardDelay: number;
+    let nextStep: number;
+    let easyInterval: number;
 
     switch (rating) {
         case 'again':
@@ -492,7 +530,7 @@ function answerRelearningCard(card: Flashcard, rating: Rating, meta: FlashcardMe
 
         case 'hard':
             // Repeat current step with 1.5x delay
-            const hardDelay = steps[currentStep] * MINUTE * 1.5;
+            hardDelay = steps[currentStep] * MINUTE * 1.5;
             return {
                 ...card,
                 dueDate: now + hardDelay,
@@ -500,7 +538,7 @@ function answerRelearningCard(card: Flashcard, rating: Rating, meta: FlashcardMe
 
         case 'good':
             // Move to next step or return to review
-            const nextStep = currentStep + 1;
+            nextStep = currentStep + 1;
             if (nextStep >= steps.length) {
                 // Return to review with stored interval
                 return {
@@ -519,7 +557,7 @@ function answerRelearningCard(card: Flashcard, rating: Rating, meta: FlashcardMe
 
         case 'easy':
             // Return to review immediately with 1.5x stored interval
-            const easyInterval = Math.min(card.interval * 1.5, meta.maxInterval * DAY);
+            easyInterval = Math.min(card.interval * 1.5, meta.maxInterval * DAY);
             return {
                 ...card,
                 state: 'review',

@@ -35,7 +35,7 @@ const mockCancelWordHover = vi.fn();
 const mockGetCanonicalForm = vi.fn((word: string) => (word === 'يكتب' ? 'كتب' : word));
 const originalMockLanguageData = mockLanguageData;
 const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(
-  (): ComprehensiveWordStatusResult => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
+  (): ComprehensiveWordStatusResult => ({ status: 'unknown', basis: 'unmeasured', evidenceStatus: 'unknown', source: 'None', timesSeen: 0 }),
 );
 const mockGetCachedTranslation = vi.fn();
 
@@ -52,6 +52,7 @@ vi.mock('../../context', () => ({
     trackWordHovered: mockTrackWordHovered,
     cancelWordHover: mockCancelWordHover,
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
+    getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
   }),
   useLanguage: () => ({
     currentLangData: () => mockLanguageData,

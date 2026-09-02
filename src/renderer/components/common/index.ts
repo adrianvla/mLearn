@@ -48,6 +48,9 @@ export {
 } from './EulaModal/EulaModal';
 
 export { LanguageVariantGate } from './LanguageVariantGate/LanguageVariantGate';
+export { KnowledgeCapabilityChips, KnowledgeProjectionDrawer, knowledgeStateLabelKey, knowledgeTone, knowledgeWhyNarrative, type InspectorTab, type KnowledgeWhy } from './KnowledgeProjection';
+export { assembleWordKnowledgeModel, type WordKnowledgeModel } from './KnowledgeProjection/wordKnowledgeModel';
+export { GraphNeighborhoodViz, layoutNeighborhood, type GraphNeighborhoodVizProps } from './GraphNeighborhoodViz';
 
 // ModalForm Components
 export {
@@ -416,3 +419,24 @@ export {
 } from './Misc';
 
 export { default as TitleBar } from './TitleBar/TitleBar';
+
+// KnowledgeHistoryGraph
+export {
+  KnowledgeHistoryGraph,
+  type KnowledgeHistoryGraphProps,
+} from './KnowledgeHistoryGraph';
+export { KnowledgeHistoryTimeline, type HistoryEvent } from './KnowledgeHistoryTimeline';
+
+// WordStatusPillKnowledge
+export {
+  WordStatusPillKnowledge,
+  type WordStatusPillKnowledgeProps,
+} from './WordStatusPillKnowledge';
+
+// RatingMatrix
+export {
+  RatingMatrix,
+  type RatingMatrixProps,
+  type RateOptions,
+  type ProfileObservation,
+} from './RatingMatrix';

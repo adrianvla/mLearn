@@ -1,5 +1,5 @@
 """
-Voice routes — STT (faster-whisper), local TTS (Kokoro / Qwen3), VAD (Silero).
+Voice routes — STT (faster-whisper), local TTS (Kokoro / Qwen3 MLX + torch), VAD (Silero).
 
 Provides:
   POST /voice/tts           — generate TTS audio (WAV)
@@ -192,23 +192,26 @@ def _resolve_tts_engine(language: str | None, provider: str | None = None) -> st
     if requested_provider == "system":
         raise RuntimeError("System TTS is handled by Electron, not the Python TTS backend")
     if requested_provider == "qwen3":
-        if _qwen3_language_name(requested_language):
-            if not _is_apple_silicon():
-                log.warning(
-                    f"Qwen3-TTS requires Apple Silicon; falling back to Kokoro for '{requested_language}'"
-                )
-                if _kokoro_lang_code(requested_language):
-                    return "kokoro"
-                raise RuntimeError(
-                    f"Qwen3-TTS requires Apple Silicon and no Kokoro fallback is available for '{requested_language}'"
-                )
-            return "qwen3"
-        raise RuntimeError(f"Qwen3 TTS is not configured for language '{requested_language}'")
+        if not _qwen3_language_name(requested_language):
+            raise RuntimeError(f"Qwen3 TTS is not configured for language '{requested_language}'")
+        qwen3_engine = _qwen3_engine_for_platform()
+        if qwen3_engine:
+            return qwen3_engine
+        log.warning(
+            f"Qwen3-TTS backend unavailable; falling back to Kokoro for '{requested_language}'"
+        )
+        if _kokoro_lang_code(requested_language):
+            return "kokoro"
+        raise RuntimeError(
+            f"Qwen3-TTS requires Apple Silicon or the qwen3-torch backend, and no Kokoro fallback is available for '{requested_language}'"
+        )
     if requested_provider == "kokoro":
         if _kokoro_lang_code(requested_language):
             return "kokoro"
         if _qwen3_language_name(requested_language):
-            return "qwen3"
+            qwen3_engine = _qwen3_engine_for_platform()
+            if qwen3_engine:
+                return qwen3_engine
         package_engine = _language_tts_engine(requested_language)
         if package_engine:
             return package_engine
@@ -361,6 +364,72 @@ def _stt_default_model_id(engine: str) -> str:
     if _get_stt_device() == "cuda":
         return "large-v3-turbo"
     return "small"
+
+
+def _qwen3_engine_for_platform() -> str | None:
+    """Best Qwen3-TTS engine for this hardware: MLX on Apple Silicon, torch elsewhere.
+
+    Returns None when neither backend is installed (mlx is Apple-Silicon-only;
+    qwen_tts provides the CUDA/CPU engine used on Windows and Linux).
+    """
+    if _is_apple_silicon():
+        return "qwen3"
+    if _qwen3_torch_importable():
+        return "qwen3-torch"
+    return None
+
+
+def _qwen3_torch_importable() -> bool:
+    """True when the qwen3-torch backend (``qwen_tts`` package) is installed."""
+    try:
+        importlib.import_module("qwen_tts")
+    except ImportError:
+        return False
+    return True
+
+
+def _get_qwen3_torch_device() -> str:
+    """CUDA or CPU only (the torch Qwen3 engine targets NVIDIA GPUs and x86 CPUs)."""
+    torch = config.torch
+    _torch = importlib.import_module("torch") if torch is None else torch
+    if _torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+
+def _register_windows_gpu_dll_dirs() -> None:
+    """Windows: register pip-installed NVIDIA DLL dirs so CTranslate2 finds cudnn/cublas.
+
+    The nvidia-* wheels ship their DLLs under ``site-packages/nvidia/<pkg>/{bin,lib}``;
+    on Windows, DLL search only covers PATH and directories registered via
+    ``os.add_dll_directory``. No-op on other platforms.
+    """
+    if os.name != "nt":
+        return
+    try:
+        import site
+
+        package_dirs = list(site.getsitepackages())
+        usersite = site.getusersitepackages()
+        if usersite:
+            package_dirs.append(usersite)
+        for package_dir in package_dirs:
+            nvidia_root = os.path.join(package_dir, "nvidia")
+            if not os.path.isdir(nvidia_root):
+                continue
+            for entry in os.listdir(nvidia_root):
+                for subdir in ("bin", "lib"):
+                    dll_dir = os.path.join(nvidia_root, entry, subdir)
+                    if not os.path.isdir(dll_dir):
+                        continue
+                    os.add_dll_directory(dll_dir)
+                    os.environ["PATH"] = dll_dir + os.pathsep + os.environ.get("PATH", "")
+                    log.info(f"Registered NVIDIA DLL directory: {dll_dir}")
+    except Exception as e:
+        log.warning(f"Failed to register NVIDIA DLL directories: {e}")
+
+
+_register_windows_gpu_dll_dirs()
 
 
 # ── Model loading ──
@@ -610,6 +679,7 @@ async def voice_stt_status(language: Optional[str] = None):
     whisper_language = _stt_language_hint(requested_language) if requested_language else None
     engine = _get_stt_engine()
     model_name = _stt_default_model_id(engine)
+    device = "mps" if engine == "mlx" else _get_stt_device()
     loaded = _voice_stt_model is not None
     downloaded = False
     try:
@@ -627,6 +697,7 @@ async def voice_stt_status(language: Optional[str] = None):
         "progress": _voice_stt_progress,
         "modelName": model_name,
         "engine": engine,
+        "device": device,
         "language": requested_language,
         "whisperLanguage": whisper_language or "auto",
     }
@@ -664,6 +735,18 @@ async def voice_tts_status(language: Optional[str] = None):
             "progress": _voice_tts_progress,
             "modelLoading": _qwen3_model_loading,
             "modelName": "Qwen3-TTS-12Hz-0.6B-MLX",
+            "device": "mps",
+        }
+
+    if engine == "qwen3-torch":
+        return {
+            "downloaded": _qwen3_torch_importable(),
+            "loaded": _qwen3_torch_model is not None,
+            "downloading": _voice_tts_downloading or _qwen3_torch_model_loading,
+            "progress": _voice_tts_progress,
+            "modelLoading": _qwen3_torch_model_loading,
+            "modelName": _QWEN3_TORCH_MODEL_NAME,
+            "device": _get_qwen3_torch_device(),
         }
 
     if engine != "kokoro":
@@ -701,6 +784,7 @@ async def voice_tts_status(language: Optional[str] = None):
         "loaded": bool(lang_code and lang_code in _voice_tts_pipelines),
         "downloading": _voice_tts_downloading,
         "progress": _voice_tts_progress,
+        "device": _get_tts_device(),
         "modelName": "Kokoro-82M",
     }
 
@@ -733,7 +817,7 @@ async def voice_download_models(language: Optional[str] = None):
         tts_engine = "unavailable"
         errors.append(f"TTS: {e}")
 
-    if tts_engine in ("kokoro", "qwen3"):
+    if tts_engine in ("kokoro", "qwen3", "qwen3-torch"):
         try:
             _voice_tts_downloading = True
             _voice_tts_progress = 0.0
@@ -741,6 +825,9 @@ async def voice_download_models(language: Optional[str] = None):
             if tts_engine == "qwen3":
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_tts_loaded)
+            elif tts_engine == "qwen3-torch":
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_torch_loaded)
             else:
                 _ensure_tts_loaded(requested_language)
             _voice_tts_progress = 1.0
@@ -773,6 +860,16 @@ async def voice_tts_generate(req: TTSRequest):
         engine = _resolve_tts_engine(requested_language, provider)
         if engine == "qwen3":
             return await _generate_tts_qwen3(req, requested_language)
+        if engine == "qwen3-torch":
+            if _validate_voice_sample_path(req.voiceSamplePath):
+                return await _generate_tts_qwen3_torch(req, requested_language)
+            # Base checkpoint has no zero-shot voice — mirror the resolver fallback.
+            if _kokoro_lang_code(requested_language):
+                log.warning(
+                    f"qwen3-torch requires a voice sample; falling back to Kokoro for '{requested_language}'"
+                )
+                return await _generate_tts_kokoro(req, requested_language)
+            raise RuntimeError("Qwen3-TTS voice cloning requires a voice sample")
         if engine == "kokoro":
             return await _generate_tts_kokoro(req, requested_language)
         return await _generate_tts_language_adapter(req, engine, requested_language)
@@ -1002,11 +1099,15 @@ def _ensure_qwen3_tts_loaded():
             raise
 
 
-def _set_tts_progress(value: float):
+def _set_tts_progress(
+    value: float,
+    message: str = "Loading Qwen3-TTS model…",
+    model_name: str = "Qwen3-TTS",
+):
     """Helper to update the TTS progress global."""
     global _voice_tts_progress
     _voice_tts_progress = value
-    _emit_voice_loading_status("tts", "Loading Qwen3-TTS model…", _voice_tts_progress, "Qwen3-TTS")
+    _emit_voice_loading_status("tts", message, _voice_tts_progress, model_name)
 
 
 def _qwen3_reference_pair(voice_sample_path: str | None) -> tuple[str | None, str | None]:
@@ -1097,6 +1198,253 @@ async def _generate_tts_qwen3(req: TTSRequest, language: str):
     )
 
 
+# ── Qwen3-TTS torch backend (CUDA/CPU, Windows/Linux) ──
+
+_qwen3_torch_model = None
+_qwen3_torch_model_loading = False
+_qwen3_torch_lock = threading.Lock()
+_qwen3_torch_voice_prompts: dict[str, object] = {}  # clone prompts keyed by "path:mtime"
+
+_QWEN3_TORCH_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
+_QWEN3_TORCH_MODEL_NAME = "Qwen3-TTS-12Hz-1.7B-Torch"
+
+
+def _install_sox_shim():
+    """Install a pure-numpy shim for the ``sox`` module (qwen_tts imports it without using the CLI)."""
+    import sys
+    import types
+
+    if "sox" in sys.modules:
+        return
+
+    class _Transformer:
+        def __init__(self):
+            self._target_db: float = 0.0
+
+        def norm(self, db_level: float = 0.0):
+            self._target_db = db_level
+            return self
+
+        def build_array(self, input_array, sample_rate_in: int = 16000):
+            audio = np.array(input_array, dtype=np.float64)
+            peak = np.max(np.abs(audio))
+            if peak < 1e-10:
+                return audio.astype(np.float32)
+            target_peak = 10.0 ** (self._target_db / 20.0)
+            return (audio * (target_peak / peak)).astype(np.float32)
+
+    mod = types.ModuleType("sox")
+    mod.Transformer = _Transformer  # type: ignore[attr-defined]
+    sys.modules["sox"] = mod
+
+
+def _qwen3_torch_download_info() -> tuple[int, Path | None]:
+    """Best-effort (total_bytes, cache blobs dir) for the torch Qwen3 HF download."""
+    try:
+        from huggingface_hub import model_info
+        from huggingface_hub.constants import HF_HUB_CACHE
+
+        info = model_info(_QWEN3_TORCH_MODEL_ID)
+        total_bytes = sum(s.size for s in (info.siblings or []) if s.size)
+        repo_dir = Path(HF_HUB_CACHE) / f"models--{_QWEN3_TORCH_MODEL_ID.replace('/', '--')}"
+        return total_bytes, repo_dir / "blobs"
+    except Exception:
+        return 0, None
+
+
+def _ensure_qwen3_torch_loaded():
+    """Load the torch Qwen3-TTS model lazily (CUDA when available, else CPU)."""
+    global _qwen3_torch_model, _qwen3_torch_model_loading, _voice_tts_progress
+    if _qwen3_torch_model is not None:
+        return _qwen3_torch_model
+    with _qwen3_torch_lock:
+        if _qwen3_torch_model is not None:
+            return _qwen3_torch_model
+        _qwen3_torch_model_loading = True
+        _voice_tts_progress = 0.05
+        _emit_voice_loading_status("tts", "Loading Qwen3-TTS model…", _voice_tts_progress, _QWEN3_TORCH_MODEL_NAME)
+        stop_monitor = threading.Event()
+        try:
+            total_bytes, cache_blobs_dir = _qwen3_torch_download_info()
+
+            def _monitor():
+                """Background thread: poll HF cache dir size → update progress."""
+                last_pct = -1
+                while not stop_monitor.is_set():
+                    if cache_blobs_dir and total_bytes > 0:
+                        try:
+                            cur = sum(
+                                f.stat().st_size
+                                for f in cache_blobs_dir.rglob("*")
+                                if f.is_file()
+                            )
+                            pct = min(cur / total_bytes, 1.0)
+                            # Download is 0-80 % of overall progress
+                            _set_tts_progress(pct * 0.8, model_name=_QWEN3_TORCH_MODEL_NAME)
+                            pct_10 = int(pct * 10)
+                            if pct_10 > last_pct:
+                                last_pct = pct_10
+                                mb_done = cur / (1024 * 1024)
+                                mb_total = total_bytes / (1024 * 1024)
+                                log.info(
+                                    f"Qwen3-TTS (torch) download: {mb_done:.0f}/{mb_total:.0f} MB ({pct:.0%})"
+                                )
+                        except Exception:
+                            pass
+                    stop_monitor.wait(2)
+
+            monitor_thread = threading.Thread(target=_monitor, daemon=True)
+
+            if total_bytes > 0 and cache_blobs_dir:
+                log.info(f"Downloading Qwen3-TTS model ({total_bytes / (1024**3):.1f} GB)…")
+                monitor_thread.start()
+            else:
+                log.info("Loading torch Qwen3-TTS model…")
+
+            _install_sox_shim()
+            from qwen_tts import Qwen3TTSModel
+
+            device = _get_qwen3_torch_device()
+            torch = config.torch
+            _torch = importlib.import_module("torch") if torch is None else torch
+            # qwen_tts has no .to(); placement goes through from_pretrained kwargs
+            # (bf16 on CUDA, fp32 on CPU — bf16 matmuls are unsupported on some CPUs).
+            _qwen3_torch_model = Qwen3TTSModel.from_pretrained(
+                _QWEN3_TORCH_MODEL_ID,
+                device_map=device,
+                dtype=_torch.bfloat16 if device == "cuda" else _torch.float32,
+            )
+            stop_monitor.set()
+            _set_tts_progress(1.0, model_name=_QWEN3_TORCH_MODEL_NAME)
+            _qwen3_torch_model_loading = False
+            log.info(f"torch Qwen3-TTS model loaded on {device}")
+            _voice_touch()
+            return _qwen3_torch_model
+        except Exception as e:
+            stop_monitor.set()
+            _qwen3_torch_model_loading = False
+            _voice_tts_progress = 0.0
+            log.error(f"Failed to load torch Qwen3-TTS: {e}", exc_info=True)
+            raise
+
+
+def _qwen3_torch_voice_prompt(model, sample_path: str | None):
+    """Cached create_voice_clone_prompt for a validated sample (keyed by path:mtime)."""
+    ref_audio, ref_text = _qwen3_reference_pair(sample_path)
+    if not ref_audio:
+        return None
+    cache_key = f"{ref_audio}:{os.path.getmtime(ref_audio)}"
+    cached = _qwen3_torch_voice_prompts.get(cache_key)
+    if cached is not None:
+        return cached
+    prompt = model.create_voice_clone_prompt(ref_audio=ref_audio, ref_text=ref_text)
+    _qwen3_torch_voice_prompts[cache_key] = prompt
+    return prompt
+
+
+def _qwen3_torch_voice_sample(req: TTSRequest) -> str:
+    """Require a validated voice sample: the Base checkpoint has no zero-shot voice."""
+    safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
+    if not safe_voice_path:
+        raise RuntimeError("Qwen3-TTS voice cloning requires a voice sample")
+    return safe_voice_path
+
+
+def _qwen3_torch_generate(model, text, voice_prompt, language_code: str):
+    """Run one qwen_tts voice-clone generation; returns (List[np.ndarray], sample_rate).
+
+    qwen_tts validates `language` case-insensitively against the model's
+    supported languages (codec_language_id keys, e.g. 'Japanese'), so the
+    capitalized metadata name is passed as the language argument — the text is
+    wrapped internally (chat template) and must NOT carry a <|Lang|> prefix.
+    TTSRequest.speed is NOT honored: qwen_tts exposes no speed parameter and
+    unknown kwargs are forwarded into the HF generate() call.
+    """
+    return model.generate_voice_clone(
+        text=text,
+        language=language_code,
+        voice_clone_prompt=voice_prompt,
+        non_streaming_mode=True,
+    )
+
+
+def _qwen3_torch_audio_chunks(wavs, sample_rate: int) -> tuple[list, int]:
+    """Flatten a generate_voice_clone result (List[np.ndarray], sr) to float32 chunks."""
+    chunks = [np.asarray(w, dtype=np.float32).reshape(-1) for w in wavs]
+    return chunks, int(sample_rate)
+
+
+async def _generate_tts_qwen3_torch(req: TTSRequest, language: str):
+    """Generate a full WAV with the torch Qwen3 engine (voice cloning first-class)."""
+
+    def _run_sync():
+        model = _ensure_qwen3_torch_loaded()
+        _voice_touch()
+        safe_voice_path = _qwen3_torch_voice_sample(req)
+        voice_prompt = _qwen3_torch_voice_prompt(model, safe_voice_path)
+        lang_code = _qwen3_lang_code(language)
+        wavs, sr = _qwen3_torch_generate(model, req.text, voice_prompt, lang_code)
+        audio_chunks, sr = _qwen3_torch_audio_chunks(wavs, sr)
+        if not audio_chunks or sum(chunk.size for chunk in audio_chunks) == 0:
+            raise HTTPException(status_code=500, detail="No audio generated")
+
+        combined = np.concatenate(audio_chunks)
+        import soundfile as sf
+
+        buf = io.BytesIO()
+        sf.write(buf, combined, sr, format="WAV", subtype="PCM_16")
+        buf.seek(0)
+        sentence_boundaries = [{
+            "index": 0,
+            "text": req.text,
+            "sampleOffset": 0,
+            "sampleCount": len(combined),
+        }]
+        return buf.read(), sentence_boundaries, sr
+
+    loop = asyncio.get_running_loop()
+    content, sentence_boundaries, sr = await loop.run_in_executor(_qwen3_tts_executor, _run_sync)
+
+    return Response(
+        content=content,
+        media_type="audio/wav",
+        headers={
+            "X-Sentence-Boundaries": json.dumps(sentence_boundaries),
+            "X-Sample-Rate": str(sr),
+        },
+    )
+
+
+def _iter_qwen3_torch_tts_chunks(req: TTSRequest, language: str):
+    """Chunk streaming for the torch engine.
+
+    qwen_tts returns one wav per input text (batched), so the request text is
+    split into sentences and generated in a single batched call; each returned
+    wav becomes one chunk with the same shape as the MLX engine
+    ({audio, chunkIndex, sampleRate, isFinal}).
+    """
+    model = _ensure_qwen3_torch_loaded()
+    _voice_touch()
+    safe_voice_path = _qwen3_torch_voice_sample(req)
+    voice_prompt = _qwen3_torch_voice_prompt(model, safe_voice_path)
+    lang_code = _qwen3_lang_code(language)
+
+    sentences = _split_into_sentences(req.text, language)
+    if not sentences:
+        sentences = [req.text]
+    wavs, sample_rate = _qwen3_torch_generate(model, sentences, voice_prompt, lang_code)
+    audio_chunks, sample_rate = _qwen3_torch_audio_chunks(wavs, sample_rate)
+    last_index = len(audio_chunks) - 1
+    for chunk_index, audio in enumerate(audio_chunks):
+        yield {
+            "audio": audio,
+            "chunkIndex": chunk_index,
+            "sampleRate": sample_rate,
+            "isFinal": chunk_index == last_index,
+        }
+
+
+
 @router.websocket("/voice/tts/stream")
 async def voice_tts_stream_ws(websocket: WebSocket):
     """Stream local Qwen3-TTS float32 PCM chunks to Electron."""
@@ -1121,17 +1469,27 @@ async def voice_tts_stream_ws(websocket: WebSocket):
             })
             return
         engine = _resolve_tts_engine(requested_language, provider)
-        if engine != "qwen3":
+        if engine not in ("qwen3", "qwen3-torch"):
             await websocket.send_json({
                 "type": "error",
                 "message": f"Streaming TTS requires qwen3; got '{engine}'",
             })
             return
 
+        if engine == "qwen3-torch" and not _validate_voice_sample_path(req.voiceSamplePath):
+            await websocket.send_json({
+                "type": "error",
+                "message": "Qwen3-TTS voice cloning requires a voice sample",
+            })
+            return
+
+        model_loaded = (
+            _qwen3_torch_model if engine == "qwen3-torch" else _qwen3_tts_model
+        ) is not None
         await websocket.send_json({
             "type": "status",
             "generating": True,
-            "modelLoading": _qwen3_tts_model is None,
+            "modelLoading": not model_loaded,
             "downloadProgress": _voice_tts_progress,
         })
 
@@ -1140,7 +1498,12 @@ async def voice_tts_stream_ws(websocket: WebSocket):
         def _worker():
             try:
                 sample_offset = 0
-                for chunk in _iter_qwen3_tts_chunks(req, requested_language, stream=True):
+                chunks = (
+                    _iter_qwen3_torch_tts_chunks(req, requested_language)
+                    if engine == "qwen3-torch"
+                    else _iter_qwen3_tts_chunks(req, requested_language, stream=True)
+                )
+                for chunk in chunks:
                     if cancel.is_set():
                         break
                     audio = chunk["audio"]
@@ -1154,7 +1517,7 @@ async def voice_tts_stream_ws(websocket: WebSocket):
                         "sampleOffset": sample_offset,
                         "sampleCount": int(len(samples)),
                         "chunkIndex": chunk["chunkIndex"],
-                        "tokenCount": chunk["tokenCount"],
+                        "tokenCount": chunk.get("tokenCount", 0),
                         "isFinal": chunk["isFinal"],
                         "encoding": "f32le",
                         "byteLength": int(samples.nbytes),
@@ -1307,6 +1670,8 @@ async def voice_stream_ws(websocket: WebSocket):
             futures.append(loop.run_in_executor(None, _ensure_tts_loaded, language))
         elif tts_engine == "qwen3":
             futures.append(loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_tts_loaded))
+        elif tts_engine == "qwen3-torch":
+            futures.append(loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_torch_loaded))
 
         log.info("Voice stream warmup tasks queued: tts_engine=%s", tts_engine)
         try:

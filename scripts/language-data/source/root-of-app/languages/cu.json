@@ -84,6 +84,7 @@
     "sourceVersions":{"dictionary":"kaikki-2026-07-16-enwiktionary-2026-07-06","frequencyCorpus":"CSlElizabeth-e1b254cef86d0e65b1a5d1a94b8b112d0f296a2c","ponomar":"467b94ec5a9e9f942308f16c519eac92c0ed4b86"},
     "assets":[
       {"id":"frequency","path":"languages/cu.freq.json","bundledPath":"languages/cu.freq.json","required":true},
+      {"id":"linguistic-graph","path":"languages/cu.graph.json","bundledPath":"languages/cu.graph.json","required":false},
       {"id":"font-ponomar","path":"fonts/cu/Ponomar-Regular.woff2","bundledPath":"fonts/cu/Ponomar-Regular.woff2","required":true},
       {"id":"ponomar-license","path":"licenses/ponomar-OFL.txt","bundledPath":"licenses/ponomar-OFL.txt","required":true},
       {"id":"ponomar-readme","path":"licenses/ponomar-README.md","bundledPath":"licenses/ponomar-README.md","required":true},

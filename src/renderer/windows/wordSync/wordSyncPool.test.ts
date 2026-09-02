@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import type { LanguageData } from '../../../shared/types';
+import { WORD_STATUS } from '../../../shared/constants';
+import { WORD_SYNC_STATUS_UNTRACKED } from '../../components/common/FilterBuilder/presets';
 import {
   wasExplicitlySyncRated,
   shouldIncludeForLevel,
   calculateCharacterStudyBoost,
   calculateWordWeight,
   isWordEligible,
+  wordSyncPoolStatus,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
 
@@ -291,5 +294,31 @@ describe('calculateWordWeight', () => {
 describe('THIRTY_DAYS_MS', () => {
   it('equals 30 days in milliseconds', () => {
     expect(THIRTY_DAYS_MS).toBe(30 * 24 * 60 * 60 * 1000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// wordSyncPoolStatus
+// ---------------------------------------------------------------------------
+
+describe('wordSyncPoolStatus', () => {
+  it('maps resolver learning to the Learning status string', () => {
+    expect(wordSyncPoolStatus('learning', true)).toBe(String(WORD_STATUS.LEARNING));
+    expect(wordSyncPoolStatus('learning', true)).toBe('1');
+  });
+
+  it('maps resolver unknown with a knowledge record to the Unknown status string', () => {
+    expect(wordSyncPoolStatus('unknown', true)).toBe(String(WORD_STATUS.UNKNOWN));
+    expect(wordSyncPoolStatus('unknown', true)).toBe('0');
+  });
+
+  it('maps resolver unknown without a knowledge record to untracked', () => {
+    expect(wordSyncPoolStatus('unknown', false)).toBe(WORD_SYNC_STATUS_UNTRACKED);
+    expect(wordSyncPoolStatus('unknown', false)).toBe('untracked');
+  });
+
+  it('never collapses Learning into Unknown (guards an "anything not known is unknown" regression)', () => {
+    expect(wordSyncPoolStatus('learning', true)).not.toBe(wordSyncPoolStatus('unknown', true));
+    expect(wordSyncPoolStatus('learning', false)).not.toBe(wordSyncPoolStatus('unknown', true));
   });
 });

@@ -1,0 +1,127 @@
+.khistory {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.khistory-mode-compact {
+  gap: 4px;
+}
+
+.khistory-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.khistory-tab {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.khistory-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-primary-tint);
+}
+
+.khistory-tab-active,
+.khistory-tab-active:hover {
+  color: var(--text-on-strong);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.khistory-svg {
+  display: block;
+  width: 100%;
+}
+
+.khistory-line {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+}
+
+.khistory-band {
+  opacity: 0.6;
+}
+
+.khistory-band-knownWordsList {
+  fill: var(--color-success);
+}
+
+.khistory-band-ignoredWords {
+  fill: var(--color-warning);
+}
+
+.khistory-band-srs {
+  fill: var(--color-primary);
+}
+
+.khistory-band-anki {
+  fill: var(--color-info);
+}
+
+.khistory-band-passiveTracking {
+  fill: var(--color-teal);
+}
+
+.khistory-band-manual {
+  fill: var(--color-indigo);
+}
+
+.khistory-marker {
+  stroke: var(--bg-nt-primary);
+  stroke-width: 1;
+}
+
+.khistory-marker-knownWordsList {
+  fill: var(--color-success);
+}
+
+.khistory-marker-ignoredWords {
+  fill: var(--color-warning);
+}
+
+.khistory-marker-srs {
+  fill: var(--color-primary);
+}
+
+.khistory-marker-anki {
+  fill: var(--color-info);
+}
+
+.khistory-marker-passiveTracking {
+  fill: var(--color-teal);
+}
+
+.khistory-marker-manual {
+  fill: var(--color-indigo);
+}
+
+.khistory-threshold {
+  stroke: var(--text-tertiary);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.5;
+}
+
+.khistory-xaxis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--text-tertiary);
+}
+
+.khistory-empty {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  padding: 12px 0;
+  text-align: center;
+}

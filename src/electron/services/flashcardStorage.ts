@@ -920,6 +920,7 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
     version: fc_to_check.version < CURRENT_VERSION ? CURRENT_VERSION : fc_to_check.version,
+    rev: fc_to_check.rev,
   };
 
   return finalizeStore(result);
@@ -964,6 +965,9 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
 export async function saveFlashcards(store: FlashcardStore): Promise<void> {
   return enqueueWrite(async () => {
     try {
+      // Monotonic store revision: every persisted write invalidates older
+      // client snapshots so the sync server can reject them with HTTP 409.
+      store.rev = (store.rev ?? 0) + 1;
       extractBase64Images(store);
 
       const filePath = getFlashcardsPath();

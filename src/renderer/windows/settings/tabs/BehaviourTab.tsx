@@ -4,11 +4,11 @@
 
 import { Component, Show, For, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input, SortableList } from '../../../components/common';
-import type { SortableListItem } from '../../../components/common';
-import { PASSIVE_HOVER_FAIL_ACTIONS, SRS_EASE, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input } from '../../../components/common';
+import { PASSIVE_HOVER_FAIL_ACTIONS, SRS_EASE } from '../../../../shared/constants';
 import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../../shared/languageFeatures';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, getPassiveHoverFailAction, getPassiveHoverFailCount } from '@shared/utils/passiveWordTracking';
+import type { RatingKeyboardMode } from '@shared/constants';
 import '../SettingsForm.css';
 
 export const BehaviourTab: Component = () => {
@@ -29,35 +29,6 @@ export const BehaviourTab: Component = () => {
       label: t(`mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Action.Options.${key}`),
     };
   }));
-
-  const sourceLabel = (src: KnowledgeSource) =>
-    t(`mlearn.Settings.KnowledgePriority.Source.${src[0].toUpperCase() + src.slice(1)}`);
-
-  const resolutionModeOptions = createMemo(() => [
-    { value: 'order', label: t('mlearn.Settings.KnowledgePriority.Mode.Order') },
-    { value: 'highest', label: t('mlearn.Settings.KnowledgePriority.Mode.Highest') },
-    { value: 'lowest', label: t('mlearn.Settings.KnowledgePriority.Mode.Lowest') },
-  ]);
-
-  const visibleSourceItems = createMemo<SortableListItem[]>(() => {
-    const order = settings.knowledgeSourceOrder;
-    return order
-      .filter((src: KnowledgeSource) => src !== 'anki' || settings.use_anki)
-      .map((src: KnowledgeSource) => ({ id: src, label: sourceLabel(src) }));
-  });
-
-  const handleSourceOrderChange = (newIds: string[]) => {
-    const hidden = settings.knowledgeSourceOrder.filter(
-      (src: KnowledgeSource) => !newIds.includes(src)
-    );
-    const merged: KnowledgeSource[] = [...newIds as KnowledgeSource[]];
-    for (const h of hidden) {
-      const oldIdx = settings.knowledgeSourceOrder.indexOf(h);
-      const insertAt = Math.min(oldIdx, merged.length);
-      merged.splice(insertAt, 0, h);
-    }
-    updateSettings({ knowledgeSourceOrder: merged });
-  };
 
   const freqLevels = createMemo(() => {
     const names = getFreqLevelNames();
@@ -310,6 +281,20 @@ export const BehaviourTab: Component = () => {
             />
           </SettingRow>
 
+          <SettingRow
+            label={t('mlearn.Settings.Behaviour.RatingKeyboardMode.Label')}
+            description={t(`mlearn.Settings.Behaviour.RatingKeyboardMode.${settings.ratingKeyboardMode === 'spatial' ? 'SpatialHint' : 'MnemonicHint'}`)}
+          >
+            <Select
+              value={settings.ratingKeyboardMode}
+              options={[
+                { value: 'mnemonic', label: t('mlearn.Settings.Behaviour.RatingKeyboardMode.Mnemonic') },
+                { value: 'spatial', label: t('mlearn.Settings.Behaviour.RatingKeyboardMode.Spatial') },
+              ]}
+              onChange={(e) => updateSettings({ ratingKeyboardMode: e.currentTarget.value as RatingKeyboardMode })}
+            />
+          </SettingRow>
+
           <Show when={passiveHoverFailAction() === 'decrease-ease' || passiveHoverFailAction() === 'decrease-ease-and-flashcard'}>
             <SettingRow
               label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.EaseDecrease.Label')}
@@ -478,29 +463,6 @@ export const BehaviourTab: Component = () => {
             />
           </SettingRow>
         </Show>
-      </SettingGroup>
-
-      <SettingGroup title={t('mlearn.Settings.Groups.KnowledgePriority')}>
-        <SettingRow
-          label={t('mlearn.Settings.KnowledgePriority.ResolutionMode.Label')}
-          description={t('mlearn.Settings.KnowledgePriority.ResolutionMode.Description')}
-        >
-          <Select
-            value={settings.knowledgeResolutionMode}
-            options={resolutionModeOptions()}
-            onChange={(e) => updateSettings({ knowledgeResolutionMode: e.currentTarget.value as KnowledgeResolutionMode })}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.KnowledgePriority.SourceOrder.Label')}
-          description={t('mlearn.Settings.KnowledgePriority.SourceOrder.Description')}
-        >
-          <SortableList
-            items={visibleSourceItems()}
-            onChange={handleSourceOrderChange}
-          />
-        </SettingRow>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}

@@ -31,6 +31,9 @@ import type {
   VoiceSessionError,
   VoiceSample,
   PipProgress,
+  PythonComponentId,
+  PythonComponentInfo,
+  ComponentsUninstallResult,
   SystemMemoryInfo,
   CloudLLMTier,
 } from '../types';
@@ -45,6 +48,10 @@ import type {
   PluginState,
   PluginWindowPayload,
 } from '../plugins/types';
+import type { KnowledgeEventLog } from '../knowledgeEvents';
+import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../graph/ipc';
+import type { GraphRelationType } from '../graph/types';
+import type { IntegrateThreadInput, IntegrateThreadResult, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, RememberThisInput, Room, Thread, WorldSnapshot } from '../world';
 
 // ============================================================================
 // Sub-Interfaces
@@ -114,6 +121,15 @@ export interface LocalizationBridge {
   onLanguageInstallError: (callback: (error: string) => void) => () => void;
 }
 
+export interface GraphBridge {
+  getGraphMeta: (language: string) => Promise<GraphMeta>;
+  lookupGraphWord: (language: string, input: GraphLookupInput) => Promise<GraphWordLookup | null>;
+  getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
+  getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
+  getGraphNeighborhood: (language: string, query: import('../graph/ipc').GraphNeighborhoodQuery) => Promise<import('../graph/ipc').GraphNeighborhood | null>;
+  getKnowledgeProjection: (language: string, surface: string) => Promise<import('../graph/ipc').KnowledgeProjection>;
+}
+
 export interface FileBridge {
   readDirectoryImages: (directoryPath: string) => Promise<{ files: Array<{ name: string; path: string; data: ArrayBuffer }> }>;
   readPdfFile: (filePath: string) => Promise<{ data: ArrayBuffer }>;
@@ -159,6 +175,7 @@ export interface WindowBridge {
   onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => () => void;
   onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
   onLookupDeepLink: (callback: (word: string) => void) => () => void;
+  onOpenRoomEvent: (callback: (payload: import('../world').OpenRoomEventPayload) => void) => () => void;
   promptOutput: (text: string) => void;
 }
 
@@ -201,6 +218,10 @@ export interface InstallerBridge {
   onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) => () => void;
   onInstallerState: (callback: (state: InstallerState) => void) => () => void;
   onPipProgress: (callback: (progress: PipProgress) => void) => () => void;
+  getComponentsState: () => void;
+  uninstallComponents: (ids: PythonComponentId[]) => void;
+  onComponentsState: (callback: (components: PythonComponentInfo[]) => void) => () => void;
+  onComponentsUninstalled: (callback: (result: ComponentsUninstallResult) => void) => () => void;
 }
 
 export interface LLMBridge {
@@ -275,6 +296,14 @@ export interface MediaStatsBridge {
   onMediaStats: (callback: (stats: MediaStats | null) => void) => () => void;
   listMediaStats: () => void;
   onMediaStatsList: (callback: (stats: MediaStats[]) => void) => () => void;
+}
+
+export interface KnowledgeEventsBridge {
+  appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
+  queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
+  queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
+  getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
+  onKnowledgeEventsChanged: (callback: () => void) => () => void;
 }
 
 export interface WatchTogetherBridge {
@@ -386,6 +415,31 @@ export interface KVStoreBridge {
   kvSetBatch: (entries: Record<string, string>) => Promise<void>;
 }
 
+export interface JournalBridge {
+  appendEvent: (roomId: string, draft: JournalEventDraft) => Promise<JournalEvent>;
+  subscribeRoom: (roomId: string, limit: number) => Promise<{ events: JournalEvent[]; headSeq: number }>;
+  queryEvents: (roomId: string, opts: { beforeSeq?: number; limit: number }) => Promise<JournalEvent[]>;
+  readSeaProjection: (roomId: string, limit?: number) => Promise<JournalEvent[]>;
+  readThread: (roomId: string, threadId: string) => Promise<JournalEvent[]>;
+  eraseThread: (roomId: string, threadId: string) => Promise<{ deletedCount: number }>;
+}
+
+export interface WorldBridge {
+  getWorldState: () => Promise<WorldSnapshot>;
+  createRoom: (title: string) => Promise<Room>;
+  applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<MembershipChangeResult>;
+  createThread: (roomId: string, title?: string) => Promise<Thread>;
+  updateThread: (thread: Thread) => Promise<Thread>;
+  deleteThread: (roomId: string, threadId: string) => Promise<void>;
+  rememberThis: (input: RememberThisInput) => Promise<JournalEvent>;
+  integrateThread: (input: IntegrateThreadInput) => Promise<IntegrateThreadResult>;
+  promoteParticipant: (participantId: string) => Promise<Participant>;
+  createParticipant: (input: { displayName: string; kind: 'persistent' | 'temporary'; personaText: string; facets?: Record<string, number | string>; canon?: Participant['canon']; voiceSampleId?: string; profilePhoto?: string }) => Promise<Participant>;
+  updateParticipant: (participant: Participant) => Promise<Participant>;
+  deleteParticipant: (participantId: string) => Promise<void>;
+  clearRoomUnread: (roomId: string) => Promise<void>;
+}
+
 // ============================================================================
 // Combined PlatformBridge
 // ============================================================================
@@ -395,6 +449,7 @@ export interface PlatformBridge {
   flashcards: FlashcardBridge;
   plugins: PluginBridge;
   localization: LocalizationBridge;
+  graph: GraphBridge;
   files: FileBridge;
   window: WindowBridge;
   server: ServerBridge;
@@ -404,6 +459,7 @@ export interface PlatformBridge {
   speech: SpeechBridge;
   voice: VoiceBridge;
   mediaStats: MediaStatsBridge;
+  knowledgeEvents: KnowledgeEventsBridge;
   watchTogether: WatchTogetherBridge;
   overlay: OverlayBridge;
   crossWindow: CrossWindowBridge;
@@ -412,6 +468,8 @@ export interface PlatformBridge {
   generic: GenericIPCBridge;
   data: DataBridge;
   kvStore: KVStoreBridge;
+  journal: JournalBridge;
+  world: WorldBridge;
   browser: BrowserBridge;
   diagnostics: DiagnosticsBridge;
 }

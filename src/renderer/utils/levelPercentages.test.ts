@@ -4,6 +4,7 @@ import {
   computeWordLevelPercentages,
   computeGrammarLevelPercentages,
   assessMediaLevel,
+  assessMediaDifficulty,
 } from './levelPercentages';
 
 function createMediaStats(
@@ -735,5 +736,107 @@ describe('assessMediaLevel', () => {
       totalOccurrences: 10,
     };
     expect(assessMediaLevel(data, languageData)).toBe(3);
+  });
+});
+
+describe('assessMediaDifficulty', () => {
+  // Regression fixture: a realistic mixed-distribution media (beginner-heavy
+  // counts with an advanced long tail). Assessed level must equal the legacy
+  // lexical estimator exactly, and the component shape must stay documented.
+  const fixture: LevelPercentages = {
+    entries: [
+      { level: 5, levelName: 'N5', uniquePercent: 45, occurrencePercent: 60, uniqueCount: 45, occurrenceCount: 120 },
+      { level: 4, levelName: 'N4', uniquePercent: 25, occurrencePercent: 20, uniqueCount: 25, occurrenceCount: 40 },
+      { level: 3, levelName: 'N3', uniquePercent: 15, occurrencePercent: 12, uniqueCount: 15, occurrenceCount: 24 },
+      { level: 2, levelName: 'N2', uniquePercent: 10, occurrencePercent: 6, uniqueCount: 10, occurrenceCount: 12 },
+      { level: 1, levelName: 'N1', uniquePercent: 5, occurrencePercent: 2, uniqueCount: 5, occurrenceCount: 4 },
+    ],
+    totalUnique: 100,
+    totalOccurrences: 200,
+  };
+
+  it('headline equals assessMediaLevel when no grammar distribution exists (behavior preserved)', () => {
+    const estimate = assessMediaDifficulty(fixture);
+    expect(estimate.lexical).toBe(assessMediaLevel(fixture));
+    expect(estimate.lexical).toBe(2);
+    expect(estimate.headline).toBe(2);
+  });
+
+  it('returns the documented components shape with headline, lexical, and structural reserved as null', () => {
+    const estimate = assessMediaDifficulty(fixture);
+    expect(estimate).toEqual({
+      lexical: estimate.lexical,
+      headline: estimate.lexical,
+      components: { lexical: estimate.lexical, grammar: null, structural: null },
+    });
+  });
+
+  it('computes the grammar component and blends it into the headline by data volume', () => {
+    const grammar: LevelPercentages = {
+      entries: [
+        { level: 1, levelName: 'G1', uniquePercent: 60, occurrencePercent: 60, uniqueCount: 3, occurrenceCount: 3 },
+        { level: 2, levelName: 'G2', uniquePercent: 40, occurrencePercent: 40, uniqueCount: 2, occurrenceCount: 2 },
+      ],
+      totalUnique: 5,
+      totalOccurrences: 5,
+    };
+    const estimate = assessMediaDifficulty(fixture, grammar);
+    // 100 unique words at level 2 + 5 unique grammar points at level 1:
+    // round((2*100 + 1*5) / 105) = 2 — a small grammar sample barely moves a word-heavy media.
+    expect(estimate.components.lexical).toBe(2);
+    expect(estimate.components.grammar).toBe(1);
+    expect(estimate.headline).toBe(2);
+    expect(estimate.components.structural).toBeNull();
+  });
+
+  it('pulls the headline toward grammar when grammar data dominates the volume', () => {
+    const denseGrammar: LevelPercentages = {
+      entries: [
+        { level: 5, levelName: 'G5', uniquePercent: 100, occurrencePercent: 100, uniqueCount: 300, occurrenceCount: 300 },
+      ],
+      totalUnique: 300,
+      totalOccurrences: 300,
+    };
+    const estimate = assessMediaDifficulty(fixture, denseGrammar);
+    // round((2*100 + 5*300) / 400) = 4.
+    expect(estimate.headline).toBe(4);
+  });
+
+  it('falls back to the grammar estimate when no word data exists', () => {
+    const noWords: LevelPercentages = { entries: [], totalUnique: 0, totalOccurrences: 0 };
+    const grammar: LevelPercentages = {
+      entries: [
+        { level: 3, levelName: 'G3', uniquePercent: 100, occurrencePercent: 100, uniqueCount: 7, occurrenceCount: 7 },
+      ],
+      totalUnique: 7,
+      totalOccurrences: 7,
+    };
+    const estimate = assessMediaDifficulty(noWords, grammar);
+    expect(estimate.lexical).toBeNull();
+    expect(estimate.headline).toBe(3);
+  });
+
+  it('never consumes learner-relative inputs: only level distributions + language metadata', () => {
+    // occurrencePercent (which carries hover/fail weights) is ignored by the
+    // estimator — a 50/50 unique split still weights the harder level up.
+    const data: LevelPercentages = {
+      entries: [
+        { level: 3, levelName: 'B1', uniquePercent: 50, occurrencePercent: 99, uniqueCount: 5, occurrenceCount: 990 },
+        { level: 1, levelName: 'A1', uniquePercent: 50, occurrencePercent: 1, uniqueCount: 5, occurrenceCount: 10 },
+      ],
+      totalUnique: 10,
+      totalOccurrences: 1000,
+    };
+    expect(assessMediaDifficulty(data).lexical).toBe(1);
+    expect(assessMediaDifficulty(data).components.lexical).toBe(1);
+  });
+
+  it('returns null headline and components when no data is available', () => {
+    const empty: LevelPercentages = { entries: [], totalUnique: 0, totalOccurrences: 0 };
+    expect(assessMediaDifficulty(empty)).toEqual({
+      lexical: null,
+      headline: null,
+      components: { lexical: null, grammar: null, structural: null },
+    });
   });
 });

@@ -1,0 +1,11 @@
+.graph-inspector { height: 100%; overflow: auto; padding: 24px; color: var(--text-primary); background: var(--background-primary); }
+.graph-inspector__header, .graph-inspector__section, .graph-inspector__target, .graph-inspector__targets { margin-bottom: 20px; }
+.graph-inspector__section { border-left: 4px solid var(--border-color); padding-left: 12px; }
+.graph-inspector__section--identity { border-color: var(--success-color); }
+.graph-inspector__section--property { border-color: var(--accent-color); }
+.graph-inspector__section--support { border-color: var(--warning-color); }
+.graph-inspector__relation, .graph-inspector__chip, .graph-inspector__details { display: flex; gap: 8px; width: 100%; text-align: left; margin: 6px 0; padding: 8px; color: inherit; background: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 4px; }
+.graph-inspector__chip { display: inline-block; width: auto; margin-right: 8px; }
+.graph-inspector__relation small { margin-left: auto; color: var(--text-secondary); }
+.graph-inspector__empty { color: var(--text-secondary); }
+.graph-inspector pre { white-space: pre-wrap; color: var(--text-secondary); }

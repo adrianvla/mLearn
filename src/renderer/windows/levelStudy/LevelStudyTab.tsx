@@ -4,6 +4,7 @@ import { LevelCard } from './LevelCard';
 import { LevelDetailModal } from './LevelDetailModal';
 import { BulkAddModal } from './BulkAddModal';
 import { computeBeyondExamLevelStats, computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames } from '../../utils/wordLevelStats';
+import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
 import { EmptyState, TargetIcon, Btn, PillBtn } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
 import {
@@ -77,6 +78,16 @@ export const LevelStudyTab: Component = () => {
     if (!langData) return [];
     const freq = frequency();
     if (!freq || Object.keys(freq).length === 0) return [];
+    // Canonical-form keys mirror wordKey() inside computeLevelStats (write-where-you-read).
+    const ankiKeys = settings.use_anki
+      ? buildAnkiStatusKeySets(
+        resolved.language,
+        settings.ankiLearningThreshold,
+        settings.ankiKnownThreshold,
+        (word) => [language.getCanonicalFormForLanguage(resolved.language, word)],
+        langData,
+      )
+      : undefined;
     return computeLevelStats(
       flashcards.store,
       freq,
@@ -86,6 +97,7 @@ export const LevelStudyTab: Component = () => {
       levelNames(),
       langData,
       language.getCanonicalFormForLanguage,
+      ankiKeys,
     );
   });
 
@@ -105,6 +117,15 @@ export const LevelStudyTab: Component = () => {
       levelNames(),
       langData,
       language.getCanonicalFormForLanguage,
+      settings.use_anki
+        ? buildAnkiStatusKeySets(
+          resolved.language,
+          settings.ankiLearningThreshold,
+          settings.ankiKnownThreshold,
+          (word) => [language.getCanonicalFormForLanguage(resolved.language, word)],
+          langData,
+        )
+        : undefined,
     );
     return beyond != null ? { ...beyond, name: t('mlearn.LevelStudy.LevelCard.BeyondExam') } : null;
   });

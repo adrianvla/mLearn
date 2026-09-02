@@ -1,0 +1,126 @@
+/* Layout only — Button owns cell/all-fluent borders, colors, hover, disabled. */
+.rating-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.rating-matrix--collapsed {
+  display: none;
+}
+
+.rating-matrix__compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.rating-matrix__compact-action,
+.rating-matrix__compact-adjust {
+  min-height: 32px;
+}
+
+.rating-matrix__compact .rating-matrix__hint {
+  margin-left: var(--spacing-2);
+}
+
+.rating-matrix__head,
+.rating-matrix__row {
+  display: grid;
+
+  /* Label + quality columns (Missed | Struggled | Fluent) + the Easy
+     scheduling-modifier column attached to Fluent with a divider. */
+  grid-template-columns: minmax(4.5em, 1fr) repeat(3, minmax(4em, 1fr)) minmax(4em, 1fr);
+  gap: var(--spacing-2);
+  align-items: stretch;
+}
+
+.rating-matrix__corner,
+.rating-matrix__col {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2px 0;
+}
+
+/* Easy sits beside Fluent as a clearly-separated scheduling modifier: the
+   divider is the boundary between the quality group and the modifier. */
+.rating-matrix__fluent-adjust {
+  display: flex;
+  align-items: stretch;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.rating-matrix__divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: var(--border-color);
+  margin: 2px 0;
+}
+
+.rating-matrix__fluent-adjust .rating-matrix__cell,
+.rating-matrix__fluent-adjust .rating-matrix__col {
+  flex: 1 1 0;
+}
+
+.rating-matrix__col--pending {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.rating-matrix__label {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding-right: var(--spacing-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rating-matrix__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 2px var(--spacing-2);
+}
+
+.rating-matrix__cell--pending-col {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -2px;
+}
+
+/* Profile-mode draft selection: the chosen quality is visibly held. */
+.rating-matrix__cell--selected {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -2px;
+  font-weight: 600;
+}
+
+.rating-matrix .shortcut-key {
+  min-width: 1.2rem;
+  padding: 0 0.35rem;
+}
+
+.rating-matrix__all {
+  margin-top: var(--spacing-2);
+  min-height: 32px;
+}
+
+/* The all-fluent button's label and its Space keycap share the button's
+   content span (inline layout, no flex gap) — give the keycap deliberate
+   spacing instead of letting it sit glued to the label text. */
+.rating-matrix__all .rating-matrix__hint {
+  margin-left: var(--spacing-2);
+}
+
+.rating-matrix__pending {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-align: center;
+}

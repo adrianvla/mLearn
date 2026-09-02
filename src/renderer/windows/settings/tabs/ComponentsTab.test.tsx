@@ -7,6 +7,7 @@ import type { LanguageDataMap } from '../../../../shared/types';
 
 const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
+const uninstallComponentsMock = vi.fn();
 const installLanguageDataMock = vi.fn();
 let languageDataInstallErrorMock: { language: string; dictionaryTargetLanguage?: string; error: string } | null = null;
 let managedSettingKey: string | null = null;
@@ -180,6 +181,10 @@ vi.mock('../../../../shared/bridges', () => ({
   getBridge: () => ({
     installer: {
       startInstall: startInstallMock,
+      getComponentsState: vi.fn(),
+      uninstallComponents: uninstallComponentsMock,
+      onComponentsState: vi.fn(() => () => {}),
+      onComponentsUninstalled: vi.fn(() => () => {}),
     },
   }),
 }));
@@ -406,6 +411,56 @@ describe('ComponentsTab', () => {
     const text = container.textContent ?? '';
     const qwenMatches = text.match(/Qwen3 TTS model/gu) ?? [];
     expect(qwenMatches.length).toBe(1);
+
+    dispose();
+  });
+
+  it('lists qwen3 TTS from the language declaration alone on every platform', async () => {
+    testLangData = {
+      ja: {
+        name: 'Japanese',
+        settings: { fixed: {} },
+        runtime: {
+          tts: {
+            qwen3LanguageName: 'ja',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    expect(container.textContent).toContain('Qwen3 TTS model');
+    expect(container.textContent).not.toContain('Kokoro TTS model');
+
+    dispose();
+  });
+
+  it('lists kokoro and qwen3 side by side when a language declares both', async () => {
+    testLangData = {
+      ja: {
+        name: 'Japanese',
+        settings: { fixed: {} },
+        runtime: {
+          tts: {
+            engine: 'kokoro',
+            kokoroLangCode: 'j',
+            qwen3LanguageName: 'ja',
+          },
+          stt: {
+            whisperLanguage: 'ja',
+          },
+        },
+      },
+    };
+
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+
+    const text = container.textContent ?? '';
+    expect((text.match(/Kokoro TTS model/gu) ?? []).length).toBe(1);
+    expect((text.match(/Qwen3 TTS model/gu) ?? []).length).toBe(1);
 
     dispose();
   });

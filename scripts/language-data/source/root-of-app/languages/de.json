@@ -26,6 +26,7 @@
     "showReadingAnnotations": false,
     "showProsody": false
   },
+  "compoundSplitting": true,
   "languageData": {
     "version": "de-package-2026.07.19",
     "sourceVersions": {
@@ -43,6 +44,12 @@
         "path": "languages/de.freq.json",
         "bundledPath": "languages/de.freq.json",
         "required": true
+      },
+      {
+        "id": "linguistic-graph",
+        "path": "languages/de.graph.json",
+        "bundledPath": "languages/de.graph.json",
+        "required": false
       },
       {
         "id": "frequencywords-notice",

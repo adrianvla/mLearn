@@ -1,6 +1,6 @@
 import type { Settings } from '../types';
 import type { FlashcardStore } from '../types';
-import { HttpNodeServerAdapter, getNodeServer, resetNodeServer } from './nodeServerAdapter';
+import { HttpNodeServerAdapter, getNodeServer, resetNodeServer, FlashcardSyncConflictError } from './nodeServerAdapter';
 
 const DEFAULT_URL = 'http://127.0.0.1:7753';
 
@@ -178,6 +178,13 @@ describe('HttpNodeServerAdapter', () => {
       const adapter = new HttpNodeServerAdapter(DEFAULT_URL);
 
       await expect(adapter.saveFlashcards(mockStore)).rejects.toThrow('Failed to save flashcards: 404');
+    });
+
+    it('throws FlashcardSyncConflictError on HTTP 409', async () => {
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(409));
+      const adapter = new HttpNodeServerAdapter(DEFAULT_URL);
+
+      await expect(adapter.saveFlashcards(mockStore)).rejects.toBeInstanceOf(FlashcardSyncConflictError);
     });
   });
 

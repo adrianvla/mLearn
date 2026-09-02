@@ -59,6 +59,8 @@ function createMockSender() {
   return {
     send: vi.fn(),
     isDestroyed: vi.fn(() => false),
+    once: vi.fn(),
+    removeListener: vi.fn(),
     id: 1,
   };
 }
@@ -124,9 +126,10 @@ describe('LLM_STREAM routing to builtin', () => {
     mockBuiltinStreamChat.mockRejectedValue(new Error('llama error'));
     const sender = createMockSender();
     const event = createMockEvent(sender);
+    const sendSpy = sender.send;
     const listeners = mockIpcListeners.get('llm-stream') || [];
     await listeners[0](event, [], []);
-    expect(sender.send).toHaveBeenCalledWith('llm-stream-chunk', expect.objectContaining({
+    expect(sendSpy).toHaveBeenCalledWith('llm-stream-chunk', expect.objectContaining({
       error: 'llama error',
       done: true,
     }));
@@ -189,6 +192,7 @@ describe('LLM_STREAM routing to cloud', () => {
   it('onChunk sends LLM_STREAM_CHUNK to sender', async () => {
     const sender = createMockSender();
     const event = createMockEvent(sender);
+    const sendSpy = sender.send;
     let capturedOnChunk: ((chunk: unknown) => void) | undefined;
     mockCloudStreamChat.mockImplementation((_msgs: unknown, _tools: unknown, callbacks: { onChunk: (chunk: unknown) => void }) => {
       capturedOnChunk = callbacks.onChunk;
@@ -197,12 +201,13 @@ describe('LLM_STREAM routing to cloud', () => {
     const listeners = mockIpcListeners.get('llm-stream') || [];
     await listeners[0](event, [], []);
     capturedOnChunk?.({ content: 'test', done: false });
-    expect(sender.send).toHaveBeenCalledWith('llm-stream-chunk', { content: 'test', done: false });
+    expect(sendSpy).toHaveBeenCalledWith('llm-stream-chunk', { content: 'test', done: false });
   });
 
   it('onError sends error chunk to sender', async () => {
     const sender = createMockSender();
     const event = createMockEvent(sender);
+    const sendSpy = sender.send;
     let capturedOnError: ((error: string) => void) | undefined;
     mockCloudStreamChat.mockImplementation((_msgs: unknown, _tools: unknown, callbacks: { onError: (error: string) => void }) => {
       capturedOnError = callbacks.onError;
@@ -211,7 +216,7 @@ describe('LLM_STREAM routing to cloud', () => {
     const listeners = mockIpcListeners.get('llm-stream') || [];
     await listeners[0](event, [], []);
     capturedOnError?.('network error');
-    expect(sender.send).toHaveBeenCalledWith('llm-stream-chunk', expect.objectContaining({
+    expect(sendSpy).toHaveBeenCalledWith('llm-stream-chunk', expect.objectContaining({
       error: 'network error',
       done: true,
     }));
@@ -238,9 +243,10 @@ describe('LLM_STREAM routing to cloud', () => {
     mockCloudStreamChat.mockRejectedValue(new Error('cloud error'));
     const sender = createMockSender();
     const event = createMockEvent(sender);
+    const sendSpy = sender.send;
     const listeners = mockIpcListeners.get('llm-stream') || [];
     await listeners[0](event, [], []);
-    expect(sender.send).toHaveBeenCalledWith('llm-stream-chunk', expect.objectContaining({
+    expect(sendSpy).toHaveBeenCalledWith('llm-stream-chunk', expect.objectContaining({
       error: 'cloud error',
       done: true,
     }));
@@ -248,21 +254,25 @@ describe('LLM_STREAM routing to cloud', () => {
 });
 
 describe('LLM_STREAM_ABORT routing', () => {
-  it('calls builtinAbortStream when provider is builtin', () => {
+  it('calls builtinAbortStream when provider is builtin', async () => {
     mockLoadSettings.mockReturnValue({ llmProvider: 'builtin' });
     mod.setupLLMRouterIPC();
     const sender = createMockSender();
     const event = createMockEvent(sender);
+    const streamListeners = mockIpcListeners.get('llm-stream') || [];
+    streamListeners[0](event, [], []);
     const listeners = mockIpcListeners.get('llm-stream-abort') || [];
     listeners[0](event);
     expect(mockBuiltinAbortStream).toHaveBeenCalled();
   });
 
-  it('calls ollamaAbortStream when provider is ollama', () => {
+  it('calls ollamaAbortStream when provider is ollama', async () => {
     mockLoadSettings.mockReturnValue({ llmProvider: 'ollama' });
     mod.setupLLMRouterIPC();
     const sender = createMockSender();
     const event = createMockEvent(sender);
+    const streamListeners = mockIpcListeners.get('llm-stream') || [];
+    streamListeners[0](event, [], []);
     const listeners = mockIpcListeners.get('llm-stream-abort') || [];
     listeners[0](event);
     expect(mockOllamaAbortStream).toHaveBeenCalledWith(sender.id);
@@ -299,12 +309,124 @@ describe('LLM_STREAM_ABORT routing', () => {
     expect(() => listeners[0](event)).not.toThrow();
   });
 
-  it('defaults to builtin abort when provider is undefined', () => {
+  it('defaults to builtin abort when provider is undefined', async () => {
     mockLoadSettings.mockReturnValue({ llmProvider: undefined });
     mod.setupLLMRouterIPC();
-    const event = createMockEvent();
+    const sender = createMockSender();
+    const event = createMockEvent(sender);
+    const streamListeners = mockIpcListeners.get('llm-stream') || [];
+    streamListeners[0](event, [], []);
     const listeners = mockIpcListeners.get('llm-stream-abort') || [];
     listeners[0](event);
     expect(mockBuiltinAbortStream).toHaveBeenCalled();
+  });
+});
+
+describe('LLM_STREAM guard: one active stream app-wide', () => {
+  beforeEach(() => {
+    mockLoadSettings.mockReturnValue({ llmProvider: 'builtin' });
+    mod.setupLLMRouterIPC();
+    mockBuiltinStreamChat.mockResolvedValue(undefined);
+  });
+
+  function streamListeners() {
+    return mockIpcListeners.get('llm-stream') || [];
+  }
+
+  it('rejects a second LLM_STREAM from the same webContents with STREAM_BUSY and does not dispatch again', async () => {
+    const sender = createMockSender();
+    const event = createMockEvent(sender);
+    const sendSpy = sender.send;
+    const listeners = streamListeners();
+
+    await listeners[0](event, [{ role: 'user', content: 'hello' }], []);
+    await listeners[0](event, [{ role: 'user', content: 'again' }], []);
+
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+    expect(sendSpy).toHaveBeenCalledWith('llm-stream-chunk', expect.objectContaining({
+      error: 'STREAM_BUSY',
+      done: true,
+    }));
+  });
+
+  it('queues a stream from a different webContents and starts it after the owner completes', async () => {
+    const owner = createMockSender();
+    owner.id = 1;
+    const other = createMockSender();
+    other.id = 2;
+    const listeners = streamListeners();
+
+    await listeners[0](createMockEvent(owner), [{ role: 'user', content: 'first' }], []);
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+
+    // Second webContents request while the first stream is still active: queued, not dispatched.
+    await listeners[0](createMockEvent(other), [{ role: 'user', content: 'second' }], []);
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+    expect(other.send).not.toHaveBeenCalled();
+
+    // Owner stream completes with a done:true chunk through its wrapped send.
+    owner.send('llm-stream-chunk', { done: true });
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(2);
+    expect(mockBuiltinStreamChat).toHaveBeenLastCalledWith(other, [{ role: 'user', content: 'second' }], [], undefined);
+  });
+});
+
+describe('LLM_STREAM_ABORT guard: only the owner may abort', () => {
+  beforeEach(() => {
+    mockLoadSettings.mockReturnValue({ llmProvider: 'builtin' });
+    mod.setupLLMRouterIPC();
+    mockBuiltinStreamChat.mockResolvedValue(undefined);
+  });
+
+  function streamListeners() {
+    return mockIpcListeners.get('llm-stream') || [];
+  }
+
+  function abortListeners() {
+    return mockIpcListeners.get('llm-stream-abort') || [];
+  }
+
+  it('rejects abort from a non-owner and does not invoke the provider abort', async () => {
+    const owner = createMockSender();
+    owner.id = 1;
+    const other = createMockSender();
+    other.id = 2;
+    await streamListeners()[0](createMockEvent(owner), [], []);
+
+    abortListeners()[0](createMockEvent(other));
+    expect(mockBuiltinAbortStream).not.toHaveBeenCalled();
+
+    abortListeners()[0](createMockEvent(owner));
+    expect(mockBuiltinAbortStream).toHaveBeenCalledTimes(1);
+  });
+
+  it('abort from the owner releases the stream and starts the next queued request', async () => {
+    const owner = createMockSender();
+    owner.id = 1;
+    const other = createMockSender();
+    other.id = 2;
+    await streamListeners()[0](createMockEvent(owner), [], []);
+    await streamListeners()[0](createMockEvent(other), [{ role: 'user', content: 'queued' }], []);
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+
+    abortListeners()[0](createMockEvent(owner));
+    expect(mockBuiltinAbortStream).toHaveBeenCalledTimes(1);
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(2);
+    expect(mockBuiltinStreamChat).toHaveBeenLastCalledWith(other, [{ role: 'user', content: 'queued' }], [], undefined);
+  });
+
+  it('removes a queued request on abort from its webContents and never dispatches it', async () => {
+    const owner = createMockSender();
+    owner.id = 1;
+    const other = createMockSender();
+    other.id = 2;
+    await streamListeners()[0](createMockEvent(owner), [], []);
+    await streamListeners()[0](createMockEvent(other), [{ role: 'user', content: 'cancel me' }], []);
+
+    abortListeners()[0](createMockEvent(other));
+    owner.send('llm-stream-chunk', { done: true });
+
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+    expect(other.send).not.toHaveBeenCalled();
   });
 });

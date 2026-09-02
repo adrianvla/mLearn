@@ -1,9 +1,19 @@
-import { type WordStatus, type KnowledgeSource, type KnowledgeResolutionMode, KNOWLEDGE_SOURCE_DISPLAY_NAMES, type WordKnowledgeSource } from '../../shared/constants';
-import type { Flashcard, IgnoredWordEntry, PassiveWordKnowledge } from '../../shared/types';
-
-const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
-
-const SOURCE_NONE: WordKnowledgeSource = 'None';
+import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource, type WordStatus, type WordKnowledgeSource } from '../../shared/constants';
+import type { IgnoredWordEntry, PassiveWordKnowledge } from '../../shared/types';
+import { effectiveStateFromEntry, type EffectiveWordState, type KnowledgeBasis } from './effectiveKnowledge';
+/**
+ * Comprehensive synchronous word status — Tier-2 semantics.
+ *
+ * effective status = active explicit claim ?? evidence projection.
+ *
+ * There is exactly ONE resolution path: the materialized projection of the
+ * evidence journal (+ claims). Legacy bank voting (knownWordsList / srs / anki /
+ * passiveTracking with order/highest/lowest modes) is deleted — those banks are
+ * now *writers* (claims/evidence/migration backfill), never readers.
+ *
+ * `excluded` (ignored words) is teaching policy, not knowledge: status stays
+ * honest and selection consumers gate on the flag.
+ */
 
 export interface ComprehensiveKnowledgeDeps {
   getCanonicalForm: (word: string) => string;
@@ -11,31 +21,29 @@ export interface ComprehensiveKnowledgeDeps {
   hashWordSync: (word: string) => string;
   langKey: (language: string, hash: string) => string;
   language: string;
-  knownUntracked: Record<string, boolean>;
   ignoredWords: Record<string, IgnoredWordEntry>;
   wordKnowledge: Record<string, PassiveWordKnowledge>;
   knownEaseThreshold: number;
   learningThreshold: number;
-  getCardByWordSync: (word: string) => Flashcard | null;
-  ankiStatus: WordStatus | null;
-  sourceOrder: readonly KnowledgeSource[];
-  resolutionMode: KnowledgeResolutionMode;
 }
 
 export interface ComprehensiveWordStatusResult {
   status: WordStatus;
+  basis: KnowledgeBasis;
+  /** Classification of the underlying evidence alone (claim ignored). */
+  evidenceStatus: WordStatus;
+  /** Active explicit claim when basis === 'claim'. */
+  claim?: WordStatus;
   source: WordKnowledgeSource;
   timesSeen: number;
   matchedWord?: string;
   ease?: number;
-}
-
-interface SourceResult {
-  source: KnowledgeSource | 'manual';
-  status: WordStatus;
-  timesSeen: number;
-  matchedWord?: string;
-  ease?: number;
+  /**
+   * Teaching-policy exclusion (user said "do not select/teach/test this").
+   * Exclusion is NOT knowledge: status stays honest ('unknown') and selection
+   * surfaces must check this flag instead of treating the word as known.
+   */
+  excluded?: boolean;
 }
 
 interface WordFormMatch {
@@ -64,132 +72,108 @@ function buildWordFormMatches(word: string, deps: ComprehensiveKnowledgeDeps): W
   return matches;
 }
 
-function getStatusFromSource(
-  src: KnowledgeSource,
-  matches: readonly WordFormMatch[],
-  deps: ComprehensiveKnowledgeDeps
-): SourceResult | null {
-  switch (src) {
-    case 'knownWordsList': {
-      for (const match of matches) {
-        if (deps.knownUntracked[match.lk]) {
-          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word, ease: deps.knownEaseThreshold };
-        }
-      }
-      return null;
-    }
-    case 'ignoredWords': {
-      for (const match of matches) {
-        if (deps.ignoredWords[match.lk]) {
-          return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word, ease: deps.knownEaseThreshold };
-        }
-      }
-      return null;
-    }
-    case 'srs': {
-      for (const match of matches) {
-        const card = deps.getCardByWordSync(match.word);
-        if (card) {
-          if (card.state === 'review') {
-            return { source: src, status: 'known', timesSeen: 0, matchedWord: match.word, ease: card.ease };
-          }
-          if (card.state === 'learning' || card.state === 'relearning') {
-            return { source: src, status: 'learning', timesSeen: 0, matchedWord: match.word, ease: card.ease };
-          }
-        }
-      }
-      return null;
-    }
-    case 'anki': {
-      if (deps.ankiStatus && deps.ankiStatus !== 'unknown') {
-        return {
-          source: src,
-          status: deps.ankiStatus,
-          timesSeen: 0,
-          ease: deps.ankiStatus === 'known' ? deps.knownEaseThreshold : deps.learningThreshold,
-        };
-      }
-      return null;
-    }
-    case 'passiveTracking': {
-      for (const match of matches) {
-        const knowledge = deps.wordKnowledge[match.lk];
-        if (knowledge) {
-          // A word whose ease was set by an explicit user rating (status pill or
-          // Word Sync) is not passive knowledge — report it as Manual so the UI
-          // doesn't misattribute the user's own action to passive tracking.
-          const explicitlyRated = knowledge.lastStatusChange !== undefined || knowledge.wordSyncRatedAt !== undefined;
-          const source = explicitlyRated ? 'manual' : src;
-          if (knowledge.ease >= deps.knownEaseThreshold) {
-            return { source, status: 'known', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
-          }
-          if (knowledge.ease >= deps.learningThreshold) {
-            return { source, status: 'learning', timesSeen: knowledge.timesSeen, matchedWord: match.word, ease: knowledge.ease };
-          }
-        }
-      }
-      return null;
-    }
-    default:
-      return null;
-  }
+const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
+
+function sourceLabel(basis: KnowledgeBasis, evidenceSource: string | undefined): WordKnowledgeSource {
+  if (basis === 'claim') return 'Manual';
+  if (basis === 'unmeasured') return 'None';
+  return KNOWLEDGE_SOURCE_DISPLAY_NAMES[(evidenceSource ?? 'passiveTracking') as KnowledgeSource] ?? 'PassiveTracking';
 }
 
-function resolveSources(
-  available: SourceResult[],
-  resolutionMode: KnowledgeResolutionMode
-): ComprehensiveWordStatusResult {
-  if (available.length === 0) {
-    return { status: 'unknown', source: SOURCE_NONE, timesSeen: 0 };
-  }
-
-  const toResult = (result: SourceResult): ComprehensiveWordStatusResult => ({
-    status: result.status,
-    source: KNOWLEDGE_SOURCE_DISPLAY_NAMES[result.source],
-    timesSeen: result.timesSeen,
-    matchedWord: result.matchedWord,
-    ...(result.ease === undefined ? {} : { ease: result.ease }),
-  });  switch (resolutionMode) {
-    case 'order': {
-      const winner = available[0];
-      return toResult(winner);
-    }
-    case 'highest': {
-      const maxRank = Math.max(...available.map(a => STATUS_RANK[a.status]));
-      const winners = available.filter(a => STATUS_RANK[a.status] === maxRank);
-      return toResult(winners[0]);
-    }
-    case 'lowest': {
-      const minRank = Math.min(...available.map(a => STATUS_RANK[a.status]));
-      const losers = available.filter(a => STATUS_RANK[a.status] === minRank);
-      return toResult(losers[0]);
-    }
-  }
+interface ClaimCandidate {
+  claimAt: number;
+  effective: EffectiveWordState;
+  matchedWord: string;
+  timesSeen: number;
 }
 
-/**
- * Comprehensive synchronous word status check with source attribution.
- * Checks sources in the configured order and applies the configured resolution mode.
- */
+interface EvidenceCandidate {
+  effective: EffectiveWordState;
+  matchedWord: string;
+  evidenceSource: string | undefined;
+  timesSeen: number;
+}
 export function getComprehensiveWordStatusWithSource(
   word: string,
   deps: ComprehensiveKnowledgeDeps
 ): ComprehensiveWordStatusResult {
   const matches = buildWordFormMatches(word, deps);
+  const thresholds = { learning: deps.learningThreshold, known: deps.knownEaseThreshold };
 
-  const available: SourceResult[] = [];
+  let excluded = false;
+  let bestEvidence: EvidenceCandidate | null = null;
+  let bestClaim: ClaimCandidate | null = null;
 
-  for (const src of deps.sourceOrder) {
-    // DEPRECATED (v2.0 migration): 'manual' was the old name for passiveTracking.
-    // Remove this mapping after all active users have migrated (safe to remove ~2026-12).
-    const mappedSrc = (src as string) === 'manual' ? 'passiveTracking' : src;
-    const result = getStatusFromSource(mappedSrc as KnowledgeSource, matches, deps);
-    if (result !== null) {
-      available.push(result);
+  for (const match of matches) {
+    if (deps.ignoredWords[match.lk]) excluded = true;
+    const entry = deps.wordKnowledge[match.lk];
+    const effective = effectiveStateFromEntry(entry, thresholds);
+
+    // Claims are whole-identity statements: the latest claim across the
+    // surface-form family wins.
+    if (effective.basis === 'claim'
+      && (!bestClaim || (entry?.claimAt ?? 0) > bestClaim.claimAt)) {
+      bestClaim = {
+        claimAt: entry?.claimAt ?? 0,
+        effective,
+        matchedWord: match.word,
+        timesSeen: entry?.timesSeen ?? 0,
+      };
+    }
+
+    // Evidence resolves to the strongest form (fan-out writes keep forms in
+    // sync; legacy entries may differ and the strongest is the honest read).
+    if (
+      effective.hasEvidence
+      && (!bestEvidence || STATUS_RANK[effective.evidenceStatus] > STATUS_RANK[bestEvidence.effective.evidenceStatus])
+    ) {
+      bestEvidence = {
+        effective,
+        matchedWord: match.word,
+        evidenceSource: entry?.lastEvidenceSource,
+        timesSeen: entry?.timesSeen ?? 0,
+      };
     }
   }
 
-  return resolveSources(available, deps.resolutionMode);
+  if (bestClaim) {
+    return {
+      status: bestClaim.effective.status,
+      basis: 'claim',
+      evidenceStatus: bestClaim.effective.evidenceStatus,
+      claim: bestClaim.effective.claim,
+      source: 'Manual',
+      timesSeen: bestClaim.timesSeen,
+      matchedWord: bestClaim.matchedWord,
+      ease: bestClaim.effective.ease,
+      ...(excluded ? { excluded } : {}),
+    };
+  }
+
+  if (bestEvidence) {
+    // The effective basis rides along: pure passive entries (familiarity only,
+    // REQ13) resolve unmeasured/unknown — Untracked — never evidence-backed
+    // Learning/Unknown. Active evidence keeps basis 'evidence'.
+    return {
+      status: bestEvidence.effective.status,
+      basis: bestEvidence.effective.basis,
+      evidenceStatus: bestEvidence.effective.evidenceStatus,
+      source: sourceLabel(bestEvidence.effective.basis, bestEvidence.evidenceSource),
+      timesSeen: bestEvidence.timesSeen,
+      matchedWord: bestEvidence.matchedWord,
+      ease: bestEvidence.effective.ease,
+      ...(excluded ? { excluded } : {}),
+    };
+  }
+
+  return {
+    status: 'unknown',
+    basis: 'unmeasured',
+    evidenceStatus: 'unknown',
+    source: 'None',
+    timesSeen: 0,
+    ...(excluded ? { excluded } : {}),
+  };
 }
 
 /**
@@ -203,7 +187,16 @@ export function getComprehensiveWordStatus(
 }
 
 /**
- * Shorthand: is the word known by any knowledge bank?
+ * Selection-policy view of a resolved status for "should we suggest/capture
+ * this word" — same effective status; kept as a named read so policy callsites
+ * stay explicit.
+ */
+export function toSelectionBlockingStatus(resolved: ComprehensiveWordStatusResult): WordStatus {
+  return resolved.status;
+}
+
+/**
+ * Shorthand: is the word effectively known (claim or evidence)?
  */
 export function isWordKnownComprehensive(
   word: string,

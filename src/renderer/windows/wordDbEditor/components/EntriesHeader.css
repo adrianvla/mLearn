@@ -18,6 +18,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
 }
 
 .entries-header .col:hover {

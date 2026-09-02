@@ -16,7 +16,6 @@ const testSettings = {
   frequencyLevelSystemSelections: {} as Record<string, string>,
   autoSuggestFlashcards: true,
   autoSuggestUnknownWords: true,
-  knowledgeSourceOrder: ['builtIn', 'anki'] as const,
   use_anki: false,
   srsLearningThreshold: 1500,
   known_ease_threshold: 2500,
@@ -31,7 +30,6 @@ const testSettings = {
   do_colour_codes: true,
   passiveEaseEnabled: false,
   manualStatusEaseBuffer: 0.2,
-  knowledgeResolutionMode: 'order',
   openAside: true,
 };
 

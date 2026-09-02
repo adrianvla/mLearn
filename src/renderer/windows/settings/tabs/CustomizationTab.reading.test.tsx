@@ -28,8 +28,8 @@ const translations: Record<string, string> = {
   'mlearn.Settings.ColoredProsody.StatusLimit.Description': 'Use POS above this status',
   'mlearn.Settings.ColoredProsody.StatusLimit.Learning': 'Learning',
   'mlearn.Settings.ColoredProsody.StatusLimit.Known': 'Known',
-  'mlearn.Settings.ColoredProsody.EaseMix.Label': 'Fade colors by ease',
-  'mlearn.Settings.ColoredProsody.EaseMix.Description': 'Fade known words',
+  'mlearn.Settings.ColoredProsody.EvidenceFade.Label': 'Fade colors by prosody evidence',
+  'mlearn.Settings.ColoredProsody.EvidenceFade.Description': 'Fade strong prosody evidence',
   'mlearn.Settings.ColoredProsody.MixTarget.Label': 'Fade toward',
   'mlearn.Settings.ColoredProsody.MixTarget.Description': 'Mix target',
   'mlearn.Settings.ColoredProsody.MixTarget.White': 'White',
@@ -217,7 +217,7 @@ describe('CustomizationTab reading appearance', () => {
     expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodyStatusLimit: 'learning' });
 
     const easeToggle = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.parentElement?.textContent?.includes('Fade colors by ease'))!;
+      .find((button) => button.parentElement?.textContent?.includes('Fade colors by prosody evidence'))!;
     easeToggle.click();
     expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodyEaseMixEnabled: true });
     expect(container.textContent).toContain('Part-of-speech color');

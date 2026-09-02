@@ -1,5 +1,5 @@
-import { Component, createSignal, createMemo, onCleanup, onMount } from 'solid-js';
-import { WindowWrapper, useLocalization, SettingsSearchContext, SettingsTabContext } from '../../context';
+import { Component, createSignal, createMemo, onCleanup, onMount, Show } from 'solid-js';
+import { WindowWrapper, useLocalization, useSettings, SettingsSearchContext, SettingsTabContext } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { TabContainer } from '../../components/common/Tabs/TabContainer';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
@@ -19,9 +19,10 @@ import {
   ComponentsTab,
 } from './tabs';
 import Icon from '../../components/common/Icons/Icon';
+import { EventAuditPanel } from './EventAuditPanel';
 import './SettingsLayout.css';
 
-type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'video-player' | 'ai' | 'connection' | 'plugins' | 'components' | 'about' | 'browser-extension';
+type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'video-player' | 'ai' | 'connection' | 'plugins' | 'components' | 'about' | 'browser-extension' | 'event-audit';
 
 interface SettingsTab {
   id: TabId;
@@ -44,10 +45,14 @@ const TABS: SettingsTab[] = [
   { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
 ];
 
+const EVENT_AUDIT_TAB: SettingsTab = { id: 'event-audit', labelKey: 'mlearn.Settings.Tabs.EventAudit', icon: 'cog' };
+
 export const SettingsContent: Component = () => {
   const [activeTab, setActiveTab] = createSignal<TabId>('general');
-  const [searchQuery, setSearchQuery] = createSignal('');
+  const [searchQuery, setSearchQuery] = createSignal<string>('');
   const { t } = useLocalization();
+  const { settings } = useSettings();
+  const visibleTabs = createMemo(() => (settings.devMode ? [...TABS, EVENT_AUDIT_TAB] : TABS));
 
   const matchRegistry = new Map<string, Set<string>>();
   const [matchCounts, setMatchCounts] = createSignal<Record<string, number>>({});
@@ -66,7 +71,7 @@ export const SettingsContent: Component = () => {
   const searchValue = createMemo(() => searchQuery());
 
   const tabItems = createMemo((): TabItem[] =>
-    TABS.map((tab) => {
+    visibleTabs().map((tab) => {
       const count = matchCounts()[tab.id];
       const hasSearch = searchQuery().trim().length > 0;
       return {
@@ -178,6 +183,9 @@ export const SettingsContent: Component = () => {
             <TabPanel tabId="plugins"><PluginsTab /></TabPanel>
             <TabPanel tabId="components"><ComponentsTab /></TabPanel>
             <TabPanel tabId="browser-extension"><BrowserExtensionTab /></TabPanel>
+            <Show when={settings.devMode}>
+              <TabPanel tabId="event-audit"><EventAuditPanel /></TabPanel>
+            </Show>
             <TabPanel tabId="about"><AboutTab /></TabPanel>
           </div>
         </TabContainer>

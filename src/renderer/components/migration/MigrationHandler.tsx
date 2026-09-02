@@ -3,7 +3,6 @@ import { createEffect, onCleanup, onMount } from 'solid-js';
 import { useLanguage } from '@renderer/context/LanguageContext';
 import { useLocalization } from '@renderer/context/LocalizationContext';
 import { consumePendingFlashcardMigration, setMigrationListenerReady } from '@renderer/context/migrationSignals';
-import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '@renderer/services/statsService';
 import { runZhVariantCleanup } from '@renderer/services/zhVariantCleanup';
 import { showToast } from '@renderer/components/common/Feedback/Toast';
 import { getLogger } from '@shared/utils/logger';
@@ -38,17 +37,6 @@ export const MigrationHandler: ParentComponent = (props) => {
         duration: 10000,
       });
     };
-
-    const lsInfo = getLocalStorageMigrationInfo();
-    if (lsInfo.occurred) {
-      showToast({
-        variant: 'info',
-        title: t('mlearn.Notifications.MigrationComplete'),
-        message: t('mlearn.Notifications.MigrationWordStatuses', { count: lsInfo.migratedWordCount }),
-        duration: 8000,
-      });
-      resetLocalStorageMigrationInfo();
-    }
 
     const handleFlashcardMigration = (event: Event) => processFlashcardMigration((event as CustomEvent<FlashcardMigrationInfo>).detail);
     window.addEventListener('mlearn-flashcard-migration', handleFlashcardMigration);

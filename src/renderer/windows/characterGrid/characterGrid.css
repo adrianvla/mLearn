@@ -107,6 +107,23 @@
   color: var(--character-grid-cell-text-unknown);
 }
 
+/* Claimed cells: the user's own explicit statement — distinct solid hue. */
+.cg-cell-claimed {
+  color: var(--text-on-strong);
+}
+
+/* Evidence-backed cells: solid fills, visually sharper than the prediction gradients. */
+.cg-cell-evidenced {
+  color: var(--text-on-strong);
+}
+
+/* Evidence exists but the latest reading attempts fail: measured-unknown,
+   distinct from the never-measured gray via the warning ring. */
+.cg-cell-evidenced-unknown {
+  color: var(--character-grid-cell-text-unknown);
+  box-shadow: inset 0 0 0 2px var(--color-warning);
+}
+
 .study-character {
   user-select: none;
 }
@@ -209,6 +226,25 @@
   color: var(--text-secondary);
   font-size: 0.85rem;
   margin-left: 0.5rem;
+}
+
+.tooltip-direct {
+  font-size: 0.85rem;
+  margin-top: 0.35rem;
+}
+
+.tooltip-direct--claim {
+  color: var(--color-primary);
+}
+
+.tooltip-direct--evidence {
+  color: var(--color-success);
+}
+
+.tooltip-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0.35rem 0 0.75rem;
 }
 
 .tooltip-words {

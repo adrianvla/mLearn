@@ -1230,6 +1230,12 @@
         "required": true
       },
       {
+        "id": "linguistic-graph",
+        "path": "languages/zh.graph.json",
+        "bundledPath": "languages/zh.graph.json",
+        "required": false
+      },
+      {
         "id": "python-adapter",
         "path": "adapters/mandarin_adapter.py",
         "bundledPath": "adapters/mandarin_adapter.py",

@@ -1,9 +1,9 @@
 /**
  * Watch Together Hook
  *
- * Two modes:
- * 1. **Local** — Desktop broadcasts to tethered browser clients via WebSocket
- *    (port 7753) through the Electron web server.
+ * 1. **Local** — Desktop broadcasts watch state over the local WebSocket
+ *    (port 7753) through the Electron web server. No shipped client connects
+ *    today; the socket is an open local broadcast bus.
  * 2. **Room** (owner / viewer) — Room state is synced via Worker WebSocket.
  *    The Worker broadcasts room-state messages to all connected clients.
  */

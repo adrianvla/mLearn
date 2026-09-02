@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, createMemo, createEffect, onMount, onCleanup, createResource, untrack } from 'solid-js';
+import { Component, Show, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack } from 'solid-js';
 import {
   WindowWrapper,
   useLocalization,
@@ -16,7 +16,6 @@ import {
   ToggleSwitch,
   buildWordSyncFields,
   buildWordSyncPreset,
-  WORD_SYNC_STATUS_UNTRACKED,
   evaluateAst,
   parseTokens,
   validateTokens,
@@ -25,12 +24,19 @@ import {
   type FieldResolver,
   type FilterToken,
   type PaletteItem,
+  RatingMatrix,
+  type ProfileObservation,
+  type RateOptions,
   type ValidationError,
 } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
-import { SRS_EASE, WORD_STATUS } from '../../../shared/constants';
+import { SRS_EASE, type AttemptQuality } from '../../../shared/constants';
+import type { KnowledgeAspect } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
+import { prerequisitesOf } from '../../utils/aspectKnowledge';
 import { hashWordSync } from '../../services/srsAlgorithm';
+import { nextAttemptId, type AttemptId } from '../../../shared/knowledgeEvents';
+import { ankiCacheVersion } from '../../services/ankiWordsCache';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
@@ -49,12 +55,15 @@ import {
   calculateCharacterStudyBoost,
   calculateWordWeight,
   isWordEligible,
+  wordSyncPoolStatus,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
-import { extractProsodyFromTranslationData } from '../../utils/readingProsody';import type { PassiveWordKnowledge } from '../../../shared/types';
+import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
+import { getAvailableAspects } from '../../../shared/types';
+import { getTestedAspects } from '../../../shared/languageFeatures';
+import { calibrationPoolItem, selectNextEncounter } from '../../learning/engine';
 import './WordSync.css';
 
-type Rating = 'unknown' | 'learning' | 'known';
 
 interface PoolEntry {
   word: string;
@@ -68,20 +77,14 @@ interface PoolEntry {
 interface WordSyncUndoEntry {
   word: PoolEntry;
   language: string;
-  previousKnowledge: PassiveWordKnowledge | undefined;
-  previousSeenAt: number | undefined;
+  previousSeenAt: Record<string, number | undefined>;
+  /** Attempt ids whose events must be retracted when this rating is undone. */
+  attemptIds: AttemptId[];
   previousRatedCount: number;
-  previousLastRating: Rating | null;
+  previousLastRating: AttemptQuality | null;
   previousSamplingLevel: number;
   previousLevelCursors: Map<number, number>;
-  previousShowTranslation: boolean;
 }
-
-const RATING_EASE: Record<Rating, number> = {
-  unknown: SRS_EASE.MIN,
-  learning: SRS_EASE.DEFAULT_LEARNING,
-  known: SRS_EASE.DEFAULT_KNOWN,
-};
 
 // Bounded undo history mirroring flashcard review (MAX_UNDO_STACK_SIZE there is also 50).
 const MAX_UNDO_STACK_SIZE = 50;
@@ -93,24 +96,43 @@ export const WordSyncContent: Component = () => {
   const {
     store,
     isLoading,
-    setWordKnowledgeEase,
     markWordSyncSeen,
     clearAllWordSyncSeen,
     restoreWordSyncRating,
+    appendRetractions,
+    recomputeWordKnowledgeFromEvidence,
     getWordKnowledge,
+    getWordSyncSeenSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
+    getAspectStatus,
+    recordAttempt,
   } = useFlashcards();
 
   // ─── State ───────────────────────────────────────────
   const [currentWord, setCurrentWord] = createSignal<PoolEntry | null>(null);
+  // Bumped on every word presentation (pickNext), not merely on word changes:
+  // a filter reselection can re-present the same word, and RatingMatrix must
+  // reset its profile drafts each presentation regardless.
+  const [presentationCount, setPresentationCount] = createSignal(0);
+  let wordShownAt = 0;
   const [samplingLevel, setSamplingLevel] = createSignal<number>(0);
   const [ratedCount, setRatedCount] = createSignal(0);
-  const [lastRating, setLastRating] = createSignal<Rating | null>(null);
+  const [lastRating, setLastRating] = createSignal<AttemptQuality | null>(null);
   const [finished, setFinished] = createSignal(false);
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>([]);
   const [filterPresetInitialized, setFilterPresetInitialized] = createSignal(false);
   const [showTranslation, setShowTranslation] = createSignal(false);
+  // Reveal-first gate (Anki-style): the prompt word is shown first; the first
+  // Space/Enter reveals the answer, the second submits the profile rating.
+  const [showAnswer, setShowAnswer] = createSignal(false);
   const [additionalInfoInAnswer, setAdditionalInfoInAnswer] = createSignal(false);
+  // Single reveal transition shared by keyboard (first Space/Enter) and pointer
+  // (the visible translation/reveal control): arms RatingMatrix and shows the
+  // translation together, so both input paths reach the same ratable state.
+  const reveal = () => {
+    setShowAnswer(true);
+    setShowTranslation(true);
+  };
   const [filterOpen, setFilterOpen] = createSignal(false);
   const [confirmRecheckOpen, setConfirmRecheckOpen] = createSignal(false);
   let filterTriggerRef: HTMLButtonElement | undefined;
@@ -191,26 +213,6 @@ export const WordSyncContent: Component = () => {
     return (now - ts) < THIRTY_DAYS_MS;
   }
 
-  function resolveWordSyncFilterStatus(lk: string, knowledge: ReturnType<typeof getWordKnowledge>): string {
-    if (store.knownUntracked[lk] || store.ignoredWords[lk]) return String(WORD_STATUS.KNOWN);
-
-    const cardIds = store.wordToCardMap?.[lk] ?? [];
-    for (const cardId of cardIds) {
-      const card = store.flashcards?.[cardId];
-      if (!card) continue;
-      if (card.state === 'review') return String(WORD_STATUS.KNOWN);
-      if (card.state === 'learning' || card.state === 'relearning') return String(WORD_STATUS.LEARNING);
-    }
-
-    if (knowledge) {
-      if (knowledge.ease >= settings.easeThresholdKnown) return String(WORD_STATUS.KNOWN);
-      if (knowledge.ease >= settings.easeThresholdLearning) return String(WORD_STATUS.LEARNING);
-      return String(WORD_STATUS.UNKNOWN);
-    }
-
-    return WORD_SYNC_STATUS_UNTRACKED;
-  }
-
   // ─── Known character set for language-defined study scripts ─────
   const characterStudyScripts = createMemo(() => getCharacterStudyScripts(langCtx.currentLangData()));
   function buildKnownCharacterSetSnapshot(scripts: readonly string[], lang: string): Set<string> {
@@ -256,13 +258,17 @@ export const WordSyncContent: Component = () => {
         const storageWord = langCtx.getCanonicalFormForLanguage(lang, word);
         const lk = `${lang}:${hashWordSync(storageWord)}`;
 
-        if (store.knownUntracked[lk]) continue;
-        if (store.ignoredWords[lk]) continue;
-
         const knowledge = getWordKnowledge(lk);
         const seenRecently = isSyncSeenRecentlyByKey(lk, now);
+        // Delegated to the comprehensive resolver (all banks, same precedence as the
+        // editor/pill): a local cascade here froze the bank list once already — the
+        // anki bank was missing and known-via-anki words kept entering the rotation.
+        const resolved = getComprehensiveWordStatusWithSourceSync(word, lang);
+        // Excluded words are teaching-policy removals, not knowledge — either way they
+        // never enter the calibration pool.
+        if (resolved.status === 'known' || resolved.excluded) continue;
         const record = {
-          status: resolveWordSyncFilterStatus(lk, knowledge),
+          status: wordSyncPoolStatus(resolved.status, Boolean(knowledge)),
           level: entry.raw_level,
           seenRecently,
         };
@@ -323,7 +329,7 @@ export const WordSyncContent: Component = () => {
 
   function pickNext() {
     const levels = sortedLevels();
-    if (levels.length === 0) { setFinished(true); return; }
+    if (levels.length === 0) { setFinished(true); setShowAnswer(false); setShowTranslation(false); return; }
 
     let lvl = samplingLevel();
     if (!levels.includes(lvl)) lvl = levels[0];
@@ -337,7 +343,7 @@ export const WordSyncContent: Component = () => {
     for (let dist = 1; dist < levels.length; dist++) {
       const easierIdx = idx - dist;
       const harderIdx = idx + dist;
-      if (lastRating() === 'known') {
+      if (lastRating() === 'fluent') {
         if (harderIdx < levels.length) tryOrder.push(levels[harderIdx]);
         if (easierIdx >= 0) tryOrder.push(levels[easierIdx]);
       } else {
@@ -351,8 +357,24 @@ export const WordSyncContent: Component = () => {
       if (!group || group.length === 0) continue;
       const cursor = levelCursors.get(tryLvl) ?? 0;
       if (cursor < group.length) {
+        const decision = selectNextEncounter({
+          preset: 'CALIBRATION',
+          nowMs: Date.now(),
+          wordSyncPoolItems: group.slice(cursor).map((entry) => (
+            calibrationPoolItem(entry.storageKey, entry.word, settings.language, entry.weight)
+          )),
+        });
+        const selectedIndex = decision?.action === 'DEFER'
+          ? cursor
+          : group.findIndex((entry, index) => index >= cursor && entry.storageKey === decision?.candidate.key);
+        const nextIndex = selectedIndex >= cursor ? selectedIndex : cursor;
+        if (nextIndex !== cursor) [group[cursor], group[nextIndex]] = [group[nextIndex], group[cursor]];
         levelCursors.set(tryLvl, cursor + 1);
         setSamplingLevel(tryLvl);
+        wordShownAt = Date.now();
+        setShowAnswer(false);
+        setShowTranslation(false);
+        setPresentationCount((c) => c + 1);
         setCurrentWord(group[cursor]);
         return;
       }
@@ -360,51 +382,118 @@ export const WordSyncContent: Component = () => {
 
     setFinished(true);
     setCurrentWord(null);
+    setShowAnswer(false);
+    setShowTranslation(false);
   }
 
-  function rate(rating: Rating) {
+  function handleRate(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) {
     const w = currentWord();
     if (!w) return;
 
-    const lk = w.storageKey;
-    const previousKnowledge = store.wordKnowledge[lk];
+
+    // Word-presentation task: rating a finer aspect demonstrates its prerequisite
+    // chain was traversed (the written word had to be read to reach prosody). A
+    // dedicated audio task would pass [] instead — the task defines what the
+    // observation proves, never the engine.
+    const { attemptId } = recordAttempt(w.word, aspect, quality, {
+      language: settings.language,
+      method: opts?.method,
+      demonstrated: prerequisitesOf(aspect, getAvailableAspects(langCtx.currentLangData() ?? undefined)),
+      latencyMs: wordShownAt ? Date.now() - wordShownAt : undefined,
+      origin: 'word-sync',
+    });
+
     setUndoStack((prev) => {
       const next = [
         ...prev,
         {
           word: w,
           language: settings.language,
-          previousKnowledge: previousKnowledge ? { ...previousKnowledge } : undefined,
-          previousSeenAt: store.wordSyncSeen[lk],
+          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
+          attemptIds: [attemptId],
           previousRatedCount: ratedCount(),
           previousLastRating: lastRating(),
           previousSamplingLevel: samplingLevel(),
           previousLevelCursors: new Map(levelCursors),
-          previousShowTranslation: showTranslation(),
         },
       ];
       if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
       return next;
     });
 
-    setWordKnowledgeEase(w.word, RATING_EASE[rating], displayedReading(), settings.language);
-
-    if (rating === 'unknown') {
+    if (quality === 'missed') {
       markWordSyncSeen(w.word, settings.language);
     }
 
     setSessionRatedSet((s) => { s.add(w.word); return s; });
 
     setRatedCount((c) => c + 1);
-    setLastRating(rating);
+    setLastRating(quality);
 
     const levels = sortedLevels();
     const idx = levels.indexOf(samplingLevel());
 
-    if (rating === 'known' && idx < levels.length - 1) {
+    if (quality === 'fluent' && idx < levels.length - 1) {
       setSamplingLevel(levels[idx + 1]);
-    } else if (rating === 'unknown' && idx > 0) {
+    } else if (quality === 'missed' && idx > 0) {
       setSamplingLevel(levels[idx - 1]);
+    }
+
+    pickNext();
+  }
+
+  // Profile-mode submit: ONE logical attempt (one attemptId, one undo entry,
+  // one advance) carrying N aspect observations. Every tested aspect has an
+  // explicit claim here, so no prerequisite demonstration is inferred.
+  function handleSubmitProfile(observations: readonly ProfileObservation[]) {
+    const w = currentWord();
+    if (!w || observations.length === 0) return;
+
+
+    const attemptId = nextAttemptId();
+    const latencyMs = wordShownAt ? Date.now() - wordShownAt : undefined;
+    let anyMissed = false;
+    for (const observation of observations) {
+      if (observation.quality === 'missed') anyMissed = true;
+      recordAttempt(w.word, observation.aspect, observation.quality, {
+        language: settings.language,
+        method: observation.method,
+        attemptId,
+        origin: 'word-sync',
+        ...(latencyMs !== undefined ? { latencyMs } : {}),
+      });
+    }
+
+    setUndoStack((prev) => {
+      const next = [
+        ...prev,
+        {
+          word: w,
+          language: settings.language,
+          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
+          attemptIds: [attemptId],
+          previousRatedCount: ratedCount(),
+          previousLastRating: lastRating(),
+          previousSamplingLevel: samplingLevel(),
+          previousLevelCursors: new Map(levelCursors),
+        },
+      ];
+      if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
+      return next;
+    });
+
+    if (anyMissed) markWordSyncSeen(w.word, settings.language);
+
+    setSessionRatedSet((s) => { s.add(w.word); return s; });
+    setRatedCount((c) => c + 1);
+    setLastRating(anyMissed ? 'missed' : 'fluent');
+
+    const levels = sortedLevels();
+    const idx = levels.indexOf(samplingLevel());
+    if (anyMissed) {
+      if (idx > 0) setSamplingLevel(levels[idx - 1]);
+    } else if (idx < levels.length - 1) {
+      setSamplingLevel(levels[idx + 1]);
     }
 
     pickNext();
@@ -418,6 +507,8 @@ export const WordSyncContent: Component = () => {
     setLastRating(null);
     setUndoStack([]);
     setSessionRatedSet(new Set<string>());
+    setShowAnswer(false);
+    setShowTranslation(false);
     levelCursors = new Map();
 
     const levels = sortedLevels();
@@ -435,12 +526,12 @@ export const WordSyncContent: Component = () => {
 
     setUndoStack((prev) => prev.slice(0, -1));
 
-    restoreWordSyncRating(
-      undoEntry.word.word,
-      undoEntry.previousKnowledge,
-      undoEntry.previousSeenAt,
-      undoEntry.language,
-    );
+    // Epistemic state = active evidence: retract, then let the projection
+    // replay rebuild wordKnowledge. Only the policy cooldown map (seen) uses
+    // a snapshot restore — it is not learner truth.
+    appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds);
+    void recomputeWordKnowledgeFromEvidence(undoEntry.word.word, undoEntry.language);
+    restoreWordSyncRating(undoEntry.previousSeenAt, undoEntry.language);
     setSessionRatedSet((rated) => {
       const next = new Set(rated);
       next.delete(undoEntry.word.word);
@@ -450,41 +541,40 @@ export const WordSyncContent: Component = () => {
     setLastRating(undoEntry.previousLastRating);
     setSamplingLevel(undoEntry.previousSamplingLevel);
     levelCursors = new Map(undoEntry.previousLevelCursors);
-    setShowTranslation(undoEntry.previousShowTranslation);
+    setShowTranslation(false);
+    setShowAnswer(false);
     setFinished(false);
     setCurrentWord(undoEntry.word);
   }
 
-  function shouldIgnoreWordSyncShortcut(e: KeyboardEvent): boolean {
-    if (isRatingKeyIgnored(e)) return true;
-    const target = e.target;
-    if (!(target instanceof HTMLElement)) return false;
-    // A focused rating button must not double-fire on Space (native activation
-    // + the window handler's translation toggle).
-    return target.matches('button');
-  }
-
   // ─── Keyboard shortcuts ─────────────────────────────
   function handleKeyDown(e: KeyboardEvent) {
-    if (shouldIgnoreWordSyncShortcut(e)) return;
+    const target = e.target;
+    const buttonTarget = target instanceof HTMLElement && target.matches('button, [role="button"]');
     if (isUndoShortcut(e)) {
       e.preventDefault();
       undoLastWordSyncRating();
       return;
     }
-
-    if (finished()) return;
-    if (e.key === ' ' || e.code === 'Space') {
-      if (currentWord()) {
-        e.preventDefault();
-        setShowTranslation((v) => !v);
-      }
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (isRatingKeyIgnored(e) && !buttonTarget) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (!finished() && currentWord() && !showAnswer()) reveal();
       return;
     }
+    if (isRatingKeyIgnored(e)) return;
+
+    if (finished()) return;
+    // Rating keys (1/2/3 and chords) belong to the RatingMatrix only after reveal.
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === '1') rate('unknown');
-    else if (e.key === '2') rate('learning');
-    else if (e.key === '3') rate('known');
+    if (e.key === 't' || e.key === 'T') {
+      if (currentWord()) {
+        e.preventDefault();
+        if (!showAnswer()) reveal();
+        else setShowTranslation((v) => !v);
+      }
+    }
   }
 
   // Guard: only pick the first word once, after language data has loaded.
@@ -505,6 +595,16 @@ export const WordSyncContent: Component = () => {
       pickNext();
     }
   });
+
+  // The pool snapshot is built untracked; anki syncs must refresh it or words the
+  // cache just marked known keep appearing (and counts keep regressing) until restart.
+  // defer + untracked guard: never rebuild on the init flip itself — pickNext has
+  // already advanced cursors, and a reshuffle would re-present already-rated words.
+  createEffect(on(ankiCacheVersion, () => {
+    if (untrack(() => !initialized())) return;
+    levelCursors = new Map();
+    rebuildWordPool();
+  }, { defer: true }));
 
   onMount(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -551,19 +651,24 @@ export const WordSyncContent: Component = () => {
 
   // Word Sync renders the word with the shared WordWithReading primitive and
   // its own decoration context — no flashcard-display components/classes.
-  const comprehensiveKnowledge = createMemo(() => {
+  // Matrix rows: aspects THIS interaction tests (supplied aspects excluded — the
+  // shared gate in languageFeatures owns the tested/supplied distinction).
+  const testedAspects = createMemo(() => {
     const w = currentWord();
-    if (!w) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0, ease: undefined };
-    return getComprehensiveWordStatusWithSourceSync(w.word, settings.language);
+    if (!w) return ['meaning'] as const;
+    return getTestedAspects({
+      languageData: langCtx.currentLangData(),
+      surface: w.word,
+      hasReadingData: !!displayedReading(),
+      hasProsodyData: !!currentWordProsody(),
+    });
   });
-  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+
   const wordColoredProsodyCtx: WordRenderTextContext = {
     languageData: langCtx.currentLangData,
     prosodyPosition: () => currentWordProsody()?.position ?? null,
-    ease: () => comprehensiveKnowledge().ease,
+    prosodyKnowledge: () => getAspectStatus(currentWord()?.word ?? '', 'prosody', settings.language),
     partOfSpeechColor: () => undefined,
-    status: () => comprehensiveKnowledge().status,
-    isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
   };
@@ -580,7 +685,7 @@ export const WordSyncContent: Component = () => {
 
   // "Additional information part of answer": when the answer is hidden, the
   // word itself renders as pure text — no prosody coloring, no reading.
-  const pureWordMode = createMemo(() => additionalInfoInAnswer() && !showTranslation());
+  const pureWordMode = createMemo(() => additionalInfoInAnswer() && !showAnswer());
 
   return (
     <div class="word-sync">
@@ -675,14 +780,20 @@ export const WordSyncContent: Component = () => {
                   <span>{w().word}</span>
                 </Show>
               </div>
-              <Show when={showTranslation() && translationText()}>
+              <Show when={showAnswer() && showTranslation() && translationText()}>
                 <div class="word-sync-translation">{translationText()}</div>
               </Show>
               <div class="word-sync-answer-options">
                 <Btn
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowTranslation((v) => !v)}
+                  onClick={() => {
+                    if (!showAnswer()) {
+                      reveal();
+                    } else {
+                      setShowTranslation((v) => !v);
+                    }
+                  }}
                   class="word-sync-translation-toggle"
                 >
                   {showTranslation()
@@ -702,33 +813,17 @@ export const WordSyncContent: Component = () => {
         </Show>
 
         <div class="word-sync-actions">
-          <Btn
-            variant="danger"
-            size="lg"
-            onClick={() => rate('unknown')}
-            class="word-sync-btn word-sync-btn--unknown"
-          >
-            <span class="word-sync-btn-key">1</span>
-            {t('mlearn.WordSync.Unknown')}
-          </Btn>
-          <Btn
-            variant="secondary"
-            size="lg"
-            onClick={() => rate('learning')}
-            class="word-sync-btn word-sync-btn--learning"
-          >
-            <span class="word-sync-btn-key">2</span>
-            {t('mlearn.WordSync.Learning')}
-          </Btn>
-          <Btn
-            variant="primary"
-            size="lg"
-            onClick={() => rate('known')}
-            class="word-sync-btn word-sync-btn--known"
-          >
-            <span class="word-sync-btn-key">3</span>
-            {t('mlearn.WordSync.Known')}
-          </Btn>
+          <RatingMatrix
+            aspects={testedAspects()}
+            keyboardMode={settings.ratingKeyboardMode}
+            mode="profile"
+            resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
+            armed={showAnswer() && !!currentWord() && !finished()}
+            compact
+            initialDraftsFluent
+            onRate={handleRate}
+            onProfileSubmit={handleSubmitProfile}
+          />
         </div>
 
 

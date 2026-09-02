@@ -1,6 +1,6 @@
 /**
  * Platform Detection
- * Detects the runtime environment: Electron, Capacitor, or Web (tethered).
+ * Detects the runtime environment: Electron, Capacitor, or Web (dev fallback).
  */
 
 export type Platform = 'electron' | 'capacitor' | 'web';
@@ -11,7 +11,8 @@ let cachedPlatform: Platform | null = null;
  * Detect the current runtime platform.
  * - 'electron': Desktop app with preload bridge (`window.mLearnIPC`)
  * - 'capacitor': Mobile app with Capacitor native bridge (`window.Capacitor`)
- * - 'web': Tethered browser or standalone web app
+ * - 'web': Fallback for renderers without either bridge — only reachable in
+ *   the Vite dev server opened in a plain browser; no web frontend ships.
  */
 export function getPlatform(): Platform {
   if (cachedPlatform) return cachedPlatform;

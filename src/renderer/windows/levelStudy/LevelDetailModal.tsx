@@ -7,14 +7,17 @@ import { createVirtualizer } from '../../hooks/useVirtualizer';
 import {
   getWordLevelStatus,
   buildLearningWordSet,
-  resolveLevelStudyWordFrequency,
+  buildPassiveOnlyWordSet,
   getLevelStudyLevelNames,
+  resolveLevelStudyWordFrequency,
   BEYOND_EXAM_LEVEL,
 } from '../../utils/wordLevelStats';
 import { buildKnownWordSetFromStore, buildTrackedWordSet } from '../../utils/knowledgeUtils';
+import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
 import { getReadingAnnotationScripts, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { prosodyVisible } from '../../../shared/prosodySettings';
+import { selectEncounterBatch } from '../../learning/engine';
 import type { WordProsodyOverlayData } from '../../utils/wordRenderText';
 import type { LanguageData } from '../../../shared/types';
 
@@ -33,8 +36,11 @@ interface WordListItem {
 }
 
 const SLIDER_LABELS = ['Unknown', 'Learning', 'Known'] as const;
+// The slider is a SELECTION filter only (words up to a status threshold).
+// Curriculum adds never write learner-knowledge claims: cards are scheduler
+// seeds ('new'), knowledge accrues from reviews/attempts/claims. Bulk status
+// stamping lives in BulkAddModal's explicit target-status dropdown.
 const SLIDER_FILTER_VALUES = ['unknown', 'learning', 'known'] as const;
-const SLIDER_TARGET_STATUS: Array<'new' | 'learning' | 'known'> = ['new', 'learning', 'known'];
 const SLIDER_PILL_VARIANTS = ['red', 'orange', 'green'] as const;
 const ROW_HEIGHT = 40;
 
@@ -70,9 +76,19 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
 
     return untrack(() => {
       const store = flashcards.store;
-      const knownSet = buildKnownWordSetFromStore(store, knownThreshold);
-      const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
-      const trackedSet = buildTrackedWordSet(store, lang);
+      const ankiKeys = settings.use_anki
+        ? buildAnkiStatusKeySets(
+          lang,
+          settings.ankiLearningThreshold,
+          settings.ankiKnownThreshold,
+          (word) => [language.getCanonicalFormForLanguage(lang, word)],
+          langData,
+        )
+        : undefined;
+      const knownSet = buildKnownWordSetFromStore(store, knownThreshold, ankiKeys?.known);
+      const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
+      const passiveOnlySet = buildPassiveOnlyWordSet(store);
+      const trackedSet = buildTrackedWordSet(store, lang, ankiKeys);
 
       const result: WordListItem[] = [];
       const levelNames = getLevelStudyLevelNames(langData, freq);
@@ -80,7 +96,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
         if (props.level === BEYOND_EXAM_LEVEL) {
           if (isDisplayableFrequencyLevel(entry.raw_level, levelNames, langData)) continue;
         } else if (entry.raw_level !== props.level) continue;
-        const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet, language.getCanonicalFormForLanguage);
+        const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet, language.getCanonicalFormForLanguage, passiveOnlySet);
         result.push({ word, reading: entry.reading || '', status });
       }
       return result.sort((a, b) => a.word.localeCompare(b.word));
@@ -125,9 +141,19 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
   });
 
   const handleAddFlashcards = async () => {
-    const words = selectedWords().map((w) => w.word);
+    const words = selectEncounterBatch({
+      preset: 'CURRICULUM',
+      nowMs: 0,
+      levelStudyItems: selectedWords().map((item) => ({
+        key: `${activeLanguage()}:${item.word}`,
+        word: item.word,
+        language: activeLanguage(),
+      })),
+    }).map((decision) => decision.candidate.word!);
     if (words.length === 0) return;
-    const targetStatus = SLIDER_TARGET_STATUS[sliderIndex()];
+    // Curriculum only — scheduler seeds; explicit knowledge marking is not
+    // offered here (BulkAddModal's status dropdown or the pill does that).
+    const targetStatus = 'new' as const;
     setIsAdding(true);
     try {
       const result = await flashcards.addLevelStudyFlashcards(words, targetStatus, activeLanguage());

@@ -14,11 +14,14 @@ const ankiMocks = vi.hoisted(() => ({
 
 const updateSettingsMock = vi.fn();
 const trackWordStatusChangeMock = vi.fn();
-const setComprehensiveWordStatusMock = vi.fn();
+const setWordClaimMock = vi.fn();
 const updateWordCardsMock = vi.fn(() => Promise.resolve({ updated: 0, repositioned: 0 }));
 let skipAnkiModifyWarning = false;
+let skipStatusSourceWarning = false;
 let comprehensiveResultMock: ComprehensiveWordStatusResult = {
   status: 'unknown',
+  basis: 'unmeasured',
+  evidenceStatus: 'unknown',
   source: 'None',
   timesSeen: 0,
   matchedWord: undefined,
@@ -46,7 +49,7 @@ vi.mock('../../../context', () => ({
       language: 'ja',
       use_anki: true,
       skipAnkiModifyWarning,
-      skipStatusSourceWarning: false,
+      skipStatusSourceWarning,
     },
     updateSettings: updateSettingsMock,
   }),
@@ -65,7 +68,8 @@ vi.mock('../../../context', () => ({
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     trackWordStatusChange: trackWordStatusChangeMock,
     getComprehensiveWordStatusWithSourceSync: () => comprehensiveResultMock,
-    setComprehensiveWordStatus: setComprehensiveWordStatusMock,
+    getWordKnowledge: () => undefined,
+    setWordClaim: setWordClaimMock,
   }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string>) => (
@@ -93,16 +97,37 @@ vi.mock('../Button', () => ({
 }));
 
 vi.mock('../Tooltip', () => ({
-  Tooltip: (props: { content?: string; children?: JSX.Element }) => (
-    <span data-testid="tooltip" data-content={props.content}>{props.children}</span>
+  Tooltip: (props: { content?: JSX.Element; children?: JSX.Element; pinned?: boolean }) => (
+    <span data-testid="tooltip" data-pinned={String(props.pinned)}>{props.content}{props.children}</span>
   ),
 }));
 
-vi.mock('../../flashcard/AnkiModifyWarningModal', () => ({
-  AnkiModifyWarningModal: (props: { isOpen: boolean; title?: string }) => (
-    props.isOpen ? <div data-testid="anki-warning">{props.title}</div> : null
+vi.mock('../WordStatusPillKnowledge', () => ({
+  WordStatusPillKnowledge: (props: { statusSourceLabel?: string }) => (
+    <div data-testid="mock-knowledge-popup" data-source={props.statusSourceLabel} />
   ),
 }));
+
+// vi.mock factories are hoisted above static imports, so Show must be imported
+// dynamically inside the factory — the documented vi.mock exception.
+vi.mock('../../flashcard/AnkiModifyWarningModal', async () => {
+  const { Show } = await import('solid-js');
+  return {
+    AnkiModifyWarningModal: (props: {
+      isOpen: boolean;
+      title?: string;
+      confirmText?: string;
+      onConfirm?: (dontRemind: boolean) => void;
+    }) => (
+      <Show when={props.isOpen}>
+        <div data-testid="anki-warning">
+          {props.title}
+          <button type="button" onClick={() => props.onConfirm?.(false)}>{props.confirmText}</button>
+        </div>
+      </Show>
+    ),
+  };
+});
 
 vi.mock('../Feedback/Toast', () => ({
   showToast: vi.fn(),
@@ -116,8 +141,11 @@ describe('WordStatusPill', () => {
     document.body.appendChild(container);
     vi.clearAllMocks();
     skipAnkiModifyWarning = false;
+    skipStatusSourceWarning = false;
     comprehensiveResultMock = {
       status: 'unknown',
+      basis: 'unmeasured',
+      evidenceStatus: 'unknown',
       source: 'None',
       timesSeen: 0,
       matchedWord: undefined,
@@ -167,7 +195,7 @@ describe('WordStatusPill', () => {
     container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await Promise.resolve();
 
-    expect(updateWordCardsMock).toHaveBeenCalledWith('你好(ni hao)', 1550);
+    expect(updateWordCardsMock).toHaveBeenCalledWith('你好(ni hao)', 1800);
     expect(updateWordCardsMock).not.toHaveBeenCalledWith('你好', expect.anything());
 
     dispose();
@@ -176,7 +204,9 @@ describe('WordStatusPill', () => {
   it('shows the matched canonical word in the status tooltip for reading aliases', () => {
     comprehensiveResultMock = {
       status: 'known',
-      source: 'KnownWordsList',
+      basis: 'claim',
+      evidenceStatus: 'unknown',
+      source: 'Manual',
       timesSeen: 0,
       matchedWord: '連続',
     };
@@ -185,29 +215,101 @@ describe('WordStatusPill', () => {
       <WordStatusPill word="れんぞく" language="ja" />
     ), container);
 
-    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-content')).toBe(
-      'mlearn.WordHover.StatusSource.Prefixmlearn.Settings.KnowledgePriority.Source.KnownWordsList (→ 連続)',
+    expect(container.querySelector('[data-testid="mock-knowledge-popup"]')?.getAttribute('data-source')).toContain(
+      'mlearn.Knowledge.Basis.Claim (→ 連続)',
     );
 
     dispose();
   });
 
-  it('labels explicitly rated words as Manual with the seen count instead of PassiveTracking', () => {
+  it('labels claimed words with the claim basis and the seen count', () => {
     comprehensiveResultMock = {
       status: 'known',
+      basis: 'claim',
+      evidenceStatus: 'unknown',
       source: 'Manual',
       timesSeen: 10,
       matchedWord: 'Haus',
     };
-
     const dispose = render(() => (
       <WordStatusPill word="Haus" language="de" />
     ), container);
 
-    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-content')).toBe(
-      'mlearn.WordHover.StatusSource.Prefixmlearn.Settings.KnowledgePriority.Source.Manual + mlearn.WordHover.TimesSeen:10',
+    expect(container.querySelector('[data-testid="mock-knowledge-popup"]')?.getAttribute('data-source')).toContain(
+      'mlearn.Knowledge.Basis.Claim + mlearn.WordHover.TimesSeen:10',
     );
 
     dispose();
   });
+
+  it('claims Known immediately on click for an untracked word and does not pin the popup', () => {
+    ankiMocks.findAnkiWordMatchInCacheMock.mockReturnValue(null);
+    const dispose = render(() => <WordStatusPill word="Haus" language="de" />, container);
+
+    container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(setWordClaimMock).toHaveBeenCalledWith('de-variant:Haus', 'known', 'de');
+    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-pinned')).toBe('false');
+    dispose();
+  });
+
+  it('clicking an already-Known word is a no-op', () => {
+    comprehensiveResultMock = {
+      status: 'known',
+      basis: 'claim',
+      evidenceStatus: 'unknown',
+      source: 'Manual',
+      timesSeen: 0,
+      matchedWord: 'Haus',
+    };
+    const dispose = render(() => <WordStatusPill word="Haus" language="de" />, container);
+
+    container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(setWordClaimMock).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('overrides evidence-backed Learning with an explicit Known claim on the fast path', () => {
+    ankiMocks.findAnkiWordMatchInCacheMock.mockReturnValue(null);
+    skipStatusSourceWarning = true;
+    comprehensiveResultMock = {
+      status: 'learning',
+      basis: 'evidence',
+      evidenceStatus: 'learning',
+      source: 'Srs',
+      timesSeen: 4,
+      matchedWord: 'Haus',
+    };
+    const dispose = render(() => <WordStatusPill word="Haus" language="de" />, container);
+
+    container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(setWordClaimMock).toHaveBeenCalledWith('de-variant:Haus', 'known', 'de');
+    dispose();
+  });
+
+  it('warns before overriding an intentional contradictory state and claims Known on confirm', () => {
+    ankiMocks.findAnkiWordMatchInCacheMock.mockReturnValue(null);
+    comprehensiveResultMock = {
+      status: 'learning',
+      basis: 'evidence',
+      evidenceStatus: 'learning',
+      source: 'Srs',
+      timesSeen: 4,
+      matchedWord: 'Haus',
+    };
+    const dispose = render(() => <WordStatusPill word="Haus" language="de" />, container);
+
+    container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(setWordClaimMock).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="anki-warning"]')).not.toBeNull();
+
+    container.querySelector<HTMLButtonElement>('[data-testid="anki-warning"] button')?.click();
+    expect(setWordClaimMock).toHaveBeenCalledWith('de-variant:Haus', 'known', 'de');
+
+    dispose();
+  });
 });
+

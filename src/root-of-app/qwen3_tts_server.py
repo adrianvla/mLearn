@@ -29,9 +29,9 @@ from pathlib import Path
 from typing import Optional
 
 import secrets
-
+import numpy as np
+import soundfile as sf
 import torch
-import torchaudio
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -80,7 +80,6 @@ def require_token(request: Request) -> None:
 _model = None
 _loading = False
 _voice_prompt_cache: dict[str, object] = {}
-SAMPLE_RATE = 24000
 MODEL_NAME = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
 DEFAULT_SENTENCE_TERMINATORS = ".!?。！？؟؛"
 LANGUAGE_DATA_PATH = Path(
@@ -133,8 +132,11 @@ def load_model():
         device = "cuda" if torch.cuda.is_available() else "cpu"
         log.info(f"Loading {MODEL_NAME} on {device}...")
 
-        _model = Qwen3TTSModel.from_pretrained(MODEL_NAME)
-        _model = _model.to(device)
+        _model = Qwen3TTSModel.from_pretrained(
+            MODEL_NAME,
+            device_map=device,
+            dtype=torch.bfloat16 if device == "cuda" else torch.float32,
+        )
 
         log.info("Qwen3-TTS loaded successfully.")
     except Exception as e:
@@ -287,68 +289,60 @@ async def tts_generate(req: TTSRequest):
             detail=f"Qwen3 TTS is not configured for language '{req.language}'",
         )
 
-    # Prepare voice clone prompt if sample provided
-    voice_prompt = None
+    # The Base checkpoint has no zero-shot voice: a reference sample is required.
     safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
-    if safe_voice_path:
-        try:
-            voice_prompt = _get_voice_prompt(safe_voice_path)
-        except Exception as e:
-            log.warning(f"Failed to create voice clone prompt: {e}")
+    if not safe_voice_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Qwen3-TTS voice cloning requires a voice sample",
+        )
+    try:
+        voice_prompt = _get_voice_prompt(safe_voice_path)
+    except Exception as e:
+        log.warning(f"Failed to create voice clone prompt: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid voice sample: {e}")
 
-    all_wavs = []
+    # qwen_tts takes the language as an argument (validated case-insensitively
+    # against the model's supported languages) and wraps the text in its own
+    # chat template — no <|Lang|> prefix. It exposes no speed parameter, so
+    # req.speed is not honored. One batched call returns one wav per sentence.
+    start = time.time()
+    try:
+        wavs, sample_rate = _model.generate_voice_clone(
+            text=sentences,
+            language=lang_code,
+            voice_clone_prompt=voice_prompt,
+            non_streaming_mode=True,
+        )
+    except Exception as e:
+        log.error(f"Generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"TTS generation failed: {e}")
+
+    elapsed = time.time() - start
+    log.info(f"Generated {len(sentences)} sentence(s) in {elapsed:.2f}s")
+
     sentence_boundaries = []
     sample_offset = 0
-
-    for i, sentence in enumerate(sentences):
-        start = time.time()
-        try:
-            if voice_prompt is not None:
-                wav = _model.generate_voice_clone(
-                    text=f"<|{lang_code}|>{sentence}",
-                    voice_clone_prompt=voice_prompt,
-                    speed=req.speed,
-                )
-            else:
-                wav = _model.generate(
-                    text=f"<|{lang_code}|>{sentence}",
-                    speed=req.speed,
-                )
-        except Exception as e:
-            log.error(f"Generation failed for sentence {i}: {e}")
-            continue
-
-        elapsed = time.time() - start
-        log.info(f"Sentence {i} ({len(sentence)} chars) generated in {elapsed:.2f}s")
-
-        # generate_voice_clone may return (audio, sr) tuple
-        if isinstance(wav, (tuple, list)):
-            wav = wav[0]
-
-        if isinstance(wav, torch.Tensor):
-            if wav.dim() == 1:
-                wav = wav.unsqueeze(0)
-        else:
-            wav = torch.tensor(wav).unsqueeze(0)
-
-        num_samples = wav.shape[-1]
+    audio_chunks = []
+    for i, wav in enumerate(wavs):
+        audio = np.asarray(wav, dtype=np.float32).reshape(-1)
         sentence_boundaries.append(
             {
                 "index": i,
-                "text": sentence,
+                "text": sentences[i],
                 "sampleOffset": sample_offset,
-                "sampleCount": num_samples,
+                "sampleCount": len(audio),
             }
         )
-        sample_offset += num_samples
-        all_wavs.append(wav)
+        sample_offset += len(audio)
+        audio_chunks.append(audio)
 
-    if not all_wavs:
+    if not audio_chunks or all(chunk.size == 0 for chunk in audio_chunks):
         raise HTTPException(status_code=500, detail="No audio generated")
 
-    combined = torch.cat(all_wavs, dim=-1)
+    combined = np.concatenate(audio_chunks)
     buf = io.BytesIO()
-    torchaudio.save(buf, combined, SAMPLE_RATE, format="wav")
+    sf.write(buf, combined, sample_rate, format="wav", subtype="PCM_16")
     buf.seek(0)
 
     from starlette.responses import Response
@@ -358,7 +352,7 @@ async def tts_generate(req: TTSRequest):
         media_type="audio/wav",
         headers={
             "X-Sentence-Boundaries": json.dumps(sentence_boundaries),
-            "X-Sample-Rate": str(SAMPLE_RATE),
+            "X-Sample-Rate": str(sample_rate),
         },
     )
 

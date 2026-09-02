@@ -137,6 +137,24 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   justify-content: flex-start;
 }
 
+.word-hover-knowledge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  font-size: var(--font-size-xs);
+}
+
+.word-hover-knowledge button {
+  border: 0;
+  padding: 0;
+  color: var(--color-primary);
+  background: transparent;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* Pill sizing inside hover - matches old project styling */
 /* Both label-pill and btn-pill should have identical sizing */
 .subtitle_hover .pills .label-pill,
@@ -213,6 +231,25 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   flex-direction: column;
   justify-content: center;
   align-items: center;
+}
+
+/* German compound decomposition tree (REQ42) — ordered after readings */
+.hover-compound {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  order: 3;
+}
+
+.hover-compound__label,
+.hover-compound__note {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.hover-compound__row {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
 }
 
 .hover_loading {

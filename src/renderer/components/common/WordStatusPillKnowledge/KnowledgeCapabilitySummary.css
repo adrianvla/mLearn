@@ -1,0 +1,41 @@
+/* Compact per-aspect capability summary shared by the pill popover and hover.
+   Basis token colors: claim = primary (user's statement), evidence = success,
+   prediction = warning, unmeasured = muted. */
+.knowledge-capability-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.knowledge-capability-summary__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  padding: 1px var(--spacing-1);
+}
+
+.knowledge-capability-summary__mark {
+  flex: 0 0 auto;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.knowledge-capability-summary__status--unknown { color: var(--color-danger); }
+.knowledge-capability-summary__status--learning { color: var(--color-warning); }
+.knowledge-capability-summary__status--known { color: var(--color-success); }
+
+.knowledge-capability-summary__item--claim { border-color: var(--color-primary); color: var(--color-primary); }
+.knowledge-capability-summary__item--evidence { border-color: var(--color-success); color: var(--color-success); }
+.knowledge-capability-summary__item--prediction { border-color: var(--color-warning); color: var(--color-warning); }
+.knowledge-capability-summary__item--unmeasured { border-color: var(--text-tertiary); color: var(--text-tertiary); }
+/* Untracked = honest "no measurement yet": muted dashed border, never danger red. */
+.knowledge-capability-summary__item--untracked { border-style: dashed; color: var(--text-tertiary); }
+.knowledge-capability-summary__item--untracked .knowledge-capability-summary__status { color: var(--text-tertiary); }

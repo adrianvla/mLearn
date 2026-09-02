@@ -13,7 +13,7 @@ const data: LanguageData = {
     traditional: {
       name: 'Traditional',
       scriptConversion: { engine: 'opencc', config: 't2s', mappingAsset: 'languages/example.t2s.json' },
-      overrides: { 'runtime.adapter.config.pinyinInputConversion': true },
+      overrides: { 'runtime.adapter.config': { pinyinInputConversion: 't2s' } },
     },
   },
 };

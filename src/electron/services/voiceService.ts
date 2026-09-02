@@ -21,7 +21,6 @@ import type {
   VoiceMode,
   VoiceSample,
   VoiceTtsAudio,
-  PipRequirementsConfig,
 } from '../../shared/types';
 import {
   getResourcePath,
@@ -239,130 +238,210 @@ function postJson(
 // Voice Package Installation
 // ============================================================================
 
-function loadVoicePackages(): string[] {
-  try {
-    const data = readResourceFile('pip_requirements.json');
-    const config: PipRequirementsConfig = JSON.parse(data);
-    return config.voice ?? [];
-  } catch {
-    log.error('Failed to load voice package config from any known path');
-    return [];
-  }
-}
-
-function loadQwen3Packages(): string[] {
+function loadPackageGroup(group: string): string[] {
   try {
     const data = readResourceFile('pip_requirements.json');
     const config = JSON.parse(data) as Record<string, string[]>;
-    return config['qwen3-tts'] ?? [];
+    return config[group] ?? [];
   } catch {
-    log.error('Failed to load Qwen3 package config from any known path');
+    log.error(`Failed to load '${group}' voice package config from any known path`);
     return [];
   }
 }
 
-function loadMlxSttPackages(): string[] {
+/**
+ * Ordered pip package groups for the voice stack, per platform. The first
+ * group is essential (voice / voice-windows); later groups are engine
+ * add-ons. Apple Silicon keeps the mlx groups; every other platform uses
+ * the torch-based qwen3 group instead.
+ */
+export function resolveVoiceInstallGroupNames(
+  appleSilicon: boolean,
+  windows: boolean,
+  includeQwen3: boolean,
+  includeMlxStt: boolean,
+): string[] {
+  if (appleSilicon) {
+    const groups = ['voice'];
+    if (includeQwen3) groups.push('qwen3-tts');
+    if (includeMlxStt) groups.push('mlx-stt');
+    return groups;
+  }
+  const groups = [windows ? 'voice-windows' : 'voice'];
+  if (includeQwen3) groups.push('qwen3-tts-torch');
+  return groups;
+}
+
+// Windows torch wheels pinned to CUDA builds (torch==*+cu128) resolve only
+// from the PyTorch CUDA index — PyPI ships CPU-only Windows wheels.
+const PYTORCH_CUDA_INDEX_URL = 'https://download.pytorch.org/whl/cu128';
+
+/**
+ * pip argv for one package group. Windows installs go through the bundled
+ * python (-m pip); CUDA-bearing groups additionally need the PyTorch index.
+ */
+export function buildPipArgs(windows: boolean, group: string, packages: string[]): string[] {
+  if (!windows) {
+    return ['install', ...packages];
+  }
+  const needsCudaIndex = group === 'voice-windows' || group === 'qwen3-tts-torch';
+  return [
+    '-m',
+    'pip',
+    'install',
+    ...packages,
+    ...(needsCudaIndex ? ['--extra-index-url', PYTORCH_CUDA_INDEX_URL] : []),
+  ];
+}
+
+// close(null) means pip died by signal. Only an intentional cancel counts as
+// a clean abort; a null exit code without that flag is an unexpected failure.
+let pipAbortRequested = false;
+let activePipProcess: ChildProcess | null = null;
+
+/** Marks the in-flight voice package install as aborted and kills its pip process. */
+export function cancelVoicePackageInstall(): void {
+  if (!activePipProcess) return;
+  pipAbortRequested = true;
   try {
-    const data = readResourceFile('pip_requirements.json');
-    const config = JSON.parse(data) as Record<string, string[]>;
-    return config['mlx-stt'] ?? [];
-  } catch {
-    log.error('Failed to load mlx-stt package config from any known path');
-    return [];
+    activePipProcess.kill('SIGKILL');
+  } catch (e) {
+    log.error('[VoiceService] Failed to kill pip process:', e);
   }
 }
 
-function installVoicePackages(
+async function installVoicePackages(
   onProgress: (status: VoiceModelStatus) => void,
   includeQwen3 = false,
   includeMlxStt = false,
 ): Promise<boolean> {
-  return new Promise((resolve) => {
-    const packages = [
-      ...loadVoicePackages(),
-      ...(includeQwen3 ? loadQwen3Packages() : []),
-      ...(includeMlxStt ? loadMlxSttPackages() : []),
-    ];
-    if (packages.length === 0) {
-      resolve(true);
-      return;
+  const groups = resolveVoiceInstallGroupNames(isAppleSilicon, isWindows, includeQwen3, includeMlxStt)
+    .map((name) => ({ name, packages: loadPackageGroup(name) }))
+    .filter((group) => group.packages.length > 0);
+  if (groups.length === 0) {
+    return true;
+  }
+
+  pipAbortRequested = false;
+  const totalPackages = groups.reduce((sum, group) => sum + group.packages.length, 0);
+  const pipExecutable = getPipExecutablePath();
+  const envPath = path.join(getResourcePath(), 'env');
+
+  // Shared across groups so combined pip progress spans 0-50% of the whole install.
+  const seenPackages = new Set<string>();
+
+  const processLine = (line: string): void => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    // Track progress via "Collecting" lines
+    const collectingMatch = trimmed.match(/^Collecting\s+(\S+)/i);
+    if (collectingMatch) {
+      seenPackages.add(collectingMatch[1].replace(/[>=<!].*$/, '').toLowerCase());
     }
 
-    const pipExecutable = getPipExecutablePath();
-    const pipArgs = isWindows
-      ? ['-m', 'pip', 'install', ...packages]
-      : ['install', ...packages];
-    const executable = isWindows ? getPythonExecutablePath() : pipExecutable;
-    const envPath = path.join(getResourcePath(), 'env');
+    const satisfiedMatch = trimmed.match(/^Requirement already satisfied:\s+(\S+)/i);
+    if (satisfiedMatch) {
+      seenPackages.add(satisfiedMatch[1].replace(/[>=<!].*$/, '').toLowerCase());
+    }
 
-    log.info('[VoiceService] Installing voice packages:', packages.join(', '));
+    // Emit progress — pip install spans 0-50% of the total, across all groups.
+    onProgress({
+      sttDownloaded: false,
+      ttsDownloaded: false,
+      vadDownloaded: true,
+      downloading: true,
+      progress: Math.min(seenPackages.size / Math.max(totalPackages, 1), 1) * 0.5,
+      statusMessage: trimmed,
+      sttModelName: DEFAULT_STT_MODEL_NAME,
+      ttsModelName: 'Kokoro-82M',
+    });
+  };
 
-    const pipProcess = spawn(executable, pipArgs, { cwd: envPath });
+  const installGroup = (group: { name: string; packages: string[] }): Promise<boolean> =>
+    new Promise((resolve) => {
+      const pipArgs = buildPipArgs(isWindows, group.name, group.packages);
+      const executable = isWindows ? getPythonExecutablePath() : pipExecutable;
 
-    const seenPackages = new Set<string>();
+      log.info(`[VoiceService] Installing voice package group '${group.name}':`, group.packages.join(', '));
 
-    const processLine = (line: string): void => {
-      const trimmed = line.trim();
-      if (!trimmed) return;
+      const pipProcess = spawn(executable, pipArgs, { cwd: envPath });
+      activePipProcess = pipProcess;
 
-      // Track progress via "Collecting" lines
-      const collectingMatch = trimmed.match(/^Collecting\s+(\S+)/i);
-      if (collectingMatch) {
-        const pkgName = collectingMatch[1].replace(/[>=<!].*$/, '');
-        seenPackages.add(pkgName.toLowerCase());
-      }
+      let outputBuffer = '';
 
-      const satisfiedMatch = trimmed.match(/^Requirement already satisfied:\s+(\S+)/i);
-      if (satisfiedMatch) {
-        const pkgName = satisfiedMatch[1].replace(/[>=<!].*$/, '');
-        seenPackages.add(pkgName.toLowerCase());
-      }
-
-      // Emit progress — pip install is 0-50% of total
-      const pipProgress = Math.min(seenPackages.size / Math.max(packages.length, 1), 1);
-      onProgress({
-        sttDownloaded: false,
-        ttsDownloaded: false,
-        vadDownloaded: true,
-        downloading: true,
-        progress: pipProgress * 0.5,
-        statusMessage: trimmed,
-        sttModelName: DEFAULT_STT_MODEL_NAME,
-        ttsModelName: 'Kokoro-82M',
+      pipProcess.stdout.on('data', (data: Buffer) => {
+        const text = data.toString('utf8');
+        log.info('[VoiceService] pip:', text);
+        outputBuffer += text;
+        const lines = outputBuffer.split(/\r?\n/);
+        outputBuffer = lines.pop() || '';
+        for (const line of lines) processLine(line);
       });
-    };
 
-    let outputBuffer = '';
+      pipProcess.stderr.on('data', (data: Buffer) => {
+        log.error('[VoiceService] pip error:', data.toString());
+      });
 
-    pipProcess.stdout.on('data', (data: Buffer) => {
-      const text = data.toString('utf8');
-      log.info('[VoiceService] pip:', text);
-      outputBuffer += text;
-      const lines = outputBuffer.split(/\r?\n/);
-      outputBuffer = lines.pop() || '';
-      for (const line of lines) processLine(line);
-    });
-
-    pipProcess.stderr.on('data', (data: Buffer) => {
-      log.error('[VoiceService] pip error:', data.toString());
-    });
-
-    pipProcess.on('close', (code) => {
-      if (outputBuffer.trim()) processLine(outputBuffer);
-      if (code === 0 || code === null) {
-        log.info('[VoiceService] Voice packages installed successfully');
-        resolve(true);
-      } else {
-        log.error('[VoiceService] pip install failed with code:', code);
+      pipProcess.on('close', (code) => {
+        if (outputBuffer.trim()) processLine(outputBuffer);
+        if (activePipProcess === pipProcess) {
+          activePipProcess = null;
+        }
+        if (code === 0) {
+          log.info(`[VoiceService] Voice package group '${group.name}' installed successfully`);
+          resolve(true);
+          return;
+        }
+        if (code === null && pipAbortRequested) {
+          // Killed by an intentional cancel — not an install error.
+          log.info(`[VoiceService] Voice package group '${group.name}' install aborted`);
+          resolve(false);
+          return;
+        }
+        if (code === null) {
+          log.error(`[VoiceService] pip install for group '${group.name}' terminated unexpectedly without an exit code`);
+        } else {
+          log.error(`[VoiceService] pip install for group '${group.name}' failed with code:`, code);
+        }
         resolve(false);
-      }
+      });
+
+      pipProcess.on('error', (err) => {
+        log.error(`[VoiceService] Failed to spawn pip for group '${group.name}':`, err);
+        resolve(false);
+      });
     });
 
-    pipProcess.on('error', (err) => {
-      log.error('[VoiceService] Failed to spawn pip:', err);
-      resolve(false);
+  const failedGroups: string[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    const ok = await installGroup(groups[i]);
+    if (ok) continue;
+    if (pipAbortRequested) {
+      // Intentional cancel — do not start the remaining groups.
+      return false;
+    }
+    failedGroups.push(groups[i].name);
+    if (i === 0) {
+      // The first group (voice / voice-windows) is essential — abort.
+      return false;
+    }
+  }
+
+  if (failedGroups.length > 0) {
+    // Non-essential groups failed: keep going, but surface which ones.
+    onProgress({
+      sttDownloaded: false,
+      ttsDownloaded: false,
+      vadDownloaded: true,
+      downloading: true,
+      progress: 0.5,
+      statusMessage: `Some voice packages failed to install: ${failedGroups.join(', ')}`,
+      sttModelName: DEFAULT_STT_MODEL_NAME,
+      ttsModelName: 'Kokoro-82M',
     });
-  });
+  }
+  return true;
 }
 
 // ============================================================================
@@ -404,8 +483,52 @@ function stopSystemTTS(): void {
 // Model Status Check
 // ============================================================================
 
-async function checkModelStatus(language: string): Promise<VoiceModelStatus> {
-  const status: VoiceModelStatus = {
+type VoiceDevice = 'cuda' | 'mps' | 'cpu';
+
+/**
+ * VoiceModelStatus as relayed over IPC. `device` comes straight from the
+ * shared type (backend-reported inference device); `cpuWarning` is derived
+ * locally when the TTS backend reports device 'cpu' and is intentionally
+ * not part of the shared VoiceModelStatus type.
+ */
+interface VoiceModelStatusPayload extends VoiceModelStatus {
+  cpuWarning?: boolean;
+}
+
+function parseBackendDevice(value: unknown): VoiceDevice | undefined {
+  return value === 'cuda' || value === 'mps' || value === 'cpu' ? value : undefined;
+}
+
+interface VoiceDeviceHints {
+  device?: VoiceDevice;
+  cpuWarning?: boolean;
+}
+
+/**
+ * Single source of truth for device hints relayed to the renderer: `device`
+ * is the display device (TTS wins, STT fallback), `cpuWarning` fires when
+ * either model runs on cpu - STT is the time-critical stage of the realtime
+ * voice agent and must not be masked by a GPU TTS.
+ */
+function deriveDeviceHints(
+  sttRes: Record<string, unknown> | null,
+  ttsRes: Record<string, unknown> | null,
+): VoiceDeviceHints {
+  const ttsDevice = ttsRes ? parseBackendDevice(ttsRes.device) : undefined;
+  const sttDevice = sttRes ? parseBackendDevice(sttRes.device) : undefined;
+  const hints: VoiceDeviceHints = {};
+  const device = ttsDevice ?? sttDevice;
+  if (device) {
+    hints.device = device;
+  }
+  if (ttsDevice === 'cpu' || sttDevice === 'cpu') {
+    hints.cpuWarning = true;
+  }
+  return hints;
+}
+
+async function checkModelStatus(language: string): Promise<VoiceModelStatusPayload> {
+  const status: VoiceModelStatusPayload = {
     sttDownloaded: false,
     ttsDownloaded: false,
     vadDownloaded: true, // VAD is loaded via torch.hub, always "available" if voice deps installed
@@ -433,6 +556,13 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatus> {
     if (backendSttEngine) {
       status.sttEngine = backendSttEngine;
     }
+    const hints = deriveDeviceHints(sttRes, ttsRes);
+    if (hints.device) {
+      status.device = hints.device;
+    }
+    if (hints.cpuWarning) {
+      status.cpuWarning = true;
+    }
   } catch (err) {
     log.error("error", err);
     status.error = err instanceof Error ? err.message : String(err);
@@ -446,7 +576,7 @@ async function isQwen3TtsEngine(language: string): Promise<boolean> {
   try {
     const ttsStatus = await fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language }));
     const modelName = String(ttsStatus.modelName ?? '');
-    return modelName.toLowerCase().includes('qwen3');
+    return modelName.startsWith('Qwen3');
   } catch (err) {
     log.error("error", err);
     return false;
@@ -748,15 +878,26 @@ async function generateTTS(
 
   // Check if TTS model is loaded — if not, signal that model loading is in progress
   let modelLoading = false;
+  let deviceHints: VoiceDeviceHints = {};
   try {
-    const ttsStatus = await fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language }));
+    const [sttStatus, ttsStatus] = await Promise.all([
+      fetchJson(API_ENDPOINTS.voiceSttStatus),
+      fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language })),
+    ]);
     modelLoading = !(ttsStatus.loaded as boolean);
+    deviceHints = deriveDeviceHints(sttStatus, ttsStatus);
   } catch (e) {
     log.error("error", e);
-    // If status check fails, proceed without the flag
+    // If status checks fail, proceed without the hints
   }
 
-  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: false, modelLoading });
+  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+    generating: true,
+    playing: false,
+    modelLoading,
+    ...(deviceHints.device ? { device: deviceHints.device } : {}),
+    ...(deviceHints.cpuWarning ? { cpuWarning: true } : {}),
+  });
 
   // Poll model loading progress while waiting for the TTS response
   let progressPollTimer: ReturnType<typeof setInterval> | null = null;
@@ -767,12 +908,18 @@ async function generateTTS(
         return;
       }
       try {
-        const s = await fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language }));
+        const [sttStatus, s] = await Promise.all([
+          fetchJson(API_ENDPOINTS.voiceSttStatus),
+          fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language })),
+        ]);
+        const hints = deriveDeviceHints(sttStatus, s);
         sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
           generating: true,
           playing: false,
           modelLoading: !(s.loaded as boolean) || ((s.downloading as boolean) ?? false),
           downloadProgress: s.progress as number ?? 0,
+          ...(hints.device ? { device: hints.device } : {}),
+          ...(hints.cpuWarning ? { cpuWarning: true } : {}),
         });
       } catch (e) {
         log.error("error", e);
@@ -838,16 +985,17 @@ function generateSystemTTS(
   }
 
   const runtime = getLanguageTtsRuntime(language);
-  let command: string;
+  let commandChain: string[];
   let args: string[];
   if (isMac) {
-    command = 'say';
+    commandChain = ['say'];
     args = runtime.macosVoice ? ['-v', runtime.macosVoice, sanitized] : [sanitized];
   } else if (isLinux) {
-    command = 'espeak';
+    // Probe espeak-ng first; older distros only ship the legacy espeak binary.
+    commandChain = ['espeak-ng', 'espeak'];
     args = ['-v', runtime.espeakVoice || language, sanitized];
   } else {
-    command = isWindows ? 'powershell' : 'powershell';
+    commandChain = ['powershell'];
     const voice = runtime.windowsVoice;
     const voiceCommand = typeof voice === 'string' && voice.trim()
       ? `$s.SelectVoice('${voice.replace(/'/g, "''")}'); `
@@ -861,14 +1009,35 @@ function generateSystemTTS(
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: true });
 
   return new Promise((resolve) => {
-    const child = execFile(command, args, () => {
-      if (activeSystemTtsProcess === child) {
-        activeSystemTtsProcess = null;
-      }
-      sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
-      resolve();
-    });
-    activeSystemTtsProcess = child;
+    const speakWith = (index: number): void => {
+      const command = commandChain[index];
+      const child = execFile(command, args, (err) => {
+        if (activeSystemTtsProcess === child) {
+          activeSystemTtsProcess = null;
+        }
+        const missing = (err as NodeJS.ErrnoException | null)?.code === 'ENOENT';
+        if (missing && index + 1 < commandChain.length) {
+          log.warn(`[VoiceService] '${command}' not found, falling back to '${commandChain[index + 1]}'`);
+          speakWith(index + 1);
+          return;
+        }
+        if (missing && commandChain.length > 1) {
+          // Exhausted the system TTS probe chain (Linux) — surface the failure
+          // instead of silently resolving.
+          sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+            generating: false,
+            playing: false,
+            error: 'System TTS unavailable: no espeak-ng or espeak binary found. Install espeak-ng to enable system text-to-speech.',
+          });
+          resolve();
+          return;
+        }
+        sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+        resolve();
+      });
+      activeSystemTtsProcess = child;
+    };
+    speakWith(0);
   });
 }
 

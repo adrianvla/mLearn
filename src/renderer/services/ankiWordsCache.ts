@@ -12,7 +12,15 @@ import type { AnkiWordStatusRecord } from '../../shared/backends/types';
 import type { LanguageData } from '../../shared/types';
 import { getResolvedScriptProfile } from '../../shared/languageScriptProfile';
 import { normalizeWordLookupText } from '../../shared/utils/textUtils';
+import { statusToEase } from '../../shared/utils/knowledgeStrength';
 import { getLogger } from '../../shared/utils/logger';
+import type { WordStatus } from '../../shared/constants';
+import { hashWordSync } from './srsAlgorithm';
+import { getBridge } from '../../shared/bridges';
+import { stripRetractions } from '../../shared/knowledgeEvents';
+import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
+import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
+import { appendEvents } from './knowledgeEvents';
 
 const log = getLogger("renderer.services.ankiWordsCache");
 
@@ -35,7 +43,19 @@ const cachesBySignature = new Map<string, AnkiWordsCacheEntry>();
 export interface AnkiWordsCacheOptions {
   language?: string;
   languageData?: LanguageData | null;
+  ankiLearningThreshold?: number;
+  ankiKnownThreshold?: number;
 }
+
+interface DiffConfig {
+  learning: number;
+  known: number;
+}
+const diffConfigBySignature = new Map<string, DiffConfig>();
+const lastAnkiStatusByLk = new Map<string, WordStatus>();
+
+const AUTO_REFETCH_BACKOFF_MS = 30_000;
+const lastAutoFetchAtBySignature = new Map<string, number>();
 
 function getCacheSignature(options?: AnkiWordsCacheOptions): string {
   const language = options?.language ?? '';
@@ -71,6 +91,23 @@ function getCacheEntry(options?: AnkiWordsCacheOptions): AnkiWordsCacheEntry {
   if (options && 'languageData' in options) {
     entry.languageData = options.languageData;
   }
+  if (options?.ankiLearningThreshold != null && options?.ankiKnownThreshold != null) {
+    diffConfigBySignature.set(signature, {
+      learning: options.ankiLearningThreshold,
+      known: options.ankiKnownThreshold,
+    });
+  }
+  // Reads own cache population (no per-surface wiring): the first read on an
+  // unfetched entry starts the fetch; the version bump on completion re-runs
+  // reactive readers. Failed fetches auto-retry at most once per backoff
+  // window; explicit fetch/refresh are never backoff-gated.
+  ankiCacheVersion();
+  if (!entry.fetched && !entry.fetchPromise) {
+    const lastAttempt = lastAutoFetchAtBySignature.get(signature) ?? 0;
+    if (Date.now() - lastAttempt >= AUTO_REFETCH_BACKOFF_MS) {
+      void startEntryFetch(entry, options, signature);
+    }
+  }
   return entry;
 }
 
@@ -80,6 +117,60 @@ function getActiveCacheEntry(): AnkiWordsCacheEntry {
     if (active) return active;
   }
   return getCacheEntry();
+}
+
+async function diffAnkiStatuses(signature: string, language: string, cards: AnkiWordStatusRecord[]): Promise<void> {
+  const cfg = diffConfigBySignature.get(signature);
+  if (!cfg) return;
+  const byWord = new Map<string, AnkiWordStatusRecord[]>();
+  for (const card of cards) {
+    const existing = byWord.get(card.word);
+    if (existing) existing.push(card);
+    else byWord.set(card.word, [card]);
+  }
+  const computed = new Map<string, WordStatus>();
+  const lksByWord = new Map<string, string>();
+  for (const [word, wordCards] of byWord) {
+    const toStatus = getAnkiWordKnowledgeStatus(wordCards, cfg.learning, cfg.known);
+    if (!toStatus || toStatus === 'unknown') continue;
+    computed.set(word, toStatus);
+    lksByWord.set(word, `${language}:${hashWordSync(word)}`);
+  }
+  if (computed.size === 0) return;
+  // Baseline from the journal: the durable record of the last asserted Anki
+  // status. Without it every restart would re-assert unknown→known for the
+  // whole bank (thousands of duplicate rows per launch).
+  const missingPriors = [...new Set(lksByWord.values())].filter((lk) => !lastAnkiStatusByLk.has(lk));
+  if (missingPriors.length > 0) {
+    try {
+      const priorLog = await getBridge().knowledgeEvents.queryKnowledgeEvents(missingPriors);
+      for (const [lk, events] of Object.entries(priorLog)) {
+        const prior = stripRetractions(events)
+          .filter((event) => event.source === 'anki' && event.kind === 'status' && event.toStatus !== undefined)
+          .at(-1)?.toStatus;
+        if (prior !== undefined) lastAnkiStatusByLk.set(lk, prior);
+      }
+    } catch (e) {
+      log.warn('anki status prior lookup failed:', e);
+    }
+  }
+  const eventsByKey: Record<string, KnowledgeEvent[]> = {};
+  const now = Date.now();
+  for (const [word, toStatus] of computed) {
+    const lk = lksByWord.get(word)!;
+    const fromStatus = lastAnkiStatusByLk.get(lk) ?? 'unknown';
+    lastAnkiStatusByLk.set(lk, toStatus);
+    if (fromStatus !== toStatus) {
+      eventsByKey[lk] = [{
+        t: now, kind: 'status', source: 'anki', aspect: 'meaning',
+        fromStatus, toStatus,
+        easeAfter: statusToEase(toStatus),
+      }];
+    }
+  }
+  if (Object.keys(eventsByKey).length > 0) {
+    appendEvents(eventsByKey).catch((e) => log.warn('anki status diff append failed:', e));
+  }
 }
 
 function getLookupKeys(word: string, entry: AnkiWordsCacheEntry): string[] {
@@ -121,7 +212,15 @@ export async function fetchAnkiWordsCache(options?: AnkiWordsCacheOptions): Prom
   const entry = getCacheEntry(options);
   if (entry.fetched) return entry.wordsSet;
   if (entry.fetchPromise) return entry.fetchPromise;
+  return startEntryFetch(entry, options);
+}
 
+function startEntryFetch(
+  entry: AnkiWordsCacheEntry,
+  options?: AnkiWordsCacheOptions,
+  signature = getCacheSignature(options),
+): Promise<Set<string>> {
+  lastAutoFetchAtBySignature.set(signature, Date.now());
   entry.fetchPromise = (async () => {
     try {
       const cards = await getBackend().getAnkiWordStatuses();
@@ -146,6 +245,7 @@ export async function fetchAnkiWordsCache(options?: AnkiWordsCacheOptions): Prom
       entry.wordCardsMap = nextMap;
       entry.fetched = true;
       entry.lastError = null;
+      await diffAnkiStatuses(getCacheSignature(options), options?.language ?? '', cards);
     } catch (e) {
       log.error("error", e);
       // Silently fail — this cache entry stays empty
@@ -213,6 +313,51 @@ export function findWordInAnkiCache(words: readonly string[], options?: AnkiWord
   return findAnkiWordMatchInCache(words, options)?.word ?? null;
 }
 
+/**
+ * Bulk anki-bank status keys for the O(n) set builders (level stats, suggestion
+ * filtering) that aggregate over every word at once and can't call the per-word
+ * resolver. Reads the cache version signal, so reactive callers rebuild on anki
+ * syncs. Keys follow the `${language}:${hash}` shape each caller queries with —
+ * pass the caller's own form expansion (canonical-only where queries canonicalize;
+ * the full form family where queries cover surface variants).
+ */
+export function buildAnkiStatusKeySets(
+  language: string,
+  ankiLearningThreshold: number,
+  ankiKnownThreshold: number,
+  formsForWord: (word: string) => readonly string[],
+  languageData?: LanguageData | null,
+): { known: ReadonlySet<string>; learning: ReadonlySet<string> } {
+  ankiCacheVersion();
+  const known = new Set<string>();
+  const learning = new Set<string>();
+  // Fetches are per-signature (language + language metadata) and not every caller
+  // fetches with full options — fall back to the last-fetched entry rather than
+  // reading an empty one.
+  const active = getActiveCacheEntry();
+  const preferred = getCacheEntry({ language, languageData, ankiLearningThreshold, ankiKnownThreshold });
+  const entry = preferred.fetched ? preferred : active;
+  if (!entry.fetched) return { known, learning };
+
+  const byWord = new Map<string, AnkiWordStatusRecord[]>();
+  for (const cards of entry.wordCardsMap.values()) {
+    for (const card of cards) {
+      const existing = byWord.get(card.word);
+      if (existing) existing.push(card);
+      else byWord.set(card.word, [card]);
+    }
+  }
+  for (const [word, cards] of byWord) {
+    const status = getAnkiWordKnowledgeStatus(cards, ankiLearningThreshold, ankiKnownThreshold);
+    if (!status || status === 'unknown') continue;
+    const target = status === 'known' ? known : learning;
+    for (const form of formsForWord(word)) {
+      target.add(`${language}:${hashWordSync(form)}`);
+    }
+  }
+  return { known, learning };
+}
+
 /** Check whether the cache has been populated */
 export function isAnkiCacheFetched(options?: AnkiWordsCacheOptions): boolean {
   const signature = options ? getCacheSignature(options) : activeCacheSignature;
@@ -247,6 +392,7 @@ export async function refreshAnkiWordsCache(options?: AnkiWordsCacheOptions): Pr
 
 export function clearAnkiWordsCache(): void {
   cachesBySignature.clear();
+  lastAutoFetchAtBySignature.clear();
   activeCacheSignature = '';
   setAnkiCacheVersion(v => v + 1);
 }

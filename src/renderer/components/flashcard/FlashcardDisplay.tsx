@@ -12,6 +12,7 @@
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on, onCleanup } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
+import type { KnowledgeAspect } from '../../../shared/constants';
 import { Panel, PillLabel, IconBtn, HoverReveal, AnkiIcon, SafeHtml } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardWordTitle } from './FlashcardWordTitle';
@@ -20,7 +21,7 @@ import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import { RefreshIcon } from '../common';
 import { isElectron } from '../../../shared/platform';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
-import { findWordInAnkiCache, fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { ankiCacheVersion, findWordInAnkiCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import './FlashcardDisplay.css';
 
@@ -34,6 +35,8 @@ export interface FlashcardDisplayProps {
   ttsMetadata?: TtsMetadata | null;
   onRegenerateExample?: (cardId: string) => void;
   regeneratingExample?: boolean;
+  /** Session-local review focus mode; the back face reveals the focused aspect. */
+  reviewMode?: KnowledgeAspect;
   style?: JSX.CSSProperties;
 }
 
@@ -83,23 +86,13 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     return url;
   });
 
-  // Ensure the Anki words cache is populated so the duplicate indicator works
   const ankiCacheOptions = createMemo(() => ({
     language: cardLanguage(),
     languageData: cardLanguageData(),
   }));
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
-  createEffect(() => {
-    const options = ankiCacheOptions();
-    if (!settings.use_anki) {
-      setAnkiCacheReady(false);
-      return;
-    }
-    if (isAnkiCacheFetched(options)) {
-      setAnkiCacheReady(true);
-      return;
-    }
-    fetchAnkiWordsCache(options).then(() => setAnkiCacheReady(true));
+  const ankiCacheReady = createMemo(() => {
+    ankiCacheVersion();
+    return settings.use_anki && isAnkiCacheFetched(ankiCacheOptions());
   });
 
   // Check if this card's word exists in Anki (for duplicate indicator)
@@ -358,7 +351,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <div class="flashcard-word-header">
-            <FlashcardWordTitle content={content()} language={props.flashcard.language} />
+            <FlashcardWordTitle content={content()} language={props.flashcard.language} reviewMode={props.reviewMode} />
             <Show when={props.onPlayTts}>
               <IconBtn
                 icon="volume"

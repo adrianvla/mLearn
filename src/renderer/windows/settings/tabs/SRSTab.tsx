@@ -20,6 +20,7 @@ import {
 } from '../../../components/common';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { useAnki, type AnkiNoteInfo } from '../../../hooks/useAnki';
+import { importAnkiReviewHistory } from '../../../services/ankiReviewImport';
 import '../SettingsForm.css';
 import './AnkiFieldPreview.css';
 import Icon from "@renderer/components/common/Icons/Icon";
@@ -30,7 +31,9 @@ export const SRSTab: Component = () => {
   const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { store, updateMeta, resetSRS, nukeAllFlashcards } = useFlashcards();
-  const { getLanguageFeatures } = useLanguage();
+  const { recomputeWordKnowledgeFromEvidence } = useFlashcards();
+
+  const { getLanguageFeatures, currentLangData } = useLanguage();
   const anki = useAnki();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
 
@@ -48,6 +51,37 @@ export const SRSTab: Component = () => {
   // Nuke all flashcards modal state
   const [showNukeModal, setShowNukeModal] = createSignal(false);
   const [nukeConfirmPhrase, setNukeConfirmPhrase] = createSignal('');
+
+  const [importingHistory, setImportingHistory] = createSignal(false);
+
+  const importReviewHistory = async () => {
+    if (importingHistory()) return;
+    setImportingHistory(true);
+    try {
+      const result = await importAnkiReviewHistory(settings.language, {
+        fetchReviews: (ids: number[]) => anki.getReviewsOfCards(ids),
+        fetchCards: (ids: number[]) => anki.getCardsInfo(ids),
+        grammar: currentLangData()?.grammar,
+      });
+      // Anki evidence is no longer a knowledge source — refresh materialized
+      // wordKnowledge projections from the freshly appended event journal.
+      for (const word of result.importedWords) {
+        void recomputeWordKnowledgeFromEvidence(word, settings.language);
+      }
+      showToast({
+        message: t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Success', {
+          imported: result.imported,
+          words: result.words,
+          skipped: result.skipped,
+        }),
+        variant: 'success',
+      });
+    } catch {
+      showToast({ message: t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Failed'), variant: 'error' });
+    } finally {
+      setImportingHistory(false);
+    }
+  };
 
   const RESET_PHRASE = 'RESET';
   const NUKE_PHRASE = 'DELETE';
@@ -243,6 +277,17 @@ export const SRSTab: Component = () => {
             <Show when={ankiStatus() === 'error'}>
               <span class="anki-status-text--error">{t('mlearn.Settings.SRS.AnkiIntegration.Failed')}</span>
             </Show>
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Description')}
+          >
+            <Btn size="sm" disabled={importingHistory()} onClick={importReviewHistory}>
+              {t(importingHistory()
+                ? 'mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Running'
+                : 'mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Button')}
+            </Btn>
           </SettingRow>
 
           <SettingRow

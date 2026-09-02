@@ -127,11 +127,15 @@ describe('FlashcardStats', () => {
   });
 
   it('renders daily activity hidden entries as date plus review/new counts', () => {
+    // The activity window is the trailing 30 days ending today (local date),
+    // so derive the fixture date instead of hardcoding one that ages out.
+    const now = new Date();
+    const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     mocks.store.dailyStats = {
-      '2026-08-01': { en: dayStats({ newCardsStudied: 3, reviewCardsStudied: 7 }) },
+      [dateKey]: { en: dayStats({ newCardsStudied: 3, reviewCardsStudied: 7 }) },
     };
     const container = mount();
-    expect(container.textContent).toContain('2026-08-01: 7/3');
+    expect(container.textContent).toContain(`${dateKey}: 7/3`);
   });
 
   it('uses the localized key for interval bucket labels in the hidden list', () => {

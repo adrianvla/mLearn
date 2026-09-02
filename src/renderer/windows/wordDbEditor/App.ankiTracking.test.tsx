@@ -10,7 +10,6 @@ import { clearAnkiWordsCache } from '../../services/ankiWordsCache';
 
 const mockGetAnkiWordStatuses = vi.fn<() => Promise<AnkiWordStatusRecord[]>>(() => Promise.resolve([]));
 const mockGetCard = vi.fn(async () => ({ error: true, poor: false, cards: [] }));
-const mockLoadWordsFromStorage = vi.fn(async () => undefined);
 const mockShowToast = vi.fn();
 const mockSearchBarProps: { current?: { setFilterTokens?: (tokens: FilterToken[]) => void } } = {};
 const [mockUseAnkiEnabled, setMockUseAnkiEnabled] = createSignal(false);
@@ -25,6 +24,11 @@ vi.mock('../../../shared/backends', () => ({
     getCard: mockGetCard,
   }),
 }));
+vi.mock('../../services/dictionaryUniverse', () => ({
+  loadDictionaryUniverse: vi.fn(async () => []),
+  clearDictionaryUniverseCache: vi.fn(),
+}));
+
 
 vi.mock('../../components/common/Feedback/Toast', () => ({
   showToast: (...args: unknown[]) => mockShowToast(...args),
@@ -93,10 +97,6 @@ vi.mock('../../context', async () => {
   };
 });
 
-vi.mock('../../services/statsService', () => ({
-  loadWordsFromStorage: mockLoadWordsFromStorage,
-}));
-
 vi.mock('../../hooks/useAnki', () => ({
   useAnki: () => ({
     checkConnection: vi.fn(async () => false),
@@ -104,6 +104,18 @@ vi.mock('../../hooks/useAnki', () => ({
     addNote: vi.fn(async () => null),
   }),
 }));
+
+vi.mock('../../../shared/bridges', () => ({
+  getBridge: () => ({
+    graph: { getKnowledgeProjection: () => Promise.resolve({ status: 'unavailable', targets: [] }) },
+    window: {
+      onWindowContext: () => undefined,
+      getWindowContext: () => undefined,
+    },
+  }),
+}));
+
+vi.mock('../../services/openGraphInspector', () => ({ openGraphInspector: () => undefined }));
 
 vi.mock('../../components/common', async () => {
   const presets = await import('../../components/common/FilterBuilder/presets');
@@ -123,6 +135,8 @@ vi.mock('../../components/common', async () => {
       <span class={props.class}>{props.children}</span>
     ),
     AnkiHoverPreview: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+    KnowledgeCapabilityChips: () => null,
+    KnowledgeProjectionDrawer: () => null,
     buildEmptyPreset: presets.buildEmptyPreset,
     buildWordDbEditorFields: presets.buildWordDbEditorFields,
     validateTokens: expr.validateTokens,
@@ -191,7 +205,6 @@ describe('WordDbEditorContent Anki tracking', () => {
     mockGetAnkiWordStatuses.mockResolvedValue([]);
     mockGetCard.mockReset();
     mockGetCard.mockResolvedValue({ error: true, poor: false, cards: [] });
-    mockLoadWordsFromStorage.mockClear();
     mockShowToast.mockClear();
     mockSearchBarProps.current = undefined;
     clearAnkiWordsCache();
@@ -210,7 +223,6 @@ describe('WordDbEditorContent Anki tracking', () => {
 
     expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
     expect(trackerCellTexts()['青い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
-    const storageCallsBeforeAnki = mockLoadWordsFromStorage.mock.calls.length;
 
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '赤い', queue: 2, type: 2 }]);
     setMockUseAnkiEnabled(true);
@@ -220,7 +232,6 @@ describe('WordDbEditorContent Anki tracking', () => {
     // Tracker cell reacts to the async Anki enablement without reloading words
     expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Anki');
     expect(trackerCellTexts()['青い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
-    expect(mockLoadWordsFromStorage.mock.calls.length).toBe(storageCallsBeforeAnki);
 
     // Status filter uses the live status chain and matches the same rows
     mockSearchBarProps.current?.setFilterTokens?.([
@@ -235,7 +246,7 @@ describe('WordDbEditorContent Anki tracking', () => {
     dispose();
   });
 
-  it('shows an error toast and refetches on window focus when the Anki cache fetch fails', async () => {
+  it('refetches on window focus when the Anki cache fetch fails', async () => {
     setMockUseAnkiEnabled(true);
     mockGetAnkiWordStatuses.mockRejectedValue(new Error('anki down'));
     const { WordDbEditorContent } = await import('./App');
@@ -244,7 +255,6 @@ describe('WordDbEditorContent Anki tracking', () => {
     await flush();
     await flush();
 
-    expect(mockShowToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'error' }));
     expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
 
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '赤い', queue: 2, type: 2 }]);

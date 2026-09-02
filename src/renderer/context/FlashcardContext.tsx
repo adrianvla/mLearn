@@ -8,7 +8,13 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
-import type { WordStatus } from '../../shared/constants';
+import { type AttemptQuality } from '../../shared/constants';
+import { isSurfaceScopedAspect } from '../../shared/graph/targets';
+import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
+import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
+import { effectiveStateFromEntry, type EffectiveWordState } from '../utils/effectiveKnowledge';
+import { replayKeyProjection } from '../../shared/utils/projectionReplay';
+import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -21,7 +27,7 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure, shouldUpdateFlashcardOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
-import { ankiCacheVersion, findAnkiWordMatchInCache } from '../services/ankiWordsCache';
+import { ankiCacheVersion, buildAnkiStatusKeySets, findAnkiWordMatchInCache } from '../services/ankiWordsCache';
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { getWordFormCandidates } from '../utils/wordForms';
@@ -31,8 +37,13 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
-import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource } from '../utils/comprehensiveKnowledge';
+import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
+import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, type AspectStatusResult } from '../utils/aspectKnowledge';
+import { appendEvents, getEventLogForLanguage } from '../services/knowledgeEvents';
+import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
+import { nextAttemptId, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
+import { selectEncounterBatch } from '../learning/engine';
 import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../utils/translationCacheParsers';
@@ -200,7 +211,12 @@ interface FlashcardContextValue {
   buryCard: (id: string) => void;
 
   // Review operations
-  answerCard: (rating: SRS.Rating, cardId?: string, timeSpentMs?: number) => boolean;
+  answerCard: (
+    rating: SRS.Rating,
+    cardId?: string,
+    timeSpentMs?: number,
+    attempt?: { attemptId: AttemptId },
+  ) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
 
@@ -279,6 +295,7 @@ interface FlashcardContextValue {
   trackWordHovered: (word: string, reading?: string, language?: string) => void;
   cancelWordHover: (word: string, language?: string) => void;
   getWordKnowledge: (wordHash: string) => PassiveWordKnowledge | undefined;
+  getAspectStatus: (word: string, aspect: KnowledgeAspect, language?: string) => AspectStatusResult;
   isWordKnown: (wordHash: string) => boolean;
   isWordKnownByText: (word: string, language?: string) => boolean;
   isWordLearning: (wordHash: string) => boolean;
@@ -289,16 +306,38 @@ interface FlashcardContextValue {
   getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => import('../../renderer/utils/comprehensiveKnowledge').ComprehensiveWordStatusResult;
   /** Shorthand: is word known by any knowledge bank? */
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
+  /** Selection predicate: evidence-backed known OR explicit exclusion (never claims knowledge). */
+  isWordSettledSync: (word: string, language?: string) => boolean;
   trackWordStatusChange: (word: string, language?: string) => void;
-  setWordKnowledgeEase: (word: string, ease: number, reading?: string, language?: string) => void;
-  restoreWordSyncRating: (
+  /** Snapshot wordSyncSeen timestamps across all surface-form hashes (undo support for cooldown restore). Policy data only — never knowledge. */
+  getWordSyncSeenSnapshotForForms: (word: string, language?: string) => Record<string, number | undefined>;
+  /** Policy-cooldown restore (wordSyncSeen only). */
+  restoreWordSyncRating: (previousSeenAt: Record<string, number | undefined>, language?: string) => void;
+  /** Projection refresh: rebuild wordKnowledge for a word's family keys from ACTIVE evidence. */
+  recomputeWordKnowledgeFromEvidence: (word: string, language?: string) => Promise<void>;
+  /**
+   * Explicit epistemic claim: "I know / am learning / do not know this", or
+   * null to withdraw. Never touches evidence ease; overrides the effective
+   * classification until cleared. The ONLY manual whole-word status path.
+   */
+  setWordClaim: (word: string, claim: WordStatus | null, language?: string) => void;
+  setAspectStatus: (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, status: WordStatus, source: KnowledgeSource | 'manual', language?: string) => void;
+  /** Withdraw an aspect claim; evidence classification resumes. */
+  clearAspectClaim: (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, language?: string) => void;
+  /**
+   * Canonical attempt-rating evidence interpreter. `attemptId` groups the
+   * observation events of one logical learner response (profile submits pass a
+   * shared id; absent = standalone attempt). Undo retracts the attempt and the
+   * projection replay rebuilds state — no knowledge snapshots.
+   */
+  recordAttempt: (
     word: string,
-    previousKnowledge: PassiveWordKnowledge | undefined,
-    previousSeenAt: number | undefined,
-    language?: string,
-  ) => void;
-  /** Directly set a word's comprehensive status by adjusting its passive ease and clearing conflicting banks */
-  setComprehensiveWordStatus: (word: string, status: WordStatus, language?: string) => void;
+    aspect: KnowledgeAspect,
+    quality: AttemptQuality,
+    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number; attemptId?: AttemptId; origin?: string },
+  ) => { attemptId: AttemptId };
+  /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
+  appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
   setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
 
   // Word sync seen tracking
@@ -306,7 +345,7 @@ interface FlashcardContextValue {
   clearAllWordSyncSeen: () => void;
 
   // Grammar knowledge tracking
-  trackGrammarEncountered: (pattern: string, level?: number, language?: string) => void;
+  trackGrammarEncountered: (pattern: string, levelOrOpts?: number | GrammarEncounterOptions, language?: string) => void;
   trackGrammarFailed: (pattern: string, level?: number, language?: string) => void;
   getGrammarKnowledge: (pattern: string, language?: string) => GrammarKnowledgeEntry | undefined;
 
@@ -410,6 +449,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const handleFlashcardsLoaded = (loaded: FlashcardStore) => {
     const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
     setStore(reconcile(checked));
+    void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
+    void migrateLegacyEpistemicState();
     refreshQueue();
     setIsLoading(false);
   };
@@ -447,6 +488,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
             const parsed = JSON.parse(stored);
             const checked = ensureStoreFields(parsed);
             setStore(reconcile(checked));
+            void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
+            void migrateLegacyEpistemicState();
             refreshQueue();
           } catch (e) {
             log.error('Failed to parse flashcards from KV store:', e);
@@ -466,7 +509,22 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
 
     let flashcards = partial.flashcards || {};
-    const lastDate = partial.meta?.newCardsDate;
+    flashcards = Object.fromEntries(Object.entries(flashcards).map(([id, card]) => [id, {
+      ...card,
+      retentionCache: card.retentionCache ?? {
+        state: card.state,
+        ease: card.ease,
+        interval: card.interval,
+        dueAt: card.dueDate,
+        reviews: card.reviews,
+        lapses: card.lapses,
+        learningStep: card.learningStep,
+        lastReviewed: card.lastReviewed,
+        provenance: 'migrated-scheduler-cache' as const,
+      },
+    }]));
+    // Legacy stores carried the day marker at the top level; perLanguage is canonical now.
+    const lastDate = (partial.meta as { newCardsDate?: string } | undefined)?.newCardsDate;
     if (lastDate && lastDate !== today) {
       flashcards = SRS.unburyCards(flashcards);
     }
@@ -495,13 +553,28 @@ export const FlashcardProvider: ParentComponent = (props) => {
         };
       }
 
-      meta.newCardsToday = meta.perLanguage[lang].newCardsToday;
-      meta.reviewsToday = meta.perLanguage[lang].reviewsToday;
-      meta.newCardsDate = meta.perLanguage[lang].newCardsDate;
-    } else {
-      meta.newCardsToday = 0;
-      meta.reviewsToday = 0;
-      meta.newCardsDate = today;
+    }
+
+    // Migration: strip aspect records seeded by the removed meaning-cascade.
+    // inherited === true was written exclusively by that seeding path — a derived
+    // projection of the meaning status, never learner evidence. Deleted records
+    // resolve to untracked; explicit records and the event log are untouched.
+    const wordKnowledge: FlashcardStore['wordKnowledge'] = {};
+    for (const [lk, entry] of Object.entries(partial.wordKnowledge || {})) {
+      if (!entry?.aspects) {
+        wordKnowledge[lk] = entry;
+        continue;
+      }
+      const kept = Object.fromEntries(
+        // Legacy persisted records may still carry the removed cascade-seed flag.
+        Object.entries(entry.aspects).filter(([, record]) => (record as { inherited?: unknown }).inherited !== true),
+      );
+      if (Object.keys(kept).length === Object.keys(entry.aspects).length) {
+        wordKnowledge[lk] = entry;
+        continue;
+      }
+      const { aspects: _stripped, ...rest } = entry;
+      wordKnowledge[lk] = Object.keys(kept).length > 0 ? { ...rest, aspects: kept } : rest;
     }
 
     return {
@@ -511,15 +584,277 @@ export const FlashcardProvider: ParentComponent = (props) => {
       wordStatsMap: partial.wordStatsMap || {},
       knownUntracked: partial.knownUntracked || {},
       ignoredWords: partial.ignoredWords || {},
-      wordKnowledge: partial.wordKnowledge || {},
+      wordKnowledge,
       grammarKnowledge: partial.grammarKnowledge || {},
       meta,
       dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},
       suggestedFlashcards: partial.suggestedFlashcards || {},
       wordSyncSeen: partial.wordSyncSeen || {},
+      ...(partial.rev !== undefined ? { rev: partial.rev } : {}),
       version: CURRENT_VERSION,
-    };
+  };
+}
+
+/** Entry recency for LWW merges: claim timestamp wins, then status change, then last seen. */
+function knowledgeEntryRecency(entry: PassiveWordKnowledge): number {
+  return entry.claimAt ?? entry.lastStatusChange ?? entry.lastSeen;
+}
+
+/**
+ * Cross-window convergence for knowledge collections: per-entry LWW instead of
+ * whole-store replace. A stale snapshot can no longer revert a newer claim,
+ * evidence write, candidate count, suggestion, or day stat made in another
+ * window.
+ */
+
+/** wordCandidates LWW: the higher encounter count wins; ties break on lastSeen. */
+function mergeWordCandidates(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [lk, entry] of Object.entries(incoming.wordCandidates)) {
+    const current = local.wordCandidates[lk];
+    if (!current || entry.count > current.count || (entry.count === current.count && entry.lastSeen > current.lastSeen)) {
+      local.wordCandidates[lk] = entry;
+    }
   }
+}
+
+/**
+ * grammarKnowledge LWW: concurrent windows replay the same evidence journal,
+ * so the encounter count is the recency signal; at equal counts the higher
+ * ease wins (a failure lowers ease without adding an encounter).
+ */
+function mergeGrammarKnowledge(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [lk, entry] of Object.entries(incoming.grammarKnowledge)) {
+    const current = local.grammarKnowledge[lk];
+    if (
+      !current
+      || entry.timesEncountered > current.timesEncountered
+      || (entry.timesEncountered === current.timesEncountered && entry.ease > current.ease)
+    ) {
+      local.grammarKnowledge[lk] = entry;
+    }
+  }
+}
+
+/** suggestedFlashcards LWW: the most recently seen suggestion wins. */
+function mergeSuggestedFlashcards(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [lk, entry] of Object.entries(incoming.suggestedFlashcards)) {
+    const current = local.suggestedFlashcards[lk];
+    if (!current || entry.lastSeen > current.lastSeen) local.suggestedFlashcards[lk] = entry;
+  }
+}
+
+/** dailyStats: union per day+language, max per counter (concurrent windows each increment their own copy). */
+function mergeDailyStats(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [date, perLanguage] of Object.entries(incoming.dailyStats)) {
+    if (local.dailyStats[date] === undefined) local.dailyStats[date] = {};
+    for (const [lang, stats] of Object.entries(perLanguage)) {
+      const current = local.dailyStats[date][lang];
+      local.dailyStats[date][lang] = current
+        ? {
+            date: stats.date || current.date,
+            newCardsStudied: Math.max(current.newCardsStudied, stats.newCardsStudied),
+            reviewCardsStudied: Math.max(current.reviewCardsStudied, stats.reviewCardsStudied),
+            lapses: Math.max(current.lapses, stats.lapses),
+            timeSpent: Math.max(current.timeSpent, stats.timeSpent),
+            graduated: Math.max(current.graduated, stats.graduated),
+          }
+        : stats;
+    }
+  }
+}
+
+function mergeKnowledgeMaps(local: FlashcardStore, incoming: FlashcardStore): void {
+  for (const [lk, entry] of Object.entries(incoming.wordKnowledge)) {
+    const current = local.wordKnowledge[lk];
+    if (!current || knowledgeEntryRecency(entry) > knowledgeEntryRecency(current)) {
+      local.wordKnowledge[lk] = entry;
+    }
+  }
+  for (const [lk, value] of Object.entries(incoming.knownUntracked)) {
+    if (value && !local.knownUntracked[lk]) local.knownUntracked[lk] = value;
+  }
+  for (const [lk, entry] of Object.entries(incoming.ignoredWords)) {
+    const current = local.ignoredWords[lk];
+    if (!current || entry.ignoredAt > current.ignoredAt) local.ignoredWords[lk] = entry;
+  }
+  for (const [lk, seen] of Object.entries(incoming.wordSyncSeen)) {
+    if (seen > (local.wordSyncSeen[lk] ?? 0)) local.wordSyncSeen[lk] = seen;
+  }
+  mergeWordCandidates(local, incoming);
+  mergeGrammarKnowledge(local, incoming);
+  mergeSuggestedFlashcards(local, incoming);
+  mergeDailyStats(local, incoming);
+}
+
+/**
+ * One-time legacy epistemic migration (Tier 1 → Tier 2 claims/evidence):
+ *
+ * 1. knownUntracked ("known words list" bank) → explicit claim:'known' on the
+ *    word's knowledge entries + kind:'claim' journal events. The bank stops
+ *    being an epistemic source; only unrecoverable orphan hashes remain (see
+ *    isKnownClaimed) until storage migrations recover their word text.
+ * 2. Legacy materialized ease/graduated cards that predate the journal get one
+ *    provenance-marked rollup event each, so the projection is rebuildable
+ *    from evidence for pre-Tier-2 data.
+ *
+ */
+const migrateLegacyEpistemicState = async (): Promise<void> => {
+  const now = Date.now();
+  try {
+    const byLanguage = new Map<string, string[]>();
+    const claimBackfill: Record<string, KnowledgeEvent[]> = {};
+
+    // 1. knownUntracked → claims (word text recoverable via co-located entries).
+    setStore(produce((s) => {
+      for (const [lk, value] of Object.entries(s.knownUntracked)) {
+        if (!value) {
+          delete s.knownUntracked[lk];
+          continue;
+        }
+        const language = lk.includes(':') ? lk.split(':')[0] : settings.language;
+        const word = s.ignoredWords[lk]?.word ?? s.wordKnowledge[lk]?.word;
+        if (!word) continue; // orphan hash — kept until storage migration recovers text
+        const form = getPrimaryWordFormForLanguage(word, language);
+        const wordHash = SRS.hashWordSync(form);
+        const claimLk = langKey(language, wordHash);
+        if (!s.wordKnowledge[claimLk]) {
+          s.wordKnowledge[claimLk] = {
+            ease: SRS.MIN_EASE,
+            lastSeen: now,
+            firstSeen: now,
+            timesSeen: 0,
+            timesHovered: 0,
+            word: form,
+            language,
+          };
+        }
+        s.wordKnowledge[claimLk].claim = 'known';
+        s.wordKnowledge[claimLk].claimAt = now;
+        delete s.knownUntracked[lk];
+        claimBackfill[claimLk] = [{
+          t: now, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known',
+        }];
+        const keys = byLanguage.get(language) ?? [];
+        if (!keys.includes(claimLk)) keys.push(claimLk);
+        byLanguage.set(language, keys);
+      }
+    }));
+    // 2. Evidence backfill for keys the journal has never seen.
+    const additions: KnowledgeEventLog = { ...claimBackfill };
+    const languages = new Set(byLanguage.keys());
+    for (const lk of Object.keys(store.wordKnowledge)) {
+      if (lk.includes(':')) languages.add(lk.split(':')[0]);
+    }
+    // A materialized row proves active provenance when it was last written by
+    // an explicit-status source or links graduated SRS cards (legacy SRS-as-
+    // truth). REQ25: passive-only rows must backfill as passiveTracking — a
+    // 'migration' row is an ACTIVE source on replay and would promote pure
+    // exposure into active evidence.
+    const hasLinkedGraduatedCards = (lk: string): boolean =>
+      (store.wordToCardMap[lk] ?? []).some((id) => {
+        const card = store.flashcards[id];
+        return Boolean(card) && card.state !== 'new';
+      });
+    const isPassiveOnlyRow = (lk: string, entry: PassiveWordKnowledge): boolean =>
+      entry.claim === undefined
+      && entry.hasActiveEvidence !== true
+      && entry.lastStatusChange === undefined
+      && (entry.lastEvidenceSource === undefined || entry.lastEvidenceSource === 'passiveTracking')
+      && !hasLinkedGraduatedCards(lk);
+    for (const language of languages) {
+      let eventLog: KnowledgeEventLog;
+      try {
+        eventLog = await getEventLogForLanguage(language);
+      } catch {
+        continue;
+      }
+      const prefix = `${language}:`;
+      for (const [lk, entry] of Object.entries(store.wordKnowledge)) {
+        if (!lk.startsWith(prefix)) continue;
+        if (eventLog[lk]?.length) continue;
+        if (additions[lk]?.length) continue;
+        if (entry.ease <= SRS.MIN_EASE && entry.timesSeen === 0 && entry.claim === undefined) continue;
+        additions[lk] = [{
+          t: entry.lastSeen || now,
+          kind: 'rollup',
+          source: isPassiveOnlyRow(lk, entry) ? 'passiveTracking' : 'migration',
+          aspect: 'meaning',
+          origin: 'legacy-projection-backfill',
+          easeAfter: entry.ease,
+          ...(entry.timesSeen ? { timesSeenDelta: entry.timesSeen } : {}),
+        }];
+      }
+      // Graduated cards without journal evidence (legacy SRS-as-truth).
+      for (const [lk, cardIds] of Object.entries(store.wordToCardMap)) {
+        if (!lk.startsWith(prefix)) continue;
+        if (eventLog[lk]?.length || additions[lk]?.length) continue;
+        const eases = cardIds
+          .map((id) => store.flashcards[id])
+          .filter((card): card is Flashcard => Boolean(card) && card.state !== 'new')
+          .map((card) => card.ease);
+        if (eases.length === 0) continue;
+        additions[lk] = [{
+          t: now,
+          kind: 'rollup',
+          source: 'migration',
+          aspect: 'meaning',
+          origin: 'legacy-card-backfill',
+          easeAfter: Math.max(...eases),
+        }];
+      }
+    }
+    if (Object.keys(additions).length > 0) {
+      await appendEvents(additions);
+      saveFlashcards();
+    }
+  } catch (error) {
+    log.warn('legacy epistemic migration failed:', error);
+  }
+};
+
+  /**
+   * Imports legacy counters once as recognition-only, provenance-marked
+   * evidence, then (re)materializes the grammar cache. The active language is
+   * always materialized — even with no legacy entries — so a cache rebuilt
+   * from scratch (fresh store, corruption, migration) recovers every pattern
+   * that has active journal evidence.
+   */
+  const migrateLegacyGrammarKnowledge = async (entries: Record<string, GrammarKnowledgeEntry>): Promise<void> => {
+    const grouped = new Map<string, GrammarKnowledgeEntry[]>();
+    for (const entry of Object.values(entries)) {
+      const language = entry.language ?? settings.language;
+      const group = grouped.get(language) ?? [];
+      group.push(entry);
+      grouped.set(language, group);
+    }
+    const languages = new Set(grouped.keys());
+    languages.add(settings.language);
+    for (const language of languages) {
+      const group = grouped.get(language) ?? [];
+      try {
+        const eventLog = await getEventLogForLanguage(language);
+        const additions: KnowledgeEventLog = {};
+        for (const entry of group) {
+          const key = grammarEvidenceKey(language, entry.pattern, 'grammar-recognition');
+          if (eventLog[key]?.length) continue;
+          additions[key] = [{
+            ...grammarRecognitionEvidence(language, entry.pattern, { t: entry.lastSeen, kind: 'rollup' }),
+            origin: 'grammar-legacy-migration',
+            easeAfter: entry.ease,
+            timesSeenDelta: entry.timesEncountered,
+            grammarFailedDelta: entry.timesFailed,
+          }];
+        }
+        if (Object.keys(additions).length > 0) await appendEvents(additions);
+        await materializeGrammarKnowledge(
+          language,
+          group.map((entry) => ({ pattern: entry.pattern, level: entry.level })),
+        );
+      } catch (error) {
+        log.warn('grammar evidence migration failed:', error);
+      }
+    }
+  };
 
   // Save flashcards (debounced to avoid lag during rapid review)
   const saveFlashcards = () => {
@@ -701,7 +1036,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     log.info('%caddFlashcard: wordHash generated:', 'color: magenta;', wordHash);
 
     // Check if marked as known (skip flashcard creation)
-    if (getWordFormKeysSync(word, lang).some((key) => store.knownUntracked[key] || store.ignoredWords[key])) {
+    if (getWordFormKeysSync(word, lang).some((key) => isKnownClaimed(key) || store.ignoredWords[key])) {
       log.info(`Word "${word}" is marked as known, not creating flashcard.`);
       return '';
     }
@@ -990,7 +1325,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
           delete s.wordStatsMap[lk];
           
           if (neverShowAgain) {
-            s.knownUntracked[lk] = true;
+            // Exclusion policy only — never an epistemic claim. The word's
+            // knowledge state stays exactly what its evidence says.
             s.ignoredWords[lk] = {
               word,
               reading: card.content.reading,
@@ -1144,13 +1480,66 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Answer current card
   // cardId should always be passed from the UI to avoid a second getNextCard() call
   // (which uses Math.random() and may return a different card than the one displayed).
-  const answerCard = (rating: SRS.Rating, cardId?: string, timeSpentMs?: number): boolean => {
+  // `attempt` ties the review event to the logical attempt and lets undo restore
+  // the knowledge recordAttempt wrote plus retract the attempt's events.
+  const answerCard = (
+    rating: SRS.Rating,
+    cardId?: string,
+    timeSpentMs?: number,
+    attempt?: { attemptId: AttemptId },
+  ): boolean => {
     const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
     if (!card) return false;
 
     const wasNew = card.state === 'new';
     const wasReview = card.state === 'review';
     const updated = SRS.answerCard(card, rating, store.meta);
+    const cardLang = card.language || settings.language;
+    const cardForm = getPrimaryWordFormForLanguage(card.content.front, cardLang);
+    const now = Date.now();
+    const cardLk = langKey(cardLang, SRS.hashWordSync(cardForm));
+    appendEvents({
+      [cardLk]: [{
+        t: now,
+        kind: 'review',
+        source: 'srs',
+        aspect: 'meaning',
+        rating,
+        presentedSurface: card.content.front,
+        easeBefore: card.ease,
+        easeAfter: updated.ease,
+        intervalBefore: card.interval,
+        intervalAfter: updated.interval,
+        schedulerCardId: card.id,
+        ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
+        // REQ3/REQ52: an SRS review is a known task type. Scaffolds are not
+        // structurally known on this path (card presentation varies) — omitted
+        // rather than guessed.
+        taskType: 'srs-review',
+      }],
+    }).catch((e) => log.warn('knowledge event append failed:', e));
+
+    // SRS reviews are ACTIVE evidence and must be visible in the projection
+    // immediately — the resolver no longer reads card state as a knowledge
+    // source, so the materialized entry carries the review outcome.
+    setStore(produce((s) => {
+      if (!s.wordKnowledge[cardLk]) {
+        s.wordKnowledge[cardLk] = {
+          ease: updated.ease,
+          lastSeen: now,
+          firstSeen: now,
+          timesSeen: 0,
+          timesHovered: 0,
+          word: cardForm,
+          language: cardLang,
+        };
+      } else {
+        s.wordKnowledge[cardLk].ease = updated.ease;
+        s.wordKnowledge[cardLk].lastSeen = now;
+      }
+      s.wordKnowledge[cardLk].lastEvidenceSource = 'srs';
+      s.wordKnowledge[cardLk].hasActiveEvidence = true;
+    }));
 
     // Update queue - remove from current position, may need to re-add if still learning
     let newQueue = SRS.removeFromQueue(queue(), card.id);
@@ -1163,7 +1552,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     const remainsQueued = newQueue.newQueue.includes(card.id) || newQueue.scheduledQueue.includes(card.id);
 
-    // Lightweight undo: snapshot only the affected card and meta (avoids expensive full store clone)
+    // Lightweight undo: snapshot only the affected card and meta (avoids expensive full store clone).
+    // When an attempt id is supplied, undo also restores the knowledge recordAttempt
+    // wrote and appends retraction tombstones so replay/analytics drop the attempt.
     const cardSnapshot: Flashcard = { ...card, content: { ...card.content } };
     const metaSnapshot = { ...store.meta };
     const undoToday = SRS.getTodayDateString(newDayHour());
@@ -1188,6 +1579,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
               }
             }
           }));
+          if (attempt?.attemptId !== undefined) {
+            appendRetractions(card.content.front, cardLang, [attempt.attemptId]);
+            // Epistemic state is evidence-derived: retractions + replay restore
+            // the projection. No knowledge snapshots.
+            void recomputeWordKnowledgeFromEvidence(cardLang, card.content.front);
+          }
         },
       }];
       if (newStack.length > MAX_UNDO_STACK_SIZE) newStack.shift();
@@ -1207,9 +1604,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
         plm.reviewsToday++;
       }
       s.meta.perLanguage[lang] = plm;
-      s.meta.newCardsToday = plm.newCardsToday;
-      s.meta.reviewsToday = plm.reviewsToday;
-      s.meta.newCardsDate = plm.newCardsDate;
 
       // Update daily stats
       if (!s.dailyStats[today]) {
@@ -1360,10 +1754,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return index;
   });
 
-  const knownWordSet = createMemo(() =>
-    buildKnownWordSetFromStore(store, settings.known_ease_threshold)
-  );
-
   const getWordFormsForStatus = (word: string): string[] => (
     getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: languageData() })
   );
@@ -1376,6 +1766,22 @@ export const FlashcardProvider: ParentComponent = (props) => {
       { languageData: languageDataFor(language) },
     )
   );
+
+  const knownWordSet = createMemo(() => buildKnownWordSetFromStore(
+    store,
+    settings.known_ease_threshold,
+    settings.use_anki
+      ? buildAnkiStatusKeySets(
+        settings.language,
+        settings.ankiLearningThreshold,
+        settings.ankiKnownThreshold,
+        (word) => getWordFormsForLanguage(word, settings.language),
+        languageData(),
+      ).known
+      : undefined,
+  ));
+  /** Teaching-policy exclusions (ignoredWords): never select/teach/test these. */
+  const excludedWordKeys = createMemo(() => new Set(Object.keys(store.ignoredWords)));
   const getPrimaryWordFormForLanguage = (word: string, language = settings.language): string => (
     getWordFormsForLanguage(word, language)[0] ?? word
   );
@@ -1439,10 +1845,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const isWordIgnoredSync = (word: string, language = settings.language): boolean => {
     if (!word) return false;
+    // Exclusion policy ONLY. A known claim is not an ignore — callers that
+    // mean "known OR excluded" use isWordSettledSync.
     for (const form of getWordFormsForLanguage(word, language)) {
       const wordHash = SRS.hashWordSync(form);
       const key = langKey(language, wordHash);
-      if (store.knownUntracked[key] || store.ignoredWords[key]) {
+      if (store.ignoredWords[key]) {
         return true;
       }
     }
@@ -1531,7 +1939,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const existingKey = matchingKeys.find((key) => store.wordCandidates[key]) ?? lk;
     const hasExistingCardOrKnownState = matchingKeys.some((key) => {
       const cardIds = store.wordToCardMap[key];
-      return (cardIds && cardIds.length > 0) || store.knownUntracked[key] || store.ignoredWords[key];
+      return (cardIds && cardIds.length > 0) || isKnownClaimed(key) || store.ignoredWords[key];
     });
     if (hasExistingCardOrKnownState) {
       return;
@@ -1563,7 +1971,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const now = Date.now();
     const unpopulatedCard = findUnpopulatedFlashcardForWord(word, lang);
 
-    const comprehensiveStatus = getComprehensiveWordStatusSync(word, lang);
+    const comprehensiveStatus = toSelectionBlockingStatus(
+      getComprehensiveWordStatusWithSourceSync(word, lang),
+    );
     const suggestionLanguageData = languageDataFor(lang);
     const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? getDictionaryTargetLanguageForSettings(settings, lang);
     const keepSuggestion = shouldKeepSuggestion(
@@ -1578,6 +1988,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         dictionaryTargetLanguage,
         languageData: suggestionLanguageData,
       },
+      excludedWordKeys(),
     );
     if (!keepSuggestion && !unpopulatedCard) return;
 
@@ -1665,7 +2076,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
       .filter((s) => {
         if (s.language !== lang) return false;
         const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(s.word, lang) !== null;
-        const comprehensiveStatus = getComprehensiveWordStatusSync(s.word, lang);
+        const comprehensiveStatus = toSelectionBlockingStatus(
+          getComprehensiveWordStatusWithSourceSync(s.word, lang),
+        );
         const level = getSuggestedFlashcardLevel(s);
         const suggestionLanguageData = languageDataFor(lang);
         const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
@@ -1681,6 +2094,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             dictionaryTargetLanguage,
             languageData: suggestionLanguageData,
           },
+          excludedWordKeys(),
         );
         return keep || hasUnpopulatedCard;
       })
@@ -1794,19 +2208,31 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
+  /**
+   * Known-word gate for creation/suggestion suppression. Claim-known first;
+   * knownUntracked is legacy residue (orphan hashes) kept only until storage
+   * migrations recover their word text — no new writes ever land there.
+   */
+  const isKnownClaimed = (lk: string): boolean =>
+    store.wordKnowledge[lk]?.claim === 'known' || store.knownUntracked[lk] === true;
+
+  /** Evidence-backed Known (active source required — passive exposure never qualifies). */
   const isExplicitPassiveKnown = (key: string): boolean => {
     const knowledge = store.wordKnowledge[key];
     if (!knowledge) return false;
-    const explicitlyRated = knowledge.lastStatusChange !== undefined || knowledge.wordSyncRatedAt !== undefined;
-    return explicitlyRated && knowledge.ease >= passiveKnownEaseThreshold();
+    return knowledge.ease >= passiveKnownEaseThreshold() && knowledge.hasActiveEvidence === true;
   };
+
+  /** Passive rows classify by the same anchors as the resolver; source stays passiveTracking so replay never marks lastStatusChange. */
+  const passiveEaseToStatus = (ease: number): WordStatus =>
+    ease >= passiveKnownEaseThreshold() ? 'known' : ease >= passiveLearningEaseThreshold() ? 'learning' : 'unknown';
 
   const shouldGarbageCollectSuggestion = (suggestion: SuggestedFlashcard): boolean => {
     if (getAnkiStatusForWord(suggestion.word, suggestion.language) === 'known') return true;
 
     for (const form of getWordFormsForLanguage(suggestion.word, suggestion.language)) {
       const key = langKey(suggestion.language, SRS.hashWordSync(form));
-      if (store.knownUntracked[key] || store.ignoredWords[key] || isExplicitPassiveKnown(key)) {
+      if (isKnownClaimed(key) || store.ignoredWords[key] || isExplicitPassiveKnown(key)) {
         return true;
       }
 
@@ -1868,13 +2294,16 @@ export const FlashcardProvider: ParentComponent = (props) => {
           settings,
           known,
           userLevel,
-          getComprehensiveWordStatusSync(suggestion.word, lang),
+          toSelectionBlockingStatus(
+            getComprehensiveWordStatusWithSourceSync(suggestion.word, lang),
+          ),
           suggestionLanguageData,
           {
             getWordForms: (word) => getWordFormsForLanguage(word, lang),
             dictionaryTargetLanguage,
             languageData: suggestionLanguageData,
           },
+          excludedWordKeys(),
         );
       })
       .map((suggestion) => suggestion.id);
@@ -2163,7 +2592,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
         // through to the existing-card check below.
         if (
           options?.preserveExistingStatus &&
-          getComprehensiveWordStatusSync(canonical, lang) !== 'unknown'
+          (() => {
+            const resolved = getComprehensiveWordStatusWithSourceSync(canonical, lang);
+            return resolved.status !== 'unknown' || resolved.excluded === true;
+          })()
         ) {
           skipped++;
           continue;
@@ -2186,7 +2618,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
         shells.push({ canonical, lk });
       }
 
-      // Promote this chunk's pending suggestions in a single batched call (one translate + one save inside).
+      // A bulk target status is the user's epistemic statement about every
+      // word in the batch — an explicit claim, not silent ease seeding.
+      // 'mastered' is a scheduler distinction (longer seed interval); the
+      // claim itself is 'known'. 'new' claims nothing (unmeasured).
+      const bulkClaim: WordStatus | null =
+        targetStatus === 'known' || targetStatus === 'mastered' ? 'known'
+          : targetStatus === 'learning' ? 'learning'
+            : null;
+
       if (promotes.length > 0) {
         await promoteSuggestedFlashcards(promotes.map((p) => p.id));
         // Re-apply level-study scheduling to the card created for each promoted word.
@@ -2194,6 +2634,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           const card = findUnpopulatedFlashcardForWord(word, lang) ?? getCardByWordSync(word, lang);
           if (card) {
             applyLevelStudyScheduling(card.id, targetStatus);
+            if (bulkClaim !== null) setWordClaim(word, bulkClaim, lang);
             promoted++;
           } else {
             skipped++;
@@ -2205,6 +2646,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (shells.length > 0) {
         const now = Date.now();
         const schedule = getLevelStudyScheduling(targetStatus);
+        const claimEvents: KnowledgeEventLog = {};
         const newCards: Flashcard[] = shells.map(({ canonical }) => ({
           id: SRS.generateUUID(),
           content: {
@@ -2238,8 +2680,28 @@ export const FlashcardProvider: ParentComponent = (props) => {
             s.wordToCardMap[lk].push(newCards[i].id);
             const cards = s.wordToCardMap[lk].map((cardId) => s.flashcards[cardId]).filter(Boolean);
             s.wordStatsMap[lk] = calculateWordStats(cards);
+            if (bulkClaim !== null) {
+              if (!s.wordKnowledge[lk]) {
+                s.wordKnowledge[lk] = {
+                  ease: SRS.MIN_EASE,
+                  lastSeen: now,
+                  timesSeen: 0,
+                  timesHovered: 0,
+                  word: shells[i].canonical,
+                  language: lang,
+                };
+              }
+              s.wordKnowledge[lk].claim = bulkClaim;
+              s.wordKnowledge[lk].claimAt = now;
+              claimEvents[lk] = [{
+                t: now, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: bulkClaim,
+              }];
+            }
           }
         }));
+        if (Object.keys(claimEvents).length > 0) {
+          appendEvents(claimEvents).catch((e) => log.warn('bulk claim event append failed:', e));
+        }
         created += shells.length;
       }
 
@@ -2257,7 +2719,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return { created, promoted, skipped };
   };
 
-  // Ignore a word for a language and stop tracking it.
+  // Ignore a word for a language: EXCLUSION POLICY only — never an epistemic
+  // claim. "Stop teaching/selecting this" leaves knowledge state untouched.
   const ignoreWordForLanguage = async (word: string, reading?: string, language?: string) => {
     const lang = language ?? settings.language;
     const storageWord = getPrimaryWordFormForLanguage(word, lang);
@@ -2271,7 +2734,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
 
     setStore(produce((s) => {
-      s.knownUntracked[lk] = true;
       s.ignoredWords[lk] = {
         word: storageWord,
         reading,
@@ -2279,7 +2741,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
         ignoredAt: Date.now(),
       };
       delete s.wordCandidates[lk];
-      delete s.wordKnowledge[lk];
     }));
     saveFlashcards();
 
@@ -2300,7 +2761,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const lk = langKey(lang, wordHash);
 
     setStore(produce((s) => {
-      delete s.knownUntracked[lk];
+      // Un-ignore withdraws the exclusion policy only; any explicit claim
+      // stays until the user clears it via the pill.
       delete s.ignoredWords[lk];
     }));
     saveFlashcards();
@@ -2327,7 +2789,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const lang = language;
     const lk = langKey(lang, wordHash);
     const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
-    if (store.knownUntracked[lk]) return;
+    if (isKnownClaimed(lk)) return;
     const now = Date.now();
 
     const existing = store.wordKnowledge[lk];
@@ -2343,15 +2805,19 @@ export const FlashcardProvider: ParentComponent = (props) => {
           word: storageWord,
           reading,
           language: lang,
+          firstSeen: now,
         };
       }
       const k = s.wordKnowledge[lk];
       if (shouldCount) {
         k.timesSeen++;
+        // Ease bump rides the same throttle as timesSeen: without this, subtitle
+        // line flapping / window remounts farm ease unboundedly (the throttle
+        // gated only the counter). Logical media-position encounter identity is
+        // a Tier-2 concern; this closes the farm hole now.
+        k.ease = Math.min(5, k.ease + easeBump);
       }
       k.lastSeen = now;
-      // Ease bump for passive exposure (configurable per caller)
-      k.ease = Math.min(5, k.ease + easeBump);
       if (scriptForm) {
         const recognize = k.forms?.[scriptForm]?.recognize ?? {
           ease: SRS.MIN_EASE,
@@ -2361,7 +2827,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         };
         if (shouldCount) recognize.timesSeen++;
         recognize.lastSeen = now;
-        recognize.ease = Math.min(5, recognize.ease + easeBump);
+        if (shouldCount) recognize.ease = Math.min(5, recognize.ease + easeBump);
         k.forms = { ...k.forms, [scriptForm]: { ...k.forms?.[scriptForm], recognize } };
         k.ease = Math.max(k.ease, ...Object.values(k.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : []));
       }
@@ -2370,6 +2836,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Notify media stats listeners so per-media tracking stays in sync
     const newEase = store.wordKnowledge[lk]?.ease ?? SRS.MIN_EASE;
     window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, language: lang, ease: newEase } }));
+    if (shouldCount) accumulateWordSeen(lk, newEase, 1, passiveEaseToStatus(newEase));
   };
 
   // Track that a word was hovered (user doesn't know it)
@@ -2380,7 +2847,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wordHash = SRS.hashWordSync(storageWord);
     const lang = language;
     const lk = langKey(lang, wordHash);
-    if (store.knownUntracked[lk]) return;
+    if (isKnownClaimed(lk)) return;
 
     // Cancel existing timer if any
     const existing = hoverTimers.get(lk);
@@ -2417,6 +2884,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
             }
             nextEase = k.ease;
             nextTimesHovered = hoveredCount;
+            // Hover-failure ease changes are evidence, not silent arithmetic:
+            // the projection replay derives timesHovered and ease from these rows.
+            if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings) && !wasManuallySetRecently) {
+                void appendEvents({
+                    [lk]: [{
+                        t: now,
+                        kind: 'status',
+                        source: 'passiveTracking',
+                        aspect: 'meaning',
+                        toStatus: passiveEaseToStatus(nextEase),
+                        easeAfter: nextEase,
+                    }],
+                }).catch((e) => log.warn('knowledge event append failed:', e));
+            }
 
             if (isFailed && shouldUpdateFlashcardOnPassiveFailure(settings) && !wasManuallySetRecently) {
                 const cardIds = s.wordToCardMap[lk];
@@ -2462,21 +2943,24 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return store.wordKnowledge[langKey(settings.language, wordHash)];
   };
 
-  // Check if word is known by built-in SRS passive ease (ease >= known threshold)
+  // Knowledge lookups route through THE canonical resolver (effectiveKnowledge):
+  // a claim decides, ACTIVE evidence classifies through the ease bands, and
+  // pure passive familiarity is never Known/Learning (REQ13 — no independent
+  // raw-ease arithmetic here).
+  const effectiveWordState = (lk: string): EffectiveWordState =>
+    effectiveStateFromEntry(store.wordKnowledge[lk], {
+      learning: settings.srsLearningThreshold / 1000,
+      known: settings.known_ease_threshold / 1000,
+    });
+
   const isWordKnown = (wordHash: string): boolean => {
     const lk = wordHash.includes(':') ? wordHash : langKey(settings.language, wordHash);
-    const k = store.wordKnowledge[lk];
-    if (!k) return false;
-    return k.ease >= (settings.known_ease_threshold / 1000);
+    return effectiveWordState(lk).status === 'known';
   };
 
-  // Check if word is in the learning range by built-in SRS passive ease
   const isWordLearning = (wordHash: string): boolean => {
     const lk = wordHash.includes(':') ? wordHash : langKey(settings.language, wordHash);
-    const k = store.wordKnowledge[lk];
-    if (!k) return false;
-    const ease = k.ease;
-    return ease >= (settings.srsLearningThreshold / 1000) && ease < (settings.known_ease_threshold / 1000);
+    return effectiveWordState(lk).status === 'learning';
   };
 
   // Convenience: check if word is known by raw word text (sync hash)
@@ -2508,6 +2992,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const match = findAnkiWordMatchInCache(forms, {
       language,
       languageData: languageDataFor(language),
+      ankiLearningThreshold: settings.ankiLearningThreshold,
+      ankiKnownThreshold: settings.ankiKnownThreshold,
     });
     if (!match?.cards?.length) return null;
     return getAnkiWordKnowledgeStatus(match.cards, settings.ankiLearningThreshold, settings.ankiKnownThreshold);
@@ -2522,6 +3008,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const match = findAnkiWordMatchInCache(getWordFormsForLanguage(word, language), {
         language,
         languageData: languageDataFor(language),
+        ankiLearningThreshold: settings.ankiLearningThreshold,
+        ankiKnownThreshold: settings.ankiKnownThreshold,
       });
       if (match) return { tracker: 'anki', ankiLookupWord: match.word };
     }
@@ -2536,43 +3024,39 @@ export const FlashcardProvider: ParentComponent = (props) => {
     settings.easeThresholdKnown ?? ((settings.known_ease_threshold ?? DEFAULT_SETTINGS.known_ease_threshold) / 1000)
   );
 
+  const comprehensiveDeps = (language: string): Parameters<typeof getComprehensiveWordStatusWithSource>[1] => ({
+    getCanonicalForm: (value: string) => getPrimaryWordFormForLanguage(value, language),
+    getWordForms: (value: string) => getWordFormsForLanguage(value, language),
+    hashWordSync: SRS.hashWordSync,
+    langKey,
+    language,
+    ignoredWords: store.ignoredWords,
+    wordKnowledge: store.wordKnowledge,
+    knownEaseThreshold: passiveKnownEaseThreshold(),
+    learningThreshold: passiveLearningEaseThreshold(),
+  });
+
   const getComprehensiveWordStatusSync = (word: string, language = settings.language): WordStatus => {
-    return getComprehensiveWordStatus(word, {
-      getCanonicalForm: (value: string) => getPrimaryWordFormForLanguage(value, language),
-      getWordForms: (value: string) => getWordFormsForLanguage(value, language),
-      hashWordSync: SRS.hashWordSync,
-      langKey,
-      language,
-      knownUntracked: store.knownUntracked,
-      ignoredWords: store.ignoredWords,
-      wordKnowledge: store.wordKnowledge,
-      knownEaseThreshold: passiveKnownEaseThreshold(),
-      learningThreshold: passiveLearningEaseThreshold(),
-      getCardByWordSync: (value: string) => getCardByWordForLanguageSync(value, language),
-      ankiStatus: getAnkiStatusForWord(word, language),
-      sourceOrder: settings.knowledgeSourceOrder,
-      resolutionMode: settings.knowledgeResolutionMode,
-    });
+    return getComprehensiveWordStatus(word, comprehensiveDeps(language));
   };
 
   const getComprehensiveWordStatusWithSourceSync = (word: string, language = settings.language) => {
-    return getComprehensiveWordStatusWithSource(word, {
-      getCanonicalForm: (value: string) => getPrimaryWordFormForLanguage(value, language),
-      getWordForms: (value: string) => getWordFormsForLanguage(value, language),
-      hashWordSync: SRS.hashWordSync,
-      langKey,
-      language,
-      knownUntracked: store.knownUntracked,
-      ignoredWords: store.ignoredWords,
-      wordKnowledge: store.wordKnowledge,
-      knownEaseThreshold: passiveKnownEaseThreshold(),
-      learningThreshold: passiveLearningEaseThreshold(),
-      getCardByWordSync: (value: string) => getCardByWordForLanguageSync(value, language),
-      ankiStatus: getAnkiStatusForWord(word, language),
-      sourceOrder: settings.knowledgeSourceOrder,
-      resolutionMode: settings.knowledgeResolutionMode,
-    });
+    return getComprehensiveWordStatusWithSource(word, comprehensiveDeps(language));
   };
+
+  /**
+   * Selection/display predicate: has the learner settled this word (evidence-backed
+   * known OR explicit teaching exclusion)? Used where ignored words must not create
+   * unknown-word noise — it never claims knowledge, only absence of noise.
+   */
+  const isWordSettledSync = (word: string, language = settings.language): boolean => {
+    const resolved = getComprehensiveWordStatusWithSourceSync(word, language);
+    return resolved.status === 'known' || resolved.excluded === true;
+  };
+
+  /** Canonical per-aspect read (chain inheritance / orthogonal untracked semantics live in one place). */
+  const getAspectStatus = (word: string, aspect: KnowledgeAspect, language = settings.language): AspectStatusResult =>
+    getAspectStatusSync(word, aspect, comprehensiveDeps(language));
 
   const isWordKnownComprehensiveSync = (word: string, language = settings.language): boolean => (
     getComprehensiveWordStatusSync(word, language) === 'known'
@@ -2615,96 +3099,60 @@ export const FlashcardProvider: ParentComponent = (props) => {
   /**
    * Directly set the ease factor for a word in wordKnowledge.
    * Used by the "Sync with me" word assessment window to record user ratings.
+   * `opts.emitTransitionEvents: false` (attempt flow) suppresses the per-form
+   * transition events — recordAttempt then writes ONE attributed observation
+   * per changed key instead of an unattributed transition + observation pair.
+   * Returns the form keys whose status changed.
    */
-  const setWordKnowledgeEase = (word: string, ease: number, reading?: string, language = settings.language) => {
-    const storageWord = getPrimaryWordFormForLanguage(word, language);
-    const wordHash = SRS.hashWordSync(storageWord);
+  const setWordKnowledgeEase = (
+    word: string,
+    ease: number,
+    reading?: string,
+    language = settings.language,
+    opts?: { emitTransitionEvents?: boolean; attemptId?: AttemptId; taskType?: AttemptTaskType; scaffolds?: AttemptScaffolds; sourceVersions?: EventSourceVersions },
+  ): string[] => {
+    // Multi-hash rule (#230): the resolver reads every surface-form hash, so a
+    // single-hash rating write is shadowed by sibling forms' stale entries.
+    const forms = getWordFormsForLanguage(word, language);
     const lang = language;
-    const lk = langKey(lang, wordHash);
     const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
-    if (store.knownUntracked[lk]) return;
     const now = Date.now();
     const eased = ease + settings.manualStatusEaseBuffer;
-
-    setStore(produce((s) => {
-      if (!s.wordKnowledge[lk]) {
-        s.wordKnowledge[lk] = {
-          ease: eased,
-          lastSeen: now,
-          timesSeen: 0,
-          timesHovered: 0,
-          word: storageWord,
-          reading,
-          language: lang,
-          lastStatusChange: now,
-          wordSyncRatedAt: now,
-        };
-      } else {
-        s.wordKnowledge[lk].ease = eased;
-        s.wordKnowledge[lk].lastSeen = now;
-        s.wordKnowledge[lk].lastStatusChange = now;
-        s.wordKnowledge[lk].wordSyncRatedAt = now;
-      }
-      const entry = s.wordKnowledge[lk];
-      if (scriptForm) {
-        const recognize = entry.forms?.[scriptForm]?.recognize ?? {
-          ease: entry.ease,
-          lastSeen: entry.lastSeen,
-          timesSeen: entry.timesSeen,
-          timesHovered: entry.timesHovered,
-        };
-        recognize.ease = eased;
-        recognize.lastSeen = now;
-        recognize.lastStatusChange = now;
-        entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
-        entry.ease = Math.max(...Object.values(entry.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : [entry.ease]));
-      }
-    }));
-    saveFlashcards();
-  };
-
-  const setComprehensiveWordStatus = (word: string, status: WordStatus, language = settings.language) => {
-    const lang = language;
-    // A manual rating is a statement about the whole word identity, not one
-    // surface form. Write it to every form the status resolver reads
-    // (getWordFormsForLanguage); a single-hash write leaves sibling forms'
-    // stale passive entries to shadow the rating, freezing the pill.
-    const forms = getWordFormsForLanguage(word, lang);
-    const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
-    const now = Date.now();
-
-    const buffer = settings.manualStatusEaseBuffer;
-    let targetEase = settings.easeThresholdUnknown + buffer;
-    if (status === 'learning') targetEase = settings.easeThresholdLearning + buffer;
-    else if (status === 'known') targetEase = settings.easeThresholdKnown + buffer;
+    const ratingEvents: Record<string, KnowledgeEvent[]> = {};
+    const changedKeys: string[] = [];
+    const easeToStatus = (e: number): WordStatus =>
+      e >= passiveKnownEaseThreshold() ? 'known'
+        : e >= passiveLearningEaseThreshold() ? 'learning' : 'unknown';
 
     setStore(produce((s) => {
       for (const form of forms) {
         const wordHash = SRS.hashWordSync(form);
         const lk = langKey(lang, wordHash);
-        if (status !== 'known' && s.knownUntracked[lk]) {
-          delete s.knownUntracked[lk];
-        }
-        if (status !== 'known' && s.ignoredWords[lk]) {
-          delete s.ignoredWords[lk];
-        }
-
+        const prior = s.wordKnowledge[lk];
+        const fromStatus = prior ? easeToStatus(prior.ease) : 'unknown';
+        const easeBefore = prior?.ease;
         if (!s.wordKnowledge[lk]) {
           s.wordKnowledge[lk] = {
-            ease: targetEase,
+            ease: eased,
             lastSeen: now,
             timesSeen: 0,
             timesHovered: 0,
             word: form,
+            reading,
             language: lang,
             lastStatusChange: now,
+            wordSyncRatedAt: now,
           };
         } else {
-          s.wordKnowledge[lk].ease = targetEase;
+          s.wordKnowledge[lk].ease = eased;
+          s.wordKnowledge[lk].lastSeen = now;
           s.wordKnowledge[lk].lastStatusChange = now;
-          s.wordKnowledge[lk].timesHovered = 0;
+          s.wordKnowledge[lk].wordSyncRatedAt = now;
         }
+        // Attempt ratings are ACTIVE evidence — they lift the passive-only cap.
         const entry = s.wordKnowledge[lk];
+        entry.hasActiveEvidence = true;
+        entry.lastEvidenceSource = 'manual';
         if (scriptForm) {
           const recognize = entry.forms?.[scriptForm]?.recognize ?? {
             ease: entry.ease,
@@ -2712,15 +3160,355 @@ export const FlashcardProvider: ParentComponent = (props) => {
             timesSeen: entry.timesSeen,
             timesHovered: entry.timesHovered,
           };
-          recognize.ease = targetEase;
+          recognize.ease = eased;
+          recognize.lastSeen = now;
           recognize.lastStatusChange = now;
-          recognize.timesHovered = 0;
           entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
-          entry.ease = Math.max(...Object.values(entry.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : [entry.ease]));
+          entry.ease = Math.max(...Object.values(entry.forms).flatMap((f) => f?.recognize ? [f.recognize.ease] : [entry.ease]));
+        }
+        const toStatus = easeToStatus(eased);
+        if (fromStatus !== toStatus) {
+          changedKeys.push(lk);
+          ratingEvents[lk] = [{
+            t: now, kind: 'rating', source: 'manual', aspect: 'meaning',
+            fromStatus, toStatus, easeBefore, easeAfter: eased,
+            ...(opts?.attemptId !== undefined ? { attemptId: opts.attemptId } : {}),
+            ...(opts?.taskType ? { taskType: opts.taskType } : {}),
+            ...(opts?.scaffolds ? { scaffolds: opts.scaffolds } : {}),
+            ...(opts?.sourceVersions ? { sourceVersions: opts.sourceVersions } : {}),
+          }];
         }
       }
     }));
     saveFlashcards();
+    if (opts?.emitTransitionEvents !== false && Object.keys(ratingEvents).length > 0) {
+      appendEvents(ratingEvents).catch((e) => log.warn('knowledge event append failed:', e));
+    }
+    return changedKeys;
+  };
+
+  /**
+   * Explicit epistemic claim — the user's own statement about a word identity:
+   * "I know this" / "I am learning this" / "I do not know this", or `null` to
+   * withdraw the claim. A claim NEVER mutates evidence ease; it overrides the
+   * effective classification until cleared. Whole-identity semantics: written
+   * to every surface-form key the resolver reads.
+   *
+   * This is the ONLY manual status path in the product. Legacy
+   * ease-overwriting (setComprehensiveWordStatus) is gone: a refocus/replay
+   * can no longer disagree with the UI because both read the same claim.
+   */
+  const setWordClaim = (word: string, claim: WordStatus | null, language = settings.language) => {
+    const lang = language;
+    const forms = getWordFormsForLanguage(word, lang);
+    const now = Date.now();
+    const claimEvents: Record<string, KnowledgeEvent[]> = {};
+
+    setStore(produce((s) => {
+      for (const form of forms) {
+        const wordHash = SRS.hashWordSync(form);
+        const lk = langKey(lang, wordHash);
+        if (!s.wordKnowledge[lk]) {
+          // A claim on an unmeasured word materializes a floor-ease entry:
+          // evidence stays "unmeasured", the claim carries the classification.
+          s.wordKnowledge[lk] = {
+            ease: SRS.MIN_EASE,
+            lastSeen: now,
+            firstSeen: now,
+            timesSeen: 0,
+            timesHovered: 0,
+            word: form,
+            language: lang,
+          };
+        }
+        const entry = s.wordKnowledge[lk];
+        if (claim === null) {
+          delete entry.claim;
+          delete entry.claimAt;
+          // Clearing a claim must not fabricate evidence metadata: a
+          // claim-only entry (no observations) drops back to unmeasured by
+          // removing the materialized cache entry entirely — the journal
+          // still holds the claim history. Evidence-backed entries keep
+          // their replayed facts.
+          const hasRealEvidence = (entry.timesSeen ?? 0) > 0
+            || (entry.timesHovered ?? 0) > 0
+            || entry.hasActiveEvidence === true
+            || (entry.aspects !== undefined && Object.keys(entry.aspects).length > 0)
+            || (entry.ease !== undefined && entry.ease > SRS.MIN_EASE);
+          if (!hasRealEvidence) {
+            delete s.wordKnowledge[lk];
+          }
+        } else {
+          // A claim is not a status change: lastStatusChange (an evidence
+          // fingerprint) is never touched by the claim path; claimAt drives
+          // merge recency.
+          entry.claim = claim;
+          entry.claimAt = now;
+        }
+        claimEvents[lk] = [{
+          t: now,
+          kind: 'claim',
+          source: 'manual',
+          aspect: 'meaning',
+          ...(claim !== null ? { toStatus: claim } : {}),
+        }];
+      }
+    }));
+    saveFlashcards();
+    if (Object.keys(claimEvents).length > 0) {
+      appendEvents(claimEvents).catch((e) => log.warn('claim event append failed:', e));
+    }
+  };
+
+  const setAspectStatus = (
+    word: string,
+    aspect: Exclude<KnowledgeAspect, 'meaning'>,
+    status: WordStatus,
+    source: KnowledgeSource | 'manual',
+    language = settings.language,
+    attemptId?: AttemptId,
+  ) => {
+    const lang = language;
+    // #230 all-form-hash write, with its one exception: surface-scoped aspects
+    // (orthography) belong to the exact written form presented — fanning
+    // orthography(殖える) out to 増える's hash would claim recognition of a
+    // form the learner never interacted with.
+    const forms = isSurfaceScopedAspect(aspect)
+      ? [word]
+      : getWordFormsForLanguage(word, lang);
+    const now = Date.now();
+    // A manual aspect change without an attemptId is the user's own statement
+    // (explicit claim), not an observation — it overrides the evidence
+    // classification without touching the evidence ease. Attempt-driven writes
+    // (attemptId present) are evidence.
+    const isClaim = source === 'manual' && attemptId === undefined;
+    const buffer = settings.manualStatusEaseBuffer;
+    const easeForStatus = (st: WordStatus) => {
+      if (st === 'learning') return settings.easeThresholdLearning + buffer;
+      if (st === 'known') return settings.easeThresholdKnown + buffer;
+      return settings.easeThresholdUnknown + buffer;
+    };
+    const aspectEvents: Record<string, KnowledgeEvent[]> = {};
+
+    setStore(produce((s) => {
+      for (const form of forms) {
+        const wordHash = SRS.hashWordSync(form);
+        const lk = langKey(lang, wordHash);
+        const priorRecord = s.wordKnowledge[lk]?.aspects?.[aspect];
+        const prior = priorRecord?.status ?? 'unknown';
+        if (!s.wordKnowledge[lk]) {
+          s.wordKnowledge[lk] = {
+            ease: isClaim ? SRS.MIN_EASE : easeForStatus(status),
+            lastSeen: now,
+            timesSeen: 0,
+            timesHovered: 0,
+            word: form,
+            language: lang,
+            ...(isClaim ? {} : { lastStatusChange: now }),
+          };
+        }
+        const entry = s.wordKnowledge[lk];
+        if (isClaim) {
+          const record = entry.aspects?.[aspect] ?? {
+            status,
+            ease: entry.ease,
+            source: aspectSourceToDisplay(source),
+            lastStatusChange: now,
+            updatedAt: now,
+          };
+          record.status = status;
+          record.claim = status;
+          record.claimAt = now;
+          record.lastStatusChange = now;
+          record.updatedAt = now;
+          entry.aspects = { ...entry.aspects, [aspect]: record };
+          aspectEvents[lk] = [{
+            t: now, kind: 'claim', source, aspect,
+            ...(status !== undefined ? { fromStatus: prior, toStatus: status } : {}),
+          }];
+        } else {
+          applyAspectWrite(entry, {
+            aspect,
+            status,
+            ease: easeForStatus(status),
+            source: aspectSourceToDisplay(source),
+            now,
+          });
+          entry.lastStatusChange = now;
+          if (prior !== status) {
+            aspectEvents[lk] = [{
+              t: now, kind: 'status', source, aspect,
+              fromStatus: prior, toStatus: status, easeAfter: easeForStatus(status),
+              ...(attemptId !== undefined ? { attemptId } : {}),
+            }];
+          }
+        }
+      }
+    }));
+    saveFlashcards();
+    if (Object.keys(aspectEvents).length > 0) {
+      appendEvents(aspectEvents).catch((e) => log.warn('knowledge event append failed:', e));
+    }
+  };
+
+  /**
+   * Withdraw an aspect claim ("Clear override"): deletes record.claim/claimAt
+   * on every addressed form and appends a clearing claim event (toStatus
+   * absent) so projections replay back to the evidence classification.
+   */
+  const clearAspectClaim = (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, language = settings.language) => {
+    const lang = language;
+    const forms = isSurfaceScopedAspect(aspect) ? [word] : getWordFormsForLanguage(word, lang);
+    const now = Date.now();
+    const claimEvents: Record<string, KnowledgeEvent[]> = {};
+
+    setStore(produce((s) => {
+      for (const form of forms) {
+        const wordHash = SRS.hashWordSync(form);
+        const lk = langKey(lang, wordHash);
+        const entry = s.wordKnowledge[lk];
+        const record = entry?.aspects?.[aspect];
+        if (!record || record.claim === undefined) continue;
+        const next = { ...record };
+        delete next.claim;
+        delete next.claimAt;
+        entry.aspects = { ...entry.aspects, [aspect]: next };
+        claimEvents[lk] = [{ t: now, kind: 'claim', source: 'manual', aspect }];
+      }
+    }));
+    saveFlashcards();
+    if (Object.keys(claimEvents).length > 0) {
+      appendEvents(claimEvents).catch((e) => log.warn('claim event append failed:', e));
+    }
+  };
+  /**
+   * Failure attribution ("where did knowledge fail?"). The failed aspect records
+   * negative evidence (unknown). Every coarser aspect in the language's aspect
+   * hierarchy was successfully traversed by the same interaction and records
+   * positive evidence: meaning via the word-level ease anchor (raised to the
+   * learning band, never lowered — "almost know the word"), finer coarser aspects
+   * (e.g. reading when prosody failed) via an explicit learning write, only when
+   * currently below learning so inherited states are never overwritten down.
+   * Aspects finer than the failure get no inference. These are real interaction
+   * observations — unlike inheritance fallback, they emit events.
+   */
+  /**
+   * Canonical attempt-rating evidence interpreter (the universal Aspect ×
+   * Performance matrix backend). The learner reports attempt PERFORMANCE —
+   * missed/struggled/fluent — for one aspect; this method decides what
+   * knowledge evidence that report is, at the correct scope:
+   * - meaning: missed → unknown anchor (demotes); struggled → learning anchor
+   *   (MAY demote Known — a badly struggled known item must show regression);
+   *   fluent → raise-only known anchor;
+   * - finer aspect: missed → explicit unknown; struggled → explicit learning
+   *   (may demote a known record); fluent → known record unless already known
+   *   (never lowers evidence above the anchor).
+   * `demonstrated` is TASK-MEDIATED: the aspects this interaction's structure
+   * actually proves were traversed. Word-presentation tasks (wordSync, review)
+   * pass the prerequisite chain; a dedicated audio task would pass []. The
+   * engine never traverses the linguistic graph on its own — the graph
+   * describes linguistic relations, the task defines what this observation
+   * proves.
+   */
+  const recordAttempt = (
+    word: string,
+    aspect: KnowledgeAspect,
+    quality: AttemptQuality,
+    options?: {
+      language?: string;
+      method?: 'recall' | 'inference';
+      /** Aspects this task structure demonstrates were traversed (default: none). */
+      demonstrated?: readonly KnowledgeAspect[];
+      latencyMs?: number;
+      /** Shared logical-attempt id for multi-observation submits (profile mode). Absent = new attempt. */
+      attemptId?: AttemptId;
+      /** Presenting channel (e.g. 'word-sync') — replay derives policy markers from it. */
+      origin?: string;
+      /** What task produced the attempt (REQ3/REQ52) — provenance only, written when known. */
+      taskType?: AttemptTaskType;
+      /** Scaffolds visible during the attempt — written when the caller knows them. */
+      scaffolds?: AttemptScaffolds;
+      /** Reference-data versions at observation time — written when meaningfully available. */
+      sourceVersions?: EventSourceVersions;
+    },
+  ): { attemptId: AttemptId } => {
+    const language = options?.language ?? settings.language;
+    const attemptId = options?.attemptId ?? nextAttemptId();
+    const demonstrated = options?.demonstrated ?? [];
+    const before = getComprehensiveWordStatusWithSourceSync(word, language);
+
+    if (aspect === 'meaning') {
+      let targetEase: number | null;
+      if (quality === 'missed') {
+        targetEase = settings.easeThresholdUnknown;
+      } else if (quality === 'struggled') {
+        targetEase = settings.easeThresholdLearning;
+      } else if ((before.ease ?? 0) < settings.easeThresholdKnown) {
+        targetEase = settings.easeThresholdKnown;
+      } else {
+        targetEase = null;
+      }
+      if (targetEase !== null) {
+        setWordKnowledgeEase(word, targetEase, undefined, language, { emitTransitionEvents: false });
+      }
+    } else {
+      if (quality === 'fluent') {
+        const current = getAspectStatusSync(word, aspect, comprehensiveDeps(language));
+        if (current.status !== 'known') {
+          setAspectStatus(word, aspect, 'known', 'manual', language, attemptId);
+        }
+      } else {
+        setAspectStatus(word, aspect, quality === 'missed' ? 'unknown' : 'learning', 'manual', language, attemptId);
+      }
+      // Prerequisite evidence is judged AFTER the rated aspect write (the rated
+      // aspect is never its own prerequisite) and independently of the meaning
+      // anchor below — stored aspects do not inherit, so ordering is free.
+      for (const pre of demonstrated) {
+        if (pre === 'meaning' || pre === aspect) continue;
+        const preStatus = getAspectStatusSync(word, pre, comprehensiveDeps(language));
+        if (preStatus.status === 'unknown') {
+          setAspectStatus(word, pre, 'learning', 'manual', language, attemptId);
+        }
+      }
+      if (demonstrated.includes('meaning') && (before.ease ?? 0) < settings.easeThresholdLearning) {
+        setWordKnowledgeEase(word, settings.easeThresholdLearning, undefined, language, {
+          taskType: options?.taskType,
+        });
+      }
+    }
+
+    const after = getComprehensiveWordStatusWithSourceSync(word, language);
+    // One observation event per attempt — quality/method/latency provenance for
+    // future calibration. fromStatus/toStatus/easeAfter keep replay/analytics
+    // consistent with the underlying writers' transition events.
+    const storageWord = getPrimaryWordFormForLanguage(word, language);
+    const observation: KnowledgeEvent = {
+      t: Date.now(),
+      kind: 'rating',
+      source: 'manual',
+      aspect,
+      quality,
+      attemptId,
+      // Exact presented surface — survives even when storage keys resolve to a
+      // different primary family form. Never fan observations out from this.
+      presentedSurface: word,
+      ...(options?.method ? { method: options.method } : {}),
+      // REQ3/REQ52 attempt metadata: write only what is genuinely known. The
+      // word-sync rating route is recognized by its origin when the caller
+      // did not pass an explicit task type.
+      ...(options?.taskType ? { taskType: options.taskType } : options?.origin === 'word-sync' ? { taskType: 'word-sync' satisfies AttemptTaskType } : {}),
+      ...(options?.scaffolds ? { scaffolds: options.scaffolds } : {}),
+      ...(options?.sourceVersions ? { sourceVersions: options.sourceVersions } : {}),
+      ...(options?.latencyMs !== undefined ? { latencyMs: options.latencyMs } : {}),
+      ...(options?.origin ? { origin: options.origin } : {}),
+      fromStatus: before.status,
+      toStatus: after.status,
+      easeAfter: after.ease,
+    };
+    appendEvents({
+      [langKey(language, SRS.hashWordSync(storageWord))]: [observation],
+    }).catch((e) => log.warn('knowledge event append failed:', e));
+    return { attemptId };
   };
 
   const setWordBankStatus = async (
@@ -2733,18 +3521,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const storageWord = getPrimaryWordFormForLanguage(word, lang);
     const wordHash = SRS.hashWordSync(storageWord);
     const lk = langKey(lang, wordHash);
-    const now = Date.now();
+
 
     switch (bank) {
       case 'manual': {
-        setStore(produce((s) => {
-          if (status === 'known') {
-            s.knownUntracked[lk] = true;
-          } else {
-            delete s.knownUntracked[lk];
-          }
-        }));
-        saveFlashcards();
+        // The "known words list" bank is now an explicit claim. Nothing writes
+        // knownUntracked anymore; the map only carries legacy residue until
+        // storage migrations recover orphan word text.
+        setWordClaim(word, status, lang);
         break;
       }
 
@@ -2758,41 +3542,23 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
 
       case 'passive': {
-        setStore(produce((s) => {
-          if (status === 'unknown') {
-            delete s.wordKnowledge[lk];
-          } else {
-            const ease = status === 'known' ? settings.known_ease_threshold / 1000 : settings.srsLearningThreshold / 1000;
-            if (!s.wordKnowledge[lk]) {
-              s.wordKnowledge[lk] = {
-                ease,
-                lastSeen: now,
-                timesSeen: 0,
-                timesHovered: 0,
-                word: storageWord,
-                language: lang,
-                lastStatusChange: now,
-              };
-            } else {
-              s.wordKnowledge[lk].ease = ease;
-              s.wordKnowledge[lk].lastStatusChange = now;
-            }
-          }
-        }));
-        saveFlashcards();
+        // Legacy "passive bank" writes were direct ease mutation — Tier-1
+        // epistemics. A user-initiated status selection is a claim; evidence
+        // only changes through real observations.
+        setWordClaim(word, status, lang);
         break;
       }
 
       case 'flashcard': {
         const cards = store.wordToCardMap[lk]?.map((id) => store.flashcards[id]).filter(Boolean) ?? [];
+        const ease = status === 'known' ? settings.known_ease_threshold / 1000 : settings.srsLearningThreshold / 1000;
+        const state: FlashcardState = status === 'known' ? 'review' : 'learning';
 
         if (status === 'unknown') {
           for (const card of [...cards]) {
             await removeFlashcard(card.id, false);
           }
         } else if (cards.length > 0) {
-          const ease = status === 'known' ? settings.known_ease_threshold / 1000 : settings.srsLearningThreshold / 1000;
-          const state: FlashcardState = status === 'known' ? 'review' : 'learning';
           for (const card of cards) {
             updateFlashcard(card.id, { state, ease });
           }
@@ -2817,37 +3583,48 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Word Sync Seen
   // ========================
 
+  // Multi-hash rule (#230): the sync pool filters on the canonical-form hash,
+  // so the seen mark must cover the canonical form plus every surface form.
+  const getWordSyncSeenKeysForLanguage = (word: string, language = settings.language): string[] => {
+    const keys = new Set<string>();
+    const canonical = getCanonicalFormForLanguage(language, word);
+    if (canonical) keys.add(langKey(language, SRS.hashWordSync(canonical)));
+    for (const form of getWordFormsForLanguage(word, language)) {
+      keys.add(langKey(language, SRS.hashWordSync(form)));
+    }
+    return [...keys];
+  };
+
   const markWordSyncSeen = (word: string, language = settings.language) => {
-    const storageWord = getPrimaryWordFormForLanguage(word, language);
-    const wordHash = SRS.hashWordSync(storageWord);
-    const lk = langKey(language, wordHash);
+    const now = Date.now();
     setStore(produce((s) => {
-      s.wordSyncSeen[lk] = Date.now();
+      for (const lk of getWordSyncSeenKeysForLanguage(word, language)) {
+        s.wordSyncSeen[lk] = now;
+      }
     }));
     saveFlashcards();
   };
 
+  const getWordSyncSeenSnapshotForForms = (word: string, language = settings.language): Record<string, number | undefined> => {
+    const snapshot: Record<string, number | undefined> = {};
+    for (const lk of getWordSyncSeenKeysForLanguage(word, language)) {
+      snapshot[lk] = store.wordSyncSeen[lk];
+    }
+    return snapshot;
+  };
+
+  /** Policy-cooldown restore (wordSyncSeen). NOT epistemic: knowledge restores via retraction + projection replay. */
   const restoreWordSyncRating = (
-    word: string,
-    previousKnowledge: PassiveWordKnowledge | undefined,
-    previousSeenAt: number | undefined,
-    language = settings.language,
+    previousSeenAt: Record<string, number | undefined>,
+    _language = settings.language,
   ) => {
-    const storageWord = getPrimaryWordFormForLanguage(word, language);
-    const wordHash = SRS.hashWordSync(storageWord);
-    const lk = langKey(language, wordHash);
-
     setStore(produce((s) => {
-      if (previousKnowledge) {
-        s.wordKnowledge[lk] = { ...previousKnowledge };
-      } else {
-        delete s.wordKnowledge[lk];
-      }
-
-      if (previousSeenAt !== undefined) {
-        s.wordSyncSeen[lk] = previousSeenAt;
-      } else {
-        delete s.wordSyncSeen[lk];
+      for (const [seenLk, prev] of Object.entries(previousSeenAt)) {
+        if (prev === undefined) {
+          delete s.wordSyncSeen[seenLk];
+        } else {
+          s.wordSyncSeen[seenLk] = prev;
+        }
       }
     }));
     saveFlashcards();
@@ -2860,62 +3637,200 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
-  // ========================
-  // Grammar Knowledge
-  // ========================
-
-  // Track that a grammar pattern was passively encountered
-  const trackGrammarEncountered = (pattern: string, level = 0, language = settings.language) => {
-    const lang = language;
-    const lk = langKey(lang, pattern);
+  /**
+   * Undo bookkeeping: append a retraction tombstone for each attemptId to every
+   * form-family key of the word. Projections drop retracted events via
+   * stripRetractions; the raw log stays append-only.
+   */
+  const appendRetractions = (word: string, language: string, attemptIds: readonly AttemptId[]) => {
+    if (attemptIds.length === 0) return;
     const now = Date.now();
-    setStore(produce((s) => {
-      if (!s.grammarKnowledge[lk]) {
-        s.grammarKnowledge[lk] = {
-          pattern,
-          ease: SRS.MIN_EASE,
-          timesEncountered: 0,
-          timesFailed: 0,
-          lastSeen: now,
-          level,
-          language: lang,
-        };
-      }
-      const g = s.grammarKnowledge[lk];
-      g.timesEncountered++;
-      g.lastSeen = now;
-      // Slight ease bump for passive encounter
-      g.ease = Math.min(5, g.ease + 0.01);
-    }));
+    const eventsByKey: KnowledgeEventLog = {};
+    for (const form of getWordFormsForLanguage(word, language)) {
+      eventsByKey[langKey(language, SRS.hashWordSync(form))] = attemptIds.map((retracts) => ({
+        t: now, kind: 'retraction', source: 'manual', aspect: 'meaning', retracts,
+      }));
+    }
+    appendEvents(eventsByKey).catch((e) => log.warn('knowledge event retraction failed:', e));
   };
 
-  // Track that user struggled with a grammar pattern
-  const trackGrammarFailed = (pattern: string, level = 0, language = settings.language) => {
-    const lang = language;
-    const lk = langKey(lang, pattern);
-    const now = Date.now();
+  /**
+   * Recompute the materialized wordKnowledge entries for a word's family keys
+   * from ACTIVE evidence (retractions applied). The evidence journal is the
+   * epistemic source of truth; this is the projection refresh, not a writer.
+   */
+  const recomputeWordKnowledgeFromEvidence = async (word: string, language?: string): Promise<void> => {
+    const lang = language ?? settings.language;
+    const lks = getWordFormsForLanguage(word, lang).map((form) => langKey(lang, SRS.hashWordSync(form)));
+    let eventLog: KnowledgeEventLog;
+    try {
+      eventLog = await getEventLogForLanguage(lang);
+    } catch (e) {
+      log.warn('projection recompute failed to load events:', e);
+      return;
+    }
     setStore(produce((s) => {
-      if (!s.grammarKnowledge[lk]) {
-        s.grammarKnowledge[lk] = {
-          pattern,
-          ease: SRS.MIN_EASE,
-          timesEncountered: 0,
-          timesFailed: 0,
-          lastSeen: now,
-          level,
-          language: lang,
+      for (const lk of lks) {
+        const projected = replayKeyProjection(eventLog[lk] ?? []);
+        if (!projected || !s.wordKnowledge[lk]) {
+          // No active state (claims included) → no entry; entry absent →
+          // stays unmaterialized.
+          if (!projected) delete s.wordKnowledge[lk];
+          continue;
+        }
+        const existing = s.wordKnowledge[lk];
+        const next: PassiveWordKnowledge = {
+          ...existing,
+          ease: projected.ease,
+          lastStatusChange: projected.lastStatusChange,
+          wordSyncRatedAt: projected.wordSyncRatedAt,
+          timesSeen: projected.timesSeen,
+          timesHovered: projected.timesHovered,
+          firstSeen: projected.firstSeen,
+          lastSeen: projected.lastSeen,
+          lastEvidenceSource: projected.evidenceSource,
+          ...(projected.hasActiveEvidence ? { hasActiveEvidence: true } : {}),
         };
+        if (projected.claim !== undefined) {
+          next.claim = projected.claim;
+          next.claimAt = projected.claimAt;
+        } else {
+          delete next.claim;
+          delete next.claimAt;
+        }
+        s.wordKnowledge[lk] = next;
       }
-      const g = s.grammarKnowledge[lk];
-      g.timesFailed++;
-      g.lastSeen = now;
-      // Larger ease decrease for failed grammar
-      g.ease = Math.max(0, g.ease - 0.15);
     }));
     saveFlashcards();
   };
 
-  // Get grammar knowledge entry
+  // ========================
+  // Grammar Knowledge
+  // ========================
+
+  // Grammar counters are the recognition-target read model. The materialized
+  // grammarKnowledge cache has exactly one writer — this replay (the store
+  // loader aside): trackers append observation rows to the evidence journal
+  // and the projection below rebuilds entries from ACTIVE evidence.
+  let grammarReplayChain: Promise<void> = Promise.resolve();
+  const materializeGrammarKnowledge = async (
+    language: string,
+    seeds: Array<{ pattern: string; level?: number }> = [],
+  ): Promise<void> => {
+    let eventLog: KnowledgeEventLog;
+    try {
+      eventLog = await getEventLogForLanguage(language);
+    } catch (e) {
+      log.warn('grammar projection recompute failed to load events:', e);
+      return;
+    }
+    // Presentation data (pattern, level, language) is not evidence-derived:
+    // existing entries and the caller's seed carry it; every epistemic field
+    // (ease, counters, lastSeen) comes from the replay.
+    const levels = new Map<string, number | undefined>();
+    for (const seed of seeds) {
+      if (!levels.has(seed.pattern)) levels.set(seed.pattern, seed.level);
+    }
+    for (const entry of Object.values(store.grammarKnowledge)) {
+      if ((entry.language ?? settings.language) !== language) continue;
+      if (!levels.has(entry.pattern)) levels.set(entry.pattern, entry.level);
+    }
+    // Rebuild criterion: the cache must be reconstructable from active
+    // evidence alone, so patterns are also enumerated from the journal's
+    // recognition-evidence keys — seeds and surviving entries only add
+    // presentation hints. Key shape: `${language}:grammar:` +
+    // `${language}:grammar:${pattern}` + ':grammar-recognition'.
+    const recognitionSuffix = ':grammar-recognition';
+    const grammarKeyPrefix = `${language}:grammar:`;
+    for (const key of Object.keys(eventLog)) {
+      if (!key.startsWith(grammarKeyPrefix) || !key.endsWith(recognitionSuffix)) continue;
+      const entityId = key.slice(grammarKeyPrefix.length, key.length - recognitionSuffix.length);
+      if (!entityId.startsWith(grammarKeyPrefix)) continue;
+      const pattern = entityId.slice(grammarKeyPrefix.length);
+      if (pattern && !levels.has(pattern)) levels.set(pattern, undefined);
+    }
+    setStore(produce((s) => {
+      for (const [pattern, level] of levels) {
+        const lk = langKey(language, pattern);
+        const projection = replayGrammarRecognition(eventLog[grammarEvidenceKey(language, pattern, 'grammar-recognition')] ?? []);
+        if (!projection) {
+          // No active evidence → no materialized entry.
+          delete s.grammarKnowledge[lk];
+          continue;
+        }
+        const existing = s.grammarKnowledge[lk];
+        s.grammarKnowledge[lk] = {
+          pattern,
+          ease: projection.ease,
+          timesEncountered: projection.timesEncountered,
+          timesFailed: projection.timesFailed,
+          lastSeen: projection.lastSeen,
+          // 0 is the level placeholder — a seedless load-time pass may stamp
+          // it first; a caller's explicit level must still win.
+          level: existing?.level || level || 0,
+          language,
+        };
+      }
+    }));
+    saveFlashcards();
+  };
+
+  // Serialize materializations so a rapid tracker burst always lands the
+  // full-log replay last (each run re-reads the whole language log).
+  const queueGrammarMaterialize = (language: string, seeds: Array<{ pattern: string; level?: number }>): void => {
+    grammarReplayChain = grammarReplayChain
+      .then(() => materializeGrammarKnowledge(language, seeds))
+      .catch((e) => log.warn('grammar materialization failed:', e));
+  };
+
+  // Track that a grammar pattern was passively encountered. Writes ONLY an
+  // evidence observation (encounter delta); the materialized cache is
+  // refreshed by replay, never mutated here.
+  /**
+   * Factual grammar exposure rollup. REQ39 provider side: accepts the shared
+   * GrammarEncounterOptions contract — `(pattern, opts)` from the encounter
+   * journal — while legacy positional callers keep working as
+   * `(pattern, level?, language?)`. Provenance (confidence/span/origin) rides
+   * on the appended rollup event; encounters never touch ratings or claims.
+   */
+  const trackGrammarEncountered = (
+    pattern: string,
+    levelOrOpts: number | GrammarEncounterOptions = 0,
+    language = settings.language,
+  ) => {
+    const opts = typeof levelOrOpts === 'object' ? levelOrOpts : undefined;
+    const level = typeof levelOrOpts === 'number' ? levelOrOpts : 0;
+    appendEvents({
+      [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(language, pattern, {
+        t: Date.now(),
+        kind: 'rollup',
+        timesSeenDelta: 1,
+        ...(opts?.confidence !== undefined ? { confidence: opts.confidence } : {}),
+        ...(opts?.span ? { span: opts.span } : {}),
+        // A caller-supplied presenting surface beats the generic marker.
+        origin: opts?.origin ?? 'grammar-encounter',
+      })],
+    })
+      .then(() => queueGrammarMaterialize(language, [{ pattern, level }]))
+      .catch((e) => log.warn('grammar evidence append failed:', e));
+  };
+
+  // Track that user struggled with a grammar pattern. Same single-writer path:
+  // a failure delta in the journal, cache updated by replay.
+  const trackGrammarFailed = (pattern: string, level = 0, language = settings.language) => {
+    appendEvents({
+      [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(language, pattern, {
+        t: Date.now(),
+        kind: 'rollup',
+        grammarFailedDelta: 1,
+        origin: 'grammar-failure',
+      })],
+    })
+      .then(() => queueGrammarMaterialize(language, [{ pattern, level }]))
+      .catch((e) => log.warn('grammar evidence append failed:', e));
+  };
+
+  // Get grammar knowledge entry — serves the replay-materialized cache.
   const getGrammarKnowledge = (pattern: string, language = settings.language): GrammarKnowledgeEntry | undefined => {
     const lk = pattern.includes(':') && store.grammarKnowledge[pattern]
       ? pattern
@@ -2977,7 +3892,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       // Skip if card already exists for this word
       const existingCards = store.wordToCardMap[compositeKey];
       if (existingCards && existingCards.length > 0) continue;
-      if (store.knownUntracked[compositeKey]) continue;
+      if (isKnownClaimed(compositeKey)) continue;
 
       try {
         // Get translation data from backend
@@ -3271,11 +4186,17 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     }
   };
 
-  // Handle broadcast from other windows
+  // Handle broadcast from other windows. Whole-store replace is a
+  // last-writer-wins race: a window holding a stale snapshot would revert a
+  // claim/evidence write made in another window (the refocus-revert class of
+  // bug). Per-collection LWW merge instead — entries win by their own
+  // recency, so concurrent windows converge on the newest epistemic state.
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.store) {
-      const checked = ensureStoreFields(event.data.store);
-      setStore(reconcile(checked));
+      const incoming = ensureStoreFields(event.data.store);
+      setStore(produce((s) => {
+        mergeKnowledgeMaps(s, incoming);
+      }));
       refreshQueue();
     }
   };
@@ -3283,6 +4204,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   // Handle new day event (also triggered by "Force recreate" menu)
   const handleNewDay = async () => {
     const today = SRS.getTodayDateString(newDayHour());
+    await flushKnowledgeRollup();
     setStore(produce((s) => {
       // Unbury all cards
       s.flashcards = SRS.unburyCards(s.flashcards);
@@ -3294,8 +4216,6 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
         s.meta.perLanguage[lang].reviewsToday = 0;
         s.meta.perLanguage[lang].newCardsDate = today;
       }
-      s.meta.newCardsToday = 0;
-      s.meta.newCardsDate = today;
     }));
 
     // Auto-create flashcards from word candidates if enabled
@@ -3328,7 +4248,15 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
             if (byCount !== 0) return byCount;
             return a.createdAt - b.createdAt;
           });
-          const pickIds = sorted.slice(0, remaining).map((s) => s.id);
+          const pickIds = selectEncounterBatch({
+            preset: 'SUGGESTED',
+            nowMs: 0,
+            suggestedItems: sorted.map((suggestion) => ({
+              key: suggestion.id,
+              word: suggestion.word,
+              language: suggestion.language,
+            })),
+          }).slice(0, remaining).map((decision) => decision.candidate.key);
           try {
             createdTotal += await promoteSuggestedFlashcards(pickIds, { useLLM });
           } catch (e) {
@@ -3382,56 +4310,13 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
         try {
           const updates: Array<{ word: string; status: number }> = JSON.parse(data as string);
           for (const update of updates) {
-            const canonical = getCanonicalForm(update.word);
-            const wordHash = SRS.hashWordSync(canonical);
-            const lk = langKey(settings.language, wordHash);
-            const now = Date.now();
-
-            if (update.status === 2) {
-              setStore(produce((s) => {
-                s.knownUntracked[lk] = true;
-                delete s.wordCandidates[lk];
-                delete s.wordKnowledge[lk];
-              }));
-            } else if (update.status === 1) {
-              setStore(produce((s) => {
-                if (!s.wordKnowledge[lk]) {
-                  s.wordKnowledge[lk] = {
-                    ease: settings.srsLearningThreshold / 1000,
-                    lastSeen: now,
-                    timesSeen: 0,
-                    timesHovered: 0,
-                    word: canonical,
-                    language: settings.language,
-                    lastStatusChange: now,
-                    wordSyncRatedAt: now,
-                  };
-                } else {
-                  s.wordKnowledge[lk].ease = settings.srsLearningThreshold / 1000;
-                  s.wordKnowledge[lk].lastStatusChange = now;
-                }
-              }));
-            } else {
-              setStore(produce((s) => {
-                delete s.knownUntracked[lk];
-                delete s.ignoredWords[lk];
-              }));
-            }
+            // Remote pill actions are explicit claims (same semantics as the
+            // local pill): 2 = known, 1 = learning, 0 = unknown.
+            const claim: WordStatus = update.status === 2 ? 'known' : update.status === 1 ? 'learning' : 'unknown';
+            setWordClaim(update.word, claim, settings.language);
           }
-          saveFlashcards();
         } catch (e) {
           log.error('[Tethered] Failed to process pill updates:', e);
-        }
-      }));
-
-      ipcCleanups.push(bridge.crossWindow.onUpdateWordAppearance((data: unknown) => {
-        try {
-          const words: string[] = JSON.parse(data as string);
-          for (const word of words) {
-            trackWordAppearance(word);
-          }
-        } catch (e) {
-          log.error('[Tethered] Failed to process word appearance updates:', e);
         }
       }));
 
@@ -3501,6 +4386,11 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     // Listen for visibility changes to reload on window focus
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    setKnowledgeRollupTodayFn(() => SRS.getTodayDateString(newDayHour()));
+    // REQ25 crash-window hardening: event-driven flush on beforeunload +
+    // visibilitychange→hidden (installed in knowledgeRollup, no timers).
+    installPassiveFlushHooks();
+
     loadFlashcards();
     startSession();
   });
@@ -3511,6 +4401,8 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
       clearTimeout(saveTimer);
       saveFlashcardsImmediate();
     }
+    uninstallPassiveFlushHooks();
+    void flushKnowledgeRollup();
     // Remove all IPC listeners
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
@@ -3559,16 +4451,19 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     unignoreWordForLanguage,
     captureSuggestedFlashcard,
     getSuggestedFlashcardsSync,
-    removeSuggestedFlashcard,
-    removeSuggestedFlashcards,
+    setAspectStatus,
+    clearAspectClaim,
     cleanupKnownSuggestions,
     garbageCollectSuggestedFlashcards,
     promoteSuggestedFlashcards,
     addLevelStudyFlashcards,
+    removeSuggestedFlashcard,
+    removeSuggestedFlashcards,
     trackWordSeen,
     trackWordHovered,
     cancelWordHover,
     getWordKnowledge,
+    getAspectStatus,
     isWordKnown,
     isWordKnownByText,
     isWordLearning,
@@ -3576,10 +4471,14 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     getComprehensiveWordStatusSync,
     getComprehensiveWordStatusWithSourceSync,
     isWordKnownComprehensiveSync,
+    isWordSettledSync,
     trackWordStatusChange,
-    setWordKnowledgeEase,
+    getWordSyncSeenSnapshotForForms,
     restoreWordSyncRating,
-    setComprehensiveWordStatus,
+    appendRetractions,
+    recomputeWordKnowledgeFromEvidence,
+    setWordClaim,
+    recordAttempt,
     setWordBankStatus,
     markWordSyncSeen,
     clearAllWordSyncSeen,

@@ -11,20 +11,7 @@
 
 import type { LanguageData, Token } from '../../shared/types';
 import { escapeHtml, stripReadingAnnotations, stripRubyAnnotations } from '../../shared/utils/textUtils';
-import { getPartOfSpeechColor, getTokenJoinSeparator, tokensToPlainText as tokensToLanguagePlainText } from '../../shared/languageFeatures';
-import { hasLettersInSegmentlessScript, languageUsesSegmentlessText } from '../../shared/languageScriptProfile';
-
-/**
- * Extract a plain text context phrase from tokens
- * Joins token surface forms into a single string
- *
- * @param tokens Array of tokens from tokenizer
- * @returns Plain text phrase
- */
-export function tokensToPlainText(tokens: Token[], data?: LanguageData | null): string {
-    if (!tokens || tokens.length === 0) return '';
-    return tokensToLanguagePlainText(tokens, data);
-}
+import { getPartOfSpeechColor, getTokenJoinSeparator } from '../../shared/languageFeatures';
 
 /**
  * Generate colored HTML from tokens based on part-of-speech
@@ -87,19 +74,6 @@ export function cleanContextPhrase(text: string, data?: LanguageData | null): st
 }
 
 /**
- * Extract context phrase from OCR context map or direct text
- * This is the primary method to use when getting a phrase for LLM or clipboard
- *
- * @param contextFromMap Context string from OCR context map (already stitched from boxes)
- * @param fallbackText Fallback text if context map is empty
- * @returns Cleaned context phrase
- */
-export function getContextPhrase(contextFromMap: string | undefined, fallbackText?: string, data?: LanguageData | null): string {
-    const raw = contextFromMap || fallbackText || '';
-    return cleanContextPhrase(raw, data);
-}
-
-/**
  * Format a context phrase for clipboard copy
  * Ensures consistent formatting across all copy operations
  *
@@ -119,42 +93,3 @@ export function formatForClipboard(phrase: string, data?: LanguageData | null): 
     return formatted;
 }
 
-/**
- * Truncate a phrase to a maximum length while preserving word boundaries.
- * Languages with segmentless writing systems use hard character truncation;
- * space-separated languages prefer a nearby word boundary.
- * Used for cache keys and display previews
- *
- * @param phrase The phrase to truncate
- * @param maxLength Maximum length (default 100)
- * @returns Truncated phrase
- */
-export function truncatePhrase(
-    phrase: string,
-    maxLength: number = 100,
-    data?: LanguageData | null,
-    language: string = '',
-): string {
-    if (!phrase || phrase.length <= maxLength) return phrase;
-
-    const useHardTruncation = data || language
-        ? languageUsesSegmentlessText(language, data)
-        : hasLettersInSegmentlessScript(phrase);
-    if (useHardTruncation) {
-        return phrase.slice(0, maxLength) + '…';
-    }
-
-    // For space-separated text, try to break at a word boundary
-    const truncated = phrase.slice(0, maxLength);
-    const lastSpace = truncated.lastIndexOf(' ');
-
-    if (lastSpace > maxLength * 0.7) {
-        return truncated.slice(0, lastSpace) + '…';
-    }
-
-    return truncated + '…';
-}
-
-// Re-export tokensToColoredHtml from subtitleParsing for backwards compatibility
-// This ensures existing imports continue to work
-export { tokensToColoredHtml as generateColoredHtml };

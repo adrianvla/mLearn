@@ -5,7 +5,6 @@ import type {
   ConversationAgentContext,
   AgentConfig,
   AgentMemoryEntry,
-  TutorSessionConfig,
   WordFrequencyEntry,
   VoiceMistake,
   Token,
@@ -23,6 +22,7 @@ const DEFAULT_LANGUAGE_FEATURES: LanguageFeatures = {
   isLogographic: true,
   isRTL: false,
   supportsColorCodes: true,
+  supportsOcrRamSaver: false,
   usesLatinScript: false,
   supportsFrequencyLevels: true,
   hasFixedSettings: false,
@@ -37,6 +37,7 @@ const DEFAULT_LANGUAGE_FEATURES: LanguageFeatures = {
     providesLemmas: true,
     providesPartOfSpeech: true,
     providesReadings: true,
+    providesMorphology: true,
     allowsRoughFallback: false,
   },
   casualRegisterPromptGuidelines: [],
@@ -81,9 +82,7 @@ interface MockDeps {
   getLanguageName: () => string;
   getLanguageFeatures: () => LanguageFeatures;
   getMediaContext: () => ConversationAgentContext | null;
-  getSceneContext: () => string;
   flashcardCtx: {
-    getWordKnowledge: (_word: string) => { ease: number; timesSeen: number } | undefined;
     trackGrammarFailed: (_pattern: string) => void;
     trackGrammarEncountered: (_pattern: string) => void;
   };
@@ -94,12 +93,14 @@ interface MockDeps {
   isVoiceMode?: () => boolean;
   onVoiceMistake?: (_mistake: VoiceMistake) => void;
   onVoiceNudgeScheduled?: (_nudge: { seconds: number; prompt?: string }) => void;
-  getTutorConfig?: () => TutorSessionConfig | null;
   getAgentConfig?: () => AgentConfig | null;
   getAgentMemories?: () => AgentMemoryEntry[];
   onMemorySaved?: (_content: string) => void;
   getIncludeKnowledgeInfo?: () => boolean;
   getDisabledTools?: () => Set<string>;
+  getWorldContext?: () => string;
+  getVoiceWorldContext?: (_turnText: string) => string;
+  getTurnSocialState?: () => { tone: 'frustrated' | 'uncertain' | 'excited' | 'confident' | 'withdrawn' | 'neutral'; evidence: string; source: 'heuristic' | 'checker' } | null;
 }
 
 function createMockDeps(overrides?: Partial<MockDeps>): MockDeps {
@@ -109,9 +110,7 @@ function createMockDeps(overrides?: Partial<MockDeps>): MockDeps {
     getLanguageName: () => 'Japanese',
     getLanguageFeatures: () => DEFAULT_LANGUAGE_FEATURES,
     getMediaContext: () => null,
-    getSceneContext: () => '',
     flashcardCtx: {
-      getWordKnowledge: vi.fn<(_word: string) => { ease: number; timesSeen: number } | undefined>(),
       trackGrammarFailed: vi.fn<(_pattern: string) => void>(),
       trackGrammarEncountered: vi.fn<(_pattern: string) => void>(),
     },
@@ -556,6 +555,130 @@ describe('createConversationAgent', () => {
     });
   });
 
+  // ==========================================================================
+  // world-context seam
+  // ==========================================================================
+
+  describe('world-context seam', () => {
+    it('replaces personality and memories sections with the injected world context', () => {
+      const deps = createMockDeps({ getWorldContext: () => '## World Persona\nINJECTED' });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('INJECTED');
+      expect(sysMsg.content).toContain('Japanese');
+      expect(sysMsg.content).toContain('INSTRUCTION PRIORITY');
+    });
+
+    it('keeps the legacy prompt path when getWorldContext is absent', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('Japanese');
+      expect(sysMsg.content).not.toContain('INJECTED');
+    });
+  });
+
+  // ==========================================================================
+  // turn social climate
+  // ==========================================================================
+
+  describe('turn social climate', () => {
+    const frustratedState = { tone: 'frustrated' as const, evidence: 'all-caps shouting', source: 'heuristic' as const };
+
+    const systemPromptOf = (callIndex = 0): string => {
+      const [messages] = mockBridge.llm.llmStream.mock.calls[callIndex];
+      return (messages as Array<{ role: string; content: string }>).find((m) => m.role === 'system')!.content;
+    };
+
+    it('renders Conversation Climate in the text prompt only when the dep yields a state', () => {
+      const withState = createConversationAgent(createMockDeps({ getTurnSocialState: () => frustratedState }));
+      withState.processMessage('test', [], createCallbacks().callbacks);
+      const prompt = systemPromptOf();
+      expect(prompt).toContain('## Conversation Climate');
+      expect(prompt).toContain('frustrated right now');
+      expect(prompt.indexOf('## Conversation Climate')).toBeLessThan(prompt.indexOf('INSTRUCTION PRIORITY'));
+
+      const withNull = createConversationAgent(createMockDeps({ getTurnSocialState: () => null }));
+      withNull.processMessage('test', [], createCallbacks().callbacks);
+      expect(systemPromptOf(1)).not.toContain('## Conversation Climate');
+    });
+
+    it('keeps the text prompt byte-identical when the dep is absent or null', () => {
+      const withoutDep = createConversationAgent(createMockDeps());
+      withoutDep.processMessage('test', [], createCallbacks().callbacks);
+      const baseline = systemPromptOf();
+
+      const withNullDep = createConversationAgent(createMockDeps({ getTurnSocialState: () => null }));
+      withNullDep.processMessage('test', [], createCallbacks().callbacks);
+      const secondCall = mockBridge.llm.llmStream.mock.calls[1];
+      const secondContent = (secondCall[0] as Array<{ role: string; content: string }>).find((m) => m.role === 'system')!.content;
+      expect(secondContent).toBe(baseline);
+      expect(secondContent).not.toContain('## Conversation Climate');
+    });
+
+    it('places Conversation Climate after memories and before safety in the text prompt', () => {
+      const memories: AgentMemoryEntry[] = [
+        { id: 'm1', agentId: 'a1', content: 'The learner loves cats', timestamp: Date.now() },
+      ];
+      const deps = createMockDeps({
+        getAgentMemories: () => memories,
+        getTurnSocialState: () => frustratedState,
+      });
+      const agent = createConversationAgent(deps);
+      agent.processMessage('test', [], createCallbacks().callbacks);
+      const prompt = systemPromptOf();
+      expect(prompt.indexOf('Things You Remember About the Learner')).toBeLessThan(prompt.indexOf('## Conversation Climate'));
+      expect(prompt.indexOf('## Conversation Climate')).toBeLessThan(prompt.indexOf('INSTRUCTION PRIORITY'));
+    });
+
+    it('places Conversation Climate after Personality/media and before Remembered Context and safety in voice mode', () => {
+      const mediaCtx: ConversationAgentContext = {
+        mediaName: 'Attack on Titan',
+        mediaType: 'video',
+        failedWords: [],
+        grammarExposure: [],
+      };
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        getMediaContext: () => mediaCtx,
+        getVoiceWorldContext: () => '## Remembered Context\nMEMORIES-INJECTED',
+        getTurnSocialState: () => frustratedState,
+      });
+      const agent = createConversationAgent(deps);
+      agent.processMessage('test', [], createCallbacks().callbacks);
+      const prompt = systemPromptOf();
+      const personality = prompt.indexOf('## Personality');
+      const media = prompt.indexOf('## Current Media Context');
+      const climate = prompt.indexOf('## Conversation Climate');
+      const remembered = prompt.indexOf('## Remembered Context');
+      const safety = prompt.indexOf('INSTRUCTION PRIORITY');
+      expect(personality).toBeGreaterThan(-1);
+      expect(media).toBeGreaterThan(-1);
+      expect(media).toBeLessThan(climate);
+      expect(climate).toBeLessThan(remembered);
+      expect(remembered).toBeLessThan(safety);
+      expect(prompt).toContain('MEMORIES-INJECTED');
+    });
+
+    it('keeps the voice prompt free of the climate section when the dep is absent', () => {
+      const agent = createConversationAgent(createMockDeps({ isVoiceMode: () => true }));
+      agent.processMessage('test', [], createCallbacks().callbacks);
+      expect(systemPromptOf()).not.toContain('## Conversation Climate');
+    });
+  });
+
+  // ==========================================================================
+  // abortStream
+  // ==========================================================================
   // ==========================================================================
   // abortStream
   // ==========================================================================
@@ -1515,6 +1638,38 @@ describe('createConversationAgent', () => {
       expect(toolMsg.content).toContain('て-form');
     });
 
+    it('lists exposure-ranked grammar as unmeasured practice candidates, not failures', async () => {
+      const mediaCtx: ConversationAgentContext = {
+        mediaName: 'My Anime',
+        mediaType: 'video',
+        mediaHash: 'hash123',
+        assessedLevel: 3,
+        assessedLevelName: 'N3',
+        language: 'ja',
+        failedWords: [],
+        failedGrammar: [
+          { pattern: 'て-form', ease: 2.0, timesFailed: 1 },
+        ],
+        grammarExposure: [{ pattern: '〜てしまう', timesEncountered: 5 }],
+        wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+        grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      };
+
+      const deps = createMockDeps({ getMediaContext: () => mediaCtx });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('stats?', [], callbacks);
+      sendDone([{ id: 'ms1', name: 'get_media_stats', arguments: {} }]);
+
+      await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+
+      const followUpMessages = mockBridge.llm.llmStream.mock.calls[1][0];
+      const toolMsg = followUpMessages.find((m: { role: string }) => m.role === 'tool');
+      expect(toolMsg.content).toContain('unmeasured');
+      expect(toolMsg.content).toContain('〜てしまう (5x)');
+    });
+
     it('returns no-media message when context is null', async () => {
       const deps = createMockDeps({ getMediaContext: () => null });
       const agent = createConversationAgent(deps);
@@ -1878,7 +2033,7 @@ describe('createConversationAgent', () => {
       expect(messages[0].content).toContain('Sakura');
     });
 
-    it('includes media context when provided', () => {
+    it('omits media prompt context when provided', () => {
       const mediaCtx: ConversationAgentContext = {
         mediaName: 'Dragon Ball',
         mediaType: 'video',
@@ -1898,7 +2053,7 @@ describe('createConversationAgent', () => {
       agent.processMessage('hi', [], callbacks);
 
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
-      expect(messages[0].content).toContain('Dragon Ball');
+      expect(messages[0].content).not.toContain('Dragon Ball');
     });
 
     it('includes target level restriction when targetLevelName is provided', () => {
@@ -1917,25 +2072,17 @@ describe('createConversationAgent', () => {
       expect(messages[0].content).toContain('Vocabulary Level Restriction');
     });
 
-    it('includes tutor config grammar when provided', () => {
-      const tutorConfig: TutorSessionConfig = {
-        selectedGrammar: [{ pattern: 'て-form', meaning: 'te-form connector', level: 5 }],
-        selectedWords: [],
-        selectedMedia: [],
-        customInstructions: '',
-      };
-      const deps = createMockDeps({
-        getTutorConfig: () => tutorConfig,
-        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
-      });
+    it('omits legacy tutor prompt sections', () => {
+      const deps = createMockDeps({ getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }) });
       const agent = createConversationAgent(deps);
       const { callbacks } = createCallbacks();
 
       agent.processMessage('hi', [], callbacks);
 
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
-      expect(messages[0].content).toContain('て-form');
-      expect(messages[0].content).toContain('Grammar Focus');
+      expect(messages[0].content).not.toContain('Grammar Focus');
+      expect(messages[0].content).not.toContain('Vocabulary Focus');
+      expect(messages[0].content).not.toContain('Session Instructions');
     });
 
     it('includes memories when agentMemoryEnabled is true', () => {
@@ -2181,6 +2328,30 @@ describe('createConversationAgent', () => {
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       expect(messages[0].content).toContain('Attack on Titan');
       expect(messages[0].content).toContain('巨人');
+    });
+
+    it('labels repeated-seen grammar as unmeasured exposure candidates, distinct from failures', () => {
+      const mediaCtx: ConversationAgentContext = {
+        mediaName: 'Attack on Titan',
+        mediaType: 'video',
+        mediaHash: 'h1',
+        assessedLevel: null,
+        assessedLevelName: '',
+        language: 'ja',
+        failedWords: [],
+        failedGrammar: [{ pattern: 'て-form', ease: 2.0, timesFailed: 1 }],
+        grammarExposure: [{ pattern: '〜てしまう', timesEncountered: 5 }],
+        wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+        grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      };
+      const deps = createMockDeps({ isVoiceMode: () => true, getMediaContext: () => mediaCtx });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('hi', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('Grammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): 〜てしまう');
     });
   });
 
@@ -2497,7 +2668,6 @@ describe('createConversationAgent', () => {
     it('uses language metadata when estimating history size for compaction', () => {
       const compactScriptLanguage: LanguageData = {
         name: 'Georgian compact test',
-        colour_codes: {},
         settings: { fixed: {} },
         textProcessing: {
           scriptProfile: { acceptedScripts: ['Geor'] },

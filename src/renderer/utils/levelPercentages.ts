@@ -11,6 +11,7 @@ import type {
 } from '../../shared/types';
 import {
   compareFrequencyLevelsByDifficulty,
+  compareGrammarLevelsByDifficulty,
   getFrequencyLevelLabel,
   getGrammarLevelLabel,
   isDisplayableFrequencyLevel,
@@ -143,23 +144,28 @@ export function computeGrammarLevelPercentages(
 }
 
 /**
- * Assess the difficulty level of a media based on word frequency distribution.
+ * Core weighted-level estimator: the 2^n-weighted cumulative difficulty rule.
  *
- * Weights each level exponentially so that a single advanced word counts for
- * far more than a beginner word. Levels are sorted from easiest to hardest
- * using the language's frequency-level metadata (e.g. easiest rank=0,
- * next-easiest rank=1, next rank=2 → weight 4, …). The assessed level is the level whose cumulative
- * weighted share, counted from hardest to easiest, reaches the 50% threshold.
+ * Sorts percentage entries from easiest to hardest using the supplied level
+ * comparator, then weights each level exponentially by difficulty rank
+ * (easiest rank = 1, next = 2, next = 4, …). Returns the hardest level whose
+ * cumulative weighted share, counted hardest → easiest, reaches 50%, with the
+ * hardest present level as fallback. This is an *objective* content-difficulty
+ * measure: it consumes only the media's level distribution and the language's
+ * level metadata — never learner state (no ease, claims, or projections).
  *
- * This prevents media with a long tail of advanced vocabulary from being
- * misclassified as beginner just because the high-frequency top of the
- * distribution is dominated by easy function words.
+ * This function is the exact lexical estimator formerly inlined in
+ * `assessMediaLevel`; moving it here changes no computed values.
  */
-export function assessMediaLevel(wordPercentages: LevelPercentages, languageData?: LanguageData | null): number | null {
-  const entries = [...wordPercentages.entries].sort((left, right) =>
-    compareFrequencyLevelsByDifficulty(left.level, right.level, languageData),
+export function estimateWeightedLevel(
+  percentages: LevelPercentages,
+  compareLevels: (left: number, right: number, data?: LanguageData | null) => number,
+  languageData?: LanguageData | null,
+): number | null {
+  const entries = [...percentages.entries].sort((left, right) =>
+    compareLevels(left.level, right.level, languageData),
   );
-  if (wordPercentages.totalUnique === 0 || entries.length === 0) return null;
+  if (percentages.totalUnique === 0 || entries.length === 0) return null;
 
   // Entries are sorted easiest first. Build weighted totals: rank 0 (easiest)
   // → weight 1, then doubling.
@@ -188,4 +194,103 @@ export function assessMediaLevel(wordPercentages: LevelPercentages, languageData
     if (entries[i].uniqueCount > 0) return entries[i].level;
   }
   return entries[entries.length - 1]?.level ?? null;
+}
+
+/**
+ * Assess the difficulty level of a media based on word frequency distribution.
+ *
+ * Delegates to `estimateWeightedLevel` with frequency-level ordering — the
+ * historical 2^n-weighted lexical estimator, preserved verbatim.
+ */
+export function assessMediaLevel(wordPercentages: LevelPercentages, languageData?: LanguageData | null): number | null {
+  return estimateWeightedLevel(wordPercentages, compareFrequencyLevelsByDifficulty, languageData);
+}
+
+/**
+ * Component breakdown of a media difficulty estimate.
+ *
+ * Components are kept separate from the fused `headline` so each difficulty
+ * source stays inspectable. No component is ever a learner-relative
+ * projection: every slot is an objective property of the media content
+ * (level distributions + language metadata only).
+ */
+export interface MediaDifficultyComponents {
+  /** Lexical (vocabulary frequency) difficulty — the 2^n-weighted word-level estimate. */
+  lexical: number | null;
+  /**
+   * Grammar difficulty (level distribution of the grammar points used in the
+   * media), computed with the same weighted rule when grammar distribution
+   * data is supplied. Fused into the headline proportionally to its data
+   * volume; also surfaced on its own for the component breakdown UI.
+   */
+  grammar: number | null;
+  /**
+   * Reserved for future structural (sentence-complexity / syntax) difficulty.
+   * No such estimator exists yet — always null today.
+   */
+  structural: null;
+}
+
+export interface MediaDifficultyEstimate {
+  /**
+   * Pure lexical (vocabulary frequency) difficulty. Retained under its
+   * historical name for consumers that specifically want the lexical
+   * component; the media headline is `headline`.
+   */
+  lexical: number | null;
+  /**
+   * Headline difficulty shown to the learner. With no grammar distribution it
+   * equals `lexical` exactly (legacy behavior). When both components are
+   * estimated, it is the data-volume-weighted mean of the two component
+   * estimates, rounded back to a discrete level (see `assessMediaDifficulty`).
+   */
+  headline: number | null;
+  components: MediaDifficultyComponents;
+}
+
+/**
+ * Assess media difficulty with a documented component breakdown.
+ *
+ * `lexical` reproduces `assessMediaLevel` exactly (same inputs → same value).
+ * `components.grammar` is populated from the optional grammar distribution
+ * (objective unique counts only — the weighted rule never consumes learner
+ * failure weights). No projection/learner inputs are accepted.
+ *
+ * Headline fusion (REQ48): both components are 2^n-weighted content
+ * estimates; the headline combines them with the same objective rationale —
+ * an arithmetic mean of the two level estimates weighted by how much data
+ * backs each component (`totalUnique` items of its distribution). A media
+ * with 400 unique words and 4 grammar points therefore stays essentially
+ * lexical, while a grammar-dense media moves the headline toward the grammar
+ * estimate. The mean is rounded to the nearest integer because every
+ * consumer (level-name labels, pill visual ranks, persisted stats) treats
+ * the headline as a discrete level. `structural` stays honestly null: no
+ * sentence-complexity estimator exists yet.
+ */
+export function assessMediaDifficulty(
+  wordPercentages: LevelPercentages,
+  grammarPercentages?: LevelPercentages | null,
+  languageData?: LanguageData | null,
+): MediaDifficultyEstimate {
+  const lexical = estimateWeightedLevel(wordPercentages, compareFrequencyLevelsByDifficulty, languageData);
+  const grammar = grammarPercentages
+    ? estimateWeightedLevel(grammarPercentages, compareGrammarLevelsByDifficulty, languageData)
+    : null;
+  const lexicalVolume = lexical == null ? 0 : wordPercentages.totalUnique;
+  const grammarVolume = grammar == null ? 0 : grammarPercentages?.totalUnique ?? 0;
+  const volume = lexicalVolume + grammarVolume;
+  const headline = lexical == null && grammar == null
+    ? null
+    : volume === 0
+      ? lexical ?? grammar
+      : Math.round(((lexical ?? 0) * lexicalVolume + (grammar ?? 0) * grammarVolume) / volume);
+  return {
+    lexical,
+    headline,
+    components: {
+      lexical,
+      grammar,
+      structural: null,
+    },
+  };
 }

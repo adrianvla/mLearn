@@ -306,6 +306,17 @@ export function useAnki() {
     }
   };
 
+  /** Full review history (revlog) per card, keyed by cardId. Empty map on failure. */
+  const getReviewsOfCards = async (cardIds: number[]): Promise<Record<string, AnkiReviewEntry[]>> => {
+    if (cardIds.length === 0) return {};
+    try {
+      return await ankiRequest<Record<string, AnkiReviewEntry[]>>(getProxyUrl(), 'getReviewsOfCards', { cards: cardIds });
+    } catch (e) {
+      log.error('Failed to get reviews of cards:', e);
+      return {};
+    }
+  };
+
   /** Set ease factors for multiple cards (Anki integer scale, e.g. 2500 = 2.5×) */
   const setEaseFactors = async (cardIds: number[], easeFactors: number[]): Promise<boolean[]> => {
     try {
@@ -391,6 +402,7 @@ export function useAnki() {
     isWordInAnki,
     findCards,
     getCardsInfo,
+    getReviewsOfCards,
     setEaseFactors,
     setDueDate,
     findCardsForWord,
@@ -405,9 +417,25 @@ export interface AnkiNoteInfo {
   fields: Record<string, { value: string; order: number }>;
 }
 
+/**
+ * AnkiConnect revlog entry. `id` is the review timestamp (ms). `ease` is the
+ * button pressed (1-4), `factor` the resulting ease (integer, 2500 = 2.5×).
+ */
+export interface AnkiReviewEntry {
+  id: number;
+  cid: number;
+  usn: number;
+  ease: number;
+  ivl: number;
+  lastIvl: number;
+  factor: number;
+  time: number;
+  /** 0 = learn, 1 = review, 2 = relearn, 3 = filtered, 4 = manual */
+  type: number;
+}
+
 export interface AnkiCardInfo {
-  cardId: number;
-  /** 0 = new, 1 = learning, 2 = review, 3 = relearning */
+  cardId: number;  /** 0 = new, 1 = learning, 2 = review, 3 = relearning */
   type: number;
   /** 0 = new, 1 = learning, 2 = review, 3 = day-learn, -1 = suspended, -2 = buried, -3 = buried (sched) */
   queue: number;
@@ -419,4 +447,12 @@ export interface AnkiCardInfo {
   interval: number;
   note: number;
   fields: Record<string, { value: string; order: number }>;
+  /** AnkiConnect rendered question (prompt) side HTML, when cardsInfo returns it. */
+  question?: string;
+  /** AnkiConnect rendered answer (reveal) side HTML, when cardsInfo returns it. */
+  answer?: string;
+  /** Deck this card belongs to, when cardsInfo returns it. */
+  deckName?: string;
+  /** Template ordinal within the note type (0-based), when cardsInfo returns it. */
+  ord?: number;
 }

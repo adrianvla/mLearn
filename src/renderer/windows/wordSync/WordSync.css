@@ -88,7 +88,20 @@
 
 .word-sync-actions {
   display: flex;
+  align-items: center;
   gap: var(--spacing-4);
+}
+
+/* The pending-chord hint ("Quality (1–3), then aspect key") appears at the
+   bottom of the matrix and shifts the centered layout; Word Sync's rating
+   flow is reveal-first Space/Space, so the hint is suppressed here. */
+.word-sync .rating-matrix__pending {
+  display: none;
+}
+
+.word-sync-attribution-prompt {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 
 .word-sync-btn {

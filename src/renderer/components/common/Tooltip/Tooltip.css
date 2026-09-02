@@ -1,6 +1,10 @@
 .tooltip-trigger {
   position: relative;
   display: inline-flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .tooltip-content {
@@ -20,6 +24,11 @@
 
 .tooltip-content--top {
   transform: translateX(-50%) translateY(-100%);
+}
+
+.tooltip-content--interactive {
+  pointer-events: auto;
+  white-space: normal;
 }
 
 .tooltip-content--bottom {

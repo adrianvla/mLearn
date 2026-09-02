@@ -11,7 +11,7 @@ import {
   resolveProsodyForHover,
 } from '../subtitle/wordHoverHelpers';
 import { normalizeDictionaryReading } from '../../utils/readingProsody';
-import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
@@ -77,7 +77,7 @@ const UnknownWordRow: Component<{
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData } = useLanguage();
-  const { getCardByWordSync, getComprehensiveWordStatusSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
+  const { getCardByWordSync, getComprehensiveWordStatusSync, getComprehensiveWordStatusWithSourceSync, getAspectStatus } = useFlashcards();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word, settings.language));
@@ -99,10 +99,8 @@ const UnknownWordRow: Component<{
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition: () => rowProsody()?.position ?? null,
-    ease: () => comprehensiveKnowledge().ease,
+    prosodyKnowledge: () => getAspectStatus(props.entry.word, 'prosody', settings.language),
     partOfSpeechColor: getWordColor,
-    status: () => comprehensiveKnowledge().status,
-    isKnown: wordIsKnown,
     surface: 'other',
     settings: () => settings,
   };
@@ -247,7 +245,7 @@ const UnknownWordRow: Component<{
 export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const { hasWordSync, isWordIgnoredSync } = useFlashcards();
+  const { hasWordSync, isWordIgnoredSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { currentLangData, getFrequency, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
@@ -264,23 +262,9 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
     language: settings.language,
     languageData: currentLangData(),
   }));
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
-
-  createEffect(() => {
-    if (!settings.use_anki) {
-      setAnkiCacheReady(false);
-      return;
-    }
-
-    const options = ankiCacheOptions();
-    if (isAnkiCacheFetched(options)) {
-      setAnkiCacheReady(true);
-      return;
-    }
-
-    void fetchAnkiWordsCache(options).then(() => {
-      setAnkiCacheReady(true);
-    });
+  const ankiCacheReady = createMemo(() => {
+    ankiCacheVersion();
+    return settings.use_anki && isAnkiCacheFetched(ankiCacheOptions());
   });
 
   createEffect(() => {
@@ -304,16 +288,33 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
     }
   });
 
+  /**
+   * Teaching-policy exclusions (ignored words) resolved via the canonical
+   * resolver's `excluded` flag. Exclusion is NOT knowledge: status stays
+   * honest, but excluded words must never surface as unknown-word noise.
+   */
+  const excludedByWord = createMemo(() => {
+    const excluded = new Set<string>();
+    for (const entry of props.words()) {
+      if (getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).excluded) {
+        excluded.add(entry.word);
+      }
+    }
+    return excluded;
+  });
+
   const addableEntries = createMemo(() =>
     props.words().filter((entry) =>
       !props.addingWordKeys().has(entry.key)
       && !hasWordSync(entry.word, settings.language)
-      && !isWordIgnoredSync(entry.word, settings.language)
+      && !excludedByWord().has(entry.word)
     )
   );
 
   const dictionaryFoundWords = createMemo(() =>
-    props.words().filter((entry) => hasDictionaryEntry(translations[entry.word]))
+    props.words().filter((entry) =>
+      !excludedByWord().has(entry.word) && hasDictionaryEntry(translations[entry.word])
+    )
   );
 
   const dictionaryFoundAddable = createMemo(() =>
@@ -326,7 +327,9 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
       return [] as SidebarWordEntry[];
     }
 
-    return props.words().filter((entry) => failedWords.has(entry.word));
+    return props.words().filter((entry) =>
+      !excludedByWord().has(entry.word) && failedWords.has(entry.word)
+    );
   });
 
   const filteredWords = createMemo(() => {
@@ -338,7 +341,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
       return failedCategoryWords();
     }
 
-    return props.words();
+    return props.words().filter((entry) => !excludedByWord().has(entry.word));
   });
 
   const visibleAddableEntries = createMemo(() => {
@@ -441,7 +444,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
               <PillBtn
                 size="sm"
                 variant={category() === 'failed' ? 'blue' : 'gray'}
-                label={t('mlearn.ConversationAgent.Stats.FailedWords')}
+                label={t('mlearn.ConversationAgent.Stats.HoveredWords')}
                 onClick={() => setCategory('failed')}
                 aria-pressed={category() === 'failed'}
               />

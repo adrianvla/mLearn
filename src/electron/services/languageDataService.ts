@@ -14,6 +14,8 @@ import type {
 } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 import { satisfiesMinimumAppVersion } from '../../shared/semanticVersion';
+import { diffCompactGraphAssets } from '../../shared/graph/diff';
+import type { CompactAssetJSON } from '../../shared/graph/compact';
 
 const log = getLogger('electron.languageData');
 const inFlightInstalls = new Map<string, Promise<void>>();
@@ -52,6 +54,48 @@ export interface LanguageDataInstallOptions {
 
 const CORE_COMPONENT: LanguagePythonRequirementComponent = 'core';
 const TOGGLE_CONTROLLED_INSTALL_COMPONENTS = new Set<LanguagePythonRequirementComponent>(['ocr', 'llm', 'voice']);
+/** Bundled Tier-2 linguistic graph assets, e.g. `languages/ja.graph.json`. */
+const GRAPH_ASSET_PATH = /^languages\/.+\.graph\.json$/;
+
+/**
+ * REQ56 conservative identity guard for graph package updates: an update that
+ * remaps an entity id to a different KIND invalidates learner evidence
+ * anchored on that id, so it must never install silently. Ambiguous updates
+ * are refused BEFORE any file is replaced — the installed graph stays loadable
+ * — and the thrown error surfaces to the user through
+ * LANGUAGE_DATA_INSTALL_ERROR. Anything that prevents a trustworthy comparison
+ * (unreadable old or new asset) also fails conservative. Kind-only: domain and
+ * label drift are `changed`, not an identity break.
+ */
+function assertGraphUpdateIdentitySafe(
+  language: string,
+  incomingFile: LanguageDataAsset,
+  extractedPath: string,
+): void {
+  const installedPath = getInstalledLanguageAssetPath(incomingFile);
+  if (!fs.existsSync(installedPath)) return;
+
+  let diff;
+  try {
+    const prev = JSON.parse(fs.readFileSync(installedPath, 'utf-8')) as CompactAssetJSON;
+    const next = JSON.parse(fs.readFileSync(extractedPath, 'utf-8')) as CompactAssetJSON;
+    diff = diffCompactGraphAssets(prev, next);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    log.warn(`Graph package update for ${language} (${incomingFile.path}) could not be identity-checked; keeping the installed graph: ${reason}`);
+    throw new Error(
+      `Graph package update for ${language} could not be identity-checked (${incomingFile.path}); the installed graph was kept. ${reason}`,
+    );
+  }
+
+  if (diff.ambiguous.length > 0) {
+    const sample = diff.ambiguous.slice(0, 5).join(', ');
+    log.warn(`Graph package update for ${language} rejected: ${diff.ambiguous.length} entity ids changed kind (${sample}); keeping the installed graph`);
+    throw new Error(
+      `Graph package update for ${language} was rejected: ${diff.ambiguous.length} graph entities changed kind while keeping their id (${sample}${diff.ambiguous.length > 5 ? ', …' : ''}). The installed graph was kept so learner evidence is not remapped.`,
+    );
+  }
+}
 
 export function getLanguageDataRoot(): string {
   return path.join(getUserDataPath(), 'language-data');
@@ -611,6 +655,13 @@ async function installBundle(
     });
 
     const manifest = parseBundleManifest(extractDir, language, dictionaryTargetLanguage);
+    // Identity guard runs BEFORE any file is replaced: an ambiguous graph
+    // package update must leave the previous assets untouched (REQ56).
+    for (const file of manifest.files) {
+      if (GRAPH_ASSET_PATH.test(file.path)) {
+        assertGraphUpdateIdentitySafe(language, file, path.join(extractDir, 'files', file.path));
+      }
+    }
     for (const file of selectBundleFiles(manifest.files, expectedAssets)) {
       const extractedPath = path.join(extractDir, 'files', file.path);
       if (!fs.existsSync(extractedPath)) {

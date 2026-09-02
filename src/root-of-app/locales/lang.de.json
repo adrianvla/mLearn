@@ -1,5 +1,48 @@
 {
   "mlearn": {
+    "GraphInspector": {
+      "Title": "Graphinspektor",
+      "Unavailable": "Der Sprachgraph ist nicht installiert.",
+      "SelectEntity": "Wählen Sie eine Graphentität.",
+      "Capabilities": "Fähigkeiten",
+      "identity": "Identität",
+      "property": "Eigenschaften",
+      "support": "Verwandte Unterstützung",
+      "SupportCaption": "Verwandt — kein Wissen. Unterstützungslinks übertragen kein Wissen.",
+      "Details": "Entwicklerdetails",
+      "Target": "Ziel",
+      "Projection": "Projektion",
+      "Retention": "Behalten",
+      "Evidence": "Evidenz",
+      "NoDirectEvidence": "Noch keine direkte Evidenz.",
+      "PredictionFirewall": "Vorhersage ist von direkter Evidenz getrennt.",
+      "State": {
+        "Known": "Evidenzbasiert bekannt",
+        "Learning": "Lernen",
+        "Predicted": "Vorhergesagt",
+        "Unmeasured": "Ungemessen",
+        "Excluded": "Ausgeschlossen"
+      },
+      "Neighborhood": {
+        "Title": "Lokaler Graph",
+        "Toggle": "Graph",
+        "Empty": "Keine Beziehungen zu diesem Eintrag.",
+        "Truncated": "{shown} von {total} Beziehungen werden angezeigt.",
+        "NotInGraph": "Dieser Eintrag ist nicht Teil des Sprachgraphs.",
+        "OpenInWindow": "Im Graphinspektor öffnen",
+        "Loading": "Nachbarschaft wird geladen…",
+        "State": {
+          "EvidenceBackedKnown": "Evidenzbasiert bekannt",
+          "ClaimedKnown": "Bekannt (angegeben)",
+          "ClaimedLearning": "Lernen (angegeben)",
+          "ClaimedUnknown": "Unbekannt (angegeben)",
+          "Learning": "Lernen",
+          "Unknown": "Unbekannt",
+          "Predicted": "Vorhergesagt",
+          "Unmeasured": "Ungemessen"
+        }
+      }
+    },
     "Management": {
       "ChooseGroup": "Klasse oder Gruppe auswählen",
       "ChooseGroupDescription": "Wähle aus, wo deine Aktivität und die Schulrichtlinien gelten.",
@@ -426,7 +469,8 @@
       "Empty": {
         "Hint": "Üben Sie die Zielsprache mit dem KI-Tutor. Er korrigiert Fehler, stellt Fragen und unterstützt Ihr Lernen.",
         "StartConversation": "KI beginnen lassen",
-        "Title": "Gespräch beginnen"
+        "Title": "Gespräch beginnen",
+        "NewConversation": "Neue Unterhaltung"
       },
       "ExperimentalBanner": "Experimentelle Funktion — KI-Antworten können Fehler enthalten. Überprüfen Sie wichtige sprachliche Punkte.",
       "Disclaimer": "Dies ist KI und kann Fehler machen. Bitte Antworten überprüfen.",
@@ -519,20 +563,20 @@
         "AssessedLevel": "Bewertete Stufe",
         "ByOccurrence": "Nach Vorkommen",
         "Current": "Aktuell",
-        "Failed": "Fehlgeschlagen",
-        "FailedGrammarCount": "Grammatikfehler",
-        "FailedWords": "Fehlgeschlagene Wörter",
+        "Struggled": "Schwierig",
+        "StruggledGrammarCount": "Schwierige Grammatik",
+        "HoveredWords": "Gehovert Wörter",
         "Filter": {
           "All": "Alle",
-          "FailedOnly": "Nur fehlgeschlagen",
+          "HoveredOnly": "Nur gehovert",
           "Unknown": "Keine Stufe"
         },
         "Grammar": "Grammatik",
         "GrammarLevels": "Grammatikstufen",
         "Hovered": "Gehovert",
         "Levels": "Stufen",
-        "NoFailedGrammar": "Noch keine Grammatikfehler.",
-        "NoFailedWords": "Noch keine fehlgeschlagenen Wörter — weiter im Immersion!",
+        "NoStruggledGrammar": "Noch keine schwierige Grammatik.",
+        "NoHoveredWords": "Noch keine gehoverten Wörter — weiter im Immersion!",
         "NoGrammarMatching": "Keine Grammatikpunkte entsprechen dem Filter.",
         "NoLevelData": "Nicht genügend Daten zur Berechnung der Stufenverteilung.",
         "NoMedia": "Noch keine Medienstatistiken gespeichert",
@@ -545,7 +589,9 @@
         "UnknownWords": "Unbekannte Wörter",
         "Words": "Wörter",
         "WordLevelDistribution": "Wörterverteilung nach Stufe",
-        "WordLevels": "Wortstufen"
+        "WordLevels": "Wortstufen",
+        "Lexical": "Lexikalisch",
+        "Structural": "Strukturell"
       },
       "StopRecording": "Aufnahme stoppen",
       "StopStreaming": "Stopp",
@@ -613,7 +659,8 @@
         "UploadSample": "Stimmprobe hochladen",
         "VoiceSample": "Streaming-Stimmklon",
         "LightweightVoice": "Leichte Stimme",
-        "SystemVoice": "Systemstimme"
+        "SystemVoice": "Systemstimme",
+        "CpuWarning": "Echtzeit-Sprache kann verzögert sein, da die Sprachverarbeitung auf der CPU läuft. Die Sprachqualität ist nicht betroffen."
       },
       "Memory": {
         "ClearAll": "Alle Erinnerungen löschen",
@@ -697,6 +744,51 @@
         "FetchingChapters": "Kapitelzusammenfassungen werden abgerufen...",
         "ExploringWiki": "Wiki wird nach Handlungskontext durchsucht...",
         "ExploringWikiDetail": "Wiki-Erkundung: {detail}"
+      },
+      "Sidebar": {
+        "Title": "Unterhaltungen",
+        "NewConversation": "Neue Unterhaltung",
+        "NewThread": "Neuer Thread",
+        "UntitledThread": "Unbenannter Thread"
+      },
+      "NewConversation": {
+        "Title": "Neue Unterhaltung",
+        "Hint": "Wähle jemanden, den du kennst, oder beschreibe, mit wem du sprechen und was du üben möchtest.",
+        "FieldLabel": "Unterhaltung",
+        "Placeholder": "Mit wem möchtest du sprechen oder was möchtest du üben?",
+        "Cancel": "Abbrechen",
+        "Start": "Starten",
+        "Starting": "Wird gestartet…",
+        "PeopleLabel": "Bekannte Personen",
+        "TalkTo": "Mit {name} sprechen",
+        "DidYouMean": "Meintest du:",
+        "Failed": "Unterhaltung konnte nicht erstellt werden",
+        "StartAria": "Unterhaltung starten"
+      },
+      "Menu": {
+        "OverflowAria": "Unterhaltungsmenü",
+        "CloseAria": "Unterhaltungsmenü schließen",
+        "NewThread": "Neuer Thread",
+        "Details": "Unterhaltungsdetails",
+        "WordHover": "Wort-Hover",
+        "Settings": "Einstellungen",
+        "MemoryBrowser": "Speicher-Browser"
+      },
+      "Call": {
+        "StartAria": "Anruf starten"
+      },
+      "Details": {
+        "ThreadLabel": "Thread",
+        "UntitledThread": "Unbenannter Thread",
+        "ParticipantsLabel": "Teilnehmer",
+        "NameLabel": "Name",
+        "PersonaLabel": "Persona",
+        "Edit": "Bearbeiten",
+        "Save": "Speichern",
+        "Cancel": "Abbrechen",
+        "DeleteThread": "Thread löschen",
+        "DeleteThreadConfirm": "Thread löschen?",
+        "ConfirmDelete": "Löschen bestätigen"
       }
     },
     "ErrorModal": {
@@ -891,7 +983,19 @@
         "Undo": "↩",
         "UndoTooltip": "Rückgängig",
         "StealthMode": "Tarnmodus",
-        "MuteAudio": "Audio stummschalten"
+        "MuteAudio": "Audio stummschalten",
+        "Modes": {
+          "Label": "Fokus",
+          "Meaning": "Bedeutung",
+          "Reading": "Lesung",
+          "Prosody": "Prosodie"
+        },
+        "Attribution": {
+          "WrongReading": "Falsche Lesung",
+          "WrongProsody": "Falsche Prosodie",
+          "WrongOrthography": "Form nicht erkannt",
+          "Marked": "{aspect} als unbekannt markiert"
+        }
       },
       "State": {
         "Learning": "Lernen",
@@ -1089,6 +1193,21 @@
           "Description": "Bücher, Manga, PDFs, EPUBs, Bilderordner und andere Dokumente mit OCR lesen",
           "Title": "Reader"
         },
+        "Room": {
+          "AddParticipant": "Teilnehmer hinzufügen",
+          "EmptyThread": "Noch keine Nachrichten. Beginne das Gespräch.",
+          "InputPlaceholder": "Nachricht eingeben...",
+          "Loading": "Raum wird geladen...",
+          "NewThread": "Neuer Thread",
+          "NoThread": "Kein aktiver Thread. Erstelle einen, um zu chatten.",
+          "RemoveParticipant": "Teilnehmer entfernen",
+          "RoomNotFound": "Raum nicht gefunden.",
+          "Roster": "Teilnehmer",
+          "SelectParticipant": "Teilnehmer hinzufügen",
+          "Send": "Senden",
+          "Title": "Raum",
+          "You": "Du"
+        },
         "Settings": {
           "Description": "mLearn anpassen",
           "Title": "Einstellungen"
@@ -1109,7 +1228,7 @@
           "LookupHint": "Drücken Sie Enter, um „{query}“ nachzuschlagen"
         },
         "CharacterGrid": {
-          "Description": "Visuelle Übersicht über Ihre Zeichenkenntnis",
+          "Description": "Visuelle Übersicht über die Zeichenvertrautheit",
           "Title": "Zeichenraster"
         },
         "WordSync": {
@@ -1141,7 +1260,9 @@
         "ComponentsRequired": "Einrichtung erforderlich"
       },
       "Alerts": {
-        "NetworkError": "Ein Netzwerkfehler ist aufgetreten. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+        "NetworkError": "Ein Netzwerkfehler ist aufgetreten. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+        "NetworkOfflineTitle": "Verbindungsproblem",
+        "NetworkOfflineMessage": "mLearn kann die Download-Server nicht erreichen. Prüfe deine Internetverbindung – der Download wird automatisch wiederholt und von der abgebrochenen Stelle fortgesetzt."
       },
       "Buttons": {
         "Continue": "Weiter",
@@ -1214,6 +1335,161 @@
         "DisplayLanguage": "Anzeigesprache: {language}",
         "DictionaryLanguage": "Wörterbuchsprache: {language}",
         "NotAvailable": "nicht verfügbar"
+      },
+      "PlatformWarnings": {
+        "IntelNoOnboardAi": {
+          "Title": "Lokale KI-Funktionen sind auf diesem Mac nicht verfügbar",
+          "Description": "Der Intel-Prozessor dieses Macs hat keine eingebaute KI-Beschleunigung, daher können die lokalen Sprach-, OCR- und KI-Modellkomponenten nicht installiert werden. mLearns eingebaute Chat-KI funktioniert weiterhin und läuft auf der CPU (langsamer).",
+          "Unavailable": "Auf diesem Mac nicht verfügbar"
+        },
+        "WindowsCudaRecommended": "Für Echtzeit-Sprache wird eine NVIDIA-GPU empfohlen. Sprache läuft auch auf der CPU, die Antworten sind dann aber langsamer."
+      }
+    },
+    "Rating": {
+      "Compact": {
+        "AllFluent": "Alles flüssig",
+        "AllEasy": "Alles leicht",
+        "Adjust": "Anpassen"
+      },
+      "Matrix": {
+        "Missed": "Verfehlt",
+        "Struggled": "Mühsam",
+        "Fluent": "Flüssig",
+        "Easy": "Leicht",
+        "AllFluent": "Alles flüssig",
+        "EverythingElseFluent": "Alles andere flüssig",
+        "AllFluentKey": "F",
+        "PendingHint": "Note (1–3), dann Aspekt-Taste"
+      }
+    },
+    "Knowledge": {
+      "Capability": {
+        "surface-recognition": "Erkennung",
+        "surface-reading": "Lesen",
+        "pronunciation-production": "Aussprache"
+      },
+      "LegacySource": {
+        "Prefix": "Evidenzquelle: ",
+        "None": "Keine"
+      },
+      "Basis": {
+        "Claim": "Eigene Einschätzung",
+        "Evidence": "Nachweis",
+        "Unmeasured": "Ungeprüft",
+        "Prediction": "Vorhergesagt",
+        "Excluded": "Ausgeschlossen"
+      },
+      "OverrideWarning": {
+        "Confirm": "Trotzdem ändern",
+        "DontRemind": "Nicht mehr erinnern",
+        "Message": "Dieser Status hat bestehende Evidenz. Die Änderung fügt eine manuelle Angabe hinzu, löscht die Evidenz aber nicht.",
+        "Title": "Wissensüberschreibung"
+      },
+      "Popup": {
+        "Overall": "Gesamt",
+        "Basis": "Grundlage",
+        "Rate": "Bewerten",
+        "Inspect": "Untersuchen"
+      },
+      "Projection": {
+        "Excluded": "Vom Lernen ausgeschlossen",
+        "Why": {
+          "Claim": "Deine Festlegung",
+          "Evidence": "Belege aus {count} SRS-Wiederholungen",
+          "Predicted": "Aus der Graph-Unterstützung vorhergesagt",
+          "PredictedLinks": "Über {count} Graph-Unterstützungspfade vorhergesagt",
+          "Passive": "{count}-mal beim Lesen gesehen — passiver Kontakt ist Vertrautheit, kein Beleg",
+          "Unmeasured": "Noch nichts gemessen"
+        },
+        "Capabilities": "Wissensfähigkeiten",
+        "AspectClaims": "Aspekte",
+        "Details": "Wortwissen",
+        "Graph": "Graph",
+        "Unavailable": "Wissensdetails sind nicht verfügbar.",
+        "Evidence": {
+          "Known": "Evidenzbasiert bekannt",
+          "Learning": "Evidenzbasiert lernend",
+          "Unknown": "Evidenzbasiert unbekannt",
+          "Title": "Aktive Evidenz",
+          "None": "Keine aktive Evidenz.",
+          "Claim": "Einschätzung: {status}",
+          "ClaimCleared": "Einschätzung aufgehoben"
+        },
+        "Predicted": "Vorhergesagt",
+        "Unmeasured": "Nicht gemessen",
+        "Because": "Weil:",
+        "Strength": "Ease {ease} · gesehen {seen} · gehovert {hovered}",
+        "Retention": "Druck {pressure} · fällig {due}",
+        "Tabs": {
+          "Identity": "Identität & Beziehungen",
+          "Targets": "Ziele",
+          "EvidenceHistory": "Evidenz & Verlauf",
+          "Prediction": "Vorhersage"
+        },
+        "Claim": {
+          "Known": "Eigene Einschätzung: bekannt",
+          "Learning": "Eigene Einschätzung: lernend",
+          "Unmeasured": "Eigene Einschätzung: ungeprüft",
+          "Unknown": "Eigene Einschätzung: unbekannt"
+        },
+        "ClaimOverride": "Eigene Einschätzung — überschreibt Evidenz",
+        "Identity": {
+          "Surface": "Oberfläche",
+          "Canonical": "Grundform",
+          "Senses": "Bedeutungen",
+          "NotInstalled": "Der Sprachgraph ist nicht installiert.",
+          "Install": "Sprachdaten installieren",
+          "NoGraph": "Keine Graphdaten für diesen Eintrag.",
+          "None": "Keine",
+          "NotInGraph": "Dieses verwandte Element ist nicht im Sprachgraph enthalten.",
+          "BackToWord": "Zurück zu {word}",
+          "Viewing": "Beziehungen von {label}",
+          "Sections": {
+            "Pronunciations": "Aussprachen",
+            "Morphology": "Morphologie",
+            "Characters": "Schriftzeichen",
+            "Grammar": "Grammatik"
+          }
+        },
+        "Provenance": "Herkunft",
+        "FullGraph": "Vollständigen Graphen öffnen",
+        "Prediction": {
+          "None": "Keine Vorhersage."
+        }
+      },
+      "Aspect": {
+        "Grammar": "Grammatik",
+        "Meaning": "Bedeutung",
+        "Reading": "Lesung",
+        "Prosody": "Prosodie",
+        "Gender": "Genus",
+        "Pronunciation": "Aussprache",
+        "Orthography": "Schriftform"
+      },
+      "AspectInherited": "(geerbt)",
+      "Untracked": "Nicht verfolgt",
+      "History": {
+        "Empty": "Noch keine Wissenshistorie.",
+        "Today": "Heute",
+        "Yesterday": "Gestern",
+        "Kind": {
+          "Status": "Statusänderung",
+          "Review": "Wiederholung",
+          "Rating": "Manuelle Bewertung",
+          "Rollup": "Passive Exposition"
+        },
+        "Source": {
+          "KnownWordsList": "Liste bekannter Wörter",
+          "IgnoredWords": "Liste ignorierter Wörter",
+          "Srs": "SRS",
+          "Anki": "Anki",
+          "PassiveTracking": "Passives Tracking",
+          "Manual": "Manuell",
+          "Grammar": "Grammatik"
+        }
+      },
+      "Actions": {
+        "ClearOverride": "Überschreibung aufheben"
       }
     },
     "LevelStudy": {
@@ -1229,6 +1505,7 @@
       },
       "Coverage": {
         "Title": "Wortabdeckung nach Stufe",
+        "Assessed": "bewertet",
         "UpTo": "Wörter bis",
         "AllLevels": "Wörter aller Stufen",
         "SetLevelHint": "Lege deine Lernstufe in den Einstellungen fest",
@@ -1300,7 +1577,7 @@
     "MediaStats": {
       "AllWordsKnown": "Alle Wörter sind bekannt!",
       "Difficulty": "Schwierigkeit",
-      "Failed": "{count}x fehlgeschlagen",
+      "Struggled": "{count}x schwierig",
       "GrammarPoints": "Grammatikpunkte",
       "Hovered": "{count}x hervorgehoben",
       "NoGrammarYet": "Noch keine Grammatikpunkte erkannt.",
@@ -1318,6 +1595,23 @@
       "TimeSpent": "Aufgewendete Zeit",
       "UnknownWords": "Unbekannte Wörter",
       "WordsSeen": "Gesehene Wörter"
+    },
+    "MemoryBrowser": {
+      "Empty": "Noch keine Speichereinträge.",
+      "Loading": "Speicher wird geladen...",
+      "Open": "Speicher-Browser öffnen",
+      "OpenInAgent": "Speicher-Browser",
+      "Sections": {
+        "Beliefs": "Überzeugungen",
+        "Episodes": "Episoden",
+        "OpenLoops": "Offene Schleifen",
+        "Relationships": "Beziehungen",
+        "RoomCulture": "Raumkultur"
+      },
+      "Tabs": {
+        "Room": "Raum"
+      },
+      "Title": "Speicher-Browser"
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki-Lernkarten aus dem Cache geladen (Anki scheint offline zu sein)",
@@ -1593,12 +1887,12 @@
           "Description": "Färbt Aussprachemerkmale anhand des aktiven Sprachpakets und überschreibt bei vorhandenen Prosodiedaten die Wortartfarben.",
           "Label": "Farbige Prosodie"
         },
-        "EaseMix": {
-          "Description": "Lässt Prosodiefarben mit steigender kombinierter Leichtigkeit verblassen.",
-          "Label": "Farben nach Leichtigkeit verblassen"
+        "EvidenceFade": {
+          "Description": "Lässt Prosodiefarben verblassen, wenn direkte Prosodie-Evidenz stärker wird. Ungemessene Muster bleiben voll gefärbt.",
+          "Label": "Farben nach Prosodie-Evidenz verblassen"
         },
         "MixTarget": {
-          "Description": "Wähle die Farbe, zu der Prosodiefarben bei hoher Leichtigkeit übergehen.",
+          "Description": "Wähle die Farbe, zu der Prosodiefarben bei starker Prosodie-Evidenz übergehen.",
           "Label": "Überblenden zu",
           "PartOfSpeech": "Wortartfarbe",
           "White": "Weiß"
@@ -1617,7 +1911,7 @@
           "Label": "Farbsättigung"
         },
         "StatusLimit": {
-          "Description": "Färbt Wörter bis zu diesem kombinierten Lernstatus. Höhere Status verwenden die normale Wortartfarbe.",
+          "Description": "Färbt Prosodiemuster bis zu diesem Prosodie-Lernstatus. Höhere Prosodie-Status verwenden die normale Wortartfarbe.",
           "Known": "Bekannt",
           "Label": "Färben bis Status",
           "Learning": "In Bearbeitung"
@@ -1640,7 +1934,6 @@
         "ThemePreview": "Theme-Vorschau",
         "VideoPlayerBehaviour": "Videoplayer-Verhalten",
         "WordStatus": "Wortstatus",
-        "KnowledgePriority": "Wissenspriorität",
         "LiveTranslator": "Live-Wortübersetzer",
         "Behaviour": "Verhalten",
         "WordKnowledge": "Wortkenntnisse",
@@ -1761,31 +2054,6 @@
         },
         "Submit": "Submit",
         "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
-      },
-      "KnowledgePriority": {
-        "Description": "Konfigurieren Sie, wie Wortwissen aus mehreren Quellen ermittelt wird",
-        "ResolutionMode": {
-          "Label": "Auflösungsmodus",
-          "Description": "Wie der Wortstatus bestimmt wird, wenn mehrere Quellen Daten haben"
-        },
-        "SourceOrder": {
-          "Label": "Quellenpriorität",
-          "Description": "Quellen neu anordnen. Im reihenfolgenbasierten Modus bestimmt die erste Quelle mit Daten den Wortstatus"
-        },
-        "Mode": {
-          "Order": "Reihenfolgenbasiert",
-          "Highest": "Höchster Status",
-          "Lowest": "Niedrigster Status"
-        },
-        "Source": {
-          "Srs": "Integriertes SRS",
-          "Anki": "Anki",
-          "Manual": "Manuell",
-          "KnownWordsList": "Bekannte Wörter",
-          "IgnoredWords": "Ignorierte Wörter",
-          "PassiveTracking": "Passives Tracking",
-          "None": "Keine"
-        }
       },
       "Reader": {
         "Description": "OCR- und Reader-Einstellungen",
@@ -1955,6 +2223,14 @@
             "Label": "Anki aktivieren"
           },
           "Failed": "Fehlgeschlagen",
+          "ImportHistory": {
+            "Label": "Wiederholungsverlauf importieren",
+            "Description": "Einmaliger Import deines Anki-Wiederholungsprotokolls in den Wissensverlauf. Wiederholtes Ausführen ist sicher — bereits importierte Wiederholungen werden übersprungen",
+            "Button": "Verlauf importieren",
+            "Running": "Importiere…",
+            "Success": "{imported} Wiederholungen für {words} Wörter importiert ({skipped} übersprungen)",
+            "Failed": "Import fehlgeschlagen — läuft Anki mit AnkiConnect?"
+          },
           "FieldMapping": {
             "Description": "Anki-Notizfelder den mLearn-Kartenfeldern zuordnen",
             "Expression": {
@@ -2312,10 +2588,18 @@
         "SRS": "SRS",
         "Statistics": "Statistiken",
         "VideoPlayer": "Videoplayer",
-        "BrowserExtension": "Browser-Erweiterung"
+        "BrowserExtension": "Browser-Erweiterung",
+        "EventAudit": "Ereignis-Journal"
       },
       "SearchPlaceholder": "Einstellungen durchsuchen...",
       "Behaviour": {
+        "RatingKeyboardMode": {
+          "Label": "Tastaturmodus zum Bewerten",
+          "Mnemonic": "Merkzeichen (1+M)",
+          "Spatial": "Räumliche Matrix (1/Q/A/Z)",
+          "MnemonicHint": "Note 1/2/3, dann M/R/P/O für den Aspekt.",
+          "SpatialHint": "Spalten 1-2-3 / Q-W-E / A-S-D / Z-X-C über den angezeigten Aspektzeilen."
+        },
         "FrequencyProvider": {
           "Label": "Häufigkeitsliste",
           "Description": "Wähle, welche Worthäufigkeitsquelle für Niveaus, Lernen und Word Sync verwendet wird."
@@ -2500,7 +2784,20 @@
       "WordsByLevel": "Wörter nach Stufe",
       "WordsByStatus": "Wörter nach Status",
       "WordsLearned": "Gelernte Wörter",
-      "WordsTracked": "Verfolgte Wörter"
+      "WordsTracked": "Verfolgte Wörter",
+      "WordHistory": {
+        "Title": "Worthistorie",
+        "SearchPlaceholder": "Erfasste Wörter suchen…",
+        "Empty": "Keine Historie für dieses Wort.",
+        "Prompt": "Wähle ein Wort, um seine Wissenshistorie zu sehen."
+      },
+      "LearningVelocity": {
+        "Title": "Lerntempo",
+        "Empty": "Noch nicht genug Verlauf — lerne weiter und schau später wieder vorbei.",
+        "DaysToKnown": "Median-Tage bis stabil bekannt",
+        "AcquisitionSlope": "14-Tage-Lernsteigung",
+        "RetentionAfterKnown": "30-Tage-Behaltensquote nach bekannt"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "Mit nächstem Untertitel synchronisieren",
@@ -2681,6 +2978,7 @@
       "Columns": {
         "Level": "Stufe",
         "Status": "Status",
+        "Knowledge": "Wissen",
         "TrackedBy": "Verfolgt durch",
         "Translation": "Übersetzung",
         "Word": "Wort"
@@ -2711,7 +3009,7 @@
         "Anki": "Anki",
         "Flashcards": "Lernkarten",
         "Ignored": "Ignoriert",
-        "Nothing": "Unverfolgt"
+        "Nothing": "Kein Tracker"
       },
       "Title": "Wortdatenbank",
       "AdvancedFilters": "Advanced Filters"
@@ -2740,17 +3038,8 @@
         "Learning": "Lernend",
         "Unknown": "Unbekannt"
       },
-      "StatusSource": {
-        "Prefix": "Quelle: ",
-        "None": "Keine"
-      },
       "TimesSeen": "{count} Mal gesehen",
-      "StatusSourceWarning": {
-        "Confirm": "Trotzdem ändern",
-        "DontRemind": "Nicht mehr erinnern",
-        "Message": "Der Status dieses Wortes wird durch die höchste Wissensquelle bestimmt. Eine manuelle Änderung hat möglicherweise keine Auswirkung, wenn Anki oder Lernkarten dieses Wort bereits auf einem höheren Niveau verfolgen.",
-        "Title": "Status-Überschreibung"
-      },
+      "Knowledge": {},
       "AnkiModifyWarning": {
         "Title": "Anki-Karten ändern",
         "Message": "Dies ändert den Ease-Faktor und die Position Ihrer Anki-Karten für dieses Wort. Neue Karten werden an den Anfang der Warteschlange verschoben.",
@@ -2761,7 +3050,11 @@
       "AnkiEase": "Anki-Ease: {ease}",
       "AnkiUpdateSuccess": "{count} Anki-Karte(n) aktualisiert",
       "AnkiUpdateRepositioned": "{count} Karte(n) aktualisiert, {repositioned} neue Karte(n) umpositioniert",
-      "AnkiUpdateFailed": "Anki-Karten konnten nicht aktualisiert werden"
+      "AnkiUpdateFailed": "Anki-Karten konnten nicht aktualisiert werden",
+      "Compound": {
+        "Title": "Kompositum",
+        "Ambiguous": "Mehrere Lesarten"
+      }
     },
     "ConnectionStatus": {
       "Connected": "Verbunden",
@@ -2798,6 +3091,7 @@
       "FinishedTitle": "Fertig!",
       "FinishedDescription": "Du hast {count} Wörter geprüft. Dein Wortwissen wurde aktualisiert.",
       "Progress": "{rated} / {total} Wörter",
+      "AttributionPrompt": "Was war unbekannt?",
       "Unknown": "Unbekannt",
       "Learning": "Lernend",
       "Known": "Bekannt",
@@ -2960,19 +3254,32 @@
       "Actions": {
         "Install": "Installieren",
         "Update": "Aktualisieren",
-        "RepairRuntime": "Laufzeitkomponenten reparieren"
+        "RepairRuntime": "Laufzeitkomponenten reparieren",
+        "Removing": "Wird entfernt…"
       },
       "Status": {
         "installed": "Installiert",
         "missing": "Fehlt",
         "outdated": "Veraltet",
-        "error": "Fehler"
+        "error": "Fehler",
+        "NotInstalled": "Nicht installiert"
       },
       "LanguageData": {
         "CoreTitle": "Sprachpaket {language}",
         "CoreDescription": "Kern-Laufzeitdaten für {language}.",
         "DictionaryDescription": "Definitionen für {language} auf {target}.",
         "SizeStatus": "{installed} von {total}"
+      },
+      "SizeApprox": "Ungefähre Größe: {size}",
+      "Toast": {
+        "RemovedTitle": "Komponenten entfernt",
+        "RemovedMessage": "{removed} Paket(e) entfernt; {kept} für andere aktivierte Komponenten behalten.",
+        "AbortedTitle": "Entfernen übersprungen",
+        "AbortedMessage": "Es wurde nichts entfernt: {reason}"
+      },
+      "Capability": {
+        "Gpu": "GPU (CUDA)",
+        "Cpu": "CPU"
       }
     },
     "Diagnostics": {
@@ -3063,7 +3370,7 @@
         "Title": "Zeichenstufen sind nur geschätzt",
         "Description": "Die hier gezeigten Zeichen werden aus den Wörtern abgeleitet, die einer Stufe zugeordnet sind, und dann aus diesen Wörtern extrahiert. Daher ist das Raster nur näherungsweise: Manche Stufen enthalten Wörter, deren Zeichen selbst nicht zwingend verlangt werden."
       },
-      "Description": "Farben: lernend (orange→gelb), bekannt (grün→hellgrün), unbekannt (grau). Hovern für Details.",
+      "Description": "Vertrautheit aus bekannten/lernenden Wörtern vorhergesagt: vertraut (grün), im Entstehen (orange), unbekannt (grau). Volle Farben = direkte Lese-Evidenz; blau = eigene Angabe. Hovern für Details.",
       "EmptyState": {
         "Description": "Zeichen aus Videos oder Texten erscheinen hier.",
         "Hint": "Beginnen Sie mit dem Schauen oder Lesen von Inhalten, um die Verfolgung zu starten!",
@@ -3074,26 +3381,47 @@
         "Title": "Zeichenlernen ist für diese Sprache nicht verfügbar"
       },
       "Legend": {
-        "Known": "Bekannt:",
-        "Learning": "Lernend:",
-        "Unknown": "Unbekannt:"
+        "Claimed": "Selbst angegeben:",
+        "EvidencedKnown": "Lesen: bestätigt",
+        "EvidencedLearning": "Lesen: im Aufbau",
+        "EvidencedUnknown": "Lesen: mit Lücken",
+        "Familiar": "Vertraut (vorhergesagt):",
+        "Emerging": "Im Entstehen (vorhergesagt):",
+        "Unmeasured": "Unbekannt:"
       },
       "LevelFallback": "Stufe {level}",
       "Loading": "Zeichendaten werden geladen...",
       "Stats": {
-        "Known": "Bekannt:",
-        "Learning": "Lernend:",
+        "Evidenced": "Direkt belegt:",
+        "Claimed": "Selbst angegeben:",
+        "Familiar": "Vertraut:",
+        "Emerging": "Im Entstehen:",
         "TotalFound": "Gesamt:",
-        "Unknown": "Unbekannt:"
+        "Unmeasured": "Unbekannt:"
       },
-      "Title": "Zeichenbeherrschung",
+      "Title": "Zeichenvertrautheit",
       "Tooltip": {
-        "KnownCount": "Bekannte",
-        "LearningCount": "Lernende",
+        "Claim": {
+          "known": "Sie haben dieses Zeichen als lesbar markiert.",
+          "learning": "Sie haben dieses Zeichen als lernend markiert.",
+          "unknown": "Sie haben dieses Zeichen als nicht bekannt markiert."
+        },
+        "Reading": {
+          "known": "Leseversuche bestätigen, dass Sie dieses Zeichen lesen können.",
+          "learning": "Leseversuche zeigen, dass Sie dieses Zeichen lernen.",
+          "unknown": "Leseversuche zeigen, dass Sie dieses Zeichen noch nicht lesen können."
+        },
+        "Claimed": "selbst angegeben",
+        "Evidenced": "direkt belegt",
+        "Familiar": "vertraut (vorhergesagt)",
+        "Emerging": "im Entstehen (vorhergesagt)",
+        "Unmeasured": "unbekannt",
+        "KnownWords": "bekannte Wörter",
+        "LearningWords": "lernende Wörter",
         "MoreWords": "+{count} weitere",
         "Score": "Punktzahl",
-        "UnknownCount": "Unbekannte",
-        "WordsContaining": "Wörter mit {char}"
+        "WordsContaining": "Wörter mit {char}",
+        "PredictionNote": "Die Vertrautheit wird aus den unten gezeigten bekannten/lernenden Wörtern mit diesem Zeichen vorhergesagt – kein direkter Zeichennachweis."
       }
     }
   }

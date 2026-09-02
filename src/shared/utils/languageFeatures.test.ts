@@ -52,6 +52,7 @@ import {
   isTranslatableToken,
   isSettingFixedByLanguage,
   languageSupportsCharacterNamePrefixes,
+  languageSupportsCompoundSplitting,
   languageSupportsDeferentialRegister,
   languageSupportsProsody,
   ocrRuntimeSupportsVerticalText,
@@ -372,6 +373,12 @@ describe('language feature bricks', () => {
     expect(languageSupportsDeferentialRegister(unconfiguredLanguage)).toBe(false);
     expect(languageSupportsCharacterNamePrefixes(configuredLanguage)).toBe(true);
     expect(languageSupportsDeferentialRegister(configuredLanguage)).toBe(true);
+  });
+
+  it('gates compound splitting behind declared package metadata', () => {
+    expect(languageSupportsCompoundSplitting(null)).toBe(false);
+    expect(languageSupportsCompoundSplitting({ ...latinLanguage })).toBe(false);
+    expect(languageSupportsCompoundSplitting({ ...latinLanguage, compoundSplitting: true })).toBe(true);
   });
 
   const freq: [string, string][] = [

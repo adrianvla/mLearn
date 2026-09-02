@@ -23,19 +23,19 @@ export const EntriesHeader: Component<EntriesHeaderProps> = (props) => {
 
   return (
     <div class="entries-header">
-      <div class="col word" onClick={() => props.onSort('word')}>
+      <button type="button" class="col word" onClick={() => props.onSort('word')}>
         {t('mlearn.WordDbEditor.Columns.Word')}{getSortIndicator('word')}
-      </div>
-      <div class="col translation" onClick={() => props.onSort('translation')}>
+      </button>
+      <button type="button" class="col translation" onClick={() => props.onSort('translation')}>
         {t('mlearn.WordDbEditor.Columns.Translation')}{getSortIndicator('translation')}
-      </div>
-      <div class="col level" onClick={() => props.onSort('level')}>
+      </button>
+      <button type="button" class="col level" onClick={() => props.onSort('level')}>
         {t('mlearn.WordDbEditor.Columns.Level')}{getSortIndicator('level')}
-      </div>
+      </button>
+      <button type="button" class="col knowledge" onClick={() => props.onSort('status')}>
+        {t('mlearn.WordDbEditor.Columns.Knowledge')}{getSortIndicator('status')}
+      </button>
       <div class="col tracker">{t('mlearn.WordDbEditor.Columns.TrackedBy')}</div>
-      <div class="col status" onClick={() => props.onSort('status')}>
-        {t('mlearn.WordDbEditor.Columns.Status')}{getSortIndicator('status')}
-      </div>
     </div>
   );
 };

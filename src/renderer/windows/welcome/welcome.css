@@ -72,6 +72,23 @@
   gap: var(--spacing-2);
 }
 
+/* Platform warnings (Intel Mac without onboard AI, Windows CUDA hint) */
+.welcome-window__platform-warning {
+  margin-bottom: var(--spacing-4);
+}
+
+.welcome-window__option-unavailable {
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.welcome-window__option-size {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
 /* Setup sentence */
 .welcome-window__setup-sentence,
 .welcome-window__dictionary-target {

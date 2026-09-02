@@ -1,5 +1,6 @@
 import type { JSX } from 'solid-js';
 import type { WordStatus } from '../../shared/constants';
+import { statusToStrength } from '../../shared/utils/knowledgeStrength';
 import {
   DEFAULT_SETTINGS,
   type LanguageColoredProsodyConfig,
@@ -19,6 +20,17 @@ export interface ColoredProsodyRenderInput {
   reading: string;
   slot: 'word' | 'reading';
   prosodyPosition?: number | null;
+}
+
+/** Effective state of the prosodic-pattern target — claim-overrides-evidence as
+ *  resolved by getAspectStatus(word, 'prosody'). Never the word's combined status. */
+export interface ColoredProsodyKnowledge {
+  status: WordStatus;
+  /** Aspect-record ease (mirrors the aspect read); the fade keys off status classification, never ease. */
+  ease: number;
+  untracked?: boolean;
+  /** Exclusions settle word selection; they are not prosody knowledge. */
+  excluded?: boolean;
 }
 
 type ColoredProsodyRenderer = (input: ColoredProsodyRenderInput) => ColoredProsodySegment[] | null;
@@ -106,6 +118,22 @@ export function coloredProsodyAllowsStatus(status: WordStatus, limit: Settings['
   return ranks[status] <= ranks[limit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit];
 }
 
+/**
+ * Fade only from demonstrated mastery of the prosodic-pattern target. The
+ * decision keys off the aspect-specific effective status classification
+ * (claim or evidence) — never the stored ease, which for claim records is
+ * seeded from the word entry and would leak word-level knowledge into the
+ * scaffold. Unmeasured targets (no record) and predicted estimates are not
+ * demonstrated mastery: they keep the full scaffold (no fade).
+ */
+export function getColoredProsodyFadeStrength(
+  knowledge: ColoredProsodyKnowledge,
+): number {
+  if (knowledge.excluded) return 0;
+  if (knowledge.untracked) return 0;
+  return statusToStrength(knowledge.status);
+}
+
 interface RgbColor {
   red: number;
   green: number;
@@ -152,7 +180,7 @@ function mixColors(source: RgbColor, target: RgbColor, amount: number): RgbColor
 export function resolveColoredProsodyStyle(
   color: string,
   settings: Settings,
-  ease: number | undefined,
+  fadeStrength: number,
   partOfSpeechColor: string | undefined,
 ): JSX.CSSProperties {
   const parsed = parseHexColor(color);
@@ -162,15 +190,12 @@ export function resolveColoredProsodyStyle(
     parsed,
     settings.coloredProsodySaturation ?? DEFAULT_SETTINGS.coloredProsodySaturation,
   );
-  if (!(settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled) || ease === undefined) {
+  if (!(settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled)) {
     return { color: toHexColor(saturated) };
   }
 
-  const start = settings.easeThresholdLearning ?? DEFAULT_SETTINGS.easeThresholdLearning;
-  const end = settings.easeThresholdMastered ?? DEFAULT_SETTINGS.easeThresholdMastered;
-  const progress = end <= start ? 0 : Math.max(0, Math.min(1, (ease - start) / (end - start)));
   const targetSetting = settings.coloredProsodyEaseMixTarget ?? DEFAULT_SETTINGS.coloredProsodyEaseMixTarget;
   const targetColor = targetSetting === 'part-of-speech' ? partOfSpeechColor : '#ffffff';
   const target = parseHexColor(targetColor ?? '#ffffff') ?? parseHexColor('#ffffff')!;
-  return { color: toHexColor(mixColors(saturated, target, progress * 0.82)) };
+  return { color: toHexColor(mixColors(saturated, target, Math.max(0, Math.min(1, fadeStrength)) * 0.82)) };
 }

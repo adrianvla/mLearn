@@ -162,7 +162,7 @@ export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
                   <span class="stats-word">{entry.pattern}</span>
                   <span class="stats-info">
                     <Show when={entry.timesFailed > 0}>
-                      <span class="stats-hovered">{t('mlearn.MediaStats.Failed', { count: String(entry.timesFailed) })}</span>
+                      <span class="stats-hovered">{t('mlearn.MediaStats.Struggled', { count: String(entry.timesFailed) })}</span>
                     </Show>
                     <span class="stats-ease" style={{ color: getEaseColor(entry.ease) }}>
                       {entry.ease.toFixed(2)}

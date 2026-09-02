@@ -6,7 +6,6 @@ const mockParseSubtitle = vi.fn((text: string) => ({
   text,
   readingOverrides: [],
 }));
-const mockShouldRemoveParentheticalContent = vi.fn((language: string) => language === 'ja');
 const mockStripSpeakerNamePrefixes = vi.fn((text: string) => text);
 
 vi.mock('../context', () => ({
@@ -38,7 +37,6 @@ vi.mock('./useTranslation', () => ({
 
 vi.mock('../utils/subtitleParsing', () => ({
   parseSubtitle: (...args: unknown[]) => mockParseSubtitle(...(args as [string, string])),
-  shouldRemoveParentheticalContent: (...args: unknown[]) => mockShouldRemoveParentheticalContent(...(args as [string])),
   stripSpeakerNamePrefixes: (...args: unknown[]) => mockStripSpeakerNamePrefixes(...(args as [string, string, unknown])),
 }));
 
@@ -86,7 +84,6 @@ describe('useSubtitles', () => {
   beforeEach(() => {
     mockTokenize.mockResolvedValue([]);
     mockParseSubtitle.mockImplementation((text: string) => ({ text, readingOverrides: [] }));
-    mockShouldRemoveParentheticalContent.mockImplementation((language: string) => language === 'ja');
     mockStripSpeakerNamePrefixes.mockImplementation((text: string) => text);
   });
 

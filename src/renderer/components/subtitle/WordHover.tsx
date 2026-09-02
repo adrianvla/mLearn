@@ -4,14 +4,20 @@
  * Matches legacy .subtitle_hover structure exactly from the old app
  */
 
-import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry } from '../../../shared/types';
+import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onCleanup, onMount } from 'solid-js';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, type TranslationEntry, type WordFrequencyMap } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
+import { useOptionalGraph } from '../../context/GraphContext';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
-import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml } from '../common';
+import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, KnowledgeProjectionDrawer } from '../common';
+import { KnowledgeCapabilitySummary } from '../common/WordStatusPillKnowledge';
+import { getEvents, eventsVersion } from '../../services/knowledgeEvents';
+import { hashWordSync } from '../../services/srsAlgorithm';
+import { getAvailableAspects } from '../../../shared/types';
+import type { KnowledgeEvent } from '../../../shared/knowledgeEvents';
 import { ProsodyOverlay } from '../language-specific';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
@@ -27,10 +33,14 @@ import { showToast } from '../common/Feedback/Toast';
 import { getTokenLookupWord, getTokenWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
-import { getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
+import { getFrequencyLevelVisualRank, languageSupportsCompoundSplitting } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
+import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
+import { decomposeGermanCompound, type GermanCompoundAnalysis, type GermanCompoundLexicon } from '../../../shared/graph/morphology/deCompounds';
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
+import type { KnowledgeProjection } from '../../../shared/graph/ipc';
+import { openGraphInspector } from '../../services/openGraphInspector';
 
 const log = getLogger("renderer.components.wordHover");
 
@@ -44,6 +54,41 @@ const UI_NAVBAR_HEIGHT = 48;  // .reader-nav height: 48px
 const UI_SIDEBAR_WIDTH = 160; // .reader-sidebar width: 160px
 const UI_STATUSBAR_HEIGHT = 30; // .reader-status height: 30px
 const UI_BOUNDARY_PADDING = 12; // Small padding from UI elements
+
+// ============ German compound decomposition (REQ42) ============
+
+const MIN_COMPOUND_PART_LENGTH = 3; // Must match deCompounds MIN_PART_LENGTH.
+
+/** Per-frequency-map cache so repeated hovers never rebuild the lexicon. */
+const compoundLexiconCache = new WeakMap<object, GermanCompoundLexicon>();
+
+/** The splitter lexicon is the language's own frequency vocabulary. */
+function compoundLexiconFor(freq: WordFrequencyMap | undefined): GermanCompoundLexicon {
+  if (!freq || typeof freq !== 'object') return new Map();
+  const cached = compoundLexiconCache.get(freq);
+  if (cached) return cached;
+  const lexicon: GermanCompoundLexicon = new Map(
+    Object.keys(freq)
+      .filter((surface) => surface.length >= MIN_COMPOUND_PART_LENGTH)
+      .map((surface) => [surface.toLocaleLowerCase('de'), { lemma: surface }]),
+  );
+  compoundLexiconCache.set(freq, lexicon);
+  return lexicon;
+}
+
+/**
+ * Decompose a hovered surface with the shared splitter, or null when the
+ * language has no compound capability, the word is too short to hold two
+ * parts, or the result is not a generated multi-part split (attested single
+ * lexemes are not compounds and render no tree).
+ */
+export function compoundAnalysisFor(word: string, languageData: LanguageData | null | undefined, freq: WordFrequencyMap | undefined): GermanCompoundAnalysis | null {
+  if (!languageSupportsCompoundSplitting(languageData)) return null;
+  const normalized = word.trim();
+  if (normalized.length < 2 * MIN_COMPOUND_PART_LENGTH) return null;
+  const analysis = decomposeGermanCompound(normalized, compoundLexiconFor(freq));
+  return analysis?.source === 'generated' ? analysis : null;
+}
 
 export interface WordHoverProps {
   token: Token;
@@ -79,12 +124,14 @@ export interface WordHoverProps {
   /** Video source URL (for video clip flashcards) */
   videoSrc?: string;
   lastScreenshot?: string;
+  grammarOccurrences?: readonly GrammarOccurrence[];
 }
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
-  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
-  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
+  const { meta: graphMeta, getTargetsForSurfaces } = useOptionalGraph();
+  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusWithSourceSync, getAspectStatus, setWordClaim, setAspectStatus, clearAspectClaim } = useFlashcards();
+  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants, getWordFrequency } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -95,7 +142,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const [, setPositionLocked] = createSignal(false);
   // Track if we have a cached explanation (for pill indicator)
   const [hasCachedExplanation, setHasCachedExplanation] = createSignal(false);
+  const [graphLookup, setGraphLookup] = createSignal<import('../../../shared/graph/ipc').GraphWordLookup | null>(null);
+  const [projection, setProjection] = createSignal<KnowledgeProjection>();
+  const [showKnowledgeDetails, setShowKnowledgeDetails] = createSignal(false);
   let hoverRef: HTMLDivElement | undefined;
+  let contentRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
   const displayWord = createMemo(() => props.word || props.token.surface || props.token.word);
@@ -108,6 +159,31 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   }, tokenizerCapabilities()) || displayWord());
 
   const isShown = createMemo(() => props.visible !== false);
+
+  createEffect(() => {
+    const word = actualWord();
+    if (!word || !graphMeta().ready) {
+      setGraphLookup(null);
+      return;
+    }
+    let disposed = false;
+    void getTargetsForSurfaces([{ surface: word }]).then(([result]) => {
+      if (!disposed) setGraphLookup(result?.lookup ?? null);
+    });
+    onCleanup(() => { disposed = true; });
+  });
+
+  createEffect(() => {
+    const word = actualWord();
+    if (!word) return;
+    let disposed = false;
+    void getBridge().graph.getKnowledgeProjection(settings.language, word).then((next) => {
+      if (!disposed) setProjection(next);
+    }).catch(() => {
+      if (!disposed) setProjection({ status: 'error', targets: [] });
+    });
+    onCleanup(() => { disposed = true; });
+  });
   
   // REACTIVE: Check if word is in SRS using synchronous method
   // This properly integrates with SolidJS's reactive system
@@ -136,6 +212,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     tokenizerCapabilities: tokenizerCapabilities(),
     languageData: currentLangData(),
   }));
+
+  // REQ42: real decomposition from the shared splitter, shown only when the
+  // surface actually splits into parts.
+  const compoundAnalysis = createMemo(() => compoundAnalysisFor(actualWord(), currentLangData(), getWordFrequency()));
   
   // REACTIVE: Get current ease from flashcard if tracked
   const currentEase = createMemo(() => {
@@ -489,14 +569,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   // Anki hover preview state
-  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched(ankiCacheOptions()));
-
-  // Fetch Anki words cache once when use_anki is enabled
-  createEffect(() => {
-    const options = ankiCacheOptions();
-    if (settings.use_anki && !isAnkiCacheFetched(options)) {
-      fetchAnkiWordsCache(options).then(() => setAnkiCacheReady(true));
-    }
+  const ankiCacheReady = createMemo(() => {
+    ankiCacheVersion();
+    return settings.use_anki && isAnkiCacheFetched(ankiCacheOptions());
   });
 
   // Check if word is in Anki (synchronous, from cache)
@@ -512,8 +587,26 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return findAnkiWordMatchInCache(wordForms(), ankiCacheOptions());
   });
 
-  const effectiveStatus = createMemo(() => getComprehensiveWordStatusSync(actualWord(), settings.language));
+  const effectiveStatus = createMemo(() => getComprehensiveWordStatusWithSourceSync(actualWord(), settings.language).status);
+  const effectiveKnowledge = createMemo(() => getComprehensiveWordStatusWithSourceSync(actualWord(), settings.language));
 
+  // Inspector claim editing: word-level claim + per-applicable-aspect rows.
+  const hoverAspectStates = createMemo(() => getAvailableAspects(currentLangData() ?? undefined)
+    .filter((aspect): aspect is Exclude<typeof aspect, 'meaning'> => aspect !== 'meaning')
+    .map((aspect) => {
+      const state = getAspectStatus(actualWord(), aspect, settings.language);
+      return { aspect, status: state.status, claim: state.claim };
+    }));
+  // Journal for the inspector's Evidence & History tab.
+  const [journalEvents, setJournalEvents] = createSignal<KnowledgeEvent[] | undefined>(undefined);
+  createEffect(() => {
+    const word = actualWord();
+    if (!word) return;
+    eventsVersion();
+    void getEvents([`${settings.language}:${hashWordSync(word)}`])
+      .then((log) => setJournalEvents(log))
+      .catch(() => setJournalEvents([]));
+  });
   // Level pill showing the language-defined frequency/proficiency level.
   // Must reactively update when word changes - use createMemo for full reactivity
   const levelPillData = createMemo(() => {
@@ -551,6 +644,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   // Flashcard pill - computed values for reactivity
   const isTracked = createMemo(() => isInSRS() || props.isInSRS === true);
+  const grammarOccurrences = createMemo(() => props.grammarOccurrences ?? []);
 
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = createSignal(false);
@@ -561,10 +655,17 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   );
 
   // When an internal modal opens, cancel any pending hide from the parent
+  let wasBlockingHide = false;
   createEffect(() => {
-    if (isInternalModalOpen() || isAddingFlashcard()) {
+    const blocking = isInternalModalOpen() || isAddingFlashcard();
+    if (blocking) {
       props.onMouseEnter?.();
+    } else if (wasBlockingHide && subtitleHoverRef && !subtitleHoverRef.matches(':hover')) {
+      // The blocking element (modal/interactive tooltip) just closed. Its leave
+      // was suppressed, so re-check: pointer outside the popover means hide now.
+      props.onMouseLeave?.();
     }
+    wasBlockingHide = blocking;
   });
 
   // Handle adding flashcard when word is already in Anki (duplicate check)
@@ -599,6 +700,24 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     );
   };
 
+  const handleContentClick = (e: MouseEvent) => {
+    const anchor = (e.target as HTMLElement).closest('a');
+    if (!anchor) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const clone = anchor.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('rt, rp').forEach((el) => { el.remove(); });
+    const text = clone.textContent?.trim();
+    if (text) openWordLookup(text);
+  };
+
+  onMount(() => {
+    const element = contentRef;
+    if (!element) return;
+    element.addEventListener('click', handleContentClick);
+    onCleanup(() => element.removeEventListener('click', handleContentClick));
+  });
+
   return (
     <div
       class="word-hover-container"
@@ -607,21 +726,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     >
       <div
         class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? 'dark' : ''}`}
+        role="dialog"
+        aria-label={actualWord()}
         ref={(el) => { subtitleHoverRef = el; }}
         onMouseEnter={() => props.onMouseEnter?.()}
         onMouseLeave={() => { if (!isInternalModalOpen() && !isAddingFlashcard()) props.onMouseLeave?.(); }}
       >
         <div class="subtitle_hover_relative">
-          <div class="subtitle_hover_content" onClick={(e) => {
-            const anchor = (e.target as HTMLElement).closest('a');
-            if (!anchor) return;
-            e.preventDefault();
-            e.stopPropagation();
-            const clone = anchor.cloneNode(true) as HTMLElement;
-            clone.querySelectorAll('rt, rp').forEach((el) => { el.remove(); });
-            const text = clone.textContent?.trim();
-            if (text) openWordLookup(text);
-          }}>
+           <div class="subtitle_hover_content" ref={contentRef}>
             {/* Loading state */}
             <Show when={props.isLoading}>
               <div class="hover_loading">{t('mlearn.WordHover.Loading')}</div>
@@ -664,6 +776,28 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <Show when={translationEntries().length === 0 && (!props.dictionaryEntries || props.dictionaryEntries.length === 0)}>
                 <div class="hover_translation">{t('mlearn.WordHover.NoTranslation')}</div>
               </Show>
+              <Show when={graphMeta().status === 'ready' && graphLookup()}>
+                <Show when={graphLookup()!.senses.length > 0 || graphLookup()!.pronunciations.length > 0}>
+                  <hr />
+                  <For each={graphLookup()!.senses.slice(0, 3)}>
+                    {(sense) => <div class="hover_translation">{sense.label}</div>}
+                  </For>
+                  <For each={graphLookup()!.pronunciations.slice(0, 2)}>
+                    {(pronunciation) => <div class="hover_reading">{pronunciation.label}</div>}
+                  </For>
+                </Show>
+              </Show>
+
+              {/* REQ42: German compound decomposition tree */}
+              <Show when={compoundAnalysis()}>
+                {(analysis) => (
+                  <>
+                    <hr />
+                    <CompoundDecomposition analysis={analysis()} t={t} />
+                  </>
+                )}
+              </Show>
+
             </Show>
           </div>
 
@@ -700,6 +834,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 )}
               </Show>
               <POSPill />
+              <For each={grammarOccurrences()}>
+                {(occurrence) => <PillLabel variant="blue">{occurrence.realizedForm}</PillLabel>}
+              </For>
               <WordStatusPill
                 word={actualWord()}
                 language={settings.language}
@@ -718,10 +855,32 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 onAdd={handleAddToSRS}
               />
               <LLMPill />
-            </div>
-          </div>
+             </div>
+             <Show when={projection()?.status === 'ready' && projection()!.targets.length > 0}>
+               <div class="word-hover-knowledge">
+                 <KnowledgeCapabilitySummary word={actualWord()} language={settings.language} projection={projection()} />
+                 <Btn variant="ghost" size="sm" onClick={() => setShowKnowledgeDetails(true)}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
+               </div>
+             </Show>
+           </div>
         </div>
       </div>
+      <KnowledgeProjectionDrawer
+        projection={projection()}
+        open={showKnowledgeDetails()}
+        onClose={() => setShowKnowledgeDetails(false)}
+        onGraph={(entityId) => openGraphInspector({ entityId })}
+        surface={actualWord()}
+        events={journalEvents()}
+        initialTab="targets"
+        onWordClaim={(claim) => setWordClaim(actualWord(), claim, settings.language)}
+        wordClaim={effectiveKnowledge().basis === 'claim' ? effectiveKnowledge().status : null}
+        onAspectClaim={(aspect, claim) => {
+          if (claim === null) clearAspectClaim(actualWord(), aspect, settings.language);
+          else setAspectStatus(actualWord(), aspect, claim, 'manual', settings.language);
+        }}
+        aspectStates={hoverAspectStates()}
+      />
       {/* Anki duplicate warning modal */}
       <Show when={showDuplicateWarning()}>
         <AnkiDuplicateWarningModal
@@ -770,3 +929,35 @@ const AnkiDuplicateWarningModal: Component<{
     </Modal>
   );
 };
+
+// ============ German compound decomposition tree (REQ42) ============
+
+/** Render depth rows of the decomposition: level parts joined by '+', deeper levels behind '→'. */
+export function CompoundDecomposition(props: {
+  analysis: GermanCompoundAnalysis;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  const depthRows = createMemo(() => {
+    const rows: string[] = [];
+    let level = [...props.analysis.parts];
+    while (level.length > 0) {
+      rows.push(level.map((part) => part.lemma).join(' + '));
+      level = level.flatMap((part) => [...(part.parts ?? [])]);
+    }
+    return rows;
+  });
+
+  return (
+    <div class="hover-compound">
+      <div class="hover-compound__label">{props.t('mlearn.WordHover.Compound.Title')}</div>
+      <For each={depthRows()}>
+        {(row, depth) => (
+          <div class="hover-compound__row">{depth() > 0 ? '→ ' : ''}{row}</div>
+        )}
+      </For>
+      <Show when={props.analysis.ambiguous}>
+        <div class="hover-compound__note">{props.t('mlearn.WordHover.Compound.Ambiguous')}</div>
+      </Show>
+    </div>
+  );
+}

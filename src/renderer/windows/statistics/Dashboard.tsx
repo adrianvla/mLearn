@@ -4,14 +4,20 @@
  * immersion tracking (scanline-merged), and word acquisition data.
  */
 
-import { Component, createMemo, createSignal, For, onMount, Show } from 'solid-js';
+import { Component, createMemo, createResource, createSignal, For, onMount, Show } from 'solid-js';
 import { useFlashcards, useSettings, useLanguage, useLocalization } from '../../context';
 import { StatCard, Panel, BookIcon } from '../../components/common';
-import { PieChart, BarChart, Heatmap } from './charts';
+import { PieChart, BarChart, Heatmap, LineChart } from './charts';
 import type { PieSegment, BarChartDataPoint } from './charts';
+import { WordHistoryPanel } from './components/WordHistoryPanel';
 import type { MediaStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
+import { eventsVersion, getEventLogForLanguage } from '../../services/knowledgeEvents';
+import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
+import { acquisitionSlope, daysToStableKnown, retentionAfterKnown, unifyEventLogByWord } from '../../services/learningAnalytics';
+import { hashWordSync } from '../../services/srsAlgorithm';
+import { getWordFormCandidates } from '../../utils/wordForms';
 
 import { initTimeWatched } from '../../services/statsService';
 import { computeWordLevelStats } from '../../utils/wordLevelStats';
@@ -51,7 +57,7 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 export const Dashboard: Component = () => {
   const { store } = useFlashcards();
   const { settings } = useSettings();
-  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage, getWordVariantsForLanguage } = useLanguage();
   const { t } = useLocalization();
 
   initTimeWatched(settings);
@@ -220,6 +226,15 @@ export const Dashboard: Component = () => {
       getFreqLevelNames(),
       currentLangData(),
       getCanonicalFormForLanguage,
+      settings.use_anki
+        ? buildAnkiStatusKeySets(
+          settings.language,
+          settings.ankiLearningThreshold,
+          settings.ankiKnownThreshold,
+          (word) => [getCanonicalFormForLanguage(settings.language, word)],
+          currentLangData(),
+        )
+        : undefined,
     ),
   );
 
@@ -278,6 +293,52 @@ export const Dashboard: Component = () => {
     }));
 
     return { count: values.length, average, median, buckets };
+  });
+
+  // ── Learning velocity cohorts (event-store aggregates) ──
+  const [learningVelocity] = createResource(
+    () => [settings.language, eventsVersion()] as const,
+    async ([language]) => {
+      const log = await getEventLogForLanguage(language);
+      // Variant surfaces of one word live in several `${language}:${hash}` keys; unify before
+      // cohort aggregation or one multi-hash write counts once per variant (unifyEventLogByWord).
+      const eventsByWord = unifyEventLogByWord(log, (key) => {
+        const word = store.wordKnowledge[key]?.word;
+        if (!word) return undefined;
+        return getWordFormCandidates(
+          word,
+          (w) => getCanonicalFormForLanguage(language, w),
+          (w) => getWordVariantsForLanguage(language, w),
+        ).map((form) => `${language}:${hashWordSync(form)}`);
+      });
+      return {
+        days: daysToStableKnown(eventsByWord),
+        slope: acquisitionSlope(eventsByWord),
+        retention: retentionAfterKnown(eventsByWord, Date.now()),
+      };
+    },
+  );
+
+  const velocityCharts = createMemo(() => {
+    const v = learningVelocity();
+    if (!v || (v.days.length === 0 && v.slope.length === 0 && v.retention.length === 0)) return null;
+    return {
+      days: v.days.map((p) => ({
+        label: p.month,
+        value: Math.round(p.medianDays * 10) / 10,
+        tooltip: `${p.month}: ${p.medianDays.toFixed(1)}d (n=${p.wordCount})`,
+      })),
+      slope: v.slope.map((p) => ({
+        label: p.month,
+        value: Math.round(p.medianSlope * 1000) / 1000,
+        tooltip: `${p.month}: ${p.medianSlope.toFixed(2)} (n=${p.wordCount})`,
+      })),
+      retention: v.retention.map((p) => ({
+        label: p.month,
+        value: Math.round(p.lapseRate * 100),
+        tooltip: `${p.month}: ${(p.lapseRate * 100).toFixed(0)}% (n=${p.knownWordCount})`,
+      })),
+    };
   });
 
   // ── Pie chart data ──
@@ -607,6 +668,35 @@ export const Dashboard: Component = () => {
           </div>
         </Panel>
       </Show>
+
+      {/* ─── Learning Velocity ─── */}
+      <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+        <h2 class="dashboard-section-title">{t('mlearn.Statistics.LearningVelocity.Title')}</h2>
+        <Show
+          when={velocityCharts()}
+          fallback={<p class="learning-velocity-empty">{t('mlearn.Statistics.LearningVelocity.Empty')}</p>}
+        >
+          {(charts) => (
+            <div class="learning-velocity-charts">
+              <div class="learning-velocity-chart">
+                <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.DaysToKnown')}</span>
+                <LineChart data={charts().days} />
+              </div>
+              <div class="learning-velocity-chart">
+                <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.AcquisitionSlope')}</span>
+                <LineChart data={charts().slope} />
+              </div>
+              <div class="learning-velocity-chart">
+                <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.RetentionAfterKnown')}</span>
+                <BarChart data={charts().retention} height={100} showValues />
+              </div>
+            </div>
+          )}
+        </Show>
+      </Panel>
+
+      {/* ─── Word History Drill-down ─── */}
+      <WordHistoryPanel />
       </Show>
     </div>
   );

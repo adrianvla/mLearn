@@ -1,4 +1,5 @@
-import { SRS_EASE } from '../../../shared/constants';
+import { SRS_EASE, WORD_STATUS } from '../../../shared/constants';
+import { WORD_SYNC_STATUS_UNTRACKED } from '../../components/common/FilterBuilder/presets';
 import { extractUniqueStudyCharacters, isFrequencyLevelAtOrEasierThanTarget } from '../../../shared/languageFeatures';
 import type { LanguageData } from '../../../shared/types';
 
@@ -22,13 +23,30 @@ export function shouldIncludeForLevel(rawLevel: number, target: number, language
   return isFrequencyLevelAtOrEasierThanTarget(rawLevel, target, languageData);
 }
 
-/** +0.25 per matching study character, capped at 3 (max 1.75x). Returns 1.0 when no match. */
-export function calculateCharacterStudyBoost(word: string, knownCharacterSet: Set<string>, studyScripts: readonly string[]): number {
-  if (knownCharacterSet.size === 0 || studyScripts.length === 0) return 1.0;
+/**
+ * Status string for a word-sync pool record. The comprehensive resolver
+ * flattens resolver-unknown and never-encountered into one status; the
+ * knowledge-record presence distinguishes them (tracked unknown vs
+ * untracked). Learning is its own bucket, so an Unknown filter operand
+ * never matches a Learning word.
+ */
+export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning', hasKnowledgeRecord: boolean): string {
+  if (resolvedStatus === 'learning') return String(WORD_STATUS.LEARNING);
+  return hasKnowledgeRecord ? String(WORD_STATUS.UNKNOWN) : WORD_SYNC_STATUS_UNTRACKED;
+}
+
+/**
+ * Predicted-accessibility weight, NOT evidence: characters the learner is
+ * predicted to know (word-derived familiarity) make an unseen word easier to
+ * access. Legitimate SUPPORT→selection input; must never feed knowledge writes.
+ * +0.25 per matching study character, capped at 3 (max 1.75x). Returns 1.0 when no match.
+ */
+export function calculateCharacterStudyBoost(word: string, predictedKnownCharacterSet: Set<string>, studyScripts: readonly string[]): number {
+  if (predictedKnownCharacterSet.size === 0 || studyScripts.length === 0) return 1.0;
   const studyChars = extractUniqueStudyCharacters(word, studyScripts);
   let matchCount = 0;
   for (const ch of studyChars) {
-    if (knownCharacterSet.has(ch)) matchCount++;
+    if (predictedKnownCharacterSet.has(ch)) matchCount++;
   }
   if (matchCount === 0) return 1.0;
   return 1 + Math.min(matchCount, 3) * 0.25;

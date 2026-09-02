@@ -24,18 +24,9 @@ export const PORTS = {
   PROXY_SERVER: PROXY_SERVER_PORT,
 } as const;
 
-// API endpoints (full URLs — for legacy/Electron direct usage)
+// Voice endpoints for legacy/Electron direct usage (all other endpoints go
+// through API_PATHS + the backend adapter).
 export const API_ENDPOINTS = {
-  tokenize: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
-  translate: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
-  /** @deprecated LLM moved to unified LLM backend */
-  llm: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm`,
-  /** @deprecated LLM moved to unified LLM backend */
-  llmStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm/status`,
-  ocr: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
-  control: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/control`,
-  quit: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/quit`,
-  // Voice endpoints
   voiceStream: `ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stream`,
   voiceTtsStream: `ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/stream`,
   voiceTts: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts`,
@@ -87,6 +78,14 @@ export const IPC_CHANNELS = {
   INSTALL_LANG: 'install-lang',
   LANG_INSTALLED: 'lang-installed',
   LANG_INSTALL_ERROR: 'lang-install-error',
+
+  // Linguistic graph
+  GRAPH_GET_META: 'graph-get-meta',
+  GRAPH_LOOKUP_WORD: 'graph-lookup-word',
+  GRAPH_GET_RELATED: 'graph-get-related',
+  GRAPH_GET_TARGETS_FOR_SURFACES: 'graph-get-targets-for-surfaces',
+  GRAPH_GET_NEIGHBORHOOD: 'graph-get-neighborhood',
+  KNOWLEDGE_GET_PROJECTION: 'knowledge-get-projection',
   
   // Localization
   GET_LOCALIZATION: 'get-localization',
@@ -100,6 +99,13 @@ export const IPC_CHANNELS = {
   FORCE_NEWDAY_FLASHCARDS: 'force-newday-flashcards',
   FLASHCARD_CONNECT_OPEN: 'flashcard-connect-open',
   REVIEW_FLASHCARDS_REQUEST: 'review-flashcards-request',
+
+  // Knowledge events
+  KNOWLEDGE_EVENTS_APPEND: 'knowledge-events-append',
+  KNOWLEDGE_EVENTS_QUERY: 'knowledge-events-query',
+  KNOWLEDGE_EVENTS_QUERY_LANGUAGE: 'knowledge-events-query-language',
+  KNOWLEDGE_EVENTS_GET: 'knowledge-events-get',
+  KNOWLEDGE_EVENTS_CHANGED: 'knowledge-events-changed',
   // Migration
   FLASHCARD_MIGRATION_COMPLETE: 'flashcard-migration-complete',
   GET_FLASHCARD_MIGRATION_INFO: 'get-flashcard-migration-info',
@@ -154,6 +160,10 @@ export const IPC_CHANNELS = {
   INSTALLER_NETWORK_ERROR: 'installer-network-error',
   PIP_PROGRESS: 'pip-progress',
   CANCEL_INSTALL: 'cancel-install',
+  GET_COMPONENTS_STATE: 'get-components-state',
+  COMPONENTS_STATE: 'components-state',
+  UNINSTALL_COMPONENTS: 'uninstall-components',
+  COMPONENTS_UNINSTALLED: 'components-uninstalled',
   
   // UI
   SHOW_SETTINGS: 'show-settings',
@@ -341,6 +351,34 @@ export const IPC_CHANNELS = {
   KV_GET_ALL: 'kv-get-all',
   KV_SET_BATCH: 'kv-set-batch',
 
+  // Journal (append-only per-room event journal)
+  JOURNAL_APPEND: 'journal-append',
+  JOURNAL_SUBSCRIBE: 'journal-subscribe',
+  JOURNAL_QUERY: 'journal-query',
+  JOURNAL_READ_SEA: 'journal-read-sea',
+  JOURNAL_READ_THREAD: 'journal-read-thread',
+  // Erasure physically removes thread-scoped lines and appends a 'deletion'
+  // Sea event carrying source ids only (journal is logically append-only, D11+).
+  JOURNAL_ERASE_THREAD: 'journal-erase-thread',
+
+  // World (rooms/threads/participants entity state)
+  WORLD_GET_STATE: 'world-get-state',
+  WORLD_CREATE_ROOM: 'world-create-room',
+  WORLD_APPLY_MEMBERSHIP: 'world-apply-membership',
+  WORLD_CREATE_THREAD: 'world-create-thread',
+  WORLD_UPDATE_THREAD: 'world-update-thread',
+  WORLD_DELETE_THREAD: 'world-delete-thread',
+  WORLD_REMEMBER_THIS: 'world-remember-this',
+  WORLD_INTEGRATE: 'world-integrate',
+  WORLD_PROMOTE_PARTICIPANT: 'world-promote-participant',
+  WORLD_CREATE_PARTICIPANT: 'world-create-participant',
+  WORLD_UPDATE_PARTICIPANT: 'world-update-participant',
+  WORLD_DELETE_PARTICIPANT: 'world-delete-participant',
+  WORLD_CLEAR_UNREAD: 'world-clear-unread',
+
+  // Open the room window at a specific room (optionally deep-linked to an event)
+  OPEN_ROOM_EVENT: 'open-room-event',
+
   // Plugins
   ...PLUGIN_IPC_CHANNELS,
 } as const;
@@ -359,6 +397,7 @@ export const WINDOW_TYPES = {
   LICENSES: 'licenses',
   CONNECT_QR: 'connect-qr',
   CONVERSATION_AGENT: 'conversation-agent',
+  MEMORY_BROWSER: 'memory-browser',
   STATISTICS: 'statistics',
   WORD_DEFINITION: 'word-definition',
   PLUGIN_HOST: 'plugin-host',
@@ -366,6 +405,7 @@ export const WINDOW_TYPES = {
   LEVEL_STUDY: 'level-study',
   OVERLAY: 'overlay',
   DIAGNOSTICS: 'diagnostics',
+  GRAPH_INSPECTOR: 'graph-inspector',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];
@@ -394,6 +434,85 @@ export const ANKI_EASE = {
 export const WORD_STATUS_VALUES = ['unknown', 'learning', 'known'] as const;
 export type WordStatus = typeof WORD_STATUS_VALUES[number];
 
+export const KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody', 'gender', 'pronunciation', 'orthography'] as const;
+export type KnowledgeAspect = typeof KNOWLEDGE_ASPECTS[number];
+
+// Knowledge-aspect dependency graph: an aspect's prerequisites are the coarser
+// aspects a learner necessarily traverses first (meaning ← reading ← prosody).
+// Aspects outside each other's prerequisite closures are orthogonal — no
+// inference flows between them (gender, pronunciation). Scope notes:
+// - pronunciation is lexeme-scoped spoken-form knowledge (Model B): meaning-known
+//   implies nothing about having heard/produced the spoken form;
+// - orthography is surface-scoped written-form→lexeme recognition: cross-scope
+//   by design, deliberately WITHOUT a reading prerequisite (a form can be mapped
+//   to its lexeme without being pronounceable and vice versa).
+// Adding an aspect is one entry here; language feature configs map INTO aspects
+// and can never change these relationships.
+export const ASPECT_PREREQUISITES: Record<KnowledgeAspect, readonly KnowledgeAspect[]> = {
+  meaning: [],
+  reading: ['meaning'],
+  prosody: ['reading'],
+  gender: [],
+  pronunciation: [],
+  orthography: [],
+};
+
+// Locale keys for aspect display names — the single source for every surface
+// (pill rows, history tabs, attribution buttons/toasts). Record-typed so adding
+// an aspect forces its label here.
+export const KNOWLEDGE_ASPECT_LABEL_KEYS: Record<KnowledgeAspect, string> = {
+  meaning: 'mlearn.Knowledge.Aspect.Meaning',
+  reading: 'mlearn.Knowledge.Aspect.Reading',
+  prosody: 'mlearn.Knowledge.Aspect.Prosody',
+  gender: 'mlearn.Knowledge.Aspect.Gender',
+  pronunciation: 'mlearn.Knowledge.Aspect.Pronunciation',
+  orthography: 'mlearn.Knowledge.Aspect.Orthography',
+};
+
+// ─── Universal attempt rating (Aspect × Performance) ─────────────────────────
+// The learner reports PERFORMANCE in the current interaction; mLearn derives
+// Unknown/Learning/Known from accumulated evidence. The old Unknown/Learning/
+// Known buttons are projections, not inputs.
+export const ATTEMPT_QUALITIES = ['missed', 'struggled', 'fluent'] as const;
+export type AttemptQuality = typeof ATTEMPT_QUALITIES[number];
+
+// Keyboard input mode for the attempt matrix. Mnemonic is the default: chords
+// are self-documenting (1+M) for users who forget spatial mappings.
+export const RATING_KEYBOARD_MODES = ['mnemonic', 'spatial'] as const;
+export type RatingKeyboardMode = typeof RATING_KEYBOARD_MODES[number];
+
+// Mnemonic chord letters per aspect (quality number + letter, e.g. 1+M).
+// Record-typed so a new aspect must choose a letter here.
+export const ASPECT_MNEMONIC_KEYS: Record<KnowledgeAspect, string> = {
+  meaning: 'm',
+  reading: 'r',
+  prosody: 'p',
+  gender: 'g',
+  pronunciation: 'v',
+  orthography: 'o',
+};
+
+// Spatial matrix keyboard columns: quality → keys, row index = displayed row.
+// Keys mean "quality × current matrix row", never a permanent aspect binding.
+export const SPATIAL_QUALITY_KEYS: Record<AttemptQuality, readonly string[]> = {
+  missed: ['1', 'q', 'a', 'z'],
+  struggled: ['2', 'w', 's', 'x'],
+  fluent: ['3', 'e', 'd', 'c'],
+};
+
+// Central performance → SRS scheduling grade. Evidence-wise fluent+easy are
+// IDENTICAL; easy only adjusts scheduling. Consumed by SRS surfaces, never by
+// the knowledge-evidence path.
+export function qualityToSrsRating(quality: AttemptQuality, easy = false): 'again' | 'hard' | 'good' | 'easy' {
+  if (quality === 'missed') return 'again';
+  if (quality === 'struggled') return 'hard';
+  return easy ? 'easy' : 'good';
+}
+
+// Aspects whose evidence belongs to one exact written surface (stored on the
+// presented form's hash only — never fanned out across the word-form family,
+// the #230 rule's exception) and resolved on that hash only. Under Model B,
+// reading IS surface-scoped: it records whether THIS written form was mapped to
 // Numeric word status constants (internal storage format for stats service)
 export const WORD_STATUS = {
   UNKNOWN: 0,
@@ -413,14 +532,12 @@ export const KNOWLEDGE_SOURCE_DISPLAY_NAMES = {
   anki: 'Anki',
   passiveTracking: 'PassiveTracking',
   manual: 'Manual',
-} as const satisfies Record<KnowledgeSource | 'manual', string>;
+  grammar: 'Grammar',
+  migration: 'Migration',
+} as const satisfies Record<KnowledgeSource | 'manual' | 'grammar' | 'migration', string>;
 
 export type KnowledgeSourceDisplayName = typeof KNOWLEDGE_SOURCE_DISPLAY_NAMES[KnowledgeSource];
 export type WordKnowledgeSource = KnowledgeSourceDisplayName | 'Manual' | 'None';
-
-// Knowledge resolution modes
-export const KNOWLEDGE_RESOLUTION_MODES = ['order', 'highest', 'lowest'] as const;
-export type KnowledgeResolutionMode = typeof KNOWLEDGE_RESOLUTION_MODES[number];
 
 // Word hover trigger modes for Reader
 export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as const;

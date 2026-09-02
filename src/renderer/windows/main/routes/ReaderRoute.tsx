@@ -17,7 +17,6 @@ import { parseKeybind } from '../../../components/common';
 import { isLLMReady } from '../../../services/llmProvider';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, Settings, LanguageData } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
-import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../../../shared/backends';
 import { getSettingRequirementWarningParams } from '../../../../shared/settingRequirements';
@@ -32,7 +31,8 @@ import { captureReaderImageForFlashcard } from '../../../services/flashcardImage
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
-import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
+import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../../utils/levelPercentages';
+import { buildGrammarExposure } from '../../../utils/grammarExposure';
 import {
   getReaderCollatePagesForLanguage,
   getReaderFirstPageSingleForLanguage,
@@ -42,8 +42,8 @@ import {
   getTokenJoinSeparator,
   resolveLanguageContentFontOption,
 } from '../../../../shared/languageFeatures';
-import { getWordStatus } from '../../../services/statsService';
-import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
+import { bulkAddWords } from '../../../utils/bulkAddWords';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
@@ -76,6 +76,7 @@ import { scrollReaderToPageStart } from './readerNavigation';
 import { readerTextThemeClass } from './readerTextThemes';
 import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
+import { createGrammarEncounterRecorder, journalGrammarEncountersForTokenGroups } from '../../../../shared/grammar/encounters';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { getColoredProsodyConfig, coloredProsodyNeedsDictionaryLookup } from '../../../utils/coloredProsody';
@@ -211,7 +212,10 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const [tokenParagraphs, setTokenParagraphs] = createSignal<Token[][]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
   const { settings } = useSettings();
-  const { currentLangData, getLanguageFeatures } = useLanguage();
+  const { currentLangData, getLanguageFeatures, supportsGrammar } = useLanguage();
+  const flashcardCtx = useFlashcards();
+  // REQ39: one encounter per pattern per reader page display.
+  const grammarEncounterRecorder = createGrammarEncounterRecorder('reader');
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const text = () => props.page.text ?? '';
@@ -264,6 +268,20 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
             dictionaryTargetLanguage: dictionaryTargetLanguage(),
             tokenizerCapabilities: tokenizerCapabilities(),
           });
+          // REQ39: journal grammar occurrences for reader text as factual-exposure encounters.
+          if (supportsGrammar()) {
+            const languageData = currentLangData();
+            const grammar = languageData?.grammar;
+            if (grammar?.length) {
+              queueMicrotask(() => {
+                journalGrammarEncountersForTokenGroups(flashcardCtx, grammarEncounterRecorder, props.page.id, nextTokenParagraphs, {
+                  language: settings.language,
+                  grammar,
+                  languageData,
+                });
+              });
+            }
+          }
         }
       })
       .catch(() => {
@@ -999,6 +1017,9 @@ export const ReaderRoute: Component = () => {
     setIsAddingAllSidebarWords(false);
   }));
 
+  // REQ39: OCR pages are displayed concurrently — per-page encounter state, reset per fresh OCR pass.
+  const ocrGrammarEncounterRecorder = createGrammarEncounterRecorder('reader-ocr', { exclusive: false });
+
   const handlePageTokenData = (pageId: string, entries: Array<{ boxIndex: number; box: OcrBox; tokens: Token[]; contextPhrase: string }>) => {
     const nextEntries: ReaderPageWordSource[] = [];
 
@@ -1022,6 +1043,24 @@ export const ReaderRoute: Component = () => {
     }
 
     setOcrPageWords(pageId, nextEntries);
+
+    // REQ39: journal grammar occurrences for OCR'd page text as factual-exposure encounters.
+    // Dedupe is per page with reset on a fresh (empty) token pass, so incremental box fills
+    // and overlay re-renders cannot flood the journal.
+    if (supportsGrammar()) {
+      const languageData = currentLangData();
+      const grammar = languageData?.grammar;
+      if (!grammar?.length) return;
+      if (entries.length === 0) {
+        ocrGrammarEncounterRecorder.reset(pageId);
+        return;
+      }
+      journalGrammarEncountersForTokenGroups(flashcardCtx, ocrGrammarEncounterRecorder, pageId, entries.map((entry) => entry.tokens), {
+        language: settings.language,
+        grammar,
+        languageData,
+      });
+    }
   };
 
   const getAnchorRectForWord = (entry: ReaderPageWordSource): DOMRect | null => {
@@ -1444,30 +1483,26 @@ export const ReaderRoute: Component = () => {
   const processAddAll = async (entries: ReaderUnknownWordEntry[]) => {
     setIsAddingAllSidebarWords(true);
     try {
-      for (const entry of entries) {
-        if (
+      const updatedAny = await bulkAddWords({
+        entries,
+        wordOf: (entry) => entry.word,
+        trackedAnkiWordOf: getTrackedAnkiWord,
+        formsOf: getWordForms,
+        statusOf: (word: string) => {
+          const status = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
+          return status === 'known' ? 2 : status === 'learning' ? 1 : 0;
+        },
+        updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
+        addFlashcard: addReaderWordFlashcard,
+        skip: (entry) =>
           flashcardCtx.hasWordSync(entry.word, settings.language)
-          || flashcardCtx.isWordIgnoredSync(entry.word, settings.language)
-        ) {
-          continue;
-        }
-        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
-        if (trackedAnkiWord) {
-          const forms = getWordForms(entry.word);
-          const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
-          const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
-          const ankiEase = getAnkiEaseForStatus(status, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
-          try {
-            await anki.updateWordCards(trackedAnkiWord, ankiEase);
-            await refreshAnkiWordsCache(ankiCacheOptions());
-          } catch (err) {
-            log.error(`Failed to update Anki cards for "${entry.word}":`, err);
-            showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
-          }
-        } else {
-          await addReaderWordFlashcard(entry);
-        }
-      }
+          || flashcardCtx.isWordIgnoredSync(entry.word, settings.language),
+        onEntryError: (entry, err) => {
+          log.error(`Failed to update Anki cards for "${entry.word}":`, err);
+          showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
+        },
+      });
+      if (updatedAny) await refreshAnkiWordsCache(ankiCacheOptions());
     } finally {
       setIsAddingAllSidebarWords(false);
     }
@@ -2632,15 +2667,6 @@ export const ReaderRoute: Component = () => {
     // Track word encounter for passive knowledge
     flashcardCtx.trackWordSeen(getReaderPassiveTrackingWord(token, tokenizerCapabilities()), token.reading, undefined, settings.language);
 
-    // Track grammar encounters in OCR context
-    if (supportsGrammar() && contextPhrase) {
-      // Detect grammar in the context phrase tokens (simplified single-token case)
-      const detectedPatterns = detectGrammarInText([token]);
-      for (const pattern of detectedPatterns) {
-        flashcardCtx.trackGrammarEncountered(pattern.pattern, pattern.level, settings.language);
-      }
-    }
-
     // Store context phrase for LLM explain and flashcard example
     setOcrContextPhrase(contextPhrase);
 
@@ -2702,30 +2728,33 @@ export const ReaderRoute: Component = () => {
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
     const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
     const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
-    const level = assessMediaLevel(wordLevels, langCtx.currentLangData());
+    const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
+    const level = difficulty.headline;
     const levelNames = langCtx.getFreqLevelNames();
 
-    // Only include words encountered in this specific media
-    // Refine ease with global wordKnowledge but never add words from other media
-    const wordKnowledge = flashcardCtx.store.wordKnowledge;
+    // Only include words encountered in this specific media. Refine ease with
+    // the canonical resolver (effective claim ?? evidence projection) but never
+    // add words from other media. Per-media hover counts are the weak-signal
+    // observation for this media and stay local (no global channel in the
+    // resolver).
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     for (const entry of Object.values(s.wordsEncountered)) {
-      const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
-      if (globalEntry) {
-        mediaWords.set(entry.word, {
-          word: entry.word,
-          ease: Math.min(entry.ease, globalEntry.ease),
-          timesSeen: Math.max(entry.timesSeen, globalEntry.timesSeen),
-          timesHovered: Math.max(entry.timesHovered, globalEntry.timesHovered),
-        });
-      } else {
-        mediaWords.set(entry.word, { ...entry });
-      }
+      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language);
+      mediaWords.set(entry.word, {
+        word: entry.word,
+        ease: resolved.ease !== undefined ? Math.min(entry.ease, resolved.ease) : entry.ease,
+        timesSeen: Math.max(entry.timesSeen, resolved.timesSeen),
+        timesHovered: entry.timesHovered,
+      });
     }
 
     const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
+    // Exposure-ranked practice candidates: repeatedly encountered in the
+    // canonical knowledge store without any failure. Unmeasured signals only —
+    // failed patterns stay in failedGrammar above.
+    const grammarExposure = buildGrammarExposure(s.grammarEncountered, (pattern) => flashcardCtx.getGrammarKnowledge(pattern, settings.language));
 
     const context: ConversationAgentContext = {
       mediaName: name,
@@ -2736,6 +2765,7 @@ export const ReaderRoute: Component = () => {
       language: lang,
       failedWords,
       failedGrammar,
+      grammarExposure,
       wordLevelPercentages: wordLevels,
       grammarLevelPercentages: grammarLevels,
     };

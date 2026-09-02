@@ -25,7 +25,7 @@ import {
   BarChartIcon,
 } from '../../components/common';
 import type { TabItem } from '../../components/common';
-import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../utils/levelPercentages';
+import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty, type MediaDifficultyComponents } from '../../utils/levelPercentages';
 import {
   formatFrequencyLevelLabel,
   formatGrammarLevelLabel,
@@ -53,6 +53,8 @@ interface MediaView {
   allGrammar: Array<{ pattern: string; ease: number; timesFailed: number; level: number | null; failed: boolean }>;
   wordLevelEntries: LevelPercentageEntry[];
   grammarLevelEntries: LevelPercentageEntry[];
+  /** Objective component estimates behind the headline (lexical/grammar/structural). */
+  difficultyComponents: MediaDifficultyComponents;
   totalUniqueWords: number;
   totalWords: number;
   totalGrammar: number;
@@ -99,7 +101,6 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     getBridge().mediaStats.listMediaStats();
     if (cleanup) onCleanup(cleanup);
   });
-
   /** Build a normalized MediaView from a ConversationAgentContext (live context from parent route) */
   const contextView = createMemo((): MediaView | null => {
     const ctx = props.context;
@@ -114,18 +115,26 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     });
     const failedWords = ctx.failedWords.map(enrichWord);
     const failedGrammar = ctx.failedGrammar.map(enrichGrammar);
+    // REQ48: recompute the headline from the context's own level
+    // distributions so the live view fuses grammar exactly like saved stats.
+    const difficulty = assessMediaDifficulty(
+      ctx.wordLevelPercentages ?? { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      ctx.grammarLevelPercentages ?? null,
+      langCtx.currentLangData(),
+    );
     return {
       mediaName: ctx.mediaName,
       mediaType: ctx.mediaType,
       mediaHash: ctx.mediaHash,
-      assessedLevel: ctx.assessedLevel,
-      assessedLevelName: ctx.assessedLevelName,
+      assessedLevel: difficulty.headline,
+      assessedLevelName: formatFrequencyLevelLabel(difficulty.headline, langCtx.getFreqLevelNames(), langCtx.currentLangData()),
       failedWords,
       failedGrammar,
       allWords: failedWords.map((w) => ({ ...w, failed: true })),
       allGrammar: failedGrammar.map((g) => ({ ...g, failed: true })),
       wordLevelEntries: ctx.wordLevelPercentages?.entries || [],
       grammarLevelEntries: ctx.grammarLevelPercentages?.entries || [],
+      difficultyComponents: difficulty.components,
       totalUniqueWords: ctx.wordLevelPercentages?.totalUnique || 0,
       totalWords: Object.keys(ctx.failedWords).length, // approximate
       totalGrammar: Object.keys(ctx.failedGrammar).length,
@@ -141,28 +150,25 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
     const wordLevels = computeWordLevelPercentages(stats, freqLookup, langCtx.currentLangData());
     const grammarLevels = computeGrammarLevelPercentages(stats, grammarLookup, langCtx.currentLangData());
-    const level = assessMediaLevel(wordLevels, langCtx.currentLangData());
+    const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
+    const level = difficulty.headline;
     const levelNames = langCtx.getFreqLevelNames();
 
-    // Use per-media wordsEncountered only; refine ease with global wordKnowledge
-    // but do NOT add words from other media that were never encountered here
-    const wordKnowledge = flashcardCtx.store.wordKnowledge;
+    // Use per-media wordsEncountered only; refine ease with the canonical
+    // resolver (effective claim ?? evidence projection) but do NOT add words
+    // from other media that were never encountered here. Per-media hover
+    // counts stay local (weak-signal observation for this media).
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     for (const entry of Object.values(stats.wordsEncountered)) {
-      const lang = settings.language;
-      const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
-      if (globalEntry) {
-        // Use the lower ease (harder) between per-media and global knowledge
-        mediaWords.set(entry.word, {
-          word: entry.word,
-          ease: Math.min(entry.ease, globalEntry.ease),
-          timesSeen: Math.max(entry.timesSeen, globalEntry.timesSeen),
-          timesHovered: Math.max(entry.timesHovered, globalEntry.timesHovered),
-        });
-      } else {
-        mediaWords.set(entry.word, { ...entry });
-      }
+      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language);
+      // Use the lower ease (harder) between per-media and canonical global knowledge
+      mediaWords.set(entry.word, {
+        word: entry.word,
+        ease: resolved.ease !== undefined ? Math.min(entry.ease, resolved.ease) : entry.ease,
+        timesSeen: Math.max(entry.timesSeen, resolved.timesSeen),
+        timesHovered: entry.timesHovered,
+      });
     }
 
     const allWords = Array.from(mediaWords.values()).map((w) => {
@@ -193,6 +199,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
       allGrammar,
       wordLevelEntries: wordLevels.entries,
       grammarLevelEntries: grammarLevels.entries,
+      difficultyComponents: difficulty.components,
       totalUniqueWords: wordLevels.totalUnique,
       totalWords: Object.keys(stats.wordsEncountered).length,
       totalGrammar: Object.keys(stats.grammarEncountered).length,
@@ -281,7 +288,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   ) => {
     const options = [
       { value: 'all', label: t('mlearn.ConversationAgent.Stats.Filter.All') },
-      { value: 'failed-only', label: t('mlearn.ConversationAgent.Stats.Filter.FailedOnly') },
+      { value: 'failed-only', label: t('mlearn.ConversationAgent.Stats.Filter.HoveredOnly') },
     ];
     const levels = order === 'frequency'
       ? getFrequencyFilterLevels(names, entries, langCtx.currentLangData())
@@ -363,6 +370,31 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                   </PillLabel>
                 </Show>
               </div>
+              {/* Component breakdown next to the headline (REQ48): lexical /
+                  grammar feed the fuse, structural is honestly not measured. */}
+              <div class="ca-stats-difficulty-breakdown">
+                <DifficultyChip
+                  label={t('mlearn.ConversationAgent.Stats.Lexical')}
+                  level={v().difficultyComponents.lexical}
+                  levelLabel={formatFrequencyLevelLabel(v().difficultyComponents.lexical, langCtx.getFreqLevelNames(), langCtx.currentLangData())}
+                  visualLevel={v().difficultyComponents.lexical == null
+                    ? undefined
+                    : getFrequencyLevelVisualRank(v().difficultyComponents.lexical!, langCtx.getFreqLevelNames(), langCtx.currentLangData())}
+                />
+                <DifficultyChip
+                  label={t('mlearn.ConversationAgent.Stats.Grammar')}
+                  level={v().difficultyComponents.grammar}
+                  levelLabel={formatGrammarLevelLabel(v().difficultyComponents.grammar, langCtx.getGrammarLevelNames(), langCtx.currentLangData())}
+                  visualLevel={v().difficultyComponents.grammar == null
+                    ? undefined
+                    : getGrammarLevelVisualRank(v().difficultyComponents.grammar!, langCtx.getGrammarLevelNames(), langCtx.currentLangData())}
+                />
+                <DifficultyChip
+                  label={t('mlearn.ConversationAgent.Stats.Structural')}
+                  level={null}
+                  levelLabel=""
+                />
+              </div>
 
               {/* Sub-tab bar */}
               <TabContainer
@@ -388,7 +420,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                       size="sm"
                     />
                     <StatCard
-                      label={t('mlearn.ConversationAgent.Stats.FailedGrammarCount')}
+                      label={t('mlearn.ConversationAgent.Stats.StruggledGrammarCount')}
                       value={v().failedGrammar.length}
                       size="sm"
                     />
@@ -517,7 +549,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                                   </PillLabel>
                                 </Show>
                                 <Show when={entry.timesFailed > 0}>
-                                  <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Failed')} {entry.timesFailed}x</span>
+                                  <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Struggled')} {entry.timesFailed}x</span>
                                 </Show>
                                 <span class="ca-stats-ease" style={{ color: getEaseColor(entry.ease) }}>
                                   {entry.ease.toFixed(2)}
@@ -614,3 +646,25 @@ const LevelBars: Component<LevelBarsProps> = (props) => {
     </div>
   );
 };
+
+// ============ Difficulty Breakdown Chip ============
+
+/** One labeled slot of the difficulty breakdown: a level pill when measured, an honest em dash when not. */
+const DifficultyChip: Component<{
+  label: string;
+  level: number | null;
+  levelLabel: string;
+  visualLevel?: number;
+}> = (props) => (
+  <span class="ca-stats-breakdown-item">
+    <span class="ca-stats-breakdown-label">{props.label}</span>
+    <Show
+      when={props.level != null && props.levelLabel}
+      fallback={<span class="ca-stats-breakdown-value">—</span>}
+    >
+      <PillLabel level={props.level ?? undefined} visualLevel={props.visualLevel}>
+        {props.levelLabel}
+      </PillLabel>
+    </Show>
+  </span>
+);

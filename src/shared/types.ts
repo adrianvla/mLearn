@@ -2,9 +2,12 @@
  * Shared TypeScript types between main and renderer processes
  */
 
-import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
-import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeAspect, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
+
+export { KNOWLEDGE_ASPECTS } from './constants';
+export type { KnowledgeAspect } from './constants';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -201,10 +204,6 @@ export interface Settings {
   /** Ease threshold above which a word is considered mastered (float, 0.0–5.0 scale) */
   easeThresholdMastered: number;
   manualStatusEaseBuffer: number;
-  /** Order of knowledge sources for word status resolution */
-  knowledgeSourceOrder: KnowledgeSource[];
-  /** How to resolve word status from multiple knowledge sources */
-  knowledgeResolutionMode: KnowledgeResolutionMode;
   anki_field_expression: string;
   anki_field_reading: string;
   anki_field_meaning: string;
@@ -444,6 +443,9 @@ export interface Settings {
   /** Ease amount to subtract when the failed-word action is set to decrease ease */
   passiveHoverEaseDecrease: number;
 
+  /** Keyboard input mode for the attempt rating matrix: mnemonic chords (1+M) or spatial grid (1/Q/A/Z columns). */
+  ratingKeyboardMode: RatingKeyboardMode;
+
   // LLM provider settings
   /** LLM provider: built-in local model or Ollama */
   llmProvider: LLMProvider;
@@ -500,6 +502,24 @@ export interface Settings {
   cloudLLMTierVoice: CloudLLMTier;
   /** Cloud LLM tier for word explainer */
   cloudLLMTierExplanation: CloudLLMTier;
+
+  // Inference policy settings
+  /** Cloud inference tier for autonomous background cognition (conservative | budgeted | unrestricted) */
+  inferenceCloudTier: 'conservative' | 'budgeted' | 'unrestricted';
+  /** Daily budget for budgeted-tier cloud inference requests (consumed by the Dreamer phase) */
+  inferenceCloudBudgetPerDay: number;
+
+  // Proactivity settings
+  /** Master switch for proactive companion behavior (D7: opt-out model) */
+  proactivityEnabled: boolean;
+  /** Quiet hours suppress notification DELIVERY only; events still journal; reevaluated on expiry (Q3) */
+  proactiveQuietHoursEnabled: boolean;
+  /** Quiet-hours window, "HH:MM" local time */
+  proactiveQuietHoursStart: string;
+  proactiveQuietHoursEnd: string;
+  /** Per-participant opt-outs; calls are a separate, stricter tier (D20+) */
+  proactiveOptOutParticipantIds: string[];
+  proactiveCallOptOutParticipantIds: string[];
 
   // Conversation agent settings
   /** Whether the agent memory feature is enabled */
@@ -568,8 +588,6 @@ export const DEFAULT_SETTINGS: Settings = {
   easeThresholdKnown: SRS_EASE.DEFAULT_KNOWN,
   easeThresholdMastered: SRS_EASE.DEFAULT_KNOWN + 0.5,
   manualStatusEaseBuffer: 0,
-  knowledgeSourceOrder: [...KNOWLEDGE_SOURCES],
-  knowledgeResolutionMode: 'highest' as KnowledgeResolutionMode,
   showReadingAnnotations: true,
   readingAnnotationMoreContrast: false,
   readingAnnotationSizePercent: 100,
@@ -686,7 +704,8 @@ export const DEFAULT_SETTINGS: Settings = {
   passiveEaseEnabled: true,
   passiveHoverDelayMs: 300,
   passiveHoverFailCount: 1,
-  passiveHoverFailAction: 'decrease-ease',
+  passiveHoverFailAction: 'none',
+  ratingKeyboardMode: 'mnemonic',
   passiveHoverEaseDecrease: 0.05,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
@@ -724,6 +743,14 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudLLMTierConversation: 'cheap',
   cloudLLMTierVoice: 'fast',
   cloudLLMTierExplanation: 'cheap',
+  inferenceCloudTier: 'conservative',
+  inferenceCloudBudgetPerDay: 20,
+  proactivityEnabled: true,
+  proactiveQuietHoursEnabled: false,
+  proactiveQuietHoursStart: '22:00',
+  proactiveQuietHoursEnd: '08:00',
+  proactiveOptOutParticipantIds: [],
+  proactiveCallOptOutParticipantIds: [],
 };
 
 // ============================================================================
@@ -773,6 +800,24 @@ export interface GrammarPoint {
   level: number;
   /** Optional metadata-driven matcher for non-substring grammars. */
   match?: GrammarMatchConfig | GrammarMatchConfig[];
+  /** Semantic family, e.g. "conditional", "aspect". Optional package metadata for constructions. */
+  category?: string;
+  /** Pragmatic function or use when richer than meaning. Optional package metadata. */
+  function?: string;
+  /** How the construction is formed (morphology, word order, particles). Optional package metadata. */
+  formation?: string;
+  /** Elements the construction attaches to or combines with. Optional package metadata. */
+  attachments?: string[];
+  /** Usage constraints. Optional package metadata. */
+  constraints?: string[];
+  /** Recognized surface variants. Optional package metadata. */
+  variants?: string[];
+  /** Social/functional register, e.g. "plain", "polite". Optional package metadata. */
+  register?: string;
+  /** Constructions this one is commonly confused with. Optional package metadata. */
+  contrasts?: string[];
+  /** Related constructions. Optional package metadata. */
+  related?: string[];
 }
 
 export interface LanguageDataAsset {
@@ -1034,6 +1079,14 @@ export interface LanguageTypographyConfig {
 export interface LanguageProsodyConfig {
   /** Prosody data model used by this language. */
   type?: 'none' | 'japanese-pitch-accent' | (string & {});
+  /**
+   * Which knowledge aspect this language's accentuation feature belongs to.
+   * Pitch-nuance features (Japanese) stay 'prosody' by default; accentuation that
+   * is required to read/pronounce the word correctly (e.g. Russian stress) sets
+   * 'reading' — it then participates in reading knowledge and creates no prosody
+   * knowledge aspect.
+   */
+  knowledgeAspect?: 'prosody' | 'reading';
   /** Path to the numeric position in raw dictionary prosody payloads; "*" walks array entries, e.g. ["tones", "*", "number"]. */
   positionPath?: string[];
   /** Path to a concise display value in raw dictionary prosody payloads; "*" walks array entries, e.g. ["tones", "*", "label"]. */
@@ -1399,6 +1452,10 @@ export interface LanguageData {
   textProcessing?: LanguageTextProcessingConfig;
   /** Optional prosody/accent behavior for this language. */
   prosody?: LanguageProsodyConfig;
+  /** Grammatical-gender lexical knowledge supported by this language's data. */
+  gender?: LanguageGenderConfig;
+  /** Productive compound splitting supported by this language's lexical data. */
+  compoundSplitting?: boolean;
   /** Character-level study/decomposition behavior. */
   characterStudy?: LanguageCharacterStudyConfig;
   /** Reader layout defaults supplied by the language package. */
@@ -1411,6 +1468,29 @@ export interface LanguageData {
   runtime?: LanguageRuntimeConfig;
   /** Heavy per-language payloads, installed into userData on demand. */
   languageData?: LanguageDataManifest;
+}
+
+export interface LanguageGenderConfig {
+  /** Key in dictionary entry `attributes` carrying the lexical gender value (e.g. OpenRussian 'gender'). */
+  attributeKey?: string;
+}
+
+export function getAvailableAspects(language?: LanguageData): KnowledgeAspect[] {
+  const aspects: KnowledgeAspect[] = ['meaning'];
+  // An accent feature declared as reading-critical participates in reading knowledge.
+  const accentInReading = language?.prosody?.knowledgeAspect === 'reading';
+  const hasReadingAnnotation = !!language?.textProcessing?.readingAnnotation || accentInReading;
+  if (hasReadingAnnotation) aspects.push('reading');
+  if (!accentInReading && language?.prosody?.type && language.prosody.type !== 'none') aspects.push('prosody');
+  if (language?.gender) aspects.push('gender');
+  // Pronunciation (lexeme-scoped spoken form) exists where the language declares
+  // any surface↔pronunciation feature; orthography exists where written surfaces
+  // carry a non-trivial form→lexeme mapping (script-reading distinction).
+  if (hasReadingAnnotation || (!accentInReading && language?.prosody?.type && language.prosody.type !== 'none')) {
+    aspects.push('pronunciation');
+  }
+  if (language?.textProcessing?.readingAnnotation) aspects.push('orthography');
+  return aspects;
 }
 
 export interface LanguageDataMap {
@@ -1562,6 +1642,19 @@ export interface TranslationResponse {
  */
 export type FlashcardState = 'new' | 'learning' | 'review' | 'relearning';
 
+/** Rebuildable retention output. Evidence + authored template remain authoritative. */
+export interface RetentionScheduleCache {
+  state: FlashcardState;
+  ease: number;
+  interval: number;
+  dueAt: number;
+  reviews: number;
+  lapses: number;
+  learningStep: number;
+  lastReviewed: number;
+  provenance: 'derived-scheduler-cache' | 'migrated-scheduler-cache';
+}
+
 /**
  * Content for any type of flashcard (words, sentences, images, etc.)
  * The 'type' field determines what fields are relevant
@@ -1658,6 +1751,8 @@ export interface Flashcard {
   buried?: boolean;
   /** Language this card belongs to (e.g. 'ja', 'de') — set at creation */
   language?: string;
+  /** Rebuildable scheduler output. Legacy scheduling fields above mirror this cache for sync/export compatibility. */
+  retentionCache?: RetentionScheduleCache;
 }
 
 /**
@@ -1753,12 +1848,6 @@ export interface FlashcardMeta {
   reviewIntervalModifier: number;
   /** Maximum interval in days */
   maxInterval: number;
-  /** @deprecated Use perLanguage[lang].newCardsToday instead */
-  newCardsToday?: number;
-  /** @deprecated Use perLanguage[lang].reviewsToday instead */
-  reviewsToday?: number;
-  /** @deprecated Use perLanguage[lang].newCardsDate instead */
-  newCardsDate?: string;
 }
 
 /**
@@ -1801,6 +1890,13 @@ export interface FlashcardStore {
   wordSyncSeen: Record<string, number>;
   /** Version for migrations */
   version: number;
+  /**
+   * Monotonic store revision for sync conflict gating. Bumped on every
+   * persisted write (flashcardStorage.saveFlashcards). Sync clients echo the
+   * rev they last pulled when pushing; the server answers an older rev with
+   * HTTP 409 so a stale snapshot cannot resurrect deleted entries.
+   */
+  rev?: number;
 }
 
 /**
@@ -1900,6 +1996,8 @@ export interface PassiveWordKnowledge {
   ease: number;
   /** Timestamp of last encounter */
   lastSeen: number;
+  /** Timestamp of first encounter, lazily backfilled on the next write for legacy entries. */
+  firstSeen?: number;
   /** Total times word was displayed on screen */
   timesSeen: number;
   /** Times a hover lasted long enough to count toward failed-word tracking */
@@ -1916,8 +2014,34 @@ export interface PassiveWordKnowledge {
   lastStatusChange?: number;
   /** Timestamp when this word was explicitly rated in the Word Sync window (undefined = never) */
   wordSyncRatedAt?: number;
+  /**
+   * Active explicit user claim ("I know/learn/don't know this") — overrides the
+   * evidence-derived classification of the effective state until cleared.
+   * Undefined = no active claim; the entry's ease is then the whole truth.
+   * Materialized from kind:'claim' journal events by projection replay.
+   */
+  claim?: WordStatus;
+  /** Timestamp of the active claim (used for cross-window LWW merges). */
+  claimAt?: number;
+  /** Source of the most recent evidence event (attribution for the sync resolver). */
+  lastEvidenceSource?: string;
+  /** True when any non-passive evidence (SRS/Anki/attempt/migration) exists — honest-Known gate. */
+  hasActiveEvidence?: boolean;
   /** Per-script-form skill tracking under one word identity. Keyed by variantId. */
   forms?: Partial<Record<string, FormKnowledge>>;
+  /** Reading and prosody knowledge; meaning remains derived through bank resolution. */
+  aspects?: Partial<Record<Exclude<KnowledgeAspect, 'meaning'>, AspectKnowledge>>;
+}
+
+export interface AspectKnowledge {
+  status: WordStatus;
+  ease: number;
+  source: WordKnowledgeSource;
+  lastStatusChange: number;
+  updatedAt: number;
+  /** Active explicit claim on this aspect; overrides evidence classification until cleared. */
+  claim?: WordStatus;
+  claimAt?: number;
 }
 
 /** Ignored word entry tracked per language for browse/unignore workflows */
@@ -1972,6 +2096,15 @@ export interface InstallOptions {
   includeVoice?: boolean;
 }
 
+/**
+ * Payload broadcast with IPC_CHANNELS.INSTALL_STARTED. Extends the user's
+ * component selection with platform-specific caveats the renderer can surface
+ * (stable machine keys, e.g. "intel-no-onboard-ai", "windows-cuda-recommended").
+ */
+export interface InstallStartedPayload extends InstallOptions {
+  platformWarnings: string[];
+}
+
 export interface InstallerState {
   waiting: boolean;
   inProgress: boolean;
@@ -1988,6 +2121,32 @@ export interface PipProgress {
   total: number;
   /** Current pip action: collecting, downloading, installing, etc. */
   action: string;
+}
+
+/** User-facing optional Python components (settings: llmEnabled/ocrEnabled/voiceEnabled). */
+export type PythonComponentId = 'llm' | 'ocr' | 'voice';
+
+export interface PythonComponentInfo {
+  id: PythonComponentId;
+  /** Effective settings flag after platform stripping. */
+  enabled: boolean;
+  /** False when the platform cannot run this component at all (Intel Macs). */
+  supported: boolean;
+  /** True when the install would use CUDA/GPU-accelerated wheels. */
+  gpuAccelerated: boolean;
+  /** Approximate download+install footprint, human readable ("~550 MB"). */
+  sizeLabel: string;
+  /** null when install state cannot be probed reliably (e.g. OCR language packages). */
+  installed: boolean | null;
+}
+
+export interface ComponentsUninstallResult {
+  ids: PythonComponentId[];
+  removed: string[];
+  /** Packages that stay because another enabled component still needs them. */
+  kept: string[];
+  /** Set when the dependency probe failed — nothing was removed. */
+  abortedReason?: string;
 }
 
 export interface PromptOptions {
@@ -2200,8 +2359,25 @@ export interface PipRequirementsConfig {
   core: string[];
   ocr: string[];
   llm: string[];
+  /** CUDA (torch) LLM packages for Windows; replaces `llm` on win32 installs. */
+  'llm-windows'?: string[];
+  /** CPU-wheel LLM packages for Windows machines without an NVIDIA GPU. */
+  'llm-windows-cpu'?: string[];
+  /** LLM packages for Linux; transformers pinned to the qwen-tts-compatible line. */
+  'llm-linux'?: string[];
+  /** CPU-wheel LLM packages for Linux machines without an NVIDIA GPU. */
+  'llm-linux-cpu'?: string[];
   voice?: string[];
+  'voice-windows'?: string[];
+  /** CPU-wheel voice packages for Windows machines without an NVIDIA GPU. */
+  'voice-windows-cpu'?: string[];
+  /** CPU-wheel voice packages for Linux machines without an NVIDIA GPU. */
+  'voice-linux-cpu'?: string[];
+  /** Qwen3 TTS engine backed by MLX (Apple Silicon only). */
   'qwen3-tts'?: string[];
+  /** Qwen3 TTS engine backed by torch/qwen-tts (Linux and Windows installs). */
+  'qwen3-tts-torch'?: string[];
+  /** Extra sentencepiece models for MLX-based STT (Apple Silicon only). */
   'mlx-stt'?: string[];
 }
 
@@ -2469,6 +2645,8 @@ export interface ConversationAgentContext {
   failedGrammar: MediaStatsGrammarEntry[];
   wordLevelPercentages: LevelPercentages;
   grammarLevelPercentages: LevelPercentages;
+  /** Patterns repeatedly encountered in this media without any failure — exposure-ranked practice candidates (unmeasured signals, NOT demonstrated failures). */
+  grammarExposure?: Array<{ pattern: string; timesEncountered: number }>;
   characterContext?: string;
   subtitleHistory?: string[];
   /** Draft message to seed the composer with and send once the window is ready. */
@@ -2564,6 +2742,8 @@ export interface VoiceModelStatus {
   sttModelName?: string;
   ttsModelName?: string;
   sttEngine?: string;
+  /** Compute device the local voice models run on ('cuda' | 'mps' | 'cpu'). */
+  device?: 'cuda' | 'mps' | 'cpu';
 }
 
 export interface VoiceSTTResult {

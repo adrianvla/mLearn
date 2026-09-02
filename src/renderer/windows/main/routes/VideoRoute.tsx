@@ -18,18 +18,18 @@ import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModify
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
-import { WORD_STATUS, ANKI_EASE } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, getRecentProgressPercent, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { captureVideoFrameForFlashcard } from '../../../services/flashcardImageCapture';
-import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
+import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../../utils/levelPercentages';
+import { buildGrammarExposure } from '../../../utils/grammarExposure';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
-import { buildWordHoverFlashcardContent, getAnkiEaseForStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
+import { bulkAddWords } from '../../../utils/bulkAddWords';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { tokensToColoredHtml, parseWorkName, type ParseWorkNameOptions } from '../../../utils/subtitleParsing';
-import { getWordStatus } from '../../../services/statsService';
 import { toUniqueIdentifier } from '../../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
@@ -688,24 +688,23 @@ export const VideoRoute: Component = () => {
   const processAddAll = async (entries: VideoWordEntry[]) => {
     setIsAddingAllSidebarWords(true);
     try {
-      for (const entry of entries) {
-        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
-        if (trackedAnkiWord) {
-          const forms = getWordForms(entry.word);
-          const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
-          const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
-          const ankiEase = getAnkiEaseForStatus(status, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
-          try {
-            await anki.updateWordCards(trackedAnkiWord, ankiEase);
-            await refreshAnkiWordsCache(ankiCacheOptions());
-          } catch (err) {
-            log.error(`Failed to update Anki cards for "${entry.word}":`, err);
-            showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
-          }
-        } else {
-          await addVideoWordFlashcard(entry);
-        }
-      }
+      const updatedAny = await bulkAddWords({
+        entries,
+        wordOf: (entry) => entry.word,
+        trackedAnkiWordOf: getTrackedAnkiWord,
+        formsOf: getWordForms,
+        statusOf: (word: string) => {
+          const status = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
+          return status === 'known' ? 2 : status === 'learning' ? 1 : 0;
+        },
+        updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
+        addFlashcard: addVideoWordFlashcard,
+        onEntryError: (entry, err) => {
+          log.error(`Failed to update Anki cards for "${entry.word}":`, err);
+          showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
+        },
+      });
+      if (updatedAny) await refreshAnkiWordsCache(ankiCacheOptions());
     } finally {
       setIsAddingAllSidebarWords(false);
     }
@@ -1309,32 +1308,34 @@ export const VideoRoute: Component = () => {
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
     const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
     const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
-    const level = assessMediaLevel(wordLevels, langCtx.currentLangData());
+    const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
+    const level = difficulty.headline;
     const levelNames = langCtx.getFreqLevelNames();
 
-    // Collect failed words: merge per-media stats with global wordKnowledge
-    // wordsEncountered has per-media seen/hovered counts; wordKnowledge has global ease
-    const wordKnowledge = flashcardCtx.store.wordKnowledge;
+    // Collect failed words: merge per-media stats with the canonical resolver
+    // (effective claim ?? evidence projection). wordsEncountered has per-media
+    // seen/hovered counts; the resolver refines ease with global knowledge.
+    // Per-media hover counts stay local (the weak-signal observation for this
+    // media; the resolver exposes no global hover channel).
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     // Only include words encountered in this specific media
-    // Refine ease with global wordKnowledge but never add words from other media
     for (const entry of Object.values(s.wordsEncountered)) {
-      const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
-      if (globalEntry) {
-        mediaWords.set(entry.word, {
-          word: entry.word,
-          ease: Math.min(entry.ease, globalEntry.ease),
-          timesSeen: Math.max(entry.timesSeen, globalEntry.timesSeen),
-          timesHovered: Math.max(entry.timesHovered, globalEntry.timesHovered),
-        });
-      } else {
-        mediaWords.set(entry.word, { ...entry });
-      }
+      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language);
+      mediaWords.set(entry.word, {
+        word: entry.word,
+        ease: resolved.ease !== undefined ? Math.min(entry.ease, resolved.ease) : entry.ease,
+        timesSeen: Math.max(entry.timesSeen, resolved.timesSeen),
+        timesHovered: entry.timesHovered,
+      });
     }
 
     const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
+    // Exposure-ranked practice candidates: repeatedly encountered in the
+    // canonical knowledge store without any failure. Unmeasured signals only —
+    // failed patterns stay in failedGrammar above.
+    const grammarExposure = buildGrammarExposure(s.grammarEncountered, (pattern) => flashcardCtx.getGrammarKnowledge(pattern, settings.language));
 
     const context: ConversationAgentContext = {
       mediaName: name,
@@ -1345,6 +1346,7 @@ export const VideoRoute: Component = () => {
       language: lang,
       failedWords,
       failedGrammar,
+      grammarExposure,
       wordLevelPercentages: wordLevels,
       grammarLevelPercentages: grammarLevels,
       characterContext: buildCharacterContext(subtitles.subtitles().map((sub) => sub.text), {

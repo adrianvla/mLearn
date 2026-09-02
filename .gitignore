@@ -44,3 +44,6 @@ docs/superpowers
 /.omo/
 .cortexkit
 .impeccable/
+
+# Generated linguistic graph assets (same class as dictionaries/)
+scripts/language-data/source/root-of-app/languages/*.graph.json

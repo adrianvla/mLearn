@@ -1,4 +1,4 @@
-import { Component, JSX, Show, createSignal, onCleanup } from 'solid-js';
+import { Component, JSX, Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import './Tooltip.css';
 
@@ -13,6 +13,11 @@ export interface TooltipProps {
   onShow?: () => void;
   /** Called when tooltip is hidden */
   onHide?: () => void;
+  /** Keep content hoverable so interactive content (buttons) can be clicked */
+  interactive?: boolean;
+  /** Keep the portal open until its owner explicitly closes it. */
+  pinned?: boolean;
+  onRequestClose?: () => void;
   class?: string;
 }
 
@@ -20,7 +25,9 @@ export const Tooltip: Component<TooltipProps> = (props) => {
   const [visible, setVisible] = createSignal(false);
   const [pos, setPos] = createSignal({ left: 0, top: 0 });
   let delayTimer: ReturnType<typeof setTimeout> | null = null;
+  let hideTimer: ReturnType<typeof setTimeout> | null = null;
   let triggerRef: HTMLSpanElement | undefined;
+  let contentRef: HTMLSpanElement | undefined;
 
   const updatePosition = () => {
     if (!triggerRef) return;
@@ -42,25 +49,45 @@ export const Tooltip: Component<TooltipProps> = (props) => {
     setPos({ left, top });
   };
 
+  const clampToViewport = () => {
+    if (!contentRef || !triggerRef) return;
+    const viewportWidth = window.innerWidth;
+    const width = contentRef.offsetWidth;
+    if (width === 0) return;
+    const half = width / 2;
+    const currentLeft = pos().left;
+    const minLeft = half + 8;
+    const maxLeft = viewportWidth - half - 8;
+    const clampedLeft = Math.min(Math.max(currentLeft, minLeft), Math.max(minLeft, maxLeft));
+    if (clampedLeft !== currentLeft) setPos({ left: clampedLeft, top: pos().top });
+  };
+
   const show = () => {
     const delay = props.delay ?? 0;
     if (delay > 0) {
       delayTimer = setTimeout(() => {
         updatePosition();
         setVisible(true);
+        requestAnimationFrame(clampToViewport);
         props.onShow?.();
       }, delay);
     } else {
       updatePosition();
       setVisible(true);
+      requestAnimationFrame(clampToViewport);
       props.onShow?.();
     }
   };
 
   const hide = () => {
+    if (props.pinned) return;
     if (delayTimer !== null) {
       clearTimeout(delayTimer);
       delayTimer = null;
+    }
+    if (hideTimer !== null) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
     }
     if (visible()) {
       setVisible(false);
@@ -68,7 +95,50 @@ export const Tooltip: Component<TooltipProps> = (props) => {
     }
   };
 
+  // Interactive content lives in a Portal: the pointer crosses a gap between
+  // trigger and content, so trigger-mouseleave must grace before hiding or the
+  // tooltip closes before the pointer reaches the content.
+  const scheduleHide = () => {
+    if (props.pinned) return;
+    if (props.interactive) {
+      hideTimer = setTimeout(hide, 200);
+    } else {
+      hide();
+    }
+  };
+  const cancelHide = () => {
+    if (hideTimer !== null) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+  };
+
   onCleanup(hide);
+
+  createEffect(() => {
+    if (props.pinned) {
+      cancelHide();
+      show();
+    } else if (props.pinned === false && visible()) {
+      hide();
+    }
+  });
+
+  createEffect(() => {
+    if (!props.pinned) return;
+    const close = (event: KeyboardEvent | PointerEvent) => {
+      if (event instanceof KeyboardEvent && event.key === 'Escape') props.onRequestClose?.();
+      if (event instanceof PointerEvent && !triggerRef?.contains(event.target as Node) && !contentRef?.contains(event.target as Node)) {
+        props.onRequestClose?.();
+      }
+    };
+    document.addEventListener('keydown', close);
+    document.addEventListener('pointerdown', close);
+    onCleanup(() => {
+      document.removeEventListener('keydown', close);
+      document.removeEventListener('pointerdown', close);
+    });
+  });
 
   return (
     <>
@@ -76,7 +146,7 @@ export const Tooltip: Component<TooltipProps> = (props) => {
         ref={triggerRef}
         class={`tooltip-trigger ${props.class ?? ''}`}
         onMouseEnter={show}
-        onMouseLeave={hide}
+        onMouseLeave={scheduleHide}
         onFocusIn={show}
         onFocusOut={hide}
       >
@@ -85,7 +155,11 @@ export const Tooltip: Component<TooltipProps> = (props) => {
       <Show when={visible()}>
         <Portal mount={document.body}>
           <span
-            class={`tooltip-content tooltip-content--${props.position ?? 'top'}`}
+            ref={contentRef}
+            role="tooltip"
+            class={`tooltip-content tooltip-content--${props.position ?? 'top'}${props.interactive ? ' tooltip-content--interactive' : ''}`}
+            onMouseEnter={cancelHide}
+            onMouseLeave={scheduleHide}
             style={{
               position: 'fixed',
               left: `${pos().left}px`,

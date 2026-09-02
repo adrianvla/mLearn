@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap } from './types';
+import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type KnowledgeAspect, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAspects } from './types';
 import { createProsodyRawPayloadForPosition } from './prosodyPayload';
 import { getReadingExtraCharacters, isTextOnlyInScripts, katakanaToHiragana } from './utils/textUtils';
 import { getResolvedScriptProfile, hasLettersInAnyScript, hasLettersInScript, scriptProfileUsesSegmentlessText, normalizeScriptCodes } from './languageScriptProfile';
@@ -365,9 +365,10 @@ export function detectScriptForm(
     if (applyMappingTableNormalizer(word, language) !== word) return variantId;
   }
 
-  return variants.find(([, variant]) => (
-    !Object.prototype.hasOwnProperty.call(variant.overrides, 'runtime.adapter.config.pinyinInputConversion')
-  ))?.[0];
+  return variants.find(([, variant]) => {
+    const config = variant.overrides['runtime.adapter.config'];
+    return !(typeof config === 'object' && config !== null && 'pinyinInputConversion' in config);
+  })?.[0];
 }
 
 function applyTextNormalizer(value: string, step: NormalizerStep, language?: string): string {
@@ -698,14 +699,16 @@ function grammarTokenMatches(token: Token, matcher: GrammarTokenMatcher, data?: 
     || matcher.regex !== undefined;
 }
 
-function grammarTokenSequenceMatches(tokens: readonly Token[], match: GrammarMatchConfig, data?: LanguageData | null): boolean {
+/** Returns every full token-sequence match. Consumers can retain the span as ephemeral UI evidence. */
+export function grammarTokenSequenceMatchStarts(tokens: readonly Token[], match: GrammarMatchConfig, data?: LanguageData | null): number[] {
   const matchers = match.tokens ?? [];
-  if (matchers.length === 0 || tokens.length < matchers.length) return false;
+  if (matchers.length === 0 || tokens.length < matchers.length) return [];
   const capabilities = getTokenizerCapabilities(data);
   if (!matchers.every((matcher) => grammarMatcherCanUseTokenizerField(matcher, capabilities))) {
-    return false;
+    return [];
   }
 
+  const starts: number[] = [];
   for (let start = 0; start <= tokens.length - matchers.length; start += 1) {
     let matched = true;
     for (let offset = 0; offset < matchers.length; offset += 1) {
@@ -714,10 +717,10 @@ function grammarTokenSequenceMatches(tokens: readonly Token[], match: GrammarMat
         break;
       }
     }
-    if (matched) return true;
+    if (matched) starts.push(start);
   }
 
-  return false;
+  return starts;
 }
 
 function grammarTextMatches(fullText: string, point: GrammarPoint, match?: GrammarMatchConfig): boolean {
@@ -739,7 +742,7 @@ export function grammarPointMatchesTokens(
 
   return matches.some((match) => {
     if ((match.type ?? 'text') === 'token-sequence') {
-      return grammarTokenSequenceMatches(tokens, match, data);
+      return grammarTokenSequenceMatchStarts(tokens, match, data).length > 0;
     }
     return grammarTextMatches(fullText, point, match);
   });
@@ -761,6 +764,37 @@ export function isReadingScriptText(text: string, data?: LanguageData | null): b
   const normalization = getReadingLexemeNormalizationConfig(data);
   return normalization.readingScripts.length > 0
     && isTextOnlyInScripts(text, normalization.readingScripts, getReadingExtraCharacters(data));
+}
+
+// ─── Attempt-rating tested/supplied gating ───────────────────────────────────
+
+export interface TestedAspectsInput {
+  languageData?: LanguageData | null;
+  /** The exact written surface presented to the learner in this interaction. */
+  surface: string;
+  /** Dictionary reading data exists for this item. */
+  hasReadingData: boolean;
+  /** Prosody/accentuation data exists for this item. */
+  hasProsodyData: boolean;
+}
+
+/**
+ * Aspects THIS interaction actually tests — the single source for rating-matrix
+ * rows. tested != available: a surface written entirely in the reading script
+ * (もたれる) supplies the reading, so Reading is not a tested row (cannot fail
+ * what was supplied), while form recognition is only meaningful where the
+ * surface is not reading-transparent (文脈 yes, さようなら no). Meaning is
+ * always tested by a word-presentation task; gender/pronunciation have no
+ * testing interaction yet and are excluded until one exists.
+ */
+export function getTestedAspects(input: TestedAspectsInput): readonly KnowledgeAspect[] {
+  const available = getAvailableAspects(input.languageData ?? undefined);
+  const surfaceSuppliesReading = isReadingScriptText(input.surface, input.languageData);
+  const aspects: KnowledgeAspect[] = ['meaning'];
+  if (available.includes('reading') && input.hasReadingData && !surfaceSuppliesReading) aspects.push('reading');
+  if (available.includes('prosody') && input.hasProsodyData) aspects.push('prosody');
+  if (available.includes('orthography') && !surfaceSuppliesReading) aspects.push('orthography');
+  return aspects;
 }
 
 export function getReadingJoinSeparator(data?: LanguageData | null): string {
@@ -1191,6 +1225,10 @@ export function getLanguageProsodyType(data?: LanguageData | null): NonNullable<
 
 export function languageSupportsProsody(data?: LanguageData | null): boolean {
   return Boolean(getLanguageProsodyType(data));
+}
+
+export function languageSupportsCompoundSplitting(data?: LanguageData | null): boolean {
+  return data?.compoundSplitting === true;
 }
 
 export function getProsodyPositionFromContent(

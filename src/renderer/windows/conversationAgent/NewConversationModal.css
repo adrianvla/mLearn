@@ -1,0 +1,68 @@
+.new-conversation-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+}
+
+.new-conversation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+.new-conversation-people,
+.new-conversation-disambiguation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.new-conversation-people-label,
+.new-conversation-disambiguation > span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.new-conversation-people-list {
+  display: flex;
+  gap: var(--spacing-2);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-1);
+}
+
+.new-conversation-person {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: var(--spacing-2);
+  cursor: pointer;
+}
+
+.new-conversation-person--selected {
+  border-color: var(--primary-color);
+  background: var(--bg-hover);
+}
+
+.new-conversation-avatar {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  object-fit: cover;
+}
+
+.new-conversation-error {
+  color: var(--text-danger);
+  font-size: var(--font-size-sm);
+}

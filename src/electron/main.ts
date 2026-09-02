@@ -22,6 +22,7 @@ import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
 import { registerLocalMediaScheme, registerPluginUiScheme, setupLocalMediaProtocol, setupPluginUiProtocol } from './services/localMediaProtocol';
 import { setupMediaStatsIPC } from './services/mediaStatsStorage';
+import { setupKnowledgeEventsIPC } from './services/knowledgeEvents';
 import { setupOllamaIPC } from './services/ollamaService';
 import { setupBuiltinLLMIPC } from './services/builtinLLMService';
 import { setupLLMRouterIPC } from './services/llmRouter';
@@ -29,6 +30,11 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
+import { setupLinguisticGraphIPC } from './services/linguisticGraph';
+import { setupJournalIPC } from './services/journalService';
+import { startScheduler, stopScheduler } from './services/schedulerRuntime';
+import { setupWorldIPC, openRoomAt } from './services/worldIpc';
+import { runLegacyMigration } from './services/legacyMigration';
 import { setupBrowserDetectionIPC } from './services/browserDetection';
 import { setupExtensionInstallerIPC } from './services/extensionInstaller';
 import { initPluginManager } from './services/pluginManager';
@@ -37,6 +43,7 @@ import { setupDiagnosticsIPC } from './services/diagnostics';
 import { createAppUpdaterService, setupAppUpdaterIpc, type AppUpdaterService } from './services/appUpdater';
 import { createTray, destroyTray } from './services/trayManager';
 import { IPC_CHANNELS } from '../shared/constants';
+import type { OpenRoomEventPayload } from '../shared/world';
 import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
 
@@ -97,6 +104,27 @@ function isDiagnosticsDeepLink(rawUrl: string): boolean {
     return parsed.protocol === 'mlearn:' && parsed.hostname === 'diagnostics';
   } catch {
     return false;
+  }
+}
+
+function parseRoomDeepLink(rawUrl: string): OpenRoomEventPayload | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'mlearn:') {
+      return null;
+    }
+    if (parsed.hostname !== 'room') {
+      return null;
+    }
+    const roomId = parsed.pathname.replace(/^\//, '');
+    if (!roomId) {
+      return null;
+    }
+    const eventId = parsed.searchParams.get('event');
+    return { roomId, eventId: eventId ?? undefined };
+  } catch (e) {
+    log.error('parseRoomDeepLink failed', e);
+    return null;
   }
 }
 
@@ -162,6 +190,11 @@ function handlePossibleDeepLinkValue(value: string): void {
   }
   if (isDiagnosticsDeepLink(value)) {
     createDiagnosticsWindow();
+    return;
+  }
+  const roomPayload = parseRoomDeepLink(value);
+  if (roomPayload) {
+    openRoomAt(roomPayload);
     return;
   }
 }
@@ -300,6 +333,7 @@ function setupAllIPC(): void {
   setupFileOperationsIPC();
   setupMigrationIPC();
   setupMediaStatsIPC();
+  setupKnowledgeEventsIPC();
   setupOllamaIPC();
   setupBuiltinLLMIPC();
   setupLLMRouterIPC();
@@ -307,6 +341,9 @@ function setupAllIPC(): void {
   setupVoiceIPC();
   setupDataExportImportIPC();
   setupKVStoreIPC();
+  setupLinguisticGraphIPC();
+  setupJournalIPC();
+  setupWorldIPC();
   setupBrowserDetectionIPC();
   setupExtensionInstallerIPC();
   setupPluginIPC();
@@ -371,8 +408,17 @@ async function initialize(): Promise<void> {
   // This migrates data from the old app's file:// localStorage to file-based storage
   await migrateLocalStorage();
 
+  // One-time legacy conversational-state migration (agent configs/sessions/memories
+  // → Room/Thread/Participant + journal). Idempotent; no-ops after the first run.
+  const worldMigration = await runLegacyMigration();
+  if (worldMigration.migrated) {
+    log.info('Legacy conversation state migrated to world model', worldMigration);
+  }
+
   // Create windows and start services
   await createAppWindows();
+
+  startScheduler();
 
   const { getMainWindow } = require('./services/windowManager');
   const mainWindow = getMainWindow();
@@ -427,6 +473,7 @@ app.on('before-quit', () => {
   log.info('App before-quit: setting isQuitting flag, cleaning up');
   (app as any).isQuitting = true;
   destroyTray();
+  stopScheduler();
   terminatePythonBackend();
 });
 

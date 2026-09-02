@@ -13,6 +13,7 @@ import type {
   FlashcardBridge,
   PluginBridge,
   LocalizationBridge,
+  GraphBridge,
   FileBridge,
   WindowBridge,
   ServerBridge,
@@ -22,6 +23,7 @@ import type {
   SpeechBridge,
   VoiceBridge,
   MediaStatsBridge,
+  KnowledgeEventsBridge,
   WatchTogetherBridge,
   OverlayBridge,
   CrossWindowBridge,
@@ -30,6 +32,8 @@ import type {
   GenericIPCBridge,
   DataBridge,
   KVStoreBridge,
+  JournalBridge,
+  WorldBridge,
   BrowserBridge,
   DiagnosticsBridge,
 } from './types';
@@ -104,6 +108,15 @@ const localizationBridge: LocalizationBridge = {
   onLanguageInstallError: (cb) => getIPC().onLanguageInstallError(cb),
 };
 
+const graphBridge: GraphBridge = {
+  getGraphMeta: (language) => getIPC().getGraphMeta(language),
+  lookupGraphWord: (language, input) => getIPC().lookupGraphWord(language, input),
+  getGraphRelated: (language, entityId, relationTypes) => getIPC().getGraphRelated(language, entityId, relationTypes),
+  getGraphTargetsForSurfaces: (language, inputs) => getIPC().getGraphTargetsForSurfaces(language, inputs),
+  getGraphNeighborhood: (language, query) => getIPC().getGraphNeighborhood(language, query),
+  getKnowledgeProjection: (language, surface) => getIPC().getKnowledgeProjection(language, surface),
+};
+
 const fileBridge: FileBridge = {
   readDirectoryImages: (dir) => getIPC().readDirectoryImages(dir),
   readPdfFile: (path) => getIPC().readPdfFile(path),
@@ -149,6 +162,7 @@ const windowBridge: WindowBridge = {
   onOpenPrompt: (cb) => getIPC().onOpenPrompt(cb),
   onAuthDeepLink: (cb) => getIPC().onAuthDeepLink(cb),
   onLookupDeepLink: (cb) => getIPC().onLookupDeepLink(cb),
+  onOpenRoomEvent: (cb) => getIPC().onOpenRoomEvent(cb),
   promptOutput: (text) => getIPC().promptOutput(text),
 };
 
@@ -191,6 +205,10 @@ const installerBridge: InstallerBridge = {
   onInstallerNetworkError: (cb) => getIPC().onInstallerNetworkError(cb),
   onInstallerState: (cb) => getIPC().onInstallerState(cb),
   onPipProgress: (cb) => getIPC().onPipProgress(cb),
+  getComponentsState: () => getIPC().getComponentsState(),
+  uninstallComponents: (ids) => getIPC().uninstallComponents(ids),
+  onComponentsState: (cb) => getIPC().onComponentsState(cb),
+  onComponentsUninstalled: (cb) => getIPC().onComponentsUninstalled(cb),
 };
 
 const llmBridge: LLMBridge = {
@@ -258,6 +276,14 @@ const mediaStatsBridge: MediaStatsBridge = {
   onMediaStats: (cb) => getIPC().onMediaStats(cb),
   listMediaStats: () => getIPC().listMediaStats(),
   onMediaStatsList: (cb) => getIPC().onMediaStatsList(cb),
+};
+
+const knowledgeEventsBridge: KnowledgeEventsBridge = {
+  appendKnowledgeEvents: (eventsByKey) => getIPC().appendKnowledgeEvents(eventsByKey),
+  queryKnowledgeEvents: (keys) => getIPC().queryKnowledgeEvents(keys),
+  queryKnowledgeEventsForLanguage: (language) => getIPC().queryKnowledgeEventsForLanguage(language),
+  getKnowledgeEvents: (key) => getIPC().getKnowledgeEvents(key),
+  onKnowledgeEventsChanged: (callback) => getIPC().onKnowledgeEventsChanged(callback),
 };
 
 const watchTogetherBridge: WatchTogetherBridge = {
@@ -341,6 +367,31 @@ const kvStoreBridge: KVStoreBridge = {
   kvSetBatch: (entries) => getIPC().kvSetBatch(entries),
 };
 
+const journalBridge: JournalBridge = {
+  appendEvent: (roomId, draft) => getIPC().appendEvent(roomId, draft),
+  subscribeRoom: (roomId, limit) => getIPC().subscribeRoom(roomId, limit),
+  queryEvents: (roomId, opts) => getIPC().queryEvents(roomId, opts),
+  readSeaProjection: (roomId, limit) => getIPC().readSeaProjection(roomId, limit),
+  readThread: (roomId, threadId) => getIPC().readThread(roomId, threadId),
+  eraseThread: (roomId, threadId) => getIPC().eraseThread(roomId, threadId),
+};
+
+const worldBridge: WorldBridge = {
+  getWorldState: () => getIPC().getWorldState(),
+  createRoom: (title) => getIPC().createRoom(title),
+  applyMembership: (roomId, participantId, kind) => getIPC().applyMembership(roomId, participantId, kind),
+  createThread: (roomId, title) => getIPC().createThread(roomId, title),
+  updateThread: (thread) => getIPC().updateThread(thread),
+  deleteThread: (roomId, threadId) => getIPC().deleteThread(roomId, threadId),
+  rememberThis: (input) => getIPC().rememberThis(input),
+  integrateThread: (input) => getIPC().integrateThread(input),
+  promoteParticipant: (participantId) => getIPC().promoteParticipant(participantId),
+  createParticipant: (input) => getIPC().createParticipant(input),
+  updateParticipant: (participant) => getIPC().updateParticipant(participant),
+  deleteParticipant: (participantId) => getIPC().deleteParticipant(participantId),
+  clearRoomUnread: (roomId) => getIPC().clearRoomUnread(roomId),
+};
+
 const browserBridge: BrowserBridge = {
   detectBrowsers: (customPaths) => getIPC().detectBrowsers(customPaths),
   installExtension: (browser) => getIPC().installExtension(browser),
@@ -362,6 +413,7 @@ export function createElectronBridge(): PlatformBridge {
     flashcards: flashcardBridge,
     plugins: pluginBridge,
     localization: localizationBridge,
+    graph: graphBridge,
     files: fileBridge,
     window: windowBridge,
     server: serverBridge,
@@ -371,6 +423,7 @@ export function createElectronBridge(): PlatformBridge {
     speech: speechBridge,
     voice: voiceBridge,
     mediaStats: mediaStatsBridge,
+    knowledgeEvents: knowledgeEventsBridge,
     watchTogether: watchTogetherBridge,
     overlay: overlayBridge,
     crossWindow: crossWindowBridge,
@@ -379,6 +432,8 @@ export function createElectronBridge(): PlatformBridge {
     generic: genericBridge,
     data: dataBridge,
     kvStore: kvStoreBridge,
+    journal: journalBridge,
+    world: worldBridge,
     browser: browserBridge,
     diagnostics: diagnosticsBridge,
   };

@@ -271,8 +271,3 @@ export function initDebugLogger() {
   requestAnimationFrame(() => ensureDOM());
 }
 
-/** Programmatically show the debug overlay */
-export function showDebugLogger() { show(); }
-
-/** Programmatically hide the debug overlay */
-export function hideDebugLogger() { hide(); }

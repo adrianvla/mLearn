@@ -43,7 +43,7 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
         addingWordKeys={props.addingWordKeys}
         isAddingAll={props.isAddingAll}
         failedWordSet={props.failedWordSet}
-        failedEmptyMessage={t('mlearn.ConversationAgent.Stats.NoFailedWords')}
+        failedEmptyMessage={t('mlearn.ConversationAgent.Stats.NoHoveredWords')}
         onAddWord={(entry) => props.onAddWord(entry as ReaderUnknownWordEntry)}
         onIgnoreWord={(entry) => props.onIgnoreWord(entry as ReaderUnknownWordEntry)}
         onWordHover={props.onWordHover ? (entry) => props.onWordHover!(entry as ReaderUnknownWordEntry) : undefined}

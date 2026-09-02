@@ -17,13 +17,9 @@ import {
 import { showToast } from '../../components/common/Feedback/Toast';
 import { useFlashcards, useLocalization } from '../../context';
 import type { LevelStudyTargetStatus } from '../../context/FlashcardContext';
-import { getBackend } from '../../../shared/backends';
-import type { DictionaryWordPair } from '../../../shared/backends/types';
 import { WORD_STATUS, type WordStatus } from '../../../shared/constants';
 import type { LanguageData, WordFrequencyMap } from '../../../shared/types';
-
-// Module-level cache: the dict universe is ~296k (word, reading) pairs per language; re-fetching on every modal open would cost seconds.
-const dictionaryUniverseCache = new Map<string, DictionaryWordPair[]>();
+import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
 
 // Dict status resolution costs ~30µs/word (normalizer + SHA-256 + store lookups).
 // ~400 words per slice keeps each chunk under ~16ms so the main thread stays alive.
@@ -80,13 +76,7 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
 
   const [dictionaryWords] = createResource(
     () => props.language,
-    async (language) => {
-      const cached = dictionaryUniverseCache.get(language);
-      if (cached) return cached;
-      const pairs = await getBackend().enumerateDictionaryWords(language);
-      dictionaryUniverseCache.set(language, pairs);
-      return pairs;
-    },
+    (language) => loadDictionaryUniverse(language),
   );
 
   const filterSetup = createMemo(() => (

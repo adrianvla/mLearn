@@ -1,5 +1,48 @@
 {
   "mlearn": {
+    "GraphInspector": {
+      "Title": "グラフインスペクター",
+      "Unavailable": "使用中の言語グラフはインストールされていません。",
+      "SelectEntity": "グラフエンティティを選択してください。",
+      "Capabilities": "能力",
+      "identity": "同一性",
+      "property": "属性",
+      "support": "関連サポート",
+      "SupportCaption": "関連 — 知識ではありません。サポートリンクは知識を継承しません。",
+      "Details": "開発者詳細",
+      "Target": "対象",
+      "Projection": "投影",
+      "Retention": "保持",
+      "Evidence": "根拠",
+      "NoDirectEvidence": "直接の根拠はまだありません。",
+      "PredictionFirewall": "予測は直接の根拠とは分離されています。",
+      "State": {
+        "Known": "根拠に基づく既知",
+        "Learning": "学習中",
+        "Predicted": "予測",
+        "Unmeasured": "未測定",
+        "Excluded": "除外"
+      },
+      "Neighborhood": {
+        "Title": "ローカルグラフ",
+        "Toggle": "グラフ",
+        "Empty": "この項目に関連はありません。",
+        "Truncated": "{total} 件の関係のうち {shown} 件を表示しています。",
+        "NotInGraph": "この項目は言語グラフに含まれていません。",
+        "OpenInWindow": "グラフインスペクターで開く",
+        "Loading": "近傍を読み込み中…",
+        "State": {
+          "EvidenceBackedKnown": "根拠に基づく既知",
+          "ClaimedKnown": "既知（宣言）",
+          "ClaimedLearning": "学習中（宣言）",
+          "ClaimedUnknown": "不明（宣言）",
+          "Learning": "学習中",
+          "Unknown": "不明",
+          "Predicted": "予測",
+          "Unmeasured": "未測定"
+        }
+      }
+    },
     "Management": {
       "ChooseGroup": "クラスまたはグループを選択",
       "ChooseGroupDescription": "学習活動と学校ポリシーを適用する場所を選択してください。",
@@ -426,7 +469,8 @@
       "Empty": {
         "Hint": "AIチューターと対象言語で練習しましょう。間違いを修正し、クイズを出し、学習を支援します。",
         "StartConversation": "AIに始めてもらう",
-        "Title": "会話を始める"
+        "Title": "会話を始める",
+        "NewConversation": "新しい会話"
       },
       "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
       "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
@@ -519,20 +563,20 @@
         "AssessedLevel": "評価レベル",
         "ByOccurrence": "出現順",
         "Current": "現在",
-        "Failed": "失敗",
-        "FailedGrammarCount": "失敗した文法",
-        "FailedWords": "失敗した単語",
+        "Struggled": "苦手",
+        "StruggledGrammarCount": "苦手な文法",
+        "HoveredWords": "ホバーした単語",
         "Filter": {
           "All": "すべて",
-          "FailedOnly": "失敗のみ",
+          "HoveredOnly": "ホバーのみ",
           "Unknown": "レベルなし"
         },
         "Grammar": "文法",
         "GrammarLevels": "文法レベル",
         "Hovered": "ホバー回数",
         "Levels": "レベル",
-        "NoFailedGrammar": "失敗した文法ポイントはまだありません。",
-        "NoFailedWords": "失敗した単語はまだありません — 没入を続けましょう！",
+        "NoStruggledGrammar": "苦手な文法はまだありません。",
+        "NoHoveredWords": "ホバーした単語はまだありません — 没入を続けましょう！",
         "NoGrammarMatching": "条件に一致する文法がありません。",
         "NoLevelData": "レベル分布を計算するのに十分なデータがありません。",
         "NoMedia": "メディア統計はまだ保存されていません",
@@ -545,7 +589,9 @@
         "UnknownWords": "未知の単語",
         "Words": "単語",
         "WordLevelDistribution": "単語レベル分布",
-        "WordLevels": "単語レベル"
+        "WordLevels": "単語レベル",
+        "Lexical": "語彙",
+        "Structural": "構造"
       },
       "StopRecording": "録音を停止",
       "StopStreaming": "停止",
@@ -613,7 +659,8 @@
         "UploadSample": "音声サンプルをアップロード",
         "VoiceSample": "ストリーミング音声クローン",
         "LightweightVoice": "軽量ボイス",
-        "SystemVoice": "システムボイス"
+        "SystemVoice": "システムボイス",
+        "CpuWarning": "音声処理が CPU で実行されているため、リアルタイム音声が遅れる場合があります。音声品質には影響しません。"
       },
       "Memory": {
         "ClearAll": "すべての記憶を消去",
@@ -697,6 +744,51 @@
         "FetchingChapters": "チャプター要約を取得中...",
         "ExploringWiki": "Wikiからストーリー情報を探索中...",
         "ExploringWikiDetail": "Wiki探索中: {detail}"
+      },
+      "Sidebar": {
+        "Title": "会話",
+        "NewConversation": "新しい会話",
+        "NewThread": "新しいスレッド",
+        "UntitledThread": "無題のスレッド"
+      },
+      "NewConversation": {
+        "Title": "新しい会話",
+        "Hint": "知っている人を選ぶか、誰と話したいか・何を練習したいかを書いてください。",
+        "FieldLabel": "会話",
+        "Placeholder": "誰と話したいですか？何を練習したいですか？",
+        "Cancel": "キャンセル",
+        "Start": "開始",
+        "Starting": "開始中…",
+        "PeopleLabel": "知っている人",
+        "TalkTo": "{name}と話す",
+        "DidYouMean": "もしかして：",
+        "Failed": "会話を作成できませんでした",
+        "StartAria": "会話を開始"
+      },
+      "Menu": {
+        "OverflowAria": "会話メニュー",
+        "CloseAria": "会話メニューを閉じる",
+        "NewThread": "新しいスレッド",
+        "Details": "会話の詳細",
+        "WordHover": "単語ホバー",
+        "Settings": "設定",
+        "MemoryBrowser": "メモリブラウザ"
+      },
+      "Call": {
+        "StartAria": "通話を開始"
+      },
+      "Details": {
+        "ThreadLabel": "スレッド",
+        "UntitledThread": "無題のスレッド",
+        "ParticipantsLabel": "参加者",
+        "NameLabel": "名前",
+        "PersonaLabel": "ペルソナ",
+        "Edit": "編集",
+        "Save": "保存",
+        "Cancel": "キャンセル",
+        "DeleteThread": "スレッドを削除",
+        "DeleteThreadConfirm": "スレッドを削除しますか？",
+        "ConfirmDelete": "削除を確定"
       }
     },
     "ErrorModal": {
@@ -891,7 +983,19 @@
         "Undo": "↩",
         "UndoTooltip": "元に戻す",
         "StealthMode": "ステルスモード",
-        "MuteAudio": "音声ミュート"
+        "MuteAudio": "音声ミュート",
+        "Modes": {
+          "Label": "フォーカス",
+          "Meaning": "意味",
+          "Reading": "読み",
+          "Prosody": "プロソディ"
+        },
+        "Attribution": {
+          "WrongReading": "読みを間違えた",
+          "WrongProsody": "プロソディを間違えた",
+          "WrongOrthography": "表記を認識できなかった",
+          "Marked": "{aspect}を未知にしました"
+        }
       },
       "State": {
         "Learning": "学習中",
@@ -1089,6 +1193,21 @@
           "Description": "OCRで本、漫画、PDF、EPUB、画像フォルダ、その他の文書を読む",
           "Title": "リーダー"
         },
+        "Room": {
+          "AddParticipant": "参加者を追加",
+          "EmptyThread": "メッセージはまだありません。会話を始めましょう。",
+          "InputPlaceholder": "メッセージを入力...",
+          "Loading": "ルームを読み込み中...",
+          "NewThread": "新しいスレッド",
+          "NoThread": "アクティブなスレッドがありません。作成してチャットを始めましょう。",
+          "RemoveParticipant": "参加者を削除",
+          "RoomNotFound": "ルームが見つかりません。",
+          "Roster": "参加者",
+          "SelectParticipant": "参加者を追加",
+          "Send": "送信",
+          "Title": "ルーム",
+          "You": "あなた"
+        },
         "Settings": {
           "Description": "mLearnをカスタマイズする",
           "Title": "設定"
@@ -1109,7 +1228,7 @@
           "LookupHint": "Enterキーで「{query}」を調べる"
         },
         "CharacterGrid": {
-          "Description": "文字の習得状況を視覚的に確認",
+          "Description": "文字の習得度（予測）の視覚的概要",
           "Title": "文字グリッド"
         },
         "WordSync": {
@@ -1141,7 +1260,9 @@
         "ComponentsRequired": "セットアップが必要です"
       },
       "Alerts": {
-        "NetworkError": "ネットワークエラーが発生しました。接続を確認してもう一度お試しください。"
+        "NetworkError": "ネットワークエラーが発生しました。接続を確認してもう一度お試しください。",
+        "NetworkOfflineTitle": "接続の問題",
+        "NetworkOfflineMessage": "mLearn はダウンロードサーバーに接続できません。インターネット接続を確認してください。ダウンロードは中断した場所から自動的に再試行・再開されます。"
       },
       "Buttons": {
         "Continue": "続行",
@@ -1214,6 +1335,161 @@
         "DisplayLanguage": "表示言語: {language}",
         "DictionaryLanguage": "辞書言語: {language}",
         "NotAvailable": "利用できません"
+      },
+      "PlatformWarnings": {
+        "IntelNoOnboardAi": {
+          "Title": "この Mac ではローカル AI 機能を利用できません",
+          "Description": "この Mac の Intel プロセッサーには AI アクセラレーションが内蔵されていないため、ローカルの音声・OCR・AI モデルコンポーネントをインストールできません。mLearn の内蔵チャット AI は引き続き動作し、CPU で実行されます（低速）。",
+          "Unavailable": "この Mac では利用できません"
+        },
+        "WindowsCudaRecommended": "リアルタイム音声には NVIDIA GPU を推奨します。CPU でも音声は動作しますが、応答が遅くなります。"
+      }
+    },
+    "Rating": {
+      "Compact": {
+        "AllFluent": "すべてスムーズ",
+        "AllEasy": "すべて簡単",
+        "Adjust": "調整"
+      },
+      "Matrix": {
+        "Missed": "思い出せず",
+        "Struggled": "苦労した",
+        "Fluent": "スムーズ",
+        "Easy": "簡単",
+        "AllFluent": "すべてスムーズ",
+        "EverythingElseFluent": "残りはすべてスムーズ",
+        "AllFluentKey": "F",
+        "PendingHint": "品質（1〜3）→ 側面キー"
+      }
+    },
+    "Knowledge": {
+      "Capability": {
+        "surface-recognition": "認識",
+        "surface-reading": "読み",
+        "pronunciation-production": "発音"
+      },
+      "LegacySource": {
+        "Prefix": "証拠のソース: ",
+        "None": "なし"
+      },
+      "Basis": {
+        "Claim": "明示的な申告",
+        "Evidence": "根拠",
+        "Unmeasured": "未測定",
+        "Prediction": "予測",
+        "Excluded": "除外"
+      },
+      "OverrideWarning": {
+        "Confirm": "変更する",
+        "DontRemind": "今後表示しない",
+        "Message": "この状態には既存の証拠があります。変更は手動の主張を追加しますが、証拠は消去しません。",
+        "Title": "知識の上書き"
+      },
+      "Popup": {
+        "Overall": "全体",
+        "Basis": "根拠",
+        "Rate": "評価",
+        "Inspect": "詳細"
+      },
+      "Projection": {
+        "Excluded": "学習対象から除外",
+        "Why": {
+          "Claim": "あなたの申告",
+          "Evidence": "{count} 回のSRS復習による証拠",
+          "Predicted": "グラフのサポートから予測",
+          "PredictedLinks": "{count} 本のグラフサポート経路から予測",
+          "Passive": "読みの中で {count} 回見かけた — 受動的な接触はエビデンスではなく熟知です",
+          "Unmeasured": "まだ何も測定されていません"
+        },
+        "Capabilities": "知識の能力",
+        "AspectClaims": "側面",
+        "Details": "単語の知識",
+        "Graph": "グラフ",
+        "Unavailable": "知識の詳細は利用できません。",
+        "Evidence": {
+          "Known": "証拠に基づく既知",
+          "Learning": "証拠に基づく学習中",
+          "Unknown": "エビデンスに基づく不明",
+          "Title": "有効な証拠",
+          "None": "有効な証拠はありません。",
+          "Claim": "申告: {status}",
+          "ClaimCleared": "申告を解除"
+        },
+        "Predicted": "予測",
+        "Unmeasured": "未測定",
+        "Because": "理由:",
+        "Strength": "Ease {ease} · 表示 {seen} · ホバー {hovered}",
+        "Retention": "負荷 {pressure} · 期限 {due}",
+        "Tabs": {
+          "Identity": "同一性と関係",
+          "Targets": "ターゲット",
+          "EvidenceHistory": "証拠と履歴",
+          "Prediction": "予測"
+        },
+        "Claim": {
+          "Known": "明示的な申告: 既知",
+          "Learning": "明示的な申告: 学習中",
+          "Unmeasured": "明示的な申告: 未測定",
+          "Unknown": "明示的な申告: 不明"
+        },
+        "ClaimOverride": "明示的な申告 — 証拠を上書き",
+        "Identity": {
+          "Surface": "表記",
+          "Canonical": "基本形",
+          "Senses": "語義",
+          "NotInstalled": "言語グラフがインストールされていません。",
+          "Install": "言語データをインストール",
+          "NoGraph": "この項目のグラフデータはありません。",
+          "None": "なし",
+          "NotInGraph": "この関連項目は言語グラフに含まれていません。",
+          "BackToWord": "{word} に戻る",
+          "Viewing": "{label} の関係",
+          "Sections": {
+            "Pronunciations": "発音",
+            "Morphology": "形態論",
+            "Characters": "文字",
+            "Grammar": "文法"
+          }
+        },
+        "Provenance": "出典",
+        "FullGraph": "完全なグラフを開く",
+        "Prediction": {
+          "None": "予測はありません。"
+        }
+      },
+      "Aspect": {
+        "Grammar": "文法",
+        "Meaning": "意味",
+        "Reading": "読み",
+        "Prosody": "プロソディ",
+        "Gender": "性別",
+        "Pronunciation": "発音",
+        "Orthography": "表記"
+      },
+      "AspectInherited": "(継承)",
+      "Untracked": "未追跡",
+      "History": {
+        "Empty": "知識の履歴はまだありません。",
+        "Today": "今日",
+        "Yesterday": "昨日",
+        "Kind": {
+          "Status": "ステータス変更",
+          "Review": "復習",
+          "Rating": "手動評価",
+          "Rollup": "パッシブ接触"
+        },
+        "Source": {
+          "KnownWordsList": "既知単語リスト",
+          "IgnoredWords": "無視単語リスト",
+          "Srs": "SRS",
+          "Anki": "Anki",
+          "PassiveTracking": "パッシブトラッキング",
+          "Manual": "手動",
+          "Grammar": "文法"
+        }
+      },
+      "Actions": {
+        "ClearOverride": "上書きを解除"
       }
     },
     "LevelStudy": {
@@ -1229,6 +1505,7 @@
       },
       "Coverage": {
         "Title": "レベル単語カバレッジ",
+        "Assessed": "評価済み",
         "UpTo": "学習レベルまでの単語",
         "AllLevels": "全レベルの単語",
         "SetLevelHint": "設定で学習レベルを設定",
@@ -1300,7 +1577,7 @@
     "MediaStats": {
       "AllWordsKnown": "すべての単語は既知です！",
       "Difficulty": "難易度",
-      "Failed": "{count}回失敗",
+      "Struggled": "苦手 {count}回",
       "GrammarPoints": "文法項目",
       "Hovered": "{count}回ホバー",
       "NoGrammarYet": "文法項目はまだ検出されていません。",
@@ -1318,6 +1595,23 @@
       "TimeSpent": "所要時間",
       "UnknownWords": "未知の単語",
       "WordsSeen": "見た単語"
+    },
+    "MemoryBrowser": {
+      "Empty": "メモリエントリはまだありません。",
+      "Loading": "メモリを読み込み中...",
+      "Open": "メモリブラウザを開く",
+      "OpenInAgent": "メモリブラウザ",
+      "Sections": {
+        "Beliefs": "信念",
+        "Episodes": "エピソード",
+        "OpenLoops": "未解決ループ",
+        "Relationships": "関係",
+        "RoomCulture": "ルーム文化"
+      },
+      "Tabs": {
+        "Room": "ルーム"
+      },
+      "Title": "メモリブラウザ"
     },
     "Notifications": {
       "AnkiCacheLoaded": "Ankiフラッシュカードをキャッシュから読み込みました（Ankiはオフラインのようです）",
@@ -1593,12 +1887,12 @@
           "Description": "有効な言語パッケージの設定に従って発音特徴を色分けします。韻律データがある場合は品詞カラーより優先されます。",
           "Label": "韻律の色分け"
         },
-        "EaseMix": {
-          "Description": "単語の総合習熟度が上がるほど韻律カラーを薄くします。",
-          "Label": "習熟度に応じて薄くする"
+        "EvidenceFade": {
+          "Description": "直接の韻律エビデンスが強くなるほど韻律カラーを薄くします。未測定のパターンは完全な色のままです。",
+          "Label": "韻律エビデンスに応じて薄くする"
         },
         "MixTarget": {
-          "Description": "習熟度が高いときに韻律カラーを近づける色を選びます。",
+          "Description": "韻律エビデンスが強いときに韻律カラーを近づける色を選びます。",
           "Label": "混合先",
           "PartOfSpeech": "品詞カラー",
           "White": "白"
@@ -1617,7 +1911,7 @@
           "Label": "彩度"
         },
         "StatusLimit": {
-          "Description": "選択した総合学習状態まで色分けします。それより上の状態では通常の品詞カラーを使います。",
+          "Description": "選択した韻律学習状態まで韻律パターンを色分けします。それより上の韻律状態では通常の品詞カラーを使います。",
           "Known": "既知",
           "Label": "色分けする上限",
           "Learning": "学習中"
@@ -1640,7 +1934,6 @@
         "ThemePreview": "テーマプレビュー",
         "VideoPlayerBehaviour": "動画プレーヤーの動作",
         "WordStatus": "単語の状態",
-        "KnowledgePriority": "知識の優先度",
         "LiveTranslator": "ライブ単語翻訳",
         "Behaviour": "動作設定",
         "WordKnowledge": "単語の知識",
@@ -1761,31 +2054,6 @@
         },
         "Submit": "送信",
         "LanguageWarning": "このプラグインは日本語が選択されている時のみ利用できます。設定で日本語に切り替えてください。"
-      },
-      "KnowledgePriority": {
-        "Description": "複数のソースからの単語知識の決定方法を設定",
-        "ResolutionMode": {
-          "Label": "解決モード",
-          "Description": "複数のソースにデータがある場合の単語ステータスの決定方法"
-        },
-        "SourceOrder": {
-          "Label": "ソースの優先度",
-          "Description": "ソースを並べ替えます。順序ベースモードでは、最初にデータのあるソースが単語ステータスを決定します"
-        },
-        "Mode": {
-          "Order": "順序ベース",
-          "Highest": "最高ステータス",
-          "Lowest": "最低ステータス"
-        },
-        "Source": {
-          "Srs": "内蔵SRS",
-          "Anki": "Anki",
-          "Manual": "手動",
-          "KnownWordsList": "既知の単語リスト",
-          "IgnoredWords": "無視した単語",
-          "PassiveTracking": "パッシブトラッキング",
-          "None": "なし"
-        }
       },
       "Reader": {
         "Description": "OCRとリーダーの設定",
@@ -1955,6 +2223,14 @@
             "Label": "Ankiを有効にする"
           },
           "Failed": "失敗",
+          "ImportHistory": {
+            "Label": "レビュー履歴をインポート",
+            "Description": "Ankiのレビューログを知識履歴に一度だけ取り込みます。再実行しても安全です（取り込み済みはスキップされます）",
+            "Button": "履歴をインポート",
+            "Running": "インポート中…",
+            "Success": "{words}語の{imported}件のレビューを取り込みました（{skipped}件スキップ）",
+            "Failed": "インポートに失敗しました。AnkiConnectを入れたAnkiは起動していますか？"
+          },
           "FieldMapping": {
             "Description": "Ankiのノートフィールドをmlearn flashcardフィールドに対応付ける",
             "Expression": {
@@ -2312,10 +2588,18 @@
         "SRS": "SRS",
         "Statistics": "統計",
         "VideoPlayer": "動画プレーヤー",
-        "BrowserExtension": "ブラウザ拡張機能"
+        "BrowserExtension": "ブラウザ拡張機能",
+        "EventAudit": "イベントジャーナル"
       },
       "SearchPlaceholder": "設定を検索...",
       "Behaviour": {
+        "RatingKeyboardMode": {
+          "Label": "評価キーボードモード",
+          "Mnemonic": "ニーモニック（1+M）",
+          "Spatial": "空間マトリクス（1/Q/A/Z）",
+          "MnemonicHint": "品質キー1/2/3のあとにM/R/P/Oで側面を指定。",
+          "SpatialHint": "表示中の側面行に 1-2-3 / Q-W-E / A-S-D / Z-X-C の列を対応させます。"
+        },
         "FrequencyProvider": {
           "Label": "頻度リスト",
           "Description": "レベル、学習、Word Sync に使用する語彙頻度データを選択します。"
@@ -2500,7 +2784,20 @@
       "WordsByLevel": "レベル別の単語",
       "WordsByStatus": "状態別の単語",
       "WordsLearned": "習得した単語",
-      "WordsTracked": "追跡中の単語"
+      "WordsTracked": "追跡中の単語",
+      "WordHistory": {
+        "Title": "単語の履歴",
+        "SearchPlaceholder": "追跡中の単語を検索…",
+        "Empty": "この単語の履歴はありません。",
+        "Prompt": "単語を選択すると知識の履歴が表示されます。"
+      },
+      "LearningVelocity": {
+        "Title": "学習速度",
+        "Empty": "履歴がまだ十分ではありません。学習を続けてからまた確認してください。",
+        "DaysToKnown": "安定して既知になるまでの中央日数",
+        "AcquisitionSlope": "14日間の習得ペース",
+        "RetentionAfterKnown": "既知後30日間の定着率"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "次の字幕に同期",
@@ -2681,6 +2978,7 @@
       "Columns": {
         "Level": "レベル",
         "Status": "状態",
+        "Knowledge": "知識",
         "TrackedBy": "追跡元",
         "Translation": "翻訳",
         "Word": "単語"
@@ -2711,7 +3009,7 @@
         "Anki": "Anki",
         "Flashcards": "フラッシュカード",
         "Ignored": "無視済み",
-        "Nothing": "未追跡"
+        "Nothing": "トラッカーなし"
       },
       "Title": "単語データベース",
       "AdvancedFilters": "Advanced Filters"
@@ -2740,17 +3038,8 @@
         "Learning": "学習中",
         "Unknown": "未知"
       },
-      "StatusSource": {
-        "Prefix": "ソース: ",
-        "None": "なし"
-      },
       "TimesSeen": "{count}回見た",
-      "StatusSourceWarning": {
-        "Confirm": "変更する",
-        "DontRemind": "今後表示しない",
-        "Message": "この単語のステータスは最も高い知識ソースによって決定されます。Ankiやフラッシュカードがすでにより高いレベルで追跡している場合、手動での変更は効果がない場合があります。",
-        "Title": "ステータスの上書き"
-      },
+      "Knowledge": {},
       "AnkiModifyWarning": {
         "Title": "Ankiカードの変更",
         "Message": "この単語のAnkiカードのEaseと位置を変更します。新しいカードはレビューキューの先頭に移動されます。",
@@ -2761,7 +3050,11 @@
       "AnkiEase": "Anki Ease: {ease}",
       "AnkiUpdateSuccess": "{count}枚のAnkiカードを更新しました",
       "AnkiUpdateRepositioned": "{count}枚のカードを更新、{repositioned}枚の新しいカードを再配置しました",
-      "AnkiUpdateFailed": "Ankiカードの更新に失敗しました"
+      "AnkiUpdateFailed": "Ankiカードの更新に失敗しました",
+      "Compound": {
+        "Title": "複合語",
+        "Ambiguous": "複数の解釈"
+      }
     },
     "ConnectionStatus": {
       "Connected": "接続済み",
@@ -2798,6 +3091,7 @@
       "FinishedTitle": "完了！",
       "FinishedDescription": "{count}語を確認しました。単語知識が更新されました。",
       "Progress": "{rated} / {total} 語",
+      "AttributionPrompt": "何がわからなかったですか？",
       "Unknown": "未知",
       "Learning": "学習中",
       "Known": "既知",
@@ -2960,19 +3254,32 @@
       "Actions": {
         "Install": "インストール",
         "Update": "更新",
-        "RepairRuntime": "ランタイムコンポーネントを修復"
+        "RepairRuntime": "ランタイムコンポーネントを修復",
+        "Removing": "削除中…"
       },
       "Status": {
         "installed": "インストール済み",
         "missing": "未インストール",
         "outdated": "更新あり",
-        "error": "エラー"
+        "error": "エラー",
+        "NotInstalled": "未インストール"
       },
       "LanguageData": {
         "CoreTitle": "{language} の言語パッケージ",
         "CoreDescription": "{language} のコアランタイムデータです。",
         "DictionaryDescription": "{language} の定義を {target} で表示します。",
         "SizeStatus": "{installed} / {total}"
+      },
+      "SizeApprox": "おおよそのサイズ: {size}",
+      "Toast": {
+        "RemovedTitle": "コンポーネントを削除しました",
+        "RemovedMessage": "{removed} 個のパッケージを削除しました。他の有効なコンポーネントで必要な {kept} 個は保持されました。",
+        "AbortedTitle": "削除をスキップしました",
+        "AbortedMessage": "何も削除されていません: {reason}"
+      },
+      "Capability": {
+        "Gpu": "GPU（CUDA）",
+        "Cpu": "CPU"
       }
     },
     "Diagnostics": {
@@ -3063,7 +3370,7 @@
         "Title": "文字レベルは推定表示です",
         "Description": "ここで表示している文字は、各レベルに属する単語から抽出して推定したものです。つまり厳密な文字一覧ではなく、レベルによっては単語に含まれていても、その文字自体の習得が必須ではない場合があります。"
       },
-      "Description": "色の意味: 学習中（オレンジ→黄色）、既知（緑→薄緑）、未知（グレー）。ホバーで詳細表示。",
+      "Description": "既知・学習中の単語から予測した馴染み度: 馴染みあり（緑）、習得しつつある（オレンジ）、未測定（グレー）。濃色 = 読みの直接証拠、青 = 自分で宣言。ホバーで詳細。",
       "EmptyState": {
         "Description": "動画やテキストで文字に出会うと、ここに表示されます。",
         "Hint": "コンテンツの視聴や読書を始めると追跡が開始されます！",
@@ -3074,26 +3381,47 @@
         "Title": "この言語では文字学習を利用できません"
       },
       "Legend": {
-        "Known": "既知:",
-        "Learning": "学習中:",
-        "Unknown": "未知:"
+        "Claimed": "宣言済み:",
+        "EvidencedKnown": "読み: 確認済み",
+        "EvidencedLearning": "読み: 進行中",
+        "EvidencedUnknown": "読み: 未定着",
+        "Familiar": "馴染みあり（予測）:",
+        "Emerging": "習得しつつある（予測）:",
+        "Unmeasured": "未測定:"
       },
       "LevelFallback": "レベル {level}",
       "Loading": "文字データを読み込み中...",
       "Stats": {
-        "Known": "既知:",
-        "Learning": "学習中:",
+        "Evidenced": "直接確認済み:",
+        "Claimed": "宣言済み:",
+        "Familiar": "馴染みあり:",
+        "Emerging": "習得中:",
         "TotalFound": "合計:",
-        "Unknown": "未知:"
+        "Unmeasured": "未測定:"
       },
-      "Title": "文字の習得状況",
+      "Title": "文字の習得予測",
       "Tooltip": {
-        "KnownCount": "既知",
-        "LearningCount": "学習中",
+        "Claim": {
+          "known": "この文字を読めると自分で宣言しました。",
+          "learning": "この文字を学習中と自分で宣言しました。",
+          "unknown": "この文字を知らないと自分で宣言しました。"
+        },
+        "Reading": {
+          "known": "読みの試行で、この文字を読めることが確認されています。",
+          "learning": "読みの試行で、この文字を学習中であることが示されています。",
+          "unknown": "読みの試行で、この文字をまだ読めないことが示されています。"
+        },
+        "Claimed": "宣言済み",
+        "Evidenced": "直接確認済み",
+        "Familiar": "馴染みあり（予測）",
+        "Emerging": "習得しつつある（予測）",
+        "Unmeasured": "未測定",
+        "KnownWords": "既知語",
+        "LearningWords": "学習中の単語",
         "MoreWords": "+{count}語",
         "Score": "スコア",
-        "UnknownCount": "未知",
-        "WordsContaining": "{char}を含む単語"
+        "WordsContaining": "{char}を含む単語",
+        "PredictionNote": "馴染み度は、この文字を含む既知・学習中の単語（下に表示）から予測したものです。文字自体の直接的な知識ではありません。"
       }
     }
   }

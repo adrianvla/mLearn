@@ -3,10 +3,14 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
+import type { Settings, FlashcardStore, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from './types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
+import type { KnowledgeEventLog } from './knowledgeEvents';
+import type { JournalEvent, JournalEventDraft } from './world';
+import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from './graph/ipc';
+import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
   // Settings
@@ -22,6 +26,13 @@ export interface MLearnIPC {
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;
+
+  // Knowledge events
+  appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
+  queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
+  queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
+  getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
+  onKnowledgeEventsChanged: (callback: () => void) => () => void;
   
   // Flashcard Images
   saveFlashcardImage: (cardId: string, dataUrl: string) => Promise<string>;
@@ -71,6 +82,14 @@ export interface MLearnIPC {
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;
+
+  // Linguistic Graph
+  getGraphMeta: (language: string) => Promise<GraphMeta>;
+  lookupGraphWord: (language: string, input: GraphLookupInput) => Promise<GraphWordLookup | null>;
+  getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
+  getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
+  getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery) => Promise<GraphNeighborhood | null>;
+  getKnowledgeProjection: (language: string, surface: string) => Promise<KnowledgeProjection>;
   
   // Localization
   getLocalization: () => void;
@@ -125,6 +144,10 @@ sendLogRecord: (record: unknown) => void;
   onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) => () => void;
   onInstallerState: (callback: (state: InstallerState) => void) => () => void;
   onPipProgress: (callback: (progress: PipProgress) => void) => () => void;
+  getComponentsState: () => void;
+  uninstallComponents: (ids: PythonComponentId[]) => void;
+  onComponentsState: (callback: (components: PythonComponentInfo[]) => void) => () => void;
+  onComponentsUninstalled: (callback: (result: ComponentsUninstallResult) => void) => () => void;
   
   // Clipboard & UI
   writeToClipboard: (text: string) => void;
@@ -301,6 +324,38 @@ sendLogRecord: (record: unknown) => void;
   kvRemove: (key: string) => Promise<void>;
   kvGetAll: () => Promise<Record<string, string>>;
   kvSetBatch: (entries: Record<string, string>) => Promise<void>;
+
+  // Journal
+  appendEvent: (roomId: string, draft: JournalEventDraft) => Promise<JournalEvent>;
+  subscribeRoom: (roomId: string, limit: number) => Promise<{ events: JournalEvent[]; headSeq: number }>;
+  queryEvents: (roomId: string, opts: { beforeSeq?: number; limit: number }) => Promise<JournalEvent[]>;
+  readSeaProjection: (roomId: string, limit?: number) => Promise<JournalEvent[]>;
+  readThread: (roomId: string, threadId: string) => Promise<JournalEvent[]>;
+  eraseThread: (roomId: string, threadId: string) => Promise<{ deletedCount: number }>;
+
+  // World
+  getWorldState: () => Promise<import('./world').WorldSnapshot>;
+  createRoom: (title: string) => Promise<import('./world').Room>;
+  applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<import('./world').MembershipChangeResult>;
+  createThread: (roomId: string, title?: string) => Promise<import('./world').Thread>;
+  updateThread: (thread: import('./world').Thread) => Promise<import('./world').Thread>;
+  deleteThread: (roomId: string, threadId: string) => Promise<void>;
+  rememberThis: (input: import('./world').RememberThisInput) => Promise<import('./world').JournalEvent>;
+  integrateThread: (input: import('./world').IntegrateThreadInput) => Promise<import('./world').IntegrateThreadResult>;
+  promoteParticipant: (participantId: string) => Promise<import('./world').Participant>;
+  createParticipant: (input: {
+    displayName: string;
+    kind: 'persistent' | 'temporary';
+    personaText: string;
+    facets?: Record<string, number | string>;
+    canon?: import('./world').Participant['canon'];
+    voiceSampleId?: string;
+    profilePhoto?: string;
+  }) => Promise<import('./world').Participant>;
+  updateParticipant: (participant: import('./world').Participant) => Promise<import('./world').Participant>;
+  deleteParticipant: (participantId: string) => Promise<void>;
+  clearRoomUnread: (roomId: string) => Promise<void>;
+  onOpenRoomEvent: (callback: (payload: import('./world').OpenRoomEventPayload) => void) => () => void;
 
   // Data Export/Import
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;

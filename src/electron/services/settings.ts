@@ -139,6 +139,16 @@ function settingsWithRecoveredInstalledLanguage(): Settings {
   return normalizeLoadedSettings(installedLanguage ? { language: installedLanguage } : {});
 }
 
+/**
+ * Heavyweight optional stacks (LLM/OCR/voice) are opt-in. New profiles start
+ * with them disabled so first-run installs stay small; every existing or
+ * recovered profile (settings file present, even partial, or any installed
+ * language data) keeps the DEFAULT_SETTINGS merge and its effective values.
+ */
+function settingsForNewProfile(): Settings {
+  return normalizeLoadedSettings({ llmEnabled: false, ocrEnabled: false, voiceEnabled: false });
+}
+
 export function loadSettings(): Settings {
   try {
     const settingsPath = getSettingsPath();
@@ -189,6 +199,12 @@ export function loadSettings(): Settings {
     log.error('Failed to load settings:', error);
   }
 
+  // No settings file at all: only a genuinely new profile (no language data
+  // either) gets the opt-in component defaults; recovered profiles keep
+  // legacy defaults.
+  if (!hasExistingProfile()) {
+    return settingsForNewProfile();
+  }
   return settingsWithRecoveredInstalledLanguage();
 }
 

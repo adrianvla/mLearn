@@ -28,17 +28,20 @@ import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../../utils/wordLevelStats';
+import { qualityToSrsRating, type AttemptQuality } from '../../../../shared/constants';
+import { buildAnkiStatusKeySets } from '../../../services/ankiWordsCache';
 import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../../../shared/languageFeatures';
 import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
 import { fetchTranslation } from '../../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
-import { ankiCacheVersion, fetchAnkiWordsCache, isAnkiCacheFetched, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
+import { ankiCacheVersion, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 import { getLogger } from '../../../../shared/utils/logger';
 import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
+import { selectNextEncounter } from '../../../learning/engine';
 
 const log = getLogger("renderer.welcome");
 
@@ -191,20 +194,41 @@ export const WelcomeRoute: Component = () => {
   const videoItem = () => recentItems().find((item) => item.type === 'video') ?? null;
   const bookItem = () => recentItems().find((item) => item.type === 'book') ?? null;
 
-  const currentCard = createMemo(() => flashcards.getCurrentCard());
-  const ratingButtons = createMemo(() => {
-    const dates = flashcards.getPreviewDueDates();
-    if (!dates) return [];
-    return [
-      { quality: 'again' as const, label: t('mlearn.Flashcards.Review.Again'), time: flashcards.dueDateToString(dates.again) },
-      { quality: 'hard' as const, label: t('mlearn.Flashcards.Review.Hard'), time: flashcards.dueDateToString(dates.hard) },
-      { quality: 'good' as const, label: t('mlearn.Flashcards.Review.Ok'), time: flashcards.dueDateToString(dates.good) },
-      { quality: 'easy' as const, label: t('mlearn.Flashcards.Review.Easy'), time: flashcards.dueDateToString(dates.easy) },
-    ];
+  const currentCard = createMemo(() => {
+    const fallback = flashcards.getCurrentCard();
+    if (!fallback) return null;
+    const language = fallback.language || settings.language;
+    const decision = selectNextEncounter({
+      preset: 'RETENTION',
+      nowMs: Date.now(),
+      reviewQueueEntries: [{
+        id: fallback.id,
+        word: fallback.content.front,
+        language,
+        targets: [{ entityId: `${language}:surface:${fallback.content.front}`, capability: 'surface-recognition' }],
+        dueDate: fallback.dueDate,
+        interval: fallback.interval,
+        suspended: fallback.suspended,
+        buried: fallback.buried,
+      }],
+    });
+    return decision?.action === 'DEFER'
+      ? fallback
+      : flashcards.store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
   });
-  const rateCard = (quality: 'again' | 'hard' | 'good' | 'easy') => {
+  // Meaning-row matrix semantics: the widget's card front supplies the reading
+  // (rendered beneath it), so only Meaning is tested here.
+  const ratingButtons = createMemo(() => [
+    { quality: 'missed' as const, label: t('mlearn.Rating.Matrix.Missed') },
+    { quality: 'struggled' as const, label: t('mlearn.Rating.Matrix.Struggled') },
+    { quality: 'fluent' as const, label: t('mlearn.Rating.Matrix.Fluent') },
+  ]);
+  const rateCard = (quality: AttemptQuality) => {
     const card = currentCard();
-    if (card) flashcards.answerCard(quality, card.id);
+    if (!card) return;
+    const language = card.language || settings.language;
+    const { attemptId } = flashcards.recordAttempt(card.content.front, 'meaning', quality, { language });
+    flashcards.answerCard(qualityToSrsRating(quality), card.id, undefined, { attemptId });
   };
   const recentWordRows = createMemo(() =>
     selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),
@@ -253,17 +277,6 @@ export const WelcomeRoute: Component = () => {
     openWordLookup(lookupDraft());
   };
 
-  // Prefetch the Anki word cache when tracking is enabled so the first search has data.
-  createEffect(() => {
-    if (!settings.use_anki) return;
-    const options = {
-      language: settings.language,
-      languageData: language.currentLangData(),
-    };
-    if (isAnkiCacheFetched(options)) return;
-    void fetchAnkiWordsCache(options);
-  });
-
   const levelStudySource = createMemo(() => {
     const langData = language.currentLangData();
     if (!langData) return null;
@@ -288,6 +301,15 @@ export const WelcomeRoute: Component = () => {
       source.levelNames,
       source.langData,
       language.getCanonicalFormForLanguage,
+      settings.use_anki
+        ? buildAnkiStatusKeySets(
+          settings.language,
+          settings.ankiLearningThreshold,
+          settings.ankiKnownThreshold,
+          (word) => [language.getCanonicalFormForLanguage(settings.language, word)],
+          source.langData,
+        )
+        : undefined,
     );
     if (stats.length === 0) return null;
     return { levels: stats };
@@ -485,6 +507,8 @@ export const WelcomeRoute: Component = () => {
               active={levelChips().active}
               chips={levelChips().chips}
               titleLabel={t('mlearn.LevelStudy.Coverage.Title')}
+              assessedLabel={t('mlearn.LevelStudy.Coverage.Assessed')}
+              knownLabel={t('mlearn.LevelStudy.LevelCard.Known')}
               emptyLabel={t('mlearn.Home.Cards.LevelStudy.Description')}
               onOpen={openLevelStudy}
             />

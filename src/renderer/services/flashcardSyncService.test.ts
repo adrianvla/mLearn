@@ -1,13 +1,24 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import {
   splitTextIntoChunks,
   toUniqueIdentifier,
   mergeFlashcards,
 } from './flashcardSyncService';
+import { toUniqueIdentifier as statsToUniqueIdentifier } from './statsService';
 import type { FlashcardStore, Flashcard, LanguageDataMap } from '../../shared/types';
 import { clearMappingTables, registerMappingTable } from '../../shared/languageFeatures';
 
+const mockAppendEvents = vi.hoisted(() => vi.fn());
+
+vi.mock('./knowledgeEvents', () => ({
+  appendEvents: mockAppendEvents,
+}));
+
+beforeEach(() => {
+  mockAppendEvents.mockReset();
+  mockAppendEvents.mockResolvedValue(undefined);
+});
 const ZH_LANGUAGE_DATA = {
   zh: {
     legacyCodes: ['zh-Hans', 'zh-Hant'],
@@ -162,6 +173,18 @@ describe('toUniqueIdentifier', () => {
     const hash = await toUniqueIdentifier('日本語');
     expect(hash).toHaveLength(64);
     expect(hash).toMatch(/^[0-9a-f]+$/);
+  });
+
+  it('returns the exact pinned SHA-256 hex digest for fixed inputs (drift guard)', async () => {
+    expect(await toUniqueIdentifier('hello')).toBe('2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824');
+    expect(await toUniqueIdentifier('日本語')).toBe('77710aedc74ecfa33685e33a6c7df5cc83004da1bdcef7fb280f5c2b2e97e0a5');
+    expect(await toUniqueIdentifier('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+  });
+
+  it('is the full hash whose first 16 chars equal the statsService card ID (cross-wire guard)', async () => {
+    for (const word of ['hello', '日本語', '']) {
+      expect((await toUniqueIdentifier(word)).slice(0, 16)).toBe(await statsToUniqueIdentifier(word));
+    }
   });
 });
 
@@ -324,6 +347,34 @@ describe('mergeFlashcards', () => {
     expect(merged.knownUntracked['hash-b']).toBe(true);
   });
 
+  it('ingests legacy remote knownUntracked with recoverable word text as known claims', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    remote.knownUntracked['ja:h1'] = true;
+    remote.ignoredWords['ja:h1'] = { word: '学校', language: 'ja', ignoredAt: 1 };
+
+    const merged = await mergeFlashcards(local, remote);
+
+    expect(merged.knownUntracked['ja:h1']).toBeUndefined();
+    expect(merged.wordKnowledge['ja:h1']).toMatchObject({ word: '学校', claim: 'known' });
+  });
+
+  it('merges wordKnowledge per-entry LWW with claim timestamps winning', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    local.wordKnowledge['ja:h1'] = { word: '学校', language: 'ja', ease: 2.5, lastSeen: 10, timesSeen: 5, timesHovered: 0, claim: 'known', claimAt: 100 };
+    remote.wordKnowledge['ja:h1'] = { word: '学校', language: 'ja', ease: 1.0, lastSeen: 99, timesSeen: 5, timesHovered: 0, lastStatusChange: 99 };
+    local.wordKnowledge['ja:h2'] = { word: '町', language: 'ja', ease: 1.0, lastSeen: 5, timesSeen: 1, timesHovered: 0 };
+    remote.wordKnowledge['ja:h2'] = { word: '町', language: 'ja', ease: 2.6, lastSeen: 50, timesSeen: 9, timesHovered: 0, lastStatusChange: 50 };
+
+    const merged = await mergeFlashcards(local, remote);
+
+    // Local claim (100) outranks the remote status change (99).
+    expect(merged.wordKnowledge['ja:h1']?.ease).toBe(2.5);
+    // Remote evidence (50) outranks the stale local entry (5).
+    expect(merged.wordKnowledge['ja:h2']?.ease).toBe(2.6);
+  });
+
   it('does not add knownUntracked entries with falsy value', async () => {
     const local = makeEmptyStore();
     const remote = makeEmptyStore();
@@ -384,6 +435,61 @@ describe('mergeFlashcards', () => {
     const hash = await toUniqueIdentifier('test');
     const undeterminedKey = 'und:' + hash;
     expect(merged.wordToCardMap[undeterminedKey]).toBeDefined();
+  });
+
+  describe('sync journal ingestion (REQ59)', () => {
+    it('journals applied remote epistemic state as passive rollup + manual claim', async () => {
+      const local = makeEmptyStore();
+      const remote = makeEmptyStore();
+      remote.wordKnowledge['ja:h1'] = {
+        word: '学校', language: 'ja',
+        ease: 4.2, lastSeen: 400, timesSeen: 7, timesHovered: 1,
+        claim: 'known', claimAt: 500,
+        hasActiveEvidence: true, lastEvidenceSource: 'srs', lastStatusChange: 450,
+      };
+
+      const merged = await mergeFlashcards(local, remote);
+
+      expect(merged.wordKnowledge['ja:h1']).toMatchObject({ ease: 4.2, claim: 'known', claimAt: 500 });
+      expect(merged.wordKnowledge['ja:h1']?.hasActiveEvidence).toBeUndefined();
+      expect(merged.wordKnowledge['ja:h1']?.lastStatusChange).toBeUndefined();
+      expect(mockAppendEvents).toHaveBeenCalledTimes(1);
+      const journal = mockAppendEvents.mock.calls[0][0] as Record<string, Array<Record<string, unknown>>>;
+      expect(journal['ja:h1']).toHaveLength(2);
+      expect(journal['ja:h1'][0]).toMatchObject({
+        t: 400, kind: 'rollup', source: 'passiveTracking', aspect: 'meaning', easeAfter: 4.2, origin: 'sync',
+      });
+      expect(journal['ja:h1'][1]).toMatchObject({
+        t: 500, kind: 'claim', source: 'manual', aspect: 'meaning', origin: 'sync', toStatus: 'known',
+      });
+    });
+
+    it('does not journal keys where the local entry wins the LWW', async () => {
+      const local = makeEmptyStore();
+      const remote = makeEmptyStore();
+      local.wordKnowledge['ja:h1'] = { word: '学校', language: 'ja', ease: 2.5, lastSeen: 10, timesSeen: 5, timesHovered: 0, claim: 'known', claimAt: 100 };
+      remote.wordKnowledge['ja:h1'] = { word: '学校', language: 'ja', ease: 1.0, lastSeen: 99, timesSeen: 5, timesHovered: 0, lastStatusChange: 99 };
+
+      await mergeFlashcards(local, remote);
+
+      expect(mockAppendEvents).not.toHaveBeenCalled();
+    });
+
+    it('journals the synthesized claim for legacy knownUntracked ingestion', async () => {
+      const local = makeEmptyStore();
+      const remote = makeEmptyStore();
+      remote.knownUntracked['ja:h1'] = true;
+      remote.ignoredWords['ja:h1'] = { word: '学校', language: 'ja', ignoredAt: 1 };
+
+      await mergeFlashcards(local, remote);
+
+      const journal = mockAppendEvents.mock.calls[0][0] as Record<string, Array<Record<string, unknown>>>;
+      const claim = journal['ja:h1']?.find((event) => event.kind === 'claim');
+      expect(claim).toMatchObject({
+        kind: 'claim', source: 'manual', aspect: 'meaning', origin: 'sync', toStatus: 'known',
+      });
+      expect(typeof claim?.t).toBe('number');
+    });
   });
 
   it('skips cards with empty front in wordToCardMap rebuild', async () => {

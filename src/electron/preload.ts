@@ -6,9 +6,12 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
+import type { KnowledgeEventLog } from '../shared/knowledgeEvents';
+import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../shared/graph/ipc';
+import type { GraphRelationType } from '../shared/graph/types';
 import { getLogger } from '../shared/utils/logger';
 
 const log = getLogger('electron.preload');
@@ -51,6 +54,20 @@ const mLearnIPC = {
   onLanguageInstallError: (callback: (error: string) => void) =>
     ipcOn(IPC_CHANNELS.LANG_INSTALL_ERROR, (_event, error) => callback(error)),
 
+  // ========== Linguistic Graph ==========
+  getGraphMeta: (language: string): Promise<GraphMeta> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_META, language),
+  lookupGraphWord: (language: string, input: GraphLookupInput): Promise<GraphWordLookup | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_LOOKUP_WORD, language, input),
+  getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]): Promise<GraphRelatedNode[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_RELATED, language, entityId, relationTypes),
+  getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]): Promise<GraphSurfaceTargets[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, language, inputs),
+  getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery): Promise<GraphNeighborhood | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_NEIGHBORHOOD, language, query),
+  getKnowledgeProjection: (language: string, surface: string): Promise<KnowledgeProjection> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, language, surface),
+
   // ========== Localization ==========
   getLocalization: () => ipcRenderer.send(IPC_CHANNELS.GET_LOCALIZATION),
   onLocalization: (callback: (data: { locale: string; strings: Record<string, unknown> }) => void) =>
@@ -68,6 +85,18 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN, () => callback()),
   onReviewFlashcardRequest: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback()),
+
+  // ========== Knowledge Events ==========
+  appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, eventsByKey),
+  queryKnowledgeEvents: (keys: string[]): Promise<KnowledgeEventLog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, keys),
+  queryKnowledgeEventsForLanguage: (language: string): Promise<KnowledgeEventLog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY_LANGUAGE, language),
+  getKnowledgeEvents: (key: string): Promise<KnowledgeEventLog> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, key),
+  onKnowledgeEventsChanged: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, () => callback()),
   
   // ========== Flashcard Images ==========
   saveFlashcardImage: (cardId: string, dataUrl: string): Promise<string | null> =>
@@ -249,6 +278,12 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.INSTALLER_STATE, (_event, state) => callback(state)),
   onPipProgress: (callback: (progress: { packageName: string; current: number; total: number; action: string }) => void) =>
     ipcOn(IPC_CHANNELS.PIP_PROGRESS, (_event, progress) => callback(progress)),
+  getComponentsState: () => ipcRenderer.send(IPC_CHANNELS.GET_COMPONENTS_STATE),
+  uninstallComponents: (ids: PythonComponentId[]) => ipcRenderer.send(IPC_CHANNELS.UNINSTALL_COMPONENTS, ids),
+  onComponentsState: (callback: (components: PythonComponentInfo[]) => void) =>
+    ipcOn(IPC_CHANNELS.COMPONENTS_STATE, (_event, components) => callback(components)),
+  onComponentsUninstalled: (callback: (result: ComponentsUninstallResult) => void) =>
+    ipcOn(IPC_CHANNELS.COMPONENTS_UNINSTALLED, (_event, result) => callback(result)),
 
   // ========== UI ==========
   onOpenSettings: (callback: (section?: string) => void) =>
@@ -523,6 +558,58 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.KV_GET_ALL),
   kvSetBatch: (entries: Record<string, string>): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.KV_SET_BATCH, entries),
+
+  // ========== Journal ==========
+  appendEvent: (roomId: string, draft: import('../shared/world').JournalEventDraft): Promise<import('../shared/world').JournalEvent> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_APPEND, roomId, draft),
+  subscribeRoom: (roomId: string, limit: number): Promise<{ events: import('../shared/world').JournalEvent[]; headSeq: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_SUBSCRIBE, roomId, limit),
+  queryEvents: (roomId: string, opts: { beforeSeq?: number; limit: number }): Promise<import('../shared/world').JournalEvent[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_QUERY, roomId, opts),
+  readSeaProjection: (roomId: string, limit?: number): Promise<import('../shared/world').JournalEvent[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_READ_SEA, roomId, limit),
+  readThread: (roomId: string, threadId: string): Promise<import('../shared/world').JournalEvent[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_READ_THREAD, roomId, threadId),
+  eraseThread: (roomId: string, threadId: string): Promise<{ deletedCount: number }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_ERASE_THREAD, roomId, threadId),
+
+  // ========== World ==========
+  getWorldState: (): Promise<import('../shared/world').WorldSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_GET_STATE),
+  createRoom: (title: string): Promise<import('../shared/world').Room> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_ROOM, title),
+  applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove'): Promise<import('../shared/world').MembershipChangeResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_APPLY_MEMBERSHIP, roomId, participantId, kind),
+  createThread: (roomId: string, title?: string): Promise<import('../shared/world').Thread> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_THREAD, roomId, title),
+  updateThread: (thread: import('../shared/world').Thread): Promise<import('../shared/world').Thread> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_THREAD, thread),
+  deleteThread: (roomId: string, threadId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_DELETE_THREAD, roomId, threadId),
+  rememberThis: (input: import('../shared/world').RememberThisInput): Promise<import('../shared/world').JournalEvent> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_REMEMBER_THIS, input),
+  integrateThread: (input: import('../shared/world').IntegrateThreadInput): Promise<import('../shared/world').IntegrateThreadResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_INTEGRATE, input),
+  promoteParticipant: (participantId: string): Promise<import('../shared/world').Participant> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_PROMOTE_PARTICIPANT, participantId),
+  createParticipant: (input: {
+    displayName: string;
+    kind: 'persistent' | 'temporary';
+    personaText: string;
+    facets?: Record<string, number | string>;
+    canon?: import('../shared/world').Participant['canon'];
+    voiceSampleId?: string;
+    profilePhoto?: string;
+  }): Promise<import('../shared/world').Participant> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_PARTICIPANT, input),
+  updateParticipant: (participant: import('../shared/world').Participant): Promise<import('../shared/world').Participant> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_PARTICIPANT, participant),
+  deleteParticipant: (participantId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_DELETE_PARTICIPANT, participantId),
+  clearRoomUnread: (roomId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CLEAR_UNREAD, roomId),
+  onOpenRoomEvent: (callback: (payload: import('../shared/world').OpenRoomEventPayload) => void) =>
+    ipcOn(IPC_CHANNELS.OPEN_ROOM_EVENT, (_event, payload) => callback(payload)),
 
   // ========== Diagnostics ==========
   runDiagnostics: (): Promise<import('../shared/diagnostics/types').DiagnosticsReport> =>

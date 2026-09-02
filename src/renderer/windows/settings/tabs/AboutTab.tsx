@@ -4,6 +4,7 @@
 
 import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { TabContent, Btn, ProgressBar, ToggleSwitch } from '../../../components/common';
+import { KeyboardShortcut } from '../../../components/common/Misc/KeyboardShortcut';
 import { useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import type { AppUpdateState } from '../../../../shared/appUpdate';
@@ -252,22 +253,15 @@ export const AboutTab: Component = () => {
       <div class="about-shortcuts">
         <h3>{t('mlearn.About.KeyboardShortcuts.Title')}</h3>
         <div class="shortcuts-grid">
-          <ShortcutRow shortcut="Space" description={t('mlearn.About.KeyboardShortcuts.Space')} />
-          <ShortcutRow shortcut="←/→" description={t('mlearn.About.KeyboardShortcuts.LeftRight')} />
-          <ShortcutRow shortcut="↑/↓" description={t('mlearn.About.KeyboardShortcuts.UpDown')} />
-          <ShortcutRow shortcut="F" description={t('mlearn.About.KeyboardShortcuts.F')} />
-          <ShortcutRow shortcut="M" description={t('mlearn.About.KeyboardShortcuts.M')} />
-          <ShortcutRow shortcut="1-4" description={t('mlearn.About.KeyboardShortcuts.Numbers')} />
-          <ShortcutRow shortcut="Cmd/Ctrl+Z" description={t('mlearn.About.KeyboardShortcuts.Undo')} />
+          <KeyboardShortcut row keys={['Space']} description={t('mlearn.About.KeyboardShortcuts.Space')} />
+          <KeyboardShortcut row keys={['←/→']} description={t('mlearn.About.KeyboardShortcuts.LeftRight')} />
+          <KeyboardShortcut row keys={['↑/↓']} description={t('mlearn.About.KeyboardShortcuts.UpDown')} />
+          <KeyboardShortcut row keys={['F']} description={t('mlearn.About.KeyboardShortcuts.F')} />
+          <KeyboardShortcut row keys={['M']} description={t('mlearn.About.KeyboardShortcuts.M')} />
+          <KeyboardShortcut row keys={['1-4']} description={t('mlearn.About.KeyboardShortcuts.Numbers')} />
+          <KeyboardShortcut row keys={['Cmd/Ctrl+Z']} description={t('mlearn.About.KeyboardShortcuts.Undo')} />
         </div>
       </div>
     </TabContent>
   );
 };
-
-const ShortcutRow: Component<{ shortcut: string; description: string }> = (props) => (
-  <div class="shortcut-row">
-    <span class="shortcut-description">{props.description}</span>
-    <kbd class="shortcut-key">{props.shortcut}</kbd>
-  </div>
-);

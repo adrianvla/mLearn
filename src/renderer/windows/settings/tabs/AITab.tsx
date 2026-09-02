@@ -655,15 +655,6 @@ export const AITab: Component = () => {
             onChange={(checked) => updateSettings({ agentMemoryEnabled: checked })}
           />
         </SettingRow>
-        <SettingRow
-          label={t('mlearn.AI.Settings.AgentMemory.Shared.Label')}
-          description={t('mlearn.AI.Settings.AgentMemory.Shared.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.agentMemoryShared}
-            onChange={(checked) => updateSettings({ agentMemoryShared: checked })}
-          />
-        </SettingRow>
       </SettingGroup>
 
       {/* Checker Agent */}

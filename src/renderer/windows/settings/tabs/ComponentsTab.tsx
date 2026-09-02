@@ -1,9 +1,10 @@
-import { Component, createMemo, createSignal, Show } from 'solid-js';
+import { Component, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { getOcrRuntimeConfig } from '../../../../shared/languageFeatures';
 import { Panel, Btn, AlertBanner, ManagedSettingNotice, ToggleSwitch } from '../../../components/common';
-import type { LanguageDataCatalogStatus, LanguageDataMap } from '../../../../shared/types';
+import { showToast } from '../../../components/common/Feedback/Toast';
+import type { ComponentsUninstallResult, LanguageDataCatalogStatus, LanguageDataMap, PythonComponentId, PythonComponentInfo, Settings } from '../../../../shared/types';
 import type { PolicySettingKey } from '../../../../shared/managementPolicy';
 import { getLocalizedLanguageName, getBilingualLanguageName, getNativeLanguageName } from '../../../utils/languageDisplayName';
 import './ComponentsTab.css';
@@ -32,7 +33,7 @@ type CatalogAssetStatus = LanguageDataCatalogStatus['assets'][number];
 type CatalogDictionaryPackStatus = NonNullable<LanguageDataCatalogStatus['dictionaryPacks']>[number];
 
 type InstalledComponentGroup = {
-  key: string;
+  key: PythonComponentId;
   policySettingKey: PolicySettingKey;
   title: string;
   description: string;
@@ -119,6 +120,57 @@ export const ComponentsTab: Component = () => {
   } = useLanguage();
   const [runtimeInstalling, setRuntimeInstalling] = createSignal(false);
   const [runtimeInstallError, setRuntimeInstallError] = createSignal<string | null>(null);
+  const [componentsState, setComponentsState] = createSignal<PythonComponentInfo[]>([]);
+  const [removingComponent, setRemovingComponent] = createSignal<PythonComponentId | null>(null);
+  const componentStateById = createMemo(() => {
+    const byId: Partial<Record<PythonComponentId, PythonComponentInfo>> = {};
+    for (const info of componentsState()) byId[info.id] = info;
+    return byId;
+  });
+
+  const handleComponentToggle = (id: PythonComponentId, enabled: boolean) => {
+    const flag: keyof Settings = id === 'llm' ? 'llmEnabled' : id === 'ocr' ? 'ocrEnabled' : 'voiceEnabled';
+    updateSettings({ [flag]: enabled } as Partial<Settings>);
+    if (!enabled) {
+      // Opting out reclaims disk space through the same lifecycle that installs.
+      setRemovingComponent(id);
+      getBridge().installer.uninstallComponents([id]);
+    }
+  };
+
+  const handleComponentsUninstalled = (result: ComponentsUninstallResult) => {
+    setRemovingComponent(null);
+    if (result.abortedReason) {
+      showToast({
+        variant: 'warning',
+        title: t('mlearn.ComponentsTab.Toast.AbortedTitle'),
+        message: t('mlearn.ComponentsTab.Toast.AbortedMessage', { reason: result.abortedReason }),
+        duration: 8000,
+      });
+      return;
+    }
+    showToast({
+      variant: 'success',
+      title: t('mlearn.ComponentsTab.Toast.RemovedTitle'),
+      message: t('mlearn.ComponentsTab.Toast.RemovedMessage', {
+        removed: result.removed.length,
+        kept: result.kept.length,
+      }),
+      duration: 8000,
+    });
+  };
+
+  onMount(() => {
+    const bridge = getBridge();
+    const cleanup = bridge.installer.onComponentsState(setComponentsState);
+    const cleanupUninstalled = bridge.installer.onComponentsUninstalled(handleComponentsUninstalled);
+    bridge.installer.getComponentsState();
+    onCleanup(() => {
+      cleanup();
+      cleanupUninstalled();
+    });
+  });
+
 
   const runtimeGroups = createMemo<InstalledComponentGroup[]>(() => {
     const installedLanguages = Object.values(langData);
@@ -130,9 +182,11 @@ export const ComponentsTab: Component = () => {
       if (engine) installedOcrEngines.add(engine);
       const ttsConfig = data.runtime?.tts;
       const ttsEngine = ttsConfig?.engine;
-      if (ttsEngine) installedTtsEngines.add(normalizeTtsEngine(ttsEngine));
-      if (ttsConfig?.kokoroLangCode) installedTtsEngines.add('kokoro');
+      // The backend resolves the Qwen3 variant (MLX vs Torch) per platform, so any
+      // language declaring qwen3LanguageName offers Qwen3 TTS on every platform.
       if (ttsConfig?.qwen3LanguageName) installedTtsEngines.add('qwen3');
+      if (ttsConfig?.kokoroLangCode) installedTtsEngines.add('kokoro');
+      if (ttsEngine) installedTtsEngines.add(normalizeTtsEngine(ttsEngine));
       if (data.runtime?.stt?.whisperLanguage) hasInstalledSttRuntime = true;
     }
 
@@ -187,7 +241,7 @@ export const ComponentsTab: Component = () => {
         title: t('mlearn.ComponentsTab.Groups.AI.Title'),
         description: t('mlearn.ComponentsTab.Groups.AI.Description'),
         enabled: () => settings.llmEnabled,
-        toggle: (v: boolean) => updateSettings({ llmEnabled: v }),
+        toggle: (v: boolean) => handleComponentToggle('llm', v),
         items: [
           {
             title: t('mlearn.ComponentsTab.Items.BuiltinChatRuntime.Title'),
@@ -205,7 +259,7 @@ export const ComponentsTab: Component = () => {
         title: t('mlearn.ComponentsTab.Groups.Reader.Title'),
         description: t('mlearn.ComponentsTab.Groups.Reader.Description'),
         enabled: () => settings.ocrEnabled,
-        toggle: (v: boolean) => updateSettings({ ocrEnabled: v }),
+        toggle: (v: boolean) => handleComponentToggle('ocr', v),
         items: ocrItems,
       },
     ];
@@ -217,7 +271,7 @@ export const ComponentsTab: Component = () => {
         title: t('mlearn.ComponentsTab.Groups.Voice.Title'),
         description: t('mlearn.ComponentsTab.Groups.Voice.Description'),
         enabled: () => settings.voiceEnabled,
-        toggle: (v: boolean) => updateSettings({ voiceEnabled: v }),
+        toggle: (v: boolean) => handleComponentToggle('voice', v),
         items: voiceItems,
       });
     }
@@ -390,13 +444,36 @@ export const ComponentsTab: Component = () => {
                   <div>
                     <h3 class="components-tab__group-title">{group.title}</h3>
                     <p class="components-tab__group-desc">{group.description}</p>
+                    <Show when={componentStateById()[group.key]}>
+                      {(info) => (
+                        <p class="components-tab__group-size">
+                          {t('mlearn.ComponentsTab.SizeApprox', { size: info().sizeLabel })}
+                          <Show when={group.key !== 'ocr'}>
+                            {' · '}
+                            {info().gpuAccelerated
+                              ? t('mlearn.ComponentsTab.Capability.Gpu')
+                              : t('mlearn.ComponentsTab.Capability.Cpu')}
+                          </Show>
+                          <Show when={info().installed !== null}>
+                            {' · '}
+                            {info().installed
+                              ? t('mlearn.ComponentsTab.Status.Installed')
+                              : t('mlearn.ComponentsTab.Status.NotInstalled')}
+                          </Show>
+                          <Show when={removingComponent() === group.key}>
+                            {' · '}
+                            {t('mlearn.ComponentsTab.Actions.Removing')}
+                          </Show>
+                        </p>
+                      )}
+                    </Show>
                   </div>
                   <Show when={group.toggle}>
                     {(toggle) => (
                       <div class="components-tab__managed-toggle">
                         <ToggleSwitch
                           checked={group.enabled()}
-                          disabled={Boolean(getManagedSettingSource(group.policySettingKey))}
+                          disabled={Boolean(getManagedSettingSource(group.policySettingKey)) || removingComponent() === group.key || componentStateById()[group.key]?.supported === false}
                           ariaLabel={`${group.title}: ${group.enabled()
                             ? t('mlearn.ComponentsTab.Enabled')
                             : t('mlearn.ComponentsTab.Disabled')}`}
