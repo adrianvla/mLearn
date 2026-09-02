@@ -775,4 +775,108 @@ describe('checkerAgent', () => {
     });
   });
 
+  describe('social climate verdict', () => {
+    it('sends the report_social_climate tool and prompt section with the existing pass', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Ich bin gehen', 'German');
+      streamCallback!({ done: true });
+      await promise;
+
+      const [messages, tools] = mockBridge.llm.llmStream.mock.calls[0] as [
+        { role: string; content: string }[],
+        { name: string }[],
+      ];
+      expect(messages[0].content).toContain('## Social Climate');
+      expect(messages[0].content).toContain('report_social_climate');
+      expect(tools.some((tool) => tool.name === 'report_social_climate')).toBe(true);
+    });
+
+    it('maps a report_social_climate tool call to a checker-sourced social state', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('WHY IS THIS NOT WORKING', 'English');
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-social',
+          name: 'report_social_climate',
+          arguments: { tone: 'frustrated', evidence: 'all-caps shouting without punctuation' },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      const result = await promise;
+      expect(result.socialClimate).toEqual({
+        tone: 'frustrated',
+        evidence: 'all-caps shouting without punctuation',
+        source: 'checker',
+      });
+      expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
+    });
+
+    it('maps the plain-text fallback form of the climate call', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('i thought... maybe', 'English');
+      streamCallback!({
+        content: 'report_social_climate({"tone":"uncertain","evidence":"the message trails off with ellipses"})',
+      });
+      streamCallback!({ done: true });
+
+      const result = await promise;
+      expect(result.socialClimate?.tone).toBe('uncertain');
+      expect(result.socialClimate?.source).toBe('checker');
+    });
+
+    it('ignores climate calls with an unknown tone or blank evidence', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('test', 'English');
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-bad-tone',
+          name: 'report_social_climate',
+          arguments: { tone: 'angry', evidence: 'shouting' },
+        }],
+      });
+      streamCallback!({ done: true });
+      expect((await promise).socialClimate).toBeNull();
+
+      const promise2 = agent.checkMessage('test', 'English');
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-blank',
+          name: 'report_social_climate',
+          arguments: { tone: 'excited', evidence: '   ' },
+        }],
+      });
+      streamCallback!({ done: true });
+      expect((await promise2).socialClimate).toBeNull();
+    });
+
+    it('stays fully functional when the model omits the climate action', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Ich bin gehen', 'German');
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc1',
+          name: 'suggest_corrections',
+          arguments: { corrections: [{ error_span: 'bin gehen', correction: 'gehe', error_type: 'grammar' }] },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      const result = await promise;
+      expect(result.corrections).toHaveLength(1);
+      expect(result.socialClimate).toBeNull();
+    });
+  });
+
 });

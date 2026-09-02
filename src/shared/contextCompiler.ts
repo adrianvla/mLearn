@@ -24,7 +24,13 @@ import type {
   ScenarioGrounding,
   ThreadMediaRef,
 } from './world';
-import { projectionForCaller, type RoomMemoryProjection } from './memoryProjection';
+import { projectionForCaller, tombstonedIds, type RoomMemoryProjection } from './memoryProjection';
+import {
+  rankRecentThreadEvents,
+  recentTailWithinBudget,
+  scoreMemoryEntries,
+  selectWithinBudget,
+} from './contextRanking';
 
 /** Per-participant learner state merged into the compiled context (pass-through). */
 export interface LearnerProjection {
@@ -63,6 +69,13 @@ export interface CompiledContext {
   callerProjection: RoomMemoryProjection;
 }
 
+/** Current-turn retrieval bounds; an absent turn means no ranking, no budgeting. */
+export interface TurnContext {
+  text: string;
+  memoryBudgetTokens?: number;
+  threadBudgetTokens?: number;
+}
+
 /** Everything compileContext needs to project one participant's context. */
 export interface CompileContextInput {
   participant: Participant;
@@ -72,6 +85,7 @@ export interface CompileContextInput {
   grounding?: ScenarioGrounding; // per-participant doesNotKnow source
   learnerProjection?: LearnerProjection;
   threadMedia?: ThreadMediaRef; // media the active thread was launched from
+  turn?: TurnContext; // current-turn text + budget overrides; ranking/budgeting only when present
 }
 
 const MEMORY_KINDS: readonly MemoryEntry['kind'][] = [
@@ -81,6 +95,11 @@ const MEMORY_KINDS: readonly MemoryEntry['kind'][] = [
   'relationship',
   'fact',
 ];
+
+const DEFAULT_MEMORY_BUDGET_TOKENS = 350;
+const DEFAULT_THREAD_BUDGET_TOKENS = 700;
+/** Newest thread events always kept before turn relevance selects older ones. */
+const THREAD_KEEP_LATEST = 12;
 
 interface AbsenceSource {
   events: { seq: number; action: 'added' | 'removed' }[];
@@ -137,6 +156,12 @@ function messageText(payload: unknown): string | undefined {
   return typeof text === 'string' ? text : undefined;
 }
 
+function maxCreatedAt(events: JournalEvent[]): number {
+  let max = 0;
+  for (const e of events) if (e.createdAt > max) max = e.createdAt;
+  return max;
+}
+
 /**
  * Filters a journal stream down to what one participant can see: events they
  * witnessed that are not inside any of their absence intervals. Absence
@@ -154,10 +179,13 @@ export function visibleEventsFor(
 /**
  * Compiles a per-participant redacted context from raw sea/thread streams.
  * Membership-derived absence intervals come from the sea stream and apply to
- * both streams; malformed payloads are skipped defensively, never thrown.
+ * both streams; malformed payloads are skipped defensively, never thrown. With
+ * `turn`, memories, open loops, and recent thread events are additionally
+ * ranked and token-budgeted for the current turn; filtering always precedes
+ * budgeting (see contextRanking).
  */
 export function compileContext(input: CompileContextInput): CompiledContext {
-  const { participant, seaEvents, threadEvents, grounding, learnerProjection, threadMedia } = input;
+  const { participant, seaEvents = [], threadEvents, grounding, learnerProjection, threadMedia, turn } = input;
   const { capabilities } = participant;
 
   // Membership events are sea-scoped (durable roster changes); the intervals
@@ -202,8 +230,14 @@ export function compileContext(input: CompileContextInput): CompiledContext {
     context.negativeKnowledge.push(...groundingEntry.doesNotKnow);
   }
 
+  // Tombstones derive from the visible stream: a correction this viewer never
+  // saw has not erased the memory in their view (matches projectionForCaller).
+  // Unconditional — applies with or without `turn`.
+  const tombstoned = tombstonedIds(visibleSea);
+
   for (const e of visibleSea) {
     if (e.type !== 'memory.belief') continue;
+    if (tombstoned.has(e.id)) continue;
     const payload = e.payload;
     if (typeof payload !== 'object' || payload === null) continue;
     const rec = payload as Record<string, unknown>;
@@ -225,6 +259,20 @@ export function compileContext(input: CompileContextInput): CompiledContext {
       continue;
     }
     context.memories.push({ kind: rec.kind, text, createdAt: e.createdAt });
+  }
+
+  if (turn) {
+    // Rank/budget strictly AFTER witness/absence/tombstone filtering: budget
+    // pressure can drop visible entries but never resurrect invisible ones.
+    const now = Math.max(maxCreatedAt(visibleSea), maxCreatedAt(visibleThread));
+    const memoryBudget = turn.memoryBudgetTokens ?? DEFAULT_MEMORY_BUDGET_TOKENS;
+    const threadBudget = turn.threadBudgetTokens ?? DEFAULT_THREAD_BUDGET_TOKENS;
+    context.memories = selectWithinBudget(scoreMemoryEntries(context.memories, turn.text, now), memoryBudget);
+    context.openLoops = selectWithinBudget(scoreMemoryEntries(context.openLoops, turn.text, now), memoryBudget);
+    context.recentThreadEvents = recentTailWithinBudget(
+      rankRecentThreadEvents(context.recentThreadEvents, turn.text, THREAD_KEEP_LATEST),
+      threadBudget,
+    );
   }
 
   if (learnerProjection) {

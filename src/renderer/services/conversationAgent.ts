@@ -29,6 +29,8 @@ import { getFrequencyLevelLabel, isFrequencyLevelHarderThanTarget } from '../../
 import type { LanguageFeatures } from '../context/LanguageContext';
 import { getLogger } from '../../shared/utils/logger';
 import { estimateMessagesTokens } from '../../shared/utils/tokenEstimation';
+import { renderSocialClimate } from '../../shared/socialState';
+import type { TurnSocialState } from '../../shared/socialState';
 
 const log = getLogger("renderer.services.conversationAgent");
 
@@ -77,8 +79,19 @@ interface AgentDeps {
   /** World-model context (converged Conversation AI). When present, replaces the
    *  personality and memories sections of the system prompt with journal-compiled
    *  world context (persona/canon/relationships/memories/recent thread); the tutor
-   *  runtime sections (rules, tools, media, level, safety) are kept. */
-  getWorldContext?: () => string;
+   *  runtime sections (rules, tools, media, level, safety) are kept.
+   *  Receives the current turn text (last user message) so the compiler can
+   *  rank/budget the projection for this specific turn. */
+  getWorldContext?: (turnText?: string) => string;
+  /** Voice-mode world context for the current turn, compiled from the journal.
+   *  When present, the voice system prompt gains a Remembered Context section
+   *  (placed before the immutable safety instructions). Absent ⇒ prompt unchanged. */
+  getVoiceWorldContext?: (turnText: string) => string;
+  /** Ephemeral social/affect state for the current user turn. When present and
+   *  non-null, both system prompts gain a Conversation Climate section (before
+   *  the immutable safety instructions). Absent dep or null ⇒ byte-identical
+   *  prompt. Never journaled. */
+  getTurnSocialState?: () => TurnSocialState | null;
 }
 
 /** Callback for streaming chunks to the UI */
@@ -216,6 +229,7 @@ function buildSystemPrompt(
   disabledTools?: Set<string>,
   features?: LanguageFeatures,
   worldContextOverride?: string,
+  socialClimate?: string,
 ): string {
   const isToolDisabled = (name: string) => disabledTools?.has(name) ?? false;
   const tutorPromptGuidelines = features?.tutorPromptGuidelines ?? [];
@@ -332,6 +346,10 @@ ${memoryLines}`;
   if (memories !== undefined && !isToolDisabled('save_memory')) {
     prompt += `\n\n## Memory
 You have a "save_memory" tool. When the learner shares personal facts (name, occupation, study goals, preferred topics, life experiences, hobbies, skill level, learning difficulties), save them using save_memory. This helps you personalize conversations across sessions. Save one clear fact per call. Do not save conversation-level details like "we talked about X".`;
+  }
+
+  if (socialClimate?.trim()) {
+    prompt += `\n\n${socialClimate}`;
   }
 
   // Safety instructions MUST be last so they override any conflicting persona content.
@@ -636,7 +654,16 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
 // Voice-Mode System Prompt
 // ============================================================================
 
-function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentContext | null, features?: LanguageFeatures): string {
+/** Current voice turn text = the most recent user message in history. */
+function lastUserMessageText(history: LLMChatMessage[]): string {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const message = history[i];
+    if (message.role === 'user') return message.content;
+  }
+  return '';
+}
+
+function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentContext | null, features?: LanguageFeatures, worldContext?: string, socialClimate?: string): string {
   const casualRegisterGuidelines = getCasualRegisterGuidelineLines(langName, features);
   const correctionGuidelines = [
     ...(features?.correctionPromptGuidelines ?? []),
@@ -694,6 +721,14 @@ The learner is ${mediaCtx.mediaType === 'video' ? 'watching' : 'reading'}: "${me
     if (mediaCtx.grammarExposure && mediaCtx.grammarExposure.length > 0) {
       prompt += `\nGrammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): ${mediaCtx.grammarExposure.map((g) => g.pattern).join(', ')}`;
     }
+  }
+
+  if (socialClimate?.trim()) {
+    prompt += `\n\n${socialClimate}`;
+  }
+
+  if (worldContext?.trim()) {
+    prompt += `\n\n## Remembered Context\n${worldContext}`;
   }
 
   // Safety instructions MUST be last so they override any conflicting persona content.
@@ -1672,11 +1707,19 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     const langFeatures = deps.getLanguageFeatures();
 
+    const turnSocialClimate = deps.getTurnSocialState?.() ?? null;
+
     const systemMsg: LLMChatMessage = {
       role: 'system',
       content: isVoice
-        ? buildVoiceSystemPrompt(langName, mediaCtx, langFeatures)
-        : buildSystemPrompt(language, langName, targetLevelName, agentCfg, memoryEnabled ? memories : undefined, mistakeCheckerEnabled, inlineBackstory, effectiveDisabled, langFeatures, deps.getWorldContext?.()),
+        ? buildVoiceSystemPrompt(
+            langName,
+            mediaCtx,
+            langFeatures,
+            deps.getVoiceWorldContext?.(lastUserMessageText(conversationHistory)),
+            turnSocialClimate ? renderSocialClimate(turnSocialClimate) : undefined,
+          )
+        : buildSystemPrompt(language, langName, targetLevelName, agentCfg, memoryEnabled ? memories : undefined, mistakeCheckerEnabled, inlineBackstory, effectiveDisabled, langFeatures, deps.getWorldContext?.(lastUserMessageText(conversationHistory)), turnSocialClimate ? renderSocialClimate(turnSocialClimate) : undefined),
     };
 
     const messages: LLMChatMessage[] = [

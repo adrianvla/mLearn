@@ -10,7 +10,7 @@
 
 import { ipcMain, type IpcMainEvent } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk } from '../../shared/types';
+import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { loadSettings } from './settings';
 import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
@@ -84,17 +84,44 @@ function drainQueue(): void {
   }
 }
 
-function getCloudAdapter(): CloudLLMAdapter {
-  const settings = loadSettings();
+function cloudAdapterFromSettings(settings: Settings): CloudLLMAdapter {
   const cloudApiUrl = (settings.overrideCloudEndpointUrl && settings.cloudApiUrl)
     ? settings.cloudApiUrl.replace(/\/+$/, '')
     : DEFAULT_CLOUD_API_URL;
-  // Recreate if settings changed
-  cloudAdapter = new CloudLLMAdapter(
+  return new CloudLLMAdapter(
     cloudApiUrl,
     settings.cloudAuthAccessToken || settings.cloudAuthToken,
   );
+}
+
+function getCloudAdapter(): CloudLLMAdapter {
+  // Recreate if settings changed
+  cloudAdapter = cloudAdapterFromSettings(loadSettings());
   return cloudAdapter;
+}
+
+/**
+ * Non-streaming cloud completion for background cognition (Dreamer). Builds a
+ * private adapter so it never rebinds the shared `cloudAdapter` that a user
+ * stream's abort depends on.
+ */
+export function cloudComplete(messages: LLMChatMessage[]): Promise<string> {
+  const adapter = cloudAdapterFromSettings(loadSettings());
+  return new Promise<string>((resolve, reject) => {
+    let text = '';
+    void adapter.streamChat(messages, [], {
+      onChunk: (chunk) => {
+        if (chunk.error !== undefined) {
+          reject(new Error(chunk.error));
+          return;
+        }
+        if (chunk.content) text += chunk.content;
+        if (chunk.done) resolve(text);
+      },
+      onDone: () => resolve(text),
+      onError: (error) => reject(new Error(error)),
+    });
+  });
 }
 
 /** Route a stream to the provider configured in settings (existing routing logic). */

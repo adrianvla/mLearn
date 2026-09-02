@@ -4,6 +4,7 @@ import path from 'path';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
 import type { Room, Thread } from '../../shared/world';
+import { IPC_CHANNELS } from '../../shared/constants';
 
 vi.mock('electron', () => ({
   app: {
@@ -25,6 +26,12 @@ vi.mock('./windowManager', () => ({
   openManagedChildWindow: vi.fn(),
 }));
 
+const mockConsolidateRoom = vi.fn();
+vi.mock('./dreamerRuntime', () => ({ consolidateRoom: mockConsolidateRoom }));
+
+const mockLoadSettings = vi.fn();
+vi.mock('./settings', () => ({ loadSettings: mockLoadSettings }));
+
 let mod: typeof import('./worldIpc');
 let journal: typeof import('./journalService');
 
@@ -44,6 +51,8 @@ describe('worldIpc', () => {
 
   beforeEach(async () => {
     tempDir = createTempDir();
+    mockConsolidateRoom.mockReset();
+    mockLoadSettings.mockReset();
     vi.resetModules();
     mod = await import('./worldIpc');
     journal = await import('./journalService');
@@ -128,5 +137,20 @@ describe('worldIpc', () => {
   it('createThread on a missing room throws', async () => {
     seedWorld([]);
     await expect(mod.createThread('nope')).rejects.toThrow();
+  });
+  it('a completed WORLD_INTEGRATE fires one post-session dreamer consolidation', async () => {
+    seedWorld([room('r1', ['p1'])]);
+    mod.setupWorldIPC();
+    const handle = vi.mocked((await import('electron')).ipcMain.handle);
+    const integrate = handle.mock.calls.find((call) => call[0] === IPC_CHANNELS.WORLD_INTEGRATE)?.[1] as
+      | (event: unknown, input: { roomId: string; threadId: string; integrationId: string; drafts: never[]; promoteParticipantIds: never[] }) => Promise<unknown>
+      | undefined;
+    if (!integrate) throw new Error('WORLD_INTEGRATE handler not registered');
+
+    await integrate({}, { roomId: 'r1', threadId: 't1', integrationId: 'int-1', drafts: [], promoteParticipantIds: [] });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockConsolidateRoom).toHaveBeenCalledTimes(1);
+    expect(mockConsolidateRoom).toHaveBeenCalledWith('r1', { getSettings: mockLoadSettings });
   });
 });

@@ -99,6 +99,8 @@ interface MockDeps {
   getIncludeKnowledgeInfo?: () => boolean;
   getDisabledTools?: () => Set<string>;
   getWorldContext?: () => string;
+  getVoiceWorldContext?: (_turnText: string) => string;
+  getTurnSocialState?: () => { tone: 'frustrated' | 'uncertain' | 'excited' | 'confident' | 'withdrawn' | 'neutral'; evidence: string; source: 'heuristic' | 'checker' } | null;
 }
 
 function createMockDeps(overrides?: Partial<MockDeps>): MockDeps {
@@ -585,6 +587,98 @@ describe('createConversationAgent', () => {
     });
   });
 
+  // ==========================================================================
+  // turn social climate
+  // ==========================================================================
+
+  describe('turn social climate', () => {
+    const frustratedState = { tone: 'frustrated' as const, evidence: 'all-caps shouting', source: 'heuristic' as const };
+
+    const systemPromptOf = (callIndex = 0): string => {
+      const [messages] = mockBridge.llm.llmStream.mock.calls[callIndex];
+      return (messages as Array<{ role: string; content: string }>).find((m) => m.role === 'system')!.content;
+    };
+
+    it('renders Conversation Climate in the text prompt only when the dep yields a state', () => {
+      const withState = createConversationAgent(createMockDeps({ getTurnSocialState: () => frustratedState }));
+      withState.processMessage('test', [], createCallbacks().callbacks);
+      const prompt = systemPromptOf();
+      expect(prompt).toContain('## Conversation Climate');
+      expect(prompt).toContain('frustrated right now');
+      expect(prompt.indexOf('## Conversation Climate')).toBeLessThan(prompt.indexOf('INSTRUCTION PRIORITY'));
+
+      const withNull = createConversationAgent(createMockDeps({ getTurnSocialState: () => null }));
+      withNull.processMessage('test', [], createCallbacks().callbacks);
+      expect(systemPromptOf(1)).not.toContain('## Conversation Climate');
+    });
+
+    it('keeps the text prompt byte-identical when the dep is absent or null', () => {
+      const withoutDep = createConversationAgent(createMockDeps());
+      withoutDep.processMessage('test', [], createCallbacks().callbacks);
+      const baseline = systemPromptOf();
+
+      const withNullDep = createConversationAgent(createMockDeps({ getTurnSocialState: () => null }));
+      withNullDep.processMessage('test', [], createCallbacks().callbacks);
+      const secondCall = mockBridge.llm.llmStream.mock.calls[1];
+      const secondContent = (secondCall[0] as Array<{ role: string; content: string }>).find((m) => m.role === 'system')!.content;
+      expect(secondContent).toBe(baseline);
+      expect(secondContent).not.toContain('## Conversation Climate');
+    });
+
+    it('places Conversation Climate after memories and before safety in the text prompt', () => {
+      const memories: AgentMemoryEntry[] = [
+        { id: 'm1', agentId: 'a1', content: 'The learner loves cats', timestamp: Date.now() },
+      ];
+      const deps = createMockDeps({
+        getAgentMemories: () => memories,
+        getTurnSocialState: () => frustratedState,
+      });
+      const agent = createConversationAgent(deps);
+      agent.processMessage('test', [], createCallbacks().callbacks);
+      const prompt = systemPromptOf();
+      expect(prompt.indexOf('Things You Remember About the Learner')).toBeLessThan(prompt.indexOf('## Conversation Climate'));
+      expect(prompt.indexOf('## Conversation Climate')).toBeLessThan(prompt.indexOf('INSTRUCTION PRIORITY'));
+    });
+
+    it('places Conversation Climate after Personality/media and before Remembered Context and safety in voice mode', () => {
+      const mediaCtx: ConversationAgentContext = {
+        mediaName: 'Attack on Titan',
+        mediaType: 'video',
+        failedWords: [],
+        grammarExposure: [],
+      };
+      const deps = createMockDeps({
+        isVoiceMode: () => true,
+        getMediaContext: () => mediaCtx,
+        getVoiceWorldContext: () => '## Remembered Context\nMEMORIES-INJECTED',
+        getTurnSocialState: () => frustratedState,
+      });
+      const agent = createConversationAgent(deps);
+      agent.processMessage('test', [], createCallbacks().callbacks);
+      const prompt = systemPromptOf();
+      const personality = prompt.indexOf('## Personality');
+      const media = prompt.indexOf('## Current Media Context');
+      const climate = prompt.indexOf('## Conversation Climate');
+      const remembered = prompt.indexOf('## Remembered Context');
+      const safety = prompt.indexOf('INSTRUCTION PRIORITY');
+      expect(personality).toBeGreaterThan(-1);
+      expect(media).toBeGreaterThan(-1);
+      expect(media).toBeLessThan(climate);
+      expect(climate).toBeLessThan(remembered);
+      expect(remembered).toBeLessThan(safety);
+      expect(prompt).toContain('MEMORIES-INJECTED');
+    });
+
+    it('keeps the voice prompt free of the climate section when the dep is absent', () => {
+      const agent = createConversationAgent(createMockDeps({ isVoiceMode: () => true }));
+      agent.processMessage('test', [], createCallbacks().callbacks);
+      expect(systemPromptOf()).not.toContain('## Conversation Climate');
+    });
+  });
+
+  // ==========================================================================
+  // abortStream
+  // ==========================================================================
   // ==========================================================================
   // abortStream
   // ==========================================================================

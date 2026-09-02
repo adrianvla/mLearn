@@ -55,8 +55,10 @@ import { NewConversationModal } from './NewConversationModal';
 
 import { createConversationAgent, type AgentInstance } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
+import { inferTurnAffect } from '../../../shared/socialState';
+import type { TurnAffectOptions, TurnSocialState } from '../../../shared/socialState';
 import type { StreamCallbacks } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
+import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry, StreamStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getConversationErrorMessage } from './errorUtils';
 import { shouldHideAssistantBubble } from './messageState';
@@ -64,6 +66,7 @@ import { createJournalThreadStore, eventsToDisplayMessages, buildLLMHistory } fr
 import { runRoomTurn } from '../../../shared/roomOrchestrator';
 import { compileContext, type CompiledContext, type LearnerProjection } from '../../../shared/contextCompiler';
 import { renderCompiledContext } from './roomMessages';
+import { createVoicePrefetch } from './voicePrefetch';
 import { selectSpeaker } from '../../../shared/speakerSelection';
 import { HARNESS_ACTOR, USER_ACTOR, type MessagePayload, type Participant, type WorldSnapshot } from '../../../shared/world';
 import { shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
@@ -376,6 +379,34 @@ export const ConversationContent: Component = () => {
     return room.participantIds.map((id) => byId.get(id)).filter((participant): participant is Participant => participant !== undefined);
   };
   const hasActiveRoomSelection = () => selection() !== null && activeRoom() !== null;
+  // Voice turns get the same journal-compiled world context as the text path,
+  // prefetched speculatively from STT partials (latest-wins cache). The turn
+  // text drives bounded turn-specific ranking/budgeting; scopeId keeps each
+  // participant's view separate, and the journal-size version invalidates
+  // speculative work if the world changed mid-utterance.
+  const voiceContextPrefetch = createVoicePrefetch(
+    (turnText: string, scopeId: string): string => {
+      const participant = rosterParticipants().find((candidate) => candidate.id === scopeId);
+      if (!participant) return '';
+      return renderCompiledContext(
+        compileContext({
+          participant,
+          participants: rosterParticipants(),
+          seaEvents: journal.seaEvents(),
+          threadEvents: journal.threadEvents(),
+          learnerProjection: learnerProjection(),
+          threadMedia: activeThread()?.mediaRef,
+          turn: { text: turnText },
+        }),
+        rosterParticipants(),
+        youLabel(),
+      );
+    },
+    () => `${journal.seaEvents().length}:${journal.threadEvents().length}`,
+  );
+  let lastUserMessageEventId: string | null = null;
+  let lastUserMessageEventRoomId: string | null = null;
+  let lastVadSpeechEndTs: number | null = null;
   const displayMessages = createMemo(() => eventsToDisplayMessages(journal.threadEvents(), rosterParticipants(), youLabel())
     .filter((message) => !supersededEvents.has((message as EventMessage).eventId))
     .map((message) => {
@@ -419,6 +450,31 @@ export const ConversationContent: Component = () => {
     }
   };
 
+  // Ephemeral turn-scoped affect state — lives in this closure for the session,
+  // never journaled. Durable social facts remain Dreamer/journal territory.
+  let turnHeuristicSocial: TurnSocialState | null = null;
+  let pendingCheckerSocial: TurnSocialState | null = null;
+
+  // Structural context for the affect heuristic: correction pressure in the
+  // recent thread tail plus literal question repetition (language-agnostic).
+  const turnSocialOpts = (text: string): TurnAffectOptions => {
+    const events = journal.threadEvents();
+    let correctionCount = 0;
+    for (const event of events.slice(-12)) {
+      if (event.type === 'correction') correctionCount += 1;
+    }
+    const normalized = text.trim().replace(/\s+/g, ' ').toLowerCase();
+    const earlierQuestions = events
+      .filter((event) => event.type === 'message.user')
+      .map((event) => (event.payload as { text?: unknown }).text)
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim().replace(/\s+/g, ' ').toLowerCase());
+    return {
+      correctionCount,
+      repeatedQuestion: normalized.includes('?') && earlierQuestions.includes(normalized),
+    };
+  };
+
   const getParticipantAgent = (participant: Participant): AgentInstance => {
     const cached = participantAgents.get(participant.id);
     if (cached) return cached;
@@ -447,21 +503,48 @@ export const ConversationContent: Component = () => {
     onMemorySaved: (content: string) => {
       const room = activeRoom();
       if (!room) return;
+      // Provenance applies only when the saved belief belongs to the room the
+      // tracked turn was sent in; otherwise the id would point across rooms.
+      const provenanceEventId = lastUserMessageEventRoomId === room.id ? lastUserMessageEventId : null;
       void journal.append({
         roomId: room.id,
         scope: { kind: 'sea' },
         type: 'memory.belief',
         actorId: HARNESS_ACTOR,
         witnesses: [USER_ACTOR, participant.id],
-        payload: { ownerId: participant.id, kind: 'belief', text: content },
+        payload: {
+          ownerId: participant.id,
+          kind: 'belief',
+          text: content,
+          ...(provenanceEventId ? { sourceEventIds: [provenanceEventId] } : {}),
+        },
+        ...(provenanceEventId ? { provenance: { sourceThreadEventIds: [provenanceEventId] } } : {}),
       });
     },
     getDisabledTools: () => new Set(settings.agentMemoryEnabled ? [] : ['save_memory']),
-    getWorldContext: () => renderCompiledContext(
-      compileContext({ participant, participants: rosterParticipants(), seaEvents: journal.seaEvents(), threadEvents: journal.threadEvents(), learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef }),
+    getWorldContext: (turnText) => renderCompiledContext(
+      compileContext({
+        participant,
+        participants: rosterParticipants(),
+        seaEvents: journal.seaEvents(),
+        threadEvents: journal.threadEvents(),
+        learnerProjection: learnerProjection(),
+        threadMedia: activeThread()?.mediaRef,
+        ...(turnText ? { turn: { text: turnText } } : {}),
+      }),
       rosterParticipants(),
       youLabel(),
     ),
+    getVoiceWorldContext: (turnText) => voiceContextPrefetch.resolveFinal(turnText, participant.id),
+    getTurnSocialState: () => {
+      // Checker verdicts land AFTER the turn's prompt is built (the checker runs
+      // post-turn), so a fresh verdict rides the NEXT prompt instead — one-shot.
+      // Once consumed or absent, the synchronous heuristic for the current turn
+      // applies.
+      const checkerVerdict = pendingCheckerSocial;
+      pendingCheckerSocial = null;
+      return checkerVerdict ?? turnHeuristicSocial;
+    },
   });
     participantAgents.set(participant.id, runtimeAgent);
     return runtimeAgent;
@@ -540,6 +623,11 @@ export const ConversationContent: Component = () => {
         languageFeatures: getLanguageFeatures(),
       });
       if (result.error === 'quota' && settings.agentSafetyChecker) { agent.lockSafety(); setIsSafetyLockedState(true); return; }
+      if (result.socialClimate) {
+        // Describes THIS turn's message but arrives after its prompt was built —
+        // applies to the next prompt (see getTurnSocialState).
+        pendingCheckerSocial = result.socialClimate;
+      }
       if (result.corrections.length === 0 && !result.safety) {
         return;
       }
@@ -961,7 +1049,7 @@ export const ConversationContent: Component = () => {
     setExplainerOpen(false);
   };
 
-  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined) => void): StreamCallbacks => {
+  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void): StreamCallbacks => {
     let streamTokenizeId = 0;
     let streamTokenizeTimer: ReturnType<typeof setTimeout> | null = null;
     return {
@@ -989,8 +1077,8 @@ export const ConversationContent: Component = () => {
           return { ...overlay, widgets, widget };
         });
       },
-      onDone: (finalContent, tokens, widgets) => {
-        onDone?.(finalContent, tokens, widgets);
+      onDone: (finalContent, tokens, widgets, streamStats) => {
+        onDone?.(finalContent, tokens, widgets, streamStats);
         clearAssistantStreamState();
       },
       onError: (error) => {
@@ -1016,8 +1104,15 @@ export const ConversationContent: Component = () => {
       return sendTextMessage(text);
     }
     cancelVoiceScheduledNudge();
+    turnHeuristicSocial = inferTurnAffect(text, turnSocialOpts(text));
+    // Speech end ≈ the final STT result that triggered this send; the LLM
+    // request dispatches when the agent turn below reaches processMessage.
+    const voiceTurnTiming = isVoiceCallActive() ? { speechEndTs: lastVadSpeechEndTs ?? Date.now(), requestDispatchTs: 0 } : null;
+    let prefetchLogged = false;
     const witnesses = [USER_ACTOR, ...room.participantIds];
     const userEvent = await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: isVoiceCallActive() ? 'voice' : 'text' } satisfies MessagePayload });
+    lastUserMessageEventId = userEvent.id;
+    lastUserMessageEventRoomId = room.id;
     setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
     startAssistantStream(displayMessages().length);
     let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
@@ -1026,14 +1121,24 @@ export const ConversationContent: Component = () => {
       participants: world()?.participants ?? [],
       seaEvents: journal.seaEvents(),
       threadEvents: [...journal.threadEvents(), userEvent],
-      compileContextFn: (input) => compileContext({ ...input, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef }),
+      compileContextFn: (input) => compileContext({ ...input, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef, turn: { text } }),
       runAgentTurn: async (participantId, context) => {
         const participant = (world()?.participants ?? []).find((candidate) => candidate.id === participantId);
         if (!participant) return { text: '' };
         const runtimeAgent = getParticipantAgent(participant);
         runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(journal.threadEvents(), participant.id, world()?.participants ?? [])));
+        if (voiceTurnTiming) voiceTurnTiming.requestDispatchTs = Date.now();
         return new Promise((resolve, reject) => runtimeAgent.processMessage(lastContextMessage(context), [], {
-          ...buildStreamCallbacks((final, tokens, widgets) => { pendingResponse = { tokens, widgets }; resolve({ text: final }); }),
+          ...buildStreamCallbacks((final, tokens, widgets, streamStats) => {
+            if (voiceTurnTiming && streamStats && !prefetchLogged) {
+              prefetchLogged = true;
+              const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
+              const { cacheHit, compileMs } = voiceContextPrefetch.lastStats();
+              log.info('[VoicePrefetch] voice turn', { cacheHit, compileMs, totalMs: dispatchMs + streamStats.timeToFirstToken });
+            }
+            pendingResponse = { tokens, widgets };
+            resolve({ text: final });
+          }),
           onError: (error) => reject(new Error(error)),
         }));
       },
@@ -1049,6 +1154,8 @@ export const ConversationContent: Component = () => {
     });
     setLiveOverlay(null);
     if (settings.agentMistakeChecker || settings.agentSafetyChecker) runCheckerOnMessage(text, userEvent.id, undefined);
+    // The turn is over — agent-initiated turns (greetings, nudges) start clean.
+    turnHeuristicSocial = null;
   };
 
   const runContextTurn = async (context: string, modality: 'text' | 'voice' = 'text'): Promise<void> => {
@@ -1575,11 +1682,12 @@ export const ConversationContent: Component = () => {
               messages={messages()}
               isStreaming={isStreaming()}
               onSendMessage={sendTextMessage}
+              onPartialTranscript={(text) => voiceContextPrefetch.onPartial(text, rosterParticipants()[0]?.id ?? '')}
               onRequestGreeting={handleRequestGreeting}
               onIdleSilence={handleVoiceIdleSilence}
               scheduledNudge={voiceScheduledNudge()}
               onAbort={handleAbort}
-              defaultVoiceSampleId={rosterParticipants()[0]?.voiceSampleId ?? activeAgent()?.voiceSampleId}
+              onSpeechEnd={(ts) => { lastVadSpeechEndTs = ts; }}
               agentName={rosterParticipants()[0]?.displayName ?? activeAgent()?.agentName}
               profilePhoto={rosterParticipants()[0]?.profilePhoto ?? activeAgent()?.profilePhoto}
               onCallStateChange={(active, reason) => {

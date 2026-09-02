@@ -256,7 +256,7 @@ function abortStream(senderId: number): void {
 /**
  * Non-streaming chat completion (for tool calls that need full response)
  */
-async function chatCompletion(
+export async function chatCompletion(
   messages: OllamaChatMessage[],
   tools?: OllamaToolDefinition[],
 ): Promise<{ content: string; tool_calls?: unknown[] }> {

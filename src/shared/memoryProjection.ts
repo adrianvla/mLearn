@@ -61,7 +61,7 @@ function memoryOwner(e: JournalEvent): string | undefined {
  * tombstones when its owner matches the target memory's owner, so one
  * participant can never erase another's memory.
  */
-function tombstonedIds(events: JournalEvent[]): Set<string> {
+export function tombstonedIds(events: JournalEvent[]): Set<string> {
   const ids = new Set<string>();
   for (const e of events) {
     if (e.type === 'deletion' || e.type === 'integration') continue;

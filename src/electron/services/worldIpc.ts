@@ -30,6 +30,8 @@ import type {
 import { loadWorld, saveWorld } from './worldStore';
 import { appendEvent, eraseThread, readSeaProjection, readThread } from './journalService';
 import { openManagedChildWindow } from './windowManager';
+import { loadSettings } from './settings';
+import { consolidateRoom } from './dreamerRuntime';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
   return loadWorld();
@@ -225,7 +227,13 @@ export function setupWorldIPC(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.WORLD_INTEGRATE,
-    async (_event, input: IntegrateThreadInput): Promise<IntegrateThreadResult> => integrateThread(input)
+    async (_event, input: IntegrateThreadInput): Promise<IntegrateThreadResult> => {
+      const result = await integrateThread(input);
+      // Post-session consolidation: fire-and-forget, policy-gated, marker-idempotent. No live
+      // Thread 'archived' transition exists yet (only legacy migration); when one lands, fire there too.
+      void consolidateRoom(input.roomId, { getSettings: loadSettings });
+      return result;
+    }
   );
 
   ipcMain.handle(IPC_CHANNELS.WORLD_PROMOTE_PARTICIPANT, async (_event, participantId: string): Promise<Participant> =>

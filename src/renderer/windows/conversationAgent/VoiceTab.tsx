@@ -152,6 +152,10 @@ export interface VoiceTabProps {
   messages: ConversationMessage[];
   isStreaming: boolean;
   onSendMessage: (text: string) => void;
+  /** Fired on every non-final STT partial while listening (feeds speculative prefetch). */
+  onPartialTranscript?: (text: string) => void;
+  /** Fired when VAD confirms the user stopped speaking — the true start of the turn-latency budget. */
+  onSpeechEnd?: (timestamp: number) => void;
   onRequestGreeting: () => void;
   onIdleSilence?: (reason: 'no-transcript' | 'waiting' | 'scheduled', scheduledPrompt?: string) => void;
   scheduledNudge?: ScheduledVoiceNudge | null;
@@ -254,6 +258,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // Sentence timing for estimating interruption position within a sentence
   let ttsCurrentSentenceStartTime = 0;
   let ttsCurrentSentenceDuration = 0;
+  // True VAD speech-end wall time — the start of the turn-latency budget
+  let lastSpeechEndTs: number | null = null;
   let ttsTimingPhraseIndex = -1;
   let ttsTurnStartTime = 0;
   let ttsScheduledDuration = 0;
@@ -718,6 +724,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       clearIdleSilenceTimer();
       clearScheduledNudgeTimer();
       setPartialTranscript(result.text);
+      if (!result.isFinal) props.onPartialTranscript?.(result.text);
       if (result.isFinal && result.text.trim()) {
         addDebugEvent('STT', `${result.text.trim().length} chars final`, 'active');
         setCallState('processing');
@@ -738,6 +745,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         addDebugEvent('VAD start', `${formatVadDetail(event)} · UI -> Listening`, 'active');
         setCallState('listening');
       } else if (event.type === 'speech-end') {
+        lastSpeechEndTs = Date.now();
+        props.onSpeechEnd?.(lastSpeechEndTs);
         addDebugEvent('VAD end', `${formatVadDetail(event)} · UI ${callState()} -> Processing`, 'info');
         if (callState() === 'listening') {
           setCallState('processing');

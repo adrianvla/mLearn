@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { compileContext, visibleEventsFor } from './contextCompiler';
 import type { EventScope, JournalEvent, Participant, ScenarioGrounding } from './world';
+import { renderCompiledContext } from '../renderer/windows/conversationAgent/roomMessages';
+import { estimateTokens } from './contextRanking';
 
 const SEA: EventScope = { kind: 'sea' };
 const THREAD: EventScope = { kind: 'thread', threadId: 'thread_1' };
@@ -61,6 +63,13 @@ function membership(
 ): JournalEvent {
   return evt(
     { roomId: 'room_1', scope: SEA, type: 'membership', actorId: 'harness', witnesses, payload: { participantId, action } },
+    seq,
+  );
+}
+
+function correction(seq: number, ownerId: string, targetId: string, witnesses: string[]): JournalEvent {
+  return evt(
+    { roomId: 'room_1', scope: SEA, type: 'correction', actorId: ownerId, witnesses, payload: { ownerId, targetId } },
     seq,
   );
 }
@@ -308,5 +317,256 @@ describe('context compiler', () => {
     const ctx = compileContext({ participant: a, participants: [a], seaEvents: sea });
 
     expect(ctx.callerProjection.beliefs.map((m) => m.text)).toEqual(['Heard after return.']);
+  });
+});
+
+describe('context compiler — tombstones and turn budgets', () => {
+  it('excludes corrected memories without a turn, keeping the rest identical', () => {
+    const sea = [
+      belief(1, 'A', 'belief', 'Kept memory.', ['A', 'user']),
+      belief(2, 'A', 'belief', 'Corrected memory.', ['A', 'user']),
+      correction(3, 'A', 'evt_2', ['A', 'user']),
+    ];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({ participant: a, participants: [a], seaEvents: sea });
+    expect(ctx).toEqual({
+      persona: { text: 'A warm mentor persona.', facets: {} },
+      negativeKnowledge: [],
+      relationships: [],
+      memories: [{ kind: 'belief', text: 'Kept memory.', createdAt: 1001 }],
+      openLoops: [],
+      recentThreadEvents: [],
+      callerProjection: {
+        beliefs: [
+          {
+            id: 'evt_1',
+            ownerId: 'A',
+            kind: 'belief',
+            text: 'Kept memory.',
+            witnesses: ['A', 'user'],
+            durability: 'durable',
+            salience: 0,
+            createdAt: 1001,
+            sourceEventIds: ['evt_1'],
+          },
+        ],
+        openLoops: [],
+        episodes: [],
+        relationships: [],
+        roomCulture: [],
+      },
+    });
+  });
+
+  it('regression: a corrected memory never renders into ## Memories without budgets', () => {
+    const sea = [
+      belief(1, 'A', 'belief', 'Kept memory.', ['A', 'user']),
+      belief(2, 'A', 'belief', 'Corrected memory text.', ['A', 'user']),
+      correction(3, 'A', 'evt_2', ['A', 'user']),
+    ];
+    const a = participant({ id: 'A' });
+
+    const rendered = renderCompiledContext(
+      compileContext({ participant: a, participants: [a], seaEvents: sea }),
+      [a],
+      'Learner',
+    );
+    expect(rendered).toContain('## Memories\n- Kept memory.');
+    expect(rendered).not.toContain('Corrected memory text.');
+  });
+
+  it('keeps a memory when only a non-owner correction targets it', () => {
+    const sea = [
+      belief(1, 'A', 'belief', 'A keeps this.', ['A', 'user']),
+      correction(2, 'B', 'evt_1', ['A', 'B', 'user']),
+    ];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({ participant: a, participants: [a], seaEvents: sea });
+    expect(ctx.memories.map((m) => m.text)).toEqual(['A keeps this.']);
+    expect(ctx.callerProjection.beliefs.map((m) => m.text)).toEqual(['A keeps this.']);
+  });
+
+  it('surfaces a turn-relevant old memory over an irrelevant recent one', () => {
+    const sea = [
+      belief(10, 'A', 'belief', 'She loved her trip to Tokyo.', ['A', 'user']),
+      belief(20, 'A', 'belief', 'Notes about the accounting meeting.', ['A', 'user']),
+    ];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({
+      participant: a,
+      participants: [a],
+      seaEvents: sea,
+      turn: { text: 'What did she say about Tokyo?' },
+    });
+    expect(ctx.memories.map((m) => m.text)).toEqual([
+      'She loved her trip to Tokyo.',
+      'Notes about the accounting meeting.',
+    ]);
+  });
+
+  it('keeps deletion markers and absence-hidden events out under budget pressure', () => {
+    const sea: JournalEvent[] = [
+      // evt_1 was physically erased from the journal; only its marker remains.
+      evt(
+        { roomId: 'room_1', scope: SEA, type: 'deletion', actorId: 'A', witnesses: ['A', 'user'], payload: { sourceIds: ['evt_1'] } },
+        1,
+      ),
+      belief(2, 'A', 'belief', 'Surviving memory.', ['A', 'user']),
+      membership(3, 'A', 'removed', ['A', 'user']),
+      belief(4, 'A', 'belief', 'Heard while gone.', ['A', 'user']),
+      membership(5, 'A', 'added', ['A', 'user']),
+      belief(6, 'A', 'belief', 'Big memory that would never fit inside such a small allowance.', ['A', 'user']),
+    ];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({
+      participant: a,
+      participants: [a],
+      seaEvents: sea,
+      turn: { text: 'surviving', memoryBudgetTokens: 5 },
+    });
+    expect(ctx.memories.map((m) => m.text)).toEqual(['Surviving memory.']);
+    expect(ctx.callerProjection.beliefs.map((m) => m.text)).toEqual([
+      'Surviving memory.',
+      'Big memory that would never fit inside such a small allowance.',
+    ]);
+  });
+
+  it('tail-caps recent thread events to the newest ones within the thread budget', () => {
+    const thread = [
+      message(1, 'message.user', 'old message one', ['A', 'user'], 'user'),
+      message(2, 'message.character', 'old message two', ['A', 'user'], 'A'),
+      message(3, 'message.user', 'new message three', ['A', 'user'], 'user'),
+    ];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({
+      participant: a,
+      participants: [a],
+      threadEvents: thread,
+      turn: { text: 'unrelated', threadBudgetTokens: 9 },
+    });
+    // 9 tokens fits the two newest messages (5+4) but not all three (13).
+    expect(ctx.recentThreadEvents.map((e) => e.seq)).toEqual([2, 3]);
+  });
+
+  it('ranks and budgets open loops with the memory budget', () => {
+    const sea = [
+      belief(1, 'A', 'open-loop', 'Ask about the accounting ledger.', ['A', 'user']),
+      belief(2, 'A', 'open-loop', 'Ask about Tokyo plans.', ['A', 'user']),
+    ];
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({
+      participant: a,
+      participants: [a],
+      seaEvents: sea,
+      turn: { text: 'tokyo' },
+    });
+    expect(ctx.openLoops.map((l) => l.text)).toEqual([
+      'Ask about Tokyo plans.',
+      'Ask about the accounting ledger.',
+    ]);
+
+    const tight = compileContext({
+      participant: a,
+      participants: [a],
+      seaEvents: sea,
+      turn: { text: 'tokyo', memoryBudgetTokens: 6 },
+    });
+    expect(tight.openLoops.map((l) => l.text)).toEqual(['Ask about Tokyo plans.']);
+  });
+
+  it('respects default token budgets on a synthetic 2k-event journal', () => {
+    const thread: JournalEvent[] = [];
+    for (let i = 1; i <= 2000; i += 1) {
+      thread.push(
+        message(
+          i,
+          i % 2 === 0 ? 'message.user' : 'message.character',
+          `Turn ${i}: discussing topic ${i} in some detail with plenty of words.`,
+          ['A', 'user'],
+          i % 2 === 0 ? 'user' : 'A',
+        ),
+      );
+    }
+    const sea: JournalEvent[] = [];
+    for (let i = 1; i <= 100; i += 1) {
+      sea.push(belief(2000 + i, 'A', 'belief', `Memory number ${i} about subject ${i}.`, ['A', 'user']));
+    }
+    const a = participant({ id: 'A' });
+
+    const ctx = compileContext({
+      participant: a,
+      participants: [a],
+      seaEvents: sea,
+      threadEvents: thread,
+      turn: { text: 'topic 1999' },
+    });
+
+    const threadTokens = ctx.recentThreadEvents.reduce((sum, e) => sum + estimateTokens(e.text ?? ''), 0);
+    const memoryTokens = ctx.memories.reduce((sum, m) => sum + estimateTokens(m.text), 0);
+    expect(threadTokens).toBeLessThanOrEqual(700);
+    expect(memoryTokens).toBeLessThanOrEqual(350);
+    expect(ctx.recentThreadEvents[ctx.recentThreadEvents.length - 1]?.seq).toBe(2000);
+    expect(ctx.recentThreadEvents.length).toBeLessThan(2000);
+  });
+
+  it('never budgets relationships, negative knowledge, or the caller projection', () => {
+    const sea = [
+      belief(1, 'A', 'relationship', 'Trusts the user.', ['A', 'user'], { toId: 'user' }),
+      belief(2, 'A', 'belief', 'Unrelated belief one.', ['A', 'user']),
+      belief(3, 'A', 'belief', 'Unrelated belief two.', ['A', 'user']),
+    ];
+    const a = participant({ id: 'A' });
+    const grounding: ScenarioGrounding = {
+      presentCharacters: ['A'],
+      setting: 'Study',
+      priorEvents: [],
+      conflicts: [],
+      perParticipant: {
+        A: { knows: [], doesNotKnow: ['the war ended'], relationships: [], motivations: [], speechTraits: [] },
+      },
+      provenance: [],
+      fillSegments: [],
+    };
+
+    const ctx = compileContext({
+      participant: a,
+      participants: [a],
+      seaEvents: sea,
+      grounding,
+      turn: { text: 'nothing relevant here', memoryBudgetTokens: 0 },
+    });
+    expect(ctx.relationships).toEqual([{ toId: 'user', label: 'Trusts the user.' }]);
+    expect(ctx.negativeKnowledge).toEqual(['the war ended']);
+    expect(ctx.memories).toEqual([]);
+    expect(ctx.callerProjection.beliefs.map((m) => m.text)).toEqual([
+      'Unrelated belief one.',
+      'Unrelated belief two.',
+    ]);
+  });
+
+  it('produces identical output for identical input, with and without a turn', () => {
+    const sea = [
+      belief(1, 'A', 'belief', 'Kept memory about Tokyo.', ['A', 'user']),
+      belief(2, 'A', 'belief', 'Corrected memory.', ['A', 'user']),
+      correction(3, 'A', 'evt_2', ['A', 'user']),
+      belief(4, 'A', 'open-loop', 'Ask about the Tokyo trip.', ['A', 'user']),
+    ];
+    const thread = [
+      message(5, 'message.user', 'Tell me about Tokyo again.', ['A', 'user'], 'user'),
+      message(6, 'message.character', 'Tokyo was lovely.', ['A', 'user'], 'A'),
+    ];
+    const a = participant({ id: 'A' });
+    const input = { participant: a, participants: [a], seaEvents: sea, threadEvents: thread };
+
+    expect(compileContext(input)).toEqual(compileContext(input));
+    expect(compileContext({ ...input, turn: { text: 'tokyo' } })).toEqual(
+      compileContext({ ...input, turn: { text: 'tokyo' } }),
+    );
   });
 });
