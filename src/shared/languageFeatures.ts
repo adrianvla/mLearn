@@ -1240,7 +1240,7 @@ export function compoundSplitterConfig(data?: LanguageData | null): LanguageComp
   if (typeof raw.locale !== 'string' || !raw.locale) return null;
   if (!Array.isArray(raw.linkingElements) || !raw.linkingElements.every((item) => typeof item === 'string')) return null;
   if (raw.inflectionSuffixes !== undefined && (!Array.isArray(raw.inflectionSuffixes) || !raw.inflectionSuffixes.every((item) => typeof item === 'string'))) return null;
-  if (raw.minPartLength !== undefined && (typeof raw.minPartLength !== 'number' || raw.minPartLength < 1)) return null;
+  if (raw.minPartLength !== undefined && (!Number.isInteger(raw.minPartLength) || raw.minPartLength < 1)) return null;
   return raw;
 }
 
