@@ -51,7 +51,6 @@ function makeObjectStore(fakeStore: FakeStore, tx: FakeTx) {
       const req = makeFakeRequest(fakeStore.data.size);
       queueMicrotask(() => {
         req._fire(true);
-        tx.oncomplete?.();
       });
       return req;
     },
@@ -358,6 +357,25 @@ describe('offlineCache', () => {
       expect(await getCachedTokensByLanguageDB('日本語', 'ja', 'ja-package-v1')).toEqual(oldTokens);
       expect(await getCachedTokensByLanguageDB('日本語', 'ja', 'ja-package-v2')).toEqual(newTokens);
       expect(await getCachedTokensByLanguageDB('日本語', 'ja')).toBeNull();
+    });
+
+    it('batch-stores token caches with language namespace keys in one write', async () => {
+      const { storeMap } = setupFakeIndexedDB();
+      const tokenStore = storeMap.get('tokens')!;
+      const { setCachedTokensBatchByLanguageDB, getCachedTokensByLanguageDB } = await loadOfflineCache();
+      const firstTokens: Token[] = [{ word: '段', actual_word: '段', type: '名詞' }];
+      const secondTokens: Token[] = [{ word: '落', actual_word: '落', type: '名詞' }];
+      const entries = [
+        { text: '段落一。', tokens: firstTokens },
+        { text: '段落二。', tokens: secondTokens },
+      ];
+
+      await setCachedTokensBatchByLanguageDB(entries, 'ja', 'ja-package-v1');
+
+      expect(tokenStore.data.size).toBe(2);
+      expect(await getCachedTokensByLanguageDB('段落一。', 'ja', 'ja-package-v1')).toEqual(firstTokens);
+      expect(await getCachedTokensByLanguageDB('段落二。', 'ja', 'ja-package-v1')).toEqual(secondTokens);
+      expect(await getCachedTokensByLanguageDB('段落一。', 'ja')).toBeNull();
     });
 
     it('returns null for a different text', async () => {

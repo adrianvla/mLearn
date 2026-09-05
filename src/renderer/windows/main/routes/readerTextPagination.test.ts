@@ -116,8 +116,9 @@ describe('reader text capacity', () => {
   });
 
   it('only shrinks capacity while an epoch is active', () => {
+    // Default ratio (1) falls back to a gentle x0.95 shrink.
     expect(auditTextPageCapacity({ capacity: 391, shrinkIterations: 2 }, true)).toEqual({
-      capacity: 332,
+      capacity: 371,
       shrinkIterations: 3,
     });
     expect(auditTextPageCapacity({ capacity: 391, shrinkIterations: 2 }, false)).toEqual({
@@ -126,12 +127,37 @@ describe('reader text capacity', () => {
     });
   });
 
+  it('shrinks proportionally to the measured overflow ratio', () => {
+    // Content ~1.25x the page -> capacity / 1.25.
+    expect(auditTextPageCapacity({ capacity: 460, shrinkIterations: 0 }, true, 1.25)).toEqual({
+      capacity: 368,
+      shrinkIterations: 1,
+    });
+    // Extreme overflow clamps at halving.
+    expect(auditTextPageCapacity({ capacity: 460, shrinkIterations: 0 }, true, 9)).toEqual({
+      capacity: 230,
+      shrinkIterations: 1,
+    });
+    // Marginal overflow never shrinks more than x0.95.
+    expect(auditTextPageCapacity({ capacity: 460, shrinkIterations: 0 }, true, 1.001)).toEqual({
+      capacity: 437,
+      shrinkIterations: 1,
+    });
+    // Never below the floor.
+    expect(auditTextPageCapacity({ capacity: 125, shrinkIterations: 7 }, true, 9).capacity).toBe(120);
+    // Shrinking never stalls: a clamped no-op falls back to the x0.85 shrink.
+    expect(auditTextPageCapacity({ capacity: 122, shrinkIterations: 7 }, true, 1.001)).toEqual({
+      capacity: 120,
+      shrinkIterations: 8,
+    });
+  });
+
   it('uses an injectable overflow probe to decide whether an audit shrinks', () => {
     const articles = [{ id: 'overflowing' }, { id: 'fits' }];
     const overflows = (article: { id: string }) => article.id === 'overflowing';
 
-    expect(auditTextPageCapacity({ capacity: 460, shrinkIterations: 0 }, articles.some(overflows))).toEqual({
-      capacity: 391,
+    expect(auditTextPageCapacity({ capacity: 460, shrinkIterations: 0 }, articles.some(overflows), 1.25)).toEqual({
+      capacity: 368,
       shrinkIterations: 1,
     });
     expect(auditTextPageCapacity({ capacity: 460, shrinkIterations: 0 }, false)).toEqual({

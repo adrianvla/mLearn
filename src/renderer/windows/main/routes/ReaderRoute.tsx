@@ -11,9 +11,10 @@ import { OcrOverlay, MagnifyingGlass, OcrWord, type OcrBox, type OcrResult, type
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { initWordLookupBridge } from '../../../services/wordLookupService';
-import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats, warmTranslationCache } from '../../../hooks';
+import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats, warmTranslationCache, isTranslationWarming } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
+import { hashWordSync } from '../../../services/srsAlgorithm';
 import { isLLMReady } from '../../../services/llmProvider';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, Settings, LanguageData } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
@@ -146,12 +147,13 @@ interface ReaderCompatibleOcrResult {
 
 interface ReaderTextPageProps {
   page: PageImage;
-  tokenize: (text: string) => Promise<Token[]>;
+  tokenizeMany: (texts: string[]) => Promise<Token[][]>;
   tokenJoinSeparator: string;
   onWordHover: (token: Token, rect: DOMRect, contextPhrase: string) => void;
   onWordLeave: () => void;
   vertical?: boolean;
   onTokenized?: () => void;
+  onTokenizeStateChange?: (inFlight: boolean) => void;
 }
 
 interface CropSelection {
@@ -242,7 +244,6 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
     return bodyBlocks().join('\n\n');
   };
   const hasTokenParagraphs = () => tokenParagraphs().some((paragraph) => paragraph.length > 0);
-
   createEffect(() => {
     const paragraphs = bodyBlocksWithOffsets();
     if (!paragraphs.length) {
@@ -251,7 +252,20 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
     }
 
     let cancelled = false;
-    Promise.all(paragraphs.map(({ block }) => props.tokenize(block)))
+    let inFlightDone = false;
+    const reportInFlightDone = () => {
+      if (inFlightDone) return;
+      inFlightDone = true;
+      props.onTokenizeStateChange?.(false);
+    };
+    props.onTokenizeStateChange?.(true);
+
+    // One batched call: cache lookups, backend requests, and the DB persist
+    // (single put + prune) are fanned out inside tokenizeMany.
+    // Warm key: page id + full-content hash, so repagination that changes text
+    // re-warms while identical content stays deduped.
+    const warmKey = `${props.page.id}:${hashWordSync(paragraphs.map(({ block }) => block).join('\n\n'))}`;
+    props.tokenizeMany(paragraphs.map(({ block }) => block))
       .then((nextParagraphs) => {
         if (!cancelled) {
           const spans = props.page.readingSpans;
@@ -261,8 +275,9 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
           });
           setTokenParagraphs(nextTokenParagraphs);
           setTokenizeFailed(false);
+          reportInFlightDone();
           props.onTokenized?.();
-          warmReaderPageTranslations(props.page.id, nextTokenParagraphs, {
+          warmReaderPageTranslations(warmKey, nextTokenParagraphs, {
             settings,
             languageData: currentLangData(),
             dictionaryTargetLanguage: dictionaryTargetLanguage(),
@@ -288,11 +303,13 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
         if (!cancelled) {
           setTokenParagraphs([]);
           setTokenizeFailed(true);
+          reportInFlightDone();
         }
       });
 
     onCleanup(() => {
       cancelled = true;
+      reportInFlightDone();
     });
   });
 
@@ -540,7 +557,7 @@ export const ReaderRoute: Component = () => {
     if (!settings.use_anki) return null;
     return findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions())?.word ?? null;
   };
-  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const { tokenize, tokenizeMany } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { lookup } = useDictionary({ language: settings.language, ...wordLookupOptions });
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
   const parseCurrentWorkName = (name: string): string => parseWorkName(name, {
@@ -875,6 +892,13 @@ export const ReaderRoute: Component = () => {
   });
   const visiblePagesAreText = () => visiblePages().some((page) => page.kind === 'text');
   const readerHasImagePages = () => pages().some((page) => page.kind === 'image');
+  const [tokenizingTextPages, setTokenizingTextPages] = createSignal(0);
+  const isTokenizingTextPages = () => tokenizingTextPages() > 0;
+  // Stable identity: ReaderTextPage reads this prop inside its tokenization
+  // effect, so a recreated inline handler would retrack the prop on every run.
+  const handleTokenizeStateChange = (inFlight: boolean) => {
+    setTokenizingTextPages((count) => Math.max(0, count + (inFlight ? 1 : -1)));
+  };
 
   const estimateTextPageCapacity = (): number | null => {
     if (!pageContainerRef || !visiblePagesAreText()) return null;
@@ -917,9 +941,11 @@ export const ReaderRoute: Component = () => {
   let textPageCapacityEpoch: TextPageCapacityEpoch = resetTextPageCapacityEpoch(textPageCapacity());
   let textPageOverflowAuditFrame: number | undefined;
 
-  const textPageOverflows = (article: Pick<HTMLElement, 'scrollWidth' | 'clientWidth' | 'scrollHeight' | 'clientHeight'>): boolean => (
-    article.scrollWidth > article.clientWidth + 2 || article.scrollHeight > article.clientHeight + 2
-  );
+  const textPageOverflow = (article: Pick<HTMLElement, 'scrollWidth' | 'clientWidth' | 'scrollHeight' | 'clientHeight'>): number => {
+    const widthRatio = article.clientWidth > 0 ? article.scrollWidth / article.clientWidth : 1;
+    const heightRatio = article.clientHeight > 0 ? article.scrollHeight / article.clientHeight : 1;
+    return Math.max(widthRatio, heightRatio);
+  };
 
   const scheduleTextPageOverflowAudit = () => {
     if (textPageOverflowAuditFrame !== undefined) return;
@@ -927,8 +953,9 @@ export const ReaderRoute: Component = () => {
       textPageOverflowAuditFrame = undefined;
       if (!pageContainerRef || !visiblePagesAreText()) return;
       const articles = Array.from(pageContainerRef.querySelectorAll<HTMLElement>('.reader-text-page'));
-      // ponytail: self-correcting shrink loop; use a binary-search DOM slicer if eight passes ever prove insufficient.
-      const nextEpoch = auditTextPageCapacity(textPageCapacityEpoch, articles.some(textPageOverflows));
+      const overflowing = articles.filter((article) => article.scrollWidth > article.clientWidth + 2 || article.scrollHeight > article.clientHeight + 2);
+      const overflowRatio = overflowing.length > 0 ? Math.max(...overflowing.map(textPageOverflow)) : 1;
+      const nextEpoch = auditTextPageCapacity(textPageCapacityEpoch, overflowing.length > 0, overflowRatio);
       textPageCapacityEpoch = nextEpoch;
       setTextPageCapacity(nextEpoch.capacity);
     });
@@ -3061,12 +3088,13 @@ export const ReaderRoute: Component = () => {
                         >
                           <ReaderTextPage
                             page={page}
-                            tokenize={tokenize}
+                            tokenizeMany={tokenizeMany}
                             tokenJoinSeparator={getTokenJoinSeparator(currentLangData())}
                             onWordHover={handleOcrWordHover}
                             onWordLeave={handleOcrWordLeave}
                             vertical={readerBookVertical()}
                             onTokenized={scheduleTextPageOverflowAudit}
+                            onTokenizeStateChange={handleTokenizeStateChange}
                           />
                         </Show>
                       </div>
@@ -3101,6 +3129,8 @@ export const ReaderRoute: Component = () => {
             isProcessingOcr={isProcessingOcr}
             hasOcrResult={hasOcrResult}
             hasPages={hasPages}
+            isTokenizing={isTokenizingTextPages}
+            isTranslating={isTranslationWarming}
             onRunOcr={runOcr}
             onOpenConversationAgent={openConversationAgent}
             cropMode={cropMode}
