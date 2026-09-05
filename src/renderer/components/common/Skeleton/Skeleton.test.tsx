@@ -71,7 +71,11 @@ describe('Skeleton primitives', () => {
       container,
     );
 
-    expect(container.querySelector('.skeleton-text')!.getAttribute('aria-hidden')).toBe('true');
+    // Every primitive — including the standalone leaves (line, pill) — is
+    // decorative: screen readers get state from aria-busy containers instead.
+    for (const selector of ['.skeleton-line', '.skeleton-pill', '.skeleton-text']) {
+      expect(container.querySelector(selector)!.getAttribute('aria-hidden')).toBe('true');
+    }
     const staticLines = container.querySelectorAll('.skeleton-text .skeleton--static');
     expect(staticLines.length).toBeGreaterThan(0);
     // Animated primitives do not carry the static modifier.

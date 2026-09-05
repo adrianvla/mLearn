@@ -36,6 +36,7 @@ export const SkeletonLine: Component<{
   <span
     class={`skeleton-line skeleton-line--${props.size ?? 'md'}${staticClass(props.animate)}${extraClass(props.class)}`}
     style={widthStyle(props.width)}
+    aria-hidden="true"
   />
 );
 
@@ -68,6 +69,7 @@ export const SkeletonPill: Component<{
   <span
     class={`skeleton-pill${staticClass(props.animate)}${extraClass(props.class)}`}
     style={widthStyle(props.width)}
+    aria-hidden="true"
   />
 );
 
