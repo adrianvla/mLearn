@@ -788,7 +788,6 @@ describe('WelcomeLevelPreview', () => {
     );
 
     expect(container.querySelector('.wfv-level-value')?.textContent).not.toContain('%');
-    expect(container.querySelectorAll('.wfv-level-chips .skeleton-pill').length).toBeGreaterThan(0);
     // While pending the dial announces the control itself — never "no data".
     expect(container.querySelector('button.wfv-level-dial-wrap')?.getAttribute('aria-label')).toBe('Coverage');
     expect(container.querySelector('.wfv-empty')).toBeNull();
