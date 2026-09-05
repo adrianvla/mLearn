@@ -787,8 +787,10 @@ describe('WelcomeLevelPreview', () => {
       container,
     );
 
-    // Pending is not empty: no 0%, no "no data" copy — geometry placeholders only.
     expect(container.querySelector('.wfv-level-value')?.textContent).not.toContain('%');
+    expect(container.querySelectorAll('.wfv-level-chips .skeleton-pill').length).toBeGreaterThan(0);
+    // While pending the dial announces the control itself — never "no data".
+    expect(container.querySelector('button.wfv-level-dial-wrap')?.getAttribute('aria-label')).toBe('Coverage');
     expect(container.querySelector('.wfv-empty')).toBeNull();
     expect(container.querySelector('.wfv-level-value .skeleton-line')).not.toBeNull();
     expect(container.querySelectorAll('.wfv-level-side .skeleton-pill').length).toBeGreaterThan(0);

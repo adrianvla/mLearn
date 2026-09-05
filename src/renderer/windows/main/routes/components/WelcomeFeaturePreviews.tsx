@@ -412,15 +412,19 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
   return (
     <div class="wfv-level" aria-busy={props.pending || undefined}>
       <div class="wfv-level-top">
+        {/* Pending: announce the control, not a data state — emptyLabel is
+            reserved for the genuine no-data case after hydration settles. */}
         <button
           type="button"
           class="wfv-level-dial-wrap"
           aria-label={
-            props.coverage === null
-              ? props.emptyLabel
-              : props.assessedLabel
-                ? `${props.titleLabel}: ${props.coverage.pct}% (${props.assessedLabel})`
-                : `${props.titleLabel}: ${props.coverage.pct}%`
+            props.pending
+              ? props.titleLabel
+              : props.coverage === null
+                ? props.emptyLabel
+                : props.assessedLabel
+                  ? `${props.titleLabel}: ${props.coverage.pct}% (${props.assessedLabel})`
+                  : `${props.titleLabel}: ${props.coverage.pct}%`
           }
           onClick={props.onOpen}
         >
