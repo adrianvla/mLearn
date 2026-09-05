@@ -8,6 +8,7 @@ import { Component, createEffect, createSignal, For, Show } from 'solid-js';
 import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
 import type { LevelStats } from '../../../../utils/wordLevelStats';
+import { SkeletonLine, SkeletonPill } from '../../../../components/common';
 import type { RecentWordRow, WeekStatDay } from '../welcomeSelectors';
 import type { AttemptQuality } from '../../../../../shared/constants';
 import './WelcomeFeaturePreviews.css';
@@ -392,6 +393,8 @@ export interface WelcomeLevelPreviewProps {
   knownLabel?: string;
   emptyLabel: string;
   onOpen: () => void;
+  /** Learner/language data still hydrating: geometry placeholders instead of a false 0%. */
+  pending?: boolean;
 }
 
 /** Circular coverage dial with real metadata-driven level chips; empty keeps the dial shell. */
@@ -437,44 +440,68 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
               )}
             </Show>
           </svg>
-          <span class="wfv-level-value">{props.coverage === null ? '0%' : `${props.coverage.pct}%`}</span>
+          <span class="wfv-level-value">
+            {/* Pending: placeholders preserve the dial's geometry; a bare 0%
+                here is the false semantic value that made the dial morph. */}
+            <Show when={!props.pending} fallback={<SkeletonLine size="lg" width="3.2em" />}>
+              {props.coverage === null ? '0%' : `${props.coverage.pct}%`}
+            </Show>
+          </span>
+          <Show
+            when={!props.pending}
+            fallback={
+              <div class="wfv-level-side">
+                <SkeletonPill />
+                <SkeletonLine size="sm" width="60%" />
+              </div>
+            }
+          >
+            <Show
+              when={props.coverage}
+              fallback={<p class="wfv-empty">{props.emptyLabel}</p>}
+            >
+              {(coverage) => (
+                <div class="wfv-level-side">
+                  <Show when={props.active}>
+                    {(active) => (
+                      <span
+                        class="wfv-level-chip wfv-level-chip-active"
+                        title={props.knownLabel ? `${props.knownLabel}: ${knownPct(active())}%` : undefined}
+                      >
+                        <span class="wfv-level-chip-name">{active().name}</span>
+                        <span class="wfv-level-chip-pct">{knownPct(active())}%</span>
+                      </span>
+                    )}
+                  </Show>
+                  <p class="wfv-level-status">{coverage().tracked} / {coverage().total}{props.assessedLabel ? ` ${props.assessedLabel}` : ''}</p>
+                </div>
+              )}
+            </Show>
+          </Show>
         </button>
-        <Show
-          when={props.coverage}
-          fallback={<p class="wfv-empty">{props.emptyLabel}</p>}
-        >
-          {(coverage) => (
-            <div class="wfv-level-side">
-              <Show when={props.active}>
-                {(active) => (
-                  <span
-                    class="wfv-level-chip wfv-level-chip-active"
-                    title={props.knownLabel ? `${props.knownLabel}: ${knownPct(active())}%` : undefined}
-                  >
-                    <span class="wfv-level-chip-name">{active().name}</span>
-                    <span class="wfv-level-chip-pct">{knownPct(active())}%</span>
-                  </span>
-                )}
-              </Show>
-              <p class="wfv-level-status">{coverage().tracked} / {coverage().total}{props.assessedLabel ? ` ${props.assessedLabel}` : ''}</p>
-            </div>
-          )}
-        </Show>
       </div>
-      <Show when={props.coverage && remainingChips().length > 0}>
+      <Show when={!props.pending} fallback={
         <div class="wfv-level-chips">
-          <For each={remainingChips()}>
-            {(chip) => (
-              <span
-                class="wfv-level-chip"
-                title={props.knownLabel ? `${props.knownLabel}: ${knownPct(chip)}%` : undefined}
-              >
-                <span class="wfv-level-chip-name">{chip.name}</span>
-                <span class="wfv-level-chip-pct">{knownPct(chip)}%</span>
-              </span>
-            )}
-          </For>
+          <SkeletonPill />
+          <SkeletonPill />
+          <SkeletonPill />
         </div>
+      }>
+        <Show when={props.coverage && remainingChips().length > 0}>
+          <div class="wfv-level-chips">
+            <For each={remainingChips()}>
+              {(chip) => (
+                <span
+                  class="wfv-level-chip"
+                  title={props.knownLabel ? `${props.knownLabel}: ${knownPct(chip)}%` : undefined}
+                >
+                  <span class="wfv-level-chip-name">{chip.name}</span>
+                  <span class="wfv-level-chip-pct">{knownPct(chip)}%</span>
+                </span>
+              )}
+            </For>
+          </div>
+        </Show>
       </Show>
     </div>
   );

@@ -311,8 +311,15 @@ export const WelcomeRoute: Component = () => {
       levelNames: getLevelStudyLevelNames(langData, freq),
     };
   });
+  // The coverage dial must never render intermediate percentages: the store
+  // arriving, the legacy knowledge migrations settling, and the language
+  // data landing each change the numbers. Until all three are authoritative,
+  // levelStudy is pending (skeleton), not empty (0%).
+  const levelStudyPending = createMemo(() => (
+    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading()
+  ));
   const levelStudy = createMemo(() => {
-    if (flashcards.isLoading()) return null;
+    if (levelStudyPending()) return null;
     const source = levelStudySource();
     if (!source) return null;
     const stats = computeLevelStats(
@@ -526,6 +533,7 @@ export const WelcomeRoute: Component = () => {
           onClick={openLevelStudy}
           preview={
             <WelcomeLevelPreview
+              pending={levelStudyPending()}
               coverage={levelCoverage()}
               active={levelChips().active}
               chips={levelChips().chips}

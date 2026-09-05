@@ -36,6 +36,7 @@ vi.mock('../../../context', () => ({
   useFlashcards: () => ({
     store: { flashcards: {}, dailyStats: {} },
     isLoading: () => false,
+    isKnowledgeReady: () => true,
     queueCounts: () => ({ total: 0 }),
     getCurrentCard: () => null,
     getPreviewDueDates: () => null,
