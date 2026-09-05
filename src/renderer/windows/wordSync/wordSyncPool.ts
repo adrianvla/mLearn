@@ -90,6 +90,23 @@ export function isWordEligible(
   return true;
 }
 
+/**
+ * "Rated recently" for the pool's recency signal — the REAL cooldown, from two
+ * independent signals: any Word Sync rating stamps `wordSyncRatedAt` (hidden
+ * by the eligibility staleness gate), while a missed rating additionally
+ * stamps the `wordSyncSeen` policy marker (30-day fixed window).
+ */
+export function isWordSyncRecentlyRated(
+  knowledge: { wordSyncRatedAt?: number } | undefined,
+  syncSeenAt: number | undefined,
+  staleDaysMs: number,
+  now: number,
+): boolean {
+  if (knowledge?.wordSyncRatedAt !== undefined && (now - knowledge.wordSyncRatedAt) < staleDaysMs) return true;
+  if (syncSeenAt !== undefined && (now - syncSeenAt) < THIRTY_DAYS_MS) return true;
+  return false;
+}
+
 /** Weight that prioritizes unknown/low-ease words over high-ease/known ones.
  *  No knowledge → 2.0 (highest), ease 1.3 → 1.7, ease 2.5 → 0.5 (lowest). */
 export function calculateWordWeight(ease: number | undefined, characterStudyBoost: number): number {

@@ -73,6 +73,19 @@ describe('Tooltip', () => {
     dispose();
   });
 
+  // Regression: a controlled `pinned=false` (the knowledge pill renders
+  // `pinned={knowledgePinned()}`) must not fight hover shows — the pin
+  // effect only reacts to transitions, so the tooltip stays open on hover.
+  it('keeps hover tooltip open while pinned is controlled false', async () => {
+    const { dispose } = await renderTooltip({ pinned: false });
+    const trigger = container.querySelector('.tooltip-trigger')!;
+    trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
+    trigger.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(document.body.querySelector('.tooltip-content')).toBeNull();
+    dispose();
+  });
+
   it('applies position class top by default', async () => {
     const { dispose } = await renderTooltip();
     const trigger = container.querySelector('.tooltip-trigger')!;

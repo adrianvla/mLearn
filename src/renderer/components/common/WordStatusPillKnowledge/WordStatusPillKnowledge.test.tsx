@@ -49,6 +49,7 @@ vi.mock('../../../context', () => ({
     getWordVariantsForLanguage: () => [],
   }),
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     getComprehensiveWordStatusWithSourceSync: getComprehensiveWordStatusWithSourceSyncMock,
     getAspectStatus: getAspectStatusMock,
     recordAttempt: recordAttemptMock,

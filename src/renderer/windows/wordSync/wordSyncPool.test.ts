@@ -9,6 +9,7 @@ import {
   calculateWordWeight,
   isWordEligible,
   wordSyncPoolStatus,
+  isWordSyncRecentlyRated,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
 
@@ -320,5 +321,24 @@ describe('wordSyncPoolStatus', () => {
   it('never collapses Learning into Unknown (guards an "anything not known is unknown" regression)', () => {
     expect(wordSyncPoolStatus('learning', true)).not.toBe(wordSyncPoolStatus('unknown', true));
     expect(wordSyncPoolStatus('learning', false)).not.toBe(wordSyncPoolStatus('unknown', true));
+  });
+});
+
+describe('isWordSyncRecentlyRated', () => {
+  const NOW = 1_000_000_000;
+  const STALE_30D = 30 * 24 * 60 * 60 * 1000;
+
+  it('a recent non-missed rating (wordSyncRatedAt) counts as recently rated even without a miss marker', () => {
+    const knowledge = { wordSyncRatedAt: NOW - 1000 };
+    expect(isWordSyncRecentlyRated(knowledge, undefined, STALE_30D, NOW)).toBe(true);
+  });
+
+  it('both timestamps outside their windows are not recently rated', () => {
+    const knowledge = { wordSyncRatedAt: NOW - STALE_30D - 1 };
+    expect(isWordSyncRecentlyRated(knowledge, NOW - THIRTY_DAYS_MS - 1, STALE_30D, NOW)).toBe(false);
+  });
+
+  it('a recent miss marker (syncSeen) counts on its own', () => {
+    expect(isWordSyncRecentlyRated(undefined, NOW - 1000, STALE_30D, NOW)).toBe(true);
   });
 });

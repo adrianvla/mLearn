@@ -77,8 +77,11 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     if (!w) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
     return flashcards.getComprehensiveWordStatusWithSourceSync(w, props.language ?? settings.language);
   });
-  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+  const wordIsKnown = createMemo(() => flashcards.isKnowledgeReady() && comprehensiveKnowledge().status === 'known');
   const getWordColor = createMemo((): string | undefined => {
+    // Knowledge-derived coloring stays neutral until the projection hydrates
+    // (and stays neutral across store re-delivery when the gate reopens).
+    if (!flashcards.isKnowledgeReady()) return undefined;
     if (!settings.enableWordColoring) return undefined;
     if (!settings.colorKnownWords && wordIsKnown()) return undefined;
     if (!settings.do_colour_codes) return undefined;

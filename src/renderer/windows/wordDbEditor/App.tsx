@@ -31,7 +31,6 @@ import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
   import { isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
 import { wordStatusToNumeric } from '../../components/subtitle/wordHoverHelpers';
-import './WordDbEditorLayout.css';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.wordDbEditor.app");

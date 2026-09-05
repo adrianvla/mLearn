@@ -111,3 +111,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Grammar-recognition status chip (Tier-2 classification, one ease→status rule) */
+.grammar-selector__status { font-size: var(--font-size-2xs); font-weight: 600; }
+.grammar-selector__status--untracked { color: var(--text-tertiary); }
+.grammar-selector__status--unknown { color: var(--color-danger); }
+.grammar-selector__status--learning { color: var(--color-warning); }
+.grammar-selector__status--known { color: var(--color-success); }

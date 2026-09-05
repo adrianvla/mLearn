@@ -25,19 +25,26 @@
   height: 100%;
 }
 
-/* Shared column layout (used by header + entry rows) */
+/* Shared column layout (used by header + entry rows). The editor is a size
+   container: columns shrink with the window and secondary information drops
+   out before anything can overflow or double-wrap inside virtual rows. */
+.word-db-editor {
+  container-type: inline-size;
+}
+
 .col {
   padding: 0 0.5rem;
 }
 
 .col.word {
   flex: 2;
-  min-width: 150px;
+  min-width: 110px;
+  overflow: hidden;
 }
 
 .col.translation {
   flex: 3;
-  min-width: 200px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -45,25 +52,43 @@
 
 .col.level {
   flex: 1;
-  min-width: 100px;
+  min-width: 84px;
   text-align: center;
 }
 
 .col.tracker {
   flex: 1.5;
-  min-width: 260px;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  overflow: hidden;
 }
 
 .col.knowledge {
   flex: 2;
-  min-width: 230px;
+  min-width: 224px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* Capability chips are the widest part of the knowledge column — they only
+   fit beside the pill/actions on wide windows, and their data also lives one
+   click away in the Inspect drawer. */
+@container (max-width: 1099px) {
+  .col.knowledge .knowledge-capability-chips {
+    display: none;
+  }
+}
+
+/* Below this the level column loses the fight for space; the level stays
+   visible on the word's Inspect drawer and hover. */
+@container (max-width: 719px) {
+  .col.level {
+    display: none;
+  }
 }
 
 /* Entries list container */

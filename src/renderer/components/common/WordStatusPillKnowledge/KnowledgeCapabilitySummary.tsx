@@ -3,13 +3,13 @@ import { getAvailableAspects } from '../../../../shared/types';
 import { isReadingScriptText } from '../../../../shared/languageFeatures';
 import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
 import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
-import type { WordStatus } from '../../../../shared/constants';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../context';
 import {
   aspectCapabilitySummary,
   knowledgeStatusLabelKey,
   projectionStateForAspect,
   BASIS_LABEL_KEYS,
+  type AspectEffectiveState,
 } from './knowledgeSummary';
 import './KnowledgeCapabilitySummary.css';
 
@@ -27,21 +27,27 @@ export interface KnowledgeCapabilitySummaryProps {
 export const KnowledgeCapabilitySummary: Component<KnowledgeCapabilitySummaryProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const { getComprehensiveWordStatusWithSourceSync, getAspectStatus } = useFlashcards();
+  const { getComprehensiveWordStatusWithSourceSync, getAspectStatus, isKnowledgeReady } = useFlashcards();
   const { langData, currentLangData } = useLanguage();
-
   const languageData = createMemo(() => (
     langData[props.language] ?? (props.language === settings.language ? currentLangData() : null)
   ));
   const availableAspects = createMemo(() => getAvailableAspects(languageData()));
   const meaningResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word, props.language));
-  const aspectState = (aspect: KnowledgeAspect): { status: WordStatus; untracked: boolean } => (
-    aspect === 'meaning'
-      ? { status: meaningResult().status, untracked: false }
-      : (() => { const state = getAspectStatus(props.word, aspect, props.language); return { status: state.status, untracked: state.untracked === true }; })()
-  );
+  const aspectState = (aspect: KnowledgeAspect): AspectEffectiveState => {
+    if (aspect === 'meaning') {
+      const meaning = meaningResult();
+      return { status: meaning.status, basis: meaning.basis === 'unmeasured' ? undefined : meaning.basis };
+    }
+    const state = getAspectStatus(props.word, aspect, props.language);
+    return { status: state.status, untracked: state.untracked === true, basis: state.basis, claim: state.claim };
+  };
 
   const rows = createMemo(() => {
+    // Unresolved ≠ Untracked: while the learner projection hydrates, aspect
+    // records are absent because the store is empty, not because the learner
+    // is unmeasured. Render nothing instead of a wall of false Untracked.
+    if (!isKnowledgeReady()) return [];
     const word = props.word;
     // Applicable targets only; Untracked stays visible — it is the honest
     // "no measurement yet" state, not noise. Same-script reading is not a target.

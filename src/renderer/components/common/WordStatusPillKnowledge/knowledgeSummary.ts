@@ -1,6 +1,7 @@
 import { KNOWLEDGE_ASPECT_LABEL_KEYS, type WordStatus } from '../../../../shared/constants';
 import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
 import type { KnowledgeProjection, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
+import { ASPECT_CAPABILITY } from '../../../../shared/graph/types';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
 
 /**
@@ -55,8 +56,10 @@ export function knowledgeStatusLabelKey(
 export interface AspectEffectiveState {
   status: WordStatus;
   untracked?: boolean;
+  /** Provenance of the status when a record exists: an explicit claim outranks evidence. */
+  basis?: 'claim' | 'evidence';
+  claim?: WordStatus;
 }
-
 export interface AspectCapabilitySummary {
   aspect: KnowledgeAspect;
   labelKey: string;
@@ -66,18 +69,18 @@ export interface AspectCapabilitySummary {
   predictionReasons?: readonly string[];
 }
 
-/** The aspect-like capability a graph projection state describes, if any. */
+/**
+ * The aspect-like capability a graph projection state describes, if any.
+ * Single source: ASPECT_CAPABILITY (shared/graph/types). `meaning` is the one
+ * override — meaning-visible knowledge spans sense-recognition (sense entity)
+ * and surface-recognition (surface entity), and the compact summary anchors on
+ * the presented surface's row.
+ */
 export function projectionStateForAspect(
   projection: KnowledgeProjection | undefined,
   aspect: KnowledgeAspect,
 ): KnowledgeProjectionState | undefined {
-  const capability = aspect === 'meaning'
-    ? 'surface-recognition'
-    : aspect === 'reading'
-      ? 'surface-reading'
-      : aspect === 'prosody'
-        ? 'pronunciation-production'
-        : undefined;
+  const capability = aspect === 'meaning' ? 'surface-recognition' : ASPECT_CAPABILITY[aspect];
   return capability
     ? projection?.targets.flatMap((target) => target.states).find((state) => state.capability === capability)
     : undefined;
@@ -98,7 +101,25 @@ export function aspectCapabilitySummary(
   projectionState: KnowledgeProjectionState | undefined,
 ): AspectCapabilitySummary {
   const labelKey = KNOWLEDGE_ASPECT_LABEL_KEYS[aspect];
+  // A local claim outranks cached projection nuance: the projection is an
+  // async IPC snapshot that can predate the claim.
+  if (effective.basis === 'claim') {
+    return { aspect, labelKey, status: effective.status, basis: 'claim', untracked: false };
+  }
   if (projectionState) {
+    if (projectionState.basis === 'claim') {
+      // The projection's classification IS the claimed status. A claimed
+      // 'unknown' is an explicit negative statement — it must not fall back
+      // to the local resolver status, and it is never Untracked.
+      const classification = projectionState.classification;
+      return {
+        aspect, labelKey,
+        status: classification === 'known' || classification === 'learning' || classification === 'unknown'
+          ? classification
+          : effective.status,
+        basis: 'claim', untracked: false,
+      };
+    }
     if (projectionState.basis === 'prediction') {
       return {
         aspect, labelKey, status: effective.status, basis: 'prediction',
@@ -131,7 +152,8 @@ export function aspectCapabilitySummary(
   if (effective.untracked) {
     return { aspect, labelKey, status: 'unknown', basis: 'unmeasured', untracked: true };
   }
-  // A record exists without projection nuance: claim and evidence both write the
-  // same status, so without projection the resolver's record is the whole truth.
-  return { aspect, labelKey, status: effective.status, basis: 'evidence', untracked: false };
+  // A record exists without projection nuance: keep the resolver's basis —
+  // a manual aspect record arrives here with basis 'claim', and collapsing
+  // it to 'evidence' would misattribute the user's own statement.
+  return { aspect, labelKey, status: effective.status, basis: effective.basis ?? 'evidence', untracked: false };
 }

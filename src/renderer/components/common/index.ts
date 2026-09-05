@@ -199,6 +199,14 @@ export {
   recencyResolver,
 } from './FilterBuilder';
 
+// Knowledge readiness gate
+export { 
+  KnowledgeGate, 
+  KnowledgeSkeleton, 
+  type KnowledgeGateProps, 
+  type KnowledgeSkeletonVariant,
+} from './KnowledgeGate';
+
 // Loader Components
 export { 
   Loader,

@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationRes
 import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
-import { WordHover, WordStatus } from './WordHover';
+import { WordHover } from './WordHover';
 import { ExplainerPopup } from './ExplainerPopup';
 import { initWordLookupBridge } from '../../services/wordLookupService';
 import { tokensToPlainText } from '../../../shared/languageFeatures';
@@ -59,7 +59,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
   const [translationData, setTranslationData] = createSignal<TranslationResponse | null>(null);
   const [currentHoverToken, setCurrentHoverToken] = createSignal<Token | null>(null);
-  const [wordStatus, setWordStatus] = createSignal<WordStatus>('unknown');
   const [grammarOccurrences, setGrammarOccurrences] = createSignal<GrammarOccurrence[]>([]);
   // REQ39: journal grammar occurrences as factual-exposure encounters, one per pattern per subtitle line.
   const grammarEncounterRecorder = createGrammarEncounterRecorder('subtitle');
@@ -111,9 +110,13 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       return;
     }
 
-    // Track hover (signals potential unknown word, debounced in FlashcardContext)
+    // Track hover (signals potential unknown word, debounced in FlashcardContext).
+    // Gated on knowledge readiness: writing passive evidence into the
+    // pre-hydration store would be discarded by the incoming reconcile.
     const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
-    flashcardCtx.trackWordHovered(lookupWord, token.reading, settings.language);
+    if (flashcardCtx.isKnowledgeReady()) {
+      flashcardCtx.trackWordHovered(lookupWord, token.reading, settings.language);
+    }
     
     const requestId = ++hoverRequestId;
     const position = {
@@ -132,7 +135,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     setDictionaryEntries([]);
     setIsLoadingDict(false);
     setCurrentHoverToken(token);
-    setWordStatus('unknown');
     
     showHover({ 
       word: displayWord,
@@ -469,10 +471,8 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             anchorRect={data.anchorRect}
             dictionaryEntries={dictionaryEntries()}
             translationData={translationData() || undefined}
-            status={wordStatus()}
             isLoading={isLoadingDict()}
             contextPhrase={props.originalText || tokensToPlainText(props.tokens, currentLangData())}
-            onStatusChange={setWordStatus}
             onClose={hideHover}
             visible={isVisible()}
             onMouseEnter={cancelHide}

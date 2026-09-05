@@ -13,7 +13,7 @@ const ankiMocks = vi.hoisted(() => ({
 }));
 
 const updateSettingsMock = vi.fn();
-const trackWordStatusChangeMock = vi.fn();
+const knowledgeReady = { ready: true };
 const setWordClaimMock = vi.fn();
 const updateWordCardsMock = vi.fn(() => Promise.resolve({ updated: 0, repositioned: 0 }));
 let skipAnkiModifyWarning = false;
@@ -65,8 +65,8 @@ vi.mock('../../../context', () => ({
     getWordVariantsForLanguage: (language: string, word: string) => [`${language}-variant:${word}`],
   }),
   useFlashcards: () => ({
+    isKnowledgeReady: () => knowledgeReady.ready,
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
-    trackWordStatusChange: trackWordStatusChangeMock,
     getComprehensiveWordStatusWithSourceSync: () => comprehensiveResultMock,
     getWordKnowledge: () => undefined,
     setWordClaim: setWordClaimMock,
@@ -142,6 +142,7 @@ describe('WordStatusPill', () => {
     vi.clearAllMocks();
     skipAnkiModifyWarning = false;
     skipStatusSourceWarning = false;
+    knowledgeReady.ready = true;
     comprehensiveResultMock = {
       status: 'unknown',
       basis: 'unmeasured',
@@ -249,7 +250,9 @@ describe('WordStatusPill', () => {
     container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(setWordClaimMock).toHaveBeenCalledWith('de-variant:Haus', 'known', 'de');
-    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-pinned')).toBe('false');
+    // Unpinned renders as an absent prop (undefined), not literal false —
+    // passing literal `false` used to fight the tooltip's hover via the pin effect.
+    expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-pinned')).not.toBe('true');
     dispose();
   });
 
@@ -311,5 +314,27 @@ describe('WordStatusPill', () => {
 
     dispose();
   });
-});
 
+  it('renders a loading placeholder and claims nothing while knowledge has not hydrated', () => {
+    knowledgeReady.ready = false;
+    comprehensiveResultMock = {
+      status: 'unknown',
+      basis: 'unmeasured',
+      evidenceStatus: 'unknown',
+      source: 'None',
+      timesSeen: 0,
+    };
+    const dispose = render(() => <WordStatusPill word="Haus" language="de" />, container);
+
+    // Unresolved ≠ Untracked: the pill is a skeleton, not a status.
+    expect(container.querySelector('.knowledge-skeleton--pill')).not.toBeNull();
+    expect(container.textContent).not.toContain('mlearn.WordHover.Status.Unknown');
+
+    // Clicking the unresolved placeholder must not claim Known.
+    container.querySelector('.knowledge-skeleton--pill')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(setWordClaimMock).not.toHaveBeenCalled();
+
+    dispose();
+    knowledgeReady.ready = true;
+  });
+});

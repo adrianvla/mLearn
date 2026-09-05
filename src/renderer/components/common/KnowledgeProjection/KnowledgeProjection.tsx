@@ -1,4 +1,5 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
 import { RELATION_CATEGORY, type GraphRelationType, type RelationCategory } from '../../../../shared/graph/types';
@@ -216,7 +217,7 @@ interface TimelineRow {
 export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const { installLanguageData } = useLanguage();
+  const { installLanguageData, getLanguageDataStatus } = useLanguage();
   const graph = useOptionalGraph();
   const [selected, setSelected] = createSignal(0);
   const [tab, setTab] = createSignal<InspectorTab>('identity');
@@ -320,9 +321,14 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const pronunciations = createMemo(() => lookup()?.pronunciations ?? []);
   const senseCount = () => lookup()?.senses.length ?? 0;
 
+  // Install can only ever fix what the published package actually contains.
+  // If the catalog bundle for this language ships no graph asset, the button
+  // would be a dead action — show the not-published note instead.
   const canInstall = () => {
     const status = graph.meta().status;
-    return status === 'not-installed' || status === 'unavailable';
+    if (status !== 'not-installed' && status !== 'unavailable') return false;
+    const catalog = getLanguageDataStatus(settings.language);
+    return catalog?.assets.some((asset) => asset.path.endsWith('.graph.json')) ?? false;
   };
 
   /** Journal rows for the timeline: retractions and retracted events applied away. */
@@ -363,7 +369,12 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const retentionRows = createMemo(() => states().filter(({ state }) => state.retention));
   const predictedRows = createMemo(() => states().filter(({ state }) => state.prediction));
 
+  // Portal: the drawer is position:fixed, and every fixed-position element
+  // inside a transformed ancestor (.virtual-row in Word DB, hover containers)
+  // resolves its containing block there — collapsing the drawer into the row.
+  // Mounting on document.body escapes all ancestor transforms.
   return <Show when={props.open}>
+    <Portal>
     <aside class="knowledge-drawer" aria-label={t('mlearn.Knowledge.Projection.Details')}>
       <header class="knowledge-drawer__header">
         <strong>{t('mlearn.Knowledge.Projection.Details')}</strong>
@@ -400,10 +411,21 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         </div>
 
         <Show when={tab() === 'identity'}>
+          <Show when={!graph.metaLoading()} fallback={
+            <p class="knowledge-drawer__none">{t('mlearn.Knowledge.Projection.Checking')}</p>
+          }>
           <Show when={graph.meta().ready} fallback={
             <div class="knowledge-drawer__degraded">
               <p>{t('mlearn.Knowledge.Projection.Identity.NotInstalled')}</p>
-              <Show when={canInstall()}><button type="button" class="knowledge-drawer__install" onClick={() => installLanguageData(settings.language)}>{t('mlearn.Knowledge.Projection.Identity.Install')}</button></Show>
+              <p>{t('mlearn.Knowledge.GraphContract.Degraded')}</p>
+              <Show when={canInstall()}>
+                <button type="button" class="knowledge-drawer__install" onClick={() => installLanguageData(settings.language)}>{t('mlearn.Knowledge.Projection.Identity.Install')}</button>
+              </Show>
+              <Show when={!canInstall() && getLanguageDataStatus(settings.language)}>
+                {/* Only a loaded catalog proves the package omits the graph;
+                    while the catalog is still loading the absence is not evidence. */}
+                <p>{t('mlearn.Knowledge.GraphContract.NotPublished')}</p>
+              </Show>
             </div>
           }>
             <Show when={lookupState() === 'missing'} fallback={
@@ -523,6 +545,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
               <p class="knowledge-drawer__degraded">{t('mlearn.Knowledge.Projection.Identity.NoGraph')}</p>
             </Show>
           </Show>
+          </Show>
         </Show>
 
         <Show when={tab() === 'targets'}>
@@ -604,6 +627,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         </Show>
       </Show>
     </aside>
+    </Portal>
   </Show>;
 };
 

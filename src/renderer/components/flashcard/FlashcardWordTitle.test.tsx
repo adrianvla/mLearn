@@ -48,6 +48,7 @@ vi.mock('../../context', () => ({
     getReadingVariantsForLanguage: () => [],
   }),
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
   }),
   useLocalization: () => ({

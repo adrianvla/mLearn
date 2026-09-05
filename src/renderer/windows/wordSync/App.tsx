@@ -36,7 +36,9 @@ import { prosodyVisible } from '../../../shared/prosodySettings';
 import { prerequisitesOf } from '../../utils/aspectKnowledge';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { nextAttemptId, type AttemptId } from '../../../shared/knowledgeEvents';
-import { ankiCacheVersion } from '../../services/ankiWordsCache';
+import { ankiCacheVersion, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
+import { KnowledgeSkeleton } from '../../components/common';
+import { getLogger } from '../../../shared/utils/logger';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
@@ -55,8 +57,8 @@ import {
   calculateCharacterStudyBoost,
   calculateWordWeight,
   isWordEligible,
+  isWordSyncRecentlyRated,
   wordSyncPoolStatus,
-  THIRTY_DAYS_MS,
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getAvailableAspects } from '../../../shared/types';
@@ -92,6 +94,7 @@ const MAX_UNDO_STACK_SIZE = 50;
 export const WordSyncContent: Component = () => {
   const { t } = useLocalization();
   const { settings } = useSettings();
+  const log = getLogger('renderer.wordSync');
   const langCtx = useLanguage();
   const {
     store,
@@ -102,10 +105,12 @@ export const WordSyncContent: Component = () => {
     appendRetractions,
     recomputeWordKnowledgeFromEvidence,
     getWordKnowledge,
+    getWordTrackingSync,
     getWordSyncSeenSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
     getAspectStatus,
     recordAttempt,
+    isKnowledgeReady,
   } = useFlashcards();
 
   // ─── State ───────────────────────────────────────────
@@ -207,12 +212,6 @@ export const WordSyncContent: Component = () => {
     return { ok: false as const, errors: result.errors };
   });
 
-  function isSyncSeenRecentlyByKey(lk: string, now: number): boolean {
-    const ts = store.wordSyncSeen[lk];
-    if (!ts) return false;
-    return (now - ts) < THIRTY_DAYS_MS;
-  }
-
   // ─── Known character set for language-defined study scripts ─────
   const characterStudyScripts = createMemo(() => getCharacterStudyScripts(langCtx.currentLangData()));
   function buildKnownCharacterSetSnapshot(scripts: readonly string[], lang: string): Set<string> {
@@ -259,14 +258,18 @@ export const WordSyncContent: Component = () => {
         const lk = `${lang}:${hashWordSync(storageWord)}`;
 
         const knowledge = getWordKnowledge(lk);
-        const seenRecently = isSyncSeenRecentlyByKey(lk, now);
-        // Delegated to the comprehensive resolver (all banks, same precedence as the
-        // editor/pill): a local cascade here froze the bank list once already — the
-        // anki bank was missing and known-via-anki words kept entering the rotation.
+        const seenRecently = isWordSyncRecentlyRated(knowledge, store.wordSyncSeen[lk], staleDaysMs, now);
+        // Tier-2: the comprehensive resolver reads ONLY the evidence journal +
+        // claims (wordKnowledge). There is no "anki bank" to delegate to — live
+        // Anki matching is tracking, not knowledge. Words scheduled by another
+        // tracker (built-in SRS flashcards or Anki) are excluded here as
+        // teaching policy: Word Sync calibrates untracked words, and re-quizzing
+        // words another scheduler already owns would double-schedule them.
         const resolved = getComprehensiveWordStatusWithSourceSync(word, lang);
         // Excluded words are teaching-policy removals, not knowledge — either way they
         // never enter the calibration pool.
         if (resolved.status === 'known' || resolved.excluded) continue;
+        if (getWordTrackingSync(word, lang).tracker !== 'nothing') continue;
         const record = {
           status: wordSyncPoolStatus(resolved.status, Boolean(knowledge)),
           level: entry.raw_level,
@@ -577,10 +580,35 @@ export const WordSyncContent: Component = () => {
     }
   }
 
-  // Guard: only pick the first word once, after language data has loaded.
+  // Guard: only pick the first word once, after language data AND the learner
+  // projection have loaded — pool eligibility reads must not run against a
+  // half-migrated store.
   const [initialized, setInitialized] = createSignal(false);
 
   createEffect(() => {
+    // A store re-delivery re-opens the readiness gate: drop the session so the
+    // pool and presented word rebuild from the reconciled store instead of
+    // surviving stale.
+    if (!isKnowledgeReady()) {
+      if (initialized()) {
+        // Reopen the session CLEAN: a store re-delivery reconciled the
+        // knowledge the old session state was derived from — preserving part
+        // of it (rated set without count, undo without snapshots) would mix
+        // inconsistent state.
+        setInitialized(false);
+        setCurrentWord(null);
+        setFinished(false);
+        setRatedCount(0);
+        setLastRating(null);
+        setUndoStack([]);
+        setSessionRatedSet(new Set<string>());
+        setShowAnswer(false);
+        setShowTranslation(false);
+        levelCursors = new Map();
+      }
+      return;
+    }
+
     if (!filterPresetInitialized() && Object.keys(levelNames()).length > 0) {
       setFilterTokens(buildDefaultFilterPreset());
       setFilterPresetInitialized(true);
@@ -608,6 +636,25 @@ export const WordSyncContent: Component = () => {
 
   onMount(() => {
     window.addEventListener('keydown', handleKeyDown);
+    // This window owns its pool exclusions, so it cannot wait for another
+    // window to populate the Anki cache: without it, tracked words slip into
+    // the pool until some other surface happens to refresh the cache. The
+    // options must match the resolver's lookup signature (language + language
+    // data + thresholds) or the primed entry misses the pool's own lookups.
+    // The cache service deduplicates concurrent fetches and backs off failures.
+    if (settings.use_anki && !isAnkiCacheFetched({
+      language: settings.language,
+      languageData: langCtx.currentLangData(),
+      ankiLearningThreshold: settings.ankiLearningThreshold,
+      ankiKnownThreshold: settings.ankiKnownThreshold,
+    })) {
+      void refreshAnkiWordsCache({
+        language: settings.language,
+        languageData: langCtx.currentLangData(),
+        ankiLearningThreshold: settings.ankiLearningThreshold,
+        ankiKnownThreshold: settings.ankiKnownThreshold,
+      }).catch((e) => log.warn('anki cache refresh failed:', e));
+    }
   });
 
   onCleanup(() => {
@@ -689,7 +736,10 @@ export const WordSyncContent: Component = () => {
 
   return (
     <div class="word-sync">
-
+    {/* Real loading only (language data or learner projection still hydrating):
+        the shared skeleton owns that gap; once data is present the session
+        renders exactly as before, with the body handling its own empty state. */}
+    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady()} fallback={<KnowledgeSkeleton variant="word-sync" />}>
       <div class="word-sync-header">
         <span class="word-sync-counter">
           {t('mlearn.WordSync.Progress', {
@@ -838,6 +888,7 @@ export const WordSyncContent: Component = () => {
         variant="danger"
         confirmText={t('mlearn.WordSync.StartOver')}
       />
+    </Show>
     </div>
   );
 };

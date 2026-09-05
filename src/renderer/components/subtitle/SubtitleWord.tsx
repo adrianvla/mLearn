@@ -3,7 +3,7 @@
  * Individual word/token in a subtitle with hover and click functionality
  */
 
-import { Component, createMemo, createSignal, Show, onCleanup } from 'solid-js';
+import { Component, createEffect, createMemo, createSignal, Show, onCleanup } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
 import {
   hideReadingAnnotationsForKnownWords,
@@ -116,8 +116,10 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return flashcardCtx.getComprehensiveWordStatusWithSourceSync(word, settings.language);
   });
 
-  // Check if this word is known via the comprehensive knowledge system
-  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+  // Knowledge-derived rendering stays neutral until the learner projection is
+  // hydrated AND the legacy epistemic migration has settled — otherwise every
+  // token flashes Untracked and blur/coloring visibly "settles" at startup.
+  const wordIsKnown = createMemo(() => flashcardCtx.isKnowledgeReady() && comprehensiveKnowledge().status === 'known');
 
   // Determine word class based on token type
   const getWordClass = createMemo(() => {
@@ -203,19 +205,22 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     }
   };
 
-  if (typeof window !== 'undefined') {
+  // Global key listeners only in key-hover mode: hundreds of token components
+  // each adding window listeners makes every keypress O(tokens) page-wide.
+  createEffect(() => {
+    if ((settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger) !== 'key-hover') return;
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-
     onCleanup(() => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      clearLongHoverTimeout();
     });
-  }
+  });
+  onCleanup(clearLongHoverTimeout);
 
   // Get color from user overrides or package POS metadata.
   const getWordColor = createMemo((): string | undefined => {
+    if (!flashcardCtx.isKnowledgeReady()) return undefined;
     if (!settings.enableWordColoring) return undefined;
     if (!settings.colorKnownWords && wordIsKnown()) return undefined;
     if (!settings.do_colour_codes) return undefined;

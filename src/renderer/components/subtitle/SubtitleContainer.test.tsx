@@ -52,6 +52,7 @@ vi.mock('../../context', () => ({
     getFrequency: () => null,
   }),
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     isWordKnownByText: () => false,
     isWordKnownComprehensiveSync: mockIsWordKnownComprehensiveSync,

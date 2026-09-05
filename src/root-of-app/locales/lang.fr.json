@@ -1368,10 +1368,6 @@
         "surface-reading": "Lecture",
         "pronunciation-production": "Prononciation"
       },
-      "LegacySource": {
-        "Prefix": "Source de preuve : ",
-        "None": "Aucune"
-      },
       "Basis": {
         "Claim": "Déclaration explicite",
         "Evidence": "Preuve",
@@ -1455,7 +1451,8 @@
         "FullGraph": "Ouvrir le graphe complet",
         "Prediction": {
           "None": "Aucune prédiction."
-        }
+        },
+        "Checking": "Vérification du graphe linguistique…"
       },
       "Aspect": {
         "Grammar": "Grammaire",
@@ -1490,6 +1487,15 @@
       },
       "Actions": {
         "ClearOverride": "Annuler le remplacement"
+      },
+      "Loading": "Chargement des connaissances…",
+      "GraphContract": {
+        "Degraded": "Les preuves de connaissance, les déclarations, le SRS et les aides de lecture fonctionnent sans le graphe ; l'identité du graphe, les cibles d'apprentissage, les projections et les prédictions restent indisponibles jusqu'à son installation.",
+        "NotPublished": "Le paquet de langue publié ne contient pas encore de graphe linguistique ; l'installation du paquet ne changera rien."
+      },
+      "EvidenceSource": {
+        "Prefix": "Source de preuve : ",
+        "None": "Aucune"
       }
     },
     "LevelStudy": {

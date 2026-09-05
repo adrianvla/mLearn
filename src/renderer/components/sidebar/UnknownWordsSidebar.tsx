@@ -77,7 +77,7 @@ const UnknownWordRow: Component<{
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData } = useLanguage();
-  const { getCardByWordSync, getComprehensiveWordStatusSync, getComprehensiveWordStatusWithSourceSync, getAspectStatus } = useFlashcards();
+  const { getCardByWordSync, getComprehensiveWordStatusSync, getComprehensiveWordStatusWithSourceSync, getAspectStatus, isKnowledgeReady } = useFlashcards();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word, settings.language));
@@ -87,8 +87,11 @@ const UnknownWordRow: Component<{
   const comprehensiveKnowledge = createMemo(() => (
     getComprehensiveWordStatusWithSourceSync(props.entry.word, settings.language)
   ));
-  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+  const wordIsKnown = createMemo(() => isKnowledgeReady() && comprehensiveKnowledge().status === 'known');
   const getWordColor = createMemo((): string | undefined => {
+    // Knowledge-derived coloring stays neutral until the projection hydrates
+    // (and stays neutral across store re-delivery when the gate reopens).
+    if (!isKnowledgeReady()) return undefined;
     if (!settings.enableWordColoring) return undefined;
     if (!settings.colorKnownWords && wordIsKnown()) return undefined;
     if (!settings.do_colour_codes) return undefined;

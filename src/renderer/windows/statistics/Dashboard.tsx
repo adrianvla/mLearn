@@ -6,7 +6,7 @@
 
 import { Component, createMemo, createResource, createSignal, For, onMount, Show } from 'solid-js';
 import { useFlashcards, useSettings, useLanguage, useLocalization } from '../../context';
-import { StatCard, Panel, BookIcon } from '../../components/common';
+import { StatCard, Panel, BookIcon, KnowledgeGate, KnowledgeSkeleton } from '../../components/common';
 import { PieChart, BarChart, Heatmap, LineChart } from './charts';
 import type { PieSegment, BarChartDataPoint } from './charts';
 import { WordHistoryPanel } from './components/WordHistoryPanel';
@@ -529,6 +529,9 @@ export const Dashboard: Component = () => {
       </Show>
 
       {/* ─── Level Breakdown ─── */}
+      {/* Knowledge panels stay skeletons until the learner projection has
+          hydrated — zeros during load are false percentages, not real ones. */}
+      <KnowledgeGate fallback={<Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel"><KnowledgeSkeleton variant="lines" /></Panel>}>
       <Show when={getLanguageFeatures().supportsFrequencyLevels && levelBreakdown().length > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
           <h2 class="dashboard-section-title">{t('mlearn.Statistics.WordsByLevel')}</h2>
@@ -581,6 +584,7 @@ export const Dashboard: Component = () => {
           </div>
         </Panel>
       </Show>
+      </KnowledgeGate>
 
       {/* ─── Card Analysis ─── */}
       <div class="dashboard-charts-row">

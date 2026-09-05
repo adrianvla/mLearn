@@ -642,7 +642,6 @@ export const ReaderRoute: Component = () => {
   const [showOcrOverlay, setShowOcrOverlay] = createSignal(true);
   const [ocrDictionaryEntries, setOcrDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [ocrTranslationData, setOcrTranslationData] = createSignal<TranslationResponse | null>(null);
-  const [ocrWordStatus, setOcrWordStatus] = createSignal<'unknown' | 'learning' | 'known'>('unknown');
 
   // Explainer popup state
   const [explainerOpen, setExplainerOpen] = createSignal(false);
@@ -3130,7 +3129,6 @@ export const ReaderRoute: Component = () => {
               anchorRect={hoverData.anchorRect}
               dictionaryEntries={ocrDictionaryEntries()}
               translationData={ocrTranslationData() || undefined}
-              status={ocrWordStatus()}
               isOCR={true}
               contextPhrase={ocrContextPhrase()}
               ocrImageElement={(() => {
@@ -3164,7 +3162,6 @@ export const ReaderRoute: Component = () => {
                 }
                 return null;
               })()}
-              onStatusChange={setOcrWordStatus}
               onClose={hideOcrHover}
               visible={isOcrHoverVisible()}
               onMouseEnter={cancelOcrHide}

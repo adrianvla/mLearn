@@ -24,7 +24,6 @@ import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
   resolveProsodyForHover,
-  type WordStatus,
   type WordHoverTranslationData,
 } from './wordHoverHelpers';
 import { clipVideo } from '../../services/videoClipService';
@@ -98,14 +97,12 @@ export interface WordHoverProps {
   dictionaryEntries?: DictionaryEntry[];
   translationData?: WordHoverTranslationData;
   isLoading?: boolean;
-  status?: WordStatus;
   level?: number;
   isInSRS?: boolean;
   ease?: number;
   contextPhrase?: string; // The subtitle text for context
   isOCR?: boolean; // Whether in OCR mode (reader) vs video mode
   ocrImageElement?: HTMLImageElement | null; // The page image element for OCR screenshot capture
-  onStatusChange?: (status: WordStatus) => void;
   onAddFlashcard?: (token: Token, entry?: DictionaryEntry) => void;
   onAddToSRS?: () => void;
   onPlayAudio?: (word: string) => void;
@@ -840,7 +837,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <WordStatusPill
                 word={actualWord()}
                 language={settings.language}
-                onStatusChange={props.onStatusChange}
                 onModalOpenChange={setIsStatusModalOpen}
               />
               <ResourcePill

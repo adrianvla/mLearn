@@ -14,12 +14,16 @@ let graphMeta: { entityCount: number; relationCount: number; ready: boolean; sta
 vi.mock('../../../context', () => ({
   useLocalization: () => ({ t: (key: string) => key }),
   useSettings: () => ({ settings: { language: 'ja' } }),
-  useLanguage: () => ({ installLanguageData: installLanguageDataMock }),
+  useLanguage: () => ({
+    installLanguageData: installLanguageDataMock,
+    getLanguageDataStatus: () => ({ assets: [{ path: 'languages/ja.graph.json' }] }),
+  }),
 }));
 
 vi.mock('../../../context/GraphContext', () => ({
   useOptionalGraph: () => ({
     meta: () => graphMeta,
+    metaLoading: () => false,
     lookupWord: lookupWordMock,
     getNeighborhood: getNeighborhoodMock,
     getRelated: async () => [],
@@ -101,6 +105,14 @@ async function renderDrawer(overrides: Partial<{
   const { KnowledgeProjectionDrawer } = await import('./KnowledgeProjection');
   const host = document.createElement('div');
   document.body.appendChild(host);
+  // The drawer portals itself to document.body (transform-ancestors escape),
+  // so queries must target the document, not the render host. The facade keeps
+  // every assertion unchanged.
+  const portalScope = {
+    querySelector: (selector: string) => document.querySelector(selector),
+    querySelectorAll: (selector: string) => document.querySelectorAll(selector),
+    get textContent() { return document.body.textContent ?? ''; },
+  } as unknown as HTMLDivElement;
   const model = overrides.model ? assembleWordKnowledgeModel(overrides.model) : undefined;
   const dispose = render(() => (
     <KnowledgeProjectionDrawer
@@ -117,7 +129,7 @@ async function renderDrawer(overrides: Partial<{
   ), host);
   await flushAsync();
   await flushAsync();
-  return { host, dispose };
+  return { host: portalScope, dispose };
 }
 
 describe('KnowledgeCapabilityChips', () => {

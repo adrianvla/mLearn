@@ -24,6 +24,35 @@ const graph = loadLinguisticGraph({
 });
 
 describe('buildKnowledgeProjection', () => {
+  it('emits one state per (entity, capability) even when package data duplicates relations', () => {
+    const duplicated = loadLinguisticGraph({
+      schemaVersion: 1,
+      language: 'ja',
+      generatedAt: '',
+      sourceVersions: {},
+      entities: [
+        { id: surfaceId, kind: 'surface', label: '猫' },
+        { id: 'ja:dictionary-entry:cat', kind: 'dictionary-entry' },
+        { id: senseId, kind: 'sense', label: 'cat' },
+      ],
+      relations: [
+        { from: surfaceId, to: 'ja:dictionary-entry:cat', type: 'realizes' },
+        { from: 'ja:dictionary-entry:cat', to: senseId, type: 'has-sense' },
+        // Package banks repeat entries: the same has-sense edge twice must not
+        // duplicate the sense's states in the projection payload.
+        { from: 'ja:dictionary-entry:cat', to: senseId, type: 'has-sense' },
+      ],
+    });
+    const result = buildKnowledgeProjection(duplicated, surfaceId, [], policy);
+    const sense = result.targets.find((target) => target.targetRef.id === senseId);
+    const recognitionStates = sense?.states.filter((state) => state.capability === 'sense-recognition') ?? [];
+    expect(recognitionStates).toHaveLength(1);
+    const surface = result.targets.find((target) => target.targetRef.id === surfaceId)!;
+    const surfaceCapabilities = surface.states.map((state) => state.capability);
+    expect(new Set(surfaceCapabilities).size).toBe(surfaceCapabilities.length);
+  });
+
+
   it('uses active evidence, groups provenance, derives retention, and round-trips JSON', () => {
     const result = buildKnowledgeProjection(graph, surfaceId, [
       { t: 1, kind: 'rating', source: 'anki', aspect: 'meaning', easeAfter: 2, rating: 'good', method: 'recall', quality: 'fluent', attemptId: 'kept', latencyMs: 42 },

@@ -1368,10 +1368,6 @@
         "surface-reading": "Reading",
         "pronunciation-production": "Pronunciation"
       },
-      "LegacySource": {
-        "Prefix": "Evidence source: ",
-        "None": "None"
-      },
       "Basis": {
         "Claim": "Explicit claim",
         "Evidence": "Evidence",
@@ -1455,7 +1451,8 @@
         "FullGraph": "Open full graph",
         "Prediction": {
           "None": "No prediction."
-        }
+        },
+        "Checking": "Checking the linguistic graph…"
       },
       "Aspect": {
         "Grammar": "Grammar",
@@ -1490,6 +1487,15 @@
       },
       "Actions": {
         "ClearOverride": "Clear override"
+      },
+      "Loading": "Loading knowledge…",
+      "GraphContract": {
+        "Degraded": "Knowledge evidence, claims, SRS and reader aids keep working without the graph; graph identity, learnable targets, projections and predictions stay unavailable until it is installed.",
+        "NotPublished": "The published language package does not include a linguistic graph yet, so installing the package will not change this."
+      },
+      "EvidenceSource": {
+        "Prefix": "Evidence source: ",
+        "None": "None"
       }
     },
     "LevelStudy": {

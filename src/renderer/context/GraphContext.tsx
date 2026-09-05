@@ -6,16 +6,20 @@ import { useSettings } from './SettingsContext';
 
 interface GraphContextValue {
   meta: () => GraphMeta;
+  /** True while the active-language graph probe is in flight. The initial
+   * meta reads 'unavailable' purely as a placeholder — consumers must show a
+   * loading state, not the not-installed/degraded contract, until this clears. */
+  metaLoading: () => boolean;
   lookupWord: (input: GraphLookupInput) => Promise<GraphWordLookup | null>;
   getRelated: (entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
   getTargetsForSurfaces: (inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
   getNeighborhood: (query: GraphNeighborhoodQuery) => Promise<GraphNeighborhood | null>;
-}
-
+};
 const unavailableMeta: GraphMeta = { entityCount: 0, relationCount: 0, ready: false, status: 'unavailable' };
 const GraphContext = createContext<GraphContextValue>();
 const unavailableGraph: GraphContextValue = {
   meta: () => unavailableMeta,
+  metaLoading: () => false,
   lookupWord: async () => null,
   getRelated: async () => [],
   getTargetsForSurfaces: async () => [],
@@ -25,15 +29,23 @@ const unavailableGraph: GraphContextValue = {
 export const GraphProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const [meta, setMeta] = createSignal<GraphMeta>(unavailableMeta);
+  const [metaLoading, setMetaLoading] = createSignal(true);
   let request = 0;
 
   createEffect(() => {
     const language = settings.language;
     const currentRequest = ++request;
+    setMetaLoading(true);
     void getBridge().graph.getGraphMeta(language).then((nextMeta) => {
-      if (currentRequest === request) setMeta(nextMeta);
+      if (currentRequest === request) {
+        setMeta(nextMeta);
+        setMetaLoading(false);
+      }
     }).catch(() => {
-      if (currentRequest === request) setMeta({ ...unavailableMeta, status: 'error' });
+      if (currentRequest === request) {
+        setMeta({ ...unavailableMeta, status: 'error' });
+        setMetaLoading(false);
+      }
     });
   });
 
@@ -46,6 +58,7 @@ export const GraphProvider: ParentComponent = (props) => {
   return (
     <GraphContext.Provider value={{
       meta,
+      metaLoading,
       lookupWord: (input) => active((language) => getBridge().graph.lookupGraphWord(language, input), null),
       getRelated: (entityId, relationTypes) => active(
         (language) => getBridge().graph.getGraphRelated(language, entityId, relationTypes), [],

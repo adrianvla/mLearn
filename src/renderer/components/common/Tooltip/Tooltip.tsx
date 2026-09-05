@@ -1,4 +1,4 @@
-import { Component, JSX, Show, createEffect, createSignal, onCleanup } from 'solid-js';
+import { Component, JSX, Show, createEffect, createSignal, on, onCleanup } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import './Tooltip.css';
 
@@ -115,14 +115,17 @@ export const Tooltip: Component<TooltipProps> = (props) => {
 
   onCleanup(hide);
 
-  createEffect(() => {
-    if (props.pinned) {
+  // Pin transitions only: a controlled `pinned` value must open on true and
+  // close on an explicit true→false flip, but never fight hover shows while it
+  // sits at false (that closed every hover the moment the portal mounted).
+  createEffect(on(() => props.pinned, (pinned, previous) => {
+    if (pinned) {
       cancelHide();
       show();
-    } else if (props.pinned === false && visible()) {
+    } else if (previous !== undefined && visible()) {
       hide();
     }
-  });
+  }, { defer: true }));
 
   createEffect(() => {
     if (!props.pinned) return;

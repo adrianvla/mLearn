@@ -4,7 +4,7 @@
  * Supports three hover modes: immediate hover, long hover (delay), and key+hover.
  */
 
-import { Component, Show, createMemo, createSignal, onCleanup } from 'solid-js';
+import { Component, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { matchesKeybind } from '../common/Input/KeybindInput';
@@ -36,6 +36,7 @@ const LONG_HOVER_DELAY = 500;
 export const OcrWord: Component<OcrWordProps> = (props) => {
   const { settings } = useSettings();
   const flashcardCtx = useFlashcards();
+  const knowledgeReady = () => flashcardCtx.isKnowledgeReady();
   const { currentLangData, getLanguageFeatures, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   
   // Reference to the word span element - used to get stable getBoundingClientRect
@@ -77,11 +78,14 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     if (!word) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
     return flashcardCtx.getComprehensiveWordStatusWithSourceSync(word, settings.language);
   });
-
-  const wordIsKnown = createMemo(() => comprehensiveKnowledge().status === 'known');
+  // Knowledge-derived rendering stays neutral until the learner projection is
+  // hydrated AND the legacy epistemic migration has settled — otherwise every
+  // token flashes Untracked and known-coloring visibly "settles" at startup.
+  const wordIsKnown = createMemo(() => knowledgeReady() && comprehensiveKnowledge().status === 'known');
 
   // Get color from user overrides or package POS metadata.
   const getWordColor = createMemo((): string | undefined => {
+    if (!knowledgeReady()) return undefined;
     if (!settings.enableWordColoring) return undefined;
     if (!settings.colorKnownWords && wordIsKnown()) return undefined;
     if (!settings.do_colour_codes) return undefined;
@@ -141,10 +145,9 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   const handleMouseEnter = (e: MouseEvent) => {
     setIsMouseOver(true);
     
-    if (props.trackPassiveHover !== false) {
+    if (props.trackPassiveHover !== false && knowledgeReady()) {
       flashcardCtx.trackWordHovered(lookupWord(), props.token.reading, settings.language);
     }
-
     const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     
     switch (triggerMode) {
@@ -217,18 +220,19 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       }
     }
   };
-  
-  // Set up global key listeners for key-hover mode
-  if (typeof window !== 'undefined') {
+  // Global key listeners only in key-hover mode: hundreds of token components
+  // each adding window listeners makes every keypress O(tokens) page-wide.
+  createEffect(() => {
+    if ((settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger) !== 'key-hover') return;
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    
     onCleanup(() => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      clearLongHoverTimeout();
     });
-  }
+  });
+  onCleanup(clearLongHoverTimeout);
+  
   
   return (
     <span

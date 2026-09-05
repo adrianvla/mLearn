@@ -4,13 +4,16 @@
  * Only rendered when the current language supports grammar data.
  */
 
-import { Component, createSignal, createMemo, For, Show } from 'solid-js';
+import { Component, createSignal, createMemo, For } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
 import { useLanguage, type GrammarEntry } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { Input, SelectableCard, PillLabel, EmptyState, HintText, LevelPillsFilter, CollapsibleStickyHeader, HoverReveal } from '../common';
 import type { TutorGrammarSelection } from '../../../shared/types';
 import { compareGrammarLevelsForDisplay, getGrammarLevelLabel, getGrammarLevelVisualRank, sortGrammarLevelsForDisplay } from '../../../shared/languageFeatures';
+import { SRS_EASE, type WordStatus } from '../../../shared/constants';
+import { classifyGrammarStatus } from '../../../shared/utils/grammarPolicy';
+import { knowledgeStatusLabelKey } from '../common/WordStatusPillKnowledge/knowledgeSummary';
 import './GrammarSelector.css';
 
 interface GrammarSelectorProps {
@@ -146,6 +149,22 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
         <For each={filteredGrammar()}>
           {(gp) => {
             const knowledge = () => flashcardCtx.getGrammarKnowledge(gp.pattern);
+            // Tier-2 read: the materialized grammar cache IS the replayed
+            // grammar-recognition projection. Classification goes through the
+            // tested grammar classifier (grammarPolicy) with the canonical
+            // SRS anchors — exposure-only encounter bumps (1.3–1.55) stay
+            // Unknown: observation alone demonstrates nothing. No entry means
+            // Untracked — no measurement, not "unknown".
+            const grammarStatus = () => {
+              const entry = knowledge();
+              if (!entry) return { status: 'unknown' as WordStatus, untracked: true, basis: 'unmeasured' as const };
+              return {
+                status: classifyGrammarStatus(entry.ease, { learning: SRS_EASE.DEFAULT_LEARNING, known: SRS_EASE.DEFAULT_KNOWN }),
+                untracked: false,
+                basis: 'evidence' as const,
+              };
+            };
+            const statusLabel = () => t(knowledgeStatusLabelKey(grammarStatus().status, grammarStatus().basis, grammarStatus().untracked));
             const failureLabel = () => t('mlearn.AITutorSetup.GrammarFailureStats', {
               failed: String(knowledge()?.timesFailed ?? 0),
               seen: String(knowledge()?.timesEncountered ?? 0),
@@ -161,15 +180,13 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
                 showCheckmark
               >
                 <p class="grammar-selector__card-meaning">{gp.meaning}</p>
-                <Show when={(knowledge()?.timesFailed ?? 0) > 0}>
-                  <HoverReveal
-                    icon={<span class="grammar-selector__failure-count">{`${knowledge()!.timesFailed}/${knowledge()!.timesEncountered}`}</span>}
-                    label={failureLabel()}
-                    title={failureLabel()}
-                    class={`grammar-selector__card-meta grammar-selector__card-meta--${knowledge()!.ease < settings.easeThresholdLearning ? 'error' : knowledge()!.ease < settings.easeThresholdKnown ? 'warning' : 'default'}`}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </Show>
+                <HoverReveal
+                  icon={<span class={`grammar-selector__status grammar-selector__status--${grammarStatus().untracked ? 'untracked' : grammarStatus().status}`}>{statusLabel()}</span>}
+                  label={knowledge() ? `${statusLabel()} · ${failureLabel()}` : statusLabel()}
+                  title={failureLabel()}
+                  class="grammar-selector__card-meta"
+                  onClick={(e) => e.stopPropagation()}
+                />
               </SelectableCard>
             );
           }}

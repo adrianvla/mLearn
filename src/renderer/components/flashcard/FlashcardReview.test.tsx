@@ -59,6 +59,7 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
 
 vi.mock('../../context', () => ({
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     store: { flashcards: {} },
     queueCounts: () => ({ new: 1, learning: 0, review: 0, total: 1 }),
     getCurrentCard: () => mockCard(),

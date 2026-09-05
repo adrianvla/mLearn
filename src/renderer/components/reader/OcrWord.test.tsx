@@ -48,6 +48,7 @@ vi.mock('../../hooks/useTranslation', () => ({
 vi.mock('../../context', () => ({
   useSettings: () => ({ settings: mockSettings }),
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     trackWordHovered: mockTrackWordHovered,
     cancelWordHover: mockCancelWordHover,

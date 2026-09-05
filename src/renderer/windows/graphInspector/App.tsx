@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, type Component } from 'solid-js';
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { assembleTargetExplanation, type TargetState } from '../../../shared/graph/explanations';
-import type { CapabilityKind, RelationCategory } from '../../../shared/graph/types';
+import type { CapabilityKind, GraphRelationType, RelationCategory } from '../../../shared/graph/types';
 import type { GraphNeighborhood } from '../../../shared/graph/ipc';
 import { getBridge } from '../../../shared/bridges';
 import { WindowWrapper, useFlashcards, useGraph, useLocalization, useSettings } from '../../context';
@@ -59,8 +59,15 @@ export const GraphInspectorContent: Component = () => {
   const explanation = createMemo(() => selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta) : undefined);
 
   return <div class="graph-inspector">
-    <header class="graph-inspector__header"><h1>{t('mlearn.GraphInspector.Title')}</h1><Show when={neighborhood()?.center}><p>{neighborhood()!.center.label ?? neighborhood()!.center.id}</p></Show></header>
-    <Show when={!graph.meta().ready}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.Unavailable')}</p></Show>
+    <Show when={graph.metaLoading()}><p class="graph-inspector__empty">{t('mlearn.Knowledge.Projection.Checking')}</p></Show>
+    <Show when={!graph.metaLoading()}>
+    <Show when={!graph.meta().ready}>
+      <div class="graph-inspector__degraded">
+        <p class="graph-inspector__empty">{t('mlearn.GraphInspector.Unavailable')}</p>
+        <p class="graph-inspector__empty">{t('mlearn.Knowledge.GraphContract.Degraded')}</p>
+      </div>
+    </Show>
+    </Show>
     <Show when={graph.meta().ready && !neighborhood()}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.SelectEntity')}</p></Show>
     <Show when={neighborhood()}>
       <section class="graph-inspector__section">
@@ -71,7 +78,7 @@ export const GraphInspectorContent: Component = () => {
           onSelect={(id) => { setSelectedCapability(undefined); setEntityId(id); }}
         />
       </section>
-      <section class="graph-inspector__targets"><h2>{t('mlearn.GraphInspector.Capabilities')}</h2><For each={capabilitiesFor(neighborhood()!)}>{(capability) => <button type="button" class="graph-inspector__chip" onClick={() => setSelectedCapability(capability)}>{capability}</button>}</For></section>
+      <section class="graph-inspector__targets"><h2>{t('mlearn.GraphInspector.Capabilities')}</h2><For each={capabilitiesFor(neighborhood()!)}>{(capability) => <button type="button" class="graph-inspector__chip" classList={{ 'is-active': selectedCapability() === capability }} onClick={() => setSelectedCapability(capability)}>{capability}</button>}</For></section>
       <For each={classes}>{(category) => <section class={`graph-inspector__section graph-inspector__section--${category}`}>
         <h2>{t(`mlearn.GraphInspector.${category}`)}</h2><Show when={category === 'support'}><p>{t('mlearn.GraphInspector.SupportCaption')}</p></Show>
         <For each={grouped()[category]}>{(relation) => <button type="button" class="graph-inspector__relation" onClick={() => openGraphInspector({ entityId: relation.id })}>
@@ -93,12 +100,17 @@ export const GraphInspectorContent: Component = () => {
 
 export const GraphInspectorApp: Component = () => <WindowWrapper showDragRegion><GraphInspectorContent /></WindowWrapper>;
 
-function categoryFor(type: import('../../../shared/graph/types').GraphRelationType): RelationCategory {
+function categoryFor(type: GraphRelationType): RelationCategory {
   return type === 'inflection-of' || type === 'lemma-of' ? 'identity' : type.startsWith('has-') || type === 'realizes' ? 'property' : 'support';
 }
 function capabilitiesFor(neighborhood: GraphNeighborhood): CapabilityKind[] {
   if (neighborhood.center.kind !== 'surface') return [];
-  return ['surface-recognition', ...(neighborhood.relations.some((relation) => relation.relationType === 'has-pronunciation') ? ['surface-reading' as const, 'pronunciation-production' as const] : [])];
+  return ['surface-recognition',
+    ...(neighborhood.relations.some((relation) => relation.relationType === 'has-pronunciation') ? ['surface-reading' as const, 'pronunciation-production' as const] : []),
+    // Pitch/tone data is a property of the surface like pronunciation, so its
+    // capability belongs in the inspector's selectable set alongside it.
+    ...(neighborhood.relations.some((relation) => relation.relationType === 'has-prosodic-pattern') ? ['prosodic-pattern' as const] : []),
+  ];
 }
 function metadata(relation: GraphNeighborhood['relations'][number]): string {
   return [relation.domain, relation.confidence, relation.provenance].filter((value) => value !== undefined).join(' · ');

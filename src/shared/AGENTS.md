@@ -18,8 +18,8 @@ Renderer-only platform abstraction layer. Types, constants, bridges, backends, p
 - **Bridges are renderer-only** — they depend on browser APIs (`window.mLearnIPC`, `fetch`, Capacitor plugins)
 - **Singleton factories** — `getBridge()` and `getBackend()` cache instances; call `resetBackend()` on URL/mode changes
 - **Single source of truth** — `types.ts` for all cross-process types; `constants.ts` for all constants
-- **Bridge composition** — `PlatformBridge` is 16 sub-interfaces (`SettingsBridge`, `FlashcardBridge`, `LLMBridge`, etc.)
-- **Backend modes** — `local` (direct), `tethered` (desktop proxy), `cloud` (remote). All resolve to `HttpBackend` with different base URLs
+- **Bridge composition** — `PlatformBridge` is 22 sub-interfaces (`SettingsBridge`, `FlashcardBridge`, `LLMBridge`, etc.)
+- **Backend modes** — `backendMode` is `'local' | 'tethered'` only. All modes resolve to `HttpBackend` with different base URLs
 - **`nodeServerAdapter.ts`** — HTTP client for desktop web server sync endpoints; used by `SyncService` and `CapacitorBridge` in tethered mode
 
 ## ANTI-PATTERNS

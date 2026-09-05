@@ -73,6 +73,7 @@ vi.mock('../../context', () => ({
     getReadingVariants: (reading: string) => [reading],
   }),
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
     getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),

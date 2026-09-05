@@ -142,6 +142,7 @@ vi.mock('../../context', () => ({
     settings: { ...mockSettings, showProsody: mockShowProsody },
   }),
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     hasWordSync: mockHasWordSync,
     getCardByWordSync: mockGetCardByWordSync,

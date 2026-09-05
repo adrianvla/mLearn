@@ -1,0 +1,70 @@
+/* Shared skeleton vocabulary for the knowledge readiness gate.
+   One source for placeholders — consumers never hand-roll shimmer markup. */
+
+.knowledge-skeleton {
+  display: inline-block;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  vertical-align: middle;
+}
+
+/* Status-pill placeholder */
+.knowledge-skeleton--pill {
+  width: 5.5rem;
+  height: 1.65rem;
+}
+
+/* Text-line placeholder */
+.knowledge-skeleton--lines {
+  width: 100%;
+  height: 0.9rem;
+  border-radius: 4px;
+}
+
+/* Word Sync review card placeholder: word, reading line, rating row */
+.knowledge-skeleton--word-sync {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  width: min(28rem, 90%);
+  margin: 0 auto;
+  background: none;
+  animation: none;
+}
+
+.knowledge-skeleton--word-sync .knowledge-skeleton__word {
+  width: 11rem;
+  height: 2.6rem;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.knowledge-skeleton--word-sync .knowledge-skeleton__line {
+  width: 60%;
+  height: 0.9rem;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.knowledge-skeleton--word-sync .knowledge-skeleton__actions {
+  display: flex;
+  gap: var(--spacing-2);
+  width: 100%;
+  justify-content: center;
+}
+
+.knowledge-skeleton--word-sync .knowledge-skeleton__action {
+  width: 6.5rem;
+  height: 2.2rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}

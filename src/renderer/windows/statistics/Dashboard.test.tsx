@@ -16,7 +16,7 @@ let settingsMock: { language: string; newDayHour: number; known_ease_threshold: 
 let eventLogMock: Record<string, KnowledgeEvent[]> = {};
 
 vi.mock('../../context', () => ({
-  useFlashcards: () => ({ store: flashcardStoreMock }),
+  useFlashcards: () => ({ store: flashcardStoreMock, isKnowledgeReady: () => true }),
   useSettings: () => ({ settings: settingsMock }),
   useLanguage: () => ({
     getWordFrequency: () => ({}),
@@ -53,7 +53,11 @@ vi.mock('../../../shared/bridges', () => ({
   }),
 }));
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/common')>();
+  return ({
+  KnowledgeGate: actual.KnowledgeGate,
+  KnowledgeSkeleton: actual.KnowledgeSkeleton,
   StatCard: (props: { label: string; value: string | number }) => (
     <div class="mock-statcard"><span>{props.label}</span><b>{props.value}</b></div>
   ),
@@ -61,7 +65,8 @@ vi.mock('../../components/common', () => ({
   BookIcon: () => <span>book</span>,
   Input: (props: { placeholder?: string }) => <input placeholder={props.placeholder} />,
   KnowledgeHistoryGraph: () => <div data-testid="mock-knowledge-history-graph" />,
-}));
+  });
+});
 
 vi.mock('../../hooks/useKnowledgeHistory', () => ({
   useKnowledgeHistory: () => ({

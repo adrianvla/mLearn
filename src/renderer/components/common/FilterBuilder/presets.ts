@@ -50,18 +50,15 @@ export function buildWordSyncPreset(
   languageData?: LanguageData | null,
 ): FilterToken[] {
   if (targetLevel === null || targetLevel === undefined) {
-    // The default filter was empty without a target level; keep that and
-    // add only the not-recently-rated clause.
-    return buildNotRecentlyRatedClause();
+    // No target level: still default to Untracked-only (plus the recency
+    // clause) so the default session never presents measured words.
+    return [statusUntrackedToken(), ...buildNotRecentlyRatedClause()];
   }
 
-  const tokens: FilterToken[] = [
-    { instanceId: uniqueId(), kind: 'paren', dir: 'open' },
-    statusUntrackedToken(),
-    { instanceId: uniqueId(), kind: 'operator', op: 'OR' },
-    statusUnknownToken(),
-    { instanceId: uniqueId(), kind: 'paren', dir: 'close' },
-  ];
+  // Default pool = Untracked only. Unknown means *measured not-known* — those
+  // words are calibration too, but they are deliberately opt-in via the
+  // filter: the default session targets words with no measurement at all.
+  const tokens: FilterToken[] = [statusUntrackedToken()];
 
   const levels = getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
 
@@ -75,7 +72,7 @@ export function buildWordSyncPreset(
 }
 
 // Status clause stays meaningful without a target level; wordSync's preset
-// returns only its not-recently-rated clause in that case.
+// returns Untracked + the not-recently-rated clause in that case.
 export function buildBulkAddDefaultPreset(
   levelNames: Record<string, string>,
   targetLevel: number | null | undefined,

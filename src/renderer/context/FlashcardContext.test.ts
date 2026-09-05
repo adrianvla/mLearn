@@ -555,6 +555,18 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('knowledge readiness stays unresolved until load AND legacy epistemic migration settle', async () => {
+    const { ctx, dispose } = await mountProvider();
+    // Before hydration the store is empty: absence must not read as
+    // "unmeasured knowledge", so the gate stays closed.
+    expect(ctx.isKnowledgeReady()).toBe(false);
+    flashcardsCb(makeEmptyStore());
+    // Migration is async (journal reads); readiness opens only after it
+    // settles so rows the honesty cap flips are never shown mid-flight.
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    dispose();
+  });
+
   it('preserves the sync revision from the received store (CAS push path)', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore({ rev: 7 }));
@@ -1728,6 +1740,74 @@ describe('FlashcardProvider', () => {
     ctx.setAspectStatus('さすが', 'prosody', 'unknown', 'manual', 'ja');
     expect(ctx.store.wordKnowledge[sasugaLk]?.aspects?.prosody?.status).toBe('unknown');
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.aspects?.prosody?.status).toBe('unknown');
+    dispose();
+  });
+
+  it('clearing an aspect claim on a claim-only record removes it — clear must not fabricate evidence', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('ねこ')}`;
+
+    ctx.setAspectStatus('ねこ', 'reading', 'known', 'manual', 'ja');
+    expect(ctx.store.wordKnowledge[lk]?.aspects?.reading?.claim).toBe('known');
+
+    ctx.clearAspectClaim('ねこ', 'reading', 'ja');
+    await vi.waitFor(() => {
+      // No observation events exist under the aspect: the record must be gone
+      // entirely instead of surviving as evidence-backed Known.
+      expect(ctx.store.wordKnowledge[lk]?.aspects?.reading).toBeUndefined();
+    });
+    expect(ctx.getAspectStatus('ねこ', 'reading', 'ja').untracked).toBe(true);
+    dispose();
+  });
+
+  it('clearing an aspect claim on an evidence-backed record reverts to the evidence classification', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('いぬ')}`;
+
+    // Seed real observation evidence: a materialized aspect record plus its
+    // journal observation (the two are normally kept in step by the writers).
+    mockAppendEvents.mock.calls.push([{
+      [lk]: [{
+        t: 1, kind: 'rating', source: 'srs', aspect: 'reading',
+        toStatus: 'learning', easeAfter: 1.7, rating: 'struggled', attemptId: 'ev-1',
+      }],
+    }]);
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          word: 'いぬ', language: 'ja', ease: 1.7, lastSeen: 1, firstSeen: 1, timesSeen: 2, timesHovered: 0,
+          hasActiveEvidence: true,
+          aspects: { reading: { status: 'learning', ease: 1.7, source: 'Srs', lastStatusChange: 1 } },
+        },
+      },
+    }));
+
+    // The learner overrides the evidence with an explicit Known claim…
+    ctx.setAspectStatus('いぬ', 'reading', 'known', 'manual', 'ja');
+    expect(ctx.store.wordKnowledge[lk]?.aspects?.reading?.claim).toBe('known');
+    // …and the underlying evidence classification AND its timestamp
+    // fingerprint are preserved, not overwritten by the claim.
+    expect(ctx.store.wordKnowledge[lk]?.aspects?.reading?.status).toBe('learning');
+    expect(ctx.store.wordKnowledge[lk]?.aspects?.reading?.lastStatusChange).toBe(1);
+
+    ctx.clearAspectClaim('いぬ', 'reading', 'ja');
+    await vi.waitFor(() => {
+      const record = ctx.store.wordKnowledge[lk]?.aspects?.reading;
+      expect(record?.claim).toBeUndefined();
+      // Reverted to the evidence classification, provenance is evidence again.
+      expect(record?.status).toBe('learning');
+      expect(record?.lastStatusChange).toBe(1);
+    });
+    // The second store delivery re-opened the readiness gate; wait for the
+    // migration to settle before reading through the gated resolver.
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    const resolved = ctx.getAspectStatus('いぬ', 'reading', 'ja');
+    expect(resolved.status).toBe('learning');
+    expect(resolved.basis).toBe('evidence');
     dispose();
   });
 

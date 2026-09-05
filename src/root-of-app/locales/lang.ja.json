@@ -1368,10 +1368,6 @@
         "surface-reading": "読み",
         "pronunciation-production": "発音"
       },
-      "LegacySource": {
-        "Prefix": "証拠のソース: ",
-        "None": "なし"
-      },
       "Basis": {
         "Claim": "明示的な申告",
         "Evidence": "根拠",
@@ -1455,7 +1451,8 @@
         "FullGraph": "完全なグラフを開く",
         "Prediction": {
           "None": "予測はありません。"
-        }
+        },
+        "Checking": "言語グラフを確認中…"
       },
       "Aspect": {
         "Grammar": "文法",
@@ -1490,6 +1487,15 @@
       },
       "Actions": {
         "ClearOverride": "上書きを解除"
+      },
+      "Loading": "知識を読み込み中…",
+      "GraphContract": {
+        "Degraded": "知識のエビデンス・表明・SRS・閲読支援はグラフなしで機能します。グラフの識別・学習ターゲット・射影・予測はインストールまで利用できません。",
+        "NotPublished": "公開中の言語パッケージにはまだ言語グラフが含まれていないため、パッケージをインストールしても変わりません。"
+      },
+      "EvidenceSource": {
+        "Prefix": "証拠のソース: ",
+        "None": "なし"
       }
     },
     "LevelStudy": {

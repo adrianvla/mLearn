@@ -1368,10 +1368,6 @@
         "surface-reading": "Lesen",
         "pronunciation-production": "Aussprache"
       },
-      "LegacySource": {
-        "Prefix": "Evidenzquelle: ",
-        "None": "Keine"
-      },
       "Basis": {
         "Claim": "Eigene Einschätzung",
         "Evidence": "Nachweis",
@@ -1455,7 +1451,8 @@
         "FullGraph": "Vollständigen Graphen öffnen",
         "Prediction": {
           "None": "Keine Vorhersage."
-        }
+        },
+        "Checking": "Linguistischer Graph wird geprüft…"
       },
       "Aspect": {
         "Grammar": "Grammatik",
@@ -1490,6 +1487,15 @@
       },
       "Actions": {
         "ClearOverride": "Überschreibung aufheben"
+      },
+      "Loading": "Wissen wird geladen…",
+      "GraphContract": {
+        "Degraded": "Wissensevidenz, Claims, SRS und Lesehilfen funktionieren auch ohne Graph; Graphidentität, Lernziele, Projektionen und Vorhersagen bleiben bis zur Installation unverfügbar.",
+        "NotPublished": "Das veröffentlichte Sprachpaket enthält noch keinen linguistischen Graphen – eine Installation ändert daran nichts."
+      },
+      "EvidenceSource": {
+        "Prefix": "Evidenzquelle: ",
+        "None": "Keine"
       }
     },
     "LevelStudy": {

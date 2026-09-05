@@ -16,6 +16,7 @@ import { showToast } from '../Feedback/Toast';
 import { buildWordStatusSourceLabel, getWordStatusChangeAction } from './wordStatusPillLogic';
 import { isUntrackedKnowledge, knowledgeStatusLabelKey } from '../WordStatusPillKnowledge/knowledgeSummary';
 import { WordStatusPillKnowledge } from '../WordStatusPillKnowledge';
+import { KnowledgeGate } from '../KnowledgeGate';
 
 const ICON_CROSS2 = 'cross2';
 const ICON_CHECK = 'check';
@@ -44,7 +45,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     getWordVariantsForLanguage,
     currentLangData,
   } = useLanguage();
-  const { trackWordStatusChange, getComprehensiveWordStatusWithSourceSync, setWordClaim } = useFlashcards();
+  const { getComprehensiveWordStatusWithSourceSync, setWordClaim } = useFlashcards();
   const { t } = useLocalization();
   const anki = useAnki();
 
@@ -101,8 +102,8 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     }
 
     return buildWordStatusSourceLabel({
-      prefix: t('mlearn.Knowledge.LegacySource.Prefix'),
-      noneLabel: t('mlearn.Knowledge.LegacySource.None'),
+      prefix: t('mlearn.Knowledge.EvidenceSource.Prefix'),
+      noneLabel: t('mlearn.Knowledge.EvidenceSource.None'),
       sourceLabels,
       displayedWord: props.word,
       canonicalWord: result.matchedWord ?? primaryWord(),
@@ -127,7 +128,6 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     if (!word) return;
 
     setWordClaim(word, nextStatus, targetLanguage());
-    trackWordStatusChange(word, targetLanguage());
 
     const ankiWord = matchedAnkiWord();
     if (!skipAnki && ankiWord && settings.use_anki && nextStatus !== 'unknown') {
@@ -267,30 +267,35 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
 
   return (
     <>
-      <Tooltip
-        interactive
-        pinned={knowledgePinned()}
-        onRequestClose={() => setKnowledgePinned(false)}
-        onShow={() => setKnowledgeTooltipOpen(true)}
-        onHide={() => setKnowledgeTooltipOpen(false)}
-        content={
-          <WordStatusPillKnowledge
-            word={props.word}
-            language={targetLanguage()}
-            pinned={knowledgePinned()}
-            onClose={() => setKnowledgePinned(false)}
-            onPin={() => setKnowledgePinned(true)}
-            statusSourceLabel={statusSourceLabel()}
+      {/* Unresolved ≠ Untracked: before the learner projection hydrates the
+          pill shows a neutral loading placeholder — claiming Known or reading
+          a status from a half-loaded store would present false semantics. */}
+      <KnowledgeGate variant="pill">
+        <Tooltip
+          interactive
+          pinned={knowledgePinned() || undefined}
+          onRequestClose={() => setKnowledgePinned(false)}
+          onShow={() => setKnowledgeTooltipOpen(true)}
+          onHide={() => setKnowledgeTooltipOpen(false)}
+          content={
+            <WordStatusPillKnowledge
+              word={props.word}
+              language={targetLanguage()}
+              pinned={knowledgePinned()}
+              onClose={() => setKnowledgePinned(false)}
+              onPin={() => setKnowledgePinned(true)}
+              statusSourceLabel={statusSourceLabel()}
+            />
+          }
+        >
+          <PillBtn
+            variant={statusVariant()}
+            icon={statusIcon()}
+            label={props.iconOnly ? '' : statusLabel()}
+            onClick={handleStatusChange}
           />
-        }
-      >
-        <PillBtn
-          variant={statusVariant()}
-          icon={statusIcon()}
-          label={props.iconOnly ? '' : statusLabel()}
-          onClick={handleStatusChange}
-        />
-      </Tooltip>
+        </Tooltip>
+      </KnowledgeGate>
       <AnkiModifyWarningModal
         isOpen={showStatusSourceWarning()}
         title={t('mlearn.Knowledge.OverrideWarning.Title')}

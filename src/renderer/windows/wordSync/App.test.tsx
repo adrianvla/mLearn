@@ -38,12 +38,17 @@ const mockWordSyncState = vi.hoisted(() => ({
     },
   } as Record<string, { reading: string; raw_level: number; level: string }>,
   wordSyncSeen: {} as Record<string, number>,
+  getWordTrackingSync: vi.fn((_word: string, _language?: string): { tracker: 'anki' | 'flashcards' | 'nothing' } => ({ tracker: 'nothing' })),
   knownUntracked: {} as Record<string, unknown>,
   ignoredWords: {} as Record<string, unknown>,
   wordKnowledge: {} as Record<string, { word: string; [key: string]: unknown }>,
   currentLangData: null as { textProcessing?: { readingAnnotation?: boolean }; prosody?: { type?: string } } | null,
   getCanonicalFormForLanguage: vi.fn((_language: string, word: string) => word),
 }));
+
+function filterTokenShapes(tokens: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return tokens.map(({ instanceId: _ignored, ...rest }) => rest);
+}
 
 const mockCommonState = vi.hoisted(() => ({
   filterBuilderProps: null as {
@@ -52,11 +57,6 @@ const mockCommonState = vi.hoisted(() => ({
   } | null,
   defaultPreset: [
     {
-      instanceId: 'default-open-status',
-      kind: 'paren',
-      dir: 'open',
-    },
-    {
       instanceId: 'default-status-untracked',
       kind: 'operand',
       field: 'status',
@@ -64,21 +64,16 @@ const mockCommonState = vi.hoisted(() => ({
       value: 'untracked',
     },
     {
-      instanceId: 'default-status-or',
+      instanceId: 'default-recency-and',
       kind: 'operator',
-      op: 'OR',
+      op: 'AND',
     },
     {
-      instanceId: 'default-status-unknown',
+      instanceId: 'default-recency-not-recent',
       kind: 'operand',
-      field: 'status',
+      field: 'recency',
       op: 'eq',
-      value: '0',
-    },
-    {
-      instanceId: 'default-close-status',
-      kind: 'paren',
-      dir: 'close',
+      value: 'false',
     },
   ],
   buildWordSyncPreset: vi.fn(),
@@ -107,7 +102,8 @@ vi.mock('../../context', async () => {
     getCanonicalFormForLanguage: mockWordSyncState.getCanonicalFormForLanguage,
   }),
   useFlashcards: () => ({
-    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
+    isKnowledgeReady: () => true,
+    getWordTrackingSync: mockWordSyncState.getWordTrackingSync,
     isLoading: () => false,
     store: {
       wordKnowledge: mockWordSyncState.wordKnowledge,
@@ -152,6 +148,7 @@ vi.mock('../../components/common', async (importOriginal) => {
   // Real RatingMatrix: rating tests exercise the actual input controller.
   RatingMatrix: actual.RatingMatrix,
   RateOptions: undefined,
+  KnowledgeSkeleton: actual.KnowledgeSkeleton,
   Btn: (props: { children?: JSX.Element; onClick?: () => void; class?: string }) => (
     <button type="button" class={props.class} onClick={props.onClick}>{props.children}</button>
   ),
@@ -294,6 +291,8 @@ describe('WordSyncContent', () => {
     mockWordSyncState.ignoredWords = {};
     mockWordSyncState.wordKnowledge = {};
     mockWordSyncState.getCanonicalFormForLanguage.mockReset();
+    mockWordSyncState.getWordTrackingSync.mockReset();
+    mockWordSyncState.getWordTrackingSync.mockImplementation(() => ({ tracker: 'nothing' as const }));
     mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((_language: string, word: string) => word);
     mockCommonState.filterBuilderProps = null;
     mockCommonState.buildWordSyncPreset.mockClear();
@@ -343,6 +342,30 @@ describe('WordSyncContent', () => {
     // Pool order is shuffled — either word may surface first.
     expect(mockRecordAttempt).toHaveBeenCalledWith(expect.any(String), 'meaning', 'fluent', expect.objectContaining({ language: 'ja' }));
     expect(mockWordSyncState.getCanonicalFormForLanguage.mock.calls.length).toBe(initialCanonicalizations);
+    dispose();
+  });
+
+  it('excludes words tracked by another scheduler (Anki/SRS) from the calibration pool', async () => {
+    // Tier-2: the pool calibrates UNTRACKED words. A word scheduled elsewhere
+    // (tracker !== 'nothing') never enters the pool even though the evidence
+    // journal has no entry for it — tracking is policy, not knowledge.
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    mockWordSyncState.getWordTrackingSync.mockImplementation((word: string) => (
+      word === '赤い' ? { tracker: 'anki' as const } : { tracker: 'nothing' as const }
+    ));
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = render(() => <WordSyncContent />, container);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The only eligible word is 青い; 赤い must be skipped entirely.
+    expect(container.textContent).toContain('青い');
+    expect(container.textContent).not.toContain('赤い');
     dispose();
   });
 
@@ -1059,12 +1082,11 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockCommonState.filterBuilderProps?.tokens).toMatchObject([
-      { kind: 'paren', dir: 'open' },
+    // instanceIds are regenerated per preset build — compare token shapes only.
+    expect(filterTokenShapes(mockCommonState.filterBuilderProps?.tokens ?? [])).toEqual([
       { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
-      { kind: 'operator', op: 'OR' },
-      { kind: 'operand', field: 'status', op: 'eq', value: '0' },
-      { kind: 'paren', dir: 'close' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
     ]);
 
     container.querySelector<HTMLButtonElement>('.mock-filter-clear')?.click();
@@ -1089,12 +1111,11 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockCommonState.filterBuilderProps?.tokens).toMatchObject([
-      { kind: 'paren', dir: 'open' },
+    // instanceIds are regenerated per preset build — compare token shapes only.
+    expect(filterTokenShapes(mockCommonState.filterBuilderProps?.tokens ?? [])).toEqual([
       { kind: 'operand', field: 'status', op: 'eq', value: 'untracked' },
-      { kind: 'operator', op: 'OR' },
-      { kind: 'operand', field: 'status', op: 'eq', value: '0' },
-      { kind: 'paren', dir: 'close' },
+      { kind: 'operator', op: 'AND' },
+      { kind: 'operand', field: 'recency', op: 'eq', value: 'false' },
     ]);
     expect(mockCommonState.buildWordSyncPreset).toHaveBeenCalledTimes(2);
     expect(mockClearAllWordSyncSeen).toHaveBeenCalledTimes(1);

@@ -17,7 +17,7 @@ vi.mock('../../context', () => ({
   useLocalization: () => ({ t: (key: string) => key }),
   useSettings: () => ({ settings: { language: 'ja' } }),
   useFlashcards: () => ({ store: { meta: { learningSteps: [1], relearnSteps: [1], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 365 } } }),
-  useGraph: () => ({ meta: () => ({ ready: true }), getNeighborhood: vi.fn().mockResolvedValue(neighborhood) }),
+  useGraph: () => ({ meta: () => ({ ready: true }), metaLoading: () => false, getNeighborhood: vi.fn().mockResolvedValue(neighborhood) }),
 }));
 vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({

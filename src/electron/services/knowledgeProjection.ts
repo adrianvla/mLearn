@@ -51,11 +51,15 @@ export function buildKnowledgeProjection(
   if (!domainEnabled(surface)) return { status: 'ready', surfaceId, targets: [] };
   const entries = relationsOf(graph, surfaceId).filter((relation) => relation.type === 'realizes')
     .map((relation) => relation.from === surfaceId ? relation.to : relation.from);
-  const entities = [surface, ...entries.flatMap((entryId) => relationsOf(graph, entryId)
+  // One entry can list the same sense/lexeme several times (bank duplication
+  // in package data); visiting an entity twice would emit the same
+  // (entity, capability) state twice into the projection payload.
+  const entityIds = new Set<string>([surfaceId, ...entries.flatMap((entryId) => relationsOf(graph, entryId)
     .filter((relation) => relation.type === 'has-sense')
-    .map((relation) => relation.from === entryId ? relation.to : relation.from)
+    .map((relation) => relation.from === entryId ? relation.to : relation.from))]);
+  const entities = [...entityIds]
     .map((id) => graph.nodes.get(id))
-    .filter((entity): entity is NonNullable<typeof entity> => entity !== undefined))]
+    .filter((entity): entity is NonNullable<typeof entity> => entity !== undefined)
     .filter(domainEnabled);
   const targets = learnableTargetsFor(graph, entities);
   const groups = new Map<string, KnowledgeProjectionTarget>();

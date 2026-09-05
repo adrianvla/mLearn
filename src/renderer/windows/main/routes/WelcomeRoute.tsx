@@ -8,7 +8,7 @@ import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
+import { VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
 import {
   WelcomeFeatureCard,
   WelcomeVideoPreview,
@@ -123,11 +123,29 @@ export const WelcomeRoute: Component = () => {
   };
 
   const openAITutor = () => {
+    // The unconfigured state must not be a dead card: with no LLM ready, the
+    // card routes to Settings → AI where the provider is configured. A
+    // disabled button swallows clicks (and even hover tooltips), which read as
+    // a broken sidebar item rather than a setup requirement.
+    if (!isLLMReady(settings)) {
+      getBridge().window.openWindow({
+        type: 'settings',
+        context: { section: 'ai' } as unknown as Record<string, unknown>,
+      });
+      return;
+    }
     setShowTutorModal(true);
   };
 
   const handleTutorSubmit = () => {
     const draft = tutorDraft().trim();
+    // Both tutor launch paths funnel through the same readiness gate: an
+    // unconfigured LLM routes to Settings → AI instead of opening an agent
+    // that cannot run.
+    if (!isLLMReady(settings)) {
+      openAITutor();
+      return;
+    }
     if (draft) {
       getBridge().window.openWindow({
         type: 'conversation-agent',
@@ -143,12 +161,17 @@ export const WelcomeRoute: Component = () => {
   };
 
   const handleStartTutor = (config: TutorSessionConfig) => {
+    if (!isLLMReady(settings)) {
+      openAITutor();
+      return;
+    }
     setShowTutorModal(false);
     getBridge().window.openWindow({
       type: 'conversation-agent',
       context: { tutorConfig: config } as unknown as Record<string, unknown>,
     });
   };
+
 
   const openRecent = (item: RecentItem) => {
     // Don't try to open items with no path (legacy items or failed saves)
@@ -514,56 +537,27 @@ export const WelcomeRoute: Component = () => {
             />
           }
         />
-
-        <Show
-          when={!isLLMReady(settings)}
-          fallback={
-            <WelcomeFeatureCard
-              icon={<BotIcon size={24} />}
-              title={t('mlearn.Home.Cards.AITutor.Title')}
-              description={t('mlearn.Home.Cards.AITutor.Description')}
-              onClick={openAITutor}
-              class="welcome-ai-tutor-card"
-              preview={
-                <WelcomeTutorPreview
-                  ready
-                  readyLabel={t('mlearn.Global.Ready')}
-                  setupLabel={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
-                  placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: getLanguageName() })}
-                  mobile={isMobile()}
-                  draft={tutorDraft()}
-                  onDraftChange={setTutorDraft}
-                  onSubmit={handleTutorSubmit}
-                />
-              }
+        <WelcomeFeatureCard
+          icon={<BotIcon size={24} />}
+          title={t('mlearn.Home.Cards.AITutor.Title')}
+          description={isLLMReady(settings)
+            ? t('mlearn.Home.Cards.AITutor.Description')
+            : t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
+          onClick={openAITutor}
+          class="welcome-ai-tutor-card"
+          preview={
+            <WelcomeTutorPreview
+              ready={isLLMReady(settings)}
+              readyLabel={t('mlearn.Global.Ready')}
+              setupLabel={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
+              placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: getLanguageName() })}
+              mobile={isMobile()}
+              draft={tutorDraft()}
+              onDraftChange={setTutorDraft}
+              onSubmit={handleTutorSubmit}
             />
           }
-        >
-          <Tooltip
-            content={t('mlearn.Home.Cards.AITutor.SetupRequiredTooltip')}
-          >
-            <WelcomeFeatureCard
-              icon={<BotIcon size={24} />}
-              title={t('mlearn.Home.Cards.AITutor.Title')}
-              description={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
-              onClick={openAITutor}
-              disabled
-              class="welcome-ai-tutor-card"
-              preview={
-                <WelcomeTutorPreview
-                  ready={false}
-                  readyLabel={t('mlearn.Global.Ready')}
-                  setupLabel={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
-                  placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: getLanguageName() })}
-                  mobile={isMobile()}
-                  draft={tutorDraft()}
-                  onDraftChange={setTutorDraft}
-                  onSubmit={handleTutorSubmit}
-                />
-              }
-            />
-          </Tooltip>
-        </Show>
+        />
           </section>
         }
       >
@@ -629,7 +623,6 @@ export const WelcomeRoute: Component = () => {
             }
             onClick={openAITutor}
             primary
-            disabled={!isLLMReady(settings)}
             class="welcome-ai-tutor-card"
           />
         </section>

@@ -1368,10 +1368,6 @@
         "surface-reading": "读音",
         "pronunciation-production": "发音"
       },
-      "LegacySource": {
-        "Prefix": "证据来源：",
-        "None": "无"
-      },
       "Basis": {
         "Claim": "明确申告",
         "Evidence": "有依据",
@@ -1455,7 +1451,8 @@
         "FullGraph": "打开完整图谱",
         "Prediction": {
           "None": "无预测。"
-        }
+        },
+        "Checking": "正在检查语言图…"
       },
       "Aspect": {
         "Grammar": "语法",
@@ -1490,6 +1487,15 @@
       },
       "Actions": {
         "ClearOverride": "清除覆盖"
+      },
+      "Loading": "正在加载知识…",
+      "GraphContract": {
+        "Degraded": "知识证据、声明、SRS 和阅读辅助在没有语言图的情况下仍然可用；图的标识、学习目标、投影和预测在安装前不可用。",
+        "NotPublished": "已发布的语言包尚未包含语言图，因此安装该软件包不会改变此状态。"
+      },
+      "EvidenceSource": {
+        "Prefix": "证据来源：",
+        "None": "无"
       }
     },
     "LevelStudy": {

@@ -50,6 +50,7 @@ vi.mock('../../context', () => ({
     },
   }),
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
     getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
   }),
