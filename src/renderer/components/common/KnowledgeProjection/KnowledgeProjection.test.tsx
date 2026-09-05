@@ -23,7 +23,7 @@ vi.mock('../../../context', () => ({
 vi.mock('../../../context/GraphContext', () => ({
   useOptionalGraph: () => ({
     meta: () => graphMeta,
-    metaLoading: () => false,
+    readiness: () => graphMeta.status === 'ready' ? 'ready' : graphMeta.status === 'error' ? 'failed' : 'unavailable',
     lookupWord: lookupWordMock,
     getNeighborhood: getNeighborhoodMock,
     getRelated: async () => [],

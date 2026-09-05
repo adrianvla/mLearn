@@ -40,11 +40,8 @@
 }
 
 .word-definition__loading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
+  display: block;
+  width: 100%;
 }
 
 .word-definition__translation {

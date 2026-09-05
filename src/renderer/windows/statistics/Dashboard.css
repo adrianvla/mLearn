@@ -369,3 +369,10 @@
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
 }
+
+/* Boot skeleton shown while the consolidated learner store hydrates. */
+.dashboard-boot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}

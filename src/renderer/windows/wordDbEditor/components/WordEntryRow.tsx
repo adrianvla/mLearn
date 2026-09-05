@@ -5,7 +5,7 @@
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, GraphNeighborhoodViz, PillLabel, AnkiHoverPreview, KnowledgeCapabilityChips, KnowledgeProjectionDrawer, type InspectorTab } from '../../../components/common';
+import { Btn, GraphNeighborhoodViz, PillLabel, AnkiHoverPreview, KnowledgeCapabilityChips, KnowledgeProjectionDrawer, ReadinessGate, deriveReadiness, SkeletonRows, type InspectorTab } from '../../../components/common';
 import { assembleWordKnowledgeModel } from '../../../components/common/KnowledgeProjection/wordKnowledgeModel';
 import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
@@ -212,20 +212,31 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const [showGraph, setShowGraph] = createSignal(false);
   const [graphEntityId, setGraphEntityId] = createSignal<string>();
   const [neighborhood, setNeighborhood] = createSignal<GraphNeighborhood | null>(null);
+  // `neighborhood() === null` is ambiguous (in flight vs genuinely absent);
+  // this flag is the explicit pending half of the readiness pair.
+  const [neighborhoodPending, setNeighborhoodPending] = createSignal(false);
   // Track the entry's graph surface id as the projection resolves; resets on entry swap.
   createEffect(() => {
     setGraphEntityId(projection()?.surfaceId);
     setNeighborhood(null);
+    setNeighborhoodPending(false);
   });
   createEffect(() => {
     if (!showGraph()) return;
     const id = graphEntityId();
     if (!id || !graph.meta().ready) return;
     let disposed = false;
+    setNeighborhoodPending(true);
     void graph.getNeighborhood({ entityId: id, depth: 1 }).then((next) => {
-      if (!disposed) setNeighborhood(next);
+      if (!disposed) {
+        setNeighborhood(next);
+        setNeighborhoodPending(false);
+      }
     }).catch(() => {
-      if (!disposed) setNeighborhood(null);
+      if (!disposed) {
+        setNeighborhood(null);
+        setNeighborhoodPending(false);
+      }
     });
     onCleanup(() => { disposed = true; });
   });
@@ -666,7 +677,10 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         </header>
         <Show when={graph.meta().ready} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Unavailable')}</p>}>
           <Show when={graphEntityId()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
-            <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.Loading')}</p>}>
+            {/* Pending ≠ not-in-graph: the skeleton holds only while the
+                lookup is in flight; absence resolves to the explicit note. */}
+            <ReadinessGate when={deriveReadiness({ pending: neighborhoodPending })} instant fallback={<SkeletonRows rows={2} />}>
+            <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
               {(value) => (
                 <GraphNeighborhoodViz
                   neighborhood={value()}
@@ -675,6 +689,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
                 />
               )}
             </Show>
+            </ReadinessGate>
           </Show>
         </Show>
       </section>

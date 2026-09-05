@@ -30,6 +30,7 @@ vi.mock('../../context', () => ({
     getFreqLevelNames: getFreqLevelNamesMock,
     getFrequency: (word: string) => wordFrequencyMock[word] ?? null,
     currentLangData: () => currentLangDataMock,
+    isLoading: () => false,
   }),
   useLocalization: () => ({
     t: localizationMock,
@@ -43,11 +44,12 @@ vi.mock('../../context', () => ({
     getComprehensiveWordStatusSync: getComprehensiveWordStatusSyncMock,
     isWordKnownByText: () => false,
     isWordLearningByText: () => false,
+    isKnowledgeReady: () => true,
   }),
 }));
 
 vi.mock('../../components/common', () => ({
-  Spinner: (props: { text?: string }) => <div>{props.text}</div>,
+  SkeletonGrid: (props: { cells?: number }) => <div data-testid="skeleton-grid" data-cells={props.cells} />,
   PillLabel: (props: {
     children?: JSX.Element;
     class?: string;

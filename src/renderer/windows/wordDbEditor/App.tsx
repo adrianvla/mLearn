@@ -16,7 +16,7 @@ import './WordDbEditorLayout.css';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
 import {
   ModalLoadingOverlay,
-  Spinner,
+  SkeletonRows,
   CollapsibleStickyHeader,
   buildEmptyPreset,
   buildWordDbEditorFields,
@@ -611,11 +611,12 @@ export const WordDbEditorContent: Component = () => {
 
   return (
       <div class="word-db-editor">
-        {/* Loading indicator while initializing or waiting for word frequency data */}
+        {/* While initializing or waiting for word frequency data, keep the
+            list's geometry with placeholder rows instead of a blank page —
+            the window opens as a stable shell, never as an empty table. */}
         <Show when={!isInitialized() || (browseMode() === 'all' && !hasLoadedWords() && !isLoading())}>
-          <div class="init-loading">
-            <Spinner size={44} shape="square" strokeWidth={8} cornerRadius={0} text={t('mlearn.WordDbEditor.Loading')}/>
-            {/*<Spinner size={40} shape="square" text={t('mlearn.WordDbEditor.Loading')} />*/}
+          <div class="init-loading" aria-busy="true">
+            <SkeletonRows rows={9} />
           </div>
         </Show>
 

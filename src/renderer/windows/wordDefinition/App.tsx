@@ -6,7 +6,7 @@ import { getBridge } from '../../../shared/bridges';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { fetchTranslation, getCachedTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Spinner, ClockIcon, SafeHtml } from '../../components/common';
+import { PillBtn, PillLabel, ClockIcon, SafeHtml, SkeletonText } from '../../components/common';
 import { ProsodyOverlay } from '../../components/language-specific';
 import { WordStatusPill } from '../../components/common/Smart';
 import {
@@ -214,10 +214,10 @@ const WordDefinitionContent: Component = () => {
       </div>
 
       <div class="word-definition__body" onClick={handleContentClick}>
+        {/* Preserve the definition panel's shape while the lookup resolves. */}
         <Show when={isLoading()}>
-          <div class="word-definition__loading">
-            <Spinner size={24} />
-            <span>{t('mlearn.WordHover.Loading')}</span>
+          <div class="word-definition__loading" aria-busy="true">
+            <SkeletonText lines={3} />
           </div>
         </Show>
 

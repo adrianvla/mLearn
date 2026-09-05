@@ -55,7 +55,6 @@
   overflow: hidden;
 }
 
-.memory-browser-loading,
 .memory-browser-empty {
   display: flex;
   align-items: center;
@@ -64,6 +63,12 @@
   padding: var(--spacing-5);
   color: var(--text-tertiary);
   font-size: var(--font-size-base);
+}
+
+/* Skeleton placeholder fills the body to preserve the content geometry. */
+.memory-browser-loading {
+  flex: 1;
+  padding: var(--spacing-5);
 }
 
 /* Tabs */

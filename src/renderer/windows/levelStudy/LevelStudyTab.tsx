@@ -5,7 +5,7 @@ import { LevelDetailModal } from './LevelDetailModal';
 import { BulkAddModal } from './BulkAddModal';
 import { computeBeyondExamLevelStats, computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
-import { EmptyState, TargetIcon, Btn, PillBtn } from '../../components/common';
+import { EmptyState, TargetIcon, Btn, PillBtn, SkeletonCard, SkeletonRows } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
 import {
   getFrequencyLevelLabel,
@@ -190,7 +190,16 @@ export const LevelStudyTab: Component = () => {
 
   return (
     <div class="level-study-tab">
-      <Show when={!flashcards.isLoading()}>
+      {/* Level stats are derived from the learner projection and the
+          installed frequency data: until both are authoritative, keep the
+          tab's geometry with placeholders instead of a blank panel, zeroed
+          coverage, or a false empty state. */}
+      <Show when={flashcards.isKnowledgeReady() && !language.isLoading()} fallback={
+        <div class="level-study-boot" aria-busy="true">
+          <SkeletonCard lines={2} />
+          <SkeletonRows rows={3} />
+        </div>
+      }>
         <Show
         when={hasFrequencyData()}
         fallback={

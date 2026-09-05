@@ -76,3 +76,9 @@
   color: var(--text-primary);
   font-weight: 700;
 }
+
+/* Form-field skeleton while the translation lookup resolves. */
+.edit-translation-dialog__loading {
+  display: block;
+  padding: var(--spacing-2) 0;
+}

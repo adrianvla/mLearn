@@ -30,7 +30,6 @@
         "Truncated": "Показано связей: {shown} из {total}.",
         "NotInGraph": "Этот элемент не входит в языковой граф.",
         "OpenInWindow": "Открыть в инспекторе графа",
-        "Loading": "Загрузка окрестности…",
         "State": {
           "EvidenceBackedKnown": "Известно на основе доказательств",
           "ClaimedKnown": "Известно (заявлено)",
@@ -1071,7 +1070,7 @@
       "Suggested": {
         "Title": "Предлагаемые карточки",
         "Description": "Автоматически собраны во время чтения или просмотра. Продвиньте, чтобы сгенерировать перевод, пример и аудио.",
-        "Loading": "Загрузка предложений...",
+        "SortOldest": "Сначала старые",
         "CountLabel": "{shown} показано · всего {total}",
         "SearchPlaceholder": "Поиск по слову или чтению…",
         "EmptyTitle": "Пока нет предложений",
@@ -1106,8 +1105,7 @@
         "SortCountAsc": "Сначала редкие",
         "SortWordAsc": "Слово (А–Я)",
         "SortWordDesc": "Слово (Я–А)",
-        "SortNewest": "Сначала новые",
-        "SortOldest": "Сначала старые"
+        "SortNewest": "Сначала новые"
       }
     },
     "Global": {
@@ -1116,6 +1114,7 @@
       },
       "Add": "Добавить",
       "AppName": "mLearn",
+      "NoCardFound": "Карточка не найдена",
       "Aria": {
         "CloseAlert": "Закрыть уведомление",
         "CloseModal": "Закрыть окно",
@@ -1451,8 +1450,7 @@
         "FullGraph": "Открыть полный граф",
         "Prediction": {
           "None": "Прогноза нет."
-        },
-        "Checking": "Проверка лингвистического графа…"
+        }
       },
       "Aspect": {
         "Grammar": "Грамматика",
@@ -1604,7 +1602,7 @@
     },
     "MemoryBrowser": {
       "Empty": "Записей памяти пока нет.",
-      "Loading": "Загрузка памяти...",
+      "Title": "Обзор памяти",
       "Open": "Открыть обзор памяти",
       "OpenInAgent": "Обзор памяти",
       "Sections": {
@@ -1616,8 +1614,7 @@
       },
       "Tabs": {
         "Room": "Комната"
-      },
-      "Title": "Обзор памяти"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Карточки Anki загружены из кэша (похоже, Anki сейчас недоступен)",
@@ -3037,7 +3034,10 @@
       },
       "Explain": "Объяснить",
       "InAnki": "В Anki",
-      "Loading": "Загрузка...",
+      "Compound": {
+        "Title": "Сложное слово",
+        "Ambiguous": "Несколько разборов"
+      },
       "NoTranslation": "Перевод не найден",
       "Status": {
         "Known": "Известное",
@@ -3056,11 +3056,7 @@
       "AnkiEase": "Anki Ease: {ease}",
       "AnkiUpdateSuccess": "Обновлено {count} карточек Anki",
       "AnkiUpdateRepositioned": "Обновлено {count} карточек, перемещено {repositioned} новых",
-      "AnkiUpdateFailed": "Не удалось обновить карточки Anki",
-      "Compound": {
-        "Title": "Сложное слово",
-        "Ambiguous": "Несколько разборов"
-      }
+      "AnkiUpdateFailed": "Не удалось обновить карточки Anki"
     },
     "ConnectionStatus": {
       "Connected": "Подключено",
@@ -3396,16 +3392,6 @@
         "Unmeasured": "Неизмеренный:"
       },
       "LevelFallback": "Уровень {level}",
-      "Loading": "Загрузка данных о символах...",
-      "Stats": {
-        "Evidenced": "Подтверждено напрямую:",
-        "Claimed": "Заявлено:",
-        "Familiar": "Знакомых:",
-        "Emerging": "Формируются:",
-        "TotalFound": "Всего:",
-        "Unmeasured": "Неизмеренных:"
-      },
-      "Title": "Знакомство с символами",
       "Tooltip": {
         "Claim": {
           "known": "Вы заявили, что читаете этот символ.",
@@ -3428,7 +3414,16 @@
         "Score": "Оценка",
         "WordsContaining": "Слова с {char}",
         "PredictionNote": "Знакомство прогнозируется по известным/изучаемым словам ниже, содержащим этот символ, — это не прямое знание самого символа."
-      }
+      },
+      "Stats": {
+        "Evidenced": "Подтверждено напрямую:",
+        "Claimed": "Заявлено:",
+        "Familiar": "Знакомых:",
+        "Emerging": "Формируются:",
+        "TotalFound": "Всего:",
+        "Unmeasured": "Неизмеренных:"
+      },
+      "Title": "Знакомство с символами"
     }
   }
 }

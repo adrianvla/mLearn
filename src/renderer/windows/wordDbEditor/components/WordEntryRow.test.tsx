@@ -82,6 +82,9 @@ vi.mock('../../../components/common', () => ({
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => (
     <button type="button" onClick={props.onClick}>{props.children}</button>
   ),
+  ReadinessGate: (props: { children?: JSX.Element }) => <>{props.children}</>,
+  deriveReadiness: () => () => 'ready' as const,
+  SkeletonRows: (props: { rows?: number }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,
   PillLabel: (props: { children?: JSX.Element; class?: string; variant?: string }) => (
     <span class={props.class} data-variant={props.variant}>{props.children}</span>
   ),
@@ -1509,6 +1512,39 @@ describe('WordEntryRow', () => {
     expect(lastVizProps?.neighborhood?.center.label).toBe('増える');
     expect(lastVizProps?.centerState).toBe('evidence-backed-known');
     expect(openGraphInspectorMock).toHaveBeenLastCalledWith({ entityId: `ja:surface:${hashA}` });
+
+    dispose();
+  });
+
+  it('resolves the graph note to NotInGraph — never a permanent Loading — when the word has no neighborhood', async () => {
+    mockGetKnowledgeProjection.mockResolvedValue({ status: 'ready', surfaceId: `ja:surface:${hashA}`, targets: [] });
+    getNeighborhoodMock.mockResolvedValue(null);
+
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('殖える')}
+        levelNames={{ 0: 'JLPT N5' }}
+        onStatusChange={() => undefined}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    await flushAsync();
+    await flushAsync();
+    const toggle = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.Toggle');
+    expect(toggle).not.toBeUndefined();
+    toggle!.click();
+    await flushAsync();
+    await flushAsync();
+    await flushAsync();
+
+    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashA}`, depth: 1 }));
+    // Resolved absence is an explicit empty state, not the pending placeholder.
+    expect(container.textContent).toContain('mlearn.GraphInspector.Neighborhood.NotInGraph');
+    expect(container.textContent).not.toContain('mlearn.GraphInspector.Neighborhood.Loading');
+    expect(container.querySelector('[data-testid="skeleton-rows"]')).toBeNull();
 
     dispose();
   });

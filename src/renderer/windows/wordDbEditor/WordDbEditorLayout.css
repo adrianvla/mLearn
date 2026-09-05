@@ -111,12 +111,11 @@
 /* Status pills in word DB */
 
 /* Initialize loading state */
+/* Initialize loading state: skeleton rows fill the body so the window
+   reads as a stable list shell while data resolves. */
 .init-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   height: 100%;
-  color: var(--text-secondary);
-  font-size: 1.2rem;
-  background:var(--bg-primary);
+  overflow-y: auto;
+  padding: var(--spacing-4);
+  background: var(--bg-primary);
 }

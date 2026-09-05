@@ -6,7 +6,7 @@ import type { GraphNeighborhood } from '../../../shared/graph/ipc';
 import { getBridge } from '../../../shared/bridges';
 import { WindowWrapper, useFlashcards, useGraph, useLocalization, useSettings } from '../../context';
 import { openGraphInspector } from '../../services/openGraphInspector';
-import { GraphNeighborhoodViz } from '../../components/common';
+import { GraphNeighborhoodViz, SkeletonText } from '../../components/common';
 import './GraphInspector.css';
 
 const classes: RelationCategory[] = ['identity', 'property', 'support'];
@@ -44,7 +44,18 @@ export const GraphInspectorContent: Component = () => {
   createEffect(() => {
     const id = entityId();
     if (!id) return;
-    void graph.getNeighborhood({ entityId: id, depth: 1 }).then(setNeighborhood);
+    // Re-run when the active-language graph (re)resolves: during a language
+    // switch the pending probe clears the stale neighborhood, and the
+    // settled meta triggers a fresh fetch for the new language.
+    graph.readiness();
+    // Request identity: a superseded run's late resolution (e.g. an
+    // old-language neighborhood outliving a language switch, or a slow
+    // fetch for a previous entity) must not overwrite the fresh one.
+    let disposed = false;
+    onCleanup(() => { disposed = true; });
+    void graph.getNeighborhood({ entityId: id, depth: 1 }).then((next) => {
+      if (!disposed) setNeighborhood(next);
+    });
     const hash = id.match(/:surface:([a-f0-9]{64})$/i)?.[1];
     if (!hash) {
       setEvents([]);
@@ -59,14 +70,13 @@ export const GraphInspectorContent: Component = () => {
   const explanation = createMemo(() => selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta) : undefined);
 
   return <div class="graph-inspector">
-    <Show when={graph.metaLoading()}><p class="graph-inspector__empty">{t('mlearn.Knowledge.Projection.Checking')}</p></Show>
-    <Show when={!graph.metaLoading()}>
+    <Show when={graph.readiness() === 'pending'}><div class="graph-inspector__empty" aria-busy="true"><SkeletonText lines={4} /></div></Show>
+    <Show when={graph.readiness() !== 'pending'}>
     <Show when={!graph.meta().ready}>
       <div class="graph-inspector__degraded">
         <p class="graph-inspector__empty">{t('mlearn.GraphInspector.Unavailable')}</p>
         <p class="graph-inspector__empty">{t('mlearn.Knowledge.GraphContract.Degraded')}</p>
       </div>
-    </Show>
     </Show>
     <Show when={graph.meta().ready && !neighborhood()}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.SelectEntity')}</p></Show>
     <Show when={neighborhood()}>
@@ -95,6 +105,7 @@ export const GraphInspectorContent: Component = () => {
       <h3>{t('mlearn.GraphInspector.Evidence')}</h3><For each={value().evidence}>{(event) => <p>{new Date(event.t).toLocaleDateString()} · {event.source} · {event.quality ?? event.rating ?? ''}{event.latencyMs ? ` · ${event.latencyMs}ms` : ''}</p>}</For>
       <Show when={value().state === 'predicted'}><p>{t('mlearn.GraphInspector.PredictionFirewall')}</p></Show>
     </section>}</Show>
+    </Show>
   </div>;
 };
 

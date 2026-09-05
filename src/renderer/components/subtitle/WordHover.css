@@ -253,11 +253,9 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 }
 
 .hover_loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  color: var(--text-secondary);
+  display: block;
+  width: 100%;
+  min-width: 16rem;
 }
 
 /* Horizontal rule */
@@ -309,29 +307,6 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 .subtitle_hover_alt_c p {
   margin: 0;
   color: var(--text-primary);
-}
-
-/* Skeleton loading animation */
-.skeleton-c {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.skeleton-c > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  width: 100%;
-}
-
-.skeleton {
-  display: inline-block;
-  height: 30px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 /* Anki duplicate warning modal */

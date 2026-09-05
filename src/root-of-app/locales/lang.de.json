@@ -30,7 +30,6 @@
         "Truncated": "{shown} von {total} Beziehungen werden angezeigt.",
         "NotInGraph": "Dieser Eintrag ist nicht Teil des Sprachgraphs.",
         "OpenInWindow": "Im Graphinspektor öffnen",
-        "Loading": "Nachbarschaft wird geladen…",
         "State": {
           "EvidenceBackedKnown": "Evidenzbasiert bekannt",
           "ClaimedKnown": "Bekannt (angegeben)",
@@ -1071,7 +1070,7 @@
       "Suggested": {
         "Title": "Vorgeschlagene Karten",
         "Description": "Automatisch beim Lesen oder Schauen erfasst. Befördere sie, um Übersetzung, Beispiel und Audio zu erzeugen.",
-        "Loading": "Vorschläge werden geladen...",
+        "SortOldest": "Älteste zuerst",
         "CountLabel": "{shown} angezeigt · {total} insgesamt",
         "SearchPlaceholder": "Wort oder Lesung suchen…",
         "EmptyTitle": "Noch keine Vorschläge",
@@ -1106,8 +1105,7 @@
         "SortCountAsc": "Am seltensten gesehen",
         "SortWordAsc": "Wort (A–Z)",
         "SortWordDesc": "Wort (Z–A)",
-        "SortNewest": "Neueste zuerst",
-        "SortOldest": "Älteste zuerst"
+        "SortNewest": "Neueste zuerst"
       }
     },
     "Global": {
@@ -1116,6 +1114,7 @@
       },
       "Add": "Hinzufügen",
       "AppName": "mLearn",
+      "NoCardFound": "Keine Karte gefunden",
       "Aria": {
         "CloseAlert": "Meldung schließen",
         "CloseModal": "Dialog schließen",
@@ -1451,8 +1450,7 @@
         "FullGraph": "Vollständigen Graphen öffnen",
         "Prediction": {
           "None": "Keine Vorhersage."
-        },
-        "Checking": "Linguistischer Graph wird geprüft…"
+        }
       },
       "Aspect": {
         "Grammar": "Grammatik",
@@ -1604,7 +1602,7 @@
     },
     "MemoryBrowser": {
       "Empty": "Noch keine Speichereinträge.",
-      "Loading": "Speicher wird geladen...",
+      "Title": "Speicher-Browser",
       "Open": "Speicher-Browser öffnen",
       "OpenInAgent": "Speicher-Browser",
       "Sections": {
@@ -1616,8 +1614,7 @@
       },
       "Tabs": {
         "Room": "Raum"
-      },
-      "Title": "Speicher-Browser"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki-Lernkarten aus dem Cache geladen (Anki scheint offline zu sein)",
@@ -3037,7 +3034,10 @@
       },
       "Explain": "Erklären",
       "InAnki": "In Anki",
-      "Loading": "Laden...",
+      "Compound": {
+        "Title": "Kompositum",
+        "Ambiguous": "Mehrere Lesarten"
+      },
       "NoTranslation": "Keine Übersetzung gefunden",
       "Status": {
         "Known": "Bekannt",
@@ -3056,11 +3056,7 @@
       "AnkiEase": "Anki-Ease: {ease}",
       "AnkiUpdateSuccess": "{count} Anki-Karte(n) aktualisiert",
       "AnkiUpdateRepositioned": "{count} Karte(n) aktualisiert, {repositioned} neue Karte(n) umpositioniert",
-      "AnkiUpdateFailed": "Anki-Karten konnten nicht aktualisiert werden",
-      "Compound": {
-        "Title": "Kompositum",
-        "Ambiguous": "Mehrere Lesarten"
-      }
+      "AnkiUpdateFailed": "Anki-Karten konnten nicht aktualisiert werden"
     },
     "ConnectionStatus": {
       "Connected": "Verbunden",
@@ -3396,16 +3392,6 @@
         "Unmeasured": "Unbekannt:"
       },
       "LevelFallback": "Stufe {level}",
-      "Loading": "Zeichendaten werden geladen...",
-      "Stats": {
-        "Evidenced": "Direkt belegt:",
-        "Claimed": "Selbst angegeben:",
-        "Familiar": "Vertraut:",
-        "Emerging": "Im Entstehen:",
-        "TotalFound": "Gesamt:",
-        "Unmeasured": "Unbekannt:"
-      },
-      "Title": "Zeichenvertrautheit",
       "Tooltip": {
         "Claim": {
           "known": "Sie haben dieses Zeichen als lesbar markiert.",
@@ -3428,7 +3414,16 @@
         "Score": "Punktzahl",
         "WordsContaining": "Wörter mit {char}",
         "PredictionNote": "Die Vertrautheit wird aus den unten gezeigten bekannten/lernenden Wörtern mit diesem Zeichen vorhergesagt – kein direkter Zeichennachweis."
-      }
+      },
+      "Stats": {
+        "Evidenced": "Direkt belegt:",
+        "Claimed": "Selbst angegeben:",
+        "Familiar": "Vertraut:",
+        "Emerging": "Im Entstehen:",
+        "TotalFound": "Gesamt:",
+        "Unmeasured": "Unbekannt:"
+      },
+      "Title": "Zeichenvertrautheit"
     }
   }
 }

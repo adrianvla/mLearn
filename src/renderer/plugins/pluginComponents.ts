@@ -36,7 +36,9 @@ import {
   Indicator,
   Loader,
   Spinner,
-  Skeleton,
+  /* Plugin-facing name kept for compatibility; now backed by the shared
+     skeleton vocabulary (lines/class props are compatible). */
+  SkeletonText as Skeleton,
   ProgressRing,
   InlineLoadingOverlay,
   EmptyState,

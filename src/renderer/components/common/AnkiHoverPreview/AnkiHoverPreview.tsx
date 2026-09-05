@@ -3,6 +3,7 @@ import { useLocalization } from '../../../context';
 import { dueDateToString } from '../../../services/srsAlgorithm';
 import { Tooltip } from '../Tooltip';
 import { SafeHtml } from '../SafeHtml/SafeHtml';
+import { SkeletonText } from '../Skeleton';
 import { getAnkiDueDisplayValue, shouldShowAnkiEase, type AnkiCardSchedulingInfo } from './ankiHoverPreviewLogic';
 import './AnkiHoverPreview.css';
 
@@ -37,8 +38,9 @@ export const AnkiHoverPreviewContent: Component<AnkiHoverPreviewContentProps> = 
 
   return (
     <div class="anki-hover-preview">
+      {/* Loading state: hold the preview's shape instead of a text label. */}
       <Show when={props.loading}>
-        <span class="anki-hover-preview__loading">{t('mlearn.Global.Loading')}</span>
+        <span class="anki-hover-preview__loading" aria-busy="true"><SkeletonText lines={2} /></span>
       </Show>
       <Show when={!props.loading && props.fields}>
         {(fields) => (
@@ -83,7 +85,7 @@ export const AnkiHoverPreviewContent: Component<AnkiHoverPreviewContentProps> = 
         )}
       </Show>
       <Show when={!props.loading && !props.fields}>
-        <span class="anki-hover-preview__loading">{t('mlearn.WordDbEditor.Anki.NoCardFound')}</span>
+        <span class="anki-hover-preview__empty">{t('mlearn.WordDbEditor.Anki.NoCardFound')}</span>
       </Show>
       <Show when={props.footer}>
         {props.footer}

@@ -395,3 +395,10 @@
   font-weight: 500;
   color: var(--text-primary);
 }
+
+/* Boot skeleton while the learner projection hydrates. */
+.level-study-boot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}

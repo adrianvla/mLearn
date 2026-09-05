@@ -12,6 +12,7 @@
 import { Component, For, Show, createMemo, createSignal, onMount } from 'solid-js';
 import { WindowWrapper, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
+import { SkeletonRows } from '../../components/common';
 import { getLogger } from '../../../shared/utils/logger';
 import { projectionForCaller, type RoomMemoryProjection } from '@shared/memoryProjection';
 import { USER_ACTOR, type JournalEvent, type Participant, type Room } from '@shared/world';
@@ -102,15 +103,24 @@ export const MemoryBrowserApp: Component = () => {
     return projectionForCaller(evts, tab, cutoff);
   });
 
+  // Room switches fetch a new journal projection: holding the previous
+  // room's content under the new selection would show stale semantics, so
+  // the body falls back to the skeleton until the fetch settles.
+  const [roomLoading, setRoomLoading] = createSignal(false);
+  const contentPending = () => isLoading() || roomLoading();
+
   const loadRoom = async (roomId: string): Promise<void> => {
     setSelectedRoomId(roomId);
     setActiveTab(ROOM_TAB);
+    setRoomLoading(true);
     try {
       const seaEvents = await getBridge().journal.readSeaProjection(roomId);
       setEvents(seaEvents);
     } catch (err) {
       log.error('error', err);
       setEvents([]);
+    } finally {
+      setRoomLoading(false);
     }
   };
 
@@ -148,8 +158,8 @@ export const MemoryBrowserApp: Component = () => {
         </header>
         <div class="memory-browser-body">
           <Show
-            when={!isLoading()}
-            fallback={<div class="memory-browser-loading">{t('mlearn.MemoryBrowser.Loading')}</div>}
+            when={!contentPending()}
+            fallback={<div class="memory-browser-loading" aria-busy="true"><SkeletonRows rows={5} /></div>}
           >
             <Show
               when={selectedRoom()}

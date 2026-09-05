@@ -5,7 +5,6 @@
 export { 
   Loader, 
   Spinner, 
-  Skeleton, 
   ProgressRing, 
   LoadingOverlay as InlineLoadingOverlay,
   type LoaderProps,
