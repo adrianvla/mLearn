@@ -129,35 +129,47 @@ async function idbPutBatch<T>(storeName: string, entries: Array<{ key: string; v
 async function idbPrune(storeName: string, maxEntries: number): Promise<void> {
   try {
     const db = await openDB();
-    // Scan + delete inside ONE readwrite tx so no concurrent put can refresh
-    // an entry between our read of updatedAt and our decision to delete it.
+    // Count first, inside the same readwrite tx: a full cursor scan that
+    // deserializes every stored value costs 150ms-1s at cap, and the common
+    // case (at/below cap) must not pay it on every cache write.
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(storeName, 'readwrite');
       const store = tx.objectStore(storeName);
-      const collected: Array<{ key: string; updatedAt: number }> = [];
-      const req = store.openCursor();
-
-      req.onsuccess = () => {
-        const cursor = req.result;
-        if (cursor) {
-          const row = cursor.value as { key: string; updatedAt?: number };
-          collected.push({ key: row.key, updatedAt: row.updatedAt ?? 0 });
-          cursor.continue();
+      const countReq = store.count();
+      countReq.onsuccess = () => {
+        // Explicit resolve: under real IDB the tx completes only after the
+        // cursor chain drains, but under-capped runs never open a cursor.
+        if (countReq.result <= maxEntries) {
+          resolve();
           return;
         }
+        // Scan + delete inside the SAME tx so no concurrent put can refresh
+        // an entry between our read of updatedAt and our decision to delete it.
+        const collected: Array<{ key: string; updatedAt: number }> = [];
+        const req = store.openCursor();
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (cursor) {
+            const row = cursor.value as { key: string; updatedAt?: number };
+            collected.push({ key: row.key, updatedAt: row.updatedAt ?? 0 });
+            cursor.continue();
+            return;
+          }
 
-        if (collected.length <= maxEntries) return;
-        const deleteCount = Math.floor(collected.length * 0.2);
-        if (deleteCount <= 0) return;
+          if (collected.length <= maxEntries) return;
+          const deleteCount = Math.floor(collected.length * 0.2);
+          if (deleteCount <= 0) return;
 
-        collected.sort((a, b) => a.updatedAt - b.updatedAt);
-        // Deletes issued synchronously from the final cursor callback so the
-        // tx stays active (IDB closes a tx once no pending requests remain).
-        for (let i = 0; i < deleteCount; i++) {
-          store.delete(collected[i].key);
-        }
+          collected.sort((a, b) => a.updatedAt - b.updatedAt);
+          // Deletes issued synchronously from the final cursor callback so the
+          // tx stays active (IDB closes a tx once no pending requests remain).
+          for (let i = 0; i < deleteCount; i++) {
+            store.delete(collected[i].key);
+          }
+        };
+        req.onerror = () => reject(req.error);
       };
-      req.onerror = () => reject(req.error);
+      countReq.onerror = () => reject(countReq.error);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -309,6 +321,21 @@ export async function setCachedTokensDB(text: string, tokens: Token[]): Promise<
 
 export async function setCachedTokensByLanguageDB(text: string, tokens: Token[], language?: string, namespace?: string): Promise<void> {
   await idbPut(STORE_TOKENS, buildTokenKey(text, language, namespace), tokens);
+  await idbPrune(STORE_TOKENS, MAX_TOKENS);
+}
+
+export async function setCachedTokensBatchByLanguageDB(
+  entries: Array<{ text: string; tokens: Token[] }>,
+  language?: string,
+  namespace?: string,
+): Promise<void> {
+  await idbPutBatch(
+    STORE_TOKENS,
+    entries.map((entry) => ({
+      key: buildTokenKey(entry.text, language, namespace),
+      value: entry.tokens,
+    })),
+  );
   await idbPrune(STORE_TOKENS, MAX_TOKENS);
 }
 

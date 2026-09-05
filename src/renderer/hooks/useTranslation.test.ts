@@ -1,5 +1,5 @@
 import { createRoot } from 'solid-js';
-import type { TranslationResponse, DictionaryEntry, LanguageData } from '../../shared/types';
+import type { TranslationResponse, DictionaryEntry, LanguageData, Token } from '../../shared/types';
 
 type MockTranslateOptions = { dictionaryTargetLanguage?: string };
 const mockTranslate = vi.fn<(word: string, language?: string, options?: MockTranslateOptions) => Promise<TranslationResponse>>();
@@ -30,6 +30,7 @@ const mockGetCachedDictionaryByLanguageDB = vi.fn<(word: string, reading: string
 const mockSetCachedDictionaryByLanguageDB = vi.fn().mockResolvedValue(undefined);
 const mockGetCachedTokensByLanguageDB = vi.fn<(text: string, language?: string, namespace?: string) => Promise<unknown[] | null>>().mockResolvedValue(null);
 const mockSetCachedTokensByLanguageDB = vi.fn().mockResolvedValue(undefined);
+const mockSetCachedTokensBatchByLanguageDB = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../services/offlineCache', () => ({
   getCachedTranslationByLanguageDB: (...args: unknown[]) => mockGetCachedTranslationByLanguageDB(...(args as [string, string?])),
@@ -39,6 +40,7 @@ vi.mock('../services/offlineCache', () => ({
   setCachedDictionaryByLanguageDB: (...args: unknown[]) => mockSetCachedDictionaryByLanguageDB(...args),
   getCachedTokensByLanguageDB: (...args: unknown[]) => mockGetCachedTokensByLanguageDB(...(args as [string, string?, string?])),
   setCachedTokensByLanguageDB: (...args: unknown[]) => mockSetCachedTokensByLanguageDB(...args),
+  setCachedTokensBatchByLanguageDB: (...args: unknown[]) => mockSetCachedTokensBatchByLanguageDB(...args),
 }));
 
 function makeTranslationResponse(word: string): TranslationResponse {
@@ -1470,4 +1472,114 @@ describe('useDictionary', () => {
     await tokenize(`tok-${cap + 4}`);
     expect(mockTokenize).not.toHaveBeenCalled();
   }, 20000);
+});
+
+describe('tokenizeMany batched persistence', () => {
+  it('persists fresh backend results in ONE batched write instead of per text', async () => {
+    mockTokenize.mockImplementation(async (text: string) => [
+      { word: text, actual_word: text, type: 'NOUN' },
+    ]);
+    mockGetCachedTokensByLanguageDB.mockResolvedValue(null);
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenizeMany } = useTokenizer({ language: 'ja' });
+
+    const results = await tokenizeMany(['段落一。', '段落二。', '段落三。']);
+
+    expect(results).toHaveLength(3);
+    expect(mockTokenize).toHaveBeenCalledTimes(3);
+    expect(mockSetCachedTokensByLanguageDB).not.toHaveBeenCalled();
+    expect(mockSetCachedTokensBatchByLanguageDB).toHaveBeenCalledTimes(1);
+    const [entries, language] = mockSetCachedTokensBatchByLanguageDB.mock.calls[0] as [Array<{ text: string; tokens: unknown[] }>, string];
+    expect(language).toBe('ja');
+    expect(entries.map((entry) => entry.text)).toEqual(['段落一。', '段落二。', '段落三。']);
+  });
+
+  it('does not re-persist or re-fetch text served from the memory cache', async () => {
+    mockTokenize.mockImplementation(async (text: string) => [
+      { word: text, actual_word: text, type: 'NOUN' },
+    ]);
+    mockGetCachedTokensByLanguageDB.mockResolvedValue(null);
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenizeMany } = useTokenizer({ language: 'ja' });
+
+    await tokenizeMany(['同じ文章。']);
+    await tokenizeMany(['同じ文章。']);
+
+    expect(mockTokenize).toHaveBeenCalledTimes(1);
+    expect(mockSetCachedTokensBatchByLanguageDB).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves IndexedDB hits without a backend call and without re-persisting them', async () => {
+    const dbTokens: Token[] = [{ word: 'データベース', actual_word: 'データベース', type: '名詞' }];
+    mockTokenize.mockImplementation(async (text: string) => [{ word: text, actual_word: text, type: 'NOUN' }]);
+    mockGetCachedTokensByLanguageDB.mockImplementation(async (text: string) => (
+      text.includes('DB命中') ? dbTokens : null
+    ));
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenizeMany } = useTokenizer({ language: 'ja' });
+
+    const results = await tokenizeMany(['DB命中段落。', '新規段落。']);
+
+    // DB hit is returned as-is; only the backend miss enters the batch.
+    expect(results[0]).toEqual(dbTokens);
+    expect(mockTokenize).toHaveBeenCalledTimes(1);
+    expect(mockTokenize).toHaveBeenCalledWith('新規段落。', 'ja');
+    expect(mockSetCachedTokensBatchByLanguageDB).toHaveBeenCalledTimes(1);
+    const [entries] = mockSetCachedTokensBatchByLanguageDB.mock.calls[0] as [Array<{ text: string }>, string?];
+    expect(entries.map((entry) => entry.text)).toEqual(['新規段落。']);
+  });
+  it('rough-falls-back per text on backend failure and skips persisting fallbacks', async () => {
+    mockTokenize.mockRejectedValue(new Error('backend down'));
+    mockGetCachedTokensByLanguageDB.mockResolvedValue(null);
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenizeMany } = useTokenizer({
+      language: 'en',
+      languageData: {
+        name: 'English',
+        colour_codes: {},
+        settings: { fixed: {} },
+        runtime: {
+          nlp: {
+            tokenizer: {
+              type: 'unicode-word',
+            },
+          },
+        },
+      },
+    });
+
+    const results = await tokenizeMany(['ein Haus', 'ein Baum']);
+
+    expect(results).toHaveLength(2);
+    expect(results[0].length).toBeGreaterThan(0);
+    expect(mockSetCachedTokensBatchByLanguageDB).not.toHaveBeenCalled();
+  });
+});
+
+describe('warmTranslationCache invalidation', () => {
+  it('bumps cacheVersion once per warm chunk instead of once per word', async () => {
+    mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
+    const { warmTranslationCache, cacheVersion } = await import('./useTranslation');
+    const before = cacheVersion();
+    const words = Array.from({ length: 12 }, (_, index) => `chunkword-${index}`);
+
+    await warmTranslationCache(words, undefined, undefined, 'ja');
+
+    // 12 words -> one chunk of 10 + one chunk of 2, each with hits: 2 bumps.
+    expect(cacheVersion()).toBe(before + 2);
+    expect(mockSetCachedTranslationBatchByLanguageDB).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports translation warming only while a warm run is in flight', async () => {
+    const { promise, resolve } = Promise.withResolvers<TranslationResponse>();
+    mockTranslate.mockImplementation(() => promise);
+    const { warmTranslationCache, isTranslationWarming } = await import('./useTranslation');
+
+    const run = warmTranslationCache(['inflight-word'], undefined, undefined, 'ja');
+    expect(isTranslationWarming()).toBe(true);
+
+    resolve(makeTranslationResponse('inflight-word'));
+    await run;
+    expect(isTranslationWarming()).toBe(false);
+  });
 });

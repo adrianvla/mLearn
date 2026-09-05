@@ -17,6 +17,7 @@ export {
   useTokenizer, 
   useDictionary, 
   warmTranslationCache,
+  isTranslationWarming,
   getCachedTranslation
 } from './useTranslation';
 export { useWordHover, getGlobalHoverManager } from './useWordHover';

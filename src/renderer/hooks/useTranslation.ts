@@ -18,21 +18,24 @@ import {
   setCachedDictionaryByLanguageDB,
   getCachedTokensByLanguageDB,
   setCachedTokensByLanguageDB,
+  setCachedTokensBatchByLanguageDB,
 } from '../services/offlineCache';
 import { getLogger } from '../../shared/utils/logger';
 import type { BackendAdapter } from '../../shared/backends/types';
 
 const log = getLogger("renderer.hooks.useTranslation");
-
 const TRANSLATION_CACHE_MAX = 5000;
 const TRANSLATION_WARM_CONCURRENCY = 10;
 const translationCache = new Map<string, TranslationResponse>();
 const [cacheVersion, setCacheVersion] = createSignal(0);
+const [warmInFlightCount, setWarmInFlightCount] = createSignal(0);
 
 export { cacheVersion };
 
+/** True while any warmTranslationCache run is fetching translations (status bar). */
+export const isTranslationWarming = (): boolean => warmInFlightCount() > 0;
 const tokenCache = new Map<string, { tokens: Token[]; ts: number }>();
-const tokenInFlight = new Map<string, Promise<Token[]>>();
+const tokenInFlight = new Map<string, Promise<{ tokens: Token[]; fresh: boolean }>>();
 const TOKEN_CACHE_MAX = 1000;
 
 const DICTIONARY_CACHE_MAX = 5000;
@@ -457,24 +460,37 @@ export async function warmTranslationCache(
   const wordsToWarm = unique
     .filter((w) => w && w.trim())
     .filter((w) => !translationCache.has(buildTranslationCacheKey(w, cacheLanguage, dictionaryTargetLanguage)));
+  if (wordsToWarm.length === 0) return;
 
-  for (let i = 0; i < wordsToWarm.length; i += TRANSLATION_WARM_CONCURRENCY) {
-    const chunk = wordsToWarm.slice(i, i + TRANSLATION_WARM_CONCURRENCY).map(async (word) => {
-      try {
-        const data = await translateWithDictionaryTarget(backend, word, language, dictionaryTargetLanguage);
-        setTranslationCache(buildTranslationCacheKey(word, cacheLanguage, dictionaryTargetLanguage), data);
+  setWarmInFlightCount((c) => c + 1);
+  try {
+    for (let i = 0; i < wordsToWarm.length; i += TRANSLATION_WARM_CONCURRENCY) {
+      let chunkHits = 0;
+      const chunk = wordsToWarm.slice(i, i + TRANSLATION_WARM_CONCURRENCY).map(async (word) => {
+        try {
+          const data = await translateWithDictionaryTarget(backend, word, language, dictionaryTargetLanguage);
+          setTranslationCache(buildTranslationCacheKey(word, cacheLanguage, dictionaryTargetLanguage), data);
+          chunkHits += 1;
+          batchEntries.push({ word, data });
+        } catch {
+          // Ignore errors during cache warming
+        }
+      });
+
+      await Promise.all(chunk);
+      // One invalidation per chunk: every subscribed word memo re-runs on each
+      // bump, so per-word bumps turned a page warm into waves of full-page
+      // recomputes. The chunk's entries are all in the map before the bump.
+      if (chunkHits > 0) {
         setCacheVersion((v) => v + 1);
-        batchEntries.push({ word, data });
-      } catch {
-        // Ignore errors during cache warming
       }
-    });
+    }
 
-    await Promise.all(chunk);
-  }
-
-  if (batchEntries.length > 0) {
-    void setCachedTranslationBatchScopedDB(batchEntries, cacheLanguage, dictionaryTargetLanguage);
+    if (batchEntries.length > 0) {
+      void setCachedTranslationBatchScopedDB(batchEntries, cacheLanguage, dictionaryTargetLanguage);
+    }
+  } finally {
+    setWarmInFlightCount((c) => c - 1);
   }
 }
 
@@ -492,48 +508,111 @@ function createEmptyFallbackToken(text: string): Token[] {
 }
 
 export function useTokenizer(options: UseTokenizerOptions = {}) {
-  const tokenize = async (text: string) => {
-    const key = typeof text === 'string' ? text : String(text);
-    if (!key.trim()) return createEmptyFallbackToken(key);
-    const languageData = resolveTokenizerLanguageData(options.languageData);
-    const namespace = getTokenizerCacheNamespace(languageData);
-    const cacheKey = buildTokenCacheKey(key, options.language, namespace);
-    if (tokenCache.has(cacheKey)) return tokenCache.get(cacheKey)!.tokens;
-    if (tokenInFlight.has(cacheKey)) return tokenInFlight.get(cacheKey)!;
+  const resolveUncached = async (
+    key: string,
+    namespace: string | undefined,
+    cacheKey: string,
+    persist: boolean,
+  ): Promise<{ tokens: Token[]; fresh: boolean }> => {
+    const dbCached = await getCachedTokensByLanguageDB(key, options.language, namespace);
+    if (dbCached) {
+      tokenCache.set(cacheKey, { tokens: dbCached, ts: Date.now() });
+      return { tokens: dbCached, fresh: false };
+    }
 
-    const p = (async () => {
-      const dbCached = await getCachedTokensByLanguageDB(key, options.language, namespace);
-      if (dbCached) {
-        tokenCache.set(cacheKey, { tokens: dbCached, ts: Date.now() });
-        return dbCached;
-      }
-
-      const tokens = await getBackend().tokenize(key, options.language);
-      tokenCache.set(cacheKey, { tokens, ts: Date.now() });
-      pruneMapFIFO(tokenCache, TOKEN_CACHE_MAX);
+    const tokens = await getBackend().tokenize(key, options.language);
+    tokenCache.set(cacheKey, { tokens, ts: Date.now() });
+    pruneMapFIFO(tokenCache, TOKEN_CACHE_MAX);
+    if (persist) {
       void setCachedTokensByLanguageDB(key, tokens, options.language, namespace);
-      return tokens;
-    })();
+    }
+    return { tokens, fresh: true };
+  };
 
+  const tokenizeUncached = async (
+    key: string,
+    namespace: string | undefined,
+    cacheKey: string,
+    persist: boolean,
+  ): Promise<{ tokens: Token[]; fresh: boolean }> => {
+    const p = resolveUncached(key, namespace, cacheKey, persist);
     tokenInFlight.set(cacheKey, p);
     try {
       return await p;
-    } catch (e) {
-      log.error("error", e);
-      if (!tokenizerAllowsFallback(languageData)) {
-        throw e;
-      }
-      const fallbackTokens = createRoughTokenizerTokens(key, languageData);
-      if (fallbackTokens.length === 0) {
-        throw e;
-      }
-      return fallbackTokens;
     } finally {
       tokenInFlight.delete(cacheKey);
     }
   };
 
-  return { tokenize };
+  const roughFallbackOrThrow = (key: string, languageData: LanguageData | null, error: unknown): Token[] => {
+    log.error("error", error);
+    if (!tokenizerAllowsFallback(languageData)) {
+      throw error;
+    }
+    const fallbackTokens = createRoughTokenizerTokens(key, languageData);
+    if (fallbackTokens.length === 0) {
+      throw error;
+    }
+    return fallbackTokens;
+  };
+
+  const cachedOrFlight = (key: string, namespace: string | undefined): Promise<Token[]> | undefined => {
+    const cacheKey = buildTokenCacheKey(key, options.language, namespace);
+    if (tokenCache.has(cacheKey)) return Promise.resolve(tokenCache.get(cacheKey)!.tokens);
+    if (tokenInFlight.has(cacheKey)) return tokenInFlight.get(cacheKey)!.then((result) => result.tokens);
+    return undefined;
+  };
+
+  const tokenize = async (text: string): Promise<Token[]> => {
+    const key = typeof text === 'string' ? text : String(text);
+    if (!key.trim()) return createEmptyFallbackToken(key);
+    const languageData = resolveTokenizerLanguageData(options.languageData);
+    const namespace = getTokenizerCacheNamespace(languageData);
+    const fast = cachedOrFlight(key, namespace);
+    if (fast) return fast;
+    const cacheKey = buildTokenCacheKey(key, options.language, namespace);
+    try {
+      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true);
+      return tokens;
+    } catch (e) {
+      return roughFallbackOrThrow(key, languageData, e);
+    }
+  };
+
+  // Page-level entry: identical per-text semantics (memory cache, in-flight
+  // dedupe, DB cache, rough fallback), but fresh backend results persist in
+  // ONE batched write + prune instead of one per paragraph.
+  const tokenizeMany = async (texts: string[]): Promise<Token[][]> => {
+    const languageData = resolveTokenizerLanguageData(options.languageData);
+    const namespace = getTokenizerCacheNamespace(languageData);
+    const fresh: Array<{ text: string; tokens: Token[] }> = [];
+    const results = await Promise.all(texts.map(async (text) => {
+      const key = typeof text === 'string' ? text : String(text);
+      if (!key.trim()) return createEmptyFallbackToken(key);
+      const fast = cachedOrFlight(key, namespace);
+      if (fast) return fast;
+      const cacheKey = buildTokenCacheKey(key, options.language, namespace);
+      let result: { tokens: Token[]; fresh: boolean };
+      try {
+        result = await tokenizeUncached(key, namespace, cacheKey, false);
+      } catch (e) {
+        // Rough fallbacks are display-only and never persisted (same as `tokenize`).
+        return roughFallbackOrThrow(key, languageData, e);
+      }
+      // Only backend misses enter the batch: DB-cache hits and rough fallbacks
+      // are already stored (or display-only) and must not be rewritten.
+      if (result.fresh) {
+        fresh.push({ text: key, tokens: result.tokens });
+      }
+      return result.tokens;
+    }));
+    if (fresh.length > 0) {
+      void setCachedTokensBatchByLanguageDB(fresh, options.language, namespace);
+    }
+    return results;
+  };
+
+  return { tokenize, tokenizeMany };
 }
 
 export interface UseDictionaryOptions {

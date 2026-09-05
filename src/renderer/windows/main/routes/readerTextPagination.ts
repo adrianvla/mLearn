@@ -58,12 +58,24 @@ export function resetTextPageCapacityEpoch(estimate: number): TextPageCapacityEp
   return { capacity: estimate, shrinkIterations: 0 };
 }
 
-export function auditTextPageCapacity(epoch: TextPageCapacityEpoch, overflows: boolean): TextPageCapacityEpoch {
+export function auditTextPageCapacity(
+  epoch: TextPageCapacityEpoch,
+  overflows: boolean,
+  overflowRatio = 1,
+): TextPageCapacityEpoch {
   if (!overflows || epoch.shrinkIterations >= MAX_TEXT_PAGE_CAPACITY_SHRINKS) return epoch;
-  return {
-    capacity: shrinkTextPageCapacity(epoch.capacity),
-    shrinkIterations: epoch.shrinkIterations + 1,
-  };
+  // Shrink proportionally to the measured content/page overflow so the
+  // capacity converges in 1-2 passes; each audit pass re-paginates the whole
+  // book, so blind x0.85 steps cost up to eight full re-paginations.
+  const factor = Math.min(0.95, Math.max(0.5, 1 / Math.max(overflowRatio, 1.05)));
+  const capacity = Math.max(MIN_TEXT_PAGE_CAPACITY, Math.floor(epoch.capacity * factor));
+  if (capacity >= epoch.capacity) {
+    return {
+      capacity: shrinkTextPageCapacity(epoch.capacity),
+      shrinkIterations: epoch.shrinkIterations + 1,
+    };
+  }
+  return { capacity, shrinkIterations: epoch.shrinkIterations + 1 };
 }
 
 export const textPagesFromExtractedText = (
