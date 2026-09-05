@@ -3090,6 +3090,10 @@
       "WordCount": "{count} words"
     },
     "WordSync": {
+      "Rating": {
+        "AllRow": "All",
+        "PendingHint": "Quality 1–4, then aspect key — press the quality again for all aspects"
+      },
       "FinishedTitle": "All done!",
       "FinishedDescription": "You checked {count} words. Your word knowledge has been updated.",
       "Progress": "{rated} / {total} words",

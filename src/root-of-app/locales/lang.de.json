@@ -3090,6 +3090,10 @@
       "WordCount": "{count} Wörter"
     },
     "WordSync": {
+      "Rating": {
+        "AllRow": "Alle",
+        "PendingHint": "Note 1–4, dann Aspekt-Taste – Note erneut drücken für alle Aspekte"
+      },
       "FinishedTitle": "Fertig!",
       "FinishedDescription": "Du hast {count} Wörter geprüft. Dein Wortwissen wurde aktualisiert.",
       "Progress": "{rated} / {total} Wörter",

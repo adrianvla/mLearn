@@ -24,16 +24,14 @@ import {
   type FieldResolver,
   type FilterToken,
   type PaletteItem,
-  RatingMatrix,
   type ProfileObservation,
   type RateOptions,
   type ValidationError,
 } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
-import { SRS_EASE, type AttemptQuality } from '../../../shared/constants';
-import type { KnowledgeAspect } from '../../../shared/types';
+import { WordSyncRating } from './WordSyncRating';
+import { ATTEMPT_QUALITIES, SRS_EASE, type AttemptQuality } from '../../../shared/constants';
 import { prosodyVisible } from '../../../shared/prosodySettings';
-import { prerequisitesOf } from '../../utils/aspectKnowledge';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { nextAttemptId, type AttemptId } from '../../../shared/knowledgeEvents';
 import { ankiCacheVersion, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
@@ -61,7 +59,6 @@ import {
   wordSyncPoolStatus,
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
-import { getAvailableAspects } from '../../../shared/types';
 import { getTestedAspects } from '../../../shared/languageFeatures';
 import { calibrationPoolItem, selectNextEncounter } from '../../learning/engine';
 import './WordSync.css';
@@ -116,8 +113,8 @@ export const WordSyncContent: Component = () => {
   // ─── State ───────────────────────────────────────────
   const [currentWord, setCurrentWord] = createSignal<PoolEntry | null>(null);
   // Bumped on every word presentation (pickNext), not merely on word changes:
-  // a filter reselection can re-present the same word, and RatingMatrix must
-  // reset its profile drafts each presentation regardless.
+  // a filter reselection can re-present the same word, and the rating control
+  // must reset its drafts each presentation regardless.
   const [presentationCount, setPresentationCount] = createSignal(0);
   let wordShownAt = 0;
   const [samplingLevel, setSamplingLevel] = createSignal<number>(0);
@@ -132,8 +129,8 @@ export const WordSyncContent: Component = () => {
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [additionalInfoInAnswer, setAdditionalInfoInAnswer] = createSignal(false);
   // Single reveal transition shared by keyboard (first Space/Enter) and pointer
-  // (the visible translation/reveal control): arms RatingMatrix and shows the
-  // translation together, so both input paths reach the same ratable state.
+  // (the visible translation/reveal control): arms the rating control and shows
+  // the translation together, so both input paths reach the same ratable state.
   const reveal = () => {
     setShowAnswer(true);
     setShowTranslation(true);
@@ -389,69 +386,15 @@ export const WordSyncContent: Component = () => {
     setShowTranslation(false);
   }
 
-  function handleRate(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) {
-    const w = currentWord();
-    if (!w) return;
-
-
-    // Word-presentation task: rating a finer aspect demonstrates its prerequisite
-    // chain was traversed (the written word had to be read to reach prosody). A
-    // dedicated audio task would pass [] instead — the task defines what the
-    // observation proves, never the engine.
-    const { attemptId } = recordAttempt(w.word, aspect, quality, {
-      language: settings.language,
-      method: opts?.method,
-      demonstrated: prerequisitesOf(aspect, getAvailableAspects(langCtx.currentLangData() ?? undefined)),
-      latencyMs: wordShownAt ? Date.now() - wordShownAt : undefined,
-      origin: 'word-sync',
-    });
-
-    setUndoStack((prev) => {
-      const next = [
-        ...prev,
-        {
-          word: w,
-          language: settings.language,
-          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
-          attemptIds: [attemptId],
-          previousRatedCount: ratedCount(),
-          previousLastRating: lastRating(),
-          previousSamplingLevel: samplingLevel(),
-          previousLevelCursors: new Map(levelCursors),
-        },
-      ];
-      if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-      return next;
-    });
-
-    if (quality === 'missed') {
-      markWordSyncSeen(w.word, settings.language);
-    }
-
-    setSessionRatedSet((s) => { s.add(w.word); return s; });
-
-    setRatedCount((c) => c + 1);
-    setLastRating(quality);
-
-    const levels = sortedLevels();
-    const idx = levels.indexOf(samplingLevel());
-
-    if (quality === 'fluent' && idx < levels.length - 1) {
-      setSamplingLevel(levels[idx + 1]);
-    } else if (quality === 'missed' && idx > 0) {
-      setSamplingLevel(levels[idx - 1]);
-    }
-
-    pickNext();
-  }
-
   // Profile-mode submit: ONE logical attempt (one attemptId, one undo entry,
   // one advance) carrying N aspect observations. Every tested aspect has an
   // explicit claim here, so no prerequisite demonstration is inferred.
-  function handleSubmitProfile(observations: readonly ProfileObservation[]) {
+  function handleSubmitProfile(observations: readonly ProfileObservation[], opts?: RateOptions) {
     const w = currentWord();
     if (!w || observations.length === 0) return;
-
+    // opts.easy is scheduler-only and Word Sync has no scheduler — the
+    // recorded evidence (fluent) is identical either way, so it is ignored.
+    void opts;
 
     const attemptId = nextAttemptId();
     const latencyMs = wordShownAt ? Date.now() - wordShownAt : undefined;
@@ -489,15 +432,26 @@ export const WordSyncContent: Component = () => {
 
     setSessionRatedSet((s) => { s.add(w.word); return s; });
     setRatedCount((c) => c + 1);
-    setLastRating(anyMissed ? 'missed' : 'fluent');
+
+    // The attempt's sampling direction follows its WORST aspect (the per-aspect
+    // path used the single rated quality): missed < struggled < fluent on the
+    // evidence ladder; easy is a scheduler preference on fluent, not a level.
+    let worstQuality: AttemptQuality = 'fluent';
+    for (const observation of observations) {
+      if (ATTEMPT_QUALITIES.indexOf(observation.quality) < ATTEMPT_QUALITIES.indexOf(worstQuality)) {
+        worstQuality = observation.quality;
+      }
+    }
+    setLastRating(worstQuality);
 
     const levels = sortedLevels();
     const idx = levels.indexOf(samplingLevel());
-    if (anyMissed) {
+    if (worstQuality === 'missed') {
       if (idx > 0) setSamplingLevel(levels[idx - 1]);
-    } else if (idx < levels.length - 1) {
-      setSamplingLevel(levels[idx + 1]);
+    } else if (worstQuality === 'fluent') {
+      if (idx < levels.length - 1) setSamplingLevel(levels[idx + 1]);
     }
+    // worst: struggled — the sampling level stays put.
 
     pickNext();
   }
@@ -548,6 +502,9 @@ export const WordSyncContent: Component = () => {
     setShowAnswer(false);
     setFinished(false);
     setCurrentWord(undoEntry.word);
+    // Re-presenting the same word: bump the resetKey so the rating control
+    // comes back collapsed with no stale drafts from the retracted attempt.
+    setPresentationCount((c) => c + 1);
   }
 
   // ─── Keyboard shortcuts ─────────────────────────────
@@ -569,7 +526,8 @@ export const WordSyncContent: Component = () => {
     if (isRatingKeyIgnored(e)) return;
 
     if (finished()) return;
-    // Rating keys (1/2/3 and chords) belong to the RatingMatrix only after reveal.
+    // Rating keys (whole-word digits and chords) belong to the rating control
+    // only after reveal.
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 't' || e.key === 'T') {
       if (currentWord()) {
@@ -863,16 +821,12 @@ export const WordSyncContent: Component = () => {
         </Show>
 
         <div class="word-sync-actions">
-          <RatingMatrix
+          <WordSyncRating
             aspects={testedAspects()}
             keyboardMode={settings.ratingKeyboardMode}
-            mode="profile"
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
             armed={showAnswer() && !!currentWord() && !finished()}
-            compact
-            initialDraftsFluent
-            onRate={handleRate}
-            onProfileSubmit={handleSubmitProfile}
+            onSubmit={handleSubmitProfile}
           />
         </div>
 

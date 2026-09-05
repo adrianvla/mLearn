@@ -1,0 +1,124 @@
+/**
+ * Word Sync rating control: the collapsed quality bar unfolds in place into
+ * the All + aspect matrix. Layout only — Button owns borders, colors, hover,
+ * disabled; theme variables only.
+ */
+
+.word-sync-rating {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+/* Collapsed: [Missed][Struggled][Fluent][Easy][Adjust]. */
+.word-sync-rating__bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(4em, 1fr)) auto;
+  gap: var(--spacing-2);
+  align-items: stretch;
+}
+
+/* Expanded: the quality buttons become the column headers; the label column
+   opens in front and every row below shares the same grid. */
+.word-sync-rating__bar--head {
+  grid-template-columns: minmax(4.5em, 1.2fr) repeat(4, minmax(4em, 1fr)) auto;
+}
+
+.word-sync-rating__quality,
+.word-sync-rating__adjust {
+  min-height: 32px;
+}
+
+.word-sync-rating__corner,
+.word-sync-rating__col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 2px 0;
+}
+
+/* Mnemonic chord armed: the pending quality's column is lit. */
+.word-sync-rating__col--pending {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Rows share the head's label + four quality columns. */
+.word-sync-rating__row {
+  display: grid;
+  grid-template-columns: minmax(4.5em, 1.2fr) repeat(4, minmax(4em, 1fr));
+  gap: var(--spacing-2);
+  align-items: stretch;
+}
+
+.word-sync-rating__label {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding-right: var(--spacing-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The All row is first-class (stronger label, hairline underneath) —
+   part of the grid, not a banner. */
+.word-sync-rating__label--all {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.word-sync-rating__row--all {
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.word-sync-rating__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 2px var(--spacing-2);
+}
+
+/* Held draft: the chosen quality is visibly marked, nothing has submitted. */
+.word-sync-rating__cell--selected {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -2px;
+  font-weight: 600;
+}
+
+.word-sync-rating .shortcut-key {
+  min-width: 1.2rem;
+  padding: 0 0.35rem;
+}
+
+/* Subtle unfold: the matrix scales/fades out of the bar. */
+.word-sync-rating__unfold {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  transform-origin: top center;
+  animation: word-sync-rating-unfold 140ms ease;
+}
+
+@keyframes word-sync-rating-unfold {
+  from {
+    opacity: 0;
+    transform: scaleY(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word-sync-rating__unfold {
+    animation: none;
+  }
+}

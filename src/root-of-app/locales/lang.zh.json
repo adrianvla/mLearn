@@ -3090,6 +3090,10 @@
       "WordCount": "{count} 个单词"
     },
     "WordSync": {
+      "Rating": {
+        "AllRow": "全部",
+        "PendingHint": "先按等级（1–4），再按方面键；再次按同一等级即可评定全部方面"
+      },
       "FinishedTitle": "全部完成！",
       "FinishedDescription": "您已检查 {count} 个单词。您的单词知识已更新。",
       "Progress": "{rated} / {total} 个单词",
