@@ -771,6 +771,33 @@ describe('WelcomeLevelPreview', () => {
     dispose();
   });
 
+  it('renders hydration placeholders — never a false 0% or the empty label — while pending', () => {
+    const dispose = render(
+      () => (
+        <WelcomeLevelPreview
+          pending
+          coverage={null}
+          active={null}
+          chips={[]}
+          titleLabel="Coverage"
+          emptyLabel="No level data yet"
+          onOpen={() => {}}
+        />
+      ),
+      container,
+    );
+
+    expect(container.querySelector('.wfv-level-value')?.textContent).not.toContain('%');
+    // While pending the dial announces the control itself — never "no data".
+    expect(container.querySelector('button.wfv-level-dial-wrap')?.getAttribute('aria-label')).toBe('Coverage');
+    expect(container.querySelector('.wfv-empty')).toBeNull();
+    expect(container.querySelector('.wfv-level-value .skeleton-line')).not.toBeNull();
+    expect(container.querySelectorAll('.wfv-level-side .skeleton-pill').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('.wfv-level-chips .skeleton-pill').length).toBeGreaterThan(0);
+
+    dispose();
+  });
+
   it('does not show a rounded 100% for an incomplete level', () => {
     const incomplete = { ...makeLevel(3, 100), known: 99, total: 100 };
     const dispose = render(

@@ -3090,6 +3090,10 @@
       "WordCount": "{count} слов"
     },
     "WordSync": {
+      "Rating": {
+        "AllRow": "Всё",
+        "PendingHint": "Оценка 1–4, затем клавиша аспекта — нажмите оценку ещё раз для всех аспектов"
+      },
       "FinishedTitle": "Готово!",
       "FinishedDescription": "Вы проверили {count} слов. Ваши знания слов обновлены.",
       "Progress": "{rated} / {total} слов",

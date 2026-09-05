@@ -3090,6 +3090,10 @@
       "WordCount": "{count} mots"
     },
     "WordSync": {
+      "Rating": {
+        "AllRow": "Tout",
+        "PendingHint": "Qualité 1–4, puis touche d’aspect – appuyez de nouveau sur la qualité pour tous les aspects"
+      },
       "FinishedTitle": "Terminé !",
       "FinishedDescription": "Vous avez vérifié {count} mots. Votre connaissance des mots a été mise à jour.",
       "Progress": "{rated} / {total} mots",

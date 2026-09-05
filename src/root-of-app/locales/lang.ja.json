@@ -3090,6 +3090,10 @@
       "WordCount": "{count} 語"
     },
     "WordSync": {
+      "Rating": {
+        "AllRow": "全体",
+        "PendingHint": "品質（1〜4）→ 側面キー。すべての側面は品質をもう一度押してください"
+      },
       "FinishedTitle": "完了！",
       "FinishedDescription": "{count}語を確認しました。単語知識が更新されました。",
       "Progress": "{rated} / {total} 語",
