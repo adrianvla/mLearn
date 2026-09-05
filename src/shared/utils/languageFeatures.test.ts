@@ -50,6 +50,7 @@ import {
   grammarPointMatchesTokens,
   isTranslatablePartOfSpeech,
   isTranslatableToken,
+  compoundSplitterConfig,
   isSettingFixedByLanguage,
   languageSupportsCharacterNamePrefixes,
   languageSupportsCompoundSplitting,
@@ -378,7 +379,10 @@ describe('language feature bricks', () => {
   it('gates compound splitting behind declared package metadata', () => {
     expect(languageSupportsCompoundSplitting(null)).toBe(false);
     expect(languageSupportsCompoundSplitting({ ...latinLanguage })).toBe(false);
-    expect(languageSupportsCompoundSplitting({ ...latinLanguage, compoundSplitting: true })).toBe(true);
+    const strategy = { locale: 'de', linkingElements: ['', 'es', 'en', 'er', 'n', 's'] };
+    expect(languageSupportsCompoundSplitting({ ...latinLanguage, compoundSplitting: strategy })).toBe(true);
+    expect(compoundSplitterConfig({ ...latinLanguage, compoundSplitting: strategy })).toBe(strategy);
+    expect(compoundSplitterConfig({ ...latinLanguage })).toBeNull();
   });
 
   const freq: [string, string][] = [

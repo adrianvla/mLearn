@@ -32,10 +32,11 @@ import { showToast } from '../common/Feedback/Toast';
 import { getTokenLookupWord, getTokenWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
-import { getFrequencyLevelVisualRank, languageSupportsCompoundSplitting } from '../../../shared/languageFeatures';
+import { compoundSplitterConfig, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
+import type { LanguageCompoundSplittingConfig } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
-import { decomposeGermanCompound, type GermanCompoundAnalysis, type GermanCompoundLexicon } from '../../../shared/graph/morphology/deCompounds';
+import { decomposeCompound, MIN_PART_LENGTH, type CompoundAnalysis, type CompoundLexicon } from '../../../shared/graph/morphology/compounds';
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
@@ -54,24 +55,31 @@ const UI_SIDEBAR_WIDTH = 160; // .reader-sidebar width: 160px
 const UI_STATUSBAR_HEIGHT = 30; // .reader-status height: 30px
 const UI_BOUNDARY_PADDING = 12; // Small padding from UI elements
 
-// ============ German compound decomposition (REQ42) ============
+// ============ Compound decomposition (REQ42) ============
 
-const MIN_COMPOUND_PART_LENGTH = 3; // Must match deCompounds MIN_PART_LENGTH.
+/** Per-frequency-map cache, keyed secondarily by the package-declared strategy
+ * (locale + minimum leaf length): one frequency map must never serve a lexicon
+ * normalized under a different declared strategy. */
+const compoundLexiconCache = new WeakMap<object, Map<string, CompoundLexicon>>();
 
-/** Per-frequency-map cache so repeated hovers never rebuild the lexicon. */
-const compoundLexiconCache = new WeakMap<object, GermanCompoundLexicon>();
-
-/** The splitter lexicon is the language's own frequency vocabulary. */
-function compoundLexiconFor(freq: WordFrequencyMap | undefined): GermanCompoundLexicon {
+/** The splitter lexicon is the language's own frequency vocabulary, case-normalized per the package's declared strategy. */
+function compoundLexiconFor(freq: WordFrequencyMap | undefined, config: LanguageCompoundSplittingConfig): CompoundLexicon {
   if (!freq || typeof freq !== 'object') return new Map();
-  const cached = compoundLexiconCache.get(freq);
+  const minPartLength = config.minPartLength ?? MIN_PART_LENGTH;
+  let byStrategy = compoundLexiconCache.get(freq);
+  if (!byStrategy) {
+    byStrategy = new Map();
+    compoundLexiconCache.set(freq, byStrategy);
+  }
+  const cacheKey = `${config.locale}:${minPartLength}`;
+  const cached = byStrategy.get(cacheKey);
   if (cached) return cached;
-  const lexicon: GermanCompoundLexicon = new Map(
+  const lexicon: CompoundLexicon = new Map(
     Object.keys(freq)
-      .filter((surface) => surface.length >= MIN_COMPOUND_PART_LENGTH)
-      .map((surface) => [surface.toLocaleLowerCase('de'), { lemma: surface }]),
+      .filter((surface) => surface.length >= minPartLength)
+      .map((surface) => [surface.toLocaleLowerCase(config.locale), { lemma: surface }]),
   );
-  compoundLexiconCache.set(freq, lexicon);
+  byStrategy.set(cacheKey, lexicon);
   return lexicon;
 }
 
@@ -81,12 +89,39 @@ function compoundLexiconFor(freq: WordFrequencyMap | undefined): GermanCompoundL
  * parts, or the result is not a generated multi-part split (attested single
  * lexemes are not compounds and render no tree).
  */
-export function compoundAnalysisFor(word: string, languageData: LanguageData | null | undefined, freq: WordFrequencyMap | undefined): GermanCompoundAnalysis | null {
-  if (!languageSupportsCompoundSplitting(languageData)) return null;
+export function compoundAnalysisFor(word: string, languageData: LanguageData | null | undefined, freq: WordFrequencyMap | undefined): CompoundAnalysis | null {
+  const config = compoundSplitterConfig(languageData);
+  if (!config) return null;
   const normalized = word.trim();
-  if (normalized.length < 2 * MIN_COMPOUND_PART_LENGTH) return null;
-  const analysis = decomposeGermanCompound(normalized, compoundLexiconFor(freq));
+  if (normalized.length < 2 * (config.minPartLength ?? MIN_PART_LENGTH)) return null;
+  const analysis = decomposeCompound(normalized, compoundLexiconFor(freq, config), config);
   return analysis?.source === 'generated' ? analysis : null;
+}
+
+export type CompoundDisplayResolution =
+  | { kind: 'pending' }
+  | { kind: 'unseen'; analysis: CompoundAnalysis }
+  | { kind: 'attested'; analysis: CompoundAnalysis }
+  | { kind: 'none' };
+
+/**
+ * Graph-first resolution order for the hover decomposition. While the
+ * projection is in flight (or stale for this word) nothing is guessed; a
+ * graph-attested structure is primary; a graph-known surface without attested
+ * structure is never guessed; only a surface absent from the graph falls back
+ * to the productive splitter (which itself requires the declared strategy).
+ */
+export function resolveCompoundDisplay(
+  projection: KnowledgeProjection | undefined,
+  word: string,
+  languageData: LanguageData | null | undefined,
+  freq: WordFrequencyMap | undefined,
+): CompoundDisplayResolution {
+  if (!projection || projection.status !== 'ready' || projection.querySurface !== word) return { kind: 'pending' };
+  if (projection.compoundAnalysis) return { kind: 'attested', analysis: projection.compoundAnalysis };
+  if (projection.surfaceKnown) return { kind: 'none' };
+  const generated = compoundAnalysisFor(word, languageData, freq);
+  return generated ? { kind: 'unseen', analysis: generated } : { kind: 'none' };
 }
 
 export interface WordHoverProps {
@@ -210,9 +245,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     languageData: currentLangData(),
   }));
 
-  // REQ42: real decomposition from the shared splitter, shown only when the
-  // surface actually splits into parts.
-  const compoundAnalysis = createMemo(() => compoundAnalysisFor(actualWord(), currentLangData(), getWordFrequency()));
+  // REQ42 + graph-first: the resolution is tri-state — while the projection is
+  // in flight nothing is guessed; graph-attested structure is primary; a
+  // graph-known surface without structure is never guessed; only surfaces
+  // absent from the graph fall back to the productive splitter.
+  const compoundAnalysis = createMemo(() => {
+    const resolution = resolveCompoundDisplay(projection(), actualWord(), currentLangData(), getWordFrequency());
+    return resolution.kind === 'pending' || resolution.kind === 'none' ? null : resolution.analysis;
+  });
   
   // REACTIVE: Get current ease from flashcard if tracked
   const currentEase = createMemo(() => {
@@ -933,7 +973,7 @@ const AnkiDuplicateWarningModal: Component<{
 
 /** Render depth rows of the decomposition: level parts joined by '+', deeper levels behind '→'. */
 export function CompoundDecomposition(props: {
-  analysis: GermanCompoundAnalysis;
+  analysis: CompoundAnalysis;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
   const depthRows = createMemo(() => {

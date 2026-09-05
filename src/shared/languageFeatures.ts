@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type KnowledgeAspect, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAspects } from './types';
+import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type KnowledgeAspect, type LanguageCompoundSplittingConfig, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAspects } from './types';
 import { createProsodyRawPayloadForPosition } from './prosodyPayload';
 import { getReadingExtraCharacters, isTextOnlyInScripts, katakanaToHiragana } from './utils/textUtils';
 import { getResolvedScriptProfile, hasLettersInAnyScript, hasLettersInScript, scriptProfileUsesSegmentlessText, normalizeScriptCodes } from './languageScriptProfile';
@@ -1228,7 +1228,12 @@ export function languageSupportsProsody(data?: LanguageData | null): boolean {
 }
 
 export function languageSupportsCompoundSplitting(data?: LanguageData | null): boolean {
-  return data?.compoundSplitting === true;
+  return compoundSplitterConfig(data) !== null;
+}
+
+/** Declared compound-splitting strategy for a language's package, if any. */
+export function compoundSplitterConfig(data?: LanguageData | null): LanguageCompoundSplittingConfig | null {
+  return data?.compoundSplitting ?? null;
 }
 
 export function getProsodyPositionFromContent(

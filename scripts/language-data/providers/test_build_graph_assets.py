@@ -237,6 +237,61 @@ class BuildGraphAssetsTest(unittest.TestCase):
             self.assertEqual(added, 0)
             self.assertEqual(len(graph.relations), 1)
 
+    def test_compound_component_edges_require_builder_derivation_and_unique_parses(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "root-of-app"
+            languages = root / "languages"
+            languages.mkdir(parents=True)
+            base_strategy = {
+                "locale": "de",
+                "linkingElements": ["", "es", "en", "er", "n", "s"],
+                "inflectionSuffixes": ["ern", "en", "er", "es", "e", "n", "s"],
+                "minPartLength": 3,
+            }
+
+            def write_package(include_derivation: bool) -> None:
+                payload = dict(base_strategy)
+                if include_derivation:
+                    payload["derivation"] = "builder"
+                (languages / "de.json").write_text(json.dumps({"compoundSplitting": payload}), encoding="utf-8")
+
+            labels = ["Papa", "Hand", "Schuh", "Handschuh", "Papashandschuhe", "Arbeitszimmer", "Arbeit", "Zimmer", "Arbe", "itszimmer"]
+
+            def build_graph():
+                graph = builder.Graph("de", {"provider": "fixture"})
+                for label in labels:
+                    graph.entity(builder.surface_id("de", label), "surface", label)
+                return graph
+
+            builder = _load_builder(root)
+
+            # Gate closed without explicit builder authorization.
+            write_package(include_derivation=False)
+            self.assertIsNone(builder.compound_strategy("de"))
+
+            # Authorized: unique attested parses emit as component-of edges.
+            write_package(include_derivation=True)
+            strategy = builder.compound_strategy("de")
+            self.assertIsNotNone(strategy)
+            graph = build_graph()
+            emitted = builder.emit_compound_component_edges(graph, strategy, "compound-splitter")
+            self.assertEqual(emitted, 5)
+            sid = lambda label: builder.surface_id("de", label)
+            component_edges = {
+                (relation["from"], relation["to"])
+                for relation in graph.relations.values()
+                if relation["type"] == "component-of" and relation["provenance"] == "compound-splitter"
+            }
+            self.assertEqual(component_edges, {
+                (sid("Papa"), sid("Papashandschuhe")),
+                (sid("Hand"), sid("Papashandschuhe")),
+                (sid("Schuh"), sid("Papashandschuhe")),
+                (sid("Hand"), sid("Handschuh")),
+                (sid("Schuh"), sid("Handschuh")),
+            })
+            # Ambiguous Arbeitszimmer (Arbe+itszimmer vs Arbeit+Zimmer): no invented facts.
+            self.assertFalse(any(relation["to"] == sid("Arbeitszimmer") for relation in graph.relations.values()))
+
 
 if __name__ == "__main__":
     unittest.main()

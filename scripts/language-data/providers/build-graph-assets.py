@@ -244,6 +244,109 @@ JMDICT_POS_CODES = frozenset({
 })
 
 
+def compound_strategy(language: str) -> dict[str, object] | None:
+    """Package-declared strategy, or None. Structural emission additionally
+    requires the explicit `derivation: "builder"` authorization — declaring a
+    runtime splitting strategy alone never causes graph edge inference."""
+    path = ROOT / "languages" / f"{language}.json"
+    if not path.exists():
+        return None
+    raw = json.loads(path.read_text(encoding="utf-8")).get("compoundSplitting")
+    if not isinstance(raw, dict) or raw.get("derivation") != "builder":
+        return None
+    locale = raw.get("locale")
+    linkers = raw.get("linkingElements")
+    if not isinstance(locale, str) or not isinstance(linkers, list):
+        return None
+    suffixes = raw.get("inflectionSuffixes")
+    min_part = raw.get("minPartLength")
+    return {
+        "locale": locale,
+        "linkingElements": [str(item) for item in linkers],
+        "inflectionSuffixes": [str(item) for item in suffixes] if isinstance(suffixes, list) else [],
+        "minPartLength": min_part if isinstance(min_part, int) else 3,
+    }
+
+
+MAX_COMPOUND_LABEL_LENGTH = 48
+
+
+def emit_compound_component_edges(graph: Graph, strategy: dict[str, object], provenance: str) -> int:
+    """Build-time derivation of ATTESTED compound structure: for each surface
+    whose label has exactly ONE parse into attested surface leaves under the
+    package strategy, emit component-of edges (leaf surface -> compound
+    surface). Mirrors the runtime contract: a unique nested split takes
+    precedence over an atomic attested surface, an ambiguous nested split
+    rejects the candidate, suffix candidates apply to the whole form only.
+    Ambiguous forms are skipped — the graph records only facts derived
+    uniquely. Build tooling only; nothing here runs in the app runtime.
+    Case folding uses Unicode-default casefold (no locale tailoring)."""
+    linkers = [str(item) for item in strategy["linkingElements"]]
+    suffixes = [str(item) for item in strategy.get("inflectionSuffixes", [])]
+    min_part = int(strategy.get("minPartLength", 3))
+    ids_by_folded: dict[str, str] = {}
+    for entity in graph.entities.values():
+        if entity.get("kind") == "surface" and entity.get("label"):
+            label = str(entity["label"])
+            if len(label) <= MAX_COMPOUND_LABEL_LENGTH:
+                ids_by_folded.setdefault(label.casefold(), str(entity["id"]))
+
+    self_id_cell = [""]
+
+    def parse_part(word: str, exclude_self: bool) -> tuple[str, ...] | None:
+        """Unique leaf tuple for word, or None. Split precedence over atomic;
+        ambiguous nested splits reject; no split -> atomic attested surface."""
+        nested: set[tuple[str, ...]] = set()
+        for boundary in range(min_part, len(word) - min_part + 1):
+            for linker in linkers:
+                if word[boundary:boundary + len(linker)].casefold() != linker:
+                    continue
+                left = word[:boundary]
+                right = word[boundary + len(linker):]
+                if len(right) < min_part:
+                    continue
+                if not ids_by_folded.get(left.casefold()):
+                    continue
+                right_leaves = parse_part(right, False)
+                if right_leaves:
+                    nested.add((left, *right_leaves))
+        if len(nested) == 1:
+            return next(iter(nested))
+        if len(nested) > 1:
+            return None
+        own = ids_by_folded.get(word.casefold())
+        if own and not (exclude_self and own == self_id_cell[0]):
+            return (word,)
+        return None
+
+    emitted = 0
+    for entity in list(graph.entities.values()):
+        if entity.get("kind") != "surface":
+            continue
+        label = str(entity.get("label") or "")
+        if not label or len(label) > MAX_COMPOUND_LABEL_LENGTH:
+            continue
+        self_id_cell[0] = str(entity["id"])
+        distinct: set[tuple[str, ...]] = set()
+        candidates = [label]
+        folded = label.casefold()
+        for suffix in suffixes:
+            if folded.endswith(suffix) and len(label) - len(suffix) >= min_part:
+                candidates.append(label[: -len(suffix)])
+        for candidate in candidates:
+            leaves = parse_part(candidate, True)
+            if leaves and len(leaves) >= 2 and all(len(leaf) >= min_part for leaf in leaves):
+                distinct.add(leaves)
+        if len(distinct) != 1:
+            continue
+        for leaf in next(iter(distinct)):
+            leaf_id = ids_by_folded.get(leaf.casefold())
+            if leaf_id and leaf_id != self_id_cell[0]:
+                graph.relation(leaf_id, self_id_cell[0], "component-of", provenance)
+                emitted += 1
+    return emitted
+
+
 def structured_pos_codes(content: object, found: set[str]) -> None:
     if isinstance(content, dict):
         data = content.get("data")
@@ -405,6 +508,10 @@ def build_de() -> tuple[int, int, int] | None:
                         sense_id = graph.entity(f"de:sense:{entry_index}:{sense_index}", "sense", gloss)
                         graph.relation(entry_id, sense_id, "has-sense", "freedict")
                 entry.clear()
+        strategy = compound_strategy("de")
+        if strategy:
+            edges = emit_compound_component_edges(graph, strategy, "compound-splitter")
+            log(f"compound component-of edges emitted: {edges}")
         return graph.write()
     except Exception as error:
         log(f"Warning: skipping de graph asset: {error}")

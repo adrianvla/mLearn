@@ -8,6 +8,12 @@ import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodC
 import { RELATION_CATEGORY, type GraphRelation, type GraphRelationType, type LinguisticGraphAsset } from '../../shared/graph/types';
 import { loadLinguisticGraph, type LingualGraph } from '../../shared/graph/load';
 import { buildKnowledgeProjection } from './knowledgeProjection';
+import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
+import type { CompoundPart } from '../../shared/graph/morphology/compounds';
+import type { PredictionInput } from '../../shared/prediction/supportPredictor';
+import { replayKeyProjection } from '../../shared/utils/projectionReplay';
+import { easeToStatus } from '../../shared/utils/knowledgeStrength';
+import { getKnowledgeEvents } from './knowledgeEvents';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -184,7 +190,9 @@ export class LinguisticGraphService {
       if (!loaded) return { status: 'not-installed', targets: [] };
       const hash = crypto.createHash('sha256').update(surface).digest('hex');
       const surfaceId = `${language}:surface:${hash}`;
-      if (!loaded.graph.has(surfaceId)) return { status: 'ready', surfaceId, targets: [] };
+      if (!loaded.graph.has(surfaceId)) {
+        return { status: 'ready', surfaceId, targets: [], querySurface: surface, surfaceKnown: false, compoundAnalysis: null };
+      }
       const [{ loadFlashcards }, { getKnowledgeEvents }] = await Promise.all([
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
@@ -193,9 +201,47 @@ export class LinguisticGraphService {
         loadFlashcards(),
         Promise.resolve(getKnowledgeEvents([`${language}:${hash}`])),
       ]);
-      return buildKnowledgeProjection(this.toLingualGraph(loaded), surfaceId, events[`${language}:${hash}`] ?? [], store.meta);
+      const plain = this.toLingualGraph(loaded);
+      const compound = await this.compoundSupport(plain, language, surfaceId);
+      const projection = buildKnowledgeProjection(plain, surfaceId, events[`${language}:${hash}`] ?? [], store.meta, undefined, undefined, { compound });
+      return { ...projection, querySurface: surface, surfaceKnown: true, compoundAnalysis: compound?.analysis ?? null };
     } catch {
       return { status: 'error', targets: [] };
+    }
+  }
+
+  /**
+   * Graph-first compound support for a projection: attested structure comes
+   * from component-of graph edges (primary representation); `isKnownPart`
+   * consults each part surface's own evidence projection, never the compound's.
+   */
+  private async compoundSupport(plain: LingualGraph, language: string, surfaceId: string): Promise<PredictionInput['compound'] | undefined> {
+    try {
+      const analysis = attestedCompoundAnalysis(plain, surfaceId);
+      if (!analysis) return undefined;
+      const prefix = `${language}:surface:`;
+      const leaves: Array<{ lemma: string; entryId: string }> = [];
+      const walk = (parts: readonly CompoundPart[]): void => {
+        for (const part of parts) {
+          if (part.parts) walk(part.parts);
+          else leaves.push({ lemma: part.lemma, entryId: part.entryId ?? '' });
+        }
+      };
+      walk(analysis.parts);
+      const keys = [...new Set(leaves.map((leaf) => (leaf.entryId.startsWith(prefix) ? `${language}:${leaf.entryId.slice(prefix.length)}` : '')))].filter(Boolean);
+      const partEvents = keys.length > 0 ? getKnowledgeEvents(keys) : {};
+      const knownLeaves = new Set(
+        leaves
+          .filter((leaf) => {
+            if (!leaf.entryId.startsWith(prefix)) return false;
+            const projection = replayKeyProjection(partEvents[`${language}:${leaf.entryId.slice(prefix.length)}`] ?? []);
+            return projection ? easeToStatus(projection.ease) === 'known' : false;
+          })
+          .map((leaf) => leaf.lemma),
+      );
+      return { analysis, isKnownPart: (lemma: string) => knownLeaves.has(lemma) };
+    } catch {
+      return undefined;
     }
   }
 

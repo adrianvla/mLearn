@@ -703,4 +703,39 @@ describe('language-agnostic runtime API naming', () => {
     expect(flashcardStorage).not.toMatch(/perLanguage:\s*\{\s*ja:/);
     expect(flashcardStorage).not.toMatch(/migrateV6ToV7\(result,\s*['"]ja['"]\)/);
   });
+
+  it('keeps compound-splitting dispatch capability-driven, never German-keyed', () => {
+    const runtimeFiles = [
+      'src/shared/prediction/supportPredictor.ts',
+      'src/shared/graph/morphology/compounds.ts',
+      'src/shared/languageFeatures.ts',
+      'src/renderer/components/subtitle/WordHover.tsx',
+      'src/electron/services/knowledgeProjection.ts',
+    ];
+    for (const file of runtimeFiles) {
+      const source = readRepoFile(file);
+      expect(source, `${file} references the German-named splitter`).not.toMatch(/\bdecomposeGermanCompound\b|\bGermanCompound/);
+      expect(source, `${file} hardcodes the de graph ID prefix`).not.toContain("startsWith('de:')");
+      expect(source, `${file} hardcodes the de locale for case normalization`).not.toContain("toLocaleLowerCase('de')");
+    }
+
+    // The splitter module itself must stay strategy-parameterized: locale and
+    // linking elements always arrive from LanguageCompoundSplittingConfig.
+    const splitter = readRepoFile('src/shared/graph/morphology/compounds.ts');
+    expect(splitter).toContain('config.locale');
+    expect(splitter).toContain('config.linkingElements');
+
+    // The schema accepts only a declared strategy object — a bare boolean can
+    // never silently re-introduce a hardcoded default strategy.
+    expect(readRepoFile('src/shared/types.ts')).not.toMatch(/compoundSplitting\?:\s*boolean/);
+
+    // The German package must declare its own strategy rather than rely on
+    // runtime defaults (mirrors the deployed language-package schema).
+    const germanPackage = JSON.parse(readRepoFile('scripts/language-data/source/root-of-app/languages/de.json')) as {
+      compoundSplitting?: { locale?: string; linkingElements?: readonly string[] };
+    };
+    expect(typeof germanPackage.compoundSplitting).toBe('object');
+    expect(germanPackage.compoundSplitting?.locale).toBeTruthy();
+    expect(germanPackage.compoundSplitting?.linkingElements?.length ?? 0).toBeGreaterThan(0);
+  });
 });
