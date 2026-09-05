@@ -41,6 +41,35 @@ export {
   type DraggablePopupProps,
 } from './Modal';
 
+// Readiness contract + gates (loading as a first-class state)
+export {
+  ReadinessGate,
+  deriveReadiness,
+  isSettledReadiness,
+  toReadinessAccessor,
+  usePendingVisibility,
+  type Readiness,
+  type ReadinessAccessor,
+  type ReadinessFlags,
+  type ReadinessGateProps,
+  type PendingVisibility,
+  type PendingVisibilityOptions,
+} from './Readiness';
+
+// Skeleton primitives (shared placeholder vocabulary)
+export {
+  SkeletonLine,
+  SkeletonText,
+  SkeletonPill,
+  SkeletonInline,
+  SkeletonRows,
+  SkeletonGrid,
+  SkeletonCard,
+  SkeletonStatGrid,
+  type SkeletonSize,
+  type SkeletonWidth,
+} from './Skeleton';
+
 // EulaModal
 export {
   EulaModal,
@@ -211,7 +240,6 @@ export {
 export { 
   Loader,
   Spinner,
-  Skeleton,
   ProgressRing,
   InlineLoadingOverlay,
   type LoaderProps,

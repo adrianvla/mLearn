@@ -110,6 +110,7 @@ vi.mock('./components', () => ({
 vi.mock('../../components/common', () => ({
   ModalLoadingOverlay: () => <div />,
   Spinner: () => <div />,
+  SkeletonRows: (props: { rows?: number }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,
   CollapsibleStickyHeader: (props: { children?: JSX.Element; ref?: (el: HTMLDivElement) => void; class?: string }) => {
     let el!: HTMLDivElement;
     queueMicrotask(() => props.ref?.(el));

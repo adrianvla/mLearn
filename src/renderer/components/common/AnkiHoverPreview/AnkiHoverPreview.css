@@ -35,7 +35,14 @@
   height: auto;
 }
 
+/* Skeleton container while the card lookup resolves. */
 .anki-hover-preview__loading {
+  display: block;
+  width: 100%;
+}
+
+/* Genuine empty state: no card for this word. */
+.anki-hover-preview__empty {
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
   font-style: italic;

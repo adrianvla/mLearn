@@ -80,6 +80,7 @@ vi.mock('../../components/common', () => ({
   PillBtn: (props: { label?: string; children?: JSX.Element }) => <button>{props.label ?? props.children}</button>,
   PillLabel: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
   Spinner: () => <span />,
+  SkeletonText: (props: { lines?: number }) => <div data-testid="skeleton-text" data-lines={props.lines} />,
   SafeHtml: (props: { tag: string; class?: string; html?: string }) => {
     const el = document.createElement(props.tag);
     if (props.class) el.className = props.class;

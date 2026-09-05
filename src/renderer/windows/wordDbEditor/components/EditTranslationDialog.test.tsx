@@ -77,6 +77,7 @@ vi.mock('../../../components/common', () => ({
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => (
     <button type="button" onClick={props.onClick}>{props.children}</button>
   ),
+  SkeletonRows: (props: { rows?: number; rowHeight?: string }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,
   ContentEditable: (props: { value?: string; onChange?: (value: string) => void }) => (
     <textarea
       data-testid="structured-content"

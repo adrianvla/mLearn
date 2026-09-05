@@ -30,7 +30,6 @@
         "Truncated": "已显示 {total} 条关系中的 {shown} 条。",
         "NotInGraph": "该词条不在语言图谱中。",
         "OpenInWindow": "在图谱检查器中打开",
-        "Loading": "正在加载邻域…",
         "State": {
           "EvidenceBackedKnown": "有证据支持的已知",
           "ClaimedKnown": "已知（声明）",
@@ -1071,7 +1070,7 @@
       "Suggested": {
         "Title": "推荐闪卡",
         "Description": "在您阅读或观看时自动捕获。升级以生成翻译、例句和音频。",
-        "Loading": "正在加载推荐…",
+        "SortOldest": "最早优先",
         "CountLabel": "显示 {shown} 条 · 共 {total} 条",
         "SearchPlaceholder": "搜索单词或读音…",
         "EmptyTitle": "暂无推荐",
@@ -1106,8 +1105,7 @@
         "SortCountAsc": "最少见",
         "SortWordAsc": "单词 (A–Z)",
         "SortWordDesc": "单词 (Z–A)",
-        "SortNewest": "最新优先",
-        "SortOldest": "最早优先"
+        "SortNewest": "最新优先"
       }
     },
     "Global": {
@@ -1116,6 +1114,7 @@
       },
       "Add": "添加",
       "AppName": "mLearn",
+      "NoCardFound": "未找到卡片",
       "Aria": {
         "CloseAlert": "关闭提示",
         "CloseModal": "关闭模态框",
@@ -1451,8 +1450,7 @@
         "FullGraph": "打开完整图谱",
         "Prediction": {
           "None": "无预测。"
-        },
-        "Checking": "正在检查语言图…"
+        }
       },
       "Aspect": {
         "Grammar": "语法",
@@ -1604,7 +1602,7 @@
     },
     "MemoryBrowser": {
       "Empty": "暂无记忆条目。",
-      "Loading": "正在加载记忆...",
+      "Title": "记忆浏览器",
       "Open": "打开记忆浏览器",
       "OpenInAgent": "记忆浏览器",
       "Sections": {
@@ -1616,8 +1614,7 @@
       },
       "Tabs": {
         "Room": "房间"
-      },
-      "Title": "记忆浏览器"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "从缓存加载了 Anki 闪卡（Anki 似乎离线）",
@@ -3037,7 +3034,10 @@
       },
       "Explain": "解释",
       "InAnki": "在 Anki 中",
-      "Loading": "加载中…",
+      "Compound": {
+        "Title": "复合词",
+        "Ambiguous": "多种解析"
+      },
       "NoTranslation": "未找到翻译",
       "Status": {
         "Known": "已掌握",
@@ -3056,11 +3056,7 @@
       "AnkiEase": "Anki 难度系数：{ease}",
       "AnkiUpdateSuccess": "已更新 {count} 张 Anki 卡片",
       "AnkiUpdateRepositioned": "已更新 {count} 张卡片，重新定位了 {repositioned} 张新卡片",
-      "AnkiUpdateFailed": "更新 Anki 卡片失败",
-      "Compound": {
-        "Title": "复合词",
-        "Ambiguous": "多种解析"
-      }
+      "AnkiUpdateFailed": "更新 Anki 卡片失败"
     },
     "ConnectionStatus": {
       "Connected": "已连接",
@@ -3396,16 +3392,6 @@
         "Unmeasured": "未测量："
       },
       "LevelFallback": "等级 {level}",
-      "Loading": "正在加载字符数据…",
-      "Stats": {
-        "Evidenced": "直接证实：",
-        "Claimed": "已声明：",
-        "Familiar": "熟悉：",
-        "Emerging": "初步掌握：",
-        "TotalFound": "已找到总数：",
-        "Unmeasured": "未测量："
-      },
-      "Title": "字符熟悉度概览",
       "Tooltip": {
         "Claim": {
           "known": "您已声明可以读出此字符。",
@@ -3428,7 +3414,16 @@
         "Score": "分数",
         "WordsContaining": "包含{char}的单词",
         "PredictionNote": "熟悉度是根据下方包含此字符的已知/学习中的单词推测的，并非对字符本身的直接掌握。"
-      }
+      },
+      "Stats": {
+        "Evidenced": "直接证实：",
+        "Claimed": "已声明：",
+        "Familiar": "熟悉：",
+        "Emerging": "初步掌握：",
+        "TotalFound": "已找到总数：",
+        "Unmeasured": "未测量："
+      },
+      "Title": "字符熟悉度概览"
     }
   }
 }

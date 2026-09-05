@@ -26,7 +26,6 @@ import {
   Tooltip,
   SelectableCard,
   CollapsibleStickyHeader,
-  Spinner,
   FilterBuilder,
   buildEmptyPreset,
   buildSuggestedFlashcardFields,
@@ -40,6 +39,7 @@ import {
   type ExprNode,
   type ValidationError,
   ImageIcon,
+  SkeletonRows,
 } from '../../components/common';
 import { WordStatusPill } from '../../components/common/Smart';
 import { FlashcardWordTitle } from '../../components/flashcard';
@@ -597,9 +597,11 @@ export const FlashcardsSuggested: Component = () => {
         </Show>
       </CollapsibleStickyHeader>
 
+      {/* Initial GC of stale suggestions gates the first authoritative list:
+          hold the grid's geometry with placeholder rows. */}
       <Show when={!garbageCollecting()} fallback={
-        <div class="flashcards-suggested-loading">
-          <Spinner size={32} text={t('mlearn.Flashcards.Suggested.Loading')} />
+        <div class="flashcards-suggested-loading" aria-busy="true">
+          <SkeletonRows rows={6} />
         </div>
       }>
       <Show when={suggestions().length > 0} fallback={

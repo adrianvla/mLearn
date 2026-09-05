@@ -30,7 +30,6 @@
         "Truncated": "{shown} relations affichées sur {total}.",
         "NotInGraph": "Cet élément ne fait pas partie du graphe de langue.",
         "OpenInWindow": "Ouvrir dans l’inspecteur de graphe",
-        "Loading": "Chargement du voisinage…",
         "State": {
           "EvidenceBackedKnown": "Connu avec preuve",
           "ClaimedKnown": "Connu (déclaré)",
@@ -1071,7 +1070,7 @@
       "Suggested": {
         "Title": "Cartes suggérées",
         "Description": "Capturées automatiquement lors de la lecture ou du visionnage. Promouvez-les pour générer traduction, exemple et audio.",
-        "Loading": "Chargement des suggestions...",
+        "SortOldest": "Plus anciens d'abord",
         "CountLabel": "{shown} affichées · {total} au total",
         "SearchPlaceholder": "Rechercher un mot ou une lecture…",
         "EmptyTitle": "Aucune suggestion",
@@ -1106,8 +1105,7 @@
         "SortCountAsc": "Vu le moins souvent",
         "SortWordAsc": "Mot (A–Z)",
         "SortWordDesc": "Mot (Z–A)",
-        "SortNewest": "Plus récents d'abord",
-        "SortOldest": "Plus anciens d'abord"
+        "SortNewest": "Plus récents d'abord"
       }
     },
     "Global": {
@@ -1116,6 +1114,7 @@
       },
       "Add": "Ajouter",
       "AppName": "mLearn",
+      "NoCardFound": "Aucune carte trouvée",
       "Aria": {
         "CloseAlert": "Fermer l'alerte",
         "CloseModal": "Fermer la fenêtre",
@@ -1451,8 +1450,7 @@
         "FullGraph": "Ouvrir le graphe complet",
         "Prediction": {
           "None": "Aucune prédiction."
-        },
-        "Checking": "Vérification du graphe linguistique…"
+        }
       },
       "Aspect": {
         "Grammar": "Grammaire",
@@ -1604,7 +1602,7 @@
     },
     "MemoryBrowser": {
       "Empty": "Aucune entrée de mémoire pour l'instant.",
-      "Loading": "Chargement de la mémoire...",
+      "Title": "Navigateur de mémoire",
       "Open": "Ouvrir le navigateur de mémoire",
       "OpenInAgent": "Navigateur de mémoire",
       "Sections": {
@@ -1616,8 +1614,7 @@
       },
       "Tabs": {
         "Room": "Salle"
-      },
-      "Title": "Navigateur de mémoire"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Cartes Anki chargées depuis le cache (Anki semble hors ligne)",
@@ -3037,7 +3034,10 @@
       },
       "Explain": "Expliquer",
       "InAnki": "Dans Anki",
-      "Loading": "Chargement...",
+      "Compound": {
+        "Title": "Mot composé",
+        "Ambiguous": "Plusieurs lectures"
+      },
       "NoTranslation": "Aucune traduction trouvée",
       "Status": {
         "Known": "Connu",
@@ -3056,11 +3056,7 @@
       "AnkiEase": "Aisance Anki : {ease}",
       "AnkiUpdateSuccess": "{count} carte(s) Anki mise(s) à jour",
       "AnkiUpdateRepositioned": "{count} carte(s) mise(s) à jour, {repositioned} nouvelle(s) carte(s) repositionnée(s)",
-      "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki",
-      "Compound": {
-        "Title": "Mot composé",
-        "Ambiguous": "Plusieurs lectures"
-      }
+      "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki"
     },
     "ConnectionStatus": {
       "Connected": "Connecté",
@@ -3396,16 +3392,6 @@
         "Unmeasured": "Non mesuré :"
       },
       "LevelFallback": "Niveau {level}",
-      "Loading": "Chargement des données de caractères...",
-      "Stats": {
-        "Evidenced": "Directement prouvé :",
-        "Claimed": "Déclaré :",
-        "Familiar": "Familiers :",
-        "Emerging": "Émergents :",
-        "TotalFound": "Total :",
-        "Unmeasured": "Non mesurés :"
-      },
-      "Title": "Familiarité avec les caractères",
       "Tooltip": {
         "Claim": {
           "known": "Vous avez déclaré savoir lire ce caractère.",
@@ -3428,7 +3414,16 @@
         "Score": "Score",
         "WordsContaining": "Mots contenant {char}",
         "PredictionNote": "La familiarité est prédite à partir des mots connus/en apprentissage ci-dessous contenant ce caractère — ce n'est pas une connaissance directe du caractère."
-      }
+      },
+      "Stats": {
+        "Evidenced": "Directement prouvé :",
+        "Claimed": "Déclaré :",
+        "Familiar": "Familiers :",
+        "Emerging": "Émergents :",
+        "TotalFound": "Total :",
+        "Unmeasured": "Non mesurés :"
+      },
+      "Title": "Familiarité avec les caractères"
     }
   }
 }

@@ -30,7 +30,6 @@
         "Truncated": "Showing {shown} of {total} relations.",
         "NotInGraph": "This entry is not part of the language graph.",
         "OpenInWindow": "Open in graph inspector",
-        "Loading": "Loading neighborhood…",
         "State": {
           "EvidenceBackedKnown": "Evidence-backed known",
           "ClaimedKnown": "Known (claimed)",
@@ -1071,7 +1070,7 @@
       "Suggested": {
         "Title": "Suggested Flashcards",
         "Description": "Automatically captured while you read or watch. Promote them to generate translation, example and audio.",
-        "Loading": "Loading suggestions...",
+        "SortOldest": "Oldest first",
         "CountLabel": "{shown} shown · {total} total",
         "SearchPlaceholder": "Search word or reading…",
         "EmptyTitle": "No suggestions yet",
@@ -1106,8 +1105,7 @@
         "SortCountAsc": "Seen least often",
         "SortWordAsc": "Word (A–Z)",
         "SortWordDesc": "Word (Z–A)",
-        "SortNewest": "Newest first",
-        "SortOldest": "Oldest first"
+        "SortNewest": "Newest first"
       }
     },
     "Global": {
@@ -1116,6 +1114,7 @@
       },
       "Add": "Add",
       "AppName": "mLearn",
+      "NoCardFound": "No card found",
       "Aria": {
         "CloseAlert": "Close alert",
         "CloseModal": "Close modal",
@@ -1451,8 +1450,7 @@
         "FullGraph": "Open full graph",
         "Prediction": {
           "None": "No prediction."
-        },
-        "Checking": "Checking the linguistic graph…"
+        }
       },
       "Aspect": {
         "Grammar": "Grammar",
@@ -1604,7 +1602,7 @@
     },
     "MemoryBrowser": {
       "Empty": "No memory entries yet.",
-      "Loading": "Loading memory...",
+      "Title": "Memory Browser",
       "Open": "Open Memory Browser",
       "OpenInAgent": "Memory Browser",
       "Sections": {
@@ -1616,8 +1614,7 @@
       },
       "Tabs": {
         "Room": "Room"
-      },
-      "Title": "Memory Browser"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki flashcards loaded from cache (Anki appears offline)",
@@ -3037,7 +3034,10 @@
       },
       "Explain": "Explain",
       "InAnki": "In Anki",
-      "Loading": "Loading...",
+      "Compound": {
+        "Title": "Compound",
+        "Ambiguous": "Multiple readings"
+      },
       "NoTranslation": "No translation found",
       "Status": {
         "Known": "Known",
@@ -3056,11 +3056,7 @@
       "AnkiEase": "Anki Ease: {ease}",
       "AnkiUpdateSuccess": "Updated {count} Anki card(s)",
       "AnkiUpdateRepositioned": "Updated {count} card(s), repositioned {repositioned} new card(s)",
-      "AnkiUpdateFailed": "Failed to update Anki cards",
-      "Compound": {
-        "Title": "Compound",
-        "Ambiguous": "Multiple readings"
-      }
+      "AnkiUpdateFailed": "Failed to update Anki cards"
     },
     "ConnectionStatus": {
       "Connected": "Connected",
@@ -3396,16 +3392,6 @@
         "Unmeasured": "Unmeasured:"
       },
       "LevelFallback": "Level {level}",
-      "Loading": "Loading character data...",
-      "Stats": {
-        "Evidenced": "Directly evidenced:",
-        "Claimed": "Claimed:",
-        "Familiar": "Familiar:",
-        "Emerging": "Emerging:",
-        "TotalFound": "Total Found:",
-        "Unmeasured": "Unmeasured:"
-      },
-      "Title": "Character Familiarity Overview",
       "Tooltip": {
         "Claim": {
           "known": "You marked this character: you can read it.",
@@ -3428,7 +3414,16 @@
         "Score": "score",
         "WordsContaining": "Words containing {char}",
         "PredictionNote": "Familiarity is predicted from the known/learning words below that contain this character — it is not direct character knowledge."
-      }
+      },
+      "Stats": {
+        "Evidenced": "Directly evidenced:",
+        "Claimed": "Claimed:",
+        "Familiar": "Familiar:",
+        "Emerging": "Emerging:",
+        "TotalFound": "Total Found:",
+        "Unmeasured": "Unmeasured:"
+      },
+      "Title": "Character Familiarity Overview"
     }
   }
 }

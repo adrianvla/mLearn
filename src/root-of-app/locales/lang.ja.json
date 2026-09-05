@@ -30,7 +30,6 @@
         "Truncated": "{total} 件の関係のうち {shown} 件を表示しています。",
         "NotInGraph": "この項目は言語グラフに含まれていません。",
         "OpenInWindow": "グラフインスペクターで開く",
-        "Loading": "近傍を読み込み中…",
         "State": {
           "EvidenceBackedKnown": "根拠に基づく既知",
           "ClaimedKnown": "既知（宣言）",
@@ -1071,7 +1070,7 @@
       "Suggested": {
         "Title": "候補のフラッシュカード",
         "Description": "視聴・読書中に自動で集めた候補です。昇格すると翻訳・例文・音声が生成されます。",
-        "Loading": "候補を読み込み中…",
+        "SortOldest": "古い順",
         "CountLabel": "{shown} 表示 · 合計 {total}",
         "SearchPlaceholder": "単語または読みで検索…",
         "EmptyTitle": "候補はまだありません",
@@ -1106,8 +1105,7 @@
         "SortCountAsc": "あまり見ない順",
         "SortWordAsc": "単語 (A–Z)",
         "SortWordDesc": "単語 (Z–A)",
-        "SortNewest": "新しい順",
-        "SortOldest": "古い順"
+        "SortNewest": "新しい順"
       }
     },
     "Global": {
@@ -1116,6 +1114,7 @@
       },
       "Add": "追加",
       "AppName": "mLearn",
+      "NoCardFound": "カードが見つかりません",
       "Aria": {
         "CloseAlert": "アラートを閉じる",
         "CloseModal": "モーダルを閉じる",
@@ -1451,8 +1450,7 @@
         "FullGraph": "完全なグラフを開く",
         "Prediction": {
           "None": "予測はありません。"
-        },
-        "Checking": "言語グラフを確認中…"
+        }
       },
       "Aspect": {
         "Grammar": "文法",
@@ -1604,7 +1602,7 @@
     },
     "MemoryBrowser": {
       "Empty": "メモリエントリはまだありません。",
-      "Loading": "メモリを読み込み中...",
+      "Title": "メモリブラウザ",
       "Open": "メモリブラウザを開く",
       "OpenInAgent": "メモリブラウザ",
       "Sections": {
@@ -1616,8 +1614,7 @@
       },
       "Tabs": {
         "Room": "ルーム"
-      },
-      "Title": "メモリブラウザ"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Ankiフラッシュカードをキャッシュから読み込みました（Ankiはオフラインのようです）",
@@ -3037,7 +3034,10 @@
       },
       "Explain": "解説",
       "InAnki": "Anki内",
-      "Loading": "読み込み中...",
+      "Compound": {
+        "Title": "複合語",
+        "Ambiguous": "複数の解釈"
+      },
       "NoTranslation": "翻訳が見つかりません",
       "Status": {
         "Known": "既知",
@@ -3056,11 +3056,7 @@
       "AnkiEase": "Anki Ease: {ease}",
       "AnkiUpdateSuccess": "{count}枚のAnkiカードを更新しました",
       "AnkiUpdateRepositioned": "{count}枚のカードを更新、{repositioned}枚の新しいカードを再配置しました",
-      "AnkiUpdateFailed": "Ankiカードの更新に失敗しました",
-      "Compound": {
-        "Title": "複合語",
-        "Ambiguous": "複数の解釈"
-      }
+      "AnkiUpdateFailed": "Ankiカードの更新に失敗しました"
     },
     "ConnectionStatus": {
       "Connected": "接続済み",
@@ -3396,16 +3392,6 @@
         "Unmeasured": "未測定:"
       },
       "LevelFallback": "レベル {level}",
-      "Loading": "文字データを読み込み中...",
-      "Stats": {
-        "Evidenced": "直接確認済み:",
-        "Claimed": "宣言済み:",
-        "Familiar": "馴染みあり:",
-        "Emerging": "習得中:",
-        "TotalFound": "合計:",
-        "Unmeasured": "未測定:"
-      },
-      "Title": "文字の習得予測",
       "Tooltip": {
         "Claim": {
           "known": "この文字を読めると自分で宣言しました。",
@@ -3428,7 +3414,16 @@
         "Score": "スコア",
         "WordsContaining": "{char}を含む単語",
         "PredictionNote": "馴染み度は、この文字を含む既知・学習中の単語（下に表示）から予測したものです。文字自体の直接的な知識ではありません。"
-      }
+      },
+      "Stats": {
+        "Evidenced": "直接確認済み:",
+        "Claimed": "宣言済み:",
+        "Familiar": "馴染みあり:",
+        "Emerging": "習得中:",
+        "TotalFound": "合計:",
+        "Unmeasured": "未測定:"
+      },
+      "Title": "文字の習得予測"
     }
   }
 }

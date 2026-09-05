@@ -2,17 +2,16 @@
  * Unified Loader Component
  * A single loading indicator component that can render different types:
  * - spinner: Spinning circle indicator
- * - skeleton: Animated placeholder lines
  * - ring: Circular progress ring (for OCR, etc.)
  * - overlay: Full overlay with spinner
  */
 
-import { Component, Show, For, createMemo, JSX } from 'solid-js';
+import { Component, Show, createMemo, JSX } from 'solid-js';
 import './Loader.css';
 
 // ============ Types ============
 
-export type LoaderType = 'spinner' | 'skeleton' | 'ring' | 'overlay';
+export type LoaderType = 'spinner' | 'ring' | 'overlay';
 
 type LoaderCssProperties = JSX.CSSProperties & {
   '--square-ring-perimeter'?: string;
@@ -33,8 +32,6 @@ export interface LoaderProps {
   progress?: number;
   /** Whether to show indeterminate animation (for ring) */
   indeterminate?: boolean;
-  /** Number of skeleton lines */
-  lines?: number;
   /** Show percentage text */
   showPercent?: boolean;
   /** Animate progress transitions */
@@ -111,26 +108,6 @@ const SpinnerContent: Component<{ size: number; text?: string; shape?: 'circle' 
   );
 };
 
-// ============ Skeleton Component ============
-
-const SkeletonContent: Component<{ lines: number }> = (props) => {
-  // Generate random widths for skeleton lines
-  const widths = createMemo(() => 
-    Array.from({ length: props.lines }, () => Math.floor(Math.random() * 100) + 10)
-  );
-  
-  return (
-    <div class="loader-skeleton">
-      <div class="loader-skeleton-lines">
-        <For each={widths()}>
-          {(width) => (
-            <span class="loader-skeleton-line" style={{ width: `${width}px` }} />
-          )}
-        </For>
-      </div>
-    </div>
-  );
-};
 
 // ============ Ring Component ============
 
@@ -329,7 +306,6 @@ const OverlayContent: Component<{
 export const Loader: Component<LoaderProps> = (props) => {
   const type = () => props.type || 'spinner';
   const size = () => props.size ?? 32;
-  const lines = () => props.lines ?? Math.floor(Math.random() * 10) + 10;
   const progress = () => props.progress ?? 0;
   const showPercent = () => props.showPercent === true;
   const strokeWidth = () => props.strokeWidth ?? (props.indeterminate ? 4 : 3);
@@ -345,10 +321,6 @@ export const Loader: Component<LoaderProps> = (props) => {
     <div class={`loader loader-${type()} ${props.class || ''}`} style={props.style}>
       <Show when={type() === 'spinner'}>
         <SpinnerContent size={size()} text={props.text} shape={shape()} strokeWidth={strokeWidth()} cornerRadius={cornerRadius()} />
-      </Show>
-      
-      <Show when={type() === 'skeleton'}>
-        <SkeletonContent lines={lines()} />
       </Show>
       
       <Show when={type() === 'ring'}>
@@ -389,10 +361,6 @@ export const Spinner: Component<Omit<LoaderProps, 'type'>> = (props) => (
   <Loader type="spinner" {...props} />
 );
 
-/** Skeleton loader */
-export const Skeleton: Component<Omit<LoaderProps, 'type'>> = (props) => (
-  <Loader type="skeleton" {...props} />
-);
 
 /** Progress ring */
 export const ProgressRing: Component<Omit<LoaderProps, 'type'>> = (props) => (

@@ -3,8 +3,8 @@ import { useLocalization } from '../../../context';
 import { dueDateToString } from '../../../services/srsAlgorithm';
 import type { Flashcard } from '../../../../shared/types';
 import { SafeHtml } from '../SafeHtml/SafeHtml';
+import { SkeletonText } from '../Skeleton';
 import './BuiltInFlashcardHoverPreview.css';
-
 export interface BuiltInFlashcardHoverPreviewProps {
   card: Flashcard | null;
   loading?: boolean;
@@ -21,8 +21,9 @@ export const BuiltInFlashcardHoverPreview: Component<BuiltInFlashcardHoverPrevie
 
   return (
     <div class="built-in-flashcard-hover-preview">
+      {/* Loading state: hold the preview's shape instead of a text label. */}
       <Show when={props.loading}>
-        <span class="built-in-flashcard-hover-preview__loading">{t('mlearn.Global.Loading')}</span>
+        <span class="built-in-flashcard-hover-preview__loading" aria-busy="true"><SkeletonText lines={2} /></span>
       </Show>
       <Show when={!props.loading && props.card}>
         {(card) => (
@@ -94,7 +95,7 @@ export const BuiltInFlashcardHoverPreview: Component<BuiltInFlashcardHoverPrevie
         )}
       </Show>
       <Show when={!props.loading && !props.card}>
-        <span class="built-in-flashcard-hover-preview__loading">No card found</span>
+        <span class="built-in-flashcard-hover-preview__empty">{t('mlearn.Global.NoCardFound')}</span>
       </Show>
     </div>
   );

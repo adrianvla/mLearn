@@ -11,6 +11,7 @@ import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { useOptionalGraph } from '../../../context/GraphContext';
 import { KnowledgeHistoryTimeline, type HistoryEvent } from '../KnowledgeHistoryTimeline';
 import { PillBtn } from '../Button';
+import { SkeletonRows, SkeletonText } from '../Skeleton';
 import './KnowledgeProjection.css';
 import type { WordKnowledgeModel } from './wordKnowledgeModel';
 
@@ -411,9 +412,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         </div>
 
         <Show when={tab() === 'identity'}>
-          <Show when={!graph.metaLoading()} fallback={
-            <p class="knowledge-drawer__none">{t('mlearn.Knowledge.Projection.Checking')}</p>
-          }>
+          <Show when={graph.readiness() !== 'pending'} fallback={<SkeletonText lines={2} />}>
           <Show when={graph.meta().ready} fallback={
             <div class="knowledge-drawer__degraded">
               <p>{t('mlearn.Knowledge.Projection.Identity.NotInstalled')}</p>
@@ -449,7 +448,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
                   </div>
                 </Show>
                 <Show when={relationsState() === 'loading'}>
-                  <p class="knowledge-drawer__none">{t('mlearn.GraphInspector.Neighborhood.Loading')}</p>
+                  <SkeletonRows rows={2} />
                 </Show>
                 <Show when={relationsState() === 'ready'}>
                   <Show when={neighborhood()} fallback={

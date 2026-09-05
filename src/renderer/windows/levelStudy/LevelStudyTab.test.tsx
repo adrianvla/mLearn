@@ -45,6 +45,7 @@ vi.mock('../../context', () => ({
       wordCandidates: {},
     },
     isLoading: () => false,
+    isKnowledgeReady: () => true,
     getComprehensiveWordStatusSync: getComprehensiveWordStatusSyncMock,
     hasWordSync: hasWordSyncMock,
     addLevelStudyFlashcards: addLevelStudyFlashcardsMock,
@@ -70,6 +71,8 @@ vi.mock('../../context', () => ({
 
 vi.mock('../../components/common', () => ({
   ProgressBar: (props: { value: number }) => <div data-testid="progress">{props.value}</div>,
+  SkeletonCard: (props: { lines?: number }) => <div data-testid="skeleton-card" data-lines={props.lines} />,
+  SkeletonRows: (props: { rows?: number }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,
   EmptyState: (props: { title: string; description: string }) => (
     <div data-testid="empty-state">
       <span>{props.title}</span>

@@ -11,7 +11,7 @@ import {
   Input,
   Modal,
   ModalFooter,
-  Spinner,
+  SkeletonRows,
   FormField,
   Textarea,
   ContentEditable,
@@ -260,8 +260,11 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       title={t('mlearn.WordDbEditor.EditTranslation.Title', { word: props.word })}
       footer={footer()}
     >
+      {/* Hold the form's shape while the translation lookup resolves. */}
       <Show when={isLoading()}>
-        <Spinner size={32} shape="square" text={t('mlearn.Global.Loading')} />
+        <div class="edit-translation-dialog__loading" aria-busy="true">
+          <SkeletonRows rows={4} rowHeight="2.4rem" />
+        </div>
       </Show>
       
       <Show when={!isLoading()}>

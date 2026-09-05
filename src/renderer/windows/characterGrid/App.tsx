@@ -16,7 +16,7 @@ import {
   selectHarderFrequencyLevel,
   shouldShowCharacterStudyLevelDisclaimer,
 } from '../../../shared/languageFeatures';
-import { Spinner, PillLabel, LegendItem, BookIcon, AlertBanner } from '../../components/common';
+import { PillLabel, LegendItem, BookIcon, AlertBanner, SkeletonGrid } from '../../components/common';
 import './characterGrid.css';
 import { getLogger } from '../../../shared/utils/logger';
 import type { LanguageCharacterStudyConfig } from '../../../shared/types';
@@ -66,11 +66,14 @@ const displayStateOf = (item: StudyCharacterData): CharacterDisplayState => {
 };
 
 export const CharacterGridContent: Component = () => {
-  const { getWordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
+  const { getWordFrequency, getFreqLevelNames, getFrequency, currentLangData, isLoading: languageLoading } = useLanguage();
   const { t } = useLocalization();
   const { settings } = useSettings();
   const flashcardCtx = useFlashcards();
-
+  // Character states derive from language metadata AND the learner
+  // projection: the unsupported/empty banners and unmeasured cells are only
+  // honest once both have settled.
+  const contentPending = () => isLoading() || languageLoading() || !flashcardCtx.isKnowledgeReady();
   const [characterData, setCharacterData] = createSignal<StudyCharacterData[]>([]);
   const [hoveredCharacter, setHoveredCharacter] = createSignal<StudyCharacterData | null>(null);
   const [hoveredLevel, setHoveredLevel] = createSignal<number | null>(null);
@@ -413,7 +416,7 @@ export const CharacterGridContent: Component = () => {
 
       <div class="cg-main">
         <div class="cg-grid">
-          <Show when={!isLoading() && characterData().length > 0}>
+          <Show when={!contentPending() && characterData().length > 0}>
             <For each={characterData()}>
               {(item) => (
                 <div
@@ -433,7 +436,7 @@ export const CharacterGridContent: Component = () => {
             </For>
           </Show>
           
-          <Show when={!isLoading() && supportsCharacterStudy() && characterData().length === 0}>
+          <Show when={!contentPending() && supportsCharacterStudy() && characterData().length === 0}>
             <div class="cg-empty-state">
               <div class="empty-icon"><BookIcon size={40} /></div>
               <h2>{characterStudyText('emptyTitle', 'mlearn.CharacterGrid.EmptyState.Title')}</h2>
@@ -442,7 +445,7 @@ export const CharacterGridContent: Component = () => {
             </div>
           </Show>
 
-          <Show when={!isLoading() && !supportsCharacterStudy()}>
+          <Show when={!contentPending() && !supportsCharacterStudy()}>
             <div class="cg-empty-state">
               <div class="empty-icon"><BookIcon size={40} /></div>
               <h2>{characterStudyText('unsupportedTitle', 'mlearn.CharacterGrid.Unsupported.Title')}</h2>
@@ -450,8 +453,10 @@ export const CharacterGridContent: Component = () => {
             </div>
           </Show>
           
-          <Show when={isLoading()}>
-            <Spinner size={40} shape="square" text={characterStudyText('loading', 'mlearn.CharacterGrid.Loading')} />
+          {/* Cell colors encode knowledge state: keep the grid's geometry with
+              placeholders instead of rendering unmeasured cells as real. */}
+          <Show when={contentPending()}>
+            <SkeletonGrid cells={48} />
           </Show>
         </div>
 

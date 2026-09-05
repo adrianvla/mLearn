@@ -4,9 +4,6 @@
 .knowledge-skeleton {
   display: inline-block;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
   vertical-align: middle;
 }
 
@@ -39,18 +36,12 @@
   width: 11rem;
   height: 2.6rem;
   border-radius: 8px;
-  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 .knowledge-skeleton--word-sync .knowledge-skeleton__line {
   width: 60%;
   height: 0.9rem;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 .knowledge-skeleton--word-sync .knowledge-skeleton__actions {
@@ -64,7 +55,4 @@
   width: 6.5rem;
   height: 2.2rem;
   border-radius: var(--radius-md);
-  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
 }

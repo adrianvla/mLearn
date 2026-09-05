@@ -12,7 +12,7 @@ import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, KnowledgeProjectionDrawer } from '../common';
+import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, KnowledgeProjectionDrawer, SkeletonText } from '../common';
 import { KnowledgeCapabilitySummary } from '../common/WordStatusPillKnowledge';
 import { getEvents, eventsVersion } from '../../services/knowledgeEvents';
 import { hashWordSync } from '../../services/srsAlgorithm';
@@ -731,9 +731,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       >
         <div class="subtitle_hover_relative">
            <div class="subtitle_hover_content" ref={contentRef}>
-            {/* Loading state */}
+            {/* Loading state: keep the hover panel's shape while the lookup
+                resolves instead of flashing a text label. */}
             <Show when={props.isLoading}>
-              <div class="hover_loading">{t('mlearn.WordHover.Loading')}</div>
+              <div class="hover_loading" aria-busy="true">
+                <SkeletonText lines={2} />
+              </div>
             </Show>
 
             {/* Translation content */}

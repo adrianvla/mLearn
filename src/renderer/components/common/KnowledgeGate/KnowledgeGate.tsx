@@ -1,5 +1,6 @@
 import { Component, Show, type JSX } from 'solid-js';
 import { useFlashcards } from '../../../context';
+import '../Skeleton/Skeleton.css';
 import './KnowledgeGate.css';
 
 /**
@@ -19,15 +20,15 @@ export const KnowledgeSkeleton: Component<{ variant?: KnowledgeSkeletonVariant; 
   const variant = () => props.variant ?? 'lines';
   return (
     <Show when={variant() === 'word-sync'} fallback={
-      <span class={`knowledge-skeleton knowledge-skeleton--${variant()}${props.class ? ` ${props.class}` : ''}`} aria-busy="true" />
+      <span class={`skeleton-shimmer knowledge-skeleton knowledge-skeleton--${variant()}${props.class ? ` ${props.class}` : ''}`} aria-busy="true" />
     }>
       <div class={`knowledge-skeleton knowledge-skeleton--word-sync${props.class ? ` ${props.class}` : ''}`} aria-busy="true">
-        <span class="knowledge-skeleton__word" />
-        <span class="knowledge-skeleton__line" />
+        <span class="skeleton-shimmer knowledge-skeleton__word" />
+        <span class="skeleton-shimmer knowledge-skeleton__line" />
         <span class="knowledge-skeleton__actions">
-          <span class="knowledge-skeleton__action" />
-          <span class="knowledge-skeleton__action" />
-          <span class="knowledge-skeleton__action" />
+          <span class="skeleton-shimmer knowledge-skeleton__action" />
+          <span class="skeleton-shimmer knowledge-skeleton__action" />
+          <span class="skeleton-shimmer knowledge-skeleton__action" />
         </span>
       </div>
     </Show>

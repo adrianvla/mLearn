@@ -14,9 +14,10 @@ let flashcardStoreMock: {
 };
 let settingsMock: { language: string; newDayHour: number; known_ease_threshold: number; srsLearningThreshold: number };
 let eventLogMock: Record<string, KnowledgeEvent[]> = {};
+let flashcardsLoading = false;
 
 vi.mock('../../context', () => ({
-  useFlashcards: () => ({ store: flashcardStoreMock, isKnowledgeReady: () => true }),
+  useFlashcards: () => ({ store: flashcardStoreMock, isKnowledgeReady: () => true, isLoading: () => flashcardsLoading }),
   useSettings: () => ({ settings: settingsMock }),
   useLanguage: () => ({
     getWordFrequency: () => ({}),
@@ -43,7 +44,7 @@ vi.mock('../../utils/wordLevelStats', () => ({
 vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({
     mediaStats: {
-      onMediaStatsList: () => () => {},
+      onMediaStatsList: (callback: (stats: unknown[]) => void) => { callback([]); return () => {}; },
       listMediaStats: () => {},
     },
     knowledgeEvents: {
@@ -58,6 +59,8 @@ vi.mock('../../components/common', async (importOriginal) => {
   return ({
   KnowledgeGate: actual.KnowledgeGate,
   KnowledgeSkeleton: actual.KnowledgeSkeleton,
+  SkeletonCard: actual.SkeletonCard,
+  SkeletonStatGrid: actual.SkeletonStatGrid,
   StatCard: (props: { label: string; value: string | number }) => (
     <div class="mock-statcard"><span>{props.label}</span><b>{props.value}</b></div>
   ),
@@ -108,7 +111,7 @@ describe('Dashboard', () => {
     flashcardStoreMock = { flashcards: {}, dailyStats: {}, wordKnowledge: {} };
     settingsMock = { language: 'ja', newDayHour: 4, known_ease_threshold: 1.8, srsLearningThreshold: 3 };
     eventLogMock = {};
-    localizationMock.mockImplementation((key: string) => key);
+    flashcardsLoading = false;
   });
 
   afterEach(() => {
@@ -125,6 +128,23 @@ describe('Dashboard', () => {
       expect(container.querySelector('.dashboard-empty-state')).not.toBeNull();
       expect(container.textContent).toContain('mlearn.Statistics.Dashboard.EmptyState.Title');
     });
+    expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.DueForecast.Title');
+
+    dispose();
+  });
+
+  it('shows the boot skeleton instead of a false empty state while the learner store hydrates', async () => {
+    flashcardsLoading = true;
+    const { Dashboard } = await import('./Dashboard');
+    const dispose = render(() => <Dashboard />, container);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('.dashboard-boot')).not.toBeNull();
+      expect(container.querySelector('.skeleton-stat')).not.toBeNull();
+    });
+    // During hydration the zeros are not real values: neither the empty
+    // state nor any populated panel may be shown.
+    expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.EmptyState.Title');
     expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.DueForecast.Title');
 
     dispose();

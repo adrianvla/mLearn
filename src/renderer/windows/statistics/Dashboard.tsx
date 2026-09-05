@@ -6,7 +6,7 @@
 
 import { Component, createMemo, createResource, createSignal, For, onMount, Show } from 'solid-js';
 import { useFlashcards, useSettings, useLanguage, useLocalization } from '../../context';
-import { StatCard, Panel, BookIcon, KnowledgeGate, KnowledgeSkeleton } from '../../components/common';
+import { StatCard, Panel, BookIcon, KnowledgeGate, KnowledgeSkeleton, SkeletonCard, SkeletonStatGrid } from '../../components/common';
 import { PieChart, BarChart, Heatmap, LineChart } from './charts';
 import type { PieSegment, BarChartDataPoint } from './charts';
 import { WordHistoryPanel } from './components/WordHistoryPanel';
@@ -55,7 +55,7 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 }
 
 export const Dashboard: Component = () => {
-  const { store } = useFlashcards();
+  const { store, isLoading } = useFlashcards();
   const { settings } = useSettings();
   const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage, getWordVariantsForLanguage } = useLanguage();
   const { t } = useLocalization();
@@ -64,11 +64,15 @@ export const Dashboard: Component = () => {
 
   // ── Media stats ──
   const [mediaStatsList, setMediaStatsList] = createSignal<MediaStats[]>([]);
+  // Until the media-stats snapshot has arrived, "no immersion time" is not
+  // evidence — the empty state must not flash before this resolves.
+  const [mediaStatsLoaded, setMediaStatsLoaded] = createSignal(false);
 
   onMount(() => {
     const bridge = getBridge();
     const cleanup = bridge.mediaStats.onMediaStatsList((stats) => {
       setMediaStatsList(stats);
+      setMediaStatsLoaded(true);
     });
     bridge.mediaStats.listMediaStats();
     return cleanup;
@@ -213,7 +217,7 @@ export const Dashboard: Component = () => {
   });
 
   const isEmpty = createMemo(() =>
-    cardStats().total === 0 && dailyStatsData().totalDaysStudied === 0 && mediaTimeStats().totalImmersion === 0
+    mediaStatsLoaded() && cardStats().total === 0 && dailyStatsData().totalDaysStudied === 0 && mediaTimeStats().totalImmersion === 0
   );
 
   const wordStats = createMemo(() =>
@@ -410,6 +414,16 @@ export const Dashboard: Component = () => {
 
   return (
     <div class="statistics-dashboard">
+      {/* While the consolidated learner store or the media-stats snapshot is
+          still hydrating, none of the zeros below are real values — show the
+          boot skeleton, never the empty state or half-populated panels. */}
+      <Show when={!isLoading() && mediaStatsLoaded()} fallback={
+        <div class="dashboard-boot" aria-busy="true">
+          <SkeletonStatGrid count={4} />
+          <SkeletonCard lines={4} />
+          <SkeletonCard lines={4} />
+        </div>
+      }>
       <Show when={!isEmpty()} fallback={
         <div class="dashboard-empty-state">
           <div class="dashboard-empty-icon"><BookIcon size={40} /></div>
@@ -610,6 +624,10 @@ export const Dashboard: Component = () => {
           />
         </Panel>
 
+        {/* Word-knowledge numbers derive from the learner projection: hold a
+            stable panel shell until it is authoritative, then decide honestly
+            between the pie and genuine emptiness. */}
+        <KnowledgeGate fallback={<Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel"><SkeletonCard lines={2} /></Panel>}>
         <Show when={wordStats().allEncountered.total > 0}>
           <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
             <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.WordKnowledge')}</h2>
@@ -622,6 +640,7 @@ export const Dashboard: Component = () => {
             />
           </Panel>
         </Show>
+        </KnowledgeGate>
       </div>
 
       {/* ─── Interval Distribution ─── */}
@@ -701,6 +720,7 @@ export const Dashboard: Component = () => {
 
       {/* ─── Word History Drill-down ─── */}
       <WordHistoryPanel />
+      </Show>
       </Show>
     </div>
   );
