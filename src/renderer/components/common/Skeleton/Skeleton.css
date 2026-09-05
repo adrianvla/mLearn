@@ -1,0 +1,154 @@
+/**
+ * Shared skeleton vocabulary — one shimmer implementation for the whole app.
+ *
+ * Consumed by the Skeleton primitives and by domain placeholders (e.g. the
+ * knowledge gate skeletons). Tokens come from the theme layer
+ * (`--skeleton-base`, `--skeleton-highlight`), so dark/light/high-contrast
+ * themes restyle every placeholder at once. `shimmer` keyframes are global
+ * (styles/base.css); motion is turned off for prefers-reduced-motion.
+ */
+
+/* Shared shimmer utility for domain placeholders built on this vocabulary
+   (e.g. the knowledge gate skeletons) — one gradient, one animation. */
+.skeleton-line,
+.skeleton-pill,
+.skeleton-inline,
+.skeleton-row,
+.skeleton-grid__cell,
+.skeleton-stat,
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.skeleton-line,
+.skeleton-pill,
+.skeleton-inline {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* `animate={false}` disables motion for the primitive itself and every
+   shimmering child it composes (rows, grid cells, text lines, stat blocks). */
+.skeleton--static,
+.skeleton--static :is(.skeleton-line, .skeleton-row, .skeleton-grid__cell, .skeleton-stat, .skeleton-shimmer) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line,
+  .skeleton-pill,
+  .skeleton-inline,
+  .skeleton-row,
+  .skeleton-grid__cell,
+  .skeleton-stat,
+  .skeleton-shimmer {
+    animation: none;
+  }
+}
+
+/* ── Line sizes (text heights) ── */
+
+.skeleton-line {
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-line--xs { height: 0.6rem; }
+.skeleton-line--sm { height: 0.75rem; }
+.skeleton-line--md { height: 0.9rem; }
+.skeleton-line--lg { height: 1.25rem; }
+
+/* ── Text block ── */
+
+.skeleton-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+.skeleton-text__line {
+  width: 100%;
+}
+
+.skeleton-text__line--last {
+  width: 60%;
+}
+
+/* ── Pill / inline ── */
+
+.skeleton-pill {
+  height: 1.65rem;
+  width: 5.5rem;
+  border-radius: var(--radius-full);
+}
+
+.skeleton-inline {
+  height: 1rem;
+  width: 3rem;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Rows (list / table body) ── */
+
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  width: 100%;
+}
+
+.skeleton-row {
+  display: block;
+  width: 100%;
+  height: 2.75rem;
+  border-radius: var(--radius-md);
+}
+
+/* ── Grid of uniform cells ── */
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3.25rem, 1fr));
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+.skeleton-grid__cell {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+}
+
+/* ── Card / panel ── */
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  width: 100%;
+}
+
+.skeleton-card__title {
+  width: 40%;
+}
+
+.skeleton-card__line {
+  width: 100%;
+}
+
+/* ── Stat-card row ── */
+
+.skeleton-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.75rem, 1fr));
+  gap: var(--spacing-3);
+  width: 100%;
+}
+
+.skeleton-stat {
+  display: block;
+  height: 4.5rem;
+  border-radius: var(--radius-lg);
+}
