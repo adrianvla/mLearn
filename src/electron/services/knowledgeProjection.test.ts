@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadLinguisticGraph } from '../../shared/graph/load';
+import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
 import { buildKnowledgeProjection, claimClassification } from './knowledgeProjection';
 
 const policy = { learningSteps: [1, 10], relearnSteps: [10], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 36500 };
@@ -263,5 +264,44 @@ describe('buildKnowledgeProjection', () => {
     expect(targetIds).toContain(mixedSurface);
     expect(targetIds).not.toContain('ja:sense:rhea');
     expect(targetIds).not.toContain('ja:dictionary-entry:rhea');
+  });
+
+  it('attaches graph-attested compound support to predicted targets', () => {
+    const compoundGraph = loadLinguisticGraph({
+      schemaVersion: 1,
+      language: 'de',
+      generatedAt: '',
+      sourceVersions: {},
+      entities: [
+        { id: 'de:surface:unseen', kind: 'surface', label: 'Unseenword' },
+        { id: 'de:surface:papa', kind: 'surface', label: 'Papa' },
+        { id: 'de:surface:hand', kind: 'surface', label: 'Hand' },
+        { id: 'de:entry:unseen', kind: 'dictionary-entry', label: 'Unseenword' },
+        { id: 'de:sense:unseen', kind: 'sense', label: 'meaning' },
+      ],
+      relations: [
+        { from: 'de:surface:papa', to: 'de:surface:unseen', type: 'component-of' },
+        { from: 'de:surface:hand', to: 'de:surface:unseen', type: 'component-of' },
+        { from: 'de:entry:unseen', to: 'de:sense:unseen', type: 'has-sense' },
+        { from: 'de:entry:unseen', to: 'de:surface:unseen', type: 'realizes' },
+      ],
+    });
+    const support = {
+      analysis: attestedCompoundAnalysis(compoundGraph, 'de:surface:unseen')!,
+      isKnownPart: (lemma: string) => lemma === 'Papa',
+    };
+    expect(support.analysis).toMatchObject({ source: 'attested', ambiguous: false });
+    const result = buildKnowledgeProjection(compoundGraph, 'de:surface:unseen', [], policy, undefined, undefined, { compound: support });
+    const senseState = result.targets
+      .find((target) => target.targetRef.id === 'de:sense:unseen')
+      ?.states.find((state) => state.capability === 'sense-recognition');
+    expect(senseState).toMatchObject({ classification: 'predicted', basis: 'prediction' });
+    expect(senseState?.prediction?.reasons.length).toBeGreaterThan(0);
+    // Without compound support the same unseen target stays unmeasured.
+    const bare = buildKnowledgeProjection(compoundGraph, 'de:surface:unseen', [], policy);
+    const bareState = bare.targets
+      .find((target) => target.targetRef.id === 'de:sense:unseen')
+      ?.states.find((state) => state.capability === 'sense-recognition');
+    expect(bareState).toMatchObject({ classification: 'unmeasured', basis: 'unmeasured' });
   });
 });

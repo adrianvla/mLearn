@@ -1,41 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { createGermanCompoundLexicon, decomposeGermanCompound } from './deCompounds';
+import { createCompoundLexicon, decomposeCompound } from './compounds';
+import type { LanguageCompoundSplittingConfig } from '../../types';
 
-const lexicon = createGermanCompoundLexicon([
+const german: LanguageCompoundSplittingConfig = {
+  locale: 'de',
+  linkingElements: ['', 'es', 'en', 'er', 'n', 's'],
+  inflectionSuffixes: ['ern', 'en', 'er', 'es', 'e', 'n', 's'],
+  minPartLength: 3,
+};
+
+const lexicon = createCompoundLexicon([
   { lemma: 'Papa', entryId: 'de:entry:papa' },
-  { lemma: 'Hand', entryId: 'de:entry:hand', gender: 'f' },
-  { lemma: 'Schuh', entryId: 'de:entry:schuh', gender: 'm' },
+  { lemma: 'Hand', entryId: 'de:entry:hand' },
+  { lemma: 'Schuh', entryId: 'de:entry:schuh' },
   { lemma: 'Arbeit', entryId: 'de:entry:arbeit' },
   { lemma: 'Zimmer', entryId: 'de:entry:zimmer' },
   { lemma: 'Bund', entryId: 'de:entry:bund' },
   { lemma: 'Kanzler', entryId: 'de:entry:kanzler' },
-]);
+], german.locale);
 
-describe('German productive compound decomposition', () => {
+describe('generic productive compound decomposition', () => {
   it('decomposes Papashandschuhe after independent inflection stripping', () => {
-    const analysis = decomposeGermanCompound('Papashandschuhe', lexicon);
+    const analysis = decomposeCompound('Papashandschuhe', lexicon, german);
     expect(analysis).toMatchObject({
-      form: 'Papashandschuhe', lemma: 'Papashandschuh', source: 'generated', head: { lemma: 'Schuh' }, linkingElement: 's',
+      form: 'Papashandschuhe', lemma: 'Papashandschuh', source: 'generated', linkingElement: 's',
       parts: [{ lemma: 'Papa', linkingElement: 's' }, { lemma: 'Handschuh', parts: [{ lemma: 'Hand' }, { lemma: 'Schuh' }] }],
     });
     expect(analysis!.confidence).toBeLessThan(1);
   });
 
   it('recognizes supported linking elements without vocabulary exceptions', () => {
-    expect(decomposeGermanCompound('Arbeitszimmer', lexicon)?.parts[0]).toMatchObject({ lemma: 'Arbeit', linkingElement: 's' });
-    expect(decomposeGermanCompound('Bundeskanzler', lexicon)?.parts[0]).toMatchObject({ lemma: 'Bund', linkingElement: 'es' });
+    expect(decomposeCompound('Arbeitszimmer', lexicon, german)?.parts[0]).toMatchObject({ lemma: 'Arbeit', linkingElement: 's' });
+    expect(decomposeCompound('Bundeskanzler', lexicon, german)?.parts[0]).toMatchObject({ lemma: 'Bund', linkingElement: 'es' });
   });
 
   it('rejects short junk', () => {
-    expect(decomposeGermanCompound('abc', lexicon)).toBeNull();
+    expect(decomposeCompound('abc', lexicon, german)).toBeNull();
   });
 
   it('records ambiguity when several parses survive dedupe instead of returning null', () => {
-    const ambiguous = createGermanCompoundLexicon([
+    const ambiguous = createCompoundLexicon([
       { lemma: 'Arbe', entryId: '1' }, { lemma: 'itszimmer', entryId: '2' },
       { lemma: 'Arbeit', entryId: '3' }, { lemma: 'Zimmer', entryId: '4' },
-    ]);
-    const analysis = decomposeGermanCompound('Arbeitszimmer', ambiguous);
+    ], german.locale);
+    const analysis = decomposeCompound('Arbeitszimmer', ambiguous, german);
     expect(analysis).not.toBeNull();
     expect(analysis!.ambiguous).toBe(true);
     expect(analysis!.alternatives).toHaveLength(1);
@@ -47,11 +55,11 @@ describe('German productive compound decomposition', () => {
   });
 
   it('exposes every alternative parse as a complete analysis for a two-way ambiguous form', () => {
-    const nightTable = createGermanCompoundLexicon([
+    const nightTable = createCompoundLexicon([
       { lemma: 'Nach', entryId: 'nach' }, { lemma: 'Nacht', entryId: 'nacht' },
       { lemma: 'Tisch', entryId: 'tisch' }, { lemma: 'isch', entryId: 'isch' },
-    ]);
-    const analysis = decomposeGermanCompound('Nachtisch', nightTable)!;
+    ], german.locale);
+    const analysis = decomposeCompound('Nachtisch', nightTable, german)!;
     expect(analysis.ambiguous).toBe(true);
     // Leftmost split is the deterministic preferred parse.
     expect(analysis.parts.map((part) => part.lemma)).toEqual(['Nach', 'Tisch']);
@@ -62,16 +70,16 @@ describe('German productive compound decomposition', () => {
   });
 
   it('prefers an attested compound over generated parts and reports its provenance', () => {
-    const attested = createGermanCompoundLexicon([...lexicon.values(), { lemma: 'Handschuh', entryId: 'de:entry:handschuh' }]);
-    const analysis = decomposeGermanCompound('Handschuh', attested);
-    expect(analysis).toMatchObject({ source: 'attested', confidence: 1, head: { lemma: 'Handschuh' } });
+    const attested = createCompoundLexicon([...lexicon.values(), { lemma: 'Handschuh', entryId: 'de:entry:handschuh' }], german.locale);
+    const analysis = decomposeCompound('Handschuh', attested, german);
+    expect(analysis).toMatchObject({ source: 'attested', confidence: 1 });
     expect(analysis!.provenance).toEqual({ source: 'attested', confidence: 1, lexiconBasis: ['de:entry:handschuh'] });
     expect(analysis!.ambiguous).toBe(false);
     expect(analysis!.alternatives).toEqual([]);
   });
 
   it('reports generated provenance and keeps the unique-decomposition predictor contract', () => {
-    const analysis = decomposeGermanCompound('Papashandschuhe', lexicon)!;
+    const analysis = decomposeCompound('Papashandschuhe', lexicon, german)!;
     // supportPredictor consumes source/confidence/parts of unique analyses.
     expect(analysis).toMatchObject({
       source: 'generated',
@@ -86,5 +94,17 @@ describe('German productive compound decomposition', () => {
       lexiconBasis: ['de:entry:papa', 'de:entry:hand', 'de:entry:schuh'],
     });
     expect(analysis.parts[0]!.attested).toBe(true);
+  });
+
+  it('splits under any package-declared strategy, not only the German one', () => {
+    const swedish: LanguageCompoundSplittingConfig = { locale: 'sv', linkingElements: ['', 's', 'e'], minPartLength: 3 };
+    const swedishLexicon = createCompoundLexicon([
+      { lemma: 'hus', entryId: 'sv:hus' }, { lemma: 'djur', entryId: 'sv:djur' },
+    ], swedish.locale);
+    const analysis = decomposeCompound('husdjur', swedishLexicon, swedish);
+    expect(analysis).toMatchObject({
+      source: 'generated',
+      parts: [{ lemma: 'hus' }, { lemma: 'djur' }],
+    });
   });
 });

@@ -180,6 +180,7 @@ export function getCachedTranslation(
     lookupOptions.getCanonicalForm ?? identityWordForm,
     lookupOptions.getWordVariants,
     languageData,
+    language,
   );
   const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(lookupOptions.dictionaryTargetLanguage);
   const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
@@ -246,6 +247,8 @@ export interface WordLookupCandidateOptions {
   getReadingVariants?: (reading: string) => string[];
   dictionaryTargetLanguage?: string | (() => string | undefined);
   languageData?: LanguageData | null | (() => LanguageData | null);
+  /** Language code — required for package mapping-table normalizer steps to apply. */
+  language?: string;
 }
 
 function resolveDictionaryTargetLanguage(value: WordLookupCandidateOptions['dictionaryTargetLanguage']): string | undefined {
@@ -276,6 +279,7 @@ function buildWordLookupCandidates(
   getCanonicalForm: (word: string) => string = identityWordForm,
   getWordVariants?: (word: string) => string[],
   languageData?: LanguageData | null,
+  language?: string,
 ): string[] {
   const candidates: string[] = [];
   const seen = new Set<string>();
@@ -287,7 +291,7 @@ function buildWordLookupCandidates(
   };
 
   append(word);
-  for (const candidate of getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData })) {
+  for (const candidate of getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData, language })) {
     append(candidate);
   }
 
@@ -303,8 +307,9 @@ export function buildTranslationLookupCandidates(
   getCanonicalForm: (word: string) => string = identityWordForm,
   getWordVariants?: (word: string) => string[],
   languageData?: LanguageData | null,
+  language?: string,
 ): string[] {
-  return buildWordLookupCandidates(word, getCanonicalForm, getWordVariants, languageData);
+  return buildWordLookupCandidates(word, getCanonicalForm, getWordVariants, languageData, language);
 }
 
 export async function fetchTranslation(
@@ -318,6 +323,7 @@ export async function fetchTranslation(
     lookupOptions.getCanonicalForm ?? identityWordForm,
     lookupOptions.getWordVariants,
     languageData,
+    language,
   );
   const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(lookupOptions.dictionaryTargetLanguage);
   const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
@@ -549,7 +555,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     if (!tokenizerAllowsFallback(languageData)) {
       throw error;
     }
-    const fallbackTokens = createRoughTokenizerTokens(key, languageData);
+    const fallbackTokens = createRoughTokenizerTokens(key, languageData, options.language);
     if (fallbackTokens.length === 0) {
       throw error;
     }
@@ -629,8 +635,9 @@ export function buildDictionaryLookupCandidates(
   getCanonicalForm: (word: string) => string = identityWordForm,
   getWordVariants?: (word: string) => string[],
   languageData?: LanguageData | null,
+  language?: string,
 ): string[] {
-  return buildWordLookupCandidates(word, getCanonicalForm, getWordVariants, languageData);
+  return buildWordLookupCandidates(word, getCanonicalForm, getWordVariants, languageData, language);
 }
 
 export function buildDictionaryReadingCandidates(
@@ -664,6 +671,7 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
         options.getCanonicalForm ?? identityWordForm,
         options.getWordVariants,
         languageData,
+        options.language,
       );
       const readingCandidates = buildDictionaryReadingCandidates(readingKey, options.getReadingVariants);
       const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);

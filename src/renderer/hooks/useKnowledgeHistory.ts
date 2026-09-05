@@ -24,7 +24,7 @@ export function useKnowledgeHistory(word: () => string, aspect: () => KnowledgeA
         surface,
         (value) => getCanonicalFormForLanguage(language, value),
         (value) => getWordVariantsForLanguage(language, value),
-        { languageData },
+        { languageData, language },
       );
       const keys = forms.map((form) => `${language}:${hashWordSync(form)}`);
       const all = await getEvents(keys);

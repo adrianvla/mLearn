@@ -1076,6 +1076,19 @@ export interface LanguageTypographyConfig {
   textDirection?: 'ltr' | 'rtl' | 'auto';
 }
 
+/** Language-package strategy for productive compound splitting (e.g. German). */
+export interface LanguageCompoundSplittingConfig {
+  /** BCP-47 locale used for case-normalizing lexicon keys and queries, e.g. "de". */
+  locale: string;
+  /** Linking elements tried between compound parts, e.g. ["", "es", "en", "er", "n", "s"]. */
+  linkingElements: readonly string[];
+  /** Inflection suffixes stripped independently before splitting, e.g. ["ern", "en", "er", "es", "e", "n", "s"]. */
+  inflectionSuffixes?: readonly string[];
+  minPartLength?: number;
+  /** Build-tooling directive: the package builder may derive and emit attested component-of graph edges from this strategy. The runtime ignores it. */
+  derivation?: 'builder';
+}
+
 export interface LanguageProsodyConfig {
   /** Prosody data model used by this language. */
   type?: 'none' | 'japanese-pitch-accent' | (string & {});
@@ -1454,8 +1467,8 @@ export interface LanguageData {
   prosody?: LanguageProsodyConfig;
   /** Grammatical-gender lexical knowledge supported by this language's data. */
   gender?: LanguageGenderConfig;
-  /** Productive compound splitting supported by this language's lexical data. */
-  compoundSplitting?: boolean;
+  /** Productive compound splitting supported by this language's lexical data. Declared strategy; absent = capability off. */
+  compoundSplitting?: LanguageCompoundSplittingConfig;
   /** Character-level study/decomposition behavior. */
   characterStudy?: LanguageCharacterStudyConfig;
   /** Reader layout defaults supplied by the language package. */

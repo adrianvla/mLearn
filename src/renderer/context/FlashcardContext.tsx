@@ -1778,7 +1778,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   });
 
   const getWordFormsForStatus = (word: string): string[] => (
-    getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: languageData() })
+    getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: languageData(), language: settings.language })
   );
   const getPrimaryWordFormForStorage = (word: string): string => getWordFormsForStatus(word)[0] ?? getCanonicalForm(word) ?? word;
   const getWordFormsForLanguage = (word: string, language = settings.language): string[] => (
@@ -1786,7 +1786,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       word,
       (value) => language === settings.language ? getCanonicalForm(value) : getCanonicalFormForLanguage(language, value),
       (value) => language === settings.language ? getWordVariants(value) : getWordVariantsForLanguage(language, value),
-      { languageData: languageDataFor(language) },
+      { languageData: languageDataFor(language), language },
     )
   );
 

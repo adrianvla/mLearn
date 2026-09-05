@@ -1,5 +1,5 @@
 import { identityNeighbors, relationsOf, type LingualGraph } from '../graph/load';
-import { createGermanCompoundLexicon, decomposeGermanCompound, type GermanCompoundPart } from '../graph/morphology/deCompounds';
+import type { CompoundAnalysis, CompoundPart } from '../graph/morphology/compounds';
 import { isIdentityShareableCapability } from '../graph/targets';
 import type { CapabilityKind, LearnableTarget } from '../graph/types';
 import type { ReplayProjection } from '../utils/projectionReplay';
@@ -19,8 +19,9 @@ export interface PredictionInput {
   direct: ReplayProjection | null;
   target: LearnableTarget;
   classify(ease: number): 'known' | 'learning' | 'unknown';
-  /** Read-only productive German compound support for an unseen target. */
-  compound?: { surface: string; isKnownPart(lemma: string): boolean };
+  /** Read-only productive compound support for an unseen target. Decomposition is
+   * capability-selected by the caller from the language package's declared strategy. */
+  compound?: { analysis: CompoundAnalysis; isKnownPart(lemma: string): boolean };
 }
 
 export interface Prediction {
@@ -77,17 +78,19 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
     }
   }
 
-  const compound = input.compound && decomposeGermanCompound(input.compound.surface, germanLexicon(graph));
-  // Conservative: only a UNIQUE generated parse extends support. An ambiguous
+  const compound = input.compound?.analysis;
+  // Conservative: only a UNIQUE parse extends support — graph-attested
+  // structure (primary) or a strategy-derived productive split. An ambiguous
   // compound receives no prediction credit from its preferred parse alone.
-  if (compound?.source === 'generated' && !compound.ambiguous) {
+  if (compound && !compound.ambiguous) {
     const parts = leafLemmas(compound.parts);
     const knownParts = parts.filter(input.compound!.isKnownPart);
     const credit = compound.confidence * knownParts.length / Math.max(1, parts.length);
     if (credit > 0) {
       supportTotal += credit;
       knownNeighbors += credit;
-      for (const lemma of knownParts) supportPath.push({ from: lemma, to: target.entityId, via: 'generated-compound' });
+      const via = compound.source === 'attested' ? 'attested-compound' : 'generated-compound';
+      for (const lemma of knownParts) supportPath.push({ from: lemma, to: target.entityId, via });
     }
   }
 
@@ -98,14 +101,6 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
   return { pSuccess, uncertainty, supportPath, kind: 'prediction' };
 }
 
-function germanLexicon(graph: LingualGraph) {
-  return createGermanCompoundLexicon([...graph.nodes.values()]
-    .filter((node) => node.kind === 'surface' && node.id.startsWith('de:') && node.label)
-    .flatMap((node) => relationsOf(graph, node.id, { direction: 'out' })
-      .filter((relation) => relation.type === 'realizes')
-      .map((relation) => ({ lemma: node.label!, entryId: relation.to }))));
-}
-
-function leafLemmas(parts: readonly GermanCompoundPart[]): string[] {
+function leafLemmas(parts: readonly CompoundPart[]): string[] {
   return parts.flatMap((part) => part.parts ? leafLemmas(part.parts) : [part.lemma]);
 }

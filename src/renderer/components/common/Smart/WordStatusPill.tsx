@@ -65,12 +65,12 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   ));
   const wordForms = createMemo(() => (
     isActiveLanguage()
-      ? getWordFormCandidates(props.word, getCanonicalForm, getWordVariants, { languageData: targetLanguageData() })
+      ? getWordFormCandidates(props.word, getCanonicalForm, getWordVariants, { languageData: targetLanguageData(), language: targetLanguage() })
       : getWordFormCandidates(
         props.word,
         (value) => getCanonicalFormForLanguage(targetLanguage(), value),
         (value) => getWordVariantsForLanguage(targetLanguage(), value),
-        { languageData: targetLanguageData() },
+        { languageData: targetLanguageData(), language: targetLanguage() },
       )
   ));
   const ankiCacheOptions = createMemo(() => ({

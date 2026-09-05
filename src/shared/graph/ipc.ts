@@ -1,3 +1,4 @@
+import type { CompoundAnalysis } from './morphology/compounds';
 import type { CapabilityKind, GraphDomain, GraphEntityKind, GraphRelationType, RelationCategory } from './types';
 
 export type GraphAvailability = 'ready' | 'not-installed' | 'unavailable' | 'error';
@@ -104,4 +105,10 @@ export interface KnowledgeProjection {
   status: GraphAvailability;
   surfaceId?: string;
   targets: KnowledgeProjectionTarget[];
+  /** The surface text this projection was queried with; lets consumers reject stale async results. */
+  querySurface?: string;
+  /** Whether the graph knows this surface at all. Absent on legacy/error payloads. */
+  surfaceKnown?: boolean;
+  /** Graph-attested decomposition (primary representation). null = the graph knows the surface but carries no attested structure; undefined = unavailable. */
+  compoundAnalysis?: CompoundAnalysis | null;
 }

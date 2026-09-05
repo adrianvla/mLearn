@@ -26,7 +26,13 @@
     "showReadingAnnotations": false,
     "showProsody": false
   },
-  "compoundSplitting": true,
+  "compoundSplitting": {
+    "locale": "de",
+    "linkingElements": ["", "es", "en", "er", "n", "s"],
+    "inflectionSuffixes": ["ern", "en", "er", "es", "e", "n", "s"],
+    "minPartLength": 3,
+    "derivation": "builder"
+  },
   "languageData": {
     "version": "de-package-2026.07.19",
     "sourceVersions": {

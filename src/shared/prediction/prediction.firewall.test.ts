@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadLinguisticGraph, surfaceEntityId } from '../graph/load';
+import { createCompoundLexicon, decomposeCompound, type CompoundAnalysis } from '../graph/morphology/compounds';
+import type { LanguageCompoundSplittingConfig } from '../types';
 import { predictTargetAccessibility } from './supportPredictor';
 
 const fixture = {
@@ -20,6 +22,15 @@ const fixture = {
     // …but NEVER identity.
   ],
 };
+
+const german: LanguageCompoundSplittingConfig = {
+  locale: 'de',
+  linkingElements: ['', 'es', 'en', 'er', 'n', 's'],
+  inflectionSuffixes: ['ern', 'en', 'er', 'es', 'e', 'n', 's'],
+  minPartLength: 3,
+};
+const decompose = (form: string, lexiconLemmas: readonly string[]): CompoundAnalysis =>
+  decomposeCompound(form, createCompoundLexicon(lexiconLemmas.map((lemma) => ({ lemma })), german.locale), german)!;
 
 describe('prediction firewall', () => {
   it('support edges raise predicted accessibility without touching evidence state', () => {
@@ -41,7 +52,7 @@ describe('prediction firewall', () => {
     const dir = join(__dirname);
     const sources = [
       ...readdirSync(dir).filter((file) => file.endsWith('.ts') && !file.includes('.test.')).map((file) => [file, join(dir, file)] as const),
-      ['deCompounds.ts', join(dir, '../graph/morphology/deCompounds.ts')] as const,
+      ['compounds.ts', join(dir, '../graph/morphology/compounds.ts')] as const,
     ];
     for (const [file, path] of sources) {
       const src = readFileSync(path, 'utf8');
@@ -65,7 +76,7 @@ describe('prediction firewall', () => {
       graph: deGraph, direct: null,
       target: { entityId: 'de:surface:unseen-papashandschuhe', capability: 'sense-recognition' },
       classify: () => 'unknown',
-      compound: { surface: 'Papashandschuhe', isKnownPart: (lemma) => lemma === 'Papa' || lemma === 'Hand' || lemma === 'Schuh' },
+      compound: { analysis: decompose('Papashandschuhe', ['Papa', 'Hand', 'Schuh']), isKnownPart: (lemma) => lemma === 'Papa' || lemma === 'Hand' || lemma === 'Schuh' },
     });
     expect(prediction.pSuccess).toBeGreaterThan(0.05);
     expect(prediction.supportPath).toHaveLength(3);
@@ -89,7 +100,7 @@ describe('prediction firewall', () => {
       graph: deGraph, direct: null,
       target: { entityId: 'de:surface:unseen-nachtisch', capability: 'sense-recognition' as const },
       classify: () => 'unknown' as const,
-      compound: { surface: 'Nachtisch', isKnownPart: () => true },
+      compound: { analysis: decompose('Nachtisch', ['Nach', 'Nacht', 'Tisch', 'isch']), isKnownPart: () => true },
     };
     const ambiguous = predictTargetAccessibility(input);
     // Control: identical graph without the compound hint. The blocked credit

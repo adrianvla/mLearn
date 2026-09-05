@@ -3,7 +3,7 @@ import { assembleTargetExplanation, type TargetState } from '../../shared/graph/
 import type { KnowledgeProjection, KnowledgeProjectionBasis, KnowledgeProjectionClassification, KnowledgeProjectionState, KnowledgeProjectionTarget } from '../../shared/graph/ipc';
 import { relationsOf, type LingualGraph } from '../../shared/graph/load';
 import { learnableTargetsFor } from '../../shared/graph/targets';
-import { predictTargetAccessibility } from '../../shared/prediction/supportPredictor';
+import { predictTargetAccessibility, type PredictionInput } from '../../shared/prediction/supportPredictor';
 import { easeToStatus } from '../../shared/utils/knowledgeStrength';
 import { DEFAULT_ENABLED_DOMAINS, type GraphDomain, type GraphEntity } from '../../shared/graph/types';
 import type { RetentionPolicy } from '../../shared/srs/retentionScheduler';
@@ -44,6 +44,8 @@ export function buildKnowledgeProjection(
   policy: RetentionPolicy,
   now = Date.now(),
   enabledDomains: readonly GraphDomain[] = DEFAULT_ENABLED_DOMAINS,
+  /** Graph-attested (primary) or strategy-derived (unseen) compound support for this surface. */
+  options?: { compound?: PredictionInput['compound'] },
 ): KnowledgeProjection {
   const domainEnabled = (entity: GraphEntity | undefined): entity is GraphEntity =>
     entity !== undefined && (!entity.domain || enabledDomains.includes(entity.domain));
@@ -76,6 +78,7 @@ export function buildKnowledgeProjection(
       direct,
       target,
       classify: easeToStatus,
+      compound: options?.compound,
     }) : undefined;
     const prediction = predicted?.supportPath.length
       ? { value: predicted.pSuccess, reasons: predicted.supportPath.map((path) => `${path.from} → ${path.to} (${path.via})`) }

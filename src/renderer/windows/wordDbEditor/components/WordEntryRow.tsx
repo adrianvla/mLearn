@@ -397,7 +397,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     if (!props.onAnkiPreview && !props.onExportToAnki) return null;
     ankiCacheVersion(); // re-evaluate when the shared anki cache populates or refreshes
     return findAnkiWordMatchInCache(
-      getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants, { languageData: currentLangData() }),
+      getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants, { languageData: currentLangData(), language: settings.language }),
       ankiCacheOptions(),
     );
   });
