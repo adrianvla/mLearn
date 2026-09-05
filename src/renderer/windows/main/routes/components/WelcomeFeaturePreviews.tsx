@@ -410,7 +410,7 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
   );
 
   return (
-    <div class="wfv-level">
+    <div class="wfv-level" aria-busy={props.pending || undefined}>
       <div class="wfv-level-top">
         <button
           type="button"

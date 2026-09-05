@@ -8,6 +8,12 @@ const localization = vi.hoisted(() => ({
   translate: (key: string) => key,
 }));
 
+const [knowledgeReady, setKnowledgeReady] = createSignal(true);
+const levelPreviewState = vi.hoisted(() => ({
+  // Holds the live Solid props proxy: assertions read current values.
+  last: null as null | { pending?: boolean; coverage: { pct: number } | null },
+}));
+
 const settingsState = vi.hoisted(() => ({
   settings: {
     language: 'ja',
@@ -35,8 +41,8 @@ vi.mock('../../../context', () => ({
   }),
   useFlashcards: () => ({
     store: { flashcards: {}, dailyStats: {} },
+    isKnowledgeReady: () => knowledgeReady(),
     isLoading: () => false,
-    isKnowledgeReady: () => true,
     queueCounts: () => ({ total: 0 }),
     getCurrentCard: () => null,
     getPreviewDueDates: () => null,
@@ -103,7 +109,10 @@ vi.mock('./components', () => {
     WelcomeSettingsPreview: Preview,
     WelcomeStatsPreview: Preview,
     WelcomeLookupPreview: Preview,
-    WelcomeLevelPreview: Preview,
+    WelcomeLevelPreview: (props: { pending?: boolean; coverage: { pct: number } | null }) => {
+      levelPreviewState.last = props;
+      return <div data-testid="level-preview" data-pending={String(props.pending ?? false)} />;
+    },
     WelcomeTutorPreview: Preview,
     WelcomeContinueRow: Preview,
   };
@@ -117,6 +126,8 @@ describe('WelcomeRoute localization', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    setKnowledgeReady(true);
+    levelPreviewState.last = null;
   });
 
   afterEach(() => {
@@ -127,9 +138,8 @@ describe('WelcomeRoute localization', () => {
     const [prefix, setPrefix] = createSignal('before');
     localization.translate = (key) => `${prefix()}:${key}`;
     const dispose = render(() => <WelcomeRoute />, container);
-
-    expect(container.textContent).toContain('before:mlearn.Home.Cards.Video.Title');
     expect(container.textContent).toContain('before:mlearn.Home.UI.LearningLanguage');
+    expect(container.textContent).toContain('before:mlearn.Home.Cards.Video.Title');
 
     setPrefix('after');
     await Promise.resolve();
@@ -154,6 +164,28 @@ describe('WelcomeRoute localization', () => {
     expect(articles.length).toBe(0);
 
     settingsState.settings.simplifyHomeScreen = false;
+    dispose();
+  });
+
+  it('shows the Level Study dial as pending — never 0% — until the learner projection settles', async () => {
+    settingsState.settings.simplifyHomeScreen = false;
+    setKnowledgeReady(false);
+    const dispose = render(() => <WelcomeRoute />, container);
+    await Promise.resolve();
+
+    // Store loaded (isLoading false) but projection migration in flight:
+    // the dial must be pending, with no coverage value to render.
+    expect(levelPreviewState.last).not.toBeNull();
+    expect(levelPreviewState.last!.pending).toBe(true);
+    expect(levelPreviewState.last!.coverage).toBeNull();
+
+    // Projection settles: the dial leaves pending; with no language data in
+    // this harness, null stays the genuine no-data state.
+    setKnowledgeReady(true);
+    await Promise.resolve();
+    expect(levelPreviewState.last!.pending).toBe(false);
+    expect(levelPreviewState.last!.coverage).toBeNull();
+
     dispose();
   });
 });

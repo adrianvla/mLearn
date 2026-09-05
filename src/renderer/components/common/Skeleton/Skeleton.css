@@ -1,15 +1,12 @@
 /**
  * Shared skeleton vocabulary — one shimmer implementation for the whole app.
  *
- * Consumed by the Skeleton primitives and by domain placeholders (e.g. the
- * knowledge gate skeletons). Tokens come from the theme layer
- * (`--skeleton-base`, `--skeleton-highlight`), so dark/light/high-contrast
- * themes restyle every placeholder at once. `shimmer` keyframes are global
- * (styles/base.css); motion is turned off for prefers-reduced-motion.
- */
-
-/* Shared shimmer utility for domain placeholders built on this vocabulary
-   (e.g. the knowledge gate skeletons) — one gradient, one animation. */
+ * Consumed by the Skeleton primitives and by any domain placeholder that
+ * opts into the shared vocabulary via `.skeleton-shimmer`. Tokens come from
+ * the theme layer (`--skeleton-base`, `--skeleton-highlight`), so
+ * dark/light/high-contrast themes restyle every placeholder at once.
+ * `shimmer` keyframes are global (styles/base.css); motion is disabled for
+ * prefers-reduced-motion. */
 .skeleton-line,
 .skeleton-pill,
 .skeleton-inline,

@@ -456,7 +456,9 @@ export const CharacterGridContent: Component = () => {
           {/* Cell colors encode knowledge state: keep the grid's geometry with
               placeholders instead of rendering unmeasured cells as real. */}
           <Show when={contentPending()}>
-            <SkeletonGrid cells={48} />
+            <div aria-busy="true">
+              <SkeletonGrid cells={48} />
+            </div>
           </Show>
         </div>
 
