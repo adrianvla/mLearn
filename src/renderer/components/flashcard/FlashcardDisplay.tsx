@@ -101,12 +101,12 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     // Access ankiCacheReady to re-evaluate when cache finishes loading
     ankiCacheReady();
     const wordCandidates = cardLanguage() === settings.language
-      ? getWordFormCandidates(content().front, getCanonicalForm, getWordVariants, { languageData: cardLanguageData() })
+      ? getWordFormCandidates(content().front, getCanonicalForm, getWordVariants, { languageData: cardLanguageData(), language: cardLanguage() })
       : getWordFormCandidates(
         content().front,
         (value) => getCanonicalFormForLanguage(cardLanguage(), value),
         (value) => getWordVariantsForLanguage(cardLanguage(), value),
-        { languageData: cardLanguageData() },
+        { languageData: cardLanguageData(), language: cardLanguage() },
       );
     return !!findWordInAnkiCache(wordCandidates, ankiCacheOptions());
   });

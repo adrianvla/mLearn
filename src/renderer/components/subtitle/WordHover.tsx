@@ -243,6 +243,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   }, getCanonicalForm, getWordVariants, {
     tokenizerCapabilities: tokenizerCapabilities(),
     languageData: currentLangData(),
+    language: settings.language,
   }));
 
   // REQ42 + graph-first: the resolution is tri-state — while the projection is

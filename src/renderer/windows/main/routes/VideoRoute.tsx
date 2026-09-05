@@ -123,6 +123,7 @@ export const VideoRoute: Component = () => {
   const getWordForms = (word: string): string[] => (
     getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants, {
       languageData: langCtx.currentLangData(),
+      language: settings.language,
     })
   );
   const tokenizerCapabilities = createMemo(() => langCtx.getLanguageFeatures().tokenizerCapabilities);

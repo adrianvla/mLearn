@@ -410,7 +410,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
   };
 
   const getReadingVariants = (reading: string): string[] => {
-    return getLexemeReadingVariants(reading, currentLangData());
+    return getLexemeReadingVariants(reading, currentLangData(), currentLang());
   };
 
   const getCanonicalFormForLanguage = (language: string, word: string): string => {
@@ -429,7 +429,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
 
   const getReadingVariantsForLanguage = (language: string, reading: string): string[] => {
     if (language === currentLang()) return getReadingVariants(reading);
-    return getLexemeReadingVariants(reading, resolvedLanguageData(language));
+    return getLexemeReadingVariants(reading, resolvedLanguageData(language), language);
   };
 
   // Get level name from language metadata.

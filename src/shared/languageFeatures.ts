@@ -320,10 +320,10 @@ export function usesReadingBasedLexemeNormalization(data?: LanguageData | null):
   return getReadingLexemeNormalizationConfig(data).enabled;
 }
 
-function normalizeLexemeReading(reading: string, config: ReadingLexemeNormalizationConfig): string {
+function normalizeLexemeReading(reading: string, config: ReadingLexemeNormalizationConfig, language?: string): string {
   let normalized = reading.trim();
   for (const step of expandNormalizerSteps(config.readingNormalizer, config.normalizerPresets)) {
-    normalized = applyTextNormalizer(normalized, step);
+    normalized = applyTextNormalizer(normalized, step, language);
   }
   return normalized;
 }
@@ -437,7 +437,7 @@ function getDictionaryLookupNormalizers(data?: LanguageData | null): NormalizerS
   return expandNormalizerSteps(lookup.normalizers, packagePresets);
 }
 
-export function getDictionaryLookupCandidates(word: string, data?: LanguageData | null): string[] {
+export function getDictionaryLookupCandidates(word: string, data?: LanguageData | null, language?: string): string[] {
   const raw = word.trim();
   if (!raw) return [];
 
@@ -456,7 +456,7 @@ export function getDictionaryLookupCandidates(word: string, data?: LanguageData 
     for (const step of normalizers) {
       const nextFrontier = [...frontier];
       for (const value of frontier) {
-        const normalized = applyTextNormalizer(value, step);
+        const normalized = applyTextNormalizer(value, step, language);
         if (normalized && !nextFrontier.includes(normalized)) {
           nextFrontier.push(normalized);
         }
@@ -469,7 +469,7 @@ export function getDictionaryLookupCandidates(word: string, data?: LanguageData 
 
   let current = raw;
   for (const step of normalizers) {
-    current = applyTextNormalizer(current, step);
+    current = applyTextNormalizer(current, step, language);
     add(current);
   }
 
@@ -878,7 +878,7 @@ export function buildLexemeIndex(freq: LanguageFrequencyRow[] | undefined, data?
 
     if (!reading) continue;
 
-    const normalizedReading = normalizeLexemeReading(reading, normalization);
+    const normalizedReading = normalizeLexemeReading(reading, normalization, language);
     if (normalizedReading && !readingToCanonical[normalizedReading]) {
       readingToCanonical[normalizedReading] = word;
     }
@@ -993,7 +993,7 @@ export function getFrequencyForLexeme(
 
   if (!isReadingLexeme(word, normalization)) return null;
 
-  const normalizedReading = normalizeLexemeReading(word, normalization);
+  const normalizedReading = normalizeLexemeReading(word, normalization, language);
   const canonical = lexemeIndex.readingToCanonical[normalizedReading];
   return canonical ? wordFrequency[canonical] || null : null;
 }
@@ -1017,7 +1017,7 @@ export function getCanonicalLexeme(
   }
   if (!isReadingLexeme(word, normalization)) return word;
 
-  const normalizedReading = normalizeLexemeReading(word, normalization);
+  const normalizedReading = normalizeLexemeReading(word, normalization, language);
   if (normalization.preserveNonPrimaryReadingScript && normalizedReading !== word) return word;
 
   return lexemeIndex.readingToCanonical[normalizedReading] || word;
@@ -1058,7 +1058,7 @@ export function getLexemeVariants(
     const freqEntry = wordFrequency[word] || (canonical ? wordFrequency[canonical] : undefined);
     const reading = freqEntry?.reading;
     if (reading && isReadingLexeme(word, normalization) && !isSurfaceLexeme(word, normalization)) {
-      const normalizedReading = normalizeLexemeReading(reading, normalization);
+      const normalizedReading = normalizeLexemeReading(reading, normalization, language);
       for (const variant of lexemeIndex.readingToVariants[normalizedReading] ?? []) {
         variants.add(variant);
       }
@@ -1068,7 +1068,7 @@ export function getLexemeVariants(
   return Array.from(variants);
 }
 
-export function getLexemeReadingVariants(reading: string, data?: LanguageData | null): string[] {
+export function getLexemeReadingVariants(reading: string, data?: LanguageData | null, language?: string): string[] {
   const variants = new Set<string>();
   const raw = reading.trim();
   if (!raw) return [''];
@@ -1077,7 +1077,7 @@ export function getLexemeReadingVariants(reading: string, data?: LanguageData | 
 
   const normalization = getReadingLexemeNormalizationConfig(data);
   if (normalization.enabled) {
-    const normalized = normalizeLexemeReading(raw, normalization);
+    const normalized = normalizeLexemeReading(raw, normalization, language);
     if (normalized) variants.add(normalized);
   }
 
@@ -1231,9 +1231,17 @@ export function languageSupportsCompoundSplitting(data?: LanguageData | null): b
   return compoundSplitterConfig(data) !== null;
 }
 
-/** Declared compound-splitting strategy for a language's package, if any. */
+/** Declared compound-splitting strategy for a language's package, if any.
+ *  Legacy packages shipped `compoundSplitting: true` with the strategy hardcoded
+ *  in core; such values are treated as capability-absent (no crash, no guessing). */
 export function compoundSplitterConfig(data?: LanguageData | null): LanguageCompoundSplittingConfig | null {
-  return data?.compoundSplitting ?? null;
+  const raw = data?.compoundSplitting as LanguageCompoundSplittingConfig | boolean | undefined;
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.locale !== 'string' || !raw.locale) return null;
+  if (!Array.isArray(raw.linkingElements) || !raw.linkingElements.every((item) => typeof item === 'string')) return null;
+  if (raw.inflectionSuffixes !== undefined && (!Array.isArray(raw.inflectionSuffixes) || !raw.inflectionSuffixes.every((item) => typeof item === 'string'))) return null;
+  if (raw.minPartLength !== undefined && (typeof raw.minPartLength !== 'number' || raw.minPartLength < 1)) return null;
+  return raw;
 }
 
 export function getProsodyPositionFromContent(
@@ -1490,11 +1498,11 @@ function getRoughLemmaNormalizers(data: LanguageData | null | undefined, tokeniz
   return normalizers;
 }
 
-function normalizeRoughLemma(word: string, tokenizer: LanguageTokenizerRuntimeConfig, data?: LanguageData | null): string {
-  return getRoughLemmaNormalizers(data, tokenizer).reduce((current, step) => applyTextNormalizer(current, step), word);
+function normalizeRoughLemma(word: string, tokenizer: LanguageTokenizerRuntimeConfig, data?: LanguageData | null, language?: string): string {
+  return getRoughLemmaNormalizers(data, tokenizer).reduce((current, step) => applyTextNormalizer(current, step, language), word);
 }
 
-export function createRoughTokenizerTokens(text: string, data?: LanguageData | null): Token[] {
+export function createRoughTokenizerTokens(text: string, data?: LanguageData | null, language?: string): Token[] {
   const tokenizer = getTokenizerRuntimeConfig(data);
   if (!isRoughTokenizerType(tokenizer.type)) return [];
   const classes = getRoughTokenizerClasses(tokenizer);
@@ -1511,7 +1519,7 @@ export function createRoughTokenizerTokens(text: string, data?: LanguageData | n
     current.length = 0;
     tokens.push({
       word,
-      actual_word: normalizeRoughLemma(word, tokenizer, data),
+      actual_word: normalizeRoughLemma(word, tokenizer, data, language),
       type: 'WORD',
       surface: word,
     });

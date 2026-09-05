@@ -193,6 +193,7 @@ export const App: Component = () => {
   const getWordForms = (word: string): string[] => (
     getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants, {
       languageData: langCtx.currentLangData(),
+      language: settings.language,
     })
   );
   const getTrackedAnkiWord = (word: string): string | null => {

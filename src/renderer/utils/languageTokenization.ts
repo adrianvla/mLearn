@@ -28,10 +28,11 @@ export async function tokenizeTextWithSettings(
 function colorizeWithRoughTokenizerFallback(params: {
   text: string;
   languageData?: LanguageData | null;
+  language?: string;
   colourCodes: Record<string, string>;
   targetWord: string;
 }): string | null {
-  const tokens = safeRoughTokenizerFallbackTokens(params.text, params.languageData);
+  const tokens = safeRoughTokenizerFallbackTokens(params.text, params.languageData, params.language);
   if (tokens.length === 0) return null;
   const originalLetters = Array.from(params.text).filter((char) => /\p{L}/u.test(char)).join('');
   const tokenLetters = tokens
@@ -43,7 +44,7 @@ function colorizeWithRoughTokenizerFallback(params: {
   return tokensToColoredHtml(tokens, params.colourCodes, params.targetWord, params.languageData);
 }
 
-function safeRoughTokenizerFallbackTokens(text: string, languageData?: LanguageData | null): Token[] {
+function safeRoughTokenizerFallbackTokens(text: string, languageData?: LanguageData | null, language?: string): Token[] {
   if (!tokenizerAllowsFallback(languageData)) return [];
   const tokenizer = getTokenizerRuntimeConfig(languageData);
   if (
@@ -52,7 +53,7 @@ function safeRoughTokenizerFallbackTokens(text: string, languageData?: LanguageD
   ) {
     return [];
   }
-  return createRoughTokenizerTokens(text, languageData);
+  return createRoughTokenizerTokens(text, languageData, language);
 }
 
 export async function colorizeTokenizedText(params: {
@@ -81,7 +82,7 @@ export async function textToReadingText(params: {
   settings: BackendSettings;
 }): Promise<string> {
   const roughReadingFallback = (): string | null => {
-    const tokens = safeRoughTokenizerFallbackTokens(params.text, params.languageData);
+    const tokens = safeRoughTokenizerFallbackTokens(params.text, params.languageData, params.language);
     return tokens.length > 0 ? tokensToReadingText(tokens, params.languageData) : null;
   };
 

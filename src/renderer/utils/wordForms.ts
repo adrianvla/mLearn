@@ -12,6 +12,12 @@ interface WordFormCandidateOptions {
   languageData?: LanguageData | null;
 }
 
+interface WordFormCandidateOptions {
+  languageData?: LanguageData | null;
+  /** Language code, required for package mapping-table normalizer steps to apply. */
+  language?: string;
+}
+
 function appendUnique(candidates: string[], seen: Set<string>, value: string | null | undefined): void {
   const normalized = value?.trim();
   if (!normalized || seen.has(normalized)) return;
@@ -52,7 +58,7 @@ export function getWordFormCandidates(
 
   if (isReadingLookup) {
     appendUnique(candidates, seen, word);
-    for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData)) {
+    for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData, options.language)) {
       appendUnique(candidates, seen, lookupCandidate);
     }
   }
@@ -62,7 +68,7 @@ export function getWordFormCandidates(
     if (variants.length > 0) {
       for (const variant of variants) {
         appendUnique(candidates, seen, variant);
-        for (const lookupCandidate of getDictionaryLookupCandidates(variant, options.languageData)) {
+        for (const lookupCandidate of getDictionaryLookupCandidates(variant, options.languageData, options.language)) {
           appendUnique(candidates, seen, lookupCandidate);
         }
       }
@@ -74,12 +80,12 @@ export function getWordFormCandidates(
   if (!isReadingLookup) {
     appendUnique(candidates, seen, canonical && canonical !== word ? canonical : undefined);
     appendUnique(candidates, seen, word);
-    for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData)) {
+    for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData, options.language)) {
       appendUnique(candidates, seen, lookupCandidate);
     }
   }
   if (canonical && canonical !== word) {
-    for (const lookupCandidate of getDictionaryLookupCandidates(canonical, options.languageData)) {
+    for (const lookupCandidate of getDictionaryLookupCandidates(canonical, options.languageData, options.language)) {
       appendUnique(candidates, seen, lookupCandidate);
     }
   }
@@ -106,6 +112,7 @@ export function getTokenWordFormCandidates(
     includeReading?: boolean;
     tokenizerCapabilities?: TokenMorphologyCapabilities;
     languageData?: LanguageData | null;
+    language?: string;
   } = {},
 ): string[] {
   const candidates: string[] = [];
@@ -119,7 +126,7 @@ export function getTokenWordFormCandidates(
 
   for (const seed of seeds) {
     appendExpandedWordForms(candidates, seen, seed ?? '', getCanonicalForm, getWordVariants);
-    for (const lookupCandidate of getDictionaryLookupCandidates(seed ?? '', options.languageData)) {
+    for (const lookupCandidate of getDictionaryLookupCandidates(seed ?? '', options.languageData, options.language)) {
       appendExpandedWordForms(candidates, seen, lookupCandidate, getCanonicalForm, getWordVariants);
     }
   }

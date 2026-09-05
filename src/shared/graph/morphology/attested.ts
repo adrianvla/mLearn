@@ -7,14 +7,16 @@ const MAX_DEPTH = 8;
 function partsFromGraph(graph: LingualGraph, compoundId: string, depth: number): CompoundPart[] | null {
   if (depth > MAX_DEPTH) return null;
   // component-of relations are a SET — the graph carries no part ordering.
-  // Resolve nodes first, then sort by part label (ID tie-breaker) so analysis
-  // output is deterministic regardless of asset insertion order.
+  // Resolve nodes first, then order deterministically by CODE-UNIT comparison
+  // (host collation must never influence analysis output; ordering is display
+  // only, not graph data). ID breaks label ties.
   const components = relationsOf(graph, compoundId, { direction: 'in' })
     .filter((relation) => relation.type === 'component-of')
     .map((relation) => ({ relation, node: graph.nodes.get(relation.from) }));
   if (components.length < 2 || components.some((component) => !component.node?.label)) return null;
   components.sort((a, b) =>
-    a.node!.label!.localeCompare(b.node!.label!) || a.relation.from.localeCompare(b.relation.from));
+    (a.node!.label! < b.node!.label! ? -1 : a.node!.label! > b.node!.label! ? 1 : 0) ||
+    (a.relation.from < b.relation.from ? -1 : a.relation.from > b.relation.from ? 1 : 0));
   const parts: CompoundPart[] = [];
   for (const { relation, node } of components) {
     const nested = partsFromGraph(graph, relation.from, depth + 1);

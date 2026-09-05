@@ -111,6 +111,7 @@ const UnknownWordRow: Component<{
   const wordForms = createMemo(() => (
     getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants, {
       languageData: currentLangData(),
+      language: settings.language,
     })
   ));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.entry.word);

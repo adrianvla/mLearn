@@ -191,4 +191,28 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
     expect(prediction.supportPath).toHaveLength(2);
     expect(prediction.supportPath.every((hop) => hop.via === 'attested-compound')).toBe(true);
   });
+
+  it('orders attested parts by code-unit, independent of host collation', () => {
+    // 'ä' (U+00E4) sorts AFTER 'z' in code-unit order but BEFORE it in most
+    // host locale collations — this fixture fails under bare localeCompare.
+    const surface = surfaceEntityId(UNKNOWN_CODE, 'zcomp');
+    const graph = loadLinguisticGraph({
+      schemaVersion: 1 as const,
+      language: UNKNOWN_CODE,
+      generatedAt: '2026-09-05T00:00:00Z',
+      sourceVersions: {},
+      entities: [
+        { id: surface, kind: 'surface' as const, label: 'zcomp' },
+        { id: surfaceEntityId(UNKNOWN_CODE, 'zoo'), kind: 'surface' as const, label: 'zoo' },
+        { id: surfaceEntityId(UNKNOWN_CODE, 'äther'), kind: 'surface' as const, label: 'äther' },
+      ],
+      relations: [
+        { from: surfaceEntityId(UNKNOWN_CODE, 'äther'), to: surface, type: 'component-of' },
+        { from: surfaceEntityId(UNKNOWN_CODE, 'zoo'), to: surface, type: 'component-of' },
+      ],
+    });
+    const analysis = attestedCompoundAnalysis(graph, surface)!;
+    // Insertion order is äther-first; code-unit order must put 'zoo' first.
+    expect(analysis.parts.map((part) => part.lemma)).toEqual(['zoo', 'äther']);
+  });
 });

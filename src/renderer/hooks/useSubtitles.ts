@@ -328,7 +328,7 @@ export function useSubtitles() {
 
     const buildFallbackTokens = (text: string): Token[] => {
       if (!tokenizerAllowsFallback(currentLangData())) return [];
-      return createRoughTokenizerTokens(text, currentLangData());
+      return createRoughTokenizerTokens(text, currentLangData(), settings.language);
     };
     const applyFallbackTokens = (text: string): boolean => {
       const fallbackTokens = buildFallbackTokens(text);

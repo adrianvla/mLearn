@@ -313,6 +313,7 @@ export const Dashboard: Component = () => {
           word,
           (w) => getCanonicalFormForLanguage(language, w),
           (w) => getWordVariantsForLanguage(language, w),
+          { language },
         ).map((form) => `${language}:${hashWordSync(form)}`);
       });
       return {

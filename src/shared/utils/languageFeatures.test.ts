@@ -25,6 +25,7 @@ import {
   getLanguageProsodyType,
   getFrequencyForLexeme,
   getFrequencyLevelLabel,
+  getLexemeReadingVariants,
   getLexemeVariants,
   getLearningLanguageLevelForLanguage,
   getGrammarLevelLabel,
@@ -383,7 +384,19 @@ describe('language feature bricks', () => {
     expect(languageSupportsCompoundSplitting({ ...latinLanguage, compoundSplitting: strategy })).toBe(true);
     expect(compoundSplitterConfig({ ...latinLanguage, compoundSplitting: strategy })).toBe(strategy);
     expect(compoundSplitterConfig({ ...latinLanguage })).toBeNull();
+    // Legacy packages shipped `true` with the strategy hardcoded in core:
+    // treated as capability-absent so the old value can never reach the
+    // strategy-parameterized splitter and crash it.
+    expect(languageSupportsCompoundSplitting({ ...latinLanguage, compoundSplitting: true })).toBe(false);
+    expect(compoundSplitterConfig({ ...latinLanguage, compoundSplitting: true })).toBeNull();
+    expect(compoundSplitterConfig({ ...latinLanguage, compoundSplitting: { locale: 'de' } })).toBeNull();
+    // Malformed shapes are rejected field-by-field, not just as non-objects.
+    expect(compoundSplitterConfig({ ...latinLanguage, compoundSplitting: { locale: 'de', linkingElements: [1, ''] } })).toBeNull();
+    expect(compoundSplitterConfig({ ...latinLanguage, compoundSplitting: { locale: 'de', linkingElements: [], inflectionSuffixes: 'es' } })).toBeNull();
+    expect(compoundSplitterConfig({ ...latinLanguage, compoundSplitting: { locale: 'de', linkingElements: [''], minPartLength: 'three' } })).toBeNull();
+    expect(compoundSplitterConfig({ ...latinLanguage, compoundSplitting: { locale: '', linkingElements: [''] } })).toBeNull();
   });
+
 
   const freq: [string, string][] = [
     ['赤い', 'あかい'],
@@ -2918,5 +2931,44 @@ describe('merged zh characterization (post-merge behavior)', () => {
     expect(zhT2s.chars['學']).toBe('学');
     expect(zhT2s.words['學習']).toBe('学习');
     expect(zhData.variants?.['zh-Hant']?.scriptConversion?.mappingAsset).toBe('languages/zh.t2s.json');
+  });
+});
+
+describe('mapping-table normalizer language threading', () => {
+  const table = { words: { AAAA: 'xxxx' }, chars: { A: 'x' } };
+  const threadedData: LanguageData = {
+    name: 'Threaded',
+    textProcessing: {
+      lexemeNormalization: { type: 'reading', readingNormalizer: [{ type: 'mapping-table' }] },
+    },
+    runtime: {
+      nlp: {
+        dictionary: { lookup: { normalizers: [{ type: 'mapping-table' }] } },
+        tokenizer: { type: 'unicode-word', lemmaNormalizers: [{ type: 'mapping-table' }] },
+      },
+    },
+  };
+
+  beforeEach(() => {
+    clearMappingTables();
+    registerMappingTable('x-test', table);
+  });
+
+  it('applies mapping-table steps in dictionary lookup candidates when language is threaded', () => {
+    expect(getDictionaryLookupCandidates('AAAA', threadedData, 'x-test')).toContain('xxxx');
+    // Missing language: the mapping-table step is inert (documented no-op).
+    expect(getDictionaryLookupCandidates('AAAA', threadedData)).not.toContain('xxxx');
+  });
+
+  it('applies mapping-table steps on the reading normalization path when language is threaded', () => {
+    expect(getLexemeReadingVariants('AAAA', threadedData, 'x-test')).toContain('xxxx');
+    expect(getLexemeReadingVariants('AAAA', threadedData)).not.toContain('xxxx');
+  });
+
+  it('applies mapping-table steps on the rough lemma path when language is threaded', () => {
+    const tokens = createRoughTokenizerTokens('AAAA', threadedData, 'x-test');
+    expect(tokens[0]?.actual_word).toBe('xxxx');
+    const inert = createRoughTokenizerTokens('AAAA', threadedData);
+    expect(inert[0]?.actual_word).toBe('AAAA');
   });
 });
