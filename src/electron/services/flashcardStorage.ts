@@ -7,14 +7,16 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS, SRS_EASE } from '../../shared/constants';
-import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, PassiveWordKnowledge, GrammarKnowledgeEntry } from '../../shared/types';
 import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable, buildLexemeIndex, buildWordFrequencyMapFromLanguageData, getFrequencyForLexeme, resolveLanguageFrequencyPayload } from '../../shared/languageFeatures';
-import { calculateWordStats } from '../../shared/utils/wordStats';
+import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
+import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
+import { calculateWordStats } from '../../shared/utils/wordStats';
+import { createWordFormDeriver } from '../../shared/utils/wordForms';
 import { getUserDataPath } from '../utils/platform';
 import { isLanguageMetadataFileName } from '../utils/languageCode';
 import { extractBase64Images } from './flashcardImageStorage';
-import { loadLangData } from './settings';
+import { loadLangData, loadSettings } from './settings';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.flashcardStorage');
@@ -884,14 +886,223 @@ function backfillMissingFlashcardLevels(store: FlashcardStore): FlashcardStore {
   return { ...store, flashcards: { ...store.flashcards, ...updated } };
 }
 
+/**
+ * Key derivation for one legacy record: the language comes from the record
+ * when present, else from the legacy `lang:hash` key prefix. Returns null for
+ * key-only records (no recoverable raw surface) — those keep their legacy key.
+ */
+function deriveRecordKey(
+  deriverFor: (language: string) => ((word: string) => string) | null,
+  langData: LanguageDataMap,
+  language: string | undefined,
+  word: string | undefined,
+  legacyKey: string,
+): string | null {
+  const lang = (language?.trim() || legacyKey.split(':')[0] || '').trim();
+  const raw = word?.trim();
+  if (!lang || !raw) return null;
+  const deriver = deriverFor(lang);
+  const primary = deriver ? deriver(raw) : raw;
+  // Package script conversion is part of word identity — the same fold
+  // canonicalKeyHash applies for the zh variant migration and sync merge.
+  return canonicalKeyHash(lang, primary, {
+    hashWord: generateWordHashSync,
+    languageData: langData[lang],
+  });
+}
+
+/**
+ * D3 (normalization-version migration): persisted, key-derived records were
+ * minted under v1 semantics, where package-declared casing steps used the
+ * AMBIENT host locale — the same word could hash differently per machine.
+ * Creation hashes the metadata-aware PRIMARY word form (shared
+ * getWordFormCandidates[0], script-conversion folded), never a bare raw-front
+ * hash, so rebuilds reproduce the shared derivation from raw source fields.
+ *
+ * Source-backed records (cards, word knowledge, ignores, candidates,
+ * suggestions — all carry a raw word) rebuild under v2 keys. Key-only records
+ * (wordSyncSeen, knownUntracked, knowledge/ignore rows without a raw word)
+ * are NOT recoverable and keep their legacy keys verbatim; reads salvage them
+ * lazily via legacyCasingCandidates when a raw surface becomes available.
+ * Future versions (stored > current) are never downgraded. Idempotent: the
+ * version stamp is written once the rebuild completes.
+ */
+function rebuildKeyedRecordsForNormalization(store: FlashcardStore): FlashcardStore {
+  const storedVersion = store.meta?.normalizationVersion;
+  if (storedVersion !== undefined && storedVersion >= CURRENT_NORMALIZATION_VERSION) return store;
+
+  const langData = loadLangData() || {};
+  let settings: Settings | null = null;
+  try {
+    settings = loadSettings();
+  } catch {
+    settings = null;
+  }
+
+  const deriverCache = new Map<string, (word: string) => string>();
+  const deriverFor = (language: string): ((word: string) => string) | null => {
+    const cached = deriverCache.get(language);
+    if (cached) return cached;
+    const data = langData[language];
+    if (!data) return null;
+    const deriver = createWordFormDeriver(
+      data,
+      language,
+      settings?.frequencyProviderSelections?.[language],
+      settings?.frequencyLevelSystemSelections?.[language],
+    );
+    deriverCache.set(language, deriver);
+    return deriver;
+  };
+
+  // Source of truth: cards. Cards without a derivable (language, front) keep
+  // their legacy map entries below.
+  const wordToCardMap: Record<string, string[]> = {};
+  const derivable = new Set<string>();
+  for (const card of Object.values(store.flashcards)) {
+    const key = deriveRecordKey(deriverFor, langData, card.language, card.content?.front, '');
+    if (!key) continue;
+    derivable.add(card.id);
+    const bucket = wordToCardMap[key];
+    if (bucket) {
+      if (!bucket.includes(card.id)) bucket.push(card.id);
+    } else {
+      wordToCardMap[key] = [card.id];
+    }
+  }
+  for (const [legacyKey, ids] of Object.entries(store.wordToCardMap || {})) {
+    for (const id of Array.isArray(ids) ? ids : [ids as unknown as string]) {
+      if (derivable.has(id)) continue;
+      const bucket = wordToCardMap[legacyKey];
+      if (bucket) {
+        if (!bucket.includes(id)) bucket.push(id);
+      } else {
+        wordToCardMap[legacyKey] = [id];
+      }
+    }
+  }
+
+  const wordStatsMap: Record<string, WordStats> = {};
+  for (const [key, ids] of Object.entries(wordToCardMap)) {
+    const cards = ids.map((id) => store.flashcards[id]).filter((card): card is Flashcard => Boolean(card));
+    if (cards.length > 0) wordStatsMap[key] = calculateWordStats(cards);
+  }
+
+  // Knowledge rows: rebuild by recency when two legacy spellings collapse.
+  const wordKnowledge: Record<string, PassiveWordKnowledge> = {};
+  const knowledgeWinnerKeys = new Map<string, string>();
+  for (const [legacyKey, entry] of Object.entries(store.wordKnowledge || {})) {
+    if (!entry) continue;
+    const key = deriveRecordKey(deriverFor, langData, entry.language, entry.word, legacyKey);
+    if (!key) {
+      wordKnowledge[legacyKey] = entry;
+      continue;
+    }
+    const prevOldKey = knowledgeWinnerKeys.get(key);
+    if (prevOldKey === undefined) {
+      wordKnowledge[key] = entry;
+      knowledgeWinnerKeys.set(key, legacyKey);
+    } else {
+      const prev = wordKnowledge[key];
+      if (
+        (entry.lastSeen || 0) > (prev.lastSeen || 0)
+        || ((entry.lastSeen || 0) === (prev.lastSeen || 0) && legacyKey < prevOldKey)
+      ) {
+        wordKnowledge[key] = entry;
+        knowledgeWinnerKeys.set(key, legacyKey);
+      }
+    }
+  }
+
+  const ignoredWords: Record<string, IgnoredWordEntry> = {};
+  const ignoredWinnerKeys = new Map<string, string>();
+  for (const [legacyKey, entry] of Object.entries(store.ignoredWords || {})) {
+    if (!entry) continue;
+    const key = deriveRecordKey(deriverFor, langData, entry.language, entry.word, legacyKey);
+    if (!key) {
+      ignoredWords[legacyKey] = entry;
+      continue;
+    }
+    const prevOldKey = ignoredWinnerKeys.get(key);
+    if (prevOldKey === undefined) {
+      ignoredWords[key] = entry;
+      ignoredWinnerKeys.set(key, legacyKey);
+    } else {
+      const prev = ignoredWords[key];
+      if (
+        (entry.ignoredAt || 0) > (prev.ignoredAt || 0)
+        || ((entry.ignoredAt || 0) === (prev.ignoredAt || 0) && legacyKey < prevOldKey)
+      ) {
+        ignoredWords[key] = entry;
+        ignoredWinnerKeys.set(key, legacyKey);
+      }
+    }
+  }
+
+  const wordCandidates: Record<string, WordCandidate> = {};
+  for (const [legacyKey, candidate] of Object.entries(store.wordCandidates || {})) {
+    if (!candidate) continue;
+    const key = deriveRecordKey(deriverFor, langData, candidate.language, candidate.word, legacyKey);
+    if (!key) {
+      wordCandidates[legacyKey] = candidate;
+      continue;
+    }
+    const prev = wordCandidates[key];
+    if (!prev) {
+      wordCandidates[key] = candidate;
+      continue;
+    }
+    const winner = (candidate.lastSeen || 0) >= (prev.lastSeen || 0) ? candidate : prev;
+    wordCandidates[key] = {
+      ...winner,
+      count: (prev.count || 0) + (candidate.count || 0),
+      lastSeen: Math.max(prev.lastSeen || 0, candidate.lastSeen || 0),
+    };
+  }
+
+  const suggestedFlashcards: Record<string, SuggestedFlashcard> = {};
+  const suggestionWinnerKeys = new Map<string, string>();
+  for (const [legacyKey, suggestion] of Object.entries(store.suggestedFlashcards || {})) {
+    if (!suggestion) continue;
+    const key = deriveRecordKey(deriverFor, langData, suggestion.language, suggestion.word, legacyKey);
+    if (!key) {
+      suggestedFlashcards[legacyKey] = suggestion;
+      continue;
+    }
+    const prevOldKey = suggestionWinnerKeys.get(key);
+    if (prevOldKey === undefined) {
+      suggestedFlashcards[key] = suggestion;
+      suggestionWinnerKeys.set(key, legacyKey);
+    } else {
+      const prev = suggestedFlashcards[key];
+      if (
+        (suggestion.lastSeen || 0) > (prev.lastSeen || 0)
+        || ((suggestion.lastSeen || 0) === (prev.lastSeen || 0) && legacyKey < prevOldKey)
+      ) {
+        suggestedFlashcards[key] = suggestion;
+        suggestionWinnerKeys.set(key, legacyKey);
+      }
+    }
+  }
+
+  log.info(`[flashcardStorage] Rebuilt keyed records to normalization version ${CURRENT_NORMALIZATION_VERSION} (stored: ${storedVersion ?? 'absent'})`);
+  return {
+    ...store,
+    wordToCardMap,
+    wordStatsMap,
+    wordKnowledge,
+    ignoredWords,
+    wordCandidates,
+    suggestedFlashcards,
+    // wordSyncSeen / knownUntracked / grammarKnowledge: key-only or
+    // pattern-addressed — preserved verbatim in their legacy namespace.
+    meta: { ...store.meta, normalizationVersion: CURRENT_NORMALIZATION_VERSION },
+  };
+}
+
 function finalizeStore(store: FlashcardStore): FlashcardStore {
   const withLevels = backfillMissingFlashcardLevels(migrateLegacyFlashcardStore(store));
-  // D3 (normalization-version rebuild) intentionally NOT implemented here yet:
-  // a raw-front rekey would orphan cards whose packages declare casing steps,
-  // because creation hashes the metadata-aware primary form (renderer
-  // getWordFormCandidates[0]) rather than the raw front. Requires extracting
-  // the primary-form derivation into shared code before rebuilding is safe.
-  return withLevels;
+  return rebuildKeyedRecordsForNormalization(withLevels);
 }
 
 

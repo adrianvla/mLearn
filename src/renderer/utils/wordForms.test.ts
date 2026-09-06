@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { getTokenLookupWord, getTokenWordFormCandidates, getWordFormCandidates } from './wordForms';
 
 describe('getWordFormCandidates', () => {
-  it('prefers language-provided variants when available', () => {
+  it('leads with the canonical form, then the raw word, then remaining variants', () => {
     expect(
       getWordFormCandidates(
         'おしいれ',
         (word) => word === 'おしいれ' ? '押し入れ' : word,
         () => ['押し入れ', '押入れ', 'おしいれ'],
       ),
-    ).toEqual(['押し入れ', '押入れ', 'おしいれ']);
+    ).toEqual(['押し入れ', 'おしいれ', '押入れ']);
   });
 
   it('falls back to canonical plus original word without variants', () => {
@@ -45,7 +45,7 @@ describe('getWordFormCandidates', () => {
     ).toEqual(['Straße', 'straße', 'strasse']);
   });
 
-  it('keeps reading-script lookups before canonical surface forms', () => {
+  it('keys reading-script input under the canonical surface while probing both', () => {
     expect(
       getWordFormCandidates(
         'ひらく',
@@ -66,7 +66,7 @@ describe('getWordFormCandidates', () => {
           },
         },
       ),
-    ).toEqual(['ひらく', '開く']);
+    ).toEqual(['開く', 'ひらく']);
   });
 
   it('still uses canonical-first lookup for surface-script words', () => {

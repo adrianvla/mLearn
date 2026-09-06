@@ -10,7 +10,7 @@ export interface CanonicalWordKeyDeps {
   legacyLanguageCodes?: Record<string, string>;
 }
 
-function declaresScriptConversion(data: LanguageData | null | undefined): boolean {
+export function declaresScriptConversion(data: LanguageData | null | undefined): boolean {
   if (!data) return false;
   if (data.textProcessing?.lexemeNormalization?.mappingTableAsset) return true;
   return Object.values(data.variants ?? {}).some((variant) => Boolean(variant.scriptConversion?.mappingAsset));

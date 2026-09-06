@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
-import type { Flashcard, FlashcardStore, LanguageData } from '../../shared/types';
+import type { Flashcard, FlashcardStore, LanguageData, PassiveWordKnowledge, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
+import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
+import { clearMappingTables, registerMappingTable } from '../../shared/languageFeatures';
 
 let tempDir: TempDir;
 
@@ -12,7 +14,8 @@ vi.mock('../utils/platform', () => ({ getUserDataPath: vi.fn(() => tempDir.tmpDi
 vi.mock('./flashcardImageStorage', () => ({ extractBase64Images: vi.fn(() => false) }));
 
 const mockLoadLangData = vi.hoisted(() => vi.fn());
-vi.mock('./settings', () => ({ loadLangData: mockLoadLangData }));
+const mockLoadSettings = vi.hoisted(() => vi.fn());
+vi.mock('./settings', () => ({ loadLangData: mockLoadLangData, loadSettings: mockLoadSettings }));
 
 const table = { words: {}, chars: { '學': '学', '沒': '没' } };
 const zhMetadata: LanguageData = {
@@ -73,6 +76,8 @@ describe('flashcardStorage v2→v3 zh variant migration', () => {
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-fc-migration-');
     vi.resetModules();
+    mockLoadLangData.mockReturnValue({ zh: zhMetadata });
+    mockLoadSettings.mockReturnValue({ frequencyProviderSelections: {}, frequencyLevelSystemSelections: {} } as Settings);
     ({ loadFlashcards } = await import('./flashcardStorage'));
   });
   afterEach(() => tempDir.cleanup());
@@ -158,7 +163,11 @@ describe('flashcardStorage v2→v3 zh variant migration', () => {
   it('(g) defers untouched while the zh package is absent, then succeeds after installation', async () => {
     const original = store({ wordCandidates: { [key('zh-Hans', '学')]: { word: '学', language: 'zh-Hans', count: 1, lastSeen: 1 } } });
     write(original);
-    expect(await loadFlashcards()).toEqual(original);
+    const deferred = await loadFlashcards();
+    // zh migration defers (no backup, no key changes); the normalization-version
+    // stamp on meta is orthogonal bookkeeping and is expected on every legacy store.
+    expect(deferred.wordCandidates).toEqual(original.wordCandidates);
+    expect(deferred.knownUntracked).toEqual(original.knownUntracked);
     expect(backups()).toHaveLength(0);
     writePackage();
     expect((await loadFlashcards()).version).toBe(3);
@@ -271,5 +280,225 @@ describe('flashcardStorage level backfill', () => {
     const twice = await loadFlashcards();
     expect(JSON.stringify(twice)).toBe(JSON.stringify(once));
     expect(mockLoadLangData).not.toHaveBeenCalled();
+  });
+});
+
+const casefoldPackage: LanguageData = {
+  name: 'Ambient-casing test',
+  textProcessing: {
+    lexemeNormalization: {
+      type: 'surface',
+      surfaceScripts: ['Latn'],
+      // v2 pins casefold to the root locale ('und'); v1 used the AMBIENT host
+      // locale, so a Turkish host hashed 'Izmir' -> 'ızmir' while v2 hashes
+      // 'izmir'. This package is locale-sensitive through its casing step.
+      surfaceNormalizers: ['casefold'],
+    },
+  },
+};
+
+const trLocalePackage: LanguageData = {
+  name: 'Turkic locale test',
+  textProcessing: {
+    lexemeNormalization: {
+      type: 'surface',
+      surfaceScripts: ['Latn'],
+      surfaceNormalizers: [{ type: 'lowercase-locale', locale: 'tr' }],
+    },
+  },
+};
+
+const zhMappingPackage: LanguageData = {
+  name: 'Zh mapping test',
+  textProcessing: {
+    lexemeNormalization: {
+      type: 'surface',
+      surfaceScripts: ['Han'],
+      mappingTableAsset: 'languages/zh.t2s.json',
+      surfaceNormalizers: [{ type: 'mapping-table' }],
+    },
+  },
+};
+
+function langCard(id: string, front: string, language: string, overrides: Partial<Flashcard> = {}): Flashcard {
+  return {
+    id,
+    content: { type: 'word', front, back: front },
+    language,
+    state: 'new', ease: 2.5, interval: 0, dueDate: 100, reviews: 0, lapses: 0,
+    learningStep: 0, createdAt: 10, lastReviewed: 0, lastUpdated: 10,
+    ...overrides,
+  };
+}
+
+function legacyKnowledge(word: string | undefined, language: string, lastSeen: number): PassiveWordKnowledge {
+  return {
+    ease: 2.5,
+    lastSeen,
+    timesSeen: 3,
+    timesHovered: 1,
+    ...(word !== undefined ? { word } : {}),
+    language,
+  } as PassiveWordKnowledge;
+}
+
+describe('flashcardStorage normalization-version keyed-record migration (D3)', () => {
+  let loadFlashcards: () => Promise<FlashcardStore>;
+
+  beforeEach(async () => {
+    tempDir = createTempDir('mlearn-fc-norm-');
+    vi.resetModules();
+    mockLoadLangData.mockReset();
+    mockLoadSettings.mockReset();
+    mockLoadSettings.mockReturnValue({ frequencyProviderSelections: {}, frequencyLevelSystemSelections: {} } as Settings);
+    ({ loadFlashcards } = await import('./flashcardStorage'));
+  });
+  afterEach(() => tempDir.cleanup());
+
+  it('rebuilds mixed-language source-backed records under v2 keys and carries non-attributable cards', async () => {
+    mockLoadLangData.mockReturnValue({ tst: casefoldPackage, zh: zhMappingPackage });
+    const { registerMappingTable } = await import('../../shared/languageFeatures');
+    registerMappingTable('zh', { words: {}, chars: { '學': '学' } });
+    const legacyIzmirKey = `tst:${hash('ızmir')}`; // v1 ambient Turkish host casing
+    const legacyXizmirKey = `tst:${hash('izmir')}`; // v1 ambient English host casing
+    write(store({
+      flashcards: {
+        izmir: langCard('izmir', 'Izmir', 'tst'),
+        xue: langCard('xue', '學', 'zh'),
+        anon: { ...langCard('anon', 'xyz', ''), id: 'anon', language: undefined as unknown as string },
+      },
+      wordToCardMap: { [legacyIzmirKey]: ['izmir'], [legacyXizmirKey]: ['izmir'], [key('zh', '學')]: ['xue'], 'legacy-bare': ['anon'] },
+    }));
+
+    const migrated = await loadFlashcards();
+    // Both legacy ambient casings converge on the single v2 key (card rebuilt once).
+    expect(migrated.wordToCardMap[`tst:${hash('izmir')}`]).toEqual(['izmir']);
+    expect(migrated.wordToCardMap[`zh:${hash('学')}`]).toEqual(['xue']);
+    expect(migrated.wordToCardMap['legacy-bare']).toEqual(['anon']);
+    expect(Object.keys(migrated.wordToCardMap).sort()).toEqual([`tst:${hash('izmir')}`, `zh:${hash('学')}`, 'legacy-bare'].sort());
+    expect(migrated.wordStatsMap[`tst:${hash('izmir')}`]?.cardCount).toBe(1);
+    expect(migrated.meta.normalizationVersion).toBe(CURRENT_NORMALIZATION_VERSION);
+    clearMappingTables();
+  });
+
+  it('keeps identity keys for languages without installed package metadata', async () => {
+    mockLoadLangData.mockReturnValue({});
+    const rawKey = `xx:${hash('Merkwürdig')}`;
+    write(store({
+      flashcards: { w: langCard('w', 'Merkwürdig', 'xx') },
+      wordToCardMap: { [rawKey]: ['w'] },
+      wordKnowledge: { [rawKey]: legacyKnowledge('Merkwürdig', 'xx', 5) },
+    }));
+
+    const migrated = await loadFlashcards();
+    expect(migrated.wordToCardMap[rawKey]).toEqual(['w']);
+    expect(migrated.wordKnowledge[rawKey]?.word).toBe('Merkwürdig');
+    expect(migrated.meta.normalizationVersion).toBe(CURRENT_NORMALIZATION_VERSION);
+  });
+
+  it('rekeys locale-sensitive casing from legacy ambient keys to pinned root-locale keys', async () => {
+    mockLoadLangData.mockReturnValue({ tst: trLocalePackage });
+    const v1TurkishHostKey = `tst:${hash('ızmir')}`; // ambient tr host produced dotless ı via casefold-era semantics
+    write(store({
+      flashcards: { izmir: langCard('izmir', 'Izmir', 'tst') },
+      wordToCardMap: { [v1TurkishHostKey]: ['izmir'] },
+      wordKnowledge: { [v1TurkishHostKey]: legacyKnowledge('Izmir', 'tst', 7) },
+    }));
+
+    const migrated = await loadFlashcards();
+    // Package pins the step locale to 'tr': v2 derivation also yields 'ızmir'.
+    const v2Key = `tst:${hash('ızmir')}`;
+    expect(migrated.wordToCardMap[v2Key]).toEqual(['izmir']);
+    expect(migrated.wordKnowledge[v2Key]?.lastSeen).toBe(7);
+    expect(migrated.meta.normalizationVersion).toBe(CURRENT_NORMALIZATION_VERSION);
+  });
+
+  it('rekeys mapping-table normalization from raw traditional surfaces to mapped keys', async () => {
+    mockLoadLangData.mockReturnValue({ zh: zhMappingPackage });
+    const { registerMappingTable } = await import('../../shared/languageFeatures');
+    registerMappingTable('zh', { words: {}, chars: { '學': '学' } });
+    const legacyKey = `zh:${hash('學')}`;
+    write(store({
+      wordCandidates: { [legacyKey]: { word: '學', language: 'zh', count: 2, lastSeen: 3 } },
+      suggestedFlashcards: { [legacyKey]: { id: 's1', word: '學', language: 'zh', createdAt: 1, lastSeen: 2, count: 1 } },
+    }));
+
+    const migrated = await loadFlashcards();
+    const v2Key = `zh:${hash('学')}`;
+    expect(migrated.wordCandidates[v2Key]).toMatchObject({ word: '學', count: 2, lastSeen: 3 });
+    expect(migrated.wordCandidates[legacyKey]).toBeUndefined();
+    expect(migrated.suggestedFlashcards[v2Key]?.word).toBe('學');
+    clearMappingTables();
+  });
+
+  it('preserves key-only records verbatim and rebuilds source-backed records in one store', async () => {
+    mockLoadLangData.mockReturnValue({ tst: casefoldPackage });
+    const legacyAmbientKey = `tst:${hash('ızmir')}`;
+    const orphanKey = `tst:${hash('nowhere')}`;
+    write(store({
+      flashcards: { izmir: langCard('izmir', 'Izmir', 'tst') },
+      wordToCardMap: { [legacyAmbientKey]: ['izmir'] },
+      wordKnowledge: {
+        [legacyAmbientKey]: legacyKnowledge('Izmir', 'tst', 9),
+        [orphanKey]: legacyKnowledge(undefined, 'tst', 4), // key-only: no raw word
+      },
+      wordSyncSeen: { [legacyAmbientKey]: 11, [orphanKey]: 12 },
+      knownUntracked: { [orphanKey]: true },
+    }));
+
+    const migrated = await loadFlashcards();
+    const v2Key = `tst:${hash('izmir')}`;
+    expect(migrated.wordKnowledge[v2Key]?.lastSeen).toBe(9);
+    expect(migrated.wordKnowledge[orphanKey]?.lastSeen).toBe(4); // key-only row kept read-only
+    expect(migrated.wordSyncSeen).toEqual({ [legacyAmbientKey]: 11, [orphanKey]: 12 });
+    expect(migrated.knownUntracked).toEqual({ [orphanKey]: true });
+  });
+
+  it('migrates stores stamped with the old normalization version and stays idempotent', async () => {
+    mockLoadLangData.mockReturnValue({ tst: casefoldPackage });
+    const legacyAmbientKey = `tst:${hash('ızmir')}`;
+    const legacy = store({
+      flashcards: { izmir: langCard('izmir', 'Izmir', 'tst') },
+      wordToCardMap: { [legacyAmbientKey]: ['izmir'] },
+    });
+    legacy.meta.normalizationVersion = 1;
+    write(legacy);
+
+    const once = await loadFlashcards();
+    expect(once.meta.normalizationVersion).toBe(CURRENT_NORMALIZATION_VERSION);
+    expect(once.wordToCardMap[`tst:${hash('izmir')}`]).toEqual(['izmir']);
+    expect(once.wordToCardMap[legacyAmbientKey]).toBeUndefined();
+
+    const snapshot = JSON.stringify(once);
+    const twice = await loadFlashcards();
+    expect(JSON.stringify(twice)).toBe(snapshot);
+  });
+  it('no-ops for stores already on the current normalization version', async () => {
+    mockLoadLangData.mockReturnValue({ tst: casefoldPackage });
+    const staleKey = `tst:${hash('ızmir')}`;
+    const current = store({
+      flashcards: { izmir: langCard('izmir', 'Izmir', 'tst') },
+      wordToCardMap: { [staleKey]: ['izmir'] },
+      wordKnowledge: { [staleKey]: legacyKnowledge('Izmir', 'tst', 2) },
+    });
+    current.meta.normalizationVersion = CURRENT_NORMALIZATION_VERSION;
+    current.version = 3; // checkFlashcards stores this as the current store version
+    write(current);
+
+    const migrated = await loadFlashcards();
+    // Version-gated: no rebuild, no stamping, keys untouched.
+    expect(migrated.meta.normalizationVersion).toBe(CURRENT_NORMALIZATION_VERSION);
+    expect(migrated.wordToCardMap).toEqual({ [staleKey]: ['izmir'] });
+    expect(migrated.wordKnowledge[staleKey]?.word).toBe('Izmir');
+  });
+
+  it('never downgrades a future normalization version', async () => {
+    mockLoadLangData.mockReturnValue({ tst: casefoldPackage });
+    const future = store({ flashcards: { izmir: langCard('izmir', 'Izmir', 'tst') } });
+    future.meta.normalizationVersion = CURRENT_NORMALIZATION_VERSION + 1;
+    write(future);
+
+    const migrated = await loadFlashcards();
+    expect(migrated.meta.normalizationVersion).toBe(CURRENT_NORMALIZATION_VERSION + 1);
   });
 });

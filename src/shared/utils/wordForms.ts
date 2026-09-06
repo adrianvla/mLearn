@@ -16,18 +16,18 @@
 
 import type { LanguageData, WordFrequencyMap } from '../types';
 import {
+  applyMappingTableNormalizer,
   buildLexemeIndex,
   getCanonicalLexeme,
   getDictionaryLookupCandidates,
   getFrequencyLevelLabel,
   getLexemeVariants,
   isDisplayableFrequencyLevel,
-  isReadingScriptText,
   resolveLanguageFrequencyPayload,
   sortFrequencyLevelsByDifficulty,
   type LanguageLexemeIndex,
 } from '../languageFeatures';
-
+import { declaresScriptConversion } from './canonicalWordKey';
 export interface WordFormCandidateOptions {
   languageData?: LanguageData | null;
   /** Language code, required for package mapping-table normalizer steps to apply. */
@@ -51,36 +51,39 @@ export function getWordFormCandidates(
 
   const candidates: string[] = [];
   const seen = new Set<string>();
-  const isReadingLookup = isReadingScriptText(word, options.languageData);
+  // Package-declared script conversion (e.g. zh-Hant → zh-Hans) folds the
+  // surface BEFORE canonical resolution so one word identity spans scripts —
+  // the same normalization canonicalKeyHash applies to persisted keys. Applied
+  // here (not only at merge/migration time) so card creation, the storage
+  // rebuild, and sync merge cannot mint different identities for the same word.
+  const mapped = options.languageData && options.language && declaresScriptConversion(options.languageData)
+    ? applyMappingTableNormalizer(word, options.language)
+    : word;
+  const canonical = getCanonicalForm(mapped);
 
-  if (isReadingLookup) {
-    appendUnique(candidates, seen, word);
-    for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData, options.language)) {
-      appendUnique(candidates, seen, lookupCandidate);
-    }
+  // PRIMARY FORM (load-bearing): the package-declared canonical form when it
+  // differs from the raw surface, else the raw word. Flashcard key derivation
+  // hashes candidates[0], so the canonical form is the persisted primary form
+  // and every consumer — card creation, the zh variant migration, sync merge,
+  // and the normalization-version rebuild — shares ONE word identity per
+  // package. Everything after the raw word is lookup expansion only; candidate
+  // ORDER below [0] is not semantic. Do not demote the canonical form without
+  // re-deriving every persisted key (normalizationVersion bump + rebuild).
+  appendUnique(candidates, seen, canonical && canonical !== word ? canonical : undefined);
+  appendUnique(candidates, seen, word);
+  for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData, options.language)) {
+    appendUnique(candidates, seen, lookupCandidate);
   }
 
   if (getWordVariants) {
-    const variants = getWordVariants(word).filter(Boolean);
-    if (variants.length > 0) {
-      for (const variant of variants) {
-        appendUnique(candidates, seen, variant);
-        for (const lookupCandidate of getDictionaryLookupCandidates(variant, options.languageData, options.language)) {
-          appendUnique(candidates, seen, lookupCandidate);
-        }
+    for (const variant of getWordVariants(word)) {
+      appendUnique(candidates, seen, variant);
+      for (const lookupCandidate of getDictionaryLookupCandidates(variant, options.languageData, options.language)) {
+        appendUnique(candidates, seen, lookupCandidate);
       }
-      return candidates;
     }
   }
 
-  const canonical = getCanonicalForm(word);
-  if (!isReadingLookup) {
-    appendUnique(candidates, seen, canonical && canonical !== word ? canonical : undefined);
-    appendUnique(candidates, seen, word);
-    for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData, options.language)) {
-      appendUnique(candidates, seen, lookupCandidate);
-    }
-  }
   if (canonical && canonical !== word) {
     for (const lookupCandidate of getDictionaryLookupCandidates(canonical, options.languageData, options.language)) {
       appendUnique(candidates, seen, lookupCandidate);
