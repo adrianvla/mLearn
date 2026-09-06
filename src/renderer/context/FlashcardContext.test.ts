@@ -200,6 +200,7 @@ vi.mock('./LanguageContext', () => ({
     getCanonicalFormForLanguage: mockGetCanonicalFormForLanguage,
     getWordVariantsForLanguage: mockGetWordVariantsForLanguage,
     getFrequencyForLanguage: mockGetFrequencyForLanguage,
+    getEffectiveLanguageData: (language: string) => mockLangData[language as keyof typeof mockLangData] ?? null,
     currentLangData: () => mockLangData[mockSettings.language as keyof typeof mockLangData] ?? null,
   }),
 }));
@@ -1381,6 +1382,7 @@ describe('FlashcardProvider', () => {
   });
 
   it('addFlashcard stores inflected words under the language primary form key', async () => {
+    mockGetCanonicalForm.mockImplementation((word: string) => word === 'иду' ? 'идти' : word);
     mockGetWordVariants.mockImplementation((word: string) => word === 'иду' ? ['идти', 'иду'] : []);
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -2037,6 +2039,7 @@ describe('FlashcardProvider', () => {
   });
 
   it('trackWordSeen stores inflected active-language words under the language primary form key', async () => {
+    mockGetCanonicalForm.mockImplementation((word: string) => word === 'يكتب' ? 'كتب' : word);
     mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -2355,6 +2358,7 @@ describe('FlashcardProvider', () => {
 
   it('trackWordHovered stores inflected active-language words under the language primary form key', async () => {
     vi.useFakeTimers();
+    mockGetCanonicalForm.mockImplementation((word: string) => word === 'يكتب' ? 'كتب' : word);
     mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -2516,6 +2520,7 @@ describe('FlashcardProvider', () => {
   it('trackWordHovered lowers indexed flashcard ease on passive failure using the primary language key', async () => {
     vi.useFakeTimers();
     mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
+    mockGetCanonicalForm.mockImplementation((word: string) => word === 'يكتب' ? 'كتب' : word);
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;

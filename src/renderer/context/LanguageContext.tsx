@@ -8,7 +8,6 @@ import { createStore, reconcile } from 'solid-js/store';
 import type { FlashcardProsody, InstallOptions, LanguageDataCatalogStatus, LanguageDataInstallError, LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import {
-  buildLexemeIndex,
   createEmptyLexemeIndex,
   getCanonicalLexeme,
   getFrequencyForLexeme,
@@ -36,12 +35,12 @@ import {
   ocrRuntimeSupportsVerticalText,
   resolveLanguageFrequencyPayload,
   registerMappingTable,
-  sortFrequencyLevelsByDifficulty,
   type LanguageLexemeIndex,
   type LanguageTokenizerCapabilities,
 } from '../../shared/languageFeatures';
 import { resolveActiveVariantId, resolveEffectiveLanguageData } from '../../shared/languageVariants';
 import { prosodyVisible } from '../../shared/prosodySettings';
+import { buildLanguageFrequencyState, type LanguageFrequencyState } from '../../shared/utils/wordForms';
 import { getLogger } from '../../shared/utils/logger';
 import { useSettings } from './SettingsContext';
 
@@ -149,100 +148,13 @@ interface LanguageContextValue {
   getWordVariantsForLanguage: (language: string, word: string) => string[];
   /** Return raw + normalized reading variants for an installed language, without borrowing the active language. */
   getReadingVariantsForLanguage: (language: string, reading: string) => string[];
+  /** Provider/level-system-resolved metadata for an installed language — the ONLY data derivation may consult. */
+  getEffectiveLanguageData: (language: string) => LanguageData | null;
 }
 
 // Create context
 const LanguageContext = createContext<LanguageContextValue>();
 
-/** Compute default frequency level boundaries by dividing evenly across configured levels. */
-function defaultFreqBoundaries(totalEntries: number, levelCount = 5): number[] {
-  const safeLevelCount = Math.max(levelCount, 1);
-  const step = Math.floor(totalEntries / safeLevelCount);
-  return Array.from({ length: Math.max(safeLevelCount - 1, 0) }, (_, idx) => step * (idx + 1));
-}
-
-interface LanguageFrequencyState {
-  frequency: WordFrequencyMap;
-  lexemeIndex: LanguageLexemeIndex;
-}
-
-function buildLanguageFrequencyState(
-  langInfo: LanguageData | null | undefined,
-  language?: string,
-  providerId?: string,
-  levelSystemId?: string,
-): LanguageFrequencyState {
-  const { rows: freq, languageData: effectiveLangInfo } = resolveLanguageFrequencyPayload(
-    langInfo,
-    providerId,
-    levelSystemId,
-  );
-
-  if (freq.length === 0) {
-    return {
-      frequency: {},
-      lexemeIndex: buildLexemeIndex(undefined, effectiveLangInfo, language),
-    };
-  }
-
-  const freqMap: WordFrequencyMap = {};
-  const levelNames = effectiveLangInfo?.frequencyLevels?.names || {};
-  const hasDeclaredLevels = Object.keys(levelNames).length > 0;
-  const levelsByDifficulty = sortFrequencyLevelsByDifficulty(
-    hasDeclaredLevels ? Object.keys(levelNames).map(Number) : [],
-    effectiveLangInfo,
-  ).filter((level) => Number.isFinite(level));
-  const rowLevelIndex = Number.isInteger(effectiveLangInfo?.frequencyLevels?.rowLevelIndex)
-    && (effectiveLangInfo?.frequencyLevels?.rowLevelIndex ?? -1) >= 2
-    ? effectiveLangInfo?.frequencyLevels?.rowLevelIndex
-    : undefined;
-  const boundaries = hasDeclaredLevels
-    ? effectiveLangInfo?.frequencyLevels?.boundaries || defaultFreqBoundaries(freq.length, levelsByDifficulty.length)
-    : [];
-
-  for (let i = 0; i < freq.length; i++) {
-    const entry = freq[i];
-    if (!entry || entry.length < 2) continue;
-
-    const rowLevel = rowLevelIndex !== undefined ? Number(entry[rowLevelIndex]) : Number.NaN;
-    let level = Number.isFinite(rowLevel)
-      ? rowLevel
-      : levelsByDifficulty[levelsByDifficulty.length - 1] ?? -1;
-    if (!Number.isFinite(rowLevel)) {
-      for (let boundaryIndex = 0; boundaryIndex < boundaries.length; boundaryIndex += 1) {
-        if (i <= boundaries[boundaryIndex]) {
-          level = levelsByDifficulty[boundaryIndex] ?? level;
-          break;
-        }
-      }
-    }
-
-    const levelName = isDisplayableFrequencyLevel(level, levelNames, effectiveLangInfo)
-      ? getFrequencyLevelLabel(level, levelNames, effectiveLangInfo)
-      : '';
-
-    const existing = freqMap[entry[0]];
-    if (existing) {
-      if (!existing.alternateReadings) {
-        existing.alternateReadings = [];
-      }
-      if (entry[1] !== existing.reading && !existing.alternateReadings.includes(entry[1])) {
-        existing.alternateReadings.push(entry[1]);
-      }
-    } else {
-      freqMap[entry[0]] = {
-        reading: entry[1],
-        level: levelName,
-        raw_level: level,
-      };
-    }
-  }
-
-  return {
-    frequency: freqMap,
-    lexemeIndex: buildLexemeIndex(freq, effectiveLangInfo, language),
-  };
-}
 
 interface LanguageProviderProps {
   language?: string;
@@ -376,7 +288,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
 
   const getFrequencyStateForLanguage = (language: string): LanguageFrequencyState => {
     if (language === currentLang()) {
-      return { frequency: wordFrequency(), lexemeIndex };
+      return { frequency: wordFrequency(), lexemeIndex, languageData: resolvedLanguageData(language) };
     }
     const data = langData[language] ?? null;
     const providerId = props.frequencyProviderSelections?.[language];
@@ -686,6 +598,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     getCanonicalFormForLanguage,
     getWordVariantsForLanguage,
     getReadingVariantsForLanguage,
+    getEffectiveLanguageData: resolvedLanguageData,
   };
 
   return (

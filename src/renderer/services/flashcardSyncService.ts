@@ -1,6 +1,7 @@
 import type { FlashcardStore, Flashcard, LanguageDataMap, PassiveWordKnowledge, WordCandidate, WordStats } from '../../shared/types';
 import { canonicalLanguage } from '../../shared/languageVariants';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
+import { createWordFormDeriver } from '../../shared/utils/wordForms';
 import { calculateWordStats } from '../../shared/utils/wordStats';
 import { deriveSyncKnowledgeJournal, sanitizeSyncedKnowledgeEntry } from '../../shared/sync/flashcardMerge';
 import { appendEvents } from './knowledgeEvents';
@@ -23,6 +24,9 @@ export interface SyncMergeCollision {
 
 export interface MergeFlashcardsOptions {
   languageData?: LanguageDataMap;
+  /** Persisted provider/level-system selections — required for primary-form parity with card creation. */
+  frequencyProviderSelections?: Record<string, string>;
+  frequencyLevelSystemSelections?: Record<string, string>;
   onCardCollision?: (collision: SyncMergeCollision) => void;
 }
 
@@ -195,11 +199,27 @@ export async function mergeFlashcards(
     }
   }
 
+  const deriverCache = new Map<string, (word: string) => string>();
+  // Persisted keys hash the shared PRIMARY word form (package-canonical),
+  // then canonicalKeyHash applies package script conversion — identical to
+  // FlashcardContext creation and the storage normalization rebuild.
   const canonicalKeyForCard = (card: Flashcard): string => {
     const language = card.language || 'und';
-    return canonicalKeyHash(language, card.content.front, {
+    const data = options.languageData?.[language];
+    let deriver = deriverCache.get(language);
+    if (!deriver && data) {
+      deriver = createWordFormDeriver(
+        data,
+        language,
+        options.frequencyProviderSelections?.[language],
+        options.frequencyLevelSystemSelections?.[language],
+      );
+      deriverCache.set(language, deriver);
+    }
+    const primary = deriver ? deriver(card.content.front) : card.content.front;
+    return canonicalKeyHash(language, primary, {
       hashWord: hashWordSync,
-      languageData: options.languageData?.[language],
+      languageData: data,
     });
   };
 

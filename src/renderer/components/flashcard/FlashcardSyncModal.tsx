@@ -285,7 +285,11 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       }
       
       const remoteStore = JSON.parse(assembled) as FlashcardStore;
-      const merged = await mergeFlashcards(store, remoteStore, { languageData: langData });
+      const merged = await mergeFlashcards(store, remoteStore, {
+        languageData: langData,
+        frequencyProviderSelections: settings.frequencyProviderSelections,
+        frequencyLevelSystemSelections: settings.frequencyLevelSystemSelections,
+      });
       
       getBridge().flashcards.saveFlashcards(merged);
       

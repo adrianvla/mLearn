@@ -63,7 +63,7 @@ vi.mock('../../context', () => ({
     getCanonicalForm: (word: string) => `ja:${word}`,
     getWordVariants: (word: string) => [`ja-variant:${word}`],
     getCanonicalFormForLanguage: (language: string, word: string) => `${language}:${word}`,
-    getWordVariantsForLanguage: (language: string, word: string) => [`${language}-variant:${word}`],
+    getWordVariantsForLanguage: () => [],
   }),
   useLocalization: () => ({
     t: (key: string) => {
@@ -162,7 +162,7 @@ describe('FlashcardDisplay', () => {
     expect(container.textContent).toContain('German A1');
     expect(container.textContent).not.toContain('Japanese N5');
     expect(container.textContent).toContain('Anki duplicate');
-    expect(ankiMocks.findWordInAnkiCacheMock).toHaveBeenCalledWith(['de-variant:Haus'], expect.objectContaining({
+    expect(ankiMocks.findWordInAnkiCacheMock).toHaveBeenCalledWith(['de:Haus', 'Haus'], expect.objectContaining({
       language: 'de',
       languageData: germanLanguageData,
     }));

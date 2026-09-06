@@ -62,7 +62,7 @@ vi.mock('../../../context', () => ({
     getCanonicalForm: (word: string) => `ja:${word}`,
     getWordVariants: (word: string) => [`ja-variant:${word}`],
     getCanonicalFormForLanguage: (language: string, word: string) => `${language}:${word}`,
-    getWordVariantsForLanguage: (language: string, word: string) => [`${language}-variant:${word}`],
+    getWordVariantsForLanguage: () => [],
   }),
   useFlashcards: () => ({
     isKnowledgeReady: () => knowledgeReady.ready,
@@ -170,7 +170,7 @@ describe('WordStatusPill', () => {
     container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     expect(ankiMocks.findAnkiWordMatchInCacheMock).toHaveBeenCalledWith(
-      ['de-variant:Haus'],
+      ['de:Haus', 'Haus'],
       {
         language: 'de',
         languageData: germanLanguageData,
@@ -249,7 +249,7 @@ describe('WordStatusPill', () => {
 
     container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    expect(setWordClaimMock).toHaveBeenCalledWith('de-variant:Haus', 'known', 'de');
+    expect(setWordClaimMock).toHaveBeenCalledWith('de:Haus', 'known', 'de');
     // Unpinned renders as an absent prop (undefined), not literal false —
     // passing literal `false` used to fight the tooltip's hover via the pin effect.
     expect(container.querySelector('[data-testid="tooltip"]')?.getAttribute('data-pinned')).not.toBe('true');
@@ -288,7 +288,7 @@ describe('WordStatusPill', () => {
 
     container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    expect(setWordClaimMock).toHaveBeenCalledWith('de-variant:Haus', 'known', 'de');
+    expect(setWordClaimMock).toHaveBeenCalledWith('de:Haus', 'known', 'de');
     dispose();
   });
 
@@ -310,7 +310,7 @@ describe('WordStatusPill', () => {
     expect(container.querySelector('[data-testid="anki-warning"]')).not.toBeNull();
 
     container.querySelector<HTMLButtonElement>('[data-testid="anki-warning"] button')?.click();
-    expect(setWordClaimMock).toHaveBeenCalledWith('de-variant:Haus', 'known', 'de');
+    expect(setWordClaimMock).toHaveBeenCalledWith('de:Haus', 'known', 'de');
 
     dispose();
   });

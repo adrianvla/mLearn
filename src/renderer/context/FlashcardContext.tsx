@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData } from '../../shared/types';
 import { type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedAspect } from '../../shared/graph/targets';
 import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
@@ -388,15 +388,15 @@ const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { langData, currentLangData, getFrequencyForLanguage, getCanonicalForm, getWordVariants, getCanonicalFormForLanguage, getWordVariantsForLanguage } = useLanguage();
+  const { currentLangData, getFrequencyForLanguage, getCanonicalForm, getWordVariants, getCanonicalFormForLanguage, getWordVariantsForLanguage, getEffectiveLanguageData } = useLanguage();
   // Knowledge readiness: closed until the store hydrates AND the legacy
   // epistemic migration settles (that migration can legitimately flip rows —
   // e.g. passive Known → Learning under the REQ13 honesty cap — so any state
   // shown before it finishes is provisional).
   const [isKnowledgeReady, setIsKnowledgeReady] = createSignal(false);
   const languageData = () => typeof currentLangData === 'function' ? currentLangData() : null;
-  const languageDataFor = (language: string): ReturnType<typeof languageData> => (
-    language === settings.language ? languageData() : langData[language] ?? null
+  const languageDataFor = (language: string): LanguageData | null => (
+    language === settings.language ? languageData() : getEffectiveLanguageData(language)
   );
   const { requestAccess } = useLowPowerGate();
   const newDayHour = () => settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour;
