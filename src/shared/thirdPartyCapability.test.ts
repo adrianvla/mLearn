@@ -6,9 +6,10 @@ import { createCompoundLexicon, decomposeCompound } from './graph/morphology/com
 import type { LanguageCompoundSplittingConfig, LanguageData } from './types';
 import { loadLinguisticGraph, relationsOf, surfaceEntityId } from './graph/load';
 import { learnableTargetsFor } from './graph/targets';
-import type { GraphEntity } from './graph/types';
+import type { GraphEntity, GraphRelation, GraphRelationType, CapabilityKind } from './graph/types';
 import { predictTargetAccessibility } from './prediction/supportPredictor';
-
+import { applicableCapabilities } from './graph/targets';
+import { graphAnalysesFor } from './graph/morphology/attested';
 /**
  * Third-party catalog proof: a language unknown to this repository, with a
  * deliberately unfamiliar capability combination, must obtain mLearn features
@@ -216,3 +217,81 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
     expect(analysis.parts.map((part) => part.lemma)).toEqual(['zoo', 'äther']);
   });
 });
+
+describe('open-world graph semantics (PART H guards)', () => {
+  const LANG = 'x-thirdparty';
+  const surface = `${LANG}:surface:gidis`;
+
+  const loadFixture = (entities: GraphEntity[], relations: GraphRelation[]) => loadLinguisticGraph({
+    schemaVersion: 1, language: LANG, generatedAt: '2026-09-06T00:00:00Z', sourceVersions: {},
+    entities, relations,
+  });
+
+  it('keeps namespaced extension kinds and relations loadable, inspectable, and inert', () => {
+    const graph = loadFixture(
+      [
+        { id: surface, kind: 'surface' as const, label: 'gidis' },
+        { id: 'x-tp::classifier', kind: 'x-tp::classifier' as unknown as GraphEntityKind },
+        { id: `${LANG}:lexeme:git`, kind: 'lexeme' as const, label: 'git' },
+      ],
+      [
+        { from: 'x-tp::classifier', to: surface, type: 'x-tp::classifier-of' as unknown as GraphRelationType },
+        { from: `${LANG}:lexeme:git`, to: surface, type: 'component-of' },
+      ],
+    );
+    // Preserved through load: inspectable via relationsOf/nodes.
+    const ext = relationsOf(graph, surface, { direction: 'in' }).filter((r) => r.type === ('x-tp::classifier-of' as GraphRelationType));
+    expect(ext).toHaveLength(1);
+    expect(graph.nodes.get('x-tp::classifier')?.kind).toBe('x-tp::classifier');
+    // Inert for learning: no capability from the extension kind/relation.
+    const entity = graph.nodes.get(surface)!;
+    expect(applicableCapabilities(graph, entity).filter((c) => c === 'x-tp::recognition' as unknown as CapabilityKind)).toEqual([]);
+    // Surface capability unchanged (composition edge only).
+    expect(applicableCapabilities(graph, entity).filter((c) => c === 'surface-recognition' as unknown as CapabilityKind)).toHaveLength(1);
+  });
+
+  it('exposes ordered analysis nodes as competing assertions with no default capability', () => {
+    // gidis = git + is(k)  — ordered morphological analysis of an agglutinative form.
+    const analysisA = `${LANG}:analysis:ordered`;
+    const analysisB = `${LANG}:analysis:alt`;
+    const entities: GraphEntity[] = [
+      { id: surface, kind: 'surface' as const, label: 'gidis' },
+      { id: `${LANG}:morpheme:git`, kind: 'morpheme' as const, label: 'git', learnable: true },
+      { id: `${LANG}:morpheme:isk`, kind: 'morpheme' as const, label: 'is(k)' },
+      { id: analysisA, kind: 'analysis' as const, analysis: { layer: 'morphological', confidence: 0.9, source: 'builder:tp' } },
+      { id: analysisB, kind: 'analysis' as const, analysis: { layer: 'morphological', confidence: 0.4, source: 'builder:tp-alt' } },
+    ];
+    const relations: GraphRelation[] = [
+      { from: `${LANG}:morpheme:git`, to: analysisA, type: 'analysis-member' as unknown as GraphRelationType, order: 0 },
+      { from: `${LANG}:morpheme:isk`, to: analysisA, type: 'analysis-member' as unknown as GraphRelationType, order: 1 },
+      { from: `${LANG}:morpheme:git`, to: analysisB, type: 'analysis-member' as unknown as GraphRelationType, order: 0 },
+      { from: analysisA, to: surface, type: 'analyzes' as unknown as GraphRelationType },
+      { from: analysisB, to: surface, type: 'analyzes' as unknown as GraphRelationType },
+    ];
+    const graph = loadFixture(entities, relations);
+    const analyses = graphAnalysesFor(graph, surface);
+    expect(analyses).toHaveLength(2);
+    // Ordered members, not label-sorted.
+    expect(analyses[0]!.parts.map((p) => p.lemma)).toEqual(['git', 'is(k)']);
+    // Analysis entities grant no learner capability.
+    expect(applicableCapabilities(graph, graph.nodes.get(analysisA)!)).toEqual([]);
+    // Opt-in morpheme capability is entity-declared.
+    expect(applicableCapabilities(graph, graph.nodes.get(`${LANG}:morpheme:git`)!)).toEqual(['morpheme-recognition']);
+    // Non-opt-in morpheme stays structural.
+    expect(applicableCapabilities(graph, graph.nodes.get(`${LANG}:morpheme:isk`)!)).toEqual([]);
+  });
+
+  it('carries non-m/f/n grammatical categories without core assumptions', () => {
+    // Swahili-style noun class (1/3) — not m/f/n.
+    const graph = loadFixture(
+      [
+        { id: `${LANG}:lexeme:kitabu`, kind: 'lexeme' as const, label: 'kitabu' },
+        { id: `${LANG}:class:3`, kind: 'grammar-pattern' as const, label: 'class 3' },
+      ],
+      [{ from: `${LANG}:lexeme:kitabu`, to: `${LANG}:class:3`, type: 'has-gender' }],
+    );
+    // The capability is granted structurally; the VALUE domain is package-owned.
+    expect(applicableCapabilities(graph, graph.nodes.get(`${LANG}:lexeme:kitabu`)!)).toEqual(['gender']);
+  });
+});
+
