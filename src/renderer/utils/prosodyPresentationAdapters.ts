@@ -11,6 +11,8 @@ interface ProsodyPresentationAdapter {
   getCategoryLabel?: (position: number, reading: string, t: TranslateFn) => string;
 }
 
+const GENERIC_DECLARATIVE_OVERLAY_RENDERER = 'generic-declarative';
+
 const PROSODY_PRESENTATION_ADAPTERS: Record<string, ProsodyPresentationAdapter> = {
   'japanese-pitch-accent': {
     overlayRenderer: 'japanese-pitch-accent',
@@ -21,6 +23,17 @@ const PROSODY_PRESENTATION_ADAPTERS: Record<string, ProsodyPresentationAdapter> 
     ),
   },
 };
+
+/**
+ * Adapter for ANY package whose prosody config opts into the declarative
+ * overlay (`prosody.overlay`). The overlay itself is drawn by the generic
+ * renderer from package-declared structure — no per-language runtime code.
+ */
+export function getDeclarativeOverlayAdapter(): ProsodyPresentationAdapter {
+  return { overlayRenderer: GENERIC_DECLARATIVE_OVERLAY_RENDERER };
+}
+
+export const DECLARATIVE_OVERLAY_RENDERER_KEY = GENERIC_DECLARATIVE_OVERLAY_RENDERER;
 
 export function getProsodyPresentationAdapter(
   prosodyType: FlashcardProsody['type'] | undefined,

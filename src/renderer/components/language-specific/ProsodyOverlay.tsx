@@ -1,6 +1,6 @@
 import { Component, createMemo, JSX, Show } from 'solid-js';
 import type { FlashcardProsody, LanguageData } from '../../../shared/types';
-import { getLanguageProsodyType } from '../../../shared/languageFeatures';
+import { getLanguageProsodyOverlayConfig, getLanguageProsodyType } from '../../../shared/languageFeatures';
 import { getProsodyOverlayComponent } from './prosodyOverlayRenderers';
 
 export interface ProsodyOverlayProps {
@@ -52,7 +52,12 @@ export const ProsodyOverlay: Component<ProsodyOverlayProps> = (props) => {
       ? props.prosodyType
       : getLanguageProsodyType(props.languageData)
   );
-  const OverlayRenderer = createMemo(() => getProsodyOverlayComponent(rendererType()));
+  const OverlayRenderer = createMemo(() => (
+    getProsodyOverlayComponent(rendererType())
+    // Package-declared declarative overlay: any prosody model whose language
+    // config opts in renders through the generic renderer — no per-type code.
+    ?? (getLanguageProsodyOverlayConfig(props.languageData) ? getProsodyOverlayComponent('generic-declarative') : undefined)
+  ));
 
   return (
     <Show

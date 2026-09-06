@@ -1,5 +1,6 @@
 import { Component, splitProps } from 'solid-js';
 import { JapanesePitchAccentOverlay } from './JapanesePitchAccentOverlay';
+import GenericDeclarativeOverlay from './GenericProsodyOverlay';
 import type { ProsodyOverlayProps } from './ProsodyOverlay';
 
 const JapanesePitchAccentProsodyOverlay: Component<ProsodyOverlayProps> = (props) => {
@@ -21,6 +22,7 @@ const JapanesePitchAccentProsodyOverlay: Component<ProsodyOverlayProps> = (props
 
 const PROSODY_OVERLAY_RENDERERS: Record<string, Component<ProsodyOverlayProps>> = {
   'japanese-pitch-accent': JapanesePitchAccentProsodyOverlay,
+  'generic-declarative': GenericDeclarativeOverlay,
 };
 
 export function getProsodyOverlayComponent(type: unknown): Component<ProsodyOverlayProps> | undefined {

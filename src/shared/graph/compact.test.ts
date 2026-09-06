@@ -100,4 +100,83 @@ describe('CompactLingualGraph', () => {
     const rebuilt = { ...plain.nodes.get('ja:grammar:ている')! };
     expect(rebuilt.grammar?.formation).toBe('verb-te + いる');
   });
+
+  it('round-trips namespaced extension kinds and relations without granting them categories', () => {
+    const extended: LinguisticGraphAsset = {
+      ...asset,
+      entities: [
+        ...asset.entities,
+        { id: 'ja:x-acme::classifier:1', kind: 'x-acme::classifier', label: 'classifier' },
+      ],
+      relations: [
+        ...asset.relations,
+        { from: surfaceEntityId('ja', 'h-0'), to: surfaceEntityId('ja', 'h-1'), type: 'contrasts-with' },
+        { from: surfaceEntityId('ja', 'h-0'), to: 'ja:x-acme::classifier:1', type: 'x-acme::classified-as' },
+      ],
+    };
+    const encoded = encodeCompact(extended);
+    expect(encoded.entities.extensionKindStrings).toEqual(['x-acme::classifier']);
+    expect(encoded.relations.extensionTypeStrings).toEqual(['x-acme::classified-as']);
+
+    const compact = decodeCompact(encoded);
+    // Extension kinds resolve by name through the wire extension table…
+    expect(compact.nodeKind('ja:x-acme::classifier:1')).toBe('x-acme::classifier');
+    // …and extension edges are stored but INERT: no relation category, so
+    // category-based neighbor lookup (the learner-facing accessor) skips them.
+    const extTypeIndex = compact.relationTypeIds[compact.relationOffsets[compact.denseOf.get(surfaceEntityId('ja', 'h-0'))!]];
+    void extTypeIndex;
+    expect(compact.extensionRelationTypeStrings).toEqual(['x-acme::classified-as']);
+    expect(compact.neighborsByCategory('ja:x-acme::classifier:1', 'identity')).toEqual([]);
+    expect(compact.neighborsByCategory('ja:x-acme::classifier:1', 'property')).toEqual([]);
+    expect(compact.neighborsByCategory('ja:x-acme::classifier:1', 'support')).toEqual([]);
+    // The core edges of the same graph keep their categories.
+    expect(compact.neighborsByCategory(surfaceEntityId('ja', 'h-0'), 'support')).toEqual([surfaceEntityId('ja', 'h-1')]);
+  });
+
+  it('carries order and role relation qualifiers through the wire', () => {
+    const analysisId = 'ja:analysis:compound-1';
+    const extended: LinguisticGraphAsset = {
+      ...asset,
+      entities: [
+        ...asset.entities,
+        { id: analysisId, kind: 'analysis', analysis: { layer: 'morphological', source: 'builder:test' } },
+      ],
+      relations: [
+        ...asset.relations,
+        { from: surfaceEntityId('ja', 'h-0'), to: analysisId, type: 'analysis-member', order: 0, role: 'x-ja::prefix' },
+        { from: surfaceEntityId('ja', 'h-1'), to: analysisId, type: 'analysis-member', order: 1 },
+      ],
+    };
+    const encoded = encodeCompact(extended);
+    expect(encoded.relations.orders).toBeDefined();
+    expect(encoded.relations.roleStringIds).toBeDefined();
+
+    const compact = decodeCompact(encoded);
+    const h0 = compact.denseOf.get(surfaceEntityId('ja', 'h-0'))!;
+    const h1 = compact.denseOf.get(surfaceEntityId('ja', 'h-1'))!;
+    const analysisDense = compact.denseOf.get(analysisId)!;
+    const edgeInto = (dense: number): number => {
+      for (let edge = compact.relationOffsets[dense]; edge < compact.relationOffsets[dense + 1]; edge += 1) {
+        if (compact.relationTargets[edge] === analysisDense) return edge;
+      }
+      throw new Error('analysis edge not found');
+    };
+    const h0First = edgeInto(h0);
+    expect(compact.relationOrders?.[h0First]).toBe(0);
+    expect(compact.relationRoles?.[h0First]).toBe('x-ja::prefix');
+    const h1First = edgeInto(h1);
+    expect(compact.relationOrders?.[h1First]).toBe(1);
+    expect(compact.relationRoles?.[h1First]).toBeUndefined();
+    // Assets without qualifiers emit no qualifier arrays.
+    expect(encodeCompact(asset).relations.orders).toBeUndefined();
+    expect(encodeCompact(asset).relations.roleStringIds).toBeUndefined();
+  });
+
+  it('rejects non-namespaced extension identifiers', () => {
+    const extended: LinguisticGraphAsset = {
+      ...asset,
+      entities: [...asset.entities, { id: 'ja:bad:1', kind: 'not-namespaced' }],
+    };
+    expect(() => encodeCompact(extended)).toThrow('Unsupported compact entity kind');
+  });
 });

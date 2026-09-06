@@ -1,0 +1,27 @@
+.generic-prosody-units {
+  display: inline-flex;
+}
+
+.generic-prosody-unit {
+  position: relative;
+  display: inline-block;
+}
+
+.generic-prosody-mark--overline::after,
+.generic-prosody-mark--underline::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: var(--prosody-overlay-height);
+  background: var(--accent-primary);
+  border-radius: 2px;
+}
+
+.generic-prosody-mark--overline::after {
+  top: -0.1em;
+}
+
+.generic-prosody-mark--underline::after {
+  bottom: -0.1em;
+}
