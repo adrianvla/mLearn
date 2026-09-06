@@ -923,6 +923,12 @@ export type LanguageMappingTableNormalizerStep = {
   type: 'mapping-table';
 };
 
+export type LanguageLowercaseLocaleNormalizerStep = {
+  type: 'lowercase-locale';
+  /** Package-selected locale for casing (e.g. 'tr' for Turkic dotted/dotless I). */
+  locale: string;
+};
+
 export type LanguageTextNormalizerStep =
   | 'lowercase'
   | 'casefold'
@@ -939,7 +945,8 @@ export type LanguageTextNormalizerStep =
   | LanguagePresetNormalizerStep
   | LanguageReplaceCharactersNormalizerStep
   | LanguageReplaceAffixNormalizerStep
-  | LanguageMappingTableNormalizerStep;
+  | LanguageMappingTableNormalizerStep
+  | LanguageLowercaseLocaleNormalizerStep;
 
 export interface LanguageLexemeNormalization {
   /** How written forms and readings are connected for dictionary/frequency lookup. */
@@ -1861,6 +1868,14 @@ export interface FlashcardMeta {
   reviewIntervalModifier: number;
   /** Maximum interval in days */
   maxInterval: number;
+  /**
+   * Normalization-semantics version used for key-derived persisted data
+   * (wordKnowledge/event/wordSyncSeen hashes). Absent = legacy v1 (ambient
+   * host-locale casing). Bump CURRENT_NORMALIZATION_VERSION when step
+   * semantics change; source-backed indexes rebuild, key-only legacy records
+   * are preserved read-only in their original namespace.
+   */
+  normalizationVersion?: number;
 }
 
 /**

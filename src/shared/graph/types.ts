@@ -14,7 +14,14 @@ import type { GrammarMatchConfig } from '../types';
  * - Shared pronunciation never implies shared identity (橋/箸/端).
  */
 
-export type GraphEntityKind =
+/**
+ * Core entity kinds are a fixed, strongly typed vocabulary. Third-party
+ * packages extend the graph through NAMESPACED identifier kinds (`ns::local`,
+ * e.g. `x-acme::classifier`) which the loader accepts and preserves; they are
+ * displayable/referenceable but grant no learner capability unless a core
+ * capability explicitly consumes them.
+ */
+export type CoreGraphEntityKind =
   | 'dictionary-entry'
   | 'lexeme'
   | 'surface'
@@ -22,7 +29,27 @@ export type GraphEntityKind =
   | 'pronunciation'
   | 'character'
   | 'morpheme'
-  | 'grammar-pattern';
+  | 'grammar-pattern'
+  | 'analysis';
+
+/** Open learner-facing kind: core kinds plus namespaced package extensions (`ns::local`). */
+export type GraphEntityKind = CoreGraphEntityKind | (string & {});
+
+export const CORE_GRAPH_ENTITY_KINDS: readonly CoreGraphEntityKind[] = [
+  'dictionary-entry', 'lexeme', 'surface', 'sense', 'pronunciation', 'character', 'morpheme', 'grammar-pattern', 'analysis',
+];
+
+/** Namespaced extension identifier: `namespace::local`, both non-empty. */
+export function isNamespacedGraphIdentifier(value: string): boolean {
+  const separator = value.indexOf('::');
+  return separator > 0 && separator < value.length - 2
+    && /^[a-z][a-z0-9-]*$/.test(value.slice(0, separator))
+    && /^[a-z][a-z0-9-]*$/i.test(value.slice(separator + 2));
+}
+
+export function isCoreGraphEntityKind(kind: string): kind is GraphEntityKind {
+  return (CORE_GRAPH_ENTITY_KINDS as readonly string[]).includes(kind);
+}
 
 export type GraphDomain = 'common' | 'names' | 'archaic' | 'technical' | 'dialectal';
 
@@ -36,6 +63,17 @@ export interface GraphEntity {
   kind: GraphEntityKind;
   domain?: GraphDomain;
   label?: string;
+  /** Entity-level opt-in making this node a learner target (e.g. morpheme-recognition). Default: structural only. */
+  learnable?: boolean;
+  /** Present only on `analysis` entities: the asserted structural parse this node models. */
+  analysis?: {
+    /** Namespaced or core structural layer (e.g. 'morphological', 'lexical', 'x-acme::layer'). */
+    layer: string;
+    /** 0..1 confidence of the parse assertion. */
+    confidence?: number;
+    /** Analyzer/build provenance (e.g. 'builder:de-compound-splitter'). */
+    source?: string;
+  };
   /** Existing language-package grammar metadata, present only on grammar patterns. */
   grammar?: {
     meaning: string;
@@ -69,7 +107,7 @@ export interface GraphEntity {
  */
 export type RelationCategory = 'identity' | 'property' | 'support';
 
-export type GraphRelationType =
+export type CoreGraphRelationType =
   // identity
   | 'inflection-of'
   | 'lemma-of'
@@ -89,9 +127,24 @@ export type GraphRelationType =
   | 'derived-from'
   | 'semantically-related'
   | 'morphologically-related'
-  | 'contrasts-with';
+  | 'contrasts-with'
+  // analysis assertions (inert support)
+  | 'analyzes'
+  | 'analysis-member';
 
-export const RELATION_CATEGORY: Record<GraphRelationType, RelationCategory> = {
+/** Open learner-facing type: core kinds plus namespaced package extensions (`ns::local`). */
+export type GraphRelationType = CoreGraphRelationType | (string & {});
+
+export const CORE_GRAPH_RELATION_TYPES: readonly CoreGraphRelationType[] = [
+  'inflection-of', 'lemma-of', 'realizes', 'has-sense', 'has-pronunciation', 'has-gender', 'has-pos',
+  'has-prosodic-pattern', 'has-character', 'has-reading', 'has-morpheme', 'orthographic-variant-of',
+  'component-of', 'derived-from', 'semantically-related', 'morphologically-related', 'contrasts-with',
+  'analyzes', 'analysis-member',
+];
+
+export const RELATION_CATEGORY: Record<CoreGraphRelationType, RelationCategory> = {
+  'analyzes': 'support',
+  'analysis-member': 'support',
   'inflection-of': 'identity',
   'lemma-of': 'identity',
   'realizes': 'property',
@@ -111,6 +164,11 @@ export const RELATION_CATEGORY: Record<GraphRelationType, RelationCategory> = {
   'contrasts-with': 'support',
 };
 
+/** Category of a CORE relation type; namespaced extension types have none (inert). */
+export function relationCategory(type: GraphRelationType): RelationCategory | undefined {
+  return (RELATION_CATEGORY as Record<string, RelationCategory>)[type];
+}
+
 export interface GraphRelation {
   from: string;
   to: string;
@@ -122,6 +180,10 @@ export interface GraphRelation {
   /** 0..1 how often knowing the source predicts the target's FORM/pronunciation. */
   predictability?: number;
   provenance?: string;
+  /** Asserted linguistic position of the member within an analysis (0-based). Qualifier only. */
+  order?: number;
+  /** Namespaced qualifier describing the member's role (e.g. `x-ja::renyoukei`). Qualifier only. */
+  role?: string;
 }
 
 export const GRAPH_SCHEMA_VERSION = 1;
@@ -153,7 +215,8 @@ export type CapabilityKind =
   | 'grammar-recognition'
   | 'grammar-comprehension'
   | 'grammar-formation'
-  | 'grammar-production';
+  | 'grammar-production'
+  | 'morpheme-recognition';
 
 export interface LearnableTarget {
   entityId: string;

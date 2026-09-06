@@ -12,7 +12,7 @@
 
 import { Component, For, Show, createMemo, createUniqueId } from 'solid-js';
 import type { GraphNeighborhood, GraphRelatedNode } from '../../../../shared/graph/ipc';
-import { RELATION_CATEGORY, type RelationCategory } from '../../../../shared/graph/types';
+import { relationCategory, type RelationCategory } from '../../../../shared/graph/types';
 import type { TargetState } from '../../../../shared/graph/explanations';
 import { useLocalization } from '../../../context';
 import './GraphNeighborhoodViz.css';
@@ -64,7 +64,7 @@ export interface NeighborhoodLayout {
 }
 
 const categoryOf = (relation: GraphRelatedNode): RelationCategory => (
-  RELATION_CATEGORY[relation.relationType] ?? 'support'
+  relationCategory(relation.relationType) ?? 'support'
 );
 
 const shortLabel = (label: string): string => (

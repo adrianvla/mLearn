@@ -27,8 +27,8 @@ SOURCE_FILES = ("words.csv", "forms.csv")
 LEGACY_SOURCE_FILES = {"nouns": 10, "verbs": 6, "adjectives": 4, "others": 4}
 FREEDICT_INDEX_URL = "https://freedict.org/freedict-database.json"
 TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
-ENTITY_KINDS = {"dictionary-entry", "lexeme", "surface", "sense", "pronunciation", "character", "morpheme", "grammar-pattern"}
-RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-gender", "has-pos", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related"}
+ENTITY_KINDS = {"dictionary-entry", "lexeme", "surface", "sense", "pronunciation", "character", "morpheme", "grammar-pattern", "analysis"}
+RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-gender", "has-pos", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related", "analyzes", "analysis-member"}
 # Mirror of GraphDomain in src/shared/graph/types.ts: the runtime treats a
 # missing `domain` as 'common', and DEFAULT_ENABLED_DOMAINS (['common']) keeps
 # specialized domains out of ordinary learning/prediction.

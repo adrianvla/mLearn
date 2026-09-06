@@ -33,8 +33,14 @@ export function applicableCapabilities(graph: LingualGraph, entity: GraphEntity)
         ? ['grammar-recognition', 'grammar-comprehension', 'grammar-formation', 'grammar-production']
         : [];
     case 'dictionary-entry':
-    case 'morpheme':
     case 'pronunciation':
+    case 'analysis':
+      return [];
+    // Morphemes are explanatory structure unless the package/entity opts in.
+    case 'morpheme':
+      return entity.learnable === true ? ['morpheme-recognition'] : [];
+    default:
+      // Namespaced extension kinds are display/reference only: inert for learning.
       return [];
   }
 }

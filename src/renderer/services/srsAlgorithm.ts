@@ -10,6 +10,7 @@
  */
 
 import {DEFAULT_SETTINGS, Flashcard, FlashcardMeta, ReviewQueue} from '../../shared/types';
+import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
 import { SRS_EASE } from '../../shared/constants';
 import { scheduleAfterAnswer } from '../../shared/srs/retentionScheduler';
 
@@ -221,6 +222,7 @@ export function dueDateToString(dueDate: number, t?: (key: string, params?: Reco
 export function getDefaultMeta(_newDayHour: number = 4): FlashcardMeta {
     return {
         perLanguage: {},
+        normalizationVersion: CURRENT_NORMALIZATION_VERSION,
         maxNewCardsPerDay: 20,
         maxNewCardsPerDayLearning: 20,
         maxReviewsPerDay: -1, // -1 = unlimited

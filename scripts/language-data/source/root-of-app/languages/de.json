@@ -128,7 +128,13 @@
                 "path": "dictionaries/de/en/dictionary.db",
                 "metadataPath": "dictionaries/de/en/metadata.json",
                 "schemaVersion": "1",
-                "renderer": "simple-glosses"
+                "renderer": "simple-glosses",
+                "lookup": {
+                    "normalizers": [
+                        "lowercase",
+                        { "type": "replace-characters", "map": { "ß": "ss", "ẞ": "ss" } }
+                    ]
+                }
             }
         }
     }

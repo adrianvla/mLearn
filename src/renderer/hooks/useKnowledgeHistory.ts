@@ -5,6 +5,7 @@ import { eventsVersion, getEvents } from '../services/knowledgeEvents';
 import { hashWordSync } from '../services/srsAlgorithm';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
 import { getWordFormCandidates } from '../utils/wordForms';
+import { legacyCasingCandidates } from '../../shared/utils/normalizationVersion';
 
 export interface KnowledgeHistoryResult {
   events: () => KnowledgeEvent[] | undefined;
@@ -26,7 +27,10 @@ export function useKnowledgeHistory(word: () => string, aspect: () => KnowledgeA
         (value) => getWordVariantsForLanguage(language, value),
         { languageData, language },
       );
-      const keys = forms.map((form) => `${language}:${hashWordSync(form)}`);
+      // D4 lazy salvage: probe legacy ambient-locale casing variants after the
+      // current-version keys so pre-migration history stays visible. Read-only.
+      const legacyForms = forms.flatMap((form) => legacyCasingCandidates(form));
+      const keys = [...forms, ...legacyForms].map((form) => `${language}:${hashWordSync(form)}`);
       const all = await getEvents(keys);
       return all.filter((event) => event.aspect === activeAspect).sort((a, b) => a.t - b.t);
     },

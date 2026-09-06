@@ -539,12 +539,18 @@ describe('language feature bricks', () => {
         nlp: {
           dictionary: {
             lookup: {
-              normalizers: ['casefold'],
+              // German package-owned search equivalence: ß expansion is declared
+              // by the package, not baked into generic casefold.
+              normalizers: ['casefold', { type: 'replace-characters', map: { 'ß': 'ss', 'ẞ': 'ss' } }],
             },
           },
         },
       },
-    })).toEqual(['Straße', 'strasse']);
+    })).toEqual(['Straße', 'straße', 'strasse']);
+    // Canonical identity is untouched by the search expansion.
+    const identityOnly = { name: 'German', textProcessing: { lexemeNormalization: { type: 'reading', surfaceNormalizers: ['lowercase'], readingNormalizer: ['lowercase'] } } };
+    expect(getDictionaryLookupCandidates('Maße', identityOnly, 'de')).not.toContain('masse');
+    expect(getDictionaryLookupCandidates('Masse', identityOnly, 'de')).toContain('masse');
 
     expect(getDictionaryLookupCandidates('كِتــاب', persianArabicLanguage)).toEqual([
       'كِتــاب',
@@ -594,7 +600,7 @@ describe('language feature bricks', () => {
         nlp: {
           tokenizer: {
             type: 'unicode-word',
-            lemmaNormalizers: ['casefold', 'strip-diacritics'],
+            lemmaNormalizers: ['casefold', { type: 'replace-characters', map: { 'ß': 'ss' } }, 'strip-diacritics'],
           },
         },
       },
@@ -1627,7 +1633,7 @@ describe('language feature bricks', () => {
         nlp: {
           tokenizer: {
             type: 'unicode-word',
-            lemmaNormalizers: ['casefold', 'strip-diacritics'],
+            lemmaNormalizers: ['casefold', { type: 'replace-characters', map: { 'ß': 'ss' } }, 'strip-diacritics'],
           },
         },
       },

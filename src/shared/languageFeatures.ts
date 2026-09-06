@@ -379,13 +379,18 @@ function applyTextNormalizer(value: string, step: NormalizerStep, language?: str
       case 'kana-to-hiragana':
         return katakanaToHiragana(value);
       case 'lowercase':
-        return value.toLocaleLowerCase();
+        // Deterministic root-locale casing: host locale must never influence
+        // lookup candidates or persisted keys. Locale-aware casing is a
+        // package-selected `lowercase-locale` step, not ambient behavior.
+        return value.toLocaleLowerCase('und');
       case 'casefold':
-        return value.toLocaleLowerCase().replace(/ß/g, 'ss');
+        // Deterministic root-locale lowercasing. German ß->ss expansion is a
+        // package-owned search concern, deliberately not applied here.
+        return value.toLocaleLowerCase('und');
       case 'strip-diacritics':
         return value.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC');
       case 'lowercase-strip-diacritics':
-        return value.toLocaleLowerCase().normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC');
+        return value.toLocaleLowerCase('und').normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC');
       case 'unicode-nfc':
         return value.normalize('NFC');
       case 'unicode-nfd':
@@ -401,6 +406,10 @@ function applyTextNormalizer(value: string, step: NormalizerStep, language?: str
       default:
         return value;
     }
+  }
+
+  if (step.type === 'lowercase-locale') {
+    return value.toLocaleLowerCase(step.locale);
   }
 
   if (step.type === 'mapping-table') {

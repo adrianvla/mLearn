@@ -2,6 +2,7 @@ import { GraphLoadError } from './load';
 import {
   GRAPH_SCHEMA_VERSION,
   RELATION_CATEGORY,
+  type CoreGraphEntityKind,
   type GraphEntity,
   type GraphEntityKind,
   type GraphRelationType,
@@ -28,6 +29,8 @@ import {
 /** Order-stable wire ids shared by compact graph producers and consumers. */
 export const COMPACT_ENTITY_KINDS = [
   'dictionary-entry', 'lexeme', 'surface', 'sense', 'pronunciation', 'character', 'morpheme', 'grammar-pattern',
+  // Appended last so every pre-existing wire id stays order-stable; never reorder.
+  'analysis',
 ] as const satisfies readonly GraphEntityKind[];
 
 /** Order-stable wire ids shared by compact graph producers and consumers. */
@@ -38,6 +41,8 @@ export const COMPACT_RELATION_TYPES = [
   // Appended last so every pre-existing wire id stays order-stable; never reorder.
   'contrasts-with',
   'has-pos',
+  'analyzes',
+  'analysis-member',
 ] as const satisfies readonly GraphRelationType[];
 const COMPACT_DOMAINS = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
 const KIND_IDS = new Map(COMPACT_ENTITY_KINDS.map((kind, id) => [kind, id]));
@@ -57,6 +62,8 @@ export interface CompactAssetJSON {
     labelStringIds: number[];
     /** Present only when at least one entity carries grammar metadata; -1 = none. Holds the JSON of GraphEntity['grammar']. */
     grammarStringIds?: number[];
+    /** Present only when at least one entity carries analysis metadata; -1 = none. Holds the JSON of GraphEntity['analysis']. */
+    analysisStringIds?: number[];
   };
   relations: {
     offsets: number[];
@@ -88,6 +95,8 @@ export interface CompactLingualGraph {
   readonly relationProvenanceStringIds?: Int32Array;
   /** Decoded grammar metadata per entity ordinal (undefined where absent). Present only when the asset carries grammar. */
   readonly entityGrammar?: readonly (GraphEntity['grammar'] | undefined)[];
+  /** Decoded analysis metadata per entity ordinal (undefined where absent). Present only when the asset carries analysis metadata. */
+  readonly entityAnalysis?: readonly (GraphEntity['analysis'] | undefined)[];
   readonly denseOf: Map<string, number>;
   readonly persistentOf: readonly string[];
   readonly surfaceHashToLocalId: Map<number, number>;
@@ -112,7 +121,8 @@ function validateCompact(compact: CompactAssetJSON): void {
     || domainIds.some((id) => COMPACT_DOMAINS[id] === undefined && id !== 0)
     || targets.some((id) => !Number.isInteger(id) || id < 0 || id >= kindIds.length)
     || typeIds.some((id) => COMPACT_RELATION_TYPES[id] === undefined)
-    || (grammarStringIds !== undefined && grammarStringIds.length !== kindIds.length)) {
+    || (grammarStringIds !== undefined && grammarStringIds.length !== kindIds.length)
+    || (compact.entities.analysisStringIds !== undefined && compact.entities.analysisStringIds.length !== kindIds.length)) {
     throw new GraphLoadError('Invalid compact graph array lengths');
   }
 }
@@ -147,7 +157,7 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
   const grammarStringIds: number[] = [];
   let hasGrammar = false;
   for (const entity of asset.entities) {
-    const kindId = KIND_IDS.get(entity.kind);
+    const kindId = KIND_IDS.get(entity.kind as CoreGraphEntityKind); // extended kinds are rejected: plain JSON is their carrier
     const domainId = DOMAIN_IDS.get(entity.domain);
     if (kindId === undefined || domainId === undefined) throw new GraphLoadError(`Unsupported compact entity: ${entity.id}`);
     kindIds.push(kindId);
@@ -158,6 +168,17 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
       hasGrammar = true;
     } else {
       grammarStringIds.push(-1);
+    }
+  }
+
+  const analysisStringIds: number[] = [];
+  let hasAnalysis = false;
+  for (const entity of asset.entities) {
+    if (entity.analysis !== undefined) {
+      analysisStringIds.push(stringId(JSON.stringify(entity.analysis)));
+      hasAnalysis = true;
+    } else {
+      analysisStringIds.push(-1);
     }
   }
 
@@ -212,7 +233,7 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     generatedAt: asset.generatedAt,
     sourceVersions: asset.sourceVersions,
     stringTable,
-    entities: { kindIds, domainIds, labelStringIds, ...(hasGrammar ? { grammarStringIds } : {}) },
+    entities: { kindIds, domainIds, labelStringIds, ...(hasGrammar ? { grammarStringIds } : {}), ...(hasAnalysis ? { analysisStringIds } : {}) },
     relations: {
       offsets, targets, typeIds,
       ...(hasConfidence ? { confidence } : {}),
@@ -240,6 +261,9 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
   const entityGrammar = compact.entities.grammarStringIds === undefined
     ? undefined
     : compact.entities.grammarStringIds.map((id) => id < 0 ? undefined : JSON.parse(stringTable[id]) as GraphEntity['grammar']);
+  const entityAnalysis = compact.entities.analysisStringIds === undefined
+    ? undefined
+    : compact.entities.analysisStringIds.map((id) => id < 0 ? undefined : JSON.parse(stringTable[id]) as GraphEntity['analysis']);
   const persistentOf = stringTable.slice(0, entityKindIds.length);
   const denseOf = new Map<string, number>();
   for (let dense = 0; dense < persistentOf.length; dense += 1) denseOf.set(persistentOf[dense], dense);
@@ -261,6 +285,7 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
     relationPredictability,
     relationProvenanceStringIds,
     entityGrammar,
+    entityAnalysis,
     denseOf,
     persistentOf,
     surfaceHashToLocalId,
