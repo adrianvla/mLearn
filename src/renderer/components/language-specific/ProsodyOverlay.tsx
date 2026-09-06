@@ -52,12 +52,18 @@ export const ProsodyOverlay: Component<ProsodyOverlayProps> = (props) => {
       ? props.prosodyType
       : getLanguageProsodyType(props.languageData)
   );
-  const OverlayRenderer = createMemo(() => (
-    getProsodyOverlayComponent(rendererType())
-    // Package-declared declarative overlay: any prosody model whose language
-    // config opts in renders through the generic renderer — no per-type code.
-    ?? (getLanguageProsodyOverlayConfig(props.languageData) ? getProsodyOverlayComponent('generic-declarative') : undefined)
-  ));
+  const OverlayRenderer = createMemo(() => {
+    const explicit = props.prosodyType;
+    const exact = getProsodyOverlayComponent(rendererType());
+    if (exact) return exact;
+    // Package-declared declarative overlay: only when the stored/payload type
+    // agrees with the language's declared model (or there is none yet). An
+    // explicit 'none' suppresses the overlay entirely.
+    if (explicit === 'none') return undefined;
+    const languageType = getLanguageProsodyType(props.languageData);
+    if (explicit !== undefined && languageType !== undefined && explicit !== languageType) return undefined;
+    return getLanguageProsodyOverlayConfig(props.languageData) ? getProsodyOverlayComponent('generic-declarative') : undefined;
+  });
 
   return (
     <Show

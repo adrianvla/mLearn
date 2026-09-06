@@ -56,7 +56,14 @@ export function getProsodyOverlayRenderer(
   data: LanguageData | null | undefined,
   prosodyType?: FlashcardProsody['type'],
 ): ProsodyOverlayRenderer | null {
-  const adapter = getProsodyPresentationAdapter(prosodyType ?? getLanguageProsodyType(data));
+  const languageType = getLanguageProsodyType(data);
+  if (prosodyType === 'none') return null;
+  // A stored type that belongs to a different model than the installed
+  // package must not render through this package's overlay.
+  if (prosodyType !== undefined && data && languageType !== undefined && prosodyType !== languageType) {
+    return getProsodyPresentationAdapter(prosodyType)?.overlayRenderer ?? null;
+  }
+  const adapter = getProsodyPresentationAdapter(prosodyType ?? languageType);
   if (adapter) return adapter.overlayRenderer ?? null;
   return getLanguageProsodyOverlayConfig(data) ? DECLARATIVE_OVERLAY_RENDERER_KEY : null;
 }

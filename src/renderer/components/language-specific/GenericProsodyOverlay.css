@@ -1,27 +1,17 @@
-.generic-prosody-units {
-  display: inline-flex;
-}
-
-.generic-prosody-unit {
-  position: relative;
-  display: inline-block;
-}
-
-.generic-prosody-mark--overline::after,
-.generic-prosody-mark--underline::after {
-  content: '';
+.generic-prosody-markbar {
   position: absolute;
-  left: 10%;
-  right: 10%;
-  height: var(--prosody-overlay-height);
-  background: var(--accent-primary);
-  border-radius: 2px;
+  border-color: var(--accent-primary);
+  border-top-style: solid;
+  border-bottom-style: solid;
+  border-top-width: 0;
+  border-bottom-width: 0;
+  pointer-events: none;
 }
 
-.generic-prosody-mark--overline::after {
-  top: -0.1em;
+.generic-prosody-markbar--overline {
+  top: -0.15em;
 }
 
-.generic-prosody-mark--underline::after {
-  bottom: -0.1em;
+.generic-prosody-markbar--underline {
+  bottom: -0.15em;
 }

@@ -1,6 +1,8 @@
-import { Component, For, Show } from 'solid-js';
+import { Component, Show, type JSX } from 'solid-js';
 import type { ProsodyOverlayProps } from './ProsodyOverlay';
 import { getLanguageProsodyOverlayConfig } from '../../../shared/languageFeatures';
+import { prosodyVisible } from '../../../shared/prosodySettings';
+import { useSettings } from '../../context';
 import type { LanguageProsodyOverlayConfig } from '../../../shared/types';
 import './GenericProsodyOverlay.css';
 
@@ -8,10 +10,11 @@ import './GenericProsodyOverlay.css';
  * Package-declared declarative prosody overlay.
  *
  * Draws ANY prosody model whose language package declares `prosody.overlay`:
- * segment the annotated reading into the declared unit type and visually mark
- * the unit at the payload's numeric position (1-based). No mora logic, no
- * particle rules, no linguistic interpretation — languages whose models need
- * semantics register real renderers instead (Japanese pitch accent).
+ * the caller's text stays visible (children preserved, like the Japanese
+ * overlay), and a declarative mark bar spans the unit range derived from the
+ * annotated reading at the payload's numeric position (1-based). No mora
+ * logic, no particle rules, no linguistic interpretation — languages whose
+ * models need semantics register real renderers instead.
  */
 
 function segmentUnits(text: string, config: LanguageProsodyOverlayConfig): string[] {
@@ -23,40 +26,47 @@ function segmentUnits(text: string, config: LanguageProsodyOverlayConfig): strin
 }
 
 const GenericDeclarativeOverlay: Component<ProsodyOverlayProps> = (props) => {
+  const { settings } = useSettings();
   const config = () => getLanguageProsodyOverlayConfig(props.languageData);
   const source = () => (props.reading ?? props.word).normalize('NFC');
-  const units = () => {
+  const unitCount = () => {
     const overlayConfig = config();
-    if (!overlayConfig) return [];
-    return segmentUnits(source(), overlayConfig);
+    if (!overlayConfig) return 0;
+    return segmentUnits(source(), overlayConfig).length;
   };
   const markedIndex = () => {
     const position = props.prosodyPosition;
     if (position === null || position === undefined || !Number.isFinite(position) || position <= 0) return -1;
     return position - 1;
   };
-  const markClass = () => {
-    const overlayConfig = config();
-    if (!overlayConfig) return '';
-    return `generic-prosody-mark--${overlayConfig.mark}`;
+  const enabled = () => Boolean(config()) && prosodyVisible(settings);
+  const markStyle = (): JSX.CSSProperties | undefined => {
+    const count = unitCount();
+    const index = markedIndex();
+    if (count <= 0 || index < 0 || index >= count) return undefined;
+    const mark = config()!.mark;
+    return {
+      left: `${(index / count) * 100}%`,
+      width: `${(1 / count) * 100}%`,
+      'border-top-width': mark === 'overline' ? 'var(--prosody-overlay-height)' : '0',
+      'border-bottom-width': mark === 'underline' ? 'var(--prosody-overlay-height)' : '0',
+    };
   };
-  const wrapperClass = () => `prosody-overlay-wrapper ${props.mode === 'overlay' ? '' : 'generic-prosody-inline'} ${props.class || ''}`.trim();
 
   return (
-    <Show
-      when={config()}
-      fallback={<span class={`prosody-overlay-wrapper ${props.class || ''}`} style={props.style}>{props.children}</span>}
+    <span
+      class={`prosody-overlay-wrapper ${props.mode === 'overlay' ? '' : 'generic-prosody-inline'} ${props.class || ''}`.trim()}
+      style={props.style}
     >
-      <span class={wrapperClass()} style={props.style}>
-        <span class="generic-prosody-units">
-          <For each={units()}>
-            {(unit, index) => (
-              <span class={`generic-prosody-unit${index() === markedIndex() ? ` ${markClass()}` : ''}`}>{unit}</span>
-            )}
-          </For>
-        </span>
-      </span>
-    </Show>
+      {props.children}
+      <Show when={enabled()}>
+        <span
+          class={`generic-prosody-markbar generic-prosody-markbar--${config()!.mark}`}
+          style={markStyle()}
+          aria-hidden="true"
+        />
+      </Show>
+    </span>
   );
 };
 
