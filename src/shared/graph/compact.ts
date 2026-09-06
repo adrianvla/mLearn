@@ -1,8 +1,10 @@
 import { GraphLoadError } from './load';
 import {
   GRAPH_SCHEMA_VERSION,
+  isNamespacedGraphIdentifier,
   RELATION_CATEGORY,
   type CoreGraphEntityKind,
+  type CoreGraphRelationType,
   type GraphEntity,
   type GraphEntityKind,
   type GraphRelationType,
@@ -64,6 +66,12 @@ export interface CompactAssetJSON {
     grammarStringIds?: number[];
     /** Present only when at least one entity carries analysis metadata; -1 = none. Holds the JSON of GraphEntity['analysis']. */
     analysisStringIds?: number[];
+    /**
+     * Open-world extensions: namespaced entity kinds (`ns::local`) present in
+     * this asset, in id order. A kindIds entry >= COMPACT_ENTITY_KINDS.length
+     * indexes this array. Extension kinds are stored/inspectable but inert.
+     */
+    extensionKindStrings?: string[];
   };
   relations: {
     offsets: number[];
@@ -73,6 +81,18 @@ export interface CompactAssetJSON {
     transparency?: number[];
     predictability?: number[];
     provenanceStringIds?: number[];
+    /**
+     * Open-world extensions: namespaced relation types (`ns::local`) present
+     * in this asset, in id order. A typeIds entry >= COMPACT_RELATION_TYPES.length
+     * indexes this array. Extension relations are stored/inspectable, excluded
+     * from category lookups (no learner semantics), and resolve through
+     * extensionRelationTypeStrings.
+     */
+    extensionTypeStrings?: string[];
+    /** Per-edge string-table id of the `role` qualifier (-1 = none). Present when any edge carries one. */
+    roleStringIds?: number[];
+    /** Per-edge asserted member `order` (-1 = none). Present when any edge carries one. */
+    orders?: number[];
   };
   meta: {
     /** Legacy compatibility fields; current encoders leave them empty to avoid duplicating surface hashes. */
@@ -83,16 +103,26 @@ export interface CompactAssetJSON {
 
 export interface CompactLingualGraph {
   readonly stringTable: readonly string[];
-  readonly entityKindIds: Uint8Array;
+  /** Entity kind ids; values >= COMPACT_ENTITY_KINDS.length index extensionEntityKindStrings. */
+  readonly entityKindIds: Uint16Array;
   readonly entityDomainIds: Uint8Array;
   readonly entityLabelStringIds: Int32Array;
   readonly relationOffsets: Uint32Array;
   readonly relationTargets: Uint32Array;
-  readonly relationTypeIds: Uint8Array;
+  /** Relation type ids; values >= COMPACT_RELATION_TYPES.length index extensionRelationTypeStrings. */
+  readonly relationTypeIds: Uint16Array;
   readonly relationConfidence?: Float32Array;
   readonly relationTransparency?: Float32Array;
   readonly relationPredictability?: Float32Array;
   readonly relationProvenanceStringIds?: Int32Array;
+  /** Per-edge `role` qualifier resolved from the string table (undefined where absent). Present when the asset carries roles. */
+  readonly relationRoles?: readonly (string | undefined)[];
+  /** Per-edge asserted member `order` (undefined where absent). Present when the asset carries orders. */
+  readonly relationOrders?: readonly (number | undefined)[];
+  /** Namespaced extension relation types, indexed by a typeIds value minus COMPACT_RELATION_TYPES.length. */
+  readonly extensionRelationTypeStrings?: readonly string[];
+  /** Namespaced extension entity kinds, indexed by a kindIds value minus COMPACT_ENTITY_KINDS.length. */
+  readonly extensionEntityKindStrings?: readonly string[];
   /** Decoded grammar metadata per entity ordinal (undefined where absent). Present only when the asset carries grammar. */
   readonly entityGrammar?: readonly (GraphEntity['grammar'] | undefined)[];
   /** Decoded analysis metadata per entity ordinal (undefined where absent). Present only when the asset carries analysis metadata. */
@@ -111,18 +141,28 @@ function validateCompact(compact: CompactAssetJSON): void {
   if (compact.schemaVersion !== GRAPH_SCHEMA_VERSION) {
     throw new GraphLoadError(`Unsupported compact graph schemaVersion ${compact.schemaVersion} (expected ${GRAPH_SCHEMA_VERSION})`);
   }
-  const { kindIds, domainIds, labelStringIds, grammarStringIds } = compact.entities;
-  const { offsets, targets, typeIds } = compact.relations;
+  const { kindIds, domainIds, labelStringIds, grammarStringIds, extensionKindStrings } = compact.entities;
+  const { offsets, targets, typeIds, extensionTypeStrings, roleStringIds, orders } = compact.relations;
+  const extensionKindCount = extensionKindStrings?.length ?? 0;
+  const extensionTypeCount = extensionTypeStrings?.length ?? 0;
+  const kindIdValid = (id: number): boolean =>
+    id < COMPACT_ENTITY_KINDS.length ? COMPACT_ENTITY_KINDS[id] !== undefined : id - COMPACT_ENTITY_KINDS.length < extensionKindCount;
+  const typeIdValid = (id: number): boolean =>
+    id < COMPACT_RELATION_TYPES.length ? COMPACT_RELATION_TYPES[id] !== undefined : id - COMPACT_RELATION_TYPES.length < extensionTypeCount;
   if (kindIds.length !== domainIds.length || kindIds.length !== labelStringIds.length || offsets.length !== kindIds.length + 1
     || targets.length !== typeIds.length || offsets[offsets.length - 1] !== targets.length
     || compact.meta.surfaceHashStringIds.length !== compact.meta.surfaceLocalIds.length
     || offsets.some((offset, index) => !Number.isInteger(offset) || offset < 0 || (index > 0 && offset < offsets[index - 1]))
-    || kindIds.some((id) => COMPACT_ENTITY_KINDS[id] === undefined)
+    || kindIds.some((id) => !kindIdValid(id))
     || domainIds.some((id) => COMPACT_DOMAINS[id] === undefined && id !== 0)
     || targets.some((id) => !Number.isInteger(id) || id < 0 || id >= kindIds.length)
-    || typeIds.some((id) => COMPACT_RELATION_TYPES[id] === undefined)
+    || typeIds.some((id) => !typeIdValid(id))
     || (grammarStringIds !== undefined && grammarStringIds.length !== kindIds.length)
-    || (compact.entities.analysisStringIds !== undefined && compact.entities.analysisStringIds.length !== kindIds.length)) {
+    || (compact.entities.analysisStringIds !== undefined && compact.entities.analysisStringIds.length !== kindIds.length)
+    || (roleStringIds !== undefined && roleStringIds.length !== targets.length)
+    || (orders !== undefined && orders.length !== targets.length)
+    || (extensionKindStrings ?? []).some((kind) => !isNamespacedGraphIdentifier(kind))
+    || (extensionTypeStrings ?? []).some((type) => !isNamespacedGraphIdentifier(type))) {
     throw new GraphLoadError('Invalid compact graph array lengths');
   }
 }
@@ -156,10 +196,23 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
   }
   const grammarStringIds: number[] = [];
   let hasGrammar = false;
+  const extensionKindStrings: string[] = [];
+  const extensionKindIds = new Map<string, number>();
+  const extensionKindId = (kind: string): number => {
+    let id = extensionKindIds.get(kind);
+    if (id === undefined) {
+      if (!isNamespacedGraphIdentifier(kind)) throw new GraphLoadError(`Unsupported compact entity kind: ${kind}`);
+      id = COMPACT_ENTITY_KINDS.length + extensionKindStrings.length;
+      extensionKindStrings.push(kind);
+      extensionKindIds.set(kind, id);
+    }
+    return id;
+  };
   for (const entity of asset.entities) {
-    const kindId = KIND_IDS.get(entity.kind as CoreGraphEntityKind); // extended kinds are rejected: plain JSON is their carrier
+    const coreKindId = KIND_IDS.get(entity.kind as CoreGraphEntityKind);
+    const kindId = coreKindId ?? extensionKindId(entity.kind);
     const domainId = DOMAIN_IDS.get(entity.domain);
-    if (kindId === undefined || domainId === undefined) throw new GraphLoadError(`Unsupported compact entity: ${entity.id}`);
+    if (domainId === undefined) throw new GraphLoadError(`Unsupported compact entity: ${entity.id}`);
     kindIds.push(kindId);
     domainIds.push(domainId);
     labelStringIds.push(entity.label === undefined ? -1 : stringId(entity.label));
@@ -182,13 +235,25 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     }
   }
 
-  const adjacency = Array.from({ length: kindIds.length }, () => [] as Array<{ target: number; type: number; confidence?: number; transparency?: number; predictability?: number; provenance?: number }>);
+  const extensionTypeStrings: string[] = [];
+  const extensionTypeIds = new Map<string, number>();
+  const extensionTypeId = (type: string): number => {
+    let id = extensionTypeIds.get(type);
+    if (id === undefined) {
+      if (!isNamespacedGraphIdentifier(type)) throw new GraphLoadError(`Unsupported compact relation type: ${type}`);
+      id = COMPACT_RELATION_TYPES.length + extensionTypeStrings.length;
+      extensionTypeStrings.push(type);
+      extensionTypeIds.set(type, id);
+    }
+    return id;
+  };
+  const adjacency = Array.from({ length: kindIds.length }, () => [] as Array<{ target: number; type: number; confidence?: number; transparency?: number; predictability?: number; provenance?: number; order?: number; role?: number }>);
   for (const relation of asset.relations) {
     const from = entityIds.get(relation.from);
     const to = entityIds.get(relation.to);
-    const type = TYPE_IDS.get(relation.type);
+    const coreType = TYPE_IDS.get(relation.type as CoreGraphRelationType);
+    const type = coreType ?? extensionTypeId(relation.type);
     if (from === undefined || to === undefined) throw new GraphLoadError(`Relation references unknown entity: ${relation.from} -> ${relation.to}`);
-    if (type === undefined) throw new GraphLoadError(`Unsupported compact relation type: ${relation.type}`);
     const encoded = {
       target: to,
       type,
@@ -196,6 +261,8 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
       transparency: relation.transparency,
       predictability: relation.predictability,
       provenance: relation.provenance === undefined ? undefined : stringId(relation.provenance),
+      order: relation.order,
+      role: relation.role === undefined ? undefined : stringId(relation.role),
     };
     adjacency[from].push(encoded);
     adjacency[to].push({ ...encoded, target: from });
@@ -208,10 +275,14 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
   const transparency: number[] = [];
   const predictability: number[] = [];
   const provenanceStringIds: number[] = [];
+  const roleStringIds: number[] = [];
+  const orders: number[] = [];
   let hasConfidence = false;
   let hasTransparency = false;
   let hasPredictability = false;
   let hasProvenance = false;
+  let hasRoles = false;
+  let hasOrders = false;
   for (const edges of adjacency) {
     for (const edge of edges) {
       targets.push(edge.target);
@@ -220,10 +291,14 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
       transparency.push(edge.transparency ?? -1);
       predictability.push(edge.predictability ?? -1);
       provenanceStringIds.push(edge.provenance ?? -1);
+      roleStringIds.push(edge.role ?? -1);
+      orders.push(edge.order ?? -1);
       hasConfidence ||= edge.confidence !== undefined;
       hasTransparency ||= edge.transparency !== undefined;
       hasPredictability ||= edge.predictability !== undefined;
       hasProvenance ||= edge.provenance !== undefined;
+      hasRoles ||= edge.role !== undefined;
+      hasOrders ||= edge.order !== undefined;
     }
     offsets.push(targets.length);
   }
@@ -233,13 +308,21 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     generatedAt: asset.generatedAt,
     sourceVersions: asset.sourceVersions,
     stringTable,
-    entities: { kindIds, domainIds, labelStringIds, ...(hasGrammar ? { grammarStringIds } : {}), ...(hasAnalysis ? { analysisStringIds } : {}) },
+    entities: {
+      kindIds, domainIds, labelStringIds,
+      ...(hasGrammar ? { grammarStringIds } : {}),
+      ...(hasAnalysis ? { analysisStringIds } : {}),
+      ...(extensionKindStrings.length > 0 ? { extensionKindStrings } : {}),
+    },
     relations: {
       offsets, targets, typeIds,
       ...(hasConfidence ? { confidence } : {}),
       ...(hasTransparency ? { transparency } : {}),
       ...(hasPredictability ? { predictability } : {}),
       ...(hasProvenance ? { provenanceStringIds } : {}),
+      ...(extensionTypeStrings.length > 0 ? { extensionTypeStrings } : {}),
+      ...(hasRoles ? { roleStringIds } : {}),
+      ...(hasOrders ? { orders } : {}),
     },
     meta: { surfaceHashStringIds, surfaceLocalIds },
   };
@@ -248,12 +331,20 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
 export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
   validateCompact(compact);
   const stringTable = compact.stringTable;
-  const entityKindIds = Uint8Array.from(compact.entities.kindIds);
+  const entityKindIds = Uint16Array.from(compact.entities.kindIds);
   const entityDomainIds = Uint8Array.from(compact.entities.domainIds);
   const entityLabelStringIds = Int32Array.from(compact.entities.labelStringIds);
   const relationOffsets = Uint32Array.from(compact.relations.offsets);
   const relationTargets = Uint32Array.from(compact.relations.targets);
-  const relationTypeIds = Uint8Array.from(compact.relations.typeIds);
+  const relationTypeIds = Uint16Array.from(compact.relations.typeIds);
+  const extensionEntityKindStrings = compact.entities.extensionKindStrings;
+  const extensionRelationTypeStrings = compact.relations.extensionTypeStrings;
+  const relationRoles = compact.relations.roleStringIds === undefined
+    ? undefined
+    : compact.relations.roleStringIds.map((id) => id < 0 ? undefined : stringTable[id]);
+  const relationOrders = compact.relations.orders === undefined
+    ? undefined
+    : compact.relations.orders.map((order) => order < 0 ? undefined : order);
   const relationConfidence = compact.relations.confidence === undefined ? undefined : Float32Array.from(compact.relations.confidence);
   const relationTransparency = compact.relations.transparency === undefined ? undefined : Float32Array.from(compact.relations.transparency);
   const relationPredictability = compact.relations.predictability === undefined ? undefined : Float32Array.from(compact.relations.predictability);
@@ -284,6 +375,10 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
     relationTransparency,
     relationPredictability,
     relationProvenanceStringIds,
+    relationRoles,
+    relationOrders,
+    extensionEntityKindStrings,
+    extensionRelationTypeStrings,
     entityGrammar,
     entityAnalysis,
     denseOf,
@@ -292,7 +387,10 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
     has: (id) => denseOf.has(id),
     nodeKind: (id) => {
       const dense = denseOf.get(id);
-      return dense === undefined ? undefined : COMPACT_ENTITY_KINDS[entityKindIds[dense]];
+      if (dense === undefined) return undefined;
+      const kindId = entityKindIds[dense];
+      if (kindId < COMPACT_ENTITY_KINDS.length) return COMPACT_ENTITY_KINDS[kindId];
+      return extensionEntityKindStrings?.[kindId - COMPACT_ENTITY_KINDS.length];
     },
     neighborsByCategory: (id, category) => {
       const dense = denseOf.get(id);

@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type KnowledgeAspect, type LanguageCompoundSplittingConfig, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAspects } from './types';
+import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type KnowledgeAspect, type LanguageCompoundSplittingConfig, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguageProsodyOverlayConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAspects } from './types';
 import { createProsodyRawPayloadForPosition } from './prosodyPayload';
 import { getReadingExtraCharacters, isTextOnlyInScripts, katakanaToHiragana } from './utils/textUtils';
 import { getResolvedScriptProfile, hasLettersInAnyScript, hasLettersInScript, scriptProfileUsesSegmentlessText, normalizeScriptCodes } from './languageScriptProfile';
@@ -1317,6 +1317,11 @@ export function getProsodyPositionLabel(data?: LanguageData | null): string | un
 
 export function getProsodyPositionPlaceholder(data?: LanguageData | null): string | undefined {
   return normalizeConfiguredLabel(data?.prosody?.positionPlaceholder);
+}
+
+/** Package-declared declarative overlay, when the prosody model opts into the generic renderer. */
+export function getLanguageProsodyOverlayConfig(data?: LanguageData | null): LanguageProsodyOverlayConfig | undefined {
+  return data?.prosody?.overlay;
 }
 
 export function getProsodyToggleLabel(data?: LanguageData | null): string | undefined {

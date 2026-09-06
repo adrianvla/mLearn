@@ -1,6 +1,6 @@
 import { Component, createMemo, JSX, Show } from 'solid-js';
 import type { FlashcardProsody, LanguageData } from '../../../shared/types';
-import { getLanguageProsodyType } from '../../../shared/languageFeatures';
+import { getLanguageProsodyOverlayConfig, getLanguageProsodyType } from '../../../shared/languageFeatures';
 import { getProsodyOverlayComponent } from './prosodyOverlayRenderers';
 
 export interface ProsodyOverlayProps {
@@ -52,7 +52,18 @@ export const ProsodyOverlay: Component<ProsodyOverlayProps> = (props) => {
       ? props.prosodyType
       : getLanguageProsodyType(props.languageData)
   );
-  const OverlayRenderer = createMemo(() => getProsodyOverlayComponent(rendererType()));
+  const OverlayRenderer = createMemo(() => {
+    const explicit = props.prosodyType;
+    const exact = getProsodyOverlayComponent(rendererType());
+    if (exact) return exact;
+    // Package-declared declarative overlay: only when the stored/payload type
+    // agrees with the language's declared model (or there is none yet). An
+    // explicit 'none' suppresses the overlay entirely.
+    if (explicit === 'none') return undefined;
+    const languageType = getLanguageProsodyType(props.languageData);
+    if (explicit !== undefined && languageType !== undefined && explicit !== languageType) return undefined;
+    return getLanguageProsodyOverlayConfig(props.languageData) ? getProsodyOverlayComponent('generic-declarative') : undefined;
+  });
 
   return (
     <Show

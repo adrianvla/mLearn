@@ -1,0 +1,17 @@
+.generic-prosody-markbar {
+  position: absolute;
+  border-color: var(--accent-primary);
+  border-top-style: solid;
+  border-bottom-style: solid;
+  border-top-width: 0;
+  border-bottom-width: 0;
+  pointer-events: none;
+}
+
+.generic-prosody-markbar--overline {
+  top: -0.15em;
+}
+
+.generic-prosody-markbar--underline {
+  bottom: -0.15em;
+}

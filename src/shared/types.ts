@@ -1123,7 +1123,22 @@ export interface LanguageProsodyConfig {
   particleBoxExcludedPos?: string[];
   /** Matching mode for particleBoxExcludedPos. Defaults to "contains" for tokenizer tags like "動詞-一般". */
   particleBoxExcludedPosMatch?: 'contains' | 'exact';
+  /**
+   * Declarative overlay presentation for package-defined prosody models. The
+   * generic renderer draws it with NO runtime code and NO linguistic
+   * interpretation: segment the annotated reading into the declared unit type
+   * and visually mark the payload's numeric position (1-based). Languages with
+   * richer models register real renderers instead (see Japanese pitch accent).
+   */
+  overlay?: LanguageProsodyOverlayConfig;
   coloring?: LanguageColoredProsodyConfig;
+}
+
+export interface LanguageProsodyOverlayConfig {
+  /** Unit segmentation of the annotated reading: per code point, or per grapheme cluster (Intl.Segmenter). */
+  unit: 'character' | 'grapheme';
+  /** Visual emphasis applied to the prosody-bearing unit. */
+  mark: 'overline' | 'underline';
 }
 
 export interface LanguageColoredProsodyConfig {

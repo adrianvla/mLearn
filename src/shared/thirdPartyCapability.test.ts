@@ -218,6 +218,62 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
   });
 });
 
+describe('package normalization, prosody, and categories through shared pipelines (x-test-agnostic)', () => {
+  // After vi.resetModules-free static imports this block uses only shared
+  // pipelines; if any of them ever demand language registration, these
+  // assertions fail.
+  const normalizedPackage: LanguageData = {
+    name: 'Test-Agnostic normalized',
+    textProcessing: {
+      lexemeNormalization: {
+        type: 'surface',
+        surfaceScripts: ['Latn'],
+        surfaceNormalizers: ['casefold'],
+      },
+    },
+    prosody: { type: 'x-test-agnostic::pitch-length' },
+  };
+
+  it('derives the persisted primary form through package normalization', async () => {
+    const { createWordFormDeriver } = await import('./utils/wordForms');
+    const deriver = createWordFormDeriver(normalizedPackage, UNKNOWN_CODE);
+    // The package's identity normalizers shape the persisted primary form…
+    expect(deriver('XorqmeK')).toBe('xorqmek');
+    // …and the persisted key composes the same derivation with the package's
+    // script-conversion gate (none declared here → identity fold).
+    const { canonicalKeyHash } = await import('./utils/canonicalWordKey');
+    const key = canonicalKeyHash(UNKNOWN_CODE, deriver('XorqmeK'), {
+      hashWord: (word) => `h(${word})`,
+      languageData: normalizedPackage,
+    });
+    expect(key).toBe(`${UNKNOWN_CODE}:h(xorqmek)`);
+  });
+
+  it('declares a non-Japanese prosody model without any runtime knowledge of it', async () => {
+    const { getLanguageProsodyType, languageSupportsProsody } = await import('./languageFeatures');
+    expect(getLanguageProsodyType(normalizedPackage)).toBe('x-test-agnostic::pitch-length');
+    expect(languageSupportsProsody(normalizedPackage)).toBe(true);
+    const withoutProsody: LanguageData = { name: 'Test-Agnostic plain' };
+    expect(languageSupportsProsody(withoutProsody)).toBe(false);
+  });
+
+  it('treats unfamiliar grammatical category values as package-owned vocabulary', async () => {
+    const categorized: LanguageData = {
+      name: 'Test-Agnostic categories',
+      textProcessing: {
+        partOfSpeech: {
+          translatable: ['x-test-agnostic::noun-class-7', 'x-test-agnostic::motionspeaker'],
+          colors: { 'x-test-agnostic::noun-class-7': '#7a5' },
+        },
+      },
+    };
+    const { getTranslatablePartOfSpeechTypes, isTranslatablePartOfSpeech } = await import('./languageFeatures');
+    expect(getTranslatablePartOfSpeechTypes(categorized)).toEqual(['x-test-agnostic::noun-class-7', 'x-test-agnostic::motionspeaker']);
+    expect(isTranslatablePartOfSpeech('x-test-agnostic::noun-class-7', categorized)).toBe(true);
+    expect(isTranslatablePartOfSpeech('noun', categorized)).toBe(false);
+  });
+});
+
 describe('open-world graph semantics (PART H guards)', () => {
   const LANG = 'x-thirdparty';
   const surface = `${LANG}:surface:gidis`;

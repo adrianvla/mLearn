@@ -44,9 +44,10 @@ export interface CompoundProvenance {
  * structure belongs to the Tier-2 graph (surface entities + component-of
  * relations, emitted by package-side Python builders); this tree mirrors that
  * vocabulary 1:1 (leaf lemmas ↔ surface labels, nesting ↔ component-of) so the
- * two representations correspond, but they are not the same store. UNRESOLVED
- * GAP: no builder emits compound component-of yet and no runtime path consumes
- * graph-attested compound structure; wiring that consumption is future work.
+ * two representations correspond, but they are not the same store. Package
+ * builders (e.g. build_de) emit attested component-of relations, and
+ * graph/morphology/attested.ts consumes them; this tree covers the
+ * productive/unseen remainder at runtime.
  */
 export interface CompoundAnalysis {
   form: string;
