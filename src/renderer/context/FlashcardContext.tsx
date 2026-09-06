@@ -31,6 +31,7 @@ import { ankiCacheVersion, buildAnkiStatusKeySets, findAnkiWordMatchInCache } fr
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { getWordFormCandidates } from '../utils/wordForms';
+import { legacyCasingCandidates } from '../../shared/utils/normalizationVersion';
 import { streamChat, isLLMReady } from '../services/llmProvider';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../services/cloudSessionManager';
 import { useLowPowerGate } from './LowPowerGateContext';
@@ -3049,7 +3050,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   const comprehensiveDeps = (language: string): Parameters<typeof getComprehensiveWordStatusWithSource>[1] => ({
     getCanonicalForm: (value: string) => getPrimaryWordFormForLanguage(value, language),
-    getWordForms: (value: string) => getWordFormsForLanguage(value, language),
+    // D4 lazy salvage: read-only probe of legacy ambient-locale casing variants
+    // after current-version forms, so pre-v2 persisted keys remain visible.
+    getWordForms: (value: string) => {
+      const forms = getWordFormsForLanguage(value, language);
+      const legacy = legacyCasingCandidates(value).filter((variant) => !forms.includes(variant));
+      return [...forms, ...legacy];
+    },
     hashWordSync: SRS.hashWordSync,
     langKey,
     language,

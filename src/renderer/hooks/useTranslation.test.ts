@@ -356,7 +356,9 @@ describe('fetchTranslation', () => {
         nlp: {
           dictionary: {
             lookup: {
-              normalizers: ['casefold'],
+              // German package-owned search expansion: ß->ss declared by the
+              // package, not baked into generic casefold.
+              normalizers: ['casefold', { type: 'replace-characters', map: { 'ß': 'ss', 'ẞ': 'ss' } }],
             },
           },
         },
@@ -370,7 +372,7 @@ describe('fetchTranslation', () => {
       languageData,
     );
 
-    expect(candidates).toEqual(['Straße', 'strasse']);
+    expect(candidates).toEqual(['Straße', 'straße', 'strasse']);
   });
 
   it('fetchTranslation tries reading-script input before canonical surface forms', async () => {
