@@ -8,9 +8,6 @@ import {
 type WordFormSource = Pick<Token, 'word' | 'actual_word' | 'surface' | 'reading'>;
 type TokenMorphologyCapabilities = Pick<LanguageTokenizerCapabilities, 'providesLemmas'>;
 
-interface WordFormCandidateOptions {
-  languageData?: LanguageData | null;
-}
 
 interface WordFormCandidateOptions {
   languageData?: LanguageData | null;
