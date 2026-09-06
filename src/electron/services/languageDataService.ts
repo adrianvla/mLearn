@@ -697,11 +697,19 @@ export async function ensureLanguageDataInstalled(
       throw new Error(`${langData[language]?.name ?? language} requires mLearn ${minimumAppVersion} or later`);
     }
   }
-  const assets = getAssets(language, langData, dictionaryTargetLanguage, options).filter((asset) => asset.required !== false);
+  // Install EVERY in-scope advertised asset, including `required: false`
+  // ones (Tier-2 linguistic graphs). `required` gates COMPLETENESS signaling
+  // (status/missing-assets), never whether the file is installed: a package
+  // that advertises a graph must deliver it.
+  const assets = getAssets(language, langData, dictionaryTargetLanguage, options);
   const bundle = getBundle(language, langData, dictionaryTargetLanguage);
   const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;
   const currentStatus = getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
-  if (currentStatus.installed) {
+  // An existing install is only "done" when no in-scope advertised asset is
+  // missing locally — otherwise an install that predates a newly advertised
+  // optional asset (e.g. a graph published after the first install) would
+  // never backfill it.
+  if (currentStatus.installed && currentStatus.assets.every((asset) => asset.installed)) {
     if (dictionaryTargetLanguage) {
       syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage);
     }

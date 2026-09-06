@@ -719,6 +719,154 @@ describe('languageDataService', () => {
     expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'ocr.bin'), 'utf-8')).toBe(ocrBytes);
   });
 
+  it('installs optional advertised graph assets on fresh install', async () => {
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'graph-optional-archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'zz-graph-optional.tar.gz');
+    const frequencyBytes = 'optional-graph frequency bytes';
+    const graphBytes = makeGraphAssetBytes([{ id: 'zz:lexeme:x', kindId: GRAPH_KIND.LEXEME }]);
+    const manifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      version: 'bundle-graph-optional-v1',
+      files: [
+        {
+          id: 'frequency',
+          path: 'languages/zz.freq.json',
+          sizeBytes: Buffer.byteLength(frequencyBytes),
+          sha256: sha256(frequencyBytes),
+          required: true,
+        },
+        {
+          id: 'linguistic-graph',
+          path: 'languages/zz.graph.json',
+          sizeBytes: Buffer.byteLength(graphBytes),
+          sha256: sha256(graphBytes),
+          required: false,
+        },
+      ],
+    };
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify(manifest), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'zz.freq.json'), frequencyBytes, 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'languages', 'zz.graph.json'), graphBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(archivePath, destPath);
+    });
+
+    const langData = makeLangData({
+      languageData: {
+        version: 'bundle-graph-optional-v1',
+        bundle: {
+          url: 'https://example.com/language-data/zz-graph-optional.tar.gz',
+          sizeBytes: fs.statSync(archivePath).size,
+          sha256: sha256(fs.readFileSync(archivePath)),
+        },
+        assets: manifest.files,
+      },
+    });
+
+    const status = await mod.ensureLanguageDataInstalled('zz', langData);
+
+    expect(status.installed).toBe(true);
+    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json'), 'utf-8')).toBe(graphBytes);
+  });
+
+  it('backfills a newly advertised optional graph into an already-installed language', async () => {
+    const coreArchiveSourceDir = path.join(tempDir.tmpDir, 'graph-backfill-core-source');
+    const coreArchivePath = path.join(tempDir.tmpDir, 'zz-core.tar.gz');
+    const frequencyBytes = 'backfill frequency bytes';
+    const coreManifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      version: 'backfill-core-v1',
+      files: [
+        {
+          id: 'frequency',
+          path: 'languages/zz.freq.json',
+          sizeBytes: Buffer.byteLength(frequencyBytes),
+          sha256: sha256(frequencyBytes),
+          required: true,
+        },
+      ],
+    };
+    fs.mkdirSync(path.join(coreArchiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(coreArchiveSourceDir, 'manifest.json'), JSON.stringify(coreManifest), 'utf-8');
+    fs.writeFileSync(path.join(coreArchiveSourceDir, 'files', 'languages', 'zz.freq.json'), frequencyBytes, 'utf-8');
+    await tar.c({ gzip: true, file: coreArchivePath, cwd: coreArchiveSourceDir }, ['manifest.json', 'files']);
+
+    let servedArchive = coreArchivePath;
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destPath: string) => {
+      fs.copyFileSync(servedArchive, destPath);
+    });
+    const downloadCount = () => mockDownloadFileWithProgress.mock.calls.length;
+
+    const coreLangData = makeLangData({
+      languageData: {
+        version: 'backfill-core-v1',
+        bundle: {
+          url: 'https://example.com/language-data/zz-core.tar.gz',
+          sizeBytes: fs.statSync(coreArchivePath).size,
+          sha256: sha256(fs.readFileSync(coreArchivePath)),
+        },
+        assets: coreManifest.files,
+      },
+    });
+    await mod.ensureLanguageDataInstalled('zz', coreLangData);
+    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json'))).toBe(false);
+
+    // Fully installed, nothing missing: a repeated call must NOT re-download.
+    const downloadsBefore = downloadCount();
+    await mod.ensureLanguageDataInstalled('zz', coreLangData);
+    expect(downloadCount()).toBe(downloadsBefore);
+
+    // The package now advertises an optional graph: the existing install must
+    // backfill it instead of early-returning as "installed".
+    const graphBytes = makeGraphAssetBytes([{ id: 'zz:lexeme:x', kindId: GRAPH_KIND.LEXEME }]);
+    const graphArchiveSourceDir = path.join(tempDir.tmpDir, 'graph-backfill-source');
+    const graphArchivePath = path.join(tempDir.tmpDir, 'zz-with-graph.tar.gz');
+    const graphManifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      version: 'backfill-with-graph-v1',
+      files: [
+        ...coreManifest.files,
+        {
+          id: 'linguistic-graph',
+          path: 'languages/zz.graph.json',
+          sizeBytes: Buffer.byteLength(graphBytes),
+          sha256: sha256(graphBytes),
+          required: false,
+        },
+      ],
+    };
+    fs.mkdirSync(path.join(graphArchiveSourceDir, 'files', 'languages'), { recursive: true });
+    fs.writeFileSync(path.join(graphArchiveSourceDir, 'manifest.json'), JSON.stringify(graphManifest), 'utf-8');
+    fs.writeFileSync(path.join(graphArchiveSourceDir, 'files', 'languages', 'zz.freq.json'), frequencyBytes, 'utf-8');
+    fs.writeFileSync(path.join(graphArchiveSourceDir, 'files', 'languages', 'zz.graph.json'), graphBytes, 'utf-8');
+    await tar.c({ gzip: true, file: graphArchivePath, cwd: graphArchiveSourceDir }, ['manifest.json', 'files']);
+    servedArchive = graphArchivePath;
+
+    const graphLangData = makeLangData({
+      languageData: {
+        version: 'backfill-with-graph-v1',
+        bundle: {
+          url: 'https://example.com/language-data/zz-with-graph.tar.gz',
+          sizeBytes: fs.statSync(graphArchivePath).size,
+          sha256: sha256(fs.readFileSync(graphArchivePath)),
+        },
+        assets: graphManifest.files,
+      },
+    });
+
+    const status = await mod.ensureLanguageDataInstalled('zz', graphLangData);
+
+    expect(downloadCount()).toBe(downloadsBefore + 1);
+    expect(status.installed).toBe(true);
+    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json'), 'utf-8')).toBe(graphBytes);
+  });
+
   it('ignores macOS metadata entries in language bundle archives', async () => {
     const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
     const archivePath = path.join(tempDir.tmpDir, 'zz-with-metadata.tar.gz');
