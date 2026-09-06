@@ -15,6 +15,7 @@ import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, KnowledgeProjectionDrawer, SkeletonText } from '../common';
 import { KnowledgeCapabilitySummary } from '../common/WordStatusPillKnowledge';
 import { getEvents, eventsVersion } from '../../services/knowledgeEvents';
+import { legacyCasingCandidates } from '../../../shared/utils/normalizationVersion';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { getAvailableAspects } from '../../../shared/types';
 import type { KnowledgeEvent } from '../../../shared/knowledgeEvents';
@@ -641,7 +642,15 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const word = actualWord();
     if (!word) return;
     eventsVersion();
-    void getEvents([`${settings.language}:${hashWordSync(word)}`])
+    // D4 lazy salvage: probe the current-version key plus deduplicated legacy
+    // ambient-locale casing variants so pre-v2 journal entries remain visible
+    // in the history tab.
+    const legacyVariants = legacyCasingCandidates(word);
+    const keys = [...new Set([
+      `${settings.language}:${hashWordSync(word)}`,
+      ...legacyVariants.map((variant) => `${settings.language}:${hashWordSync(variant)}`),
+    ])];
+    void getEvents(keys)
       .then((log) => setJournalEvents(log))
       .catch(() => setJournalEvents([]));
   });
