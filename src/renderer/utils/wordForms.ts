@@ -1,26 +1,10 @@
 import type { LanguageData, Token } from '../../shared/types';
-import {
-  getDictionaryLookupCandidates,
-  isReadingScriptText,
-  type LanguageTokenizerCapabilities,
-} from '../../shared/languageFeatures';
+import { getDictionaryLookupCandidates, type LanguageTokenizerCapabilities } from '../../shared/languageFeatures';
+
+export { getWordFormCandidates, type WordFormCandidateOptions } from '../../shared/utils/wordForms';
 
 type WordFormSource = Pick<Token, 'word' | 'actual_word' | 'surface' | 'reading'>;
 type TokenMorphologyCapabilities = Pick<LanguageTokenizerCapabilities, 'providesLemmas'>;
-
-
-interface WordFormCandidateOptions {
-  languageData?: LanguageData | null;
-  /** Language code, required for package mapping-table normalizer steps to apply. */
-  language?: string;
-}
-
-function appendUnique(candidates: string[], seen: Set<string>, value: string | null | undefined): void {
-  const normalized = value?.trim();
-  if (!normalized || seen.has(normalized)) return;
-  seen.add(normalized);
-  candidates.push(normalized);
-}
 
 function appendExpandedWordForms(
   candidates: string[],
@@ -41,52 +25,11 @@ function appendExpandedWordForms(
   appendUnique(candidates, seen, word);
 }
 
-export function getWordFormCandidates(
-  word: string,
-  getCanonicalForm: (word: string) => string,
-  getWordVariants?: (word: string) => string[],
-  options: WordFormCandidateOptions = {},
-): string[] {
-  if (!word) return [];
-
-  const candidates: string[] = [];
-  const seen = new Set<string>();
-  const isReadingLookup = isReadingScriptText(word, options.languageData);
-
-  if (isReadingLookup) {
-    appendUnique(candidates, seen, word);
-    for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData, options.language)) {
-      appendUnique(candidates, seen, lookupCandidate);
-    }
-  }
-
-  if (getWordVariants) {
-    const variants = getWordVariants(word).filter(Boolean);
-    if (variants.length > 0) {
-      for (const variant of variants) {
-        appendUnique(candidates, seen, variant);
-        for (const lookupCandidate of getDictionaryLookupCandidates(variant, options.languageData, options.language)) {
-          appendUnique(candidates, seen, lookupCandidate);
-        }
-      }
-      return candidates;
-    }
-  }
-
-  const canonical = getCanonicalForm(word);
-  if (!isReadingLookup) {
-    appendUnique(candidates, seen, canonical && canonical !== word ? canonical : undefined);
-    appendUnique(candidates, seen, word);
-    for (const lookupCandidate of getDictionaryLookupCandidates(word, options.languageData, options.language)) {
-      appendUnique(candidates, seen, lookupCandidate);
-    }
-  }
-  if (canonical && canonical !== word) {
-    for (const lookupCandidate of getDictionaryLookupCandidates(canonical, options.languageData, options.language)) {
-      appendUnique(candidates, seen, lookupCandidate);
-    }
-  }
-  return candidates;
+function appendUnique(candidates: string[], seen: Set<string>, value: string | null | undefined): void {
+  const normalized = value?.trim();
+  if (!normalized || seen.has(normalized)) return;
+  seen.add(normalized);
+  candidates.push(normalized);
 }
 
 export function getTokenLookupWord(
@@ -95,10 +38,10 @@ export function getTokenLookupWord(
 ): string {
   const surface = token.surface?.trim() || token.word?.trim() || '';
   const lemma = token.actual_word?.trim() || '';
-
   if (!lemma) return surface;
   if (!tokenizerCapabilities || tokenizerCapabilities.providesLemmas) return lemma;
   return surface || lemma;
+
 }
 
 export function getTokenWordFormCandidates(

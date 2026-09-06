@@ -200,6 +200,7 @@ vi.mock('./LanguageContext', () => ({
     getCanonicalFormForLanguage: mockGetCanonicalFormForLanguage,
     getWordVariantsForLanguage: mockGetWordVariantsForLanguage,
     getFrequencyForLanguage: mockGetFrequencyForLanguage,
+    getEffectiveLanguageData: (language: string) => mockLangData[language as keyof typeof mockLangData] ?? null,
     currentLangData: () => mockLangData[mockSettings.language as keyof typeof mockLangData] ?? null,
   }),
 }));
