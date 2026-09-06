@@ -32,7 +32,9 @@ describe('getWordFormCandidates', () => {
               nlp: {
                 dictionary: {
                   lookup: {
-                    normalizers: ['casefold'],
+                    // German package-owned search expansion: ß->ss declared
+                    // by the package, not baked into generic casefold.
+                    normalizers: ['casefold', { type: 'replace-characters', map: { 'ß': 'ss' } }],
                   },
                 },
               },
@@ -40,7 +42,7 @@ describe('getWordFormCandidates', () => {
           },
         },
       ),
-    ).toEqual(['Straße', 'strasse']);
+    ).toEqual(['Straße', 'straße', 'strasse']);
   });
 
   it('keeps reading-script lookups before canonical surface forms', () => {

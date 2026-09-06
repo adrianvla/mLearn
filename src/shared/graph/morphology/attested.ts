@@ -62,3 +62,46 @@ export function attestedCompoundAnalysis(graph: LingualGraph, surfaceId: string)
     alternatives: [],
   };
 }
+
+/**
+ * Reads FIRST-CLASS analysis assertions targeting a surface: sibling `analysis`
+ * entities connected via `analyzes`, with ordered members joined through
+ * `analysis-member` edges. Multiple analyses on one target are competing
+ * alternatives (consumers treat that as ambiguity); the nodes themselves grant
+ * no learner capability. Metadata (layer, confidence, source) rides on the
+ * analysis entity and survives the plain and compact wire forms.
+ */
+export function graphAnalysesFor(graph: LingualGraph, surfaceId: string): CompoundAnalysis[] {
+  const surface = graph.nodes.get(surfaceId);
+  if (!surface?.label) return [];
+  const analyses: CompoundAnalysis[] = [];
+  for (const relation of relationsOf(graph, surfaceId, { direction: 'in' })) {
+    if (relation.type !== 'analyzes') continue;
+    const node = graph.nodes.get(relation.from);
+    if (!node || node.kind !== 'analysis') continue;
+    const members: Array<{ id: string; order: number; label: string }> = [];
+    for (const memberEdge of relationsOf(graph, relation.from, { direction: 'in' })) {
+      if (memberEdge.type !== 'analysis-member') continue;
+      const member = graph.nodes.get(memberEdge.from);
+      if (!member?.label) continue;
+      members.push({ id: memberEdge.from, order: memberEdge.order ?? Number.MAX_SAFE_INTEGER, label: member.label });
+    }
+    members.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+    const metadata = node.analysis;
+    analyses.push({
+      form: surface.label,
+      lemma: surface.label,
+      source: 'attested',
+      confidence: metadata?.confidence ?? 1,
+      provenance: {
+        source: 'attested',
+        confidence: metadata?.confidence ?? 1,
+        lexiconBasis: members.map((member) => member.id),
+      },
+      parts: members.map((member) => ({ lemma: member.label, entryId: member.id, attested: true })),
+      ambiguous: false,
+      alternatives: [],
+    });
+  }
+  return analyses;
+}

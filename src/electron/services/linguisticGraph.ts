@@ -263,6 +263,7 @@ export class LinguisticGraphService {
         ...(domain ? { domain } : {}),
         ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}),
         ...(graph.entityGrammar?.[dense] ? { grammar: graph.entityGrammar[dense] } : {}),
+        ...(graph.entityAnalysis?.[dense] ? { analysis: graph.entityAnalysis[dense] } : {}),
       };
     });
     const relations: GraphRelation[] = [];

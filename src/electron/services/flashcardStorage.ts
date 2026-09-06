@@ -885,8 +885,15 @@ function backfillMissingFlashcardLevels(store: FlashcardStore): FlashcardStore {
 }
 
 function finalizeStore(store: FlashcardStore): FlashcardStore {
-  return backfillMissingFlashcardLevels(migrateLegacyFlashcardStore(store));
+  const withLevels = backfillMissingFlashcardLevels(migrateLegacyFlashcardStore(store));
+  // D3 (normalization-version rebuild) intentionally NOT implemented here yet:
+  // a raw-front rekey would orphan cards whose packages declare casing steps,
+  // because creation hashes the metadata-aware primary form (renderer
+  // getWordFormCandidates[0]) rather than the raw front. Requires extracting
+  // the primary-form derivation into shared code before rebuilding is safe.
+  return withLevels;
 }
+
 
 function checkFlashcards(fc_to_check: any): FlashcardStore {
   if (isV1Store(fc_to_check)) {

@@ -2,7 +2,7 @@ import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup
 import { Portal } from 'solid-js/web';
 import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
-import { RELATION_CATEGORY, type GraphRelationType, type RelationCategory } from '../../../../shared/graph/types';
+import { relationCategory, type GraphRelationType, type RelationCategory } from '../../../../shared/graph/types';
 import type { GraphNeighborhood, GraphRelatedNode, GraphWordLookup, KnowledgeProjection, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
 import type { WordStatus } from '../../../../shared/constants';
 import { KNOWLEDGE_ASPECT_LABEL_KEYS as ASPECT_LABEL_KEYS } from '../../../../shared/constants';
@@ -302,7 +302,9 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     const groups: Record<RelationCategory, GraphRelatedNode[]> = { identity: [], property: [], support: [] };
     for (const relation of neighborhood()?.relations ?? []) {
       if (MORPHOLOGY_RELATIONS.has(relation.relationType) || CHARACTER_RELATIONS.has(relation.relationType)) continue;
-      groups[RELATION_CATEGORY[relation.relationType]].push(relation);
+      const category = relationCategory(relation.relationType);
+      if (!category) continue; // namespaced extension relations: no core category to group into
+      groups[category].push(relation);
     }
     return groups;
   });

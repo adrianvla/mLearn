@@ -1,6 +1,6 @@
 import {
   GRAPH_SCHEMA_VERSION,
-  RELATION_CATEGORY,
+  relationCategory,
   type GraphDomain,
   type GraphEntity,
   type GraphRelation,
@@ -75,7 +75,7 @@ export function relationsOf(
   const push = (relations: GraphRelation[] | undefined) => {
     if (!relations) return;
     for (const relation of relations) {
-      if (opts?.category && RELATION_CATEGORY[relation.type] !== opts.category) continue;
+      if (opts?.category && relationCategory(relation.type) !== opts.category) continue;
       collected.push(relation);
     }
   };

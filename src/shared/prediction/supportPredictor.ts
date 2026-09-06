@@ -1,4 +1,5 @@
 import { identityNeighbors, relationsOf, type LingualGraph } from '../graph/load';
+import { CORE_GRAPH_RELATION_TYPES } from '../graph/types';
 import type { CompoundAnalysis, CompoundPart } from '../graph/morphology/compounds';
 import { isIdentityShareableCapability } from '../graph/targets';
 import type { CapabilityKind, LearnableTarget } from '../graph/types';
@@ -66,6 +67,9 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
 
   // SUPPORT edges with measured transparency/predictability feed expectation.
   for (const relation of relationsOf(graph, target.entityId, { direction: 'in' })) {
+    // Open-world rule: namespaced extension relations are inert — they can never
+    // accidentally create support credit; only core relations participate.
+    if (!(CORE_GRAPH_RELATION_TYPES as readonly string[]).includes(relation.type)) continue;
     const weights = SUPPORT_WEIGHTS[target.capability];
     if (!weights) continue;
     const t = relation.transparency ?? 0;
