@@ -3,8 +3,12 @@
   "providers": {
     "jitendex-yomitan": {
       "status": "active",
-      "sourceLanguages": ["ja"],
-      "targetLanguages": ["en"],
+      "sourceLanguages": [
+        "ja"
+      ],
+      "targetLanguages": [
+        "en"
+      ],
       "defaultPackId": "ja-en",
       "sourceUrl": "https://jitendex.org/",
       "license": "CC-BY-SA-4.0",
@@ -12,24 +16,45 @@
     },
     "jmdict": {
       "status": "active",
-      "sourceLanguages": ["ja"],
-      "targetLanguages": ["en", "fr", "de"],
+      "sourceLanguages": [
+        "ja"
+      ],
+      "targetLanguages": [
+        "en",
+        "fr",
+        "de",
+        "ru"
+      ],
       "sourceUrl": "https://www.edrdg.org/jmdict/j_jmdict.html",
       "license": "CC-BY-SA-4.0",
-      "notes": "Builds the Japanese->French and Japanese->German packs. English remains served by Jitendex for richer structured content."
+      "notes": "Builds Japanese->French, Japanese->German, and Japanese->Russian packs from the multilingual JMdict edition (fre/ger/rus glosses). English remains served by Jitendex for richer structured content."
     },
     "freedict": {
       "status": "active",
-      "sourceLanguages": ["de", "es"],
-      "targetLanguages": ["en"],
+      "sourceLanguages": [
+        "de",
+        "es",
+        "ru",
+        "zh"
+      ],
+      "targetLanguages": [
+        "en",
+        "ru",
+        "fr",
+        "de"
+      ],
       "sourceUrl": "https://freedict.org/",
       "license": "per-dictionary-tei-header",
-      "notes": "Current German->English source and inverted English->Spanish source for Spanish lookup with English glosses. The shared builder reads each FreeDict TEI header and writes pack-specific license metadata."
+      "notes": "Multi-pack FreeDict builder (build-freedict-deu-eng.py --pack <id>). Packs: de-en, de-ru (deu-rus), de-fr (deu-fra), ru-fr (rus-fra), zh-ru (zho-rus), es-en (inverted eng-spa), es-ru (spa-rus), es-de (spa-deu), es-fr (spa-fra). The shared builder reads each FreeDict TEI header and writes pack-specific license metadata; output schema follows the target language's declared runtime dictionary contract (simple-headword or headword-reading)."
     },
     "kaikki-wiktionary": {
       "status": "active",
-      "sourceLanguages": ["cu"],
-      "targetLanguages": ["en"],
+      "sourceLanguages": [
+        "cu"
+      ],
+      "targetLanguages": [
+        "en"
+      ],
       "defaultPackId": "cu-en",
       "sourceUrl": "https://kaikki.org/dictionary/Old%20Church%20Slavonic/index.html",
       "license": "CC-BY-SA-4.0",
@@ -37,7 +62,9 @@
     },
     "csl-elizabeth": {
       "status": "active",
-      "sourceLanguages": ["cu"],
+      "sourceLanguages": [
+        "cu"
+      ],
       "targetLanguages": [],
       "sourceUrl": "https://www.crosswire.org/sword/modules/ModInfo.jsp?modName=CSlElizabeth",
       "license": "public-domain",
@@ -45,23 +72,36 @@
     },
     "openrussian": {
       "status": "active",
-      "sourceLanguages": ["ru"],
-      "targetLanguages": ["en", "de"],
+      "sourceLanguages": [
+        "ru"
+      ],
+      "targetLanguages": [
+        "en",
+        "de"
+      ],
       "sourceUrl": "https://github.com/Badestrand/russian-dictionary",
       "license": "CC-BY-SA-4.0",
       "notes": "Russian headwords, stressed forms, inflections, and English/German glosses. Builds both dictionary packs plus the core stress and frequency assets from a pinned source commit."
     },
     "cc-cedict": {
       "status": "active",
-      "sourceLanguages": ["zh-Hans", "zh-Hant"],
-      "targetLanguages": ["en"],
+      "sourceLanguages": [
+        "zh-Hans",
+        "zh-Hant"
+      ],
+      "targetLanguages": [
+        "en"
+      ],
       "sourceUrl": "https://www.mdbg.net/chinese/dictionary?page=cc-cedict",
       "license": "CC-BY-SA-4.0",
       "notes": "Simplified and Traditional Mandarin headwords, tone-marked pinyin, and English definitions. The reproducible builder downloads the dated Debian source mirror instead of automating the MDBG website."
     },
     "complete-hsk-vocabulary": {
       "status": "active",
-      "sourceLanguages": ["zh-Hans", "zh-Hant"],
+      "sourceLanguages": [
+        "zh-Hans",
+        "zh-Hant"
+      ],
       "targetLanguages": [],
       "sourceUrl": "https://github.com/drkameleon/complete-hsk-vocabulary",
       "license": "MIT",
@@ -69,8 +109,12 @@
     },
     "wadoku": {
       "status": "candidate-needs-review",
-      "sourceLanguages": ["ja"],
-      "targetLanguages": ["de"],
+      "sourceLanguages": [
+        "ja"
+      ],
+      "targetLanguages": [
+        "de"
+      ],
       "sourceUrl": "https://wadoku.eu/",
       "license": "CC-BY-SA-4.0 for known app/source distributions; confirm data export terms before automation",
       "notes": "Likely higher-quality Japanese->German source than raw JMdict German glosses, but automation should wait until the data source and redistribution path are pinned down."

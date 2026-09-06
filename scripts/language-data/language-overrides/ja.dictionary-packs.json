@@ -55,5 +55,24 @@
         "required": true
       }
     ]
+  },
+  "ru": {
+    "targetLanguage": "ru",
+    "name": "Russian",
+    "version": "ja-ru-jmdict-2026.09.07",
+    "assets": [
+      {
+        "id": "dictionary-ru",
+        "path": "dictionaries/ja/ru/dictionary.db",
+        "bundledPath": "dictionaries/ja/ru/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-ru",
+        "path": "dictionaries/ja/ru/metadata.json",
+        "bundledPath": "dictionaries/ja/ru/metadata.json",
+        "required": true
+      }
+    ]
   }
 }

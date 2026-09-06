@@ -27,6 +27,7 @@ XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
 TARGETS = {
     "fr": {"langs": {"fre", "fr"}, "name": "French"},
     "de": {"langs": {"ger", "de"}, "name": "German"},
+    "ru": {"langs": {"rus", "ru"}, "name": "Russian"},
 }
 
 
@@ -308,7 +309,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build Japanese multilingual SQLite dictionaries from JMdict.")
     parser.add_argument("--source", type=Path, help="Path to JMdict XML or JMdict.gz. Downloads JMdict when omitted.")
     parser.add_argument("--url", default=DEFAULT_JMDICT_URL, help="JMdict download URL used when --source is omitted.")
-    parser.add_argument("--targets", nargs="+", choices=sorted(TARGETS), default=["fr", "de"])
+    parser.add_argument("--targets", nargs="+", choices=sorted(TARGETS), default=["fr", "de", "ru"])
     return parser.parse_args()
 
 

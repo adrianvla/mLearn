@@ -3128,3 +3128,71 @@ def test_sudachi_tokenization_is_serialized_across_language_module_instances():
 
         assert first.result(timeout=1)[0]["word"] == "赤い"
         assert second.result(timeout=1)[0]["word"] == "青い"
+
+
+def test_generic_dictionary_pack_schema_override(tmp_path, monkeypatch):
+    """A package may ship a display-language pack in a different dictionary
+    schema than the default pack (runtime.nlp.dictionary.packSchemas.<target>).
+    The loader must dispatch per target: default en keeps the headword-reading
+    schema, the ru pack switches to the simple-glosses schema, and switching
+    back restores the default."""
+    data_root = tmp_path / "language-data"
+    _write_json(
+        data_root / "languages" / "xx.json",
+        {
+            "name": "Pack Schema Language",
+            "runtime": {
+                "nlp": {
+                    "tokenizer": {"type": "unicode-word"},
+                    "dictionary": {
+                        "type": "sqlite-zlib-json",
+                        "schema": "headword-reading-zlib-json",
+                        "renderer": "structured-glosses",
+                        "targetPathTemplate": "dictionaries/xx/{target}/dictionary.db",
+                        "defaultTargetLanguage": "en",
+                        "schemaVersion": "1",
+                        "packSchemas": {
+                            "ru": {
+                                "schema": "simple-headword-zlib-json",
+                                "renderer": "simple-glosses",
+                            }
+                        },
+                    },
+                }
+            },
+        },
+    )
+
+    en_db = data_root / "dictionaries" / "xx" / "en" / "dictionary.db"
+    en_db.parent.mkdir(parents=True)
+    conn = sqlite3.connect(en_db)
+    conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT INTO meta VALUES ('version', '1:test')")
+    conn.execute("CREATE TABLE entries (headword TEXT, reading TEXT, data BLOB)")
+    conn.execute("CREATE TABLE pitch (headword TEXT PRIMARY KEY, data BLOB)")
+    entry = {"word": "字", "reading": "じ", "glosses": ["letter"], "pos": "noun", "notes": []}
+    conn.execute("INSERT INTO entries VALUES (?, ?, ?)", ("字", "じ", _zjson(entry)))
+    conn.commit()
+    conn.close()
+
+    ru_db = data_root / "dictionaries" / "xx" / "ru" / "dictionary.db"
+    ru_db.parent.mkdir(parents=True)
+    conn = sqlite3.connect(ru_db)
+    conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT INTO meta VALUES ('schema_version', '1')")
+    conn.execute("CREATE TABLE entries (id INTEGER PRIMARY KEY AUTOINCREMENT, headword TEXT NOT NULL, headword_lower TEXT NOT NULL, pos TEXT, data BLOB)")
+    conn.execute("INSERT INTO entries (headword, headword_lower, pos, data) VALUES (?, ?, ?, ?)", ("字", "字", None, _zjson({"glosses": ["иероглиф"], "pos": "", "notes": []})))
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setenv("MLEARN_DICTIONARY_TARGET_LANGUAGE", "ru")
+    ru_module = GenericLanguageModule("xx")
+    ru_module.LOAD_MODULE(str(tmp_path), str(data_root))
+    ru_translation = ru_module.LANGUAGE_TRANSLATE("字")
+    assert "иероглиф" in ru_translation["data"][0]["definitions"]
+
+    monkeypatch.setenv("MLEARN_DICTIONARY_TARGET_LANGUAGE", "en")
+    en_module = GenericLanguageModule("xx")
+    en_module.LOAD_MODULE(str(tmp_path), str(data_root))
+    en_translation = en_module.LANGUAGE_TRANSLATE("字")
+    assert "letter" in en_translation["data"][0]["definitions"]

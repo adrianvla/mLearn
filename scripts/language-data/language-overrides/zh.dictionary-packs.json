@@ -4,10 +4,61 @@
     "name": "English",
     "version": "zh-en-cc-cedict-2026.07.31",
     "assets": [
-      {"id":"dictionary-en","path":"dictionaries/zh/en/dictionary.db","bundledPath":"dictionaries/zh/en/dictionary.db","required":true},
-      {"id":"metadata-en","path":"dictionaries/zh/en/metadata.json","bundledPath":"dictionaries/zh/en/metadata.json","required":true},
-      {"id":"license-en","path":"dictionaries/zh/en/LICENSE","bundledPath":"dictionaries/zh/en/LICENSE","required":true},
-      {"id":"readme-en","path":"dictionaries/zh/en/README.md","bundledPath":"dictionaries/zh/en/README.md","required":true}
+      {
+        "id": "dictionary-en",
+        "path": "dictionaries/zh/en/dictionary.db",
+        "bundledPath": "dictionaries/zh/en/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-en",
+        "path": "dictionaries/zh/en/metadata.json",
+        "bundledPath": "dictionaries/zh/en/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-en",
+        "path": "dictionaries/zh/en/LICENSE",
+        "bundledPath": "dictionaries/zh/en/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-en",
+        "path": "dictionaries/zh/en/README.md",
+        "bundledPath": "dictionaries/zh/en/README.md",
+        "required": true
+      }
+    ]
+  },
+  "ru": {
+    "targetLanguage": "ru",
+    "name": "Russian",
+    "version": "zh-ru-dictionary-freedict",
+    "assets": [
+      {
+        "id": "dictionary-ru",
+        "path": "dictionaries/zh/ru/dictionary.db",
+        "bundledPath": "dictionaries/zh/ru/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-ru",
+        "path": "dictionaries/zh/ru/metadata.json",
+        "bundledPath": "dictionaries/zh/ru/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-ru",
+        "path": "dictionaries/zh/ru/LICENSE",
+        "bundledPath": "dictionaries/zh/ru/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-ru",
+        "path": "dictionaries/zh/ru/README.md",
+        "bundledPath": "dictionaries/zh/ru/README.md",
+        "required": true
+      }
     ]
   }
 }

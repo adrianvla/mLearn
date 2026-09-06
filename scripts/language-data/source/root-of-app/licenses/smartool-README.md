@@ -126,11 +126,11 @@ SMARTool_data_A2.csv, SMARTool_data_B1.csv, SMARTool_data_B2.csv.
 
 ### Data-specific information for: SMARTool_data_A1.csv, SMARTool_data_A2.csv, SMARTool_data_B1.csv, SMARTool_data_B2.csv
 
-- Target language lemma:            The lemma of the selected Russian lexemes.
-- ID:                               Unique identifier for each line in the dataset.
-- User language gloss:              English gloss for each target language lemma.
-- English gloss:                    This column is empty.
-- POS:                              Part of speech for each target language lemma.
+- Target language lemma:            The lemma of the selected Russian lexemes. 
+- ID:                               Unique identifier for each line in the dataset. 
+- User language gloss:              English gloss for each target language lemma. 
+- English gloss:                    This column is empty. 
+- POS:                              Part of speech for each target language lemma. 
 - Level:                            CEFR (The Common European Framework of
                                     Reference for Languages) level for each
                                     target language lemma. Values: A1,
@@ -139,34 +139,34 @@ SMARTool_data_A2.csv, SMARTool_data_B1.csv, SMARTool_data_B2.csv.
 
 - Ex. ID:                           The ordinal number of the example sentence for each target language lemma. Values: 1, 2, 3.
 - Form:                             The exact word form of the corresponding target language lemma.
-- Analysis:                         Morphological analysis for each word form.
-- Target language example sentence: The example sentence illustrating the use of corresponding word form in Russian for each target language lemma. In some rows, this column is intentionally left empty.
-- User language translation:        The English translation of the corresponding example sentence.
+- Analysis:                         Morphological analysis for each word form. 
+- Target language example sentence: The example sentence illustrating the use of corresponding word form in Russian for each target language lemma. In some rows, this column is intentionally left empty. 
+- User language translation:        The English translation of the corresponding example sentence. 
 - English translation:              This column is empty.
-- Reference:                        Reference to a particular source for the corresponding example sentence.
+- Reference:                        Reference to a particular source for the corresponding example sentence. 
 - Topic(s):                         Topic or topics to which each target language lemma in the dataset belongs.
 - Lesson:                           The ordinal number of the lesson in “Min
                                     russiske reise” textbook to which each
                                     target language lemma in the dataset
-                                    belongs.
+                                    belongs. 
 - Unnamed column:                   This column can contain the annotators’
                                     comments needed for the internal work on
                                     the project. Most of the rows of
-                                    this column are empty.
+                                    this column are empty. 
 
 
 ### Data-specific information for: SMARTool_data_Abbreviations.csv
 
-- Abbreviation:        The abbreviation that is used in the dataset.
-- Spellout:            The linguistic term that the abbreviation refers to.
+- Abbreviation:        The abbreviation that is used in the dataset. 
+- Spellout:            The linguistic term that the abbreviation refers to. 
 - English gloss:       This column is empty.
 - English translation: This column is empty.
 
 
 ### Data-specific information for: SMARTool_data_Topics.csv
 
-- Topic:                     The topic for lexemes in the dataset in the target language.
-- User language translation: The English translation of the topic.
+- Topic:                     The topic for lexemes in the dataset in the target language. 
+- User language translation: The English translation of the topic. 
 
 
 ## Sharing/access information

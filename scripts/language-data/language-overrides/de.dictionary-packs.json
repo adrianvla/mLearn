@@ -1,0 +1,95 @@
+{
+  "ru": {
+    "targetLanguage": "ru",
+    "name": "Russian",
+    "version": "de-ru-dictionary-freedict",
+    "assets": [
+      {
+        "id": "dictionary-ru",
+        "path": "dictionaries/de/ru/dictionary.db",
+        "bundledPath": "dictionaries/de/ru/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-ru",
+        "path": "dictionaries/de/ru/metadata.json",
+        "bundledPath": "dictionaries/de/ru/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-ru",
+        "path": "dictionaries/de/ru/LICENSE",
+        "bundledPath": "dictionaries/de/ru/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-ru",
+        "path": "dictionaries/de/ru/README.md",
+        "bundledPath": "dictionaries/de/ru/README.md",
+        "required": true
+      }
+    ]
+  },
+  "fr": {
+    "targetLanguage": "fr",
+    "name": "French",
+    "version": "de-fr-dictionary-freedict",
+    "assets": [
+      {
+        "id": "dictionary-fr",
+        "path": "dictionaries/de/fr/dictionary.db",
+        "bundledPath": "dictionaries/de/fr/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-fr",
+        "path": "dictionaries/de/fr/metadata.json",
+        "bundledPath": "dictionaries/de/fr/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-fr",
+        "path": "dictionaries/de/fr/LICENSE",
+        "bundledPath": "dictionaries/de/fr/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-fr",
+        "path": "dictionaries/de/fr/README.md",
+        "bundledPath": "dictionaries/de/fr/README.md",
+        "required": true
+      }
+    ]
+  },
+  "ja": {
+    "targetLanguage": "ja",
+    "name": "Japanese",
+    "version": "de-ja-dictionary-freedict",
+    "assets": [
+      {
+        "id": "dictionary-ja",
+        "path": "dictionaries/de/ja/dictionary.db",
+        "bundledPath": "dictionaries/de/ja/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-ja",
+        "path": "dictionaries/de/ja/metadata.json",
+        "bundledPath": "dictionaries/de/ja/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-ja",
+        "path": "dictionaries/de/ja/LICENSE",
+        "bundledPath": "dictionaries/de/ja/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-ja",
+        "path": "dictionaries/de/ja/README.md",
+        "bundledPath": "dictionaries/de/ja/README.md",
+        "required": true
+      }
+    ]
+  }
+}

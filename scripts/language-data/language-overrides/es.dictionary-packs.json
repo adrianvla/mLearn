@@ -1,13 +1,126 @@
 {
   "en": {
-    "targetLanguage":"en",
-    "name":"English",
-    "version":"es-en-freedict-inverted-2025.11.23-2026.07.19",
-    "assets":[
-      {"id":"dictionary-en","path":"dictionaries/es/en/dictionary.db","bundledPath":"dictionaries/es/en/dictionary.db","required":true},
-      {"id":"metadata-en","path":"dictionaries/es/en/metadata.json","bundledPath":"dictionaries/es/en/metadata.json","required":true},
-      {"id":"license-en","path":"dictionaries/es/en/LICENSE","bundledPath":"dictionaries/es/en/LICENSE","required":true},
-      {"id":"readme-en","path":"dictionaries/es/en/README.md","bundledPath":"dictionaries/es/en/README.md","required":true}
+    "targetLanguage": "en",
+    "name": "English",
+    "version": "es-en-freedict-inverted-2025.11.23-2026.07.19",
+    "assets": [
+      {
+        "id": "dictionary-en",
+        "path": "dictionaries/es/en/dictionary.db",
+        "bundledPath": "dictionaries/es/en/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-en",
+        "path": "dictionaries/es/en/metadata.json",
+        "bundledPath": "dictionaries/es/en/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-en",
+        "path": "dictionaries/es/en/LICENSE",
+        "bundledPath": "dictionaries/es/en/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-en",
+        "path": "dictionaries/es/en/README.md",
+        "bundledPath": "dictionaries/es/en/README.md",
+        "required": true
+      }
+    ]
+  },
+  "ru": {
+    "targetLanguage": "ru",
+    "name": "Russian",
+    "version": "es-ru-dictionary-freedict",
+    "assets": [
+      {
+        "id": "dictionary-ru",
+        "path": "dictionaries/es/ru/dictionary.db",
+        "bundledPath": "dictionaries/es/ru/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-ru",
+        "path": "dictionaries/es/ru/metadata.json",
+        "bundledPath": "dictionaries/es/ru/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-ru",
+        "path": "dictionaries/es/ru/LICENSE",
+        "bundledPath": "dictionaries/es/ru/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-ru",
+        "path": "dictionaries/es/ru/README.md",
+        "bundledPath": "dictionaries/es/ru/README.md",
+        "required": true
+      }
+    ]
+  },
+  "de": {
+    "targetLanguage": "de",
+    "name": "German",
+    "version": "es-de-dictionary-freedict",
+    "assets": [
+      {
+        "id": "dictionary-de",
+        "path": "dictionaries/es/de/dictionary.db",
+        "bundledPath": "dictionaries/es/de/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-de",
+        "path": "dictionaries/es/de/metadata.json",
+        "bundledPath": "dictionaries/es/de/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-de",
+        "path": "dictionaries/es/de/LICENSE",
+        "bundledPath": "dictionaries/es/de/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-de",
+        "path": "dictionaries/es/de/README.md",
+        "bundledPath": "dictionaries/es/de/README.md",
+        "required": true
+      }
+    ]
+  },
+  "fr": {
+    "targetLanguage": "fr",
+    "name": "French",
+    "version": "es-fr-dictionary-freedict",
+    "assets": [
+      {
+        "id": "dictionary-fr",
+        "path": "dictionaries/es/fr/dictionary.db",
+        "bundledPath": "dictionaries/es/fr/dictionary.db",
+        "required": true
+      },
+      {
+        "id": "metadata-fr",
+        "path": "dictionaries/es/fr/metadata.json",
+        "bundledPath": "dictionaries/es/fr/metadata.json",
+        "required": true
+      },
+      {
+        "id": "license-fr",
+        "path": "dictionaries/es/fr/LICENSE",
+        "bundledPath": "dictionaries/es/fr/LICENSE",
+        "required": true
+      },
+      {
+        "id": "readme-fr",
+        "path": "dictionaries/es/fr/README.md",
+        "bundledPath": "dictionaries/es/fr/README.md",
+        "required": true
+      }
     ]
   }
 }

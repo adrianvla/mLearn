@@ -817,19 +817,46 @@ class GenericLanguageModule:
         elif tokenizer_type not in {"none", *ROUGH_TOKENIZER_TYPES}:
             raise RuntimeError(f"Unsupported tokenizer type for {self.language}: {tokenizer_type}")
 
+    def _resolve_pack_schema_overrides(self, target: str | None) -> None:
+        """Apply the target pack's declared dictionary schema/renderer.
+
+        Language packages may ship a dictionary pack in a different schema than
+        the language's default pack (e.g. a simple-glosses Russian display pack
+        for a headword-reading language). The override is declared by the
+        package itself (runtime.nlp.dictionary.packSchemas.<target>) — the
+        runtime never guesses schemas from language identity.
+        """
+        self._dictionary_schema = str(self._dictionary_config.get("schema") or "")
+        self._dictionary_renderer = str(self._dictionary_config.get("renderer") or "")
+        if not target:
+            return
+        pack_schemas = self._dictionary_config.get("packSchemas")
+        if not isinstance(pack_schemas, dict):
+            return
+        override = pack_schemas.get(target)
+        if not isinstance(override, dict):
+            return
+        schema = override.get("schema")
+        if isinstance(schema, str) and schema:
+            self._dictionary_schema = schema
+        renderer = override.get("renderer")
+        if isinstance(renderer, str):
+            self._dictionary_renderer = renderer
+
     def _initialize_dictionary(self) -> None:
         self._ensure_dictionary_connection()
 
     def _ensure_dictionary_connection(self) -> None:
         if self._dictionary_config.get("type") != "sqlite-zlib-json":
             return
-        db_path = self._resolve_dictionary_path()
+        target, db_path = self._resolve_dictionary_target_and_path()
         if db_path is None or not db_path.is_file():
             with self._db_lock:
                 if self._db_conn is not None:
                     self._close_db()
             log.warning("Dictionary database for %s is not installed", self.language)
             return
+        self._resolve_pack_schema_overrides(target)
 
         with self._db_lock:
             if self._db_conn is not None and self._active_dictionary_path == db_path:
@@ -857,9 +884,9 @@ class GenericLanguageModule:
                 atexit.register(self._close_db)
                 self._atexit_registered = True
 
-    def _resolve_dictionary_path(self) -> Path | None:
+    def _resolve_dictionary_target_and_path(self) -> tuple[str | None, Path | None]:
         if self.language_data_dir is None:
-            return None
+            return None, None
         requested_target = _dictionary_target_for_language(self.language) or os.environ.get(DICTIONARY_TARGET_ENV)
         has_requested_target = bool(requested_target)
         default_target = (
@@ -879,13 +906,13 @@ class GenericLanguageModule:
             if candidate is not None:
                 candidates.append(candidate)
                 if has_requested_target:
-                    return candidate
+                    return target, candidate
             else:
                 log.warning("Ignoring unsafe dictionary path for %s: %s", self.language, relative)
                 if has_requested_target:
-                    return None
+                    return target, None
         elif isinstance(template, str) and template and has_requested_target:
-            return None
+            return target, None
         path_value = self._dictionary_config.get("path")
         candidate = _safe_language_data_path(self.language_data_dir, path_value)
         if candidate is not None:
@@ -901,8 +928,8 @@ class GenericLanguageModule:
 
         for candidate in candidates:
             if candidate.is_file():
-                return candidate
-        return candidates[0] if candidates else None
+                return target, candidate
+        return target, candidates[0] if candidates else None
 
     def _verify_db(self, conn: sqlite3.Connection, db_path: Path) -> None:
         expected_schema = self._dictionary_config.get("schemaVersion")
