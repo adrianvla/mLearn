@@ -645,11 +645,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     // D4 lazy salvage: probe the current-version key plus deduplicated legacy
     // ambient-locale casing variants so pre-v2 journal entries remain visible
     // in the history tab.
-    const legacyVariants = legacyCasingCandidates(word);
-    const keys = [...new Set([
+    const legacyVariants = [...new Set(legacyCasingCandidates(word))];
+    const keys = [
       `${settings.language}:${hashWordSync(word)}`,
       ...legacyVariants.map((variant) => `${settings.language}:${hashWordSync(variant)}`),
-    ])];
+    ];
     void getEvents(keys)
       .then((log) => setJournalEvents(log))
       .catch(() => setJournalEvents([]));
