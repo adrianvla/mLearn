@@ -75,9 +75,9 @@ const mLearnIPC = {
   changeUILanguage: (langCode: string) => ipcRenderer.send(IPC_CHANNELS.CHANGE_UI_LANGUAGE, langCode),
 
   // ========== Flashcards ==========
-  getFlashcards: () => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARDS),
+  getFlashcards: (knownRev?: number) => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARDS, knownRev),
   saveFlashcards: (flashcards: FlashcardStore) => ipcRenderer.send(IPC_CHANNELS.SAVE_FLASHCARDS, flashcards),
-  onFlashcards: (callback: (flashcards: FlashcardStore) => void) =>
+  onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) =>
     ipcOn(IPC_CHANNELS.FLASHCARDS_LOADED, (_event, flashcards) => callback(flashcards)),
   onNewDayFlashcards: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS, () => callback()),

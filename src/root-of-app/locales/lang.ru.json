@@ -39,7 +39,46 @@
           "Unknown": "Неизвестно",
           "Predicted": "Прогноз",
           "Unmeasured": "Не измерено"
-        }
+        },
+        "ZoomIn": "Приблизить",
+        "ZoomOut": "Отдалить",
+        "Fit": "Вписать",
+        "CenterState": "Статус слова: {state}",
+        "ShowAll": "Показать все связи ({count})"
+      },
+      "Confidence": "Уверенность",
+      "Provenance": "Источник",
+      "PhraseOf": "{phrase} — {word}",
+      "Relation": {
+        "Realizes": "написание",
+        "SenseOf": "значение",
+        "Pronunciation": "произношение",
+        "Reading": "чтение",
+        "Gender": "род",
+        "PartOfSpeech": "часть речи",
+        "ProsodicPattern": "просодия",
+        "Character": "иероглиф",
+        "Morpheme": "компонент",
+        "FormOf": "форма",
+        "LemmaOf": "лемма",
+        "SpellingVariantOf": "вариант написания",
+        "PartOf": "часть",
+        "DerivedFrom": "производное",
+        "RelatedMeaning": "близкое значение",
+        "RelatedForm": "родственная форма",
+        "ContrastsWith": "противопоставление"
+      },
+      "Kind": {
+        "Entity": "Сущность",
+        "Surface": "Написание",
+        "DictionaryEntry": "Словарная статья",
+        "Lexeme": "Лексема",
+        "Sense": "Значение",
+        "Pronunciation": "Произношение",
+        "Character": "Иероглиф",
+        "Morpheme": "Морфема",
+        "GrammarPattern": "Грамматическая модель",
+        "Analysis": "Анализ"
       }
     },
     "Management": {
@@ -1415,7 +1454,6 @@
           "Known": "Известно по доказательствам",
           "Learning": "Изучается по доказательствам",
           "Unknown": "На основе доказательств: неизвестно",
-          "Title": "Активные доказательства",
           "None": "Нет активных доказательств.",
           "Claim": "Утверждение: {status}",
           "ClaimCleared": "Утверждение снято"
@@ -1423,13 +1461,12 @@
         "Predicted": "Прогноз",
         "Unmeasured": "Не измерено",
         "Because": "Потому что:",
-        "Strength": "Ease {ease} · видено {seen} · наведено {hovered}",
         "Retention": "Давление {pressure} · срок {due}",
         "Tabs": {
-          "Identity": "Идентичность и связи",
-          "Targets": "Цели",
-          "EvidenceHistory": "Доказательства и история",
-          "Prediction": "Прогноз"
+          "Prediction": "Прогноз",
+          "Overview": "Обзор",
+          "Relations": "Связи",
+          "History": "История"
         },
         "Claim": {
           "Known": "Явное утверждение: известно",
@@ -1456,10 +1493,21 @@
             "Grammar": "Грамматика"
           }
         },
-        "Provenance": "Происхождение",
         "FullGraph": "Открыть полный граф",
         "Prediction": {
           "None": "Прогноза нет."
+        },
+        "Adjust": "Изменить",
+        "RetentionTitle": "Повторение",
+        "Relations": {
+          "Sections": {
+            "Meanings": "Значения",
+            "Forms": "Написания",
+            "Related": "Связанные"
+          },
+          "MeaningN": "Значение {n}",
+          "GrammarPattern": "Грамматическая модель",
+          "Advanced": "Технические детали"
         }
       },
       "Aspect": {
@@ -1481,7 +1529,8 @@
           "Status": "Смена статуса",
           "Review": "Повторение",
           "Rating": "Ручная оценка",
-          "Rollup": "Пассивный контакт"
+          "Rollup": "Пассивный контакт",
+          "Claim": "Ручная отметка"
         },
         "Source": {
           "KnownWordsList": "Список известных слов",
@@ -1491,7 +1540,8 @@
           "PassiveTracking": "Пассивное отслеживание",
           "Manual": "Вручную",
           "Grammar": "Грамматика"
-        }
+        },
+        "Times": "{count}×"
       },
       "Actions": {
         "ClearOverride": "Отменить переопределение"

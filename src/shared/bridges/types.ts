@@ -65,9 +65,9 @@ export interface SettingsBridge {
 }
 
 export interface FlashcardBridge {
-  getFlashcards: () => void;
+  getFlashcards: (knownRev?: number) => void;
   saveFlashcards: (flashcards: FlashcardStore) => void;
-  onFlashcards: (callback: (flashcards: FlashcardStore) => void) => () => void;
+  onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;

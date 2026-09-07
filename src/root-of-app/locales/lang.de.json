@@ -39,7 +39,46 @@
           "Unknown": "Unbekannt",
           "Predicted": "Vorhergesagt",
           "Unmeasured": "Ungemessen"
-        }
+        },
+        "ZoomIn": "Vergrößern",
+        "ZoomOut": "Verkleinern",
+        "Fit": "Einpassen",
+        "CenterState": "Bekannt als: {state}",
+        "ShowAll": "Alle {count} Beziehungen anzeigen"
+      },
+      "Confidence": "Konfidenz",
+      "Provenance": "Quelle",
+      "PhraseOf": "{phrase} von {word}",
+      "Relation": {
+        "Realizes": "Schreibweise",
+        "SenseOf": "Bedeutung",
+        "Pronunciation": "Aussprache",
+        "Reading": "Lesung",
+        "Gender": "Genus",
+        "PartOfSpeech": "Wortart",
+        "ProsodicPattern": "Prosodisches Muster",
+        "Character": "Schriftzeichen",
+        "Morpheme": "Bestandteil",
+        "FormOf": "Form",
+        "LemmaOf": "Grundform",
+        "SpellingVariantOf": "Schreibvariante",
+        "PartOf": "Bestandteil",
+        "DerivedFrom": "abgeleitete Form",
+        "RelatedMeaning": "verwandte Bedeutung",
+        "RelatedForm": "verwandte Form",
+        "ContrastsWith": "Kontrast"
+      },
+      "Kind": {
+        "Entity": "Entität",
+        "Surface": "Schreibform",
+        "DictionaryEntry": "Wörterbucheintrag",
+        "Lexeme": "Lexem",
+        "Sense": "Sinn",
+        "Pronunciation": "Aussprache",
+        "Character": "Schriftzeichen",
+        "Morpheme": "Morphem",
+        "GrammarPattern": "Grammatisches Muster",
+        "Analysis": "Analyse"
       }
     },
     "Management": {
@@ -1415,7 +1454,6 @@
           "Known": "Evidenzbasiert bekannt",
           "Learning": "Evidenzbasiert lernend",
           "Unknown": "Evidenzbasiert unbekannt",
-          "Title": "Aktive Evidenz",
           "None": "Keine aktive Evidenz.",
           "Claim": "Einschätzung: {status}",
           "ClaimCleared": "Einschätzung aufgehoben"
@@ -1423,13 +1461,12 @@
         "Predicted": "Vorhergesagt",
         "Unmeasured": "Nicht gemessen",
         "Because": "Weil:",
-        "Strength": "Ease {ease} · gesehen {seen} · gehovert {hovered}",
         "Retention": "Druck {pressure} · fällig {due}",
         "Tabs": {
-          "Identity": "Identität & Beziehungen",
-          "Targets": "Ziele",
-          "EvidenceHistory": "Evidenz & Verlauf",
-          "Prediction": "Vorhersage"
+          "Prediction": "Vorhersage",
+          "Overview": "Übersicht",
+          "Relations": "Beziehungen",
+          "History": "Verlauf"
         },
         "Claim": {
           "Known": "Eigene Einschätzung: bekannt",
@@ -1456,10 +1493,21 @@
             "Grammar": "Grammatik"
           }
         },
-        "Provenance": "Herkunft",
         "FullGraph": "Vollständigen Graphen öffnen",
         "Prediction": {
           "None": "Keine Vorhersage."
+        },
+        "Adjust": "Anpassen",
+        "RetentionTitle": "Wiederholungen",
+        "Relations": {
+          "Sections": {
+            "Meanings": "Bedeutungen",
+            "Forms": "Schreibweisen",
+            "Related": "Verwandte"
+          },
+          "MeaningN": "Bedeutung {n}",
+          "GrammarPattern": "Grammatisches Muster",
+          "Advanced": "Technische Details"
         }
       },
       "Aspect": {
@@ -1481,7 +1529,8 @@
           "Status": "Statusänderung",
           "Review": "Wiederholung",
           "Rating": "Manuelle Bewertung",
-          "Rollup": "Passive Exposition"
+          "Rollup": "Passive Exposition",
+          "Claim": "Festlegung"
         },
         "Source": {
           "KnownWordsList": "Liste bekannter Wörter",
@@ -1491,7 +1540,8 @@
           "PassiveTracking": "Passives Tracking",
           "Manual": "Manuell",
           "Grammar": "Grammatik"
-        }
+        },
+        "Times": "{count}×"
       },
       "Actions": {
         "ClearOverride": "Überschreibung aufheben"

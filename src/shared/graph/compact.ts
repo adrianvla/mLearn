@@ -22,10 +22,10 @@ import {
  * stringTable). Future optimization target: avoid eager denseOf for all
  * entities (hash-prefix on demand), consider string-table interning or a
  * keyed on-disk index so resident size tracks the artifact (ja artifact is
- * 132 MB / 30 MB gzipped), not 8× it. Related transient cost: Electron main's
- * LinguisticGraphService caches one full plain-object replica per loaded
- * language (built on first projection use); compact-native traversal in
- * buildKnowledgeProjection would remove that replica too.
+ * 132 MB / 30 MB gzipped), not 8× it. Replica resolution: the electron-main
+ * LinguisticGraphService no longer builds a plain-object replica — it serves
+ * projections through the lazy compact view (shared/graph/compactView.ts),
+ * which materializes objects only for touched nodes' edges.
  */
 
 /** Order-stable wire ids shared by compact graph producers and consumers. */
@@ -46,7 +46,7 @@ export const COMPACT_RELATION_TYPES = [
   'analyzes',
   'analysis-member',
 ] as const satisfies readonly GraphRelationType[];
-const COMPACT_DOMAINS = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
+export const COMPACT_DOMAINS = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
 const KIND_IDS = new Map(COMPACT_ENTITY_KINDS.map((kind, id) => [kind, id]));
 const TYPE_IDS = new Map<GraphRelationType, number>(COMPACT_RELATION_TYPES.map((type, id) => [type, id]));
 const DOMAIN_IDS = new Map(COMPACT_DOMAINS.map((domain, id) => [domain, id]));
@@ -247,14 +247,18 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     }
     return id;
   };
-  const adjacency = Array.from({ length: kindIds.length }, () => [] as Array<{ target: number; type: number; confidence?: number; transparency?: number; predictability?: number; provenance?: number; order?: number; role?: number }>);
+  type CompactEdge = { target: number; type: number; confidence?: number; transparency?: number; predictability?: number; provenance?: number; order?: number; role?: number };
+  const edgeKey = (target: number, edge: CompactEdge): string =>
+    `${target}|${edge.type}|${edge.confidence ?? ''}|${edge.transparency ?? ''}|${edge.predictability ?? ''}|${edge.provenance ?? ''}|${edge.order ?? ''}|${edge.role ?? ''}`;
+  const adjacency = Array.from({ length: kindIds.length }, () => [] as CompactEdge[]);
+  const rowKeys = Array.from({ length: kindIds.length }, () => new Set<string>());
   for (const relation of asset.relations) {
     const from = entityIds.get(relation.from);
     const to = entityIds.get(relation.to);
     const coreType = TYPE_IDS.get(relation.type as CoreGraphRelationType);
     const type = coreType ?? extensionTypeId(relation.type);
     if (from === undefined || to === undefined) throw new GraphLoadError(`Relation references unknown entity: ${relation.from} -> ${relation.to}`);
-    const encoded = {
+    const encoded: CompactEdge = {
       target: to,
       type,
       confidence: relation.confidence,
@@ -264,8 +268,21 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
       order: relation.order,
       role: relation.role === undefined ? undefined : stringId(relation.role),
     };
+    const forwardKey = edgeKey(to, encoded);
+    const reverseKey = edgeKey(from, encoded);
+    // Each directed adjacency entry appears once per row. An explicitly
+    // authored reverse relation (symmetric `semantically-related` pairs) or a
+    // repeated identical relation must not double the CSR entry — the mirror
+    // write already covers the reverse row, and duplicated rows decode to
+    // duplicate neighbors. Relations differing in ANY qualifier (e.g. ordered
+    // `has-character` members of the same pair) keep distinct entries.
+    if (rowKeys[from].has(forwardKey) && rowKeys[to].has(reverseKey)) continue;
     adjacency[from].push(encoded);
-    adjacency[to].push({ ...encoded, target: from });
+    rowKeys[from].add(forwardKey);
+    if (!rowKeys[to].has(reverseKey)) {
+      adjacency[to].push({ ...encoded, target: from });
+      rowKeys[to].add(reverseKey);
+    }
   }
 
   const offsets = [0];

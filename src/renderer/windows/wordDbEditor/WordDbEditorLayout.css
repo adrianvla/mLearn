@@ -74,15 +74,6 @@
   gap: 0.35rem;
 }
 
-/* Capability chips are the widest part of the knowledge column — they only
-   fit beside the pill/actions on wide windows, and their data also lives one
-   click away in the Inspect drawer. */
-@container (max-width: 1099px) {
-  .col.knowledge .knowledge-capability-chips {
-    display: none;
-  }
-}
-
 /* Below this the level column loses the fight for space; the level stays
    visible on the word's Inspect drawer and hover. */
 @container (max-width: 719px) {

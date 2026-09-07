@@ -5,7 +5,7 @@
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, GraphNeighborhoodViz, PillLabel, AnkiHoverPreview, KnowledgeCapabilityChips, KnowledgeProjectionDrawer, ReadinessGate, deriveReadiness, SkeletonRows, type InspectorTab } from '../../../components/common';
+import { Btn, GraphNeighborhoodViz, Modal, PillLabel, AnkiHoverPreview, KnowledgeProjectionDrawer, ReadinessGate, deriveReadiness, SkeletonRows, type InspectorTab } from '../../../components/common';
 import { assembleWordKnowledgeModel } from '../../../components/common/KnowledgeProjection/wordKnowledgeModel';
 import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
@@ -157,7 +157,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const graph = useOptionalGraph();
   const [projection, setProjection] = createSignal<KnowledgeProjection>();
   const [showKnowledgeDetails, setShowKnowledgeDetails] = createSignal(false);
-  const [drawerTab, setDrawerTab] = createSignal<InspectorTab>('targets');
+  const [drawerTab, setDrawerTab] = createSignal<InspectorTab>('overview');
   const [events, setEvents] = createSignal<KnowledgeEvent[]>();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
@@ -169,7 +169,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     .filter((capability): capability is RatedCapability => capability !== 'sense-recognition')
     .map((capability) => {
       const state = getAccessStatus(props.entry.word, capability, settings.language);
-      return { capability, status: state.status, claim: state.claim };
+      return { capability, status: state.status, claim: state.claim, basis: state.basis, untracked: state.untracked === true };
     }));
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const prosodyOverlayRenderer = createMemo(() => (
@@ -181,7 +181,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   ));
   let rowRef: HTMLDivElement | undefined;
 
+  // Hidden by default: the projection and journal feed only the inspector
+  // drawer, so they are fetched when it opens — never per row mount. (The
+  // row itself shows the pill; per-capability chips live in the popup.)
   createEffect(() => {
+    if (!showKnowledgeDetails()) {
+      setProjection(undefined);
+      setEvents(undefined);
+      return;
+    }
     const word = props.entry.word;
     const language = settings.language;
     let disposed = false;
@@ -190,14 +198,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     }).catch(() => {
       if (!disposed) setProjection({ status: 'error', targets: [] });
     });
-    onCleanup(() => { disposed = true; });
-  });
-  // Full journal (incl. claim events) for the Evidence & History inspector tab.
-  createEffect(() => {
-    const word = props.entry.word;
-    const language = settings.language;
     eventsVersion();
-    let disposed = false;
     try {
       void getEvents([`${language}:${hashWordSync(word)}`]).then((log) => {
         if (!disposed) setEvents(log);
@@ -216,9 +217,10 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // `neighborhood() === null` is ambiguous (in flight vs genuinely absent);
   // this flag is the explicit pending half of the readiness pair.
   const [neighborhoodPending, setNeighborhoodPending] = createSignal(false);
-  // Track the entry's graph surface id as the projection resolves; resets on entry swap.
+  // Track the entry's graph surface id (stable hash of the word — identical
+  // to the main-side surface id derivation); resets on entry swap.
   createEffect(() => {
-    setGraphEntityId(projection()?.surfaceId);
+    setGraphEntityId(`${settings.language}:surface:${hashWordSync(props.entry.word)}`);
     setNeighborhood(null);
     setNeighborhoodPending(false);
   });
@@ -568,8 +570,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           word={props.entry.word}
           onStatusChange={(status) => props.onStatusChange(props.entry, status)}
         />
-        <KnowledgeCapabilityChips projection={projection()} />
-        <Btn variant="ghost" size="sm" onClick={() => { setDrawerTab('targets'); setShowKnowledgeDetails(true); }}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
+        <Btn variant="ghost" size="sm" onClick={() => { setDrawerTab('overview'); setShowKnowledgeDetails(true); }}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
         <Btn variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Btn>
         <KnowledgeProjectionDrawer
           model={wordKnowledge()}
@@ -668,33 +669,38 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         </Show>
       </div>
     </div>
-    <Show when={showGraph()}>
-      <section class="entry__graph">
-        <header class="entry__graph-header">
-          <strong>{t('mlearn.GraphInspector.Neighborhood.Title')}</strong>
-          <Show when={graphEntityId()}>
-            {(id) => <Btn variant="ghost" size="sm" onClick={() => openGraphInspector({ entityId: id() })}>{t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}</Btn>}
-          </Show>
-        </header>
-        <Show when={graph.meta().ready} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Unavailable')}</p>}>
-          <Show when={graphEntityId()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
-            {/* Pending ≠ not-in-graph: the skeleton holds only while the
-                lookup is in flight; absence resolves to the explicit note. */}
-            <ReadinessGate when={deriveReadiness({ pending: neighborhoodPending })} instant fallback={<SkeletonRows rows={2} />}>
-            <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
-              {(value) => (
-                <GraphNeighborhoodViz
-                  neighborhood={value()}
-                  centerState={graphCenterState()}
-                  onSelect={setGraphEntityId}
-                />
-              )}
-            </Show>
-            </ReadinessGate>
-          </Show>
+    {/* Portal-based modal: the neighborhood never expands inside the
+        virtualized table (the old inline section overlapped rows and broke
+        row heights). Lazy fetches stay gated on showGraph. */}
+    <Modal
+      isOpen={showGraph()}
+      onClose={() => setShowGraph(false)}
+      title={t('mlearn.GraphInspector.Neighborhood.Title')}
+      size="lg"
+      footer={
+        <Show when={graphEntityId()}>
+          {(id) => <Btn variant="secondary" size="sm" onClick={() => openGraphInspector({ entityId: id() })}>{t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}</Btn>}
         </Show>
-      </section>
-    </Show>
+      }
+    >
+      <Show when={graph.meta().ready} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Unavailable')}</p>}>
+        <Show when={graphEntityId()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
+          {/* Pending ≠ not-in-graph: the skeleton holds only while the
+              lookup is in flight; absence resolves to the explicit note. */}
+          <ReadinessGate when={deriveReadiness({ pending: neighborhoodPending })} instant fallback={<SkeletonRows rows={2} />}>
+          <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
+            {(value) => (
+              <GraphNeighborhoodViz
+                neighborhood={value()}
+                centerState={graphCenterState()}
+                onSelect={setGraphEntityId}
+              />
+            )}
+          </Show>
+          </ReadinessGate>
+        </Show>
+      </Show>
+    </Modal>
     </>
   );
 };

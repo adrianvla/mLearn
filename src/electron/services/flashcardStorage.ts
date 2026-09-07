@@ -1144,14 +1144,47 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
   return finalizeStore(result);
 }
 
+/**
+ * Mutation-owned in-memory store. Reads are pure memory: before this, every
+ * knowledge projection, window-focus sync, and tethered read re-read,
+ * re-parsed, and double-stringified the full store — seconds of main-thread
+ * churn per word hover and the OOM when the Word DB list scrolled. Mutations
+ * (saveFlashcards, and migrations/sync merges that save through it) update
+ * the cache as part of the mutation; reads never pay I/O. Direct disk writes
+ * that bypass this module (tests, exceptional external edits) must call
+ * invalidateFlashcardsCache() — per-read mtime watching would put I/O back
+ * on the read path. The cached object is shared read-only between mutations.
+ */
+let cachedStore: FlashcardStore | undefined;
+let cachedStorePath: string | undefined;
+let inflightLoad: Promise<FlashcardStore> | undefined;
+
+export function invalidateFlashcardsCache(): void {
+  cachedStore = undefined;
+  cachedStorePath = undefined;
+}
+
 export async function loadFlashcards(): Promise<FlashcardStore> {
+  const filePath = getFlashcardsPath();
+  if (cachedStore && cachedStorePath === filePath) return cachedStore;
+  if (inflightLoad) return inflightLoad;
+  const load = loadFlashcardsFromDisk(filePath).finally(() => {
+    if (inflightLoad === load) inflightLoad = undefined;
+  });
+  inflightLoad = load;
+  return load;
+}
+
+async function loadFlashcardsFromDisk(filePath: string): Promise<FlashcardStore> {
   try {
-    const filePath = getFlashcardsPath();
     try {
       await fs.promises.access(filePath);
     } catch (e) {
       log.error("error", e);
-      return { ...DEFAULT_FLASHCARD_STORE };
+      const empty = { ...DEFAULT_FLASHCARD_STORE };
+      cachedStore = empty;
+      cachedStorePath = filePath;
+      return empty;
     }
     const data = await fs.promises.readFile(filePath, 'utf-8');
     const parsed: unknown = JSON.parse(data);
@@ -1159,7 +1192,10 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
 
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
       log.warn('[flashcardStorage] Loaded JSON is not a plain object — using defaults');
-      return { ...DEFAULT_FLASHCARD_STORE };
+      const empty = { ...DEFAULT_FLASHCARD_STORE };
+      cachedStore = empty;
+      cachedStorePath = filePath;
+      return empty;
     }
 
     const store = checkFlashcards(parsed);
@@ -1173,6 +1209,8 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
       await saveFlashcards(store);
     }
 
+    cachedStore = store;
+    cachedStorePath = filePath;
     return store;
   } catch (error) {
     log.error('Failed to load flashcards:', error);
@@ -1182,12 +1220,16 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
 
 export async function saveFlashcards(store: FlashcardStore): Promise<void> {
   return enqueueWrite(async () => {
+    // Monotonic store revision: every persisted write invalidates older
+    // client snapshots so the sync server can reject them with HTTP 409.
+    store.rev = (store.rev ?? 0) + 1;
+    extractBase64Images(store);
+    // Mutation-owned cache: the in-memory store becomes this object even if
+    // the disk write fails — renderer state stays authoritative and the next
+    // mutation retries persistence.
+    cachedStore = store;
+    cachedStorePath = getFlashcardsPath();
     try {
-      // Monotonic store revision: every persisted write invalidates older
-      // client snapshots so the sync server can reject them with HTTP 409.
-      store.rev = (store.rev ?? 0) + 1;
-      extractBase64Images(store);
-
       const filePath = getFlashcardsPath();
       const tmpPath = `${filePath}.tmp`;
       const dir = path.dirname(filePath);
@@ -1214,15 +1256,18 @@ export async function getFlashcardEaseMap(): Promise<Record<string, number>> {
       map[flashcard.content.front] = flashcard.ease;
     }
   }
-  
+
   return map;
 }
 
 export function setupFlashcardIPC(): void {
-  ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, async (event) => {
+  ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, async (event, knownRev?: number) => {
     const flashcards = await loadFlashcards();
-    event.reply(IPC_CHANNELS.FLASHCARDS_LOADED, flashcards);
-    
+    // Focus/visibility sync: an unchanged rev skips the multi-MB store ship.
+    // The renderer treats a null payload as "nothing to reconcile".
+    const unchanged = knownRev != null && knownRev === (flashcards.rev ?? 0);
+    event.reply(IPC_CHANNELS.FLASHCARDS_LOADED, unchanged ? null : flashcards);
+
     if (migrationInfo.occurred) {
       event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
       migrationInfo = { occurred: false, backupPath: null, fromVersion: null };
@@ -1232,7 +1277,7 @@ export function setupFlashcardIPC(): void {
   ipcMain.on(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore) => {
     void saveFlashcards(store);
   });
-  
+
   ipcMain.on(IPC_CHANNELS.GET_FLASHCARD_MIGRATION_INFO, (event) => {
     event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
   });

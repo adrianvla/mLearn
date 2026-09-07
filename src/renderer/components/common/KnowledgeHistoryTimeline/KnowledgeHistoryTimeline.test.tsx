@@ -8,11 +8,8 @@ import { KnowledgeHistoryTimeline, type HistoryEvent } from './KnowledgeHistoryT
 vi.mock('../../../context', () => ({
   useLocalization: () => ({ t: (key: string) => key }),
 }));
-const events = (now: number): KnowledgeEvent[] => [
-  { t: now - 26 * 3600_000 - 60_000, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'good' },
-  { t: now - 3600_000, kind: 'claim', source: 'manual', aspect: 'meaning', fromStatus: 'learning', toStatus: 'known' },
-  { t: now - 26 * 3600_000, kind: 'review', source: 'anki', aspect: 'meaning', rating: 'easy' },
-];
+
+const DAY = 24 * 3600_000;
 
 describe('KnowledgeHistoryTimeline', () => {
   let container: HTMLDivElement;
@@ -27,44 +24,83 @@ describe('KnowledgeHistoryTimeline', () => {
   });
 
   it('groups events by day with Today/Yesterday labels, newest day first', () => {
-    // Anchor at local noon: ±26h offsets then always land on distinct calendar
+    // Anchor at local noon: ±26h offsets always land on distinct calendar
     // days, no matter what wall-clock time the suite runs at.
     const noon = new Date();
     noon.setHours(12, 0, 0, 0);
     const now = noon.getTime();
-    const dispose = render(
-      () => <KnowledgeHistoryTimeline events={events(now) as HistoryEvent[]} />,
-      container,
-    );
+    const events: KnowledgeEvent[] = [
+      { t: now - DAY - 60_000, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'good' },
+      { t: now - 3600_000, kind: 'claim', source: 'manual', aspect: 'meaning', fromStatus: 'learning', toStatus: 'known' },
+      { t: now - DAY, kind: 'review', source: 'anki', aspect: 'meaning', rating: 'easy' },
+    ];
+    const dispose = render(() => <KnowledgeHistoryTimeline events={events as HistoryEvent[]} />, container);
 
-    const days = Array.from(container.querySelectorAll('.knowledge-timeline__day-label'))
-      .map((el) => el.textContent);
+    const days = Array.from(container.querySelectorAll('.knowledge-timeline__day-label')).map((el) => el.textContent);
     expect(days).toEqual(['mlearn.Knowledge.History.Today', 'mlearn.Knowledge.History.Yesterday']);
 
     const today = container.querySelectorAll('.knowledge-timeline__day')[0];
     expect(today?.textContent).toContain('mlearn.Knowledge.History.Kind.Claim');
-    // Transition detail: aspect → status, drawn from the journal event.
     expect(today?.textContent).toContain('mlearn.Knowledge.Aspect.Meaning');
     expect(today?.textContent).toContain('mlearn.WordHover.Status.Known');
 
     dispose();
   });
 
-  it('renders a claim as the user statement, distinct from evidence rows', () => {
+  it('aggregates repetitive same-outcome rows behind one count and expands to individual events', () => {
     const now = Date.now();
-    const dispose = render(
-      () => <KnowledgeHistoryTimeline events={events(now) as HistoryEvent[]} />,
-      container,
-    );
+    const events: KnowledgeEvent[] = [
+      { t: now - 3600_000, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known' },
+      { t: now - 7200_000, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known' },
+      { t: now - 10_800_000, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known' },
+    ];
+    const dispose = render(() => <KnowledgeHistoryTimeline events={events as HistoryEvent[]} />, container);
 
-    const claimRow = container.querySelector('.knowledge-timeline__event--claim');
-    expect(claimRow?.textContent).toContain('mlearn.Knowledge.History.Kind.Claim');
-    expect(container.querySelector('.knowledge-timeline__event--rating')).not.toBeNull();
+    // One summary row, not three raw log lines.
+    expect(container.querySelectorAll('.knowledge-timeline__summary')).toHaveLength(1);
+    expect(container.querySelector('.knowledge-timeline__summary')?.textContent).toContain('mlearn.Knowledge.History.Times');
+    expect(container.querySelectorAll('.knowledge-timeline__events li')).toHaveLength(0);
+
+    (container.querySelector('.knowledge-timeline__summary') as HTMLButtonElement).click();
+    const expanded = container.querySelectorAll('.knowledge-timeline__events li');
+    expect(expanded).toHaveLength(3);
 
     dispose();
   });
 
-  it('renders nothing without events', () => {
+  it('renders a claim as the user statement, distinct from evidence rows', () => {
+    const now = Date.now();
+    const events: KnowledgeEvent[] = [
+      { t: now - 3600_000, kind: 'claim', source: 'manual', aspect: 'meaning', fromStatus: 'learning', toStatus: 'known' },
+      { t: now - 7200_000, kind: 'review', source: 'anki', aspect: 'meaning', rating: 'easy' },
+    ];
+    const dispose = render(() => <KnowledgeHistoryTimeline events={events as HistoryEvent[]} />, container);
+
+    const claimRow = container.querySelector('.knowledge-timeline__entry--claim');
+    expect(claimRow?.textContent).toContain('mlearn.Knowledge.History.Kind.Claim');
+    const reviewRow = container.querySelector('.knowledge-timeline__entry--review');
+    expect(reviewRow?.textContent).toContain('mlearn.Knowledge.History.Source.Anki');
+
+    dispose();
+  });
+
+  it('keeps different outcomes in separate rows even within one day', () => {
+    const now = Date.now();
+    const events: KnowledgeEvent[] = [
+      { t: now - 3600_000, kind: 'rating', source: 'srs', aspect: 'reading', quality: 'fluent' },
+      { t: now - 7200_000, kind: 'rating', source: 'srs', aspect: 'reading', quality: 'struggled' },
+    ];
+    const dispose = render(() => <KnowledgeHistoryTimeline events={events as HistoryEvent[]} />, container);
+
+    // Distinct outcomes stay separate single rows (aggregation only merges identical ones).
+    expect(container.querySelectorAll('.knowledge-timeline__event')).toHaveLength(2);
+    expect(container.textContent).toContain('mlearn.Rating.Matrix.Fluent');
+    expect(container.textContent).toContain('mlearn.Rating.Matrix.Struggled');
+
+    dispose();
+  });
+
+  it('renders nothing when there are no events', () => {
     const dispose = render(() => <KnowledgeHistoryTimeline events={[]} />, container);
     expect(container.querySelector('.knowledge-timeline')).toBeNull();
     dispose();

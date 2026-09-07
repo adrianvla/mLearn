@@ -12,6 +12,7 @@ import Cross from './raw/Cross';
 import Cross2 from './raw/Cross2';
 import Document from './raw/Document';
 import FastForward from './raw/FastForward';
+import FitView from './raw/FitView';
 import Palette from './raw/Palette';
 import Pause from './raw/Pause';
 import Pin from './raw/Pin';
@@ -23,6 +24,8 @@ import Stars from './raw/Stars';
 import Stats from './raw/Stats';
 import Subtitles from './raw/Subtitles';
 import Volume from './raw/Volume';
+import ZoomIn from './raw/ZoomIn';
+import ZoomOut from './raw/ZoomOut';
 import {BookIcon, LinkIcon, TargetIcon} from "@/renderer";
 
 interface IconProps {
@@ -43,6 +46,7 @@ const iconMap = {
     cross2: Cross2,
     document: Document,
     'fast-forward': FastForward,
+    fit: FitView,
     link:LinkIcon,
     'mlearn-logo': MLearnLogo,
     palette: Palette,
@@ -51,6 +55,8 @@ const iconMap = {
     pip: Pip,
     play: Play,
     sidebar: Sidebar,
+    'zoom-in': ZoomIn,
+    'zoom-out': ZoomOut,
     star: Star,
     stars: Stars,
     stats: Stats,

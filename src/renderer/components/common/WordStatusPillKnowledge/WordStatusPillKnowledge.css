@@ -2,8 +2,16 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  width: min(300px, calc(100vw - var(--spacing-4)));
+  width: min(360px, calc(100vw - var(--spacing-4)));
   min-width: 220px;
+}
+
+/* The rating matrix is tighter here than in full-window contexts: let the
+   label column take its content width and lean on the quality columns for
+   the remainder so capability names never clip. */
+.word-status-knowledge .rating-matrix__head,
+.word-status-knowledge .rating-matrix__row {
+  grid-template-columns: minmax(max-content, 7.5em) repeat(3, minmax(3.5em, 1fr)) minmax(3.5em, 1fr);
 }
 
 .word-status-knowledge__summary {

@@ -172,6 +172,57 @@ describe('CompactLingualGraph', () => {
     expect(encodeCompact(asset).relations.roleStringIds).toBeUndefined();
   });
 
+  it('encodes an explicitly symmetric relation once per row instead of duplicating CSR entries', () => {
+    const h0 = surfaceEntityId('ja', 'h-0');
+    const h1 = surfaceEntityId('ja', 'h-1');
+    const symmetric: LinguisticGraphAsset = {
+      ...asset,
+      relations: [
+        { from: h0, to: h1, type: 'semantically-related', provenance: 'fixture' },
+        { from: h1, to: h0, type: 'semantically-related', provenance: 'fixture' },
+      ],
+    };
+    const encoded = encodeCompact(symmetric);
+    const row = (dense: number): number[] =>
+      encoded.relations.targets.slice(encoded.relations.offsets[dense], encoded.relations.offsets[dense + 1]);
+    expect(row(1)).toEqual([2]);
+    expect(row(2)).toEqual([1]);
+    const compact = decodeCompact(encoded);
+    expect(compact.neighborsByCategory(h0, 'support')).toEqual([h1]);
+    expect(compact.neighborsByCategory(h1, 'support')).toEqual([h0]);
+  });
+
+  it('keeps ordered member edges distinct while deduplicating their authored reverses', () => {
+    const h0 = surfaceEntityId('ja', 'h-0');
+    const charId = 'ja:char:test';
+    const ordered: LinguisticGraphAsset = {
+      ...asset,
+      entities: [...asset.entities, { id: charId, kind: 'character', label: '橋' }],
+      relations: [
+        { from: h0, to: charId, type: 'has-character', provenance: 'fixture', order: 0 },
+        { from: h0, to: charId, type: 'has-character', provenance: 'fixture', order: 1 },
+        { from: charId, to: h0, type: 'has-character', provenance: 'fixture', order: 0 },
+        { from: charId, to: h0, type: 'has-character', provenance: 'fixture', order: 1 },
+      ],
+    };
+    const encoded = encodeCompact(ordered);
+    const rowEdges = (dense: number): Array<{ target: number; order: number }> => {
+      const edges: Array<{ target: number; order: number }> = [];
+      for (let edge = encoded.relations.offsets[dense]; edge < encoded.relations.offsets[dense + 1]; edge += 1) {
+        edges.push({ target: encoded.relations.targets[edge], order: encoded.relations.orders![edge] });
+      }
+      return edges;
+    };
+    expect(rowEdges(1)).toEqual([
+      { target: 4, order: 0 },
+      { target: 4, order: 1 },
+    ]);
+    expect(rowEdges(4)).toEqual([
+      { target: 1, order: 0 },
+      { target: 1, order: 1 },
+    ]);
+  });
+
   it('rejects non-namespaced extension identifiers', () => {
     const extended: LinguisticGraphAsset = {
       ...asset,

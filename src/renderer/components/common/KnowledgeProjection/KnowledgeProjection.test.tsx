@@ -16,29 +16,18 @@ vi.mock('../../../context', () => ({
   useSettings: () => ({ settings: { language: 'ja' } }),
   useLanguage: () => ({
     installLanguageData: installLanguageDataMock,
-    getLanguageDataStatus: () => ({ assets: [{ path: 'languages/ja.graph.json' }] }),
+    getLanguageDataStatus: () => ({ assets: [{ path: 'ja.graph.json' }] }),
   }),
 }));
 
 vi.mock('../../../context/GraphContext', () => ({
   useOptionalGraph: () => ({
     meta: () => graphMeta,
-    readiness: () => graphMeta.status === 'ready' ? 'ready' : graphMeta.status === 'error' ? 'failed' : 'unavailable',
-    lookupWord: lookupWordMock,
-    getNeighborhood: getNeighborhoodMock,
-    getRelated: async () => [],
-    getTargetsForSurfaces: async () => [],
+    readiness: () => (graphMeta.ready ? 'ready' : 'unavailable'),
+    lookupWord: (input: { surface?: string }) => lookupWordMock(input),
+    getNeighborhood: (query: { entityId: string; depth?: number }) => getNeighborhoodMock(query),
   }),
 }));
-
-const evidenceProjection: KnowledgeProjection = {
-  status: 'ready',
-  targets: [{ targetRef: { kind: 'surface', id: 'surface-id' }, applicableCapabilities: ['surface-recognition'], states: [{
-    capability: 'surface-recognition', classification: 'known', basis: 'evidence',
-    evidence: [{ timestamp: 1, source: 'Anki' }, { timestamp: 2, source: 'Flashcards' }],
-    evidenceSourceCounts: { Anki: 1, Flashcards: 1 },
-  }] }],
-};
 
 const inspectorProjection: KnowledgeProjection = {
   status: 'ready',
@@ -52,7 +41,7 @@ const inspectorProjection: KnowledgeProjection = {
         evidence: [{ timestamp: 1, source: 'Anki' }],
         evidenceSourceCounts: { Anki: 1 },
         retention: { pressure: 0.3, dueAt: 1000 },
-        prediction: { value: 0.62, reasons: ['ja:surface:inu → ja:sense:s1 (semantically-related)'] },
+        prediction: { value: 0.62, reasons: ['ja:surface:inu → ja:dictionary-entry:e1 (realizes)'] },
       }],
     },
     {
@@ -64,6 +53,16 @@ const inspectorProjection: KnowledgeProjection = {
       }],
     },
   ],
+};
+
+const comprehensive = {
+  status: 'known' as const,
+  basis: 'claim' as const,
+  evidenceStatus: 'unknown' as const,
+  source: 'Manual' as const,
+  timesSeen: 0,
+  excluded: false,
+  claim: 'known' as const,
 };
 
 const journal: KnowledgeEvent[] = [
@@ -91,14 +90,14 @@ function neighborhoodLookup() {
   });
 }
 
-const flushAsync = () => new Promise((resolve) => setTimeout(resolve, 0));
+const flushAsync = () => { const { promise, resolve } = Promise.withResolvers<void>(); setTimeout(resolve, 0); return promise; };
 
 async function renderDrawer(overrides: Partial<{
-  surface: string;
-  events: KnowledgeEvent[];
   initialTab: string;
   projection: KnowledgeProjection;
-  model: Parameters<typeof assembleWordKnowledgeModel>[0];
+  events: KnowledgeEvent[];
+  onWordClaim: (claim: string | null) => void;
+  onAccessClaim: (capability: string, claim: string | null) => void;
   onSelectEntity: (entityId: string) => void;
   onGraph: (entityId: string) => void;
 }> = {}) {
@@ -113,18 +112,18 @@ async function renderDrawer(overrides: Partial<{
     querySelectorAll: (selector: string) => document.querySelectorAll(selector),
     get textContent() { return document.body.textContent ?? ''; },
   } as unknown as HTMLDivElement;
-  const model = overrides.model ? assembleWordKnowledgeModel(overrides.model) : undefined;
+  const model = assembleWordKnowledgeModel({ comprehensive, projection: overrides.projection ?? inspectorProjection, events: 'events' in overrides ? overrides.events : journal });
   const dispose = render(() => (
     <KnowledgeProjectionDrawer
-      projection={model ? undefined : (overrides.projection ?? inspectorProjection)}
       model={model}
       open={true}
       onClose={() => undefined}
       onGraph={overrides.onGraph}
       onSelectEntity={overrides.onSelectEntity}
-      surface={overrides.surface ?? '猫'}
-      events={model ? undefined : (overrides.events ?? journal)}
-      initialTab={overrides.initialTab as 'identity' | 'targets' | 'evidence' | 'prediction' | undefined}
+      surface="猫"
+      initialTab={overrides.initialTab as 'overview' | 'relations' | 'history' | 'prediction' | undefined}
+      onWordClaim={overrides.onWordClaim}
+      onAccessClaim={overrides.onAccessClaim as never}
     />
   ), host);
   await flushAsync();
@@ -132,15 +131,7 @@ async function renderDrawer(overrides: Partial<{
   return { host: portalScope, dispose };
 }
 
-describe('KnowledgeCapabilityChips', () => {
-  it('keeps multiple evidence sources distinct instead of claiming one global source', async () => {
-    const { KnowledgeCapabilityChips } = await import('./KnowledgeProjection');
-    const host = document.createElement('div');
-    render(() => <KnowledgeCapabilityChips projection={evidenceProjection} />, host);
-    expect(host.textContent).not.toContain('Source:');
-    expect(host.querySelector('.knowledge-chip small')?.getAttribute('title')).toContain('Anki: 1, Flashcards: 1');
-  });
-
+describe('knowledgeTone', () => {
   it('renders predicted, unmeasured, and claim/evidence tones as distinct non-evidence tokens', () => {
     expect(knowledgeTone({ basis: 'prediction', classification: 'predicted' })).toBe('predicted');
     expect(knowledgeTone({ basis: 'unmeasured', classification: 'unmeasured' })).toBe('unmeasured');
@@ -150,7 +141,7 @@ describe('KnowledgeCapabilityChips', () => {
   });
 });
 
-describe('KnowledgeProjectionDrawer inspector', () => {
+describe('KnowledgeProjectionDrawer overview', () => {
   beforeEach(() => {
     installLanguageDataMock.mockReset();
     lookupWordMock.mockReset();
@@ -163,76 +154,81 @@ describe('KnowledgeProjectionDrawer inspector', () => {
     document.body.innerHTML = '';
   });
 
-  it('shows dictionary identity and relations grouped by category with provenance on the identity tab', async () => {
+  it('opens on the overview tab with the word header, overall status, and basis', async () => {
     const { host, dispose } = await renderDrawer();
-    expect(host.querySelector('.knowledge-drawer__identity')).not.toBeNull();
-    expect(host.textContent).toContain('猫');
-    expect(host.textContent).toContain('ねこ');
-    // The full pronunciation list renders first; realizes is property;
-    // semantically-related is support with the not-knowledge caption.
-    const relations = host.querySelectorAll('.knowledge-drawer__relations li');
-    expect(relations.length).toBe(3);
-    expect(host.textContent).toContain('realizes');
-    expect(host.textContent).toContain('semantically-related');
-    expect(host.textContent).toContain('jmdict');
-    expect(host.textContent).toContain('mlearn.GraphInspector.SupportCaption');
+    expect(host.querySelector('.knowledge-drawer__surface')?.textContent).toBe('猫');
+    expect(host.querySelector('.knowledge-drawer__overall-status')?.textContent).toBe('mlearn.WordHover.Status.Known');
+    expect(host.querySelector('.knowledge-drawer__overall-basis')?.textContent).toBe('mlearn.Knowledge.Basis.Claim');
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Tabs.Overview');
     expect(lookupWordMock).toHaveBeenCalledWith({ surface: '猫' });
-    expect(getNeighborhoodMock).toHaveBeenCalledWith({ entityId: 'ja:surface:hash', depth: 1 });
     dispose();
   });
 
-  it('shows basis tokens per target and an explicit-claim override distinctly on the targets tab', async () => {
-    const { host, dispose } = await renderDrawer({ initialTab: 'targets' });
-    const targets = host.querySelectorAll('.knowledge-drawer__target');
-    expect(targets.length).toBe(2);
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Claim.Known');
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.ClaimOverride');
-    expect(host.textContent).toContain('mlearn.Knowledge.Basis.Unmeasured');
-    expect(host.textContent).not.toContain('mlearn.Knowledge.Basis.Claim');
-    dispose();
-  });
-
-  it('renders the full journal as an event-first timeline with claims distinct from ratings', async () => {
-    const { host, dispose } = await renderDrawer({ initialTab: 'evidence' });
-    const timeline = host.querySelectorAll('.knowledge-timeline__event');
-    expect(timeline.length).toBeGreaterThan(0);
-    const claimRows = host.querySelectorAll('.knowledge-timeline__event--claim');
-    expect(claimRows.length).toBe(2);
-    expect(host.textContent).toContain('mlearn.Knowledge.History.Kind.Claim');
-    expect(host.textContent).toContain('mlearn.Knowledge.History.Source.Anki');
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Provenance');
-    expect(host.textContent).toContain('Anki 1');
-    dispose();
-  });
-
-  it('shows prediction value and reasons visually separate from evidence', async () => {
-    const { host, dispose } = await renderDrawer({ initialTab: 'prediction' });
-    expect(host.textContent).toContain('62%');
-    expect(host.textContent).toContain('ja:surface:inu → ja:sense:s1 (semantically-related)');
-    expect(host.querySelector('.knowledge-drawer__prediction.knowledge-state--predicted')).not.toBeNull();
-    dispose();
-  });
-
-  it('honestly degrades when the graph is not installed and offers the install affordance', async () => {
-    graphMeta = { entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' };
+  it('presents capabilities as readable cards with friendly labels and why lines', async () => {
     const { host, dispose } = await renderDrawer();
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.NotInstalled');
-    const install = host.querySelector('.knowledge-drawer__install') as HTMLButtonElement | null;
-    expect(install).not.toBeNull();
-    install?.click();
-    expect(installLanguageDataMock).toHaveBeenCalledWith('ja');
+    const cards = host.querySelectorAll('.knowledge-card');
+    expect(cards.length).toBeGreaterThan(1);
+    const overall = host.querySelector('.knowledge-card--overall');
+    expect(overall?.textContent).toContain('mlearn.Knowledge.Popup.Overall');
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Why.Claim');
+    // No raw entity id leaks anywhere; capability labels resolve through keys.
+    expect(host.textContent).not.toContain('ja:surface:');
+    expect(host.textContent).toContain('mlearn.Knowledge.Capability.surface-recognition');
     dispose();
   });
 
-  it('honestly degrades when the graph is ready but the surface is absent from it', async () => {
-    lookupWordMock.mockResolvedValue(null);
-    const { host, dispose } = await renderDrawer();
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.NoGraph');
+  it('keeps claim editing behind the Adjust disclosure and routes word claims', async () => {
+    const onWordClaim = vi.fn();
+    const { host, dispose } = await renderDrawer({ onWordClaim });
+    // Editing controls are hidden until Adjust.
+    expect(host.querySelector('.knowledge-claim-controls')).toBeNull();
+    const adjust = Array.from(host.querySelectorAll('.knowledge-card--overall button')).find((button) => button.textContent === 'mlearn.Knowledge.Projection.Adjust') as HTMLButtonElement;
+    adjust.click();
+    const controls = host.querySelector('.knowledge-card--overall .knowledge-claim-controls')!;
+    expect(controls).not.toBeNull();
+    const known = Array.from(controls.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.WordHover.Status.Known') as HTMLButtonElement;
+    known.click();
+    expect(onWordClaim).toHaveBeenCalledWith('known');
+    dispose();
+  });
+
+  it('falls back to passive familiarity, never evidence, when the graph is absent', async () => {
+    const { KnowledgeProjectionDrawer } = await import('./KnowledgeProjection');
+    const mountHost = document.createElement('div');
+    document.body.appendChild(mountHost);
+    const model = assembleWordKnowledgeModel({
+      comprehensive: { ...comprehensive, status: 'unknown', basis: 'unmeasured', claim: undefined, timesSeen: 7 },
+      projection: { status: 'ready', targets: [] },
+      events: [],
+    });
+    const dispose = render(() => (
+      <KnowledgeProjectionDrawer model={model} open onClose={() => undefined} surface="猫" />
+    ), mountHost);
+    await flushAsync();
+    expect(document.body.textContent).toContain('mlearn.Knowledge.Projection.Why.Passive');
+    expect(document.body.textContent).not.toContain('mlearn.Knowledge.Projection.Why.Evidence');
+    dispose();
+  });
+
+  it('marks exclusion from the model aggregate', async () => {
+    const { KnowledgeProjectionDrawer } = await import('./KnowledgeProjection');
+    const mountHost = document.createElement('div');
+    document.body.appendChild(mountHost);
+    const model = assembleWordKnowledgeModel({
+      comprehensive: { ...comprehensive, excluded: true, claim: undefined, status: 'unknown', basis: 'unmeasured' },
+      projection: inspectorProjection,
+      events: [],
+    });
+    const dispose = render(() => (
+      <KnowledgeProjectionDrawer model={model} open onClose={() => undefined} surface="猫" />
+    ), mountHost);
+    await flushAsync();
+    expect(document.body.textContent).toContain('mlearn.Knowledge.Projection.Excluded');
     dispose();
   });
 });
 
-describe('Identity tab navigation and completeness (REQ63/REQ29)', () => {
+describe('KnowledgeProjectionDrawer relations', () => {
   beforeEach(() => {
     installLanguageDataMock.mockReset();
     lookupWordMock.mockReset();
@@ -245,12 +241,35 @@ describe('Identity tab navigation and completeness (REQ63/REQ29)', () => {
     document.body.innerHTML = '';
   });
 
+  it('groups relations as human concepts without leaking raw ontology names', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.Sections.Pronunciations');
+    expect(host.textContent).toContain('ねこ');
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Relations.Sections.Forms');
+    expect(host.textContent).toContain('猫');
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Relations.Sections.Related');
+    expect(host.textContent).toContain('犬');
+    // Raw relation type and provenance stay behind the advanced toggle.
+    expect(host.textContent).not.toContain('realizes');
+    expect(host.textContent).not.toContain('semantically-related');
+    expect(host.textContent).not.toContain('jmdict');
+    dispose();
+  });
+
+  it('reveals raw ontology metadata only under the advanced details toggle', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
+    const toggle = host.querySelector('.knowledge-relations__meta-toggle') as HTMLButtonElement;
+    toggle.click();
+    expect(host.textContent).toContain('realizes');
+    expect(host.textContent).toContain('jmdict');
+    dispose();
+  });
+
   it('makes every relation row recenter the drawer and host graph via onSelectEntity', async () => {
     const onSelectEntity = vi.fn();
-    const { host, dispose } = await renderDrawer({ onSelectEntity });
-    const relationButton = Array.from(host.querySelectorAll('.knowledge-drawer__relation')).find((button) => button.textContent?.includes('realizes')) as HTMLButtonElement | null;
-    expect(relationButton).not.toBeNull();
-    relationButton!.click();
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations', onSelectEntity });
+    const row = Array.from(host.querySelectorAll('.knowledge-relations__row')).find((button) => button.textContent?.includes('猫')) as HTMLButtonElement;
+    row.click();
     await flushAsync();
     await flushAsync();
     expect(onSelectEntity).toHaveBeenCalledWith('ja:dictionary-entry:e1');
@@ -261,12 +280,10 @@ describe('Identity tab navigation and completeness (REQ63/REQ29)', () => {
 
   it('keeps openGraphInspector as the secondary affordance per relation row', async () => {
     const onGraph = vi.fn();
-    const { host, dispose } = await renderDrawer({ onGraph });
-    const relationLi = Array.from(host.querySelectorAll('.knowledge-drawer__relations li')).find((li) => li.textContent?.includes('realizes')) as HTMLLIElement | null;
-    expect(relationLi).not.toBeNull();
-    const openButton = relationLi!.querySelector('.knowledge-drawer__relation-open') as HTMLButtonElement | null;
-    expect(openButton).not.toBeNull();
-    openButton!.click();
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations', onGraph });
+    const item = Array.from(host.querySelectorAll('.knowledge-relations__item')).find((li) => li.textContent?.includes('猫')) as HTMLLIElement;
+    const openButton = item.querySelector('.knowledge-relations__open') as HTMLButtonElement;
+    openButton.click();
     expect(onGraph).toHaveBeenCalledWith('ja:dictionary-entry:e1');
     dispose();
   });
@@ -281,14 +298,13 @@ describe('Identity tab navigation and completeness (REQ63/REQ29)', () => {
       ],
     }).mockResolvedValue(null);
     const onSelectEntity = vi.fn();
-    const { host, dispose } = await renderDrawer({ onSelectEntity });
-    (host.querySelector('.knowledge-drawer__relation') as HTMLButtonElement).click();
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations', onSelectEntity });
+    (host.querySelector('.knowledge-relations__row') as HTMLButtonElement).click();
     await flushAsync();
     await flushAsync();
     expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.NotInGraph');
-    const back = host.querySelector('.knowledge-drawer__degraded .knowledge-drawer__install') as HTMLButtonElement | null;
-    expect(back).not.toBeNull();
-    back!.click();
+    const back = host.querySelector('.knowledge-drawer__degraded .knowledge-drawer__install') as HTMLButtonElement;
+    back.click();
     await flushAsync();
     await flushAsync();
     expect(host.textContent).not.toContain('mlearn.Knowledge.Projection.Identity.NotInGraph');
@@ -308,40 +324,12 @@ describe('Identity tab navigation and completeness (REQ63/REQ29)', () => {
       ],
     });
     lookupWordMock.mockResolvedValue({ surfaceId: 'ja:surface:hash', entries: [], lexemes: [], senses: [], pronunciations: [] });
-    const { host, dispose } = await renderDrawer();
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
     expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.Sections.Morphology');
     expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.Sections.Characters');
-    // Each moved relation renders once — no duplication in the category groups.
-    expect(host.querySelectorAll('.knowledge-drawer__relations li')).toHaveLength(4);
-    dispose();
-  });
-
-  it('omits morphology, character, and grammar sections when the payload lacks them', async () => {
-    lookupWordMock.mockResolvedValue({ surfaceId: 'ja:surface:hash', entries: [], lexemes: [], senses: [], pronunciations: [] });
-    const { host, dispose } = await renderDrawer();
-    expect(host.textContent).not.toContain('mlearn.Knowledge.Projection.Identity.Sections.Morphology');
-    expect(host.textContent).not.toContain('mlearn.Knowledge.Projection.Identity.Sections.Characters');
-    expect(host.textContent).not.toContain('mlearn.Knowledge.Projection.Identity.Sections.Pronunciations');
-    expect(host.textContent).not.toContain('mlearn.Knowledge.Projection.Identity.Sections.Grammar');
-    dispose();
-  });
-
-  it('renders the full pronunciation list, not just the first reading', async () => {
-    lookupWordMock.mockResolvedValue({
-      surfaceId: 'ja:surface:hash',
-      entries: [{ id: 'ja:dictionary-entry:e1', kind: 'dictionary-entry', label: '猫' }],
-      lexemes: [{ id: 'ja:lexeme:neko', kind: 'lexeme', label: '猫' }],
-      senses: [{ id: 'ja:sense:s1', kind: 'sense', label: 'cat' }],
-      pronunciations: [
-        { id: 'ja:pronunciation:neko', kind: 'pronunciation', label: 'ねこ' },
-        { id: 'ja:pronunciation:neko-kana', kind: 'pronunciation', label: 'ネコ' },
-      ],
-    });
-    const { host, dispose } = await renderDrawer();
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.Sections.Pronunciations');
-    expect(host.textContent).toContain('ねこ');
-    expect(host.textContent).toContain('ネコ');
-    expect(host.textContent).not.toContain('mlearn.Knowledge.Projection.Identity.Reading');
+    // lemma-of is identity → Written forms; each moved relation renders once.
+    const rows = host.querySelectorAll('.knowledge-relations__row');
+    expect(rows.length).toBe(4);
     dispose();
   });
 
@@ -361,32 +349,33 @@ describe('Identity tab navigation and completeness (REQ63/REQ29)', () => {
         },
       ],
     };
-    const { host, dispose } = await renderDrawer({ projection, onSelectEntity });
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations', projection, onSelectEntity });
     expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.Sections.Grammar');
-    expect(host.textContent).toContain('ja:grammar:ている');
-    const grammarRow = Array.from(host.querySelectorAll('.knowledge-drawer__relation')).find((button) => button.textContent?.includes('ja:grammar:ている')) as HTMLButtonElement;
+    const grammarRow = Array.from(host.querySelectorAll('.knowledge-relations__row')).find((button) => button.textContent?.includes('mlearn.Knowledge.Projection.Relations.GrammarPattern')) as HTMLButtonElement;
     grammarRow.click();
     expect(onSelectEntity).toHaveBeenCalledWith('ja:grammar:ている');
     dispose();
   });
 
-  it('shows the center capability states carried on the neighborhood payload', async () => {
-    getNeighborhoodMock.mockResolvedValue({
-      center: { id: 'ja:surface:hash', kind: 'surface', label: '猫' },
-      centerDenseId: 0,
-      relationCount: 1,
-      relations: [
-        { id: 'ja:dictionary-entry:e1', kind: 'dictionary-entry', label: '猫', relationType: 'realizes' },
-      ],
-      centerStates: [{ capability: 'surface-recognition', classification: 'known', basis: 'evidence' }],
-    });
-    const { host, dispose } = await renderDrawer();
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Evidence.Known');
+  it('honestly degrades when the graph is not installed and offers the install affordance', async () => {
+    graphMeta = { entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' };
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.NotInstalled');
+    const install = host.querySelector('.knowledge-drawer__install') as HTMLButtonElement;
+    install.click();
+    expect(installLanguageDataMock).toHaveBeenCalledWith('ja');
+    dispose();
+  });
+
+  it('honestly degrades when the graph is ready but the surface is absent from it', async () => {
+    lookupWordMock.mockResolvedValue(null);
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.NoGraph');
     dispose();
   });
 });
 
-describe('WHY narrative, exclusion badge, and aggregate in the drawer (REQ29/REQ4/REQ34)', () => {
+describe('KnowledgeProjectionDrawer history and prediction', () => {
   beforeEach(() => {
     installLanguageDataMock.mockReset();
     lookupWordMock.mockReset();
@@ -399,23 +388,39 @@ describe('WHY narrative, exclusion badge, and aggregate in the drawer (REQ29/REQ
     document.body.innerHTML = '';
   });
 
-  it('shows a WHY line per capability traceable to the explanation fields', async () => {
-    const { host, dispose } = await renderDrawer({ initialTab: 'targets' });
-    // Claim basis → 'Your claim'; unmeasured without familiarity → honest unmeasured.
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Why.Claim');
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Why.Unmeasured');
+  it('renders the journal through the aggregated timeline with claims distinct', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'history' });
+    expect(host.querySelector('.knowledge-timeline')).not.toBeNull();
+    expect(host.textContent).toContain('mlearn.Knowledge.History.Kind.Claim');
+    expect(host.textContent).toContain('mlearn.Knowledge.History.Source.Anki');
     dispose();
   });
 
-  it('marks teaching-policy exclusion in the drawer header from the model, orthogonal to status', async () => {
-    const { host, dispose } = await renderDrawer({
-      model: {
-        comprehensive: { status: 'unknown', basis: 'unmeasured', evidenceStatus: 'unknown', source: 'None', timesSeen: 0, excluded: true },
-        projection: inspectorProjection,
-        events: journal,
-      },
-    });
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Excluded');
+  it('shows the honest empty history state when the journal is empty', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'history', events: [] });
+    expect(host.textContent).toContain('mlearn.Knowledge.History.Empty');
+    dispose();
+  });
+
+  it('shows prediction confidence and support paths resolved to words, never ids', async () => {
+    const projection: KnowledgeProjection = {
+      ...inspectorProjection,
+      targets: [{
+        targetRef: { kind: 'grammar-pattern', id: 'ja:grammar:pattern' },
+        applicableCapabilities: ['grammar-recognition'],
+        states: [{
+          capability: 'grammar-recognition', classification: 'predicted', basis: 'prediction',
+          evidence: [], evidenceSourceCounts: {},
+          prediction: { value: 0.62, reasons: ['ja:surface:inu → ja:dictionary-entry:e1 (realizes)'] },
+        }],
+      }],
+    };
+    const { host, dispose } = await renderDrawer({ initialTab: 'prediction', projection });
+    expect(host.textContent).toContain('62%');
+    expect(host.textContent).toContain('mlearn.GraphInspector.PredictionFirewall');
+    // Both path ids resolve against the neighborhood (犬, 猫); the raw ids never render.
+    expect(host.textContent).toContain('犬 → 猫');
+    expect(host.textContent).not.toContain('ja:surface:inu');
     dispose();
   });
 

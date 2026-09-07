@@ -8,6 +8,8 @@ import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationV
 import { clearMappingTables, registerMappingTable } from '../../shared/languageFeatures';
 
 let tempDir: TempDir;
+let loadFlashcards: () => Promise<FlashcardStore>;
+let invalidateFlashcardsCache: () => void;
 
 vi.mock('electron', () => ({ ipcMain: { on: vi.fn() } }));
 vi.mock('../utils/platform', () => ({ getUserDataPath: vi.fn(() => tempDir.tmpDir) }));
@@ -60,10 +62,15 @@ function writePackage(): void {
   fs.mkdirSync(languages, { recursive: true });
   fs.writeFileSync(path.join(languages, 'zh.json'), JSON.stringify(zhMetadata));
   fs.writeFileSync(path.join(languages, 'zh.t2s.json'), JSON.stringify(table));
+  // A newly installed package can unblock deferred migrations — the same
+  // invalidation the production installer performs.
+  invalidateFlashcardsCache();
 }
 
 function write(input: FlashcardStore): void {
   fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), JSON.stringify(input));
+  // Direct disk writes bypass the mutation-owned in-process store cache.
+  invalidateFlashcardsCache();
 }
 
 function backups(): string[] {
@@ -71,14 +78,13 @@ function backups(): string[] {
 }
 
 describe('flashcardStorage v2→v3 zh variant migration', () => {
-  let loadFlashcards: () => Promise<FlashcardStore>;
 
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-fc-migration-');
     vi.resetModules();
     mockLoadLangData.mockReturnValue({ zh: zhMetadata });
     mockLoadSettings.mockReturnValue({ frequencyProviderSelections: {}, frequencyLevelSystemSelections: {} } as Settings);
-    ({ loadFlashcards } = await import('./flashcardStorage'));
+    ({ loadFlashcards, invalidateFlashcardsCache } = await import('./flashcardStorage'));
   });
   afterEach(() => tempDir.cleanup());
 

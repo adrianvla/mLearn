@@ -462,14 +462,27 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return SRS.previewAnswers(card, store.meta);
   };
 
+  // Hydrated-once flag: the knowledge gate exists so UI never renders a
+  // half-migrated store. Only the FIRST load (and migrations) needs to close
+  // it — a focus-sync redelivery of an identical or merely merged store must
+  // not unmount every gated pill/hover (the "refocus recomputes everything"
+  // jank).
+  let storeHydrated = false;
   // Handle loaded flashcards (used by IPC listener registered once in onMount;
-  // sync/visibility can re-deliver the store later, reopening the gate).
-  const handleFlashcardsLoaded = (loaded: FlashcardStore) => {
-    setIsKnowledgeReady(false);
+  // sync/visibility can re-deliver the store later).
+  const handleFlashcardsLoaded = (loaded: FlashcardStore | null) => {
+    // Unchanged-rev probe reply: the main process already holds this exact
+    // store — nothing to reconcile, nothing to re-render.
+    if (!loaded) return;
     const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
+    if (storeHydrated && checked.rev != null && checked.rev === store.rev) return;
+    if (!storeHydrated) setIsKnowledgeReady(false);
     setStore(reconcile(checked));
-    void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
-    void migrateLegacyEpistemicState().finally(() => setIsKnowledgeReady(true));
+    if (!storeHydrated) {
+      void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
+      void migrateLegacyEpistemicState().finally(() => setIsKnowledgeReady(true));
+    }
+    storeHydrated = true;
     refreshQueue();
     setIsLoading(false);
   };
@@ -885,17 +898,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   // Immediate save (used by debounced save and cleanup)
   const saveFlashcardsImmediate = () => {
-    let serializedStore: FlashcardStore;
-    try {
-      // structuredClone(unwrap(...)) unwraps the reactive proxy without the
-      // JSON string round trip — the clone of the full store ran on the main
-      // thread after every debounced write (hover tracking included) and was
-      // a measured ~100ms jank source in the Reader.
-      serializedStore = structuredClone(unwrap(store));
-    } catch (e) {
-      log.error('Failed to serialize flashcard store:', e);
-      return;
-    }
+    // unwrap() exposes the raw (non-reactive) store tree; ipcRenderer.send and
+    // postMessage serialize it synchronously at call time. An explicit
+    // structuredClone here would double the clone of the full store on every
+    // debounced write (hover tracking included) on the Reader's main thread.
+    const serializedStore: FlashcardStore = unwrap(store) as FlashcardStore;
 
     if (isElectron()) {
       getBridge().flashcards.saveFlashcards(serializedStore);
@@ -4326,7 +4333,9 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
       if (isElectron()) {
-        getBridge().flashcards.getFlashcards();
+        // Rev probe: the main process skips the multi-MB store ship entirely
+        // when this window already holds the current revision.
+        getBridge().flashcards.getFlashcards(store.rev);
       }
     }
   };

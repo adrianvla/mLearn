@@ -7,11 +7,7 @@ import type { TargetState } from '../../../../shared/graph/explanations';
 import { GraphNeighborhoodViz, layoutNeighborhood } from './GraphNeighborhoodViz';
 
 vi.mock('../../../context', () => ({
-  useLocalization: () => ({
-    t: (key: string, params?: Record<string, string | number>) => (
-      params ? `${key}:${params.shown}/${params.total}` : key
-    ),
-  }),
+  useLocalization: () => ({ t: (key: string) => key }),
 }));
 
 /** Spec story: inspecting 殖える exposes entry realization, lemma identity, pronunciation, and 増える as support. */
@@ -20,12 +16,43 @@ const neighborhood: GraphNeighborhood = {
   centerDenseId: 7,
   relationCount: 4,
   relations: [
-    { id: 'ja:entry:1602440', kind: 'dictionary-entry', label: '殖える', relationType: 'realizes', domain: 'common', confidence: 1, provenance: 'jmdict' },
+    { id: 'ja:dictionary-entry:ueru', kind: 'dictionary-entry', label: '殖える', relationType: 'realizes', provenance: 'jmdict' },
     { id: 'ja:lexeme:ueru', kind: 'lexeme', label: '殖える', relationType: 'lemma-of' },
-    { id: 'ja:pronunciation:fueru', kind: 'pronunciation', label: 'ふえる', relationType: 'has-pronunciation' },
-    { id: 'ja:surface:fueru', kind: 'surface', label: '増える', relationType: 'semantically-related', confidence: 0.9, provenance: 'coocurrence' },
+    { id: 'ja:pronunciation:ueru', kind: 'pronunciation', label: 'うえる', relationType: 'has-pronunciation' },
+    { id: 'ja:surface:fueru', kind: 'surface', label: '増える', relationType: 'semantically-related', confidence: 0.9 },
   ],
 };
+
+describe('layoutNeighborhood', () => {
+  it('places the center plus every relation as nodes, honestly counting truncation', () => {
+    const layout = layoutNeighborhood(neighborhood, 3);
+    // maxNodes includes the center: 3 → center + 2 relations, 2 truncated.
+    expect(layout.nodes).toHaveLength(2);
+    expect(layout.truncated).toBe(2);
+    const full = layoutNeighborhood(neighborhood);
+    expect(full.nodes).toHaveLength(4);
+    expect(full.truncated).toBe(0);
+    expect(full.center.label).toBe('殖える');
+  });
+
+  it('never overlaps chips and keeps the center pinned at the viewport middle', () => {
+    const layout = layoutNeighborhood(neighborhood);
+    for (let i = 0; i < layout.nodes.length; i++) {
+      for (let j = i + 1; j < layout.nodes.length; j++) {
+        const a = layout.nodes[i];
+        const b = layout.nodes[j];
+        const overlapX = (a.w + b.w) / 2 - Math.abs(a.x - b.x);
+        const overlapY = (a.h + b.h) / 2 - Math.abs(a.y - b.y);
+        expect(overlapX <= 0 || overlapY <= 0).toBe(true);
+      }
+    }
+    expect(layout.center.x).toBeGreaterThan(0);
+  });
+
+  it('is deterministic for identical payloads', () => {
+    expect(layoutNeighborhood(neighborhood)).toEqual(layoutNeighborhood(neighborhood));
+  });
+});
 
 describe('GraphNeighborhoodViz', () => {
   let container: HTMLDivElement;
@@ -34,96 +61,110 @@ describe('GraphNeighborhoodViz', () => {
     container.remove();
   });
 
-  function mount(props: { centerState?: TargetState; maxNodes?: number; onSelect?: (id: string) => void } = {}) {
+  function mount(props: { centerState?: TargetState; onSelect?: (id: string) => void } = {}) {
     container = document.createElement('div');
     document.body.appendChild(container);
-    const dispose = render(() => (
-      <GraphNeighborhoodViz
-        neighborhood={neighborhood}
-        centerState={props.centerState}
-        maxNodes={props.maxNodes}
-        onSelect={props.onSelect}
-      />
-    ), container);
+    const dispose = render(
+      () => (
+        <GraphNeighborhoodViz
+          neighborhood={neighborhood}
+          centerState={props.centerState}
+          onSelect={props.onSelect}
+        />
+      ),
+      container,
+    );
     return dispose;
   }
 
-  it('renders the center and each relation as nodes and edges', () => {
-    mount();
-    expect(container.querySelectorAll('.graph-viz__node').length).toBe(5);
-    expect(container.querySelectorAll('.graph-viz__edge').length).toBe(4);
-    expect(container.querySelector('.graph-viz__node--center .graph-viz__label')?.textContent).toBe('殖える');
-    const labels = Array.from(container.querySelectorAll('.graph-viz__node .graph-viz__label'), (node) => node.textContent);
-    expect(labels).toContain('ふえる');
-    expect(labels).toContain('増える');
+  const chips = () => container.querySelectorAll('.graph-viz__node .graph-viz__chip');
+
+  it('renders the center and each relation as labeled chip nodes with typed edges', () => {
+    const dispose = mount();
+    expect(chips()).toHaveLength(5); // center + 4 relations
+    expect(container.querySelectorAll('.graph-viz__edge')).toHaveLength(4);
+    expect(container.textContent).toContain('殖える');
+    expect(container.textContent).toContain('増える');
+    dispose();
   });
 
-  it('distinguishes identity, property, and support edges and nodes', () => {
-    mount();
-    expect(container.querySelector('.graph-viz__edge--identity')).not.toBeNull();
-    expect(container.querySelector('.graph-viz__edge--property')).not.toBeNull();
-    expect(container.querySelector('.graph-viz__edge--support')).not.toBeNull();
-    expect(container.querySelector('.graph-viz__node--identity')).not.toBeNull();
-    expect(container.querySelector('.graph-viz__node--property')).not.toBeNull();
-    expect(container.querySelector('.graph-viz__node--support')).not.toBeNull();
-    expect(container.querySelectorAll('.graph-viz__edge--property').length).toBe(2);
+  it('exposes legend chips with counts that filter categories', () => {
+    const dispose = mount();
+    const legend = Array.from(container.querySelectorAll('.graph-viz__legend-chip'));
+    expect(legend).toHaveLength(3);
+    const support = legend.find((chip) => chip.textContent?.includes('mlearn.GraphInspector.support')) as HTMLButtonElement;
+    expect(support.textContent).toContain('1');
+    support.click();
+    // Support node filtered out of the layout.
+    expect(chips()).toHaveLength(4);
+    dispose();
   });
 
-  it('exposes relation type, domain, confidence, and provenance on inspect', () => {
-    mount();
-    const pronunciationNode = container.querySelector('g[aria-label="ふえる"]');
-    expect(pronunciationNode?.querySelector('title')?.textContent).toContain('has-pronunciation');
-    const edgeTitles = Array.from(container.querySelectorAll('.graph-viz__edge title'), (title) => title.textContent);
-    expect(edgeTitles).toContain('realizes · common · 1 · jmdict');
-    expect(edgeTitles).toContain('semantically-related · 0.9 · coocurrence');
+  it('selects a relation node on click and shows a humanized detail panel', () => {
+    const dispose = mount();
+    const node = Array.from(container.querySelectorAll('.graph-viz__node')).find((el) => el.getAttribute('aria-label') === '増える')!;
+    node.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    expect(node.classList.contains('graph-viz__node--selected')).toBe(true);
+    const detail = container.querySelector('.graph-viz__detail');
+    expect(detail?.textContent).toContain('mlearn.GraphInspector.Kind.Surface');
+    expect(detail?.textContent).toContain('mlearn.GraphInspector.PhraseOf');
+    expect(detail?.textContent).toContain('90%');
+    // Raw relation type stays out of the primary panel copy.
+    expect(detail?.textContent).not.toContain('semantically-related');
+    dispose();
   });
 
-  it('recenters via onSelect when a relation node is clicked or activated by keyboard', () => {
+  it('navigates via double-click and via the detail-panel action', () => {
     const onSelect = vi.fn();
-    mount({ onSelect });
-    const node = container.querySelector<SVGGElement>('g[aria-label="ふえる"]');
-    node!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onSelect).toHaveBeenCalledWith('ja:pronunciation:fueru');
-    const supportNode = container.querySelector<SVGGElement>('g[aria-label="増える"]');
-    supportNode!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    const dispose = mount({ onSelect });
+    const node = Array.from(container.querySelectorAll('.graph-viz__node')).find((el) => el.getAttribute('aria-label') === '増える')!;
+    node.dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true }));
     expect(onSelect).toHaveBeenCalledWith('ja:surface:fueru');
+    node.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    const navigate = Array.from(container.querySelectorAll('.graph-viz__detail button')).find((button) => button.textContent === 'mlearn.GraphInspector.SelectEntity') as HTMLButtonElement;
+    navigate.click();
+    expect(onSelect).toHaveBeenCalledWith('ja:surface:fueru');
+    dispose();
   });
 
-  it('shows the center learner state chip only when a TargetState is provided', () => {
-    mount({ centerState: 'predicted' });
-    expect(container.querySelector('.graph-viz__chip--predicted')?.textContent).toBe('mlearn.GraphInspector.Neighborhood.State.Predicted');
-    expect(container.querySelector('.graph-viz__state-dot--predicted')).not.toBeNull();
-    mount();
-    expect(container.querySelector('.graph-viz__chip')).toBeNull();
-    expect(container.querySelector('.graph-viz__state-dot')).toBeNull();
+  it('tints the center chip by the learner state only when provided', () => {
+    const dispose = mount({ centerState: 'evidence-backed-known' });
+    expect(container.querySelector('.graph-viz__center-ring--evidence-backed-known')).not.toBeNull();
+    dispose();
   });
 
   it('renders an honest empty state without fake nodes', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    render(() => <GraphNeighborhoodViz neighborhood={{ ...neighborhood, relations: [], relationCount: 0 }} />, container);
+    const dispose = render(
+      () => <GraphNeighborhoodViz neighborhood={{ ...neighborhood, relations: [], relationCount: 0 }} />,
+      container,
+    );
     expect(container.querySelector('.graph-viz__empty')?.textContent).toBe('mlearn.GraphInspector.Neighborhood.Empty');
-    expect(container.querySelector('.graph-viz__node')).toBeNull();
-    expect(container.querySelector('.graph-viz__edge')).toBeNull();
+    expect(chips()).toHaveLength(0);
+    dispose();
   });
 
-  it('truncates at the node cap and says so', () => {
-    mount({ maxNodes: 3 });
-    expect(container.querySelectorAll('.graph-viz__node').length).toBe(3);
-    expect(container.querySelectorAll('.graph-viz__edge').length).toBe(2);
-    expect(container.querySelector('.graph-viz__truncated')?.textContent).toBe('mlearn.GraphInspector.Neighborhood.Truncated:2/4');
-  });
-
-  it('lays out deterministically with identity innermost and support outermost', () => {
-    const first = layoutNeighborhood(neighborhood);
-    const second = layoutNeighborhood(neighborhood);
-    expect(first).toEqual(second);
-    const radiusOf = (category: string) => {
-      const node = first.nodes.find((candidate) => candidate.category === category)!;
-      return Math.hypot(node.x - first.center.x, node.y - first.center.y);
+  it('reveals beyond the initial node budget only on demand', () => {
+    const many: GraphNeighborhood = {
+      ...neighborhood,
+      relationCount: 22,
+      relations: Array.from({ length: 22 }, (_, index) => ({
+        id: `ja:surface:rel${index}`,
+        kind: 'surface' as const,
+        label: `関係${index}`,
+        relationType: 'semantically-related' as const,
+      })),
     };
-    expect(first.nodes.every((node) => node.x >= 0 && node.x <= 660 && node.y >= 0 && node.y <= 400)).toBe(true);
-    expect(radiusOf('identity')).toBeLessThan(radiusOf('property'));
-    expect(radiusOf('property')).toBeLessThan(radiusOf('support'));
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    const dispose = render(() => <GraphNeighborhoodViz neighborhood={many} />, container);
+
+    expect(chips()).toHaveLength(18); // center + 17 initial (budget counts the center)
+    const showAll = Array.from(container.querySelectorAll('.graph-viz__show-all')).find((button) => button.textContent?.includes('mlearn.GraphInspector.Neighborhood.ShowAll')) as HTMLButtonElement;
+    showAll.click();
+    expect(chips()).toHaveLength(23); // center + all 22
+
+    dispose();
   });
 });

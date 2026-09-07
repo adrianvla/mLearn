@@ -12,14 +12,7 @@ import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, KnowledgeProjectionDrawer, SkeletonText } from '../common';
-import { KnowledgeCapabilitySummary } from '../common/WordStatusPillKnowledge';
-import { getEvents, eventsVersion } from '../../services/knowledgeEvents';
-import { legacyCasingCandidates } from '../../../shared/utils/normalizationVersion';
-import { hashWordSync } from '../../services/srsAlgorithm';
-import { getAvailableAccesses } from '../../../shared/types';
-import type { RatedCapability } from '../../utils/accessKnowledge';
-import type { KnowledgeEvent } from '../../../shared/knowledgeEvents';
+import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
 import { ProsodyOverlay } from '../language-specific';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
@@ -41,8 +34,7 @@ import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
 import { decomposeCompound, MIN_PART_LENGTH, type CompoundAnalysis, type CompoundLexicon } from '../../../shared/graph/morphology/compounds';
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
-import type { KnowledgeProjection } from '../../../shared/graph/ipc';
-import { openGraphInspector } from '../../services/openGraphInspector';
+import type { GraphWordLookup } from '../../../shared/graph/ipc';
 
 const log = getLogger("renderer.components.wordHover");
 
@@ -108,22 +100,24 @@ export type CompoundDisplayResolution =
 
 /**
  * Graph-first resolution order for the hover decomposition. While the
- * projection is in flight (or stale for this word) nothing is guessed; a
- * graph-attested structure is primary; a graph-known surface without attested
- * structure is never guessed; only a surface absent from the graph falls back
- * to the productive splitter (which itself requires the declared strategy).
+ * lookup is in flight (undefined) nothing is guessed; a graph-attested
+ * structure is primary; a graph-known surface without attested structure is
+ * never guessed; only a surface absent from the graph (null) falls back to
+ * the productive splitter (which itself requires the declared strategy).
  */
 export function resolveCompoundDisplay(
-  projection: KnowledgeProjection | undefined,
+  lookup: GraphWordLookup | null | undefined,
   word: string,
   languageData: LanguageData | null | undefined,
   freq: WordFrequencyMap | undefined,
 ): CompoundDisplayResolution {
-  if (!projection || projection.status !== 'ready' || projection.querySurface !== word) return { kind: 'pending' };
-  if (projection.compoundAnalysis) return { kind: 'attested', analysis: projection.compoundAnalysis };
-  if (projection.surfaceKnown) return { kind: 'none' };
-  const generated = compoundAnalysisFor(word, languageData, freq);
-  return generated ? { kind: 'unseen', analysis: generated } : { kind: 'none' };
+  if (lookup === undefined) return { kind: 'pending' };
+  if (lookup === null) {
+    const generated = compoundAnalysisFor(word, languageData, freq);
+    return generated ? { kind: 'unseen', analysis: generated } : { kind: 'none' };
+  }
+  if (lookup.compoundAnalysis) return { kind: 'attested', analysis: lookup.compoundAnalysis };
+  return { kind: 'none' };
 }
 
 export interface WordHoverProps {
@@ -164,7 +158,7 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { meta: graphMeta, getTargetsForSurfaces } = useOptionalGraph();
-  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusWithSourceSync, getAccessStatus, setWordClaim, setAccessStatus, clearAccessClaim } = useFlashcards();
+  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants, getWordFrequency } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
@@ -176,9 +170,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const [, setPositionLocked] = createSignal(false);
   // Track if we have a cached explanation (for pill indicator)
   const [hasCachedExplanation, setHasCachedExplanation] = createSignal(false);
-  const [graphLookup, setGraphLookup] = createSignal<import('../../../shared/graph/ipc').GraphWordLookup | null>(null);
-  const [projection, setProjection] = createSignal<KnowledgeProjection>();
-  const [showKnowledgeDetails, setShowKnowledgeDetails] = createSignal(false);
+  const [graphLookup, setGraphLookup] = createSignal<GraphWordLookup | null | undefined>(undefined);
   let hoverRef: HTMLDivElement | undefined;
   let contentRef: HTMLDivElement | undefined;
 
@@ -196,8 +188,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   createEffect(() => {
     const word = actualWord();
+    // Synchronous reset: the signal must never hold the previous word's
+    // lookup while the new one is in flight (the old projection guarded this
+    // via querySurface; the lookup carries no word marker). undefined =
+    // pending, null = graph answered and the surface is absent.
+    setGraphLookup(word && graphMeta().ready ? undefined : null);
     if (!word || !graphMeta().ready) {
-      setGraphLookup(null);
       return;
     }
     let disposed = false;
@@ -207,17 +203,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     onCleanup(() => { disposed = true; });
   });
 
-  createEffect(() => {
-    const word = actualWord();
-    if (!word) return;
-    let disposed = false;
-    void getBridge().graph.getKnowledgeProjection(settings.language, word).then((next) => {
-      if (!disposed) setProjection(next);
-    }).catch(() => {
-      if (!disposed) setProjection({ status: 'error', targets: [] });
-    });
-    onCleanup(() => { disposed = true; });
-  });
+
   
   // REACTIVE: Check if word is in SRS using synchronous method
   // This properly integrates with SolidJS's reactive system
@@ -248,15 +234,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     language: settings.language,
   }));
 
-  // REQ42 + graph-first: the resolution is tri-state — while the projection is
-  // in flight nothing is guessed; graph-attested structure is primary; a
+  // REQ42 + graph-first: the resolution is tri-state — while the lookup is in
+  // flight nothing is guessed; graph-attested structure is primary; a
   // graph-known surface without structure is never guessed; only surfaces
   // absent from the graph fall back to the productive splitter.
   const compoundAnalysis = createMemo(() => {
-    const resolution = resolveCompoundDisplay(projection(), actualWord(), currentLangData(), getWordFrequency());
+    const resolution = resolveCompoundDisplay(graphLookup(), actualWord(), currentLangData(), getWordFrequency());
     return resolution.kind === 'pending' || resolution.kind === 'none' ? null : resolution.analysis;
   });
-  
   // REACTIVE: Get current ease from flashcard if tracked
   const currentEase = createMemo(() => {
     const card = currentFlashcard();
@@ -628,32 +613,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   const effectiveStatus = createMemo(() => getComprehensiveWordStatusWithSourceSync(actualWord(), settings.language).status);
-  const effectiveKnowledge = createMemo(() => getComprehensiveWordStatusWithSourceSync(actualWord(), settings.language));
-  // Inspector claim editing: word-level claim + per-applicable-access rows.
-  const hoverAccessStates = createMemo(() => getAvailableAccesses(currentLangData() ?? undefined)
-    .filter((capability): capability is RatedCapability => capability !== 'sense-recognition')
-    .map((capability) => {
-      const state = getAccessStatus(actualWord(), capability, settings.language);
-      return { capability, status: state.status, claim: state.claim };
-    }));
-  // Journal for the inspector's Evidence & History tab.
-  const [journalEvents, setJournalEvents] = createSignal<KnowledgeEvent[] | undefined>(undefined);
-  createEffect(() => {
-    const word = actualWord();
-    if (!word) return;
-    eventsVersion();
-    // D4 lazy salvage: probe the current-version key plus deduplicated legacy
-    // ambient-locale casing variants so pre-v2 journal entries remain visible
-    // in the history tab.
-    const legacyVariants = [...new Set(legacyCasingCandidates(word))];
-    const keys = [
-      `${settings.language}:${hashWordSync(word)}`,
-      ...legacyVariants.map((variant) => `${settings.language}:${hashWordSync(variant)}`),
-    ];
-    void getEvents(keys)
-      .then((log) => setJournalEvents(log))
-      .catch(() => setJournalEvents([]));
-  });
   // Level pill showing the language-defined frequency/proficiency level.
   // Must reactively update when word changes - use createMemo for full reactivity
   const levelPillData = createMemo(() => {
@@ -905,31 +864,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               />
               <LLMPill />
              </div>
-             <Show when={projection()?.status === 'ready' && projection()!.targets.length > 0}>
-               <div class="word-hover-knowledge">
-                 <KnowledgeCapabilitySummary word={actualWord()} language={settings.language} projection={projection()} />
-                 <Btn variant="ghost" size="sm" onClick={() => setShowKnowledgeDetails(true)}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
-               </div>
-             </Show>
-           </div>
+          </div>
         </div>
       </div>
-      <KnowledgeProjectionDrawer
-        projection={projection()}
-        open={showKnowledgeDetails()}
-        onClose={() => setShowKnowledgeDetails(false)}
-        onGraph={(entityId) => openGraphInspector({ entityId })}
-        surface={actualWord()}
-        events={journalEvents()}
-        initialTab="targets"
-        onWordClaim={(claim) => setWordClaim(actualWord(), claim, settings.language)}
-        wordClaim={effectiveKnowledge().basis === 'claim' ? effectiveKnowledge().status : null}
-        onAccessClaim={(capability, claim) => {
-          if (claim === null) clearAccessClaim(actualWord(), capability, settings.language);
-          else setAccessStatus(actualWord(), capability, claim, 'manual', settings.language);
-        }}
-        accessStates={hoverAccessStates()}
-      />
       {/* Anki duplicate warning modal */}
       <Show when={showDuplicateWarning()}>
         <AnkiDuplicateWarningModal

@@ -39,7 +39,46 @@
           "Unknown": "不明",
           "Predicted": "予測",
           "Unmeasured": "未測定"
-        }
+        },
+        "ZoomIn": "拡大",
+        "ZoomOut": "縮小",
+        "Fit": "全体表示",
+        "CenterState": "この語の状態: {state}",
+        "ShowAll": "すべての関係を表示（{count}）"
+      },
+      "Confidence": "信頼度",
+      "Provenance": "出典",
+      "PhraseOf": "{word} · {phrase}",
+      "Relation": {
+        "Realizes": "表記",
+        "SenseOf": "意味",
+        "Pronunciation": "発音",
+        "Reading": "読み",
+        "Gender": "性",
+        "PartOfSpeech": "品詞",
+        "ProsodicPattern": "アクセント",
+        "Character": "字",
+        "Morpheme": "構成要素",
+        "FormOf": "活用形",
+        "LemmaOf": "見出し語",
+        "SpellingVariantOf": "表記ゆれ",
+        "PartOf": "構成部分",
+        "DerivedFrom": "派生語",
+        "RelatedMeaning": "意味が近い",
+        "RelatedForm": "関連する語形",
+        "ContrastsWith": "対比"
+      },
+      "Kind": {
+        "Entity": "項目",
+        "Surface": "表記",
+        "DictionaryEntry": "辞書項目",
+        "Lexeme": "語彙素",
+        "Sense": "語義",
+        "Pronunciation": "発音",
+        "Character": "字",
+        "Morpheme": "形態素",
+        "GrammarPattern": "文法パターン",
+        "Analysis": "分析"
       }
     },
     "Management": {
@@ -1415,7 +1454,6 @@
           "Known": "証拠に基づく既知",
           "Learning": "証拠に基づく学習中",
           "Unknown": "エビデンスに基づく不明",
-          "Title": "有効な証拠",
           "None": "有効な証拠はありません。",
           "Claim": "申告: {status}",
           "ClaimCleared": "申告を解除"
@@ -1423,13 +1461,12 @@
         "Predicted": "予測",
         "Unmeasured": "未測定",
         "Because": "理由:",
-        "Strength": "Ease {ease} · 表示 {seen} · ホバー {hovered}",
         "Retention": "負荷 {pressure} · 期限 {due}",
         "Tabs": {
-          "Identity": "同一性と関係",
-          "Targets": "ターゲット",
-          "EvidenceHistory": "証拠と履歴",
-          "Prediction": "予測"
+          "Prediction": "予測",
+          "Overview": "概要",
+          "Relations": "関連",
+          "History": "履歴"
         },
         "Claim": {
           "Known": "明示的な申告: 既知",
@@ -1456,10 +1493,21 @@
             "Grammar": "文法"
           }
         },
-        "Provenance": "出典",
         "FullGraph": "完全なグラフを開く",
         "Prediction": {
           "None": "予測はありません。"
+        },
+        "Adjust": "調整",
+        "RetentionTitle": "復習",
+        "Relations": {
+          "Sections": {
+            "Meanings": "意味",
+            "Forms": "表記",
+            "Related": "関連語"
+          },
+          "MeaningN": "意味 {n}",
+          "GrammarPattern": "文法パターン",
+          "Advanced": "詳細情報"
         }
       },
       "Aspect": {
@@ -1481,7 +1529,8 @@
           "Status": "ステータス変更",
           "Review": "復習",
           "Rating": "手動評価",
-          "Rollup": "パッシブ接触"
+          "Rollup": "パッシブ接触",
+          "Claim": "手動設定"
         },
         "Source": {
           "KnownWordsList": "既知単語リスト",
@@ -1491,7 +1540,8 @@
           "PassiveTracking": "パッシブトラッキング",
           "Manual": "手動",
           "Grammar": "文法"
-        }
+        },
+        "Times": "{count}回"
       },
       "Actions": {
         "ClearOverride": "上書きを解除"

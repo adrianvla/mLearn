@@ -558,7 +558,7 @@ async function saveShardedFlashcards(store: FlashcardStore): Promise<void> {
 // ============================================================================
 
 const flashcardBridge: FlashcardBridge = {
-  getFlashcards() {
+  getFlashcards(_knownRev?: number) {
     loadShardedFlashcards()
       .then(async data => {
         const migrated = await extractBase64ImagesToFiles(data);

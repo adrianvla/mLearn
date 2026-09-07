@@ -114,7 +114,8 @@ describe('flashcardStorage', () => {
   let saveFlashcards: (store: FlashcardStore) => Promise<void>;
   let getFlashcardEaseMap: () => Promise<Record<string, number>>;
   let setupFlashcardIPC: () => void;
-  let getMigrationInfo: () => { occurred: boolean; backupPath: string | null; fromVersion: number | null };
+  let getMigrationInfo: () => { occurred: boolean; backupPath: null | string; fromVersion: null | number };
+  let invalidateFlashcardsCache: () => void;
 
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-fc-test-');
@@ -127,6 +128,7 @@ describe('flashcardStorage', () => {
     getFlashcardEaseMap = mod.getFlashcardEaseMap;
     setupFlashcardIPC = mod.setupFlashcardIPC;
     getMigrationInfo = mod.getMigrationInfo;
+    invalidateFlashcardsCache = mod.invalidateFlashcardsCache;
   });
 
   afterEach(() => {
@@ -821,6 +823,32 @@ describe('flashcardStorage', () => {
       expect(replyFn).toHaveBeenCalledWith('flashcards-loaded', expect.objectContaining({ version: 3 }));
     });
 
+    it('GET_FLASHCARDS handler skips the store ship when the requester holds the current rev', async () => {
+      const store = makeStore({ version: 3 });
+      writeFlashcardsFile(tempDir.tmpDir, store);
+
+      setupFlashcardIPC();
+
+      const listeners = mockIpcListeners.get('get-flashcards');
+      const replyFn = vi.fn();
+      const event = { reply: replyFn };
+
+      // Unknown rev (initial load): full store ships.
+      await listeners![0](event);
+      expect(replyFn).toHaveBeenCalledWith('flashcards-loaded', expect.objectContaining({ version: 3 }));
+
+      // Learn the current rev (from the reply) and probe with it: null payload.
+      const currentRev = replyFn.mock.calls[0][1].rev;
+      replyFn.mockClear();
+      await listeners![0](event, currentRev);
+      expect(replyFn).toHaveBeenCalledWith('flashcards-loaded', null);
+
+      // A stale rev still ships the full store.
+      replyFn.mockClear();
+      await listeners![0](event, currentRev - 1);
+      expect(replyFn).toHaveBeenCalledWith('flashcards-loaded', expect.objectContaining({ rev: currentRev }));
+    });
+
     it('GET_FLASHCARDS handler also replies with migration info when migration occurred', async () => {
       const v1Store = {
         flashcards: [
@@ -872,6 +900,39 @@ describe('flashcardStorage', () => {
       expect(replyFn).toHaveBeenCalledWith('flashcard-migration-complete', expect.objectContaining({
         occurred: expect.any(Boolean),
       }));
+    });
+  });
+
+  describe('mutation-owned store cache', () => {
+    it('serves repeat loads from memory, updates on save, and re-reads after invalidation', async () => {
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3 }));
+      const first = await loadFlashcards();
+
+      const readFileSpy = vi.spyOn(fs.promises, 'readFile');
+      const second = await loadFlashcards();
+      expect(second).toBe(first);
+      expect(readFileSpy).not.toHaveBeenCalled();
+      readFileSpy.mockRestore();
+
+      // A save is the mutation path: the in-memory store becomes the saved
+      // object (with its bumped rev) — reads never touch disk.
+      first.flashcards['mutated'] = makeFlashcard('mutated');
+      const revBeforeSave = first.rev ?? 0;
+      await saveFlashcards(first);
+      const third = await loadFlashcards();
+      expect(third).toBe(first);
+      expect(third.rev).toBe(revBeforeSave + 1);
+
+      // Direct disk writes bypass the mutation path; invalidation restores
+      // disk truth.
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({
+        version: 3,
+        flashcards: { ext: makeFlashcard('ext') },
+      }));
+      invalidateFlashcardsCache();
+      const fourth = await loadFlashcards();
+      expect(fourth).not.toBe(first);
+      expect(fourth.flashcards['ext']).toBeDefined();
     });
   });
 });

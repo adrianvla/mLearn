@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { render } from 'solid-js/web';
 import { CompoundDecomposition, compoundAnalysisFor, resolveCompoundDisplay } from './WordHover';
-import type { KnowledgeProjection } from '../../../shared/graph/ipc';
+import type { GraphWordLookup } from '../../../shared/graph/ipc';
 import type { LanguageData, WordFrequencyEntry, WordFrequencyMap } from '../../../shared/types';
 
 const entry: WordFrequencyEntry = { reading: '', level: '1', raw_level: 1 };
@@ -89,33 +89,26 @@ describe('German compound hover analysis', () => {
 
   it('resolves hover decomposition graph-first with a tri-state', () => {
     const word = 'Papashandschuhe';
-    // In flight or stale: nothing is guessed.
-    expect(resolveCompoundDisplay(undefined, word, compoundLanguage, germanVocabulary)).toEqual({ kind: 'pending' });
-    const stale: KnowledgeProjection = { status: 'ready', querySurface: 'Otherword', surfaceKnown: false, compoundAnalysis: null, targets: [] };
-    expect(resolveCompoundDisplay(stale, word, compoundLanguage, germanVocabulary)).toEqual({ kind: 'pending' });
-    const error: KnowledgeProjection = { status: 'error', targets: [] };
-    expect(resolveCompoundDisplay(error, word, compoundLanguage, germanVocabulary)).toEqual({ kind: 'pending' });
-    // Absent from the graph: productive split, still capability-gated.
-    const unseen: KnowledgeProjection = { status: 'ready', querySurface: word, surfaceKnown: false, compoundAnalysis: null, targets: [] };
-    expect(resolveCompoundDisplay(unseen, word, compoundLanguage, germanVocabulary)?.kind).toBe('unseen');
-    expect(resolveCompoundDisplay(unseen, word, { name: 'German' }, germanVocabulary).kind).toBe('none');
-    // Graph-known without attested structure: never guessed.
-    const knownStructureless: KnowledgeProjection = { ...unseen, surfaceKnown: true };
-    expect(resolveCompoundDisplay(knownStructureless, word, compoundLanguage, germanVocabulary)).toEqual({ kind: 'none' });
-    // Graph-attested structure is primary — even without a declared strategy.
-    const attested: KnowledgeProjection = {
-      ...knownStructureless,
-      compoundAnalysis: {
-        form: word, lemma: word, source: 'attested', confidence: 1,
-        provenance: { source: 'attested', confidence: 1, lexiconBasis: ['de:surface:papa'] },
-        parts: [
-          { lemma: 'Papa', entryId: 'de:surface:papa', attested: true },
-          { lemma: 'Handschuh', entryId: 'de:surface:handschuh', attested: true },
-        ],
-        ambiguous: false, alternatives: [],
-      },
+    const lookup = (compoundAnalysis: GraphWordLookup['compoundAnalysis']): GraphWordLookup => ({
+      surfaceId: 'de:surface:x', entries: [], lexemes: [], senses: [], pronunciations: [], compoundAnalysis,
+    });
+    const attestedAnalysis = {
+      form: word, lemma: word, source: 'attested' as const, confidence: 1,
+      provenance: { source: 'attested' as const, confidence: 1, lexiconBasis: ['de:surface:papa'] },
+      parts: [
+        { lemma: 'Papa', entryId: 'de:surface:papa', attested: true },
+        { lemma: 'Handschuh', entryId: 'de:surface:handschuh', attested: true },
+      ],
+      ambiguous: false, alternatives: [],
     };
-    const resolved = resolveCompoundDisplay(attested, word, { name: 'German' }, germanVocabulary);
-    expect(resolved.kind).toBe('attested');
+    // In flight: nothing is guessed.
+    expect(resolveCompoundDisplay(undefined, word, compoundLanguage, germanVocabulary)).toEqual({ kind: 'pending' });
+    // Absent from the graph (null lookup): productive split, still capability-gated.
+    expect(resolveCompoundDisplay(null, word, compoundLanguage, germanVocabulary)?.kind).toBe('unseen');
+    expect(resolveCompoundDisplay(null, word, { name: 'German' }, germanVocabulary).kind).toBe('none');
+    // Graph-known without attested structure: never guessed.
+    expect(resolveCompoundDisplay(lookup(null), word, compoundLanguage, germanVocabulary)).toEqual({ kind: 'none' });
+    // Graph-attested structure is primary — even without a declared strategy.
+    expect(resolveCompoundDisplay(lookup(attestedAnalysis), word, { name: 'German' }, germanVocabulary).kind).toBe('attested');
   });
 });

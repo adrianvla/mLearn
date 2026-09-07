@@ -77,7 +77,7 @@ export {
 } from './EulaModal/EulaModal';
 
 export { LanguageVariantGate } from './LanguageVariantGate/LanguageVariantGate';
-export { KnowledgeCapabilityChips, KnowledgeProjectionDrawer, knowledgeStateLabelKey, knowledgeTone, knowledgeWhyNarrative, type InspectorTab, type KnowledgeWhy } from './KnowledgeProjection';
+export { KnowledgeProjectionDrawer, knowledgeStateLabelKey, knowledgeTone, knowledgeWhyNarrative, type InspectorTab, type KnowledgeWhy } from './KnowledgeProjection';
 export { assembleWordKnowledgeModel, type WordKnowledgeModel } from './KnowledgeProjection/wordKnowledgeModel';
 export { GraphNeighborhoodViz, layoutNeighborhood, type GraphNeighborhoodVizProps } from './GraphNeighborhoodViz';
 

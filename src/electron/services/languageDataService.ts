@@ -16,6 +16,7 @@ import { getLogger } from '../../shared/utils/logger';
 import { satisfiesMinimumAppVersion } from '../../shared/semanticVersion';
 import { diffCompactGraphAssets } from '../../shared/graph/diff';
 import type { CompactAssetJSON } from '../../shared/graph/compact';
+import { invalidateFlashcardsCache } from './flashcardStorage';
 
 const log = getLogger('electron.languageData');
 const inFlightInstalls = new Map<string, Promise<void>>();
@@ -678,6 +679,11 @@ async function installBundle(
       fs.copyFileSync(extractedPath, tmpInstalledPath);
       fs.renameSync(tmpInstalledPath, installedPath);
     }
+    // A newly installed package can unblock deferred flashcard-store
+    // migrations (e.g. normalization rebuilds that need package-declared
+    // word-form derivation). The mutation-owned store cache must re-read so
+    // the next load retries the deferred migration.
+    invalidateFlashcardsCache();
   } finally {
     fs.rmSync(workRoot, { recursive: true, force: true });
   }

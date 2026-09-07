@@ -39,7 +39,46 @@
           "Unknown": "未知",
           "Predicted": "预测",
           "Unmeasured": "未测量"
-        }
+        },
+        "ZoomIn": "放大",
+        "ZoomOut": "缩小",
+        "Fit": "适应视图",
+        "CenterState": "当前状态：{state}",
+        "ShowAll": "显示全部 {count} 条关系"
+      },
+      "Confidence": "置信度",
+      "Provenance": "来源",
+      "PhraseOf": "{word} · {phrase}",
+      "Relation": {
+        "Realizes": "写法",
+        "SenseOf": "释义",
+        "Pronunciation": "发音",
+        "Reading": "读音",
+        "Gender": "性",
+        "PartOfSpeech": "词性",
+        "ProsodicPattern": "韵律模式",
+        "Character": "字",
+        "Morpheme": "成分",
+        "FormOf": "形式",
+        "LemmaOf": "原形",
+        "SpellingVariantOf": "异体写法",
+        "PartOf": "组成部分",
+        "DerivedFrom": "派生词",
+        "RelatedMeaning": "近义",
+        "RelatedForm": "相关词形",
+        "ContrastsWith": "对比"
+      },
+      "Kind": {
+        "Entity": "条目",
+        "Surface": "字面",
+        "DictionaryEntry": "词典条目",
+        "Lexeme": "词位",
+        "Sense": "义项",
+        "Pronunciation": "发音",
+        "Character": "字",
+        "Morpheme": "语素",
+        "GrammarPattern": "语法句型",
+        "Analysis": "分析"
       }
     },
     "Management": {
@@ -1415,7 +1454,6 @@
           "Known": "有证据支持的已掌握",
           "Learning": "有证据支持的学习中",
           "Unknown": "基于证据：不了解",
-          "Title": "有效证据",
           "None": "没有有效证据。",
           "Claim": "申告：{status}",
           "ClaimCleared": "申告已清除"
@@ -1423,13 +1461,12 @@
         "Predicted": "预测",
         "Unmeasured": "未测量",
         "Because": "因为：",
-        "Strength": "难度 {ease} · 已见 {seen} · 已悬停 {hovered}",
         "Retention": "压力 {pressure} · 到期 {due}",
         "Tabs": {
-          "Identity": "身份与关系",
-          "Targets": "目标",
-          "EvidenceHistory": "证据与历史",
-          "Prediction": "预测"
+          "Prediction": "预测",
+          "Overview": "概览",
+          "Relations": "关联",
+          "History": "历史"
         },
         "Claim": {
           "Known": "明确申告：已掌握",
@@ -1456,10 +1493,21 @@
             "Grammar": "语法"
           }
         },
-        "Provenance": "来源",
         "FullGraph": "打开完整图谱",
         "Prediction": {
           "None": "无预测。"
+        },
+        "Adjust": "调整",
+        "RetentionTitle": "复习",
+        "Relations": {
+          "Sections": {
+            "Meanings": "释义",
+            "Forms": "写法",
+            "Related": "关联词"
+          },
+          "MeaningN": "释义 {n}",
+          "GrammarPattern": "语法句型",
+          "Advanced": "技术细节"
         }
       },
       "Aspect": {
@@ -1481,7 +1529,8 @@
           "Status": "状态变更",
           "Review": "复习",
           "Rating": "手动评级",
-          "Rollup": "被动接触"
+          "Rollup": "被动接触",
+          "Claim": "手动标记"
         },
         "Source": {
           "KnownWordsList": "已知词列表",
@@ -1491,7 +1540,8 @@
           "PassiveTracking": "被动追踪",
           "Manual": "手动",
           "Grammar": "语法"
-        }
+        },
+        "Times": "{count}次"
       },
       "Actions": {
         "ClearOverride": "清除覆盖"

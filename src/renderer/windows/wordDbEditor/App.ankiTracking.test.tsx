@@ -118,9 +118,13 @@ vi.mock('../../../shared/bridges', () => ({
 vi.mock('../../services/openGraphInspector', () => ({ openGraphInspector: () => undefined }));
 
 vi.mock('../../components/common', async () => {
+  const { Show } = await import('solid-js');
   const presets = await import('../../components/common/FilterBuilder/presets');
   const expr = await import('../../components/common/FilterBuilder/filterExpr');
   return {
+    Modal: (props: { isOpen?: boolean; children?: JSX.Element }) => (
+      <Show when={props.isOpen}><div>{props.children}</div></Show>
+    ),
     ModalLoadingOverlay: () => <div />,
     Spinner: () => <div />,
     SkeletonRows: (props: { rows?: number }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,

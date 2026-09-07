@@ -13,7 +13,7 @@ import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/gra
 import { UNTRACKED_LABEL_KEY, knowledgeStatusLabelKey } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
 
 // ── IPC callback captures ────────────────────────────────────────────
-let flashcardsCb: (store: FlashcardStore) => void;
+let flashcardsCb: (store: FlashcardStore | null) => void;
 const flashcardsCleanup = vi.fn();
 const newDayCleanup = vi.fn();
 const migrationCleanup = vi.fn();
@@ -65,7 +65,7 @@ const mockBridge = {
 };
 
 function setupMockImplementations() {
-  mockBridge.flashcards.onFlashcards.mockImplementation((cb: (s: FlashcardStore) => void) => {
+  mockBridge.flashcards.onFlashcards.mockImplementation((cb: (s: FlashcardStore | null) => void) => {
     flashcardsCb = cb;
     return flashcardsCleanup;
   });
@@ -585,6 +585,27 @@ describe('FlashcardProvider', () => {
     // Migration is async (journal reads); readiness opens only after it
     // settles so rows the honesty cap flips are never shown mid-flight.
     await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    dispose();
+  });
+
+  it('focus redelivery with an unchanged rev keeps the knowledge gate open', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore({ rev: 7 }));
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+
+    // Refocus probe: the main process replies null — the gate must not cycle.
+    flashcardsCb(null);
+    expect(ctx.isKnowledgeReady()).toBe(true);
+
+    // An identical-rev redelivery is also a no-op (no reconcile, no gate drop).
+    flashcardsCb(makeEmptyStore({ rev: 7 }));
+    expect(ctx.isKnowledgeReady()).toBe(true);
+
+    // A genuinely newer revision (another window wrote) reconciles; the gate
+    // stays open because the store is complete, not half-migrated.
+    flashcardsCb(makeEmptyStore({ rev: 8 }));
+    expect(ctx.isKnowledgeReady()).toBe(true);
+    expect(ctx.store.rev).toBe(8);
     dispose();
   });
 

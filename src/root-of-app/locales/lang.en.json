@@ -39,7 +39,46 @@
           "Unknown": "Unknown",
           "Predicted": "Predicted",
           "Unmeasured": "Unmeasured"
-        }
+        },
+        "ZoomIn": "Zoom in",
+        "ZoomOut": "Zoom out",
+        "Fit": "Fit to view",
+        "CenterState": "You know this: {state}",
+        "ShowAll": "Show all {count} relations"
+      },
+      "Confidence": "Confidence",
+      "Provenance": "Source",
+      "PhraseOf": "{phrase} of {word}",
+      "Relation": {
+        "Realizes": "written form",
+        "SenseOf": "sense",
+        "Pronunciation": "pronunciation",
+        "Reading": "reading",
+        "Gender": "gender",
+        "PartOfSpeech": "part of speech",
+        "ProsodicPattern": "pitch pattern",
+        "Character": "character",
+        "Morpheme": "component",
+        "FormOf": "form",
+        "LemmaOf": "lemma",
+        "SpellingVariantOf": "spelling variant",
+        "PartOf": "component",
+        "DerivedFrom": "derived form",
+        "RelatedMeaning": "related meaning",
+        "RelatedForm": "related form",
+        "ContrastsWith": "contrast"
+      },
+      "Kind": {
+        "Entity": "Entity",
+        "Surface": "Surface",
+        "DictionaryEntry": "Dictionary entry",
+        "Lexeme": "Lexeme",
+        "Sense": "Sense",
+        "Pronunciation": "Pronunciation",
+        "Character": "Character",
+        "Morpheme": "Morpheme",
+        "GrammarPattern": "Grammar pattern",
+        "Analysis": "Analysis"
       }
     },
     "Management": {
@@ -1415,7 +1454,6 @@
           "Known": "Evidence-backed Known",
           "Learning": "Evidence-backed Learning",
           "Unknown": "Evidence-backed unknown",
-          "Title": "Active evidence",
           "None": "No active evidence.",
           "Claim": "Claim: {status}",
           "ClaimCleared": "Claim cleared"
@@ -1423,13 +1461,12 @@
         "Predicted": "Predicted",
         "Unmeasured": "Unmeasured",
         "Because": "Because:",
-        "Strength": "Ease {ease} · seen {seen} · hovered {hovered}",
         "Retention": "Pressure {pressure} · due {due}",
         "Tabs": {
-          "Identity": "Identity & Relations",
-          "Targets": "Targets",
-          "EvidenceHistory": "Evidence & History",
-          "Prediction": "Prediction"
+          "Prediction": "Prediction",
+          "Overview": "Overview",
+          "Relations": "Relations",
+          "History": "History"
         },
         "Claim": {
           "Known": "Explicit claim: known",
@@ -1456,10 +1493,21 @@
             "Grammar": "Grammar"
           }
         },
-        "Provenance": "Provenance",
         "FullGraph": "Open full graph",
         "Prediction": {
           "None": "No prediction."
+        },
+        "Adjust": "Adjust",
+        "RetentionTitle": "SRS retention",
+        "Relations": {
+          "Sections": {
+            "Meanings": "Meanings",
+            "Forms": "Written forms",
+            "Related": "Related"
+          },
+          "MeaningN": "Meaning {n}",
+          "GrammarPattern": "Grammar pattern",
+          "Advanced": "Technical details"
         }
       },
       "Aspect": {
@@ -1481,7 +1529,8 @@
           "Status": "Status change",
           "Review": "Review",
           "Rating": "Manual rating",
-          "Rollup": "Passive exposure"
+          "Rollup": "Passive exposure",
+          "Claim": "Claim"
         },
         "Source": {
           "KnownWordsList": "Known words list",
@@ -1491,7 +1540,8 @@
           "PassiveTracking": "Passive tracking",
           "Manual": "Manual",
           "Grammar": "Grammar"
-        }
+        },
+        "Times": "{count}×"
       },
       "Actions": {
         "ClearOverride": "Clear override"

@@ -60,6 +60,14 @@ export interface GraphWordLookup {
   lexemes: GraphNode[];
   senses: GraphNode[];
   pronunciations: GraphNode[];
+  /**
+   * Graph-attested compound decomposition read from the same loaded graph as
+   * the rest of the lookup (cheap once the plain replica is warm). null = the
+   * surface is known but carries no attested structure; hover UI falls back
+   * to the declared productive splitter only for surfaces absent from the
+   * graph (lookup === null).
+   */
+  compoundAnalysis: CompoundAnalysis | null;
 }
 
 export interface GraphLookupInput {

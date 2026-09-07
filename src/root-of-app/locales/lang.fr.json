@@ -39,7 +39,46 @@
           "Unknown": "Non acquis",
           "Predicted": "Prédit",
           "Unmeasured": "Non mesuré"
-        }
+        },
+        "ZoomIn": "Zoomer",
+        "ZoomOut": "Dézoomer",
+        "Fit": "Ajuster",
+        "CenterState": "Connu comme : {state}",
+        "ShowAll": "Afficher les {count} relations"
+      },
+      "Confidence": "Confiance",
+      "Provenance": "Source",
+      "PhraseOf": "{phrase} de {word}",
+      "Relation": {
+        "Realizes": "forme écrite",
+        "SenseOf": "sens",
+        "Pronunciation": "prononciation",
+        "Reading": "lecture",
+        "Gender": "genre",
+        "PartOfSpeech": "partie du discours",
+        "ProsodicPattern": "motif prosodique",
+        "Character": "caractère",
+        "Morpheme": "composant",
+        "FormOf": "forme",
+        "LemmaOf": "lemme",
+        "SpellingVariantOf": "variante orthographique",
+        "PartOf": "composant",
+        "DerivedFrom": "forme dérivée",
+        "RelatedMeaning": "sens apparenté",
+        "RelatedForm": "forme apparentée",
+        "ContrastsWith": "contraste"
+      },
+      "Kind": {
+        "Entity": "Entité",
+        "Surface": "Surface",
+        "DictionaryEntry": "Entrée de dictionnaire",
+        "Lexeme": "Lexème",
+        "Sense": "Sens",
+        "Pronunciation": "Prononciation",
+        "Character": "Caractère",
+        "Morpheme": "Morphème",
+        "GrammarPattern": "Motif grammatical",
+        "Analysis": "Analyse"
       }
     },
     "Management": {
@@ -1415,7 +1454,6 @@
           "Known": "Connu étayé",
           "Learning": "En apprentissage étayé",
           "Unknown": "Fondé sur des preuves : inconnu",
-          "Title": "Preuves actives",
           "None": "Aucune preuve active.",
           "Claim": "Déclaration : {status}",
           "ClaimCleared": "Déclaration annulée"
@@ -1423,13 +1461,12 @@
         "Predicted": "Prédit",
         "Unmeasured": "Non mesuré",
         "Because": "Parce que :",
-        "Strength": "Aisance {ease} · vu {seen} · survolé {hovered}",
         "Retention": "Pression {pressure} · échéance {due}",
         "Tabs": {
-          "Identity": "Identité & relations",
-          "Targets": "Cibles",
-          "EvidenceHistory": "Preuves & historique",
-          "Prediction": "Prédiction"
+          "Prediction": "Prédiction",
+          "Overview": "Aperçu",
+          "Relations": "Relations",
+          "History": "Historique"
         },
         "Claim": {
           "Known": "Déclaration explicite : connu",
@@ -1456,10 +1493,21 @@
             "Grammar": "Grammaire"
           }
         },
-        "Provenance": "Provenance",
         "FullGraph": "Ouvrir le graphe complet",
         "Prediction": {
           "None": "Aucune prédiction."
+        },
+        "Adjust": "Ajuster",
+        "RetentionTitle": "Révisions",
+        "Relations": {
+          "Sections": {
+            "Meanings": "Sens",
+            "Forms": "Formes écrites",
+            "Related": "Apparentés"
+          },
+          "MeaningN": "Sens {n}",
+          "GrammarPattern": "Motif grammatical",
+          "Advanced": "Détails techniques"
         }
       },
       "Aspect": {
@@ -1481,7 +1529,8 @@
           "Status": "Changement de statut",
           "Review": "Révision",
           "Rating": "Évaluation manuelle",
-          "Rollup": "Exposition passive"
+          "Rollup": "Exposition passive",
+          "Claim": "Affirmation"
         },
         "Source": {
           "KnownWordsList": "Liste de mots connus",
@@ -1491,7 +1540,8 @@
           "PassiveTracking": "Suivi passif",
           "Manual": "Manuel",
           "Grammar": "Grammaire"
-        }
+        },
+        "Times": "{count}×"
       },
       "Actions": {
         "ClearOverride": "Annuler le remplacement"

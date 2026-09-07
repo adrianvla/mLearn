@@ -1,4 +1,4 @@
-import { Component, For, Show, createMemo } from 'solid-js';
+import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import type { AttemptQuality, KnowledgeSource, WordStatus } from '../../../../shared/constants';
 import { KNOWLEDGE_ASPECT_LABEL_KEYS, KNOWLEDGE_SOURCE_DISPLAY_NAMES } from '../../../../shared/constants';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
@@ -42,43 +42,29 @@ const sourceLabelKey = (source: EvidenceSource): string => (
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-interface DayGroup {
+interface AggregateRow {
+  /** Aggregation key: identical rows within a day collapse into one summary. */
   key: string;
+  kind: HistoryEvent['kind'];
+  source: string;
+  detail: string;
   events: HistoryEvent[];
 }
 
+interface DayGroup {
+  key: string;
+  rows: AggregateRow[];
+}
+
 /**
- * Event-first knowledge history: day-grouped rows ("Today · ● Manual claim ·
- * Meaning → Learning"), newest first. The strength chart is a separate
- * component — callers gate it through isChartableHistory().
+ * Day-grouped knowledge history with repetitive rows aggregated: "Today ·
+ * Claim ×2 · Meaning → Known" instead of one raw event per line. Expanding a
+ * summary reveals the individual events with their times. Claims stay
+ * visually distinct from measured evidence.
  */
 export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent[] }> = (props) => {
   const { t } = useLocalization();
-
-  const dayGroups = createMemo<DayGroup[]>(() => {
-    const groups = new Map<string, DayGroup>();
-    for (const event of [...props.events].sort((a, b) => b.t - a.t)) {
-      const day = new Date(event.t);
-      const key = day.toDateString();
-      let group = groups.get(key);
-      if (!group) {
-        group = { key, events: [] };
-        groups.set(key, group);
-      }
-      group.events.push(event);
-    }
-    return [...groups.values()];
-  });
-
-  const dayLabel = (key: string): string => {
-    const today = new Date();
-    const day = new Date(key);
-    const dayStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-    const diffDays = Math.round((dayStart(today) - dayStart(day)) / DAY_MS);
-    if (diffDays <= 0) return t('mlearn.Knowledge.History.Today');
-    if (diffDays === 1) return t('mlearn.Knowledge.History.Yesterday');
-    return day.toLocaleDateString();
-  };
+  const [expanded, setExpanded] = createSignal(new Set<string>());
 
   /** Legacy events keep their aspect label; capability-addressed events label via their access. */
   const eventLabel = (event: HistoryEvent): string | undefined => {
@@ -106,18 +92,85 @@ export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent
     return aspect ?? '';
   };
 
+  const dayLabel = (key: string): string => {
+    const today = new Date();
+    const day = new Date(key);
+    const dayStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const diffDays = Math.round((dayStart(today) - dayStart(day)) / DAY_MS);
+    if (diffDays <= 0) return t('mlearn.Knowledge.History.Today');
+    if (diffDays === 1) return t('mlearn.Knowledge.History.Yesterday');
+    return day.toLocaleDateString();
+  };
+
+  const dayGroups = createMemo<DayGroup[]>(() => {
+    const days = new Map<string, Map<string, AggregateRow>>();
+    for (const event of [...props.events].sort((a, b) => b.t - a.t)) {
+      const day = new Date(event.t);
+      const dayKey = day.toDateString();
+      let rows = days.get(dayKey);
+      if (!rows) {
+        rows = new Map();
+        days.set(dayKey, rows);
+      }
+      const key = [event.kind, event.source, detail(event)].join('|');
+      let row = rows.get(key);
+      if (!row) {
+        row = { key: `${dayKey}:${key}`, kind: event.kind, source: event.source, detail: detail(event), events: [] };
+        rows.set(key, row);
+      }
+      row.events.push(event);
+    }
+    return [...days.entries()].map(([key, rows]) => ({ key, rows: [...rows.values()] }));
+  });
+
+  const toggle = (key: string) => {
+    setExpanded((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const time = (t: number): string => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
   return (
     <Show when={props.events.length > 0}>
       <div class="knowledge-timeline">
-        <For each={dayGroups()}>{(group) => (
+        <For each={dayGroups()}>{(day) => (
           <section class="knowledge-timeline__day">
-            <h4 class="knowledge-timeline__day-label">{dayLabel(group.key)}</h4>
-            <For each={group.events}>{(event) => (
-              <div class={`knowledge-timeline__event knowledge-timeline__event--${event.kind}`}>
-                <span class="knowledge-timeline__mark" aria-hidden="true" />
-                <span class="knowledge-timeline__kind">{t(KIND_LABEL_KEYS[event.kind])}</span>
-                <span class="knowledge-timeline__detail">{detail(event)}</span>
-                <small class="knowledge-timeline__source">{t(sourceLabelKey(event.source))}</small>
+            <h4 class="knowledge-timeline__day-label">{dayLabel(day.key)}</h4>
+            <For each={day.rows}>{(row) => (
+              <div class={`knowledge-timeline__entry knowledge-timeline__entry--${row.kind}`}>
+                <Show
+                  when={row.events.length > 1}
+                  fallback={
+                    <div class="knowledge-timeline__event">
+                      <span class="knowledge-timeline__mark" aria-hidden="true" />
+                      <span class="knowledge-timeline__kind">{t(KIND_LABEL_KEYS[row.kind])}</span>
+                      <span class="knowledge-timeline__detail">{row.detail}</span>
+                      <small class="knowledge-timeline__source">{t(sourceLabelKey(row.events[0].source as EvidenceSource))}</small>
+                    </div>
+                  }
+                >
+                  <button type="button" class="knowledge-timeline__summary" aria-expanded={expanded().has(row.key)} onClick={() => toggle(row.key)}>
+                    <span class="knowledge-timeline__mark" aria-hidden="true" />
+                    <span class="knowledge-timeline__kind">{t(KIND_LABEL_KEYS[row.kind])}</span>
+                    <span class="knowledge-timeline__count">{t('mlearn.Knowledge.History.Times', { count: String(row.events.length) })}</span>
+                    <span class="knowledge-timeline__detail">{row.detail}</span>
+                    <small class="knowledge-timeline__source">{t(sourceLabelKey(row.events[0].source as EvidenceSource))}</small>
+                  </button>
+                  <Show when={expanded().has(row.key)}>
+                    <ul class="knowledge-timeline__events">
+                      <For each={row.events}>{(event) => (
+                        <li class="knowledge-timeline__event">
+                          <span class="knowledge-timeline__time">{time(event.t)}</span>
+                          <span class="knowledge-timeline__detail">{detail(event)}</span>
+                        </li>
+                      )}</For>
+                    </ul>
+                  </Show>
+                </Show>
               </div>
             )}</For>
           </section>

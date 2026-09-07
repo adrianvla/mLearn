@@ -5,8 +5,9 @@ import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { COMPACT_RELATION_TYPES, decodeCompact, type CompactAssetJSON, type RuntimeCompactGraph } from '../../shared/graph/compact';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodCenterState, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../../shared/graph/ipc';
-import { RELATION_CATEGORY, type GraphRelation, type GraphRelationType, type LinguisticGraphAsset } from '../../shared/graph/types';
-import { loadLinguisticGraph, type LingualGraph } from '../../shared/graph/load';
+import { RELATION_CATEGORY, type GraphRelationType } from '../../shared/graph/types';
+import type { LingualGraph } from '../../shared/graph/load';
+import { createCompactGraphView } from '../../shared/graph/compactView';
 import { buildKnowledgeProjection } from './knowledgeProjection';
 import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
 import type { CompoundPart } from '../../shared/graph/morphology/compounds';
@@ -24,10 +25,11 @@ type LoadedGraph = {
   graph: RuntimeCompactGraph;
   relationCount: number;
   /**
-   * Plain-graph replica for projections, built lazily on first projection use
-   * and cached on the loaded asset instance. Invalidation is structural: every
-   * (re)load of a language creates a fresh LoadedGraph without a replica, and
-   * only one language stays loaded at a time, so at most one replica is held.
+   * Compact-backed LingualGraph view for projections, built lazily on first
+   * projection use and cached on the loaded asset instance. Cheap to build
+   * (no object materialization); invalidation is structural: every (re)load
+   * of a language creates a fresh LoadedGraph without a view, and only one
+   * language stays loaded at a time.
    */
   plainGraph?: LingualGraph;
 };
@@ -131,7 +133,10 @@ export class LinguisticGraphService {
     const lexemes = this.related(loaded.graph, surfaceId, ['lemma-of', 'inflection-of']).map(({ relationType: _relationType, ...node }) => node);
     const pronunciations = this.related(loaded.graph, surfaceId, ['has-pronunciation']).map(({ relationType: _relationType, ...node }) => node);
     const senses = entries.flatMap((entry) => this.related(loaded.graph, entry.id, ['has-sense']).map(({ relationType: _relationType, ...node }) => node));
-    return { surfaceId, entries, lexemes, senses, pronunciations };
+    // Plain-replica read: warm at load time (see ensure), so this is a cache
+    // hit per lookup — the graph pays, the hover doesn't.
+    const compoundAnalysis = attestedCompoundAnalysis(this.toLingualGraph(loaded), surfaceId);
+    return { surfaceId, entries, lexemes, senses, pronunciations, compoundAnalysis };
   }
 
   async getRelated(language: string, entityId: string, relationTypes: GraphRelationType[]): Promise<GraphRelatedNode[]> {
@@ -246,46 +251,8 @@ export class LinguisticGraphService {
   }
 
   private toLingualGraph(loaded: LoadedGraph): LingualGraph {
-    if (!loaded.plainGraph) loaded.plainGraph = this.buildLingualGraph(loaded);
+    if (!loaded.plainGraph) loaded.plainGraph = createCompactGraphView(loaded.graph, loaded.language);
     return loaded.plainGraph;
-  }
-
-  /** Full plain-graph replica of the compact graph; expensive, so cached per loaded asset. */
-  private buildLingualGraph(loaded: LoadedGraph): LingualGraph {
-    const { graph } = loaded;
-    const domains = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
-    const entities = graph.persistentOf.map((id, dense) => {
-      const labelId = graph.entityLabelStringIds[dense];
-      const domain = domains[graph.entityDomainIds[dense]];
-      return {
-        id,
-        kind: graph.nodeKind(id)!,
-        ...(domain ? { domain } : {}),
-        ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}),
-        ...(graph.entityGrammar?.[dense] ? { grammar: graph.entityGrammar[dense] } : {}),
-        ...(graph.entityAnalysis?.[dense] ? { analysis: graph.entityAnalysis[dense] } : {}),
-      };
-    });
-    const relations: GraphRelation[] = [];
-    for (let dense = 0; dense < graph.persistentOf.length; dense += 1) {
-      for (let edge = graph.relationOffsets[dense]; edge < graph.relationOffsets[dense + 1]; edge += 1) {
-        const confidence = graph.relationConfidence?.[edge];
-        const transparency = graph.relationTransparency?.[edge];
-        const predictability = graph.relationPredictability?.[edge];
-        const provenance = graph.relationProvenanceStringIds?.[edge];
-        relations.push({
-          from: graph.persistentOf[dense],
-          to: graph.persistentOf[graph.relationTargets[edge]],
-          type: COMPACT_RELATION_TYPES[graph.relationTypeIds[edge]],
-          ...(confidence !== undefined && confidence >= 0 ? { confidence } : {}),
-          ...(transparency !== undefined && transparency >= 0 ? { transparency } : {}),
-          ...(predictability !== undefined && predictability >= 0 ? { predictability } : {}),
-          ...(provenance !== undefined && provenance >= 0 ? { provenance: graph.stringTable[provenance] } : {}),
-        });
-      }
-    }
-    const asset: LinguisticGraphAsset = { schemaVersion: 1, language: loaded.language, generatedAt: '', sourceVersions: {}, entities, relations };
-    return loadLinguisticGraph(asset);
   }
 }
 

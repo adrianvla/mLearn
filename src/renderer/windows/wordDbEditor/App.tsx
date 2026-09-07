@@ -131,7 +131,13 @@ export const WordDbEditorContent: Component = () => {
     // Focus query: knowledge popups open this window with { query: word }.
     const bridge = getBridge();
     const cleanupContext = bridge.window.onWindowContext((context) => {
-      if (typeof context?.query === 'string' && context.query.trim()) setSearchQuery(context.query);
+      if (typeof context?.query === 'string' && context.query.trim()) {
+        setSearchQuery(context.query);
+        // The query arrives after mount (Inspect from a knowledge popup):
+        // run the same search pipeline as the Search button, otherwise the
+        // input fills in and nothing else happens.
+        handleSearch();
+      }
     });
     bridge.window.getWindowContext(WINDOW_TYPES.WORD_DB_EDITOR);
     if (cleanupContext) onCleanup(cleanupContext);

@@ -20,9 +20,9 @@ export interface MLearnIPC {
   onSettingsSaved: (callback: () => void) => () => void;
   
   // Flashcards
-  getFlashcards: () => void;
+  getFlashcards: (knownRev?: number) => void;
   saveFlashcards: (flashcards: FlashcardStore) => void;
-  onFlashcards: (callback: (flashcards: FlashcardStore) => void) => () => void;
+  onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;

@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import { createSignal, type JSX } from 'solid-js';
+import { Show, createSignal, type JSX } from 'solid-js';
 import type { WordEntry } from './WordEntryRow';
 import type { LanguageData } from '../../../../shared/types';
 
@@ -15,6 +15,8 @@ const openGraphInspectorMock = vi.fn();
 let lastVizProps: { neighborhood?: { center: { label?: string } }; centerState?: string; onSelect?: (id: string) => void } | null = null;
 const hashA = 'a'.repeat(64);
 const hashB = 'b'.repeat(64);
+// Mirrors the mocked hashWordSync below; the row derives graph entity ids from it directly.
+const hashFor = (word: string): string => `hash:${word.length}`;
 const getWordTrackingSyncMock = vi.fn((_word: string): { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string } => ({ tracker: 'anki' }));
 const findAnkiWordMatchMock = vi.fn((): { word: string; lookupKey: string; cards: never[] } | null => null);
 const extractProsodyDataMock = vi.fn();
@@ -79,6 +81,13 @@ vi.mock('../../../utils/translationCacheParsers', () => ({
 }));
 
 vi.mock('../../../components/common', () => ({
+  Modal: (props: { isOpen?: boolean; children?: JSX.Element; footer?: JSX.Element }) => (
+    // Modal-stub semantics: children and footer render only while open, and
+    // they portal to document.body in the real component — tests query there.
+    <Show when={props.isOpen}>
+      <div data-testid="modal-stub">{props.children}{props.footer}</div>
+    </Show>
+  ),
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => (
     <button type="button" onClick={props.onClick}>{props.children}</button>
   ),
@@ -107,7 +116,6 @@ vi.mock('../../../components/common', () => ({
     lastVizProps = props;
     return <div data-testid="graph-viz-stub" onClick={() => props.onSelect?.(`ja:surface:${hashB}`)} />;
   },
-  KnowledgeCapabilityChips: () => <span data-testid="knowledge-chips" />,
   KnowledgeProjectionDrawer: (props: { open?: boolean; initialTab?: string; surface?: string }) => {
     lastDrawerProps = props;
     return null;
@@ -1411,14 +1419,13 @@ describe('WordEntryRow', () => {
     const pill = container.querySelector<HTMLButtonElement>('[data-testid="word-status-pill"]');
     expect(pill).not.toBeNull();
     expect(pill!.dataset.word).toBe('赤い');
-    expect(knowledgeCol!.querySelector('[data-testid="knowledge-chips"]')).not.toBeNull();
 
     pill!.click();
     expect(onStatusChange).toHaveBeenCalledWith(makeEntry('赤い'), 'known');
 
     dispose();
   });
-  it('opens the inspector drawer via the row Inspect affordance on the Targets tab', async () => {
+  it('opens the inspector drawer via the row Inspect affordance on the Overview tab', async () => {
     mockGetKnowledgeProjection.mockResolvedValue({
       status: 'ready',
       surfaceId: 'ja:surface:x',
@@ -1446,14 +1453,14 @@ describe('WordEntryRow', () => {
     const inspectBtn = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Inspect');
     expect(inspectBtn).not.toBeUndefined();
     inspectBtn!.click();
-    expect(lastDrawerProps).toMatchObject({ open: true, initialTab: 'targets', surface: '猫' });
+    expect(lastDrawerProps).toMatchObject({ open: true, initialTab: 'overview', surface: '猫' });
     dispose();
   });
   it('expands the local graph view for the entry and recensters state and label together', async () => {
     mockGetKnowledgeProjection.mockResolvedValue({ status: 'ready', surfaceId: `ja:surface:${hashA}`, targets: [] });
     const rating = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', rating: 'good', easeAfter: 2.8, attemptId: 'active' };
     getNeighborhoodMock.mockImplementation((query: { entityId: string }) => Promise.resolve(
-      query.entityId === `ja:surface:${hashA}`
+      query.entityId === `ja:surface:${hashFor('殖える')}`
         ? {
             center: { id: `ja:surface:${hashA}`, kind: 'surface', label: '殖える' },
             centerDenseId: 1,
@@ -1485,7 +1492,9 @@ describe('WordEntryRow', () => {
 
     await flushAsync();
     await flushAsync();
-    expect(container.querySelector('[data-testid="graph-viz-stub"]')).toBeNull();
+    // The neighborhood renders in a Modal portal on document.body — the row
+    // itself stays clean.
+    expect(document.body.querySelector('[data-testid="graph-viz-stub"]')).toBeNull();
 
     const toggle = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.Toggle');
     expect(toggle).not.toBeUndefined();
@@ -1493,8 +1502,8 @@ describe('WordEntryRow', () => {
     await flushAsync();
     await flushAsync();
 
-    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashA}`, depth: 1 }));
-    expect(container.querySelector('[data-testid="graph-viz-stub"]')).not.toBeNull();
+    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashFor('殖える')}`, depth: 1 }));
+    expect(document.body.querySelector('[data-testid="graph-viz-stub"]')).not.toBeNull();
     expect(lastVizProps?.neighborhood?.center.label).toBe('殖える');
     expect(lastVizProps?.centerState).toBe('unmeasured');
 
@@ -1502,22 +1511,24 @@ describe('WordEntryRow', () => {
     const openInWindow = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.OpenInWindow');
     expect(openInWindow).not.toBeUndefined();
     openInWindow!.click();
-    expect(openGraphInspectorMock).toHaveBeenCalledWith({ entityId: `ja:surface:${hashA}` });
+    expect(openGraphInspectorMock).toHaveBeenCalledWith({ entityId: `ja:surface:${hashFor('殖える')}` });
 
     // Recenter on the support neighbor: label AND learner state must switch together.
-    container.querySelector<HTMLElement>('[data-testid="graph-viz-stub"]')!.click();
+    document.body.querySelector<HTMLElement>('[data-testid="graph-viz-stub"]')!.click();
     await flushAsync();
     await flushAsync();
     expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashB}`, depth: 1 }));
     expect(lastVizProps?.neighborhood?.center.label).toBe('増える');
     expect(lastVizProps?.centerState).toBe('evidence-backed-known');
-    expect(openGraphInspectorMock).toHaveBeenLastCalledWith({ entityId: `ja:surface:${hashA}` });
+    // Recentering must not re-open the inspector; the only call is the
+    // entry's own OpenInWindow click.
+    expect(openGraphInspectorMock).toHaveBeenCalledTimes(1);
+    expect(openGraphInspectorMock).toHaveBeenLastCalledWith({ entityId: `ja:surface:${hashFor('殖える')}` });
 
     dispose();
   });
 
   it('resolves the graph note to NotInGraph — never a permanent Loading — when the word has no neighborhood', async () => {
-    mockGetKnowledgeProjection.mockResolvedValue({ status: 'ready', surfaceId: `ja:surface:${hashA}`, targets: [] });
     getNeighborhoodMock.mockResolvedValue(null);
 
     const { WordEntryRow } = await import('./WordEntryRow');
@@ -1540,11 +1551,11 @@ describe('WordEntryRow', () => {
     await flushAsync();
     await flushAsync();
 
-    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashA}`, depth: 1 }));
+    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashFor('殖える')}`, depth: 1 }));
     // Resolved absence is an explicit empty state, not the pending placeholder.
-    expect(container.textContent).toContain('mlearn.GraphInspector.Neighborhood.NotInGraph');
-    expect(container.textContent).not.toContain('mlearn.GraphInspector.Neighborhood.Loading');
-    expect(container.querySelector('[data-testid="skeleton-rows"]')).toBeNull();
+    expect(document.body.textContent).toContain('mlearn.GraphInspector.Neighborhood.NotInGraph');
+    expect(document.body.textContent).not.toContain('mlearn.GraphInspector.Neighborhood.Loading');
+    expect(document.body.querySelector('[data-testid="skeleton-rows"]')).toBeNull();
 
     dispose();
   });

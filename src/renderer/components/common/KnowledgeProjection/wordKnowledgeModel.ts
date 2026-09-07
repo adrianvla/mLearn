@@ -2,6 +2,7 @@ import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
 import type { WordStatus } from '../../../../shared/constants';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
+import type { KnowledgeBasisToken } from '../WordStatusPillKnowledge/knowledgeSummary';
 
 /**
  * Everything the knowledge drawer renders for one word, composed once from the
@@ -17,7 +18,15 @@ export interface WordKnowledgeModel {
   wordClaim: WordStatus | null;
   /** Teaching-policy exclusion (ignored word) — orthogonal to knowledge status. */
   excluded: boolean;
+  /**
+   * Header summary for the word as a whole (sense knowledge): status, basis
+   * token, and passive exposure count. Composed from the comprehensive
+   * resolver; only presented here, never recomputed.
+   */
+  overall: { status: WordStatus; basis: KnowledgeBasisToken; timesSeen: number };
 }
+
+const UNMEASURED_OVERALL = { status: 'unknown' as WordStatus, basis: 'unmeasured' as KnowledgeBasisToken, timesSeen: 0 };
 
 /**
  * Canonical drawer aggregate: pure composition of the comprehensive status
@@ -31,10 +40,15 @@ export function assembleWordKnowledgeModel(input: {
   events?: KnowledgeEvent[] | undefined;
 }): WordKnowledgeModel {
   const { comprehensive } = input;
+  const wordClaim = comprehensive?.basis === 'claim' ? comprehensive.claim ?? comprehensive.status : null;
+  const overall = comprehensive
+    ? { status: comprehensive.status, basis: comprehensive.basis, timesSeen: comprehensive.timesSeen }
+    : UNMEASURED_OVERALL;
   return {
     projection: input.projection,
     events: input.events,
-    wordClaim: comprehensive?.basis === 'claim' ? comprehensive.claim ?? comprehensive.status : null,
+    wordClaim,
     excluded: comprehensive?.excluded === true,
+    overall,
   };
 }

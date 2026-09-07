@@ -52,7 +52,7 @@ const settingsBridge: SettingsBridge = {
 };
 
 const flashcardBridge: FlashcardBridge = {
-  getFlashcards: () => getIPC().getFlashcards(),
+  getFlashcards: (knownRev?: number) => getIPC().getFlashcards(knownRev),
   saveFlashcards: (fc) => getIPC().saveFlashcards(fc),
   onFlashcards: (cb) => getIPC().onFlashcards(cb),
   onNewDayFlashcards: (cb) => getIPC().onNewDayFlashcards(cb),

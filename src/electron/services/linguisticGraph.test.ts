@@ -3,25 +3,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type * as loadModule from '../../shared/graph/load';
-import type { LinguisticGraphAsset } from '../../shared/graph/types';
 import { buildKnowledgeProjection } from './knowledgeProjection';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn((channel, handler) => handlers.set(channel, handler)) } }));
 vi.mock('./languageDataService', () => ({ getLanguageDataRoot: () => '/unused' }));
 
-const loadState = vi.hoisted(() => ({ plainReplicaAssets: [] as unknown[] }));
-vi.mock('../../shared/graph/load', async (importOriginal) => {
-  const actual = await importOriginal<typeof loadModule>();
-  return {
-    ...actual,
-    loadLinguisticGraph: (asset: LingualGraphAsset) => {
-      loadState.plainReplicaAssets.push(asset);
-      return actual.loadLinguisticGraph(asset);
-    },
-  };
-});
 vi.mock('./knowledgeProjection', () => ({ buildKnowledgeProjection: vi.fn(() => ({ status: 'ready', targets: [] })) }));
 vi.mock('./flashcardStorage', () => ({ loadFlashcards: vi.fn(async () => ({ meta: {} })) }));
 vi.mock('./knowledgeEvents', () => ({ getKnowledgeEvents: vi.fn(() => ({})) }));
@@ -123,31 +110,30 @@ describe('LinguisticGraphService', () => {
     ]));
   });
 
-  it('serves repeated projections from one cached plain graph and rebuilds it after a reload', async () => {
+  it('serves repeated projections from one cached compact view and rebuilds it after a reload', async () => {
     fs.writeFileSync(path.join(directory, 'languages', 'ja.graph.json'), JSON.stringify(compact('ja', '猫', 'old')));
     fs.writeFileSync(path.join(directory, 'languages', 'ru.graph.json'), JSON.stringify(compact('ru', 'кот')));
     const { LinguisticGraphService } = await import('./linguisticGraph'); // dynamic: file convention, module loads after vi.mock registration
     const buildProjection = vi.mocked(buildKnowledgeProjection);
     const service = new LinguisticGraphService(directory);
-    const replicaAssetsBefore = loadState.plainReplicaAssets.length;
     const projectionCallsBefore = buildProjection.mock.calls.length;
 
     await service.getKnowledgeProjection('ja', '猫');
     await service.getKnowledgeProjection('ja', '猫');
     const projectionCalls = buildProjection.mock.calls.slice(projectionCallsBefore);
     expect(projectionCalls).toHaveLength(2);
-    // Both projections share the same cached plain-graph replica instance; exactly one rebuild happened.
+    // Both projections share the same cached view instance.
     expect(projectionCalls[0][0]).toBe(projectionCalls[1][0]);
-    expect(loadState.plainReplicaAssets.length).toBe(replicaAssetsBefore + 1);
 
-    // Switching languages evicts the replica; returning rebuilds it from the reloaded asset.
+    // Switching languages evicts the view; returning rebuilds it from the reloaded asset.
     await service.getMeta('ru');
     fs.writeFileSync(path.join(directory, 'languages', 'ja.graph.json'), JSON.stringify(compact('ja', '猫', 'rewritten')));
     await service.getKnowledgeProjection('ja', '猫');
     expect(buildProjection.mock.calls.length).toBe(projectionCallsBefore + 3);
-    const rebuiltAsset = loadState.plainReplicaAssets.at(-1) as LinguisticGraphAsset;
-    expect(rebuiltAsset.entities.some((entity) => entity.label === 'rewritten')).toBe(true);
     const finalGraph = buildProjection.mock.calls.at(-1)?.[0];
     expect(finalGraph).not.toBe(projectionCalls[0][0]);
+    // Reload freshness: the stable sense id's label comes from the REWRITTEN
+    // file — a stale view over the old fixture would still say 'old'.
+    expect(finalGraph?.nodes.get('ja:sense:sense')?.label).toBe('rewritten');
   });
 });

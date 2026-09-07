@@ -1,30 +1,49 @@
 .knowledge-timeline {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: var(--spacing-3);
 }
 
 .knowledge-timeline__day {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
+  padding-left: var(--spacing-2);
+  border-left: 2px solid var(--border-color);
 }
 
 .knowledge-timeline__day-label {
   margin: 0;
   font-size: var(--font-size-xs);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
 }
 
-.knowledge-timeline__event {
+/* One summary row per (kind · source · outcome) per day. */
+.knowledge-timeline__entry { display: flex; flex-direction: column; gap: 0.15rem; }
+
+.knowledge-timeline__event,
+.knowledge-timeline__summary {
   display: flex;
   align-items: baseline;
   gap: var(--spacing-1);
-  font-size: var(--font-size-xs);
-  padding-left: var(--spacing-2);
-  border-left: 2px solid var(--border-color);
+  font-size: var(--font-size-sm);
+  min-width: 0;
 }
+
+.knowledge-timeline__summary {
+  background: none;
+  border: none;
+  padding: 0.1rem 0.25rem;
+  margin-left: -0.25rem;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.knowledge-timeline__summary:hover { background: var(--bg-secondary); }
 
 .knowledge-timeline__mark {
   flex: 0 0 auto;
@@ -36,9 +55,33 @@
 }
 
 /* Claims are the user's own statements — visually distinct from evidence. */
-.knowledge-timeline__event--claim { border-left-color: var(--color-primary); }
-.knowledge-timeline__event--claim .knowledge-timeline__mark { background: var(--color-primary); }
+.knowledge-timeline__entry--claim .knowledge-timeline__mark { background: var(--color-primary); }
+.knowledge-timeline__entry--review .knowledge-timeline__mark,
+.knowledge-timeline__entry--rating .knowledge-timeline__mark { background: var(--color-success); }
+.knowledge-timeline__entry--rollup .knowledge-timeline__mark { background: var(--text-tertiary); }
+.knowledge-timeline__entry--status .knowledge-timeline__mark { background: var(--color-info); }
 
-.knowledge-timeline__kind { color: var(--text-primary); font-weight: 600; white-space: nowrap; }
-.knowledge-timeline__detail { color: var(--text-secondary); }
-.knowledge-timeline__source { margin-left: auto; color: var(--text-tertiary); font-size: var(--font-size-2xs); }
+.knowledge-timeline__kind { color: var(--text-primary); font-weight: var(--font-weight-medium); white-space: nowrap; }
+.knowledge-timeline__count {
+  flex: 0 0 auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0 0.3rem;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.knowledge-timeline__detail { color: var(--text-secondary); min-width: 0; }
+.knowledge-timeline__source { margin-left: auto; color: var(--text-tertiary); font-size: var(--font-size-xs); white-space: nowrap; }
+
+/* Expanded individual events under a summary. */
+.knowledge-timeline__events {
+  margin: 0;
+  padding: 0 0 0.15rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  list-style: none;
+}
+.knowledge-timeline__events .knowledge-timeline__event { font-size: var(--font-size-xs); }
+.knowledge-timeline__time { color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
