@@ -1,4 +1,5 @@
-import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type KnowledgeAspect, type LanguageCompoundSplittingConfig, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguageProsodyOverlayConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAspects } from './types';
+import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type LanguageCompoundSplittingConfig, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguageProsodyOverlayConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAccesses } from './types';
+import type { CapabilityKind } from './graph/types';
 import { createProsodyRawPayloadForPosition } from './prosodyPayload';
 import { getReadingExtraCharacters, isTextOnlyInScripts, katakanaToHiragana } from './utils/textUtils';
 import { getResolvedScriptProfile, hasLettersInAnyScript, hasLettersInScript, scriptProfileUsesSegmentlessText, normalizeScriptCodes } from './languageScriptProfile';
@@ -777,7 +778,7 @@ export function isReadingScriptText(text: string, data?: LanguageData | null): b
 
 // ─── Attempt-rating tested/supplied gating ───────────────────────────────────
 
-export interface TestedAspectsInput {
+export interface TestedAccessesInput {
   languageData?: LanguageData | null;
   /** The exact written surface presented to the learner in this interaction. */
   surface: string;
@@ -788,22 +789,24 @@ export interface TestedAspectsInput {
 }
 
 /**
- * Aspects THIS interaction actually tests — the single source for rating-matrix
- * rows. tested != available: a surface written entirely in the reading script
- * (もたれる) supplies the reading, so Reading is not a tested row (cannot fail
- * what was supplied), while form recognition is only meaningful where the
- * surface is not reading-transparent (文脈 yes, さようなら no). Meaning is
- * always tested by a word-presentation task; gender/pronunciation have no
- * testing interaction yet and are excluded until one exists.
+ * Accesses THIS interaction actually tests — the single source for
+ * rating-matrix rows. tested != available: a surface written entirely in the
+ * reading script (もたれる) supplies the reading, so Reading is not a tested
+ * row (cannot fail what was supplied), while written-form recognition is only
+ * meaningful where the surface is not reading-transparent (文脈 yes,
+ * さようなら no). Meaning is always tested by a word-presentation task;
+ * spoken recognition is never tested by a written presentation (no audio cue
+ * — claim-only until a spoken task exists); gender/pronunciation-production
+ * have no testing interaction yet and are excluded until one exists.
  */
-export function getTestedAspects(input: TestedAspectsInput): readonly KnowledgeAspect[] {
-  const available = getAvailableAspects(input.languageData ?? undefined);
+export function getTestedAccesses(input: TestedAccessesInput): readonly CapabilityKind[] {
+  const available = getAvailableAccesses(input.languageData ?? undefined);
   const surfaceSuppliesReading = isReadingScriptText(input.surface, input.languageData);
-  const aspects: KnowledgeAspect[] = ['meaning'];
-  if (available.includes('reading') && input.hasReadingData && !surfaceSuppliesReading) aspects.push('reading');
-  if (available.includes('prosody') && input.hasProsodyData) aspects.push('prosody');
-  if (available.includes('orthography') && !surfaceSuppliesReading) aspects.push('orthography');
-  return aspects;
+  const accesses: CapabilityKind[] = ['sense-recognition'];
+  if (available.includes('surface-reading') && input.hasReadingData && !surfaceSuppliesReading) accesses.push('surface-reading');
+  if (available.includes('prosodic-pattern') && input.hasProsodyData) accesses.push('prosodic-pattern');
+  if (available.includes('surface-recognition') && !surfaceSuppliesReading) accesses.push('surface-recognition');
+  return accesses;
 }
 
 export function getReadingJoinSeparator(data?: LanguageData | null): string {

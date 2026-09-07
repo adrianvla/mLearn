@@ -3,6 +3,7 @@ import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS, KNOWLEDGE_ASPECTS, KNOWLEDGE_SOURCES } from '../../shared/constants';
 import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, retainKnowledgeEvents, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { isValidCapabilityId } from '../../shared/graph/access';
 export { consolidateKnowledgeEvents, retainKnowledgeEvents };
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
@@ -41,16 +42,21 @@ function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   if (typeof event.t !== 'number' || !Number.isFinite(event.t)) return false;
   if (!VALID_KINDS.has(event.kind as string)) return false;
   if (!VALID_SOURCES.has(event.source as string)) return false;
-  // gender/pronunciation/orthography joined the aspect union after this
-  // validator was written; rejecting them here silently dropped their evidence
-  // from disk on every reload.
-  if (!VALID_ASPECTS.has(event.aspect as string)) return false;
+  // Epistemic address: every non-retraction event carries EITHER a legacy
+  // aspect value OR a canonical targetRef.capability (core or namespaced
+  // package id). Aspect-less capability-addressed events are the new normal
+  // — rejecting them here would silently drop their evidence on every
+  // reload (the exact failure mode the gender/pronunciation/orthography fix
+  // once closed).
   if (event.kind === 'retraction') return isAttemptId(event.retracts);
+  if (event.aspect === undefined && !isValidCapabilityId(event.targetRef?.capability)) return false;
+  if (event.aspect !== undefined && !VALID_ASPECTS.has(event.aspect)) return false;
   if (event.attemptId !== undefined && !isAttemptId(event.attemptId)) return false;
   if (event.presentedSurface !== undefined && typeof event.presentedSurface !== 'string') return false;
   if (event.targetRef !== undefined) {
     if (!event.targetRef || typeof event.targetRef !== 'object' || Array.isArray(event.targetRef)) return false;
     if (typeof event.targetRef.kind !== 'string' || typeof event.targetRef.id !== 'string') return false;
+    if (event.targetRef.capability !== undefined && !isValidCapabilityId(event.targetRef.capability)) return false;
   }
   return true;
 }

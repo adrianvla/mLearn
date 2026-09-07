@@ -148,7 +148,7 @@ vi.mock('../../context', () => ({
     getCardByWordSync: mockGetCardByWordSync,
     getComprehensiveWordStatusSync: mockGetComprehensiveWordStatusSync,
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
-    getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
+    getAccessStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
     isWordIgnoredSync: mockIsWordIgnoredSync,
   }),
   useLanguage: () => ({

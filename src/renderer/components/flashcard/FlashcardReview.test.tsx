@@ -16,7 +16,7 @@ let mockLangMap: Record<string, LanguageData> = {};
 let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
 const mockAnswerCard = vi.fn(() => false);
-const mockSetAspectStatus = vi.fn();
+const mockSetAccessStatus = vi.fn();
 const mockRecordAttempt = vi.fn((..._callArgs: unknown[]) => ({ attemptId: 'attempt-1' }));
 const mockAppendRetractions = vi.fn();
 
@@ -36,9 +36,9 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Flashcards.Review.Attribution.WrongOrthography': return 'Unrecognized form';
     case 'mlearn.Flashcards.Review.Attribution.WrongProsody': return 'Wrong prosody';
     case 'mlearn.Flashcards.Review.Attribution.Marked': return `Marked ${String(params?.aspect ?? '')} as unknown`;
-    case 'mlearn.Knowledge.Aspect.Meaning': return 'Meaning';
-    case 'mlearn.Knowledge.Aspect.Reading': return 'Reading';
-    case 'mlearn.Knowledge.Aspect.Orthography': return 'Written form';
+    case 'mlearn.Knowledge.Capability.sense-recognition': return 'Meaning';
+    case 'mlearn.Knowledge.Capability.surface-reading': return 'Reading';
+    case 'mlearn.Knowledge.Capability.surface-recognition': return 'Written form';
     case 'mlearn.Rating.Matrix.Missed': return 'Missed';
     case 'mlearn.Rating.Matrix.Struggled': return 'Struggled';
     case 'mlearn.Rating.Matrix.Fluent': return 'Fluent';
@@ -46,7 +46,7 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Rating.Compact.AllFluent': return 'All fluent';
     case 'mlearn.Rating.Compact.AllEasy': return 'All easy';
     case 'mlearn.Rating.Compact.Adjust': return 'Adjust';
-    case 'mlearn.Knowledge.Aspect.Prosody': return 'Prosody';
+    case 'mlearn.Knowledge.Capability.prosodic-pattern': return 'Prosody';
     case 'mlearn.Flashcards.Review.Again': return 'Again';
     case 'mlearn.Flashcards.Review.Hard': return 'Hard';
     case 'mlearn.Flashcards.Review.Ok': return 'Ok';
@@ -74,7 +74,7 @@ vi.mock('../../context', () => ({
     generateExampleSentenceWithLLM: vi.fn(),
     updateFlashcardContent: vi.fn(),
     updateFlashcard: vi.fn(),
-    setAspectStatus: mockSetAspectStatus,
+    setAccessStatus: mockSetAccessStatus,
     recordAttempt: mockRecordAttempt,
     appendRetractions: mockAppendRetractions,
     recomputeWordKnowledgeFromEvidence: mockAppendRetractions,
@@ -419,7 +419,7 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('a kana card front supplies the reading: no reading or orthography attribution offered', () => {
+  it('a kana card front supplies the reading: no reading or written-form attribution offered', () => {
     // Real isReadingScriptText needs a surface-reading lexeme config to classify
     // pure-kana text as reading script.
     const kanaJaLanguageData: LanguageData = {
@@ -451,18 +451,18 @@ describe('FlashcardReview failure attribution', () => {
     clickShowAnswer(container);
 
     expect(matrixRow(container, 'Written form')).not.toBeNull();
-    rate('1', 'o');
+    rate('1', 'w');
 
     expect(mockRecordAttempt).not.toHaveBeenCalled();
     expect(mockAnswerCard).not.toHaveBeenCalled();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'orthography', 'missed', expect.objectContaining({ language: 'ja' }));
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-recognition', 'missed', expect.objectContaining({ language: 'ja' }));
     expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
     dispose();
   });
 
-  it('hides the wrong-reading button when the language lacks a reading aspect', () => {
+  it('hides the wrong-reading button when the language lacks a reading capability', () => {
     setMockCard(makeCard({ language: 'de' }));
     mockLanguageData = deLanguageData;
 
@@ -498,22 +498,22 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('records a reading miss with prerequisite evidence and Again scheduling', () => {
+  it('records a surface-reading miss with demonstrated-path evidence and Again scheduling', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
     rate('1', 'r');
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'reading', 'missed', expect.objectContaining({
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({
       language: 'ja',
-      demonstrated: ['meaning'],
+      demonstrated: ['surface-recognition'],
     }));
     expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
     dispose();
   });
 
-  it('records a prosody miss with the chain demonstrated (click parity)', () => {
+  it('records a prosody miss with the demonstrated path (click parity)', () => {
     setMockCard(makeCard({
       content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'tone', display: 'HL' } },
     }));
@@ -527,9 +527,9 @@ describe('FlashcardReview failure attribution', () => {
     cell.click();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'prosody', 'missed', expect.objectContaining({
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'prosodic-pattern', 'missed', expect.objectContaining({
       language: 'ja',
-      demonstrated: ['meaning', 'reading'],
+      demonstrated: ['surface-recognition', 'surface-reading'],
     }));
     expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
     dispose();
@@ -543,7 +543,7 @@ describe('FlashcardReview failure attribution', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
     expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'meaning', 'fluent', expect.objectContaining({ language: 'ja' }));
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'fluent', expect.objectContaining({ language: 'ja' }));
     dispose();
   });
 
@@ -559,14 +559,15 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('F submits one profile attempt with every assessable aspect', () => {
+  it('F submits one profile attempt with every tested capability', () => {
     const dispose = render(() => <FlashcardReview />, container);
 
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
-    // Meaning + reading + written form are tested on the default ja card:
-    // every tested aspect receives fluent evidence, none fabricated beyond.
+    // Sense + surface-reading + written-form recognition are tested on the
+    // default ja card: every tested capability receives fluent evidence, none
+    // fabricated beyond.
     const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
     expect(calls.length).toBe(3);
     // One physical submit = one logical attempt: shared attemptId across all
@@ -594,8 +595,8 @@ describe('FlashcardReview failure attribution', () => {
 
     const calls = mockRecordAttempt.mock.calls;
     expect(calls).toHaveLength(3);
-    expect(calls.find((call) => call[1] === 'reading')?.[2]).toBe('missed');
-    expect(calls.filter((call) => call[1] !== 'reading').every((call) => call[2] === 'fluent')).toBe(true);
+    expect(calls.find((call) => call[1] === 'surface-reading')?.[2]).toBe('missed');
+    expect(calls.filter((call) => call[1] !== 'surface-reading').every((call) => call[2] === 'fluent')).toBe(true);
     expect(new Set(calls.map((call) => (call[3] as { attemptId?: string }).attemptId)).size).toBe(1);
     expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.anything());
     dispose();
@@ -623,7 +624,7 @@ describe('FlashcardReview failure attribution', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', altKey: true }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
 
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'meaning', 'fluent', expect.objectContaining({
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'fluent', expect.objectContaining({
       method: 'inference',
     }));
     dispose();

@@ -12,7 +12,7 @@ let flashcardStoreMock: {
   wordKnowledge: Record<string, {
     word: string;
     language: string;
-    aspects?: { reading?: { status: string; ease?: number; claim?: string } };
+    access?: { 'surface-reading'?: { status: string; ease?: number; claim?: string } };
   }>;
   flashcards: Record<string, { language: string; content: { front?: string; word?: string } }>;
   ignoredWords: Record<string, { word: string; language: string }>;
@@ -595,7 +595,7 @@ describe('CharacterGridContent', () => {
       wordKnowledge: {
         // Multi-character word reading knowledge is word-level — it must NOT
         // lift the characters it contains to "evidenced".
-        w: { word: 'سلام', language: 'ar', aspects: { reading: { status: 'known', ease: 2 } } },
+        w: { word: 'سلام', language: 'ar', access: { 'surface-reading': { status: 'known', ease: 2 } } },
       },
       flashcards: {},
       ignoredWords: {},
@@ -630,7 +630,7 @@ describe('CharacterGridContent', () => {
         known: { word: 'سلام', language: 'ar' },
         // A single-character word with reading-attempt evidence is the
         // character's own capability.
-        one: { word: 'س', language: 'ar', aspects: { reading: { status: 'known', ease: 2 } } },
+        one: { word: 'س', language: 'ar', access: { 'surface-reading': { status: 'known', ease: 2 } } },
       },
       flashcards: {},
       ignoredWords: {},
@@ -673,7 +673,7 @@ describe('CharacterGridContent', () => {
       wordKnowledge: {
         known: { word: 'سلام', language: 'ar' },
         // Manual claim record (source 'Manual', claim set) — user statement.
-        one: { word: 'س', language: 'ar', aspects: { reading: { status: 'learning', ease: 1.55, claim: 'learning' } } },
+        one: { word: 'س', language: 'ar', access: { 'surface-reading': { status: 'learning', ease: 1.55, claim: 'learning' } } },
       },
       flashcards: {},
       ignoredWords: {},
@@ -710,7 +710,7 @@ describe('CharacterGridContent', () => {
     flashcardStoreMock = {
       wordKnowledge: {
         known: { word: 'سلام', language: 'ar' },
-        one: { word: 'س', language: 'ar', aspects: { reading: { status: 'unknown', ease: 1.3 } } },
+        one: { word: 'س', language: 'ar', access: { 'surface-reading': { status: 'unknown', ease: 1.3 } } },
       },
       flashcards: {},
       ignoredWords: {},

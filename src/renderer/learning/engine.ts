@@ -15,15 +15,18 @@ import {
   type WeakTargetEntry,
 } from './candidateSources';
 import { selectNext, type Rng, type TeachingPolicyConfig } from './teachingPolicy';
+import { surfaceEntityId } from '../../shared/graph/load';
+import { hashWordSync } from '../services/srsAlgorithm';
+import type { CapabilityKind } from '../../shared/graph/types';
 import type { EncounterTask, PolicyDecision } from './types';
 
 type Preset = Omit<TeachingPolicyConfig, 'nowMs' | 'cooldowns' | 'recentPicks'>;
 
 const RETENTION_TASK: EncounterTask = {
   taskTemplateId: 'flashcard-review',
-  inputModality: 'text',
+  inputModality: 'written-form',
   responseModality: 'recall',
-  supplied: ['surface'],
+  supplied: ['written-form'],
   requested: ['meaning'],
   fluencyRequired: true,
   ratingMode: 'profile',
@@ -31,10 +34,10 @@ const RETENTION_TASK: EncounterTask = {
 
 const CALIBRATION_TASK: EncounterTask = {
   taskTemplateId: 'word-sync',
-  inputModality: 'text',
+  inputModality: 'written-form',
   responseModality: 'self-assessment',
-  supplied: ['surface'],
-  requested: ['meaning'],
+  supplied: ['written-form'],
+  requested: ['lexical-identity', 'meaning', 'pronunciation'],
   fluencyRequired: false,
   ratingMode: 'profile',
 };
@@ -177,12 +180,20 @@ export function calibrationPoolItem(
   word: string,
   language: string,
   novelty: number,
+  options?: { bridge?: boolean },
 ): CalibrationPoolItem {
   return {
     key,
     word,
     language,
-    targets: [{ entityId: `${language}:surface:${word}`, capability: 'surface-recognition' }],
-    scores: { novelty },
+    targets: [{ entityId: surfaceEntityId(language, hashWordSync(word)), capability: 'surface-recognition' }],
+    scores: {
+      novelty,
+      // A bridge candidate (known lexical object, one missing directed
+      // access) is a cheap, high-value measurement — the CALIBRATION preset
+      // weights information-gain, so this lifts it in the policy pick.
+      ...(options?.bridge ? { 'information-gain': 1 } : {}),
+    },
+    ...(options?.bridge ? { meta: { bridge: ['surface-recognition'] as const satisfies readonly CapabilityKind[] } } : {}),
   };
 }

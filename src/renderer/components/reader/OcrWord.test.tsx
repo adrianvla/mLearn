@@ -53,7 +53,7 @@ vi.mock('../../context', () => ({
     trackWordHovered: mockTrackWordHovered,
     cancelWordHover: mockCancelWordHover,
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
-    getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
+    getAccessStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
   }),
   useLanguage: () => ({
     currentLangData: () => mockLanguageData,

@@ -26,9 +26,10 @@ const log = getLogger("renderer.characterGrid.app");
 // Tier-2 semantics: three per-character signal sources, resolved in strict
 // priority — claim outranks evidence, evidence outranks prediction:
 //   1. claim     — the user's own explicit statement about this character
-//                  (setAspectStatus('reading', …, 'manual') claim record).
+//                  (setAccessStatus('surface-reading', …, 'manual') claim
+//                  record).
 //   2. evidence  — character-reading attempt records on SINGLE-character word
-//                  entries (aspect 'reading'). Reading attempts on
+//                  entries (capability 'surface-reading'). Reading attempts on
 //                  multi-character words are word-level, not per-character
 //                  capability, and never count here.
 //   3. predicted — familiarity derived from the words containing the character
@@ -284,17 +285,18 @@ export const CharacterGridContent: Component = () => {
         }
       }
 
-      // Direct character-reading signal: reading aspect records on word entries
-      // that ARE a single study character describe the character itself — word
-      // aggregation above is prediction only. A claim record (source 'Manual',
-      // claim set) is the user's explicit statement; any other record is
-      // character-reading attempt evidence. Both outrank prediction below.
+      // Direct character-reading signal: surface-reading access records on
+      // word entries that ARE a single study character describe the character
+      // itself — word aggregation above is prediction only. A claim record
+      // (source 'Manual', claim set) is the user's explicit statement; any
+      // other record is character-reading attempt evidence. Both outrank
+      // prediction below.
       const directByCharacter = new Map<string, NonNullable<StudyCharacterData['direct']>>();
       for (const entry of Object.values(flashcardCtx.store.wordKnowledge)) {
         if (!entry || entry.language !== lang) continue;
         const chars = extractUniqueStudyCharacters(entry.word.trim(), studyScripts());
         if (chars.length !== 1) continue;
-        const record = entry.aspects?.reading;
+        const record = entry.access?.['surface-reading'];
         if (!record) continue;
         const kind: DirectCharacterKnowledge['kind'] = record.claim !== undefined ? 'claim' : 'evidence';
         const existing = directByCharacter.get(chars[0]);

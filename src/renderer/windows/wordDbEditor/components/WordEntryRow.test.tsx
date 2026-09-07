@@ -52,7 +52,7 @@ vi.mock('../../../context', () => ({
     getWordTrackingSync: getWordTrackingSyncMock,
     store: { meta: { learningSteps: [1], relearnSteps: [1], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 365 } },
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
-    getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
+    getAccessStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
   }),
 }));
 

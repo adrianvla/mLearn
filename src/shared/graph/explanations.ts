@@ -1,9 +1,8 @@
-import { readActiveEvidence, type KnowledgeEvent } from '../knowledgeEvents';
+import { readActiveEvidence, eventCapability, type KnowledgeEvent } from '../knowledgeEvents';
 import { replayKeyProjection, type ReplayProjection } from '../utils/projectionReplay';
 import { easeToStatus } from '../utils/knowledgeStrength';
 import { deriveRetentionSchedule, type RetentionPolicy } from '../srs/retentionScheduler';
 import type { CapabilityKind } from './types';
-import { ASPECT_CAPABILITY } from './types';
 
 /**
  * Effective state of one learnable target. Claim states are distinct from
@@ -39,20 +38,22 @@ export interface TargetExplanation {
 }
 
 /**
- * Meaning evidence/claims govern the meaning-visible capabilities; every other
- * word aspect maps 1:1 through ASPECT_CAPABILITY. Grammar rows travel only via
- * targetRef.capability; legacy flat grammar rows (aspect 'grammar', no
- * capability) stay on the conservative recognition capability they can justify.
+ * Routing: capability-addressed events match their exact capability only.
+ * Legacy flat events (no targetRef) route through the aspect projection —
+ * legacy meaning events fan out to both meaning-visible capabilities, the
+ * one conflation the pre-access model carried, preserved ONLY for old
+ * journals. New writers address precisely.
  */
 const MEANING_CAPABILITIES: ReadonlySet<CapabilityKind> = new Set(['sense-recognition', 'surface-recognition']);
 
 export function eventAppliesToCapability(event: KnowledgeEvent, capability: CapabilityKind): boolean {
   if (event.targetRef?.capability !== undefined) return event.targetRef.capability === capability;
-  if (event.aspect === 'grammar') return capability === 'grammar-recognition';
-  const eventCapability = ASPECT_CAPABILITY[event.aspect];
-  if (eventCapability === 'sense-recognition') return MEANING_CAPABILITIES.has(capability);
-  return eventCapability === capability;
+  const legacyCapability = eventCapability(event);
+  if (legacyCapability === undefined) return false;
+  if (legacyCapability === 'sense-recognition') return MEANING_CAPABILITIES.has(capability);
+  return legacyCapability === capability;
 }
+
 
 /**
  * One classification rule for a replayed projection: claim ?? active evidence,

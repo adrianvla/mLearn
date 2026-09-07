@@ -1,6 +1,8 @@
 import { createMemo, createResource } from 'solid-js';
 import { useLanguage, useSettings } from '../context';
-import type { KnowledgeAspect, KnowledgeEvent } from '../../shared/knowledgeEvents';
+import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
+import { eventCapability } from '../../shared/knowledgeEvents';
+import type { CapabilityKind } from '../../shared/graph/types';
 import { eventsVersion, getEvents } from '../services/knowledgeEvents';
 import { hashWordSync } from '../services/srsAlgorithm';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
@@ -12,14 +14,14 @@ export interface KnowledgeHistoryResult {
   replay: () => ReturnType<typeof replayKnowledgeHistory>;
 }
 
-export function useKnowledgeHistory(word: () => string, aspect: () => KnowledgeAspect): KnowledgeHistoryResult {
+export function useKnowledgeHistory(word: () => string, capability: () => CapabilityKind): KnowledgeHistoryResult {
   const { settings } = useSettings();
   const { langData, currentLangData, getCanonicalFormForLanguage, getWordVariantsForLanguage } = useLanguage();
   const version = createMemo(() => eventsVersion());
 
   const [events] = createResource(
-    () => [word(), aspect(), settings.language, version()] as const,
-    async ([surface, activeAspect, language]) => {
+    () => [word(), capability(), settings.language, version()] as const,
+    async ([surface, activeCapability, language]) => {
       const languageData = language === settings.language ? currentLangData() : langData[language] ?? null;
       const forms = getWordFormCandidates(
         surface,
@@ -32,7 +34,9 @@ export function useKnowledgeHistory(word: () => string, aspect: () => KnowledgeA
       const legacyForms = forms.flatMap((form) => legacyCasingCandidates(form));
       const keys = [...forms, ...legacyForms].map((form) => `${language}:${hashWordSync(form)}`);
       const all = await getEvents(keys);
-      return all.filter((event) => event.aspect === activeAspect).sort((a, b) => a.t - b.t);
+      // Canonical access addressing: legacy aspect-only events route through
+      // ASPECT_CAPABILITY, capability-addressed events match directly.
+      return all.filter((event) => eventCapability(event) === activeCapability).sort((a, b) => a.t - b.t);
     },
   );
 

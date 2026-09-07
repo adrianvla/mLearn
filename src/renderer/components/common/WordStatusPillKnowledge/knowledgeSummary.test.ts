@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
 import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
 import {
-  aspectCapabilitySummary,
+  capabilitySummary,
   isUntrackedKnowledge,
   knowledgeStatusLabelKey,
+  projectionStateForCapability,
   UNTRACKED_LABEL_KEY,
 } from './knowledgeSummary';
 
@@ -41,18 +42,18 @@ describe('knowledgeStatusLabelKey', () => {
   });
 });
 
-describe('aspectCapabilitySummary meaning row', () => {
-  it('marks unmeasured meaning as untracked so the row renders Untracked', () => {
-    const row = aspectCapabilitySummary('meaning', { status: 'unknown', untracked: false }, meaningResult(), undefined);
+describe('capabilitySummary sense row', () => {
+  it('marks unmeasured sense knowledge as untracked so the row renders Untracked', () => {
+    const row = capabilitySummary('sense-recognition', { status: 'unknown', untracked: false }, meaningResult(), undefined);
 
     expect(row.basis).toBe('unmeasured');
     expect(row.untracked).toBe(true);
     expect(knowledgeStatusLabelKey(row.status, row.basis)).toBe(UNTRACKED_LABEL_KEY);
   });
 
-  it('keeps claim-backed meaning tracked (Known)', () => {
-    const row = aspectCapabilitySummary(
-      'meaning',
+  it('keeps claim-backed sense knowledge tracked (Known)', () => {
+    const row = capabilitySummary(
+      'sense-recognition',
       { status: 'known', untracked: false },
       meaningResult({ status: 'known', basis: 'claim', claim: 'known' }),
       undefined,
@@ -71,8 +72,8 @@ describe('aspectCapabilitySummary meaning row', () => {
       evidenceSourceCounts: {},
       prediction: { value: 0.4, reasons: ['増える → 殖える (semantically-related)'] },
     } as unknown as KnowledgeProjection['targets'][number]['states'][number];
-    const row = aspectCapabilitySummary(
-      'meaning',
+    const row = capabilitySummary(
+      'sense-recognition',
       { status: 'unknown', untracked: true },
       meaningResult(),
       projectionState,
@@ -93,8 +94,8 @@ describe('aspectCapabilitySummary meaning row', () => {
       evidence: [],
       evidenceSourceCounts: {},
     } as unknown as KnowledgeProjection['targets'][number]['states'][number];
-    const row = aspectCapabilitySummary(
-      'meaning',
+    const row = capabilitySummary(
+      'sense-recognition',
       { status: 'unknown', untracked: false },
       meaningResult(),
       projectionState,
@@ -107,9 +108,8 @@ describe('aspectCapabilitySummary meaning row', () => {
   });
 });
 
-describe('projectionStateForAspect', () => {
-  it('maps prosody to the prosodic-pattern capability, never pronunciation-production', async () => {
-    const { projectionStateForAspect } = await import('./knowledgeSummary');
+describe('projectionStateForCapability', () => {
+  it('maps prosodic-pattern to its own state, never pronunciation-production', () => {
     const projection = {
       status: 'ready' as const,
       targets: [
@@ -137,13 +137,12 @@ describe('projectionStateForAspect', () => {
         },
       ],
     } as unknown as KnowledgeProjection;
-    const state = projectionStateForAspect(projection, 'prosody');
+    const state = projectionStateForCapability(projection, 'prosodic-pattern');
     expect(state?.capability).toBe('prosodic-pattern');
     expect(state?.classification).toBe('learning');
   });
 
-  it('reading maps to surface-reading and meaning to the presented surface row', async () => {
-    const { projectionStateForAspect } = await import('./knowledgeSummary');
+  it('matches each capability state directly', () => {
     const projection = {
       status: 'ready' as const,
       targets: [
@@ -157,16 +156,15 @@ describe('projectionStateForAspect', () => {
         },
       ],
     } as unknown as KnowledgeProjection;
-    expect(projectionStateForAspect(projection, 'meaning')?.capability).toBe('surface-recognition');
-    expect(projectionStateForAspect(projection, 'reading')?.capability).toBe('surface-reading');
+    expect(projectionStateForCapability(projection, 'surface-recognition')?.classification).toBe('known');
+    expect(projectionStateForCapability(projection, 'surface-reading')?.classification).toBe('unmeasured');
   });
 });
 
-describe('aspectCapabilitySummary claim provenance', () => {
+describe('capabilitySummary claim provenance', () => {
   const meaningUnknown = meaningResult();
 
-  it('a projection claim state renders as claim, never Untracked', async () => {
-    const { aspectCapabilitySummary, projectionStateForAspect } = await import('./knowledgeSummary');
+  it('a projection claim state renders as claim, never Untracked', () => {
     const projection = {
       status: 'ready' as const,
       targets: [{
@@ -178,9 +176,9 @@ describe('aspectCapabilitySummary claim provenance', () => {
         }],
       }],
     } as unknown as KnowledgeProjection;
-    const state = projectionStateForAspect(projection, 'reading');
-    const row = aspectCapabilitySummary(
-      'reading',
+    const state = projectionStateForCapability(projection, 'surface-reading');
+    const row = capabilitySummary(
+      'surface-reading',
       { status: 'unknown', untracked: true },
       meaningUnknown,
       state,
@@ -190,10 +188,9 @@ describe('aspectCapabilitySummary claim provenance', () => {
     expect(row.untracked).toBe(false);
   });
 
-  it('a local aspect claim outranks a stale unmeasured projection', async () => {
-    const { aspectCapabilitySummary } = await import('./knowledgeSummary');
-    const row = aspectCapabilitySummary(
-      'prosody',
+  it('a local claim outranks a stale unmeasured projection', () => {
+    const row = capabilitySummary(
+      'prosodic-pattern',
       { status: 'known', basis: 'claim', claim: 'known' },
       meaningUnknown,
       {
@@ -205,10 +202,9 @@ describe('aspectCapabilitySummary claim provenance', () => {
     expect(row.status).toBe('known');
   });
 
-  it('without a projection, a claimed aspect keeps the claim basis instead of evidence', async () => {
-    const { aspectCapabilitySummary } = await import('./knowledgeSummary');
-    const row = aspectCapabilitySummary(
-      'reading',
+  it('without a projection, a claimed access keeps the claim basis instead of evidence', () => {
+    const row = capabilitySummary(
+      'surface-reading',
       { status: 'known', basis: 'claim', claim: 'known' },
       meaningUnknown,
       undefined,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { getAvailableAspects, type LanguageData } from '../types';
+import { getAvailableAccesses, type LanguageData } from '../types';
 
-describe('getAvailableAspects', () => {
+describe('getAvailableAccesses', () => {
   const readingLanguage: LanguageData = {
     name: 'Reading Language',
     settings: { fixed: {} },
@@ -13,67 +13,114 @@ describe('getAvailableAspects', () => {
     },
   };
 
-  it('returns all aspects for a language with reading annotations and prosody', () => {
-    expect(getAvailableAspects({
+  it('returns all word accesses for a language with reading annotations and prosody', () => {
+    expect(getAvailableAccesses({
       ...readingLanguage,
       prosody: { type: 'japanese-pitch-accent' },
-    })).toEqual(['meaning', 'reading', 'prosody', 'pronunciation', 'orthography']);
+    })).toEqual([
+      'sense-recognition',
+      'surface-reading',
+      'prosodic-pattern',
+      'spoken-recognition',
+      'pronunciation-production',
+      'surface-recognition',
+    ]);
   });
 
-  it('returns meaning only without reading annotations', () => {
-    expect(getAvailableAspects({
+  it('returns sense only without reading annotations', () => {
+    expect(getAvailableAccesses({
       name: 'Meaning Only',
       settings: { fixed: {} },
-    })).toEqual(['meaning']);
+    })).toEqual(['sense-recognition']);
   });
 
-  it('omits prosody when its type is none', () => {
-    expect(getAvailableAspects({
+  it('omits pitch access when the prosody type is none', () => {
+    expect(getAvailableAccesses({
       ...readingLanguage,
       prosody: { type: 'none' },
-    })).toEqual(['meaning', 'reading', 'pronunciation', 'orthography']);
+    })).toEqual([
+      'sense-recognition',
+      'surface-reading',
+      'spoken-recognition',
+      'pronunciation-production',
+      'surface-recognition',
+    ]);
   });
 
-  it('returns meaning only when language data is missing', () => {
-    expect(getAvailableAspects()).toEqual(['meaning']);
+  it('returns sense only when language data is missing', () => {
+    expect(getAvailableAccesses()).toEqual(['sense-recognition']);
   });
 
-  it('maps an accent feature declared reading-critical into the reading aspect (no prosody aspect)', () => {
+  it('maps a reading-critical accent feature into surface-reading (no pitch access)', () => {
     // Russian-like metadata: stress accentuation that is required to read the word.
-    // No readingAnnotation: form recognition (orthography) is not independently
-    // learnable, but the spoken form (pronunciation) is.
-    expect(getAvailableAspects({
+    // No readingAnnotation: written-form recognition is not independently
+    // learnable, but the spoken accesses are.
+    expect(getAvailableAccesses({
       name: 'Stress Language',
       settings: { fixed: {} },
       prosody: { type: 'stress-accent', knowledgeAspect: 'reading' },
-    })).toEqual(['meaning', 'reading', 'pronunciation']);
+    })).toEqual([
+      'sense-recognition',
+      'surface-reading',
+      'spoken-recognition',
+      'pronunciation-production',
+    ]);
   });
 
-  it('keeps a pitch-nuance accent feature in the prosody aspect', () => {
-    expect(getAvailableAspects({
+  it('keeps a pitch-nuance accent feature in the prosodic-pattern access', () => {
+    expect(getAvailableAccesses({
       ...readingLanguage,
       prosody: { type: 'japanese-pitch-accent', knowledgeAspect: 'prosody' },
-    })).toEqual(['meaning', 'reading', 'prosody', 'pronunciation', 'orthography']);
+    })).toEqual([
+      'sense-recognition',
+      'surface-reading',
+      'prosodic-pattern',
+      'spoken-recognition',
+      'pronunciation-production',
+      'surface-recognition',
+    ]);
   });
 
-  it('enables the gender aspect when the language declares gender data', () => {
-    expect(getAvailableAspects({
+  it('enables gender when the language declares gender data', () => {
+    expect(getAvailableAccesses({
       ...readingLanguage,
       gender: { attributeKey: 'gender' },
-    })).toEqual(['meaning', 'reading', 'gender', 'pronunciation', 'orthography']);
+    })).toEqual([
+      'sense-recognition',
+      'surface-reading',
+      'gender',
+      'spoken-recognition',
+      'pronunciation-production',
+      'surface-recognition',
+    ]);
   });
 
-  it('gender coexists with the full reading+prosody chain', () => {
-    expect(getAvailableAspects({
+  it('gender coexists with the full reading+prosody set', () => {
+    expect(getAvailableAccesses({
       ...readingLanguage,
       prosody: { type: 'japanese-pitch-accent' },
       gender: { attributeKey: 'gender' },
-    })).toEqual(['meaning', 'reading', 'prosody', 'gender', 'pronunciation', 'orthography']);
+    })).toEqual([
+      'sense-recognition',
+      'surface-reading',
+      'prosodic-pattern',
+      'gender',
+      'spoken-recognition',
+      'pronunciation-production',
+      'surface-recognition',
+    ]);
   });
 
-  it('real ru package: reading + gender, no prosody (stress belongs to reading)', async () => {
+  it('real ru package: surface-reading + gender, no pitch access (stress belongs to reading)', async () => {
     const { readFileSync } = await import('fs');
     const ru = JSON.parse(readFileSync('scripts/language-data/source/root-of-app/languages/ru.json', 'utf-8'));
-    expect(getAvailableAspects(ru)).toEqual(['meaning', 'reading', 'gender', 'pronunciation', 'orthography']);
+    expect(getAvailableAccesses(ru)).toEqual([
+      'sense-recognition',
+      'surface-reading',
+      'gender',
+      'spoken-recognition',
+      'pronunciation-production',
+      'surface-recognition',
+    ]);
   });
 });

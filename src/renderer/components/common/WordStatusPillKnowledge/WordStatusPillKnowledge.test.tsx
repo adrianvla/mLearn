@@ -2,14 +2,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { LanguageData, PassiveWordKnowledge, AspectKnowledge } from '../../../../shared/types';
+import type { LanguageData, PassiveWordKnowledge, AccessKnowledge } from '../../../../shared/types';
 import type { WordStatus } from '../../../../shared/constants';
-import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
+import type { CapabilityKind } from '../../../../shared/graph/types';
+import type { RatedCapability } from '../../../utils/accessKnowledge';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 import { WordStatusPillKnowledge } from './WordStatusPillKnowledge';
 
 const getComprehensiveWordStatusWithSourceSyncMock = vi.fn();
-const getAspectStatusMock = vi.fn();
+const getAccessStatusMock = vi.fn();
 const recordAttemptMock = vi.fn();
 const onPinMock = vi.fn();
 const onCloseMock = vi.fn();
@@ -51,7 +52,7 @@ vi.mock('../../../context', () => ({
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
     getComprehensiveWordStatusWithSourceSync: getComprehensiveWordStatusWithSourceSyncMock,
-    getAspectStatus: getAspectStatusMock,
+    getAccessStatus: getAccessStatusMock,
     recordAttempt: recordAttemptMock,
   }),
   useLocalization: () => ({
@@ -71,14 +72,14 @@ const flush = (): Promise<void> => {
 // The matrix contract under test: applicable rows in, one profile submission out.
 vi.mock('../RatingMatrix', () => ({
   RatingMatrix: (props: {
-    aspects: readonly string[];
-    onProfileSubmit?: (observations: readonly { aspect: string; quality: string }[]) => void;
+    capabilities: readonly string[];
+    onProfileSubmit?: (observations: readonly { capability: string; quality: string }[]) => void;
   }) => (
     <div data-testid="mock-rating-matrix">
-      {props.aspects.join(',')}
+      {props.capabilities.join(',')}
       <button
         type="button"
-        onClick={() => props.onProfileSubmit?.([{ aspect: props.aspects[0], quality: 'fluent' }])}
+        onClick={() => props.onProfileSubmit?.([{ capability: props.capabilities[0], quality: 'fluent' }])}
       >
         mock-matrix-submit
       </button>
@@ -101,7 +102,7 @@ vi.mock('../../../../shared/bridges', () => ({
 
 const knowledgeKey = (word: string, language = 'ja'): string => `${language}:${hashWordSync(word)}`;
 
-const aspectRecord = (status: WordStatus): AspectKnowledge => ({
+const accessRecord = (status: WordStatus): AccessKnowledge => ({
   status,
   ease: status === 'known' ? 1.8 : status === 'learning' ? 1.55 : 1.3,
   source: 'Manual',
@@ -109,7 +110,7 @@ const aspectRecord = (status: WordStatus): AspectKnowledge => ({
   updatedAt: 1,
 });
 
-const seedEntry = (aspects: Partial<Record<Exclude<KnowledgeAspect, 'meaning'>, AspectKnowledge>>): void => {
+const seedEntry = (access: Partial<Record<RatedCapability, AccessKnowledge>>): void => {
   wordKnowledge[knowledgeKey('apple')] = {
     ease: 2.5,
     lastSeen: 1,
@@ -117,7 +118,7 @@ const seedEntry = (aspects: Partial<Record<Exclude<KnowledgeAspect, 'meaning'>, 
     timesHovered: 0,
     word: 'apple',
     language: 'ja',
-    aspects,
+    access,
   };
 };
 
@@ -147,15 +148,19 @@ describe('WordStatusPillKnowledge', () => {
     currentLang = richLanguageData;
     wordKnowledge = {};
     getComprehensiveWordStatusWithSourceSyncMock.mockReturnValue(comprehensiveResult('known'));
-    // Faithful mini-mock of getAspectStatusSync: record → its status; absent
-    // record → untracked for EVERY aspect — meaning-known never fabricates
-    // finer-aspect knowledge.
-    getAspectStatusMock.mockImplementation((_word: string, aspect: KnowledgeAspect) => {
-      if (aspect === 'meaning') {
+    // Faithful mini-mock of getAccessStatusSync: record → its status; absent
+    // record → untracked for EVERY capability — sense-known never fabricates
+    // finer-access knowledge.
+    getAccessStatusMock.mockImplementation((_word: string, capability: CapabilityKind) => {
+      if (capability === 'sense-recognition') {
         return { status: comprehensiveResult('known').status, ease: 2.5, source: 'None' };
       }
-      const record = wordKnowledge[knowledgeKey('apple')]?.aspects?.[aspect];
-      if (record) return { status: record.status, ease: record.ease, source: record.source };
+      const record = wordKnowledge[knowledgeKey('apple')]?.access?.[capability];
+      if (record) {
+        return record.claim !== undefined
+          ? { status: record.claim, ease: record.ease, source: 'Manual', basis: 'claim', claim: record.claim }
+          : { status: record.status, ease: record.ease, source: record.source, basis: 'evidence' };
+      }
       return { status: 'unknown', ease: 0, source: 'None', untracked: true };
     });
   });
@@ -164,31 +169,31 @@ describe('WordStatusPillKnowledge', () => {
     container.remove();
   });
 
-  it('renders every applicable aspect with Untracked shown for unmeasured ones', () => {
+  it('renders every applicable capability with Untracked shown for unmeasured ones', () => {
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
-    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Meaning');
-    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Reading');
-    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Prosody');
+    expect(container.textContent).toContain('mlearn.Knowledge.Capability.sense-recognition');
+    expect(container.textContent).toContain('mlearn.Knowledge.Capability.surface-reading');
+    expect(container.textContent).toContain('mlearn.Knowledge.Capability.prosodic-pattern');
     expect(container.textContent).toContain('mlearn.Knowledge.Untracked');
 
     dispose();
   });
 
-  it('omits aspects the language does not support', () => {
+  it('omits capabilities the language does not support', () => {
     const dispose = render(() => <WordStatusPillKnowledge word="apple" language="de" />, container);
 
-    expect(container.textContent).toContain('mlearn.Knowledge.Aspect.Meaning');
-    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Reading');
-    expect(container.textContent).not.toContain('mlearn.Knowledge.Aspect.Prosody');
+    expect(container.textContent).toContain('mlearn.Knowledge.Capability.sense-recognition');
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Capability.surface-reading');
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Capability.prosodic-pattern');
 
     dispose();
   });
 
-  it('labels aspect statuses with the WordHover status keys', () => {
+  it('labels capability statuses with the WordHover status keys', () => {
     seedEntry({
-      reading: aspectRecord('learning'),
-      prosody: aspectRecord('unknown'),
+      'surface-reading': accessRecord('learning'),
+      'prosodic-pattern': accessRecord('unknown'),
     });
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
@@ -222,11 +227,11 @@ describe('WordStatusPillKnowledge', () => {
   });
 
   it('keeps the basis in the row tooltip, not as visible debug text', () => {
-    seedEntry({ reading: aspectRecord('learning') });
+    seedEntry({ 'surface-reading': accessRecord('learning') });
     const dispose = render(() => <WordStatusPillKnowledge word="apple" />, container);
 
     const titles = Array.from(container.querySelectorAll('[title]')).map((el) => el.getAttribute('title') ?? '');
-    expect(titles.some((title) => title.includes('mlearn.Knowledge.Aspect.Reading') && title.includes('mlearn.Knowledge.Basis.Evidence'))).toBe(true);
+    expect(titles.some((title) => title.includes('mlearn.Knowledge.Capability.surface-reading') && title.includes('mlearn.Knowledge.Basis.Evidence'))).toBe(true);
     expect(container.textContent).not.toContain('mlearn.Knowledge.Basis.Evidence');
 
     dispose();
@@ -242,7 +247,7 @@ describe('WordStatusPillKnowledge', () => {
   });
 
   it('pins the popup and reveals the matrix only through Rate…, submitting one profile attempt', async () => {
-    seedEntry({ reading: aspectRecord('learning') });
+    seedEntry({ 'surface-reading': accessRecord('learning') });
     const dispose = render(
       () => <WordStatusPillKnowledge word="apple" onPin={onPinMock} onClose={onCloseMock} />,
       container,
@@ -254,18 +259,18 @@ describe('WordStatusPillKnowledge', () => {
     expect(onPinMock).toHaveBeenCalled();
 
     const matrix = container.querySelector('[data-testid="mock-rating-matrix"]');
-    expect(matrix?.textContent).toContain('meaning');
-    expect(matrix?.textContent).toContain('reading');
-    expect(matrix?.textContent).toContain('prosody');
+    expect(matrix?.textContent).toContain('surface-reading');
+    expect(matrix?.textContent).toContain('prosodic-pattern');
+    expect(matrix?.textContent).not.toContain('sense-recognition');
 
     buttons(container, 'mock-matrix-submit')[0]?.click();
     await flush();
 
     expect(recordAttemptMock).toHaveBeenCalledTimes(1);
     const submission = recordAttemptMock.mock.calls[0] as unknown[] | undefined; // our own mock input, shape fixed above
-    const [word, aspect, quality, opts] = submission ?? [];
+    const [word, capability, quality, opts] = submission ?? [];
     expect(word).toBe('apple');
-    expect(aspect).toBe('meaning');
+    expect(capability).toBe('surface-reading');
     expect(quality).toBe('fluent');
     const attemptOpts = opts && typeof opts === 'object' && 'attemptId' in opts ? opts : undefined;
     expect(attemptOpts && typeof attemptOpts.attemptId === 'string' && attemptOpts.attemptId.length > 0).toBe(true);
@@ -292,8 +297,8 @@ describe('WordStatusPillKnowledge', () => {
     buttons(container, 'mlearn.Knowledge.Popup.Rate')[0]?.click();
 
     const matrix = container.querySelector('[data-testid="mock-rating-matrix"]');
-    expect(matrix?.textContent).toContain('reading');
-    expect(matrix?.textContent).toContain('prosody');
+    expect(matrix?.textContent).toContain('surface-reading');
+    expect(matrix?.textContent).toContain('prosodic-pattern');
 
     dispose();
   });

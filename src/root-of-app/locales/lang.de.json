@@ -1363,9 +1363,19 @@
     },
     "Knowledge": {
       "Capability": {
-        "surface-recognition": "Erkennung",
-        "surface-reading": "Lesen",
-        "pronunciation-production": "Aussprache"
+        "sense-recognition": "Bedeutung",
+        "surface-recognition": "Schriftform",
+        "spoken-recognition": "Gesprochene Form",
+        "surface-reading": "Lesung",
+        "pronunciation-production": "Aussprache",
+        "prosodic-pattern": "Prosodie",
+        "gender": "Genus",
+        "character-reading": "Schriftzeichen",
+        "morpheme-recognition": "Morphem",
+        "grammar-recognition": "Grammatik",
+        "grammar-comprehension": "Grammatik",
+        "grammar-formation": "Grammatik",
+        "grammar-production": "Grammatik"
       },
       "Basis": {
         "Claim": "Eigene Einschätzung",
@@ -3093,6 +3103,15 @@
       "Rating": {
         "AllRow": "Alle",
         "PendingHint": "Note 1–4, dann Aspekt-Taste – Note erneut drücken für alle Aspekte"
+      },
+      "Statement": {
+        "Label": "Stattdessen beschreiben",
+        "KnownSpoken": "Ich kenne dieses Wort, wenn ich es höre.",
+        "MeaningNotForm": "Ich kenne die Bedeutung, aber nicht diese Schreibweise.",
+        "KnownCharacters": "Ich kenne die einzelnen Schriftzeichen.",
+        "InferredFromParts": "Ich kann die Bedeutung aus den Teilen erschließen.",
+        "ReadablePitchWrong": "Ich kann es lesen, aber mein Tonhöhenakzent ist falsch.",
+        "NeverSeenForm": "Ich habe diese Form noch nie gesehen."
       },
       "FinishedTitle": "Fertig!",
       "FinishedDescription": "Du hast {count} Wörter geprüft. Dein Wortwissen wurde aktualisiert.",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compoundSplitterConfig, languageSupportsCompoundSplitting } from './languageFeatures';
-import { getAvailableAspects } from './types';
+import { getAvailableAccesses } from './types';
 import { attestedCompoundAnalysis } from './graph/morphology/attested';
 import { createCompoundLexicon, decomposeCompound } from './graph/morphology/compounds';
 import type { LanguageCompoundSplittingConfig, LanguageData } from './types';
@@ -54,7 +54,7 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
     expect(compoundSplitterConfig(withoutCapability)).toBeNull();
     // Same unknown code, no capability: identical lexical behavior to any
     // other package without the declaration.
-    expect(getAvailableAspects(withoutCapability)).toEqual(['meaning']);
+    expect(getAvailableAccesses(withoutCapability)).toEqual(['sense-recognition']);
   });
 
   it('derives learnable targets from graph structure, never from language identity', () => {
@@ -89,6 +89,7 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
       'grammar-production',
       'grammar-recognition',
       'pronunciation-production',
+      'spoken-recognition',
       'surface-reading',
       'surface-recognition',
     ]);

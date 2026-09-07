@@ -1363,9 +1363,19 @@
     },
     "Knowledge": {
       "Capability": {
-        "surface-recognition": "识别",
-        "surface-reading": "读音",
-        "pronunciation-production": "发音"
+        "sense-recognition": "意思",
+        "surface-recognition": "写法",
+        "spoken-recognition": "读音",
+        "surface-reading": "拼读",
+        "pronunciation-production": "发音",
+        "prosodic-pattern": "声调",
+        "gender": "性别",
+        "character-reading": "汉字",
+        "morpheme-recognition": "语素",
+        "grammar-recognition": "语法",
+        "grammar-comprehension": "语法",
+        "grammar-formation": "语法",
+        "grammar-production": "语法"
       },
       "Basis": {
         "Claim": "明确申告",
@@ -3093,6 +3103,15 @@
       "Rating": {
         "AllRow": "全部",
         "PendingHint": "先按等级（1–4），再按方面键；再次按同一等级即可评定全部方面"
+      },
+      "Statement": {
+        "Label": "换个方式描述",
+        "KnownSpoken": "听到这个单词我认识。",
+        "MeaningNotForm": "我知道意思，但不认识这个写法。",
+        "KnownCharacters": "我认识其中的单个汉字。",
+        "InferredFromParts": "我能从组成部分推断意思。",
+        "ReadablePitchWrong": "我能读出来，但声调不对。",
+        "NeverSeenForm": "我从没见过这个写法。"
       },
       "FinishedTitle": "全部完成！",
       "FinishedDescription": "您已检查 {count} 个单词。您的单词知识已更新。",

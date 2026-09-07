@@ -1363,9 +1363,19 @@
     },
     "Knowledge": {
       "Capability": {
-        "surface-recognition": "認識",
+        "sense-recognition": "意味",
+        "surface-recognition": "表記",
+        "spoken-recognition": "音",
         "surface-reading": "読み",
-        "pronunciation-production": "発音"
+        "pronunciation-production": "発音",
+        "prosodic-pattern": "アクセント",
+        "gender": "性",
+        "character-reading": "文字",
+        "morpheme-recognition": "形態素",
+        "grammar-recognition": "文法",
+        "grammar-comprehension": "文法",
+        "grammar-formation": "文法",
+        "grammar-production": "文法"
       },
       "Basis": {
         "Claim": "明示的な申告",
@@ -3093,6 +3103,15 @@
       "Rating": {
         "AllRow": "全体",
         "PendingHint": "品質（1〜4）→ 側面キー。すべての側面は品質をもう一度押してください"
+      },
+      "Statement": {
+        "Label": "言葉で伝える",
+        "KnownSpoken": "聞いたら分かる言葉です。",
+        "MeaningNotForm": "意味は知っていますが、この表記は分かりません。",
+        "KnownCharacters": "個々の文字は知っています。",
+        "InferredFromParts": "部分から意味を推測できます。",
+        "ReadablePitchWrong": "読めますが、アクセントが合っていません。",
+        "NeverSeenForm": "この形は見たことがありません。"
       },
       "FinishedTitle": "完了！",
       "FinishedDescription": "{count}語を確認しました。単語知識が更新されました。",

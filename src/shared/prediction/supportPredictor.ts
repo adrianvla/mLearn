@@ -23,6 +23,13 @@ export interface PredictionInput {
   /** Read-only productive compound support for an unseen target. Decomposition is
    * capability-selected by the caller from the language package's declared strategy. */
   compound?: { analysis: CompoundAnalysis; isKnownPart(lemma: string): boolean };
+  /**
+   * Learner calibration from OBSERVED compositional transfers (attempts with
+   * method 'inference' and their fluent outcomes). Read-only policy input —
+   * never evidence, never written back. Absent or thin history leaves the
+   * structure-based prediction untouched.
+   */
+  inferenceSuccess?: { attempts: number; successes: number };
 }
 
 export interface Prediction {
@@ -99,7 +106,16 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
   }
 
   const base = direct ? input.classify(direct.ease) === 'learning' ? 0.35 : 0.1 : 0.05;
-  const pSuccess = Math.min(0.85, base + knownNeighbors / Math.max(1, supportTotal) * 0.5);
+  // Laplace-smoothed observed transfer rate, expressed RELATIVE to the
+  // 0.5 no-history prior: a learner who has successfully inferred unseen
+  // words from known parts before is boosted, a learner who failed the same
+  // structure is discounted, and thin history stays ≈ neutral. Clamped to
+  // stay conservative.
+  let calibration = 1;
+  if (input.inferenceSuccess && input.inferenceSuccess.attempts >= 2) {
+    calibration = Math.min(2, Math.max(0.25, ((input.inferenceSuccess.successes + 1) / (input.inferenceSuccess.attempts + 2)) / 0.5));
+  }
+  const pSuccess = Math.min(0.85, base + knownNeighbors / Math.max(1, supportTotal) * 0.5 * calibration);
   const uncertainty = Math.max(0.15, 1 - supportTotal);
 
   return { pSuccess, uncertainty, supportPath, kind: 'prediction' };

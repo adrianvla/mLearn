@@ -207,6 +207,7 @@ export interface LinguisticGraphAsset {
 export type CapabilityKind =
   | 'sense-recognition'
   | 'surface-recognition'
+  | 'spoken-recognition'
   | 'surface-reading'
   | 'pronunciation-production'
   | 'prosodic-pattern'

@@ -9,12 +9,15 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData } from '../../shared/types';
 import { type AttemptQuality } from '../../shared/constants';
-import { isSurfaceScopedAspect } from '../../shared/graph/targets';
+import { isSurfaceScopedCapability } from '../../shared/graph/targets';
+import { surfaceEntityId } from '../../shared/graph/load';
 import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
-import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
 import { effectiveStateFromEntry, type EffectiveWordState } from '../utils/effectiveKnowledge';
+import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
+import type { CapabilityKind } from '../../shared/graph/types';
+import { eventCapability } from '../../shared/knowledgeEvents';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
-import type { KnowledgeAspect, KnowledgeSource, WordStatus } from '../../shared/constants';
+import type { KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -39,7 +42,7 @@ import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
-import { applyAspectWrite, aspectSourceToDisplay, getAspectStatusSync, type AspectStatusResult } from '../utils/aspectKnowledge';
+import { applyAccessWrite, aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult, type RatedCapability } from '../utils/accessKnowledge';
 import { appendEvents, getEventLogForLanguage } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
 import { nextAttemptId, readActiveEvidence, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
@@ -302,10 +305,10 @@ interface FlashcardContextValue {
 
   // Passive word knowledge tracking
   trackWordSeen: (word: string, reading?: string, easeBump?: number, language?: string) => void;
-  trackWordHovered: (word: string, reading?: string, language?: string) => void;
   cancelWordHover: (word: string, language?: string) => void;
+  trackWordHovered: (word: string, reading?: string, language?: string) => void;
+  getAccessStatus: (word: string, capability: CapabilityKind, language?: string) => AccessStatusResult;
   getWordKnowledge: (wordHash: string) => PassiveWordKnowledge | undefined;
-  getAspectStatus: (word: string, aspect: KnowledgeAspect, language?: string) => AspectStatusResult;
   isWordKnown: (wordHash: string) => boolean;
   isWordKnownByText: (word: string, language?: string) => boolean;
   isWordLearning: (wordHash: string) => boolean;
@@ -330,9 +333,9 @@ interface FlashcardContextValue {
    * classification until cleared. The ONLY manual whole-word status path.
    */
   setWordClaim: (word: string, claim: WordStatus | null, language?: string) => void;
-  setAspectStatus: (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, status: WordStatus, source: KnowledgeSource | 'manual', language?: string) => void;
-  /** Withdraw an aspect claim; evidence classification resumes. */
-  clearAspectClaim: (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, language?: string) => void;
+  setAccessStatus: (word: string, capability: RatedCapability, status: WordStatus, source: KnowledgeSource | 'manual', language?: string) => void;
+  /** Withdraw an access claim; evidence classification resumes. */
+  clearAccessClaim: (word: string, capability: RatedCapability, language?: string) => void;
   /**
    * Canonical attempt-rating evidence interpreter. `attemptId` groups the
    * observation events of one logical learner response (profile submits pass a
@@ -341,9 +344,9 @@ interface FlashcardContextValue {
    */
   recordAttempt: (
     word: string,
-    aspect: KnowledgeAspect,
+    capability: CapabilityKind,
     quality: AttemptQuality,
-    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly KnowledgeAspect[]; latencyMs?: number; attemptId?: AttemptId; origin?: string },
+    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly CapabilityKind[]; latencyMs?: number; attemptId?: AttemptId; origin?: string },
   ) => { attemptId: AttemptId };
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
@@ -575,26 +578,22 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     }
 
-    // Migration: strip aspect records seeded by the removed meaning-cascade.
-    // inherited === true was written exclusively by that seeding path — a derived
-    // projection of the meaning status, never learner evidence. Deleted records
-    // resolve to untracked; explicit records and the event log are untouched.
+    // Overlay migration: (1) strip aspect records seeded by the removed
+    // meaning-cascade (inherited === true was written exclusively by that
+    // seeding path — a derived projection, never learner evidence);
+    // (2) re-key remaining legacy aspect records onto capability ids
+    // (migrateAspectRecordsToAccess). Unknown keys survive as-is.
     const wordKnowledge: FlashcardStore['wordKnowledge'] = {};
     for (const [lk, entry] of Object.entries(partial.wordKnowledge || {})) {
-      if (!entry?.aspects) {
-        wordKnowledge[lk] = entry;
+      const legacy = entry as typeof entry & { aspects?: Record<string, { inherited?: unknown }> };
+      if (!legacy.aspects) {
+        wordKnowledge[lk] = migrateAspectRecordsToAccess(entry);
         continue;
       }
       const kept = Object.fromEntries(
-        // Legacy persisted records may still carry the removed cascade-seed flag.
-        Object.entries(entry.aspects).filter(([, record]) => (record as { inherited?: unknown }).inherited !== true),
+        Object.entries(legacy.aspects).filter(([, record]) => record.inherited !== true),
       );
-      if (Object.keys(kept).length === Object.keys(entry.aspects).length) {
-        wordKnowledge[lk] = entry;
-        continue;
-      }
-      const { aspects: _stripped, ...rest } = entry;
-      wordKnowledge[lk] = Object.keys(kept).length > 0 ? { ...rest, aspects: kept } : rest;
+      wordKnowledge[lk] = migrateAspectRecordsToAccess({ ...legacy, aspects: kept } as typeof entry);
     }
 
     return {
@@ -3067,15 +3066,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   });
 
   /**
-   * Canonical per-aspect read (chain inheritance / orthogonal untracked
-   * semantics live in one place). The readiness gate lives HERE — one source
-   * of truth for every consumer (reader, subtitles, sidebar, Word DB, word
-   * sync, flashcards): before hydration+migration settle, an empty store must
-   * read as untracked-neutral, not as observed knowledge.
+   * Canonical per-access read (surface-scoped hashing / untracked semantics
+   * live in one place). The readiness gate lives HERE — one source of truth
+   * for every consumer (reader, subtitles, sidebar, Word DB, word sync,
+   * flashcards): before hydration+migration settle, an empty store must read
+   * as untracked-neutral, not as observed knowledge.
    */
-  const getAspectStatus = (word: string, aspect: KnowledgeAspect, language = settings.language): AspectStatusResult => (
+  const getAccessStatus = (word: string, capability: CapabilityKind, language = settings.language): AccessStatusResult => (
     isKnowledgeReady()
-      ? getAspectStatusSync(word, aspect, comprehensiveDeps(language))
+      ? getAccessStatusSync(word, capability, comprehensiveDeps(language))
       : { status: 'unknown', ease: 0, source: 'None', untracked: true }
   );
 
@@ -3239,7 +3238,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           const hasRealEvidence = (entry.timesSeen ?? 0) > 0
             || (entry.timesHovered ?? 0) > 0
             || entry.hasActiveEvidence === true
-            || (entry.aspects !== undefined && Object.keys(entry.aspects).length > 0)
+            || (entry.access !== undefined && Object.keys(entry.access).length > 0)
             || (entry.ease !== undefined && entry.ease > SRS.MIN_EASE);
           if (!hasRealEvidence) {
             delete s.wordKnowledge[lk];
@@ -3266,24 +3265,25 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }
   };
 
-  const setAspectStatus = (
+  const setAccessStatus = (
     word: string,
-    aspect: Exclude<KnowledgeAspect, 'meaning'>,
+    capability: RatedCapability,
     status: WordStatus,
     source: KnowledgeSource | 'manual',
     language = settings.language,
     attemptId?: AttemptId,
   ) => {
     const lang = language;
-    // #230 all-form-hash write, with its one exception: surface-scoped aspects
-    // (orthography) belong to the exact written form presented — fanning
-    // orthography(殖える) out to 増える's hash would claim recognition of a
-    // form the learner never interacted with.
-    const forms = isSurfaceScopedAspect(aspect)
+    // #230 all-form-hash write, with its one exception: surface-scoped
+    // accesses (surface-recognition, surface-reading) belong to the exact
+    // written form presented — fanning surface-recognition(殖える) out to
+    // 増える's hash would claim recognition of a form the learner never
+    // interacted with.
+    const forms = isSurfaceScopedCapability(capability)
       ? [word]
       : getWordFormsForLanguage(word, lang);
     const now = Date.now();
-    // A manual aspect change without an attemptId is the user's own statement
+    // A manual access change without an attemptId is the user's own statement
     // (explicit claim), not an observation — it overrides the evidence
     // classification without touching the evidence ease. Attempt-driven writes
     // (attemptId present) are evidence.
@@ -3294,13 +3294,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (st === 'known') return settings.easeThresholdKnown + buffer;
       return settings.easeThresholdUnknown + buffer;
     };
-    const aspectEvents: Record<string, KnowledgeEvent[]> = {};
+    const aspect = legacyAspectFor(capability);
+    const accessEvents: Record<string, KnowledgeEvent[]> = {};
 
     setStore(produce((s) => {
       for (const form of forms) {
         const wordHash = SRS.hashWordSync(form);
         const lk = langKey(lang, wordHash);
-        const priorRecord = s.wordKnowledge[lk]?.aspects?.[aspect];
+        const priorRecord = s.wordKnowledge[lk]?.access?.[capability];
         const prior = priorRecord?.status ?? 'unknown';
         if (!s.wordKnowledge[lk]) {
           s.wordKnowledge[lk] = {
@@ -3315,7 +3316,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         }
         const entry = s.wordKnowledge[lk];
         if (isClaim) {
-          const record = entry.aspects?.[aspect] ?? {
+          const record = entry.access?.[capability] ?? {
             status,
             ease: entry.ease,
             source: aspectSourceToDisplay(source),
@@ -3327,21 +3328,23 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           // in `claim` and clears back to them (same invariant as the
           // word-level claim path). Only a fresh record adopts the claimed
           // status (there is no evidence under it).
-          if (!entry.aspects?.[aspect]) {
+          if (!entry.access?.[capability]) {
             record.status = status;
             record.lastStatusChange = now;
           }
           record.claim = status;
           record.claimAt = now;
           record.updatedAt = now;
-          entry.aspects = { ...entry.aspects, [aspect]: record };
-          aspectEvents[lk] = [{
-            t: now, kind: 'claim', source, aspect,
+          entry.access = { ...entry.access, [capability]: record };
+          accessEvents[lk] = [{
+            t: now, kind: 'claim', source,
+            ...(aspect !== undefined ? { aspect } : {}),
+            targetRef: { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)), capability },
             ...(status !== undefined ? { fromStatus: prior, toStatus: status } : {}),
           }];
         } else {
-          applyAspectWrite(entry, {
-            aspect,
+          applyAccessWrite(entry, {
+            capability,
             status,
             ease: easeForStatus(status),
             source: aspectSourceToDisplay(source),
@@ -3349,8 +3352,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           });
           entry.lastStatusChange = now;
           if (prior !== status) {
-            aspectEvents[lk] = [{
-              t: now, kind: 'status', source, aspect,
+            accessEvents[lk] = [{
+              t: now, kind: 'status', source,
+              ...(aspect !== undefined ? { aspect } : {}),
+              targetRef: { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)), capability },
               fromStatus: prior, toStatus: status, easeAfter: easeForStatus(status),
               ...(attemptId !== undefined ? { attemptId } : {}),
             }];
@@ -3359,33 +3364,38 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
     }));
     saveFlashcards();
-    if (Object.keys(aspectEvents).length > 0) {
-      appendEvents(aspectEvents).catch((e) => log.warn('knowledge event append failed:', e));
+    if (Object.keys(accessEvents).length > 0) {
+      appendEvents(accessEvents).catch((e) => log.warn('knowledge event append failed:', e));
     }
   };
 
   /**
-   * Withdraw an aspect claim ("Clear override"): deletes record.claim/claimAt
+   * Withdraw an access claim ("Clear override"): deletes record.claim/claimAt
    * on every addressed form and appends a clearing claim event (toStatus
    * absent) so projections replay back to the evidence classification.
    */
-  const clearAspectClaim = (word: string, aspect: Exclude<KnowledgeAspect, 'meaning'>, language = settings.language) => {
+  const clearAccessClaim = (word: string, capability: RatedCapability, language = settings.language) => {
     const lang = language;
-    const forms = isSurfaceScopedAspect(aspect) ? [word] : getWordFormsForLanguage(word, lang);
+    const forms = isSurfaceScopedCapability(capability) ? [word] : getWordFormsForLanguage(word, lang);
     const now = Date.now();
+    const aspect = legacyAspectFor(capability);
     const claimEvents: Record<string, KnowledgeEvent[]> = {};
     setStore(produce((s) => {
       for (const form of forms) {
         const wordHash = SRS.hashWordSync(form);
         const lk = langKey(lang, wordHash);
         const entry = s.wordKnowledge[lk];
-        const record = entry?.aspects?.[aspect];
+        const record = entry?.access?.[capability];
         if (!record || record.claim === undefined) continue;
         const next = { ...record };
         delete next.claim;
         delete next.claimAt;
-        entry.aspects = { ...entry.aspects, [aspect]: next };
-        claimEvents[lk] = [{ t: now, kind: 'claim', source: 'manual', aspect }];
+        entry.access = { ...entry.access, [capability]: next };
+        claimEvents[lk] = [{
+          t: now, kind: 'claim', source: 'manual',
+          ...(aspect !== undefined ? { aspect } : {}),
+          targetRef: { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)), capability },
+        }];
       }
     }));
     saveFlashcards();
@@ -3400,61 +3410,52 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           setStore(produce((s) => {
             for (const lk of lks) {
               const entry = s.wordKnowledge[lk];
-              const aspects = entry?.aspects;
-              const record = aspects?.[aspect];
+              const access = entry?.access;
+              const record = access?.[capability];
               if (!record || record.claim !== undefined) continue;
               const hasActiveEvidence = readActiveEvidence(eventLog[lk] ?? []).some(
-                (event) => event.aspect === aspect && event.kind !== 'claim',
+                (event) => eventCapability(event) === capability && event.kind !== 'claim',
               );
               if (!hasActiveEvidence) {
-                delete aspects[aspect];
-                if (Object.keys(aspects).length === 0) delete entry.aspects;
+                delete access[capability];
+                if (Object.keys(access).length === 0) delete entry.access;
               }
             }
           }));
           saveFlashcards();
         })
-        .catch((e) => log.warn('aspect claim clear recompute failed:', e));
+        .catch((e) => log.warn('access claim clear recompute failed:', e));
     }
   };
   /**
-   * Failure attribution ("where did knowledge fail?"). The failed aspect records
-   * negative evidence (unknown). Every coarser aspect in the language's aspect
-   * hierarchy was successfully traversed by the same interaction and records
-   * positive evidence: meaning via the word-level ease anchor (raised to the
-   * learning band, never lowered — "almost know the word"), finer coarser aspects
-   * (e.g. reading when prosody failed) via an explicit learning write, only when
-   * currently below learning so inherited states are never overwritten down.
-   * Aspects finer than the failure get no inference. These are real interaction
-   * observations — unlike inheritance fallback, they emit events.
-   */
-  /**
-   * Canonical attempt-rating evidence interpreter (the universal Aspect ×
+   * Canonical attempt-rating evidence interpreter (the universal Access ×
    * Performance matrix backend). The learner reports attempt PERFORMANCE —
-   * missed/struggled/fluent — for one aspect; this method decides what
-   * knowledge evidence that report is, at the correct scope:
-   * - meaning: missed → unknown anchor (demotes); struggled → learning anchor
-   *   (MAY demote Known — a badly struggled known item must show regression);
-   *   fluent → raise-only known anchor;
-   * - finer aspect: missed → explicit unknown; struggled → explicit learning
-   *   (may demote a known record); fluent → known record unless already known
-   *   (never lowers evidence above the anchor).
-   * `demonstrated` is TASK-MEDIATED: the aspects this interaction's structure
-   * actually proves were traversed. Word-presentation tasks (wordSync, review)
-   * pass the prerequisite chain; a dedicated audio task would pass []. The
-   * engine never traverses the linguistic graph on its own — the graph
-   * describes linguistic relations, the task defines what this observation
-   * proves.
+   * missed/struggled/fluent — for one directed access (capability); this
+   * method decides what knowledge evidence that report is, at the correct
+   * scope:
+   * - sense-recognition: missed → unknown anchor (demotes); struggled →
+   *   learning anchor (MAY demote Known — a badly struggled known item must
+   *   show regression); fluent → raise-only known anchor;
+   * - other accesses: missed → explicit unknown; struggled → explicit
+   *   learning (may demote a known record); fluent → known record unless
+   *   already known (never lowers evidence above the anchor).
+   * `demonstrated` is TASK-MEDIATED: the accesses this interaction's cue
+   * structure actually proves were traversed (see demonstratesOf — the
+   * access-path decomposition, not a linguistic hierarchy). A dedicated
+   * spoken-cue task demonstrates spoken-recognition; nothing here infers
+   * unmeasured accesses. The engine never traverses the linguistic graph on
+   * its own — the graph describes linguistic relations, the task defines
+   * what this observation proves.
    */
   const recordAttempt = (
     word: string,
-    aspect: KnowledgeAspect,
+    capability: CapabilityKind,
     quality: AttemptQuality,
     options?: {
       language?: string;
       method?: 'recall' | 'inference';
-      /** Aspects this task structure demonstrates were traversed (default: none). */
-      demonstrated?: readonly KnowledgeAspect[];
+      /** Accesses this task's cue structure demonstrates were traversed (default: none). */
+      demonstrated?: readonly CapabilityKind[];
       latencyMs?: number;
       /** Shared logical-attempt id for multi-observation submits (profile mode). Absent = new attempt. */
       attemptId?: AttemptId;
@@ -3473,7 +3474,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const demonstrated = options?.demonstrated ?? [];
     const before = getComprehensiveWordStatusWithSourceSync(word, language);
 
-    if (aspect === 'meaning') {
+    if (capability === 'sense-recognition') {
       let targetEase: number | null;
       if (quality === 'missed') {
         targetEase = settings.easeThresholdUnknown;
@@ -3489,24 +3490,25 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
     } else {
       if (quality === 'fluent') {
-        const current = getAspectStatusSync(word, aspect, comprehensiveDeps(language));
+        const current = getAccessStatusSync(word, capability, comprehensiveDeps(language));
         if (current.status !== 'known') {
-          setAspectStatus(word, aspect, 'known', 'manual', language, attemptId);
+          setAccessStatus(word, capability, 'known', 'manual', language, attemptId);
         }
       } else {
-        setAspectStatus(word, aspect, quality === 'missed' ? 'unknown' : 'learning', 'manual', language, attemptId);
+        setAccessStatus(word, capability, quality === 'missed' ? 'unknown' : 'learning', 'manual', language, attemptId);
       }
-      // Prerequisite evidence is judged AFTER the rated aspect write (the rated
-      // aspect is never its own prerequisite) and independently of the meaning
-      // anchor below — stored aspects do not inherit, so ordering is free.
+      // Demonstrated access evidence is judged AFTER the rated access write
+      // (the rated access is never its own demonstration) and independently
+      // of the sense anchor below — stored accesses do not inherit, so
+      // ordering is free.
       for (const pre of demonstrated) {
-        if (pre === 'meaning' || pre === aspect) continue;
-        const preStatus = getAspectStatusSync(word, pre, comprehensiveDeps(language));
+        if (pre === 'sense-recognition' || pre === capability) continue;
+        const preStatus = getAccessStatusSync(word, pre, comprehensiveDeps(language));
         if (preStatus.status === 'unknown') {
-          setAspectStatus(word, pre, 'learning', 'manual', language, attemptId);
+          setAccessStatus(word, pre as RatedCapability, 'learning', 'manual', language, attemptId);
         }
       }
-      if (demonstrated.includes('meaning') && (before.ease ?? 0) < settings.easeThresholdLearning) {
+      if (demonstrated.includes('surface-recognition') && (before.ease ?? 0) < settings.easeThresholdLearning) {
         setWordKnowledgeEase(word, settings.easeThresholdLearning, undefined, language, {
           taskType: options?.taskType,
         });
@@ -3514,17 +3516,21 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }
 
     const after = getComprehensiveWordStatusWithSourceSync(word, language);
-    // One observation event per attempt — quality/method/latency provenance for
-    // future calibration. fromStatus/toStatus/easeAfter keep replay/analytics
-    // consistent with the underlying writers' transition events.
+    // One observation event per attempt — quality/method/latency provenance
+    // for future calibration. fromStatus/toStatus/easeAfter keep
+    // replay/analytics consistent with the underlying writers' transition
+    // events. Addressing: targetRef.capability is canonical; the legacy
+    // aspect field stays written only where the mapping is lossless.
     const storageWord = getPrimaryWordFormForLanguage(word, language);
+    const observationAspect = legacyAspectFor(capability);
     const observation: KnowledgeEvent = {
       t: Date.now(),
       kind: 'rating',
       source: 'manual',
-      aspect,
+      ...(observationAspect !== undefined ? { aspect: observationAspect } : {}),
       quality,
       attemptId,
+      targetRef: { kind: 'surface', id: surfaceEntityId(language, SRS.hashWordSync(word)), capability },
       // Exact presented surface — survives even when storage keys resolve to a
       // different primary family form. Never fan observations out from this.
       presentedSurface: word,
@@ -3546,7 +3552,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }).catch((e) => log.warn('knowledge event append failed:', e));
     return { attemptId };
   };
-
   const setWordBankStatus = async (
     word: string,
     status: WordStatus,
@@ -3683,8 +3688,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const now = Date.now();
     const eventsByKey: KnowledgeEventLog = {};
     for (const form of getWordFormsForLanguage(word, language)) {
+      // Tombstones carry no epistemic address: routing is attemptId-only, so
+      // no aspect/capability lie is needed (projection readers skip
+      // address-less events for capability routing).
       eventsByKey[langKey(language, SRS.hashWordSync(form))] = attemptIds.map((retracts) => ({
-        t: now, kind: 'retraction', source: 'manual', aspect: 'meaning', retracts,
+        t: now, kind: 'retraction', source: 'manual', retracts,
       }));
     }
     appendEvents(eventsByKey).catch((e) => log.warn('knowledge event retraction failed:', e));
@@ -4488,8 +4496,8 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     unignoreWordForLanguage,
     captureSuggestedFlashcard,
     getSuggestedFlashcardsSync,
-    setAspectStatus,
-    clearAspectClaim,
+    setAccessStatus,
+    clearAccessClaim,
     cleanupKnownSuggestions,
     garbageCollectSuggestedFlashcards,
     promoteSuggestedFlashcards,
@@ -4500,7 +4508,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     trackWordHovered,
     cancelWordHover,
     getWordKnowledge,
-    getAspectStatus,
+    getAccessStatus,
     isWordKnown,
     isWordKnownByText,
     isWordLearning,

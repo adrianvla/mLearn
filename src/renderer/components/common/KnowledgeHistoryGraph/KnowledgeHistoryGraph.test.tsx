@@ -3,7 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { HistoryCurvePoint, SourceReignBand } from '../../../utils/knowledgeHistory';
-import type { KnowledgeEvent, KnowledgeAspect } from '../../../../shared/knowledgeEvents';
+import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
+import type { CapabilityKind } from '../../../../shared/graph/types';
 import { KnowledgeHistoryGraph } from './KnowledgeHistoryGraph';
 
 let container: HTMLDivElement;
@@ -43,15 +44,15 @@ const bands: SourceReignBand[] = [
 const renderGraph = (
   overrides: Partial<Parameters<typeof KnowledgeHistoryGraph>[0]> = {},
 ) => {
-  const onAspectChange = vi.fn();
+  const onCapabilityChange = vi.fn();
   const dispose = render(
     () => (
       <KnowledgeHistoryGraph
         points={overrides.points ?? points}
         bands={overrides.bands ?? bands}
-        aspect={overrides.aspect ?? 'meaning'}
-        availableAspects={overrides.availableAspects ?? (['meaning', 'reading'] as const)}
-        onAspectChange={overrides.onAspectChange ?? onAspectChange}
+        capability={overrides.capability ?? 'sense-recognition'}
+        availableCapabilities={overrides.availableCapabilities ?? (['sense-recognition', 'surface-reading'] as const)}
+        onCapabilityChange={overrides.onCapabilityChange ?? onCapabilityChange}
         mode={overrides.mode ?? 'full'}
         now={overrides.now ?? 4000}
         firstSeen={overrides.firstSeen}
@@ -59,7 +60,7 @@ const renderGraph = (
     ),
     container,
   );
-  return { dispose, onAspectChange };
+  return { dispose, onCapabilityChange };
 };
 
 describe('KnowledgeHistoryGraph', () => {
@@ -100,17 +101,17 @@ describe('KnowledgeHistoryGraph', () => {
     expect(rects[2].classList.contains('khistory-band-srs')).toBe(true);
   });
 
-  it('shows only availableAspects as tabs and reports clicks', () => {
-    const { onAspectChange } = renderGraph({
-      availableAspects: ['meaning', 'prosody'] as KnowledgeAspect[],
+  it('shows only availableCapabilities as tabs and reports clicks', () => {
+    const { onCapabilityChange } = renderGraph({
+      availableCapabilities: ['sense-recognition', 'prosodic-pattern'] as CapabilityKind[],
     });
     const tabs = container.querySelectorAll('.khistory-tab');
     expect(tabs).toHaveLength(2);
-    expect(tabs[0].textContent).toBe('mlearn.Knowledge.Aspect.Meaning');
-    expect(tabs[1].textContent).toBe('mlearn.Knowledge.Aspect.Prosody');
-    expect(container.querySelector('.khistory-tab-active')!.textContent).toBe('mlearn.Knowledge.Aspect.Meaning');
+    expect(tabs[0].textContent).toBe('mlearn.Knowledge.Capability.sense-recognition');
+    expect(tabs[1].textContent).toBe('mlearn.Knowledge.Capability.prosodic-pattern');
+    expect(container.querySelector('.khistory-tab-active')!.textContent).toBe('mlearn.Knowledge.Capability.sense-recognition');
     (tabs[1] as HTMLButtonElement).click();
-    expect(onAspectChange).toHaveBeenCalledWith('prosody');
+    expect(onCapabilityChange).toHaveBeenCalledWith('prosodic-pattern');
   });
 
   it('renders the localized empty state when there are no points', () => {

@@ -14,12 +14,12 @@ import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
-import type { Flashcard, FlashcardContent } from '../../../shared/types';
-import { getAvailableAspects } from '../../../shared/types';
-import { getTestedAspects } from '../../../shared/languageFeatures';
+import type { CapabilityKind, Flashcard, FlashcardContent } from '../../../shared/types';
+import { getAvailableAccesses } from '../../../shared/types';
+import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { qualityToSrsRating, type AttemptQuality } from '../../../shared/constants';
 import { nextAttemptId } from '../../../shared/knowledgeEvents';
-import { prerequisitesOf } from '../../utils/aspectKnowledge';
+import { demonstratesFor } from '../../utils/accessKnowledge';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
 import type { KnowledgeAspect } from '../../../shared/constants';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
@@ -140,14 +140,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   // Review modes available for the current card: language capability
-  // (getAvailableAspects) intersected with per-card data presence.
+  // (getAvailableAccesses) intersected with per-card data presence.
   const availableAspects = createMemo<KnowledgeAspect[]>(() => {
     const card = currentCard();
     if (!card) return ['meaning'];
-    const supported = getAvailableAspects(languageDataForCard(card) ?? undefined);
+    const supported = getAvailableAccesses(languageDataForCard(card) ?? undefined);
     const aspects: KnowledgeAspect[] = ['meaning'];
-    if (supported.includes('reading')) aspects.push('reading');
-    if (supported.includes('prosody') && cardHasProsodyData(card)) aspects.push('prosody');
+    if (supported.includes('surface-reading')) aspects.push('reading');
+    if (supported.includes('prosodic-pattern') && cardHasProsodyData(card)) aspects.push('prosody');
     return aspects;
   });
 
@@ -178,11 +178,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }))
   ));
 
-  // Matrix rows: aspects THIS card interaction tests (shared tested/supplied gate).
-  const testedAspects = createMemo(() => {
+  // Matrix rows: capabilities THIS card interaction tests (shared tested/supplied gate).
+  const testedAccesses = createMemo(() => {
     const card = currentCard();
-    if (!card) return ['meaning'] as const;
-    return getTestedAspects({
+    if (!card) return ['sense-recognition'] as const;
+    return getTestedAccesses({
       languageData: languageDataForCard(card),
       surface: card.content.front,
       hasReadingData: cardHasReadingData(card),
@@ -192,14 +192,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const ratingMode = createMemo(() => currentDecision()?.encounter.task.ratingMode ?? 'profile');
 
-  // Word-presentation task: the card front had to be read to reach a finer
-  // aspect, so the prerequisite chain is demonstrated (task-mediated; an
-  // audio-only task would pass []).
-  const demonstratedFor = (aspect: KnowledgeAspect) => prerequisitesOf(
-    aspect, getAvailableAspects(languageDataForCard(currentCard()!) ?? undefined),
-  );
-
-  const handleRate = (aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => {
+  // Word-presentation task: the written cue proves each access on the measured
+  // path was traversed (access-path decomposition; an audio-only task would
+  // pass []). Word-presentation evidence passes demonstratesFor(capability).
+  const handleRate = (capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => {
     const card = currentCard();
     if (!card || !showAnswer()) return;
     const elapsed = getElapsedTime();
@@ -208,10 +204,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     stopTts();
     batch(() => {
       setShowAnswer(false);
-      const { attemptId } = recordAttempt(card.content.front, aspect, quality, {
+      const { attemptId } = recordAttempt(card.content.front, capability, quality, {
         language: languageForCard(card),
         method: opts?.method,
-        demonstrated: demonstratedFor(aspect),
+        demonstrated: demonstratesFor(capability),
         latencyMs: elapsed,
       });
       const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, elapsed, { attemptId });
@@ -231,13 +227,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     batch(() => {
       setShowAnswer(false);
       // One physical submit (Space/Enter all-fluent) = ONE logical attempt:
-      // every tested aspect observation shares the same attemptId.
+      // every tested capability observation shares the same attemptId.
       const attemptId = nextAttemptId();
-      for (const aspect of testedAspects()) {
-        recordAttempt(card.content.front, aspect, 'fluent', {
+      for (const capability of testedAccesses()) {
+        recordAttempt(card.content.front, capability, 'fluent', {
           language: languageForCard(card),
           method: opts?.method,
-          demonstrated: demonstratedFor(aspect),
+          demonstrated: demonstratesFor(capability),
           latencyMs: elapsed,
           attemptId,
         });
@@ -265,10 +261,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       setShowAnswer(false);
       const attemptId = nextAttemptId();
       for (const observation of observations) {
-        recordAttempt(card.content.front, observation.aspect, observation.quality, {
+        recordAttempt(card.content.front, observation.capability, observation.quality, {
           language: languageForCard(card),
           method: observation.method ?? opts?.method,
-          demonstrated: demonstratedFor(observation.aspect),
+          demonstrated: demonstratesFor(observation.capability),
           latencyMs: elapsed,
           attemptId,
         });
@@ -690,7 +686,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           <Show when={!isComplete() && currentCard() && showAnswer()}>
             <div class="flashcard-rating-buttons">
               <RatingMatrix
-                aspects={testedAspects()}
+                capabilities={testedAccesses()}
                 keyboardMode={settings.ratingKeyboardMode}
                 armed={showAnswer() && !!currentCard() && !isComplete()}
                 mode={ratingMode()}

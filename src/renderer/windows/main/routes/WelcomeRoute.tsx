@@ -250,7 +250,7 @@ export const WelcomeRoute: Component = () => {
     const card = currentCard();
     if (!card) return;
     const language = card.language || settings.language;
-    const { attemptId } = flashcards.recordAttempt(card.content.front, 'meaning', quality, { language });
+    const { attemptId } = flashcards.recordAttempt(card.content.front, 'sense-recognition', quality, { language });
     flashcards.answerCard(qualityToSrsRating(quality), card.id, undefined, { attemptId });
   };
   const recentWordRows = createMemo(() =>

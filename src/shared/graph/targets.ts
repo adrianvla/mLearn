@@ -1,7 +1,5 @@
-import type { KnowledgeAspect } from '../constants';
 import { relationsOf, type LingualGraph } from './load';
 import {
-  ASPECT_CAPABILITY,
   type CapabilityKind,
   type GraphEntity,
   type LearnableTarget,
@@ -19,7 +17,7 @@ export function applicableCapabilities(graph: LingualGraph, entity: GraphEntity)
     case 'surface':
       return dedupe([
         'surface-recognition',
-        ...(relationTypes.has('has-pronunciation') ? ['surface-reading' as const, 'pronunciation-production' as const] : []),
+        ...(relationTypes.has('has-pronunciation') ? ['surface-reading' as const, 'pronunciation-production' as const, 'spoken-recognition' as const] : []),
         ...(relationTypes.has('has-prosodic-pattern') ? ['prosodic-pattern' as const] : []),
       ]);
     case 'sense':
@@ -55,9 +53,9 @@ export function learnableTargetsFor(graph: LingualGraph, entities: readonly Grap
   return targets;
 }
 
-/** Surface-scoped aspects resolve on the presented form's own hash only — family unification must never apply to them. */
-export function isSurfaceScopedAspect(aspect: KnowledgeAspect): boolean {
-  return SURFACE_SCOPED_CAPABILITIES.includes(ASPECT_CAPABILITY[aspect]);
+/** Surface-scoped accesses resolve on the presented form's own hash only — family unification must never apply to them. */
+export function isSurfaceScopedCapability(capability: CapabilityKind): boolean {
+  return SURFACE_SCOPED_CAPABILITIES.includes(capability);
 }
 
 /**

@@ -1,5 +1,5 @@
 import type { KnowledgeEvent, WordStatus } from '../knowledgeEvents';
-import { stripRetractions } from '../knowledgeEvents';
+import { eventCapability, stripRetractions } from '../knowledgeEvents';
 import { normalizeEvidenceEase, statusToEase } from './knowledgeStrength';
 
 /**
@@ -108,9 +108,10 @@ export function replayKeyProjection(events: readonly KnowledgeEvent[]): ReplayPr
     if (event.timesSeenDelta) timesSeen += event.timesSeenDelta;
   }
 
-  // Hover observations are recorded as passiveTracking status rows.
+  // Hover observations are recorded as passiveTracking status rows addressed
+  // to the sense access (legacy meaning-aspect rows route via ASPECT_CAPABILITY).
   const timesHovered = sorted.filter(
-    (event) => event.kind === 'status' && event.source === 'passiveTracking' && event.aspect === 'meaning',
+    (event) => event.kind === 'status' && event.source === 'passiveTracking' && eventCapability(event) === 'sense-recognition',
   ).length;
 
   if (ease === undefined && claim === undefined) return null;

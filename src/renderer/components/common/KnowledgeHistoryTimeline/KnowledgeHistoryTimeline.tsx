@@ -1,7 +1,9 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import type { AttemptQuality, KnowledgeSource, WordStatus } from '../../../../shared/constants';
 import { KNOWLEDGE_ASPECT_LABEL_KEYS, KNOWLEDGE_SOURCE_DISPLAY_NAMES } from '../../../../shared/constants';
+import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { EvidenceAspect, EvidenceSource, KnowledgeEvent, KnowledgeEventKind } from '../../../../shared/knowledgeEvents';
+import { eventCapability } from '../../../../shared/knowledgeEvents';
 import { useLocalization } from '../../../context';
 import './KnowledgeHistoryTimeline.css';
 
@@ -78,19 +80,30 @@ export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent
     return day.toLocaleDateString();
   };
 
+  /** Legacy events keep their aspect label; capability-addressed events label via their access. */
+  const eventLabel = (event: HistoryEvent): string | undefined => {
+    if (event.aspect !== undefined) return t(aspectLabelKey(event.aspect));
+    const capability = eventCapability(event);
+    return capability === undefined ? undefined : t(CAPABILITY_LABEL_KEYS[capability]);
+  };
+
+  const withLabel = (label: string | undefined, rest: string): string => (label === undefined ? rest : `${label} ${rest}`);
+
   const detail = (event: HistoryEvent): string => {
-    const aspect = t(aspectLabelKey(event.aspect));
+    const aspect = eventLabel(event);
+    const statusKey = (status: WordStatus): string => `mlearn.WordHover.Status.${STATUS_KEYS[status]}`;
     if (event.kind === 'claim') {
-      if (event.toStatus) return `${aspect} → ${t(`mlearn.WordHover.Status.${STATUS_KEYS[event.toStatus]}`)}`;
+      if (event.toStatus) return withLabel(aspect, `→ ${t(statusKey(event.toStatus))}`);
       return t('mlearn.Knowledge.Projection.Evidence.ClaimCleared');
     }
     if (event.fromStatus && event.toStatus) {
-      return `${aspect}: ${t(`mlearn.WordHover.Status.${STATUS_KEYS[event.fromStatus]}`)} → ${t(`mlearn.WordHover.Status.${STATUS_KEYS[event.toStatus]}`)}`;
+      const transition = `${t(statusKey(event.fromStatus))} → ${t(statusKey(event.toStatus))}`;
+      return aspect === undefined ? transition : `${aspect}: ${transition}`;
     }
-    if (event.quality) return `${aspect} · ${t(QUALITY_LABEL_KEYS[event.quality])}`;
-    if (event.rating) return `${aspect} · ${event.rating}`;
-    if (event.toStatus) return `${aspect} → ${t(`mlearn.WordHover.Status.${STATUS_KEYS[event.toStatus]}`)}`;
-    return aspect;
+    if (event.quality) return withLabel(aspect, `· ${t(QUALITY_LABEL_KEYS[event.quality])}`);
+    if (event.rating) return withLabel(aspect, `· ${event.rating}`);
+    if (event.toStatus) return withLabel(aspect, `→ ${t(statusKey(event.toStatus))}`);
+    return aspect ?? '';
   };
 
   return (

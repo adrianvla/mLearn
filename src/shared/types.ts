@@ -4,10 +4,12 @@
 
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
-import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeAspect, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
 
 export { KNOWLEDGE_ASPECTS } from './constants';
 export type { KnowledgeAspect } from './constants';
+import type { CapabilityKind } from './graph/types';
+export type { CapabilityKind } from './graph/types';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -1510,22 +1512,30 @@ export interface LanguageGenderConfig {
   attributeKey?: string;
 }
 
-export function getAvailableAspects(language?: LanguageData): KnowledgeAspect[] {
-  const aspects: KnowledgeAspect[] = ['meaning'];
+/**
+ * Accesses this language offers learner targets for — derived from package
+ * metadata, never language-name conditionals. Spoken recognition appears
+ * wherever a spoken representation exists (the same condition as lexeme
+ * pronunciation: reading annotation or an active prosody model).
+ */
+export function getAvailableAccesses(language?: LanguageData): CapabilityKind[] {
+  const accesses: CapabilityKind[] = ['sense-recognition'];
   // An accent feature declared as reading-critical participates in reading knowledge.
   const accentInReading = language?.prosody?.knowledgeAspect === 'reading';
   const hasReadingAnnotation = !!language?.textProcessing?.readingAnnotation || accentInReading;
-  if (hasReadingAnnotation) aspects.push('reading');
-  if (!accentInReading && language?.prosody?.type && language.prosody.type !== 'none') aspects.push('prosody');
-  if (language?.gender) aspects.push('gender');
+  const hasActiveProsody = !accentInReading && language?.prosody?.type && language.prosody.type !== 'none';
+  if (hasReadingAnnotation) accesses.push('surface-reading');
+  if (hasActiveProsody) accesses.push('prosodic-pattern');
+  if (language?.gender) accesses.push('gender');
   // Pronunciation (lexeme-scoped spoken form) exists where the language declares
-  // any surface↔pronunciation feature; orthography exists where written surfaces
-  // carry a non-trivial form→lexeme mapping (script-reading distinction).
-  if (hasReadingAnnotation || (!accentInReading && language?.prosody?.type && language.prosody.type !== 'none')) {
-    aspects.push('pronunciation');
+  // any surface↔pronunciation feature; written-form recognition exists where
+  // written surfaces carry a non-trivial form→lexeme mapping (script-reading
+  // distinction).
+  if (hasReadingAnnotation || hasActiveProsody) {
+    accesses.push('spoken-recognition', 'pronunciation-production');
   }
-  if (language?.textProcessing?.readingAnnotation) aspects.push('orthography');
-  return aspects;
+  if (language?.textProcessing?.readingAnnotation) accesses.push('surface-recognition');
+  return accesses;
 }
 
 export interface LanguageDataMap {
@@ -2072,20 +2082,30 @@ export interface PassiveWordKnowledge {
   hasActiveEvidence?: boolean;
   /** Per-script-form skill tracking under one word identity. Keyed by variantId. */
   forms?: Partial<Record<string, FormKnowledge>>;
-  /** Reading and prosody knowledge; meaning remains derived through bank resolution. */
-  aspects?: Partial<Record<Exclude<KnowledgeAspect, 'meaning'>, AspectKnowledge>>;
+  /**
+   * Learner overlay: materialized per-access records keyed by capability id.
+   * This is a PROJECTION of the evidence journal, never an independent truth.
+   * Legacy entries keyed by `KnowledgeAspect` migrate on load
+   * (aspect → capability via CAPABILITY_ASPECT); meaning never appears — the
+   * word-level ease/claim fields carry the sense/surface projection.
+   */
+  access?: Partial<Record<CapabilityKey, AccessKnowledge>>;
 }
 
-export interface AspectKnowledge {
+/** Core CapabilityKind plus namespaced package-declared capability ids (`ns::local`). */
+export type CapabilityKey = string;
+
+export interface AccessKnowledge {
   status: WordStatus;
   ease: number;
   source: WordKnowledgeSource;
   lastStatusChange: number;
   updatedAt: number;
-  /** Active explicit claim on this aspect; overrides evidence classification until cleared. */
+  /** Active explicit claim on this access; overrides evidence classification until cleared. */
   claim?: WordStatus;
   claimAt?: number;
 }
+
 
 /** Ignored word entry tracked per language for browse/unignore workflows */
 export interface IgnoredWordEntry {

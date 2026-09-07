@@ -9,7 +9,7 @@ import { WordHistoryPanel } from './WordHistoryPanel';
 
 const h = vi.hoisted(() => ({
   wordGetter: (() => '') as () => string,
-  aspectGetter: (() => 'meaning') as () => string,
+  capabilityGetter: (() => 'sense-recognition') as () => string,
   events: [] as KnowledgeEvent[],
   points: [] as HistoryCurvePoint[],
   bands: [] as SourceReignBand[],
@@ -25,10 +25,11 @@ vi.mock('../../../context', () => ({
   }),
   useFlashcards: () => ({
     store: { wordKnowledge: h.wordKnowledge, flashcards: h.flashcards },
-    // New contract: reading carries an explicit record (visible tab — the
-    // tab-switch test needs one); every other aspect is untracked (hidden tab).
-    getAspectStatus: (_word: string, aspect: string) => (
-      aspect === 'reading'
+    // New contract: surface-reading carries an explicit record (visible tab —
+    // the tab-switch test needs one); every other access is untracked (hidden
+    // tab).
+    getAccessStatus: (_word: string, capability: string) => (
+      capability === 'surface-reading'
         ? { status: 'learning', ease: 1.55, source: 'Manual', inherited: false }
         : { status: 'unknown', ease: 0, source: 'None', inherited: false, untracked: true }
     ),
@@ -37,9 +38,9 @@ vi.mock('../../../context', () => ({
 }));
 
 vi.mock('../../../hooks/useKnowledgeHistory', () => ({
-  useKnowledgeHistory: (word: () => string, aspect: () => string) => {
+  useKnowledgeHistory: (word: () => string, capability: () => string) => {
     h.wordGetter = word;
-    h.aspectGetter = aspect;
+    h.capabilityGetter = capability;
     return {
       events: () => h.events,
       replay: () => ({ points: h.points, bands: h.bands }),
@@ -106,7 +107,7 @@ describe('WordHistoryPanel', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     h.wordGetter = () => '';
-    h.aspectGetter = () => 'meaning';
+    h.capabilityGetter = () => 'sense-recognition';
     h.events = [];
     h.points = [];
     h.bands = [];
@@ -225,17 +226,17 @@ describe('WordHistoryPanel', () => {
     dispose();
   });
 
-  it('switches the history hook aspect when a graph tab is clicked', () => {
+  it('switches the history hook capability when a graph tab is clicked', () => {
     h.currentLang = richLanguageData;
     h.wordKnowledge['ja:abc'] = knowledgeEntry('apple');
     const dispose = render(() => <WordHistoryPanel />, container);
 
     typeQuery(container, 'apple');
-    expect(h.aspectGetter()).toBe('meaning');
+    expect(h.capabilityGetter()).toBe('sense-recognition');
 
-    tabButton(container, 'mlearn.Knowledge.Aspect.Reading').click();
+    tabButton(container, 'mlearn.Knowledge.Capability.surface-reading').click();
 
-    expect(h.aspectGetter()).toBe('reading');
+    expect(h.capabilityGetter()).toBe('surface-reading');
 
     dispose();
   });

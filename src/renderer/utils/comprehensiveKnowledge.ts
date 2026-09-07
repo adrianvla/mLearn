@@ -1,3 +1,4 @@
+import { LEXICAL_IDENTITY_CAPABILITIES } from '../../shared/graph/access';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource, type WordStatus, type WordKnowledgeSource } from '../../shared/constants';
 import type { IgnoredWordEntry, PassiveWordKnowledge } from '../../shared/types';
 import { effectiveStateFromEntry, type EffectiveWordState, type KnowledgeBasis } from './effectiveKnowledge';
@@ -110,7 +111,8 @@ export function getComprehensiveWordStatusWithSource(
     const effective = effectiveStateFromEntry(entry, thresholds);
 
     // Claims are whole-identity statements: the latest claim across the
-    // surface-form family wins.
+    // surface-form family wins — word-level and access-level claims compete
+    // by the same recency rule.
     if (effective.basis === 'claim'
       && (!bestClaim || (entry?.claimAt ?? 0) > bestClaim.claimAt)) {
       bestClaim = {
@@ -119,6 +121,61 @@ export function getComprehensiveWordStatusWithSource(
         matchedWord: match.word,
         timesSeen: entry?.timesSeen ?? 0,
       };
+    }
+
+    // Learner-overlay promotion: a LEXICAL IDENTITY access with active
+    // evidence or a claim makes the lexical object at least that known — a
+    // word known by sound with a missing written-form bridge is NOT a wholly
+    // unknown word. Non-identity accesses (prosody, reading) never promote
+    // the word.
+    //
+    // Claims and evidence promote differently:
+    // - CLAIMS about the lexical object come from the spoken access only
+    //   ("I know this word when I hear it"). A surface-recognition claim is a
+    //   statement about the written BRIDGE ("I have never seen this form") —
+    //   it marks the bridge missing but must never demote the lexical
+    //   object's summary. Sense claims are word-level (above).
+    // - EVIDENCE promotes from every lexical identity access: written-path
+    //   attempts and spoken attempts are equally measurements of the object.
+    for (const capability of LEXICAL_IDENTITY_CAPABILITIES) {
+      const record = entry?.access?.[capability];
+      if (!record) continue;
+      const promotesClaims = capability === 'spoken-recognition';
+      if (record.claim !== undefined && promotesClaims
+        && (!bestClaim || (record.claimAt ?? 0) > bestClaim.claimAt)) {
+        bestClaim = {
+          claimAt: record.claimAt ?? 0,
+          effective: {
+            status: record.claim,
+            basis: 'claim',
+            evidenceStatus: record.status,
+            claim: record.claim,
+            hasEvidence: true,
+            ease: record.ease,
+          },
+          matchedWord: match.word,
+          timesSeen: entry?.timesSeen ?? 0,
+        };
+      }
+      // Access records are written only by active attempts/claims — never
+      // by passive exposure — so they satisfy the honesty gate by
+      // construction. Strongest evidence wins; a weaker word-level read
+      // never hides a stronger lexical access. A claim's UNDERLYING evidence
+      // (record.status) still participates.
+      if (!bestEvidence || STATUS_RANK[record.status] > STATUS_RANK[bestEvidence.effective.evidenceStatus]) {
+        bestEvidence = {
+          effective: {
+            status: record.status,
+            basis: 'evidence',
+            evidenceStatus: record.status,
+            hasEvidence: true,
+            ease: record.ease,
+          },
+          matchedWord: match.word,
+          evidenceSource: record.source,
+          timesSeen: entry?.timesSeen ?? 0,
+        };
+      }
     }
 
     // Evidence resolves to the strongest form (fan-out writes keep forms in

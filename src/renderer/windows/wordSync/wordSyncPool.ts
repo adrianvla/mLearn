@@ -28,10 +28,12 @@ export function shouldIncludeForLevel(rawLevel: number, target: number, language
  * flattens resolver-unknown and never-encountered into one status; the
  * knowledge-record presence distinguishes them (tracked unknown vs
  * untracked). Learning is its own bucket, so an Unknown filter operand
- * never matches a Learning word.
+ * never matches a Learning word. Known words can enter the pool ONLY as
+ * written-form bridge candidates; they report as their tracked status.
  */
-export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning', hasKnowledgeRecord: boolean): string {
+export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning' | 'known', hasKnowledgeRecord: boolean): string {
   if (resolvedStatus === 'learning') return String(WORD_STATUS.LEARNING);
+  if (resolvedStatus === 'known') return String(WORD_STATUS.KNOWN);
   return hasKnowledgeRecord ? String(WORD_STATUS.UNKNOWN) : WORD_SYNC_STATUS_UNTRACKED;
 }
 
@@ -50,6 +52,29 @@ export function calculateCharacterStudyBoost(word: string, predictedKnownCharact
   }
   if (matchCount === 0) return 1.0;
   return 1 + Math.min(matchCount, 3) * 0.25;
+}
+
+/**
+ * True when the materialized overlay holds a written-form bridge access
+ * (surface-recognition) known or claimed-known — the word's written form is
+ * accessible, so nothing is missing there.
+ */
+export function hasWrittenFormAccess(
+  knowledge: { access?: Partial<Record<string, { status?: string; claim?: string }>> } | undefined,
+): boolean {
+  const record = knowledge?.access?.['surface-recognition'];
+  if (!record) return false;
+  return (record.claim ?? record.status) === 'known';
+}
+
+/**
+ * A BRIDGE candidate: the lexical object is already known (or claimed so)
+ * through sense/spoken access, but the written-form access is missing.
+ * Presenting it is overlay synchronization — a cheap directed completion,
+ * not teaching a novel word. Selection weighting only; never knowledge.
+ */
+export function isBridgeCandidate(resolvedStatus: 'unknown' | 'learning' | 'known', writtenAccess: boolean, hasKnowledgeRecord: boolean): boolean {
+  return resolvedStatus === 'known' && !writtenAccess && hasKnowledgeRecord;
 }
 
 export interface PoolCandidate {
@@ -108,10 +133,12 @@ export function isWordSyncRecentlyRated(
 }
 
 /** Weight that prioritizes unknown/low-ease words over high-ease/known ones.
- *  No knowledge → 2.0 (highest), ease 1.3 → 1.7, ease 2.5 → 0.5 (lowest). */
-export function calculateWordWeight(ease: number | undefined, characterStudyBoost: number): number {
+ *  No knowledge → 2.0 (highest), ease 1.3 → 1.7, ease 2.5 → 0.5 (lowest).
+ *  Bridge candidates (known object, missing written-form access) get a fixed
+ *  boost: completing one directed access is cheap and high-value. */
+export function calculateWordWeight(ease: number | undefined, characterStudyBoost: number, bridge: boolean = false): number {
   const basePriority = ease === undefined ? 2.0 : Math.max(0.5, 3.0 - ease);
-  return basePriority * characterStudyBoost;
+  return basePriority * characterStudyBoost * (bridge ? 1.5 : 1);
 }
 
 export { THIRTY_DAYS_MS };

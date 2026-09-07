@@ -1,7 +1,7 @@
 import { Component, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
-import { getAvailableAspects } from '../../../../shared/types';
+import { getAvailableAccesses } from '../../../../shared/types';
 import { isReadingScriptText } from '../../../../shared/languageFeatures';
 import { nextAttemptId } from '../../../../shared/knowledgeEvents';
 import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
@@ -23,8 +23,8 @@ export interface WordStatusPillKnowledgeProps {
 }
 
 /**
- * The word knowledge popup: overall status, the shared per-aspect capability
- * summary (compact presentation), and exactly two actions — Rate… (measured
+ * The word knowledge popup: overall status, the shared per-capability
+ * knowledge summary (compact presentation), and exactly two actions — Rate… (measured
  * attempt evidence, matrix on request only) and Inspect… (full Word DB
  * inspector). Deliberate Unknown/Learning/claim-clear editing lives in the
  * inspector; the fast Known path is the pill click itself.
@@ -42,13 +42,16 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   const effectiveLanguage = createMemo(() => props.language ?? settings.language);
   const isActiveLanguage = createMemo(() => effectiveLanguage() === settings.language);
   const languageData = createMemo(() => langData[effectiveLanguage()] ?? (isActiveLanguage() ? currentLangData() : null));
-  const availableAspects = createMemo(() => getAvailableAspects(languageData()));
+  const availableAccesses = createMemo(() => getAvailableAccesses(languageData()));
   const meaningResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word, effectiveLanguage()));
-  // Rows the matrix can test: every language-offered aspect; reading is not a
-  // target when the surface itself is the reading script. Untracked aspects
-  // stay — Untracked is exactly what a rating measures.
-  const applicableAspects = createMemo(() => availableAspects().filter(
-    (aspect) => !(aspect === 'reading' && isReadingScriptText(props.word, languageData())),
+  // Rows the matrix can test: every language-offered access except sense
+  // recognition — sense knowledge rides the word-level projection and is
+  // never a matrix row. Reading is not a target when the surface itself is
+  // the reading script. Untracked accesses stay — Untracked is exactly what
+  // a rating measures.
+  const applicableAccesses = createMemo(() => availableAccesses().filter(
+    (capability) => capability !== 'sense-recognition'
+      && !(capability === 'surface-reading' && isReadingScriptText(props.word, languageData())),
   ));
 
   createEffect(() => {
@@ -63,7 +66,10 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   const submitProfile = (observations: readonly ProfileObservation[]) => {
     const attemptId = nextAttemptId();
     for (const observation of observations) {
-      recordAttempt(props.word, observation.aspect, observation.quality, {
+      // Sense rows are never offered above; dropped here too should the
+      // matrix ever add one — sense evidence is word-level, not rated.
+      if (observation.capability === 'sense-recognition') continue;
+      recordAttempt(props.word, observation.capability, observation.quality, {
         language: effectiveLanguage(), method: observation.method ?? 'recall', attemptId,
       });
     }
@@ -88,7 +94,7 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
       </Show>
       <Show when={showRate()}>
         <RatingMatrix
-          aspects={applicableAspects()}
+          capabilities={applicableAccesses()}
           keyboardMode={settings.ratingKeyboardMode}
           armed
           mode="profile"

@@ -76,7 +76,7 @@ vi.mock('../../context', () => ({
     isKnowledgeReady: () => true,
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
-    getAspectStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
+    getAccessStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
   }),
 }));
 

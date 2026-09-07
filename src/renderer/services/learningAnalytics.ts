@@ -1,5 +1,5 @@
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
-import { stripRetractedLog } from '../../shared/knowledgeEvents';
+import { eventCapability, stripRetractedLog } from '../../shared/knowledgeEvents';
 import { ANKI_EASE } from '../../shared/constants';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
 
@@ -48,7 +48,9 @@ export function unifyEventLogByWord(
 }
 
 function meaningEvents(events: readonly KnowledgeEvent[]): KnowledgeEvent[] {
-  return events.filter((event) => event.aspect === 'meaning').sort((a, b) => a.t - b.t);
+  // Sense-access addressing: legacy meaning-aspect events route via
+  // ASPECT_CAPABILITY, capability-addressed events match directly.
+  return events.filter((event) => eventCapability(event) === 'sense-recognition').sort((a, b) => a.t - b.t);
 }
 
 function monthFor(timestamp: number): string {

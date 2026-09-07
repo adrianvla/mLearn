@@ -1,7 +1,7 @@
-import { KNOWLEDGE_ASPECT_LABEL_KEYS, type WordStatus } from '../../../../shared/constants';
-import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
+import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
+import type { CapabilityKind } from '../../../../shared/graph/types';
 import type { KnowledgeProjection, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
-import { ASPECT_CAPABILITY } from '../../../../shared/graph/types';
+import type { WordStatus } from '../../../../shared/constants';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
 
 /**
@@ -53,15 +53,15 @@ export function knowledgeStatusLabelKey(
   return untracked ? UNTRACKED_LABEL_KEY : STATUS_LABEL_KEYS[status];
 }
 
-export interface AspectEffectiveState {
+export interface CapabilityEffectiveState {
   status: WordStatus;
   untracked?: boolean;
   /** Provenance of the status when a record exists: an explicit claim outranks evidence. */
   basis?: 'claim' | 'evidence';
   claim?: WordStatus;
 }
-export interface AspectCapabilitySummary {
-  aspect: KnowledgeAspect;
+export interface CapabilitySummary {
+  capability: CapabilityKind;
   labelKey: string;
   status: WordStatus;
   basis: KnowledgeBasisToken;
@@ -70,41 +70,35 @@ export interface AspectCapabilitySummary {
 }
 
 /**
- * The aspect-like capability a graph projection state describes, if any.
- * Single source: ASPECT_CAPABILITY (shared/graph/types). `meaning` is the one
- * override — meaning-visible knowledge spans sense-recognition (sense entity)
- * and surface-recognition (surface entity), and the compact summary anchors on
- * the presented surface's row.
+ * The graph projection state describing one capability, if any — a direct
+ * match against the projection's per-target states.
  */
-export function projectionStateForAspect(
+export function projectionStateForCapability(
   projection: KnowledgeProjection | undefined,
-  aspect: KnowledgeAspect,
+  capability: CapabilityKind,
 ): KnowledgeProjectionState | undefined {
-  const capability = aspect === 'meaning' ? 'surface-recognition' : ASPECT_CAPABILITY[aspect];
-  return capability
-    ? projection?.targets.flatMap((target) => target.states).find((state) => state.capability === capability)
-    : undefined;
+  return projection?.targets.flatMap((target) => target.states).find((state) => state.capability === capability);
 }
 
 /**
  * One capability's compact summary:
  * - projection states supply prediction/evidence/unmeasured nuance (the graph
  *   can see attribution the local resolver cannot),
- * - otherwise the meaning aspect resolves through getComprehensiveWordStatus
- *   (claim/evidence/unmeasured) and finer aspects through their own record
- *   (evidence) or absence (unmeasured).
+ * - otherwise sense recognition resolves through getComprehensiveWordStatus
+ *   (claim/evidence/unmeasured) and finer capabilities through their own
+ *   record (evidence) or absence (unmeasured).
  */
-export function aspectCapabilitySummary(
-  aspect: KnowledgeAspect,
-  effective: AspectEffectiveState,
+export function capabilitySummary(
+  capability: CapabilityKind,
+  effective: CapabilityEffectiveState,
   meaning: ComprehensiveWordStatusResult,
   projectionState: KnowledgeProjectionState | undefined,
-): AspectCapabilitySummary {
-  const labelKey = KNOWLEDGE_ASPECT_LABEL_KEYS[aspect];
+): CapabilitySummary {
+  const labelKey = CAPABILITY_LABEL_KEYS[capability];
   // A local claim outranks cached projection nuance: the projection is an
   // async IPC snapshot that can predate the claim.
   if (effective.basis === 'claim') {
-    return { aspect, labelKey, status: effective.status, basis: 'claim', untracked: false };
+    return { capability, labelKey, status: effective.status, basis: 'claim', untracked: false };
   }
   if (projectionState) {
     if (projectionState.basis === 'claim') {
@@ -113,7 +107,7 @@ export function aspectCapabilitySummary(
       // to the local resolver status, and it is never Untracked.
       const classification = projectionState.classification;
       return {
-        aspect, labelKey,
+        capability, labelKey,
         status: classification === 'known' || classification === 'learning' || classification === 'unknown'
           ? classification
           : effective.status,
@@ -122,14 +116,14 @@ export function aspectCapabilitySummary(
     }
     if (projectionState.basis === 'prediction') {
       return {
-        aspect, labelKey, status: effective.status, basis: 'prediction',
+        capability, labelKey, status: effective.status, basis: 'prediction',
         untracked: effective.untracked === true, predictionReasons: projectionState.prediction?.reasons,
       };
     }
     if (projectionState.basis === 'evidence') {
       const classification = projectionState.classification;
       return {
-        aspect, labelKey,
+        capability, labelKey,
         status: classification === 'known' || classification === 'learning' ? classification : effective.status,
         basis: 'evidence', untracked: false,
       };
@@ -138,22 +132,22 @@ export function aspectCapabilitySummary(
     // An unmeasured projection over an unknown resolver state is Untracked
     // (passive-only familiarity included — REQ13), never Unknown.
     return {
-      aspect, labelKey,
+      capability, labelKey,
       status: effective.status,
       basis: 'unmeasured',
       untracked: effective.untracked === true || isUntrackedKnowledge(effective.status, 'unmeasured'),
     };
   }
-  if (aspect === 'meaning') {
+  if (capability === 'sense-recognition') {
     // The resolver's basis is authoritative (always present on Tier-2 results):
-    // unmeasured meaning is Untracked, never Unknown.
-    return { aspect, labelKey, status: meaning.status, basis: meaning.basis, untracked: meaning.basis === 'unmeasured' };
+    // unmeasured sense knowledge is Untracked, never Unknown.
+    return { capability, labelKey, status: meaning.status, basis: meaning.basis, untracked: meaning.basis === 'unmeasured' };
   }
   if (effective.untracked) {
-    return { aspect, labelKey, status: 'unknown', basis: 'unmeasured', untracked: true };
+    return { capability, labelKey, status: 'unknown', basis: 'unmeasured', untracked: true };
   }
   // A record exists without projection nuance: keep the resolver's basis —
-  // a manual aspect record arrives here with basis 'claim', and collapsing
+  // a manual access record arrives here with basis 'claim', and collapsing
   // it to 'evidence' would misattribute the user's own statement.
-  return { aspect, labelKey, status: effective.status, basis: effective.basis ?? 'evidence', untracked: false };
+  return { capability, labelKey, status: effective.status, basis: effective.basis ?? 'evidence', untracked: false };
 }

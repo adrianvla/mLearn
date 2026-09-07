@@ -1363,9 +1363,19 @@
     },
     "Knowledge": {
       "Capability": {
-        "surface-recognition": "Reconnaissance",
+        "sense-recognition": "Sens",
+        "surface-recognition": "Forme écrite",
+        "spoken-recognition": "Forme orale",
         "surface-reading": "Lecture",
-        "pronunciation-production": "Prononciation"
+        "pronunciation-production": "Prononciation",
+        "prosodic-pattern": "Prosodie",
+        "gender": "Genre",
+        "character-reading": "Caractère",
+        "morpheme-recognition": "Morphème",
+        "grammar-recognition": "Grammaire",
+        "grammar-comprehension": "Grammaire",
+        "grammar-formation": "Grammaire",
+        "grammar-production": "Grammaire"
       },
       "Basis": {
         "Claim": "Déclaration explicite",
@@ -3093,6 +3103,15 @@
       "Rating": {
         "AllRow": "Tout",
         "PendingHint": "Qualité 1–4, puis touche d’aspect – appuyez de nouveau sur la qualité pour tous les aspects"
+      },
+      "Statement": {
+        "Label": "Décrire autrement",
+        "KnownSpoken": "Je connais ce mot quand je l'entends.",
+        "MeaningNotForm": "Je connais le sens mais pas cette orthographe.",
+        "KnownCharacters": "Je connais les caractères individuellement.",
+        "InferredFromParts": "Je peux déduire le sens à partir des parties.",
+        "ReadablePitchWrong": "Je sais le lire, mais mon accent tonal est incorrect.",
+        "NeverSeenForm": "Je n'ai jamais vu cette forme."
       },
       "FinishedTitle": "Terminé !",
       "FinishedDescription": "Vous avez vérifié {count} mots. Votre connaissance des mots a été mise à jour.",

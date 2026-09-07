@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { RatingMatrix, type RateOptions } from './RatingMatrix';
-import type { AttemptQuality, KnowledgeAspect } from '../../../../shared/constants';
+import type { AttemptQuality } from '../../../../shared/constants';
+import type { CapabilityKind } from '../../../../shared/graph/types';
 
 const mockT = (key: string): string => key;
 
@@ -18,7 +19,7 @@ describe('RatingMatrix', () => {
   const onRate = vi.fn();
   const onAllFluent = vi.fn();
   const onProfileSubmit = vi.fn();
-  const ASPECTS = ['meaning', 'reading', 'prosody', 'orthography'] as const;
+  const CAPABILITIES = ['sense-recognition', 'surface-reading', 'prosodic-pattern', 'surface-recognition'] as const;
 
   const key = (k: string, opts: KeyboardEventInit = {}) => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: k, ...opts }));
@@ -26,18 +27,18 @@ describe('RatingMatrix', () => {
 
   const renderMatrix = (
     keyboardMode: 'mnemonic' | 'spatial' = 'mnemonic',
-    aspects: readonly KnowledgeAspect[] = ASPECTS,
+    capabilities: readonly CapabilityKind[] = CAPABILITIES,
     compact = false,
   ) => {
     dispose?.();
     dispose = render(
       () => (
         <RatingMatrix
-          aspects={aspects}
+          capabilities={capabilities}
           keyboardMode={keyboardMode}
           armed
           compact={compact}
-          onRate={(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => onRate(aspect, quality, opts)}
+          onRate={(capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => onRate(capability, quality, opts)}
           onAllFluent={(opts?: RateOptions) => onAllFluent(opts)}
           onProfileSubmit={(observations) => onProfileSubmit(observations)}
         />
@@ -60,11 +61,11 @@ describe('RatingMatrix', () => {
     container.remove();
   });
 
-  it('mnemonic chord: 1 then R rates Reading missed', () => {
+  it('mnemonic chord: 1 then R rates surface-reading missed', () => {
     renderMatrix('mnemonic');
     key('1');
     key('r');
-    expect(onRate).toHaveBeenCalledWith('reading', 'missed', undefined);
+    expect(onRate).toHaveBeenCalledWith('surface-reading', 'missed', undefined);
   });
 
   it('a lone quality key arms the chord with an immediate hint and no mutation', () => {
@@ -105,26 +106,26 @@ describe('RatingMatrix', () => {
     renderMatrix('mnemonic');
     key('1');
     key('m', { altKey: true });
-    expect(onRate).toHaveBeenCalledWith('meaning', 'missed', { method: 'inference' });
+    expect(onRate).toHaveBeenCalledWith('sense-recognition', 'missed', { method: 'inference' });
   });
 
-  it('spatial mode: keys mean quality column × displayed row, not fixed aspects', () => {
+  it('spatial mode: keys mean quality column × displayed row, not fixed capabilities', () => {
     renderMatrix('spatial');
-    // Row 2 is Reading here…
+    // Row 2 is surface-reading here…
     key('q');
-    expect(onRate).toHaveBeenCalledWith('reading', 'missed', undefined);
-    // …but with different rows displayed, the SAME key hits a different aspect.
+    expect(onRate).toHaveBeenCalledWith('surface-reading', 'missed', undefined);
+    // …but with different rows displayed, the SAME key hits a different capability.
     onRate.mockClear();
-    renderMatrix('spatial', ['meaning', 'orthography']);
+    renderMatrix('spatial', ['sense-recognition', 'surface-recognition']);
     key('q');
-    expect(onRate).toHaveBeenCalledWith('orthography', 'missed', undefined);
-    // 'e' = fluent × row 2 of the CURRENT matrix (orthography with these rows).
+    expect(onRate).toHaveBeenCalledWith('surface-recognition', 'missed', undefined);
+    // 'e' = fluent × row 2 of the CURRENT matrix (surface-recognition with these rows).
     key('e');
-    expect(onRate).toHaveBeenCalledWith('orthography', 'fluent', undefined);
+    expect(onRate).toHaveBeenCalledWith('surface-recognition', 'fluent', undefined);
   });
 
   it('rows beyond the fourth spatial row are click-only', () => {
-    renderMatrix('spatial', ['meaning', 'reading', 'prosody', 'orthography', 'gender']);
+    renderMatrix('spatial', [...CAPABILITIES, 'gender']);
     key('p'); // 'p' is not a spatial key — nothing fires
     expect(onRate).not.toHaveBeenCalled();
     // Fifth row (Gender) still renders and clicks.
@@ -181,30 +182,30 @@ describe('RatingMatrix', () => {
     expect(adjust.querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0].className).toContain('rating-matrix__cell--easy');
 
     adjust.querySelector<HTMLButtonElement>('.rating-matrix__cell--easy')!.click();
-    expect(onRate).toHaveBeenCalledWith('meaning', 'fluent', { easy: true });
+    expect(onRate).toHaveBeenCalledWith('sense-recognition', 'fluent', { easy: true });
   });
 
   it('keeps rating chords armed while the compact matrix is collapsed', () => {
-    renderMatrix('mnemonic', ASPECTS, true);
+    renderMatrix('mnemonic', CAPABILITIES, true);
     expect(container.querySelector('.rating-matrix')?.hasAttribute('hidden')).toBe(true);
     key('1');
     key('m');
-    expect(onRate).toHaveBeenCalledWith('meaning', 'missed', undefined);
+    expect(onRate).toHaveBeenCalledWith('sense-recognition', 'missed', undefined);
     expect(container.querySelector('.rating-matrix')?.hasAttribute('hidden')).toBe(true);
   });
 
   // ── Profile mode (Word Sync calibration) ────────────────────────────────
-  const renderProfile = (keyboardMode: 'mnemonic' | 'spatial' = 'mnemonic', aspects: readonly KnowledgeAspect[] = ASPECTS) => {
+  const renderProfile = (keyboardMode: 'mnemonic' | 'spatial' = 'mnemonic', capabilities: readonly CapabilityKind[] = CAPABILITIES) => {
     dispose?.();
     dispose = render(
       () => (
         <RatingMatrix
-          aspects={aspects}
+          capabilities={capabilities}
           keyboardMode={keyboardMode}
           mode="profile"
           resetKey={resetKey()}
           armed
-          onRate={(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => onRate(aspect, quality, opts)}
+          onRate={(capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => onRate(capability, quality, opts)}
           onProfileSubmit={(observations) => onProfileSubmit(observations)}
         />
       ),
@@ -227,14 +228,14 @@ describe('RatingMatrix', () => {
     dispose = render(
       () => (
         <RatingMatrix
-          aspects={ASPECTS}
+          capabilities={CAPABILITIES}
           keyboardMode="mnemonic"
           mode="profile"
           resetKey={resetKey()}
           armed
           compact
           initialDraftsFluent
-          onRate={(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => onRate(aspect, quality, opts)}
+          onRate={(capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => onRate(capability, quality, opts)}
           onProfileSubmit={(observations, opts) => onProfileSubmit(observations, opts)}
         />
       ),
@@ -256,9 +257,9 @@ describe('RatingMatrix', () => {
     expect(adjust.getAttribute('aria-expanded')).toBe('false');
 
     key('f', { shiftKey: true });
-    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
-    expect(byAspect.reading.quality).toBe('missed');
-    expect(byAspect.meaning.quality).toBe('fluent');
+    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
+    expect(byCapability['surface-reading'].quality).toBe('missed');
+    expect(byCapability['sense-recognition'].quality).toBe('fluent');
     expect(onProfileSubmit).toHaveBeenCalledWith(expect.any(Array), { easy: true });
   });
 
@@ -268,11 +269,11 @@ describe('RatingMatrix', () => {
     key('2'); key('p');   // Prosody struggled
     key('f');
     const obs = onProfileSubmit.mock.calls[0]?.[0];
-    const byAspect = Object.fromEntries((obs ?? []).map((o: { aspect: string }) => [o.aspect, o]));
-    expect(byAspect.meaning.quality).toBe('missed');
-    expect(byAspect.prosody.quality).toBe('struggled');
-    expect(byAspect.reading.quality).toBe('fluent');
-    expect(byAspect.orthography.quality).toBe('fluent');
+    const byCapability = Object.fromEntries((obs ?? []).map((o: { capability: string }) => [o.capability, o]));
+    expect(byCapability['sense-recognition'].quality).toBe('missed');
+    expect(byCapability['prosodic-pattern'].quality).toBe('struggled');
+    expect(byCapability['surface-reading'].quality).toBe('fluent');
+    expect(byCapability['surface-recognition'].quality).toBe('fluent');
     // No evidence before submit, one submit only.
     expect(onRate).not.toHaveBeenCalled();
     expect(onProfileSubmit).toHaveBeenCalledTimes(1);
@@ -283,8 +284,8 @@ describe('RatingMatrix', () => {
     key('1'); key('m');
     key('2'); key('m');
     key('f');
-    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
-    expect(byAspect.meaning.quality).toBe('struggled');
+    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
+    expect(byCapability['sense-recognition'].quality).toBe('struggled');
   });
 
   it('profile spatial: 1, S, F drafts and submits without early advance', () => {
@@ -293,10 +294,10 @@ describe('RatingMatrix', () => {
     key('s'); // Prosody struggled (row 3)
     expect(onProfileSubmit).not.toHaveBeenCalled();
     key('f');
-    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
-    expect(byAspect.meaning.quality).toBe('missed');
-    expect(byAspect.prosody.quality).toBe('struggled');
-    expect(byAspect.reading.quality).toBe('fluent');
+    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
+    expect(byCapability['sense-recognition'].quality).toBe('missed');
+    expect(byCapability['prosodic-pattern'].quality).toBe('struggled');
+    expect(byCapability['surface-reading'].quality).toBe('fluent');
   });
 
   it('profile drafts reset on resetKey change (new word)', async () => {
@@ -308,16 +309,16 @@ describe('RatingMatrix', () => {
     // default, not the previous word's draft.
     expect(resetKey()).toBe('word-2');
     key('f');
-    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
-    expect(byAspect.meaning.quality).toBe('fluent');
+    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
+    expect(byCapability['sense-recognition'].quality).toBe('fluent');
   });
 
   it('profile not-tested rows never receive observations', () => {
-    renderProfile('mnemonic', ['meaning', 'orthography']);
+    renderProfile('mnemonic', ['sense-recognition', 'surface-recognition']);
     key('f');
     const obs = onProfileSubmit.mock.calls[0]?.[0] ?? [];
     expect(obs.length).toBe(2);
-    expect(obs.map((o: { aspect: string }) => o.aspect)).toEqual(['meaning', 'orthography']);
+    expect(obs.map((o: { capability: string }) => o.capability)).toEqual(['sense-recognition', 'surface-recognition']);
   });
 
   it('profile Alt+draft carries per-row inference; submit modifier does not contaminate drafts', () => {
@@ -325,11 +326,11 @@ describe('RatingMatrix', () => {
     key('1');
     key('m', { altKey: true });
     key('f');           // plain submit
-    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
-    expect(byAspect.meaning.method).toBe('inference');
-    expect(byAspect.meaning.quality).toBe('missed');
-    expect(byAspect.reading.method).toBeUndefined();
-    expect(byAspect.reading.quality).toBe('fluent');
+    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
+    expect(byCapability['sense-recognition'].method).toBe('inference');
+    expect(byCapability['sense-recognition'].quality).toBe('missed');
+    expect(byCapability['surface-reading'].method).toBeUndefined();
+    expect(byCapability['surface-reading'].quality).toBe('fluent');
   });
 
   it('profile click parity: clicking cells matches chord drafts', () => {
@@ -338,9 +339,9 @@ describe('RatingMatrix', () => {
     (rows[0].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0]).click();
     (rows[2].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[1]).click();
     key('f');
-    const byAspect = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { aspect: string }) => [o.aspect, o]));
-    expect(byAspect.meaning.quality).toBe('missed');
-    expect(byAspect.prosody.quality).toBe('struggled');
+    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
+    expect(byCapability['sense-recognition'].quality).toBe('missed');
+    expect(byCapability['prosodic-pattern'].quality).toBe('struggled');
   });
 
   it('quick all-fluent produces the same profile as manually marking every row fluent', () => {
@@ -359,11 +360,11 @@ describe('RatingMatrix', () => {
   });
 
   it('a dominant task emits only its intended capability', () => {
-    renderMatrix('mnemonic', ['reading']);
+    renderMatrix('mnemonic', ['surface-reading']);
     key('1');
     key('r');
     expect(onRate).toHaveBeenCalledTimes(1);
-    expect(onRate).toHaveBeenCalledWith('reading', 'missed', undefined);
+    expect(onRate).toHaveBeenCalledWith('surface-reading', 'missed', undefined);
   });
 
   it('profile button copy switches to EverythingElseFluent once drafts exist', () => {
@@ -377,10 +378,10 @@ describe('RatingMatrix', () => {
     dispose = render(
       () => (
         <RatingMatrix
-          aspects={ASPECTS}
+          capabilities={CAPABILITIES}
           keyboardMode="mnemonic"
           armed={false}
-          onRate={(aspect: KnowledgeAspect, quality: AttemptQuality, opts?: RateOptions) => onRate(aspect, quality, opts)}
+          onRate={(capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => onRate(capability, quality, opts)}
           onAllFluent={(opts?: RateOptions) => onAllFluent(opts)}
         />
       ),

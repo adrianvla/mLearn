@@ -5,8 +5,8 @@ import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
 import { relationCategory, type GraphRelationType, type RelationCategory } from '../../../../shared/graph/types';
 import type { GraphNeighborhood, GraphRelatedNode, GraphWordLookup, KnowledgeProjection, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
 import type { WordStatus } from '../../../../shared/constants';
-import { KNOWLEDGE_ASPECT_LABEL_KEYS as ASPECT_LABEL_KEYS } from '../../../../shared/constants';
-import type { ReadableAspect } from '../../../utils/aspectKnowledge';
+import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
+import type { RatedCapability } from '../../../utils/accessKnowledge';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { useOptionalGraph } from '../../../context/GraphContext';
 import { KnowledgeHistoryTimeline, type HistoryEvent } from '../KnowledgeHistoryTimeline';
@@ -114,10 +114,10 @@ interface KnowledgeProjectionDrawerProps {
   onWordClaim?: (claim: WordStatus | null) => void;
   /** The active word-level claim, when the comprehensive resolver reports one. Legacy input when no model is supplied. */
   wordClaim?: WordStatus | null;
-  /** Deliberate aspect claim editing (inspector only). Absent = read-only. */
-  onAspectClaim?: (aspect: ReadableAspect, claim: WordStatus | null) => void;
-  /** Applicable non-meaning aspects with their effective state, for claim rows. */
-  aspectStates?: readonly { aspect: ReadableAspect; status: WordStatus; claim?: WordStatus }[];
+  /** Deliberate access claim editing (inspector only). Absent = read-only. */
+  onAccessClaim?: (capability: RatedCapability, claim: WordStatus | null) => void;
+  /** Applicable non-sense accesses with their effective state, for claim rows. */
+  accessStates?: readonly { capability: RatedCapability; status: WordStatus; claim?: WordStatus }[];
 }
 const CATEGORIES: RelationCategory[] = ['identity', 'property', 'support'];
 /**
@@ -556,13 +556,13 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
               <KnowledgeClaimControls claim={model().wordClaim} onClaim={props.onWordClaim!} />
             </section>
           </Show>
-          <Show when={props.onAspectClaim && (props.aspectStates?.length ?? 0) > 0}>
+          <Show when={props.onAccessClaim && (props.accessStates?.length ?? 0) > 0}>
             <section class="knowledge-drawer__section knowledge-drawer__section--claims">
               <h3>{t('mlearn.Knowledge.Projection.AspectClaims')}</h3>
-              <For each={props.aspectStates}>{(item) => (
+              <For each={props.accessStates}>{(item) => (
                 <div class="knowledge-drawer__claim-row">
-                  <span class="knowledge-drawer__claim-aspect">{t(ASPECT_LABEL_KEYS[item.aspect])}</span>
-                  <KnowledgeClaimControls claim={item.claim} onClaim={(claim) => props.onAspectClaim?.(item.aspect, claim)} />
+                  <span class="knowledge-drawer__claim-aspect">{t(CAPABILITY_LABEL_KEYS[item.capability])}</span>
+                  <KnowledgeClaimControls claim={item.claim} onClaim={(claim) => props.onAccessClaim?.(item.capability, claim)} />
                 </div>
               )}</For>
             </section>

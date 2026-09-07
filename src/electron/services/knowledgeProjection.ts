@@ -4,6 +4,7 @@ import type { KnowledgeProjection, KnowledgeProjectionBasis, KnowledgeProjection
 import { relationsOf, type LingualGraph } from '../../shared/graph/load';
 import { learnableTargetsFor } from '../../shared/graph/targets';
 import { predictTargetAccessibility, type PredictionInput } from '../../shared/prediction/supportPredictor';
+import { readActiveEvidence } from '../../shared/knowledgeEvents';
 import { easeToStatus } from '../../shared/utils/knowledgeStrength';
 import { DEFAULT_ENABLED_DOMAINS, type GraphDomain, type GraphEntity } from '../../shared/graph/types';
 import type { RetentionPolicy } from '../../shared/srs/retentionScheduler';
@@ -66,6 +67,17 @@ export function buildKnowledgeProjection(
   const targets = learnableTargetsFor(graph, entities);
   const groups = new Map<string, KnowledgeProjectionTarget>();
 
+  // Learner transfer calibration (acceptance B): observed method:'inference'
+  // outcomes tell the predictor whether THIS learner exploits component →
+  // whole structure. Read-only input; never written as knowledge.
+  let inferenceAttempts = 0;
+  let inferenceSuccesses = 0;
+  for (const event of readActiveEvidence(events)) {
+    if (event.method !== 'inference') continue;
+    inferenceAttempts += 1;
+    if (event.quality === 'fluent' || event.rating === 'good' || event.rating === 'easy') inferenceSuccesses += 1;
+  }
+  const inferenceSuccess = inferenceAttempts > 0 ? { attempts: inferenceAttempts, successes: inferenceSuccesses } : undefined;
   for (const target of targets) {
     const entity = graph.nodes.get(target.entityId)!;
     // Capability scoping (aspect → capability, claim vs evidence, grammar
@@ -79,6 +91,7 @@ export function buildKnowledgeProjection(
       target,
       classify: easeToStatus,
       compound: options?.compound,
+      ...(inferenceSuccess ? { inferenceSuccess } : {}),
     }) : undefined;
     const prediction = predicted?.supportPath.length
       ? { value: predicted.pSuccess, reasons: predicted.supportPath.map((path) => `${path.from} → ${path.to} (${path.via})`) }

@@ -1,17 +1,25 @@
 import type { AttemptQuality, KnowledgeAspect, KnowledgeSource, WordStatus } from './constants';
-import type { CapabilityKind } from './graph/types';
+import { ASPECT_CAPABILITY, type CapabilityKind } from './graph/types';
 
 export type { KnowledgeAspect, WordStatus };
 export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup' | 'claim' | 'retraction';
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
+export type EvidenceSource = KnowledgeSource | 'manual' | 'grammar' | 'migration';
+export type EvidenceAspect = KnowledgeAspect | 'grammar';
 
 /**
  * Evidence-layer vocabularies. Word-status resolution keeps the narrow
  * KnowledgeSource/KnowledgeAspect unions; the event journal additionally
  * carries grammar-pattern observations (targetRef kind 'grammar-pattern').
+ *
+ * Addressing: `targetRef.capability` is the canonical access address. The
+ * flat `aspect` field is the LEGACY projection of that address for events
+ * written before capability addressing (and stays written whenever the
+ * capability maps losslessly); it may be absent for capabilities with no
+ * legacy aspect (spoken-recognition, character-reading, morpheme-recognition,
+ * package-declared ids). Read the address through eventCapability — never by
+ * comparing `aspect` directly.
  */
-export type EvidenceSource = KnowledgeSource | 'manual' | 'grammar' | 'migration';
-export type EvidenceAspect = KnowledgeAspect | 'grammar';
 
 /**
  * Logical-attempt identity. Durable across restarts (uuid v4) so multi-event
@@ -63,7 +71,8 @@ export interface KnowledgeEvent {
   t: number;
   kind: KnowledgeEventKind;
   source: EvidenceSource;
-  aspect: EvidenceAspect;
+  /** Legacy addressing projection; absent when the capability has no legacy aspect. See eventCapability. */
+  aspect?: EvidenceAspect;
   fromStatus?: WordStatus;
   toStatus?: WordStatus;
   easeBefore?: number;
@@ -115,7 +124,11 @@ export interface KnowledgeEvent {
   retracts?: AttemptId;
   /** The exact surface the learner was shown, independent of the storage key's primary form. Presentation provenance — never fan out observations from it. */
   presentedSurface?: string;
-  /** Tier-2 target pointer when the observation is about a typed graph entity (e.g. grammar patterns); absent = legacy word-hash addressing. */
+  /**
+   * Canonical access address: the typed graph entity and the directed
+   * learner access (capability) this observation is about. Absent = legacy
+   * word-hash addressing (routed by the legacy `aspect` projection).
+   */
   targetRef?: { kind: string; id: string; capability?: CapabilityKind };
   /** Presenting surface/policy channel that produced the observation (e.g. 'word-sync'); replay maps this to policy markers like wordSyncRatedAt. */
   origin?: string;
@@ -129,10 +142,26 @@ export interface KnowledgeEvent {
  * - `toStatus` present  → claim that status (latest active claim wins)
  * - `toStatus` absent   → clear any previous claim (effective state returns to
  *   the evidence projection; historical evidence remains intact)
- * `aspect` scopes the claim (meaning = whole-word identity; other aspects =
- * aspect-scoped claim). Cleared the same way as attempt events: append a
+ * Addressing scopes the claim: a `targetRef.capability` claim is
+ * access-scoped ("I know this word when I hear it" → spoken-recognition);
+ * an untargeted claim with the legacy aspect 'meaning' is the whole-word
+ * identity claim. Cleared the same way as attempt events: append a
  * retraction or a clearing claim — the journal is append-only.
  */
+
+/**
+ * The canonical access address of an event: `targetRef.capability` when
+ * present, else the legacy aspect projection (`ASPECT_CAPABILITY`; the
+ * legacy 'grammar' aspect routes to grammar-recognition). Undefined when an
+ * event carries neither address (retraction tombstones, passive-exposure
+ * bookkeeping) — such events never carry capability evidence.
+ */
+export function eventCapability(event: KnowledgeEvent): CapabilityKind | undefined {
+  if (event.targetRef?.capability !== undefined) return event.targetRef.capability;
+  if (event.aspect === undefined) return undefined;
+  if (event.aspect === 'grammar') return 'grammar-recognition';
+  return ASPECT_CAPABILITY[event.aspect];
+}
 
 /** Keys are `${language}:${hash}` values shared with wordKnowledge. */
 export type KnowledgeEventLog = Record<string, KnowledgeEvent[]>;

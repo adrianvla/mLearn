@@ -4,7 +4,7 @@
 
 export { useSettings, useOptionalSettings } from './SettingsContext';
 export { useLanguage } from './LanguageContext';
-export { useGraph } from './GraphContext';
+export { useGraph, useOptionalGraph } from './GraphContext';
 export { useFlashcards } from './FlashcardContext';
 export { useServer } from './ServerContext';
 export { useLocalization } from './LocalizationContext';

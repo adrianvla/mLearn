@@ -1363,9 +1363,19 @@
     },
     "Knowledge": {
       "Capability": {
-        "surface-recognition": "Recognition",
+        "sense-recognition": "Meaning",
+        "surface-recognition": "Written form",
+        "spoken-recognition": "Spoken form",
         "surface-reading": "Reading",
-        "pronunciation-production": "Pronunciation"
+        "pronunciation-production": "Pronunciation",
+        "prosodic-pattern": "Prosody",
+        "gender": "Gender",
+        "character-reading": "Character",
+        "morpheme-recognition": "Morpheme",
+        "grammar-recognition": "Grammar",
+        "grammar-comprehension": "Grammar",
+        "grammar-formation": "Grammar",
+        "grammar-production": "Grammar"
       },
       "Basis": {
         "Claim": "Explicit claim",
@@ -3093,6 +3103,15 @@
       "Rating": {
         "AllRow": "All",
         "PendingHint": "Quality 1–4, then aspect key — press the quality again for all aspects"
+      },
+      "Statement": {
+        "Label": "Describe it instead",
+        "KnownSpoken": "I know this word when I hear it.",
+        "MeaningNotForm": "I know the meaning but not this spelling.",
+        "KnownCharacters": "I know the individual characters.",
+        "InferredFromParts": "I can infer the meaning from the parts.",
+        "ReadablePitchWrong": "I can read it, but my pitch is wrong.",
+        "NeverSeenForm": "I have never seen this form."
       },
       "FinishedTitle": "All done!",
       "FinishedDescription": "You checked {count} words. Your word knowledge has been updated.",

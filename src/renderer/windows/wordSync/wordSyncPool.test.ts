@@ -7,6 +7,8 @@ import {
   shouldIncludeForLevel,
   calculateCharacterStudyBoost,
   calculateWordWeight,
+  hasWrittenFormAccess,
+  isBridgeCandidate,
   isWordEligible,
   wordSyncPoolStatus,
   isWordSyncRecentlyRated,
@@ -340,5 +342,45 @@ describe('isWordSyncRecentlyRated', () => {
 
   it('a recent miss marker (syncSeen) counts on its own', () => {
     expect(isWordSyncRecentlyRated(undefined, NOW - 1000, STALE_30D, NOW)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Learner-overlay bridge candidates
+// ---------------------------------------------------------------------------
+
+describe('written-form bridge selection', () => {
+  const writtenKnown = {
+    access: { 'surface-recognition': { status: 'known', ease: 2.1, source: 'Manual', lastStatusChange: 5, updatedAt: 5 } },
+  };
+  const writtenUnknownClaim = {
+    access: { 'surface-recognition': { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 5, updatedAt: 5, claim: 'unknown' } },
+  };
+
+  it('hasWrittenFormAccess reads the surface-recognition access (claim included)', () => {
+    expect(hasWrittenFormAccess(writtenKnown)).toBe(true);
+    expect(hasWrittenFormAccess(writtenUnknownClaim)).toBe(false);
+    expect(hasWrittenFormAccess(undefined)).toBe(false);
+    expect(hasWrittenFormAccess({})).toBe(false);
+  });
+
+  it('isBridgeCandidate: known object + missing written bridge only', () => {
+    expect(isBridgeCandidate('known', false, true)).toBe(true);
+    expect(isBridgeCandidate('known', true, true)).toBe(false);
+    expect(isBridgeCandidate('learning', false, true)).toBe(false);
+    expect(isBridgeCandidate('known', false, false)).toBe(false);
+  });
+
+  it('wordSyncPoolStatus reports known bridge words as known', () => {
+    expect(wordSyncPoolStatus('known', true)).toBe(String(WORD_STATUS.KNOWN));
+    expect(wordSyncPoolStatus('learning', true)).toBe(String(WORD_STATUS.LEARNING));
+    expect(wordSyncPoolStatus('unknown', false)).toBe(WORD_SYNC_STATUS_UNTRACKED);
+  });
+
+  it('bridge candidates get a selection weight boost; it is policy, not knowledge', () => {
+    const plain = calculateWordWeight(2.5, 1.0, false);
+    const bridge = calculateWordWeight(2.5, 1.0, true);
+    expect(bridge).toBeCloseTo(plain * 1.5, 10);
+    expect(calculateWordWeight(undefined, 1.0, false)).toBeCloseTo(2.0, 10);
   });
 });

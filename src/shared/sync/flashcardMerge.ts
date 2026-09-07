@@ -20,7 +20,9 @@
  * imports, no fs access, and no wall-clock reads (fully deterministic).
  */
 
+import { CAPABILITY_ASPECT, migrateAspectRecordsToAccess } from '../graph/access';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../knowledgeEvents';
+import type { CapabilityKind } from '../graph/types';
 import type {
   Flashcard,
   FlashcardStore,
@@ -42,7 +44,10 @@ export function sanitizeSyncedKnowledgeEntry(
   entry: PassiveWordKnowledge,
   local: PassiveWordKnowledge | undefined,
 ): PassiveWordKnowledge {
-  const sanitized: PassiveWordKnowledge = { ...entry };
+  // Remote payloads may predate the access overlay: re-key legacy aspect
+  // records before adoption so the merged store never carries both shapes.
+  const migrated = migrateAspectRecordsToAccess(entry);
+  const sanitized: PassiveWordKnowledge = { ...migrated };
   delete sanitized.hasActiveEvidence;
   delete sanitized.lastEvidenceSource;
   delete sanitized.lastStatusChange;
@@ -68,6 +73,12 @@ export function sanitizeSyncedKnowledgeEntry(
  * `source: 'sync'` itself is not a valid EvidenceSource and would be dropped
  * by the journal validator — the sources above are the contract.
  */
+/** `${language}:${hash}` storage key → `${language}:surface:${hash}` graph entity id. */
+function surfaceEntityIdFromKey(lk: string): string {
+  const separator = lk.indexOf(':');
+  return separator > 0 ? `${lk.slice(0, separator)}:surface:${lk.slice(separator + 1)}` : lk;
+}
+
 export function deriveSyncKnowledgeJournal(
   applied: ReadonlyArray<readonly [string, PassiveWordKnowledge]>,
 ): KnowledgeEventLog {
@@ -93,6 +104,21 @@ export function deriveSyncKnowledgeJournal(
         aspect: 'meaning',
         origin: 'sync',
         toStatus: entry.claim,
+      });
+    }
+    // Access-scoped claims travel the hop too: without journal rows a later
+    // projection replay on this device would silently drop them.
+    for (const [capability, record] of Object.entries(entry.access ?? {})) {
+      if (!record || record.claim === undefined) continue;
+      const aspect = CAPABILITY_ASPECT[capability as keyof typeof CAPABILITY_ASPECT];
+      events.push({
+        t: record.claimAt ?? easeAnchor,
+        kind: 'claim',
+        source: 'manual',
+        ...(aspect !== undefined ? { aspect } : {}),
+        origin: 'sync',
+        targetRef: { kind: 'surface', id: surfaceEntityIdFromKey(lk), capability: capability as CapabilityKind },
+        toStatus: record.claim,
       });
     }
     if (events.length > 0) {

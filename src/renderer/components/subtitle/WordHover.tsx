@@ -17,7 +17,8 @@ import { KnowledgeCapabilitySummary } from '../common/WordStatusPillKnowledge';
 import { getEvents, eventsVersion } from '../../services/knowledgeEvents';
 import { legacyCasingCandidates } from '../../../shared/utils/normalizationVersion';
 import { hashWordSync } from '../../services/srsAlgorithm';
-import { getAvailableAspects } from '../../../shared/types';
+import { getAvailableAccesses } from '../../../shared/types';
+import type { RatedCapability } from '../../utils/accessKnowledge';
 import type { KnowledgeEvent } from '../../../shared/knowledgeEvents';
 import { ProsodyOverlay } from '../language-specific';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
@@ -163,7 +164,7 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { meta: graphMeta, getTargetsForSurfaces } = useOptionalGraph();
-  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusWithSourceSync, getAspectStatus, setWordClaim, setAspectStatus, clearAspectClaim } = useFlashcards();
+  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusWithSourceSync, getAccessStatus, setWordClaim, setAccessStatus, clearAccessClaim } = useFlashcards();
   const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants, getWordFrequency } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
@@ -628,13 +629,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   const effectiveStatus = createMemo(() => getComprehensiveWordStatusWithSourceSync(actualWord(), settings.language).status);
   const effectiveKnowledge = createMemo(() => getComprehensiveWordStatusWithSourceSync(actualWord(), settings.language));
-
-  // Inspector claim editing: word-level claim + per-applicable-aspect rows.
-  const hoverAspectStates = createMemo(() => getAvailableAspects(currentLangData() ?? undefined)
-    .filter((aspect): aspect is Exclude<typeof aspect, 'meaning'> => aspect !== 'meaning')
-    .map((aspect) => {
-      const state = getAspectStatus(actualWord(), aspect, settings.language);
-      return { aspect, status: state.status, claim: state.claim };
+  // Inspector claim editing: word-level claim + per-applicable-access rows.
+  const hoverAccessStates = createMemo(() => getAvailableAccesses(currentLangData() ?? undefined)
+    .filter((capability): capability is RatedCapability => capability !== 'sense-recognition')
+    .map((capability) => {
+      const state = getAccessStatus(actualWord(), capability, settings.language);
+      return { capability, status: state.status, claim: state.claim };
     }));
   // Journal for the inspector's Evidence & History tab.
   const [journalEvents, setJournalEvents] = createSignal<KnowledgeEvent[] | undefined>(undefined);
@@ -924,11 +924,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         initialTab="targets"
         onWordClaim={(claim) => setWordClaim(actualWord(), claim, settings.language)}
         wordClaim={effectiveKnowledge().basis === 'claim' ? effectiveKnowledge().status : null}
-        onAspectClaim={(aspect, claim) => {
-          if (claim === null) clearAspectClaim(actualWord(), aspect, settings.language);
-          else setAspectStatus(actualWord(), aspect, claim, 'manual', settings.language);
+        onAccessClaim={(capability, claim) => {
+          if (claim === null) clearAccessClaim(actualWord(), capability, settings.language);
+          else setAccessStatus(actualWord(), capability, claim, 'manual', settings.language);
         }}
-        aspectStates={hoverAspectStates()}
+        accessStates={hoverAccessStates()}
       />
       {/* Anki duplicate warning modal */}
       <Show when={showDuplicateWarning()}>

@@ -2,31 +2,33 @@
  * Word Sync's progressive-disclosure rating control.
  *
  * Collapsed: one bar of four whole-word qualities (Missed / Struggled /
- * Fluent / Easy) plus an Adjust toggle. A quality click or digit 1-4
- * submits EVERY applicable aspect at that quality immediately and discards
- * any drafts — Easy is fluent evidence plus the `easy` scheduling
- * preference, never a fourth evidence level.
+ * Fluent / Easy) plus an Adjust toggle. A quality click or digit 1-4 records
+ * the MEASURED accesses — the ones the presentation actually exercised
+ * (written-form recognition, sense, reading) — and discards any drafts. A
+ * task that never measured an access (prosody in particular) stays
+ * unmeasured: no fabricated evidence. Easy is fluent evidence plus the
+ * `easy` scheduling preference, never a fourth evidence level.
  *
- * Adjust unfolds the bar in place into its dimensions: the All row first
- * (fills every aspect that has no explicit draft and always completes the
- * word), then one row per applicable aspect whose cells only draft. The
- * moment every applicable aspect holds a rating, the full observation set
- * submits exactly once; a submitted guard reset by `resetKey` makes
- * same-tick double-fires impossible.
+ * Adjust unfolds the bar in place: the All row first (fills every access
+ * that has no explicit draft and always completes the word), then one row
+ * per tested access whose cells only draft, then natural statements — the
+ * learner's own words ("I know this word when I hear it") that the parent
+ * encodes as claims or evidence. The moment every tested access holds a
+ * draft, the full observation set submits exactly once; a submitted guard
+ * reset by `resetKey` makes same-tick double-fires impossible.
  *
- * Profile-only by design: this component never touches stores or contexts —
- * the parent turns the observations into one attempt and advances.
+ * Statement/observation encoding lives in the parent — this component never
+ * touches stores or contexts.
  */
 import { Component, For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import {
   ATTEMPT_QUALITIES,
-  ASPECT_MNEMONIC_KEYS,
-  KNOWLEDGE_ASPECT_LABEL_KEYS,
   type AttemptQuality,
-  type KnowledgeAspect,
   type RatingKeyboardMode,
 } from '../../../shared/constants';
+import type { CapabilityKind } from '../../../shared/graph/types';
+import { CAPABILITY_LABEL_KEYS, CAPABILITY_MNEMONIC_KEYS } from '../../../shared/graph/access';
 import type { ProfileObservation, RateOptions } from '../../components/common';
 import { useLocalization } from '../../context';
 import { Button } from '../../components/common/Button/Button';
@@ -34,16 +36,43 @@ import { KeyboardShortcut } from '../../components/common/Misc/KeyboardShortcut'
 import { isRatingKeyIgnored } from '../../utils/ratingShortcuts';
 import './WordSyncRating.css';
 
+/**
+ * A natural learner correction about the word. The parent encodes each as
+ * claims/evidence — the learner never sees the claim/evidence distinction.
+ */
+export type WordSyncStatement =
+  | { kind: 'known-spoken' }               // "I know this word when I hear it."
+  | { kind: 'known-meaning-unknown-form' } // "I know the meaning but not this spelling."
+  | { kind: 'known-characters' }           // "I know the individual characters."
+  | { kind: 'inferred-from-parts' }        // "I can infer the meaning from the parts."
+  | { kind: 'readable-pitch-wrong' }       // "I can read it, but my pitch is wrong."
+  | { kind: 'never-seen-form' };           // "I have never seen this form."
+
+const STATEMENT_KEYS: Record<WordSyncStatement['kind'], string> = {
+  'known-spoken': 'mlearn.WordSync.Statement.KnownSpoken',
+  'known-meaning-unknown-form': 'mlearn.WordSync.Statement.MeaningNotForm',
+  'known-characters': 'mlearn.WordSync.Statement.KnownCharacters',
+  'inferred-from-parts': 'mlearn.WordSync.Statement.InferredFromParts',
+  'readable-pitch-wrong': 'mlearn.WordSync.Statement.ReadablePitchWrong',
+  'never-seen-form': 'mlearn.WordSync.Statement.NeverSeenForm',
+};
+
 export interface WordSyncRatingProps {
-  /** Applicable/tested rows, in display order. */
-  aspects: readonly KnowledgeAspect[];
+  /** Tested access rows, in display order. */
+  accesses: readonly CapabilityKind[];
   keyboardMode: RatingKeyboardMode;
   /** The control owns its rating keys only while armed. */
   armed: boolean;
   /** Resets drafts, collapse state and the submitted guard when it changes. */
   resetKey: string | number;
+  /** A spoken representation exists for this word (enables the heard-it statement). */
+  hasSpokenForm?: boolean;
+  /** Graph character components exist for this word (enables the characters statement). */
+  hasCharacterComponents?: boolean;
   /** One logical attempt: the full observation set, in display order. */
   onSubmit: (observations: readonly ProfileObservation[], opts?: RateOptions) => void;
+  /** A natural statement was chosen; parent encodes claims/evidence. */
+  onStatement: (statement: WordSyncStatement) => void;
 }
 
 const PENDING_TIMEOUT_MS = 1500;
@@ -74,7 +103,7 @@ const ACTION_VARIANTS: Record<RatingAction, 'danger' | 'warning' | 'success' | '
   easy: 'primary',
 };
 
-// Word Sync's local spatial table: the All row is row 0 (digits), aspect
+// Word Sync's local spatial table: the All row is row 0 (digits), access
 // rows follow on QWER/ASDF/ZXCV/7890. Mirrors shared SPATIAL_QUALITY_KEYS
 // with a prepended All row — kept local because the shared table has no All
 // row and must not change.
@@ -85,14 +114,14 @@ const SPATIAL_ACTION_ROWS: Record<RatingAction, readonly string[]> = {
   easy: ['4', 'r', 'f', 'v', '0'],
 };
 
-interface AspectDraft {
+interface AccessDraft {
   quality: AttemptQuality;
   method?: 'recall' | 'inference';
   easy?: boolean;
 }
 
 /** Evidence carried by a quality action: Easy is fluent + the scheduler preference. */
-const actionEvidence = (action: RatingAction): AspectDraft =>
+const actionEvidence = (action: RatingAction): AccessDraft =>
   action === 'easy' ? { quality: 'fluent', easy: true } : { quality: action };
 
 export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
@@ -100,10 +129,29 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
   const [pendingQuality, setPendingQuality] = createSignal<RatingAction | null>(null);
   const [expanded, setExpanded] = createSignal(false);
   const [submitted, setSubmitted] = createSignal(false);
-  const [drafts, setDrafts] = createStore<Partial<Record<KnowledgeAspect, AspectDraft>>>({});
+  const [drafts, setDrafts] = createStore<Partial<Record<CapabilityKind, AccessDraft>>>({});
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 
   const actionable = () => props.armed && !submitted();
+
+  // Accesses the collapsed presentation actually measures: a written
+  // word-presentation with a reading reveal exercises the written-form
+  // bridge, the sense, and (when a reading was retrieved) the surface→
+  // pronunciation path. Prosody has NO task here — it stays unmeasured
+  // unless the learner rates the explicit row or uses a statement.
+  const measuredAccesses = () => props.accesses.filter((capability) => capability !== 'prosodic-pattern');
+
+  const statementRows = (): WordSyncStatement[] => {
+    const rows: WordSyncStatement[] = [
+      { kind: 'known-meaning-unknown-form' },
+      { kind: 'never-seen-form' },
+      { kind: 'inferred-from-parts' },
+    ];
+    if (props.hasSpokenForm) rows.unshift({ kind: 'known-spoken' });
+    if (props.accesses.includes('prosodic-pattern')) rows.push({ kind: 'readable-pitch-wrong' });
+    if (props.hasCharacterComponents) rows.push({ kind: 'known-characters' });
+    return rows;
+  };
 
   const clearPending = () => {
     if (pendingTimer !== undefined) clearTimeout(pendingTimer);
@@ -112,7 +160,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
   };
 
   const clearDrafts = () => {
-    for (const key of Object.keys(drafts)) setDrafts(key as KnowledgeAspect, undefined);
+    for (const key of Object.keys(drafts)) setDrafts(key as CapabilityKind, undefined);
   };
 
   createEffect(on(() => props.resetKey, () => {
@@ -131,8 +179,8 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
     props.onSubmit(observations, opts);
   };
 
-  const observationFromDraft = (aspect: KnowledgeAspect, draft: AspectDraft): ProfileObservation => ({
-    aspect,
+  const observationFromDraft = (capability: CapabilityKind, draft: AccessDraft): ProfileObservation => ({
+    capability,
     quality: draft.quality,
     ...(draft.method ? { method: draft.method } : {}),
     ...(draft.easy ? { easy: true } : {}),
@@ -142,8 +190,8 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
   const submitWholeWord = (action: RatingAction, alt: boolean) => {
     if (!actionable()) return;
     const evidence = actionEvidence(action);
-    const observations: ProfileObservation[] = props.aspects.map((aspect) => ({
-      aspect,
+    const observations: ProfileObservation[] = measuredAccesses().map((capability) => ({
+      capability,
       quality: evidence.quality,
       ...(evidence.easy ? { easy: true } : {}),
       ...(alt ? { method: 'inference' as const } : {}),
@@ -155,18 +203,18 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
   };
 
   /**
-   * All row: fill every aspect WITHOUT an explicit draft (explicit drafts
-   * stand); Alt marks only the filled aspects as worked out. All always
-   * completes the word.
+   * All row: fill every tested access WITHOUT an explicit draft (explicit
+   * drafts stand); Alt marks only the filled accesses as worked out. All is
+   * an explicit everything-rating and always completes the word.
    */
   const fillAll = (action: RatingAction, alt: boolean) => {
     if (!actionable()) return;
     const evidence = actionEvidence(action);
-    const observations: ProfileObservation[] = props.aspects.map((aspect) => {
-      const draft = drafts[aspect];
-      if (draft) return observationFromDraft(aspect, draft);
+    const observations: ProfileObservation[] = props.accesses.map((capability) => {
+      const draft = drafts[capability];
+      if (draft) return observationFromDraft(capability, draft);
       return {
-        aspect,
+        capability,
         quality: evidence.quality,
         ...(evidence.easy ? { easy: true } : {}),
         ...(alt ? { method: 'inference' as const } : {}),
@@ -178,21 +226,21 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
     submit(observations, Object.keys(opts).length > 0 ? opts : undefined);
   };
 
-  /** Aspect cell: draft only; submits the moment the last aspect is rated. */
-  const draftAspect = (aspect: KnowledgeAspect, action: RatingAction, alt: boolean) => {
+  /** Access cell: draft only; submits the moment the last access is drafted. */
+  const draftAccess = (capability: CapabilityKind, action: RatingAction, alt: boolean) => {
     if (!actionable()) return;
     clearPending();
     const evidence = actionEvidence(action);
-    setDrafts(aspect, {
+    setDrafts(capability, {
       quality: evidence.quality,
       ...(alt ? { method: 'inference' as const } : {}),
       ...(evidence.easy ? { easy: true as const } : {}),
     });
     const observations: ProfileObservation[] = [];
-    for (const rated of props.aspects) {
-      const draft = drafts[rated];
+    for (const tested of props.accesses) {
+      const draft = drafts[tested];
       if (!draft) return; // Partial states never submit.
-      observations.push(observationFromDraft(rated, draft));
+      observations.push(observationFromDraft(tested, draft));
     }
     submit(observations, undefined);
   };
@@ -203,20 +251,28 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
     setExpanded((shown) => !shown);
   };
 
-  const isDraftSelected = (aspect: KnowledgeAspect, action: RatingAction): boolean => {
-    const draft = drafts[aspect];
+  const chooseStatement = (statement: WordSyncStatement) => {
+    if (!actionable()) return;
+    setSubmitted(true);
+    clearDrafts();
+    clearPending();
+    props.onStatement(statement);
+  };
+
+  const isDraftSelected = (capability: CapabilityKind, action: RatingAction): boolean => {
+    const draft = drafts[capability];
     if (!draft) return false;
     if (action === 'easy') return draft.quality === 'fluent' && !!draft.easy;
     return draft.quality === action && !draft.easy;
   };
 
-  const cellHint = (aspect: KnowledgeAspect, action: RatingAction): string[] => {
+  const cellHint = (capability: CapabilityKind, action: RatingAction): string[] => {
     if (props.keyboardMode === 'mnemonic') {
       return pendingQuality() === action
-        ? [ACTION_KEYS[action], ASPECT_MNEMONIC_KEYS[aspect].toUpperCase()]
+        ? [ACTION_KEYS[action], CAPABILITY_MNEMONIC_KEYS[capability].toUpperCase()]
         : [ACTION_KEYS[action]];
     }
-    const rowIndex = props.aspects.indexOf(aspect) + 1; // row 0 is the All row
+    const rowIndex = props.accesses.indexOf(capability) + 1; // row 0 is the All row
     return [SPATIAL_ACTION_ROWS[action][rowIndex]?.toUpperCase() ?? '·'];
   };
 
@@ -248,7 +304,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
           fillAll(action, e.altKey);
         } else {
           setPendingQuality(action);
-          if (pendingTimer !== undefined) clearTimeout(pendingTimer);
+          clearTimeout(pendingTimer);
           pendingTimer = setTimeout(clearPending, PENDING_TIMEOUT_MS);
         }
       } else {
@@ -263,10 +319,10 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
     if (props.keyboardMode === 'mnemonic') {
       const pending = pendingQuality();
       if (!pending) return;
-      const aspect = props.aspects.find((candidate) => ASPECT_MNEMONIC_KEYS[candidate] === key);
-      if (aspect) {
+      const capability = props.accesses.find((candidate) => CAPABILITY_MNEMONIC_KEYS[candidate] === key);
+      if (capability) {
         e.preventDefault();
-        draftAspect(aspect, pending, e.altKey);
+        draftAccess(capability, pending, e.altKey);
       }
       return;
     }
@@ -278,7 +334,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
       if (rowIndex < 0) continue;
       e.preventDefault();
       if (rowIndex === 0) fillAll(candidate, e.altKey);
-      else if (rowIndex <= props.aspects.length) draftAspect(props.aspects[rowIndex - 1], candidate, e.altKey);
+      else if (rowIndex <= props.accesses.length) draftAccess(props.accesses[rowIndex - 1], candidate, e.altKey);
       return;
     }
   };
@@ -354,10 +410,10 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
               )}
             </For>
           </div>
-          <For each={props.aspects}>
-            {(aspect) => (
+          <For each={props.accesses}>
+            {(capability) => (
               <div class="word-sync-rating__row">
-                <span class="word-sync-rating__label">{t(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect])}</span>
+                <span class="word-sync-rating__label">{t(CAPABILITY_LABEL_KEYS[capability])}</span>
                 <For each={RATING_ACTIONS}>
                   {(action) => (
                     <Button
@@ -365,17 +421,36 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
                       variant={ACTION_VARIANTS[action]}
                       size="xs"
                       class="word-sync-rating__cell"
-                      classList={{ 'word-sync-rating__cell--selected': isDraftSelected(aspect, action) }}
+                      classList={{ 'word-sync-rating__cell--selected': isDraftSelected(capability, action) }}
                       disabled={!actionable()}
-                      onClick={(e) => draftAspect(aspect, action, e.altKey)}
+                      onClick={(e) => draftAccess(capability, action, e.altKey)}
                     >
-                      <KeyboardShortcut keys={cellHint(aspect, action)} class="word-sync-rating__hint" />
+                      <KeyboardShortcut keys={cellHint(capability, action)} class="word-sync-rating__hint" />
                     </Button>
                   )}
                 </For>
               </div>
             )}
           </For>
+          <div class="word-sync-rating__statements">
+            <span class="word-sync-rating__statements-label">{t('mlearn.WordSync.Statement.Label')}</span>
+            <div class="word-sync-rating__statement-list">
+              <For each={statementRows()}>
+                {(statement) => (
+                  <Button
+                    buttonType="default"
+                    variant="ghost"
+                    size="xs"
+                    class="word-sync-rating__statement"
+                    disabled={!actionable()}
+                    onClick={() => chooseStatement(statement)}
+                  >
+                    {t(STATEMENT_KEYS[statement.kind])}
+                  </Button>
+                )}
+              </For>
+            </div>
+          </div>
         </div>
       </Show>
     </div>

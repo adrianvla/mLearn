@@ -437,25 +437,12 @@ export type WordStatus = typeof WORD_STATUS_VALUES[number];
 export const KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody', 'gender', 'pronunciation', 'orthography'] as const;
 export type KnowledgeAspect = typeof KNOWLEDGE_ASPECTS[number];
 
-// Knowledge-aspect dependency graph: an aspect's prerequisites are the coarser
-// aspects a learner necessarily traverses first (meaning ← reading ← prosody).
-// Aspects outside each other's prerequisite closures are orthogonal — no
-// inference flows between them (gender, pronunciation). Scope notes:
-// - pronunciation is lexeme-scoped spoken-form knowledge (Model B): meaning-known
-//   implies nothing about having heard/produced the spoken form;
-// - orthography is surface-scoped written-form→lexeme recognition: cross-scope
-//   by design, deliberately WITHOUT a reading prerequisite (a form can be mapped
-//   to its lexeme without being pronounceable and vice versa).
-// Adding an aspect is one entry here; language feature configs map INTO aspects
-// and can never change these relationships.
-export const ASPECT_PREREQUISITES: Record<KnowledgeAspect, readonly KnowledgeAspect[]> = {
-  meaning: [],
-  reading: ['meaning'],
-  prosody: ['reading'],
-  gender: [],
-  pronunciation: [],
-  orthography: [],
-};
+// The legacy flat-aspect vocabulary. RETIRED as a learner model: the
+// epistemic unit is now the directed access (entity + CapabilityKind, see
+// shared/graph/access.ts). KnowledgeAspect survives ONLY as the addressing
+// projection of pre-access journal events and their display labels.
+// The old ASPECT_PREREQUISITES universal chain (meaning ← reading ← prosody)
+// is replaced by task-mediated access decomposition (demonstratesOf).
 
 // Locale keys for aspect display names — the single source for every surface
 // (pill rows, history tabs, attribution buttons/toasts). Record-typed so adding
@@ -481,16 +468,7 @@ export type AttemptQuality = typeof ATTEMPT_QUALITIES[number];
 export const RATING_KEYBOARD_MODES = ['mnemonic', 'spatial'] as const;
 export type RatingKeyboardMode = typeof RATING_KEYBOARD_MODES[number];
 
-// Mnemonic chord letters per aspect (quality number + letter, e.g. 1+M).
-// Record-typed so a new aspect must choose a letter here.
-export const ASPECT_MNEMONIC_KEYS: Record<KnowledgeAspect, string> = {
-  meaning: 'm',
-  reading: 'r',
-  prosody: 'p',
-  gender: 'g',
-  pronunciation: 'v',
-  orthography: 'o',
-};
+// (Mnemonic chord letters moved to CAPABILITY_MNEMONIC_KEYS in shared/graph/access.ts.)
 
 // Spatial matrix keyboard columns: quality → keys, row index = displayed row.
 // Keys mean "quality × current matrix row", never a permanent aspect binding.

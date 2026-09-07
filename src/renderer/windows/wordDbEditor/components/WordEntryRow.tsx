@@ -37,7 +37,8 @@ import './WordEntryRow.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
 import { getBridge } from '../../../../shared/bridges';
-import { getAvailableAspects } from '../../../../shared/types';
+import { getAvailableAccesses } from '../../../../shared/types';
+import type { RatedCapability } from '../../../utils/accessKnowledge';
 import type { GraphNeighborhood, KnowledgeProjection } from '../../../../shared/graph/ipc';
 import { openGraphInspector } from '../../../services/openGraphInspector';
 import { getEvents, eventsVersion } from '../../../services/knowledgeEvents';
@@ -152,7 +153,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
-  const { getWordTrackingSync, getAspectStatus, getComprehensiveWordStatusWithSourceSync, setWordClaim, setAspectStatus, clearAspectClaim, store } = useFlashcards();
+  const { getWordTrackingSync, getAccessStatus, getComprehensiveWordStatusWithSourceSync, setWordClaim, setAccessStatus, clearAccessClaim, store } = useFlashcards();
   const graph = useOptionalGraph();
   const [projection, setProjection] = createSignal<KnowledgeProjection>();
   const [showKnowledgeDetails, setShowKnowledgeDetails] = createSignal(false);
@@ -161,14 +162,14 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
-  // Inspector claim editing: the word-level claim from the canonical resolver
-  // plus one row per language-applicable non-meaning aspect.
   const meaningStatus = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.entry.word, settings.language));
-  const aspectStates = createMemo(() => getAvailableAspects(currentLangData() ?? undefined)
-    .filter((aspect): aspect is Exclude<typeof aspect, 'meaning'> => aspect !== 'meaning')
-    .map((aspect) => {
-      const state = getAspectStatus(props.entry.word, aspect, settings.language);
-      return { aspect, status: state.status, claim: state.claim };
+  // Inspector claim editing: the word-level claim from the canonical resolver
+  // plus one row per language-applicable non-sense access.
+  const accessStates = createMemo(() => getAvailableAccesses(currentLangData() ?? undefined)
+    .filter((capability): capability is RatedCapability => capability !== 'sense-recognition')
+    .map((capability) => {
+      const state = getAccessStatus(props.entry.word, capability, settings.language);
+      return { capability, status: state.status, claim: state.claim };
     }));
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const prosodyOverlayRenderer = createMemo(() => (
@@ -275,7 +276,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition: () => prosodyPositionForDisplayedReading(effectiveReading()),
-    prosodyKnowledge: () => getAspectStatus(props.entry.word, 'prosody', settings.language),
+    prosodyKnowledge: () => getAccessStatus(props.entry.word, 'prosodic-pattern', settings.language),
     partOfSpeechColor: () => undefined,
     surface: 'other',
     settings: () => settings,
@@ -579,11 +580,11 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           surface={props.entry.word}
           initialTab={drawerTab()}
           onWordClaim={(claim) => setWordClaim(props.entry.word, claim, settings.language)}
-          onAspectClaim={(aspect, claim) => {
-            if (claim === null) clearAspectClaim(props.entry.word, aspect, settings.language);
-            else setAspectStatus(props.entry.word, aspect, claim, 'manual', settings.language);
+          onAccessClaim={(capability, claim) => {
+            if (claim === null) clearAccessClaim(props.entry.word, capability, settings.language);
+            else setAccessStatus(props.entry.word, capability, claim, 'manual', settings.language);
           }}
-          aspectStates={aspectStates()}
+          accessStates={accessStates()}
         />
       </div>
       <div class="col tracker">

@@ -1363,9 +1363,19 @@
     },
     "Knowledge": {
       "Capability": {
-        "surface-recognition": "Распознавание",
+        "sense-recognition": "Значение",
+        "surface-recognition": "Письменная форма",
+        "spoken-recognition": "Устная форма",
         "surface-reading": "Чтение",
-        "pronunciation-production": "Произношение"
+        "pronunciation-production": "Произношение",
+        "prosodic-pattern": "Просодия",
+        "gender": "Род",
+        "character-reading": "Знак",
+        "morpheme-recognition": "Морфема",
+        "grammar-recognition": "Грамматика",
+        "grammar-comprehension": "Грамматика",
+        "grammar-formation": "Грамматика",
+        "grammar-production": "Грамматика"
       },
       "Basis": {
         "Claim": "Явное утверждение",
@@ -3093,6 +3103,15 @@
       "Rating": {
         "AllRow": "Всё",
         "PendingHint": "Оценка 1–4, затем клавиша аспекта — нажмите оценку ещё раз для всех аспектов"
+      },
+      "Statement": {
+        "Label": "Описать словами",
+        "KnownSpoken": "Я знаю это слово на слух.",
+        "MeaningNotForm": "Я знаю значение, но не это написание.",
+        "KnownCharacters": "Я знаю отдельные знаки.",
+        "InferredFromParts": "Я могу вывести значение из частей.",
+        "ReadablePitchWrong": "Я могу это прочитать, но моё ударение неверно.",
+        "NeverSeenForm": "Я никогда не видел эту форму."
       },
       "FinishedTitle": "Готово!",
       "FinishedDescription": "Вы проверили {count} слов. Ваши знания слов обновлены.",

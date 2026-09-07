@@ -1,7 +1,7 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import { useLocalization } from '../../../context';
-import type { KnowledgeAspect } from '../../../../shared/knowledgeEvents';
-import { KNOWLEDGE_ASPECT_LABEL_KEYS } from '../../../../shared/constants';
+import type { CapabilityKind } from '../../../../shared/graph/types';
+import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { HistoryCurvePoint, SourceReignBand } from '../../../utils/knowledgeHistory';
 import './KnowledgeHistoryGraph.css';
 
@@ -19,14 +19,13 @@ const BAND_STRIP_HEIGHT = 4;
 // Normalized-strength midpoint of the learning→known range: below = learning.
 const LEARNING_THRESHOLD_STRENGTH = 0.5;
 
-const ASPECT_LABEL_KEYS = KNOWLEDGE_ASPECT_LABEL_KEYS;
 
 export interface KnowledgeHistoryGraphProps {
   points: HistoryCurvePoint[];
   bands: SourceReignBand[];
-  aspect: KnowledgeAspect;
-  availableAspects: readonly KnowledgeAspect[];
-  onAspectChange: (aspect: KnowledgeAspect) => void;
+  capability: CapabilityKind;
+  availableCapabilities: readonly CapabilityKind[];
+  onCapabilityChange: (capability: CapabilityKind) => void;
   mode: 'compact' | 'full';
   now: number;
   firstSeen?: number;
@@ -139,16 +138,16 @@ export const KnowledgeHistoryGraph: Component<KnowledgeHistoryGraphProps> = (pro
   return (
     <div class={`khistory khistory-mode-${props.mode}`}>
       <div class="khistory-tabs" role="tablist">
-        <For each={props.availableAspects}>
-          {(aspect) => (
+        <For each={props.availableCapabilities}>
+          {(capability) => (
             <button
               type="button"
               role="tab"
-              aria-selected={aspect === props.aspect}
-              class={`khistory-tab${aspect === props.aspect ? ' khistory-tab-active' : ''}`}
-              onClick={() => props.onAspectChange(aspect)}
+              aria-selected={capability === props.capability}
+              class={`khistory-tab${capability === props.capability ? ' khistory-tab-active' : ''}`}
+              onClick={() => props.onCapabilityChange(capability)}
             >
-              {t(ASPECT_LABEL_KEYS[aspect])}
+              {t(CAPABILITY_LABEL_KEYS[capability])}
             </button>
           )}
         </For>
