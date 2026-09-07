@@ -2093,7 +2093,7 @@ export interface PassiveWordKnowledge {
 }
 
 /** Core CapabilityKind plus namespaced package-declared capability ids (`ns::local`). */
-export type CapabilityKey = string;
+export type CapabilityKey = CapabilityKind | (string & {});
 
 export interface AccessKnowledge {
   status: WordStatus;

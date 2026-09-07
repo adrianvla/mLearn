@@ -22,11 +22,11 @@ export interface ColoredProsodyRenderInput {
   prosodyPosition?: number | null;
 }
 
-/** Effective state of the prosodic-pattern target — claim-overrides-evidence as
- *  resolved by getAspectStatus(word, 'prosody'). Never the word's combined status. */
+/** Effective state of the prosodic-pattern access — claim-overrides-evidence as
+ *  resolved by getAccessStatus(word, 'prosodic-pattern'). Never the word's combined status. */
 export interface ColoredProsodyKnowledge {
   status: WordStatus;
-  /** Aspect-record ease (mirrors the aspect read); the fade keys off status classification, never ease. */
+  /** Access-record ease (mirrors the access read); the fade keys off status classification, never ease. */
   ease: number;
   untracked?: boolean;
   /** Exclusions settle word selection; they are not prosody knowledge. */
