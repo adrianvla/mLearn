@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { PassiveWordKnowledge } from '../../shared/types';
 import type { LinguisticGraph } from '../../shared/graph/load';
-import { assembleTargetExplanation, eventAppliesToCapability } from '../../shared/graph/explanations';
+import { assembleTargetExplanation } from '../../shared/graph/explanations';
+import { eventAppliesToCapability } from '../../shared/graph/addressing';
 import { CAPABILITY_ACCESS, demonstratesOf, migrateAspectRecordsToAccess } from '../../shared/graph/access';
 import { predictTargetAccessibility } from '../../shared/prediction/supportPredictor';
 import { eventCapability } from '../../shared/knowledgeEvents';

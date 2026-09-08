@@ -74,4 +74,62 @@ describe('selectNext', () => {
 
     expect(decision?.candidate.key).toBe('other');
   });
+it('treats a highly predicted bridge as a probe, a costly one as teaching', () => {
+    const bridge = (key: string, pSuccess: number): Candidate => ({
+      key,
+      language: 'ja',
+      targets: [{ entityId: `ja:surface:${key}`, capability: 'surface-recognition' }],
+      origin: 'bridge',
+      scores: { 'information-gain': 1, novelty: 0, uncertainty: 1, 'attention-cost': 1 - pSuccess },
+      meta: { bridge: true, pSuccess },
+    });
+    expect(selectNext([bridge('cheap', 0.9)], config())?.action).toBe('PROBE');
+    expect(selectNext([bridge('costly', 0.3)], config())?.action).toBe('TEACH');
+  });
+
+  it('a highly predicted bridge consumes probe budget and cooldown like a probe', () => {
+    const bridge = (key: string, pSuccess: number): Candidate => ({
+      key,
+      language: 'ja',
+      targets: [{ entityId: `ja:surface:${key}`, capability: 'surface-recognition' }],
+      origin: 'bridge',
+      scores: { 'information-gain': 1, uncertainty: 1, 'attention-cost': 1 - pSuccess },
+      meta: { bridge: true, pSuccess },
+    });
+    expect(selectNext([bridge('cheap', 0.9)], config({ probeBudgetRemaining: 0 }))?.action).toBe('DEFER');
+    expect(selectNext([bridge('cheap', 0.9)], config({ cooldowns: new Map([['cheap', 10_000]]) }))?.action).toBe('DEFER');
+  });
+
+  it('values graph completion over novelty: a cheap bridge beats a novel object', () => {
+    const cheapBridge: Candidate = {
+      key: 'bridge',
+      language: 'ja',
+      targets: [{ entityId: 'ja:surface:bridge', capability: 'surface-recognition' }],
+      origin: 'bridge',
+      scores: { 'information-gain': 1, novelty: 0, uncertainty: 1, 'attention-cost': 0.1 },
+      meta: { bridge: true, pSuccess: 0.9 },
+    };
+    const novel: Candidate = {
+      key: 'novel',
+      language: 'ja',
+      targets: [{ entityId: 'ja:surface:novel', capability: 'sense-recognition' }],
+      origin: 'curriculum',
+      scores: { 'curriculum-relevance': 1 },
+    };
+    // Cost-aware CALIBRATION weighting: the cheap bridge wins despite equal
+    // headline scores — useful graph completion ÷ teaching cost.
+    expect(selectNext([novel, cheapBridge], config({
+      weights: { 'information-gain': 1, uncertainty: 1, novelty: 1, 'curriculum-relevance': 1, 'attention-cost': -0.5 },
+      task,
+    }))).not.toBeNull();
+    const rng = createSeededRng(7);
+    let bridgePicks = 0;
+    for (let draw = 0; draw < 2_000; draw += 1) {
+      const decision = selectNext([novel, cheapBridge], config({
+        weights: { 'information-gain': 1, uncertainty: 1, novelty: 1, 'curriculum-relevance': 1, 'attention-cost': -0.5 },
+      }), rng);
+      if (decision?.candidate.key === 'bridge') bridgePicks += 1;
+    }
+    expect(bridgePicks).toBeGreaterThan(1_200);
+  });
 });

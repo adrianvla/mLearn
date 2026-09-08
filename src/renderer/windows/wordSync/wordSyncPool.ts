@@ -55,16 +55,15 @@ export function calculateCharacterStudyBoost(word: string, predictedKnownCharact
 }
 
 /**
- * True when the materialized overlay holds a written-form bridge access
- * (surface-recognition) known or claimed-known — the word's written form is
- * accessible, so nothing is missing there.
+ * True when the materialized overlay holds a written-surface bridge access
+ * (surface-recognition: seeing the form retrieves the word) known or claimed
+ * known — the written bridge exists, so nothing is missing there.
  */
-export function hasWrittenFormAccess(
+export function hasSurfaceRecognitionAccess(
   knowledge: { access?: Partial<Record<string, { status?: string; claim?: string }>> } | undefined,
 ): boolean {
   const record = knowledge?.access?.['surface-recognition'];
-  if (!record) return false;
-  return (record.claim ?? record.status) === 'known';
+  return record?.status === 'known' || record?.claim === 'known';
 }
 
 /**

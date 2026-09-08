@@ -60,7 +60,7 @@ import {
   isWordEligible,
   isWordSyncRecentlyRated,
   wordSyncPoolStatus,
-  hasWrittenFormAccess,
+  hasSurfaceRecognitionAccess,
   isBridgeCandidate,
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
@@ -69,6 +69,13 @@ import { useOptionalGraph } from '../../context';
 import type { RatedCapability } from '../../utils/accessKnowledge';
 import { calibrationPoolItem, selectNextEncounter } from '../../learning/engine';
 import './WordSync.css';
+
+/** One graph-attested character component of the presented word. */
+interface WordCharacterComponent {
+  /** Graph entity id (`${language}:char:${glyph}`) — the canonical claim address. */
+  id: string;
+  label: string;
+}
 
 interface PoolEntry {
   word: string;
@@ -285,7 +292,7 @@ export const WordSyncContent: Component = () => {
         // overlay is exactly Word Sync's job, and re-presenting it is a cheap
         // bridge completion, not re-teaching a novel lexical object.
         if (resolved.excluded) continue;
-        const writtenAccess = hasWrittenFormAccess(knowledge);
+        const writtenAccess = hasSurfaceRecognitionAccess(knowledge);
         if (resolved.status === 'known' && writtenAccess) continue;
         if (getWordTrackingSync(word, lang).tracker !== 'nothing') continue;
         const record = {
@@ -513,11 +520,12 @@ export const WordSyncContent: Component = () => {
         claimedAccesses.push('surface-recognition');
         break;
       }
-      // Claims per component character (each character is its own tracked
-      // surface); no-op when the graph provides no components.
+      // Claims per component character, addressed to the graph character
+      // ENTITY (character-recognition: the glyph is familiar). No-op when the
+      // graph provides no components.
       case 'known-characters': {
         for (const character of componentCharacters()) {
-          setAccessStatus(character, 'surface-reading', 'known', 'manual', lang);
+          setAccessStatus(character.label, 'character-recognition', 'known', 'manual', lang, undefined, { kind: 'character', id: character.id });
         }
         break;
       }
@@ -580,7 +588,7 @@ export const WordSyncContent: Component = () => {
   }
 
   /** Graph character components of the current word (empty without graph data). */
-  function componentCharacters(): string[] {
+  function componentCharacters(): WordCharacterComponent[] {
     // Filled from the graph resource; a synchronous read keeps statement
     // handling simple — the resource resolves when the word is presented.
     return characterComponents() ?? [];
@@ -813,7 +821,7 @@ export const WordSyncContent: Component = () => {
 
   // Graph character components of the current word. Empty until a graph
   // builder emits has-character structure — the statement simply hides.
-  const [characterComponents] = createResource(() => currentWord()?.word, async (word): Promise<string[]> => {
+  const [characterComponents] = createResource(() => currentWord()?.word, async (word): Promise<WordCharacterComponent[]> => {
     if (graph.readiness() !== 'ready') return [];
     const lookup = await graph.lookupWord({ surface: word });
     const entry = lookup?.entries[0];
@@ -821,8 +829,8 @@ export const WordSyncContent: Component = () => {
     const related: GraphRelatedNode[] = await graph.getRelated(entry.id, ['has-character']);
     return related
       .filter((node: GraphRelatedNode) => node.kind === 'character')
-      .map((node: GraphRelatedNode) => node.label ?? '')
-      .filter((label: string) => label.length > 0);
+      .map((node: GraphRelatedNode) => ({ id: node.id, label: node.label ?? '' }))
+      .filter((component) => component.label.length > 0);
   });
   const hasCharacterComponents = createMemo(() => (characterComponents() ?? []).length > 0);
 

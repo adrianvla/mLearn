@@ -38,6 +38,8 @@ export interface Candidate {
     | 'probe'
     | 'media'
     | 'grammar'
+    /** Missing written bridge on an already-synchronized lexical object. */
+    | 'bridge'
     /** Reserved extension point for future external teacher-assignment sources. No built-in source emits it; the policy falls through to TEACH. */
     | 'assignment';
   scores: Partial<Record<ScoreDimension, number>>;

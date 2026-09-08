@@ -1,4 +1,5 @@
 import {
+  bridgeCandidates,
   calibrationUnmeasuredCandidates,
   curriculumCandidates,
   grammarEncounterCandidates,
@@ -7,6 +8,7 @@ import {
   retentionDueCandidates,
   suggestedLearningCandidates,
   weakTargetCandidates,
+  type BridgeCandidateInput,
   type CalibrationPoolItem,
   type FlashcardLike,
   type GrammarEncounterEntry,
@@ -53,8 +55,10 @@ export const PRESETS: Record<'RETENTION' | 'CALIBRATION' | 'CURRICULUM' | 'MEDIA
     task: RETENTION_TASK,
   },
   CALIBRATION: {
-    // Probes score information-gain/uncertainty; weak targets score curriculum-relevance.
-    weights: { 'information-gain': 1, uncertainty: 1, novelty: 1, 'curriculum-relevance': 1 },
+    // Probes score information-gain/uncertainty; weak targets score
+    // curriculum-relevance; bridges complete the graph cheaply — their
+    // predicted accessibility discounts attention-cost.
+    weights: { 'information-gain': 1, uncertainty: 1, novelty: 1, 'curriculum-relevance': 1, 'attention-cost': -0.5 },
     deferFloor: 0,
     attentionBudgetRemaining: 1,
     probeBudgetRemaining: 1,
@@ -103,6 +107,8 @@ type CommonInputs = {
   probeTargets?: readonly SupportedProbeTarget[];
   /** Grammar exposure snapshot merged into the SUGGESTED pool (REQ39). */
   grammarEncounters?: readonly GrammarEncounterEntry[];
+  /** Synchronized-object written bridges merged into the CALIBRATION pool. */
+  bridgeItems?: readonly BridgeCandidateInput[];
 };
 
 export type EncounterInputs = CommonInputs & (
@@ -155,6 +161,7 @@ function sourceCandidates(inputs: EncounterInputs) {
     case 'CALIBRATION':
       return [
         ...calibrationUnmeasuredCandidates(inputs.wordSyncPoolItems),
+        ...bridgeCandidates(inputs.bridgeItems ?? []),
         ...weakTargetCandidates(inputs.weakTargets ?? []),
         // Floor 0 probes any target with residual uncertainty; the policy layer
         // still enforces probe budget and cooldown on selection.

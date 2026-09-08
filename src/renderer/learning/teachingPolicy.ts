@@ -68,12 +68,36 @@ export function selectNext(
   }
 
   const selected = weightedPick(eligible, rng);
-  const action: PolicyAction = selected.candidate.origin === 'probe'
-    ? 'PROBE'
-    : selected.candidate.origin === 'retention'
-      ? 'MAINTAIN'
+  const action: PolicyAction = selected.candidate.origin === 'retention'
+    ? 'MAINTAIN'
+    : requiresProbe(selected.candidate)
+      ? 'PROBE'
       : 'TEACH';
   return decision(selected, action, config, `selected with score ${selected.total}`);
+}
+
+/**
+ * A bridge the graph already predicts as highly accessible only deserves a
+ * cheap calibration probe — measuring it teaches nothing; full teaching is
+ * reserved for bridges with genuine acquisition cost.
+ */
+const BRIDGE_PROBE_THRESHOLD = 0.7;
+
+function bridgeDeservesOnlyProbe(candidate: Candidate): boolean {
+  const predicted = candidate.meta?.pSuccess;
+  return typeof predicted === 'number' && predicted >= BRIDGE_PROBE_THRESHOLD;
+}
+
+/** Origins that consume the probe budget and honor probe cooldown. */
+function requiresProbe(candidate: Candidate): boolean {
+  return candidate.origin === 'probe' || (candidate.origin === 'bridge' && bridgeDeservesOnlyProbe(candidate));
+}
+
+function probeIsAllowed(candidate: Candidate, config: TeachingPolicyConfig): boolean {
+  if (!requiresProbe(candidate)) return true;
+  if (config.probeBudgetRemaining <= 0) return false;
+  const lastProbeAt = config.cooldowns.get(candidate.key);
+  return lastProbeAt === undefined || config.nowMs - lastProbeAt >= config.probeCooldownMs;
 }
 
 export function totalScore(
@@ -96,12 +120,6 @@ export function createSeededRng(seed: number): Rng {
   };
 }
 
-function probeIsAllowed(candidate: Candidate, config: TeachingPolicyConfig): boolean {
-  if (candidate.origin !== 'probe') return true;
-  if (config.probeBudgetRemaining <= 0) return false;
-  const lastProbeAt = config.cooldowns.get(candidate.key);
-  return lastProbeAt === undefined || config.nowMs - lastProbeAt >= config.probeCooldownMs;
-}
 
 function weightedPick(candidates: readonly ScoredCandidate[], rng: Rng): ScoredCandidate {
   let selected = candidates[0];

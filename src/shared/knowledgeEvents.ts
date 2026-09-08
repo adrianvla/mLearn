@@ -1,5 +1,5 @@
 import type { AttemptQuality, KnowledgeAspect, KnowledgeSource, WordStatus } from './constants';
-import { ASPECT_CAPABILITY, type CapabilityKind } from './graph/types';
+import { ASPECT_CAPABILITY, type CapabilityKey } from './graph/types';
 
 export type { KnowledgeAspect, WordStatus };
 export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup' | 'claim' | 'retraction';
@@ -126,10 +126,13 @@ export interface KnowledgeEvent {
   presentedSurface?: string;
   /**
    * Canonical access address: the typed graph entity and the directed
-   * learner access (capability) this observation is about. Absent = legacy
-   * word-hash addressing (routed by the legacy `aspect` projection).
+   * learner access (capability) this observation is about. `to` states the
+   * RETRIEVED entity when the writer knows it (e.g. the entry a
+   * spoken-recognition claim resolves to); graph-aware readers derive it
+   * when absent. Absent targetRef = legacy word-hash addressing (routed by
+   * the legacy `aspect` projection).
    */
-  targetRef?: { kind: string; id: string; capability?: CapabilityKind };
+  targetRef?: { kind: string; id: string; capability?: CapabilityKey; to?: string };
   /** Presenting surface/policy channel that produced the observation (e.g. 'word-sync'); replay maps this to policy markers like wordSyncRatedAt. */
   origin?: string;
 }
@@ -156,7 +159,7 @@ export interface KnowledgeEvent {
  * event carries neither address (retraction tombstones, passive-exposure
  * bookkeeping) — such events never carry capability evidence.
  */
-export function eventCapability(event: KnowledgeEvent): CapabilityKind | undefined {
+export function eventCapability(event: KnowledgeEvent): CapabilityKey | undefined {
   if (event.targetRef?.capability !== undefined) return event.targetRef.capability;
   if (event.aspect === undefined) return undefined;
   if (event.aspect === 'grammar') return 'grammar-recognition';

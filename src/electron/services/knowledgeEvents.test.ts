@@ -143,6 +143,23 @@ describe('knowledge event storage', () => {
     expect(warn).toHaveBeenCalled();
     expect(mod.getKnowledgeEvents(['ja:one'])['ja:one']).toHaveLength(2001);
   });
+
+  it('writes compact JSON and still loads previously pretty-printed files', async () => {
+    await mod.appendKnowledgeEvents({ 'ja:one': [event(now, { kind: 'status', toStatus: 'learning' })] });
+    await mod.saveKnowledgeEvents();
+
+    const raw = fs.readFileSync(path.join(tempDir.tmpDir, 'knowledge-events.json'), 'utf-8');
+    expect(raw).toBe(JSON.stringify(JSON.parse(raw)));
+    expect(JSON.parse(raw)).toEqual(mod.getKnowledgeEvents(['ja:one']));
+
+    // Journals written by older pretty-printing builds must load unchanged.
+    const pretty = { 'de:legacy': [event(now, { kind: 'review', rating: 'good' })] };
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'knowledge-events.json'), JSON.stringify(pretty, null, 2));
+    vi.resetModules();
+    mod = await import('./knowledgeEvents');
+    await mod.loadKnowledgeEvents(now);
+    expect(mod.getKnowledgeEvents(['de:legacy'])['de:legacy']).toEqual(pretty['de:legacy']);
+  });
 });
 
 describe('knowledge event validation on reload', () => {

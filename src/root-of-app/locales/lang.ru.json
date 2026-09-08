@@ -1414,7 +1414,8 @@
         "grammar-recognition": "Грамматика",
         "grammar-comprehension": "Грамматика",
         "grammar-formation": "Грамматика",
-        "grammar-production": "Грамматика"
+        "grammar-production": "Грамматика",
+        "character-recognition": "Иероглиф"
       },
       "Basis": {
         "Claim": "Явное утверждение",

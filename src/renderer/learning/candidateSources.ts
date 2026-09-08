@@ -37,6 +37,24 @@ export interface SupportedProbeTarget {
   uncertainty: number;
 }
 
+/**
+ * A missing written bridge on an ALREADY-SYNCHRONIZED lexical object (sense
+ * or spoken access known, graph-resolved across variant surfaces). Completing
+ * one directed access is cheap graph completion, not teaching a novel word.
+ */
+export interface BridgeCandidateInput {
+  key: string;
+  word: string;
+  language: string;
+  /** The missing written accesses (surface-recognition / surface-reading targets). */
+  missingBridges: readonly LearnableTarget[];
+  /** Graph-relative predicted accessibility of the bridge (entry + character support). */
+  pSuccess?: number;
+  /** The lexical object is synchronized (sense/spoken known through any authoritative variant). */
+  synchronized: boolean;
+}
+
+
 export interface ProbeCooldownState {
   nowMs: number;
   cooldownMs: number;
@@ -77,6 +95,30 @@ export function retentionDueCandidates(cards: readonly FlashcardLike[], nowMs: n
 
 export function calibrationUnmeasuredCandidates(poolItems: readonly CalibrationPoolItem[]): Candidate[] {
   return poolItems.map((item) => ({ ...item, origin: 'calibration' }));
+}
+
+/**
+ * Bridge source: synchronized lexical objects with missing written accesses.
+ * Value ≈ useful graph completion ÷ teaching cost — information-gain is full
+ * (the graph genuinely completes), novelty is zero (nothing linguistically
+ * new), and attention-cost falls as the graph-relative prediction rises, so
+ * cheap bridges outrank novel objects under a cost-aware policy.
+ */
+export function bridgeCandidates(items: readonly BridgeCandidateInput[]): Candidate[] {
+  return items.filter((item) => item.synchronized).map((item) => ({
+    key: item.key,
+    word: item.word,
+    language: item.language,
+    targets: [...item.missingBridges],
+    origin: 'bridge' as const,
+    scores: {
+      'information-gain': 1,
+      novelty: 0,
+      uncertainty: 1,
+      'attention-cost': item.pSuccess !== undefined ? clamp(1 - item.pSuccess) : 0.5,
+    },
+    meta: { bridge: true, ...(item.pSuccess !== undefined ? { pSuccess: item.pSuccess } : {}) },
+  }));
 }
 
 export function curriculumCandidates(items: readonly LearnableWordSourceItem[]): Candidate[] {

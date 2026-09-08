@@ -118,10 +118,10 @@ describe('buildKnowledgeProjection', () => {
     const sense = result.targets.find((target) => target.targetRef.id === senseId)!.states[0];
     const surface = result.targets.find((target) => target.targetRef.id === surfaceId)!.states[0];
     const reading = result.targets.find((target) => target.targetRef.id === surfaceId)!.states.find((state) => state.capability === 'surface-reading')!;
-    // Meaning claim applies to meaning-scoped capabilities only.
-    expect(sense).toMatchObject({ classification: 'known', basis: 'claim' });
-    expect(surface).toMatchObject({ classification: 'known', basis: 'claim' });
-    expect(reading).toMatchObject({ classification: 'unmeasured', basis: 'unmeasured' });
+    // Meaning claim applies to meaning-scoped capabilities only — never as
+    // evidence. The written bridge is UNMEASURED evidence; graph-relative
+    // support may PREDICT it cheaply (basis: prediction, never claim/evidence).
+    expect(reading).toMatchObject({ classification: 'predicted', basis: 'prediction' });
   });
 
   it('falls back to evidence classification when the claim is cleared', () => {

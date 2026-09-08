@@ -2074,8 +2074,9 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const entry = ctx.store.wordKnowledge[`zh:${SRS.hashWordSync('学')}`];
     expect(entry.timesSeen).toBe(2);
-    expect(entry.forms?.traditional?.recognize?.timesSeen).toBe(1);
-    expect(entry.forms?.simplified?.recognize?.timesSeen).toBe(1);
+    // Per-script-form WrittenForm sub-skill copies are gone: exposure is
+    // bookkeeping on the canonical identity, not per-form recognition state.
+    expect(entry.forms).toBeUndefined();
     vi.useRealTimers();
     dispose();
   });

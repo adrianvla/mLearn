@@ -14,6 +14,7 @@ import type { CompoundPart } from '../../shared/graph/morphology/compounds';
 import type { PredictionInput } from '../../shared/prediction/supportPredictor';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import { easeToStatus } from '../../shared/utils/knowledgeStrength';
+import { siblingJournalKeys } from '../../shared/graph/addressing';
 import { getKnowledgeEvents } from './knowledgeEvents';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
@@ -172,11 +173,12 @@ export class LinguisticGraphService {
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
       ]);
-      const [store, events] = await Promise.all([
-        loadFlashcards(),
-        Promise.resolve(getKnowledgeEvents([`${language}:${hash}`])),
-      ]);
-      const projection = buildKnowledgeProjection(this.toLingualGraph(loaded), surfaceId, events[`${language}:${hash}`] ?? [], store.meta);
+      const store = await loadFlashcards();
+      const plain = this.toLingualGraph(loaded);
+      const keys = siblingJournalKeys(plain, surfaceId);
+      const eventLog = getKnowledgeEvents(keys);
+      const mergedEvents = keys.flatMap((key) => eventLog[key] ?? []);
+      const projection = buildKnowledgeProjection(plain, surfaceId, mergedEvents, store.meta);
       return projection.targets
         .filter((target) => target.targetRef.id === surfaceId)
         .flatMap((target) => target.states.map(({ capability, classification, basis }) => ({ capability, classification, basis })));
@@ -202,13 +204,16 @@ export class LinguisticGraphService {
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
       ]);
-      const [store, events] = await Promise.all([
-        loadFlashcards(),
-        Promise.resolve(getKnowledgeEvents([`${language}:${hash}`])),
-      ]);
+      const store = await loadFlashcards();
       const plain = this.toLingualGraph(loaded);
+      // Graph-relative addressing: evidence recorded through an authoritative
+      // variant surface resolves to the shared lexical object, so the
+      // projection consults sibling journal keys (never copies state).
+      const keys = siblingJournalKeys(plain, surfaceId);
+      const eventLog = getKnowledgeEvents(keys);
+      const mergedEvents = keys.flatMap((key) => eventLog[key] ?? []);
       const compound = await this.compoundSupport(plain, language, surfaceId);
-      const projection = buildKnowledgeProjection(plain, surfaceId, events[`${language}:${hash}`] ?? [], store.meta, undefined, undefined, { compound });
+      const projection = buildKnowledgeProjection(plain, surfaceId, mergedEvents, store.meta, undefined, undefined, { compound });
       return { ...projection, querySurface: surface, surfaceKnown: true, compoundAnalysis: compound?.analysis ?? null };
     } catch {
       return { status: 'error', targets: [] };

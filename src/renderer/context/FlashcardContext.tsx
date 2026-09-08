@@ -48,7 +48,7 @@ import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, set
 import { nextAttemptId, readActiveEvidence, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { selectEncounterBatch } from '../learning/engine';
-import { detectScriptForm, getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
+import { getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../utils/translationCacheParsers';
 import { parseExampleBlocksFromLLM, type LLMExampleJob, type LLMExampleResult } from '../utils/llmExampleBatch';
@@ -333,7 +333,7 @@ interface FlashcardContextValue {
    * classification until cleared. The ONLY manual whole-word status path.
    */
   setWordClaim: (word: string, claim: WordStatus | null, language?: string) => void;
-  setAccessStatus: (word: string, capability: RatedCapability, status: WordStatus, source: KnowledgeSource | 'manual', language?: string) => void;
+  setAccessStatus: (word: string, capability: RatedCapability, status: WordStatus, source: KnowledgeSource | 'manual', language?: string, attemptId?: AttemptId, entity?: { kind: string; id: string }) => void;
   /** Withdraw an access claim; evidence classification resumes. */
   clearAccessClaim: (word: string, capability: RatedCapability, language?: string) => void;
   /**
@@ -2818,7 +2818,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const wordHash = SRS.hashWordSync(storageWord);
     const lang = language;
     const lk = langKey(lang, wordHash);
-    const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
     if (isKnownClaimed(lk)) return;
     const now = Date.now();
 
@@ -2848,19 +2847,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         k.ease = Math.min(5, k.ease + easeBump);
       }
       k.lastSeen = now;
-      if (scriptForm) {
-        const recognize = k.forms?.[scriptForm]?.recognize ?? {
-          ease: SRS.MIN_EASE,
-          lastSeen: now,
-          timesSeen: 0,
-          timesHovered: 0,
-        };
-        if (shouldCount) recognize.timesSeen++;
-        recognize.lastSeen = now;
-        if (shouldCount) recognize.ease = Math.min(5, recognize.ease + easeBump);
-        k.forms = { ...k.forms, [scriptForm]: { ...k.forms?.[scriptForm], recognize } };
-        k.ease = Math.max(k.ease, ...Object.values(k.forms).flatMap((form) => form?.recognize ? [form.recognize.ease] : []));
-      }
     }));
 
     // Notify media stats listeners so per-media tracking stays in sync
@@ -3127,7 +3113,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // single-hash rating write is shadowed by sibling forms' stale entries.
     const forms = getWordFormsForLanguage(word, language);
     const lang = language;
-    const scriptForm = detectScriptForm(word, lang, languageDataFor(lang));
     const now = Date.now();
     const eased = ease + settings.manualStatusEaseBuffer;
     const ratingEvents: Record<string, KnowledgeEvent[]> = {};
@@ -3165,19 +3150,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const entry = s.wordKnowledge[lk];
         entry.hasActiveEvidence = true;
         entry.lastEvidenceSource = 'manual';
-        if (scriptForm) {
-          const recognize = entry.forms?.[scriptForm]?.recognize ?? {
-            ease: entry.ease,
-            lastSeen: entry.lastSeen,
-            timesSeen: entry.timesSeen,
-            timesHovered: entry.timesHovered,
-          };
-          recognize.ease = eased;
-          recognize.lastSeen = now;
-          recognize.lastStatusChange = now;
-          entry.forms = { ...entry.forms, [scriptForm]: { ...entry.forms?.[scriptForm], recognize } };
-          entry.ease = Math.max(...Object.values(entry.forms).flatMap((f) => f?.recognize ? [f.recognize.ease] : [entry.ease]));
-        }
         const toStatus = easeToStatus(eased);
         if (fromStatus !== toStatus) {
           changedKeys.push(lk);
@@ -3279,14 +3251,22 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     source: KnowledgeSource | 'manual',
     language = settings.language,
     attemptId?: AttemptId,
+    /**
+     * Entity-target override for accesses whose canonical address is a
+     * non-surface graph entity (e.g. a character). The local record stays
+     * under the character-as-word key (local fallback view); the journal
+     * event addresses the ENTITY, and the write touches exactly one form —
+     * never the word-form family.
+     */
+    entity?: { kind: string; id: string },
   ) => {
     const lang = language;
     // #230 all-form-hash write, with its one exception: surface-scoped
     // accesses (surface-recognition, surface-reading) belong to the exact
     // written form presented — fanning surface-recognition(殖える) out to
     // 増える's hash would claim recognition of a form the learner never
-    // interacted with.
-    const forms = isSurfaceScopedCapability(capability)
+    // interacted with. Entity-targeted accesses likewise address one form.
+    const forms = entity !== undefined || isSurfaceScopedCapability(capability)
       ? [word]
       : getWordFormsForLanguage(word, lang);
     const now = Date.now();
@@ -3346,7 +3326,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           accessEvents[lk] = [{
             t: now, kind: 'claim', source,
             ...(aspect !== undefined ? { aspect } : {}),
-            targetRef: { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)), capability },
+            targetRef: { ...(entity ?? { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)) }), capability },
             ...(status !== undefined ? { fromStatus: prior, toStatus: status } : {}),
           }];
         } else {
@@ -3362,7 +3342,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             accessEvents[lk] = [{
               t: now, kind: 'status', source,
               ...(aspect !== undefined ? { aspect } : {}),
-              targetRef: { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)), capability },
+              targetRef: { ...(entity ?? { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)) }), capability },
               fromStatus: prior, toStatus: status, easeAfter: easeForStatus(status),
               ...(attemptId !== undefined ? { attemptId } : {}),
             }];

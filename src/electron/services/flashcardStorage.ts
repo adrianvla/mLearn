@@ -496,30 +496,24 @@ function mergeCards(a: Flashcard, b: Flashcard): { survivor: Flashcard; loser: F
   };
 }
 
-function recognizeSnapshot(entry: PassiveWordKnowledge) {
-  return {
-    ease: entry.ease,
-    lastSeen: entry.lastSeen,
-    timesSeen: entry.timesSeen,
-    timesHovered: entry.timesHovered,
-    lastStatusChange: entry.lastStatusChange,
-  };
-}
-
-function mergeWordKnowledge(a: PassiveWordKnowledge, b: PassiveWordKnowledge, aSource: string, bSource: string): PassiveWordKnowledge {
+/**
+ * Merges two script-form entries of one word identity. Per-form WrittenForm
+ * sub-skill snapshots are no longer GENERATED (the per-access overlay owns
+ * recognition semantics) — existing `forms` provenance from older stores is
+ * carried through untouched so stored user data survives merges.
+ */
+function mergeWordKnowledge(a: PassiveWordKnowledge, b: PassiveWordKnowledge): PassiveWordKnowledge {
   const winner = (b.lastStatusChange ?? 0) > (a.lastStatusChange ?? 0) ? b : a;
+  // Legacy per-form provenance carries through only when it actually exists —
+  // no empty snapshots are manufactured.
+  const forms = { ...a.forms, ...b.forms };
   return {
     ...winner,
     language: 'zh',
     lastSeen: Math.max(a.lastSeen, b.lastSeen),
     timesSeen: a.timesSeen + b.timesSeen,
     timesHovered: a.timesHovered + b.timesHovered,
-    forms: {
-      ...a.forms,
-      [aSource]: { ...a.forms?.[aSource], recognize: recognizeSnapshot(a) },
-      ...b.forms,
-      [bSource]: { ...b.forms?.[bSource], recognize: recognizeSnapshot(b) },
-    },
+    ...(Object.keys(forms).length > 0 ? { forms } : {}),
   };
 }
 
@@ -602,10 +596,7 @@ function migrateV2ToV3(store: FlashcardStore, metadata: LanguageData, backupPath
     return result;
   };
 
-  const wordKnowledge = migrateKeyed(store.wordKnowledge, 'wordKnowledge', entry => entry.word, entry => {
-    const source = entry.language && legacyZhSource('', entry.language) ? entry.language : 'zh-Hans';
-    return { ...entry, language: 'zh', forms: { ...entry.forms, [source]: { ...entry.forms?.[source], recognize: recognizeSnapshot(entry) } } };
-  }, (a, b) => mergeWordKnowledge(a, b, Object.keys(a.forms ?? {})[0] ?? 'zh-Hans', Object.keys(b.forms ?? {})[0] ?? 'zh-Hant'));
+  const wordKnowledge = migrateKeyed(store.wordKnowledge, 'wordKnowledge', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => mergeWordKnowledge(a, b));
   const wordCandidates = migrateKeyed(store.wordCandidates, 'wordCandidates', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => ({ ...((b.lastSeen > a.lastSeen) ? b : a), count: a.count + b.count, lastSeen: Math.max(a.lastSeen, b.lastSeen) }));
   const ignoredWords = migrateKeyed(store.ignoredWords, 'ignoredWords', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => a.ignoredAt <= b.ignoredAt ? a : b);
   const suggestedFlashcards = migrateKeyed(store.suggestedFlashcards, 'suggestedFlashcards', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => {

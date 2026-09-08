@@ -25,7 +25,7 @@ export function applicableCapabilities(graph: LingualGraph, entity: GraphEntity)
     case 'lexeme':
       return relationTypes.has('has-gender') ? ['gender'] : [];
     case 'character':
-      return relationTypes.has('has-reading') ? ['character-reading'] : [];
+      return relationTypes.has('has-reading') ? ['character-recognition', 'character-reading'] : ['character-recognition'];
     case 'grammar-pattern':
       return entity.grammar
         ? ['grammar-recognition', 'grammar-comprehension', 'grammar-formation', 'grammar-production']
@@ -54,8 +54,8 @@ export function learnableTargetsFor(graph: LingualGraph, entities: readonly Grap
 }
 
 /** Surface-scoped accesses resolve on the presented form's own hash only — family unification must never apply to them. */
-export function isSurfaceScopedCapability(capability: CapabilityKind): boolean {
-  return SURFACE_SCOPED_CAPABILITIES.includes(capability);
+export function isSurfaceScopedCapability(capability: CapabilityKind | string): boolean {
+  return (SURFACE_SCOPED_CAPABILITIES as readonly string[]).includes(capability);
 }
 
 /**
@@ -66,8 +66,8 @@ export function isSurfaceScopedCapability(capability: CapabilityKind): boolean {
  * The projection layer MUST consult this before sharing any state across
  * identityNeighbors().
  */
-export function isIdentityShareableCapability(capability: CapabilityKind): boolean {
-  return !SURFACE_SCOPED_CAPABILITIES.includes(capability);
+export function isIdentityShareableCapability(capability: CapabilityKind | string): boolean {
+  return !(SURFACE_SCOPED_CAPABILITIES as readonly string[]).includes(capability);
 }
 
 function dedupe(values: readonly CapabilityKind[]): CapabilityKind[] {

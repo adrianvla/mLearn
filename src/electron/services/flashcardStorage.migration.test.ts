@@ -122,7 +122,10 @@ describe('flashcardStorage v2→v3 zh variant migration', () => {
     const migrated = await loadFlashcards();
     expect(Object.values(migrated.flashcards)).toHaveLength(1);
     const canonical = canonicalKeyHash('zh', '学', { hashWord: hash, languageData: zhMetadata });
-    expect(migrated.wordKnowledge[canonical]).toMatchObject({ language: 'zh', ease: 4, lastSeen: 20, timesSeen: 5, timesHovered: 3, forms: { 'zh-Hans': { recognize: { ease: 2, lastSeen: 10, timesSeen: 2, timesHovered: 1, lastStatusChange: 10 } }, 'zh-Hant': { recognize: { ease: 4, lastSeen: 20, timesSeen: 3, timesHovered: 2, lastStatusChange: 20 } } } });
+    // No per-form WrittenForm snapshots are synthesized anymore — the
+    // per-access overlay owns recognition semantics; canonical counters merge.
+    expect(migrated.wordKnowledge[canonical]).toMatchObject({ language: 'zh', ease: 4, lastSeen: 20, timesSeen: 5, timesHovered: 3 });
+    expect(migrated.wordKnowledge[canonical].forms).toBeUndefined();
     const grammar = Object.values(migrated.grammarKnowledge);
     expect(grammar).toHaveLength(1);
     expect(Object.keys(migrated.grammarKnowledge)).toEqual([canonicalKeyHash('zh', '没有', { hashWord: hash, languageData: zhMetadata })]);

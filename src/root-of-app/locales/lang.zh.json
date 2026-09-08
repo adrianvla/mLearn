@@ -1414,7 +1414,8 @@
         "grammar-recognition": "语法",
         "grammar-comprehension": "语法",
         "grammar-formation": "语法",
-        "grammar-production": "语法"
+        "grammar-production": "语法",
+        "character-recognition": "字"
       },
       "Basis": {
         "Claim": "明确申告",

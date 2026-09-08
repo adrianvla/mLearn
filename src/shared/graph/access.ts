@@ -37,6 +37,7 @@ export type AccessRetrieval =
   | 'pronunciation'         // how it sounds
   | 'prosody'               // its accent/stress/tone pattern
   | 'gender'                // its lexical gender value
+  | 'character-identity'    // a character as a familiar graphemic unit
   | 'character-reading'     // a character's reading
   | 'morpheme-meaning'      // a morpheme's meaning
   | 'grammar-recognition' | 'grammar-comprehension' | 'grammar-formation' | 'grammar-production';
@@ -61,6 +62,7 @@ export const CAPABILITY_ACCESS: Record<CapabilityKind, AccessPath> = {
   'pronunciation-production': { cue: 'lexical-item', retrieval: 'pronunciation' },
   'prosodic-pattern': { cue: 'lexical-item', retrieval: 'prosody' },
   'gender': { cue: 'lexical-item', retrieval: 'gender' },
+  'character-recognition': { cue: 'character', retrieval: 'character-identity' },
   'character-reading': { cue: 'character', retrieval: 'character-reading' },
   'morpheme-recognition': { cue: 'morpheme', retrieval: 'morpheme-meaning' },
   'grammar-recognition': { cue: 'construction', retrieval: 'grammar-recognition' },
@@ -133,8 +135,8 @@ export function demonstratesOf(capability: CapabilityKind, cue: AccessCue = 'wri
  * <id>), matching the graph-projection surfaces; the four grammar accesses
  * share one label.
  */
-export const CAPABILITY_LABEL_KEYS: Record<CapabilityKind, string> = (() => {
-  const keys = {} as Record<CapabilityKind, string>;
+export const CAPABILITY_LABEL_KEYS: Record<string, string> = (() => {
+  const keys: Record<string, string> = {};
   for (const id of Object.keys(CAPABILITY_ACCESS) as CapabilityKind[]) {
     keys[id] = `mlearn.Knowledge.Capability.${id.startsWith('grammar-') ? 'grammar-recognition' : id}`;
   }
@@ -150,6 +152,7 @@ export const CAPABILITY_MNEMONIC_KEYS: Record<CapabilityKind, string> = {
   'pronunciation-production': 'v',
   'prosodic-pattern': 'p',
   'gender': 'g',
+  'character-recognition': 'k',
   'character-reading': 'c',
   'morpheme-recognition': 'z',
   'grammar-recognition': 'a',

@@ -1414,7 +1414,8 @@
         "grammar-recognition": "Grammar",
         "grammar-comprehension": "Grammar",
         "grammar-formation": "Grammar",
-        "grammar-production": "Grammar"
+        "grammar-production": "Grammar",
+        "character-recognition": "Character"
       },
       "Basis": {
         "Claim": "Explicit claim",

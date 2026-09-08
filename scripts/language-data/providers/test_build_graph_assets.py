@@ -237,6 +237,33 @@ class BuildGraphAssetsTest(unittest.TestCase):
             self.assertEqual(added, 0)
             self.assertEqual(len(graph.relations), 1)
 
+    def test_surface_characters_emit_ordered_has_character_edges(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir) / "root-of-app")
+            graph = builder.Graph("ja", {"dictionary": "test"})
+            myoji = graph.entity(builder.surface_id("ja", "苗字"), "surface", "苗字")
+            nazi = graph.entity(builder.surface_id("ja", "名字"), "surface", "名字")
+            moshikomu = graph.entity(builder.surface_id("ja", "申込む"), "surface", "申込む")
+            kana_only = graph.entity(builder.surface_id("ja", "みょうじ"), "surface", "みょうじ")
+
+            emitted = builder.emit_surface_characters(graph, "jitendex")
+
+            chars = {entity["id"]: entity["label"] for entity in graph.entities.values() if entity["kind"] == "character"}
+            self.assertEqual(chars, {
+                "ja:char:苗": "苗", "ja:char:字": "字", "ja:char:名": "名", "ja:char:申": "申", "ja:char:込": "込",
+            })
+            orders = {(relation["from"], relation["to"]): relation.get("order")
+                      for relation in graph.relations.values() if relation["type"] == "has-character"}
+            self.assertEqual(orders[(myoji, "ja:char:苗")], 0)
+            self.assertEqual(orders[(myoji, "ja:char:字")], 1)
+            self.assertEqual(orders[(nazi, "ja:char:名")], 0)
+            self.assertEqual(orders[(nazi, "ja:char:字")], 1)
+            self.assertEqual(orders[(moshikomu, "ja:char:申")], 0)
+            # 申込む = 申(0) 込(1) む(2): kana carries no entity, Han keeps its index.
+            self.assertEqual(orders[(moshikomu, "ja:char:込")], 1)
+            self.assertFalse(any(relation["from"] == kana_only for relation in graph.relations.values()))
+            self.assertEqual(emitted, 6)
+
     def test_compound_component_edges_require_builder_derivation_and_unique_parses(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "root-of-app"

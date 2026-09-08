@@ -1,5 +1,5 @@
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
-import type { CapabilityKind } from '../../../../shared/graph/types';
+import type { CapabilityKey } from '../../../../shared/graph/types';
 import type { KnowledgeProjection, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
 import type { WordStatus } from '../../../../shared/constants';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
@@ -61,7 +61,7 @@ export interface CapabilityEffectiveState {
   claim?: WordStatus;
 }
 export interface CapabilitySummary {
-  capability: CapabilityKind;
+  capability: CapabilityKey;
   labelKey: string;
   status: WordStatus;
   basis: KnowledgeBasisToken;
@@ -75,7 +75,7 @@ export interface CapabilitySummary {
  */
 export function projectionStateForCapability(
   projection: KnowledgeProjection | undefined,
-  capability: CapabilityKind,
+  capability: CapabilityKey,
 ): KnowledgeProjectionState | undefined {
   return projection?.targets.flatMap((target) => target.states).find((state) => state.capability === capability);
 }
@@ -89,12 +89,12 @@ export function projectionStateForCapability(
  *   record (evidence) or absence (unmeasured).
  */
 export function capabilitySummary(
-  capability: CapabilityKind,
+  capability: CapabilityKey,
   effective: CapabilityEffectiveState,
   meaning: ComprehensiveWordStatusResult,
   projectionState: KnowledgeProjectionState | undefined,
 ): CapabilitySummary {
-  const labelKey = CAPABILITY_LABEL_KEYS[capability];
+  const labelKey = CAPABILITY_LABEL_KEYS[capability] ?? `mlearn.Knowledge.Capability.${capability}`;
   // A local claim outranks cached projection nuance: the projection is an
   // async IPC snapshot that can predate the claim.
   if (effective.basis === 'claim') {

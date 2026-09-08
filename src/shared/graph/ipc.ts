@@ -1,5 +1,5 @@
 import type { CompoundAnalysis } from './morphology/compounds';
-import type { CapabilityKind, GraphDomain, GraphEntityKind, GraphRelationType, RelationCategory } from './types';
+import type { CapabilityKey, GraphDomain, GraphEntityKind, GraphRelationType, RelationCategory } from './types';
 
 export type GraphAvailability = 'ready' | 'not-installed' | 'unavailable' | 'error';
 
@@ -41,7 +41,7 @@ export interface GraphNeighborhood {
 }
 
 export interface GraphNeighborhoodCenterState {
-  capability: CapabilityKind;
+  capability: CapabilityKey;
   classification: KnowledgeProjectionClassification;
   basis: KnowledgeProjectionBasis;
 }
@@ -91,7 +91,7 @@ export interface KnowledgeProjectionEvidence {
 }
 
 export interface KnowledgeProjectionState {
-  capability: CapabilityKind;
+  capability: CapabilityKey;
   classification: KnowledgeProjectionClassification;
   basis: KnowledgeProjectionBasis;
   strength?: { ease: number; timesSeen: number; timesHovered: number };
@@ -104,8 +104,27 @@ export interface KnowledgeProjectionState {
 
 export interface KnowledgeProjectionTarget {
   targetRef: { kind: GraphEntityKind; id: string };
-  applicableCapabilities: CapabilityKind[];
+  applicableCapabilities: CapabilityKey[];
   states: KnowledgeProjectionState[];
+}
+
+/**
+ * Word-level (lexical object) summary over graph-relative accesses. Sense and
+ * spoken states resolve at ENTRY level — evidence recorded through any
+ * authoritative variant surface counts — while `surfaceRecognition` stays the
+ * exact presented surface's written bridge. Consumers derive the compact
+ * Unknown/Learning/Known pill from this instead of duplicating identity
+ * heuristics.
+ */
+export interface KnowledgeLexicalSummary {
+  /** Entry ids the queried surface authoritatively realizes. */
+  entryIds: string[];
+  sense: { classification: KnowledgeProjectionClassification; basis: KnowledgeProjectionBasis };
+  spoken: { classification: KnowledgeProjectionClassification; basis: KnowledgeProjectionBasis };
+  surfaceRecognition: { classification: KnowledgeProjectionClassification; basis: KnowledgeProjectionBasis };
+  /** The lexical object is accessible without reading: sense or spoken known/claimed. */
+  synchronized: boolean;
+  missingBridges: CapabilityKey[];
 }
 
 /** Single-surface on-demand inspector payload; intentionally not batched for v1. */
@@ -119,4 +138,6 @@ export interface KnowledgeProjection {
   surfaceKnown?: boolean;
   /** Graph-attested decomposition (primary representation). null = the graph knows the surface but carries no attested structure; undefined = unavailable. */
   compoundAnalysis?: CompoundAnalysis | null;
+  /** Graph-relative lexical-object summary. Absent when the surface is unknown to the graph. */
+  lexical?: KnowledgeLexicalSummary;
 }

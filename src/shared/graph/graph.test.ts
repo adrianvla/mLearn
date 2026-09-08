@@ -144,8 +144,9 @@ describe('linguistic graph golden semantics', () => {
     // Pronunciation present → reading targets exist; components are support-only.
     expect(applicableCapabilities(graph, buntai)).toContain('surface-reading');
     const wen = graph.nodes.get('ja:char:文')!;
-    // No has-reading edges in this fixture → no CharacterReading capability yet.
-    expect(applicableCapabilities(graph, wen)).toEqual([]);
+    // No has-reading edges in this fixture → recognition only; the glyph
+    // itself is learnable without any reading data source.
+    expect(applicableCapabilities(graph, wen)).toEqual(['character-recognition']);
     const grammar = graph.nodes.get(grammarEntityId('ja', 'ている'))!;
     expect(applicableCapabilities(graph, grammar)).toEqual([
       'grammar-recognition', 'grammar-comprehension', 'grammar-formation', 'grammar-production',

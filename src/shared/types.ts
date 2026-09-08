@@ -8,8 +8,8 @@ import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, W
 
 export { KNOWLEDGE_ASPECTS } from './constants';
 export type { KnowledgeAspect } from './constants';
-import type { CapabilityKind } from './graph/types';
-export type { CapabilityKind } from './graph/types';
+import type { CapabilityKey, CapabilityKind } from './graph/types';
+export type { CapabilityKey, CapabilityKind } from './graph/types';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -2080,7 +2080,11 @@ export interface PassiveWordKnowledge {
   lastEvidenceSource?: string;
   /** True when any non-passive evidence (SRS/Anki/attempt/migration) exists — honest-Known gate. */
   hasActiveEvidence?: boolean;
-  /** Per-script-form skill tracking under one word identity. Keyed by variantId. */
+  /**
+   * @deprecated Legacy per-script-form WrittenForm sub-skill copies. Nothing
+   * writes them anymore — the per-access overlay (`access`) owns recognition
+   * semantics. Retained read-only so stored user data survives load/merge.
+   */
   forms?: Partial<Record<string, FormKnowledge>>;
   /**
    * Learner overlay: materialized per-access records keyed by capability id.
@@ -2091,9 +2095,6 @@ export interface PassiveWordKnowledge {
    */
   access?: Partial<Record<CapabilityKey, AccessKnowledge>>;
 }
-
-/** Core CapabilityKind plus namespaced package-declared capability ids (`ns::local`). */
-export type CapabilityKey = CapabilityKind | (string & {});
 
 export interface AccessKnowledge {
   status: WordStatus;

@@ -2,7 +2,7 @@ import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup
 import { Modal } from '../Modal';
 import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
 import type { GraphRelatedNode, GraphWordLookup, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
-import type { CapabilityKind, GraphRelationType } from '../../../../shared/graph/types';
+import type { CapabilityKey, GraphRelationType } from '../../../../shared/graph/types';
 import type { WordStatus } from '../../../../shared/constants';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { RatedCapability } from '../../../utils/accessKnowledge';
@@ -203,7 +203,7 @@ const KnowledgeRelationRow: Component<{
 );
 
 interface CapabilityCard {
-  capability: CapabilityKind;
+  capability: CapabilityKey;
   labelKey: string;
   status: WordStatus;
   basis: KnowledgeBasisToken;
@@ -299,12 +299,12 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     return nb.relations.find((relation) => relation.id === entityId)?.label;
   };
 
-  const stateFor = (capability: CapabilityKind): KnowledgeProjectionState | undefined => (
+  const stateFor = (capability: CapabilityKey): KnowledgeProjectionState | undefined => (
     projectionStateForCapability(model().projection, capability)
   );
 
   /** Effective (status, basis, claim) for one capability, from the resolvers' reported fields only. */
-  const effectiveFor = (capability: CapabilityKind): { status: WordStatus; basis: KnowledgeBasisToken; claim?: WordStatus; untracked: boolean } => {
+  const effectiveFor = (capability: CapabilityKey): { status: WordStatus; basis: KnowledgeBasisToken; claim?: WordStatus; untracked: boolean } => {
     if (capability === 'sense-recognition') {
       const overall = model().overall;
       return { status: overall.status, basis: overall.basis, claim: model().wordClaim ?? undefined, untracked: isUntrackedKnowledge(overall.status, overall.basis) };
@@ -325,8 +325,8 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   /** Overview cards: one readable row per applicable capability, sense first. */
   const capabilityCards = createMemo<CapabilityCard[]>(() => {
     const cards: CapabilityCard[] = [];
-    const covered = new Set<CapabilityKind>();
-    const card = (capability: CapabilityKind): CapabilityCard => {
+    const covered = new Set<CapabilityKey>();
+    const card = (capability: CapabilityKey): CapabilityCard => {
       covered.add(capability);
       const effective = effectiveFor(capability);
       return {

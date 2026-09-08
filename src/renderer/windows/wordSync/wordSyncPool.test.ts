@@ -7,7 +7,7 @@ import {
   shouldIncludeForLevel,
   calculateCharacterStudyBoost,
   calculateWordWeight,
-  hasWrittenFormAccess,
+  hasSurfaceRecognitionAccess,
   isBridgeCandidate,
   isWordEligible,
   wordSyncPoolStatus,
@@ -357,11 +357,11 @@ describe('written-form bridge selection', () => {
     access: { 'surface-recognition': { status: 'unknown', ease: 1.3, source: 'Manual', lastStatusChange: 5, updatedAt: 5, claim: 'unknown' } },
   };
 
-  it('hasWrittenFormAccess reads the surface-recognition access (claim included)', () => {
-    expect(hasWrittenFormAccess(writtenKnown)).toBe(true);
-    expect(hasWrittenFormAccess(writtenUnknownClaim)).toBe(false);
-    expect(hasWrittenFormAccess(undefined)).toBe(false);
-    expect(hasWrittenFormAccess({})).toBe(false);
+  it('hasSurfaceRecognitionAccess reads the surface-recognition access (claim included)', () => {
+    expect(hasSurfaceRecognitionAccess(writtenKnown)).toBe(true);
+    expect(hasSurfaceRecognitionAccess(writtenUnknownClaim)).toBe(false);
+    expect(hasSurfaceRecognitionAccess(undefined)).toBe(false);
+    expect(hasSurfaceRecognitionAccess({})).toBe(false);
   });
 
   it('isBridgeCandidate: known object + missing written bridge only', () => {

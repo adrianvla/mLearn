@@ -118,7 +118,7 @@ export async function saveKnowledgeEvents(): Promise<void> {
       const filePath = getKnowledgeEventsPath();
       await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
       const tmpPath = `${filePath}.tmp`;
-      await fs.promises.writeFile(tmpPath, JSON.stringify(eventLog, null, 2));
+      await fs.promises.writeFile(tmpPath, JSON.stringify(eventLog));
       await fs.promises.rename(tmpPath, filePath);
     } catch (error) {
       log.error('Failed to save knowledge events:', error);

@@ -212,6 +212,7 @@ export type CapabilityKind =
   | 'pronunciation-production'
   | 'prosodic-pattern'
   | 'gender'
+  | 'character-recognition'
   | 'character-reading'
   | 'grammar-recognition'
   | 'grammar-comprehension'
@@ -219,9 +220,12 @@ export type CapabilityKind =
   | 'grammar-production'
   | 'morpheme-recognition';
 
+/** Core CapabilityKind plus namespaced package-declared capability ids (`ns::local`). Package-declared access semantics travel through journal, projection, claims, policy, and inspector without core knowing their meaning. */
+export type CapabilityKey = CapabilityKind | (string & {});
+
 export interface LearnableTarget {
   entityId: string;
-  capability: CapabilityKind;
+  capability: CapabilityKey;
 }
 
 /** Current word-aspect vocabulary resolved to typed capabilities. */

@@ -84,6 +84,7 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
     // the language, nothing withheld because the language is unknown.
     expect(capabilities).toEqual([
       'character-reading',
+      'character-recognition',
       'grammar-comprehension',
       'grammar-formation',
       'grammar-production',

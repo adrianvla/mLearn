@@ -1,8 +1,9 @@
-import { readActiveEvidence, eventCapability, type KnowledgeEvent } from '../knowledgeEvents';
+import { readActiveEvidence, type KnowledgeEvent } from '../knowledgeEvents';
+import { eventAppliesToCapability } from './addressing';
 import { replayKeyProjection, type ReplayProjection } from '../utils/projectionReplay';
 import { easeToStatus } from '../utils/knowledgeStrength';
 import { deriveRetentionSchedule, type RetentionPolicy } from '../srs/retentionScheduler';
-import type { CapabilityKind } from './types';
+import type { CapabilityKey } from './types';
 
 /**
  * Effective state of one learnable target. Claim states are distinct from
@@ -38,21 +39,10 @@ export interface TargetExplanation {
 }
 
 /**
- * Routing: capability-addressed events match their exact capability only.
- * Legacy flat events (no targetRef) route through the aspect projection —
- * legacy meaning events fan out to both meaning-visible capabilities, the
- * one conflation the pre-access model carried, preserved ONLY for old
- * journals. New writers address precisely.
+ * Capability-only routing moved to ./addressing (eventAppliesToCapability):
+ * this module consumes the address-aware matcher so graph-relative evidence
+ * resolution and legacy key scoping stay one implementation.
  */
-const MEANING_CAPABILITIES: ReadonlySet<CapabilityKind> = new Set(['sense-recognition', 'surface-recognition']);
-
-export function eventAppliesToCapability(event: KnowledgeEvent, capability: CapabilityKind): boolean {
-  if (event.targetRef?.capability !== undefined) return event.targetRef.capability === capability;
-  const legacyCapability = eventCapability(event);
-  if (legacyCapability === undefined) return false;
-  if (legacyCapability === 'sense-recognition') return MEANING_CAPABILITIES.has(capability);
-  return legacyCapability === capability;
-}
 
 
 /**
@@ -73,13 +63,20 @@ function effectiveState(projection: ReplayProjection): TargetState {
 
 /** Shared explainability assembly: active evidence first, predictions never become evidence. */
 export function assembleTargetExplanation(
-  capability: CapabilityKind,
+  capability: CapabilityKey,
   events: readonly KnowledgeEvent[],
   policy: RetentionPolicy,
   now = Date.now(),
   prediction?: TargetExplanation['prediction'],
+  /**
+   * Address-aware evidence predicate. Defaults to capability-only matching
+   * (the caller's journal-key scoping is the address); graph-aware callers
+   * pass eventAppliesToTarget partially applied to the graph + queried
+   * surface so shared-entry variants resolve without state copies.
+   */
+  matcher: (event: KnowledgeEvent) => boolean = (event) => eventAppliesToCapability(event, capability),
 ): TargetExplanation {
-  const evidence = readActiveEvidence(events).filter((event) => eventAppliesToCapability(event, capability));
+  const evidence = readActiveEvidence(events).filter(matcher);
   const projection = replayKeyProjection(evidence);
   const ratings = evidence.flatMap((event) => event.rating ? [{ t: event.t, rating: event.rating }] : []);
   const retention = ratings.length ? deriveRetentionSchedule({ createdAt: evidence[0]?.t ?? now, initialEase: 2.5 }, ratings, policy, now) : null;

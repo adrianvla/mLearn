@@ -1414,7 +1414,8 @@
         "grammar-recognition": "Grammatik",
         "grammar-comprehension": "Grammatik",
         "grammar-formation": "Grammatik",
-        "grammar-production": "Grammatik"
+        "grammar-production": "Grammatik",
+        "character-recognition": "Schriftzeichen"
       },
       "Basis": {
         "Claim": "Eigene Einschätzung",

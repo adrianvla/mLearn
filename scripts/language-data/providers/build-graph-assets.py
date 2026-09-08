@@ -104,10 +104,23 @@ class Graph:
             self.entities[entity_id] = entity
         return entity_id
 
-    def relation(self, source: str, target: str, relation_type: str, provenance: str) -> None:
+    def relation(self, source: str, target: str, relation_type: str, provenance: str,
+                 order: int | None = None, role: str | None = None,
+                 confidence: float | None = None, transparency: float | None = None,
+                 predictability: float | None = None) -> None:
         assert relation_type in RELATION_TYPES
-        self.relations.setdefault((source, target, relation_type, provenance), {
+        # Qualifier-less relations keep the plain 4-tuple key; an asserted
+        # position (order) disambiguates multiple member edges between the
+        # same pair.
+        key = (source, target, relation_type, provenance) if order is None \
+            else (source, target, relation_type, provenance, order)
+        self.relations.setdefault(key, {
             "from": source, "to": target, "type": relation_type, "provenance": provenance,
+            **({"order": order} if order is not None else {}),
+            **({"role": role} if role is not None else {}),
+            **({"confidence": confidence} if confidence is not None else {}),
+            **({"transparency": transparency} if transparency is not None else {}),
+            **({"predictability": predictability} if predictability is not None else {}),
         })
 
     def add_entry_sibling_support(self) -> int:
@@ -118,7 +131,7 @@ class Graph:
         prediction see related-but-independent kin instead of an implicit
         property hop."""
         entry_siblings: dict[str, tuple[str, set[str]]] = {}
-        for source, target, relation_type, provenance in self.relations:
+        for source, target, relation_type, provenance, *_ in self.relations:
             if relation_type != "realizes":
                 continue
             entry = target if self.entities.get(target, {}).get("kind") == "dictionary-entry" else source
@@ -347,6 +360,41 @@ def emit_compound_component_edges(graph: Graph, strategy: dict[str, object], pro
     return emitted
 
 
+def is_han(char: str) -> bool:
+    code = ord(char)
+    return (
+        0x4E00 <= code <= 0x9FFF
+        or 0x3400 <= code <= 0x4DBF
+        or 0xF900 <= code <= 0xFAFF
+        or 0x20000 <= code <= 0x2A6DF
+    )
+
+
+def emit_surface_characters(graph: Graph, provenance: str) -> int:
+    """Authoritative orthographic decomposition: the surface string IS the
+    authority for which characters compose it, so emit ordered `has-character`
+    edges (surface -> character, `order` = index within the full surface
+    string). Only Han characters become entities — kana components are
+    trivially readable and would flood the graph without learnable value, and
+    their positions stay expressed through the Han characters' own indices.
+    Radical/glyph/stroke decomposition inside characters is deliberately NOT
+    modeled here (belongs to the later handwriting system)."""
+    emitted = 0
+    for entity in list(graph.entities.values()):
+        if entity.get("kind") != "surface":
+            continue
+        label = str(entity.get("label") or "")
+        seen: set[str] = set()
+        for index, char in enumerate(label):
+            if not is_han(char) or char in seen:
+                continue
+            seen.add(char)
+            character = graph.entity(f"{graph.language}:char:{char}", "character", char)
+            graph.relation(str(entity["id"]), character, "has-character", provenance, order=index)
+            emitted += 1
+    return emitted
+
+
 def structured_pos_codes(content: object, found: set[str]) -> None:
     if isinstance(content, dict):
         data = content.get("data")
@@ -406,6 +454,8 @@ def build_ja() -> tuple[int, int, int]:
             if gloss:
                 sense = graph.entity(f"ja:sense:{sequence}:{index}", "sense", gloss, domain="names" if sequence in name_sequences else None)
                 graph.relation(entry, sense, "has-sense", "jitendex")
+    characters = emit_surface_characters(graph, "jitendex")
+    log(f"ja: {characters} ordered has-character edges")
     return graph.write()
 
 

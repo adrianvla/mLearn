@@ -7,6 +7,32 @@ across 149 term banks, plus 13 term-meta banks that contain only Kanjium pitch
 accents. No kanji bank (KANJIDIC2) and no names dictionary (JMnedict) is
 installed; the only other Jitendex payload is `jitendex/HanaMinA` glyph SVGs.
 
+### Character graph (ordered `has-character`)
+
+The builder derives ordered `has-character` edges directly from each surface
+string (the orthography is the authority): every distinct Han character in a
+surface becomes a `character` entity (`ja:char:<glyph>`) with an edge whose
+`order` is the character's index within the full surface string; kana
+positions are skipped but expressed through the kept indices (申込む →
+申(0), 込(1)). Character-recognition targets exist for every emitted
+character; radical/glyph/stroke decomposition is deliberately not modeled
+(later handwriting system). What is still missing is **character reading
+data**: `character-reading` targets require `has-reading` edges on
+characters, which only KANJIDIC2 (EDRDG, CC BY-SA 4.0) would supply.
+
+### Orthographic variant identity
+
+Multi-kanji JMdict entries (same ent_seq, several keb forms) are expressed
+through realization facts: each keb surface `realizes` the shared entry and
+carries the shared `has-pronunciation` edge. The runtime resolves
+entry-level learner state across those variant surfaces while keeping each
+surface→entry/surface→pronunciation bridge separately measured. Verified
+cases in the built asset: 苗字/名字 (entry 1604730, みょうじ),
+話し中/話中 (1600920), 申込む/申し込む (1362890), 取引/取り引き (1599120).
+Homophones stay independent: 橋 (1237410), 箸 (1476410), 端 (1581610 and
+four other sequences) share pronunciations but never entries, and multi-entry
+homographs (橋 has two, 端 has five) transfer nothing to siblings.
+
 ### Name-domain data (REQ54)
 
 - **JMnedict-style data: absent.** Zero of 297,255 rows carry a
