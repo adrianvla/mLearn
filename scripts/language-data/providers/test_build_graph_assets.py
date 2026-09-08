@@ -320,22 +320,23 @@ class BuildGraphAssetsTest(unittest.TestCase):
             self.assertFalse(any(relation["to"] == sid("Arbeitszimmer") for relation in graph.relations.values()))
 
     def test_relation_writer_stores_each_directed_relation_once(self):
-        builder = _load_builder(Path(tempfile.mkdtemp()))
-        graph = builder.Graph("ja", {"fixture": "1"})
-        graph.entity("ja:surface:aaa", "surface", "A")
-        graph.entity("ja:surface:bbb", "surface", "B")
-        graph.relation("ja:surface:aaa", "ja:surface:bbb", "semantically-related", "fixture")
-        graph.relation("ja:surface:bbb", "ja:surface:aaa", "semantically-related", "fixture")
-        graph.relation("ja:surface:aaa", "ja:surface:bbb", "semantically-related", "fixture")
-        # The plain asset may author both directions of a symmetric relation,
-        # but never the same directed relation twice: duplicate keys are the
-        # exact-duplicate-edge regression upstream of the compact encoder.
-        keys = [
-            (relation["from"], relation["to"], relation["type"], relation["provenance"], relation.get("order"))
-            for relation in graph.relations.values()
-        ]
-        self.assertEqual(len(keys), len(set(keys)))
-        self.assertEqual(len(graph.relations), 2)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir))
+            graph = builder.Graph("ja", {"fixture": "1"})
+            graph.entity("ja:surface:aaa", "surface", "A")
+            graph.entity("ja:surface:bbb", "surface", "B")
+            graph.relation("ja:surface:aaa", "ja:surface:bbb", "semantically-related", "fixture")
+            graph.relation("ja:surface:bbb", "ja:surface:aaa", "semantically-related", "fixture")
+            graph.relation("ja:surface:aaa", "ja:surface:bbb", "semantically-related", "fixture")
+            # The plain asset may author both directions of a symmetric relation,
+            # but never the same directed relation twice: duplicate keys are the
+            # exact-duplicate-edge regression upstream of the compact encoder.
+            keys = [
+                (relation["from"], relation["to"], relation["type"], relation["provenance"], relation.get("order"))
+                for relation in graph.relations.values()
+            ]
+            self.assertEqual(len(keys), len(set(keys)))
+            self.assertEqual(len(graph.relations), 2)
 
 
 if __name__ == "__main__":
