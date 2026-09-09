@@ -28,8 +28,12 @@ export function getPassiveHoverFailCount(settings?: PassiveHoverSettings): numbe
 }
 
 export function getPassiveHoverFailAction(settings?: PassiveHoverSettings): PassiveHoverFailAction {
-  const action = settings?.passiveHoverFailAction
-  if (action === 'none' || action === 'decrease-ease-and-flashcard') return action
+  // Legacy persisted values may still hold the removed flashcard action.
+  const action = settings?.passiveHoverFailAction as string | undefined
+  if (action === 'none') return action
+  // Legacy 'decrease-ease-and-flashcard' normalizes to plain ease decrease:
+  // passive telemetry no longer mutates scheduler cards.
+  if (action === 'decrease-ease' || action === 'decrease-ease-and-flashcard') return 'decrease-ease'
   return DEFAULT_PASSIVE_HOVER_FAIL_ACTION
 }
 
@@ -42,12 +46,9 @@ export function hasReachedPassiveHoverFailCount(timesHovered: number, settings?:
 }
 
 export function shouldDecreaseEaseOnPassiveFailure(settings?: PassiveHoverSettings): boolean {
-  const action = getPassiveHoverFailAction(settings)
-  return (action === 'decrease-ease' || action === 'decrease-ease-and-flashcard') && getPassiveHoverEaseDecrease(settings) > 0
-}
-
-export function shouldUpdateFlashcardOnPassiveFailure(settings?: PassiveHoverSettings): boolean {
-  return getPassiveHoverFailAction(settings) === 'decrease-ease-and-flashcard'
+  // getPassiveHoverFailAction normalizes the legacy flashcard action away,
+  // so only 'decrease-ease' can request a decrease here.
+  return getPassiveHoverFailAction(settings) === 'decrease-ease' && getPassiveHoverEaseDecrease(settings) > 0
 }
 
 export function isWordMarkedFailed(entry: FailedWordEntry, settings?: PassiveHoverSettings): boolean {

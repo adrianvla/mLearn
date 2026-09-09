@@ -2196,7 +2196,6 @@
               "Label": "Action sur mot en échec",
               "Options": {
                 "DecreaseEase": "Réduire l'ease",
-                "DecreaseEaseAndFlashcard": "Réduire l'ease et la flashcard",
                 "None": "Ne rien faire"
               }
             },

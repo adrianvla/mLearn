@@ -2196,7 +2196,6 @@
               "Label": "Действие для проблемного слова",
               "Options": {
                 "DecreaseEase": "Уменьшать ease",
-                "DecreaseEaseAndFlashcard": "Уменьшать ease и карточку",
                 "None": "Ничего не делать"
               }
             },

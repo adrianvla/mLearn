@@ -2196,7 +2196,6 @@
               "Label": "Aktion für fehlgeschlagene Wörter",
               "Options": {
                 "DecreaseEase": "Ease verringern",
-                "DecreaseEaseAndFlashcard": "Ease & Flashcard verringern",
                 "None": "Nichts tun"
               }
             },

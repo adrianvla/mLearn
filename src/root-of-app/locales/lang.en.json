@@ -2226,7 +2226,6 @@
               "Label": "Failed Word Action",
               "Options": {
                 "DecreaseEase": "Decrease Ease",
-                "DecreaseEaseAndFlashcard": "Decrease Ease & Flashcard",
                 "None": "Do Nothing"
               }
             },

@@ -2560,7 +2560,7 @@ describe('FlashcardProvider', () => {
     vi.useRealTimers();
   });
 
-  it('trackWordHovered lowers indexed flashcard ease on passive failure using the primary language key', async () => {
+  it('trackWordHovered never mutates indexed flashcard scheduling — telemetry is not an SRS writer', async () => {
     vi.useFakeTimers();
     mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
     mockGetCanonicalForm.mockImplementation((word: string) => word === 'يكتب' ? 'كتب' : word);
@@ -2594,7 +2594,12 @@ describe('FlashcardProvider', () => {
     ctx.trackWordHovered('يكتب');
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
 
-    expect(ctx.store.flashcards[cardId]?.ease).toBeCloseTo(2.45, 2);
+    // Passive telemetry owns FAMILIARITY only: indexed cards keep their
+    // scheduler state untouched (no permanent card debt from hover noise).
+    expect(ctx.store.flashcards[cardId]?.ease).toBe(2.5);
+    expect(ctx.store.flashcards[cardId]?.lastUpdated).toBe(1);
+    // Familiarity tracking still ran for the word.
+    expect(ctx.store.wordKnowledge[primaryKey]?.timesHovered).toBe(1);
 
     mockSettings.passiveHoverFailAction = prevAction;
     dispose();

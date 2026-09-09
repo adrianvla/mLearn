@@ -22,7 +22,6 @@ export const BehaviourTab: Component = () => {
   const passiveHoverEaseDecrease = () => getPassiveHoverEaseDecrease(settings);
   const passiveHoverActionOptions = createMemo(() => PASSIVE_HOVER_FAIL_ACTIONS.map((action) => {
     const key = action === 'decrease-ease' ? 'DecreaseEase'
-      : action === 'decrease-ease-and-flashcard' ? 'DecreaseEaseAndFlashcard'
       : 'None';
     return {
       value: action,
@@ -295,7 +294,7 @@ export const BehaviourTab: Component = () => {
             />
           </SettingRow>
 
-          <Show when={passiveHoverFailAction() === 'decrease-ease' || passiveHoverFailAction() === 'decrease-ease-and-flashcard'}>
+          <Show when={passiveHoverFailAction() === 'decrease-ease'}>
             <SettingRow
               label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.EaseDecrease.Label')}
               description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.EaseDecrease.Description')}

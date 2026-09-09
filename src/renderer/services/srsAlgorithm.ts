@@ -11,6 +11,7 @@
 
 import {DEFAULT_SETTINGS, Flashcard, FlashcardMeta, ReviewQueue} from '../../shared/types';
 import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
+import type { RetentionRating } from '../../shared/srs/retentionScheduler';
 import { SRS_EASE } from '../../shared/constants';
 import { scheduleAfterAnswer } from '../../shared/srs/retentionScheduler';
 
@@ -23,8 +24,8 @@ const DAY = 24 * HOUR;
 export const MIN_EASE = SRS_EASE.MIN;
 const EASE_BONUS = 1.3; // Bonus for Easy button
 
-// Rating values
-export type Rating = 'again' | 'hard' | 'good' | 'easy';
+// Rating values — one definition shared with the retention scheduler.
+export type Rating = RetentionRating;
 
 /**
  * Get the effective date after applying the new day hour offset.

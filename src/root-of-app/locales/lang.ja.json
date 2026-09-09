@@ -2196,7 +2196,6 @@
               "Label": "失敗時の動作",
               "Options": {
                 "DecreaseEase": "Easeを下げる",
-                "DecreaseEaseAndFlashcard": "Easeとフラッシュカードを下げる",
                 "None": "何もしない"
               }
             },

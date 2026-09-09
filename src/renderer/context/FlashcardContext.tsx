@@ -29,7 +29,7 @@ import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskG
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
-import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure, shouldUpdateFlashcardOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
+import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
 import { ankiCacheVersion, buildAnkiStatusKeySets, findAnkiWordMatchInCache } from '../services/ankiWordsCache';
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { extractProsodyFromTranslationData } from '../utils/readingProsody';
@@ -2923,18 +2923,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
                 }).catch((e) => log.warn('knowledge event append failed:', e));
             }
 
-            if (isFailed && shouldUpdateFlashcardOnPassiveFailure(settings) && !wasManuallySetRecently) {
-                const cardIds = s.wordToCardMap[lk];
-                if (cardIds) {
-                    for (const cardId of cardIds) {
-                        const card = s.flashcards[cardId];
-                        if (card) {
-                            card.ease = Math.max(SRS.MIN_EASE, card.ease - easeDecrease);
-                            card.lastUpdated = now;
-                        }
-                    }
-                }
-            }
         }));
       saveFlashcards();
 
