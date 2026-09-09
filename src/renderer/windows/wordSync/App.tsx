@@ -30,6 +30,11 @@ import {
 } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
 import { WordSyncRating } from './WordSyncRating';
+import { TellMlearn, type AppliedLearnerClaim } from '../../components/common/TellMlearn/TellMlearn';
+import type { LearnerClaimOp } from '../../services/learnerClaimsInterpreter';
+import { buildClaimPromptContext } from '../../services/learnerClaimsInterpreter';
+import { CAPABILITY_LABEL_KEYS, isValidCapabilityId } from '../../../shared/graph/access';
+import type { WordStatus } from '../../../shared/constants';
 import { ATTEMPT_QUALITIES, SRS_EASE, type AttemptQuality } from '../../../shared/constants';
 import type { CapabilityKind } from '../../../shared/graph/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
@@ -609,6 +614,102 @@ export const WordSyncContent: Component = () => {
     return characterComponents() ?? [];
   }
 
+  // ─── "Tell mLearn…" — natural-language claim escape hatch ──────────
+  // Statements become typed CLAIM ops; nothing here fabricates evidence,
+  // and every applied op carries its inverse through the claim model.
+  const STATUS_LABEL_KEYS: Record<WordStatus, string> = {
+    known: 'mlearn.TellMlearn.Status.Known',
+    learning: 'mlearn.TellMlearn.Status.Learning',
+    unknown: 'mlearn.TellMlearn.Status.Unknown',
+  };
+
+  function applyLearnerClaims(ops: readonly LearnerClaimOp[]): AppliedLearnerClaim[] {
+    const w = currentWord();
+    if (!w) return [];
+    const lang = settings.language;
+    const applied: AppliedLearnerClaim[] = [];
+    for (const op of ops) {
+      switch (op.op) {
+        case 'setAccessClaim':
+        case 'clearAccessClaim': {
+          // Open-world: any valid capability id (core or namespaced package
+          // id) is a legitimate claim address — the journal validates the id
+          // and the projection renders unknown ids inertly. Only the
+          // whole-word sense path is reserved (it has no access row).
+          const isValid = isValidCapabilityId(op.capability) && op.capability !== 'sense-recognition';
+          if (!isValid) break;
+          const capability = op.capability as RatedCapability;
+          const before = getAccessStatus(w.word, capability, lang);
+          // Undo restores the PRIOR CLAIM PRESENCE exactly — it never
+          // converts evidence into a claim.
+          const restorePriorClaim = () => {
+            if (before.claim !== undefined) {
+              setAccessStatus(w.word, capability, before.claim, 'manual', lang);
+            } else {
+              clearAccessClaim(w.word, capability, lang);
+            }
+          };
+          if (op.op === 'setAccessClaim') {
+            if (before.claim === op.status) break; // no-op: already claimed exactly so
+            setAccessStatus(w.word, capability, op.status, 'manual', lang);
+            applied.push({
+              labelKey: CAPABILITY_LABEL_KEYS[capability] ?? capability,
+              statusKey: STATUS_LABEL_KEYS[op.status],
+              undo: restorePriorClaim,
+            });
+          } else {
+            if (before.claim === undefined) break; // nothing claimed — clearing would change nothing
+            clearAccessClaim(w.word, capability, lang);
+            applied.push({
+              labelKey: CAPABILITY_LABEL_KEYS[capability] ?? capability,
+              undo: restorePriorClaim,
+            });
+          }
+          break;
+        }
+        case 'setWordClaim': {
+          const previousClaim = store.wordKnowledge[w.storageKey]?.claim ?? null;
+          if (previousClaim === op.status) break; // no-op: already claimed exactly so
+          setWordClaim(w.word, op.status, lang);
+          applied.push({
+            labelKey: 'mlearn.TellMlearn.Word',
+            statusKey: STATUS_LABEL_KEYS[op.status],
+            undo: () => setWordClaim(w.word, previousClaim, lang),
+          });
+          break;
+        }
+        case 'clearWordClaim': {
+          const previousClaim = store.wordKnowledge[w.storageKey]?.claim ?? null;
+          if (previousClaim === null) break; // nothing claimed — clearing would change nothing
+          setWordClaim(w.word, null, lang);
+          applied.push({
+            labelKey: 'mlearn.TellMlearn.Word',
+            undo: () => setWordClaim(w.word, previousClaim, lang),
+          });
+          break;
+        }
+      }
+    }
+    return applied;
+  }
+
+  function currentClaimContext(): string {
+    const w = currentWord();
+    if (!w) return '';
+    const accessStates: Record<string, WordStatus | undefined> = {};
+    for (const capability of [...testedAccesses(), 'spoken-recognition' as const]) {
+      accessStates[capability] = getAccessStatus(w.word, capability, settings.language).status;
+    }
+    return buildClaimPromptContext({
+      word: w.word,
+      reading: displayedReading() || undefined,
+      language: settings.language,
+      accessStates,
+      wordClaim: store.wordKnowledge[w.storageKey]?.claim ?? null,
+      componentCharacters: componentCharacters().map((character) => character.label),
+    });
+  }
+
   function recheckAll() {
     clearAllWordSyncSeen();
     setFilterTokens(buildDefaultFilterPreset());
@@ -1040,6 +1141,20 @@ export const WordSyncContent: Component = () => {
             onSubmit={handleSubmitProfile}
             onStatement={handleStatement}
           />
+          <Show when={currentWord()}>
+            <TellMlearn
+              label={t('mlearn.TellMlearn.Label')}
+              placeholder={t('mlearn.TellMlearn.Placeholder')}
+              sendLabel={t('mlearn.TellMlearn.Send')}
+              undoLabel={t('mlearn.TellMlearn.Undo')}
+              updatedLabel={t('mlearn.TellMlearn.Updated')}
+              noChangeLabel={t('mlearn.TellMlearn.NoChange')}
+              errorLabel={t('mlearn.TellMlearn.Error')}
+              buildContext={currentClaimContext}
+              onApply={applyLearnerClaims}
+              translate={t}
+            />
+          </Show>
         </div>
 
 

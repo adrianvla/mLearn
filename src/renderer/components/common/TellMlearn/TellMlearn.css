@@ -1,0 +1,42 @@
+.tell-mlearn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tell-mlearn__toggle {
+  align-self: flex-start;
+}
+
+.tell-mlearn__composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tell-mlearn__input {
+  width: 100%;
+  resize: vertical;
+  min-height: 44px;
+}
+
+.tell-mlearn__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tell-mlearn__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: baseline;
+}
+
+.tell-mlearn__summary-label {
+  opacity: 0.75;
+}
+
+.tell-mlearn__error {
+  opacity: 0.8;
+}

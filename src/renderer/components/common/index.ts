@@ -476,3 +476,10 @@ export {
   type RateOptions,
   type ProfileObservation,
 } from './RatingMatrix';
+
+// TellMlearn — natural-language claim escape hatch (single-shot, not a chat)
+export {
+  TellMlearn,
+  type AppliedLearnerClaim,
+  type TellMlearnProps,
+} from './TellMlearn/TellMlearn';

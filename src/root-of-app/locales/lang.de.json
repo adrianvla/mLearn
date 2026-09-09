@@ -1903,17 +1903,17 @@
         }
       },
       "DisplayOptions": {
-      "Scaffold": {
-        "Mode": {
-          "Label": "Prosodie-Färbung",
-          "Description": "Aus blendet sie immer aus. Auto passt sie an deinen Lernstand an. Immer zeigt sie dauerhaft – Lesenachweise werden dann mit den sichtbaren Farben verknüpft.",
-          "ReadingLabel": "Lesungen (Furigana)",
-          "ReadingDescription": "Aus blendet Lesungen aus. Auto blendet sie für bekannte Wörter aus. Immer zeigt sie dauerhaft und erfasst Lesenachweise entsprechend."
+        "Scaffold": {
+          "Mode": {
+            "Label": "Prosodie-Färbung",
+            "Description": "Aus blendet sie immer aus. Auto passt sie an deinen Lernstand an. Immer zeigt sie dauerhaft – Lesenachweise werden dann mit den sichtbaren Farben verknüpft.",
+            "ReadingLabel": "Lesungen (Furigana)",
+            "ReadingDescription": "Aus blendet Lesungen aus. Auto blendet sie für bekannte Wörter aus. Immer zeigt sie dauerhaft und erfasst Lesenachweise entsprechend."
+          },
+          "Off": "Aus",
+          "Auto": "Auto",
+          "Always": "Immer"
         },
-        "Off": "Aus",
-        "Auto": "Auto",
-        "Always": "Immer"
-      },
         "ImmediateFetch": {
           "Description": "Wortdaten sofort beim Erscheinen der Untertitel laden",
           "Label": "Sofort laden"
@@ -3509,6 +3509,21 @@
         "Unmeasured": "Unbekannt:"
       },
       "Title": "Zeichenvertrautheit"
+    },
+    "TellMlearn": {
+      "Label": "mLearn mitteilen…",
+      "Placeholder": "z. B. Wenn ich es höre, kenne ich es – aber die Schreibweise habe ich nie gesehen.",
+      "Send": "Anwenden",
+      "Undo": "Rückgängig",
+      "Updated": "Aktualisiert:",
+      "NoChange": "Nichts zu ändern – dein Lernprofil passt bereits.",
+      "Error": "mLearn konnte diese Korrektur nicht verarbeiten. Formuliere sie anders.",
+      "Word": "Dieses Wort",
+      "Status": {
+        "Known": "bekannt",
+        "Learning": "im Lernen",
+        "Unknown": "unbekannt"
+      }
     }
   }
 }

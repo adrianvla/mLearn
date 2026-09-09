@@ -1903,17 +1903,17 @@
         }
       },
       "DisplayOptions": {
-      "Scaffold": {
-        "Mode": {
-          "Label": "Prosody coloring",
-          "Description": "Off always hides it. Auto adapts it to your learning state. Always keeps it visible — reading evidence is then conditioned on the visible colors.",
-          "ReadingLabel": "Reading annotations",
-          "ReadingDescription": "Off hides readings. Auto hides them for words you know. Always keeps them visible and records reading evidence accordingly."
+        "Scaffold": {
+          "Mode": {
+            "Label": "Prosody coloring",
+            "Description": "Off always hides it. Auto adapts it to your learning state. Always keeps it visible — reading evidence is then conditioned on the visible colors.",
+            "ReadingLabel": "Reading annotations",
+            "ReadingDescription": "Off hides readings. Auto hides them for words you know. Always keeps them visible and records reading evidence accordingly."
+          },
+          "Off": "Off",
+          "Auto": "Auto",
+          "Always": "Always"
         },
-        "Off": "Off",
-        "Auto": "Auto",
-        "Always": "Always"
-      },
         "ImmediateFetch": {
           "Description": "Fetch word data when subtitles appear",
           "Label": "Immediate Fetch"
@@ -3509,6 +3509,21 @@
         "Unmeasured": "Unmeasured:"
       },
       "Title": "Character Familiarity Overview"
+    },
+    "TellMlearn": {
+      "Label": "Tell mLearn…",
+      "Placeholder": "e.g. I know this when I hear it, but I've never seen this spelling.",
+      "Send": "Apply",
+      "Undo": "Undo",
+      "Updated": "Updated:",
+      "NoChange": "Nothing to change — that already matches your learner profile.",
+      "Error": "mLearn could not process that correction. Try rephrasing it.",
+      "Word": "This word",
+      "Status": {
+        "Known": "known",
+        "Learning": "learning",
+        "Unknown": "unknown"
+      }
     }
   }
 }

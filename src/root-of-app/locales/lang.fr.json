@@ -1903,17 +1903,17 @@
         }
       },
       "DisplayOptions": {
-      "Scaffold": {
-        "Mode": {
-          "Label": "Coloration prosodique",
-          "Description": "Désactivé masque toujours. Auto l'ajuste selon votre apprentissage. Toujours l'affiche en permanence — les preuves de lecture sont alors conditionnées aux couleurs visibles.",
-          "ReadingLabel": "Lectures (furigana)",
-          "ReadingDescription": "Désactivé masque les lectures. Auto les masque pour les mots connus. Toujours les affiche et enregistre les preuves en conséquence."
+        "Scaffold": {
+          "Mode": {
+            "Label": "Coloration prosodique",
+            "Description": "Désactivé masque toujours. Auto l'ajuste selon votre apprentissage. Toujours l'affiche en permanence — les preuves de lecture sont alors conditionnées aux couleurs visibles.",
+            "ReadingLabel": "Lectures (furigana)",
+            "ReadingDescription": "Désactivé masque les lectures. Auto les masque pour les mots connus. Toujours les affiche et enregistre les preuves en conséquence."
+          },
+          "Off": "Désactivé",
+          "Auto": "Auto",
+          "Always": "Toujours"
         },
-        "Off": "Désactivé",
-        "Auto": "Auto",
-        "Always": "Toujours"
-      },
         "ImmediateFetch": {
           "Description": "Charger les données des mots dès l'apparition des sous-titres",
           "Label": "Chargement immédiat"
@@ -3509,6 +3509,21 @@
         "Unmeasured": "Non mesurés :"
       },
       "Title": "Familiarité avec les caractères"
+    },
+    "TellMlearn": {
+      "Label": "Dire à mLearn…",
+      "Placeholder": "ex. Je le connais à l'oral, mais je n'ai jamais vu cette orthographe.",
+      "Send": "Appliquer",
+      "Undo": "Annuler",
+      "Updated": "Mis à jour :",
+      "NoChange": "Rien à changer — votre profil correspond déjà.",
+      "Error": "mLearn n'a pas pu traiter cette correction. Reformulez-la.",
+      "Word": "Ce mot",
+      "Status": {
+        "Known": "connu",
+        "Learning": "en cours",
+        "Unknown": "inconnu"
+      }
     }
   }
 }

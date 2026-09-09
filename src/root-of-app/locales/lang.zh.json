@@ -1903,17 +1903,17 @@
         }
       },
       "DisplayOptions": {
-      "Scaffold": {
-        "Mode": {
-          "Label": "声调着色",
-          "Description": "关=始终隐藏；自动=随学习状态调整；始终=一直显示，阅读证据会按可见颜色记录。",
-          "ReadingLabel": "读音注记",
-          "ReadingDescription": "关=隐藏读音；自动=已认识的词隐藏；始终=一直显示，并据此记录阅读证据。"
+        "Scaffold": {
+          "Mode": {
+            "Label": "声调着色",
+            "Description": "关=始终隐藏；自动=随学习状态调整；始终=一直显示，阅读证据会按可见颜色记录。",
+            "ReadingLabel": "读音注记",
+            "ReadingDescription": "关=隐藏读音；自动=已认识的词隐藏；始终=一直显示，并据此记录阅读证据。"
+          },
+          "Off": "关",
+          "Auto": "自动",
+          "Always": "始终"
         },
-        "Off": "关",
-        "Auto": "自动",
-        "Always": "始终"
-      },
         "ImmediateFetch": {
           "Description": "字幕出现时立即获取单词数据",
           "Label": "立即获取"
@@ -3509,6 +3509,21 @@
         "Unmeasured": "未测量："
       },
       "Title": "字符熟悉度概览"
+    },
+    "TellMlearn": {
+      "Label": "告诉 mLearn…",
+      "Placeholder": "例如：听的时候我认识，但从来没见过这个写法。",
+      "Send": "应用",
+      "Undo": "撤销",
+      "Updated": "已更新：",
+      "NoChange": "无需更改——你的学习档案已是如此。",
+      "Error": "mLearn 无法处理这条更正，请换一种说法。",
+      "Word": "这个词",
+      "Status": {
+        "Known": "认识",
+        "Learning": "学习中",
+        "Unknown": "不认识"
+      }
     }
   }
 }
