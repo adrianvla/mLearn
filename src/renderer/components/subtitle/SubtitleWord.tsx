@@ -11,8 +11,6 @@ import {
 } from '../../../shared/readingAnnotationSettings';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import {
-  adjustReadingAnnotationForSurfaceSuffix,
-  getReadingAnnotationDisplay,
   getPartOfSpeechColor,
   getFrequencyLevelVisualRank,
   getProsodyPositionFromOverride,
@@ -31,7 +29,7 @@ import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
-import { applyWordDecorations, type WordProsodyOverlayData, type WordRenderTextContext } from '../../utils/wordRenderText';
+import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import '../language-specific/RubyText.css';
 import './SubtitleWord.css';
 
@@ -272,11 +270,6 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return wordNeedsReadingAnnotation(displayWord(), reading, currentLangData());
   });
 
-  const readingAnnotationDisplay = createMemo(() => getReadingAnnotationDisplay(currentLangData()));
-  const displayReading = createMemo(() => (
-    adjustReadingAnnotationForSurfaceSuffix(displayWord(), effectiveReading() || '', currentLangData())
-  ));
-
   // Custom attributes for CSS selectors
   const customAttrs = createMemo(() => ({
     known: wordIsKnown() ? 'true' : 'false',
@@ -366,60 +359,22 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     };
   });
 
-  const renderRubyReading = () => (
-    <ruby>
-      {applyWordDecorations(displayWord(), {
-        slot: 'word',
-        word: displayWord(),
-        reading: effectiveReading() || displayWord(),
-        displayReading: displayReading(),
-        isReadingScript: wordUsesReadingScript(),
-        suppressOverlay: true,
-      }, {
-        coloredProsody: coloredProsodyCtx,
-        prosodyOverlay: null,
-        surfaceWord: actualWord(),
-        surfaceReading: effectiveReading() || displayWord(),
-      })}
-      <rp>(</rp>
-      <rt>
-        {applyWordDecorations(displayReading(), {
-          slot: 'reading',
-          word: displayWord(),
-          reading: effectiveReading() || displayWord(),
-          displayReading: displayReading(),
-          isReadingScript: true,
-          language: settings.language,
-          languageData: currentLangData(),
-          class: 'subtitle-word__reading-overlay prosody-overlay-wrapper--reading',
-        }, {
-          coloredProsody: coloredProsodyCtx,
-          prosodyOverlay: prosodyOverlayData(),
-          surfaceWord: actualWord(),
-          surfaceReading: effectiveReading() || displayWord(),
-        })}
-      </rt>
-      <rp>)</rp>
-    </ruby>
+  // The ruby display mode composes the same canonical WordWithReading
+  // primitive as every other mode — the subtitle-specific overlay lookup
+  // word and reading-slot restyle travel as props, not as a forked renderer.
+  const renderSubtitleWord = () => (
+    <WordWithReading
+      word={displayWord()}
+      reading={readingForDisplay()}
+      language={settings.language}
+      languageData={currentLangData()}
+      forceShowReadingAnnotation={showReadingAnnotation()}
+      coloredProsody={coloredProsodyCtx}
+      prosodyOverlay={prosodyOverlayData()}
+      surfaceWord={actualWord()}
+      readingClass="subtitle-word__reading-overlay"
+    />
   );
-
-  const renderSubtitleWord = () => {
-    if (showReadingAnnotation() && readingAnnotationDisplay() === 'ruby') {
-      return renderRubyReading();
-    }
-
-    return (
-      <WordWithReading
-        word={displayWord()}
-        reading={readingForDisplay()}
-        language={settings.language}
-        languageData={currentLangData()}
-        forceShowReadingAnnotation={showReadingAnnotation()}
-        coloredProsody={coloredProsodyCtx}
-        prosodyOverlay={prosodyOverlayData()}
-      />
-    );
-  };
 
   return (
     <span

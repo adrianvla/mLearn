@@ -1903,6 +1903,17 @@
         }
       },
       "DisplayOptions": {
+      "Scaffold": {
+        "Mode": {
+          "Label": "Coloration prosodique",
+          "Description": "Désactivé masque toujours. Auto l'ajuste selon votre apprentissage. Toujours l'affiche en permanence — les preuves de lecture sont alors conditionnées aux couleurs visibles.",
+          "ReadingLabel": "Lectures (furigana)",
+          "ReadingDescription": "Désactivé masque les lectures. Auto les masque pour les mots connus. Toujours les affiche et enregistre les preuves en conséquence."
+        },
+        "Off": "Désactivé",
+        "Auto": "Auto",
+        "Always": "Toujours"
+      },
         "ImmediateFetch": {
           "Description": "Charger les données des mots dès l'apparition des sous-titres",
           "Label": "Chargement immédiat"

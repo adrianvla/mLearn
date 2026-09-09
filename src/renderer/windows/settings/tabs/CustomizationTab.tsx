@@ -23,7 +23,6 @@ import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides, FrequencyStarCollapseMode 
 import { DEFAULT_SETTINGS } from '@shared/types';
 import type {
   ColoredProsodyMixTarget,
-  ColoredProsodyStatusLimit,
   ColorCodes,
   LanguageData,
 } from '@shared/types';
@@ -32,6 +31,11 @@ import {
   readingAnnotationMoreContrastEnabled,
   readingAnnotationSizePercent,
 } from '@shared/readingAnnotationSettings';
+import {
+  applyProsodyScaffoldMode,
+  prosodyScaffoldMode,
+  type ScaffoldMode,
+} from '@shared/prosodySettings';
 import { getColoredProsodyConfig, getColoredProsodyPalette } from '../../../utils/coloredProsody';
 
 /** Labels for CSS variables (user-friendly names) */
@@ -515,52 +519,21 @@ export const CustomizationTab: Component = () => {
         {(config) => (
           <SettingGroup title={t('mlearn.Settings.Groups.ColoredProsody')}>
             <SettingRow
-              label={t('mlearn.Settings.ColoredProsody.Enabled.Label')}
-              description={t('mlearn.Settings.ColoredProsody.Enabled.Description')}
+              label={t('mlearn.Settings.Scaffold.Mode.Label')}
+              description={t('mlearn.Settings.Scaffold.Mode.Description')}
             >
-              <ToggleSwitch
-                checked={settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled}
-                onChange={(checked) => updateSettings({ coloredProsodyEnabled: checked })}
-              />
+              <Select
+                class="setting-select"
+                value={prosodyScaffoldMode(settings)}
+                onChange={(event) => updateSettings(applyProsodyScaffoldMode(event.currentTarget.value as ScaffoldMode))}
+              >
+                <option value="off">{t('mlearn.Settings.Scaffold.Off')}</option>
+                <option value="auto">{t('mlearn.Settings.Scaffold.Auto')}</option>
+                <option value="always">{t('mlearn.Settings.Scaffold.Always')}</option>
+              </Select>
             </SettingRow>
 
-            <SettingRow
-              label={t('mlearn.Settings.ColoredProsody.RelevantOnly.Label')}
-              description={t('mlearn.Settings.ColoredProsody.RelevantOnly.Description')}
-            >
-              <ToggleSwitch
-                checked={settings.coloredProsodyRelevantOnly ?? DEFAULT_SETTINGS.coloredProsodyRelevantOnly}
-                onChange={(checked) => updateSettings({ coloredProsodyRelevantOnly: checked })}
-              />
-            </SettingRow>
-
-            <Show when={settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled}>
-              <SettingRow
-                label={t('mlearn.Settings.ColoredProsody.StatusLimit.Label')}
-                description={t('mlearn.Settings.ColoredProsody.StatusLimit.Description')}
-              >
-                <Select
-                  class="setting-select"
-                  value={settings.coloredProsodyStatusLimit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit}
-                  onChange={(event) => updateSettings({
-                    coloredProsodyStatusLimit: event.currentTarget.value as ColoredProsodyStatusLimit,
-                  })}
-                >
-                  <option value="learning">{t('mlearn.Settings.ColoredProsody.StatusLimit.Learning')}</option>
-                  <option value="known">{t('mlearn.Settings.ColoredProsody.StatusLimit.Known')}</option>
-                </Select>
-              </SettingRow>
-
-              <SettingRow
-                label={t('mlearn.Settings.ColoredProsody.EvidenceFade.Label')}
-                description={t('mlearn.Settings.ColoredProsody.EvidenceFade.Description')}
-              >
-                <ToggleSwitch
-                  checked={settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled}
-                  onChange={(checked) => updateSettings({ coloredProsodyEaseMixEnabled: checked })}
-                />
-              </SettingRow>
-
+            <Show when={prosodyScaffoldMode(settings) !== 'off'}>
               <Show when={settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled}>
                 <SettingRow
                   label={t('mlearn.Settings.ColoredProsody.MixTarget.Label')}

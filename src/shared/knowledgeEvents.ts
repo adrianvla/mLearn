@@ -33,6 +33,10 @@ export type AttemptId = string;
  * What kind of task produced an attempt. Provenance for horizon-sensitive
  * projection (a scaffolded welcome review is weaker evidence than a cold SRS
  * recall). Written only when genuinely known — absent, never guessed.
+ *
+ * Core ids cover the surfaces that ship with the app; the open `(string & {})`
+ * arm lets task templates — including package-declared ones — round-trip
+ * without core registration.
  */
 export type AttemptTaskType =
   | 'srs-review'
@@ -41,16 +45,70 @@ export type AttemptTaskType =
   | 'reader'
   | 'video'
   | 'ocr'
-  | 'anki-import';
+  | 'anki-import'
+  | (string & {});
 
 /**
- * Scaffolds the task showed during the attempt (translation, furigana reading,
- * prosody hint). `true` = scaffold was visible while the learner responded.
+ * Scaffolds the task showed while the learner retrieved (not during the
+ * post-hoc self-assessment). `true` = the scaffold supplied information the
+ * retrieval would otherwise have to produce. Core keys cover the universal
+ * presentation primitives; the open index signature lets package-declared
+ * scaffolds (e.g. `x-acme::tone-ladder`) survive the journal untouched.
  */
 export interface AttemptScaffolds {
+  /** Reading/pronunciation annotation (furigana, romanization) visible. */
   reading?: boolean;
+  /** Meaning/translation visible. */
   translation?: boolean;
+  /** Prosody coloring or overlay visible. */
   prosody?: boolean;
+  /** Spoken form audible on request (or auto-played) before retrieval. */
+  audio?: boolean;
+  [scaffoldId: string]: boolean | undefined;
+}
+
+/**
+ * Core scaffold → invalidated-access rule: a scaffold that SUPPLIES an access
+ * makes that access unmeasurable by the attempt (a response there is cued
+ * recognition/confirmation, not unassisted recall). Keys are core scaffold
+ * ids; values are the CapabilityKeys whose unassisted retrieval the scaffold
+ * pre-empts. Package scaffolds are recorded but carry no core rule — the
+ * presenting task owns their measurability semantics.
+ */
+export const SCAFFOLD_INVALIDATES: Readonly<Record<string, readonly CapabilityKey[]>> = {
+  reading: ['surface-reading'],
+  translation: ['sense-recognition'],
+  prosody: ['prosodic-pattern'],
+  audio: ['surface-reading'],
+};
+
+/**
+ * Whether an attempt under these scaffold conditions can produce evidence for
+ * `capability`. `scaffolds === undefined` (writer did not know) keeps the
+ * legacy measurable default; an explicit record is enforced.
+ */
+export function isAccessMeasurable(capability: CapabilityKey, scaffolds?: AttemptScaffolds): boolean {
+  if (!scaffolds) return true;
+  for (const [scaffoldId, invalidates] of Object.entries(SCAFFOLD_INVALIDATES)) {
+    if (scaffolds[scaffoldId] && invalidates.includes(capability)) return false;
+  }
+  return true;
+}
+
+/** `accesses` filtered down to what the attempt's presentation actually measures. */
+export function measurableAccesses<T extends CapabilityKey>(accesses: readonly T[], scaffolds?: AttemptScaffolds): T[] {
+  return accesses.filter((capability) => isAccessMeasurable(capability, scaffolds));
+}
+
+/**
+ * Read-side mirror of the write-time guard: a rating/status/review event is
+ * EVIDENCE only when its own presentation state does not invalidate its
+ * capability (furigana-visible reading rows project as bookkeeping, not as
+ * knowledge). Address-less events (retractions, rollups) are unaffected.
+ */
+export function eventIsMeasurable(event: KnowledgeEvent): boolean {
+  const capability = eventCapability(event);
+  return capability === undefined || isAccessMeasurable(capability, event.scaffolds);
 }
 
 /**

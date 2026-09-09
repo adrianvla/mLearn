@@ -58,6 +58,13 @@ function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
     if (typeof event.targetRef.kind !== 'string' || typeof event.targetRef.id !== 'string') return false;
     if (event.targetRef.capability !== undefined && !isValidCapabilityId(event.targetRef.capability)) return false;
   }
+  if (event.taskType !== undefined && (typeof event.taskType !== 'string' || event.taskType.length === 0)) return false;
+  if (event.scaffolds !== undefined) {
+    if (!event.scaffolds || typeof event.scaffolds !== 'object' || Array.isArray(event.scaffolds)) return false;
+    for (const visible of Object.values(event.scaffolds)) {
+      if (typeof visible !== 'boolean') return false;
+    }
+  }
   return true;
 }
 

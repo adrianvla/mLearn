@@ -1,4 +1,4 @@
-import { Component, Show, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack } from 'solid-js';
+import { Component, Show, batch, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack } from 'solid-js';
 import {
   WindowWrapper,
   useLocalization,
@@ -32,11 +32,12 @@ import { WordWithReading } from '../../components/language-specific';
 import { WordSyncRating } from './WordSyncRating';
 import { ATTEMPT_QUALITIES, SRS_EASE, type AttemptQuality } from '../../../shared/constants';
 import type { CapabilityKind } from '../../../shared/graph/types';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { GraphRelatedNode } from '../../../shared/graph/ipc';
 import type { WordSyncStatement } from './WordSyncRating';
-import { prosodyVisible } from '../../../shared/prosodySettings';
+import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
-import { nextAttemptId, type AttemptId } from '../../../shared/knowledgeEvents';
+import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { ankiCacheVersion, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
 import { KnowledgeSkeleton } from '../../components/common';
 import { getLogger } from '../../../shared/utils/logger';
@@ -52,6 +53,7 @@ import {
   getFrequencyLevelVisualRank,
   getLearningLanguageLevelForLanguage,
   sortFrequencyLevelsByDifficulty,
+  wordNeedsReadingAnnotation,
 } from '../../../shared/languageFeatures';
 import {
   wasExplicitlySyncRated,
@@ -158,6 +160,12 @@ export const WordSyncContent: Component = () => {
     setShowAnswer(true);
     setShowTranslation(true);
   };
+  // Whether the translation was visible BEFORE the reveal — part of the
+  // retrieval-time scaffold snapshot below.
+  const [translationSeenAtPrompt, setTranslationSeenAtPrompt] = createSignal(false);
+  createEffect(() => {
+    if (showTranslation() && !showAnswer()) setTranslationSeenAtPrompt(true);
+  });
   const [filterOpen, setFilterOpen] = createSignal(false);
   const [confirmRecheckOpen, setConfirmRecheckOpen] = createSignal(false);
   let filterTriggerRef: HTMLButtonElement | undefined;
@@ -399,21 +407,26 @@ export const WordSyncContent: Component = () => {
           : group.findIndex((entry, index) => index >= cursor && entry.storageKey === decision?.candidate.key);
         const nextIndex = selectedIndex >= cursor ? selectedIndex : cursor;
         if (nextIndex !== cursor) [group[cursor], group[nextIndex]] = [group[nextIndex], group[cursor]];
-        levelCursors.set(tryLvl, cursor + 1);
-        setSamplingLevel(tryLvl);
-        wordShownAt = Date.now();
-        setShowAnswer(false);
-        setShowTranslation(false);
-        setPresentationCount((c) => c + 1);
+        batch(() => {
+          levelCursors.set(tryLvl, cursor + 1);
+          setSamplingLevel(tryLvl);
+          wordShownAt = Date.now();
+          setTranslationSeenAtPrompt(false);
+          setShowAnswer(false);
+          setShowTranslation(false);
+          setPresentationCount((c) => c + 1);
+        });
         setCurrentWord(group[cursor]);
         return;
       }
     }
-
-    setFinished(true);
-    setCurrentWord(null);
-    setShowAnswer(false);
-    setShowTranslation(false);
+    batch(() => {
+      setFinished(true);
+      setTranslationSeenAtPrompt(false);
+      setCurrentWord(null);
+      setShowAnswer(false);
+      setShowTranslation(false);
+    });
   }
 
   // Profile-mode submit: ONE logical attempt (one attemptId, one undo entry,
@@ -437,6 +450,7 @@ export const WordSyncContent: Component = () => {
         attemptId,
         origin: 'word-sync',
         ...(latencyMs !== undefined ? { latencyMs } : {}),
+        scaffolds: promptScaffolds(),
       });
     }
 
@@ -540,6 +554,7 @@ export const WordSyncContent: Component = () => {
             attemptId,
             origin: 'word-sync',
             ...(latencyMs !== undefined ? { latencyMs } : {}),
+            scaffolds: promptScaffolds(),
           });
         }
         break;
@@ -643,13 +658,16 @@ export const WordSyncContent: Component = () => {
     setLastRating(undoEntry.previousLastRating);
     setSamplingLevel(undoEntry.previousSamplingLevel);
     levelCursors = new Map(undoEntry.previousLevelCursors);
-    setShowTranslation(false);
-    setShowAnswer(false);
-    setFinished(false);
-    setCurrentWord(undoEntry.word);
-    // Re-presenting the same word: bump the resetKey so the rating control
-    // comes back collapsed with no stale drafts from the retracted attempt.
-    setPresentationCount((c) => c + 1);
+    batch(() => {
+      setTranslationSeenAtPrompt(false);
+      setShowTranslation(false);
+      setShowAnswer(false);
+      setFinished(false);
+      setCurrentWord(undoEntry.word);
+      // Re-presenting the same word: bump the resetKey so the rating control
+      // comes back collapsed with no stale drafts from the retracted attempt.
+      setPresentationCount((c) => c + 1);
+    });
   }
 
   // ─── Keyboard shortcuts ─────────────────────────────
@@ -853,6 +871,32 @@ export const WordSyncContent: Component = () => {
     };
   });
 
+  // Retrieval-time scaffold snapshot: what the prompt actually SUPPLIED while
+  // the learner retrieved (pre-reveal), recorded on every attempt so cued
+  // accesses stay unmeasured instead of fabricating recall evidence. Prosody
+  // errs conservative: faded/limited coloring still marks the scaffold (a
+  // cued skip loses one probe; a fabricated recall would poison evidence).
+  const promptScaffolds = createMemo<AttemptScaffolds>(() => {
+    const w = currentWord();
+    if (!w) return {};
+    const scaffolds: AttemptScaffolds = {};
+    if (!additionalInfoInAnswer()) {
+      if (displayedReading() && wordNeedsReadingAnnotation(w.word, displayedReading(), langCtx.currentLangData())) {
+        scaffolds.reading = true;
+      }
+      if (
+        currentWordProsody() !== undefined
+        && (wordProsodyOverlay() !== null
+          || (prosodyVisible(settings)
+            && (settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled)
+            && coloredProsodyAllowedOnSurface(settings, 'other')))
+      ) {
+        scaffolds.prosody = true;
+      }
+    }
+    if (translationSeenAtPrompt()) scaffolds.translation = true;
+    return scaffolds;
+  });
   // "Additional information part of answer": when the answer is hidden, the
   // word itself renders as pure text — no prosody coloring, no reading.
   const pureWordMode = createMemo(() => additionalInfoInAnswer() && !showAnswer());
@@ -984,12 +1028,12 @@ export const WordSyncContent: Component = () => {
             </div>
           )}
         </Show>
-
         <div class="word-sync-actions">
           <WordSyncRating
             accesses={testedAccesses()}
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
+            scaffolds={promptScaffolds()}
             armed={showAnswer() && !!currentWord() && !finished()}
             hasSpokenForm={hasSpokenForm()}
             hasCharacterComponents={hasCharacterComponents()}

@@ -1,5 +1,5 @@
 import type { KnowledgeEvent, WordStatus } from '../knowledgeEvents';
-import { eventCapability, stripRetractions } from '../knowledgeEvents';
+import { eventCapability, eventIsMeasurable, stripRetractions } from '../knowledgeEvents';
 import { normalizeEvidenceEase, statusToEase } from './knowledgeStrength';
 
 /**
@@ -78,6 +78,11 @@ export function replayKeyProjection(events: readonly KnowledgeEvent[]): ReplayPr
       case 'rating':
       case 'status':
       case 'review': {
+        // Scaffold-aware evidence invariant (read side): an event whose own
+        // presentation state supplied the access it addresses (furigana-visible
+        // reading row, translation-visible meaning row) carries no knowledge —
+        // only bookkeeping. Replay skips it entirely rather than weighing it.
+        if (event.scaffolds !== undefined && !eventIsMeasurable(event)) break;
         evidenceSource = event.source;
         hasEvidence = true;
         if (event.source !== 'passiveTracking') hasActiveEvidence = true;

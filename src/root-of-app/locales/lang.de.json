@@ -1903,6 +1903,17 @@
         }
       },
       "DisplayOptions": {
+      "Scaffold": {
+        "Mode": {
+          "Label": "Prosodie-Färbung",
+          "Description": "Aus blendet sie immer aus. Auto passt sie an deinen Lernstand an. Immer zeigt sie dauerhaft – Lesenachweise werden dann mit den sichtbaren Farben verknüpft.",
+          "ReadingLabel": "Lesungen (Furigana)",
+          "ReadingDescription": "Aus blendet Lesungen aus. Auto blendet sie für bekannte Wörter aus. Immer zeigt sie dauerhaft und erfasst Lesenachweise entsprechend."
+        },
+        "Off": "Aus",
+        "Auto": "Auto",
+        "Always": "Immer"
+      },
         "ImmediateFetch": {
           "Description": "Wortdaten sofort beim Erscheinen der Untertitel laden",
           "Label": "Sofort laden"

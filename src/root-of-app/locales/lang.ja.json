@@ -1903,6 +1903,17 @@
         }
       },
       "DisplayOptions": {
+      "Scaffold": {
+        "Mode": {
+          "Label": "声調の色分け",
+          "Description": "オフで常に非表示。オートは学習状態に合わせて調整。常に表示では、読みのエビデンスが表示中の色の条件付きで記録されます。",
+          "ReadingLabel": "読みの注記",
+          "ReadingDescription": "オフで非表示。オートは既知の語で非表示。常に表示では、それに応じて読みのエビデンスが記録されます。"
+        },
+        "Off": "オフ",
+        "Auto": "オート",
+        "Always": "常に表示"
+      },
         "ImmediateFetch": {
           "Description": "字幕が表示されたらすぐに単語データを取得",
           "Label": "即時取得"

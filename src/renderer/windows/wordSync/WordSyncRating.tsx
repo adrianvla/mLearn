@@ -28,6 +28,7 @@ import {
   type RatingKeyboardMode,
 } from '../../../shared/constants';
 import type { CapabilityKind } from '../../../shared/graph/types';
+import { measurableAccesses, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { CAPABILITY_LABEL_KEYS, CAPABILITY_MNEMONIC_KEYS } from '../../../shared/graph/access';
 import type { ProfileObservation, RateOptions } from '../../components/common';
 import { useLocalization } from '../../context';
@@ -58,8 +59,15 @@ const STATEMENT_KEYS: Record<WordSyncStatement['kind'], string> = {
 };
 
 export interface WordSyncRatingProps {
-  /** Tested access rows, in display order. */
+  /** Tested access rows, in display order (data availability). */
   accesses: readonly CapabilityKind[];
+  /**
+   * What the prompt actually supplied during retrieval. Accesses whose cue
+   * the scaffold already gave (furigana → reading, translation → sense,
+   * prosody color → prosody) are excluded from every measured row — the
+   * collapsed bar, the Adjust matrix, and keyboard rows alike.
+   */
+  scaffolds?: AttemptScaffolds;
   keyboardMode: RatingKeyboardMode;
   /** The control owns its rating keys only while armed. */
   armed: boolean;
@@ -134,12 +142,13 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
 
   const actionable = () => props.armed && !submitted();
 
-  // Accesses the collapsed presentation actually measures: a written
-  // word-presentation with a reading reveal exercises the written-form
-  // bridge, the sense, and (when a reading was retrieved) the surface→
-  // pronunciation path. Prosody has NO task here — it stays unmeasured
-  // unless the learner rates the explicit row or uses a statement.
-  const measuredAccesses = () => props.accesses.filter((capability) => capability !== 'prosodic-pattern');
+  // Accesses this attempt actually MEASURES: the tested set minus what the
+  // presentation itself supplied. A written word-presentation exercises the
+  // written-form bridge, the sense, and (reading annotation hidden) the
+  // surface→pronunciation path; with furigana visible the reading row is
+  // cued recognition and stays unmeasured. The scaffold→access rule is the
+  // shared measurability derivation — never a per-surface hardcoded filter.
+  const measuredRows = () => measurableAccesses(props.accesses, props.scaffolds);
 
   const statementRows = (): WordSyncStatement[] => {
     const rows: WordSyncStatement[] = [
@@ -190,7 +199,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
   const submitWholeWord = (action: RatingAction, alt: boolean) => {
     if (!actionable()) return;
     const evidence = actionEvidence(action);
-    const observations: ProfileObservation[] = measuredAccesses().map((capability) => ({
+    const observations: ProfileObservation[] = measuredRows().map((capability) => ({
       capability,
       quality: evidence.quality,
       ...(evidence.easy ? { easy: true } : {}),
@@ -210,7 +219,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
   const fillAll = (action: RatingAction, alt: boolean) => {
     if (!actionable()) return;
     const evidence = actionEvidence(action);
-    const observations: ProfileObservation[] = props.accesses.map((capability) => {
+    const observations: ProfileObservation[] = measuredRows().map((capability) => {
       const draft = drafts[capability];
       if (draft) return observationFromDraft(capability, draft);
       return {
@@ -237,7 +246,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
       ...(evidence.easy ? { easy: true as const } : {}),
     });
     const observations: ProfileObservation[] = [];
-    for (const tested of props.accesses) {
+    for (const tested of measuredRows()) {
       const draft = drafts[tested];
       if (!draft) return; // Partial states never submit.
       observations.push(observationFromDraft(tested, draft));
@@ -272,7 +281,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
         ? [ACTION_KEYS[action], CAPABILITY_MNEMONIC_KEYS[capability].toUpperCase()]
         : [ACTION_KEYS[action]];
     }
-    const rowIndex = props.accesses.indexOf(capability) + 1; // row 0 is the All row
+    const rowIndex = measuredRows().indexOf(capability) + 1; // row 0 is the All row
     return [SPATIAL_ACTION_ROWS[action][rowIndex]?.toUpperCase() ?? '·'];
   };
 
@@ -319,7 +328,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
     if (props.keyboardMode === 'mnemonic') {
       const pending = pendingQuality();
       if (!pending) return;
-      const capability = props.accesses.find((candidate) => CAPABILITY_MNEMONIC_KEYS[candidate] === key);
+      const capability = measuredRows().find((candidate) => CAPABILITY_MNEMONIC_KEYS[candidate] === key);
       if (capability) {
         e.preventDefault();
         draftAccess(capability, pending, e.altKey);
@@ -334,7 +343,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
       if (rowIndex < 0) continue;
       e.preventDefault();
       if (rowIndex === 0) fillAll(candidate, e.altKey);
-      else if (rowIndex <= props.accesses.length) draftAccess(props.accesses[rowIndex - 1], candidate, e.altKey);
+      else if (rowIndex <= measuredRows().length) draftAccess(measuredRows()[rowIndex - 1], candidate, e.altKey);
       return;
     }
   };
@@ -410,7 +419,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => {
               )}
             </For>
           </div>
-          <For each={props.accesses}>
+          <For each={measuredRows()}>
             {(capability) => (
               <div class="word-sync-rating__row">
                 <span class="word-sync-rating__label">{t(CAPABILITY_LABEL_KEYS[capability])}</span>

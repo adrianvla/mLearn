@@ -8,9 +8,11 @@ import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, VideoIcon, RangeInput } from '../../../components/common';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import {
+  applyReadingScaffoldMode,
   hideReadingAnnotationsForKnownWords,
-  readingAnnotationsEnabled,
+  readingScaffoldMode,
 } from '../../../../shared/readingAnnotationSettings';
+import type { ScaffoldMode } from '../../../../shared/prosodySettings';
 import {
   getProsodyToggleDescription as getLanguageProsodyToggleDescription,
   getProsodyToggleLabel as getLanguageProsodyToggleLabel,
@@ -63,24 +65,26 @@ export const VideoPlayerTab: Component = () => {
           </SettingRow>
         </Show>
       </SettingGroup>
-
       <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}>
-        <Show when={getLanguageFeatures().supportsReadings || isSettingManaged('showReadingAnnotations')}>
+        <Show when={getLanguageFeatures().supportsReadings || isSettingManaged('showReadingAnnotations') || isSettingManaged('hideReadingForKnownWords')}>
           <SettingRow
-            label={t('mlearn.Settings.DisplayOptions.ShowReadingAnnotations.Label')}
-            description={t('mlearn.Settings.DisplayOptions.ShowReadingAnnotations.Description')}
+            label={t('mlearn.Settings.Scaffold.Mode.ReadingLabel')}
+            description={t('mlearn.Settings.Scaffold.Mode.ReadingDescription')}
             settingKey="showReadingAnnotations"
           >
-            <ToggleSwitch
-              checked={readingAnnotationsEnabled(settings)}
-              onChange={(checked) => updateSettings({
-                showReadingAnnotations: checked,
-              })}
-            />
+            <Select
+              class="setting-select"
+              value={readingScaffoldMode(settings)}
+              onChange={(event) => updateSettings(applyReadingScaffoldMode(event.currentTarget.value as ScaffoldMode))}
+            >
+              <option value="off">{t('mlearn.Settings.Scaffold.Off')}</option>
+              <option value="auto">{t('mlearn.Settings.Scaffold.Auto')}</option>
+              <option value="always">{t('mlearn.Settings.Scaffold.Always')}</option>
+            </Select>
           </SettingRow>
         </Show>
 
-        <Show when={(getLanguageFeatures().supportsReadings && readingAnnotationsEnabled(settings)) || isSettingManaged('hideReadingForKnownWords')}>
+        <Show when={isSettingManaged('hideReadingForKnownWords')}>
           <SettingRow
             label={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Label')}
             description={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Description')}

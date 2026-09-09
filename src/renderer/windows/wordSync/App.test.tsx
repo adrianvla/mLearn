@@ -253,6 +253,9 @@ vi.mock('../../../shared/languageFeatures', async () => {
     // the flip is on) — absent from the factory it throws and kills the pool build.
     isReadingScriptText: isReadingScriptTextFn,
     getDictionaryLookupCandidates: vi.fn(() => []),
+    // Scaffold snapshot: fixtures present no furigana annotation, so no
+    // reading scaffold is recorded and measured rows stay the tested set.
+    wordNeedsReadingAnnotation: vi.fn(() => false),
     // Faithful mirror of the shared tested/supplied gate, wired to the MOCKED
     // isReadingScriptText (the real module's internal binding would bypass this mock).
     getTestedAccesses: vi.fn(({ languageData, surface, hasReadingData, hasProsodyData }: {

@@ -15,7 +15,7 @@ import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognitio
 import { effectiveStateFromEntry, type EffectiveWordState } from '../utils/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
 import type { CapabilityKind } from '../../shared/graph/types';
-import { eventCapability } from '../../shared/knowledgeEvents';
+import { eventCapability, isAccessMeasurable } from '../../shared/knowledgeEvents';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import type { KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
@@ -228,7 +228,7 @@ interface FlashcardContextValue {
     rating: SRS.Rating,
     cardId?: string,
     timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId },
+    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType },
   ) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
@@ -346,7 +346,7 @@ interface FlashcardContextValue {
     word: string,
     capability: CapabilityKind,
     quality: AttemptQuality,
-    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly CapabilityKind[]; latencyMs?: number; attemptId?: AttemptId; origin?: string },
+    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly CapabilityKind[]; latencyMs?: number; attemptId?: AttemptId; origin?: string; taskType?: AttemptTaskType; scaffolds?: AttemptScaffolds },
   ) => { attemptId: AttemptId };
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
@@ -1516,7 +1516,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     rating: SRS.Rating,
     cardId?: string,
     timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId },
+    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType },
   ): boolean => {
     const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
     if (!card) return false;
@@ -1542,18 +1542,24 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         intervalAfter: updated.interval,
         schedulerCardId: card.id,
         ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
-        // REQ3/REQ52: an SRS review is a known task type. Scaffolds are not
-        // structurally known on this path (card presentation varies) — omitted
-        // rather than guessed.
-        taskType: 'srs-review',
+        // REQ3/REQ52: an SRS review is a known task type. Scaffolds record
+        // what the retrieval actually saw; read paths (replay, projection)
+        // exclude scaffold-invalidated events from knowledge while retention
+        // still consumes the occurrence.
+        taskType: attempt?.taskType ?? 'srs-review',
+        ...(attempt?.scaffolds ? { scaffolds: attempt.scaffolds } : {}),
       }],
     }).catch((e) => log.warn('knowledge event append failed:', e));
 
     // SRS reviews are ACTIVE evidence and must be visible in the projection
     // immediately — the resolver no longer reads card state as a knowledge
-    // source, so the materialized entry carries the review outcome.
+    // source, so the materialized entry carries the review outcome. A
+    // scaffold-invalidated review is not knowledge: the materialized cache
+    // must match what replay derives, so only familiarity markers update.
+    const meaningMeasured = isAccessMeasurable('sense-recognition', attempt?.scaffolds);
     setStore(produce((s) => {
       if (!s.wordKnowledge[cardLk]) {
+        if (!meaningMeasured) return;
         s.wordKnowledge[cardLk] = {
           ease: updated.ease,
           lastSeen: now,
@@ -1564,11 +1570,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           language: cardLang,
         };
       } else {
-        s.wordKnowledge[cardLk].ease = updated.ease;
+        if (meaningMeasured) s.wordKnowledge[cardLk].ease = updated.ease;
         s.wordKnowledge[cardLk].lastSeen = now;
       }
-      s.wordKnowledge[cardLk].lastEvidenceSource = 'srs';
-      s.wordKnowledge[cardLk].hasActiveEvidence = true;
+      if (meaningMeasured) {
+        s.wordKnowledge[cardLk].lastEvidenceSource = 'srs';
+        s.wordKnowledge[cardLk].hasActiveEvidence = true;
+      }
     }));
 
     // Update queue - remove from current position, may need to re-add if still learning
@@ -3459,6 +3467,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const language = options?.language ?? settings.language;
     const attemptId = options?.attemptId ?? nextAttemptId();
     const demonstrated = options?.demonstrated ?? [];
+    // Scaffold-aware evidence invariant: when the caller reports the actual
+    // presentation state and a scaffold SUPPLIED this access (furigana shown,
+    // translation visible, prosody colored, audio played), the rating is cued
+    // recognition — not unassisted recall — so no evidence and no access-state
+    // write may be fabricated from it. The access stays unmeasured. Absent
+    // scaffolds (writer did not know) keeps the legacy measurable default.
+    if (options?.scaffolds && !isAccessMeasurable(capability, options.scaffolds)) {
+      return { attemptId };
+    }
     const before = getComprehensiveWordStatusWithSourceSync(word, language);
 
     if (capability === 'sense-recognition') {

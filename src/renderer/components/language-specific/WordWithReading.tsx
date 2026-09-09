@@ -59,6 +59,14 @@ export interface WordWithReadingProps {
   coloredProsody?: WordRenderTextContext | null;
   /** Per-mora prosody overlay data, applied to every non-suppressed slot (reading slot, inline/replace/fallback word slots — never the ruby word base). */
   prosodyOverlay?: WordProsodyOverlayData | null;
+  /**
+   * The canonical/lookup surface the decorations resolve against when it
+   * differs from the displayed word (e.g. a dictionary lemma behind an
+   * inflected subtitle token). Defaults to the displayed word.
+   */
+  surfaceWord?: string;
+  /** Extra/replacement class for the ruby reading slot (subtitle overlays restyle it). */
+  readingClass?: string;
 }
 
 export const WordWithReading: Component<WordWithReadingProps> = (props) => {
@@ -102,7 +110,7 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
   }, {
     coloredProsody: props.coloredProsody,
     prosodyOverlay: props.prosodyOverlay,
-    surfaceWord: props.word,
+    surfaceWord: props.surfaceWord ?? props.word,
     surfaceReading: effectiveReading(),
   });
 
@@ -143,7 +151,7 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
                 {decorate(displayReading(), {
                   slot: 'reading',
                   isReadingScript: true,
-                  class: 'reading-overlay-wrapper--ruby',
+                  class: props.readingClass ?? 'reading-overlay-wrapper--ruby',
                 })}
               </rt>
               <rp>)</rp>

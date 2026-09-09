@@ -204,6 +204,38 @@ describe('knowledge event validation on reload', () => {
 
     expect(mod.getKnowledgeEvents(['ja:x'])['ja:x']).toEqual([event(now)]);
   });
+  it('keeps attempt provenance (task type, open-world scaffolds) through a reload', async () => {
+    const scaffolded = event(now, {
+      kind: 'rating',
+      source: 'manual',
+      aspect: 'meaning',
+      taskType: 'srs-review',
+      scaffolds: { reading: true, translation: false, 'x-acme::tone-ladder': true },
+    });
+
+    await mod.appendKnowledgeEvents({ 'ja:prov': [scaffolded] });
+    await mod.saveKnowledgeEvents();
+    await mod.loadKnowledgeEvents(now);
+
+    expect(mod.getKnowledgeEvents(['ja:prov'])['ja:prov']).toEqual([scaffolded]);
+  });
+
+  it('drops events with malformed task type or non-boolean scaffold values', async () => {
+    const file = path.join(tempDir.tmpDir, 'knowledge-events.json');
+    fs.writeFileSync(file, JSON.stringify({
+      'ja:x': [
+        event(now),
+        { t: now, kind: 'rating', source: 'manual', aspect: 'meaning', taskType: '' },
+        { t: now, kind: 'rating', source: 'manual', aspect: 'meaning', taskType: 42 },
+        { t: now, kind: 'rating', source: 'manual', aspect: 'meaning', scaffolds: { reading: 'yes' } },
+        { t: now, kind: 'rating', source: 'manual', aspect: 'meaning', scaffolds: [true] },
+      ],
+    }));
+
+    await mod.loadKnowledgeEvents(now);
+
+    expect(mod.getKnowledgeEvents(['ja:x'])['ja:x']).toEqual([event(now)]);
+  });
 });
 
 describe('knowledge event IPC readiness and broadcast', () => {

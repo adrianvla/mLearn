@@ -105,7 +105,9 @@ describe('projectionReplay', () => {
         quality: 'fluent',
         easeAfter: 1.9,
         taskType: 'welcome-review',
-        scaffolds: { translation: true, reading: false },
+        // Reading scaffold on a MEANING-addressed row: supplies nothing the
+        // sense access needs, so the row keeps full evidential force.
+        scaffolds: { translation: false, reading: true },
         sourceVersions: { graphSchemaVersion: 1, packageVersions: { 'freq-ja': '2024.1' } },
       }),
       ev({ t: 200, source: 'passiveTracking', kind: 'rollup', easeAfter: 1.95, timesSeenDelta: 2 }),
@@ -119,7 +121,7 @@ describe('projectionReplay', () => {
     // transform) — future projections can still weigh the scaffolded task.
     const [carried] = stripRetractions(events);
     expect(carried.taskType).toBe('welcome-review');
-    expect(carried.scaffolds).toEqual({ translation: true, reading: false });
+    expect(carried.scaffolds).toEqual({ translation: false, reading: true });
     expect(carried.sourceVersions).toEqual({ graphSchemaVersion: 1, packageVersions: { 'freq-ja': '2024.1' } });
   });
 
@@ -130,5 +132,38 @@ describe('projectionReplay', () => {
       ev({ t: 200, kind: 'retraction', retracts: attemptId }),
     ]);
     expect(projection).toBeNull();
+  });
+});
+
+describe('scaffold-aware replay', () => {
+  it('a scaffold-invalidated event carries bookkeeping only — never knowledge', () => {
+    // Furigana visible while retrieving: the "fluent reading" rating projects
+    // as nothing (acceptance B at the replay layer).
+    const projection = replayKeyProjection([
+      ev({ t: 100, aspect: 'reading', quality: 'fluent', easeAfter: 2.9, scaffolds: { reading: true } }),
+    ]);
+    expect(projection).toBeNull();
+
+    const withOtherEvidence = replayKeyProjection([
+      ev({ t: 100, kind: 'status', toStatus: 'known', easeAfter: 2.9 }),
+      ev({ t: 200, aspect: 'reading', quality: 'fluent', easeAfter: 3.5, scaffolds: { reading: true } }),
+    ]);
+    expect(withOtherEvidence?.ease).toBe(2.9);
+    expect(withOtherEvidence?.hasEvidence).toBe(true);
+    expect(withOtherEvidence?.lastSeen).toBe(200);
+  });
+
+  it('an explicitly unassisted event keeps full evidential force', () => {
+    const projection = replayKeyProjection([
+      ev({ t: 100, quality: 'fluent', easeAfter: 2.9, scaffolds: { reading: false, translation: false } }),
+    ]);
+    expect(projection?.ease).toBe(2.9);
+    expect(projection?.hasActiveEvidence).toBe(true);
+  });
+
+  it('unreported presentation state replays exactly as before the scaffold fields existed', () => {
+    const projection = replayKeyProjection([ev({ t: 100, easeAfter: 2.2 })]);
+    expect(projection?.ease).toBe(2.2);
+    expect(projection?.hasActiveEvidence).toBe(true);
   });
 });

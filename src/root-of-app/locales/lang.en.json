@@ -1903,6 +1903,17 @@
         }
       },
       "DisplayOptions": {
+      "Scaffold": {
+        "Mode": {
+          "Label": "Prosody coloring",
+          "Description": "Off always hides it. Auto adapts it to your learning state. Always keeps it visible — reading evidence is then conditioned on the visible colors.",
+          "ReadingLabel": "Reading annotations",
+          "ReadingDescription": "Off hides readings. Auto hides them for words you know. Always keeps them visible and records reading evidence accordingly."
+        },
+        "Off": "Off",
+        "Auto": "Auto",
+        "Always": "Always"
+      },
         "ImmediateFetch": {
           "Description": "Fetch word data when subtitles appear",
           "Label": "Immediate Fetch"

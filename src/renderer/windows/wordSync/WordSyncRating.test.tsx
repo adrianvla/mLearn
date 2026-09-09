@@ -21,9 +21,9 @@ describe('WordSyncRating', () => {
   const onStatement = vi.fn();
   // Display order mirrors production rows: sense, reading, prosody, written.
   const CAPABILITIES = ['sense-recognition', 'surface-reading', 'prosodic-pattern', 'surface-recognition'] as const;
-  // The accesses a collapsed whole-word rating MEASURES: prosody has no task
-  // in the presentation flow, so it never receives fabricated evidence.
-  const MEASURED = CAPABILITIES.filter((capability) => capability !== 'prosodic-pattern');
+  // No scaffolds passed = presentation state unknown: every tested access is
+  // measurable (the legacy default). Scaffold-aware row exclusion is covered
+  // by the dedicated visibility tests below.
   const [resetKey, setResetKey] = createSignal('word-1');
 
   const key = (k: string, opts: KeyboardEventInit = {}) => {
@@ -36,6 +36,7 @@ describe('WordSyncRating', () => {
     armed?: boolean;
     hasSpokenForm?: boolean;
     hasCharacterComponents?: boolean;
+    scaffolds?: Record<string, boolean | undefined>;
   }
 
   const renderRating = (options: RenderOptions = {}) => {
@@ -49,6 +50,7 @@ describe('WordSyncRating', () => {
           resetKey={resetKey()}
           hasSpokenForm={options.hasSpokenForm ?? true}
           hasCharacterComponents={options.hasCharacterComponents ?? false}
+          scaffolds={options.scaffolds}
           onSubmit={(observations, opts) => onSubmit(observations, opts)}
           onStatement={(statement) => onStatement(statement)}
         />
@@ -99,10 +101,11 @@ describe('WordSyncRating', () => {
       expect(container.querySelectorAll('.word-sync-rating__row').length).toBe(0);
       barButtons()[index].click();
       expect(onSubmit).toHaveBeenCalledTimes(1);
-      expect(onSubmit.mock.calls[0][0]).toEqual(MEASURED.map((capability) => ({ capability, ...evidence })));
       expect(onSubmit.mock.calls[0][1]).toEqual(index === 3 ? { easy: true } : undefined);
-      // Acceptance C: prosody is never fabricated by the whole-word action.
-      expect(submittedByCapability()['prosodic-pattern']).toBeUndefined();
+      expect(onSubmit.mock.calls[0][0]).toEqual(CAPABILITIES.map((capability) => ({ capability, ...evidence })));
+      // With no scaffold report the whole-word action covers every tested
+      // access row; cued-row exclusion is presentation-driven (test below).
+      expect(submittedByCapability()['prosodic-pattern']).toBeDefined();
     });
   });
 
@@ -118,7 +121,7 @@ describe('WordSyncRating', () => {
       renderRating();
       key(digit);
       expect(onSubmit).toHaveBeenCalledTimes(1);
-      expect(onSubmit.mock.calls[0][0]).toEqual(MEASURED.map((capability) => ({ capability, ...evidence })));
+      expect(onSubmit.mock.calls[0][0]).toEqual(CAPABILITIES.map((capability) => ({ capability, ...evidence })));
     }
   });
 
@@ -127,9 +130,36 @@ describe('WordSyncRating', () => {
     key('1', { altKey: true });
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit.mock.calls[0][0]).toEqual(
-      MEASURED.map((capability) => ({ capability, quality: 'missed', method: 'inference' })),
+      CAPABILITIES.map((capability) => ({ capability, quality: 'missed', method: 'inference' })),
     );
     expect(onSubmit.mock.calls[0][1]).toEqual({ method: 'inference' });
+  });
+
+  it('visible scaffolds remove cued rows: no furigana → no reading row, no color → prosody excluded', () => {
+    // Prompt showed furigana + prosody coloring: reading and prosody are
+    // cued recognition, so neither the collapsed bar nor the Adjust matrix
+    // may fabricate evidence for them (acceptance B/D).
+    renderRating({ scaffolds: { reading: true, prosody: true } });
+    expand();
+    // All row + two measured access rows only.
+    expect(rows().length).toBe(3);
+    expect(rows()[1].textContent).toContain('mlearn.Knowledge.Capability.sense-recognition');
+    key('Escape'); // fold — the collapsed bar replaces the expanded header
+    barButtons()[2].click(); // collapsed Fluent
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toEqual([
+      { capability: 'sense-recognition', quality: 'fluent' },
+      { capability: 'surface-recognition', quality: 'fluent' },
+    ]);
+  });
+
+  it('a pure-word prompt (no scaffolds shown) keeps reading and prosody measurable', () => {
+    renderRating({ scaffolds: {} });
+    expand();
+    key('Escape'); // fold
+    barButtons()[2].click();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toHaveLength(CAPABILITIES.length);
   });
 
   it('stray keystrokes in the same tick never double-submit (submitted guard)', () => {

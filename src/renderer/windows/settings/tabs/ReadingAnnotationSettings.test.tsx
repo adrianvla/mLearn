@@ -157,7 +157,7 @@ describe('reading annotation settings', () => {
 
     expect(container.textContent).toContain('Reading annotation detection');
     expect(container.textContent).toContain('Hide reading annotations');
-    expect(container.textContent).toContain('Show reading annotations');
+    expect(container.textContent).toContain('Reading annotations');
     expect(container.textContent).not.toContain('Furigana');
 
     dispose();

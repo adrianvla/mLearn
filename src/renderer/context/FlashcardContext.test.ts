@@ -3305,6 +3305,28 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('recordAttempt refuses evidence for a scaffold-supplied access (acceptance B)', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    flashcardsCb(makeEmptyStore());
+
+    // Furigana was visible: a "fluent reading" rating is cued recognition.
+    const { attemptId } = ctx.recordAttempt('苗字', 'surface-reading', 'fluent', {
+      scaffolds: { reading: true },
+    });
+
+    const lk = `ja:${SRS.hashWordSync('苗字')}`;
+    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+    expect(ctx.getAccessStatus('苗字', 'surface-reading')).toMatchObject({ status: 'unknown' });
+    expect(typeof attemptId).toBe('string');
+
+    // Same rating with reading explicitly hidden measures normally.
+    ctx.recordAttempt('苗字', 'surface-reading', 'fluent', { scaffolds: { reading: false } });
+    expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.status).toBe('known');
+    dispose();
+  });
+
   it('markWordSyncSeen can write a non-active stored word language explicitly', async () => {
     mockSettings.language = 'ja';
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
@@ -4997,7 +5019,11 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
     ctx.recordAttempt('学校', 'sense-recognition', 'fluent', {
       language: 'ja2',
       taskType: 'word-sync',
-      scaffolds: { reading: true, translation: true },
+      // Reading scaffold on a SENSE-addressed rating supplies nothing the
+      // sense access needs, so the row stays measurable and carries its
+      // provenance. (translation: true here would make the attempt cued and
+      // unmeasured — covered by the dedicated scaffold-guard test.)
+      scaffolds: { reading: true, translation: false },
       sourceVersions: { graphSchemaVersion: 1 },
     });
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
@@ -5011,7 +5037,7 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
     expect(observation).toMatchObject({
       quality: 'fluent',
       taskType: 'word-sync',
-      scaffolds: { reading: true, translation: true },
+      scaffolds: { reading: true, translation: false },
       sourceVersions: { graphSchemaVersion: 1 },
     });
 
@@ -5019,7 +5045,7 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
     // the metadata stays on the journaled rows for horizon-sensitive projection.
     const journal = await mockGetEventLogForLanguage('ja2');
     const journaled = Object.values(journal).flat().find((e) => e.attemptId !== undefined);
-    expect(journaled).toMatchObject({ taskType: 'word-sync', scaffolds: { reading: true, translation: true } });
+    expect(journaled).toMatchObject({ taskType: 'word-sync', scaffolds: { reading: true, translation: false } });
     const projection = replayKeyProjection(
       Object.values(journal).flat() as Parameters<typeof replayKeyProjection>[0],
     );

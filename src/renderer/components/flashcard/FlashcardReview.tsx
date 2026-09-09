@@ -18,7 +18,7 @@ import type { CapabilityKind, Flashcard, FlashcardContent } from '../../../share
 import { getAvailableAccesses } from '../../../shared/types';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { qualityToSrsRating, type AttemptQuality } from '../../../shared/constants';
-import { nextAttemptId } from '../../../shared/knowledgeEvents';
+import { nextAttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { demonstratesFor } from '../../utils/accessKnowledge';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
 import type { KnowledgeAspect } from '../../../shared/constants';
@@ -59,6 +59,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   } = useFlashcards();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
+  // Retrieval-time audio scaffold: whether the spoken form was available
+  // BEFORE the reveal (auto-play or manual word TTS). Recorded on the
+  // attempt's evidence so an audio-cued reading rating stays cued
+  // recognition instead of fabricating unassisted recall evidence.
+  const [wordAudioPreReveal, setWordAudioPreReveal] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
@@ -96,6 +101,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example') => {
     const card = store.flashcards[cardId] ?? currentCard();
+    if (field === 'word' && !showAnswer()) setWordAudioPreReveal(true);
     playTts(cardId, text, card ? languageForCard(card) : settings.language, field);
   };
 
@@ -209,8 +215,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         method: opts?.method,
         demonstrated: demonstratesFor(capability),
         latencyMs: elapsed,
+        taskType: 'srs-review',
+        ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
       });
-      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, elapsed, { attemptId });
+      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, elapsed, {
+        attemptId,
+        ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
+      });
       if (completed) {
         setCardsAnswered(prev => prev + 1);
       }
@@ -236,9 +247,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           demonstrated: demonstratesFor(capability),
           latencyMs: elapsed,
           attemptId,
+          taskType: 'srs-review',
+          ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
         });
       }
-      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, elapsed, { attemptId });
+      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, elapsed, {
+        attemptId,
+        ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
+      });
       if (completed) {
         setCardsAnswered(prev => prev + 1);
       }
@@ -267,12 +283,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           demonstrated: demonstratesFor(observation.capability),
           latencyMs: elapsed,
           attemptId,
+          taskType: 'srs-review',
+          ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
         });
       }
       const completed = answerCard(qualityToSrsRating(
         schedulerQuality,
         schedulerQuality === 'fluent' && (opts?.easy ?? observations.every((observation) => observation.easy)),
-      ), card.id, elapsed, { attemptId });
+      ), card.id, elapsed, {
+        attemptId,
+        ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
+      });
       if (completed) setCardsAnswered(prev => prev + 1);
     });
   };
@@ -351,13 +372,23 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setIsComplete(false);
   });
 
-  // Auto-TTS: play word when a new card appears
+  // Per-card scaffold reset: the audio scaffold reflects THIS card's prompt.
+  createEffect(on(
+    () => currentCard()?.id,
+    () => {
+      setWordAudioPreReveal(false);
+    }
+  ));
+
+  // Auto-TTS: play word when a new card appears — the spoken form was
+  // available during retrieval, so it is a prompt scaffold.
   createEffect(on(
     () => currentCard()?.id,
     (cardId) => {
       if (!cardId || !settings.flashcardAutoTts || settings.flashcardMuteAudio) return;
       const card = currentCard();
       if (!card) return;
+      if (!showAnswer()) setWordAudioPreReveal(true);
       playTts(card.id, card.content.front, languageForCard(card), 'word');
     }
   ));

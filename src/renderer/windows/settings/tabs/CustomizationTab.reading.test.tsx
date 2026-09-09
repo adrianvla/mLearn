@@ -14,6 +14,7 @@ let readingDisplay: 'ruby' | 'inline' | 'replace' = 'ruby';
 let supportsColoredProsody = false;
 
 const translations: Record<string, string> = {
+  'mlearn.Settings.Scaffold.Mode.Label': 'Prosody coloring',
   'mlearn.Settings.Groups.ReadingAppearance': 'Reading text',
   'mlearn.Settings.ReadingAppearance.MoreContrast.Label': 'More contrast in reading text',
   'mlearn.Settings.ReadingAppearance.MoreContrast.Description': 'Use the primary text color for reading annotations',
@@ -210,16 +211,18 @@ describe('CustomizationTab reading appearance', () => {
       coloredProsodyPalettes: { 'test-tones': { 'tone-1': '#123456' } },
     });
 
-    const statusSelect = Array.from(container.querySelectorAll('select'))
-      .find((select) => select.parentElement?.textContent?.includes('Color through status'))!;
-    statusSelect.value = 'learning';
-    statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodyStatusLimit: 'learning' });
-
-    const easeToggle = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.parentElement?.textContent?.includes('Fade colors by prosody evidence'))!;
-    easeToggle.click();
-    expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodyEaseMixEnabled: true });
+    const modeSelect = Array.from(container.querySelectorAll('select'))
+      .find((select) => select.parentElement?.textContent?.includes('Prosody coloring'))!;
+    modeSelect.value = 'auto';
+    modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    // The Off|Auto|Always control absorbs the old status-limit and evidence-
+    // fade policy toggles: Auto = colors stop once known and fade with
+    // evidence.
+    expect(updateSettingsMock).toHaveBeenCalledWith({
+      coloredProsodyEnabled: true,
+      coloredProsodyStatusLimit: 'learning',
+      coloredProsodyEaseMixEnabled: true,
+    });
     expect(container.textContent).toContain('Part-of-speech color');
 
     const saturation = container.querySelector<HTMLInputElement>('.prosody-colors__saturation-control input');

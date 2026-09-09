@@ -1,4 +1,4 @@
-import { readActiveEvidence, type KnowledgeEvent } from '../knowledgeEvents';
+import { eventIsMeasurable, readActiveEvidence, type KnowledgeEvent } from '../knowledgeEvents';
 import { eventAppliesToCapability } from './addressing';
 import { replayKeyProjection, type ReplayProjection } from '../utils/projectionReplay';
 import { easeToStatus } from '../utils/knowledgeStrength';
@@ -76,9 +76,14 @@ export function assembleTargetExplanation(
    */
   matcher: (event: KnowledgeEvent) => boolean = (event) => eventAppliesToCapability(event, capability),
 ): TargetExplanation {
-  const evidence = readActiveEvidence(events).filter(matcher);
+  const active = readActiveEvidence(events);
+  // Knowledge evidence vs scheduler bookkeeping: a scaffold-invalidated event
+  // (its own presentation supplied the access) measures nothing, but the
+  // review still HAPPENED — retention scheduling consumes the occurrence,
+  // never crediting knowledge.
+  const evidence = active.filter((event) => eventIsMeasurable(event) && matcher(event));
+  const ratings = active.filter(matcher).flatMap((event) => event.rating ? [{ t: event.t, rating: event.rating }] : []);
   const projection = replayKeyProjection(evidence);
-  const ratings = evidence.flatMap((event) => event.rating ? [{ t: event.t, rating: event.rating }] : []);
   const retention = ratings.length ? deriveRetentionSchedule({ createdAt: evidence[0]?.t ?? now, initialEase: 2.5 }, ratings, policy, now) : null;
   const state: TargetState = projection ? effectiveState(projection) : prediction ? 'predicted' : 'unmeasured';
   return { state, evidence, projection, retention, ...(prediction ? { prediction } : {}) };
