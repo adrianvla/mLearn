@@ -5,7 +5,7 @@ import type { KnowledgeLexicalSummary, KnowledgeProjection, KnowledgeProjectionB
 import { relationsOf, type LingualGraph } from '../../shared/graph/load';
 import { learnableTargetsFor } from '../../shared/graph/targets';
 import { predictTargetAccessibility, type PredictionInput } from '../../shared/prediction/supportPredictor';
-import { readActiveEvidence } from '../../shared/knowledgeEvents';
+import { attemptActiveLatencyMs, readActiveEvidence } from '../../shared/knowledgeEvents';
 import { easeToStatus } from '../../shared/utils/knowledgeStrength';
 import { DEFAULT_ENABLED_DOMAINS, type CapabilityKey, type GraphDomain, type GraphEntity, type LearnableTarget } from '../../shared/graph/types';
 import type { RetentionPolicy } from '../../shared/srs/retentionScheduler';
@@ -213,12 +213,21 @@ export function buildKnowledgeProjection(
       basis,
       ...(direct ? { strength: { ease: direct.ease, timesSeen: direct.timesSeen, timesHovered: direct.timesHovered } } : {}),
       ...(lastSuccess !== undefined ? { lastDirectSuccess: lastSuccess } : {}),
-      evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((event) => ({
-        timestamp: event.t,
-        source: event.source,
-        ...(event.quality ?? event.rating ? { quality: event.quality ?? event.rating } : {}),
-        ...(event.latencyMs !== undefined ? { latencyMs: event.latencyMs } : {}),
-      })),
+      evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((event) => {
+        // THE modeling-grade latency channel: attemptActiveLatencyMs yields
+        // active-engagement time when recorded (undefined for stall-flagged
+        // rows), falling back to legacy wall latency. The journal keeps the
+        // full active/wall/stalled provenance; this projection carries only
+        // what modeling may consume.
+        const modelingLatency = attemptActiveLatencyMs(event);
+        return {
+          timestamp: event.t,
+          source: event.source,
+          ...(event.quality ?? event.rating ? { quality: event.quality ?? event.rating } : {}),
+          ...(event.stalled ? { stalled: true } : {}),
+          ...(modelingLatency !== undefined ? { latencyMs: modelingLatency } : {}),
+        };
+      }),
       evidenceSourceCounts: sourceCounts,
       ...(explanation.retention ? { retention: { pressure: explanation.retention.pressure, dueAt: explanation.retention.dueAt } } : {}),
     };

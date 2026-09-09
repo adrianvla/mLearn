@@ -79,7 +79,8 @@
         "Morpheme": "Морфема",
         "GrammarPattern": "Грамматическая модель",
         "Analysis": "Анализ"
-      }
+      },
+      "LatencyUnreliable": "задержка ненадёжна (прерывание)"
     },
     "Management": {
       "ChooseGroup": "Выберите класс или группу",

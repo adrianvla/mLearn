@@ -79,7 +79,8 @@
         "Morpheme": "Morphem",
         "GrammarPattern": "Grammatisches Muster",
         "Analysis": "Analyse"
-      }
+      },
+      "LatencyUnreliable": "Latenz unzuverlässig (Unterbrechung)"
     },
     "Management": {
       "ChooseGroup": "Klasse oder Gruppe auswählen",

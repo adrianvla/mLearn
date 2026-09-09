@@ -79,7 +79,8 @@
         "Morpheme": "Morpheme",
         "GrammarPattern": "Grammar pattern",
         "Analysis": "Analysis"
-      }
+      },
+      "LatencyUnreliable": "latency unreliable (interruption)"
     },
     "Management": {
       "ChooseGroup": "Choose a class or group",

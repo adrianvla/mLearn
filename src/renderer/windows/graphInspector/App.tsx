@@ -4,6 +4,7 @@ import { assembleTargetExplanation, type TargetState } from '../../../shared/gra
 import type { CapabilityKind, GraphRelationType, RelationCategory } from '../../../shared/graph/types';
 import type { GraphNeighborhood } from '../../../shared/graph/ipc';
 import { getBridge } from '../../../shared/bridges';
+import { attemptActiveLatencyMs } from '../../../shared/knowledgeEvents';
 import { WindowWrapper, useFlashcards, useGraph, useLocalization, useSettings } from '../../context';
 import { openGraphInspector } from '../../services/openGraphInspector';
 import { GraphNeighborhoodViz, SkeletonText } from '../../components/common';
@@ -102,7 +103,7 @@ export const GraphInspectorContent: Component = () => {
       <h2>{t('mlearn.GraphInspector.Target')}</h2><p>{selectedCapability()} · <strong>{t(`mlearn.GraphInspector.State.${targetStates[value().state]}`)}</strong></p>
       <p>{value().projection ? `${t('mlearn.GraphInspector.Projection')}: ${value().projection!.ease.toFixed(2)}` : t('mlearn.GraphInspector.NoDirectEvidence')}</p>
       <Show when={value().retention}><p>{t('mlearn.GraphInspector.Retention')}: {value().retention!.pressure.toFixed(2)} · {new Date(value().retention!.dueAt).toLocaleString()}</p></Show>
-      <h3>{t('mlearn.GraphInspector.Evidence')}</h3><For each={value().evidence}>{(event) => <p>{new Date(event.t).toLocaleDateString()} · {event.source} · {event.quality ?? event.rating ?? ''}{event.latencyMs ? ` · ${event.latencyMs}ms` : ''}</p>}</For>
+      <h3>{t('mlearn.GraphInspector.Evidence')}</h3><For each={value().evidence}>{(event) => <p>{new Date(event.t).toLocaleDateString()} · {event.source} · {event.quality ?? event.rating ?? ''}{event.stalled ? ` · ${t('mlearn.GraphInspector.LatencyUnreliable')}` : attemptActiveLatencyMs(event) !== undefined ? ` · ${attemptActiveLatencyMs(event)}ms` : ''}</p>}</For>
       <Show when={value().state === 'predicted'}><p>{t('mlearn.GraphInspector.PredictionFirewall')}</p></Show>
     </section>}</Show>
     </Show>

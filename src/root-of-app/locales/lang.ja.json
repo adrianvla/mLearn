@@ -79,7 +79,8 @@
         "Morpheme": "形態素",
         "GrammarPattern": "文法パターン",
         "Analysis": "分析"
-      }
+      },
+      "LatencyUnreliable": "レイテンシは不信頼（中断あり）"
     },
     "Management": {
       "ChooseGroup": "クラスまたはグループを選択",

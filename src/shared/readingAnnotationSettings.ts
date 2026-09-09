@@ -26,7 +26,7 @@ export function readingAnnotationSizePercent(settings: ReadingAnnotationSettings
 }
 
 export function hideReadingAnnotationsForKnownWords(settings: ReadingAnnotationSettings): boolean {
-  return settings.hideReadingForKnownWords ?? DEFAULT_SETTINGS.hideReadingForKnownWords ?? false;
+  return settings.hideReadingForKnownWords ?? DEFAULT_SETTINGS.hideReadingForKnownWords!;
 }
 
 export function ocrReadingAnnotationFilteringEnabled(settings: ReadingAnnotationSettings): boolean {

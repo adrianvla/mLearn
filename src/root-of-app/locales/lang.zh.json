@@ -79,7 +79,8 @@
         "Morpheme": "语素",
         "GrammarPattern": "语法句型",
         "Analysis": "分析"
-      }
+      },
+      "LatencyUnreliable": "延迟不可靠（有中断）"
     },
     "Management": {
       "ChooseGroup": "选择班级或小组",

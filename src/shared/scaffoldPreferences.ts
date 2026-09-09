@@ -35,7 +35,7 @@ export type ReadingScaffoldSettings = Partial<Pick<Settings, 'showReadingAnnotat
  */
 export function readingScaffoldStance(settings: ReadingScaffoldSettings): 'forbid' | 'adaptive' | 'require' {
   if (!(settings.showReadingAnnotations ?? DEFAULT_SETTINGS.showReadingAnnotations!)) return 'forbid';
-  return (settings.hideReadingForKnownWords ?? DEFAULT_SETTINGS.hideReadingForKnownWords ?? false) ? 'adaptive' : 'require';
+  return (settings.hideReadingForKnownWords ?? DEFAULT_SETTINGS.hideReadingForKnownWords!) ? 'adaptive' : 'require';
 }
 
 export function applyReadingScaffoldStance(stance: 'forbid' | 'adaptive' | 'require'): Partial<Settings> {

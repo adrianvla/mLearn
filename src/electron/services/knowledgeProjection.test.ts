@@ -305,3 +305,24 @@ describe('buildKnowledgeProjection', () => {
     expect(bareState).toMatchObject({ classification: 'unmeasured', basis: 'unmeasured' });
   });
 });
+describe('modeling-grade latency in projected evidence', () => {
+  it('projects active latency when recorded, wall fallback for legacy rows, nothing for stalled rows', () => {
+    const result = buildKnowledgeProjection(graph, surfaceId, [
+      { t: 1, kind: 'rating', source: 'anki', aspect: 'meaning', easeAfter: 2, rating: 'good', quality: 'fluent', attemptId: 'active', latencyMs: 60_000, activeLatencyMs: 900 },
+      { t: 2, kind: 'rating', source: 'anki', aspect: 'meaning', easeAfter: 2, rating: 'good', quality: 'struggled', attemptId: 'legacy', latencyMs: 42 },
+      { t: 3, kind: 'rating', source: 'anki', aspect: 'meaning', easeAfter: 2, rating: 'good', quality: 'missed', attemptId: 'stalled', latencyMs: 400_000, activeLatencyMs: 400_000, stalled: true },
+    ], policy, 10);
+
+    const meaning = result.targets.find((target) => target.targetRef.id === senseId)!.states[0];
+    const byQuality = Object.fromEntries(meaning.evidence.map((row) => [row.quality, row]));
+    // Active latency wins over wall: the away-time never becomes modeling input.
+    expect(byQuality.fluent).toMatchObject({ latencyMs: 900 });
+    // Legacy rows keep their wall latency through the accessor fallback.
+    expect(byQuality.struggled).toMatchObject({ latencyMs: 42 });
+    // A stall-flagged row carries no trustworthy latency at all.
+    expect(byQuality.fluent?.stalled).toBeUndefined();
+    const stalledRow = meaning.evidence.find((row) => (row as { stalled?: boolean }).stalled === true);
+    expect(stalledRow).toBeDefined();
+    expect(stalledRow!.latencyMs).toBeUndefined();
+  });
+});

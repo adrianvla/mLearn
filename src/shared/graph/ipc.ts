@@ -87,6 +87,13 @@ export interface KnowledgeProjectionEvidence {
   timestamp: number;
   source: string;
   quality?: string;
+  /**
+   * Modeling-grade latency, derived projection-side via
+   * attemptActiveLatencyMs: active-engagement time when recorded, legacy
+   * wall fallback otherwise, OMITTED for stall-flagged rows. The journal is
+   * the audit layer for full active/wall/stalled provenance.
+   */
+  stalled?: boolean;
   latencyMs?: number;
 }
 
