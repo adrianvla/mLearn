@@ -34,6 +34,7 @@ import {
   ocrRuntimeSupportsRamSaver,
   ocrRuntimeSupportsVerticalText,
   resolveLanguageFrequencyPayload,
+  clearReadingLexemeNormalizationCache,
   registerMappingTable,
   type LanguageLexemeIndex,
   type LanguageTokenizerCapabilities,
@@ -191,6 +192,9 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     log.info('[LanguageContext] Loading language data...');
     ipcCleanups.push(bridge.localization.onLangData((data) => {
       log.info('[LanguageContext] Language data received');
+      // identity-keyed derivations (lexeme normalization config) must be
+      // dropped before reconciled metadata republishes changed content.
+      clearReadingLexemeNormalizationCache();
       setBaseLangData(reconcile(data as unknown as LanguageDataMap));
       setIsLoading(false);
     }));
@@ -538,6 +542,10 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     const variantId = resolveActiveVariantId(settings, lang);
     const mappingAsset = variantId ? baseLangData[lang]?.variants?.[variantId]?.scriptConversion?.mappingAsset : undefined;
 
+    // Package metadata can change on reinstall: identity-keyed derivations
+    // (lexeme normalization config) must be dropped before the reconciled
+    // store publishes updated content.
+    clearReadingLexemeNormalizationCache();
     setLangData(reconcile(data));
     parseWordFrequency(data);
     parseGrammarData(data);

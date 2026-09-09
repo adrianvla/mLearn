@@ -1047,6 +1047,7 @@ describe('FlashcardProvider', () => {
     mockSettings.passiveEaseEnabled = true;
 
     ctx.trackWordSeen('初見');
+    ctx.flushPendingWordSeen();
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja:${SRS.hashWordSync('初見')}`;
     expect(ctx.store.wordKnowledge[lk]?.firstSeen).toBeTypeOf('number');
@@ -2046,6 +2047,7 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore());
 
     ctx.trackWordSeen('学校', undefined, 0.05);
+    ctx.flushPendingWordSeen();
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
     const lk = `ja:${hash}`;
@@ -2054,6 +2056,40 @@ describe('FlashcardProvider', () => {
     expect(knowledge.timesSeen).toBe(1);
     expect(knowledge.ease).toBeCloseTo(SRS.MIN_EASE + 0.05, 2);
     dispose();
+  });
+
+  it('trackWordSeen coalesces into the store only on flush', async () => {
+    // Regression: passive-seen observations used to write the store per token,
+    // invalidating vocabulary-wide memos on every seen word. They must stay
+    // pending until an explicit/event-driven flush applies them in one batch.
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.passiveEaseEnabled = true;
+
+    ctx.trackWordSeen('保留', undefined, 0.05);
+    ctx.trackWordSeen('保留', undefined, 0.05);
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('保留')}`;
+    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+
+    ctx.flushPendingWordSeen();
+    const knowledge = ctx.store.wordKnowledge[lk];
+    expect(knowledge).toBeDefined();
+    expect(knowledge.timesSeen).toBe(1);
+    expect(knowledge.ease).toBeCloseTo(SRS.MIN_EASE + 0.05, 2);
+    expect(knowledge.lastSeen).toBe(0);
+
+    // An encounter after the throttle window counts again post-flush.
+    vi.setSystemTime(600);
+    ctx.trackWordSeen('保留', undefined, 0.05);
+    expect(ctx.store.wordKnowledge[lk].timesSeen).toBe(1);
+    ctx.flushPendingWordSeen();
+    expect(ctx.store.wordKnowledge[lk].timesSeen).toBe(2);
+    expect(ctx.store.wordKnowledge[lk].ease).toBeCloseTo(SRS.MIN_EASE + 0.1, 2);
+    dispose();
+    vi.useRealTimers();
   });
 
   it('tracks script forms under one canonical word identity', async () => {
@@ -2070,6 +2106,7 @@ describe('FlashcardProvider', () => {
     ctx.trackWordSeen('學', undefined, 0);
     vi.setSystemTime(501);
     ctx.trackWordSeen('学', undefined, 0);
+    ctx.flushPendingWordSeen();
 
     const SRS = await import('../services/srsAlgorithm');
     const entry = ctx.store.wordKnowledge[`zh:${SRS.hashWordSync('学')}`];
@@ -2088,6 +2125,7 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore());
 
     ctx.trackWordSeen('يكتب', undefined, 0.05);
+    ctx.flushPendingWordSeen();
 
     const SRS = await import('../services/srsAlgorithm');
     const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;
@@ -2107,6 +2145,7 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore());
 
     ctx.trackWordSeen('يكتب', undefined, 0.05, 'ar');
+    ctx.flushPendingWordSeen();
 
     const SRS = await import('../services/srsAlgorithm');
     const arKey = `ar:${SRS.hashWordSync('كتب')}`;
@@ -2368,6 +2407,7 @@ describe('FlashcardProvider', () => {
       await vi.advanceTimersByTimeAsync(60);
     }
 
+    ctx.flushPendingWordSeen();
     expect(ctx.store.wordKnowledge[lk]?.timesSeen).toBeLessThanOrEqual(10);
     expect(ctx.store.wordKnowledge[lk]?.timesSeen).toBeGreaterThan(0);
 

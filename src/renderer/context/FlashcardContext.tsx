@@ -6,6 +6,7 @@
  */
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
+import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData } from '../../shared/types';
 import { SRS_EASE, type AttemptQuality } from '../../shared/constants';
@@ -306,6 +307,8 @@ interface FlashcardContextValue {
 
   // Passive word knowledge tracking
   trackWordSeen: (word: string, reading?: string, easeBump?: number, language?: string) => void;
+  /** Applies coalesced passive-seen observations to the store immediately. */
+  flushPendingWordSeen: () => void;
   cancelWordHover: (word: string, language?: string) => void;
   trackWordHovered: (word: string, reading?: string, language?: string) => void;
   getAccessStatus: (word: string, capability: CapabilityKind, language?: string) => AccessStatusResult;
@@ -1821,19 +1824,29 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     )
   );
 
-  const knownWordSet = createMemo(() => buildKnownWordSetFromStore(
-    store,
-    settings.known_ease_threshold,
-    settings.use_anki
-      ? buildAnkiStatusKeySets(
-        settings.language,
-        settings.ankiLearningThreshold,
-        settings.ankiKnownThreshold,
-        (word) => getWordFormsForLanguage(word, settings.language),
-        languageData(),
-      ).known
-      : undefined,
-  ));
+  // Anki bank keys depend on the anki cache + settings only — NOT on the
+  // flashcard store. Keeping them in their own memo stops every store write
+  // (passive tracking, queue changes) from re-deriving the full anki key sets
+  // inside the known-set rebuild.
+  const ankiKnownKeySet = createMemo<ReadonlySet<string> | undefined>(() => {
+    if (!settings.use_anki) return undefined;
+    return buildAnkiStatusKeySets(
+      settings.language,
+      settings.ankiLearningThreshold,
+      settings.ankiKnownThreshold,
+      (word) => getWordFormsForLanguage(word, settings.language),
+      languageData(),
+    ).known;
+  });
+
+  const knownWordSet = createMemo(() => {
+    perfCount('knowledge.knownWordSet.rebuilds');
+    return buildKnownWordSetFromStore(
+      store,
+      settings.known_ease_threshold,
+      ankiKnownKeySet(),
+    );
+  });
   /** Teaching-policy exclusions (ignoredWords): never select/teach/test these. */
   const excludedWordKeys = createMemo(() => new Set(Object.keys(store.ignoredWords)));
   const getPrimaryWordFormForLanguage = (word: string, language = settings.language): string => (
@@ -2834,8 +2847,63 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   const WORD_SEEN_COUNT_THROTTLE_MS = 500;
 
+  // Coalesced passive-seen writes (performance ownership: telemetry must not
+  // synchronously churn presentation). A per-token setStore write here used to
+  // invalidate vocabulary-wide memos (knownWordSet iterates every entry) on
+  // every seen word, so passive exposure cost O(vocabulary) per token.
+  // Observations accumulate in this map with identical throttle arithmetic and
+  // are applied in ONE batched produce at event-driven flush points. Status
+  // semantics cannot drift mid-burst: pure passive ease never changes the
+  // Tier-2 status read (REQ13), so a lagging ease column cannot change what a
+  // word resolves to.
+  interface PendingSeenEntry {
+    easeDelta: number;
+    timesSeenDelta: number;
+    /** Undefined until the first queued encounter; a real epoch-0 timestamp must not read as "never seen". */
+    lastSeen: number | undefined;
+    firstSeen: number;
+    word: string;
+    reading?: string;
+    language: string;
+  }
+  const pendingSeen = new Map<string, PendingSeenEntry>();
+  const PENDING_SEEN_FLUSH_BOUND = 50;
+
+  const flushPendingSeen = (): void => {
+    if (pendingSeen.size === 0) return;
+    const batch = [...pendingSeen.entries()];
+    pendingSeen.clear();
+    perfCount('knowledge.flushPendingSeen.batches');
+    perfCount('knowledge.flushPendingSeen.entries', batch.length);
+    setStore(produce((s) => {
+      for (const [lk, entry] of batch) {
+        if (!s.wordKnowledge[lk]) {
+          s.wordKnowledge[lk] = {
+            ease: Math.min(5, SRS.MIN_EASE + entry.easeDelta),
+            lastSeen: entry.lastSeen ?? entry.firstSeen,
+            timesSeen: entry.timesSeenDelta,
+            timesHovered: 0,
+            word: entry.word,
+            reading: entry.reading,
+            language: entry.language,
+            firstSeen: entry.firstSeen,
+          };
+          continue;
+        }
+        const k = s.wordKnowledge[lk];
+        if (entry.timesSeenDelta > 0) {
+          k.timesSeen += entry.timesSeenDelta;
+          // Ease bump rides the encounter throttle (see trackWordSeen).
+          k.ease = Math.min(5, k.ease + entry.easeDelta);
+        }
+        if (entry.lastSeen !== undefined) k.lastSeen = entry.lastSeen;
+      }
+    }));
+  };
+
   // Track that a word was seen (displayed on screen)
   const trackWordSeen = (word: string, reading?: string, easeBump = 0.01, language = settings.language) => {
+    perfCount('knowledge.trackWordSeen.calls');
     if (!settings.passiveEaseEnabled) return;
     // Use the language's primary word form so inflections and alternate spellings track together.
     const storageWord = getPrimaryWordFormForLanguage(word, language);
@@ -2846,37 +2914,41 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const now = Date.now();
 
     const existing = store.wordKnowledge[lk];
-    const shouldCount = !existing || now - existing.lastSeen >= WORD_SEEN_COUNT_THROTTLE_MS;
+    let entry = pendingSeen.get(lk);
+    if (!entry) {
+      entry = {
+        easeDelta: 0,
+        timesSeenDelta: 0,
+        lastSeen: existing?.lastSeen,
+        firstSeen: existing?.firstSeen ?? now,
+        word: storageWord,
+        reading,
+        language: lang,
+      };
+      pendingSeen.set(lk, entry);
+    }
+    const referenceSeen = entry.lastSeen;
+    const shouldCount = referenceSeen === undefined || now - referenceSeen >= WORD_SEEN_COUNT_THROTTLE_MS;
 
-    setStore(produce((s) => {
-      if (!s.wordKnowledge[lk]) {
-        s.wordKnowledge[lk] = {
-          ease: SRS.MIN_EASE,
-          lastSeen: now,
-          timesSeen: 0,
-          timesHovered: 0,
-          word: storageWord,
-          reading,
-          language: lang,
-          firstSeen: now,
-        };
-      }
-      const k = s.wordKnowledge[lk];
-      if (shouldCount) {
-        k.timesSeen++;
-        // Ease bump rides the same throttle as timesSeen: without this, subtitle
-        // line flapping / window remounts farm ease unboundedly (the throttle
-        // gated only the counter). Logical media-position encounter identity is
-        // a Tier-2 concern; this closes the farm hole now.
-        k.ease = Math.min(5, k.ease + easeBump);
-      }
-      k.lastSeen = now;
-    }));
+    if (shouldCount) {
+      entry.timesSeenDelta += 1;
+      // Ease bump rides the same throttle as timesSeen: without this, subtitle
+      // line flapping / window remounts farm ease unboundedly (the throttle
+      // gated only the counter). Logical media-position encounter identity is
+      // a Tier-2 concern; this closes the farm hole now.
+      entry.easeDelta += easeBump;
+    }
+    entry.lastSeen = now;
 
-    // Notify media stats listeners so per-media tracking stays in sync
-    const newEase = store.wordKnowledge[lk]?.ease ?? SRS.MIN_EASE;
+    // Notify media stats listeners so per-media tracking stays in sync.
+    // The projected ease is (store ease + pending delta) — the store column
+    // itself lags until flushPendingSeen, by design. Computed BEFORE the
+    // size-bound flush so the read cannot observe the just-applied batch.
+    const newEase = Math.min(5, (existing?.ease ?? SRS.MIN_EASE) + entry.easeDelta);
     window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, language: lang, ease: newEase } }));
     if (shouldCount) accumulateWordSeen(lk, newEase, 1, passiveEaseToStatus(newEase));
+
+    if (pendingSeen.size >= PENDING_SEEN_FLUSH_BOUND) flushPendingSeen();
   };
 
   // Track that a word was hovered (user doesn't know it)
@@ -2894,6 +2966,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (existing) clearTimeout(existing);
 
     const timer = setTimeout(() => {
+      perfCount('knowledge.trackWordHovered.writes');
       hoverTimers.delete(lk);
       const now = Date.now();
       let nextEase: number = SRS.MIN_EASE;
@@ -3078,12 +3151,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * as untracked-neutral, not as observed knowledge.
    */
   const getAccessStatus = (word: string, capability: CapabilityKind, language = settings.language): AccessStatusResult => (
-    isKnowledgeReady()
+    (perfCount('knowledge.getAccessStatus.calls'), isKnowledgeReady())
       ? getAccessStatusSync(word, capability, comprehensiveDeps(language))
       : { status: 'unknown', ease: 0, source: 'None', untracked: true }
   );
 
   const getComprehensiveWordStatusSync = (word: string, language = settings.language): WordStatus => {
+    perfCount('knowledge.getComprehensiveStatus.calls');
     return getComprehensiveWordStatus(word, comprehensiveDeps(language));
   };
 
@@ -4481,7 +4555,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
         }
       }));
     }
-    
+
     // Listen for visibility changes to reload on window focus
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
@@ -4489,12 +4563,27 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     // REQ25 crash-window hardening: event-driven flush on beforeunload +
     // visibilitychange→hidden (installed in knowledgeRollup, no timers).
     installPassiveFlushHooks();
+    // Coalesced passive-seen rows use the same event-driven flush points
+    // (no timers): apply batched knowledge before the window hides or dies.
+    const flushSeenOnHide = () => {
+      if (document.visibilityState === 'hidden') flushPendingSeen();
+    };
+    const flushSeenOnUnload = () => { flushPendingSeen(); };
+    document.addEventListener('visibilitychange', flushSeenOnHide);
+    window.addEventListener('beforeunload', flushSeenOnUnload);
+    ipcCleanups.push(() => {
+      document.removeEventListener('visibilitychange', flushSeenOnHide);
+      window.removeEventListener('beforeunload', flushSeenOnUnload);
+    });
 
     loadFlashcards();
     startSession();
   });
 
   onCleanup(() => {
+    // Apply coalesced passive-seen rows FIRST so the immediate save below
+    // (and the debounced save it flushes) includes them.
+    flushPendingSeen();
     // Flush any pending save before cleanup
     if (saveTimer) {
       clearTimeout(saveTimer);
@@ -4560,6 +4649,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     removeSuggestedFlashcard,
     removeSuggestedFlashcards,
     trackWordSeen,
+    flushPendingWordSeen: flushPendingSeen,
     trackWordHovered,
     cancelWordHover,
     getWordKnowledge,

@@ -261,7 +261,35 @@ function expandNormalizerSteps(
   return expanded;
 }
 
+// Pure derivation from package metadata, read on EVERY per-word resolution
+// path (status, readings, prosody, hover). Language data objects are stable
+// per language load, so a WeakMap keyed by the data object turns the rebuild
+// into an O(1) lookup without any lifetime management.
+let readingLexemeNormalizationConfigCache = new WeakMap<LanguageData, ReadingLexemeNormalizationConfig>();
+
+/**
+ * Language packages can be reinstalled/updated mid-session, and
+ * LanguageContext merges reloaded metadata into its store with `reconcile`,
+ * which preserves object identity for unchanged-ish subtrees. Identity-keyed
+ * caching is therefore not self-invalidating; the reload path must call this
+ * explicitly before the new metadata is published.
+ */
+export function clearReadingLexemeNormalizationCache(): void {
+  readingLexemeNormalizationConfigCache = new WeakMap();
+}
+
 function getReadingLexemeNormalizationConfig(data?: LanguageData | null): ReadingLexemeNormalizationConfig {
+  if (data) {
+    const cached = readingLexemeNormalizationConfigCache.get(data);
+    if (cached) return cached;
+    const built = buildReadingLexemeNormalizationConfig(data);
+    readingLexemeNormalizationConfigCache.set(data, built);
+    return built;
+  }
+  return buildReadingLexemeNormalizationConfig(data);
+}
+
+function buildReadingLexemeNormalizationConfig(data?: LanguageData | null): ReadingLexemeNormalizationConfig {
   const config = data?.textProcessing?.lexemeNormalization;
   const type = config?.type;
   const normalizerPresets = getPackageNormalizerPresets(data);

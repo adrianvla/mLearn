@@ -5,11 +5,24 @@ import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEv
 const [eventsVersion, setEventsVersion] = createSignal(0);
 const queryCache = new Map<string, KnowledgeEventLog>();
 
+// Versioned per-language log cache: the full language log is a heavyweight
+// IPC payload, and several consumers re-read it within one events version
+// (projection recompute, grammar projection, statistics). Cache keyed by
+// (language, version) with in-flight dedupe; bumpVersion (local append or
+// remote change broadcast) invalidates it so the next read refetches once.
+interface LanguageLogCacheEntry {
+  version: number;
+  log: KnowledgeEventLog;
+  inFlight?: Promise<KnowledgeEventLog>;
+}
+const languageLogCache = new Map<string, LanguageLogCacheEntry>();
+
 let channel: BroadcastChannel | null | undefined;
 let bridgeListenerRegistered = false;
 
 function bumpVersion(): void {
   queryCache.clear();
+  languageLogCache.clear();
   setEventsVersion((version) => version + 1);
 }
 
@@ -48,14 +61,33 @@ export async function getEventsInRange(keys: readonly string[], from: number, to
 }
 
 export async function getEventsForLanguage(language: string): Promise<KnowledgeEvent[]> {
-  ensureInitialized();
-  return Object.values(await getBridge().knowledgeEvents.queryKnowledgeEventsForLanguage(language)).flat();
+  return Object.values(await getEventLogForLanguage(language)).flat();
 }
 
 export async function getEventLogForLanguage(language: string): Promise<KnowledgeEventLog> {
   ensureInitialized();
-  return getBridge().knowledgeEvents.queryKnowledgeEventsForLanguage(language);
+  const version = eventsVersion();
+  const cached = languageLogCache.get(language);
+  if (cached && cached.version === version) {
+    return cached.log;
+  }
+  if (cached?.inFlight) {
+    return cached.inFlight;
+  }
+  const entry: LanguageLogCacheEntry = { version, log: {} };
+  entry.inFlight = getBridge().knowledgeEvents.queryKnowledgeEventsForLanguage(language).then((log) => {
+    // Stale-response guard: keep this payload only if no newer version
+    // (local append or remote broadcast) replaced the cache entry meanwhile.
+    if (languageLogCache.get(language) === entry) {
+      entry.log = log;
+      entry.inFlight = undefined;
+    }
+    return log;
+  });
+  languageLogCache.set(language, entry);
+  return entry.inFlight;
 }
+
 
 export async function appendEvents(eventsByKey: KnowledgeEventLog): Promise<void> {
   ensureInitialized();

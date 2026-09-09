@@ -180,8 +180,23 @@ function sha256Sync(message: string): string {
  * Use for performance-sensitive synchronous paths (rendering, hover tracking).
  */
 export function hashWordSync(word: string): string {
-    return sha256Sync(word);
+    // Pure function of its input, called repeatedly for the same surface
+    // forms across resolution paths (knowledge status, projection, tracking).
+    // The bounded memo keeps the SHA-256 cost O(unique words) instead of
+    // O(hash calls) on rendering-heavy surfaces.
+    const cached = hashWordSyncCache.get(word);
+    if (cached !== undefined) return cached;
+    const hash = sha256Sync(word);
+    if (hashWordSyncCache.size >= HASH_SYNC_CACHE_MAX) {
+        const oldest = hashWordSyncCache.keys().next().value;
+        if (oldest !== undefined) hashWordSyncCache.delete(oldest);
+    }
+    hashWordSyncCache.set(word, hash);
+    return hash;
 }
+
+const HASH_SYNC_CACHE_MAX = 10_000;
+const hashWordSyncCache = new Map<string, string>();
 
 /**
  * Convert interval in milliseconds to human-readable string.

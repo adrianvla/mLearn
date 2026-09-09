@@ -14,6 +14,7 @@ let flashcardStoreMock: {
 };
 let settingsMock: { language: string; newDayHour: number; known_ease_threshold: number; srsLearningThreshold: number };
 let eventLogMock: Record<string, KnowledgeEvent[]> = {};
+let knowledgeEventsChanged: (() => void) | null = null;
 let flashcardsLoading = false;
 
 vi.mock('../../context', () => ({
@@ -49,7 +50,7 @@ vi.mock('../../../shared/bridges', () => ({
     },
     knowledgeEvents: {
       queryKnowledgeEventsForLanguage: () => Promise.resolve(eventLogMock),
-      onKnowledgeEventsChanged: () => () => {},
+      onKnowledgeEventsChanged: (callback: () => void) => { knowledgeEventsChanged = callback; return () => {}; },
     },
   }),
 }));
@@ -112,6 +113,10 @@ describe('Dashboard', () => {
     settingsMock = { language: 'ja', newDayHour: 4, known_ease_threshold: 1.8, srsLearningThreshold: 3 };
     eventLogMock = {};
     flashcardsLoading = false;
+    // Exercise the production invalidation path: the knowledge log cache is
+    // keyed by the events version, and swapping the mock without a bump must
+    // look exactly like an external change to the log.
+    knowledgeEventsChanged?.();
   });
 
   afterEach(() => {
