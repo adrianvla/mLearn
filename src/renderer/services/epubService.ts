@@ -1,4 +1,5 @@
 import { unzipSync, strFromU8 } from 'fflate';
+import { perfCount } from '../utils/perfCounters';
 
 export type EpubProgressionDirection = 'ltr' | 'rtl';
 
@@ -378,6 +379,16 @@ function epubImageRef(
 }
 
 export async function epubToContentPages(file: File): Promise<EpubContent> {
+  const t0 = performance.now();
+  try {
+    return await epubToContentPagesInner(file);
+  } finally {
+    perfCount('reader.epubToContentPages.calls');
+    perfCount('reader.epubToContentPages.ms', performance.now() - t0);
+  }
+}
+
+async function epubToContentPagesInner(file: File): Promise<EpubContent> {
   const sourceName = stripExtension(file.name);
   const files = unzipSync(new Uint8Array(await file.arrayBuffer()));
   const containerDoc = new DOMParser().parseFromString(readZipText(files, 'META-INF/container.xml'), 'application/xml');

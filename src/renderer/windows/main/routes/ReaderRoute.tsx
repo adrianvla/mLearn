@@ -5,6 +5,7 @@ import { withCloudAuth } from '../../../services/cloudSessionManager';
  */
 
 import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, createMemo, batch, on, untrack, type JSX } from 'solid-js';
+import { perfCount } from '../../../utils/perfCounters';
 import { createStore, reconcile } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, MagnifyingGlass, OcrWord, type OcrBox, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
@@ -2031,10 +2032,12 @@ export const ReaderRoute: Component = () => {
   };
 
   const loadEpubFileIntoReader = async (file: File, path: string = '') => {
+    const epubT0 = performance.now();
     setOcrStatus(t('mlearn.Reader.Status.LoadingBook'));
     const bookId = parseCurrentWorkName(file.name);
     const title = bookId || t('mlearn.Reader.Status.EpubDocument');
     const content = await epubToContentPages(file);
+    perfCount('reader.loadEpub.parse.ms', performance.now() - epubT0);
     const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedPageIndex(bookId));
     commitLoadedPages(prepared.pages, {
       bookId,
@@ -2053,10 +2056,12 @@ export const ReaderRoute: Component = () => {
     }
     saveToRecent(title, 'book', prepared.startPage, path, prepared.coverBlob);
     setOcrStatus(t('mlearn.Reader.Status.Ready'));
+    perfCount('reader.loadEpub.ms.total', performance.now() - epubT0);
   };
 
   // Load book from filesystem path (for recent items)
   const loadBookFromPath = async (bookPath: string, documentOcrOverride?: boolean) => {
+    const loadT0 = performance.now();
     setOcrStatus(t('mlearn.Reader.Status.Loading'));
 
     try {
@@ -2071,7 +2076,9 @@ export const ReaderRoute: Component = () => {
         const file = new File([blob], fileName, { type: 'application/pdf' });
         await loadPdfFileIntoReader(file, bookPath, documentOcrOverride);
       } else if (isEpub) {
+        const readT0 = performance.now();
         const data = await getBridge().files.readMediaFile(bookPath);
+        perfCount('reader.readMediaFile.ms', performance.now() - readT0);
         if (!data) throw new Error('Failed to read EPUB file');
         const fileName = bookPath.split('/').pop() || 'book.epub';
         const file = new File([new Blob([data])], fileName, { type: 'application/epub+zip' });
@@ -2113,6 +2120,7 @@ export const ReaderRoute: Component = () => {
       }
 
       void persistActiveBookPath(bookPath);
+      perfCount('reader.loadBookFromPath.ms', performance.now() - loadT0);
       setOcrStatus(t('mlearn.Reader.Status.Ready'));
     } catch (error) {
       log.error('[Reader] Failed to load from path:', error);

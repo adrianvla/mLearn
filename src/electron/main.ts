@@ -1,6 +1,8 @@
 /**
  * Electron Main Process Entry Point
  */
+import './userDataOverride';
+import { installPerfIpcCounters } from './perfIpcCounters';
 
 import { app, ipcMain, clipboard, shell } from 'electron';
 import { exec } from 'child_process';
@@ -394,6 +396,7 @@ async function createAppWindows(): Promise<void> {
 // Main initialization
 async function initialize(): Promise<void> {
   await raiseFileDescriptorLimits();
+  installPerfIpcCounters();
 
   setupAllIPC();
   await initPluginManager();

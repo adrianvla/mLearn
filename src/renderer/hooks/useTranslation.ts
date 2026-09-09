@@ -26,6 +26,7 @@ import type { BackendAdapter } from '../../shared/backends/types';
 const log = getLogger("renderer.hooks.useTranslation");
 const TRANSLATION_CACHE_MAX = 5000;
 const TRANSLATION_WARM_CONCURRENCY = 10;
+import { perfCount } from '../utils/perfCounters';
 const translationCache = new Map<string, TranslationResponse>();
 const [cacheVersion, setCacheVersion] = createSignal(0);
 const [warmInFlightCount, setWarmInFlightCount] = createSignal(0);
@@ -575,6 +576,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     const languageData = resolveTokenizerLanguageData(options.languageData);
     const namespace = getTokenizerCacheNamespace(languageData);
     const fast = cachedOrFlight(key, namespace);
+    perfCount(fast ? 'tokenize.cacheHit' : 'tokenize.miss');
     if (fast) return fast;
     const cacheKey = buildTokenCacheKey(key, options.language, namespace);
     try {
@@ -587,8 +589,10 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
 
   // Page-level entry: identical per-text semantics (memory cache, in-flight
   // dedupe, DB cache, rough fallback), but fresh backend results persist in
-  // ONE batched write + prune instead of one per paragraph.
   const tokenizeMany = async (texts: string[]): Promise<Token[][]> => {
+    perfCount('tokenizeMany.calls', 1);
+    perfCount('tokenizeMany.texts', texts.length);
+    const tmStart = performance.now();
     const languageData = resolveTokenizerLanguageData(options.languageData);
     const namespace = getTokenizerCacheNamespace(languageData);
     const fresh: Array<{ text: string; tokens: Token[] }> = [];
@@ -612,6 +616,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
       }
       return result.tokens;
     }));
+    perfCount('tokenizeMany.ms', performance.now() - tmStart);
     if (fresh.length > 0) {
       void setCachedTokensBatchByLanguageDB(fresh, options.language, namespace);
     }

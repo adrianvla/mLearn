@@ -3,6 +3,7 @@
  * Manages video playback, controls, and state
  */
 
+import { perfCount } from '../utils/perfCounters';
 import { createSignal, createMemo, onCleanup } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { getLogger } from '../../shared/utils/logger';
@@ -148,6 +149,7 @@ export function useVideo(options: UseVideoOptions = {}) {
 
   const handleTimeUpdate = () => {
     if (!videoRef) return;
+    perfCount('video.timeupdate');
     setState('currentTime', videoRef!.currentTime);
   };
 

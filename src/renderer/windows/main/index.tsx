@@ -19,11 +19,14 @@ import WindowsMenuBar from '../../components/common/WindowsMenuBar/WindowsMenuBa
 import '../../styles/index.css';
 import '../../styles/base.css';
 
+import { installPerfObserverCounters } from '../../utils/perfCounters';
 const root = document.getElementById('root');
 
 if (!root) {
   throw new Error('Root element not found');
 }
+
+installPerfObserverCounters();
 
 const MainRoutes = () => {
   const server = useServer();

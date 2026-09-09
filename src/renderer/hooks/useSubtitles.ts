@@ -3,6 +3,7 @@
  * Manages subtitle parsing, timing, and display
  */
 
+import { perfCount } from '../utils/perfCounters';
 import { createSignal, createMemo } from 'solid-js';
 import type { Subtitle, Token } from '../../shared/types';
 import { useLanguage, useSettings } from '../context';
@@ -308,6 +309,7 @@ export function useSubtitles() {
   };
 
   const updateTime = async (time: number) => {
+    perfCount('subtitles.updateTime');
     const result = getCurrentSubtitle(time);
 
     if (!result) {
@@ -320,6 +322,7 @@ export function useSubtitles() {
     const { sub, idx } = result;
     if (idx === currentIndex()) return;
 
+    perfCount('subtitles.cueChange');
     setCurrentIndex(idx);
     setIsTokenizing(true);
     setError(null);

@@ -395,6 +395,8 @@ interface ImportMetaEnv {
   readonly DEV: boolean;
   readonly PROD: boolean;
   readonly MODE: string;
+  /** Enables renderer perf counters + observer instrumentation (perf harness). */
+  readonly VITE_MLEARN_PERF?: string;
 }
 
 declare global {
