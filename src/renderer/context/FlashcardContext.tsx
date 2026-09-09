@@ -8,7 +8,7 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData } from '../../shared/types';
-import { type AttemptQuality } from '../../shared/constants';
+import { SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
 import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
@@ -45,7 +45,8 @@ import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, toSel
 import { applyAccessWrite, aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult, type RatedCapability } from '../utils/accessKnowledge';
 import { appendEvents, getEventLogForLanguage } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
-import { nextAttemptId, readActiveEvidence, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { nextAttemptId, readActiveEvidence, retentionConditionFor, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import type { AttemptTiming } from '../../shared/encounterTiming';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { selectEncounterBatch } from '../learning/engine';
 import { getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
@@ -228,7 +229,7 @@ interface FlashcardContextValue {
     rating: SRS.Rating,
     cardId?: string,
     timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType },
+    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType; tested?: readonly CapabilityKind[] },
   ) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
@@ -346,7 +347,7 @@ interface FlashcardContextValue {
     word: string,
     capability: CapabilityKind,
     quality: AttemptQuality,
-    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly CapabilityKind[]; latencyMs?: number; attemptId?: AttemptId; origin?: string; taskType?: AttemptTaskType; scaffolds?: AttemptScaffolds },
+    options?: { language?: string; method?: 'recall' | 'inference'; demonstrated?: readonly CapabilityKind[]; timing?: AttemptTiming; attemptId?: AttemptId; origin?: string; taskType?: AttemptTaskType; scaffolds?: AttemptScaffolds },
   ) => { attemptId: AttemptId };
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
@@ -359,6 +360,12 @@ interface FlashcardContextValue {
   // Grammar knowledge tracking
   trackGrammarEncountered: (pattern: string, levelOrOpts?: number | GrammarEncounterOptions, language?: string) => void;
   trackGrammarFailed: (pattern: string, level?: number, language?: string) => void;
+  /**
+   * Curriculum grammar probe (grammar-recognize task): ONE self-assessed
+   * rating event on the capability-scoped grammar journal. Active measurement
+   * — unlike encounter rollups, it counts as measuring the construction.
+   */
+  recordGrammarAttempt: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number }) => AttemptId;
   getGrammarKnowledge: (pattern: string, language?: string) => GrammarKnowledgeEntry | undefined;
 
   // Session management
@@ -1512,18 +1519,26 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   // (which uses Math.random() and may return a different card than the one displayed).
   // `attempt` ties the review event to the logical attempt and lets undo restore
   // the knowledge recordAttempt wrote plus retract the attempt's events.
+  // `tested` states the accesses the presented card interaction tested, so the
+  // scheduler input can be conditioned on what the presentation actually left
+  // measurable: an assisted success must not be scheduled like unassisted
+  // recall, and a fully supplied one is exposure, not retrieval. The learner's
+  // rating stays untouched on the event for replay/undo.
   const answerCard = (
     rating: SRS.Rating,
     cardId?: string,
     timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType },
+    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType; tested?: readonly CapabilityKind[] },
   ): boolean => {
     const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
     if (!card) return false;
 
     const wasNew = card.state === 'new';
     const wasReview = card.state === 'review';
-    const updated = SRS.answerCard(card, rating, store.meta);
+    const retentionCondition = attempt?.tested
+      ? retentionConditionFor(attempt.tested, attempt.scaffolds)
+      : 'unassisted' as const;
+    const updated = SRS.answerCard(card, rating, store.meta, retentionCondition);
     const cardLang = card.language || settings.language;
     const cardForm = getPrimaryWordFormForLanguage(card.content.front, cardLang);
     const now = Date.now();
@@ -1545,9 +1560,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         // REQ3/REQ52: an SRS review is a known task type. Scaffolds record
         // what the retrieval actually saw; read paths (replay, projection)
         // exclude scaffold-invalidated events from knowledge while retention
-        // still consumes the occurrence.
+        // still consumes the occurrence — conditioned by retentionCondition.
         taskType: attempt?.taskType ?? 'srs-review',
         ...(attempt?.scaffolds ? { scaffolds: attempt.scaffolds } : {}),
+        ...(retentionCondition !== 'unassisted' ? { retentionCondition } : {}),
       }],
     }).catch((e) => log.warn('knowledge event append failed:', e));
 
@@ -3439,7 +3455,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       method?: 'recall' | 'inference';
       /** Accesses this task's cue structure demonstrates were traversed (default: none). */
       demonstrated?: readonly CapabilityKind[];
-      latencyMs?: number;
+      /** Active-engagement timing provenance (see shared/encounterTiming). */
+      timing?: AttemptTiming;
       /** Shared logical-attempt id for multi-observation submits (profile mode). Absent = new attempt. */
       attemptId?: AttemptId;
       /** Presenting channel (e.g. 'word-sync') — replay derives policy markers from it. */
@@ -3533,7 +3550,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       ...(options?.taskType ? { taskType: options.taskType } : options?.origin === 'word-sync' ? { taskType: 'word-sync' satisfies AttemptTaskType } : {}),
       ...(options?.scaffolds ? { scaffolds: options.scaffolds } : {}),
       ...(options?.sourceVersions ? { sourceVersions: options.sourceVersions } : {}),
-      ...(options?.latencyMs !== undefined ? { latencyMs: options.latencyMs } : {}),
+      ...(options?.timing ? {
+        latencyMs: options.timing.wallLatencyMs,
+        activeLatencyMs: options.timing.activeLatencyMs,
+        interruptionCount: options.timing.interruptionCount,
+        interrupted: options.timing.interrupted,
+        stalled: options.timing.stalled,
+      } : {}),
       ...(options?.origin ? { origin: options.origin } : {}),
       fromStatus: before.status,
       toStatus: after.status,
@@ -3864,6 +3887,44 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     })
       .then(() => queueGrammarMaterialize(language, [{ pattern, level }]))
       .catch((e) => log.warn('grammar evidence append failed:', e));
+  };
+
+  // Curriculum grammar probe (grammar-recognize task). Writes ONE active
+  // rating event on the grammar-recognition capability key — the same
+  // journal writers the anki import and legacy paths use, so replay,
+  // materialization, and coverage see identical evidence. Ease moves along
+  // the shared grammar anchors: fluent counts as a successful encounter,
+  // struggled as an encounter with friction, missed as a failure.
+  const recordGrammarAttempt = (
+    pattern: string,
+    quality: AttemptQuality,
+    options?: { language?: string; level?: number },
+  ): AttemptId => {
+    const language = options?.language ?? settings.language;
+    const attemptId = nextAttemptId();
+    // An ACTIVE measurement records its outcome explicitly (easeAfter),
+    // like the anki import — it must not inherit the slow exposure-anchor
+    // walk that passive encounter rollups use. Missed records a failure
+    // delta so the anchor path registers the negative evidence.
+    const outcome = quality === 'fluent'
+      ? { easeAfter: SRS_EASE.DEFAULT_KNOWN }
+      : quality === 'struggled'
+        ? { easeAfter: (SRS_EASE.MIN + SRS_EASE.DEFAULT_KNOWN) / 2 }
+        : { grammarFailedDelta: 1 };
+    appendEvents({
+      [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(language, pattern, {
+        t: Date.now(),
+        kind: 'rating',
+        quality,
+        attemptId,
+        origin: 'grammar-probe',
+        taskType: 'grammar-recognize',
+        ...outcome,
+      })],
+    })
+      .then(() => queueGrammarMaterialize(language, [{ pattern, level: options?.level }]))
+      .catch((e) => log.warn('grammar probe append failed:', e));
+    return attemptId;
   };
 
   // Get grammar knowledge entry — serves the replay-materialized cache.
@@ -4522,6 +4583,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     clearAllWordSyncSeen,
     trackGrammarEncountered,
     trackGrammarFailed,
+    recordGrammarAttempt,
     getGrammarKnowledge,
     startSession,
     refreshQueue,

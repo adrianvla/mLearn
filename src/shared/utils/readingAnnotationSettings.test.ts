@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type Settings } from '../types';
 import {
-  applyReadingScaffoldMode,
   hideReadingAnnotationsForKnownWords,
-  readingScaffoldMode,
   ocrReadingAnnotationFilteringEnabled,
   readerReadingAnnotationHiderEnabled,
   readingAnnotationMoreContrastEnabled,
   readingAnnotationSizePercent,
   readingAnnotationsEnabled,
 } from '../readingAnnotationSettings';
+import { applyReadingScaffoldStance, readingScaffoldStance } from '../scaffoldPreferences';
 
 function makeSettings(overrides: Partial<Settings> = {}): Settings {
   return { ...DEFAULT_SETTINGS, ...overrides };
@@ -63,22 +62,22 @@ describe('reading annotation settings', () => {
   });
 });
 
-describe('reading scaffold mode (Off | Auto | Always)', () => {
-  it('derives the mode from visibility and known-word hiding', () => {
-    expect(readingScaffoldMode(makeSettings())).toBe('always'); // defaults: shown, never hidden
-    expect(readingScaffoldMode(makeSettings({ showReadingAnnotations: false }))).toBe('off');
-    expect(readingScaffoldMode(makeSettings({ hideReadingForKnownWords: true }))).toBe('auto');
+describe('reading scaffold stance (accessibility constraint dial)', () => {
+  it('derives the stance from visibility and known-word hiding', () => {
+    expect(readingScaffoldStance(makeSettings())).toBe('require'); // defaults: shown, never hidden
+    expect(readingScaffoldStance(makeSettings({ showReadingAnnotations: false }))).toBe('forbid');
+    expect(readingScaffoldStance(makeSettings({ hideReadingForKnownWords: true }))).toBe('adaptive');
   });
 
-  it('applies exact field mappings per mode', () => {
-    expect(applyReadingScaffoldMode('off')).toEqual({ showReadingAnnotations: false });
-    expect(applyReadingScaffoldMode('always')).toEqual({ showReadingAnnotations: true, hideReadingForKnownWords: false });
-    expect(applyReadingScaffoldMode('auto')).toEqual({ showReadingAnnotations: true, hideReadingForKnownWords: true });
+  it('applies exact field mappings per stance', () => {
+    expect(applyReadingScaffoldStance('forbid')).toEqual({ showReadingAnnotations: false });
+    expect(applyReadingScaffoldStance('require')).toEqual({ showReadingAnnotations: true, hideReadingForKnownWords: false });
+    expect(applyReadingScaffoldStance('adaptive')).toEqual({ showReadingAnnotations: true, hideReadingForKnownWords: true });
   });
 
-  it('round-trips: applied modes read back as themselves', () => {
-    for (const mode of ['off', 'auto', 'always'] as const) {
-      expect(readingScaffoldMode({ ...makeSettings(), ...applyReadingScaffoldMode(mode) })).toBe(mode);
+  it('round-trips: applied stances read back as themselves', () => {
+    for (const stance of ['forbid', 'adaptive', 'require'] as const) {
+      expect(readingScaffoldStance({ ...makeSettings(), ...applyReadingScaffoldStance(stance) })).toBe(stance);
     }
   });
 });

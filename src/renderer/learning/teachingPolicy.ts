@@ -152,7 +152,9 @@ function decision(
     action,
     encounter: {
       targets: selected.candidate.targets,
-      task: config.task,
+      // The source declares what its encounter measures; the preset task is
+      // the fallback for lexical candidates.
+      task: selected.candidate.task ?? config.task,
       scaffolds: [...(config.scaffolds ?? [])],
       why,
     },

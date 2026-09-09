@@ -159,6 +159,32 @@ describe('REQ39 grammar exposure priority', () => {
   });
 });
 
+describe('curriculum grammar candidates', () => {
+  it('CURRICULUM merges package-declared grammar constructions with a task declaring what it measures', () => {
+    const decisions = selectEncounterBatch({
+      preset: 'CURRICULUM',
+      nowMs: 0,
+      levelStudyItems: [{ key: 'de:wort', word: 'wort', language: 'de' }],
+      curriculumGrammarItems: [{ language: 'de', pattern: 'weil-Satz', level: 3 }],
+    });
+    const grammar = decisions.find((decision) => decision.candidate.key === 'de:grammar:weil-Satz');
+    expect(grammar).toBeDefined();
+    expect(grammar!.action).toBe('TEACH');
+    expect(grammar!.encounter.task.taskTemplateId).toBe('grammar-recognize');
+    expect(grammar!.encounter.task.requested).toEqual(['grammar-recognition']);
+    expect(grammar!.encounter.targets).toEqual([{ entityId: 'de:grammar:weil-Satz', capability: 'grammar-recognition' }]);
+  });
+
+  it('the lexical level-study flow stays word-only when no grammar items are supplied', () => {
+    const decisions = selectEncounterBatch({
+      preset: 'CURRICULUM',
+      nowMs: 0,
+      levelStudyItems: [{ key: 'de:wort', word: 'wort', language: 'de' }],
+    });
+    expect(decisions.every((decision) => decision.candidate.word !== undefined)).toBe(true);
+  });
+});
+
 describe('candidate origin reachability', () => {
   it('reaches every non-reserved origin from sourceCandidates', () => {
     const origins = new Set<string>();

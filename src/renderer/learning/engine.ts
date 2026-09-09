@@ -2,6 +2,7 @@ import {
   bridgeCandidates,
   calibrationUnmeasuredCandidates,
   curriculumCandidates,
+  curriculumGrammarCandidates,
   grammarEncounterCandidates,
   mediaOpportunityCandidates,
   probeCandidates,
@@ -11,6 +12,7 @@ import {
   type BridgeCandidateInput,
   type CalibrationPoolItem,
   type FlashcardLike,
+  type CurriculumGrammarItem,
   type GrammarEncounterEntry,
   type LearnableWordSourceItem,
   type SupportedProbeTarget,
@@ -107,6 +109,8 @@ type CommonInputs = {
   probeTargets?: readonly SupportedProbeTarget[];
   /** Grammar exposure snapshot merged into the SUGGESTED pool (REQ39). */
   grammarEncounters?: readonly GrammarEncounterEntry[];
+  /** Package-declared curriculum grammar constructions merged into the CURRICULUM pool. */
+  curriculumGrammarItems?: readonly CurriculumGrammarItem[];
   /** Synchronized-object written bridges merged into the CALIBRATION pool. */
   bridgeItems?: readonly BridgeCandidateInput[];
 };
@@ -172,7 +176,10 @@ function sourceCandidates(inputs: EncounterInputs) {
           cooldowns: inputs.cooldowns ?? new Map(),
         }),
       ];
-    case 'CURRICULUM': return curriculumCandidates(inputs.levelStudyItems);
+    case 'CURRICULUM': return [
+      ...curriculumCandidates(inputs.levelStudyItems),
+      ...curriculumGrammarCandidates(inputs.curriculumGrammarItems ?? []),
+    ];
     case 'MEDIA': return mediaOpportunityCandidates(inputs.mediaItems);
     case 'SUGGESTED':
       return [

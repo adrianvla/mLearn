@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type Settings } from '../types';
-import { applyProsodyScaffoldMode, prosodyScaffoldMode, prosodyVisible } from '../prosodySettings';
+import { prosodyVisible } from '../prosodySettings';
+import { applyProsodyScaffoldStance, prosodyScaffoldStance, scaffoldStance, type ScaffoldStance } from '../scaffoldPreferences';
 
 function makeSettings(overrides: Partial<Settings> & Record<string, unknown> = {}): Settings {
   return { ...DEFAULT_SETTINGS, ...overrides } as Settings;
@@ -17,31 +18,25 @@ describe('prosody settings', () => {
   });
 });
 
-describe('scaffold mode (Off | Auto | Always)', () => {
-  it('derives the mode from the coloring policy fields only', () => {
-    expect(prosodyScaffoldMode(makeSettings())).toBe('always'); // defaults: color through known, no fade
-    expect(prosodyScaffoldMode(makeSettings({ coloredProsodyEnabled: false }))).toBe('off');
-    expect(prosodyScaffoldMode(makeSettings({ coloredProsodyStatusLimit: 'learning', coloredProsodyEaseMixEnabled: true }))).toBe('auto');
-    expect(prosodyScaffoldMode(makeSettings({ coloredProsodyEaseMixEnabled: true }))).toBe('auto');
+describe('scaffold stance (learner intent, not policy algorithms)', () => {
+  it('reads as a soft preference: the learner only says whether they want colors', () => {
+    expect(prosodyScaffoldStance(makeSettings())).toBe('prefer');
+    expect(prosodyScaffoldStance(makeSettings({ coloredProsodyEnabled: false }))).toBe('avoid');
   });
 
-  it('applies exact field mappings per mode without touching showProsody', () => {
-    expect(applyProsodyScaffoldMode('off')).toEqual({ coloredProsodyEnabled: false });
-    expect(applyProsodyScaffoldMode('always')).toEqual({
-      coloredProsodyEnabled: true,
-      coloredProsodyStatusLimit: 'known',
-      coloredProsodyEaseMixEnabled: false,
-    });
-    expect(applyProsodyScaffoldMode('auto')).toEqual({
-      coloredProsodyEnabled: true,
-      coloredProsodyStatusLimit: 'learning',
-      coloredProsodyEaseMixEnabled: true,
-    });
+  it('applies the preference without touching policy-owned fade fields', () => {
+    expect(applyProsodyScaffoldStance('prefer')).toEqual({ coloredProsodyEnabled: true });
+    expect(applyProsodyScaffoldStance('avoid')).toEqual({ coloredProsodyEnabled: false });
   });
 
-  it('round-trips: applied modes read back as themselves', () => {
-    for (const mode of ['off', 'auto', 'always'] as const) {
-      expect(prosodyScaffoldMode(applyProsodyScaffoldMode(mode))).toBe(mode);
-    }
+  it('policy-owned fading defaults to adaptive without a user-facing knob', () => {
+    expect(DEFAULT_SETTINGS.coloredProsodyStatusLimit).toBe('learning');
+    expect(DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled).toBe(true);
+  });
+
+  it('resolves unknown package scaffolds as adaptive — safe and inert', () => {
+    expect(scaffoldStance(makeSettings(), 'x-acme::tone-ladder')).toBe<ScaffoldStance>('adaptive');
+    expect(scaffoldStance(makeSettings(), 'reading')).toBe<ScaffoldStance>('require');
+    expect(scaffoldStance(makeSettings(), 'prosody')).toBe<ScaffoldStance>('prefer');
   });
 });

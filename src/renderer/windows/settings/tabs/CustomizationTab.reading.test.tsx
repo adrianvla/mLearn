@@ -14,7 +14,8 @@ let readingDisplay: 'ruby' | 'inline' | 'replace' = 'ruby';
 let supportsColoredProsody = false;
 
 const translations: Record<string, string> = {
-  'mlearn.Settings.Scaffold.Mode.Label': 'Prosody coloring',
+  'mlearn.Settings.Scaffold.Prosody.Label': 'Pitch-accent coloring',
+  'mlearn.Settings.Scaffold.Prosody.Description': 'Prefer pitch-accent coloring on words. mLearn fades it automatically as you learn.',
   'mlearn.Settings.Groups.ReadingAppearance': 'Reading text',
   'mlearn.Settings.ReadingAppearance.MoreContrast.Label': 'More contrast in reading text',
   'mlearn.Settings.ReadingAppearance.MoreContrast.Description': 'Use the primary text color for reading annotations',
@@ -211,25 +212,19 @@ describe('CustomizationTab reading appearance', () => {
       coloredProsodyPalettes: { 'test-tones': { 'tone-1': '#123456' } },
     });
 
-    const modeSelect = Array.from(container.querySelectorAll('select'))
-      .find((select) => select.parentElement?.textContent?.includes('Prosody coloring'))!;
-    modeSelect.value = 'auto';
-    modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    // The Off|Auto|Always control absorbs the old status-limit and evidence-
-    // fade policy toggles: Auto = colors stop once known and fade with
-    // evidence.
-    expect(updateSettingsMock).toHaveBeenCalledWith({
-      coloredProsodyEnabled: true,
-      coloredProsodyStatusLimit: 'learning',
-      coloredProsodyEaseMixEnabled: true,
-    });
-    expect(container.textContent).toContain('Part-of-speech color');
-
+    // Appearance stays appearance: saturation is exercised directly.
     const saturation = container.querySelector<HTMLInputElement>('.prosody-colors__saturation-control input');
     saturation!.value = '70';
     saturation!.dispatchEvent(new Event('input', { bubbles: true }));
     expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodySaturation: 70 });
 
+    // The learner expresses only the preference; fade behavior is policy-owned.
+    const preferenceToggle = Array.from(container.querySelectorAll('button'))
+      .find((element) => element.closest('div')?.textContent?.includes('Pitch-accent coloring'))!;
+    preferenceToggle.click();
+    expect(updateSettingsMock).toHaveBeenCalledWith({ coloredProsodyEnabled: false });
+    // Avoid = appearance off: the fade controls collapse with the section.
+    expect(container.textContent).not.toContain('Fade toward');
     dispose();
   });
 });

@@ -7,12 +7,8 @@ import { Component, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, VideoIcon, RangeInput } from '../../../components/common';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
-import {
-  applyReadingScaffoldMode,
-  hideReadingAnnotationsForKnownWords,
-  readingScaffoldMode,
-} from '../../../../shared/readingAnnotationSettings';
-import type { ScaffoldMode } from '../../../../shared/prosodySettings';
+import { hideReadingAnnotationsForKnownWords } from '../../../../shared/readingAnnotationSettings';
+import { applyReadingScaffoldStance, readingScaffoldStance } from '../../../../shared/scaffoldPreferences';
 import {
   getProsodyToggleDescription as getLanguageProsodyToggleDescription,
   getProsodyToggleLabel as getLanguageProsodyToggleLabel,
@@ -68,18 +64,18 @@ export const VideoPlayerTab: Component = () => {
       <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}>
         <Show when={getLanguageFeatures().supportsReadings || isSettingManaged('showReadingAnnotations') || isSettingManaged('hideReadingForKnownWords')}>
           <SettingRow
-            label={t('mlearn.Settings.Scaffold.Mode.ReadingLabel')}
-            description={t('mlearn.Settings.Scaffold.Mode.ReadingDescription')}
+            label={t('mlearn.Settings.Scaffold.Reading.Label')}
+            description={t('mlearn.Settings.Scaffold.Reading.Description')}
             settingKey="showReadingAnnotations"
           >
             <Select
               class="setting-select"
-              value={readingScaffoldMode(settings)}
-              onChange={(event) => updateSettings(applyReadingScaffoldMode(event.currentTarget.value as ScaffoldMode))}
+              value={readingScaffoldStance(settings)}
+              onChange={(event) => updateSettings(applyReadingScaffoldStance(event.currentTarget.value as 'require' | 'adaptive' | 'forbid'))}
             >
-              <option value="off">{t('mlearn.Settings.Scaffold.Off')}</option>
-              <option value="auto">{t('mlearn.Settings.Scaffold.Auto')}</option>
-              <option value="always">{t('mlearn.Settings.Scaffold.Always')}</option>
+              <option value="require">{t('mlearn.Settings.Scaffold.Reading.Always')}</option>
+              <option value="adaptive">{t('mlearn.Settings.Scaffold.Reading.Adaptive')}</option>
+              <option value="forbid">{t('mlearn.Settings.Scaffold.Reading.Never')}</option>
             </Select>
           </SettingRow>
         </Show>

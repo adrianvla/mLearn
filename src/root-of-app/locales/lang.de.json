@@ -1578,6 +1578,18 @@
         "Complete": "Alle Stufenwörter werden verfolgt!",
         "Hint": "Klicke auf eine Stufe unten, um Wörter anzusehen und hinzuzufügen"
       },
+      "Grammar": {
+        "Title": "Grammatik",
+        "Totals": "{known} / {total} bekannt",
+        "BucketCounts": "{measured}/{total} gemessen · {unmeasured} unvermessen",
+        "State": {
+          "Known": "bekannt",
+          "Learning": "am Lernen",
+          "Unknown": "noch nicht",
+          "Unmeasured": "unvermessen"
+        },
+        "SeenOnly": "{count}× gesehen"
+      },
       "PopulationStats": {
         "Title": "Karteikarten-Anreicherung",
         "Populated": "{populated} von {total} befüllt",
@@ -1902,18 +1914,20 @@
           "Label": "Einstellungen zurücksetzen"
         }
       },
-      "DisplayOptions": {
-        "Scaffold": {
-          "Mode": {
-            "Label": "Prosodie-Färbung",
-            "Description": "Aus blendet sie immer aus. Auto passt sie an deinen Lernstand an. Immer zeigt sie dauerhaft – Lesenachweise werden dann mit den sichtbaren Farben verknüpft.",
-            "ReadingLabel": "Lesungen (Furigana)",
-            "ReadingDescription": "Aus blendet Lesungen aus. Auto blendet sie für bekannte Wörter aus. Immer zeigt sie dauerhaft und erfasst Lesenachweise entsprechend."
-          },
-          "Off": "Aus",
-          "Auto": "Auto",
-          "Always": "Immer"
+      "Scaffold": {
+        "Reading": {
+          "Label": "Lesungsanzeigen (Furigana)",
+          "Description": "Lesungen bleiben immer sichtbar — die Leseevidenz wird dann als gestützt erfasst, und Aufgaben mit verdeckten Lesungen passen sich an.",
+          "Always": "Lesungen immer anzeigen",
+          "Adaptive": "Adaptiv — für bekannte Wörter ausblenden",
+          "Never": "Lesungen nie anzeigen"
         },
+        "Prosody": {
+          "Label": "Akzentfärbung",
+          "Description": "Akzentfärbung für Wörter bevorzugen. mLearn blendet sie beim Lernen automatisch aus — keine Einrichtung nötig."
+        }
+      },
+      "DisplayOptions": {
         "ImmediateFetch": {
           "Description": "Wortdaten sofort beim Erscheinen der Untertitel laden",
           "Label": "Sofort laden"

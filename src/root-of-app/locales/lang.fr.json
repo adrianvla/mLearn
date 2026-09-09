@@ -1578,6 +1578,18 @@
         "Complete": "Tous les mots de niveau sont suivis!",
         "Hint": "Cliquez sur un niveau ci-dessous pour voir et ajouter des mots"
       },
+      "Grammar": {
+        "Title": "Grammaire",
+        "Totals": "{known} / {total} connues",
+        "BucketCounts": "{measured}/{total} mesurées · {unmeasured} non mesurées",
+        "State": {
+          "Known": "connue",
+          "Learning": "en cours",
+          "Unknown": "pas encore",
+          "Unmeasured": "non mesurée"
+        },
+        "SeenOnly": "vue {count}×"
+      },
       "PopulationStats": {
         "Title": "Remplissage des flashcards",
         "Populated": "{populated} sur {total} remplis",
@@ -1902,18 +1914,20 @@
           "Label": "Réinitialiser les paramètres"
         }
       },
-      "DisplayOptions": {
-        "Scaffold": {
-          "Mode": {
-            "Label": "Coloration prosodique",
-            "Description": "Désactivé masque toujours. Auto l'ajuste selon votre apprentissage. Toujours l'affiche en permanence — les preuves de lecture sont alors conditionnées aux couleurs visibles.",
-            "ReadingLabel": "Lectures (furigana)",
-            "ReadingDescription": "Désactivé masque les lectures. Auto les masque pour les mots connus. Toujours les affiche et enregistre les preuves en conséquence."
-          },
-          "Off": "Désactivé",
-          "Auto": "Auto",
-          "Always": "Toujours"
+      "Scaffold": {
+        "Reading": {
+          "Label": "Annotations de lecture (furigana)",
+          "Description": "Les lectures restent toujours visibles — la preuve de lecture est alors enregistrée comme assistée, et les tâches nécessitant des lectures masquées s’adaptent.",
+          "Always": "Toujours afficher les lectures",
+          "Adaptive": "Adaptatif — masquer pour les mots connus",
+          "Never": "Ne jamais afficher les lectures"
         },
+        "Prosody": {
+          "Label": "Coloration des accents",
+          "Description": "Préférer la coloration des accents sur les mots. mLearn l’estompe automatiquement à mesure que vous apprenez."
+        }
+      },
+      "DisplayOptions": {
         "ImmediateFetch": {
           "Description": "Charger les données des mots dès l'apparition des sous-titres",
           "Label": "Chargement immédiat"

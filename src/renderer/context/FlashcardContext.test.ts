@@ -352,7 +352,7 @@ type FlashcardCtx = {
       language?: string;
       method?: 'recall' | 'inference';
       demonstrated?: readonly CapabilityKind[];
-      latencyMs?: number;
+      timing?: { activeLatencyMs: number; wallLatencyMs: number; interruptionCount: number; interrupted: boolean; stalled: boolean };
       attemptId?: AttemptId;
       origin?: string;
       taskType?: AttemptTaskType;
@@ -4567,7 +4567,11 @@ describe('recordAttempt quality semantics', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('学校', 'sense-recognition', 'fluent', { language: 'ja2', method: 'inference', latencyMs: 1234 });
+    ctx.recordAttempt('学校', 'sense-recognition', 'fluent', {
+      language: 'ja2',
+      method: 'inference',
+      timing: { activeLatencyMs: 1100, wallLatencyMs: 1234, interruptionCount: 1, interrupted: true, stalled: false },
+    });
     await Promise.resolve();
 
     const SRS = await import('../services/srsAlgorithm');
@@ -4578,7 +4582,15 @@ describe('recordAttempt quality semantics', () => {
       .flatMap(([, events]) => events)
       .filter((e) => e.kind === 'rating' && e.quality !== undefined);
     expect(attemptEvents.length).toBe(1);
-    expect(attemptEvents[0]).toMatchObject({ aspect: 'meaning', quality: 'fluent', method: 'inference', latencyMs: 1234 });
+    expect(attemptEvents[0]).toMatchObject({
+      aspect: 'meaning',
+      quality: 'fluent',
+      method: 'inference',
+      latencyMs: 1234,
+      activeLatencyMs: 1100,
+      interruptionCount: 1,
+      interrupted: true,
+    });
     // New-style addressing: the observation targets the presented surface
     // entity with the canonical capability (the legacy aspect field rides along).
     expect(attemptEvents[0]).toMatchObject({
@@ -5140,5 +5152,53 @@ describe('trackGrammarEncountered encounter opts (REQ39)', () => {
     expect(event.confidence).toBeUndefined();
     expect(event.span).toBeUndefined();
     dispose();
+  });
+});
+
+describe('recordGrammarAttempt (curriculum grammar probe)', () => {
+  beforeEach(setupMockImplementations);
+
+  it('writes ONE active rating event on the capability-scoped grammar key', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    const attemptId = ctx.recordGrammarAttempt('〜わけではない', 'fluent', { language: 'ja', level: 2 });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('〜わけではない', 'ja')).toBeDefined());
+
+    const byKey = mockAppendEvents.mock.calls[0][0] as Record<string, Array<Record<string, unknown>>>;
+    const events = byKey[grammarEvidenceKey('ja', '〜わけではない', 'grammar-recognition')];
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      kind: 'rating',
+      quality: 'fluent',
+      attemptId,
+      origin: 'grammar-probe',
+      taskType: 'grammar-recognize',
+      // Active measurement: explicit ease outcome, not an exposure bump.
+      easeAfter: 1.8,
+    });
+    expect('timesSeenDelta' in events[0]).toBe(false);
+    expect(events[0].targetRef).toMatchObject({ capability: 'grammar-recognition' });
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('a missed probe records negative evidence through the failure delta', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    ctx.recordGrammarAttempt('ば', 'missed', { language: 'ja' });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('ば', 'ja')).toBeDefined());
+
+    const byKey = mockAppendEvents.mock.calls[0][0] as Record<string, Array<Record<string, unknown>>>;
+    const [event] = byKey[grammarEvidenceKey('ja', 'ば', 'grammar-recognition')];
+    expect(event).toMatchObject({ kind: 'rating', quality: 'missed', grammarFailedDelta: 1 });
+    expect(event.easeAfter).toBeUndefined();
+    dispose();
+    mockSettings.language = 'ja';
   });
 });

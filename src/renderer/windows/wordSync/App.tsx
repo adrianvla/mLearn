@@ -75,6 +75,7 @@ import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useOptionalGraph } from '../../context';
 import type { RatedCapability } from '../../utils/accessKnowledge';
 import { calibrationPoolItem, selectNextEncounter } from '../../learning/engine';
+import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import './WordSync.css';
 
 /** One graph-attested character component of the presented word. */
@@ -146,7 +147,16 @@ export const WordSyncContent: Component = () => {
   // a filter reselection can re-present the same word, and the rating control
   // must reset its drafts each presentation regardless.
   const [presentationCount, setPresentationCount] = createSignal(0);
-  let wordShownAt = 0;
+  // Active-engagement timer for the current prompt: blur/hidden pauses are
+  // excluded from the recorded latency (shared encounter instrumentation).
+  let wordTimer: EncounterTimer | null = null;
+
+  const stopWordTiming = (): AttemptTiming | null => {
+    const timing = wordTimer?.stop() ?? null;
+    wordTimer?.dispose();
+    wordTimer = null;
+    return timing;
+  };
   const [samplingLevel, setSamplingLevel] = createSignal<number>(0);
   const [ratedCount, setRatedCount] = createSignal(0);
   const [lastRating, setLastRating] = createSignal<AttemptQuality | null>(null);
@@ -413,9 +423,11 @@ export const WordSyncContent: Component = () => {
         const nextIndex = selectedIndex >= cursor ? selectedIndex : cursor;
         if (nextIndex !== cursor) [group[cursor], group[nextIndex]] = [group[nextIndex], group[cursor]];
         batch(() => {
+          stopWordTiming();
+          wordTimer = createEncounterTimer();
+          wordTimer.start();
           levelCursors.set(tryLvl, cursor + 1);
           setSamplingLevel(tryLvl);
-          wordShownAt = Date.now();
           setTranslationSeenAtPrompt(false);
           setShowAnswer(false);
           setShowTranslation(false);
@@ -443,9 +455,8 @@ export const WordSyncContent: Component = () => {
     // opts.easy is scheduler-only and Word Sync has no scheduler — the
     // recorded evidence (fluent) is identical either way, so it is ignored.
     void opts;
-
     const attemptId = nextAttemptId();
-    const latencyMs = wordShownAt ? Date.now() - wordShownAt : undefined;
+    const timing = stopWordTiming();
     let anyMissed = false;
     for (const observation of observations) {
       if (observation.quality === 'missed') anyMissed = true;
@@ -454,7 +465,7 @@ export const WordSyncContent: Component = () => {
         method: observation.method,
         attemptId,
         origin: 'word-sync',
-        ...(latencyMs !== undefined ? { latencyMs } : {}),
+        ...(timing ? { timing } : {}),
         scaffolds: promptScaffolds(),
       });
     }
@@ -551,14 +562,14 @@ export const WordSyncContent: Component = () => {
       // Evidence: the learner just demonstrated compositional transfer —
       // observed inference, never retroactive knowledge of the whole.
       case 'inferred-from-parts': {
-        const latencyMs = wordShownAt ? Date.now() - wordShownAt : undefined;
+        const timing = stopWordTiming();
         for (const capability of ['sense-recognition', 'surface-recognition'] as const) {
           recordAttempt(w.word, capability, 'fluent', {
             language: lang,
             method: 'inference',
             attemptId,
             origin: 'word-sync',
-            ...(latencyMs !== undefined ? { latencyMs } : {}),
+            ...(timing ? { timing } : {}),
             scaffolds: promptScaffolds(),
           });
         }
@@ -878,9 +889,9 @@ export const WordSyncContent: Component = () => {
       }).catch((e) => log.warn('anki cache refresh failed:', e));
     }
   });
-
   onCleanup(() => {
     window.removeEventListener('keydown', handleKeyDown);
+    stopWordTiming();
   });
 
   // ─── Derived display state ──────────────────────────

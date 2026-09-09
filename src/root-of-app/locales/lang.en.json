@@ -1578,6 +1578,18 @@
         "Complete": "All level words are tracked!",
         "Hint": "Click a level below to view and add words"
       },
+      "Grammar": {
+        "Title": "Grammar",
+        "Totals": "{known} / {total} known",
+        "BucketCounts": "{measured}/{total} measured · {unmeasured} unmeasured",
+        "State": {
+          "Known": "known",
+          "Learning": "learning",
+          "Unknown": "not yet",
+          "Unmeasured": "unmeasured"
+        },
+        "SeenOnly": "seen {count}×"
+      },
       "PopulationStats": {
         "Title": "Flashcard Population",
         "Populated": "{populated} of {total} populated",
@@ -1902,18 +1914,20 @@
           "Label": "Reset Settings"
         }
       },
-      "DisplayOptions": {
-        "Scaffold": {
-          "Mode": {
-            "Label": "Prosody coloring",
-            "Description": "Off always hides it. Auto adapts it to your learning state. Always keeps it visible — reading evidence is then conditioned on the visible colors.",
-            "ReadingLabel": "Reading annotations",
-            "ReadingDescription": "Off hides readings. Auto hides them for words you know. Always keeps them visible and records reading evidence accordingly."
-          },
-          "Off": "Off",
-          "Auto": "Auto",
-          "Always": "Always"
+      "Scaffold": {
+        "Reading": {
+          "Label": "Reading annotations (furigana)",
+          "Description": "Always keeps readings visible — reading evidence is then recorded as scaffolded, and tasks that need hidden readings adapt instead.",
+          "Always": "Always show readings",
+          "Adaptive": "Adaptive — hide for words you know",
+          "Never": "Never show readings"
         },
+        "Prosody": {
+          "Label": "Pitch-accent coloring",
+          "Description": "Prefer pitch-accent coloring on words. mLearn fades it automatically as you learn — no setup needed."
+        }
+      },
+      "DisplayOptions": {
         "ImmediateFetch": {
           "Description": "Fetch word data when subtitles appear",
           "Label": "Immediate Fetch"

@@ -82,7 +82,11 @@ export function assembleTargetExplanation(
   // review still HAPPENED — retention scheduling consumes the occurrence,
   // never crediting knowledge.
   const evidence = active.filter((event) => eventIsMeasurable(event) && matcher(event));
-  const ratings = active.filter(matcher).flatMap((event) => event.rating ? [{ t: event.t, rating: event.rating }] : []);
+  // Retention consumes only what the queried capability's presentation left
+  // measurable: a translation-cued review provides no sense-recognition
+  // schedule, while a furigana-cued review still provides full meaning
+  // retention. Per-access honesty — never the card-level aggregate.
+  const ratings = active.filter((event) => eventIsMeasurable(event) && matcher(event)).flatMap((event) => event.rating ? [{ t: event.t, rating: event.rating }] : []);
   const projection = replayKeyProjection(evidence);
   const retention = ratings.length ? deriveRetentionSchedule({ createdAt: evidence[0]?.t ?? now, initialEase: 2.5 }, ratings, policy, now) : null;
   const state: TargetState = projection ? effectiveState(projection) : prediction ? 'predicted' : 'unmeasured';

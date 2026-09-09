@@ -1,5 +1,4 @@
 import { DEFAULT_SETTINGS, type Settings } from './types';
-import type { ScaffoldMode } from './prosodySettings';
 
 type ReadingAnnotationSettings = Pick<
   Settings,
@@ -50,23 +49,3 @@ export function ocrReadingAnnotationNeighborLookahead(settings: ReadingAnnotatio
   return settings.ocrReadingAnnotationNeighborLookahead ?? DEFAULT_SETTINGS.ocrReadingAnnotationNeighborLookahead!;
 }
 
-// ─── ScaffoldPolicy: Off | Auto | Always ────────────────────────────────────
-// Readings are an accessibility requirement as often as a preference: a
-// learner who always needs furigana keeps Always, and mLearn correctly
-// conditions reading evidence on its presence instead of overriding it.
-
-export function readingScaffoldMode(settings: ReadingAnnotationSettings): ScaffoldMode {
-  if (!readingAnnotationsEnabled(settings)) return 'off';
-  return hideReadingAnnotationsForKnownWords(settings) ? 'auto' : 'always';
-}
-
-export function applyReadingScaffoldMode(mode: ScaffoldMode): Partial<Settings> {
-  switch (mode) {
-    case 'off':
-      return { showReadingAnnotations: false };
-    case 'always':
-      return { showReadingAnnotations: true, hideReadingForKnownWords: false };
-    case 'auto':
-      return { showReadingAnnotations: true, hideReadingForKnownWords: true };
-  }
-}

@@ -562,8 +562,11 @@ export const DEFAULT_SETTINGS: Settings = {
   coloredProsodyEnabled: true,
   coloredProsodyRelevantOnly: false,
   coloredProsodyPalettes: {},
-  coloredProsodyStatusLimit: 'known',
-  coloredProsodyEaseMixEnabled: false,
+  // Policy-owned defaults: colored prosody fades once a word is learned and
+  // with prosody evidence. These fields are policy internals — NOT user-facing
+  // settings (the learner expresses only prefer/avoid via coloredProsodyEnabled).
+  coloredProsodyStatusLimit: 'learning',
+  coloredProsodyEaseMixEnabled: true,
   coloredProsodyEaseMixTarget: 'white',
   coloredProsodySaturation: 100,
   frequencyStarCollapse: 'auto',

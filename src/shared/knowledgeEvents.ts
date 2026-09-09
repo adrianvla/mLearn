@@ -101,6 +101,24 @@ export function measurableAccesses<T extends CapabilityKey>(accesses: readonly T
 }
 
 /**
+ * Card-level retention condition for a review whose presentation scaffolds are
+ * known: 'supplied' when every tested access was scaffold-supplied (nothing
+ * was measured — the review is exposure), 'assisted' when only part was
+ * (weaker refresh), 'unassisted' when the presentation measured everything it
+ * tested. Per-capability consumers do not use this; they ask
+ * isAccessMeasurable about the capability they replay.
+ */
+export function retentionConditionFor(
+  testedAccesses: readonly CapabilityKey[],
+  scaffolds?: AttemptScaffolds,
+): 'unassisted' | 'assisted' | 'supplied' {
+  if (!scaffolds) return 'unassisted';
+  const measured = measurableAccesses(testedAccesses, scaffolds);
+  if (measured.length === 0) return 'supplied';
+  return measured.length < testedAccesses.length ? 'assisted' : 'unassisted';
+}
+
+/**
  * Read-side mirror of the write-time guard: a rating/status/review event is
  * EVIDENCE only when its own presentation state does not invalidate its
  * capability (furigana-visible reading rows project as bookkeeping, not as
@@ -157,8 +175,43 @@ export interface KnowledgeEvent {
   quality?: AttemptQuality;
   /** Logical-attempt identity: all observation events of one physical response share this id. */
   attemptId?: AttemptId;
-  /** Response latency of the attempt (interaction start → rating), stored for calibration; never overrides the learner's report. */
+  /**
+   * Response latency of the attempt (interaction start → rating), stored for
+   * calibration; never overrides the learner's report. Wall-clock: includes
+   * any time the learner was away — read it through attemptActiveLatencyMs.
+   */
   latencyMs?: number;
+  /**
+   * Active-engagement latency: time the encounter surface was focused and
+   * document-visible. Blur/visibility pauses are excluded by construction
+   * and recorded as interruptions; a flagged focus stall stays counted, so
+   * `stalled` rows must not be read as latency (see attemptActiveLatencyMs).
+   * Present when the presenting surface instrumented timing; absent rows
+   * fall back to latencyMs via attemptActiveLatencyMs.
+   */
+  activeLatencyMs?: number;
+  /** Blur/visibility pauses plus flagged focus stalls during the attempt. */
+  interruptionCount?: number;
+  /** True when the attempt's timing saw any interruption. */
+  interrupted?: boolean;
+  /**
+   * True when the conservative focus-stall mechanism flagged the attempt (a
+   * focused+visible stretch with no input exceeded the stall threshold).
+   * Unlike blur/visibility pauses — whose time IS excluded from
+   * activeLatencyMs — stalled time could not be excluded, so such rows carry
+   * no trustworthy latency: attemptActiveLatencyMs returns undefined.
+   */
+  stalled?: boolean;
+  /**
+   * Card-level retention conditioning provenance for this review: the
+   * presentation cued part of what the card tests ('assisted') or effectively
+   * supplied all of it ('supplied'). The live card scheduler and card-level
+   * replays dampen accordingly. Per-capability consumers must NOT use this —
+   * they derive measurability from the queried capability via
+   * eventIsMeasurable (a furigana-cued review still provides full meaning
+   * retention). Absent = unassisted.
+   */
+  retentionCondition?: 'assisted' | 'supplied';
   /**
    * What task produced the attempt (REQ3/REQ52 attempt metadata). Provenance
    * only — projection may weigh a scaffolded task differently from a cold
@@ -194,6 +247,22 @@ export interface KnowledgeEvent {
   /** Presenting surface/policy channel that produced the observation (e.g. 'word-sync'); replay maps this to policy markers like wordSyncRatedAt. */
   origin?: string;
 }
+
+/**
+ * Modeling-grade attempt latency: active-engagement time when the presenting
+ * surface recorded it, else the legacy wall-clock latencyMs. Calibration and
+ * any future latency-sensitive projection must read through this accessor
+ * instead of raw latencyMs so time away from the surface never counts as
+ * retrieval weakness.
+ */
+export function attemptActiveLatencyMs(event: KnowledgeEvent): number | undefined {
+  // A focus-stalled attempt's active time still contains the flagged gap —
+  // it is audit data, not retrieval evidence. Ordinary blur/refocus pauses
+  // are excluded from activeLatencyMs by the timer, so they stay usable.
+  if (event.stalled) return undefined;
+  return event.activeLatencyMs ?? event.latencyMs;
+}
+
 /**
  * Explicit epistemic claim (kind: 'claim') — the user's own statement about a
  * target: "I know this" / "I am learning this" / "I do not know this", or the

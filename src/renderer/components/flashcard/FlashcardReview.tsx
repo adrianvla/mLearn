@@ -18,7 +18,8 @@ import type { CapabilityKind, Flashcard, FlashcardContent } from '../../../share
 import { getAvailableAccesses } from '../../../shared/types';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { qualityToSrsRating, type AttemptQuality } from '../../../shared/constants';
-import { nextAttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
+import { measurableAccesses, nextAttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
+import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import { demonstratesFor } from '../../utils/accessKnowledge';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
 import type { KnowledgeAspect } from '../../../shared/constants';
@@ -71,20 +72,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
 
-  // Study time tracking per card
-  let cardShownAt = 0;
+  // Active-engagement timing per card: blur/hidden pauses are excluded from
+  // the recorded latency; the shared timer is the single implementation all
+  // encounter surfaces use (review, Word Sync, welcome review).
+  let encounterTimer: EncounterTimer | null = null;
 
-  const getElapsedTime = (): number => {
-    if (cardShownAt === 0) return 0;
-    return Date.now() - cardShownAt;
+  const stopTiming = (): AttemptTiming | null => {
+    const timing = encounterTimer?.stop() ?? null;
+    encounterTimer?.dispose();
+    encounterTimer = null;
+    return timing;
   };
 
-  // Reset timer whenever a new card is shown
+  onCleanup(() => stopTiming());
+
+  // Start timing whenever a new card is shown
   createEffect(on(
     () => currentCard()?.id,
     (cardId) => {
+      stopTiming();
       if (cardId) {
-        cardShownAt = Date.now();
+        encounterTimer = createEncounterTimer();
+        encounterTimer.start();
       }
     }
   ));
@@ -196,6 +205,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     });
   });
 
+  // The scaffolds THIS card's retrieval actually saw (pre-reveal word audio,
+  // auto-played or requested). Task validity outranks convenience: an access
+  // the presentation supplies is never asked of the learner (the matrix row
+  // is dropped) and the card review is scheduled as scaffold-conditioned.
+  const attemptScaffolds = createMemo<AttemptScaffolds | undefined>(
+    () => (wordAudioPreReveal() ? { audio: true } : undefined),
+  );
+
   const ratingMode = createMemo(() => currentDecision()?.encounter.task.ratingMode ?? 'profile');
 
   // Word-presentation task: the written cue proves each access on the measured
@@ -204,8 +221,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleRate = (capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => {
     const card = currentCard();
     if (!card || !showAnswer()) return;
-    const elapsed = getElapsedTime();
-    cardShownAt = 0;
+    const timing = stopTiming();
 
     stopTts();
     batch(() => {
@@ -214,12 +230,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         language: languageForCard(card),
         method: opts?.method,
         demonstrated: demonstratesFor(capability),
-        latencyMs: elapsed,
+        ...(timing ? { timing } : {}),
         taskType: 'srs-review',
         ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
       });
-      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, elapsed, {
+      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, timing?.wallLatencyMs ?? 0, {
         attemptId,
+        tested: testedAccesses(),
         ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
       });
       if (completed) {
@@ -231,8 +248,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleAllFluent = (opts?: RateOptions) => {
     const card = currentCard();
     if (!card || !showAnswer()) return;
-    const elapsed = getElapsedTime();
-    cardShownAt = 0;
+    const timing = stopTiming();
 
     stopTts();
     batch(() => {
@@ -245,14 +261,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           language: languageForCard(card),
           method: opts?.method,
           demonstrated: demonstratesFor(capability),
-          latencyMs: elapsed,
+          ...(timing ? { timing } : {}),
           attemptId,
           taskType: 'srs-review',
           ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
         });
       }
-      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, elapsed, {
+      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, timing?.wallLatencyMs ?? 0, {
         attemptId,
+        tested: testedAccesses(),
         ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
       });
       if (completed) {
@@ -264,8 +281,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleProfileSubmit = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     const card = currentCard();
     if (!card || !showAnswer() || observations.length === 0) return;
-    const elapsed = getElapsedTime();
-    cardShownAt = 0;
+    const timing = stopTiming();
     const qualityRank: Record<AttemptQuality, number> = { missed: 0, struggled: 1, fluent: 2 };
     const schedulerQuality = observations.reduce<AttemptQuality>(
       (worst, observation) => qualityRank[observation.quality] < qualityRank[worst] ? observation.quality : worst,
@@ -281,7 +297,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           language: languageForCard(card),
           method: observation.method ?? opts?.method,
           demonstrated: demonstratesFor(observation.capability),
-          latencyMs: elapsed,
+          ...(timing ? { timing } : {}),
           attemptId,
           taskType: 'srs-review',
           ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
@@ -290,8 +306,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       const completed = answerCard(qualityToSrsRating(
         schedulerQuality,
         schedulerQuality === 'fluent' && (opts?.easy ?? observations.every((observation) => observation.easy)),
-      ), card.id, elapsed, {
+      ), card.id, timing?.wallLatencyMs ?? 0, {
         attemptId,
+        tested: testedAccesses(),
         ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
       });
       if (completed) setCardsAnswered(prev => prev + 1);
@@ -418,7 +435,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleBury = () => {
     const card = currentCard();
     if (!card) return;
-    cardShownAt = 0;
+    stopTiming();
     batch(() => {
       setShowAnswer(false);
       buryCard(card.id);
@@ -428,7 +445,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleRemove = async () => {
     const card = currentCard();
     if (!card) return;
-    cardShownAt = 0;
+    stopTiming();
     setShowAnswer(false);
     await removeFlashcard(card.id, true);
   };
@@ -717,7 +734,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           <Show when={!isComplete() && currentCard() && showAnswer()}>
             <div class="flashcard-rating-buttons">
               <RatingMatrix
-                capabilities={testedAccesses()}
+                capabilities={measurableAccesses(testedAccesses(), attemptScaffolds())}
                 keyboardMode={settings.ratingKeyboardMode}
                 armed={showAnswer() && !!currentCard() && !isComplete()}
                 mode={ratingMode()}

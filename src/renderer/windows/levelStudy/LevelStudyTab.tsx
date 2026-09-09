@@ -3,7 +3,16 @@ import { useLocalization, useFlashcards, useLanguage, useSettings } from '../../
 import { LevelCard } from './LevelCard';
 import { LevelDetailModal } from './LevelDetailModal';
 import { BulkAddModal } from './BulkAddModal';
-import { computeBeyondExamLevelStats, computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames } from '../../utils/wordLevelStats';
+import { GrammarCoverage } from './GrammarCoverage';
+import { summarizeGrammarCurriculum } from '../../utils/curriculumCoverage';
+import { eventsVersion, getEventLogForLanguage } from '../../services/knowledgeEvents';
+import { createResource } from 'solid-js';
+import {
+  computeBeyondExamLevelStats,
+  computeLevelStats,
+  getLevelStudyFrequency,
+  getLevelStudyLevelNames,
+} from '../../utils/wordLevelStats';
 import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
 import { EmptyState, TargetIcon, Btn, PillBtn, SkeletonCard, SkeletonRows } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
@@ -174,6 +183,25 @@ export const LevelStudyTab: Component = () => {
 
   const hasFrequencyData = createMemo(() => stats().length > 0 || beyondCard() !== null);
 
+
+  // Grammar curriculum coverage aggregates over the package's OWN grammar
+  // scale (grammarLevels), from the capability-scoped journal.
+  const [grammarLog] = createResource(
+    () => (flashcards.isKnowledgeReady() && !language.isLoading() ? { language: resolvedLanguageData().language, version: eventsVersion() } : undefined),
+    (source) => getEventLogForLanguage(source.language),
+  );
+  const grammarSummary = createMemo(() => {
+    const data = resolvedLanguageData().data;
+    const log = grammarLog();
+    if (!data || !log || resolvedLanguageData().language === '') return null;
+    // Vocabulary-only packages: no grammar gate at all.
+    if (!data.grammar?.length) return null;
+    return summarizeGrammarCurriculum(resolvedLanguageData().language, data, log);
+  });
+  const levelComplete = createMemo(() => (
+    coverageTotals().complete && (grammarSummary() === null || grammarSummary()!.complete)
+  ));
+
   const openBehaviourSettings = () => {
     getBridge().window.openWindow({ type: 'settings', context: { section: 'behaviour' } });
   };
@@ -259,21 +287,21 @@ export const LevelStudyTab: Component = () => {
             </Show>
           </div>
           <Show
-            when={!coverageTotals().complete}
+            when={!levelComplete()}
             fallback={
               <span class="level-study-coverage-hint">{t('mlearn.LevelStudy.Coverage.Complete')}</span>
             }
           >
-            <Show
-              when={userLevel() === null}
-              fallback={
-                <span class="level-study-coverage-hint">{t('mlearn.LevelStudy.Coverage.Hint')}</span>
-              }
-            >
-              <button type="button" class="level-study-set-level-link" onClick={openBehaviourSettings}>
-                {t('mlearn.LevelStudy.Coverage.SetLevelHint')}
-              </button>
-            </Show>
+             <Show
+               when={userLevel() === null}
+               fallback={
+                 <span class="level-study-coverage-hint">{t('mlearn.LevelStudy.Coverage.Hint')}</span>
+               }
+             >
+               <button type="button" class="level-study-set-level-link" onClick={openBehaviourSettings}>
+                 {t('mlearn.LevelStudy.Coverage.SetLevelHint')}
+               </button>
+             </Show>
           </Show>
         </div>
         </Show>
@@ -297,6 +325,21 @@ export const LevelStudyTab: Component = () => {
           </Show>
         </div>
         </Show>
+
+        <Show when={grammarSummary() !== null && grammarSummary()!.total > 0 && grammarLog() !== undefined}>
+          <GrammarCoverage
+            language={resolvedLanguageData().language}
+            languageData={resolvedLanguageData().data!}
+            eventLog={grammarLog()!}
+            summary={grammarSummary()!}
+            onProbe={(pattern, quality, level) => {
+              void flashcards.recordGrammarAttempt(pattern, quality, {
+                language: resolvedLanguageData().language,
+                level,
+              });
+            }}
+          />
+      </Show>
       </Show>
       <Show when={selectedLevel()}>
         {(level) => (

@@ -2,6 +2,7 @@ import { SRS_EASE } from '../../shared/constants';
 import { grammarEntityId } from '../../shared/graph/load';
 import type { LearnableTarget } from '../../shared/graph/types';
 import type { Candidate } from './types';
+import { GRAMMAR_RECOGNIZE_TASK } from './types';
 
 export interface FlashcardLike {
   id: string;
@@ -123,6 +124,35 @@ export function bridgeCandidates(items: readonly BridgeCandidateInput[]): Candid
 
 export function curriculumCandidates(items: readonly LearnableWordSourceItem[]): Candidate[] {
   return wordCandidates(items, 'curriculum', 'curriculum-relevance');
+}
+
+/** Package-declared curriculum membership for one grammar construction. */
+export interface CurriculumGrammarItem {
+  language: string;
+  pattern: string;
+  /** Bucket on the language's OWN grammar scale (GrammarPoint.level). */
+  level: number;
+  /** Optional package-defined weight; default 1. */
+  weight?: number;
+}
+
+/**
+ * Curriculum grammar source: constructions the package's curriculum data
+ * places on its grammar scale, emitted as first-class curriculum candidates
+ * whose task template declares that it measures grammar-recognition. Lexical
+ * curriculum flow (level-study bulk add) does NOT consume these — they have
+ * no word form.
+ */
+export function curriculumGrammarCandidates(items: readonly CurriculumGrammarItem[]): Candidate[] {
+  return items.map((item) => ({
+    key: `${item.language}:grammar:${item.pattern}`,
+    language: item.language,
+    targets: [{ entityId: grammarEntityId(item.language, item.pattern), capability: 'grammar-recognition' as const }],
+    origin: 'curriculum' as const,
+    task: GRAMMAR_RECOGNIZE_TASK,
+    scores: { 'curriculum-relevance': clamp(item.weight ?? 1) },
+    meta: { pattern: item.pattern, level: item.level },
+  }));
 }
 
 export function mediaOpportunityCandidates(items: readonly LearnableWordSourceItem[]): Candidate[] {

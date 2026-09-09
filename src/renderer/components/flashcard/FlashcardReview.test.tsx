@@ -574,7 +574,7 @@ describe('FlashcardReview failure attribution', () => {
     // observations and the SRS review event.
     const attemptIds = new Set(calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
     expect(attemptIds.size).toBe(1);
-    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), { attemptId: [...attemptIds][0] });
+    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: [...attemptIds][0] }));
     dispose();
   });
 
@@ -611,7 +611,7 @@ describe('FlashcardReview failure attribution', () => {
     const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
     const attemptIds = new Set(calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
     expect(attemptIds.size).toBe(1);
-    expect(mockAnswerCard).toHaveBeenCalledWith('easy', 'card-1', expect.any(Number), { attemptId: [...attemptIds][0] });
+    expect(mockAnswerCard).toHaveBeenCalledWith('easy', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: [...attemptIds][0] }));
     expect(calls.length).toBe(3);
     dispose();
   });

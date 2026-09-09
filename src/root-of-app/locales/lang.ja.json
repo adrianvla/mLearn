@@ -1578,6 +1578,18 @@
         "Complete": "すべてのレベル単語が追跡されています!",
         "Hint": "下のレベルをクリックして単語を表示・追加"
       },
+      "Grammar": {
+        "Title": "文法",
+        "Totals": "{known} / {total} 既知",
+        "BucketCounts": "{measured}/{total} 測定済み · 未測定 {unmeasured}",
+        "State": {
+          "Known": "既知",
+          "Learning": "学習中",
+          "Unknown": "未習得",
+          "Unmeasured": "未測定"
+        },
+        "SeenOnly": "{count}回目撃"
+      },
       "PopulationStats": {
         "Title": "フラッシュカード作成状況",
         "Populated": "{populated} / {total} 件作成済み",
@@ -1902,18 +1914,20 @@
           "Label": "設定をリセット"
         }
       },
-      "DisplayOptions": {
-        "Scaffold": {
-          "Mode": {
-            "Label": "声調の色分け",
-            "Description": "オフで常に非表示。オートは学習状態に合わせて調整。常に表示では、読みのエビデンスが表示中の色の条件付きで記録されます。",
-            "ReadingLabel": "読みの注記",
-            "ReadingDescription": "オフで非表示。オートは既知の語で非表示。常に表示では、それに応じて読みのエビデンスが記録されます。"
-          },
-          "Off": "オフ",
-          "Auto": "オート",
-          "Always": "常に表示"
+      "Scaffold": {
+        "Reading": {
+          "Label": "読み仮名（ふりがな）",
+          "Description": "読みを常に表示します。読みのエビデンスは支援付きとして記録され、読みを隠す必要のあるタスクは別の方法に適応します。",
+          "Always": "常に読みを表示",
+          "Adaptive": "適応 — 既知の語では隠す",
+          "Never": "読みを表示しない"
         },
+        "Prosody": {
+          "Label": "アクセントの色分け",
+          "Description": "単語のアクセント色分けを優先表示。学習が進むと自動的にフェードします — 設定は不要です。"
+        }
+      },
+      "DisplayOptions": {
         "ImmediateFetch": {
           "Description": "字幕が表示されたらすぐに単語データを取得",
           "Label": "即時取得"

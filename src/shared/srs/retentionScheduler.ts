@@ -10,6 +10,14 @@ export type RetentionRating = 'again' | 'hard' | 'good' | 'easy';
 export interface RetentionEvidence {
   t: number;
   rating: RetentionRating;
+  /**
+   * Card-level presentation conditioning. 'assisted' = the presentation cued
+   * part of what the card tests (downgraded one rating step: weaker refresh);
+   * 'supplied' = everything tested was scaffold-supplied (exposure only: the
+   * schedule is preserved, the review happened but measures nothing).
+   * Absent = unassisted.
+   */
+  condition?: 'assisted' | 'supplied';
 }
 
 export interface RetentionTemplate {
@@ -30,60 +38,76 @@ export function scheduleAfterAnswer(
   rating: RetentionRating,
   policy: RetentionPolicy,
   now: number,
+  condition: 'assisted' | 'supplied' | 'unassisted' = 'unassisted',
 ): RetentionScheduleCache {
+  // Answer effectively supplied: exposure/reinforcement, not independent
+  // retrieval success. The occurrence is recorded (lastReviewed) but the
+  // schedule neither extends nor regrades — the access comes back through
+  // its existing due date or through calibration probing.
+  if (condition === 'supplied') {
+    return { ...schedule, lastReviewed: now, provenance: 'derived-scheduler-cache' };
+  }
+  // Assisted success: weaker, scaffold-conditioned practice. One rating step
+  // of scheduling credit — the learner did succeed, but part of the card was
+  // cued. The recorded rating itself is never rewritten.
+  const schedulingRating: RetentionRating = condition === 'assisted' && rating === 'easy'
+    ? 'good'
+    : condition === 'assisted' && rating === 'good'
+      ? 'hard'
+      : rating;
   const next: RetentionScheduleCache = { ...schedule, lastReviewed: now, provenance: 'derived-scheduler-cache' };
   const learningSteps = policy.learningSteps;
   const relearnSteps = policy.relearnSteps;
 
   if (schedule.state === 'new') {
-    if (rating === 'again' || rating === 'hard') {
-      return { ...next, state: 'learning', learningStep: 0, dueAt: now + learningSteps[0] * MINUTE * (rating === 'hard' ? 1.5 : 1) };
+    if (schedulingRating === 'again' || schedulingRating === 'hard') {
+      return { ...next, state: 'learning', learningStep: 0, dueAt: now + learningSteps[0] * MINUTE * (schedulingRating === 'hard' ? 1.5 : 1) };
     }
-    if (rating === 'good' && learningSteps.length > 1) {
+    if (schedulingRating === 'good' && learningSteps.length > 1) {
       return { ...next, state: 'learning', learningStep: 1, dueAt: now + learningSteps[1] * MINUTE };
     }
-    const interval = (rating === 'easy' ? policy.easyInterval : policy.graduatingInterval) * DAY;
-    return { ...next, state: 'review', learningStep: 0, ease: rating === 'easy' ? schedule.ease + 0.15 : schedule.ease, interval, dueAt: now + interval, reviews: 1 };
+    const interval = (schedulingRating === 'easy' ? policy.easyInterval : policy.graduatingInterval) * DAY;
+    return { ...next, state: 'review', learningStep: 0, ease: schedulingRating === 'easy' ? schedule.ease + 0.15 : schedule.ease, interval, dueAt: now + interval, reviews: 1 };
   }
 
   if (schedule.state === 'learning') {
-    if (rating === 'again') return { ...next, learningStep: 0, dueAt: now + learningSteps[0] * MINUTE };
-    if (rating === 'hard') return { ...next, dueAt: now + learningSteps[schedule.learningStep] * MINUTE * 1.5 };
-    if (rating === 'good' && schedule.learningStep + 1 < learningSteps.length) {
+    if (schedulingRating === 'again') return { ...next, learningStep: 0, dueAt: now + learningSteps[0] * MINUTE };
+    if (schedulingRating === 'hard') return { ...next, dueAt: now + learningSteps[schedule.learningStep] * MINUTE * 1.5 };
+    if (schedulingRating === 'good' && schedule.learningStep + 1 < learningSteps.length) {
       const learningStep = schedule.learningStep + 1;
       return { ...next, learningStep, dueAt: now + learningSteps[learningStep] * MINUTE };
     }
-    const interval = (rating === 'easy' ? policy.easyInterval : policy.graduatingInterval) * DAY;
-    return { ...next, state: 'review', learningStep: 0, ease: rating === 'easy' ? schedule.ease + 0.15 : schedule.ease, interval, dueAt: now + interval, reviews: schedule.reviews + 1 };
+    const interval = (schedulingRating === 'easy' ? policy.easyInterval : policy.graduatingInterval) * DAY;
+    return { ...next, state: 'review', learningStep: 0, ease: schedulingRating === 'easy' ? schedule.ease + 0.15 : schedule.ease, interval, dueAt: now + interval, reviews: schedule.reviews + 1 };
   }
 
   if (schedule.state === 'relearning') {
-    if (rating === 'again') return { ...next, learningStep: 0, dueAt: now + relearnSteps[0] * MINUTE };
-    if (rating === 'hard') return { ...next, dueAt: now + relearnSteps[schedule.learningStep] * MINUTE * 1.5 };
-    if (rating === 'good' && schedule.learningStep + 1 < relearnSteps.length) {
+    if (schedulingRating === 'again') return { ...next, learningStep: 0, dueAt: now + relearnSteps[0] * MINUTE };
+    if (schedulingRating === 'hard') return { ...next, dueAt: now + relearnSteps[schedule.learningStep] * MINUTE * 1.5 };
+    if (schedulingRating === 'good' && schedule.learningStep + 1 < relearnSteps.length) {
       const learningStep = schedule.learningStep + 1;
       return { ...next, learningStep, dueAt: now + relearnSteps[learningStep] * MINUTE };
     }
-    const interval = rating === 'easy' ? Math.min(schedule.interval * 1.5, policy.maxInterval * DAY) : schedule.interval;
+    const interval = schedulingRating === 'easy' ? Math.min(schedule.interval * 1.5, policy.maxInterval * DAY) : schedule.interval;
     return { ...next, state: 'review', learningStep: 0, interval, dueAt: now + interval };
   }
 
-  if (rating === 'again') {
+  if (schedulingRating === 'again') {
     return {
       ...next,
       state: 'relearning',
       learningStep: 0,
-      ease: nextEase(schedule.ease, rating),
+      ease: nextEase(schedule.ease, schedulingRating),
       interval: Math.max(DAY, schedule.interval * 0.5),
       dueAt: now + relearnSteps[0] * MINUTE,
       lapses: schedule.lapses + 1,
     };
   }
   const interval = Math.min(
-    schedule.interval * (rating === 'hard' ? 1.2 : schedule.ease * (rating === 'easy' ? EASY_BONUS : 1) * (policy.reviewIntervalModifier / 100)),
+    schedule.interval * (schedulingRating === 'hard' ? 1.2 : schedule.ease * (schedulingRating === 'easy' ? EASY_BONUS : 1) * (policy.reviewIntervalModifier / 100)),
     policy.maxInterval * DAY,
   );
-  return { ...next, ease: nextEase(schedule.ease, rating), interval, dueAt: now + interval, reviews: schedule.reviews + 1 };
+  return { ...next, ease: nextEase(schedule.ease, schedulingRating), interval, dueAt: now + interval, reviews: schedule.reviews + 1 };
 }
 
 /** Replays active review evidence; retractions are applied by the evidence reader. */
@@ -97,7 +121,7 @@ export function deriveRetentionSchedule(
   let schedule: RetentionScheduleCache = migratedSeed && evidence.length === 0
     ? migratedSeed
     : { state: 'new', ease: template.initialEase, interval: 0, dueAt: template.createdAt, reviews: 0, lapses: 0, learningStep: 0, lastReviewed: 0, provenance: 'derived-scheduler-cache' };
-  for (const event of [...evidence].sort((a, b) => a.t - b.t)) schedule = scheduleAfterAnswer(schedule, event.rating, policy, event.t);
+  for (const event of [...evidence].sort((a, b) => a.t - b.t)) schedule = scheduleAfterAnswer(schedule, event.rating, policy, event.t, event.condition ?? 'unassisted');
   return { ...schedule, pressure: Math.max(0, (now - schedule.dueAt) / Math.max(1, schedule.interval || DAY)) };
 }
 

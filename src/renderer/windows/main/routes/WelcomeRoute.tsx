@@ -3,7 +3,7 @@
  * Start menu showing options to watch videos, open reader, or continue recent content
  */
 
-import { Component, createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { Component, createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
@@ -37,6 +37,7 @@ import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionar
 import { ankiCacheVersion, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
+import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../../shared/encounterTiming';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 import { getLogger } from '../../../../shared/utils/logger';
@@ -246,12 +247,45 @@ export const WelcomeRoute: Component = () => {
     { quality: 'struggled' as const, label: t('mlearn.Rating.Matrix.Struggled') },
     { quality: 'fluent' as const, label: t('mlearn.Rating.Matrix.Fluent') },
   ]);
+  // Active-engagement timing per welcome card (shared encounter
+  // instrumentation): blur/hidden pauses never count as retrieval latency.
+  let welcomeTimer: EncounterTimer | null = null;
+  const stopWelcomeTiming = (): AttemptTiming | null => {
+    const timing = welcomeTimer?.stop() ?? null;
+    welcomeTimer?.dispose();
+    welcomeTimer = null;
+    return timing;
+  };
+  onCleanup(() => stopWelcomeTiming());
+  createEffect(on(
+    () => currentCard()?.id,
+    (cardId) => {
+      stopWelcomeTiming();
+      if (!cardId) return;
+      welcomeTimer = createEncounterTimer();
+      welcomeTimer.start();
+    },
+  ));
   const rateCard = (quality: AttemptQuality) => {
     const card = currentCard();
     if (!card) return;
     const language = card.language || settings.language;
-    const { attemptId } = flashcards.recordAttempt(card.content.front, 'sense-recognition', quality, { language, taskType: 'welcome-review' });
-    flashcards.answerCard(qualityToSrsRating(quality), card.id, undefined, { attemptId, taskType: 'welcome-review' });
+    const timing = stopWelcomeTiming();
+    // Meaning-row matrix semantics: the widget's card front supplies the
+    // reading (rendered beneath it), so only Meaning is tested here — and the
+    // evidence records that presentation honestly.
+    const { attemptId } = flashcards.recordAttempt(card.content.front, 'sense-recognition', quality, {
+      language,
+      taskType: 'welcome-review',
+      ...(timing ? { timing } : {}),
+      scaffolds: { reading: true },
+    });
+    flashcards.answerCard(qualityToSrsRating(quality), card.id, timing?.wallLatencyMs, {
+      attemptId,
+      taskType: 'welcome-review',
+      tested: ['sense-recognition'],
+      scaffolds: { reading: true },
+    });
   };
   const recentWordRows = createMemo(() =>
     selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),

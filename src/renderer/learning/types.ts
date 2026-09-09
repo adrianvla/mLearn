@@ -11,6 +11,23 @@ export interface EncounterTask {
   ratingMode: 'profile' | 'dominant';
 }
 
+/**
+ * Grammar construction recognition: the construction's written form (as it
+ * appears in context) is supplied; the learner self-assesses recognizing the
+ * construction. Measures the grammar-recognition access — never lexical
+ * knowledge, and never a parallel grammar engine: evidence flows through the
+ * shared capability-scoped journal.
+ */
+export const GRAMMAR_RECOGNIZE_TASK: EncounterTask = {
+  taskTemplateId: 'grammar-recognize',
+  inputModality: 'written-form',
+  responseModality: 'self-assessment',
+  supplied: ['written-form'],
+  requested: ['grammar-recognition'],
+  fluencyRequired: false,
+  ratingMode: 'dominant',
+};
+
 export interface ScaffoldRef {
   scaffoldId: string;
   version?: string;
@@ -43,6 +60,12 @@ export interface Candidate {
     /** Reserved extension point for future external teacher-assignment sources. No built-in source emits it; the policy falls through to TEACH. */
     | 'assignment';
   scores: Partial<Record<ScoreDimension, number>>;
+  /**
+   * Task template this candidate's encounter should run. Absent = the
+   * preset's task. Sources declare what their encounter actually measures —
+   * the policy stays generic over candidate kinds.
+   */
+  task?: EncounterTask;
   meta?: Record<string, unknown>;
 }
 

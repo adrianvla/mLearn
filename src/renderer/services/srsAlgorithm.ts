@@ -287,7 +287,13 @@ export function legacyAnswerCard(card: Flashcard, rating: Rating, meta: Flashcar
 }
 
 /** Scheduler-backed compatibility adapter for legacy flashcard consumers. */
-export function answerCard(card: Flashcard, rating: Rating, meta: FlashcardMeta): Flashcard {
+export function answerCard(
+  card: Flashcard,
+  rating: Rating,
+  meta: FlashcardMeta,
+  /** Card-level scaffold conditioning; see shared/srs/retentionScheduler. */
+  condition: 'assisted' | 'supplied' | 'unassisted' = 'unassisted',
+): Flashcard {
     const now = Date.now();
     const prior = card.retentionCache ?? {
         state: card.state,
@@ -300,7 +306,7 @@ export function answerCard(card: Flashcard, rating: Rating, meta: FlashcardMeta)
         lastReviewed: card.lastReviewed,
         provenance: 'migrated-scheduler-cache' as const,
     };
-    const retentionCache = scheduleAfterAnswer(prior, rating, meta, now);
+    const retentionCache = scheduleAfterAnswer(prior, rating, meta, now, condition);
     return {
         ...card,
         state: retentionCache.state,
