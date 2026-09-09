@@ -26,6 +26,42 @@ export interface FrequencyStarsProps {
 
 const STAR_PX = { small: 6, medium: 10, large: 14 } as const;
 
+// One ResizeObserver serves every star row on the page. Per-instance
+// observers made every subtitle cue mount N word observers (and disconnect
+// them on unmount), so cue transitions churned observer construction at
+// O(words per cue); the shared instance turns that into Set bookkeeping.
+// Neighbor words are observed by up to two rows, so callbacks are
+// reference-counted per element.
+const sharedResizeCallbacks = new Map<Element, Set<() => void>>();
+let sharedResizeObserver: ResizeObserver | null = null;
+
+function observeElementResize(el: Element, cb: () => void): () => void {
+  if (typeof ResizeObserver === 'undefined') return () => {};
+  if (!sharedResizeObserver) {
+    sharedResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        for (const callback of sharedResizeCallbacks.get(entry.target) ?? []) callback();
+      }
+    });
+  }
+  let callbacks = sharedResizeCallbacks.get(el);
+  if (!callbacks) {
+    callbacks = new Set();
+    sharedResizeCallbacks.set(el, callbacks);
+  }
+  callbacks.add(cb);
+  sharedResizeObserver.observe(el);
+  return () => {
+    const callbacks = sharedResizeCallbacks.get(el);
+    if (!callbacks) return;
+    callbacks.delete(cb);
+    if (callbacks.size === 0) {
+      sharedResizeCallbacks.delete(el);
+      sharedResizeObserver?.unobserve(el);
+    }
+  };
+}
+
 /**
  * FrequencyStars - Displays frequency level as colored star icons
  * 
@@ -100,12 +136,13 @@ export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
   onMount(() => {
     measure();
     const word = rootEl?.parentElement;
-    if (word && typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(measure);
-      observer.observe(word);
-      if (word.previousElementSibling) observer.observe(word.previousElementSibling);
-      if (word.nextElementSibling) observer.observe(word.nextElementSibling);
-      onCleanup(() => observer.disconnect());
+    if (word) {
+      const disposers = [
+        observeElementResize(word, measure),
+        word.previousElementSibling ? observeElementResize(word.previousElementSibling, measure) : undefined,
+        word.nextElementSibling ? observeElementResize(word.nextElementSibling, measure) : undefined,
+      ].filter((dispose): dispose is () => void => dispose !== undefined);
+      onCleanup(() => { for (const dispose of disposers) dispose(); });
     }
   });
 

@@ -242,8 +242,10 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     return `theme-${theme}`;
   };
 
-  // Determine visibility - use not-shown class for fade animation
-  const hasContent = () => !props.isLoading && (props.tokens.length > 0 || props.originalText);
+  // Determine visibility - use not-shown class for fade animation.
+  // While the new cue is tokenizing, its raw text is already known and stays
+  // visible: baseline readable text must not blank out behind a loading state.
+  const hasContent = () => (props.tokens.length > 0 && !props.isLoading) || Boolean(props.originalText);
   const shouldShow = () => (settings.showSubtitles ?? DEFAULT_SETTINGS.showSubtitles!) && hasContent();
 
   // Check if all tokens in the current subtitle are known (for blur_known_subtitles)
@@ -268,7 +270,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (hardcoreMode() && !hardcorePeek()) {
       classes.push('hardcore-hidden');
     }
-    if (settings.blur_known_subtitles && allWordsKnown()) {
+    // While the new cue tokenizes, tokens still hold the PREVIOUS cue — the
+    // blur decision must not apply stale knowledge to the new raw text.
+    if (settings.blur_known_subtitles && !props.isLoading && allWordsKnown()) {
       classes.push('subtitle-line-blur');
     }
     return classes.join(' ');
@@ -434,8 +438,8 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             </div>
           </Show>
 
-          {/* Fallback text when tokens are unavailable */}
-          <Show when={!props.isLoading && props.tokens.length === 0 && props.originalText}>
+          {/* Raw cue text while tokens tokenize, and fallback when tokens are unavailable */}
+          <Show when={props.originalText && (props.isLoading || props.tokens.length === 0)}>
             <div style={subtitleStyle()}>{props.originalText}</div>
           </Show>
 

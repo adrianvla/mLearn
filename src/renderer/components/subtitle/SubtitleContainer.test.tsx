@@ -690,4 +690,51 @@ describe('SubtitleContainer', () => {
     dispose();
   });
 
+  // Regression: while a new cue tokenizes, the container used to blank out —
+  // it hid stale tokens AND the new cue's already-known raw text, so every
+  // cue change flashed empty for the tokenization round-trip. Raw text must
+  // stay visible (and unblurred on stale-token knowledge) until tokens land.
+  it('keeps raw cue text visible and unblurred while the new cue is tokenizing', () => {
+    // 'ar' words resolve known in the mock, so a loaded all-known cue WOULD
+    // blur: the loading gate below is what keeps the raw text readable.
+    mockSettings.language = 'ar';
+    mockSettings.blur_known_subtitles = true;
+
+    const loading = render(
+      () => (
+        <SubtitleContainer
+          tokens={mockTokens}
+          originalText="新しい行"
+          isLoading={true}
+        />
+      ),
+      container,
+    );
+
+    const subtitlesEl = container.querySelector('.subtitles');
+    expect(subtitlesEl).not.toBeNull();
+    expect(subtitlesEl!.classList.contains('not-shown')).toBe(false);
+    expect(subtitlesEl!.classList.contains('subtitle-line-blur')).toBe(false);
+    expect(subtitlesEl!.textContent).toContain('新しい行');
+    // Stale tokens from the previous cue must not render.
+    expect(subtitlesEl!.textContent).not.toContain('hello');
+    loading();
+    container.innerHTML = '';
+
+    // Positive control: once tokens land, the all-known ar cue blurs again.
+    const loaded = render(
+      () => (
+        <SubtitleContainer
+          tokens={mockTokens}
+          originalText="hello world"
+          isLoading={false}
+        />
+      ),
+      container,
+    );
+    const loadedEl = container.querySelector('.subtitles');
+    expect(loadedEl!.classList.contains('subtitle-line-blur')).toBe(true);
+    loaded();
+  });
+
 });
