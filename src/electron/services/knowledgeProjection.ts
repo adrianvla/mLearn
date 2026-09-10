@@ -1,6 +1,6 @@
 import type { WordStatus } from '../../shared/constants';
 import { assembleTargetExplanation, toJournalRows, type JournalRow, type TargetExplanation } from '../../shared/graph/explanations';
-import type { KeyArchive } from '../../shared/knowledge/historyArchive';
+import { archiveBucketStats, bucketRepresentative, emptyArchiveTargetStats, type ArchiveTargetStats, type KeyArchive } from '../../shared/knowledge/historyArchive';
 import { eventAppliesToTarget, realizedEntryIds } from '../../shared/graph/addressing';
 import type { KnowledgeLexicalSummary, KnowledgeProjection, KnowledgeProjectionBasis, KnowledgeProjectionClassification, KnowledgeProjectionState, KnowledgeProjectionTarget } from '../../shared/graph/ipc';
 import { relationsOf, type LingualGraph } from '../../shared/graph/load';
@@ -155,6 +155,15 @@ export function buildKnowledgeProjection(
     inferenceAttempts += 1;
     if (event.quality === 'fluent' || event.rating === 'good' || event.rating === 'easy') inferenceSuccesses += 1;
   }
+  // Archived attempts contribute the same counts via bucket methodStats —
+  // retraction-safe: rebuilds recompute the stats from surviving records.
+  for (const archive of options?.archives ?? []) {
+    for (const bucket of Object.values(archive.buckets)) {
+      if (bucket.methodStats === undefined) continue;
+      inferenceAttempts += bucket.methodStats.inference;
+      inferenceSuccesses += bucket.methodStats.inferenceSuccess;
+    }
+  }
   const inferenceSuccess = inferenceAttempts > 0 ? { attempts: inferenceAttempts, successes: inferenceSuccesses } : undefined;
 
   // Entry-level lexical state feeding PREDICTION ONLY (acceptance A/B/C):
@@ -209,11 +218,17 @@ export function buildKnowledgeProjection(
     }
     const { classification, basis } = classificationOf(explanation.state);
     const active = explanation.evidence;
+    // Archived evidence contributes the same counters through its bucket
+    // statistics, selected by the same address matcher as the exact rows.
+    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId));
     const sourceCounts = active.reduce<Record<string, number>>((counts, event) => {
       counts[event.source] = (counts[event.source] ?? 0) + (event.timesSeenDelta ?? 1);
       return counts;
     }, {});
-    const lastSuccess = lastDirectSuccess(active);
+    for (const [source, count] of Object.entries(archivedStats.sourceSeen)) {
+      sourceCounts[source] = (sourceCounts[source] ?? 0) + count;
+    }
+    const lastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
     const state: KnowledgeProjectionState = {
       ...(explanation.prediction ? { prediction: { value: explanation.prediction.value, reasons: explanation.prediction.because } } : {}),
       capability: target.capability,
@@ -254,6 +269,17 @@ export function buildKnowledgeProjection(
   // states on their entity — claims, inspector, policy, and sync see them
   // under their own id; core never interprets their semantics.
   const generated = new Set([...groups.values()].flatMap((group) => group.states.map((state) => `${group.targetRef.id}:${state.capability}`)));
+  // Archive buckets carry the full raw address, so package-defined accesses
+  // whose exact rows compacted still surface their (id, capability) pair.
+  const archivedCapabilities: Array<{ id: string; capability: CapabilityKey }> = [];
+  for (const archive of options?.archives ?? []) {
+    for (const bucketKey of Object.keys(archive.buckets)) {
+      const representative = bucketRepresentative(bucketKey);
+      const ref = representative?.targetRef;
+      if (!ref || ref.capability === undefined) continue;
+      if (!generated.has(`${ref.id}:${ref.capability}`)) archivedCapabilities.push({ id: ref.id, capability: ref.capability });
+    }
+  }
   for (const event of readActiveEvidence(events)) {
     const ref = event.targetRef;
     const capability = ref?.capability;
@@ -263,22 +289,32 @@ export function buildKnowledgeProjection(
     if (!entity) continue;
     generated.add(`${ref.id}:${capability}`);
     const explanation = targetExplanation(graph, rows, { entityId: ref.id, capability }, surfaceId, policy, now, undefined, options?.archives);
-    if (explanation.evidence.length === 0) continue;
+    if (explanation.evidence.length === 0 && !archivedCapabilities.some((entry) => entry.id === ref.id && entry.capability === capability)) continue;
     const { classification, basis } = classificationOf(explanation.state);
     const active = explanation.evidence;
+    // Mixed exact+archived package targets get the same archive-stat merge
+    // as ordinary targets — source counts and direct-success timestamps must
+    // not lose their archived half.
+    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, { entityId: ref.id, capability }, surfaceId));
+    const sourceCounts = active.reduce<Record<string, number>>((counts, row) => {
+      counts[row.source] = (counts[row.source] ?? 0) + (row.timesSeenDelta ?? 1);
+      return counts;
+    }, {});
+    for (const [source, count] of Object.entries(archivedStats.sourceSeen)) {
+      sourceCounts[source] = (sourceCounts[source] ?? 0) + count;
+    }
+    const lastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
     const state: KnowledgeProjectionState = {
       capability,
       classification,
       basis,
+      ...(lastSuccess !== undefined ? { lastDirectSuccess: lastSuccess } : {}),
       evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((row) => ({
         timestamp: row.t,
         source: row.source,
         ...(row.quality ?? row.rating ? { quality: row.quality ?? row.rating } : {}),
       })),
-      evidenceSourceCounts: active.reduce<Record<string, number>>((counts, row) => {
-        counts[row.source] = (counts[row.source] ?? 0) + (row.timesSeenDelta ?? 1);
-        return counts;
-      }, {}),
+      evidenceSourceCounts: sourceCounts,
     };
     const group = groups.get(entity.id) ?? {
       targetRef: { kind: entity.kind, id: entity.id },
@@ -286,6 +322,47 @@ export function buildKnowledgeProjection(
       states: [],
     };
     group.states.push(state);
+    groups.set(entity.id, group);
+  }
+
+  // Archive-only package capabilities: accesses whose exact rows compacted
+  // entirely still generate their inert state from bucket statistics.
+  const seenArchived = new Set<string>();
+  for (const entry of archivedCapabilities) {
+    const pairKey = `${entry.id}:${entry.capability}`;
+    if (generated.has(pairKey) || seenArchived.has(pairKey)) continue;
+    seenArchived.add(pairKey);
+    const entity = graph.nodes.get(entry.id);
+    if (!entity) continue;
+    const target: LearnableTarget = { entityId: entry.id, capability: entry.capability };
+    const explanation = targetExplanation(graph, rows, target, surfaceId, policy, now, undefined, options?.archives);
+    if (explanation.evidence.length === 0 && explanation.projection === null) continue;
+    generated.add(pairKey);
+    const { classification, basis } = classificationOf(explanation.state);
+    const active = explanation.evidence;
+    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId));
+    const sourceCounts: Record<string, number> = { ...archivedStats.sourceSeen };
+    for (const row of active) {
+      sourceCounts[row.source] = (sourceCounts[row.source] ?? 0) + (row.timesSeenDelta ?? 1);
+    }
+    const group = groups.get(entity.id) ?? {
+      targetRef: { kind: entity.kind, id: entity.id },
+      applicableCapabilities: [],
+      states: [],
+    };
+    const archiveOnlyLastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
+    group.states.push({
+      capability: entry.capability,
+      classification,
+      basis,
+      ...(archiveOnlyLastSuccess !== undefined ? { lastDirectSuccess: archiveOnlyLastSuccess } : {}),
+      evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((row) => ({
+        timestamp: row.t,
+        source: row.source,
+        ...(row.quality ?? row.rating ? { quality: row.quality ?? row.rating } : {}),
+      })),
+      evidenceSourceCounts: sourceCounts,
+    });
     groups.set(entity.id, group);
   }
 
@@ -310,6 +387,15 @@ export function buildKnowledgeProjection(
     missingBridges,
   };
   return { status: 'ready', surfaceId, targets: [...groups.values()], lexical };
+}
+
+/** Matcher-scoped archived statistics merged across sibling keys. */
+function mergeArchivesStats(archives: readonly KeyArchive[], match: (representative: KnowledgeEvent) => boolean): ArchiveTargetStats {
+  let stats = emptyArchiveTargetStats();
+  for (const archive of archives) {
+    stats = archiveBucketStats(archive, match, stats);
+  }
+  return stats;
 }
 
 function lastDirectSuccess(events: readonly KnowledgeEvent[]): number | undefined {

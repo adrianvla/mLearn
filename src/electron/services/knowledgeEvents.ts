@@ -4,7 +4,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import type { KeyHistorySummary, KeyKnowledgeState, KnowledgeArchiveEnvelope } from '../../shared/knowledge/historyQueries';
-import { KnowledgeHistoryStore, STORE_FILE_NAME } from './knowledgeHistoryStore';
+import { KNOWLEDGE_STORE_SCHEMA_VERSION, KnowledgeHistoryStore, STORE_FILE_NAME } from './knowledgeHistoryStore';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -61,17 +61,22 @@ export function whenKnowledgeEventsReady(): Promise<void> {
  */
 function openAndMigrate(now = Date.now()): void {
   const active = ensureStore();
-  if (!active.migrationPending) return;
+  if (!active.migrationPending) {
+    ensureSchemaCurrent(active, now);
+    return;
+  }
   const legacyPath = getLegacyPath();
   if (!fs.existsSync(legacyPath)) {
     // No legacy journal: fresh install (or already-migrated profile).
     active.markMigrationDone();
+    ensureSchemaCurrent(active, now);
     return;
   }
   const raw = fs.readFileSync(legacyPath, 'utf-8');
   const parsed = JSON.parse(raw) as unknown;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     active.markMigrationDone();
+    ensureSchemaCurrent(active, now);
     return;
   }
   const result = active.importLegacyLog(parsed as KnowledgeEventLog, now);
@@ -82,6 +87,40 @@ function openAndMigrate(now = Date.now()): void {
   active.markMigrationDone();
   fs.renameSync(legacyPath, `${legacyPath}.migrated`);
   log.info(`[knowledgeEvents] migrated journal: ${result.keys} keys, ${result.events} events`);
+  ensureSchemaCurrent(active, now);
+}
+
+/**
+ * Generation-2 upgrade: compact native attempts via contribution records.
+ * Runs after legacy migration on every boot until the schema version flips.
+ * Source of truth for reclassification is the verified `.migrated` backup;
+ * keys migrated before the import-boundary marker existed are skipped
+ * (deferred, never speculatively rewritten) and keep their exact-attempt
+ * path. A store without a backup either has nothing to reclassify or was
+ * created post-v2.
+ */
+function ensureSchemaCurrent(active: KnowledgeHistoryStore, now: number): void {
+  if (active.schemaVersion >= KNOWLEDGE_STORE_SCHEMA_VERSION) return;
+  const backupPath = `${getLegacyPath()}.migrated`;
+  if (fs.existsSync(backupPath)) {
+    try {
+      const backup = JSON.parse(fs.readFileSync(backupPath, 'utf-8')) as KnowledgeEventLog;
+      const result = active.reclassifyFromBackup(backup, now);
+      if (result.skipped > 0) {
+        log.warn(`[knowledgeEvents] v2 reclassification deferred ${result.skipped} keys lacking import boundaries`);
+      }
+      if (!result.verified) {
+        log.error('[knowledgeEvents] v2 reclassification failed projection verification; left on v1 semantics for retry');
+        return;
+      }
+      log.info(`[knowledgeEvents] reclassified history for attempt compaction: ${result.keys} keys`);
+    } catch (error) {
+      log.error('[knowledgeEvents] v2 reclassification failed; retrying next boot:', error);
+      return;
+    }
+  } else {
+    active.markSchemaVersion(KNOWLEDGE_STORE_SCHEMA_VERSION);
+  }
 }
 
 export function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog> {

@@ -14,11 +14,17 @@ import {
   applyTransitions,
   bucketRepresentative,
   compactKeyEvents,
+  decodeAttemptRecord,
+  decodeBucketRecords,
   emptyTransitions,
+  encodeBucketRecords,
   foldFromArchive,
   isAggregatableEvent,
   KNOWLEDGE_ARCHIVE_TAIL_MS,
   KNOWLEDGE_ACQUISITION_WINDOW_MS,
+  rebuildBucketFromRecords,
+  type BucketArchive,
+  type BucketRebuild,
   type KeyArchive,
   type TransitionsState,
 } from '../../shared/knowledge/historyArchive';
@@ -66,7 +72,8 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   return true;
 }
 
-export const KNOWLEDGE_STORE_SCHEMA_VERSION = 1;
+/** 2 = per-row contribution records (bucket_recs + attempt_index) exist. */
+export const KNOWLEDGE_STORE_SCHEMA_VERSION = 2;
 export const KNOWLEDGE_STORE_FOLD_VERSION = 1;
 export const STORE_FILE_NAME = 'knowledge-history.sqlite3';
 /** Maximum keys compacted per pass — bounded incremental work. */
@@ -108,11 +115,16 @@ interface CheckpointRow {
  */
 class SeqCounter {
   constructor(private db: DatabaseSync) {}
-  next(): number {
+  /** Reserve a contiguous block — one meta read/write per batch, not per row. */
+  reserve(count: number): number {
     const row = this.db.prepare("SELECT value FROM meta WHERE key = 'seqCounter'").get() as { value?: string } | undefined;
-    const next = (row?.value !== undefined ? Number(row.value) : 0) + 1;
-    this.db.prepare("INSERT INTO meta (key, value) VALUES ('seqCounter', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(next));
-    return next;
+    const base = row?.value !== undefined ? Number(row.value) : 0;
+    this.db.prepare("INSERT INTO meta (key, value) VALUES ('seqCounter', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(base + count));
+    return base;
+  }
+
+  next(): number {
+    return this.reserve(1) + 1;
   }
 }
 
@@ -147,6 +159,16 @@ function foldRowsAndArchive(rows: Array<{ event: KnowledgeEvent; seq: number }>,
     applyEventToFold(exactFold, event, seq);
   }
   return archive ? mergeKeyFolds(foldFromArchive(archive), exactFold) : exactFold;
+}
+
+/** Deterministic identity for occurrence matching: recursively sorted-key JSON. */
+function canonicalEventJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(canonicalEventJson).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([key, v]) => `${JSON.stringify(key)}:${canonicalEventJson(v)}`).join(',')}}`;
 }
 
 function minDefined(a: number | undefined, b: number | undefined): number | undefined {
@@ -225,10 +247,38 @@ export class KnowledgeHistoryStore {
         frontier_seq INTEGER NOT NULL,
         json TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS attempt_index (
+        attempt_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        bucket TEXT NOT NULL,
+        t INTEGER NOT NULL,
+        seq INTEGER NOT NULL,
+        rec BLOB NOT NULL,
+        PRIMARY KEY (attempt_id, key, seq)
+      ) WITHOUT ROWID;
+      CREATE INDEX IF NOT EXISTS attempt_index_bucket ON attempt_index(key, bucket);
+      CREATE TABLE IF NOT EXISTS bucket_recs (
+        key TEXT NOT NULL,
+        bucket TEXT NOT NULL,
+        recs BLOB NOT NULL,
+        PRIMARY KEY (key, bucket)
+      ) WITHOUT ROWID;
     `);
     const setMeta = this.db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING');
     setMeta.run('schemaVersion', String(KNOWLEDGE_STORE_SCHEMA_VERSION));
     setMeta.run('foldVersion', String(KNOWLEDGE_STORE_FOLD_VERSION));
+  }
+
+  /** Persisted schema generation (0/undefined = fresh or pre-versioned DB). */
+  get schemaVersion(): number {
+    const row = this.db.prepare("SELECT value FROM meta WHERE key = 'schemaVersion'").get() as { value?: string } | undefined;
+    return row?.value !== undefined ? Number(row.value) : 0;
+  }
+
+  markSchemaVersion(version: number): void {
+    this.db
+      .prepare("INSERT INTO meta (key, value) VALUES ('schemaVersion', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .run(String(version));
   }
 
   /** Whether the legacy JSON import has not been completed yet. */
@@ -274,12 +324,12 @@ export class KnowledgeHistoryStore {
       this.db.exec('BEGIN');
       try {
         const existing = (countRows.get(key) as { n: number }).n;
-        for (let index = existing; index < events.length; index++) {
-          const event = events[index];
-          if (!isKnowledgeEvent(event)) continue; // malformed rows never migrate
-          insert.run(this.seq.next(), key, lang, event.t, JSON.stringify(event));
+        const pending = events.slice(existing).filter((event): event is KnowledgeEvent => isKnowledgeEvent(event)); // malformed rows never migrate
+        const seqBase = this.seq.reserve(pending.length);
+        pending.forEach((event, index) => {
+          insert.run(seqBase + index + 1, key, lang, event.t, JSON.stringify(event));
           totalEvents += 1;
-        }
+        });
         const rows = rowsWithSeq(this.db, key);
         const compact = compactKeyEvents(rows, now);
         this.writeArchiveAndCheckpointLocked(key, compact);
@@ -292,6 +342,12 @@ export class KnowledgeHistoryStore {
           break;
         }
         setMarker.run(markerKey, String(events.length));
+        // Import boundary: rows of this key with seq <= boundary are backup
+        // survivors; anything above is a post-migration append. Gives the v2
+        // reclassification an exact survivor/appends split (no payload
+        // guessing when identical rows exist).
+        const boundary = (this.db.prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM rows WHERE key = ?').get(key) as { m: number }).m;
+        setMarker.run(`migseq:${key}`, String(boundary));
         this.db.exec('COMMIT');
       } catch (error) {
         this.db.exec('ROLLBACK');
@@ -307,22 +363,10 @@ export class KnowledgeHistoryStore {
    * must re-import every key against the empty store.
    */
   resetForReimport(): void {
-    this.db.exec("DELETE FROM rows; DELETE FROM archives; DELETE FROM checkpoints; DELETE FROM meta WHERE key LIKE 'mig:%' OR key = 'seqCounter';");
+    this.db.exec("DELETE FROM rows; DELETE FROM archives; DELETE FROM checkpoints; DELETE FROM attempt_index; DELETE FROM bucket_recs; DELETE FROM meta WHERE key LIKE 'mig:%' OR key LIKE 'migseq:%' OR key LIKE 'v2mig:%' OR key = 'seqCounter';");
   }
 
-  /** Atomically rewrite one key's rows/archive/checkpoint from a compaction. */
-  private writeArchiveAndCheckpoint(key: string, compact: ReturnType<typeof compactKeyEvents>): void {
-    this.db.exec('BEGIN');
-    try {
-      this.writeArchiveAndCheckpointLocked(key, compact);
-      this.db.exec('COMMIT');
-    } catch (error) {
-      this.db.exec('ROLLBACK');
-      throw error;
-    }
-  }
-
-  /** Transaction-body variant — caller owns BEGIN/COMMIT. */
+  /** Transaction-body variant — callers own BEGIN/COMMIT. */
   private writeArchiveAndCheckpointLocked(key: string, compact: ReturnType<typeof compactKeyEvents>): void {
     {
       const lang = this.languageOfKey(key);
@@ -332,6 +376,32 @@ export class KnowledgeHistoryStore {
             'INSERT INTO archives (key, lang, frontier_t, json) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET frontier_t = excluded.frontier_t, json = excluded.json',
           )
           .run(key, lang, compact.archive.frontierT, JSON.stringify(compact.archive));
+        // Contribution records: same transaction as the archive itself, so
+        // archive-and-records are never observable apart (the records are
+        // what makes archived attempts exactly retractable).
+        const mergeBlob = this.db.prepare(
+          'INSERT INTO bucket_recs (key, bucket, recs) VALUES (?, ?, ?) ON CONFLICT(key, bucket) DO UPDATE SET recs = excluded.recs',
+        );
+        const byBucket = new Map<string, Array<{ event: KnowledgeEvent; seq: number }>>();
+        for (const { bucketKey, event, seq } of compact.records.bucketRecords) {
+          const list = byBucket.get(bucketKey) ?? [];
+          list.push({ event, seq });
+          byBucket.set(bucketKey, list);
+        }
+        const readBlob = this.db.prepare('SELECT recs FROM bucket_recs WHERE key = ? AND bucket = ?');
+        for (const [bucketKey, fresh] of byBucket) {
+          const existing = readBlob.get(key, bucketKey) as { recs?: Uint8Array } | undefined;
+          const merged = existing?.recs
+            ? [...decodeBucketRecords(existing.recs), ...fresh]
+            : fresh;
+          mergeBlob.run(key, bucketKey, encodeBucketRecords(merged));
+        }
+        const insertAttempt = this.db.prepare(
+          'INSERT OR REPLACE INTO attempt_index (attempt_id, key, bucket, t, seq, rec) VALUES (?, ?, ?, ?, ?, ?)',
+        );
+        for (const { attemptId, bucketKey, t, seq, rec } of compact.records.attemptRecords) {
+          insertAttempt.run(attemptId, key, bucketKey, t, seq, rec);
+        }
         this.db.prepare('DELETE FROM rows WHERE key = ?').run(key);
         const insert = this.db.prepare('INSERT INTO rows (seq, key, lang, t, json) VALUES (?, ?, ?, ?, ?)');
         for (const { event, seq } of compact.kept) {
@@ -364,11 +434,68 @@ export class KnowledgeHistoryStore {
   }
 
   /**
+   * Reverse archived attempts of `retractedIds` for one key: rebuild every
+   * affected bucket from its contribution records minus the retracted rows,
+   * rewrite the bucket caches + LOD points, and drop the index entries. The
+   * tombstone row itself stays exact forever (append-only audit).
+   */
+  private rebuildArchivedAttempts(key: string, retractedIds: readonly string[], now: number): void {
+    if (retractedIds.length === 0) return;
+    const affected = new Map<string, Set<number>>(); // bucket -> retracted seqs
+    const placeholders = retractedIds.map(() => '?').join(',');
+    for (const row of this.db
+      .prepare(`SELECT DISTINCT bucket, seq FROM attempt_index WHERE key = ? AND attempt_id IN (${placeholders})`)
+      .all(key, ...retractedIds) as Array<{ bucket: string; seq: number }>) {
+      const seqs = affected.get(row.bucket) ?? new Set<number>();
+      seqs.add(row.seq);
+      affected.set(row.bucket, seqs);
+    }
+    if (affected.size === 0) return;
+    const archive = this.readArchive(key);
+    if (!archive) return;
+    const buckets: Record<string, BucketArchive> = { ...archive.buckets };
+    for (const [bucketKey, retractedSeqs] of affected) {
+      const blobRow = this.db.prepare('SELECT recs FROM bucket_recs WHERE key = ? AND bucket = ?').get(key, bucketKey) as { recs?: Uint8Array } | undefined;
+      const attemptRows = this.db
+        .prepare('SELECT t, seq, rec FROM attempt_index WHERE key = ? AND bucket = ?')
+        .all(key, bucketKey) as Array<{ t: number; seq: number; rec: Uint8Array }>;
+      const records = [
+        ...(blobRow?.recs ? decodeBucketRecords(blobRow.recs) : []),
+        ...attemptRows.flatMap(({ rec }) => (decodeAttemptRecord(rec) !== undefined ? [decodeAttemptRecord(rec) as { event: KnowledgeEvent; seq: number }] : [])),
+      ].filter(({ seq }) => !retractedSeqs.has(seq));
+      const rebuilt: BucketRebuild = rebuildBucketFromRecords(bucketKey, records, now);
+      buckets[bucketKey] = {
+        fold: rebuilt.fold,
+        measurableFold: rebuilt.measurableFold,
+        transitions: rebuilt.transitions,
+        ratings: rebuilt.ratings,
+        latency: rebuilt.latency,
+        rowCount: rebuilt.rowCount,
+        ...(rebuilt.methodStats !== undefined ? { methodStats: rebuilt.methodStats } : {}),
+        ...(rebuilt.sourceSeen !== undefined ? { sourceSeen: rebuilt.sourceSeen } : {}),
+        ...(rebuilt.lastDirect !== undefined ? { lastDirect: rebuilt.lastDirect } : {}),
+      };
+      let archivedEventCount = 0;
+      for (const bucket of Object.values(buckets)) archivedEventCount += bucket.rowCount;
+      archive.buckets = buckets;
+      archive.archivedEventCount = archivedEventCount;
+      archive.weekPoints = [...archive.weekPoints.filter((point) => point.b !== bucketKey), ...rebuilt.points].sort((a, b) => a.w - b.w);
+    }
+    this.db
+      .prepare('UPDATE archives SET json = ? WHERE key = ?')
+      .run(JSON.stringify(archive), key);
+    this.db
+      .prepare(`DELETE FROM attempt_index WHERE key = ? AND attempt_id IN (${placeholders})`)
+      .run(key, ...retractedIds);
+  }
+
+  /**
    * Append exact rows and advance the checkpoint. Retractions rebuild the
-   * key's fold from canonical data (tombstones invalidate folded attempts).
-   * Ordinary batches fold separately (ordered by (t, seq)) and merge into the
-   * checkpoint by marker timestamps — sync appends may carry rows older than
-   * the frontier, and evidence markers are order-sensitive.
+   * key's fold from canonical data (tombstones invalidate folded attempts —
+   * exact rows via stripping, archived attempts via contribution-record
+   * rebuild). Ordinary batches fold separately (ordered by (t, seq)) and
+   * merge into the checkpoint by marker timestamps — sync appends may carry
+   * rows older than the frontier, and evidence markers are order-sensitive.
    */
   appendEvents(eventsByKey: KnowledgeEventLog): void {
     const insert = this.db.prepare('INSERT INTO rows (seq, key, lang, t, json) VALUES (?, ?, ?, ?, ?)');
@@ -377,29 +504,37 @@ export class KnowledgeHistoryStore {
       const lang = this.languageOfKey(key);
       this.db.exec('BEGIN');
       try {
+        const valid = events.filter((event) => {
+          if (isKnowledgeEvent(event)) return true;
+          log.warn('[knowledgeHistoryStore] dropped malformed event on append', key);
+          return false;
+        });
+        const seqBase = this.seq.reserve(valid.length);
         const newSeqs: number[] = [];
-        for (const event of events) {
-          if (!isKnowledgeEvent(event)) {
-            log.warn('[knowledgeHistoryStore] dropped malformed event on append', key);
-            continue;
-          }
-          const seq = this.seq.next();
+        valid.forEach((event, index) => {
+          const seq = seqBase + index + 1;
           insert.run(seq, key, lang, event.t, JSON.stringify(event));
           newSeqs.push(seq);
-        }
+        });
         if (newSeqs.length === 0) {
           this.db.exec('COMMIT');
           continue;
         }
         const checkpoint = this.checkpoint(key);
         const archive = this.readArchive(key);
-        const hasTombstone = events.some((event) => event.retracts !== undefined || event.kind === 'retraction');
+        // `valid` (not `events`) is the seq-aligned row set: malformed drops
+        // would otherwise misalign incremental folds and tombstone handling.
+        const hasTombstone = valid.some((event) => event.retracts !== undefined || event.kind === 'retraction');
         let fold: FoldState;
-        if (hasTombstone || !checkpoint) {
+        if (hasTombstone) {
+          const retractedIds = [...new Set(valid.flatMap((event) => (event.retracts !== undefined ? [`${event.retracts}`] : [])))];
+          this.rebuildArchivedAttempts(key, retractedIds, Date.now());
+          fold = foldRowsAndArchive(rowsWithSeq(this.db, key), this.readArchive(key));
+        } else if (!checkpoint) {
           fold = foldRowsAndArchive(rowsWithSeq(this.db, key), archive);
         } else {
           const batchFold = emptyKeyFold();
-          events
+          valid
             .map((event, index) => ({ event, seq: newSeqs[index] }))
             .sort((a, b) => a.event.t - b.event.t || a.seq - b.seq)
             .forEach(({ event, seq }) => applyEventToFold(batchFold, event, seq));
@@ -432,6 +567,12 @@ export class KnowledgeHistoryStore {
 
   rowsWithSeq(key: string): Array<{ event: KnowledgeEvent; seq: number }> {
     return rowsWithSeq(this.db, key);
+  }
+
+  /** Whether archived contribution records exist for these attempt ids on a key. */
+  hasAttemptRecords(key: string, attemptIds: readonly string[]): boolean[] {
+    const stmt = this.db.prepare('SELECT 1 FROM attempt_index WHERE key = ? AND attempt_id = ? LIMIT 1');
+    return attemptIds.map((id) => stmt.get(key, id) !== undefined);
   }
 
   getArchive(key: string): KeyArchive | undefined {
@@ -573,19 +714,58 @@ export class KnowledgeHistoryStore {
    * deterministic, and per-key atomic.
    */
   compact(now: number, maxKeys = COMPACTION_KEY_BUDGET): number {
+    // Row reads happen inside the same IMMEDIATE transaction as the writes:
+    // an append interleaving before the old read-then-delete gap would be
+    // silently deleted with the snapshot. IMMEDIATE takes the write lock up
+    // front, so read → compact → rewrite is atomic against appends.
+    //
+    // Candidate scanning uses a persistent cursor: old acquisition/ledger
+    // residue keeps keys in the candidate set forever, so a key-ordered
+    // LIMIT window alone would revisit the same prefix eternally and starve
+    // every key behind it. The cursor advances each pass and wraps, giving
+    // every key periodic coverage with bounded per-pass work.
+    const getMeta = this.db.prepare("SELECT value FROM meta WHERE key = 'compactCursor'");
+    const setMeta = this.db.prepare("INSERT INTO meta (key, value) VALUES ('compactCursor', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+    const cursorRow = getMeta.get() as { value?: string } | undefined;
+    const cursor = cursorRow?.value ?? '';
     const candidates = this.db
-      .prepare('SELECT DISTINCT key FROM rows WHERE t < ? ORDER BY key LIMIT ?')
-      .all(now - KNOWLEDGE_ARCHIVE_TAIL_MS, maxKeys * 4) as Array<{ key: string }>;
+      .prepare('SELECT DISTINCT key FROM rows WHERE key > ? AND t < ? ORDER BY key LIMIT ?')
+      .all(cursor, now - KNOWLEDGE_ARCHIVE_TAIL_MS, maxKeys * 4) as Array<{ key: string }>;
     let compacted = 0;
+    let scanned = 0;
+    let lastKey = cursor;
     for (const { key } of candidates) {
       if (compacted >= maxKeys) break;
-      const rows = rowsWithSeq(this.db, key);
-      if (!rows.some(({ event }) => isAggregatableEvent(event, now))) continue;
-      const compact = compactKeyEvents(rows, now, this.readArchive(key));
-      if (!compact.archive) continue;
-      this.writeArchiveAndCheckpoint(key, compact);
-      compacted += 1;
+      scanned += 1;
+      lastKey = key;
+      this.db.exec('BEGIN IMMEDIATE');
+      try {
+        const rows = rowsWithSeq(this.db, key);
+        if (!rows.some(({ event }) => isAggregatableEvent(event, now))) {
+          this.db.exec('COMMIT');
+          continue;
+        }
+        const compact = compactKeyEvents(rows, now, this.readArchive(key));
+        // Count only keys that actually moved rows: old rows held as exact
+        // acquisition/ledger residue re-qualify on every scan, but they are
+        // not compaction work — counting them would make convergence (and
+        // this loop's termination) impossible.
+        if (!compact.archive || compact.kept.length === rows.length) {
+          this.db.exec('COMMIT');
+          continue;
+        }
+        this.writeArchiveAndCheckpointLocked(key, compact);
+        this.db.exec('COMMIT');
+        compacted += 1;
+      } catch (error) {
+        this.db.exec('ROLLBACK');
+        throw error;
+      }
     }
+    // Cursor wrap: reset only when the scan consumed a genuinely short list
+    // (everything past the cursor was exhausted). A budget break, or a full
+    // window, means keys may exist beyond `lastKey` — persist the position.
+    setMeta.run(scanned === candidates.length && candidates.length < maxKeys * 4 ? '' : lastKey);
     return compacted;
   }
 
@@ -605,6 +785,140 @@ export class KnowledgeHistoryStore {
         )
         .run(key, this.languageOfKey(key), frontierSeq, JSON.stringify({ fold, frontierSeq, foldVersion: KNOWLEDGE_STORE_FOLD_VERSION } satisfies CheckpointRow));
     }
+  }
+
+  /**
+   * v1 → v2 reclassification. v1 archives hold aggregates without per-row
+   * records, so old attempt rows could never compact there. The migration
+   * source is the verified `.migrated` journal backup: per key, backup rows
+   * and current exact rows are merged (deduped by canonical event identity —
+   * the store may hold post-migration appends the backup lacks), rewritten
+   * with fresh (t, seq)-ordered seqs, compacted under generation-2 rules,
+   * and verified against a full replay of the merged history. Per-key
+   * atomic, resumable via markers, idempotent.
+   */
+  reclassifyFromBackup(backupLog: KnowledgeEventLog, now = Date.now()): { keys: number; verified: boolean; skipped: number } {
+    const keys = new Set<string>(Object.keys(backupLog));
+    for (const row of this.db.prepare('SELECT DISTINCT key FROM rows').all() as Array<{ key: string }>) keys.add(row.key);
+    let verified = true;
+    let skipped = 0;
+    for (const key of keys) {
+      const markerKey = `v2mig:${key}`;
+      const canonical = canonicalEventJson;
+      const lang = this.languageOfKey(key);
+      // Snapshot, merge, and rewrite all happen inside the write transaction:
+      // an append interleaving before the delete would be silently dropped.
+      // Completed keys are checked FIRST: a rewritten key's fresh seqs lie
+      // beyond its old import boundary, so recomputing the merge on resume
+      // would misclassify survivors as appends and duplicate the backup.
+      this.db.exec('BEGIN IMMEDIATE');
+      try {
+        const marker = this.db.prepare("SELECT value FROM meta WHERE key = ?").get(markerKey) as { value?: string } | undefined;
+        if (marker?.value !== undefined) {
+          this.db.exec('COMMIT');
+          continue;
+        }
+        const currentRows = rowsWithSeq(this.db, key);
+        const inBackup = backupLog[key] !== undefined;
+        const boundaryRow = this.db.prepare("SELECT value FROM meta WHERE key = ?").get(`migseq:${key}`) as { value?: string } | undefined;
+        let backupOnly: KnowledgeEvent[] = [];
+        let appendCount = 0;
+        let skip = false;
+        if (!inBackup) {
+          // Key created after the v1 import: current rows are the complete
+          // history — nothing to merge, just recompact under v2 rules.
+        } else if (boundaryRow?.value !== undefined) {
+          // Exact split: rows with seq <= boundary are import survivors;
+          // rows above are post-migration appends. merged = survivors ∪
+          // backup-only ∪ appends is exact even for byte-identical rows.
+          const boundary = Number(boundaryRow.value);
+          const survivors = currentRows.filter(({ seq }) => seq <= boundary);
+          appendCount = currentRows.length - survivors.length;
+          const survivorCounts = new Map<string, number>();
+          for (const { event } of survivors) {
+            const key2 = canonical(event);
+            survivorCounts.set(key2, (survivorCounts.get(key2) ?? 0) + 1);
+          }
+          const claimed = new Map<string, number>();
+          for (const event of backupLog[key] ?? []) {
+            if (!isKnowledgeEvent(event)) continue;
+            const key2 = canonical(event);
+            const remaining = survivorCounts.get(key2) ?? 0;
+            const claimedCount = claimed.get(key2) ?? 0;
+            if (claimedCount < remaining) {
+              claimed.set(key2, claimedCount + 1);
+              continue;
+            }
+            backupOnly.push(event);
+          }
+        } else {
+          // Legacy v1 key without an import boundary: payload matching cannot
+          // distinguish identical appends from identical survivors, so
+          // reclassifying could lose an occurrence. Never reclassify
+          // speculatively — the key keeps its v1 exact-attempt path (correct,
+          // just not compacted) and is reported as deferred.
+          skipped += 1;
+          skip = true;
+        }
+        if (skip) {
+          this.db.exec('COMMIT');
+          continue;
+        }
+        const merged: Array<{ event: KnowledgeEvent; origin: 0 | 1; seq: number }> = [
+          ...currentRows.map(({ event, seq }) => ({ event, origin: 0 as const, seq })),
+          ...backupOnly.map((event, index) => ({ event, origin: 1 as const, seq: currentRows.length + index })),
+        ].sort((a, b) => a.event.t - b.event.t || a.origin - b.origin || a.seq - b.seq);
+        this.db.prepare('DELETE FROM rows WHERE key = ?').run(key);
+        this.db.prepare('DELETE FROM archives WHERE key = ?').run(key);
+        this.db.prepare('DELETE FROM checkpoints WHERE key = ?').run(key);
+        this.db.prepare('DELETE FROM attempt_index WHERE key = ?').run(key);
+        this.db.prepare('DELETE FROM bucket_recs WHERE key = ?').run(key);
+        const insert = this.db.prepare('INSERT INTO rows (seq, key, lang, t, json) VALUES (?, ?, ?, ?, ?)');
+        let seq = 0;
+        for (const { event } of merged) {
+          seq += 1;
+          insert.run(this.seq.next(), key, lang, event.t, JSON.stringify(event));
+        }
+        const rows = rowsWithSeq(this.db, key);
+        const compact = compactKeyEvents(rows, now);
+        this.writeArchiveAndCheckpointLocked(key, compact);
+        const state = this.getKnowledgeState(key);
+        const expected = replayKeyProjection(merged.map(({ event }) => event));
+        if (JSON.stringify(state.projection) !== JSON.stringify(expected)) {
+          verified = false;
+          log.error(`[knowledgeHistoryStore] v2 reclassification mismatch for ${key} — aborting`);
+          this.db.exec('ROLLBACK');
+          break;
+        }
+        this.db
+          .prepare("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+          .run(markerKey, String(merged.length + appendCount));
+        this.db.exec('COMMIT');
+      } catch (error) {
+        this.db.exec('ROLLBACK');
+        throw error;
+      }
+    }
+    if (verified) this.markSchemaVersion(KNOWLEDGE_STORE_SCHEMA_VERSION);
+    return { keys: keys.size, verified, skipped };
+  }
+
+  /** Byte + row accounting per table (benchmark/storage diagnostics). */
+  storageStats(): { rows: number; rowBytes: number; archives: number; archiveBytes: number; attemptIndex: number; attemptBytes: number; bucketRecBlobs: number; bucketRecBytes: number; dbBytes: number } {
+    const count = (sql: string): number => (this.db.prepare(sql).get() as { n: number }).n;
+    const pageSize = (this.db.prepare('PRAGMA page_size').get() as { page_size: number }).page_size;
+    const pageCount = (this.db.prepare('PRAGMA page_count').get() as { page_count: number }).page_count;
+    return {
+      rows: count('SELECT COUNT(*) AS n FROM rows'),
+      rowBytes: count('SELECT COALESCE(SUM(LENGTH(json)), 0) AS n FROM rows'),
+      archives: count('SELECT COUNT(*) AS n FROM archives'),
+      archiveBytes: count('SELECT COALESCE(SUM(LENGTH(json)), 0) AS n FROM archives'),
+      attemptIndex: count('SELECT COUNT(*) AS n FROM attempt_index'),
+      attemptBytes: count('SELECT COALESCE(SUM(LENGTH(rec)) + SUM(LENGTH(attempt_id)) + SUM(LENGTH(key)) + SUM(LENGTH(bucket)), 0) AS n FROM attempt_index'),
+      bucketRecBlobs: count('SELECT COUNT(*) AS n FROM bucket_recs'),
+      bucketRecBytes: count('SELECT COALESCE(SUM(LENGTH(recs)), 0) AS n FROM bucket_recs'),
+      dbBytes: pageSize * pageCount,
+    };
   }
 
   close(): void {

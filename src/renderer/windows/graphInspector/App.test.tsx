@@ -27,11 +27,14 @@ vi.mock('../../context', () => ({
 vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({
     window: { onWindowContext: (callback: (context: { entityId: string }) => void) => { contextCallback = callback; callback({ entityId }); return () => {}; }, getWindowContext: vi.fn(), openWindow: vi.fn() },
-    knowledgeEvents: { getKnowledgeRows: vi.fn().mockResolvedValue({ [`ja:${hash}`]: [
-      { t: 1, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'good', easeAfter: 2.8, attemptId: 'active' },
-      { t: 2, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'easy', easeAfter: 3, attemptId: 'undo' },
-      { t: 3, kind: 'retraction', source: 'srs', aspect: 'reading', retracts: 'undo' },
-    ].map((event, seq) => ({ event, seq })) }) },
+    knowledgeEvents: {
+      getKnowledgeRows: vi.fn().mockResolvedValue({ [`ja:${hash}`]: [
+        { t: 1, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'good', easeAfter: 2.8, attemptId: 'active' },
+        { t: 2, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'easy', easeAfter: 3, attemptId: 'undo' },
+        { t: 3, kind: 'retraction', source: 'srs', aspect: 'reading', retracts: 'undo' },
+      ].map((event, seq) => ({ event, seq })) }),
+      getKnowledgeArchive: vi.fn().mockResolvedValue({ key: `ja:${hash}` }),
+    },
   }),
 }));
 

@@ -60,16 +60,16 @@ describe('KnowledgeHistoryStore', () => {
     s.close();
   });
 
-  it('compacts old aggregatable rows but keeps exact projections, ledger rows, and retraction behavior', () => {
+  it('ages a native attempt into the archive with a contribution record, then retracts it exactly', () => {
     const s = store();
     const now = Date.now();
     const old = now - 400 * DAY;
     const attemptId = 'attempt-ancient';
     const log: KnowledgeEventLog = {
       'ja:h1': [
-        ankiReview(old, 1.5, 1001),
-        ankiReview(old + 1000, 2.2, 1002),
-        { ...attemptEvent({ t: old + 2000 }), attemptId, easeAfter: 3.1 },
+        ankiReview(old - 200 * DAY, 1.5, 1001),
+        ankiReview(old - 100 * DAY, 2.2, 1002),
+        { ...attemptEvent({ t: old }), attemptId, easeAfter: 3.1, method: 'recall', quality: 'fluent' },
         ankiReview(old + 30 * DAY, 2.4, 1003),
         ankiReview(old + 60 * DAY, 2.6, 1004),
         ankiReview(now - DAY, 2.9, 1005),
@@ -78,22 +78,30 @@ describe('KnowledgeHistoryStore', () => {
     s.appendEvents(log);
     expect(s.compact(now)).toBe(1);
 
-    // Archive exists; exact rows keep the ledger attempt + recent tail + acquisition residue.
+    // (1-3) The attempt aged out: no exact row remains, but the contribution
+    // index still points at its archived bucket.
     const archive = s.getArchive('ja:h1');
     expect(archive).toBeDefined();
     expect(archive!.archivedEventCount).toBeGreaterThan(0);
     const exact = s.getExactEvents(['ja:h1'])['ja:h1'];
-    expect(exact.some((event) => event.attemptId === attemptId)).toBe(true);
+    expect(exact.some((event) => event.attemptId === attemptId)).toBe(false);
+    expect(s.hasAttemptRecords('ja:h1', [attemptId])).toEqual([true]);
 
-    // Projection equivalence: compacted store vs raw replay.
+    // (7) Projection equivalence before retraction.
     const state = s.getKnowledgeState('ja:h1');
     expect(state.projection).toEqual(replayKeyProjection(log['ja:h1']));
 
-    // Ancient attempt still retractable after compaction: append a tombstone.
+    // (5-6) Ancient retraction: tombstone reverses the archived contribution.
     s.appendEvents({ 'ja:h1': [{ t: now, kind: 'retraction', source: 'manual', retracts: attemptId }] });
     const afterRetract = s.getKnowledgeState('ja:h1');
     const rawWithRetraction = [...log['ja:h1'], { t: now, kind: 'retraction', source: 'manual', retracts: attemptId } as KnowledgeEvent];
     expect(afterRetract.projection).toEqual(replayKeyProjection(rawWithRetraction));
+
+    // The contribution record is consumed; a duplicate tombstone is a no-op.
+    expect(s.hasAttemptRecords('ja:h1', [attemptId])).toEqual([false]);
+    s.appendEvents({ 'ja:h1': [{ t: now + 1, kind: 'retraction', source: 'manual', retracts: attemptId }] });
+    const rawDoubleRetracted = [...rawWithRetraction, { t: now + 1, kind: 'retraction', source: 'manual', retracts: attemptId } as KnowledgeEvent];
+    expect(s.getKnowledgeState('ja:h1').projection).toEqual(replayKeyProjection(rawDoubleRetracted));
     s.close();
   });
 
@@ -231,6 +239,244 @@ describe('KnowledgeHistoryStore', () => {
     s.appendEvents(log);
     const compacted = s.compact(now);
     expect(compacted).toBe(COMPACTION_KEY_BUDGET);
+    s.close();
+  });
+
+  it('keeps folds seq-aligned when malformed events interleave with valid ones', () => {
+    const s = store();
+    const now = NOW_VAL();
+    const recent = now - DAY;
+    const good: KnowledgeEvent = { ...attemptEvent({ t: recent }), attemptId: 'attempt-good', easeAfter: 2.7 };
+    const tombstone: KnowledgeEvent = { t: now, kind: 'retraction', source: 'manual', retracts: 'attempt-good' };
+    s.appendEvents({ 'ja:m1': [good] });
+    // A malformed row sits between two valid ones; seqs must still align.
+    s.appendEvents({
+      'ja:m1': [
+        { t: now - 1000, kind: 'review', source: 'anki', aspect: 'meaning', easeAfter: 2.4, rating: 'good', timesSeenDelta: 1, ankiReviewId: 77 },
+        { totally: 'malformed' } as unknown as KnowledgeEvent,
+        { t: now - 500, kind: 'status', source: 'passiveTracking', aspect: 'meaning', timesSeenDelta: 2 },
+        tombstone,
+      ],
+    });
+    const raw: KnowledgeEvent[] = [
+      good,
+      { t: now - 1000, kind: 'review', source: 'anki', aspect: 'meaning', easeAfter: 2.4, rating: 'good', timesSeenDelta: 1, ankiReviewId: 77 },
+      { t: now - 500, kind: 'status', source: 'passiveTracking', aspect: 'meaning', timesSeenDelta: 2 },
+      tombstone,
+    ];
+    expect(s.getKnowledgeState('ja:m1').projection).toEqual(replayKeyProjection(raw));
+    s.close();
+  });
+
+  it('compaction converges: a second pass over unchanged keys moves nothing', () => {
+    const s = store();
+    const now = NOW_VAL();
+    const old = now - 400 * DAY;
+    s.appendEvents({
+      'ja:c1': [
+        ankiReview(old, 2.0, 51),
+        { ...attemptEvent({ t: old + 30 * DAY }), attemptId: 'attempt-c1', easeAfter: 2.7 },
+        { ...attemptEvent({ t: old + 60 * DAY }), attemptId: 'attempt-c2', easeAfter: 2.4 },
+        ankiReview(now - DAY, 2.9, 52),
+      ],
+    });
+    expect(s.compact(now)).toBe(1);
+    // The archive frontier is now settled: identical input, nothing left to move.
+    expect(s.compact(now)).toBe(0);
+    expect(s.compact(now)).toBe(0);
+    // Every key eventually receives coverage despite the bounded window —
+    // including keys ordered AFTER the window's edge.
+    for (let k = 0; k < 6; k++) s.compact(now);
+    expect(s.getArchive('ja:c1')).toBeDefined();
+    expect(s.getKnowledgeState('ja:c1').projection).toEqual(replayKeyProjection([
+      ankiReview(old, 2.0, 51),
+      { ...attemptEvent({ t: old + 30 * DAY }), attemptId: 'attempt-c1', easeAfter: 2.7 },
+      { ...attemptEvent({ t: old + 60 * DAY }), attemptId: 'attempt-c2', easeAfter: 2.4 },
+      ankiReview(now - DAY, 2.9, 52),
+    ]));
+    s.close();
+  });
+
+  it('starvation guard: keys beyond the candidate window still compact', () => {
+    const s = store();
+    const now = NOW_VAL();
+    const old = now - 400 * DAY;
+    const log: KnowledgeEventLog = {};
+    for (let k = 0; k < 10; k++) {
+      log[`ja:w${k}`] = [
+        ankiReview(old - 100 * DAY, 2.0, 60 + k),
+        { ...attemptEvent({ t: old + 30 * DAY }), attemptId: `attempt-w${k}`, easeAfter: 2.7 },
+        ankiReview(now - DAY, 2.9, 70 + k),
+      ];
+    }
+    s.appendEvents(log);
+    // maxKeys=3 with 10 candidate keys: the window must not strand the tail.
+    let moved = 0;
+    for (let pass = 0; pass < 20; pass++) {
+      moved += s.compact(now, 3);
+    }
+    expect(moved).toBe(10);
+    for (let k = 0; k < 10; k++) {
+      expect(s.getArchive(`ja:w${k}`)).toBeDefined();
+    }
+    s.close();
+  });
+
+  it('retracts oldest and newest archived attempts, rerates, and spans sibling keys', () => {
+    const s = store();
+    const now = NOW_VAL();
+    const old = now - 500 * DAY;
+    const attemptA = 'attempt-a';
+    const attemptB = 'attempt-b';
+    const log: KnowledgeEventLog = {
+      'ja:h1': [
+        ankiReview(old, 2.0, 1),
+        { ...attemptEvent({ t: old + 30 * DAY }), attemptId: attemptA, easeAfter: 3.0 },
+        ankiReview(old + 60 * DAY, 2.4, 2),
+        { ...attemptEvent({ t: old + 90 * DAY }), attemptId: attemptB, easeAfter: 1.8, rating: 'again' },
+        ankiReview(now - DAY, 2.9, 3),
+      ],
+      // The same attempt fans out to a sibling form key (multi-target attempt).
+      'ja:h2': [{ ...attemptEvent({ t: old + 30 * DAY }), attemptId: attemptA, easeAfter: 3.0, timesSeenDelta: 1 }],
+    };
+    s.appendEvents(log);
+    s.compact(now);
+
+    // Retract the OLDEST archived attempt.
+    s.appendEvents({ 'ja:h1': [{ t: now, kind: 'retraction', source: 'manual', retracts: attemptA }] });
+    s.appendEvents({ 'ja:h2': [{ t: now, kind: 'retraction', source: 'manual', retracts: attemptA }] });
+    const retractA = [...log['ja:h1'], { t: now, kind: 'retraction', source: 'manual', retracts: attemptA } as KnowledgeEvent];
+    expect(s.getKnowledgeState('ja:h1').projection).toEqual(replayKeyProjection(retractA));
+    const retractA2 = [...log['ja:h2'], { t: now, kind: 'retraction', source: 'manual', retracts: attemptA } as KnowledgeEvent];
+    expect(s.getKnowledgeState('ja:h2').projection).toEqual(replayKeyProjection(retractA2));
+
+    // Retract the NEWEST archived attempt on the sibling-heavy bucket.
+    s.appendEvents({ 'ja:h1': [{ t: now + 1, kind: 'retraction', source: 'manual', retracts: attemptB }] });
+    const retractBoth = [...retractA, { t: now + 1, kind: 'retraction', source: 'manual', retracts: attemptB } as KnowledgeEvent];
+    expect(s.getKnowledgeState('ja:h1').projection).toEqual(replayKeyProjection(retractBoth));
+
+    // Rerate after compaction: a fresh attempt plus retraction of the rerated one.
+    s.appendEvents({
+      'ja:h1': [
+        { ...attemptEvent({ t: now + 2, kind: 'rating' }), attemptId: 'attempt-rerate', easeAfter: 2.6 },
+        { t: now + 3, kind: 'retraction', source: 'manual', retracts: 'attempt-rerate' },
+      ],
+    });
+    const afterRerate = [...retractBoth,
+      { ...attemptEvent({ t: now + 2, kind: 'rating' }), attemptId: 'attempt-rerate', easeAfter: 2.6 } as KnowledgeEvent,
+      { t: now + 3, kind: 'retraction', source: 'manual', retracts: 'attempt-rerate' } as KnowledgeEvent,
+    ];
+    expect(s.getKnowledgeState('ja:h1').projection).toEqual(replayKeyProjection(afterRerate));
+
+    // Checkpoint rebuild from canonical rows + archives stays equivalent.
+    s.rebuildCheckpoints();
+    expect(s.getKnowledgeState('ja:h1').projection).toEqual(replayKeyProjection(afterRerate));
+    s.close();
+  });
+
+  it('keeps cross-language attempt ids independent', () => {
+    const s = store();
+    const now = NOW_VAL();
+    const old = now - 400 * DAY;
+    s.appendEvents({
+      'ja:w1': [ankiReview(old - 100 * DAY, 2.1, 41), { ...attemptEvent({ t: old }), attemptId: 'shared-attempt', easeAfter: 3.2 }],
+      'zh:w1': [ankiReview(old - 100 * DAY, 2.3, 42), { ...attemptEvent({ t: old }), attemptId: 'shared-attempt', easeAfter: 1.9 }],
+    });
+    s.compact(now);
+    expect(s.hasAttemptRecords('ja:w1', ['shared-attempt'])).toEqual([true]);
+    expect(s.hasAttemptRecords('zh:w1', ['shared-attempt'])).toEqual([true]);
+
+    // Retracting in one language must not touch the other.
+    s.appendEvents({ 'ja:w1': [{ t: now, kind: 'retraction', source: 'manual', retracts: 'shared-attempt' }] });
+    const jaRaw = [ankiReview(old - 100 * DAY, 2.1, 41), { ...attemptEvent({ t: old }), attemptId: 'shared-attempt', easeAfter: 3.2 } as KnowledgeEvent, { t: now, kind: 'retraction', source: 'manual', retracts: 'shared-attempt' } as KnowledgeEvent];
+    const zhRaw = [ankiReview(old - 100 * DAY, 2.3, 42), { ...attemptEvent({ t: old }), attemptId: 'shared-attempt', easeAfter: 1.9 } as KnowledgeEvent];
+    expect(s.getKnowledgeState('ja:w1').projection).toEqual(replayKeyProjection(jaRaw));
+    expect(s.getKnowledgeState('zh:w1').projection).toEqual(replayKeyProjection(zhRaw));
+    expect(s.hasAttemptRecords('zh:w1', ['shared-attempt'])).toEqual([true]);
+    s.close();
+  });
+
+  it('rolls back the whole compaction transaction when a write fails mid-pass', () => {
+    const s = store();
+    const now = NOW_VAL();
+    const old = now - 400 * DAY;
+    const log: KnowledgeEventLog = { 'ja:h1': [ankiReview(old - 100 * DAY, 1.9, 8), ankiReview(old, 2.0, 9), { ...attemptEvent({ t: old + 30 * DAY }), attemptId: 'attempt-x', easeAfter: 2.8 }] };
+    s.appendEvents(log);
+
+    // Crash between the archive write and the contribution-index write:
+    // make the attempt_index INSERT fail once, mid-transaction.
+    const internal = s as unknown as { db: { prepare: (sql: string) => unknown } };
+    const originalPrepare = internal.db.prepare.bind(internal.db);
+    let failNextAttemptInsert = true;
+    internal.db.prepare = (sql: string) => {
+      if (failNextAttemptInsert && sql.includes('INSERT OR REPLACE INTO attempt_index')) {
+        failNextAttemptInsert = false;
+        throw new Error('simulated crash between archive and index write');
+      }
+      return originalPrepare(sql);
+    };
+    expect(() => s.compact(now)).toThrow('simulated crash between archive and index write');
+    internal.db.prepare = originalPrepare;
+
+    // Atomic rollback: no archive, no records, no lost rows.
+    expect(s.getArchive('ja:h1')).toBeUndefined();
+    expect(s.hasAttemptRecords('ja:h1', ['attempt-x'])).toEqual([false]);
+    const state = s.getKnowledgeState('ja:h1');
+    expect(state.projection).toEqual(replayKeyProjection(log['ja:h1']));
+    // Retry after the crash succeeds and preserves equivalence.
+    expect(s.compact(now)).toBe(1);
+    expect(s.getKnowledgeState('ja:h1').projection).toEqual(replayKeyProjection(log['ja:h1']));
+    s.close();
+  });
+
+  it('reclassifies a v1 store from its backup with projection equivalence and resume safety', () => {
+    const s = store();
+    const now = NOW_VAL();
+    const old = now - 400 * DAY;
+    // Simulate a v1 database: schemaVersion 1, exact attempt rows, no records.
+    const backup: KnowledgeEventLog = {
+      'ja:v1': [
+        ankiReview(old, 2.0, 21),
+        { ...attemptEvent({ t: old + 30 * DAY }), attemptId: 'attempt-v1', easeAfter: 3.1 },
+        ankiReview(old + 60 * DAY, 2.5, 22),
+      ],
+    };
+    s.importLegacyLog(JSON.parse(JSON.stringify(backup)), now);
+    s.markSchemaVersion(1);
+
+    const first = s.reclassifyFromBackup(JSON.parse(JSON.stringify(backup)), now);
+    expect(first.verified).toBe(true);
+    expect(s.schemaVersion).toBe(2);
+    // The old attempt compacted with a contribution record.
+    expect(s.hasAttemptRecords('ja:v1', ['attempt-v1'])).toEqual([true]);
+    expect(s.getKnowledgeState('ja:v1').projection).toEqual(replayKeyProjection(backup['ja:v1']));
+
+    // Idempotent: a second run rewrites nothing and stays verified.
+    const second = s.reclassifyFromBackup(JSON.parse(JSON.stringify(backup)), now);
+    expect(second.verified).toBe(true);
+    expect(s.getKnowledgeState('ja:v1').projection).toEqual(replayKeyProjection(backup['ja:v1']));
+    s.close();
+  });
+
+  it('defers markerless v1 keys instead of speculatively reclassifying them', () => {
+    const s = store();
+    const now = NOW_VAL();
+    const old = now - 400 * DAY;
+    const backup: KnowledgeEventLog = {
+      'ja:v1': [ankiReview(old - 100 * DAY, 1.8, 31), ankiReview(old, 2.0, 32), { ...attemptEvent({ t: old + 30 * DAY }), attemptId: 'attempt-legacy', easeAfter: 3.0 }],
+    };
+    // Pre-record v1 state: raw rows and a v1 schema marker — no import
+    // markers, no contribution records (appendEvents never compacted).
+    s.appendEvents(backup);
+    s.markSchemaVersion(1);
+    const result = s.reclassifyFromBackup(JSON.parse(JSON.stringify(backup)), now);
+    expect(result.skipped).toBe(1);
+    // The key was skipped: its attempt remains exact (still retractable), and
+    // the schema version flipped without touching the key.
+    expect(s.hasAttemptRecords('ja:v1', ['attempt-legacy'])).toEqual([false]);
+    const exact = s.getExactEvents(['ja:v1'])['ja:v1'];
+    expect(exact.some((event) => event.attemptId === 'attempt-legacy')).toBe(true);
+    expect(s.getKnowledgeState('ja:v1').projection).toEqual(replayKeyProjection(backup['ja:v1']));
     s.close();
   });
 });

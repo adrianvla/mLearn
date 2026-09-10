@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { KeyArchive } from '../../shared/knowledge/historyArchive';
+import { applyEventToFold, emptyKeyFold } from '../../shared/utils/projectionReplay';
 import { loadLinguisticGraph } from '../../shared/graph/load';
 import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
 import { buildKnowledgeProjection, claimClassification } from './knowledgeProjection';
@@ -324,5 +326,50 @@ describe('modeling-grade latency in projected evidence', () => {
     const stalledRow = meaning.evidence.find((row) => (row as { stalled?: boolean }).stalled === true);
     expect(stalledRow).toBeDefined();
     expect(stalledRow!.latencyMs).toBeUndefined();
+  });
+
+  it('merges archived bucket statistics and discovers archive-only package capabilities', () => {
+    const bucketKey = (capability: string): string => `${capability}\u0000surface|${surfaceId}|`;
+    const measurableKnownFold = emptyKeyFold();
+    applyEventToFold(measurableKnownFold, { t: 100, kind: 'rating', source: 'srs', aspect: 'meaning', easeAfter: 3.2, rating: 'good', timesSeenDelta: 1 }, 3);
+    const bucket = (capability: string): KeyArchive['buckets'][string] => ({
+      fold: measurableKnownFold,
+      measurableFold: measurableKnownFold,
+      transitions: { lapsedAfterFirstKnown: false },
+      ratings: [],
+      latency: { count: 0, sum: 0 },
+      rowCount: 2,
+      methodStats: { inference: 2, inferenceSuccess: 1 },
+      sourceSeen: { srs: 7 },
+      lastDirect: { t: 555, seq: 9 },
+    });
+    const archive: KeyArchive = {
+      v: 2,
+      frontierT: 5000,
+      frontierSeq: 10,
+      acquisitionCutoff: Number.NEGATIVE_INFINITY,
+      buckets: {
+        [bucketKey('sense-recognition')]: bucket('sense-recognition'),
+        [bucketKey('x-test::glyph-tone')]: bucket('x-test::glyph-tone'),
+      },
+      archivedEventCount: 4,
+      ankiReviewIds: [],
+      weekPoints: [],
+    };
+    const result = buildKnowledgeProjection(graph, surfaceId, [], policy, 10_000, undefined, { archives: [archive] });
+    const senseState = result.targets
+      .find((target) => target.targetRef.id === surfaceId)
+      ?.states.find((state) => state.capability === 'sense-recognition');
+    // Archived sufficient statistics surface exactly like exact-row counters.
+    expect(senseState?.evidenceSourceCounts).toEqual({ srs: 7 });
+    expect(senseState?.lastDirectSuccess).toBe(555);
+    expect(senseState?.classification).toBe('known');
+    // Archive-only package capability survives compaction as an inert state.
+    const packageState = result.targets
+      .find((target) => target.targetRef.id === surfaceId)
+      ?.states.find((state) => state.capability === 'x-test::glyph-tone');
+    expect(packageState).toBeDefined();
+    expect(packageState?.evidenceSourceCounts).toEqual({ srs: 7 });
+    expect(packageState?.lastDirectSuccess).toBe(555);
   });
 });

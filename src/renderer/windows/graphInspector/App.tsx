@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, type Component } from 'solid-js';
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { assembleTargetExplanation, type TargetState } from '../../../shared/graph/explanations';
+import type { KeyArchive } from '../../../shared/knowledge/historyArchive';
 import type { CapabilityKind, GraphRelationType, RelationCategory } from '../../../shared/graph/types';
 import type { GraphNeighborhood } from '../../../shared/graph/ipc';
 import { getBridge } from '../../../shared/bridges';
@@ -31,6 +32,7 @@ export const GraphInspectorContent: Component = () => {
   const [neighborhood, setNeighborhood] = createSignal<GraphNeighborhood | null>();
   const [selectedCapability, setSelectedCapability] = createSignal<CapabilityKind>();
   const [events, setEvents] = createSignal<import('../../../shared/graph/explanations').JournalRow[]>([]);
+  const [archive, setArchive] = createSignal<KeyArchive | undefined>(undefined);
   const [details, setDetails] = createSignal(false);
 
   onMount(() => {
@@ -60,15 +62,26 @@ export const GraphInspectorContent: Component = () => {
     const hash = id.match(/:surface:([a-f0-9]{64})$/i)?.[1];
     if (!hash) {
       setEvents([]);
+      setArchive(undefined);
       return;
     }
-    void getBridge().knowledgeEvents.getKnowledgeRows([`${settings.language}:${hash}`]).then((log) => setEvents(log[`${settings.language}:${hash}`] ?? []));
+    const journalKey = `${settings.language}:${hash}`;
+    // Archived evidence participates in the explanation view: coarse old
+    // attempts resolve through the same address matcher as exact rows.
+    setEvents([]);
+    setArchive(undefined);
+    void getBridge().knowledgeEvents.getKnowledgeRows([journalKey]).then((log) => {
+      if (!disposed) setEvents(log[journalKey] ?? []);
+    });
+    void getBridge().knowledgeEvents.getKnowledgeArchive(journalKey).then((envelope) => {
+      if (!disposed) setArchive(envelope.archive);
+    });
   });
 
   const grouped = createMemo(() => Object.fromEntries(classes.map((category) => [category,
     neighborhood()?.relations.filter((relation) => relation.relationType && categoryFor(relation.relationType) === category) ?? [],
   ])) as Record<RelationCategory, NonNullable<GraphNeighborhood['relations']>>);
-  const explanation = createMemo(() => selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta) : undefined);
+  const explanation = createMemo(() => selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta, Date.now(), undefined, undefined, archive() ? [archive() as KeyArchive] : undefined) : undefined);
 
   return <div class="graph-inspector">
     <Show when={graph.readiness() === 'pending'}><div class="graph-inspector__empty" aria-busy="true"><SkeletonText lines={4} /></div></Show>
