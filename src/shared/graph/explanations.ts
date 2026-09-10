@@ -1,6 +1,45 @@
-import { eventIsMeasurable, readActiveEvidence, type KnowledgeEvent } from '../knowledgeEvents';
+import { eventIsMeasurable, type KnowledgeEvent } from '../knowledgeEvents';
 import { eventAppliesToCapability } from './addressing';
-import { replayKeyProjection, type ReplayProjection } from '../utils/projectionReplay';
+import {
+  computeRetention,
+  foldArchiveBucketsMeasurable,
+  mergeArchives,
+  type KeyArchive,
+} from '../knowledge/historyArchive';
+import {
+  applyEventToFold,
+  emptyKeyFold,
+  mergeKeyFolds,
+  projectKeyFold,
+  type ReplayProjection,
+} from '../utils/projectionReplay';
+
+/** Exact journal row with its stable insertion-order identity. */
+export interface JournalRow {
+  event: KnowledgeEvent;
+  seq: number;
+}
+
+/**
+ * Normalization boundary: production callers pass true journal rows (stable
+ * seq from the store); tests and legacy callers pass plain event arrays whose
+ * array order IS the journal order of a single key.
+ */
+export function toJournalRows(input: readonly (KnowledgeEvent | JournalRow)[]): JournalRow[] {
+  return input.map((item, index) => ('event' in item ? (item as JournalRow) : { event: item as KnowledgeEvent, seq: index }));
+}
+
+function stripRetractedRows(rows: readonly JournalRow[]): JournalRow[] {
+  const retracted = new Set<string>();
+  for (const { event } of rows) {
+    if (event.retracts !== undefined) retracted.add(`${event.retracts}`);
+  }
+  if (retracted.size === 0) return rows.filter(({ event }) => event.kind !== 'retraction');
+  return rows.filter(({ event }) => {
+    if (event.retracts !== undefined || event.kind === 'retraction') return false;
+    return !(event.attemptId !== undefined && retracted.has(`${event.attemptId}`));
+  });
+}
 import { easeToStatus } from '../utils/knowledgeStrength';
 import { deriveRetentionSchedule, type RetentionPolicy } from '../srs/retentionScheduler';
 import type { CapabilityKey } from './types';
@@ -33,7 +72,7 @@ export type TargetState =
 export interface TargetExplanation {
   state: TargetState;
   evidence: KnowledgeEvent[];
-  projection: ReturnType<typeof replayKeyProjection>;
+  projection: ReturnType<typeof projectKeyFold>;
   retention: ReturnType<typeof deriveRetentionSchedule> | null;
   prediction?: { value: number; because: string[] };
 }
@@ -64,7 +103,7 @@ function effectiveState(projection: ReplayProjection): TargetState {
 /** Shared explainability assembly: active evidence first, predictions never become evidence. */
 export function assembleTargetExplanation(
   capability: CapabilityKey,
-  events: readonly KnowledgeEvent[],
+  rawRows: readonly (KnowledgeEvent | JournalRow)[],
   policy: RetentionPolicy,
   now = Date.now(),
   prediction?: TargetExplanation['prediction'],
@@ -72,23 +111,36 @@ export function assembleTargetExplanation(
    * Address-aware evidence predicate. Defaults to capability-only matching
    * (the caller's journal-key scoping is the address); graph-aware callers
    * pass eventAppliesToTarget partially applied to the graph + queried
-   * surface so shared-entry variants resolve without state copies.
+   * surface so shared-entry variants resolve without state copies. The SAME
+   * predicate selects archive buckets (via their raw-address representatives)
+   * so aggregated old evidence resolves identically to raw rows.
    */
   matcher: (event: KnowledgeEvent) => boolean = (event) => eventAppliesToCapability(event, capability),
+  /** Sibling-key archives (aggregated old evidence) for the queried target. */
+  archives?: readonly KeyArchive[],
 ): TargetExplanation {
-  const active = readActiveEvidence(events);
+  const rows = toJournalRows(rawRows);
+  const active = stripRetractedRows(rows);
   // Knowledge evidence vs scheduler bookkeeping: a scaffold-invalidated event
   // (its own presentation supplied the access) measures nothing, but the
   // review still HAPPENED — retention scheduling consumes the occurrence,
   // never crediting knowledge.
-  const evidence = active.filter((event) => eventIsMeasurable(event) && matcher(event));
-  // Retention consumes only what the queried capability's presentation left
-  // measurable: a translation-cued review provides no sense-recognition
-  // schedule, while a furigana-cued review still provides full meaning
-  // retention. Per-access honesty — never the card-level aggregate.
-  const ratings = active.filter((event) => eventIsMeasurable(event) && matcher(event)).flatMap((event) => event.rating ? [{ t: event.t, rating: event.rating }] : []);
-  const projection = replayKeyProjection(evidence);
-  const retention = ratings.length ? deriveRetentionSchedule({ createdAt: evidence[0]?.t ?? now, initialEase: 2.5 }, ratings, policy, now) : null;
+  const evidenceRows = active
+    .filter(({ event }) => eventIsMeasurable(event) && matcher(event))
+    .sort((a, b) => a.event.t - b.event.t || a.seq - b.seq);
+  const evidence = evidenceRows.map(({ event }) => event);
+  const mergedArchive = mergeArchives(archives ?? []);
+  // Archived prefix: measurable bucket folds selected by the same matcher.
+  const archiveFold = mergedArchive ? foldArchiveBucketsMeasurable(mergedArchive, matcher) : emptyKeyFold();
+  const exactFold = emptyKeyFold();
+  for (const { event, seq } of evidenceRows) {
+    applyEventToFold(exactFold, event, seq);
+  }
+  const fold = mergedArchive ? mergeKeyFolds(archiveFold, exactFold) : exactFold;
+  const projection: ReplayProjection | null = evidenceRows.length > 0 || mergedArchive ? projectKeyFold(fold) : null;
+  // Retention over the frontier sequence: exact rows + residue columns in one
+  // (t, seq) order — true journal seq on both sides, no ordering ambiguity.
+  const retention = computeRetention(mergedArchive, evidenceRows, policy, now, matcher);
   const state: TargetState = projection ? effectiveState(projection) : prediction ? 'predicted' : 'unmeasured';
   return { state, evidence, projection, retention, ...(prediction ? { prediction } : {}) };
 }

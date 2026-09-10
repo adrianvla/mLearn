@@ -11,7 +11,11 @@ vi.mock('./languageDataService', () => ({ getLanguageDataRoot: () => '/unused' }
 
 vi.mock('./knowledgeProjection', () => ({ buildKnowledgeProjection: vi.fn(() => ({ status: 'ready', targets: [] })) }));
 vi.mock('./flashcardStorage', () => ({ loadFlashcards: vi.fn(async () => ({ meta: {} })) }));
-vi.mock('./knowledgeEvents', () => ({ getKnowledgeEvents: vi.fn(() => ({})) }));
+vi.mock('./knowledgeEvents', () => ({
+  getKnowledgeRows: vi.fn((keys: readonly string[]) => Object.fromEntries(keys.map((key) => [key, []]))),
+  getKnowledgeStates: vi.fn(() => ({})),
+  getKnowledgeArchives: vi.fn((keys: readonly string[]) => keys.map((key) => ({ key }))),
+}));
 
 function compact(language: string, surface: string, sense = 'meaning') {
   const hash = crypto.createHash('sha256').update(surface).digest('hex');

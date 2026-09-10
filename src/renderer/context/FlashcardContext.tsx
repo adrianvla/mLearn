@@ -17,7 +17,9 @@ import { effectiveStateFromEntry, type EffectiveWordState } from '../utils/effec
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
 import type { CapabilityKind } from '../../shared/graph/types';
 import { eventCapability, isAccessMeasurable } from '../../shared/knowledgeEvents';
-import { replayKeyProjection } from '../../shared/utils/projectionReplay';
+import { eventAppliesToCapability } from '../../shared/graph/addressing';
+import { bucketRepresentative } from '../../shared/knowledge/historyArchive';
+import type { KeyKnowledgeState } from '../../shared/knowledge/historyQueries';
 import type { KnowledgeSource, WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
@@ -44,9 +46,9 @@ import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
 import { applyAccessWrite, aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult, type RatedCapability } from '../utils/accessKnowledge';
-import { appendEvents, getEventLogForLanguage } from '../services/knowledgeEvents';
+import { appendEvents, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
-import { nextAttemptId, readActiveEvidence, retentionConditionFor, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { nextAttemptId, retentionConditionFor, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import type { AttemptTiming } from '../../shared/encounterTiming';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { selectEncounterBatch } from '../learning/engine';
@@ -804,16 +806,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       && (entry.lastEvidenceSource === undefined || entry.lastEvidenceSource === 'passiveTracking')
       && !hasLinkedGraduatedCards(lk);
     for (const language of languages) {
-      let eventLog: KnowledgeEventLog;
+      let journalKeys: Set<string>;
       try {
-        eventLog = await getEventLogForLanguage(language);
+        journalKeys = new Set(await queryLanguageKeys(language));
       } catch {
         continue;
       }
       const prefix = `${language}:`;
       for (const [lk, entry] of Object.entries(store.wordKnowledge)) {
         if (!lk.startsWith(prefix)) continue;
-        if (eventLog[lk]?.length) continue;
+        if (journalKeys.has(lk)) continue;
         if (additions[lk]?.length) continue;
         if (entry.ease <= SRS.MIN_EASE && entry.timesSeen === 0 && entry.claim === undefined) continue;
         additions[lk] = [{
@@ -829,7 +831,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       // Graduated cards without journal evidence (legacy SRS-as-truth).
       for (const [lk, cardIds] of Object.entries(store.wordToCardMap)) {
         if (!lk.startsWith(prefix)) continue;
-        if (eventLog[lk]?.length || additions[lk]?.length) continue;
+        if (journalKeys.has(lk) || additions[lk]?.length) continue;
         const eases = cardIds
           .map((id) => store.flashcards[id])
           .filter((card): card is Flashcard => Boolean(card) && card.state !== 'new')
@@ -874,11 +876,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     for (const language of languages) {
       const group = grouped.get(language) ?? [];
       try {
-        const eventLog = await getEventLogForLanguage(language);
+        const grammarKeys = new Set(await queryLanguageKeys(language, 'grammar:'));
         const additions: KnowledgeEventLog = {};
         for (const entry of group) {
           const key = grammarEvidenceKey(language, entry.pattern, 'grammar-recognition');
-          if (eventLog[key]?.length) continue;
+          if (grammarKeys.has(key)) continue;
           additions[key] = [{
             ...grammarRecognitionEvidence(language, entry.pattern, { t: entry.lastSeen, kind: 'rollup' }),
             origin: 'grammar-legacy-migration',
@@ -3478,16 +3480,29 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         // journal holds no active observation for the aspect (claim-only
         // record), drop the record so the aspect reads untracked again.
         .then(async () => {
-          const eventLog = await getEventLogForLanguage(lang);
           const lks = Object.keys(claimEvents);
+          const [rowLog, archiveLog] = await Promise.all([
+            getBridge().knowledgeEvents.getKnowledgeRows(lks),
+            Promise.all(lks.map((lk) => getBridge().knowledgeEvents.getKnowledgeArchive(lk))),
+          ]);
+          const archivesByLk = new Map(archiveLog.map((entry) => [entry.key, entry.archive]));
           setStore(produce((s) => {
             for (const lk of lks) {
               const entry = s.wordKnowledge[lk];
               const access = entry?.access;
               const record = access?.[capability];
               if (!record || record.claim !== undefined) continue;
-              const hasActiveEvidence = readActiveEvidence(eventLog[lk] ?? []).some(
-                (event) => eventCapability(event) === capability && event.kind !== 'claim',
+              // Evidence check spans exact rows AND archived buckets —
+              // aggregated old evidence still anchors the record.
+              const archive = archivesByLk.get(lk);
+              const archiveHasEvidence = archive !== undefined && Object.entries(archive.buckets).some(([bucketKey, bucket]) => {
+                const representative = bucketRepresentative(bucketKey);
+                return representative !== undefined
+                  && eventAppliesToCapability(representative, capability)
+                  && bucket.measurableFold.hasEvidence;
+              });
+              const hasActiveEvidence = archiveHasEvidence || (rowLog[lk] ?? []).some(
+                ({ event }) => eventCapability(event) === capability && event.kind !== 'claim',
               );
               if (!hasActiveEvidence) {
                 delete access[capability];
@@ -3795,16 +3810,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const recomputeWordKnowledgeFromEvidence = async (word: string, language?: string): Promise<void> => {
     const lang = language ?? settings.language;
     const lks = getWordFormsForLanguage(word, lang).map((form) => langKey(lang, SRS.hashWordSync(form)));
-    let eventLog: KnowledgeEventLog;
+    let states: Record<string, KeyKnowledgeState>;
     try {
-      eventLog = await getEventLogForLanguage(lang);
+      states = await getKnowledgeStates(lks);
     } catch (e) {
-      log.warn('projection recompute failed to load events:', e);
+      log.warn('projection recompute failed to load states:', e);
       return;
     }
     setStore(produce((s) => {
       for (const lk of lks) {
-        const projected = replayKeyProjection(eventLog[lk] ?? []);
+        const projected = states[lk]?.projection ?? null;
         if (!projected || !s.wordKnowledge[lk]) {
           // No active state (claims included) → no entry; entry absent →
           // stays unmaterialized.
@@ -3850,9 +3865,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     language: string,
     seeds: Array<{ pattern: string; level?: number }> = [],
   ): Promise<void> => {
+    // Grammar evidence rows are ledger-exact (source 'grammar' never
+    // aggregates), so the exact-row query covers their full history; the key
+    // index enumerates patterns without loading the whole language log.
     let eventLog: KnowledgeEventLog;
     try {
-      eventLog = await getEventLogForLanguage(language);
+      const grammarKeys = await queryLanguageKeys(language, 'grammar:');
+      eventLog = grammarKeys.length > 0 ? await getBridge().knowledgeEvents.queryKnowledgeEvents(grammarKeys) : {};
     } catch (e) {
       log.warn('grammar projection recompute failed to load events:', e);
       return;

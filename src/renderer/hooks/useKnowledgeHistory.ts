@@ -3,14 +3,17 @@ import { useLanguage, useSettings } from '../context';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 import { eventCapability } from '../../shared/knowledgeEvents';
 import type { CapabilityKind } from '../../shared/graph/types';
-import { eventsVersion, getEvents } from '../services/knowledgeEvents';
+import { eventsVersion, getEvents, getKnowledgeArchive } from '../services/knowledgeEvents';
 import { hashWordSync } from '../services/srsAlgorithm';
-import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
+import { archivedCurvePoints, replayKnowledgeHistory, type ArchivedHistoryPoint } from '../utils/knowledgeHistory';
+import { bucketRepresentative, type WeekPoint } from '../../shared/knowledge/historyArchive';
+import { eventAppliesToCapability } from '../../shared/graph/addressing';
 import { getWordFormCandidates } from '../utils/wordForms';
 import { legacyCasingCandidates } from '../../shared/utils/normalizationVersion';
 
 export interface KnowledgeHistoryResult {
   events: () => KnowledgeEvent[] | undefined;
+  archivedPoints: () => ArchivedHistoryPoint[];
   replay: () => ReturnType<typeof replayKnowledgeHistory>;
 }
 
@@ -40,7 +43,38 @@ export function useKnowledgeHistory(word: () => string, capability: () => Capabi
     },
   );
 
+  // LOD: coarse archive points for the archived range, capability-scoped via
+  // the same raw-address bucket matcher the projection uses.
+  const [archivedPoints] = createResource(
+    () => [word(), capability(), settings.language, version()] as const,
+    async ([surface, activeCapability, language]) => {
+      const languageData = language === settings.language ? currentLangData() : langData[language] ?? null;
+      const forms = getWordFormCandidates(
+        surface,
+        (value) => getCanonicalFormForLanguage(language, value),
+        (value) => getWordVariantsForLanguage(language, value),
+        { languageData, language },
+      );
+      const keys = [...forms, ...forms.flatMap((form) => legacyCasingCandidates(form))].map((form) => `${language}:${hashWordSync(form)}`);
+      const points: ArchivedHistoryPoint[] = [];
+      for (const key of [...new Set(keys)]) {
+        try {
+          const { archive } = await getKnowledgeArchive(key);
+          if (!archive) continue;
+          const weekPoints = archive.weekPoints.filter((point: WeekPoint) => {
+            const representative = bucketRepresentative(point.b);
+            return representative !== undefined && eventAppliesToCapability(representative, activeCapability);
+          });
+          points.push(...archivedCurvePoints(weekPoints, { now: Date.now() }));
+        } catch {
+          // Archive queries degrade silently in the history view.
+        }
+      }
+      return points.sort((a, b) => a.t - b.t);
+    },
+  );
+
   const replay = createMemo(() => replayKnowledgeHistory(events() ?? [], { now: Date.now() }));
 
-  return { events, replay };
+  return { events, archivedPoints: () => archivedPoints() ?? [], replay };
 }

@@ -1,25 +1,37 @@
 import fs from 'fs';
 import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
-import { IPC_CHANNELS, KNOWLEDGE_ASPECTS, KNOWLEDGE_SOURCES } from '../../shared/constants';
-import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, retainKnowledgeEvents, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
-import { isValidCapabilityId } from '../../shared/graph/access';
-export { consolidateKnowledgeEvents, retainKnowledgeEvents };
+import { IPC_CHANNELS } from '../../shared/constants';
+import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import type { KeyHistorySummary, KeyKnowledgeState, KnowledgeArchiveEnvelope } from '../../shared/knowledge/historyQueries';
+import { KnowledgeHistoryStore, STORE_FILE_NAME } from './knowledgeHistoryStore';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.knowledgeEvents');
-const FILE_NAME = 'knowledge-events.json';
-const WARN_TOTAL_EVENTS_PER_KEY = 2000;
+const LEGACY_FILE_NAME = 'knowledge-events.json';
 const SAVE_DEBOUNCE_MS = 300;
+/** Bounded incremental compaction work per debounced save. */
+const COMPACTION_BUDGET_PER_SAVE = 50;
 
-let eventLog: KnowledgeEventLog = {};
+let store: KnowledgeHistoryStore | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
 let readyPromise: Promise<void> = Promise.resolve();
 
-function getKnowledgeEventsPath(): string {
-  return path.join(getUserDataPath(), FILE_NAME);
+function getStorePath(): string {
+  return path.join(getUserDataPath(), STORE_FILE_NAME);
+}
+
+function getLegacyPath(): string {
+  return path.join(getUserDataPath(), LEGACY_FILE_NAME);
+}
+
+function ensureStore(): KnowledgeHistoryStore {
+  if (!store) {
+    store = KnowledgeHistoryStore.open(getStorePath());
+  }
+  return store;
 }
 
 function enqueueWrite(fn: () => Promise<void>): Promise<void> {
@@ -27,134 +39,142 @@ function enqueueWrite(fn: () => Promise<void>): Promise<void> {
   return writeQueue;
 }
 
-
-const VALID_KINDS = new Set(['status', 'review', 'rating', 'rollup', 'claim', 'retraction']);
-const VALID_ASPECTS = new Set<string>([...KNOWLEDGE_ASPECTS, 'grammar']);
-const VALID_SOURCES = new Set<string>([...KNOWLEDGE_SOURCES, 'manual', 'grammar', 'migration']);
-
-function isAttemptId(value: unknown): boolean {
-  return typeof value === 'string' || typeof value === 'number';
-}
-
-function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const event = value as Partial<KnowledgeEvent>;
-  if (typeof event.t !== 'number' || !Number.isFinite(event.t)) return false;
-  if (!VALID_KINDS.has(event.kind as string)) return false;
-  if (!VALID_SOURCES.has(event.source as string)) return false;
-  // Epistemic address: every non-retraction event carries EITHER a legacy
-  // aspect value OR a canonical targetRef.capability (core or namespaced
-  // package id). Aspect-less capability-addressed events are the new normal
-  // — rejecting them here would silently drop their evidence on every
-  // reload (the exact failure mode the gender/pronunciation/orthography fix
-  // once closed).
-  if (event.kind === 'retraction') return isAttemptId(event.retracts);
-  if (event.aspect === undefined && !isValidCapabilityId(event.targetRef?.capability)) return false;
-  if (event.aspect !== undefined && !VALID_ASPECTS.has(event.aspect)) return false;
-  if (event.attemptId !== undefined && !isAttemptId(event.attemptId)) return false;
-  if (event.presentedSurface !== undefined && typeof event.presentedSurface !== 'string') return false;
-  if (event.targetRef !== undefined) {
-    if (!event.targetRef || typeof event.targetRef !== 'object' || Array.isArray(event.targetRef)) return false;
-    if (typeof event.targetRef.kind !== 'string' || typeof event.targetRef.id !== 'string') return false;
-    if (event.targetRef.capability !== undefined && !isValidCapabilityId(event.targetRef.capability)) return false;
-  }
-  if (event.taskType !== undefined && (typeof event.taskType !== 'string' || event.taskType.length === 0)) return false;
-  if (event.scaffolds !== undefined) {
-    if (!event.scaffolds || typeof event.scaffolds !== 'object' || Array.isArray(event.scaffolds)) return false;
-    for (const visible of Object.values(event.scaffolds)) {
-      if (typeof visible !== 'boolean') return false;
-    }
-  }
-  return true;
-}
-
-function normalizeLog(value: unknown): KnowledgeEventLog {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const logEntries: KnowledgeEventLog = {};
-  for (const [key, events] of Object.entries(value)) {
-    if (!Array.isArray(events)) continue;
-    const validEvents = events.filter(isKnowledgeEvent);
-    if (validEvents.length > 0) logEntries[key] = validEvents;
-  }
-  return logEntries;
-}
-
-
 function scheduleSave(): void {
-  if (saveTimer) clearTimeout(saveTimer);
+  clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = undefined;
     void saveKnowledgeEvents();
   }, SAVE_DEBOUNCE_MS);
 }
 
-/** Resolves once the event log has finished loading from disk; IPC handlers gate on this. */
+/** Resolves once the store has finished opening/migrating; IPC handlers gate on this. */
 export function whenKnowledgeEventsReady(): Promise<void> {
   return readyPromise;
+}
+
+/**
+ * Open the store and, on first run, migrate the legacy JSON journal.
+ * Migration is verified per key (projection equivalence); on success the
+ * legacy file is renamed to `knowledge-events.json.migrated` (kept as the
+ * quarantine/recovery backup), on failure the store is wiped and migration
+ * retries next boot — the legacy file stays untouched and authoritative.
+ */
+function openAndMigrate(now = Date.now()): void {
+  const active = ensureStore();
+  if (!active.migrationPending) return;
+  const legacyPath = getLegacyPath();
+  if (!fs.existsSync(legacyPath)) {
+    // No legacy journal: fresh install (or already-migrated profile).
+    active.markMigrationDone();
+    return;
+  }
+  const raw = fs.readFileSync(legacyPath, 'utf-8');
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    active.markMigrationDone();
+    return;
+  }
+  const result = active.importLegacyLog(parsed as KnowledgeEventLog, now);
+  if (!result.verified) {
+    active.resetForReimport();
+    throw new Error('knowledge history migration failed projection verification; store reset for retry');
+  }
+  active.markMigrationDone();
+  fs.renameSync(legacyPath, `${legacyPath}.migrated`);
+  log.info(`[knowledgeEvents] migrated journal: ${result.keys} keys, ${result.events} events`);
 }
 
 export function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog> {
   const load = (async () => {
     try {
-      const filePath = getKnowledgeEventsPath();
-      const loaded = normalizeLog(JSON.parse(await fs.promises.readFile(filePath, 'utf-8')) as unknown);
-      const consolidated = applyKnowledgeEventRetention(consolidateKnowledgeEvents(loaded, now));
-      eventLog = consolidated;
-      if (JSON.stringify(loaded) !== JSON.stringify(consolidated)) await saveKnowledgeEvents();
+      openAndMigrate(now);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        log.error('Failed to load knowledge events:', error);
-      }
-      eventLog = {};
+      log.error('Failed to open/migrate knowledge history store:', error);
     }
-    return getKnowledgeEvents(Object.keys(eventLog));
+    return {};
   })();
   readyPromise = load.then(() => undefined);
   return load;
 }
 
+/**
+ * Durability barrier for journal-first ingestion (REQ59): appends are already
+ * committed synchronously by the store; a save flushes the bounded
+ * incremental compaction pass.
+ */
 export async function saveKnowledgeEvents(): Promise<void> {
-  eventLog = applyKnowledgeEventRetention(eventLog);
-  for (const [key, events] of Object.entries(eventLog)) {
-    if (events.length > WARN_TOTAL_EVENTS_PER_KEY) {
-      log.warn(`[knowledgeEvents] ${key} has ${events.length} events; retaining all protected history`);
-    }
-  }
+  const active = ensureStore();
   return enqueueWrite(async () => {
     try {
-      const filePath = getKnowledgeEventsPath();
-      await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
-      const tmpPath = `${filePath}.tmp`;
-      await fs.promises.writeFile(tmpPath, JSON.stringify(eventLog));
-      await fs.promises.rename(tmpPath, filePath);
+      active.compact(Date.now(), COMPACTION_BUDGET_PER_SAVE);
     } catch (error) {
-      log.error('Failed to save knowledge events:', error);
+      log.error('Failed to compact knowledge history:', error);
     }
   });
 }
 
 export async function appendKnowledgeEvents(eventsByKey: KnowledgeEventLog): Promise<void> {
-  for (const [key, events] of Object.entries(eventsByKey)) {
-    if (!events.length) continue;
-    eventLog[key] = retainKnowledgeEvents([...(eventLog[key] ?? []), ...events]);
-  }
+  const hasAny = Object.values(eventsByKey).some((events) => events.length > 0);
+  if (!hasAny) return;
+  ensureStore().appendEvents(eventsByKey);
   scheduleSave();
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);
   }
 }
 
+/** Exact rows (ledger + tail + acquisition residue) for the given keys. */
 export function getKnowledgeEvents(keys: readonly string[]): KnowledgeEventLog {
-  return Object.fromEntries(
-    keys.flatMap((key) => eventLog[key] ? [[key, [...eventLog[key]]] as const] : []),
-  );
+  return ensureStore().getExactEvents(keys);
 }
 
 export function getKnowledgeEventsForLanguage(language: string): KnowledgeEventLog {
-  const prefix = `${language}:`;
-  return Object.fromEntries(
-    Object.entries(eventLog).flatMap(([key, events]) => key.startsWith(prefix) ? [[key, [...events]] as const] : []),
-  );
+  const active = ensureStore();
+  return active.getExactEvents(active.queryLanguageKeys(language));
+}
+
+/** Exact rows WITH stable journal seq — required for archive-aware replay. */
+export function getKnowledgeRows(keys: readonly string[]): Record<string, Array<{ event: import('../../shared/knowledgeEvents').KnowledgeEvent; seq: number }>> {
+  const active = ensureStore();
+  const result: Record<string, Array<{ event: import('../../shared/knowledgeEvents').KnowledgeEvent; seq: number }>> = {};
+  for (const key of keys) {
+    result[key] = active.rowsWithSeq(key);
+  }
+  return result;
+}
+
+export function getKnowledgeStates(keys: readonly string[]): Record<string, KeyKnowledgeState> {
+  const active = ensureStore();
+  const result: Record<string, KeyKnowledgeState> = {};
+  for (const key of keys) {
+    result[key] = active.getKnowledgeState(key);
+  }
+  return result;
+}
+
+export function getKnowledgeArchives(keys: readonly string[]): KnowledgeArchiveEnvelope[] {
+  const active = ensureStore();
+  return keys.map((key) => ({ key, archive: active.getArchive(key) }));
+}
+
+export function getKnowledgeArchive(key: string): KnowledgeArchiveEnvelope {
+  return { key, archive: ensureStore().getArchive(key) };
+}
+
+export function queryKeySummaries(language: string): Record<string, KeyHistorySummary> {
+  return ensureStore().queryKeySummaries(language);
+}
+
+export function queryAnkiReviewIds(language: string, ids: readonly number[]): boolean[] {
+  return ensureStore().hasAnkiReviewIds(language, ids);
+}
+
+export function queryAnkiReviewIdSets(keys: readonly string[]): Record<string, number[]> {
+  return ensureStore().getAnkiReviewIdsByKeys(keys);
+}
+
+export function queryLanguageKeys(language: string, prefix?: string): string[] {
+  return ensureStore().queryLanguageKeys(language, prefix);
 }
 
 export function setupKnowledgeEventsIPC(): void {
@@ -176,5 +196,33 @@ export function setupKnowledgeEventsIPC(): void {
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, async (_event, key: string) => {
     await whenKnowledgeEventsReady();
     return getKnowledgeEvents([key]);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_ROWS_QUERY, async (_event, keys: string[]) => {
+    await whenKnowledgeEventsReady();
+    return getKnowledgeRows(keys);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_STATES_QUERY, async (_event, keys: string[]) => {
+    await whenKnowledgeEventsReady();
+    return getKnowledgeStates(keys);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_ARCHIVE_QUERY, async (_event, key: string) => {
+    await whenKnowledgeEventsReady();
+    return getKnowledgeArchive(key);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_SUMMARIES_QUERY, async (_event, language: string) => {
+    await whenKnowledgeEventsReady();
+    return queryKeySummaries(language);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_ANKI_IDS_QUERY, async (_event, language: string, ids: number[]) => {
+    await whenKnowledgeEventsReady();
+    return queryAnkiReviewIds(language, ids);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_ANKI_ID_SETS_QUERY, async (_event, keys: string[]) => {
+    await whenKnowledgeEventsReady();
+    return queryAnkiReviewIdSets(keys);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_LANGUAGE_KEYS, async (_event, language: string, prefix?: string) => {
+    await whenKnowledgeEventsReady();
+    return queryLanguageKeys(language, prefix);
   });
 }

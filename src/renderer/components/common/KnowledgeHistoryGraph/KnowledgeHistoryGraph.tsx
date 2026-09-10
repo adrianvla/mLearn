@@ -2,7 +2,7 @@ import { Component, For, Show, createMemo } from 'solid-js';
 import { useLocalization } from '../../../context';
 import type { CapabilityKind } from '../../../../shared/graph/types';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
-import type { HistoryCurvePoint, SourceReignBand } from '../../../utils/knowledgeHistory';
+import type { ArchivedHistoryPoint, HistoryCurvePoint, SourceReignBand } from '../../../utils/knowledgeHistory';
 import './KnowledgeHistoryGraph.css';
 
 const VIEW_WIDTH = 320;
@@ -22,6 +22,8 @@ const LEARNING_THRESHOLD_STRENGTH = 0.5;
 
 export interface KnowledgeHistoryGraphProps {
   points: HistoryCurvePoint[];
+  /** Coarse archive points (weeks/months) — LOD history left of the exact tail. */
+  archivedPoints?: ArchivedHistoryPoint[];
   bands: SourceReignBand[];
   capability: CapabilityKind;
   availableCapabilities: readonly CapabilityKind[];
@@ -43,10 +45,12 @@ export const KnowledgeHistoryGraph: Component<KnowledgeHistoryGraphProps> = (pro
   const viewHeight = () => (props.mode === 'compact' ? 56 : 120);
 
   const startTime = createMemo(() => {
+    const archivedFirst = props.archivedPoints?.[0]?.t;
     const first = props.points[0]?.t;
-    if (first === undefined) return props.now;
-    if (props.firstSeen !== undefined && props.firstSeen < first) return props.firstSeen;
-    return first;
+    let start = first === undefined ? props.now : first;
+    if (archivedFirst !== undefined && archivedFirst < start) start = archivedFirst;
+    if (props.firstSeen !== undefined && props.firstSeen < start) return props.firstSeen;
+    return start;
   });
 
   const endTime = createMemo(() => Math.max(props.now, props.points[props.points.length - 1]?.t ?? props.now));
@@ -153,7 +157,7 @@ export const KnowledgeHistoryGraph: Component<KnowledgeHistoryGraphProps> = (pro
         </For>
       </div>
       <Show
-        when={props.showChart !== false && props.points.length > 0}
+        when={props.showChart !== false && (props.points.length > 0 || (props.archivedPoints?.length ?? 0) > 0)}
         fallback={<Show when={props.showChart !== false}><div class="khistory-empty">{t('mlearn.Knowledge.History.Empty')}</div></Show>}
       >
         <svg
@@ -181,6 +185,13 @@ export const KnowledgeHistoryGraph: Component<KnowledgeHistoryGraphProps> = (pro
             y2={y(LEARNING_THRESHOLD_STRENGTH)}
           />
           <path class="khistory-line" d={linePath()} />
+          <For each={props.archivedPoints ?? []}>
+            {(point) => (
+              <circle class="khistory-marker khistory-marker-archived" cx={x(point.t)} cy={y(point.strength)} r={ROLLUP_RADIUS}>
+                <title>{`${point.encounters} · ${new Date(point.t).toLocaleDateString()}`}</title>
+              </circle>
+            )}
+          </For>
           <For each={props.points}>{(point) => renderMarker(point)}</For>
         </svg>
         <div class="khistory-xaxis">

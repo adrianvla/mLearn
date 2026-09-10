@@ -7,6 +7,7 @@
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { Btn, GraphNeighborhoodViz, Modal, PillLabel, AnkiHoverPreview, KnowledgeProjectionDrawer, ReadinessGate, deriveReadiness, SkeletonRows, type InspectorTab } from '../../../components/common';
 import { assembleWordKnowledgeModel } from '../../../components/common/KnowledgeProjection/wordKnowledgeModel';
+import type { JournalRow } from '../../../../shared/graph/explanations';
 import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
@@ -246,25 +247,25 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // Active knowledge events OF THE SELECTED GRAPH ENTITY (not just the row's
   // original word), so the state chip and the center label always refer to the
   // same node after an in-place recenter.
-  const [graphEvents, setGraphEvents] = createSignal<KnowledgeEvent[]>([]);
+  const [graphRows, setGraphRows] = createSignal<JournalRow[]>([]);
   createEffect(() => {
     if (!showGraph()) return;
     const hash = graphEntityId()?.match(/:surface:([a-f0-9]{64})$/i)?.[1];
     if (!hash) {
-      setGraphEvents([]);
+      setGraphRows([]);
       return;
     }
     let disposed = false;
-    void getEvents([`${settings.language}:${hash}`]).then((selected) => {
-      if (!disposed) setGraphEvents(selected);
+    void getBridge().knowledgeEvents.getKnowledgeRows([`${settings.language}:${hash}`]).then((log) => {
+      if (!disposed) setGraphRows(log[`${settings.language}:${hash}`] ?? []);
     }).catch(() => {
-      if (!disposed) setGraphEvents([]);
+      if (!disposed) setGraphRows([]);
     });
     onCleanup(() => { disposed = true; });
   });
   // Center learner state via the shared explanation assembly; mastery is never computed here.
   const graphCenterState = createMemo<TargetState | undefined>(() => (
-    showGraph() ? assembleTargetExplanation('surface-recognition', graphEvents(), store.meta).state : undefined
+    showGraph() ? assembleTargetExplanation('surface-recognition', graphRows(), store.meta).state : undefined
   ));
 
   // REQ34 canonical drawer aggregate: one composition of the comprehensive

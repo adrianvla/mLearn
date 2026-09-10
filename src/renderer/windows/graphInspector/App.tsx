@@ -30,7 +30,7 @@ export const GraphInspectorContent: Component = () => {
   const [entityId, setEntityId] = createSignal<string>();
   const [neighborhood, setNeighborhood] = createSignal<GraphNeighborhood | null>();
   const [selectedCapability, setSelectedCapability] = createSignal<CapabilityKind>();
-  const [events, setEvents] = createSignal<import('../../../shared/knowledgeEvents').KnowledgeEvent[]>([]);
+  const [events, setEvents] = createSignal<import('../../../shared/graph/explanations').JournalRow[]>([]);
   const [details, setDetails] = createSignal(false);
 
   onMount(() => {
@@ -62,7 +62,7 @@ export const GraphInspectorContent: Component = () => {
       setEvents([]);
       return;
     }
-    void getBridge().knowledgeEvents.getKnowledgeEvents(`${settings.language}:${hash}`).then((log) => setEvents(log[`${settings.language}:${hash}`] ?? []));
+    void getBridge().knowledgeEvents.getKnowledgeRows([`${settings.language}:${hash}`]).then((log) => setEvents(log[`${settings.language}:${hash}`] ?? []));
   });
 
   const grouped = createMemo(() => Object.fromEntries(classes.map((category) => [category,

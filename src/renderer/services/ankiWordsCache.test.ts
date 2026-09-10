@@ -5,6 +5,7 @@ import type { LanguageData } from '../../shared/types';
 const mockGetAnkiWords = vi.fn<() => Promise<string[]>>();
 const mockGetAnkiWordStatuses = vi.fn<() => Promise<Array<{ word: string; factor?: number; queue?: number; type?: number }>>>();
 const mockQueryKnowledgeEvents = vi.fn<(keys: string[]) => Promise<Record<string, unknown[]>>>();
+const mockGetKnowledgeStates = vi.fn<(keys: string[]) => Promise<Record<string, unknown>>>();
 const mockAppendKnowledgeEvents = vi.fn<(events: Record<string, unknown[]>) => Promise<boolean>>();
 
 vi.mock('../../shared/backends', () => ({
@@ -15,7 +16,7 @@ vi.mock('../../shared/backends', () => ({
 }));
 vi.mock('../../shared/bridges', () => ({
   getBridge: () => ({
-    knowledgeEvents: { queryKnowledgeEvents: mockQueryKnowledgeEvents },
+    knowledgeEvents: { queryKnowledgeEvents: mockQueryKnowledgeEvents, getKnowledgeStates: mockGetKnowledgeStates },
   }),
 }));
 vi.mock('./knowledgeEvents', () => ({
@@ -65,6 +66,8 @@ describe('ankiWordsCache', () => {
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '仲間', factor: 1300, queue: 0, type: 0 }]);
     mockQueryKnowledgeEvents.mockReset();
     mockQueryKnowledgeEvents.mockResolvedValue({});
+    mockGetKnowledgeStates.mockReset();
+    mockGetKnowledgeStates.mockResolvedValue({});
     mockAppendKnowledgeEvents.mockReset();
     mockAppendKnowledgeEvents.mockResolvedValue(true);
   });
@@ -87,12 +90,12 @@ describe('ankiWordsCache', () => {
     expect(mockAppendKnowledgeEvents).toHaveBeenCalledTimes(1);
     const firstBatch = mockAppendKnowledgeEvents.mock.calls[0][0];
     expect(firstBatch[lk][0]).toMatchObject({ source: 'anki', fromStatus: 'unknown', toStatus: 'known', easeAfter: 1.8 });
-    expect(mockQueryKnowledgeEvents).toHaveBeenCalledWith([lk]);
+    expect(mockGetKnowledgeStates).toHaveBeenCalledWith([lk]);
 
     vi.resetModules();
     const restarted = await import('./ankiWordsCache');
-    mockQueryKnowledgeEvents.mockResolvedValue({
-      [lk]: [{ t: 1, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known', easeAfter: 1.8 }],
+    mockGetKnowledgeStates.mockResolvedValue({
+      [lk]: { projection: null, hasArchive: false, archivedEventCount: 0, statusMarkers: { anki: { t: 1, seq: 1, toStatus: 'known' } } },
     });
     mockAppendKnowledgeEvents.mockClear();
     await restarted.refreshAnkiWordsCache({ ...options });
@@ -106,8 +109,8 @@ describe('ankiWordsCache', () => {
 
     vi.resetModules();
     const mod = await import('./ankiWordsCache');
-    mockQueryKnowledgeEvents.mockResolvedValue({
-      [lk]: [{ t: 1, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'learning', easeAfter: 1.55 }],
+    mockGetKnowledgeStates.mockResolvedValue({
+      [lk]: { projection: null, hasArchive: false, archivedEventCount: 0, statusMarkers: { anki: { t: 1, seq: 1, toStatus: 'learning' } } },
     });
     await mod.refreshAnkiWordsCache({ ...options });
 

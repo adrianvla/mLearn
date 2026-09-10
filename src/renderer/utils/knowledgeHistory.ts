@@ -2,6 +2,30 @@ import { ANKI_EASE } from '../../shared/constants';
 import type { EvidenceSource, KnowledgeEvent, KnowledgeEventKind } from '../../shared/knowledgeEvents';
 import { stripRetractions } from '../../shared/knowledgeEvents';
 import { normalizedStrength, statusToStrength } from '../../shared/utils/knowledgeStrength';
+import type { WeekPoint } from '../../shared/knowledge/historyArchive';
+
+/**
+ * Coarse LOD point from the key archive: one per ISO week (or month, past
+ * the horizon). Strength uses the stored SRS-domain outcome ease.
+ */
+export interface ArchivedHistoryPoint {
+  t: number;
+  strength: number;
+  encounters: number;
+}
+
+export function archivedCurvePoints(weekPoints: readonly WeekPoint[], opts: ReplayOptions): ArchivedHistoryPoint[] {
+  const learning = opts.learningThreshold ?? ANKI_EASE.DEFAULT_LEARNING;
+  const known = opts.knownThreshold ?? ANKI_EASE.DEFAULT_KNOWN;
+  const min = opts.minEase ?? ANKI_EASE.MIN;
+  return weekPoints
+    .filter((point) => point.ease !== undefined)
+    .map((point) => ({
+      t: point.w,
+      strength: normalizedStrength((point.ease as number) * 1000, learning, known, min),
+      encounters: point.n,
+    }));
+}
 
 export interface HistoryCurvePoint {
   t: number;

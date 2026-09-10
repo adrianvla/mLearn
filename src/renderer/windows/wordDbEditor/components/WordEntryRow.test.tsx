@@ -11,6 +11,7 @@ const mockGetKnowledgeProjection = vi.fn();
 let lastDrawerProps: { open?: boolean; initialTab?: string; surface?: string } | null = null;
 const getNeighborhoodMock = vi.fn();
 const getEventsMock = vi.fn();
+const getKnowledgeRowsMock = vi.fn();
 const openGraphInspectorMock = vi.fn();
 let lastVizProps: { neighborhood?: { center: { label?: string } }; centerState?: string; onSelect?: (id: string) => void } | null = null;
 const hashA = 'a'.repeat(64);
@@ -127,7 +128,10 @@ vi.mock('../../../context/GraphContext', () => ({
   useOptionalGraph: () => ({ meta: () => ({ ready: true }), getNeighborhood: getNeighborhoodMock }),
 }));
 vi.mock('../../../../shared/bridges', () => ({
-  getBridge: () => ({ graph: { getKnowledgeProjection: mockGetKnowledgeProjection } }),
+  getBridge: () => ({
+    graph: { getKnowledgeProjection: mockGetKnowledgeProjection },
+    knowledgeEvents: { getKnowledgeRows: getKnowledgeRowsMock },
+  }),
 }));
 vi.mock('../../../services/knowledgeEvents', () => ({
   getEvents: getEventsMock,
@@ -206,6 +210,8 @@ describe('WordEntryRow', () => {
     getNeighborhoodMock.mockResolvedValue(null);
     getEventsMock.mockReset();
     getEventsMock.mockResolvedValue([]);
+    getKnowledgeRowsMock.mockReset();
+    getKnowledgeRowsMock.mockResolvedValue({});
     openGraphInspectorMock.mockReset();
     lastVizProps = null;
     getWordTrackingSyncMock.mockReset();
@@ -1474,8 +1480,8 @@ describe('WordEntryRow', () => {
             relations: [],
           },
     ));
-    getEventsMock.mockImplementation((keys: readonly string[]) => Promise.resolve(
-      keys.includes(`ja:${hashB}`) ? [rating] : [],
+    getKnowledgeRowsMock.mockImplementation((keys: readonly string[]) => Promise.resolve(
+      keys.includes(`ja:${hashB}`) ? { [`ja:${hashB}`]: [{ event: rating, seq: 0 }] } : {},
     ));
 
     // Dynamic import is the harness convention in this file: the vi.mock registrations above must run before the module loads.

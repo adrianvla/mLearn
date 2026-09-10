@@ -5,15 +5,16 @@ import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
 import type { KnowledgeEvent } from '../../../shared/knowledgeEvents';
+import type { KeyHistorySummary } from '../../../shared/knowledge/historyQueries';
 
 const localizationMock = vi.fn((key: string) => key);
 let flashcardStoreMock: {
   flashcards: Record<string, Flashcard>;
   dailyStats: Record<string, Record<string, { newCardsStudied: number; reviewCardsStudied: number; lapses: number; timeSpent: number; graduated: number }>>;
-  wordKnowledge: Record<string, { statusChangedAtSeen?: number }>;
+  wordKnowledge: Record<string, { word?: string; statusChangedAtSeen?: number }>;
 };
 let settingsMock: { language: string; newDayHour: number; known_ease_threshold: number; srsLearningThreshold: number };
-let eventLogMock: Record<string, KnowledgeEvent[]> = {};
+let summariesMock: Record<string, KeyHistorySummary> = {};
 let knowledgeEventsChanged: (() => void) | null = null;
 let flashcardsLoading = false;
 
@@ -26,6 +27,7 @@ vi.mock('../../context', () => ({
     getFreqLevelNames: () => ({}),
     getLanguageFeatures: () => ({ supportsFrequencyLevels: false }),
     getCanonicalFormForLanguage: () => null,
+    getWordVariantsForLanguage: () => [],
   }),
   useLocalization: () => ({ t: localizationMock }),
 }));
@@ -49,7 +51,7 @@ vi.mock('../../../shared/bridges', () => ({
       listMediaStats: () => {},
     },
     knowledgeEvents: {
-      queryKnowledgeEventsForLanguage: () => Promise.resolve(eventLogMock),
+      queryKnowledgeSummaries: () => Promise.resolve(summariesMock),
       onKnowledgeEventsChanged: (callback: () => void) => { knowledgeEventsChanged = callback; return () => {}; },
     },
   }),
@@ -111,7 +113,7 @@ describe('Dashboard', () => {
     document.body.appendChild(container);
     flashcardStoreMock = { flashcards: {}, dailyStats: {}, wordKnowledge: {} };
     settingsMock = { language: 'ja', newDayHour: 4, known_ease_threshold: 1.8, srsLearningThreshold: 3 };
-    eventLogMock = {};
+    summariesMock = {};
     flashcardsLoading = false;
     // Exercise the production invalidation path: the knowledge log cache is
     // keyed by the events version, and swapping the mock without a bump must
@@ -185,21 +187,44 @@ describe('Dashboard', () => {
       aspect: 'meaning',
       ...overrides,
     });
-    eventLogMock = {
-      'ja:one': [
-        makeEvent(0, { easeAfter: 1.3 }),
-        makeEvent(5, { toStatus: 'known', easeAfter: 1.8 }),
-      ],
-      'ja:two': [
-        makeEvent(0, { easeAfter: 1.3 }),
-        makeEvent(9, { toStatus: 'known', easeAfter: 1.8 }),
-        makeEvent(12, { fromStatus: 'known', toStatus: 'learning' }),
-      ],
+    // Same cohort story the old whole-language log told, expressed as per-key
+    // store summaries: 'one' stabilizes at +5d; 'two' lapses after its +9d
+    // known, so it never stabilizes (stableKnownT stays absent).
+    summariesMock = {
+      'ja:one': {
+        firstT: start,
+        lastT: start + 5 * DAY,
+        exactRows: 2,
+        archivedRows: 0,
+        firstSenseT: start,
+        firstKnownT: start + 5 * DAY,
+        stableKnownT: start + 5 * DAY,
+        lapsedAfterFirstKnown: false,
+        acquisitionRows: [
+          { event: makeEvent(0, { easeAfter: 1.3 }), seq: 0 },
+          { event: makeEvent(5, { toStatus: 'known', easeAfter: 1.8 }), seq: 1 },
+        ],
+      },
+      'ja:two': {
+        firstT: start,
+        lastT: start + 12 * DAY,
+        exactRows: 3,
+        archivedRows: 0,
+        firstSenseT: start,
+        firstKnownT: start + 9 * DAY,
+        lapsedAfterFirstKnown: true,
+        acquisitionRows: [
+          { event: makeEvent(0, { easeAfter: 1.3 }), seq: 0 },
+          { event: makeEvent(9, { toStatus: 'known', easeAfter: 1.8 }), seq: 1 },
+          { event: makeEvent(12, { fromStatus: 'known', toStatus: 'learning' }), seq: 2 },
+        ],
+      },
     };
     flashcardStoreMock = {
       flashcards: { a: makeFlashcard('a') },
       dailyStats: {},
-      wordKnowledge: {},
+      // Summary grouping resolves each journal key to its word text.
+      wordKnowledge: { 'ja:one': { word: 'one' }, 'ja:two': { word: 'two' } },
     };
 
     const { Dashboard } = await import('./Dashboard');
@@ -241,12 +266,6 @@ describe('Dashboard', () => {
   });
 
   it('uses the localized section title and chart labels', async () => {
-    eventLogMock = {
-      'ja:one': [
-        { t: Date.UTC(2024, 0, 1), kind: 'status', source: 'manual', aspect: 'meaning', easeAfter: 1.3 },
-        { t: Date.UTC(2024, 0, 6), kind: 'status', source: 'manual', aspect: 'meaning', toStatus: 'known', easeAfter: 1.8 },
-      ],
-    };
     flashcardStoreMock = {
       flashcards: { a: makeFlashcard('a') },
       dailyStats: {},

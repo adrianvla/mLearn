@@ -5,7 +5,7 @@ import { LevelDetailModal } from './LevelDetailModal';
 import { BulkAddModal } from './BulkAddModal';
 import { GrammarCoverage } from './GrammarCoverage';
 import { summarizeGrammarCurriculum } from '../../utils/curriculumCoverage';
-import { eventsVersion, getEventLogForLanguage } from '../../services/knowledgeEvents';
+import { eventsVersion, queryLanguageKeys } from '../../services/knowledgeEvents';
 import { createResource } from 'solid-js';
 import {
   computeBeyondExamLevelStats,
@@ -188,7 +188,12 @@ export const LevelStudyTab: Component = () => {
   // scale (grammarLevels), from the capability-scoped journal.
   const [grammarLog] = createResource(
     () => (flashcards.isKnowledgeReady() && !language.isLoading() ? { language: resolvedLanguageData().language, version: eventsVersion() } : undefined),
-    (source) => getEventLogForLanguage(source.language),
+    async (source) => {
+      // Grammar rows are ledger-exact (source 'grammar' never aggregates), so
+      // the grammar-key slice of exact rows is the full curriculum evidence.
+      const keys = await queryLanguageKeys(source.language, 'grammar:');
+      return keys.length > 0 ? await getBridge().knowledgeEvents.queryKnowledgeEvents(keys) : {};
+    },
   );
   const grammarSummary = createMemo(() => {
     const data = resolvedLanguageData().data;

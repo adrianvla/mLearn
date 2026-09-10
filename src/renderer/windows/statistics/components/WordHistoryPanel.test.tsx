@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { Flashcard, LanguageData, PassiveWordKnowledge } from '../../../../shared/types';
 import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
-import type { HistoryCurvePoint, SourceReignBand } from '../../../utils/knowledgeHistory';
+import type { HistoryCurvePoint, SourceReignBand, ArchivedHistoryPoint } from '../../../utils/knowledgeHistory';
 import { WordHistoryPanel } from './WordHistoryPanel';
 
 const h = vi.hoisted(() => ({
@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   events: [] as KnowledgeEvent[],
   points: [] as HistoryCurvePoint[],
   bands: [] as SourceReignBand[],
+  archivedPoints: [] as ArchivedHistoryPoint[],
   currentLang: { name: 'Japanese', settings: { fixed: {} } } as LanguageData,
   wordKnowledge: {} as Record<string, PassiveWordKnowledge>,
   flashcards: {} as Record<string, Flashcard>,
@@ -43,6 +44,7 @@ vi.mock('../../../hooks/useKnowledgeHistory', () => ({
     h.capabilityGetter = capability;
     return {
       events: () => h.events,
+      archivedPoints: () => h.archivedPoints ?? [],
       replay: () => ({ points: h.points, bands: h.bands }),
     };
   },

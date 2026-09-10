@@ -12,10 +12,8 @@ import { buildKnowledgeProjection } from './knowledgeProjection';
 import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
 import type { CompoundPart } from '../../shared/graph/morphology/compounds';
 import type { PredictionInput } from '../../shared/prediction/supportPredictor';
-import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import { easeToStatus } from '../../shared/utils/knowledgeStrength';
 import { siblingJournalKeys } from '../../shared/graph/addressing';
-import { getKnowledgeEvents } from './knowledgeEvents';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -169,16 +167,18 @@ export class LinguisticGraphService {
       const prefix = `${language}:surface:`;
       const hash = surfaceId.startsWith(prefix) ? surfaceId.slice(prefix.length) : undefined;
       if (!hash) return undefined;
-      const [{ loadFlashcards }, { getKnowledgeEvents }] = await Promise.all([
+      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }] = await Promise.all([
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
       ]);
       const store = await loadFlashcards();
       const plain = this.toLingualGraph(loaded);
       const keys = siblingJournalKeys(plain, surfaceId);
-      const eventLog = getKnowledgeEvents(keys);
-      const mergedEvents = keys.flatMap((key) => eventLog[key] ?? []);
-      const projection = buildKnowledgeProjection(plain, surfaceId, mergedEvents, store.meta);
+      // Rows carry stable journal seq; archives carry aggregated old evidence.
+      const rowLog = getKnowledgeRows(keys);
+      const rows = keys.flatMap((key) => rowLog[key] ?? []);
+      const archives = getKnowledgeArchives(keys).map(({ archive }) => archive).filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
+      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { archives });
       return projection.targets
         .filter((target) => target.targetRef.id === surfaceId)
         .flatMap((target) => target.states.map(({ capability, classification, basis }) => ({ capability, classification, basis })));
@@ -200,7 +200,7 @@ export class LinguisticGraphService {
       if (!loaded.graph.has(surfaceId)) {
         return { status: 'ready', surfaceId, targets: [], querySurface: surface, surfaceKnown: false, compoundAnalysis: null };
       }
-      const [{ loadFlashcards }, { getKnowledgeEvents }] = await Promise.all([
+      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }] = await Promise.all([
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
       ]);
@@ -210,10 +210,13 @@ export class LinguisticGraphService {
       // variant surface resolves to the shared lexical object, so the
       // projection consults sibling journal keys (never copies state).
       const keys = siblingJournalKeys(plain, surfaceId);
-      const eventLog = getKnowledgeEvents(keys);
-      const mergedEvents = keys.flatMap((key) => eventLog[key] ?? []);
+      const rowLog = getKnowledgeRows(keys);
+      const rows = keys.flatMap((key) => rowLog[key] ?? []);
+      const archives = getKnowledgeArchives(keys)
+        .map(({ archive }) => archive)
+        .filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
       const compound = await this.compoundSupport(plain, language, surfaceId);
-      const projection = buildKnowledgeProjection(plain, surfaceId, mergedEvents, store.meta, undefined, undefined, { compound });
+      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { compound, archives });
       return { ...projection, querySurface: surface, surfaceKnown: true, compoundAnalysis: compound?.analysis ?? null };
     } catch {
       return { status: 'error', targets: [] };
@@ -239,13 +242,14 @@ export class LinguisticGraphService {
       };
       walk(analysis.parts);
       const keys = [...new Set(leaves.map((leaf) => (leaf.entryId.startsWith(prefix) ? `${language}:${leaf.entryId.slice(prefix.length)}` : '')))].filter(Boolean);
-      const partEvents = keys.length > 0 ? getKnowledgeEvents(keys) : {};
+      const { getKnowledgeStates } = await import('./knowledgeEvents');
+      const states = keys.length > 0 ? getKnowledgeStates(keys) : {};
       const knownLeaves = new Set(
         leaves
           .filter((leaf) => {
             if (!leaf.entryId.startsWith(prefix)) return false;
-            const projection = replayKeyProjection(partEvents[`${language}:${leaf.entryId.slice(prefix.length)}`] ?? []);
-            return projection ? easeToStatus(projection.ease) === 'known' : false;
+            const state = states[`${language}:${leaf.entryId.slice(prefix.length)}`];
+            return state?.projection ? easeToStatus(state.projection.ease) === 'known' : false;
           })
           .map((leaf) => leaf.lemma),
       );

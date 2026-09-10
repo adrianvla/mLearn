@@ -48,7 +48,7 @@ import type {
   PluginState,
   PluginWindowPayload,
 } from '../plugins/types';
-import type { KnowledgeEventLog } from '../knowledgeEvents';
+import type { KnowledgeEvent, KnowledgeEventLog } from '../knowledgeEvents';
 import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../graph/ipc';
 import type { GraphRelationType } from '../graph/types';
 import type { IntegrateThreadInput, IntegrateThreadResult, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, RememberThisInput, Room, Thread, WorldSnapshot } from '../world';
@@ -304,6 +304,20 @@ export interface KnowledgeEventsBridge {
   queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
   getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
   onKnowledgeEventsChanged: (callback: () => void) => () => void;
+  /** Derived per-key learner states (checkpoint folds) — the projection read path. */
+  getKnowledgeStates: (keys: string[]) => Promise<Record<string, import('../knowledge/historyQueries').KeyKnowledgeState>>;
+  /** Exact rows with stable journal seq — required for archive-aware replay. */
+  getKnowledgeRows: (keys: string[]) => Promise<Record<string, Array<{ event: KnowledgeEvent; seq: number }>>>;
+  /** Per-key multi-resolution archive (LOD history, retention continuation). */
+  getKnowledgeArchive: (key: string) => Promise<import('../knowledge/historyQueries').KnowledgeArchiveEnvelope>;
+  /** Analytics/overview summaries for one language (bounded by key count). */
+  queryKnowledgeSummaries: (language: string) => Promise<Record<string, import('../knowledge/historyQueries').KeyHistorySummary>>;
+  /** Anki re-import idempotency check (language-level). */
+  queryAnkiReviewIds: (language: string, ids: number[]) => Promise<boolean[]>;
+  /** Per-key stored ankiReviewId sets — the re-import dedupe key space. */
+  queryAnkiReviewIdSets: (keys: string[]) => Promise<Record<string, number[]>>;
+  /** Journal keys for a language, optionally prefix-filtered (e.g. grammar keys). */
+  queryLanguageKeys: (language: string, prefix?: string) => Promise<string[]>;
 }
 
 export interface WatchTogetherBridge {

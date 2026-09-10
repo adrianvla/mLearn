@@ -41,6 +41,11 @@ const bands: SourceReignBand[] = [
   { from: 3000, to: 4000, source: 'srs' },
 ];
 
+const archivedPoints = [
+  { t: 100, strength: 0.3, encounters: 12 },
+  { t: 200, strength: 0.6, encounters: 8 },
+];
+
 const renderGraph = (
   overrides: Partial<Parameters<typeof KnowledgeHistoryGraph>[0]> = {},
 ) => {
@@ -56,11 +61,12 @@ const renderGraph = (
         mode={overrides.mode ?? 'full'}
         now={overrides.now ?? 4000}
         firstSeen={overrides.firstSeen}
+        archivedPoints={overrides.archivedPoints ?? []}
       />
     ),
     container,
   );
-  return { dispose, onCapabilityChange };
+  return { dispose, onCapabilityChange, container };
 };
 
 describe('KnowledgeHistoryGraph', () => {
@@ -119,5 +125,17 @@ describe('KnowledgeHistoryGraph', () => {
     const empty = container.querySelector('.khistory-empty');
     expect(empty).not.toBeNull();
     expect(empty!.textContent).toBe('mlearn.Knowledge.History.Empty');
+  });
+
+  it('renders archived LOD dots when no exact points exist', () => {
+    const { container } = renderGraph({ points: [], bands: [], archivedPoints, now: 5000 });
+    expect(container.querySelectorAll('.khistory-marker-archived').length).toBe(2);
+    expect(container.querySelector('.khistory-empty')).toBeNull();
+  });
+
+  it('renders archived dots alongside exact points', () => {
+    const { container } = renderGraph({ archivedPoints, now: 5000 });
+    expect(container.querySelectorAll('.khistory-marker-archived').length).toBe(2);
+    expect(container.querySelectorAll('.khistory-marker').length).toBeGreaterThanOrEqual(points.length + archivedPoints.length);
   });
 });

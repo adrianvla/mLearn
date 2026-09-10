@@ -1,9 +1,10 @@
 import { getBackend } from '../../shared/backends';
+import { getBridge } from '../../shared/bridges';
 import { getLogger } from '../../shared/utils/logger';
 import type { KnowledgeEvent, KnowledgeEventLog, Rating } from '../../shared/knowledgeEvents';
 import type { AnkiReviewEntry } from '../hooks/useAnki';
 import type { AnkiCardInfo } from '../hooks/useAnki';
-import { appendEvents, getEventLogForLanguage } from './knowledgeEvents';
+import { appendEvents } from './knowledgeEvents';
 import { hashWordSync } from './srsAlgorithm';
 import { grammarEvidenceKey, grammarTarget, type GrammarCapability } from '../../shared/grammar/evidence';
 import type { GrammarPoint } from '../../shared/types';
@@ -202,7 +203,10 @@ export async function importAnkiReviewHistory(
     }
   }
 
-  const existing = await getEventLogForLanguage(language);
+  // Idempotency keys come from the store's per-key registries (exact rows +
+  // archive ankiReviewIds) — no whole-language journal read.
+  const candidateWordKeys = [...byWord.keys()].map((word) => `${language}:${hashWordSync(word)}`);
+  const storedIdSets = await getBridge().knowledgeEvents.queryAnkiReviewIdSets(candidateWordKeys);
   const newEventsByKey: KnowledgeEventLog = {};
   let words = 0;
   let imported = 0;
@@ -215,16 +219,14 @@ export async function importAnkiReviewHistory(
     for (const card of await deps.fetchCards(allCardIds)) cardsById.set(card.cardId, card);
   }
   const existingGrammarIds = new Map<string, Set<number>>();
-  for (const [key, events] of Object.entries(existing)) {
+  for (const [key, ids] of Object.entries(storedIdSets as Record<string, number[]>)) {
     if (!key.startsWith(`${language}:grammar:`)) continue;
-    existingGrammarIds.set(key, new Set(events.map((event) => event.ankiReviewId).filter((id): id is number => id != null)));
+    existingGrammarIds.set(key, new Set(ids));
   }
 
   for (const [word, cardIds] of byWord) {
     const key = `${language}:${hashWordSync(word)}`;
-    const existingIds = new Set(
-      (existing[key] ?? []).map((e) => e.ankiReviewId).filter((id): id is number => id != null),
-    );
+    const existingIds = new Set(storedIdSets[key] ?? []);
     const wordEvents: KnowledgeEvent[] = [];
     let wordImported = false;
     for (const cardId of cardIds) {

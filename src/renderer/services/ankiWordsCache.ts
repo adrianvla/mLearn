@@ -17,7 +17,6 @@ import { getLogger } from '../../shared/utils/logger';
 import type { WordStatus } from '../../shared/constants';
 import { hashWordSync } from './srsAlgorithm';
 import { getBridge } from '../../shared/bridges';
-import { stripRetractions } from '../../shared/knowledgeEvents';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 import { getAnkiWordKnowledgeStatus } from '../components/subtitle/wordHoverHelpers';
 import { appendEvents } from './knowledgeEvents';
@@ -143,11 +142,12 @@ async function diffAnkiStatuses(signature: string, language: string, cards: Anki
   const missingPriors = [...new Set(lksByWord.values())].filter((lk) => !lastAnkiStatusByLk.has(lk));
   if (missingPriors.length > 0) {
     try {
-      const priorLog = await getBridge().knowledgeEvents.queryKnowledgeEvents(missingPriors);
-      for (const [lk, events] of Object.entries(priorLog)) {
-        const prior = stripRetractions(events)
-          .filter((event) => event.source === 'anki' && event.kind === 'status' && event.toStatus !== undefined)
-          .at(-1)?.toStatus;
+      // Prior anki status survives compaction: the checkpoint fold tracks the
+      // latest explicit status per source (exact rows + archived buckets).
+      const states = await getBridge().knowledgeEvents.getKnowledgeStates(missingPriors);
+      for (const [lk, state] of Object.entries(states)) {
+        const markerToStatus = state.statusMarkers?.anki?.toStatus;
+        const prior = markerToStatus === 'unknown' || markerToStatus === 'learning' || markerToStatus === 'known' ? markerToStatus : undefined;
         if (prior !== undefined) lastAnkiStatusByLk.set(lk, prior);
       }
     } catch (e) {

@@ -13,9 +13,9 @@ import { WordHistoryPanel } from './components/WordHistoryPanel';
 import type { MediaStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
-import { eventsVersion, getEventLogForLanguage } from '../../services/knowledgeEvents';
+import { eventsVersion, queryKnowledgeSummaries } from '../../services/knowledgeEvents';
 import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
-import { acquisitionSlope, daysToStableKnown, retentionAfterKnown, unifyEventLogByWord } from '../../services/learningAnalytics';
+import { acquisitionSlopeSummaries, daysToStableKnownSummaries, retentionAfterKnownSummaries, type WordSummaryGroup } from '../../services/learningAnalytics';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { getWordFormCandidates } from '../../utils/wordForms';
 
@@ -303,23 +303,29 @@ export const Dashboard: Component = () => {
   const [learningVelocity] = createResource(
     () => [settings.language, eventsVersion()] as const,
     async ([language]) => {
-      const log = await getEventLogForLanguage(language);
-      // Variant surfaces of one word live in several `${language}:${hash}` keys; unify before
-      // cohort aggregation or one multi-hash write counts once per variant (unifyEventLogByWord).
-      const eventsByWord = unifyEventLogByWord(log, (key) => {
+      const summaries = await queryKnowledgeSummaries(language);
+      // Variant surfaces of one word live in several `${language}:${hash}` keys; unify
+      // per-key summaries into word groups before cohort aggregation.
+      const byWord = new Map<string, WordSummaryGroup>();
+      for (const [key, summary] of Object.entries(summaries)) {
         const word = store.wordKnowledge[key]?.word;
-        if (!word) return undefined;
-        return getWordFormCandidates(
+        if (!word) continue;
+        const familyKeys = getWordFormCandidates(
           word,
           (w) => getCanonicalFormForLanguage(language, w),
           (w) => getWordVariantsForLanguage(language, w),
           { language },
         ).map((form) => `${language}:${hashWordSync(form)}`);
-      });
+        const familyId = familyKeys.includes(key) ? [...familyKeys].sort()[0] : key;
+        const group: WordSummaryGroup = byWord.get(familyId) ?? { summaries: [], acquisitionRows: [] };
+        group.summaries = [...group.summaries, summary];
+        group.acquisitionRows = [...group.acquisitionRows, ...(summary.acquisitionRows ?? [])];
+        byWord.set(familyId, group);
+      }
       return {
-        days: daysToStableKnown(eventsByWord),
-        slope: acquisitionSlope(eventsByWord),
-        retention: retentionAfterKnown(eventsByWord, Date.now()),
+        days: daysToStableKnownSummaries(byWord),
+        slope: acquisitionSlopeSummaries(byWord),
+        retention: retentionAfterKnownSummaries(byWord, Date.now()),
       };
     },
   );

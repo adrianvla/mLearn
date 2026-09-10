@@ -95,13 +95,14 @@ export const WordHistoryPanel: Component = () => {
       >
         <KnowledgeHistoryGraph
           points={graphData().points}
+          archivedPoints={history.archivedPoints()}
           bands={graphData().bands}
           capability={capability()}
           availableCapabilities={availableCapabilities()}
           onCapabilityChange={setCapability}
           mode="full"
           now={Date.now()}
-          showChart={isChartableHistory(graphData().points)}
+          showChart={isChartableHistory(graphData().points) || (history.archivedPoints()?.length ?? 0) > 0}
         />
 
         <Show

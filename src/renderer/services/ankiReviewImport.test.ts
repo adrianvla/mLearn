@@ -5,16 +5,19 @@ import type { AnkiReviewEntry } from '../hooks/useAnki';
 const mocks = vi.hoisted(() => ({
   getAnkiWordStatuses: vi.fn(),
   appendEvents: vi.fn().mockResolvedValue(undefined),
-  getEventLogForLanguage: vi.fn().mockResolvedValue({}),
+  queryAnkiReviewIdSets: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../../shared/backends', () => ({
   getBackend: () => ({ getAnkiWordStatuses: mocks.getAnkiWordStatuses }),
 }));
 
+vi.mock('../../shared/bridges', () => ({
+  getBridge: () => ({ knowledgeEvents: { queryAnkiReviewIdSets: mocks.queryAnkiReviewIdSets } }),
+}));
+
 vi.mock('./knowledgeEvents', () => ({
   appendEvents: mocks.appendEvents,
-  getEventLogForLanguage: mocks.getEventLogForLanguage,
 }));
 
 import { importAnkiReviewHistory, mapAnkiGrammarReviews } from './ankiReviewImport';
@@ -139,7 +142,7 @@ function review(overrides: Partial<AnkiReviewEntry>): AnkiReviewEntry {
 beforeEach(() => {
   mocks.getAnkiWordStatuses.mockReset();
   mocks.appendEvents.mockClear();
-  mocks.getEventLogForLanguage.mockReset().mockResolvedValue({});
+  mocks.queryAnkiReviewIdSets.mockReset().mockResolvedValue({});
 });
 
 describe('importAnkiReviewHistory', () => {
@@ -250,9 +253,7 @@ describe('importAnkiReviewHistory', () => {
     const fetchReviews = vi.fn().mockResolvedValue({
       '1': [review({ id: 100 }), review({ id: 200 })],
     });
-    mocks.getEventLogForLanguage.mockResolvedValue({
-      [`ja:${hashWordSync('w')}`]: [{ t: 100, kind: 'review', source: 'anki', aspect: 'meaning', ankiReviewId: 100 }],
-    });
+    mocks.queryAnkiReviewIdSets.mockResolvedValue({ [`ja:${hashWordSync('w')}`]: [100] });
 
     const result = await importAnkiReviewHistory('ja', { fetchReviews });
 
@@ -264,9 +265,7 @@ describe('importAnkiReviewHistory', () => {
   it('appends nothing when every review is already imported', async () => {
     mocks.getAnkiWordStatuses.mockResolvedValue([{ word: 'w', cardId: 1 }]);
     const fetchReviews = vi.fn().mockResolvedValue({ '1': [review({ id: 100 })] });
-    mocks.getEventLogForLanguage.mockResolvedValue({
-      [`ja:${hashWordSync('w')}`]: [{ t: 100, kind: 'review', source: 'anki', aspect: 'meaning', ankiReviewId: 100 }],
-    });
+    mocks.queryAnkiReviewIdSets.mockResolvedValue({ [`ja:${hashWordSync('w')}`]: [100] });
 
     const result = await importAnkiReviewHistory('ja', { fetchReviews });
 

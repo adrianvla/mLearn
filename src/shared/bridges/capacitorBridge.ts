@@ -51,7 +51,10 @@ import type {
   VoiceModelStatus,
   VoiceSample,
 } from '../types';
-import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, type KnowledgeEventLog } from '../knowledgeEvents';
+import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, eventCapability, readActiveEvidence, type KnowledgeEvent, type KnowledgeEventLog } from '../knowledgeEvents';
+import { emptyTransitions, applyTransitions } from '../knowledge/historyArchive';
+import type { KeyHistorySummary, KeyKnowledgeState } from '../knowledge/historyQueries';
+import { replayKeyProjection } from '../utils/projectionReplay';
 import type { AppUpdateState } from '../appUpdate';
 import type { IntegrateThreadResult, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
@@ -1701,6 +1704,109 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
     return () => {
       knowledgeEventsChangeListeners.delete(callback);
     };
+  },
+
+  // Multi-resolution queries: mobile shards keep raw per-key JSON (small
+  // volumes), so derived states are replayed from the shard on demand via the
+  // same shared fold the desktop checkpoints use.
+  async getKnowledgeStates(keys: string[]) {
+    const wantedByLanguage = new Map<string, Set<string>>();
+    for (const key of keys) {
+      const language = languageOfEventKey(key);
+      const wanted = wantedByLanguage.get(language) ?? new Set<string>();
+      wanted.add(key);
+      wantedByLanguage.set(language, wanted);
+    }
+    const result: Record<string, KeyKnowledgeState> = {};
+    for (const [language, wanted] of wantedByLanguage) {
+      const shard = await loadKnowledgeEventsForLanguage(language);
+      for (const key of wanted) {
+        const events = shard[key] ?? [];
+        const active = readActiveEvidence(events);
+        result[key] = {
+          projection: active.length > 0 ? replayKeyProjection(active) : null,
+          hasArchive: false,
+          archivedEventCount: 0,
+        };
+      }
+    }
+    return result;
+  },
+
+  async getKnowledgeRows(keys: string[]) {
+    const wantedByLanguage = new Map<string, Set<string>>();
+    for (const key of keys) {
+      const language = languageOfEventKey(key);
+      const wanted = wantedByLanguage.get(language) ?? new Set<string>();
+      wanted.add(key);
+      wantedByLanguage.set(language, wanted);
+    }
+    const result: Record<string, Array<{ event: KnowledgeEvent; seq: number }>> = {};
+    for (const [language, wanted] of wantedByLanguage) {
+      const shard = await loadKnowledgeEventsForLanguage(language);
+      for (const key of wanted) {
+        const events = [...(shard[key] ?? [])].sort((a, b) => a.t - b.t);
+        result[key] = events.map((event, seq) => ({ event, seq }));
+      }
+    }
+    return result;
+  },
+
+  async getKnowledgeArchive(key: string) {
+    // Mobile keeps raw shards; no archive buckets exist on this platform yet.
+    return { key };
+  },
+
+  async queryKnowledgeSummaries(language: string) {
+    const shard = await loadKnowledgeEventsForLanguage(language);
+    const result: Record<string, KeyHistorySummary> = {};
+    for (const [key, events] of Object.entries(shard)) {
+      if (!events?.length) continue;
+      const active = readActiveEvidence(events);
+      const sorted = [...active].sort((a, b) => a.t - b.t);
+      const transitions = emptyTransitions();
+      for (const event of sorted) {
+        if (eventCapability(event) !== 'sense-recognition') continue;
+        applyTransitions(transitions, event, Date.now());
+      }
+      result[key] = {
+        ...(sorted[0] !== undefined ? { firstT: sorted[0].t } : {}),
+        ...(sorted.length > 0 ? { lastT: sorted[sorted.length - 1].t } : {}),
+        exactRows: events.length,
+        archivedRows: 0,
+        ...(transitions.firstKnownT !== undefined ? { firstKnownT: transitions.firstKnownT } : {}),
+        ...(transitions.stableKnownT !== undefined ? { stableKnownT: transitions.stableKnownT } : {}),
+        lapsedAfterFirstKnown: transitions.lapsedAfterFirstKnown,
+      };
+    }
+    return result;
+  },
+
+  async queryAnkiReviewIdSets(keys: string[]) {
+    const shard = await loadKnowledgeEventsForLanguage(languageOfEventKey(keys[0] ?? ''));
+    const result: Record<string, number[]> = {};
+    for (const key of keys) {
+      const ids = (shard[key] ?? []).map((event) => event.ankiReviewId).filter((id): id is number => id != null);
+      if (ids.length > 0) result[key] = [...new Set(ids)].sort((a, b) => a - b);
+    }
+    return result;
+  },
+
+  async queryAnkiReviewIds(language: string, ids: number[]) {
+    const shard = await loadKnowledgeEventsForLanguage(language);
+    const known = new Set<number>();
+    for (const events of Object.values(shard)) {
+      for (const event of events ?? []) {
+        if (event.ankiReviewId !== undefined) known.add(event.ankiReviewId);
+      }
+    }
+    return ids.map((id) => known.has(id));
+  },
+
+  async queryLanguageKeys(language: string, prefix?: string) {
+    const shard = await loadKnowledgeEventsForLanguage(language);
+    const like = `${language}:${prefix ?? ''}`;
+    return Object.keys(shard).filter((key) => key.startsWith(like));
   },
 };
 

@@ -3,11 +3,11 @@ import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, Review
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { AttemptQuality } from '../../shared/constants';
 import type { CapabilityKind } from '../../shared/graph/types';
-import type { AttemptId, AttemptScaffolds, AttemptTaskType, EventSourceVersions } from '../../shared/knowledgeEvents';
+import type { AttemptId, AttemptScaffolds, AttemptTaskType, EventSourceVersions, KnowledgeEvent } from '../../shared/knowledgeEvents';
 import type { AccessStatusResult } from '../utils/accessKnowledge';
 import type { Rating } from '../services/srsAlgorithm';
 import * as SRS from '../services/srsAlgorithm';
-import { replayKeyProjection } from '../../shared/utils/projectionReplay';
+import { replayKeyProjection, type ReplayProjection } from '../../shared/utils/projectionReplay';
 import { GRAMMAR_ENCOUNTER_EASE_BUMP, GRAMMAR_FAIL_EASE_PENALTY, initialGrammarEase } from '../../shared/utils/grammarPolicy';
 import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
 import { UNTRACKED_LABEL_KEY, knowledgeStatusLabelKey } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
@@ -62,6 +62,16 @@ const mockBridge = {
     kvGetAll: vi.fn().mockResolvedValue({}),
     kvSetBatch: vi.fn().mockResolvedValue(undefined),
   },
+  knowledgeEvents: {
+    queryKnowledgeEvents: knowledgeJournal.queryKnowledgeEvents,
+    getKnowledgeRows: knowledgeJournal.getKnowledgeRows,
+    getKnowledgeStates: knowledgeJournal.getKnowledgeStates,
+    getKnowledgeArchive: knowledgeJournal.getKnowledgeArchive,
+    queryKnowledgeSummaries: knowledgeJournal.queryKnowledgeSummaries,
+    queryLanguageKeys: knowledgeJournal.queryLanguageKeys,
+    queryAnkiReviewIds: knowledgeJournal.queryAnkiReviewIds,
+    queryAnkiReviewIdSets: knowledgeJournal.queryAnkiReviewIdSets,
+  },
 };
 
 function setupMockImplementations() {
@@ -95,25 +105,67 @@ vi.mock('../../shared/backends', () => ({
   getBackend: vi.fn(() => mockBackend),
 }));
 
-const mockAppendEvents = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-// Reconstructs the per-key log from everything the code appended this test —
-// lets projection-replay assertions run against exactly what was recorded.
-const mockGetEventLogForLanguage = vi.hoisted(() => vi.fn(async (language: string) => {
-  const log: Record<string, Array<Record<string, unknown>>> = {};
-  for (const [byKey] of mockAppendEvents.mock.calls) {
-    for (const [key, events] of Object.entries(byKey as Record<string, Array<Record<string, unknown>>>)) {
-      if (!key.startsWith(`${language}:`)) continue;
-      (log[key] ??= []).push(...events);
+// ── Mock knowledge journal (SQLite store stand-in) ───────────────────
+// appendEvents records rows; the store read APIs (queryKnowledgeEvents /
+// getKnowledgeRows / getKnowledgeStates / queryLanguageKeys) replay exactly
+// what the writers appended — same data flow as the production SQLite store.
+const knowledgeJournal = vi.hoisted(() => {
+  const mockAppendEvents = vi.fn(async (_byKey: Record<string, unknown[]>) => undefined);
+  const allRows = (): Record<string, Array<Record<string, unknown>>> => {
+    const rows: Record<string, Array<Record<string, unknown>>> = {};
+    for (const [byKey] of mockAppendEvents.mock.calls) {
+      for (const [key, events] of Object.entries(byKey as Record<string, Array<Record<string, unknown>>>)) {
+        (rows[key] ??= []).push(...events);
+      }
     }
-  }
-  return log;
-}));
+    return rows;
+  };
+  const queryKnowledgeEvents = vi.fn(async (keys: readonly string[]) => {
+    const rows = allRows();
+    const log: Record<string, Array<Record<string, unknown>>> = {};
+    for (const key of keys) if (rows[key]?.length) log[key] = rows[key];
+    return log;
+  });
+  const getKnowledgeRows = vi.fn(async (keys: readonly string[]) => {
+    const rows = allRows();
+    const out: Record<string, Array<{ event: Record<string, unknown>; seq: number }>> = {};
+    for (const key of keys) out[key] = (rows[key] ?? []).map((event, seq) => ({ event, seq }));
+    return out;
+  });
+  const getKnowledgeStates = vi.fn(async (keys: readonly string[]) => {
+    const rows = allRows();
+    const out: Record<string, { projection: ReplayProjection | null; hasArchive: boolean; archivedEventCount: number }> = {};
+    for (const key of keys) {
+      // Faithful to the store: the projection is the fold over the key's rows
+      // (replayKeyProjection applies retractions, as the real checkpoint does).
+      out[key] = {
+        projection: replayKeyProjection((rows[key] ?? []) as KnowledgeEvent[]),
+        hasArchive: false,
+        archivedEventCount: 0,
+      };
+    }
+    return out;
+  });
+  const queryLanguageKeys = vi.fn(async (language: string, prefix?: string) =>
+    Object.keys(allRows()).filter((key) => key.startsWith(`${language}:${prefix ?? ''}`)).sort());
+  const getKnowledgeArchive = vi.fn(async (key: string) => ({ key }));
+  const queryKnowledgeSummaries = vi.fn(async () => ({}));
+  const queryAnkiReviewIds = vi.fn(async () => [] as number[]);
+  const queryAnkiReviewIdSets = vi.fn(async () => ({}) as Record<string, number[]>);
+  return {
+    mockAppendEvents, allRows, queryKnowledgeEvents, getKnowledgeRows, getKnowledgeStates,
+    queryLanguageKeys, getKnowledgeArchive, queryKnowledgeSummaries, queryAnkiReviewIds, queryAnkiReviewIdSets,
+  };
+});
+const mockAppendEvents = knowledgeJournal.mockAppendEvents;
 const mockAccumulateWordSeen = vi.hoisted(() => vi.fn());
 const mockFlushKnowledgeRollup = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('../services/knowledgeEvents', () => ({
   appendEvents: mockAppendEvents,
-  getEventLogForLanguage: mockGetEventLogForLanguage,
+  getKnowledgeStates: knowledgeJournal.getKnowledgeStates,
+  queryKnowledgeSummaries: knowledgeJournal.queryKnowledgeSummaries,
+  queryLanguageKeys: knowledgeJournal.queryLanguageKeys,
 }));
 
 vi.mock('../services/knowledgeRollup', () => ({
@@ -4833,7 +4885,7 @@ describe('attempt undo integrity (P0)', () => {
     // assert convergence onto the prior evidence.
     ctx.undoLastAction();
     await ctx.recomputeWordKnowledgeFromEvidence('学校', 'ja2');
-    const replayed = replayKeyProjection((await mockGetEventLogForLanguage('ja2'))[lk] ?? []);
+    const replayed = replayKeyProjection((knowledgeJournal.allRows()[lk] ?? []) as KnowledgeEvent[]);
     expect(replayed?.ease).toBe(2.5);
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
     expect(ctx.store.wordKnowledge[lk]?.lastStatusChange).toBe(priorT);
@@ -5027,7 +5079,7 @@ describe('claim override persistence (REQ15)', () => {
     // Evidence intact, nothing fabricated: ease unchanged, no negative rows.
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.6);
     expect(ctx.store.wordKnowledge[lk]?.hasActiveEvidence).toBe(true);
-    const journal = await mockGetEventLogForLanguage('ja');
+    const journal = knowledgeJournal.allRows();
     expect(journal[lk].map((e) => e.kind).sort()).toEqual(['claim', 'review']);
     const projection = replayKeyProjection(journal[lk] as Parameters<typeof replayKeyProjection>[0]);
     expect(projection).toMatchObject({ claim: 'learning', ease: 2.6, hasActiveEvidence: true });
@@ -5100,7 +5152,7 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
 
     // Round-trip: journal → replay keeps the attempt as active evidence and
     // the metadata stays on the journaled rows for horizon-sensitive projection.
-    const journal = await mockGetEventLogForLanguage('ja2');
+    const journal = knowledgeJournal.allRows();
     const journaled = Object.values(journal).flat().find((e) => e.attemptId !== undefined);
     expect(journaled).toMatchObject({ taskType: 'word-sync', scaffolds: { reading: true, translation: false } });
     const projection = replayKeyProjection(

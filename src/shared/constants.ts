@@ -106,6 +106,13 @@ export const IPC_CHANNELS = {
   KNOWLEDGE_EVENTS_QUERY_LANGUAGE: 'knowledge-events-query-language',
   KNOWLEDGE_EVENTS_GET: 'knowledge-events-get',
   KNOWLEDGE_EVENTS_CHANGED: 'knowledge-events-changed',
+  KNOWLEDGE_STATES_QUERY: 'knowledge-states-query',
+  KNOWLEDGE_ROWS_QUERY: 'knowledge-rows-query',
+  KNOWLEDGE_ARCHIVE_QUERY: 'knowledge-archive-query',
+  KNOWLEDGE_SUMMARIES_QUERY: 'knowledge-summaries-query',
+  KNOWLEDGE_ANKI_IDS_QUERY: 'knowledge-anki-ids-query',
+  KNOWLEDGE_ANKI_ID_SETS_QUERY: 'knowledge-anki-id-sets-query',
+  KNOWLEDGE_LANGUAGE_KEYS: 'knowledge-language-keys',
   // Migration
   FLASHCARD_MIGRATION_COMPLETE: 'flashcard-migration-complete',
   GET_FLASHCARD_MIGRATION_INFO: 'get-flashcard-migration-info',

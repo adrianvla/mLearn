@@ -33,6 +33,13 @@ export interface MLearnIPC {
   queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
   getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
   onKnowledgeEventsChanged: (callback: () => void) => () => void;
+  getKnowledgeStates: (keys: string[]) => Promise<Record<string, import('./knowledge/historyQueries').KeyKnowledgeState>>;
+  getKnowledgeRows: (keys: string[]) => Promise<Record<string, Array<{ event: KnowledgeEvent; seq: number }>>>;
+  getKnowledgeArchive: (key: string) => Promise<import('./knowledge/historyQueries').KnowledgeArchiveEnvelope>;
+  queryKnowledgeSummaries: (language: string) => Promise<Record<string, import('./knowledge/historyQueries').KeyHistorySummary>>;
+  queryAnkiReviewIds: (language: string, ids: number[]) => Promise<boolean[]>;
+  queryAnkiReviewIdSets: (keys: string[]) => Promise<Record<string, number[]>>;
+  queryLanguageKeys: (language: string, prefix?: string) => Promise<string[]>;
   
   // Flashcard Images
   saveFlashcardImage: (cardId: string, dataUrl: string) => Promise<string>;

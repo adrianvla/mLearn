@@ -1,24 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const queryForLanguage = vi.fn();
+const queryKnowledgeEvents = vi.fn();
 const appendKnowledgeEvents = vi.fn();
 const onKnowledgeEventsChanged = vi.fn();
 
 vi.mock('../../shared/bridges', () => ({
   getBridge: () => ({
     knowledgeEvents: {
-      queryKnowledgeEventsForLanguage: (...args: unknown[]) => queryForLanguage(...args),
+      queryKnowledgeEventsForLanguage: vi.fn().mockResolvedValue({}),
       appendKnowledgeEvents: (...args: unknown[]) => appendKnowledgeEvents(...args),
-      queryKnowledgeEvents: vi.fn().mockResolvedValue({}),
+      queryKnowledgeEvents: (...args: unknown[]) => queryKnowledgeEvents(...args),
+      getKnowledgeStates: vi.fn().mockResolvedValue({}),
+      getKnowledgeArchive: vi.fn().mockResolvedValue({}),
+      queryKnowledgeSummaries: vi.fn().mockResolvedValue({}),
+      queryAnkiReviewIds: vi.fn().mockResolvedValue([]),
+      queryAnkiReviewIdSets: vi.fn().mockResolvedValue({}),
+      queryLanguageKeys: vi.fn().mockResolvedValue([]),
       onKnowledgeEventsChanged: (...args: unknown[]) => onKnowledgeEventsChanged(...args),
     },
   }),
 }));
 
-describe('knowledgeEvents language-log cache', () => {
+describe('knowledgeEvents renderer service', () => {
   beforeEach(() => {
     vi.resetModules();
-    queryForLanguage.mockReset();
+    queryKnowledgeEvents.mockReset();
     appendKnowledgeEvents.mockReset().mockResolvedValue(true);
     onKnowledgeEventsChanged.mockReset();
   });
@@ -29,63 +35,37 @@ describe('knowledgeEvents language-log cache', () => {
     return await import('./knowledgeEvents');
   }
 
-  it('serves repeated reads within one events version from one IPC fetch', async () => {
-    queryForLanguage.mockResolvedValue({ 'ja:h1': [{ t: 1, kind: 'rollup', source: 'passiveTracking' }] });
+  it('serves repeated key-set reads within one events version from one IPC fetch', async () => {
+    queryKnowledgeEvents.mockResolvedValue({ 'ja:h1': [{ t: 1, kind: 'rollup', source: 'passiveTracking' }] });
     const svc = await importService();
 
-    const first = await svc.getEventLogForLanguage('ja');
-    const second = await svc.getEventLogForLanguage('ja');
-    const third = await svc.getEventsForLanguage('ja');
+    const first = await svc.getEvents(['ja:h1']);
+    const second = await svc.getEvents(['ja:h1']);
 
-    expect(queryForLanguage).toHaveBeenCalledTimes(1);
-    expect(first).toBe(second);
-    expect(third).toHaveLength(1);
+    expect(queryKnowledgeEvents).toHaveBeenCalledTimes(1);
+    expect(first).toEqual(second);
   });
 
-  it('refetches once after a local append bumps the events version', async () => {
-    queryForLanguage.mockResolvedValue({ 'ja:h1': [{ t: 1, kind: 'rollup', source: 'passiveTracking' }] });
+  it('refetches after a local append bumps the events version', async () => {
+    queryKnowledgeEvents.mockResolvedValue({ 'ja:h1': [{ t: 1, kind: 'rollup', source: 'passiveTracking' }] });
     const svc = await importService();
-    await svc.getEventLogForLanguage('ja');
+    await svc.getEvents(['ja:h1']);
 
     await svc.appendEvents({ 'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
-    queryForLanguage.mockResolvedValue({
+    queryKnowledgeEvents.mockResolvedValue({
       'ja:h1': [{ t: 1, kind: 'rollup', source: 'passiveTracking' }],
       'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking' }],
     });
 
-    const refetched = await svc.getEventLogForLanguage('ja');
-    expect(queryForLanguage).toHaveBeenCalledTimes(2);
-    expect(Object.keys(refetched)).toContain('ja:h2');
-
-    // Reads within the new version hit the cache again.
-    await svc.getEventLogForLanguage('ja');
-    expect(queryForLanguage).toHaveBeenCalledTimes(2);
+    const refetched = await svc.getEvents(['ja:h1', 'ja:h2']);
+    expect(queryKnowledgeEvents).toHaveBeenCalledTimes(2);
+    expect(refetched.map(({ t }) => t)).toContain(2);
   });
 
-  it('keeps only the fresh response when a broadcast invalidates an in-flight fetch', async () => {
+  it('appends through the bridge, bumps the version, and broadcasts cross-tab', async () => {
     const svc = await importService();
-    const { promise: gated, resolve: releaseFirst } = Promise.withResolvers<{ 'ja:stale': { t: number; kind: string; source: string }[] }>();
-    queryForLanguage.mockImplementationOnce(() => gated);
-    const staleRead = svc.getEventLogForLanguage('ja');
-
-    // Remote change lands while the first fetch is in flight: bumpVersion runs
-    // via the registered bridge listener.
+    await svc.appendEvents({ 'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
+    expect(appendKnowledgeEvents).toHaveBeenCalledWith({ 'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
     expect(onKnowledgeEventsChanged).toHaveBeenCalled();
-    const bump = onKnowledgeEventsChanged.mock.calls[0][0] as () => void;
-    bump();
-
-    const freshLog = { 'ja:fresh': [{ t: 9, kind: 'rollup', source: 'passiveTracking' }] };
-    queryForLanguage.mockResolvedValue(freshLog);
-    const freshRead = svc.getEventLogForLanguage('ja');
-
-    // The stale fetch resolves LAST — its payload must not overwrite the fresh one.
-    releaseFirst({ 'ja:stale': [{ t: 0, kind: 'rollup', source: 'passiveTracking' }] });
-    await staleRead;
-    const settled = await freshRead;
-
-    expect(settled).toBe(freshLog);
-    const after = await svc.getEventLogForLanguage('ja');
-    expect(after).toBe(freshLog);
-    expect(queryForLanguage).toHaveBeenCalledTimes(2);
   });
 });

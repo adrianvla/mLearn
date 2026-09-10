@@ -9,7 +9,7 @@ import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus'
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
-import type { KnowledgeEventLog } from '../shared/knowledgeEvents';
+import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../shared/graph/ipc';
 import type { GraphRelationType } from '../shared/graph/types';
 import { getLogger } from '../shared/utils/logger';
@@ -97,6 +97,20 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, key),
   onKnowledgeEventsChanged: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, () => callback()),
+  getKnowledgeStates: (keys: string[]): Promise<Record<string, import('../shared/knowledge/historyQueries').KeyKnowledgeState>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_STATES_QUERY, keys),
+  getKnowledgeRows: (keys: string[]): Promise<Record<string, Array<{ event: KnowledgeEvent; seq: number }>>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_ROWS_QUERY, keys),
+  getKnowledgeArchive: (key: string): Promise<import('../shared/knowledge/historyQueries').KnowledgeArchiveEnvelope> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_ARCHIVE_QUERY, key),
+  queryKnowledgeSummaries: (language: string): Promise<Record<string, import('../shared/knowledge/historyQueries').KeyHistorySummary>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_SUMMARIES_QUERY, language),
+  queryAnkiReviewIds: (language: string, ids: number[]): Promise<boolean[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_ANKI_IDS_QUERY, language, ids),
+  queryAnkiReviewIdSets: (keys: string[]): Promise<Record<string, number[]>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_ANKI_ID_SETS_QUERY, keys),
+  queryLanguageKeys: (language: string, prefix?: string): Promise<string[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_LANGUAGE_KEYS, language, prefix),
   
   // ========== Flashcard Images ==========
   saveFlashcardImage: (cardId: string, dataUrl: string): Promise<string | null> =>

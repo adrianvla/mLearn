@@ -284,6 +284,13 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
   queryKnowledgeEventsForLanguage: (language) => getIPC().queryKnowledgeEventsForLanguage(language),
   getKnowledgeEvents: (key) => getIPC().getKnowledgeEvents(key),
   onKnowledgeEventsChanged: (callback) => getIPC().onKnowledgeEventsChanged(callback),
+  getKnowledgeStates: (keys) => getIPC().getKnowledgeStates(keys),
+  getKnowledgeRows: (keys) => getIPC().getKnowledgeRows(keys),
+  getKnowledgeArchive: (key) => getIPC().getKnowledgeArchive(key),
+  queryKnowledgeSummaries: (language) => getIPC().queryKnowledgeSummaries(language),
+  queryAnkiReviewIds: (language, ids) => getIPC().queryAnkiReviewIds(language, ids),
+  queryAnkiReviewIdSets: (keys) => getIPC().queryAnkiReviewIdSets(keys),
+  queryLanguageKeys: (language, prefix) => getIPC().queryLanguageKeys(language, prefix),
 };
 
 const watchTogetherBridge: WatchTogetherBridge = {

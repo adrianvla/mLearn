@@ -1,4 +1,5 @@
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import type { KeyHistorySummary } from '../../shared/knowledge/historyQueries';
 import { eventCapability, stripRetractedLog } from '../../shared/knowledgeEvents';
 import { ANKI_EASE } from '../../shared/constants';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
@@ -136,6 +137,79 @@ export function retentionAfterKnown(
     const firstKnown = meaning.find(reachesKnown);
     if (!first || !firstKnown || firstKnown.t > now - STABLE_WINDOW) continue;
     values.push({ month: monthFor(first.t), value: hasLapseWithin(meaning, firstKnown.t) });
+  }
+  return [...cohortValues(values)].sort(([a], [b]) => a.localeCompare(b)).map(([month, cohort]) => ({
+    month,
+    lapseRate: cohort.filter(Boolean).length / cohort.length,
+    knownWordCount: cohort.length,
+  }));
+}
+
+// ─── Summary-based cohorts (archive-aware) ──────────────────────────────────
+//
+// Per-word input assembled from key summaries: frozen cohort transitions
+// (computed at compaction and continued over exact tail rows) plus the exact
+// acquisition-window rows, which are kept forever precisely so the slope
+// replays from raw evidence.
+
+export interface WordSummaryGroup {
+  summaries: readonly KeyHistorySummary[];
+  acquisitionRows: ReadonlyArray<{ event: KnowledgeEvent; seq: number }>;
+}
+
+function summaryMin(values: ReadonlyArray<number | undefined>): number | undefined {
+  let min: number | undefined;
+  for (const value of values) {
+    if (value !== undefined && (min === undefined || value < min)) min = value;
+  }
+  return min;
+}
+
+export function daysToStableKnownSummaries(byWord: ReadonlyMap<string, WordSummaryGroup>): CohortPoint[] {
+  const values: { month: string; value: number }[] = [];
+  for (const group of byWord.values()) {
+    const firstSenseT = summaryMin(group.summaries.map((summary) => summary.firstSenseT));
+    const stableKnownT = summaryMin(group.summaries.map((summary) => summary.stableKnownT));
+    if (firstSenseT === undefined || stableKnownT === undefined) continue;
+    values.push({ month: monthFor(firstSenseT), value: (stableKnownT - firstSenseT) / DAY });
+  }
+  return [...cohortValues(values)].sort(([a], [b]) => a.localeCompare(b)).map(([month, cohort]) => ({
+    month,
+    medianDays: median(cohort),
+    wordCount: cohort.length,
+  }));
+}
+
+export function acquisitionSlopeSummaries(byWord: ReadonlyMap<string, WordSummaryGroup>): SlopeCohortPoint[] {
+  const values: { month: string; value: number }[] = [];
+  for (const group of byWord.values()) {
+    const firstSenseT = summaryMin(group.summaries.map((summary) => summary.firstSenseT));
+    if (firstSenseT === undefined) continue;
+    const meaning = group.acquisitionRows.map(({ event }) => event).filter((event) => eventCapability(event) === 'sense-recognition');
+    const windowed = meaning.filter((event) => event.t <= firstSenseT + SLOPE_WINDOW);
+    const points = replayKnowledgeHistory(windowed, { now: firstSenseT + SLOPE_WINDOW }).points;
+    if (points.length > 0) values.push({ month: monthFor(firstSenseT), value: points[points.length - 1].strength - points[0].strength });
+  }
+  return [...cohortValues(values)].sort(([a], [b]) => a.localeCompare(b)).map(([month, cohort]) => ({
+    month,
+    medianSlope: median(cohort),
+    wordCount: cohort.length,
+  }));
+}
+
+export function retentionAfterKnownSummaries(
+  byWord: ReadonlyMap<string, WordSummaryGroup>,
+  now: number,
+): RetentionCohortPoint[] {
+  const values: { month: string; value: boolean }[] = [];
+  for (const group of byWord.values()) {
+    const firstSenseT = summaryMin(group.summaries.map((summary) => summary.firstSenseT));
+    const firstKnownT = summaryMin(group.summaries.map((summary) => summary.firstKnownT));
+    if (firstSenseT === undefined || firstKnownT === undefined || firstKnownT > now - STABLE_WINDOW) continue;
+    // Lapse flag is frozen per key at compaction; the merged word lapsed when
+    // any key with the merged first-known lapsed within the stable window.
+    const lapsed = group.summaries.some((summary) => summary.lapsedAfterFirstKnown);
+    values.push({ month: monthFor(firstSenseT), value: lapsed });
   }
   return [...cohortValues(values)].sort(([a], [b]) => a.localeCompare(b)).map(([month, cohort]) => ({
     month,
