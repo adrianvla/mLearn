@@ -57,7 +57,7 @@ export const StatsTab: Component = () => {
     >
       <div class="stats-grid">
         <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} size="md" />
-        <StatCard label={t('mlearn.Statistics.WordsTracked')} value={wordStats().allEncountered.total} size="md" />
+        <StatCard label={t('mlearn.Statistics.WordsEncountered')} value={wordStats().allEncountered.total} size="md" />
         <StatCard label={t('mlearn.Statistics.WordsLearned')} value={wordStats().allEncountered.known} size="md" />
         <StatCard label={t('mlearn.Statistics.CurrentlyLearning')} value={wordStats().allEncountered.learning} size="md" />
       </div>

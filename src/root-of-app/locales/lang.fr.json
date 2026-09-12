@@ -1433,6 +1433,19 @@
         "Inspect": "Inspecter"
       },
       "Projection": {
+        "EaseOverall": "Facilité globale du mot",
+        "EaseDescription": "Facilité dérivée des résultats enregistrés. À droite figurent les seuils des observations ; les déclarations peuvent modifier le statut.",
+        "EaseCurrent": "Facilité actuelle · {value}",
+        "EaseValue": "Facilité {value}",
+        "TrajectoryUnavailable": "Impossible de charger l’historique.",
+        "TrajectoryGap": "État indisponible dans l’historique compressé",
+        "TrajectoryHint": "Survolez ou sélectionnez une observation pour voir les détails.",
+        "TrajectoryCompressed": "{count} observations anciennes sont compressées. Les changements individuels de ces périodes ne sont pas disponibles.",
+        "TrajectoryArchive": "Compressé",
+        "TrajectoryUnmeasured": "Non mesuré",
+        "TrajectoryAll": "Tout l’historique",
+        "TrajectoryRecent": "30 dernières",
+        "TrajectoryCapability": "Capacité",
         "Excluded": "Exclu de l’apprentissage",
         "Why": {
           "Claim": "Votre déclaration",
@@ -1463,7 +1476,8 @@
           "Prediction": "Prédiction",
           "Overview": "Aperçu",
           "Relations": "Relations",
-          "History": "Historique"
+          "History": "Historique",
+          "Graph": "Graphique"
         },
         "Claim": {
           "Known": "Déclaration explicite : connu",
@@ -1506,7 +1520,11 @@
           "MeaningN": "Sens {n}",
           "GrammarPattern": "Motif grammatical",
           "Advanced": "Détails techniques"
-        }
+        },
+        "TrajectoryDescription": "Les états proviennent des observations et des déclarations explicites. Les lignes maintiennent l’état entre observations ; les interruptions indiquent des périodes compressées.",
+        "TrajectorySparse": "Des observations sur plusieurs jours sont nécessaires pour afficher une trajectoire.",
+        "RetentionDistant": "Aucune révision prévue prochainement",
+        "RetentionUnavailable": "Planification indisponible"
       },
       "Aspect": {
         "Grammar": "Grammaire",
@@ -1519,6 +1537,7 @@
       },
       "AspectInherited": "(hérité)",
       "History": {
+        "Archival": "Instantanés importés et résumés · {count}",
         "Empty": "Pas encore d'historique de connaissance.",
         "Today": "Aujourd'hui",
         "Yesterday": "Hier",
@@ -2840,12 +2859,6 @@
         "TotalImmersion": "Immersion totale",
         "TotalReviews": "Total des révisions",
         "TotalTime": "Temps total",
-        "WordAcquisition": {
-          "AvgEncounters": "Rencontres moy.",
-          "MedianEncounters": "Rencontres médianes",
-          "Title": "Acquisition de mots",
-          "WordsTracked": "Mots suivis"
-        },
         "WordKnowledge": "Connaissance des mots"
       },
       "Intervals": {
@@ -2870,20 +2883,27 @@
       "WordsByLevel": "Mots par niveau",
       "WordsByStatus": "Mots par statut",
       "WordsLearned": "Mots appris",
-      "WordsTracked": "Mots suivis",
-      "WordHistory": {
-        "Title": "Historique du mot",
-        "SearchPlaceholder": "Rechercher des mots suivis…",
-        "Empty": "Aucun historique pour ce mot.",
-        "Prompt": "Sélectionnez un mot pour voir son historique de connaissance."
-      },
       "LearningVelocity": {
         "Title": "Vitesse d'apprentissage",
         "Empty": "Pas encore assez d'historique — continuez à apprendre et revenez plus tard.",
         "DaysToKnown": "Jours médians jusqu'à connu stable",
         "AcquisitionSlope": "Pente d'acquisition sur 14 jours",
         "RetentionAfterKnown": "Rétention à 30 jours après connu"
-      }
+      },
+      "Sections": {
+        "knowledge": "Connaissances",
+        "reviews": "Révisions",
+        "activity": "Activité",
+        "knowledgeDescription": "Connaissances actuelles dans cette langue. La planification des cartes figure dans Révisions.",
+        "reviewsDescription": "Pratique et planification des cartes de votre collection.",
+        "activityDescription": "Temps de lecture, de vidéo et de pratique. L’activité ne mesure pas les connaissances.",
+        "SchedulingDetails": "Détails de planification",
+        "InspectWord": "Examiner un mot",
+        "SearchPlaceholder": "Rechercher un mot…",
+        "TodayActivity": "Activité du jour",
+        "AllTimeActivity": "Activité totale"
+      },
+      "WordsEncountered": "Mots rencontrés"
     },
     "SubtitleSync": {
       "NextTooltip": "Synchroniser avec le sous-titre suivant",

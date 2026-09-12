@@ -11,6 +11,7 @@ import { AnkiModifyWarningModal } from '../../flashcard/AnkiModifyWarningModal';
 import { buildWordStatusSourceLabel, getWordStatusChangeAction } from './wordStatusPillLogic';
 import { isUnmeasuredKnowledge, knowledgeStatusLabelKey } from '../WordStatusPillKnowledge/knowledgeSummary';
 import { WordStatusPillKnowledge } from '../WordStatusPillKnowledge';
+import { WORD_STATUS_VALUES } from '../../../../shared/constants';
 import { KnowledgeGate } from '../KnowledgeGate';
 
 const ICON_CROSS2 = 'cross2';
@@ -28,8 +29,10 @@ export interface WordStatusPillProps {
   onStatusChange?: (status: WordStatus) => void;
   onModalOpenChange?: (isOpen: boolean) => void;
   iconOnly?: boolean;
-  /** Parent already presents knowledge controls; avoid opening a nested portal. */
+  /** Keep dictionary hovers compact; detailed knowledge opens in the Inspector. */
   suppressKnowledgePopover?: boolean;
+  /** Compact dictionary interaction: cycle explicit claims, without recording attempts. */
+  cycleClaims?: boolean;
 }
 
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
@@ -142,6 +145,11 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const handleStatusChange = (event?: MouseEvent) => {
     event?.preventDefault();
     event?.stopPropagation();
+    if (props.cycleClaims) {
+      const next = WORD_STATUS_VALUES[(WORD_STATUS_VALUES.indexOf(effectiveStatus()) + 1) % WORD_STATUS_VALUES.length];
+      openStatusChangeFlow(next);
+      return;
+    }
     if (effectiveStatus() === 'known') return;
     openStatusChangeFlow('known');
   };

@@ -7,6 +7,18 @@ import { knowledgeTone, knowledgeWhyNarrative } from './KnowledgeProjection';
 import { assembleWordKnowledgeModel } from './wordKnowledgeModel';
 import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
 
+const historyMock = vi.hoisted(() => ({ read: vi.fn() }));
+vi.mock('../../../hooks/useKnowledgeHistory', () => ({
+  useWordEaseHistory: () => {
+    historyMock.read();
+    return { entries: () => [{ word: '猫', key: 'test', events: [{ t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 2.6 }] }], loading: () => false, error: () => false, retry: () => {} };
+  },
+  useKnowledgeHistory: () => {
+    historyMock.read();
+    return { events: () => [{ t: 1, kind: 'claim', source: 'manual', targetRef: {kind: 'surface', id: 'ja:surface:hash', capability: 'surface-recognition'}, toStatus: 'known' }], archives: () => [], loading: () => false, error: () => false, retry: () => {}, archivedPoints: () => [{ t: 1, strength: 0.5, encounters: 3 }], replay: () => ({ points: [], bands: [] }) };
+  },
+}));
+
 const installLanguageDataMock = vi.fn();
 const lookupWordMock = vi.fn();
 const getNeighborhoodMock = vi.fn();
@@ -162,6 +174,43 @@ describe('KnowledgeProjectionDrawer overview', () => {
     document.body.innerHTML = '';
   });
 
+  it('loads a trajectory only on Graph and keeps it distinct from the event timeline', async () => {
+    historyMock.read.mockClear();
+    const { host, dispose } = await renderDrawer();
+    expect(historyMock.read).not.toHaveBeenCalled();
+    const graphTab = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Projection.Tabs.Graph') as HTMLButtonElement;
+    graphTab.click();
+    expect(historyMock.read).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('.knowledge-ease__svg')).not.toBeNull();
+    expect(Array.from(host.querySelectorAll('.knowledge-ease__band-label')).map((label) => label.firstChild?.textContent)).toEqual(['mlearn.WordHover.Status.Known', 'mlearn.WordHover.Status.Learning', 'mlearn.WordHover.Status.Unknown']);
+    expect(host.querySelectorAll('.knowledge-ease__threshold')).toHaveLength(2);
+    expect((host.querySelector('.knowledge-trajectory__select') as HTMLSelectElement).value).toBe('overall');
+    const selector = host.querySelector('.knowledge-trajectory__select') as HTMLSelectElement;
+    selector.value = 'surface-recognition';
+    selector.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(host.querySelector('.knowledge-ease__svg')).toBeNull();
+    expect(host.querySelector('.knowledge-trajectory__svg')).not.toBeNull();
+    expect(host.querySelector('.knowledge-history')).toBeNull();
+    dispose();
+  });
+
+  it('preserves distinct sense identities with identical retention values', async () => {
+    const state = { ...inspectorProjection.targets[1].states[0], retention: { pressure: 0, dueAt: Date.UTC(2126, 1, 1) } };
+    const projection: KnowledgeProjection = { ...inspectorProjection, targets: [
+      { ...inspectorProjection.targets[1], states: [state] },
+      { ...inspectorProjection.targets[1], targetRef: { kind: 'sense', id: 'ja:sense:s2' }, states: [state] },
+    ] };
+    const { host, dispose } = await renderDrawer({ projection, initialTab: 'history' });
+    const rows = host.querySelectorAll('.knowledge-history__retention li');
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain('cat');
+    expect(rows[0].getAttribute('title')).toContain('ja:sense:s1');
+    expect(rows[1].getAttribute('title')).toContain('ja:sense:s2');
+    expect(rows[0].textContent).toContain('RetentionDistant');
+    expect(rows[0].textContent).not.toContain('2126');
+    dispose();
+  });
+
   it('opens on the overview tab with the word header, overall status, and basis', async () => {
     const { host, dispose } = await renderDrawer();
     expect(host.querySelector('.knowledge-drawer__surface')?.textContent).toBe('猫');
@@ -172,12 +221,11 @@ describe('KnowledgeProjectionDrawer overview', () => {
     dispose();
   });
 
-  it('presents capabilities as readable cards with friendly labels and why lines', async () => {
+  it('presents capabilities as compact rows with friendly labels and why lines', async () => {
     const { host, dispose } = await renderDrawer();
     const cards = host.querySelectorAll('.knowledge-card');
     expect(cards.length).toBeGreaterThan(1);
-    const overall = host.querySelector('.knowledge-card--overall');
-    expect(overall?.textContent).toContain('mlearn.Knowledge.Popup.Overall');
+    expect(host.querySelector('.knowledge-card--overall')).toBeNull();
     const claimed = host.querySelector('.knowledge-card--claim');
     expect(claimed?.textContent).toContain('mlearn.Knowledge.Basis.Claim');
     expect(claimed?.textContent).toContain('mlearn.Knowledge.Projection.ClaimOverride');
@@ -197,14 +245,36 @@ describe('KnowledgeProjectionDrawer overview', () => {
     dispose();
   });
 
+  it('keeps legacy snapshots collapsed while canonical observations remain visible', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'history', events: [
+      ...journal, ...Array.from({ length: 20 }, (_, i): KnowledgeEvent => ({ t: i + 10, kind: 'status', source: 'anki', aspect: 'meaning', toStatus: 'known' })),
+    ] });
+    const archive = host.querySelector('details.knowledge-history__archive') as HTMLDetailsElement;
+    expect(archive.open).toBe(false);
+    expect(archive.querySelectorAll('.knowledge-timeline__summary')).toHaveLength(1);
+    expect(host.querySelector('.knowledge-history > .knowledge-timeline')?.textContent).toContain('mlearn.Knowledge.History.Kind.Rating');
+    archive.open = true;
+    expect(archive.querySelector('.knowledge-timeline__count')?.textContent).toContain('mlearn.Knowledge.History.Times');
+    dispose();
+  });
+
+  it('deduplicates identical node IDs while preserving distinct written targets and their roles', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
+    const forms = host.querySelector('.knowledge-relations__section--forms')!;
+    expect(forms.querySelectorAll('.knowledge-relations__row')).toHaveLength(2);
+    expect(forms.textContent).toContain('mlearn.GraphInspector.Kind.DictionaryEntry');
+    expect(forms.textContent).toContain('mlearn.GraphInspector.Kind.Lexeme');
+    dispose();
+  });
+
   it('keeps claim editing behind the Adjust disclosure and routes word claims', async () => {
     const onWordClaim = vi.fn();
     const { host, dispose } = await renderDrawer({ onWordClaim });
     // Editing controls are hidden until Adjust.
     expect(host.querySelector('.knowledge-claim-controls')).toBeNull();
-    const adjust = Array.from(host.querySelectorAll('.knowledge-card--overall button')).find((button) => button.textContent === 'mlearn.Knowledge.Projection.Adjust') as HTMLButtonElement;
+    const adjust = Array.from(host.querySelectorAll('.knowledge-overview__toolbar button')).find((button) => button.textContent === 'mlearn.Knowledge.Projection.Adjust') as HTMLButtonElement;
     adjust.click();
-    const controls = host.querySelector('.knowledge-card--overall .knowledge-claim-controls')!;
+    const controls = host.querySelector('.knowledge-overview__claim .knowledge-claim-controls')!;
     expect(controls).not.toBeNull();
     const known = Array.from(controls.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.WordHover.Status.Known') as HTMLButtonElement;
     known.click();

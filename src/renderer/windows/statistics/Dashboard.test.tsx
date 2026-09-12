@@ -17,6 +17,7 @@ let settingsMock: { language: string; newDayHour: number; easeThresholdKnown: nu
 let summariesMock: Record<string, KeyHistorySummary> = {};
 let knowledgeEventsChanged: (() => void) | null = null;
 let flashcardsLoading = false;
+let knownWords = 0;
 
 vi.mock('../../context', () => ({
   useFlashcards: () => ({ store: flashcardStoreMock, isKnowledgeReady: () => true, isLoading: () => flashcardsLoading }),
@@ -38,7 +39,7 @@ vi.mock('../../services/statsService', () => ({
 
 vi.mock('../../utils/wordLevelStats', () => ({
   computeWordLevelStats: () => ({
-    allEncountered: { known: 0, learning: 0, unknown: 0, total: 0 },
+    allEncountered: { known: knownWords, learning: 0, unknown: 0, total: knownWords },
     byLevel: [],
     outsideLevels: { total: 0, known: 0, learning: 0, unknown: 0 },
   }),
@@ -115,6 +116,7 @@ describe('Dashboard', () => {
     settingsMock = { language: 'ja', newDayHour: 4, easeThresholdKnown: 1.8, easeThresholdLearning: 3 };
     summariesMock = {};
     flashcardsLoading = false;
+    knownWords = 0;
     // Exercise the production invalidation path: the knowledge log cache is
     // keyed by the events version, and swapping the mock without a bump must
     // look exactly like an external change to the log.
@@ -137,6 +139,16 @@ describe('Dashboard', () => {
     });
     expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.DueForecast.Title');
 
+    dispose();
+  });
+
+  it('shows learner knowledge without requiring cards or immersion activity', async () => {
+    knownWords = 12;
+    const { Dashboard } = await import('./Dashboard');
+    const dispose = render(() => <Dashboard />, container);
+    expect(container.querySelector('.dashboard-empty-state')).toBeNull();
+    expect(container.textContent).toContain('mlearn.Statistics.Legend.Learned');
+    expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.TotalCards');
     dispose();
   });
 
@@ -167,6 +179,9 @@ describe('Dashboard', () => {
     const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
 
+    const reviews = Array.from(container.querySelectorAll('nav button')).find((button) => button.textContent?.endsWith('.reviews')) as HTMLButtonElement;
+    expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.DueForecast.Title');
+    reviews.click();
     await vi.waitFor(() => {
       const panels = Array.from(container.querySelectorAll('.mock-panel'));
       const forecast = panels.find((p) => p.textContent?.includes('mlearn.Statistics.Dashboard.DueForecast.Title'));

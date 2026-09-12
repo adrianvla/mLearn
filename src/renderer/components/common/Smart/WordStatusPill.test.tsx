@@ -175,6 +175,19 @@ describe('WordStatusPill', () => {
     dispose();
   });
 
+  it.each(['unknown', 'learning', 'known'] as const)('cycles %s through explicit claims in compact dictionary mode', (status) => {
+    skipStatusSourceWarning = true;
+    comprehensiveResultMock = { ...comprehensiveResultMock, status, basis: 'claim' };
+    const dispose = render(() => <WordStatusPill word="Haus" language="de" suppressKnowledgePopover cycleClaims />, container);
+    const buttons = container.querySelectorAll('button');
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    const next = { unknown: 'learning', learning: 'known', known: 'unknown' }[status];
+    expect(setWordClaimMock).toHaveBeenCalledWith('de:Haus', next, 'de');
+    expect(updateWordCardsMock).not.toHaveBeenCalled();
+    dispose();
+  });
+
   it('suppresses the nested knowledge popover when the parent already displays knowledge', () => {
     const dispose = render(() => (
       <WordStatusPill word="Haus" language="de" suppressKnowledgePopover />

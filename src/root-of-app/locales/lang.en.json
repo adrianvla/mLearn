@@ -1433,6 +1433,19 @@
         "Inspect": "Inspect"
       },
       "Projection": {
+        "EaseOverall": "Overall word ease",
+        "EaseDescription": "Ease derived from recorded outcomes. The right axis shows evidence thresholds; explicit claims can override status.",
+        "EaseCurrent": "Current ease · {value}",
+        "EaseValue": "Ease {value}",
+        "TrajectoryUnavailable": "History could not be loaded.",
+        "TrajectoryGap": "State unavailable within compressed history",
+        "TrajectoryHint": "Point to or focus an observation to see what happened.",
+        "TrajectoryCompressed": "{count} older observations are compressed. Individual changes within those periods are unavailable.",
+        "TrajectoryArchive": "Compressed",
+        "TrajectoryUnmeasured": "Untracked",
+        "TrajectoryAll": "All history",
+        "TrajectoryRecent": "Recent 30",
+        "TrajectoryCapability": "Capability",
         "Excluded": "Excluded from study",
         "Why": {
           "Claim": "Your claim",
@@ -1463,7 +1476,8 @@
           "Prediction": "Prediction",
           "Overview": "Overview",
           "Relations": "Relations",
-          "History": "History"
+          "History": "History",
+          "Graph": "Graph"
         },
         "Claim": {
           "Known": "Explicit claim: known",
@@ -1506,7 +1520,11 @@
           "MeaningN": "Meaning {n}",
           "GrammarPattern": "Grammar pattern",
           "Advanced": "Technical details"
-        }
+        },
+        "TrajectoryDescription": "Point states come from recorded evidence and explicit claims. Lines hold state between observations; gaps mark compressed history.",
+        "TrajectorySparse": "More evidence across multiple days is needed to show a trajectory.",
+        "RetentionDistant": "No review due soon",
+        "RetentionUnavailable": "Schedule unavailable"
       },
       "Aspect": {
         "Grammar": "Grammar",
@@ -1519,6 +1537,7 @@
       },
       "AspectInherited": "(inherited)",
       "History": {
+        "Archival": "Imported snapshots and summaries · {count}",
         "Empty": "No knowledge history yet.",
         "Today": "Today",
         "Yesterday": "Yesterday",
@@ -2840,12 +2859,6 @@
         "TotalImmersion": "Total Immersion",
         "TotalReviews": "Total Reviews",
         "TotalTime": "Total time",
-        "WordAcquisition": {
-          "AvgEncounters": "Avg. Encounters",
-          "MedianEncounters": "Median Encounters",
-          "Title": "Word Acquisition",
-          "WordsTracked": "Words Tracked"
-        },
         "WordKnowledge": "Word Knowledge"
       },
       "Intervals": {
@@ -2870,20 +2883,27 @@
       "WordsByLevel": "Words by Level",
       "WordsByStatus": "Words by Status",
       "WordsLearned": "Words Learned",
-      "WordsTracked": "Words Tracked",
-      "WordHistory": {
-        "Title": "Word History",
-        "SearchPlaceholder": "Search tracked words…",
-        "Empty": "No history for this word.",
-        "Prompt": "Select a word to see its knowledge history."
-      },
       "LearningVelocity": {
         "Title": "Learning velocity",
         "Empty": "Not enough history yet — keep learning and check back.",
         "DaysToKnown": "Median days to stable known",
         "AcquisitionSlope": "14-day acquisition slope",
         "RetentionAfterKnown": "30-day retention after known"
-      }
+      },
+      "Sections": {
+        "knowledge": "Knowledge",
+        "reviews": "Reviews",
+        "activity": "Activity",
+        "knowledgeDescription": "Current learner knowledge in this language. Card schedules are shown in Reviews.",
+        "reviewsDescription": "Flashcard practice and scheduling across your collection.",
+        "activityDescription": "Time spent reading, watching and practicing. Activity is not a measure of knowledge.",
+        "SchedulingDetails": "Scheduling details",
+        "InspectWord": "Inspect a word",
+        "SearchPlaceholder": "Search words…",
+        "TodayActivity": "Today’s activity",
+        "AllTimeActivity": "All-time activity"
+      },
+      "WordsEncountered": "Words encountered"
     },
     "SubtitleSync": {
       "NextTooltip": "Sync to next subtitle",

@@ -1433,6 +1433,19 @@
         "Inspect": "检查"
       },
       "Projection": {
+        "EaseOverall": "单词整体难易度",
+        "EaseDescription": "难易度由记录的结果得出。右轴显示观察证据对应的状态阈值；明确的自我声明可覆盖状态。",
+        "EaseCurrent": "当前难易度 · {value}",
+        "EaseValue": "难易度 {value}",
+        "TrajectoryUnavailable": "无法加载历史记录。",
+        "TrajectoryGap": "压缩历史内的状态不可用",
+        "TrajectoryHint": "悬停或聚焦观察点以查看详情。",
+        "TrajectoryCompressed": "{count} 条较早的观察已压缩。这些时段内的单独变化无法显示。",
+        "TrajectoryArchive": "已压缩",
+        "TrajectoryUnmeasured": "未测量",
+        "TrajectoryAll": "全部历史",
+        "TrajectoryRecent": "最近30条",
+        "TrajectoryCapability": "能力",
         "Excluded": "已排除出学习",
         "Why": {
           "Claim": "你的标记",
@@ -1463,7 +1476,8 @@
           "Prediction": "预测",
           "Overview": "概览",
           "Relations": "关联",
-          "History": "历史"
+          "History": "历史",
+          "Graph": "图表"
         },
         "Claim": {
           "Known": "明确申告：已掌握",
@@ -1506,7 +1520,11 @@
           "MeaningN": "释义 {n}",
           "GrammarPattern": "语法句型",
           "Advanced": "技术细节"
-        }
+        },
+        "TrajectoryDescription": "状态来自记录的观察和明确的自我声明。线条保持观察之间的状态；间断表示压缩的历史时段。",
+        "TrajectorySparse": "需要跨越多天的更多记录才能显示变化轨迹。",
+        "RetentionDistant": "近期无需复习",
+        "RetentionUnavailable": "计划不可用"
       },
       "Aspect": {
         "Grammar": "语法",
@@ -1519,6 +1537,7 @@
       },
       "AspectInherited": "(继承)",
       "History": {
+        "Archival": "导入的快照与摘要 · {count}",
         "Empty": "暂无知识历史。",
         "Today": "今天",
         "Yesterday": "昨天",
@@ -2840,12 +2859,6 @@
         "TotalImmersion": "总沉浸式学习时间",
         "TotalReviews": "总复习次数",
         "TotalTime": "总时间",
-        "WordAcquisition": {
-          "AvgEncounters": "平均遇到次数",
-          "MedianEncounters": "中位遇到次数",
-          "Title": "单词习得",
-          "WordsTracked": "追踪单词数"
-        },
         "WordKnowledge": "单词掌握"
       },
       "Intervals": {
@@ -2870,20 +2883,27 @@
       "WordsByLevel": "按等级的单词",
       "WordsByStatus": "按状态的单词",
       "WordsLearned": "已学单词",
-      "WordsTracked": "追踪单词",
-      "WordHistory": {
-        "Title": "单词历史",
-        "SearchPlaceholder": "搜索已追踪的单词…",
-        "Empty": "该单词暂无历史记录。",
-        "Prompt": "选择一个单词以查看其知识历史。"
-      },
       "LearningVelocity": {
         "Title": "学习速度",
         "Empty": "历史记录还不够——继续学习，稍后再来查看。",
         "DaysToKnown": "达到稳定「已知」的中位天数",
         "AcquisitionSlope": "14 天习得速度",
         "RetentionAfterKnown": "「已知」后 30 天保持率"
-      }
+      },
+      "Sections": {
+        "knowledge": "知识",
+        "reviews": "复习",
+        "activity": "活动",
+        "knowledgeDescription": "当前语言的知识状态。卡片计划显示在“复习”中。",
+        "reviewsDescription": "整个收藏的卡片练习和计划。",
+        "activityDescription": "阅读、观看和练习所花的时间。活动量不代表知识水平。",
+        "SchedulingDetails": "计划详情",
+        "InspectWord": "查看单词",
+        "SearchPlaceholder": "搜索单词…",
+        "TodayActivity": "今日活动",
+        "AllTimeActivity": "累计活动"
+      },
+      "WordsEncountered": "遇到的单词"
     },
     "SubtitleSync": {
       "NextTooltip": "同步到下一字幕",

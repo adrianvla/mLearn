@@ -1,0 +1,52 @@
+/**
+ * Statistics Word History Panel Styles
+ * Theme variables only — no hardcoded colors.
+ */
+
+.word-search-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.word-search-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+
+.word-search-matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.word-search-match {
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  background: var(--bg-primary-tint);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  cursor: pointer;
+}
+
+.word-search-match:hover {
+  border-color: var(--color-primary);
+}
+
+.word-search-prompt,
+.word-search-empty {
+  margin: 0;
+  padding: var(--spacing-3) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.word-search-panel { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: var(--spacing-4); }
+.word-search-search { margin-bottom: 0; }
+.word-search-panel input { transition: none !important; }
+@media (max-width: 680px) { .word-search-panel { grid-template-columns: minmax(0, 1fr); gap: var(--spacing-1); } }

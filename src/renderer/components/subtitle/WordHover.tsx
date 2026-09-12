@@ -12,9 +12,8 @@ import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, SkeletonText, RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
+import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
 import { ProsodyOverlay } from '../language-specific';
-import { KnowledgeCapabilitySummary } from '../common/WordStatusPillKnowledge/KnowledgeCapabilitySummary';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceEntityId } from '../../../shared/graph/load';
 import { hashWordSync } from '../../services/srsAlgorithm';
@@ -39,8 +38,6 @@ import { decomposeCompound, MIN_PART_LENGTH, type CompoundAnalysis, type Compoun
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
 import type { GraphWordLookup } from '../../../shared/graph/ipc';
-import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
-import { nextAttemptId } from '../../../shared/knowledgeEvents';
 
 const log = getLogger("renderer.components.wordHover");
 
@@ -162,7 +159,7 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { meta: graphMeta, getTargetsForSurfaces } = useOptionalGraph();
-  const { addFlashcard, getCardByWordSync, getComprehensiveWordStatusWithSourceSync, recordAttempt } = useFlashcards();
+  const { addFlashcard, getCardByWordSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants, getWordFrequency } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
@@ -187,20 +184,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     ...props.token,
     word: props.word || props.token.word,
   }, tokenizerCapabilities()) || displayWord());
-  const knowledge = useKnowledgeProjection(() => ({ language: settings.language, surface: actualWord() }));
-
-  const submitKnowledgeRating = (observations: readonly ProfileObservation[], options?: RateOptions) => {
-    if (observations.length === 0) return;
-    const attemptId = observations.length > 1 ? nextAttemptId() : undefined;
-    for (const observation of observations) {
-      recordAttempt(actualWord(), observation.capability, observation.quality, {
-        language: settings.language,
-        method: observation.method ?? options?.method,
-        ...(attemptId ? { attemptId } : {}),
-      });
-    }
-  };
-
   const isShown = createMemo(() => props.visible !== false);
 
   createEffect(() => {
@@ -839,22 +822,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <For each={grammarOccurrences()}>
                 {(occurrence) => <PillLabel variant="blue">{occurrence.realizedForm}</PillLabel>}
               </For>
-            </div>
-            <Show when={props.visible !== false}>
-              <KnowledgeCapabilitySummary word={actualWord()} language={settings.language} projection={knowledge.projection()} />
-              <RatingMatrix
-                capabilities={knowledge.capabilities()}
-                keyboardMode={settings.ratingKeyboardMode}
-                armed={isShown()}
-                resetKey={`${settings.language}:${actualWord()}`}
-                onSubmit={submitKnowledgeRating}
-              />
-            </Show>
-            <div class="pills word-hover-actions">
               <WordStatusPill
                 word={actualWord()}
                 language={settings.language}
                 suppressKnowledgePopover
+                cycleClaims
                 onModalOpenChange={setIsStatusModalOpen}
               />
               <ResourcePill
@@ -865,11 +837,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 ankiWord={ankiMatch()?.word ?? actualWord()}
                 onAdd={handleAddToSRS}
               />
-              <Btn variant="ghost" size="sm" onClick={() => openKnowledgeInspector({
+              <LLMPill />
+              <button type="button" class="word-hover-inspect" onClick={() => openKnowledgeInspector({
                 language: settings.language, surface: actualWord(),
                 target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(actualWord())) },
-              })}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
-              <LLMPill />
+              })}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
              </div>
           </div>
         </div>

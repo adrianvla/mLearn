@@ -1433,6 +1433,19 @@
         "Inspect": "Untersuchen"
       },
       "Projection": {
+        "EaseOverall": "Gesamt-Ease des Wortes",
+        "EaseDescription": "Ease aus erfassten Ergebnissen. Rechts stehen die Belegschwellen; eigene Angaben können den Status überschreiben.",
+        "EaseCurrent": "Aktueller Ease-Wert · {value}",
+        "EaseValue": "Ease {value}",
+        "TrajectoryUnavailable": "Der Verlauf konnte nicht geladen werden.",
+        "TrajectoryGap": "Zustand im komprimierten Verlauf nicht verfügbar",
+        "TrajectoryHint": "Eine Beobachtung berühren oder fokussieren, um Details zu sehen.",
+        "TrajectoryCompressed": "{count} ältere Beobachtungen sind komprimiert. Einzelne Änderungen in diesen Zeiträumen sind nicht verfügbar.",
+        "TrajectoryArchive": "Komprimiert",
+        "TrajectoryUnmeasured": "Unerfasst",
+        "TrajectoryAll": "Gesamter Verlauf",
+        "TrajectoryRecent": "Letzte 30",
+        "TrajectoryCapability": "Fähigkeit",
         "Excluded": "Vom Lernen ausgeschlossen",
         "Why": {
           "Claim": "Deine Festlegung",
@@ -1463,7 +1476,8 @@
           "Prediction": "Vorhersage",
           "Overview": "Übersicht",
           "Relations": "Beziehungen",
-          "History": "Verlauf"
+          "History": "Verlauf",
+          "Graph": "Graph"
         },
         "Claim": {
           "Known": "Eigene Einschätzung: bekannt",
@@ -1506,7 +1520,11 @@
           "MeaningN": "Bedeutung {n}",
           "GrammarPattern": "Grammatisches Muster",
           "Advanced": "Technische Details"
-        }
+        },
+        "TrajectoryDescription": "Zustände stammen aus erfassten Belegen und eigenen Angaben. Linien halten den Zustand zwischen Beobachtungen; Lücken markieren komprimierte Zeiträume.",
+        "TrajectorySparse": "Für einen Verlauf werden weitere Belege über mehrere Tage benötigt.",
+        "RetentionDistant": "In nächster Zeit keine Wiederholung fällig",
+        "RetentionUnavailable": "Zeitplan nicht verfügbar"
       },
       "Aspect": {
         "Grammar": "Grammatik",
@@ -1519,6 +1537,7 @@
       },
       "AspectInherited": "(geerbt)",
       "History": {
+        "Archival": "Importierte Bestandsaufnahmen und Zusammenfassungen · {count}",
         "Empty": "Noch keine Wissenshistorie.",
         "Today": "Heute",
         "Yesterday": "Gestern",
@@ -2840,12 +2859,6 @@
         "TotalImmersion": "Gesamte Immersion",
         "TotalReviews": "Wiederholungen gesamt",
         "TotalTime": "Gesamtzeit",
-        "WordAcquisition": {
-          "AvgEncounters": "Durchschn. Begegnungen",
-          "MedianEncounters": "Median Begegnungen",
-          "Title": "Worterwerb",
-          "WordsTracked": "Verfolgte Wörter"
-        },
         "WordKnowledge": "Wortwissen"
       },
       "Intervals": {
@@ -2870,20 +2883,27 @@
       "WordsByLevel": "Wörter nach Stufe",
       "WordsByStatus": "Wörter nach Status",
       "WordsLearned": "Gelernte Wörter",
-      "WordsTracked": "Verfolgte Wörter",
-      "WordHistory": {
-        "Title": "Worthistorie",
-        "SearchPlaceholder": "Erfasste Wörter suchen…",
-        "Empty": "Keine Historie für dieses Wort.",
-        "Prompt": "Wähle ein Wort, um seine Wissenshistorie zu sehen."
-      },
       "LearningVelocity": {
         "Title": "Lerntempo",
         "Empty": "Noch nicht genug Verlauf — lerne weiter und schau später wieder vorbei.",
         "DaysToKnown": "Median-Tage bis stabil bekannt",
         "AcquisitionSlope": "14-Tage-Lernsteigung",
         "RetentionAfterKnown": "30-Tage-Behaltensquote nach bekannt"
-      }
+      },
+      "Sections": {
+        "knowledge": "Wissen",
+        "reviews": "Wiederholungen",
+        "activity": "Aktivität",
+        "knowledgeDescription": "Aktueller Wissensstand in dieser Sprache. Kartenplanung steht unter Wiederholungen.",
+        "reviewsDescription": "Kartenübungen und Zeitplanung deiner Sammlung.",
+        "activityDescription": "Zeit für Lesen, Videos und Übungen. Aktivität misst kein Wissen.",
+        "SchedulingDetails": "Planungsdetails",
+        "InspectWord": "Wort untersuchen",
+        "SearchPlaceholder": "Wörter suchen…",
+        "TodayActivity": "Heutige Aktivität",
+        "AllTimeActivity": "Gesamte Aktivität"
+      },
+      "WordsEncountered": "Begegnete Wörter"
     },
     "SubtitleSync": {
       "NextTooltip": "Mit nächstem Untertitel synchronisieren",

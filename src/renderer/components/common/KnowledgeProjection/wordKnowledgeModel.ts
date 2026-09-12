@@ -23,7 +23,7 @@ export interface WordKnowledgeModel {
    * token, and passive exposure count. Composed from the comprehensive
    * resolver; only presented here, never recomputed.
    */
-  overall: { status: WordStatus; basis: KnowledgeBasisToken; timesSeen: number };
+  overall: { status: WordStatus; basis: KnowledgeBasisToken; timesSeen: number; ease?: number };
 }
 
 const UNMEASURED_OVERALL = { status: 'unknown' as WordStatus, basis: 'unmeasured' as KnowledgeBasisToken, timesSeen: 0 };
@@ -42,7 +42,7 @@ export function assembleWordKnowledgeModel(input: {
   const { comprehensive } = input;
   const wordClaim = comprehensive?.basis === 'claim' ? comprehensive.claim ?? comprehensive.status : null;
   const overall = comprehensive
-    ? { status: comprehensive.status, basis: comprehensive.basis, timesSeen: comprehensive.timesSeen }
+    ? { status: comprehensive.status, basis: comprehensive.basis, timesSeen: comprehensive.timesSeen, ease: comprehensive.ease }
     : UNMEASURED_OVERALL;
   return {
     projection: input.projection,

@@ -1433,6 +1433,19 @@
         "Inspect": "詳細"
       },
       "Projection": {
+        "EaseOverall": "単語全体の易しさ",
+        "EaseDescription": "記録された結果から導かれる易しさです。右軸は観測に基づく状態の閾値を示します。明示的な自己申告は状態を上書きできます。",
+        "EaseCurrent": "現在の易しさ · {value}",
+        "EaseValue": "易しさ {value}",
+        "TrajectoryUnavailable": "履歴を読み込めませんでした。",
+        "TrajectoryGap": "圧縮された履歴内の状態は不明です",
+        "TrajectoryHint": "観測点にポインターを合わせるか、フォーカスして詳細を確認できます。",
+        "TrajectoryCompressed": "過去の観測{count}件は圧縮されています。その期間内の個々の変化は表示できません。",
+        "TrajectoryArchive": "圧縮済み",
+        "TrajectoryUnmeasured": "未計測",
+        "TrajectoryAll": "全履歴",
+        "TrajectoryRecent": "直近30件",
+        "TrajectoryCapability": "能力",
         "Excluded": "学習対象から除外",
         "Why": {
           "Claim": "あなたの申告",
@@ -1463,7 +1476,8 @@
           "Prediction": "予測",
           "Overview": "概要",
           "Relations": "関連",
-          "History": "履歴"
+          "History": "履歴",
+          "Graph": "グラフ"
         },
         "Claim": {
           "Known": "明示的な申告: 既知",
@@ -1506,7 +1520,11 @@
           "MeaningN": "意味 {n}",
           "GrammarPattern": "文法パターン",
           "Advanced": "詳細情報"
-        }
+        },
+        "TrajectoryDescription": "状態は記録された観測と明示的な自己申告に基づきます。線は観測間の状態を保持し、途切れは圧縮された期間を示します。",
+        "TrajectorySparse": "推移の表示には複数日にわたる記録が必要です。",
+        "RetentionDistant": "当面は復習の予定なし",
+        "RetentionUnavailable": "予定を取得できません"
       },
       "Aspect": {
         "Grammar": "文法",
@@ -1519,6 +1537,7 @@
       },
       "AspectInherited": "(継承)",
       "History": {
+        "Archival": "インポートしたスナップショットと要約 · {count}件",
         "Empty": "知識の履歴はまだありません。",
         "Today": "今日",
         "Yesterday": "昨日",
@@ -2840,12 +2859,6 @@
         "TotalImmersion": "没入合計",
         "TotalReviews": "復習合計",
         "TotalTime": "合計時間",
-        "WordAcquisition": {
-          "AvgEncounters": "平均遭遇回数",
-          "MedianEncounters": "中央値遭遇回数",
-          "Title": "単語習得",
-          "WordsTracked": "追跡中の単語"
-        },
         "WordKnowledge": "語彙知識"
       },
       "Intervals": {
@@ -2870,20 +2883,27 @@
       "WordsByLevel": "レベル別の単語",
       "WordsByStatus": "状態別の単語",
       "WordsLearned": "習得した単語",
-      "WordsTracked": "追跡中の単語",
-      "WordHistory": {
-        "Title": "単語の履歴",
-        "SearchPlaceholder": "追跡中の単語を検索…",
-        "Empty": "この単語の履歴はありません。",
-        "Prompt": "単語を選択すると知識の履歴が表示されます。"
-      },
       "LearningVelocity": {
         "Title": "学習速度",
         "Empty": "履歴がまだ十分ではありません。学習を続けてからまた確認してください。",
         "DaysToKnown": "安定して既知になるまでの中央日数",
         "AcquisitionSlope": "14日間の習得ペース",
         "RetentionAfterKnown": "既知後30日間の定着率"
-      }
+      },
+      "Sections": {
+        "knowledge": "知識",
+        "reviews": "復習",
+        "activity": "活動",
+        "knowledgeDescription": "この言語の現在の知識状態です。カードの予定は「復習」に表示されます。",
+        "reviewsDescription": "コレクション全体のカード練習と予定です。",
+        "activityDescription": "読書・動画・練習に費やした時間です。活動量は知識の尺度ではありません。",
+        "SchedulingDetails": "スケジュールの詳細",
+        "InspectWord": "単語を調べる",
+        "SearchPlaceholder": "単語を検索…",
+        "TodayActivity": "今日の活動",
+        "AllTimeActivity": "これまでの活動"
+      },
+      "WordsEncountered": "出会った単語"
     },
     "SubtitleSync": {
       "NextTooltip": "次の字幕に同期",

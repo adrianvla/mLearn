@@ -1,4 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
+import { KnowledgeTrajectory } from './KnowledgeTrajectory';
+import { retentionPresentation } from './retentionPresentation';
 import { Modal } from '../Modal';
 import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
 import type { GraphRelatedNode, GraphWordLookup, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
@@ -27,7 +29,7 @@ import type { KnowledgeInspection } from '../../../services/openKnowledgeInspect
 
 type Tone = 'evidence' | 'claim' | 'predicted' | 'unmeasured';
 /** Canonical per-word inspector tabs: understand → connect → history → expectation. */
-export type InspectorTab = 'overview' | 'relations' | 'history' | 'prediction';
+export type InspectorTab = 'overview' | 'relations' | 'history' | 'graph' | 'prediction';
 
 export const knowledgeTone = (state: Pick<KnowledgeProjectionState, 'basis' | 'classification'>): Tone => {
   if (state.basis === 'claim') return 'claim';
@@ -100,9 +102,10 @@ export interface KnowledgeProjectionDrawerProps {
 
 const INSPECTOR_TABS: { key: InspectorTab; label: string }[] = [
   { key: 'overview', label: 'mlearn.Knowledge.Projection.Tabs.Overview' },
-  { key: 'relations', label: 'mlearn.Knowledge.Projection.Tabs.Relations' },
+  { key: 'graph', label: 'mlearn.Knowledge.Projection.Tabs.Graph' },
   { key: 'history', label: 'mlearn.Knowledge.Projection.Tabs.History' },
   { key: 'prediction', label: 'mlearn.Knowledge.Projection.Tabs.Prediction' },
+  { key: 'relations', label: 'mlearn.Knowledge.Projection.Tabs.Relations' },
 ];
 
 const CLAIM_STATUSES: readonly WordStatus[] = ['known', 'learning', 'unknown'];
@@ -306,6 +309,19 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     return nb.relations.find((relation) => relation.id === entityId)?.label;
   };
 
+  const retentionRows = createMemo(() => (model().projection?.targets ?? []).flatMap((target) =>
+    target.states.filter((state) => state.retention).map((state) => ({ target: target.targetRef, state })),
+  ));
+  const targetLabel = (id: string) => {
+    const word = lookup();
+    if (id === word?.surfaceId) return props.surface;
+    return [...(word?.entries ?? []), ...(word?.lexemes ?? []), ...(word?.senses ?? []), ...(word?.pronunciations ?? [])].find((node) => node.id === id)?.label ?? labelFor(id) ?? id;
+  };
+  const retentionText = (retention: NonNullable<KnowledgeProjectionState['retention']>) => {
+    const display = retentionPresentation(retention, Date.now());
+    return t(display.key, display.params);
+  };
+
   const stateFor = (capability: CapabilityKey): KnowledgeProjectionState | undefined => (
     projectionStateForCapability(model().projection, capability)
   );
@@ -375,11 +391,9 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     const dedupe = (items: RelationSection['items']): RelationSection['items'] => {
       const seen = new Set<string>();
       return items.filter((item) => {
-        const key = `${item.relation?.kind ?? ''}:${item.label}`;
         const idKey = item.id;
-        if (seen.has(idKey) || seen.has(key)) return false;
+        if (seen.has(idKey)) return false;
         seen.add(idKey);
-        seen.add(key);
         return true;
       });
     };
@@ -418,11 +432,16 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       });
     }
 
+    const formNodes = [...(lookup()?.entries ?? []), ...(lookup()?.lexemes ?? [])];
     const forms = dedupe([
       ...fromRelations(new Set<GraphRelationType>(['realizes', 'inflection-of', 'lemma-of', 'orthographic-variant-of'])),
-      ...(lookup()?.entries ?? []).map((node) => ({ id: node.id, label: node.label ?? node.id, relation: undefined as GraphRelatedNode | undefined })),
-      ...(lookup()?.lexemes ?? []).map((node) => ({ id: node.id, label: node.label ?? node.id, relation: undefined as GraphRelatedNode | undefined })),
+      ...formNodes.map((node) => ({ id: node.id, label: node.label ?? node.id, relation: undefined as GraphRelatedNode | undefined })),
     ]);
+    for (const item of forms) {
+      const kind = item.relation?.kind ?? formNodes.find((node) => node.id === item.id)?.kind;
+      item.phrase = kind ? `mlearn.GraphInspector.Kind.${kind.split('-').map((part) => part[0].toUpperCase() + part.slice(1)).join('')}` : item.phrase;
+      item.meta = [item.meta, item.id].filter(Boolean).join(' · ');
+    }
     if (forms.length > 0) sections.push({ key: 'forms', title: t('mlearn.Knowledge.Projection.Relations.Sections.Forms'), items: forms });
 
     const grammar = fromRelations(new Set<GraphRelationType>(['has-pos']));
@@ -469,6 +488,12 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     return events ? readActiveEvidence(events).filter(
       (event): event is HistoryEvent => event.kind !== 'retraction',
     ) : [];
+  });
+
+  const archivalEvents = createMemo(() => journalEvents().filter((event) => event.kind === 'rollup' || (event.kind === 'status' && (event.source === 'anki' || event.source === 'migration'))));
+  const recentEvents = createMemo(() => {
+    const archived = new Set(archivalEvents());
+    return journalEvents().filter((event) => !archived.has(event));
   });
 
   const predictedStates = createMemo(() => (model().projection?.targets.flatMap((target) => target.states) ?? []).filter((state) => state.basis === 'prediction' && state.prediction !== undefined));
@@ -534,34 +559,27 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         tabs={INSPECTOR_TABS.map(({ key, label }) => ({ id: key, label: t(label) }))}
         activeTab={tab()}
         onTabChange={(id) => setTab(id as InspectorTab)}
-        variant="segment"
-      >
+        variant="underline"
+        size="sm"
+        idBase="knowledge-inspector"
+      />
+      <div role="tabpanel" id={`knowledge-inspector-panel-${tab()}`} aria-labelledby={`knowledge-inspector-tab-${tab()}`}>
         <Show when={tab() === 'overview'}>
           <div class="knowledge-overview">
-            <section class={`knowledge-card knowledge-card--overall knowledge-state--${overallTone()}`}>
-              <div class="knowledge-card__main">
-                <h3 class="knowledge-card__title">{t('mlearn.Knowledge.Popup.Overall')}</h3>
-                <p class="knowledge-card__state">
-                  <strong>{t(overallLabelKey())}</strong>
-                  <span> · {t(BASIS_LABEL_KEYS[overall().basis])}</span>
-                </p>
-                <Show when={overall().timesSeen > 0}>
-                  <p class="knowledge-card__why">{t('mlearn.WordHover.TimesSeen', { count: String(overall().timesSeen) })}</p>
-                </Show>
-              </div>
+            <div class="knowledge-overview__toolbar">
+              <span class="knowledge-card__why">{t('mlearn.WordHover.TimesSeen', { count: String(overall().timesSeen) })}</span>
               <Show when={canAdjust()}>
-                <div class="knowledge-card__actions">
-                  <Show when={editing() === 'overall'} fallback={
-                    <Show when={props.onWordClaim}>
-                      <PillBtn size="sm" variant="gray" label={t('mlearn.Knowledge.Projection.Adjust')} onClick={() => setEditing('overall')} />
-                    </Show>
-                  }>
-                    <KnowledgeClaimControls claim={model().wordClaim} onClaim={(claim) => { props.onWordClaim?.(claim); }} />
-                    <button type="button" class="knowledge-card__done" onClick={() => setEditing(undefined)}>{t('mlearn.Global.Close')}</button>
-                  </Show>
-                </div>
+                <button type="button" class="knowledge-card__done" aria-expanded={editing() === 'all'} onClick={() => setEditing(editing() ? undefined : 'all')}>
+                  {t(editing() ? 'mlearn.Global.Close' : 'mlearn.Knowledge.Projection.Adjust')}
+                </button>
               </Show>
-            </section>
+            </div>
+            <Show when={editing() === 'all' && props.onWordClaim}>
+              <div class="knowledge-overview__claim">
+                <span>{t('mlearn.Knowledge.Popup.Overall')}</span>
+                <KnowledgeClaimControls claim={model().wordClaim} onClaim={(claim) => props.onWordClaim?.(claim)} />
+              </div>
+            </Show>
 
             <Show when={capabilityCards().length > 0}>
               <div class="knowledge-overview__cards">
@@ -572,33 +590,23 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
                     return { key: 'mlearn.Knowledge.Projection.Why.Unmeasured' };
                   };
                   return (
-                    <section class={`knowledge-card knowledge-card--${card.basis}`}>
+                    <section class={`knowledge-card knowledge-card--${card.basis} knowledge-card--status-${card.status}`}>
                       <div class="knowledge-card__main">
                         <h3 class="knowledge-card__title">{t(card.labelKey)}</h3>
                         <p class="knowledge-card__state">
                           <strong>{t(knowledgeStatusLabelKey(card.status, card.basis, card.untracked))}</strong>
                           <Show when={card.basis === 'claim' || card.basis === 'evidence'}><span> · {t(BASIS_LABEL_KEYS[card.basis])}</span></Show>
                         </p>
-                        <Show when={card.basis !== 'claim'}><p class="knowledge-card__why">{t(why().key, why().params)}</p></Show>
+                        <Show when={card.basis !== 'claim' && !card.untracked}><p class="knowledge-card__why">{t(why().key, why().params)}</p></Show>
                         <Show when={card.basis === 'claim' && (card.state?.evidence.length ?? 0) > 0}>
                           <p class="knowledge-card__override">{t('mlearn.Knowledge.Projection.ClaimOverride')}</p>
                         </Show>
                         <Show when={card.state?.retention}>
-                          <p class="knowledge-card__retention">{t('mlearn.Knowledge.Projection.Retention', {
-                            pressure: card.state!.retention!.pressure.toFixed(2),
-                            due: new Date(card.state!.retention!.dueAt).toLocaleDateString(),
-                          })}</p>
+                          <p class="knowledge-card__retention">{retentionText(card.state!.retention!)}</p>
                         </Show>
                       </div>
-                      <Show when={canAdjust()}>
-                        <div class="knowledge-card__actions">
-                          <Show when={editing() === card.capability} fallback={
-                            <PillBtn size="sm" variant="gray" label={t('mlearn.Knowledge.Projection.Adjust')} onClick={() => setEditing(card.capability)} />
-                          }>
-                            {claimControlsFor(card)}
-                            <button type="button" class="knowledge-card__done" onClick={() => setEditing(undefined)}>{t('mlearn.Global.Close')}</button>
-                          </Show>
-                        </div>
+                      <Show when={editing() === 'all' && !card.isSense}>
+                        <div class="knowledge-card__actions">{claimControlsFor(card)}</div>
                       </Show>
                     </section>
                   );
@@ -696,22 +704,29 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
           </div>
         </Show>
 
+        <Show when={tab() === 'graph'}>
+          <KnowledgeTrajectory surface={props.surface} language={props.language ?? settings.language} projection={model().projection} currentEase={model().overall.ease} />
+        </Show>
+
         <Show when={tab() === 'history'}>
           <div class="knowledge-history">
             <Show when={journalEvents().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>
-              <KnowledgeHistoryTimeline events={journalEvents()} />
+              <KnowledgeHistoryTimeline events={recentEvents()} />
+              <Show when={archivalEvents().length > 0}>
+                <details class="knowledge-history__archive">
+                  <summary>{t('mlearn.Knowledge.History.Archival', { count: String(archivalEvents().length) })}</summary>
+                  <KnowledgeHistoryTimeline events={archivalEvents()} />
+                </details>
+              </Show>
             </Show>
-            <Show when={(model().projection?.targets.flatMap((target) => target.states) ?? []).some((state) => state.retention)}>
+            <Show when={retentionRows().length > 0}>
               <section class="knowledge-history__retention">
                 <h3>{t('mlearn.Knowledge.Projection.RetentionTitle')}</h3>
                 <ul>
-                  <For each={(model().projection?.targets.flatMap((target) => target.states) ?? []).filter((state) => state.retention)}>{(state) => (
-                    <li>
-                      <span>{t(CAPABILITY_LABEL_KEYS[state.capability] ?? `mlearn.Knowledge.Capability.${state.capability}`)}</span>
-                      {t('mlearn.Knowledge.Projection.Retention', {
-                        pressure: state.retention!.pressure.toFixed(2),
-                        due: new Date(state.retention!.dueAt).toLocaleDateString(),
-                      })}
+                  <For each={retentionRows()}>{(row, index) => (
+                    <li title={`${row.target.id} · ${new Date(row.state.retention!.dueAt).toLocaleDateString()}`}>
+                      <span>{t(CAPABILITY_LABEL_KEYS[row.state.capability] ?? row.state.capability)} · {targetLabel(row.target.id)} <small>({index() + 1})</small></span>
+                      <span>{retentionText(row.state.retention!)}</span>
                     </li>
                   )}</For>
                 </ul>
@@ -741,7 +756,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
             </Show>
           </div>
         </Show>
-      </TabContainer>
+      </div>
     </div>
   </Modal>;
 };

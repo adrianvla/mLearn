@@ -109,14 +109,14 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   color: var(--text-primary);
 }
 
-/* Metadata, learner state and actions remain separately spaced. */
+/* Dictionary metadata and quick actions share the historical compact footer. */
 .subtitle_hover .footer {
   width:100%;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   box-sizing: border-box;
   background: var(--accent-bg);
   backdrop-filter: var(--backdrop-filter-nodim);
@@ -328,8 +328,6 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 }
 
 .subtitle_hover .word-hover-actions {
-  padding-top: var(--spacing-2);
-  border-top: 1px solid var(--border-color);
   align-items: center;
 }
 
@@ -347,3 +345,6 @@ body:has(.magnifying-glass.visible) .word-hover-container{
     transition: none;
   }
 }
+
+.subtitle_hover .word-hover-inspect { border: none; background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--font-size-xs); padding: var(--spacing-1); cursor: pointer; }
+.subtitle_hover .word-hover-inspect:hover { color: var(--text-primary); text-decoration: underline; }

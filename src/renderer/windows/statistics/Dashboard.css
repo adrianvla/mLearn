@@ -376,3 +376,31 @@
   flex-direction: column;
   gap: var(--spacing-4);
 }
+
+/* A compact analytical workspace: one domain at a time. */
+.statistics-dashboard { max-width: 1280px; width: 100%; }
+.analytics-header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-4); flex-wrap: wrap; }
+.analytics-header h1 { margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); }
+.analytics-nav { display: flex; gap: var(--spacing-1); border-bottom: 1px solid var(--border-color); }
+.analytics-nav button { border: 0; border-bottom: 2px solid transparent; padding: var(--spacing-2) var(--spacing-3); background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
+.analytics-nav button[aria-pressed="true"] { border-bottom-color: var(--color-primary); color: var(--text-primary); }
+.analytics-nav button:hover { background: var(--bg-intense); }
+.analytics-nav button:focus-visible, .analytics-details summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.analytics-caption { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
+.dashboard-panel { min-width: 0; overflow-x: auto; backdrop-filter: none; }
+.dashboard-section-title { text-transform: none; letter-spacing: normal; font-size: var(--font-size-sm); color: var(--text-primary); }
+.analytics-summary { padding: var(--spacing-3) 0; border-block: 1px solid var(--border-color); }
+.statistics-dashboard .stat-card { background: transparent; border: 0; box-shadow: none; }
+.analytics-details { border-top: 1px solid var(--border-color); padding-top: var(--spacing-3); }
+.analytics-details summary { cursor: pointer; color: var(--text-secondary); padding-bottom: var(--spacing-3); }
+.dashboard-section-header, .dashboard-meta-stats { flex-wrap: wrap; gap: var(--spacing-2); }
+.level-table { min-width: 560px; }
+@media (max-width: 680px) {
+  .analytics-header { align-items: flex-start; gap: var(--spacing-2); }
+  .analytics-nav { width: 100%; }
+  .analytics-nav button { flex: 1; }
+  .dashboard-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .learning-velocity-charts { grid-template-columns: minmax(0, 1fr); }
+}
+.dashboard-charts-row .dashboard-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.analytics-review-chart .bar-chart-label { max-width: none; overflow: visible; }
