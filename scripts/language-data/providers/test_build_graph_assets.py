@@ -49,6 +49,22 @@ def _payload(value: dict[str, Any]) -> bytes:
 
 
 class BuildGraphAssetsTest(unittest.TestCase):
+    def test_glossary_extraction_excludes_grammar_forms_notes_and_examples(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir))
+            content = [{"type": "structured-content", "content": [
+                {"data": {"code": "v5u"}, "content": "5-dan"},
+                {"data": {"code": "vi"}, "content": "intransitive"},
+                {"data": {"content": "glossary"}, "content": [{"tag": "li", "content": "to meet"}]},
+                {"data": {"content": "forms"}, "content": "会う"},
+                {"data": {"content": "sense-note"}, "content": "a note"},
+                {"data": {"content": "example-sentence-b"}, "content": "an example"},
+            ]}]
+            self.assertEqual(builder.text_content(content), ["to meet"])
+            codes = set()
+            builder.structured_pos_codes(content, codes)
+            self.assertEqual(codes, {"v5u", "vi"})
+
     def test_supported_dictionary_shapes_conform_to_graph_schema(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "root-of-app"
