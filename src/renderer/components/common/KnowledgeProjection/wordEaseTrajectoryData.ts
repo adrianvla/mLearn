@@ -81,9 +81,11 @@ export function wordEaseTrajectoryData(entries: readonly WordEaseHistoryEntry[],
       ignoredWords: {}, wordKnowledge, knownEaseThreshold: thresholds.known, learningThreshold: thresholds.learning,
     });
     const incomplete = compressed.some((range) => range.from <= event.t && range.to > event.t);
-    // Claim-only folds have a default ease, not an observed numeric outcome.
-    const hasOutcome = [...folds.values()].some((caps) => [...caps.values()].some((fold) => fold.ease !== undefined))
-      || archiveBuckets.some(({ bucket }) => bucket.measurableFold.ease !== undefined && (bucket.fold.lastSeen ?? Infinity) <= event.t);
+    // A claim-only winning form has a default ease, not an observed outcome.
+    // Evidence on another spelling cannot make that default a measured value.
+    const resolvedKey = entries.find((candidate) => candidate.word === result.matchedWord)?.key ?? entry.key;
+    const hasOutcome = [...(folds.get(resolvedKey)?.values() ?? [])].some((fold) => fold.ease !== undefined)
+      || archiveBuckets.some(({ key, bucket }) => key === resolvedKey && bucket.measurableFold.ease !== undefined && (bucket.fold.lastSeen ?? Infinity) <= event.t);
     points.push({ t: event.t, event, word: entry.word, matchedWord: result.matchedWord, ease: !incomplete && hasOutcome ? result.ease : undefined });
   }
   return { points, compressed };

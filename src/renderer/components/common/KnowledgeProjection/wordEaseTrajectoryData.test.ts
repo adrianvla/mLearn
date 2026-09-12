@@ -19,6 +19,27 @@ describe('overall word ease trajectory', () => {
     expect(data.points.map((point) => point.ease)).toEqual([2.4, 2.4]);
     expect(data.points[1].matchedWord).toBe('first');
   });
+  it('does not borrow another spelling’s numeric outcome for a claim-only winning form', () => {
+    const data = wordEaseTrajectoryData([
+      { ...entry('first', [event(1, 2.4)]), key: 'first-key' },
+      { ...entry('second', [{ t: 2, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' }]), key: 'second-key' },
+    ], 'test', thresholds);
+    expect(data.points.map((point) => point.ease)).toEqual([2.4, undefined]);
+    expect(data.points[1].matchedWord).toBe('second');
+  });
+  it.each(['first', 'second'])('uses archived numeric outcomes only when their form wins (%s)', (claimedWord) => {
+    const day = 86400000;
+    const old = [event(day, 1.3), event(40 * day, 1.6), event(60 * day, 2.7)];
+    const { archive } = compactKeyEvents(old.map((event, seq) => ({ event, seq })), 400 * day);
+    expect(archive).toBeDefined();
+    const claim: KnowledgeEvent = { t: 390 * day, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' };
+    const data = wordEaseTrajectoryData([
+      { ...entry('first', claimedWord === 'first' ? [claim] : []), key: 'first-key', archive },
+      { ...entry('second', claimedWord === 'second' ? [claim] : []), key: 'second-key' },
+    ], 'test', thresholds);
+    expect(data.points[0].matchedWord).toBe(claimedWord);
+    expect(data.points[0].ease).toBe(claimedWord === 'first' ? 2.7 : undefined);
+  });
   it('retains real ease above the old normalized chart ceiling and normalizes imported Anki factors', () => {
     const data = wordEaseTrajectoryData([entry('word', [event(1, 2.4), { ...event(2, 3100), source: 'anki' }])], 'test', thresholds);
     expect(data.points.map((point) => point.ease)).toEqual([2.4, 3.1]);
