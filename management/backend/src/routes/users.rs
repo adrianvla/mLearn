@@ -141,6 +141,7 @@ struct JoinCodeRequest {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AcceptInvitationRequest {
+    password: String,
     token: String,
     email: String,
     display_name: String,
@@ -605,9 +606,10 @@ async fn accept_invitation(
     State(state): State<AppState>,
     Json(request): Json<AcceptInvitationRequest>,
 ) -> Result<Json<ProvisionedUser>, AppError> {
+    state.auth_endpoint_rate_limiter.check("invitation-accept")?;
     Ok(Json(
         ProvisioningService::new(state.db)
-            .accept_invitation(&request.token, &request.email, &request.display_name)
+            .accept_invitation(&request.token, &request.email, &request.display_name, &request.password)
             .await?,
     ))
 }

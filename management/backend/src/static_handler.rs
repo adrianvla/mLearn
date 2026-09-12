@@ -8,6 +8,9 @@ use include_dir::{include_dir, Dir};
 static FRONTEND_DIST: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../frontend/dist");
 
 pub async fn serve_spa(uri: Uri) -> Response {
+    if uri.path() == "/api" || uri.path().starts_with("/api/") {
+        return (StatusCode::NOT_FOUND, axum::Json(serde_json::json!({"error": "API route not found"}))).into_response();
+    }
     let path = uri.path().trim_start_matches('/');
     let path = if path.is_empty() { "index.html" } else { path };
 
@@ -32,5 +35,16 @@ fn file_response(path: &str, contents: &[u8]) -> Response {
     {
         Ok(response) => response,
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal error").into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn missing_api_routes_never_return_the_spa() {
+        let response = serve_spa(Uri::from_static("/api/obsolete-operation")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

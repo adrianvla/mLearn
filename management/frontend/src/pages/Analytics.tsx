@@ -1,3 +1,4 @@
+import { individualQuotaBalances, type QuotaBalance } from '../utils/quotaBalances';
 import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Tabs } from '@heroui/react';
@@ -39,7 +40,8 @@ export default function Analytics() {
   const [llmError, setLlmError] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<PolicyBlockAnalytics | null>(null);
   const [policyError, setPolicyError] = useState<string | null>(null);
-  const [quotaRemaining, setQuotaRemaining] = useState<Record<string, number | null>>({});
+  const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [quotaRemaining, setQuotaRemaining] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState(false);
   const [drilldown, setDrilldown] = useState<{ from: number; to: number } | null>(null);
   const groupId = analyticsState.groupId;
@@ -54,7 +56,7 @@ export default function Analytics() {
 
   useEffect(() => {
     if (rangeError !== null) return;
-    setSummary(null); setHistory(null); setActivityError(null); setLearners([]); setLearnersError(null); setContent([]); setContentError(null); setBreakdownLoading({ learners: true, content: true }); setLlm(null); setLlmError(null); setBlocks(null); setPolicyError(null); setQuotaRemaining({});
+    setSummary(null); setHistory(null); setActivityError(null); setLearners([]); setLearnersError(null); setContent([]); setContentError(null); setBreakdownLoading({ learners: true, content: true }); setLlm(null); setLlmError(null); setBlocks(null); setPolicyError(null); setQuotaRemaining({}); setQuotaError(null);
     if (groupId === undefined || groupId === null) return;
     const controller = new AbortController();
     const options = { signal: controller.signal };
@@ -62,7 +64,7 @@ export default function Analytics() {
 
     void api.get<AnalyticsSummary>(`/api/analytics/summary?${query}`, options)
       .then((next) => { if (!controller.signal.aborted) setSummary(next); })
-      .catch(() => undefined);
+      .catch((error: unknown) => { if (!controller.signal.aborted) setQuotaError(errorMessage(error)); });
     void api.get<HistoricalSeries>(`/api/analytics/history?${historyQuery}`, options)
       .then((next) => { if (!controller.signal.aborted) setHistory(next); })
       .catch((error: unknown) => { if (!controller.signal.aborted) setActivityError(errorMessage(error)); });
@@ -78,9 +80,9 @@ export default function Analytics() {
     void api.get<{ items: DimensionAnalytics[] }>(`/api/analytics/content?${query}`, options)
       .then((next) => { if (!controller.signal.aborted) { setContent(next.items); setBreakdownLoading((current) => ({ ...current, content: false })); } })
       .catch((error: unknown) => { if (!controller.signal.aborted) { setContentError(errorMessage(error)); setBreakdownLoading((current) => ({ ...current, content: false })); } });
-    void api.get<{ buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }> }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`, options)
-      .then((usage) => { if (!controller.signal.aborted) setQuotaRemaining(toRemainingQuota(usage.buckets)); })
-      .catch(() => undefined);
+    void api.get<{ buckets: QuotaBalance[] }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`, options)
+      .then((usage) => { if (!controller.signal.aborted) setQuotaRemaining(individualQuotaBalances(usage.buckets)); })
+      .catch((error: unknown) => { if (!controller.signal.aborted) setQuotaError(errorMessage(error)); });
     return () => controller.abort();
   }, [filters.comparison, granularity, groupId, query, rangeError]);
 
@@ -100,6 +102,7 @@ export default function Analytics() {
       setAnalyticsState(fromSavedDefinition(definition));
     }} /><ConsoleButton variant="secondary" isDisabled={rangeError !== null} onClick={() => setConfirm(true)}><Download />Export CSV</ConsoleButton></> : null}</div>} />
     <Tabs selectedKey={tab} onSelectionChange={(key) => setAnalyticsState((current) => ({ ...current, tab: String(key) as AnalyticsTab }))}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="Analytics view">{(['overview', 'learners', 'content', 'llm usage', 'policy blocks'] as const).map((name) => <Tabs.Tab id={name} key={name}>{name}</Tabs.Tab>)}</Tabs.List></Tabs.ListContainer></Tabs>
+    {quotaError ? <p role="alert">Quota balances unavailable: {quotaError}</p> : null}
     <BreakdownPanel breakdown={breakdown} learners={learners} learnersError={learnersError} learnersLoading={breakdownLoading.learners} content={content} contentError={contentError} contentLoading={breakdownLoading.content} quotaRemaining={quotaRemaining} />
     {tab === 'overview' ? <AnalyticsOverview summary={summary} history={history} comparison={filters.comparison} visibleMetrics={visibleMetrics} onVisibleMetricsChange={(next) => setAnalyticsState((current) => ({ ...current, visibleMetrics: next }))} activityError={activityError} llm={llm} llmError={llmError} blocks={blocks} policyError={policyError} onBucketClick={(from, to) => setDrilldown({ from, to })} /> : null}
     {tab === 'learners' ? <AnalyticsTable label="Learner analytics" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} /> : null}
@@ -168,23 +171,13 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The request did not complete.';
 }
 
-function toRemainingQuota(buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }>): Record<string, number | null> {
-  const remaining: Record<string, number | null> = {};
-  for (const bucket of buckets.filter((item) => item.scopeKind === 'user')) {
-    const current = remaining[bucket.scopeId];
-    if (bucket.remaining !== null && (current === undefined || current === null || bucket.remaining < current)) remaining[bucket.scopeId] = bucket.remaining;
-    else if (current === undefined) remaining[bucket.scopeId] = null;
-  }
-  return remaining;
-}
-
-function formatRemaining(values: Record<string, number | null>, learnerId: string): string | number {
+function formatRemaining(values: Record<string, string>, learnerId: string): string | number {
   const value = values[learnerId];
   if (value === undefined) return 'No individual quota';
-  return value === null ? 'Governed' : value;
+  return value;
 }
 
-function BreakdownPanel({ breakdown, learners, learnersError, learnersLoading, content, contentError, contentLoading, quotaRemaining }: { breakdown: AnalyticsBreakdown; learners: LearnerAnalytics[]; learnersError: string | null; learnersLoading: boolean; content: DimensionAnalytics[]; contentError: string | null; contentLoading: boolean; quotaRemaining: Record<string, number | null> }) {
+function BreakdownPanel({ breakdown, learners, learnersError, learnersLoading, content, contentError, contentLoading, quotaRemaining }: { breakdown: AnalyticsBreakdown; learners: LearnerAnalytics[]; learnersError: string | null; learnersLoading: boolean; content: DimensionAnalytics[]; contentError: string | null; contentLoading: boolean; quotaRemaining: Record<string, string> }) {
   if (breakdown === 'none') return <section className="analytics-breakdown" aria-label="Analytics breakdown"><p>No breakdown selected.</p></section>;
   if (breakdown === 'learners') return <section className="analytics-breakdown" aria-labelledby="learner-breakdown-heading"><h2 id="learner-breakdown-heading">Learner breakdown</h2>{learnersError ? <p role="alert">Unable to load learner breakdown. {learnersError}</p> : learnersLoading ? <p role="status">Loading learner breakdown.</p> : learners.length === 0 ? <p role="status">No learner analytics recorded for the selected range.</p> : <AnalyticsTable label="Learner breakdown" headings={['Learner', 'Activity', 'Completion', 'Requests', 'Tokens', 'Cost', 'Blocks', 'Quota remaining']} rows={learners.map((learner) => [learner.displayName, `${learner.sessions} sessions`, learner.completions, learner.llmRequests, learner.totalTokens, (learner.costMicros / 1_000_000).toFixed(4), learner.policyBlocks, formatRemaining(quotaRemaining, learner.learnerId)])} />}</section>;
   return <section className="analytics-breakdown" aria-labelledby="content-breakdown-heading"><h2 id="content-breakdown-heading">Content breakdown</h2>{contentError ? <p role="alert">Unable to load content breakdown. {contentError}</p> : contentLoading ? <p role="status">Loading content breakdown.</p> : content.length === 0 ? <p role="status">No content analytics recorded for the selected range.</p> : <AnalyticsTable label="Content breakdown" headings={['Content', 'Activity', 'Watch time', 'Completion', 'Learners']} rows={content.map((item) => [item.title ?? item.key, new Date(item.lastActivityAt).toLocaleDateString(), `${Math.round(item.watchSeconds / 60)} min`, item.completions, item.activeLearners])} />}</section>;

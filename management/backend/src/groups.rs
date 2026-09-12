@@ -639,6 +639,11 @@ async fn replace_capabilities(
     membership_id: &str,
     capabilities: &[Capability],
 ) -> Result<(), AppError> {
+    let root_membership: i64 = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM group_memberships membership JOIN users user ON user.id=membership.user_id JOIN groups school ON school.id=membership.group_id WHERE membership.id=? AND user.is_root=1 AND school.parent_id IS NULL)")
+        .bind(membership_id).fetch_one(&mut **transaction).await.map_err(database_error)?;
+    if root_membership != 0 && Capability::ALL.iter().any(|capability| !capabilities.contains(capability)) {
+        return Err(AppError::Forbidden("root administrator capabilities cannot be removed".into()));
+    }
     sqlx::query("DELETE FROM membership_capabilities WHERE membership_id = ?")
         .bind(membership_id)
         .execute(&mut **transaction)

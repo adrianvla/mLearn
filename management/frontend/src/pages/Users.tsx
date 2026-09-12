@@ -1,3 +1,4 @@
+import { individualQuotaBalances, type QuotaBalance } from '../utils/quotaBalances';
 import { useEffect, useMemo, useState } from "react";
 import { UserPlus } from "lucide-react";
 import { Tabs } from "@heroui/react";
@@ -17,7 +18,7 @@ interface UserUsage {
   totalTokens: number;
   costMicros: number;
   policyBlocks: number;
-  quotaRemaining: number | undefined;
+  quotaRemaining: string | undefined;
 }
 interface UserDetail {
   user: ScopedManagedUser;
@@ -45,11 +46,18 @@ interface UserDetail {
   usage?: UserUsage;
   activity: UserDailyHistory | null;
   activityError: string | null;
+  usageError?: string;
 }
 
 export default function Users() {
   const scope = useGroupScope();
   const groupId = scope.status === "ready" ? scope.selectedGroup?.id : null;
+  const [pending, setPending] = useState(false);
+  const runMutation = async (action: () => Promise<void>) => {
+    if (pending) return;
+    setPending(true); setMutationError(null);
+    try { await action(); } catch (caught) { reportFailure(caught); } finally { setPending(false); }
+  };
   const [users, setUsers] = useState<ScopedManagedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +68,7 @@ export default function Users() {
   const [revision, setRevision] = useState(0);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteType, setInviteType] = useState("learner");
   const [invitationSecret, setInvitationSecret] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createEmail, setCreateEmail] = useState("");
@@ -132,25 +141,23 @@ export default function Users() {
     const to = Date.now();
     const [nextDetail, analytics, quota, activityResult] = await Promise.all([
       api.get<UserDetail>(`/api/users/${encodeURIComponent(user.id)}?groupId=${encodeURIComponent(groupId)}`),
-      api.get<{ items: Array<{ learnerId: string; sessions: number; totalTokens: number; costMicros: number; policyBlocks: number }> }>(`/api/analytics/learners?groupId=${encodeURIComponent(groupId)}&limit=100`).catch(() => ({ items: [] })),
-      api.get<{ buckets: Array<{ scopeKind: string; scopeId: string; remaining: number | null }> }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`).catch(() => ({ buckets: [] })),
+      api.get<{ items: Array<{ learnerId: string; sessions: number; totalTokens: number; costMicros: number; policyBlocks: number }> }>(`/api/analytics/learners?groupId=${encodeURIComponent(groupId)}&limit=100`).catch(() => ({ items: [], error: "Usage analytics unavailable" })),
+      api.get<{ buckets: QuotaBalance[] }>(`/api/llm/usage?groupId=${encodeURIComponent(groupId)}`).catch(() => ({ buckets: [], error: "Quota balances unavailable" })),
       api.get<UserDailyHistory>(`/api/analytics/users/${encodeURIComponent(user.id)}/history?groupId=${encodeURIComponent(groupId)}&from=${to - 30 * 86_400_000}&to=${to}`)
         .then((activity) => ({ activity, error: null }))
         .catch((error: unknown) => ({ activity: null, error: error instanceof Error ? error.message : "The request did not complete." })),
     ]);
     const learner = analytics.items.find((item) => item.learnerId === user.id);
-    const remaining = quota.buckets
-      .filter((item) => item.scopeKind === "user" && item.scopeId === user.id)
-      .map((item) => item.remaining)
-      .filter((value): value is number => value !== null);
+    const remaining = individualQuotaBalances(quota.buckets)[user.id];
     setDetail({
       ...nextDetail,
+      usageError: ["error" in analytics ? analytics.error : null, "error" in quota ? quota.error : null].filter(Boolean).join(". "),
       usage: learner ? {
         sessions: learner.sessions,
         totalTokens: learner.totalTokens,
         costMicros: learner.costMicros,
         policyBlocks: learner.policyBlocks,
-        quotaRemaining: remaining.length ? Math.min(...remaining) : undefined,
+        quotaRemaining: remaining,
       } : undefined,
       activity: activityResult.activity,
       activityError: activityResult.error,
@@ -184,7 +191,7 @@ export default function Users() {
           method: "POST",
           body: JSON.stringify({
             email: inviteEmail.trim(),
-            identityType: "learner",
+            identityType: inviteType,
             capabilities: [],
             expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
           }),
@@ -221,11 +228,13 @@ export default function Users() {
       `/api/users/${encodeURIComponent(detail.user.id)}/status?groupId=${encodeURIComponent(groupId)}`,
       { method: "PATCH", body: JSON.stringify({ status }) },
     );
-    setDetail((current) => current ? { ...current, user } : current);
+    setDetail((current) => current ? { ...current, user, sessions: status === "suspended" ? current.sessions.map((session) => ({ ...session, revokedAt: session.revokedAt ?? Date.now() / 1000 })) : current.sessions } : current);
     setUsers((items) =>
       items.map((item) => (item.id === user.id ? user : item)),
     );
   };
+
+  const reportFailure = (caught: unknown) => setMutationError(caught instanceof Error ? caught.message : "The request failed. Try again.");
 
   const canManage =
     groupId && scope.status === "ready" && scope.can("members.manage");
@@ -248,7 +257,7 @@ export default function Users() {
               </ConsoleButton>
               <ConsoleButton
                 variant="primary"
-                onClick={() => setCreateOpen(true)}
+                onClick={() => { setMutationError(null); setCreateOpen(true); }}
               >
                 <UserPlus />
                 Create user
@@ -257,6 +266,7 @@ export default function Users() {
           ) : undefined
         }
       />
+      {mutationError ? <p role="alert">{mutationError}</p> : null}
       <DataTableShell
         label="Managed users"
         loading={loading}
@@ -298,7 +308,7 @@ export default function Users() {
                     <td>
                       <ConsoleButton
                         variant="ghost"
-                        onClick={() => void openUser(user)}
+                        onClick={() => void openUser(user).catch(reportFailure)}
                       >
                         Open {user.displayName}
                       </ConsoleButton>
@@ -312,20 +322,21 @@ export default function Users() {
         {nextCursor && (
           <div className="table-controls">
             <ConsoleButton
-              onClick={() => void loadMore()}
+              onClick={() => void loadMore().catch(reportFailure)}
             >
               Load more users
             </ConsoleButton>
           </div>
         )}
       </DataTableShell>
-      <ConsoleDialog open={createOpen} onOpenChange={setCreateOpen} title="Create user" footer={<><ConsoleButton onClick={() => setCreateOpen(false)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={!createEmail.trim() || !displayName.trim()} onClick={() => void createUser()}>Create account</ConsoleButton></>}>
+      <ConsoleDialog open={createOpen} onOpenChange={setCreateOpen} title="Create user" footer={<><ConsoleButton onClick={() => setCreateOpen(false)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={pending || !createEmail.trim() || !displayName.trim()} onClick={() => void runMutation(createUser)}>Create account</ConsoleButton></>}>
+        {mutationError ? <p role="alert">{mutationError}</p> : null}<p>Invite this email after creating the account so the user can set a password.</p>
         <ConsoleTextField label="User email" type="email" value={createEmail} onChange={setCreateEmail} />
         <ConsoleTextField label="Display name" value={displayName} onChange={setDisplayName} />
         <ConsoleSelect label="Identity type" selectedKey={identityType} onSelectionChange={setIdentityType} options={[{key:'learner',label:'Learner'},{key:'teacher',label:'Teacher'},{key:'admin',label:'Administrator'}]} />
       </ConsoleDialog>
-      <ConsoleDialog open={inviteOpen} onOpenChange={(open) => { setInviteOpen(open); if (!open) setInvitationSecret(null); }} title="Invite user" footer={invitationSecret ? <ConsoleButton variant="primary" onClick={() => { setInviteOpen(false); setInvitationSecret(null); }}>Done</ConsoleButton> : <><ConsoleButton onClick={() => setInviteOpen(false)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={!inviteEmail.trim()} onClick={() => void invite()}>Create invitation</ConsoleButton></>}>
-          <p>Create a one-time governed invitation for this group.</p>
+      <ConsoleDialog open={inviteOpen} onOpenChange={(open) => { setInviteOpen(open); if (!open) setInvitationSecret(null); }} title="Invite user" footer={invitationSecret ? <ConsoleButton variant="primary" onClick={() => { setInviteOpen(false); setInvitationSecret(null); }}>Done</ConsoleButton> : <><ConsoleButton onClick={() => setInviteOpen(false)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={pending || !inviteEmail.trim()} onClick={() => void runMutation(invite)}>Create invitation</ConsoleButton></>}>
+          <p>Create a one-time governed invitation for this group. Share the code and the /accept-invitation page on this Management server with the recipient.</p>
           {invitationSecret ? (
             <>
               <p>Copy this secret now. It will not be shown again.</p>
@@ -333,12 +344,12 @@ export default function Users() {
             </>
           ) : (
             <>
-              <ConsoleTextField label="Invitation email" type="email" value={inviteEmail} onChange={setInviteEmail} />
+              <ConsoleSelect label="Invitation account type" selectedKey={inviteType} onSelectionChange={setInviteType} options={[{ key: "learner", label: "Learner" }, { key: "teacher", label: "Teacher" }, { key: "admin", label: "Administrator" }]} /><ConsoleTextField label="Invitation email" type="email" value={inviteEmail} onChange={setInviteEmail} />
               {mutationError && <p role="alert">{mutationError}</p>}
             </>
           )}
         </ConsoleDialog>
-      <ConsoleDialog open={detail !== null} onOpenChange={(open) => { if (!open) setDetail(null); }} title={detail?.user.displayName ?? "User detail"} footer={detail && canManage ? <><ConsoleButton onClick={() => setDetail(null)}>Close</ConsoleButton><ConsoleButton variant="primary" onClick={() => void toggleStatus()}>{detail.user.status === "active" ? "Suspend user" : "Reactivate user"}</ConsoleButton></> : undefined}>
+      <ConsoleDialog open={detail !== null} onOpenChange={(open) => { if (!open) setDetail(null); }} title={detail?.user.displayName ?? "User detail"} footer={detail && canManage ? <><ConsoleButton onClick={() => setDetail(null)}>Close</ConsoleButton><ConsoleButton variant="primary" isDisabled={pending} onClick={() => void runMutation(toggleStatus)}>{detail.user.status === "active" ? "Suspend user" : "Reactivate user"}</ConsoleButton></> : undefined}>
         {detail && <>
           <p>
             {detail.user.email} · {detail.user.identityType} ·{" "}
@@ -346,6 +357,7 @@ export default function Users() {
           </p>
           <Tabs selectedKey={detailTab} onSelectionChange={(key) => setDetailTab(String(key) as "profile" | "activity")}><Tabs.ListContainer className="detail-tabs"><Tabs.List aria-label="User detail"><Tabs.Tab id="profile">Profile</Tabs.Tab><Tabs.Tab id="activity">Activity</Tabs.Tab></Tabs.List></Tabs.ListContainer></Tabs>
           {detailTab === "profile" && <>
+          {detail.usageError ? <p role="alert">{detail.usageError}</p> : null}
           {detail.usage && (
             <section>
               <h3>Usage summary</h3>
@@ -354,7 +366,7 @@ export default function Users() {
                 <div><strong>{detail.usage.totalTokens.toLocaleString()}</strong><span>Tokens</span></div>
                 <div><strong>{(detail.usage.costMicros / 1_000_000).toFixed(4)}</strong><span>Cost</span></div>
                 <div><strong>{detail.usage.policyBlocks}</strong><span>Policy blocks</span></div>
-                <div><strong>{detail.usage.quotaRemaining === undefined ? "Governed" : `${detail.usage.quotaRemaining} remaining`}</strong><span>Individual quota</span></div>
+                <div><strong>{detail.usage.quotaRemaining === undefined ? "No individual quota" : `${detail.usage.quotaRemaining} remaining`}</strong><span>Individual quota</span></div>
               </div>
             </section>
           )}
@@ -394,7 +406,8 @@ export default function Users() {
                 {!session.revokedAt && canManage && (
                   <ConsoleButton
                     variant="ghost"
-                    onClick={() => void revokeSession(session.id)}
+                    isDisabled={pending}
+                    onClick={() => void runMutation(() => revokeSession(session.id))}
                   >
                     Revoke session {session.id}
                   </ConsoleButton>

@@ -185,15 +185,18 @@ mod tests {
 
         assert!(matches!(
             service
-                .accept_invitation(&invitation.secret, "other@example.test", "Other")
+                .accept_invitation(&invitation.secret, "other@example.test", "Other", "Pilot password 123!")
                 .await,
             Err(AppError::Forbidden(_))
         ));
         let accepted = service
-            .accept_invitation(&invitation.secret, "invited@example.test", "Invited")
+            .accept_invitation(&invitation.secret, "invited@example.test", "Invited", "Pilot password 123!")
             .await
             .unwrap();
         assert_eq!(accepted.identity_type, IdentityType::Learner);
+        assert_eq!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM password_credentials WHERE user_id=?")
+            .bind(&accepted.id).fetch_one(&fixture.pool).await.unwrap(), 1,
+            "accepted users must be able to sign in");
 
         let overreach = service
             .create_invitation(

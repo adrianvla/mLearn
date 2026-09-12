@@ -5,6 +5,8 @@ import { ConsoleButton, ConsoleNumberField, ConsoleSelect, ConsoleSwitch, Consol
 import { PageToolbar } from "../components/PageToolbar";
 import { useGroupScope } from "../groups/GroupScopeProvider";
 
+import { PolicyLlmRules } from "../components/PolicyLlmRules";
+
 const api = new ApiClient();
 type Json = Record<string, any>;
 type Policy = {
@@ -50,6 +52,7 @@ export default function Policies() {
   const [newName, setNewName] = useState("");
   const [summary, setSummary] = useState("");
   const [settingKey, setSettingKey] = useState("");
+  const [historyRevision, setHistoryRevision] = useState(0);
   const [history, setHistory] = useState<Version[]>([]);
   const [ruleKind, setRuleKind] = useState<"setting" | "llm" | "retention">(
     "setting",
@@ -132,7 +135,7 @@ export default function Policies() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, historyRevision]);
   const create = async () => {
     if (!groupId || !newName.trim()) return;
     setBusy(true);
@@ -203,6 +206,7 @@ export default function Policies() {
         body: JSON.stringify({ summary, validatedDocumentHash: validatedHash }),
       });
       setSummary("");
+      setHistoryRevision((value) => value + 1);
       setValidatedHash(null);
       await refresh();
     } catch (reason) {
@@ -414,6 +418,7 @@ export default function Policies() {
                         }))
                       }
                     />
+                    <PolicyLlmRules groupId={groupId!} value={draft.llm} disabled={!editable || busy} canConfigure={scope.status === "ready" && scope.can("llm.configure")} onChange={(llm) => setDraft((current) => ({ ...current, llm }))} />
                   </RuleCard>
                 )}
                 {draft.governance?.activityRetentionDays !== undefined && (

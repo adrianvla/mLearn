@@ -33,7 +33,7 @@ export function ErrorState({ message }: { message: string }) {
   return (
     <Card>
       <Card.Content>
-        <div className="flex items-center gap-3 text-danger">
+        <div role="alert" className="flex items-center gap-3 text-danger">
           <AlertTriangle className="h-5 w-5 shrink-0" />
           <span className="text-sm font-medium">{message}</span>
         </div>

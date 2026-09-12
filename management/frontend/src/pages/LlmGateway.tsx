@@ -45,6 +45,14 @@ export default function LlmGateway() {
   const [usage, setUsage] = useState<UsageBucket[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKeySummary[]>([]);
   const [reservations, setReservations] = useState<CurrentReservation[]>([]);
+  const [pending, setPending] = useState(false);
+  const runMutation = async (action: () => Promise<void>) => {
+    if (pending) return;
+    setPending(true); setError(null);
+    try { await action(); } catch (caught) { reportFailure(caught); } finally { setPending(false); }
+  };
+  const [error, setError] = useState<string | null>(null);
+  const reportFailure = (caught: unknown) => setError(caught instanceof Error ? caught.message : "The request failed. Try again.");
   const [quotaError, setQuotaError] = useState<string | null>(null);
   const [secret, setSecret] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -86,8 +94,8 @@ export default function LlmGateway() {
         setPrices(r.items);
         setProfiles(nextProfiles.items);
       }
-    });
-    api.get<{ buckets: UsageBucket[] }>(`/api/llm/usage?${q}`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setUsage(result.buckets); }).catch(() => { if (!controller.signal.aborted) { setUsage([]); setQuotaError('Quota summary unavailable until the school quota calendar is configured.'); } });
+    }).catch((caught: unknown) => { if (!controller.signal.aborted) reportFailure(caught); });
+    api.get<{ buckets: UsageBucket[] }>(`/api/llm/usage?${q}`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setUsage(result.buckets); }).catch((caught: unknown) => { if (!controller.signal.aborted) { setUsage([]); setQuotaError(`Quota summary unavailable: ${caught instanceof Error ? caught.message : 'request failed'}`); } });
     api.get<{ apiKeys: ApiKeySummary[] }>(`/api/groups/${encodeURIComponent(groupId)}/api-keys`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setApiKeys(result.apiKeys); }).catch(() => { if (!controller.signal.aborted) setApiKeys([]); });
     api.get<{ items: CurrentReservation[] }>(`/api/llm/reservations?${q}`, { signal: controller.signal }).then((result) => { if (!controller.signal.aborted) setReservations(result.items); }).catch(() => { if (!controller.signal.aborted) setReservations([]); });
     return () => controller.abort();
@@ -99,6 +107,7 @@ export default function LlmGateway() {
       body: JSON.stringify({ secret, idempotencyKey: crypto.randomUUID() }),
     });
     setSecret("");
+    setSelected(null);
     setProviders((items) =>
       items.map((item) =>
         item.id === selected ? { ...item, hasSecret: true } : item,
@@ -130,6 +139,7 @@ export default function LlmGateway() {
     setProviderName(''); setProviderEndpoint(''); setProviderSecret(''); setProviderEditor(false);
   };
   const openConfiguration = (kind: 'model' | 'profile' | 'price' | 'apiKey') => {
+    setError(null);
     setConfigurationEditor(kind); setConfigurationName(''); setUpstreamModel('');
     setConfigurationProvider(providers[0]?.id ?? ''); setSystemPrompt(''); setInputPrice('0'); setOutputPrice('0'); setOneTimeKey(null);
   };
@@ -164,7 +174,7 @@ export default function LlmGateway() {
       />
       <section className="gateway-grid">
         <article className="dashboard-panel">
-          <header className="panel-heading"><h2>Providers</h2>{scope.status === 'ready' && scope.can('llm.configure') ? <ConsoleButton variant="ghost" onClick={() => setProviderEditor(true)}>Add provider</ConsoleButton> : null}</header>
+          <header className="panel-heading"><h2>Providers</h2>{scope.status === 'ready' && scope.can('llm.configure') ? <ConsoleButton variant="ghost" onClick={() => (setError(null), setProviderEditor(true))}>Add provider</ConsoleButton> : null}</header>
           <div className="table-scroll">
             <table>
               <thead>
@@ -247,26 +257,28 @@ export default function LlmGateway() {
         </article>
         <article className="dashboard-panel">
           <header className="panel-heading"><h2>API keys</h2>{scope.status === 'ready' && scope.can('api_keys.manage') ? <ConsoleButton variant="ghost" onClick={() => openConfiguration('apiKey')}>Create API key</ConsoleButton> : null}</header>
-          {apiKeys.map((key) => <div className="gateway-item" key={key.id}><strong>{key.name ?? 'Unnamed key'}</strong><span>{key.capabilities.join(', ') || 'No capabilities'} · {key.expiresAt ? `expires ${new Date(key.expiresAt * 1000).toLocaleDateString()}` : 'no expiry'}</span>{scope.status === 'ready' && scope.can('api_keys.manage') ? <ConsoleButton variant="ghost" onClick={() => void revokeApiKey(key.id)}>Revoke</ConsoleButton> : null}</div>)}
+          {apiKeys.map((key) => <div className="gateway-item" key={key.id}><strong>{key.name ?? 'Unnamed key'}</strong><span>{key.capabilities.join(', ') || 'No capabilities'} · {key.expiresAt ? `expires ${new Date(key.expiresAt * 1000).toLocaleDateString()}` : 'no expiry'}</span>{scope.status === 'ready' && scope.can('api_keys.manage') ? <ConsoleButton variant="ghost" onClick={() => void runMutation(() => revokeApiKey(key.id))}>Revoke</ConsoleButton> : null}</div>)}
         </article>
         <article className="dashboard-panel">
           <h2>Current reservations</h2>
           {reservations.length === 0 ? <p>No active reservations.</p> : reservations.map((reservation) => <div className="gateway-item" key={reservation.id}><strong>{reservation.learnerUserId}</strong><span>{reservation.providerId} / {reservation.modelId} · {reservation.directGroupId} · expires {new Date(reservation.expiresAt * 1000).toLocaleTimeString()}</span></div>)}
         </article>
       </section>
-      <ConsoleDialog open={selected !== null} onOpenChange={(open) => { if (!open) setSelected(null); }} title="Replace provider secret" footer={<><ConsoleButton onClick={() => setSelected(null)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={!secret} onClick={() => void replace()}>Save replacement</ConsoleButton></>}>
-        <p>Stored plaintext is never returned. Enter a replacement value.</p>
+      {error ? <p role="alert">{error}</p> : null}
+      <ConsoleDialog open={selected !== null} onOpenChange={(open) => { if (!open) setSelected(null); }} title="Replace provider secret" footer={<><ConsoleButton onClick={() => setSelected(null)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={pending || !secret} onClick={() => void runMutation(replace)}>Save replacement</ConsoleButton></>}>
+        {error ? <p role="alert">{error}</p> : null}<p>Stored plaintext is never returned. Enter a replacement value.</p>
         <ConsoleTextField label="New provider secret" type="password" value={secret} onChange={setSecret} />
       </ConsoleDialog>
       <ProviderHistory open={historyProvider !== null} onOpenChange={(open) => { if (!open) setHistoryProvider(null); }} groupId={groupId ?? null} providerId={historyProvider?.id ?? null} providerName={historyProvider?.name ?? null} />
-      <ConsoleDialog open={providerEditor} onOpenChange={setProviderEditor} title="Add provider" footer={<><ConsoleButton onClick={() => { setProviderEditor(false); setProviderSecret(''); }}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={!providerName.trim() || !providerEndpoint.trim()} onClick={() => void createProvider()}>Create provider</ConsoleButton></>}>
+      <ConsoleDialog open={providerEditor} onOpenChange={setProviderEditor} title="Add provider" footer={<><ConsoleButton onClick={() => { setProviderEditor(false); setProviderSecret(''); }}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={pending || !providerName.trim() || !providerEndpoint.trim()} onClick={() => void runMutation(createProvider)}>Create provider</ConsoleButton></>}>
         <p>The secret is encrypted at rest and never returned by the API.</p>
-        <ConsoleTextField label="Provider name" value={providerName} onChange={setProviderName} />
+        {error ? <p role="alert">{error}</p> : null}<ConsoleTextField label="Provider name" value={providerName} onChange={setProviderName} />
         <ConsoleSelect label="Provider kind" selectedKey={providerKind} onSelectionChange={setProviderKind} options={[{key:'openaiCompatible',label:'OpenAI-compatible'},{key:'ollama',label:'Ollama'}]} />
         <ConsoleTextField label="Provider endpoint" type="url" value={providerEndpoint} onChange={setProviderEndpoint} />
         <ConsoleTextField label="Provider secret" type="password" value={providerSecret} onChange={setProviderSecret} />
       </ConsoleDialog>
-      <ConsoleDialog open={configurationEditor !== null} onOpenChange={(open) => { if (!open) setConfigurationEditor(null); }} title={configurationEditor === 'model' ? 'Add model route' : configurationEditor === 'profile' ? 'Add prompt profile' : configurationEditor === 'price' ? 'Add immutable price version' : 'Create API key'} footer={oneTimeKey ? <ConsoleButton variant="primary" onClick={() => setConfigurationEditor(null)}>Done</ConsoleButton> : <><ConsoleButton onClick={() => setConfigurationEditor(null)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={(configurationEditor === 'model' && (!configurationProvider || !configurationName || !upstreamModel)) || (configurationEditor === 'profile' && (!configurationName || !systemPrompt)) || (configurationEditor === 'price' && !configurationProvider)} onClick={() => void createConfiguration()}>{configurationEditor === 'apiKey' ? 'Create key' : 'Save'}</ConsoleButton></>}>
+      <ConsoleDialog open={configurationEditor !== null} onOpenChange={(open) => { if (!open) setConfigurationEditor(null); }} title={configurationEditor === 'model' ? 'Add model route' : configurationEditor === 'profile' ? 'Add prompt profile' : configurationEditor === 'price' ? 'Add immutable price version' : 'Create API key'} footer={oneTimeKey ? <ConsoleButton variant="primary" onClick={() => setConfigurationEditor(null)}>Done</ConsoleButton> : <><ConsoleButton onClick={() => setConfigurationEditor(null)}>Cancel</ConsoleButton><ConsoleButton variant="primary" isDisabled={pending || (configurationEditor === 'model' && (!configurationProvider || !configurationName || !upstreamModel)) || (configurationEditor === 'profile' && (!configurationName || !systemPrompt)) || (configurationEditor === 'price' && !configurationProvider)} onClick={() => void runMutation(createConfiguration)}>{configurationEditor === 'apiKey' ? 'Create key' : 'Save'}</ConsoleButton></>}>
+        {error ? <p role="alert">{error}</p> : null}
         {oneTimeKey ? <><p>Copy this API key now. It will not be shown again.</p><code>{oneTimeKey}</code></> : <>
           {configurationEditor === 'model' && <><ConsoleSelect label="Model provider" selectedKey={configurationProvider} onSelectionChange={setConfigurationProvider} options={providers.map((provider) => ({ key: provider.id, label: provider.name }))} /><ConsoleTextField label="Model route key" value={configurationName} onChange={setConfigurationName} /><ConsoleTextField label="Upstream model" value={upstreamModel} onChange={setUpstreamModel} /></>}
           {configurationEditor === 'profile' && <><ConsoleTextField label="Profile name" value={configurationName} onChange={setConfigurationName} /><ConsoleTextArea label="System prompt" value={systemPrompt} onChange={setSystemPrompt} /></>}

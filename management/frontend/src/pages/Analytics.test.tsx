@@ -24,7 +24,7 @@ function installFetch(overrides: Partial<Record<'history' | 'llm' | 'blocks' | '
     if (url.includes('/api/analytics/history')) return overrides.history?.clone() ?? json(history);
     if (url.includes('/api/analytics/llm')) return overrides.llm?.clone() ?? json({ requests: 4, inputTokens: 10, outputTokens: 5, totalTokens: 15, costMicros: 1000, latencyMs: 42, errors: 1, breakdown: [{ providerId: 'provider-a', modelId: 'model-a', groupId: 'german', requests: 4, costMicros: 1000, latencyMs: 42, errors: 1 }] });
     if (url.includes('/api/analytics/policy-blocks')) return overrides.blocks?.clone() ?? json({ blocks: 1 });
-    if (url.includes('/api/llm/usage')) return json({ buckets: [{ scopeKind: 'user', scopeId: 'u', remaining: 75 }] });
+    if (url.includes('/api/llm/usage')) return json({ buckets: [{ scopeKind: 'user', scopeId: 'u', metric: 'requests', remaining: 75 }] });
     if (url.includes('/learners')) return overrides.learners?.clone() ?? json({ items: [{ ...values, learnerId: 'u', displayName: 'Learner', lastActivityAt: 1_700_000_000_000 }] });
     if (url.includes('/content')) return overrides.content?.clone() ?? json({ items: [{ ...values, key: 'content-1', title: 'First video', lastActivityAt: 1_700_000_000_000 }] });
     return json(values);
@@ -43,7 +43,7 @@ it('renders every scoped analytics view and requires export confirmation', async
   fireEvent.click(screen.getByRole('tab', { name: 'learners' }));
   expect((await screen.findAllByText('Learner')).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByText('0.0010')).toBeVisible();
-  expect(screen.getByText('75')).toBeVisible();
+  expect(screen.getByText('75 requests')).toBeVisible();
   fireEvent.click(screen.getByRole('tab', { name: 'content' }));
   expect(await screen.findByText('First video')).toBeVisible();
   fireEvent.click(screen.getByRole('tab', { name: 'llm usage' }));

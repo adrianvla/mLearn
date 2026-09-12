@@ -6,7 +6,6 @@ pub mod audit;
 pub mod auth;
 pub mod config;
 pub mod conversations;
-pub mod distribution;
 pub mod governance;
 pub mod groups;
 pub mod llm_configuration;

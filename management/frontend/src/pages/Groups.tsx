@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiClient } from "../api/client";
+import { ApiClient, AUTH_SESSION_UPDATED_EVENT } from "../api/client";
 import type { GroupNode, Membership } from "../api/types";
 import { CapabilityEditor } from "../components/CapabilityEditor";
 import { GroupTree } from "../components/GroupTree";
 import { PageToolbar } from "../components/PageToolbar";
-import { useGroupScope } from "../groups/GroupScopeProvider";
+import { GROUP_STORAGE_KEY, useGroupScope } from "../groups/GroupScopeProvider";
 import { ConsoleButton, ConsoleDialog, ConsoleTextField } from "../components/console";
 import { Link, Tabs } from "@heroui/react";
 const api = new ApiClient();
@@ -20,6 +20,8 @@ export default function Groups() {
   const [archiveConfirm, setArchiveConfirm] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
   const [mutationError, setMutationError] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -33,17 +35,19 @@ export default function Groups() {
           setSelectedId((current) =>
             current && result.groups.some((group) => group.id === current)
               ? current
-              : (result.groups[0]?.id ?? null),
+              : (result.groups.find((group) => group.id === (scope.status === "ready" ? scope.selectedGroup?.id : null))?.id ?? result.groups[0]?.id ?? null),
           );
         }
-      });
+      }).catch((error: unknown) => { if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Groups could not be loaded"); });
     return () => controller.abort();
-  }, []);
+  }, [revision]);
   useEffect(() => {
     if (!selectedId) {
       setMemberships([]);
       return;
     }
+    setMemberships([]);
+    setSelectedMembershipId(null);
     const controller = new AbortController();
     api
       .get<{ memberships: Membership[] }>(
@@ -52,7 +56,7 @@ export default function Groups() {
       )
       .then((result) => {
         if (!controller.signal.aborted) setMemberships(result.memberships);
-      });
+      }).catch((error: unknown) => { if (!controller.signal.aborted) setMutationError(error instanceof Error ? error.message : "Memberships could not be loaded"); });
     return () => controller.abort();
   }, [selectedId]);
   const filteredGroups = useMemo(
@@ -61,11 +65,13 @@ export default function Groups() {
   );
   const selected = groups.find((group) => group.id === selectedId) ?? null;
   const selectedMembership = memberships.find((membership) => membership.id === selectedMembershipId) ?? null;
-  const grantable = scope.status === "ready" ? scope.selectedGroup?.capabilities ?? [] : [];
+  const grantable = scope.status === "ready" && scope.can("permissions.delegate") ? scope.groups?.find((group) => group.id === selectedId)?.capabilities ?? scope.selectedGroup?.capabilities ?? [] : [];
   const updateCapabilities = async (capabilities: Membership["capabilities"]) => {
     if (!selectedId || !selectedMembership) return;
+    try {
     const updated = await api.get<Membership>(`/api/groups/${encodeURIComponent(selectedId)}/memberships/${encodeURIComponent(selectedMembership.id)}`, { method: "PATCH", body: JSON.stringify({ capabilities }) });
     setMemberships((items) => items.map((item) => item.id === updated.id ? updated : item));
+    } catch (error) { setMutationError(error instanceof Error ? error.message : "Permission update failed"); }
   };
   const canManage = scope.status === 'ready' && scope.can('group.manage');
   const openEditor = (mode: 'create' | 'edit') => {
@@ -84,6 +90,8 @@ export default function Groups() {
       setGroups((items) => editor === 'create' ? [...items, group] : items.map((item) => item.id === group.id ? group : item));
       setSelectedId(group.id);
       setEditor(null);
+      localStorage.setItem(GROUP_STORAGE_KEY, group.id);
+      window.dispatchEvent(new Event(AUTH_SESSION_UPDATED_EVENT));
     } catch (error) {
       setMutationError(error instanceof Error ? error.message : 'Group update failed');
     }
@@ -95,6 +103,8 @@ export default function Groups() {
       setGroups((items) => items.filter((item) => item.id !== selected.id));
       setSelectedId(selected.parentId);
       setArchiveConfirm(false);
+      if (selected.parentId) localStorage.setItem(GROUP_STORAGE_KEY, selected.parentId);
+      window.dispatchEvent(new Event(AUTH_SESSION_UPDATED_EVENT));
     } catch (error) {
       setMutationError(error instanceof Error ? error.message : 'Group archive failed');
     }
@@ -106,6 +116,7 @@ export default function Groups() {
         description="The authorized school hierarchy, memberships, and delegated authority."
         actions={canManage && selected ? <div className="toolbar-actions"><ConsoleButton variant="secondary" onClick={() => openEditor('edit')}>Edit group</ConsoleButton><ConsoleButton variant="primary" onClick={() => openEditor('create')}>Create child group</ConsoleButton></div> : undefined}
       />
+      {loadError ? <p role="alert">{loadError} <ConsoleButton onClick={() => { setLoadError(null); setRevision((value) => value + 1); }}>Retry groups</ConsoleButton></p> : null}
       <div className="group-workspace">
         <aside>
           <ConsoleTextField label="Search groups" placeholder="Search groups" value={search} onChange={setSearch} />
@@ -179,15 +190,15 @@ export default function Groups() {
                   />
                 </>
               )}
-              {tab === "policy" && <section className="table-state"><p>Review the local draft, inherited constraints, and published history for this group.</p><Link href="/policies">Open policy editor</Link></section>}
-              {tab === "analytics" && <section className="table-state"><p>Learning, content, LLM, and policy outcomes use this selected group as their scope.</p><Link href="/analytics">Open scoped analytics</Link></section>}
+              {tab === "policy" && <section className="table-state"><p>Review the local draft, inherited constraints, and published history for this group.</p><Link href="/policies" onClick={(event) => { event.preventDefault(); if (scope.status === "ready" && selectedId) void scope.selectGroup(selectedId, { preserveCurrentScope: true }).then(() => window.location.assign("/policies")).catch((error: Error) => setMutationError(error.message)); }}>Open policy editor</Link></section>}
+              {tab === "analytics" && <section className="table-state"><p>Learning, content, LLM, and policy outcomes use this selected group as their scope.</p><Link href="/analytics" onClick={(event) => { event.preventDefault(); if (scope.status === "ready" && selectedId) void scope.selectGroup(selectedId, { preserveCurrentScope: true }).then(() => window.location.assign("/analytics")).catch((error: Error) => setMutationError(error.message)); }}>Open scoped analytics</Link></section>}
             </>
           ) : (
             <p>Select a group.</p>
           )}
         </section>
       </div>
-      <ConsoleDialog open={Boolean(editor && selected)} onOpenChange={(open) => { if (!open) setEditor(null); }} title={editor === 'create' && selected ? `Create child of ${selected.name}` : 'Edit group'} footer={<><ConsoleButton onClick={() => setEditor(null)}>Cancel</ConsoleButton><ConsoleButton isDisabled={!name.trim() || !slug.trim()} onClick={() => void saveGroup()}>{editor === 'create' ? 'Create group' : 'Save group'}</ConsoleButton></>}><ConsoleTextField label="Group name" value={name} onChange={setName}/><ConsoleTextField label="Group slug" value={slug} onChange={setSlug}/></ConsoleDialog>
+      <ConsoleDialog open={Boolean(editor && selected)} onOpenChange={(open) => { if (!open) setEditor(null); }} title={editor === 'create' && selected ? `Create child of ${selected.name}` : 'Edit group'} footer={<><ConsoleButton onClick={() => setEditor(null)}>Cancel</ConsoleButton><ConsoleButton isDisabled={!name.trim() || !slug.trim()} onClick={() => void saveGroup()}>{editor === 'create' ? 'Create group' : 'Save group'}</ConsoleButton></>}>{mutationError ? <p role="alert">{mutationError}</p> : null}<ConsoleTextField label="Group name" value={name} onChange={setName}/><ConsoleTextField label="Group slug" value={slug} onChange={setSlug}/></ConsoleDialog>
       <ConsoleDialog open={Boolean(archiveConfirm && selected)} onOpenChange={setArchiveConfirm} title={selected ? `Archive ${selected.name}?` : 'Archive group'} footer={<><ConsoleButton onClick={() => setArchiveConfirm(false)}>Cancel</ConsoleButton><ConsoleButton onClick={() => void archiveGroup()}>Confirm archive</ConsoleButton></>}><p>Archived groups and their active memberships stop granting access immediately.</p></ConsoleDialog>
     </div>
   );

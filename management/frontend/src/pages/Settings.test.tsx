@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Settings from './Settings';
@@ -14,7 +14,7 @@ beforeEach(() => { isRoot = false; });
 
 it('covers governed school settings while keeping diagnostics hidden from non-root users', () => {
   render(<MemoryRouter><Settings /></MemoryRouter>);
-  expect(screen.getByText('Redacted deployment configuration')).toBeVisible();
+  expect(screen.queryByText('Redacted deployment configuration')).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'School identity' })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Timezone and term calendar' })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Retention and security' })).toBeVisible();
@@ -35,9 +35,10 @@ it('configures the authoritative root-school timezone and term calendar', async 
   fireEvent.change(await screen.findByLabelText('School timezone'), { target: { value: 'Europe/Zurich' } });
   fireEvent.change(screen.getByLabelText('Term starts'), { target: { value: '2026-07-01' } });
   fireEvent.change(screen.getByLabelText('Term ends'), { target: { value: '2026-12-31' } });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save school calendar' })).toBeEnabled());
   fireEvent.click(screen.getByRole('button', { name: 'Save school calendar' }));
   expect(await screen.findByRole('status')).toHaveTextContent('calendar saved');
-  expect(fetchMock).toHaveBeenCalledWith('/api/llm/quota-calendar', expect.objectContaining({ method: 'PUT', body: expect.stringContaining('Europe/Zurich') }));
+  expect(fetchMock).toHaveBeenCalledWith('/api/llm/quota-calendar', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ rootGroupId: 'school', timezone: 'Europe/Zurich', termStartsAt: Date.parse('2026-06-30T22:00:00Z') / 1000, termEndsAt: Date.parse('2026-12-30T23:00:00Z') / 1000 }) }));
 });
 
 function json(body: unknown) { return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })); }

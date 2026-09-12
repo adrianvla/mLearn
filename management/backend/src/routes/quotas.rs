@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{delete, get, put},
+    routing::{delete, get},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -79,7 +79,7 @@ struct CurrentReservationsResponse {
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/api/llm/quota-calendar", put(configure_calendar))
+        .route("/api/llm/quota-calendar", get(get_calendar).put(configure_calendar))
         .route(
             "/api/llm/quotas",
             get(list_definitions).put(upsert_definition),
@@ -119,6 +119,37 @@ async fn current_reservations(
 
 fn service(state: &AppState) -> QuotaService {
     QuotaService::new(state.db.clone())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CalendarQuery { root_group_id: String }
+
+#[derive(Serialize)]
+struct CalendarResponse {
+    current: Option<SchoolQuotaCalendar>,
+    scheduled: Option<SchoolQuotaCalendar>,
+}
+
+async fn get_calendar(
+    State(state): State<AppState>, principal: Principal, Query(query): Query<CalendarQuery>,
+) -> Result<Json<CalendarResponse>, AppError> {
+    AuthorizationService::new(state.db.clone()).require(&principal, &query.root_group_id, Capability::LlmConfigure).await?;
+    let row = sqlx::query("SELECT * FROM school_quota_calendars WHERE root_group_id=?")
+        .bind(&query.root_group_id).fetch_optional(&state.db).await.map_err(|error| AppError::Internal(format!("calendar database error: {error}")))?;
+    let Some(row) = row else { return Ok(Json(CalendarResponse { current: None, scheduled: None })); };
+    let current = SchoolQuotaCalendar {
+        root_group_id: query.root_group_id.clone(), timezone: row.get("timezone"),
+        term_starts_at: row.get("term_starts_at"), term_ends_at: row.get("term_ends_at"), version: row.get("version"),
+    };
+    let scheduled = row.get::<Option<i64>, _>("pending_version").map(|version| SchoolQuotaCalendar {
+        root_group_id: query.root_group_id, timezone: row.get("pending_timezone"),
+        term_starts_at: row.get("pending_term_starts_at"), term_ends_at: row.get("pending_term_ends_at"), version,
+    });
+    if row.get::<Option<i64>, _>("pending_effective_at").is_some_and(|at| at <= time::OffsetDateTime::now_utc().unix_timestamp()) {
+        return Ok(Json(CalendarResponse { current: scheduled, scheduled: None }));
+    }
+    Ok(Json(CalendarResponse { current: Some(current), scheduled }))
 }
 
 async fn configure_calendar(

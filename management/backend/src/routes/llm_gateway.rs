@@ -13,7 +13,6 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    dto::LlmGatewayDto,
     error::AppError,
     identity::{IdentityType, Principal},
     llm::{
@@ -39,14 +38,6 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-pub async fn get_llm_gateway(
-    State(_state): State<AppState>,
-) -> Result<Json<LlmGatewayDto>, AppError> {
-    Err(AppError::NotImplemented(
-        "LLM gateway status is not connected to real routing, model, or budget state yet."
-            .to_string(),
-    ))
-}
 
 async fn stream_llm(
     State(state): State<AppState>,

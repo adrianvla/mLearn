@@ -78,7 +78,9 @@ impl ProvisioningService {
         secret: &str,
         email: &str,
         display_name: &str,
+        password: &str,
     ) -> Result<ProvisionedUser, AppError> {
+        crate::identity::validate_email_and_password(email, password)?;
         if !valid_email(email) || display_name.trim().is_empty() {
             return Err(AppError::BadRequest(
                 "valid email and display name are required".into(),
@@ -172,13 +174,14 @@ impl ProvisioningService {
                 .await?;
         }
         let existing =
-            sqlx::query("SELECT id, identity_type, is_root FROM users WHERE normalized_email = ?")
+            sqlx::query("SELECT id, identity_type, is_root, status FROM users WHERE normalized_email = ?")
                 .bind(&normalized_email)
                 .fetch_optional(&mut *transaction)
                 .await
                 .map_err(database_error)?;
         let user_id = if let Some(existing) = existing {
-            if existing.get::<i64, _>("is_root") == 1
+            if existing.get::<String, _>("status") != "active"
+                || existing.get::<i64, _>("is_root") == 1
                 || existing.get::<String, _>("identity_type") != identity_type_str(&identity_type)
             {
                 return Err(AppError::Conflict(
@@ -194,19 +197,36 @@ impl ProvisioningService {
                 .execute(&mut *transaction).await.map_err(database_error)?;
             user_id
         };
-        let membership_id = Uuid::now_v7().to_string();
-        sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, invited_email, status, created_at, archived_at) VALUES (?, ?, ?, NULL, 'active', ?, NULL)")
-            .bind(&membership_id).bind(&group_id).bind(&user_id).bind(now())
-            .execute(&mut *transaction).await.map_err(map_membership_error)?;
+        let credential: Option<String> = sqlx::query_scalar("SELECT password_hash FROM password_credentials WHERE user_id=?")
+            .bind(&user_id).fetch_optional(&mut *transaction).await.map_err(database_error)?;
+        if let Some(hash) = credential {
+            // An invitation adds membership; it never resets an existing password.
+            crate::identity::verify_password(password, &hash)?;
+        } else {
+            if invited_email.is_none() {
+                let memberships: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM group_memberships WHERE user_id=?")
+                    .bind(&user_id).fetch_one(&mut *transaction).await.map_err(database_error)?;
+                if memberships > 0 {
+                    return Err(AppError::Forbidden("an email-bound invitation is required to activate an existing account".into()));
+                }
+            }
+            let hash = crate::identity::hash_password(password)?;
+            sqlx::query("INSERT INTO password_credentials(id,user_id,password_hash,created_at,updated_at) VALUES(?,?,?,?,?)")
+                .bind(Uuid::now_v7().to_string()).bind(&user_id).bind(hash).bind(now()).bind(now())
+                .execute(&mut *transaction).await.map_err(database_error)?;
+        }
+        let existing_membership: Option<String> = sqlx::query_scalar("SELECT id FROM group_memberships WHERE group_id=? AND user_id=? AND status='active'")
+            .bind(&group_id).bind(&user_id).fetch_optional(&mut *transaction).await.map_err(database_error)?;
+        let membership_id = if let Some(id) = existing_membership { id } else {
+            let id = Uuid::now_v7().to_string();
+            sqlx::query("INSERT INTO group_memberships (id, group_id, user_id, invited_email, status, created_at, archived_at) VALUES (?, ?, ?, NULL, 'active', ?, NULL)")
+                .bind(&id).bind(&group_id).bind(&user_id).bind(now())
+                .execute(&mut *transaction).await.map_err(map_membership_error)?;
+            id
+        };
         for capability in capabilities {
-            sqlx::query(
-                "INSERT INTO membership_capabilities (membership_id, capability) VALUES (?, ?)",
-            )
-            .bind(&membership_id)
-            .bind(capability)
-            .execute(&mut *transaction)
-            .await
-            .map_err(database_error)?;
+            sqlx::query("INSERT INTO membership_capabilities (membership_id, capability) VALUES (?, ?) ON CONFLICT DO NOTHING")
+                .bind(&membership_id).bind(capability).execute(&mut *transaction).await.map_err(database_error)?;
         }
         let use_count = invitation.get::<i64, _>("use_count") + 1;
         let status = if use_count >= invitation.get::<i64, _>("max_uses") {

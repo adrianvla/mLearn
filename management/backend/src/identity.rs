@@ -600,7 +600,7 @@ impl IdentityService {
     }
 }
 
-fn validate_email_and_password(email: &str, password: &str) -> Result<(), AppError> {
+pub(crate) fn validate_email_and_password(email: &str, password: &str) -> Result<(), AppError> {
     let email = email.trim();
     if email.is_empty() || !email.contains('@') {
         return Err(AppError::BadRequest("valid email is required".into()));
@@ -617,7 +617,7 @@ fn normalize_email(email: &str) -> String {
     email.trim().to_ascii_lowercase()
 }
 
-fn hash_password(password: &str) -> Result<String, AppError> {
+pub(crate) fn hash_password(password: &str) -> Result<String, AppError> {
     let salt = SaltString::generate(&mut PasswordOsRng);
     Argon2::default()
         .hash_password(password.as_bytes(), &salt)
@@ -625,7 +625,7 @@ fn hash_password(password: &str) -> Result<String, AppError> {
         .map_err(|error| AppError::Internal(format!("password hashing failed: {error}")))
 }
 
-fn verify_password(password: &str, encoded_hash: &str) -> Result<(), AppError> {
+pub(crate) fn verify_password(password: &str, encoded_hash: &str) -> Result<(), AppError> {
     let parsed_hash = PasswordHash::new(encoded_hash).map_err(|_| AppError::Unauthorized)?;
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)

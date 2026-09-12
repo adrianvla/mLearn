@@ -14,10 +14,13 @@ export default function Login() {
   const desktopRequest = params.get('request');
   return <main className="auth-screen"><form onSubmit={(event) => { event.preventDefault(); void auth.login(email, password); }}>
     <header><h1>Sign in to mLearn</h1><p>{desktopRequest ? 'Sign in to review a desktop login request' : 'School administration console'}</p></header>
+    {params.get("recovered") === "1" ? <p role="status">Administrator password reset. Sign in with your new password.</p> : null}
     <ConsoleTextField label="Email" type="email" autoComplete="username" value={email} onChange={setEmail} isRequired />
     <ConsoleTextField label="Password" type="password" autoComplete="current-password" value={password} onChange={setPassword} isRequired />
     {auth.status === 'error' && <p role="alert">{auth.error.message}</p>}
     <ConsoleButton type="submit">Sign in</ConsoleButton>
+    <Link to="/accept-invitation">Accept a school invitation</Link>
+    <Link to="/recover">Recover administrator access</Link>
     <Link to="/bootstrap">Set up the first administrator</Link>
   </form></main>;
 }

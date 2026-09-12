@@ -1,7 +1,7 @@
 import type {
-  AiStatusDto, AnalyticsDto, AuthResponse, AuthSession, AuthorizedUser, ConfigDto,
-  DistributionDto, LlmGatewayDto, LogsDto, OverviewDto, SchoolDto,
-  ServiceActionResponse, ServiceDto, StorageDto, UsersDto,
+  AiStatusDto, AuthResponse, AuthSession, AuthorizedUser, ConfigDto,
+  LogsDto, OverviewDto, SchoolDto,
+  ServiceActionResponse, ServiceDto, StorageDto,
 } from './types';
 
 type ServiceAction = 'start' | 'stop' | 'restart';
@@ -9,9 +9,7 @@ type RequestOptions = Omit<RequestInit, 'headers'> & { headers?: HeadersInit };
 
 export const AUTH_SIGNED_OUT_EVENT = 'mlearn-management-signed-out';
 export const AUTH_SESSION_UPDATED_EVENT = 'mlearn-management-session-updated';
-export const AUTH_ERROR_EVENT = AUTH_SIGNED_OUT_EVENT;
 export const SESSION_KEY = 'mlearn-management-session';
-export const TOKEN_KEY = SESSION_KEY;
 
 export interface SessionStore {
   accessToken(): string | null;
@@ -48,10 +46,6 @@ function readSession(storage: Storage): AuthSession | null {
   return null;
 }
 
-export class AuthError extends Error {
-  constructor() { super('Unauthorized'); this.name = 'AuthError'; }
-}
-
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string, public readonly body: unknown) {
     super(message); this.name = 'ApiError';
@@ -59,6 +53,7 @@ export class ApiError extends Error {
 }
 
 const defaultStore = createSessionStore();
+const refreshes = new WeakMap<SessionStore, Promise<boolean>>();
 
 export function establishSession(session: AuthSession): void {
   defaultStore.set(session);
@@ -67,7 +62,6 @@ export function establishSession(session: AuthSession): void {
 
 export class ApiClient {
   private readonly baseUrl: string;
-  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseUrl = '', private readonly session = defaultStore) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -86,10 +80,6 @@ export class ApiClient {
   getStorage(): Promise<StorageDto> { return this.get('/api/storage'); }
   getAiStatus(): Promise<AiStatusDto> { return this.get('/api/ai-status'); }
   getSchool(): Promise<SchoolDto> { return this.get('/api/school'); }
-  getUsers(): Promise<UsersDto> { return this.get('/api/users'); }
-  getDistribution(): Promise<DistributionDto> { return this.get('/api/distribution'); }
-  getLlmGateway(): Promise<LlmGatewayDto> { return this.get('/api/llm-gateway'); }
-  getAnalytics(): Promise<AnalyticsDto> { return this.get('/api/analytics'); }
 
   get<T>(path: string, options: RequestOptions = {}): Promise<T> { return this.request(path, options); }
   post<T>(path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
@@ -128,9 +118,11 @@ export class ApiClient {
   clearSession(): void { this.session.clear(); }
 
   private async request<T>(path: string, options: RequestOptions = {}, retry401 = true): Promise<T> {
+    const accessToken = this.session.accessToken();
     const response = await this.fetchWithAccess(path, options);
     if (response.status === 401 && retry401 && !path.endsWith('/api/auth/refresh')) {
-      const refreshed = await this.refresh();
+      const refreshed = this.session.accessToken() !== accessToken && this.session.accessToken() !== null
+        ? true : await this.refresh();
       if (refreshed) {
         const retried = await this.fetchWithAccess(path, options);
         if (retried.status !== 401) return this.readResponse<T>(retried);
@@ -151,19 +143,24 @@ export class ApiClient {
   }
 
   private refresh(): Promise<boolean> {
-    if (this.refreshPromise !== null) return this.refreshPromise;
-    this.refreshPromise = (async () => {
+    const pending = refreshes.get(this.session);
+    if (pending) return pending;
+    const promise = (async () => {
       const refreshToken = this.session.refreshToken();
+      if (refreshToken === null) return false;
       const response = await fetch(`${this.baseUrl}/api/auth/refresh`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(refreshToken === null ? {} : { refreshToken }),
       });
-      if (!response.ok) return false;
+      if (response.status === 401) return false;
+      if (!response.ok) throw await toApiError(response);
       const body = await response.json() as { session: AuthSession };
+      if (this.session.refreshToken() !== refreshToken) return this.session.accessToken() !== null;
       this.session.set(body.session);
       return true;
-    })().catch(() => false).finally(() => { this.refreshPromise = null; });
-    return this.refreshPromise;
+    })().finally(() => { refreshes.delete(this.session); });
+    refreshes.set(this.session, promise);
+    return promise;
   }
 
   private async terminalSignOut(response: Response): Promise<never> {

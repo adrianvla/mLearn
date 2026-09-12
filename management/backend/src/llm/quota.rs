@@ -1838,11 +1838,12 @@ async fn summary_in_transaction(
         Uuid::parse_str(cursor).map_err(|_| AppError::BadRequest("invalid usage cursor".into()))?;
     }
     let timestamp = now();
-    let calendar = load_calendar(tx, group, timestamp).await?;
     let definition_rows = sqlx::query("WITH RECURSIVE ancestors(id, parent_id, depth) AS (SELECT id, parent_id, 0 FROM groups WHERE id = ? AND status = 'active' UNION ALL SELECT p.id, p.parent_id, c.depth + 1 FROM groups p JOIN ancestors c ON c.parent_id = p.id WHERE p.status = 'active') SELECT q.* FROM quota_definitions q JOIN ancestors a ON a.id = q.owner_group_id WHERE q.status = 'active' AND ((q.subject_kind = 'group' AND q.subject_id = q.owner_group_id) OR (q.subject_kind = 'user' AND q.owner_group_id = ? AND (? IS NULL OR q.subject_id = ?))) ORDER BY a.depth DESC, q.metric, q.period, q.id")
         .bind(group).bind(group).bind(learner).bind(learner).fetch_all(&mut **tx).await.map_err(database_error)?;
+    let calendar = if definition_rows.is_empty() { None } else { Some(load_calendar(tx, group, timestamp).await?) };
     let mut buckets = Vec::new();
     for row in definition_rows {
+        let calendar = calendar.as_ref().expect("definitions require a calendar");
         let definition = definition_from_row(row)?;
         let interval = interval_for(definition.period, timestamp, &calendar)?;
         let item = ApplicableDefinition {

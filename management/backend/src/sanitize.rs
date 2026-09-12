@@ -690,6 +690,7 @@ mod tests {
             bind_address: "0.0.0.0".to_string(),
             port: 4000,
             public_url: "https://school.example".to_string(),
+            allowed_origins: Vec::new(),
             compose_project: "mlearn".to_string(),
             management_db_path: "/data/management.db".to_string(),
             policy_signing_key_path: "/data/policy-signing-key".to_string(),

@@ -21,6 +21,7 @@ const Analytics = lazy(() => import('./pages/Analytics'));
 const Governance = lazy(() => import('./pages/Governance'));
 const ActivityLog = lazy(() => import('./pages/ActivityLog'));
 const Settings = lazy(() => import('./pages/Settings'));
+const AcceptInvitation = lazy(() => import('./pages/AcceptInvitation'));
 const Bootstrap = lazy(() => import('./pages/Bootstrap'));
 const Diagnostics = lazy(() => import('./pages/Diagnostics'));
 const OperationalLogs = lazy(() => import('./pages/OperationalLogs'));
@@ -36,6 +37,8 @@ function PageLoader() {
 export default function App() {
   const auth = useAuth();
   const location = useLocation();
+  if (location.pathname === '/accept-invitation') return <Suspense fallback={<PageLoader />}><AcceptInvitation /></Suspense>;
+  if (location.pathname === '/recover') return <Suspense fallback={<PageLoader />}><Bootstrap recoveryMode /></Suspense>;
   if (auth.status === 'loading') return <PageLoader />;
   if (auth.status !== 'authenticated') return <Routes><Route path="/bootstrap" element={<Suspense fallback={<PageLoader />}><Bootstrap /></Suspense>} /><Route path="*" element={<Suspense fallback={<PageLoader />}><Login /></Suspense>} /></Routes>;
   if (location.pathname === '/login' && new URLSearchParams(location.search).has('request')) return <DesktopApproval />;

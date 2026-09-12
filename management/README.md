@@ -76,6 +76,8 @@ cargo run    # serves http://127.0.0.1:3000
 cargo test   # run all tests
 ```
 
+Build frontend assets before the first backend run. Cargo tracks subsequent changes to the embedded asset directory.
+
 ### Frontend (React 19 + HeroUI 3)
 
 ```bash
@@ -96,7 +98,7 @@ The production console uses named user sessions, an authorized active-group
 scope, and permission-aware navigation. Use `/bootstrap` once with the recovery
 credential to create the first root administrator; the recovery credential is
 sent only to that endpoint and is never stored by the browser. Operational
-container, storage, distribution, and redacted-log tools live under
+container, storage, and redacted-log tools live under
 **Settings → Diagnostics** and require the root administrator.
 
 ## Environment Variables
@@ -109,7 +111,7 @@ See [`.env.example`](.env.example) for the full list with documentation.
 | `MLEARN_MANAGEMENT_PORT` | `3000` | Port the console listens on |
 | `MLEARN_BIND_ADDRESS` | `127.0.0.1` | Bind address. Use `0.0.0.0` only behind a reverse proxy |
 | `MLEARN_MANAGEMENT_PUBLIC_URL` | `http://127.0.0.1:3000` | Navigable browser origin used in desktop login links. Set this to the external HTTPS origin behind a reverse proxy |
-| `MLEARN_MANAGEMENT_TOKEN` | _(empty)_ | Admin token for API auth. Generated on first boot if empty |
+| `MLEARN_MANAGEMENT_TOKEN` | _(empty)_ | Bootstrap/recovery credential. Generated on first boot if empty |
 | `MLEARN_MANAGEMENT_TOKEN_HASH` | _(empty)_ | Pre-hashed token (SHA-256 hex). Takes precedence over plaintext |
 | `MLEARN_ENCRYPTION_KEY_PATH` | `/data/encryption-key` | Protected persistent 32-byte AES key; generated atomically with mode `0600` when absent |
 | `MLEARN_ENCRYPTION_KEY` | _(empty)_ | Optional externally managed key using `hex:` or unpadded `base64url:` encoding |
@@ -121,7 +123,7 @@ See [`.env.example`](.env.example) for the full list with documentation.
 ## Security Model
 
 - **Bound to localhost by default.** The console only listens on `127.0.0.1`. Setting `MLEARN_BIND_ADDRESS=0.0.0.0` without a reverse proxy + TLS is dangerous.
-- **Admin token required.** All `/api/*` endpoints (except `/api/health`) require a valid Bearer token. In production mode with no token configured, ALL authenticated requests are rejected (fail-closed).
+- **Named sessions required.** Administrative APIs require a named session or explicitly scoped service key. Bootstrap/recovery use the recovery credential; login and invitation acceptance validate their own credentials. The recovery credential does not authorize normal administration.
 - **No Docker socket exposure to the browser.** The frontend never accesses Docker directly — all operations go through the Rust backend, which validates and scopes every action.
 - **Secret redaction.** The backend redacts secrets from all API responses and log lines before sending them to the frontend. Key names matching `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, etc. and values matching API key patterns (`sk-...`, `AKIA...`, JWTs, long hex/base64) are masked.
 - **Scoped to mLearn project.** Container actions are validated against the `com.docker.compose.project` label. Actions on non-mLearn containers are rejected.
@@ -237,7 +239,7 @@ migration; replacing the file alone permanently strands existing ciphertext.
 
 ## Docker Socket Assumptions
 
-The management container mounts `/var/run/docker.sock` (read-only) to communicate with the Docker daemon. This is required for the console to function.
+The management container mounts `/var/run/docker.sock` (read-only) to communicate with the Docker daemon. Docker diagnostics require it; school administration remains available when Docker is unavailable.
 
 The socket mount grants significant host access. In production:
 1. Run the management container on a trusted host
@@ -256,7 +258,7 @@ navigable browser destinations.
 ┌─────────────────────────────────────────────┐
 │  Browser (admin)                            │
 │  ┌───────────────────────────────────────┐  │
-│  │  SolidJS SPA (embedded static assets) │  │
+│  │  React SPA (embedded static assets) │  │
 │  └───────────────┬───────────────────────┘  │
 └──────────────────┼──────────────────────────┘
                    │ HTTP (Bearer token)
@@ -292,3 +294,21 @@ Sustainable Use License v1.0. See the root [LICENSE](../LICENSE) file.
 - [ ] Volume size monitoring (via `docker system df`)
 - [ ] Container resource metrics (CPU/memory)
 - [ ] Multi-project support
+
+## Pilot administration
+
+1. Bootstrap the root administrator at `/bootstrap`, then use named sign-in.
+2. Rename the school in Groups and create child groups. Set the authoritative timezone and term in Settings; saved and scheduled calendars are loaded on return.
+3. Invite teachers and learners from Users. Share the one-time code and the `/accept-invitation` page through your normal school channel. Acceptance sets a password for a new account; an existing account must use its current password. CSV-imported and manually created accounts also need an email-bound invitation to activate password sign-in.
+4. Delegate teacher capabilities in Groups → Members → Permissions.
+5. Configure the provider, model, prompt profile, and price in LLM Gateway. In Policies, add an LLM rule, select the configured routes, add a hard quota, save, validate, and publish. Child policies may tighten inherited restrictions.
+6. Connect a learner through the endpoint override described above. Review activity, conversations, quotas, and the audit log in the authorized group.
+7. Use `/recover` with the recovery credential to reset the root password. Recovery revokes existing sessions. Malformed/unwritable credential files now fail startup instead of silently changing credentials.
+
+Compose starts Management only. Deploy the actual learner/backend services separately under the configured Compose project; the former `full-stack` placeholders referenced unpublished images and have been removed. The Docker socket grants host-level control even when mounted read-only.
+
+For browser/mobile clients on another origin, set `MLEARN_MANAGEMENT_ALLOWED_ORIGINS`
+to the exact comma-separated learner origins (including the mobile webview origin
+when applicable). Production uses this allowlist for authenticated CORS preflights;
+only explicit development mode is permissive. A console served from the same
+origin needs no extra entry.

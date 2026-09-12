@@ -47,7 +47,7 @@ async fn invitation_acceptance_rejects_revoked_creator_authority() {
         .unwrap();
 
     let result = service
-        .accept_invitation(&invitation.secret, "revoked@example.test", "Revoked")
+        .accept_invitation(&invitation.secret, "revoked@example.test", "Revoked", "Pilot password 123!")
         .await;
 
     assert!(matches!(result, Err(AppError::Forbidden(_))));
@@ -87,6 +87,7 @@ async fn invitation_acceptance_rechecks_permission_delegate_without_capabilities
             &invitation.secret,
             "no-capabilities@example.test",
             "No Capabilities",
+            "Pilot password 123!",
         )
         .await;
 
@@ -116,7 +117,7 @@ async fn join_code_acceptance_rejects_archived_target_group() {
         .unwrap();
 
     let result = service
-        .accept_invitation(&join_code.secret, "archived@example.test", "Archived")
+        .accept_invitation(&join_code.secret, "archived@example.test", "Archived", "Pilot password 123!")
         .await;
 
     assert!(matches!(
@@ -259,4 +260,25 @@ async fn import_rejects_ambiguous_group_slug_without_writes() {
         .unwrap(),
         0
     );
+}
+
+#[tokio::test]
+async fn invitation_credentials_preserve_existing_password_and_reject_replay() {
+    let fixture = GroupFixture::german_tree().await;
+    let service = ProvisioningService::new(fixture.pool.clone());
+    let invite = service.create_invitation(&fixture.german_a_teacher, &fixture.german_a,
+        "pilot@example.test", IdentityType::Learner, vec![], OffsetDateTime::now_utc().unix_timestamp() + 3600).await.unwrap();
+    let user = service.accept_invitation(&invite.secret, "pilot@example.test", "Pilot", "Pilot password 123!").await.unwrap();
+    let hash: String = sqlx::query_scalar("SELECT password_hash FROM password_credentials WHERE user_id=?")
+        .bind(&user.id).fetch_one(&fixture.pool).await.unwrap();
+    assert!(crate::identity::verify_password("Pilot password 123!", &hash).is_ok());
+    assert!(service.accept_invitation(&invite.secret, "pilot@example.test", "Pilot", "Pilot password 123!").await.is_err());
+    let second = service.create_invitation(&fixture.german_a_teacher, &fixture.german_a,
+        "pilot@example.test", IdentityType::Learner, vec![], OffsetDateTime::now_utc().unix_timestamp() + 3600).await.unwrap();
+    assert!(service.accept_invitation(&second.secret, "pilot@example.test", "Pilot", "Attacker password 123!").await.is_err());
+    assert_eq!(sqlx::query_scalar::<_, i64>("SELECT use_count FROM invitations WHERE id=?")
+        .bind(&second.id).fetch_one(&fixture.pool).await.unwrap(), 0);
+    assert!(service.accept_invitation(&second.secret, "pilot@example.test", "Pilot", "Pilot password 123!").await.is_ok());
+    assert_eq!(sqlx::query_scalar::<_, String>("SELECT password_hash FROM password_credentials WHERE user_id=?")
+        .bind(&user.id).fetch_one(&fixture.pool).await.unwrap(), hash);
 }

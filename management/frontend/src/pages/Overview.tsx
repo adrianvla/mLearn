@@ -28,6 +28,7 @@ export default function Overview() {
   const scope = useGroupScope();
   const groupId =
     scope.status === "ready" ? (scope.selectedGroup?.id ?? null) : null;
+  const canViewAnalytics = scope.status === "ready" && scope.can("analytics.view");
   const canViewActivity = scope.status === "ready" && scope.can("group.view");
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +40,7 @@ export default function Overview() {
   useEffect(() => {
     setData(null);
     setError(null);
-    if (groupId === null) return;
+    if (groupId === null || !canViewAnalytics) return;
     const controller = new AbortController();
     const to = Date.now();
     const from = to - periodDays * 86_400_000;
@@ -75,7 +76,9 @@ export default function Overview() {
           );
       });
     return () => controller.abort();
-  }, [canViewActivity, groupId, periodDays, revision]);
+  }, [canViewAnalytics, canViewActivity, groupId, periodDays, revision]);
+
+  if (scope.status === "ready" && !canViewAnalytics) return <section className="resource-page"><PageToolbar title="School account" description="You are signed in to your school account." /><p>Your administrator controls which Management tools are available. You can return to the mLearn app to continue learning.</p></section>;
 
   const summary = data?.summary;
   return (

@@ -23,7 +23,7 @@ export default function Layout() {
       {mobileOpen && <ConsoleButton variant="ghost" className="mobile-backdrop" aria-label="Close navigation" onClick={closeNavigation}>Close navigation</ConsoleButton>}
       <AppSidebar mobileOpen={mobileOpen} onNavigate={closeNavigation} />
       <section className="console-workspace">
-        <header className="console-topbar"><GlobalSearch /><NotificationMenu groupId={scope.status === 'ready' ? scope.selectedGroup?.id ?? null : null} /><GroupSwitcher /></header>
+        <header className="console-topbar"><GlobalSearch /><NotificationMenu groupId={scope.status === 'ready' && scope.can('group.view') ? scope.selectedGroup?.id ?? null : null} /><GroupSwitcher /></header>
         <main className="console-main"><Outlet /></main>
       </section>
     </div>

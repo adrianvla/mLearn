@@ -19,6 +19,7 @@ use crate::{
 };
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct PublishRequest {
     summary: String,
     #[serde(default)]

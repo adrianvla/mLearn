@@ -17,7 +17,6 @@ use crate::{
         LearnerAnalytics, LlmAnalytics, Page, PolicyBlockAnalytics, ProviderHistory,
         TimeseriesPoint, UserDailyHistory,
     },
-    dto::AnalyticsDto,
     error::AppError,
     identity::Principal,
     state::AppState,
@@ -495,11 +494,6 @@ async fn ingest_events(
     ))
 }
 
-pub async fn get_analytics() -> Result<Json<AnalyticsDto>, AppError> {
-    Err(AppError::NotImplemented(
-        "Analytics are not connected to a real metrics or audit-log source yet.".to_string(),
-    ))
-}
 
 #[cfg(test)]
 mod tests {

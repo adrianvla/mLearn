@@ -26,3 +26,23 @@ it('explains that bootstrap is unavailable after a root administrator exists', a
   fireEvent.click(screen.getByRole('button', { name: 'Create administrator' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('A root administrator already exists. Sign in instead.');
 });
+
+it('reports a network failure and permits retry', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+  render(<MemoryRouter><Bootstrap /></MemoryRouter>);
+  fireEvent.submit(screen.getByRole('button', { name: 'Create administrator' }).closest('form')!);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Unable to reach Management');
+  expect(screen.getByRole('button', { name: 'Create administrator' })).toBeEnabled();
+});
+
+it('recovers the root password through the recovery endpoint', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+  render(<MemoryRouter><Bootstrap recoveryMode /></MemoryRouter>);
+  fireEvent.change(screen.getByLabelText('Recovery credential'), { target: { value: 'recovery' } });
+  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'root@test' } });
+  fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'New password 123!' } });
+  fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'New password 123!' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Reset administrator password' }));
+  expect(await screen.findByRole('status')).toHaveTextContent('Password reset');
+  expect(fetch).toHaveBeenCalledWith('/api/auth/recover-root', expect.objectContaining({ method: 'POST' }));
+});

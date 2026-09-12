@@ -42,6 +42,34 @@ describe('ApiClient sessions', () => {
     expect(refreshes).toBe(1);
   });
 
+  it('shares refresh across clients using the same session', async () => {
+    const store = createSessionStore();
+    store.set({ accessToken: 'expired', refreshToken: 'refresh', expiresAt: 1 });
+    let refreshes = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/api/auth/refresh')) {
+        refreshes++;
+        await Promise.resolve();
+        return jsonResponse({ session: { accessToken: 'fresh', refreshToken: 'rotated', expiresAt: 2 } });
+      }
+      return new Headers(init?.headers).get('Authorization') === 'Bearer fresh'
+        ? jsonResponse({ ok: true }) : jsonResponse({ error: 'expired' }, 401);
+    }));
+    await Promise.all([new ApiClient('', store).get('/one'), new ApiClient('', store).get('/two')]);
+    expect(refreshes).toBe(1);
+  });
+
+  it('preserves the session when refresh fails temporarily', async () => {
+    const store = createSessionStore();
+    store.set({ accessToken: 'expired', refreshToken: 'refresh', expiresAt: 1 });
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith('/api/auth/refresh')
+        ? jsonResponse({ error: 'temporarily unavailable' }, 503)
+        : jsonResponse({ error: 'expired' }, 401)));
+    await expect(new ApiClient('', store).get('/one')).rejects.toMatchObject({ status: 503 });
+    expect(store.refreshToken()).toBe('refresh');
+  });
+
   it('preserves abort signals across the refresh retry', async () => {
     const store = createSessionStore();
     store.set({ accessToken: 'expired', refreshToken: 'refresh', expiresAt: 1 });

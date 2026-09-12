@@ -7,6 +7,7 @@ import { PageToolbar } from '../components/PageToolbar';
 import { DatePickerField } from '../components/DatePickerField';
 import { ConsoleButton, ConsoleTextField } from '../components/console';
 import Config from './Config';
+import { schoolDayStart, schoolDateInput } from '../utils/schoolTime';
 
 const api = new ApiClient();
 
@@ -22,7 +23,7 @@ export default function Settings() {
       <article className="dashboard-panel"><h2>Endpoint guidance</h2><p>Expose the console only through TLS, keep the management token out of browser storage, and use desktop approval for local clients.</p></article>
       <article className="dashboard-panel"><h2>Backups</h2><p>Back up the management database, policy signing key, secret-encryption key, and configured storage volumes together. Test restoration before each term.</p>{root ? <Link href="/settings/diagnostics">Inspect storage</Link> : null}</article>
     </section>
-    <Config />
+    {root ? <Config /> : null}
   </div>;
 }
 
@@ -31,23 +32,39 @@ function RootCalendarSettings() {
   const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   const [termStarts, setTermStarts] = useState('');
   const [termEnds, setTermEnds] = useState('');
+  const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    api.get<{ groups: GroupNode[] }>('/api/groups', { signal: controller.signal }).then(({ groups }) => {
-      if (!controller.signal.aborted) setRootGroupId(groups.find((group) => group.parentId === null)?.id ?? null);
+    api.get<{ groups: GroupNode[] }>('/api/groups', { signal: controller.signal }).then(async ({ groups }) => {
+      const root = groups.find((group) => group.parentId === null)?.id ?? null;
+      if (controller.signal.aborted || root === null) return;
+      const result = await api.get<{ current: { timezone: string; termStartsAt: number; termEndsAt: number } | null; scheduled: { timezone: string; termStartsAt: number; termEndsAt: number } | null }>(`/api/llm/quota-calendar?rootGroupId=${encodeURIComponent(root)}`, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setRootGroupId(root);
+      const calendar = result.scheduled ?? result.current;
+      if (calendar) {
+        setTimezone(calendar.timezone);
+        setTermStarts(schoolDateInput(calendar.termStartsAt * 1000, calendar.timezone));
+        setTermEnds(schoolDateInput(calendar.termEndsAt * 1000, calendar.timezone));
+        if (result.scheduled) setStatus('Showing the scheduled next term. The current calendar remains active until then.');
+      }
     }).catch(() => { if (!controller.signal.aborted) setStatus('Unable to load the school root.'); });
     return () => controller.abort();
   }, []);
   const save = async () => {
-    if (!rootGroupId) return;
+    if (!rootGroupId || pending) return;
+    setPending(true);
     setStatus(null);
     try {
-      await api.get('/api/llm/quota-calendar', { method: 'PUT', body: JSON.stringify({ rootGroupId, timezone, termStartsAt: Date.parse(`${termStarts}T00:00:00Z`) / 1000, termEndsAt: Date.parse(`${termEnds}T00:00:00Z`) / 1000 }) });
+      const start = schoolDayStart(termStarts, timezone);
+      const end = schoolDayStart(termEnds, timezone);
+      if (start === null || end === null || end <= start) throw new Error('Enter a valid term date range.');
+      await api.get('/api/llm/quota-calendar', { method: 'PUT', body: JSON.stringify({ rootGroupId, timezone, termStartsAt: start / 1000, termEndsAt: end / 1000 }) });
       setStatus('School calendar saved. New quota periods use these authoritative boundaries.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'School calendar update failed.');
-    }
+    } finally { setPending(false); }
   };
-  return <div className="settings-form"><p>Changing an active calendar schedules the next term safely when accounting data already exists.</p><ConsoleTextField label="School timezone" value={timezone} onChange={setTimezone} placeholder="Europe/Zurich" /><DatePickerField label="Term starts" value={termStarts} onChange={setTermStarts} /><DatePickerField label="Term ends" value={termEnds} onChange={setTermEnds} /><ConsoleButton variant="primary" isDisabled={!rootGroupId || !timezone.trim() || !termStarts || !termEnds || termEnds <= termStarts} onClick={() => void save()}>Save school calendar</ConsoleButton>{status ? <p role="status">{status}</p> : null}</div>;
+  return <div className="settings-form"><p>Changing an active calendar schedules the next term safely when accounting data already exists.</p><ConsoleTextField label="School timezone" value={timezone} onChange={setTimezone} placeholder="Europe/Zurich" /><DatePickerField label="Term starts" value={termStarts} onChange={setTermStarts} /><DatePickerField label="Term ends" value={termEnds} onChange={setTermEnds} /><ConsoleButton variant="primary" isDisabled={pending || !rootGroupId || !timezone.trim() || !termStarts || !termEnds || termEnds <= termStarts} onClick={() => void save()}>Save school calendar</ConsoleButton>{status ? <p role="status">{status}</p> : null}</div>;
 }

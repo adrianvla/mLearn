@@ -1,9 +1,9 @@
-use std::{io::ErrorKind, net::SocketAddr};
+use std::{io::ErrorKind, net::{IpAddr, SocketAddr}};
 
 use axum::Router;
 use mlearn_management::{
     application_router, auth,
-    config::{Config, EnvMode},
+    config::Config,
     db::connect_database,
     docker,
     state::AppState,
@@ -38,14 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let config = ensure_token(Config::from_env());
-
-    if config.fail_closed() {
-        tracing::warn!(
-            "FAIL-CLOSED: No admin token configured. All API requests will be rejected."
-        );
-        tracing::warn!("Set MLEARN_MANAGEMENT_TOKEN to enable access.");
-    }
+    let config = ensure_token(Config::from_env())?;
 
     let docker = docker::connect_docker()?;
     match docker.ping().await {
@@ -54,11 +47,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let db = connect_database(&config).await?;
+    let has_accounts: i64 = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users)").fetch_one(&db).await?;
+    if has_accounts != 0 {
+        for (purpose, path) in [("policy signing", Some(config.policy_signing_key_path.as_str())),
+            ("encryption", config.encryption_key.is_none().then_some(config.encryption_key_path.as_str()))] {
+            if let Some(path) = path {
+                if !std::path::Path::new(path).try_exists()? {
+                    return Err(format!("existing Management database requires its original {purpose} key; restore the matching backup").into());
+                }
+            }
+        }
+    }
     let state = AppState::try_new(docker, config, db)?;
 
-    let bind_addr: SocketAddr = format!("{}:{}", state.config.bind_address, state.config.port)
-        .parse()
-        .unwrap_or_else(|_| SocketAddr::from(([127, 0, 0, 1], 3000)));
+    let bind_addr = SocketAddr::new(state.config.bind_address.parse::<IpAddr>()?, state.config.port);
 
     let app = build_router(state);
 
@@ -154,78 +156,62 @@ fn env_value_present(key: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn ensure_token(mut config: Config) -> Config {
-    if config.token_hash.is_some() {
-        return config;
-    }
-
-    if config.env_mode != EnvMode::Production {
-        return config;
-    }
-
-    let token_file = token_file_path();
-
-    if let Ok(raw_token_file) = std::fs::read_to_string(&token_file) {
-        match parse_token_file(raw_token_file.trim()) {
-            TokenFileValue::Token(token) => {
-                config.token_hash = Some(auth::hash_token(&token));
-                tracing::info!("Loaded persisted admin token: {}", token);
-                tracing::info!("Token loaded from {}", token_file);
-                return config;
-            }
-            TokenFileValue::Hash(hash) => {
-                config.token_hash = Some(hash);
-                tracing::info!("Loaded persisted admin token hash from {}", token_file);
-                tracing::warn!(
-                    "This token file only contains a hash, so the admin token cannot be printed. Delete {} to generate a new recoverable token.",
-                    token_file
-                );
-                return config;
-            }
-            TokenFileValue::Malformed => {
-                tracing::warn!(
-                    "Existing token file at {} is malformed. Generating a new token.",
-                    token_file
-                );
-            }
+fn ensure_token(config: Config) -> Result<Config, Box<dyn std::error::Error>> {
+    if let Ok(value) = std::env::var("MLEARN_MANAGEMENT_TOKEN_HASH") {
+        if !value.trim().is_empty() && hex::decode(value.trim()).map_or(true, |bytes| bytes.len() != 32) {
+            return Err("MLEARN_MANAGEMENT_TOKEN_HASH must be a SHA-256 hex digest".into());
         }
     }
+    ensure_token_at(config, std::path::Path::new(&token_file_path()))
+}
 
-    let token = auth::generate_random_token();
-    let hash = auth::hash_token(&token);
-    tracing::info!("Generated admin token: {}", token);
-    tracing::info!(
-        "The generated token will be printed again on restart while the token file is present."
-    );
-
-    if let Some(parent) = std::path::Path::new(&token_file).parent() {
-        if let Err(err) = std::fs::create_dir_all(parent) {
-            tracing::warn!(
-                "Failed to create token directory {}: {}",
-                parent.display(),
-                err
-            );
-        }
+fn ensure_token_at(mut config: Config, path: &std::path::Path) -> Result<Config, Box<dyn std::error::Error>> {
+    use std::io::{Read, Write};
+    if config.token_hash.is_some() { return Ok(config); }
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)] {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
-    match std::fs::write(&token_file, format!("{TOKEN_FILE_TOKEN_PREFIX}{token}\n")) {
-        Ok(_) => {
-            tracing::info!("Recoverable admin token persisted to {}", token_file);
-            #[cfg(unix)]
-            {
+    match options.open(path) {
+        Ok(mut file) => {
+            if !file.metadata()?.is_file() { return Err("recovery credential must be a regular file".into()); }
+            #[cfg(unix)] {
                 use std::os::unix::fs::PermissionsExt;
-                let _ =
-                    std::fs::set_permissions(&token_file, std::fs::Permissions::from_mode(0o600));
+                file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
             }
+            let mut raw = String::new();
+            file.read_to_string(&mut raw)?;
+            config.token_hash = Some(match parse_token_file(raw.trim()) {
+                TokenFileValue::Token(token) => {
+                    tracing::info!("Loaded persisted admin token: {}", token);
+                    auth::hash_token(&token)
+                }
+                TokenFileValue::Hash(hash) => hash,
+                TokenFileValue::Malformed => return Err("malformed recovery credential; restore it or explicitly reset-admin-token".into()),
+            });
+            return Ok(config);
         }
-        Err(e) => tracing::warn!(
-            "Failed to persist token hash to {}: {}. Token will change on restart.",
-            token_file,
-            e
-        ),
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
     }
-
-    config.token_hash = Some(hash);
-    config
+    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+    }
+    let token = auth::generate_random_token();
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)] {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
+    }
+    let mut file = options.open(path)?;
+    file.write_all(format!("{TOKEN_FILE_TOKEN_PREFIX}{token}\n").as_bytes())?;
+    file.sync_all()?;
+    config.token_hash = Some(auth::hash_token(&token));
+    tracing::info!("Generated admin token: {}", token);
+    Ok(config)
 }
 
 enum TokenFileValue {
@@ -294,6 +280,21 @@ mod tests {
 
     fn args(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn recovery_token_persists_and_malformed_state_does_not_rotate() {
+        let path = std::env::temp_dir().join(format!("mlearn-recovery-{}", uuid::Uuid::now_v7()));
+        let mut config = Config::from_env();
+        config.token_hash = None;
+        config.env_mode = mlearn_management::config::EnvMode::Development;
+        let first = ensure_token_at(config.clone(), &path).unwrap();
+        let second = ensure_token_at(config.clone(), &path).unwrap();
+        assert_eq!(first.token_hash, second.token_hash);
+        std::fs::write(&path, "malformed").unwrap();
+        assert!(ensure_token_at(config, &path).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "malformed");
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

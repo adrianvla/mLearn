@@ -82,8 +82,8 @@ The management service is the **only** service that mounts the Docker socket. It
 ## Security Assumptions
 
 - The Docker socket (`/var/run/docker.sock`) is mounted read-only into the management container
-- The management container runs as a non-root user
-- All API endpoints (except `/api/health`) require a valid Bearer token
+- The current management image runs as root to access the Docker socket; deploy it only on a trusted host
+- Administrative endpoints require named sessions or scoped service keys; authentication entry points validate their own credentials
 - Secret values are redacted from all API responses and log output
 - Container actions are scoped to the configured Compose project
 - No destructive operations (volume deletion, container removal) are available in v1

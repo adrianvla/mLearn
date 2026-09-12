@@ -99,7 +99,7 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
       if (url.includes("/analytics/users/u/history"))
         return json({ timezone: "UTC", daily: [{ start: 1, end: 86400001, coverage: "complete", values: { sessions: 4, readerPages: 2, videoSeconds: 30, flashcardSessions: 1, llmRequests: 1, costMicros: 5000, policyBlocks: 1 } }] });
       if (url.includes("/llm/usage"))
-        return json({ buckets: [{ scopeKind: "user", scopeId: "u", remaining: 80 }] });
+        return json({ buckets: [{ scopeKind: "user", scopeId: "u", metric: "requests", remaining: 80 }] });
       if (url.includes("/provisioning/invitations"))
         return json({
           id: "invite",
@@ -150,12 +150,13 @@ it("creates a user, issues a secure invitation, and manages scoped sessions", as
   expect(await screen.findByRole("table", { name: "Daily user activity chart data" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("tab", { name: "Profile" }));
   expect(screen.getByRole("heading", { name: "Usage summary" })).toBeVisible();
-  expect(screen.getByText("80 remaining")).toBeVisible();
+  expect(screen.getByText("80 requests remaining")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Revoke session s" }));
   expect(mockedFetch).toHaveBeenCalledWith(
     expect.stringContaining("/sessions/s?"),
     expect.objectContaining({ method: "DELETE" }),
   );
+  await waitFor(() => expect(screen.getByRole("button", { name: "Suspend user" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Suspend user" }));
   expect(mockedFetch).toHaveBeenCalledWith(
     expect.stringContaining("/status?"),

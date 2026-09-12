@@ -6,7 +6,7 @@ use axum::{
     Json, Router,
 };
 use serde_json::json;
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{cors::{AllowOrigin, CorsLayer}, trace::TraceLayer};
 
 use crate::{auth, error::AppError, routes, state::AppState, static_handler};
 
@@ -32,6 +32,17 @@ async fn root_auth_middleware(
 /// Builds the exact production HTTP application. Keeping this in the library lets
 /// external integration tests exercise the same auth, routing, and middleware stack.
 pub fn application_router(state: AppState) -> Router {
+    let cors = if state.config.env_mode == crate::config::EnvMode::Development {
+        CorsLayer::permissive()
+    } else {
+        let mut origins = state.config.allowed_origins.clone();
+        origins.push(state.config.public_url.clone());
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(move |origin, _| origins.iter().any(|allowed| origin.as_bytes() == allowed.as_bytes())))
+            .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PUT, axum::http::Method::PATCH, axum::http::Method::DELETE, axum::http::Method::OPTIONS])
+            .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE])
+            .allow_credentials(true)
+    };
     let protected = Router::new()
         .route("/api/overview", get(routes::overview::get_overview))
         .route("/api/services", get(routes::services::get_services))
@@ -74,10 +85,6 @@ pub fn application_router(state: AppState) -> Router {
         .merge(protected)
         .fallback(static_handler::serve_spa)
         .layer(TraceLayer::new_for_http())
-        .layer(if cfg!(debug_assertions) {
-            CorsLayer::permissive()
-        } else {
-            CorsLayer::new()
-        })
+        .layer(cors)
         .with_state(state)
 }
