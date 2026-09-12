@@ -10,17 +10,21 @@ import { selectNextEncounter } from '../../learning/engine';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import { Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
+import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
 import type { CapabilityKind, Flashcard, FlashcardContent } from '../../../shared/types';
-import { getAvailableAccesses } from '../../../shared/types';
+import { ASPECT_CAPABILITY } from '../../../shared/graph/types';
+import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
+import { surfaceEntityId } from '../../../shared/graph/load';
+import { hashWordSync } from '../../services/srsAlgorithm';
+import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
-import { qualityToSrsRating, type AttemptQuality } from '../../../shared/constants';
-import { measurableAccesses, nextAttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
+import { qualityToSrsRating } from '../../../shared/constants';
+import { nextAttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
-import { demonstratesFor } from '../../utils/accessKnowledge';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
 import type { KnowledgeAspect } from '../../../shared/constants';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
@@ -154,13 +158,30 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return !!p && (p.position !== undefined || !!p.display);
   };
 
+  const knowledge = useKnowledgeProjection(() => {
+    const card = currentCard();
+    return card ? { language: languageForCard(card), surface: card.content.front } : undefined;
+  });
+
+  // Matrix rows: capabilities THIS card interaction tests (shared tested/supplied gate).
+  const testedAccesses = createMemo<readonly CapabilityKind[]>(() => {
+    const card = currentCard();
+    if (!card) return ['sense-recognition'] as const;
+    return getTestedAccesses({
+      languageData: languageDataForCard(card),
+      surface: card.content.front,
+      hasReadingData: cardHasReadingData(card),
+      hasProsodyData: cardHasProsodyData(card),
+    }).filter(capability => knowledge.capabilities().includes(capability));
+  });
+
   // Review modes available for the current card: language capability
   // (getAvailableAccesses) intersected with per-card data presence.
   const availableAspects = createMemo<KnowledgeAspect[]>(() => {
     const card = currentCard();
     if (!card) return ['meaning'];
-    const supported = getAvailableAccesses(languageDataForCard(card) ?? undefined);
-    const aspects: KnowledgeAspect[] = ['meaning'];
+    const supported = testedAccesses();
+    const aspects: KnowledgeAspect[] = supported.includes('sense-recognition') ? ['meaning'] : [];
     if (supported.includes('surface-reading')) aspects.push('reading');
     if (supported.includes('prosodic-pattern') && cardHasProsodyData(card)) aspects.push('prosody');
     return aspects;
@@ -171,147 +192,56 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return availableAspects().includes(mode) ? mode : 'meaning';
   });
 
-  // Fall back to meaning when the active mode is unavailable for the next card.
-  createEffect(on(
-    () => currentCard()?.id,
-    () => {
-      const mode = props.reviewMode ?? 'meaning';
-      if (mode !== 'meaning' && !availableAspects().includes(mode)) {
-        props.onReviewModeChange?.('meaning');
-      }
+  createEffect(() => {
+    if (knowledge.loading()) return;
+    const mode = props.reviewMode ?? 'meaning';
+    if (mode !== 'meaning' && !availableAspects().includes(mode)) {
+      props.onReviewModeChange?.('meaning');
     }
-  ));
+  });
 
   const modeOptions = createMemo(() => (
     availableAspects().map((aspect) => ({
       value: aspect,
-      label: t(aspect === 'meaning'
-        ? 'mlearn.Flashcards.Review.Modes.Meaning'
-        : aspect === 'reading'
-          ? 'mlearn.Flashcards.Review.Modes.Reading'
-          : 'mlearn.Flashcards.Review.Modes.Prosody'),
+      label: t(CAPABILITY_LABEL_KEYS[ASPECT_CAPABILITY[aspect]]),
     }))
   ));
 
-  // Matrix rows: capabilities THIS card interaction tests (shared tested/supplied gate).
-  const testedAccesses = createMemo(() => {
-    const card = currentCard();
-    if (!card) return ['sense-recognition'] as const;
-    return getTestedAccesses({
-      languageData: languageDataForCard(card),
-      surface: card.content.front,
-      hasReadingData: cardHasReadingData(card),
-      hasProsodyData: cardHasProsodyData(card),
-    });
-  });
-
-  // The scaffolds THIS card's retrieval actually saw (pre-reveal word audio,
-  // auto-played or requested). Task validity outranks convenience: an access
-  // the presentation supplies is never asked of the learner (the matrix row
-  // is dropped) and the card review is scheduled as scaffold-conditioned.
-  const attemptScaffolds = createMemo<AttemptScaffolds | undefined>(
-    () => (wordAudioPreReveal() ? { audio: true } : undefined),
-  );
-
-  const ratingMode = createMemo(() => currentDecision()?.encounter.task.ratingMode ?? 'profile');
-
-  // Word-presentation task: the written cue proves each access on the measured
-  // path was traversed (access-path decomposition; an audio-only task would
-  // pass []). Word-presentation evidence passes demonstratesFor(capability).
-  const handleRate = (capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => {
-    const card = currentCard();
-    if (!card || !showAnswer()) return;
-    const timing = stopTiming();
-
-    stopTts();
-    batch(() => {
-      setShowAnswer(false);
-      const { attemptId } = recordAttempt(card.content.front, capability, quality, {
-        language: languageForCard(card),
-        method: opts?.method,
-        demonstrated: demonstratesFor(capability),
-        ...(timing ? { timing } : {}),
-        taskType: 'srs-review',
-        ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
-      });
-      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, timing?.wallLatencyMs ?? 0, {
-        attemptId,
-        tested: testedAccesses(),
-        ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
-      });
-      if (completed) {
-        setCardsAnswered(prev => prev + 1);
-      }
-    });
-  };
-
-  const handleAllFluent = (opts?: RateOptions) => {
-    const card = currentCard();
-    if (!card || !showAnswer()) return;
-    const timing = stopTiming();
-
-    stopTts();
-    batch(() => {
-      setShowAnswer(false);
-      // One physical submit (Space/Enter all-fluent) = ONE logical attempt:
-      // every tested capability observation shares the same attemptId.
-      const attemptId = nextAttemptId();
-      for (const capability of testedAccesses()) {
-        recordAttempt(card.content.front, capability, 'fluent', {
-          language: languageForCard(card),
-          method: opts?.method,
-          demonstrated: demonstratesFor(capability),
-          ...(timing ? { timing } : {}),
-          attemptId,
-          taskType: 'srs-review',
-          ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
-        });
-      }
-      const completed = answerCard(qualityToSrsRating('fluent', opts?.easy), card.id, timing?.wallLatencyMs ?? 0, {
-        attemptId,
-        tested: testedAccesses(),
-        ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
-      });
-      if (completed) {
-        setCardsAnswered(prev => prev + 1);
-      }
-    });
-  };
-
-  const handleProfileSubmit = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
+  // Explicit whole-word / matrix submissions rate every tested capability —
+  // revealed cues change the evidence condition, not the rating surface.
+  // Scaffold provenance still travels on each observation (see below).
+  const handleBulkRate = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     const card = currentCard();
     if (!card || !showAnswer() || observations.length === 0) return;
     const timing = stopTiming();
-    const qualityRank: Record<AttemptQuality, number> = { missed: 0, struggled: 1, fluent: 2 };
-    const schedulerQuality = observations.reduce<AttemptQuality>(
-      (worst, observation) => qualityRank[observation.quality] < qualityRank[worst] ? observation.quality : worst,
-      'fluent',
-    );
+    const attemptId = nextAttemptId();
+    // A mixed profile schedules on its weakest evidence, matching the
+    // whole-word semantics: missed dominates struggled dominates fluent.
+    const quality = observations.some((observation) => observation.quality === 'missed')
+      ? 'missed'
+      : observations.some((observation) => observation.quality === 'struggled')
+        ? 'struggled'
+        : 'fluent';
 
     stopTts();
     batch(() => {
       setShowAnswer(false);
-      const attemptId = nextAttemptId();
       for (const observation of observations) {
         recordAttempt(card.content.front, observation.capability, observation.quality, {
           language: languageForCard(card),
-          method: observation.method ?? opts?.method,
-          demonstrated: demonstratesFor(observation.capability),
-          ...(timing ? { timing } : {}),
+          method: observation.method,
           attemptId,
+          ...(timing ? { timing } : {}),
           taskType: 'srs-review',
           ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
         });
       }
-      const completed = answerCard(qualityToSrsRating(
-        schedulerQuality,
-        schedulerQuality === 'fluent' && (opts?.easy ?? observations.every((observation) => observation.easy)),
-      ), card.id, timing?.wallLatencyMs ?? 0, {
+      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, timing?.wallLatencyMs ?? 0, {
         attemptId,
-        tested: testedAccesses(),
+        tested: observations.map((observation) => observation.capability as CapabilityKind),
         ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
       });
-      if (completed) setCardsAnswered(prev => prev + 1);
+      if (completed) setCardsAnswered((previous) => previous + 1);
     });
   };
 
@@ -734,17 +664,21 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           <Show when={!isComplete() && currentCard() && showAnswer()}>
             <div class="flashcard-rating-buttons">
               <RatingMatrix
-                capabilities={measurableAccesses(testedAccesses(), attemptScaffolds())}
+                capabilities={testedAccesses()}
                 keyboardMode={settings.ratingKeyboardMode}
                 armed={showAnswer() && !!currentCard() && !isComplete()}
-                mode={ratingMode()}
                 resetKey={currentCard()?.id}
-                compact
-                initialDraftsFluent={ratingMode() === 'profile'}
-                onRate={handleRate}
-                onAllFluent={handleAllFluent}
-                onProfileSubmit={handleProfileSubmit}
+                onSubmit={handleBulkRate}
               />
+              <Button buttonType="default" variant="ghost" size="xs" class="flashcard-rating-inspect" onClick={() => {
+                const card = currentCard();
+                if (!card) return;
+                const language = languageForCard(card);
+                const surface = card.content.front;
+                openKnowledgeInspector({ language, surface, target: { kind: 'surface', id: surfaceEntityId(language, hashWordSync(surface)) } });
+              }}>
+                {t('mlearn.Knowledge.Popup.Inspect')}
+              </Button>
             </div>
           </Show>
         </div>
@@ -759,8 +693,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             languageData={languageDataForCard(currentCard()!)}
             wordText={currentCard()!.content.front}
             exampleText={currentCard()!.content.example}
-            reading={currentCard()!.content.reading}
-            cardBack={currentCard()!.content.back}
           />
         </Show>
 

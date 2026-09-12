@@ -1260,7 +1260,7 @@
           "Title": "统计"
         },
         "WordDatabase": {
-          "Description": "浏览和管理您的追踪词汇",
+          "Description": "浏览词汇和学习记录",
           "Title": "单词数据库",
           "EmptyHint": "搜索单词",
           "NoMatches": "未找到匹配项",
@@ -1386,8 +1386,6 @@
     },
     "Rating": {
       "Compact": {
-        "AllFluent": "全部流利",
-        "AllEasy": "全部简单",
         "Adjust": "调整"
       },
       "Matrix": {
@@ -1395,16 +1393,13 @@
         "Struggled": "费劲",
         "Fluent": "流利",
         "Easy": "简单",
-        "AllFluent": "全部流利",
-        "EverythingElseFluent": "其余全部流利",
-        "AllFluentKey": "F",
-        "PendingHint": "先按等级（1–3），再按方面键"
+        "AllRow": "全部"
       }
     },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "意思",
-        "surface-recognition": "写法",
+        "surface-recognition": "识别此书写形式",
         "spoken-recognition": "读音",
         "surface-reading": "拼读",
         "pronunciation-production": "发音",
@@ -1441,7 +1436,7 @@
         "Excluded": "已排除出学习",
         "Why": {
           "Claim": "你的标记",
-          "Evidence": "来自 {count} 次 SRS 复习的证据",
+          "Evidence": "已记录的观察：{count}",
           "Predicted": "根据图谱支持预测",
           "PredictedLinks": "通过 {count} 条图谱支持路径预测",
           "Passive": "阅读中见过 {count} 次 — 被动接触只是熟悉度，不是证据",
@@ -1505,7 +1500,8 @@
           "Sections": {
             "Meanings": "释义",
             "Forms": "写法",
-            "Related": "关联词"
+            "Related": "关联词",
+            "Properties": "属性"
           },
           "MeaningN": "释义 {n}",
           "GrammarPattern": "语法句型",
@@ -1522,7 +1518,6 @@
         "Orthography": "写法"
       },
       "AspectInherited": "(继承)",
-      "Untracked": "未追踪",
       "History": {
         "Empty": "暂无知识历史。",
         "Today": "今天",
@@ -1532,7 +1527,8 @@
           "Review": "复习",
           "Rating": "手动评级",
           "Rollup": "被动接触",
-          "Claim": "手动标记"
+          "Claim": "手动标记",
+          "SourceSnapshot": "旧版 Anki 状态快照"
         },
         "Source": {
           "KnownWordsList": "已知词列表",
@@ -1556,7 +1552,8 @@
       "EvidenceSource": {
         "Prefix": "证据来源：",
         "None": "无"
-      }
+      },
+      "Unmeasured": "尚未评估"
     },
     "LevelStudy": {
       "Title": "等级学习",
@@ -3070,7 +3067,8 @@
         "Knowledge": "知识",
         "TrackedBy": "追踪来源",
         "Translation": "翻译",
-        "Word": "单词"
+        "Word": "单词",
+        "Integrations": "卡片与集成"
       },
       "EditTranslation": {
         "PitchError": "获取音调核数据失败",
@@ -3101,7 +3099,13 @@
         "Nothing": "无跟踪器"
       },
       "Title": "单词数据库",
-      "AdvancedFilters": "Advanced Filters"
+      "AdvancedFilters": "Advanced Filters",
+      "Integrations": {
+        "Flashcard": "mLearn 卡片",
+        "Anki": "Anki",
+        "Ignored": "已排除复习",
+        "AddFlashcard": "添加 mLearn 卡片"
+      }
     },
     "WordHover": {
       "AddToAnki": "添加到 Anki",
@@ -3142,7 +3146,9 @@
       "AnkiEase": "Anki 难度系数：{ease}",
       "AnkiUpdateSuccess": "已更新 {count} 张 Anki 卡片",
       "AnkiUpdateRepositioned": "已更新 {count} 张卡片，重新定位了 {repositioned} 张新卡片",
-      "AnkiUpdateFailed": "更新 Anki 卡片失败"
+      "AnkiUpdateFailed": "更新 Anki 卡片失败",
+      "CardScheduling": "卡片调度",
+      "FlashcardAddFailed": "无法添加闪卡"
     },
     "ConnectionStatus": {
       "Connected": "已连接",
@@ -3176,10 +3182,6 @@
       "WordCount": "{count} 个单词"
     },
     "WordSync": {
-      "Rating": {
-        "AllRow": "全部",
-        "PendingHint": "先按等级（1–4），再按方面键；再次按同一等级即可评定全部方面"
-      },
       "Statement": {
         "Label": "换个方式描述",
         "KnownSpoken": "听到这个单词我认识。",

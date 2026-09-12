@@ -6,8 +6,8 @@
 .search-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 1rem;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
   background: var(--bg);
   border-bottom: 1px solid var(--border-color);
   flex-wrap: wrap;
@@ -16,10 +16,23 @@
 .search-bar input, .search-bar select, .search-bar button{
   app-region: no-drag;
 }
-.search-input {
-  flex: 1;
-  min-width: 200px;
-  margin-left: var(--window-controls-inline-start-inset);
+.word-db-editor .search-bar > div:has(.search-input) {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin-inline-start: var(--window-controls-inline-start-inset);
+}
+
+.word-db-editor .search-input {
+  min-width: 0;
+}
+
+.word-db-editor .search-bar > .hint-text {
+  flex-basis: 100%;
+}
+
+.word-db-editor .search-bar > div:has(.mode-select) {
+  max-width: 100%;
+  min-width: 0;
 }
 
 .level-select {
@@ -68,4 +81,15 @@
 .search-bar-advanced-content {
   flex-basis: 100%;
   app-region: no-drag;
+}
+
+@container (max-width: 639px) {
+  .word-db-editor .search-bar > div:has(.search-input) {
+    flex-basis: calc(100% - var(--window-controls-inline-start-inset));
+  }
+
+  .word-db-editor .mode-select {
+    min-width: 0;
+    max-width: 100%;
+  }
 }

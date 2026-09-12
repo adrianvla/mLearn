@@ -1,3 +1,4 @@
+import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { eventCapability } from '../../shared/knowledgeEvents';
@@ -21,6 +22,7 @@ import {
   foldFromArchive,
   isAggregatableEvent,
   KNOWLEDGE_ARCHIVE_TAIL_MS,
+  KNOWLEDGE_MEASURABLE_VERSION,
   KNOWLEDGE_ACQUISITION_WINDOW_MS,
   rebuildBucketFromRecords,
   type BucketArchive,
@@ -53,7 +55,9 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   // aspect value OR a canonical targetRef.capability (core or namespaced
   // package id). Aspect-less capability-addressed events are the new normal.
   if (event.kind === 'retraction') return isAttemptId(event.retracts);
-  if (event.aspect === undefined && !isValidCapabilityId(event.targetRef?.capability)) return false;
+  const schedulerOnly = event.kind === 'review' && isAttemptId(event.attemptId)
+    && typeof event.schedulerCardId === 'string' && event.schedulerCardId.length > 0;
+  if (!schedulerOnly && event.aspect === undefined && !isValidCapabilityId(event.targetRef?.capability)) return false;
   if (event.aspect !== undefined && !VALID_ASPECTS.has(event.aspect)) return false;
   if (event.attemptId !== undefined && !isAttemptId(event.attemptId)) return false;
   if (event.presentedSurface !== undefined && typeof event.presentedSurface !== 'string') return false;
@@ -81,6 +85,7 @@ export const COMPACTION_KEY_BUDGET = 200;
 
 export interface KeyKnowledgeState {
   projection: ReplayProjection | null;
+  capabilities?: Record<string, ReplayProjection>;
   /** True when the key has an archive (aggregated old evidence exists). */
   hasArchive: boolean;
   /** Rows summarized by the archive. */
@@ -422,7 +427,53 @@ export class KnowledgeHistoryStore {
 
   private readArchive(key: string): KeyArchive | undefined {
     const row = this.db.prepare('SELECT json FROM archives WHERE key = ?').get(key) as { json?: string } | undefined;
-    return row?.json ? (JSON.parse(row.json) as KeyArchive) : undefined;
+    if (!row?.json) return undefined;
+    const archive = JSON.parse(row.json) as KeyArchive;
+    if (archive.measurableVersion === KNOWLEDGE_MEASURABLE_VERSION) return archive;
+    let incomplete = false;
+    const now = Date.now();
+    for (const [bucketKey, bucket] of Object.entries(archive.buckets)) {
+      const blob = this.db.prepare('SELECT recs FROM bucket_recs WHERE key = ? AND bucket = ?')
+        .get(key, bucketKey) as { recs?: Uint8Array } | undefined;
+      const attempts = this.db.prepare('SELECT rec FROM attempt_index WHERE key = ? AND bucket = ?')
+        .all(key, bucketKey) as Array<{ rec: Uint8Array }>;
+      const records = blob?.recs ? decodeBucketRecords(blob.recs) : [];
+      for (const { rec } of attempts) {
+        const decoded = decodeAttemptRecord(rec);
+        if (decoded) records.push(decoded);
+      }
+      if (records.length === bucket.rowCount) {
+        const rebuilt = rebuildBucketFromRecords(bucketKey, records, now);
+        bucket.measurableFold = rebuilt.measurableFold;
+        bucket.ratings = rebuilt.ratings;
+        bucket.latency = rebuilt.latency;
+        bucket.sourceSeen = rebuilt.sourceSeen;
+        bucket.lastDirect = rebuilt.lastDirect;
+        bucket.methodStats = rebuilt.methodStats;
+        archive.weekPoints = [...archive.weekPoints.filter((point) => point.b !== bucketKey), ...rebuilt.points];
+      } else {
+        // Preserve the audit fold and row counts; missing records cannot prove which
+        // old observations were genuine reviews rather than scheduler snapshots.
+        incomplete = true;
+        bucket.measurableFold = emptyKeyFold();
+        bucket.ratings = [];
+        bucket.latency = { count: 0, sum: 0 };
+        delete bucket.sourceSeen;
+        delete bucket.lastDirect;
+        delete bucket.methodStats;
+        for (const point of archive.weekPoints) {
+          if (point.b === bucketKey) { delete point.ease; delete point.source; }
+        }
+      }
+    }
+    archive.weekPoints.sort((a, b) => a.w - b.w);
+    archive.measurableVersion = KNOWLEDGE_MEASURABLE_VERSION;
+    if (incomplete) {
+      archive.measurableRebuildIncomplete = true;
+      log.warn('Legacy knowledge archive lacks complete observation records; measurable support withheld for key:', key);
+    }
+    this.db.prepare('UPDATE archives SET json = ? WHERE key = ?').run(JSON.stringify(archive), key);
+    return archive;
   }
 
   private checkpoint(key: string): CheckpointRow | undefined {
@@ -608,6 +659,7 @@ export class KnowledgeHistoryStore {
     }
     return {
       projection: projectKeyFold(fold),
+      capabilities: projectCapabilities(rowsWithSeq(this.db, key), archive),
       ...(fold.statusMarkers ? { statusMarkers: fold.statusMarkers } : {}),
       hasArchive: archive !== undefined,
       archivedEventCount,

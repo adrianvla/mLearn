@@ -13,7 +13,6 @@ import {
   initTimeWatched,
 } from '../../../services/statsService';
 import { computeWordLevelStats } from '../../../utils/wordLevelStats';
-import { buildAnkiStatusKeySets } from '../../../services/ankiWordsCache';
 import './StatsTab.css';
 
 export const StatsTab: Component = () => {
@@ -29,20 +28,11 @@ export const StatsTab: Component = () => {
       store,
       getWordFrequency(),
       settings.language,
-      settings.known_ease_threshold,
-      settings.srsLearningThreshold,
+      settings.easeThresholdKnown * 1000,
+      settings.easeThresholdLearning * 1000,
       getFreqLevelNames(),
       currentLangData(),
       getCanonicalFormForLanguage,
-      settings.use_anki
-        ? buildAnkiStatusKeySets(
-          settings.language,
-          settings.ankiLearningThreshold,
-          settings.ankiKnownThreshold,
-          (word) => [getCanonicalFormForLanguage(settings.language, word)],
-          currentLangData(),
-        )
-        : undefined,
     ),
   );
 

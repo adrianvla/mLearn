@@ -153,6 +153,24 @@ export class LinguisticGraphService {
     const limit = Math.min(Math.max(query.limit ?? 80, 1), 200);
     const relationTypes = COMPACT_RELATION_TYPES.filter((type) => !classes || classes.has(RELATION_CATEGORY[type]));
     const relations = this.related(loaded.graph, query.entityId, relationTypes).slice(0, limit);
+    // Lexical properties belong to the entry/lexeme realized by a surface.
+    // Follow only those identity links, never semantic-support siblings.
+    if (center.kind === 'surface' && relations.length < limit) {
+      const lexicalNodes = this.related(loaded.graph, query.entityId, ['realizes', 'lemma-of', 'inflection-of']);
+      const propertyTypes = relationTypes.filter((type) => RELATION_CATEGORY[type] === 'property');
+      const seen = new Set(relations.map((node) => `${node.relationType}:${node.id}`));
+      for (const lexicalNode of lexicalNodes) {
+        if (lexicalNode.kind !== 'dictionary-entry' && lexicalNode.kind !== 'lexeme') continue;
+        for (const property of this.related(loaded.graph, lexicalNode.id, propertyTypes)) {
+          if (relations.length >= limit) break;
+          const key = `${property.relationType}:${property.id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          relations.push(property);
+        }
+        if (relations.length >= limit) break;
+      }
+    }
     const centerStates = center.kind === 'surface' ? await this.centerStates(loaded, language, query.entityId) : undefined;
     return { center, centerDenseId: dense, relationCount: relations.length, relations, ...(centerStates?.length ? { centerStates } : {}) };
   }
@@ -249,7 +267,8 @@ export class LinguisticGraphService {
           .filter((leaf) => {
             if (!leaf.entryId.startsWith(prefix)) return false;
             const state = states[`${language}:${leaf.entryId.slice(prefix.length)}`];
-            return state?.projection ? easeToStatus(state.projection.ease) === 'known' : false;
+            const meaning = state?.capabilities?.['sense-recognition'];
+            return meaning ? (meaning.claim ?? easeToStatus(meaning.ease)) === 'known' : false;
           })
           .map((leaf) => leaf.lemma),
       );

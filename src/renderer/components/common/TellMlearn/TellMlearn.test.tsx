@@ -93,6 +93,15 @@ describe('TellMlearn', () => {
     emit(callbacks);
   };
 
+  it('uses the shared textarea with an accessible name and no native resize control', () => {
+    const dispose = renderField();
+    container.querySelector<HTMLButtonElement>('.tell-mlearn__toggle')?.click();
+    const input = container.querySelector<HTMLTextAreaElement>('.tell-mlearn__input');
+    expect(input?.getAttribute('aria-label')).toBe('Tell mLearn…');
+    expect(input?.style.resize).toBe('none');
+    dispose();
+  });
+
   it('applies parsed tool calls and renders the deterministic summary (acceptance M)', async () => {
     const dispose = renderField();
     await sendStatement('I know this word when I hear it.', (cbs) => {

@@ -1,3 +1,4 @@
+import type { AnkiWordStatusRecord } from '../../shared/backends/types';
 import { getBackend } from '../../shared/backends';
 import { getBridge } from '../../shared/bridges';
 import { getLogger } from '../../shared/utils/logger';
@@ -7,6 +8,7 @@ import type { AnkiCardInfo } from '../hooks/useAnki';
 import { appendEvents } from './knowledgeEvents';
 import { hashWordSync } from './srsAlgorithm';
 import { grammarEvidenceKey, grammarTarget, type GrammarCapability } from '../../shared/grammar/evidence';
+import { surfaceEntityId } from '../../shared/graph/load';
 import type { GrammarPoint } from '../../shared/types';
 
 const log = getLogger('renderer.services.ankiReviewImport');
@@ -29,6 +31,8 @@ export interface AnkiReviewImportResult {
 }
 
 export interface AnkiReviewImportDeps {
+  /** Cache refresh supplies only changed cards; manual import reads all cards. */
+  statuses?: readonly AnkiWordStatusRecord[];
   fetchReviews: (cardIds: number[]) => Promise<Record<string, AnkiReviewEntry[]>>;
   /** Optional card metadata enables conservative grammar imports from explicit card text. */
   fetchCards?: (cardIds: number[]) => Promise<AnkiCardInfo[]>;
@@ -37,7 +41,7 @@ export interface AnkiReviewImportDeps {
 
 function toReviewEvent(entry: AnkiReviewEntry, easeBefore: number | undefined): KnowledgeEvent | null {
   // Revlog type 3 = filtered/cram, 4 = manual reschedule — not knowledge evidence.
-  if (entry.type > 2) return null;
+  if (entry.type < 0 || entry.type > 2 || !Number.isInteger(entry.type) || RATING_BY_BUTTON[entry.ease] === undefined) return null;
   return {
     t: entry.id,
     kind: 'review',
@@ -150,7 +154,7 @@ export function mapAnkiGrammarReviews(params: {
     const key = grammarEvidenceKey(params.language, point.pattern, capability);
     const existing = params.existingReviewIdsByTarget.get(key) ?? new Set<number>();
     for (const review of params.reviews) {
-      if (review.type > 2 || existing.has(review.id)) continue;
+      if (!toReviewEvent(review, undefined) || existing.has(review.id)) continue;
       events.push({
         key,
         event: {
@@ -183,7 +187,7 @@ export async function importAnkiReviewHistory(
   language: string,
   deps: AnkiReviewImportDeps,
 ): Promise<AnkiReviewImportResult> {
-  const statuses = await getBackend().getAnkiWordStatuses();
+  const statuses = deps.statuses ?? await getBackend().getAnkiWordStatuses();
   const byWord = new Map<string, number[]>();
   for (const record of statuses) {
     if (record.cardId == null) continue;
@@ -242,7 +246,11 @@ export async function importAnkiReviewHistory(
           skipped++;
           continue;
         }
+        event.targetRef = { kind: 'surface', id: surfaceEntityId(language, hashWordSync(word)), capability: 'sense-recognition' };
+        event.presentedSurface = word;
+        event.schedulerCardId = String(cardId);
         wordEvents.push(event);
+        existingIds.add(entry.id);
       }
       const card = cardsById.get(cardId);
       if (card && deps.grammar) {

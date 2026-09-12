@@ -1260,7 +1260,7 @@
           "Title": "Statistiques"
         },
         "WordDatabase": {
-          "Description": "Parcourir et gérer votre vocabulaire suivi",
+          "Description": "Parcourir le vocabulaire et les observations d’apprentissage",
           "Title": "Base de mots",
           "EmptyHint": "Rechercher un mot",
           "NoMatches": "Aucun résultat",
@@ -1386,8 +1386,6 @@
     },
     "Rating": {
       "Compact": {
-        "AllFluent": "Tout fluide",
-        "AllEasy": "Tout facile",
         "Adjust": "Ajuster"
       },
       "Matrix": {
@@ -1395,16 +1393,13 @@
         "Struggled": "Laborieux",
         "Fluent": "Fluide",
         "Easy": "Facile",
-        "AllFluent": "Tout était fluide",
-        "EverythingElseFluent": "Le reste était fluide",
-        "AllFluentKey": "F",
-        "PendingHint": "Qualité (1–3), puis touche d’aspect"
+        "AllRow": "Tout"
       }
     },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "Sens",
-        "surface-recognition": "Forme écrite",
+        "surface-recognition": "Reconnaître cette forme écrite",
         "spoken-recognition": "Forme orale",
         "surface-reading": "Lecture",
         "pronunciation-production": "Prononciation",
@@ -1441,7 +1436,7 @@
         "Excluded": "Exclu de l’apprentissage",
         "Why": {
           "Claim": "Votre déclaration",
-          "Evidence": "Preuves issues de {count} révisions SRS",
+          "Evidence": "Observations enregistrées : {count}",
           "Predicted": "Prédit d’après le support du graphe",
           "PredictedLinks": "Prédit via {count} chemins de support du graphe",
           "Passive": "Vu {count} fois en lecture — l’exposition passive est de la familiarité, pas une preuve",
@@ -1505,7 +1500,8 @@
           "Sections": {
             "Meanings": "Sens",
             "Forms": "Formes écrites",
-            "Related": "Apparentés"
+            "Related": "Apparentés",
+            "Properties": "Propriétés"
           },
           "MeaningN": "Sens {n}",
           "GrammarPattern": "Motif grammatical",
@@ -1522,7 +1518,6 @@
         "Orthography": "Forme écrite"
       },
       "AspectInherited": "(hérité)",
-      "Untracked": "Non suivi",
       "History": {
         "Empty": "Pas encore d'historique de connaissance.",
         "Today": "Aujourd'hui",
@@ -1532,7 +1527,8 @@
           "Review": "Révision",
           "Rating": "Évaluation manuelle",
           "Rollup": "Exposition passive",
-          "Claim": "Affirmation"
+          "Claim": "Affirmation",
+          "SourceSnapshot": "Ancien état Anki"
         },
         "Source": {
           "KnownWordsList": "Liste de mots connus",
@@ -1556,7 +1552,8 @@
       "EvidenceSource": {
         "Prefix": "Source de preuve : ",
         "None": "Aucune"
-      }
+      },
+      "Unmeasured": "Non évalué"
     },
     "LevelStudy": {
       "Title": "Étude par niveau",
@@ -3070,7 +3067,8 @@
         "Knowledge": "Connaissance",
         "TrackedBy": "Suivi par",
         "Translation": "Traduction",
-        "Word": "Mot"
+        "Word": "Mot",
+        "Integrations": "Cartes et intégrations"
       },
       "EditTranslation": {
         "PitchError": "Échec de la récupération des données d'accent tonal",
@@ -3101,7 +3099,13 @@
         "Nothing": "Aucun tracker"
       },
       "Title": "Base de mots",
-      "AdvancedFilters": "Advanced Filters"
+      "AdvancedFilters": "Advanced Filters",
+      "Integrations": {
+        "Flashcard": "Carte mLearn",
+        "Anki": "Anki",
+        "Ignored": "Exclu des révisions",
+        "AddFlashcard": "Ajouter une carte mLearn"
+      }
     },
     "WordHover": {
       "AddToAnki": "Ajouter à Anki",
@@ -3142,7 +3146,9 @@
       "AnkiEase": "Aisance Anki : {ease}",
       "AnkiUpdateSuccess": "{count} carte(s) Anki mise(s) à jour",
       "AnkiUpdateRepositioned": "{count} carte(s) mise(s) à jour, {repositioned} nouvelle(s) carte(s) repositionnée(s)",
-      "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki"
+      "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki",
+      "CardScheduling": "Planification de la carte",
+      "FlashcardAddFailed": "Impossible d’ajouter la carte"
     },
     "ConnectionStatus": {
       "Connected": "Connecté",
@@ -3176,10 +3182,6 @@
       "WordCount": "{count} mots"
     },
     "WordSync": {
-      "Rating": {
-        "AllRow": "Tout",
-        "PendingHint": "Qualité 1–4, puis touche d’aspect – appuyez de nouveau sur la qualité pour tous les aspects"
-      },
       "Statement": {
         "Label": "Décrire autrement",
         "KnownSpoken": "Je connais ce mot quand je l'entends.",

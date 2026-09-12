@@ -3,9 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
-import { RatingMatrix, type RateOptions } from './RatingMatrix';
-import type { AttemptQuality } from '../../../../shared/constants';
-import type { CapabilityKind } from '../../../../shared/graph/types';
+import { RatingMatrix } from './RatingMatrix';
+import type { CapabilityKey } from '../../../../shared/graph/types';
 
 const mockT = (key: string): string => key;
 
@@ -13,12 +12,10 @@ vi.mock('../../../context', () => ({
   useLocalization: () => ({ t: mockT }),
 }));
 
-describe('RatingMatrix', () => {
+describe('RatingMatrix (canonical rating control)', () => {
   let container: HTMLDivElement;
   let dispose: (() => void) | null = null;
-  const onRate = vi.fn();
-  const onAllFluent = vi.fn();
-  const onProfileSubmit = vi.fn();
+  const onSubmit = vi.fn();
   const CAPABILITIES = ['sense-recognition', 'surface-reading', 'prosodic-pattern', 'surface-recognition'] as const;
 
   const key = (k: string, opts: KeyboardEventInit = {}) => {
@@ -27,8 +24,9 @@ describe('RatingMatrix', () => {
 
   const renderMatrix = (
     keyboardMode: 'mnemonic' | 'spatial' = 'mnemonic',
-    capabilities: readonly CapabilityKind[] = CAPABILITIES,
-    compact = false,
+    capabilities: readonly CapabilityKey[] = CAPABILITIES,
+    armed = true,
+    resetKey?: () => string | number,
   ) => {
     dispose?.();
     dispose = render(
@@ -36,16 +34,23 @@ describe('RatingMatrix', () => {
         <RatingMatrix
           capabilities={capabilities}
           keyboardMode={keyboardMode}
-          armed
-          compact={compact}
-          onRate={(capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => onRate(capability, quality, opts)}
-          onAllFluent={(opts?: RateOptions) => onAllFluent(opts)}
-          onProfileSubmit={(observations) => onProfileSubmit(observations)}
+          armed={armed}
+          resetKey={resetKey ? resetKey() : 'word-1'}
+          onSubmit={(observations, opts) => onSubmit(observations, opts)}
         />
       ),
       container,
     );
   };
+
+  const adjust = () => {
+    const button = container.querySelector<HTMLButtonElement>('.rating-matrix__adjust');
+    if (!button) throw new Error('Missing Adjust toggle');
+    button.click();
+    return button;
+  };
+
+  const rows = () => Array.from(container.querySelectorAll('.rating-matrix__row'));
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -61,336 +66,174 @@ describe('RatingMatrix', () => {
     container.remove();
   });
 
-  it('mnemonic chord: 1 then R rates surface-reading missed', () => {
-    renderMatrix('mnemonic');
+  it('collapsed digits rate the whole word exactly once; strays are absorbed', () => {
+    renderMatrix();
     key('1');
-    key('r');
-    expect(onRate).toHaveBeenCalledWith('surface-reading', 'missed', undefined);
-  });
-
-  it('a lone quality key arms the chord with an immediate hint and no mutation', () => {
-    renderMatrix('mnemonic');
-    key('2');
-    expect(onRate).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('mlearn.Rating.Matrix.PendingHint');
-    // Pending column hints expose the valid continuations.
-    expect(container.textContent).toContain('2+R');
-  });
-
-  it('the pending chord expires silently after ~1.5s', () => {
-    vi.useFakeTimers();
-    try {
-      renderMatrix('mnemonic');
-      key('1');
-      vi.advanceTimersByTime(1600);
-      expect(onRate).not.toHaveBeenCalled();
-      expect(container.textContent).not.toContain('mlearn.Rating.Matrix.PendingHint');
-      // Expired chord is inert: a later letter does nothing.
-      key('r');
-      expect(onRate).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('Escape cancels a pending chord immediately', () => {
-    renderMatrix('mnemonic');
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [observations, opts] = onSubmit.mock.calls[0];
+    expect(observations.map((o: { capability: string }) => o.capability)).toEqual([...CAPABILITIES]);
+    expect(observations.every((o: { quality: string }) => o.quality === 'missed')).toBe(true);
+    expect(opts).toBeUndefined();
     key('3');
-    key('Escape');
-    expect(container.textContent).not.toContain('mlearn.Rating.Matrix.PendingHint');
-    key('m');
-    expect(onRate).not.toHaveBeenCalled();
-  });
-
-  it('Alt marks the attempt as worked out (method=inference)', () => {
-    renderMatrix('mnemonic');
     key('1');
-    key('m', { altKey: true });
-    expect(onRate).toHaveBeenCalledWith('sense-recognition', 'missed', { method: 'inference' });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  it('spatial mode: keys mean quality column × displayed row, not fixed capabilities', () => {
+  it('Alt marks a collapsed whole-word rating as worked out', () => {
+    renderMatrix();
+    key('2', { altKey: true });
+    const [observations, opts] = onSubmit.mock.calls[0];
+    expect(observations.every((o: { method?: string }) => o.method === 'inference')).toBe(true);
+    expect(opts).toEqual({ method: 'inference' });
+  });
+
+  it('collapsed Easy is fluent evidence plus the scheduler preference', () => {
+    renderMatrix();
+    key('4');
+    const [observations, opts] = onSubmit.mock.calls[0];
+    expect(observations.every((o: { quality: string; easy?: boolean }) => o.quality === 'fluent' && o.easy === true)).toBe(true);
+    expect(opts).toEqual({ easy: true });
+  });
+
+  it('does nothing while disarmed', () => {
+    renderMatrix('mnemonic', CAPABILITIES, false);
+    expect(Array.from(container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')).every((b) => b.disabled)).toBe(true);
+    key('1');
+    adjust();
+    key('1');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('Adjust unfolds the All row plus every tested capability, package keys included', () => {
+    renderMatrix('mnemonic', ['sense-recognition', 'trainer::tone' as CapabilityKey]);
+    expect(container.querySelector('.rating-matrix__unfold')).toBeNull();
+    const button = adjust();
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    const labels = rows().map((row) => row.querySelector('.rating-matrix__label')?.textContent);
+    expect(labels).toEqual(['mlearn.Rating.Matrix.AllRow', 'mlearn.Knowledge.Capability.sense-recognition', 'trainer::tone']);
+  });
+
+  it('expanded mnemonic digits arm the pending column; the same digit again is the All row', () => {
+    renderMatrix();
+    adjust();
+    key('3');
+    expect(container.querySelector('.rating-matrix__col--pending')?.textContent).toBe('mlearn.Rating.Matrix.Fluent');
+    expect(onSubmit).not.toHaveBeenCalled();
+    key('3');
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [observations] = onSubmit.mock.calls[0];
+    expect(observations.every((o: { quality: string }) => o.quality === 'fluent')).toBe(true);
+  });
+
+  it('mnemonic chords draft their row; partial states never submit', () => {
+    renderMatrix();
+    adjust();
+    key('1');
+    key('m'); // sense-recognition missed
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(container.querySelectorAll('.rating-matrix__cell--selected').length).toBe(1);
+    key('2');
+    key('r'); // surface-reading struggled
+    expect(onSubmit).not.toHaveBeenCalled();
+    key('1');
+    key('p'); // prosodic-pattern missed
+    expect(onSubmit).not.toHaveBeenCalled();
+    key('3');
+    key('w'); // surface-recognition fluent — the word completes
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [observations] = onSubmit.mock.calls[0];
+    expect(observations.map((o: { capability: string; quality: string }) => `${o.capability}:${o.quality}`)).toEqual([
+      'sense-recognition:missed',
+      'surface-reading:struggled',
+      'prosodic-pattern:missed',
+      'surface-recognition:fluent',
+    ]);
+  });
+
+  it('a fully-Easy drafted completion carries the easy scheduler preference', () => {
+    renderMatrix('mnemonic', ['sense-recognition', 'surface-reading']);
+    adjust();
+    key('4');
+    key('m'); // sense easy
+    key('4');
+    key('r'); // reading easy — the word completes
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [observations, opts] = onSubmit.mock.calls[0];
+    expect(observations.every((o: { quality: string; easy?: boolean }) => o.quality === 'fluent' && o.easy === true)).toBe(true);
+    expect(opts).toEqual({ easy: true });
+  });
+
+  it('the All row keeps explicit drafts and fills only the untouched rows', () => {
+    renderMatrix();
+    adjust();
+    key('1');
+    key('m'); // explicit sense miss
+    key('3');
+    key('3'); // All fluent
+    const [observations] = onSubmit.mock.calls[0];
+    const byCapability = Object.fromEntries(observations.map((o: { capability: string; quality: string }) => [o.capability, o.quality]));
+    expect(byCapability).toEqual({
+      'sense-recognition': 'missed',
+      'surface-reading': 'fluent',
+      'prosodic-pattern': 'fluent',
+      'surface-recognition': 'fluent',
+    });
+  });
+
+  it('spatial mode maps digits to the All row and QWER/ASDF/ZXCV/7890 to rows', () => {
     renderMatrix('spatial');
-    // Row 2 is surface-reading here…
-    key('q');
-    expect(onRate).toHaveBeenCalledWith('surface-reading', 'missed', undefined);
-    // …but with different rows displayed, the SAME key hits a different capability.
-    onRate.mockClear();
-    renderMatrix('spatial', ['sense-recognition', 'surface-recognition']);
-    key('q');
-    expect(onRate).toHaveBeenCalledWith('surface-recognition', 'missed', undefined);
-    // 'e' = fluent × row 2 of the CURRENT matrix (surface-recognition with these rows).
-    key('e');
-    expect(onRate).toHaveBeenCalledWith('surface-recognition', 'fluent', undefined);
+    adjust();
+    key('w'); // row 1 (sense), struggled
+    key('a'); // row 2 (reading), missed
+    expect(onSubmit).not.toHaveBeenCalled();
+    key('3'); // All row — completes with the held drafts standing
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [observations] = onSubmit.mock.calls[0];
+    const byCapability = Object.fromEntries(observations.map((o: { capability: string; quality: string }) => [o.capability, o.quality]));
+    expect(byCapability).toEqual({
+      'sense-recognition': 'struggled',
+      'surface-reading': 'missed',
+      'prosodic-pattern': 'fluent',
+      'surface-recognition': 'fluent',
+    });
   });
 
-  it('rows beyond the fourth spatial row are click-only', () => {
-    renderMatrix('spatial', [...CAPABILITIES, 'gender']);
-    key('p'); // 'p' is not a spatial key — nothing fires
-    expect(onRate).not.toHaveBeenCalled();
-    // Fifth row (Gender) still renders and clicks.
-    const rows = container.querySelectorAll('.rating-matrix__row');
-    expect(rows.length).toBe(5);
-    const genderCells = rows[4].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell');
-    expect(genderCells[0].textContent).toContain('·');
-    genderCells[1].click();
-    expect(onRate).toHaveBeenCalledWith('gender', 'struggled', undefined);
+  it('spatial rows beyond the table are click-only (hint dot, no key route)', () => {
+    renderMatrix('spatial', ['sense-recognition', 'surface-reading', 'gender' as CapabilityKey, 'spoken-recognition', 'trainer::evidentiality' as CapabilityKey]);
+    adjust();
+    const lastRow = rows()[5];
+    expect(lastRow.querySelectorAll('.rating-matrix__cell')[0].textContent).toContain('·');
+    key('7'); // row 4 (spoken) — the last keyed row, never the fifth
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(rows()[4].querySelectorAll('.rating-matrix__cell')[0].classList).toContain('rating-matrix__cell--selected');
+    lastRow.querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[1].click(); // click-only row
+    key('2'); // All struggled — completes; the explicit click draft stands
+    const [observations] = onSubmit.mock.calls[0];
+    expect(observations[4]).toMatchObject({ capability: 'trainer::evidentiality', quality: 'struggled' });
+    expect(observations[3]).toMatchObject({ capability: 'spoken-recognition', quality: 'missed' });
   });
 
-  it('F is the explicit all-tested fluent quick action; Shift adds easy; Alt adds inference', () => {
-    renderMatrix('mnemonic');
-    key('f');
-    expect(onAllFluent).toHaveBeenCalledWith(undefined);
-    onAllFluent.mockClear();
-    key('f', { shiftKey: true });
-    expect(onAllFluent).toHaveBeenCalledWith({ easy: true });
-    onAllFluent.mockClear();
-    key('f', { altKey: true });
-    expect(onAllFluent).toHaveBeenCalledWith({ method: 'inference' });
-  });
-
-  it('Space and Enter never submit a rating', () => {
-    renderMatrix('mnemonic');
-    key(' ');
-    key('Enter');
-    expect(onRate).not.toHaveBeenCalled();
-    expect(onAllFluent).not.toHaveBeenCalled();
-  });
-
-  it('auto-repeat and typing-in-field keydowns are ignored', () => {
-    renderMatrix('mnemonic');
-    key('1', { repeat: true });
-    expect(container.textContent).not.toContain('mlearn.Rating.Matrix.PendingHint');
-    const input = document.createElement('input');
-    container.appendChild(input);
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
-    expect(onRate).not.toHaveBeenCalled();
-  });
-
-
-  it('places Easy as a divider-separated scheduling modifier beside Fluent', () => {
-    renderMatrix('mnemonic');
-    const head = container.querySelector('.rating-matrix__head')!;
-    expect(head.querySelector('.rating-matrix__col--easy')?.textContent).toBe('mlearn.Rating.Matrix.Easy');
-
-    const children = Array.from(container.querySelectorAll('.rating-matrix__row')[0].children);
-    // quality group is three buttons; the fourth slot is the fluent-adjust
-    // group holding a divider and the Easy modifier button.
-    const adjust = children[4] as HTMLElement;
-    expect(adjust.className).toContain('rating-matrix__fluent-adjust');
-    expect(adjust.querySelector('.rating-matrix__divider')).not.toBeNull();
-    expect(adjust.querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0].className).toContain('rating-matrix__cell--easy');
-
-    adjust.querySelector<HTMLButtonElement>('.rating-matrix__cell--easy')!.click();
-    expect(onRate).toHaveBeenCalledWith('sense-recognition', 'fluent', { easy: true });
-  });
-
-  it('keeps rating chords armed while the compact matrix is collapsed', () => {
-    renderMatrix('mnemonic', CAPABILITIES, true);
-    expect(container.querySelector('.rating-matrix')?.hasAttribute('hidden')).toBe(true);
-    key('1');
-    key('m');
-    expect(onRate).toHaveBeenCalledWith('sense-recognition', 'missed', undefined);
-    expect(container.querySelector('.rating-matrix')?.hasAttribute('hidden')).toBe(true);
-  });
-
-  // ── Profile mode (Word Sync calibration) ────────────────────────────────
-  const renderProfile = (keyboardMode: 'mnemonic' | 'spatial' = 'mnemonic', capabilities: readonly CapabilityKind[] = CAPABILITIES) => {
-    dispose?.();
-    dispose = render(
-      () => (
-        <RatingMatrix
-          capabilities={capabilities}
-          keyboardMode={keyboardMode}
-          mode="profile"
-          resetKey={resetKey()}
-          armed
-          onRate={(capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => onRate(capability, quality, opts)}
-          onProfileSubmit={(observations) => onProfileSubmit(observations)}
-        />
-      ),
-      container,
-    );
-  };
-  const [resetKey, setResetKey] = createSignal('word-1');
-
-  it('profile fast path: no drafts + F submits all tested fluent, once', () => {
-    renderProfile();
-    expect(onRate).not.toHaveBeenCalled();
-    key('f');
-    const obs = onProfileSubmit.mock.calls[0]?.[0];
-    expect(obs?.length).toBe(4);
-    expect(obs?.every((o: { quality: string }) => o.quality === 'fluent')).toBe(true);
-  });
-
-  it('compact Adjust preselects Fluent, preserves exceptions, and Escape collapses after clearing a pending chord', () => {
-    dispose?.();
-    dispose = render(
-      () => (
-        <RatingMatrix
-          capabilities={CAPABILITIES}
-          keyboardMode="mnemonic"
-          mode="profile"
-          resetKey={resetKey()}
-          armed
-          compact
-          initialDraftsFluent
-          onRate={(capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => onRate(capability, quality, opts)}
-          onProfileSubmit={(observations, opts) => onProfileSubmit(observations, opts)}
-        />
-      ),
-      container,
-    );
-
-    const adjust = container.querySelector<HTMLButtonElement>('.rating-matrix__compact-adjust')!;
-    expect(adjust.getAttribute('aria-expanded')).toBe('false');
-    adjust.click();
-    expect(adjust.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelectorAll('.rating-matrix__cell--selected').length).toBe(4);
-
-    const readingCells = container.querySelectorAll('.rating-matrix__row')[1].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell');
-    readingCells[0].click();
-    key('1');
+  it('Escape clears a pending chord first and folds only on the second press', () => {
+    renderMatrix();
+    adjust();
+    key('2');
+    expect(container.querySelector('.rating-matrix__col--pending')).not.toBeNull();
     key('Escape');
-    expect(adjust.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('.rating-matrix__col--pending')).toBeNull();
+    expect(container.querySelector('.rating-matrix__unfold')).not.toBeNull();
     key('Escape');
-    expect(adjust.getAttribute('aria-expanded')).toBe('false');
-
-    key('f', { shiftKey: true });
-    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
-    expect(byCapability['surface-reading'].quality).toBe('missed');
-    expect(byCapability['sense-recognition'].quality).toBe('fluent');
-    expect(onProfileSubmit).toHaveBeenCalledWith(expect.any(Array), { easy: true });
+    expect(container.querySelector('.rating-matrix__unfold')).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('profile two exceptions + F: explicit rows keep quality, rest fluent', () => {
-    renderProfile();
-    key('1'); key('m');   // Meaning missed
-    key('2'); key('p');   // Prosody struggled
-    key('f');
-    const obs = onProfileSubmit.mock.calls[0]?.[0];
-    const byCapability = Object.fromEntries((obs ?? []).map((o: { capability: string }) => [o.capability, o]));
-    expect(byCapability['sense-recognition'].quality).toBe('missed');
-    expect(byCapability['prosodic-pattern'].quality).toBe('struggled');
-    expect(byCapability['surface-reading'].quality).toBe('fluent');
-    expect(byCapability['surface-recognition'].quality).toBe('fluent');
-    // No evidence before submit, one submit only.
-    expect(onRate).not.toHaveBeenCalled();
-    expect(onProfileSubmit).toHaveBeenCalledTimes(1);
-  });
-
-  it('profile replacement: re-selecting a row keeps only the last quality', () => {
-    renderProfile();
-    key('1'); key('m');
-    key('2'); key('m');
-    key('f');
-    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
-    expect(byCapability['sense-recognition'].quality).toBe('struggled');
-  });
-
-  it('profile spatial: 1, S, F drafts and submits without early advance', () => {
-    renderProfile('spatial');
-    key('1'); // Meaning missed (row 1)
-    key('s'); // Prosody struggled (row 3)
-    expect(onProfileSubmit).not.toHaveBeenCalled();
-    key('f');
-    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
-    expect(byCapability['sense-recognition'].quality).toBe('missed');
-    expect(byCapability['prosodic-pattern'].quality).toBe('struggled');
-    expect(byCapability['surface-reading'].quality).toBe('fluent');
-  });
-
-  it('profile drafts reset on resetKey change (new word)', async () => {
-    renderProfile();
-    key('1'); key('m');
+  it('resetKey clears drafts, collapse state and the submitted guard', () => {
+    const [resetKey, setResetKey] = createSignal<string | number>('word-1');
+    renderMatrix('mnemonic', CAPABILITIES, true, resetKey);
+    key('1'); // submit whole word
+    expect(onSubmit).toHaveBeenCalledTimes(1);
     setResetKey('word-2');
-    await Promise.resolve();
-    // New word => fresh drafts: meaning must submit as the confirmed Fluent
-    // default, not the previous word's draft.
-    expect(resetKey()).toBe('word-2');
-    key('f');
-    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
-    expect(byCapability['sense-recognition'].quality).toBe('fluent');
-  });
-
-  it('profile not-tested rows never receive observations', () => {
-    renderProfile('mnemonic', ['sense-recognition', 'surface-recognition']);
-    key('f');
-    const obs = onProfileSubmit.mock.calls[0]?.[0] ?? [];
-    expect(obs.length).toBe(2);
-    expect(obs.map((o: { capability: string }) => o.capability)).toEqual(['sense-recognition', 'surface-recognition']);
-  });
-
-  it('profile Alt+draft carries per-row inference; submit modifier does not contaminate drafts', () => {
-    renderProfile();
-    key('1');
-    key('m', { altKey: true });
-    key('f');           // plain submit
-    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
-    expect(byCapability['sense-recognition'].method).toBe('inference');
-    expect(byCapability['sense-recognition'].quality).toBe('missed');
-    expect(byCapability['surface-reading'].method).toBeUndefined();
-    expect(byCapability['surface-reading'].quality).toBe('fluent');
-  });
-
-  it('profile click parity: clicking cells matches chord drafts', () => {
-    renderProfile();
-    const rows = container.querySelectorAll('.rating-matrix__row');
-    (rows[0].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0]).click();
-    (rows[2].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[1]).click();
-    key('f');
-    const byCapability = Object.fromEntries((onProfileSubmit.mock.calls[0]?.[0] ?? []).map((o: { capability: string }) => [o.capability, o]));
-    expect(byCapability['sense-recognition'].quality).toBe('missed');
-    expect(byCapability['prosodic-pattern'].quality).toBe('struggled');
-  });
-
-  it('quick all-fluent produces the same profile as manually marking every row fluent', () => {
-    renderProfile();
-    for (const row of Array.from(container.querySelectorAll('.rating-matrix__row'))) {
-      row.querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[2].click();
-    }
-    key('f');
-    const manual = onProfileSubmit.mock.calls[0]?.[0];
-
-    onProfileSubmit.mockClear();
-    renderProfile();
-    key('f');
-
-    expect(onProfileSubmit.mock.calls[0]?.[0]).toEqual(manual);
-  });
-
-  it('a dominant task emits only its intended capability', () => {
-    renderMatrix('mnemonic', ['surface-reading']);
-    key('1');
-    key('r');
-    expect(onRate).toHaveBeenCalledTimes(1);
-    expect(onRate).toHaveBeenCalledWith('surface-reading', 'missed', undefined);
-  });
-
-  it('profile button copy switches to EverythingElseFluent once drafts exist', () => {
-    renderProfile();
-    expect(container.textContent).toContain('mlearn.Rating.Matrix.AllFluent');
-    key('1'); key('m');
-    expect(container.textContent).toContain('mlearn.Rating.Matrix.EverythingElseFluent');
-  });
-
-  it('disarmed matrix neither rates nor highlights', () => {
-    dispose = render(
-      () => (
-        <RatingMatrix
-          capabilities={CAPABILITIES}
-          keyboardMode="mnemonic"
-          armed={false}
-          onRate={(capability: CapabilityKind, quality: AttemptQuality, opts?: RateOptions) => onRate(capability, quality, opts)}
-          onAllFluent={(opts?: RateOptions) => onAllFluent(opts)}
-        />
-      ),
-      container,
-    );
-    key('1');
-    key('m');
-    key(' ');
-    expect(onRate).not.toHaveBeenCalled();
-    expect(onAllFluent).not.toHaveBeenCalled();
+    key('2');
+    expect(onSubmit).toHaveBeenCalledTimes(2);
+    expect(onSubmit.mock.calls[1][0].every((o: { quality: string }) => o.quality === 'struggled')).toBe(true);
   });
 });

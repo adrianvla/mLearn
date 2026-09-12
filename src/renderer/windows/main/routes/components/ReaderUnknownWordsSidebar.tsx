@@ -7,7 +7,7 @@ import './ReaderUnknownWordsSidebar.css';
 
 export interface ReaderUnknownWordEntry extends SidebarWordEntry {
   pageId: string;
-  box: OcrBox;
+  box?: OcrBox;
   boxIndex: number;
 }
 

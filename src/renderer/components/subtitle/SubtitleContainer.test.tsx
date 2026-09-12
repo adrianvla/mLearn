@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { SubtitleContainer } from './SubtitleContainer';
-import type { LanguageData, Token } from '../../../shared/types';
+import type { CapabilityKey, LanguageData, Token } from '../../../shared/types';
 
 const mockSettings: Record<string, unknown> = {
   showSubtitles: true,
@@ -29,6 +29,10 @@ const mockSettings: Record<string, unknown> = {
 let mockLanguageData: LanguageData | null = null;
 const mockGetCanonicalForm = vi.fn((word: string) => word);
 const mockIsWordKnownComprehensiveSync = vi.fn((_word: string, language?: string) => language === 'ar');
+const mockGetAccessStatus = vi.fn((_word: string, capability: CapabilityKey, language?: string) => ({
+  status: language === 'ar' && (capability === 'surface-recognition' || capability === 'sense-recognition') ? 'known' as const : 'unknown' as const,
+  ease: 0, source: 'None' as const,
+}));
 const mockIsWordSettledSync = vi.fn((word: string, language?: string) => mockIsWordKnownComprehensiveSync(word, language));
 const mockTrackWordSeen = vi.fn();
 const mockCancelWordHover = vi.fn();
@@ -53,7 +57,7 @@ vi.mock('../../context', () => ({
   }),
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
-    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
+    getAccessStatus: mockGetAccessStatus,
     isWordKnownByText: () => false,
     isWordKnownComprehensiveSync: mockIsWordKnownComprehensiveSync,
     isWordSettledSync: (word: string, language?: string) => mockIsWordSettledSync(word, language),
@@ -117,6 +121,7 @@ describe('SubtitleContainer', () => {
     mockLanguageData = null;
     mockGetCanonicalForm.mockImplementation((word: string) => word);
     mockIsWordKnownComprehensiveSync.mockClear();
+    mockGetAccessStatus.mockClear();
     mockTrackWordSeen.mockClear();
     mockCancelWordHover.mockClear();
     mockTrackGrammarFailed.mockClear();
@@ -368,6 +373,8 @@ describe('SubtitleContainer', () => {
     );
 
     expect(mockIsWordKnownComprehensiveSync).toHaveBeenCalledWith('يكتب', 'ar');
+    expect(mockGetAccessStatus).toHaveBeenCalledWith('يكتب', 'surface-recognition', 'ar');
+    expect(mockGetAccessStatus).toHaveBeenCalledWith('يكتب', 'sense-recognition', 'ar');
     expect(container.querySelector('.subtitles')?.classList.contains('subtitle-line-blur')).toBe(true);
     dispose();
   });

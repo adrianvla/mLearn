@@ -5,23 +5,22 @@
  */
 
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
-import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../context';
-import { getAvailableAccesses } from '../../../../shared/types';
-import type { CapabilityKind } from '../../../../shared/graph/types';
+import { useFlashcards, useLocalization, useSettings } from '../../../context';
+import type { CapabilityKey } from '../../../../shared/graph/types';
 import { Input, KnowledgeHistoryGraph, KnowledgeHistoryTimeline, Panel, type HistoryEvent } from '../../../components/common';
 import { isChartableHistory } from '../../../utils/knowledgeHistory';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
+import { useKnowledgeProjection } from '../../../hooks/useKnowledgeProjection';
 import './WordHistoryPanel.css';
 
 const MAX_MATCHES = 20;
 
 export const WordHistoryPanel: Component = () => {
-  const { store, getAccessStatus } = useFlashcards();
+  const { store } = useFlashcards();
   const { settings } = useSettings();
-  const { currentLangData } = useLanguage();
   const { t } = useLocalization();
 
-  const [capability, setCapability] = createSignal<CapabilityKind>('sense-recognition');
+  const [selectedCapability, setCapability] = createSignal<CapabilityKey>();
   const [query, setQuery] = createSignal('');
 
   // Hashed keys cannot be reversed; the stored word field is the source.
@@ -45,14 +44,14 @@ export const WordHistoryPanel: Component = () => {
 
   const selectedWord = createMemo(() => query().trim());
 
-  // Language-level accesses, narrowed per selected word: orthogonal accesses
-  // with no record stay hidden (interim applicability rule) — no empty
-  // Pronunciation / Orthography tabs for words that never tested them.
-  const availableCapabilities = createMemo(() => {
-    const all = getAvailableAccesses(currentLangData() ?? undefined);
-    const word = selectedWord().trim();
-    if (!word) return all;
-    return all.filter((capability) => getAccessStatus(word, capability, settings.language).untracked !== true);
+  const { capabilities: availableCapabilities } = useKnowledgeProjection(() => {
+    const surface = selectedWord();
+    return surface ? { language: settings.language, surface } : undefined;
+  });
+  const capability = createMemo(() => {
+    const selected = selectedCapability();
+    const available = availableCapabilities();
+    return selected && available.includes(selected) ? selected : available[0];
   });
   const history = useKnowledgeHistory(selectedWord, capability);
   // Retraction tombstones are undo bookkeeping, not history rows.
@@ -93,17 +92,17 @@ export const WordHistoryPanel: Component = () => {
         when={selectedWord()}
         fallback={<p class="word-history-prompt">{t('mlearn.Statistics.WordHistory.Prompt')}</p>}
       >
-        <KnowledgeHistoryGraph
+        <Show when={capability()}>{(activeCapability) => <KnowledgeHistoryGraph
           points={graphData().points}
           archivedPoints={history.archivedPoints()}
           bands={graphData().bands}
-          capability={capability()}
+          capability={activeCapability()}
           availableCapabilities={availableCapabilities()}
           onCapabilityChange={setCapability}
           mode="full"
           now={Date.now()}
           showChart={isChartableHistory(graphData().points) || (history.archivedPoints()?.length ?? 0) > 0}
-        />
+        />}</Show>
 
         <Show
           when={events().length > 0}

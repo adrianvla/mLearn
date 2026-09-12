@@ -1,74 +1,57 @@
-/* Layout only — Button owns cell/all-fluent borders, colors, hover, disabled. */
+/**
+ * Canonical rating control: the collapsed quality bar unfolds in place into
+ * the All + capability matrix. Layout only — Button owns borders, colors,
+ * hover, disabled; theme variables only.
+ */
+
 .rating-matrix {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
 }
 
-.rating-matrix--collapsed {
-  display: none;
-}
-
-.rating-matrix__compact {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-}
-
-.rating-matrix__compact-action,
-.rating-matrix__compact-adjust {
-  min-height: 32px;
-}
-
-.rating-matrix__compact .rating-matrix__hint {
-  margin-left: var(--spacing-2);
-}
-
-.rating-matrix__head,
-.rating-matrix__row {
+/* Collapsed: [Missed][Struggled][Fluent][Easy][Adjust]. */
+.rating-matrix__bar {
   display: grid;
-
-  /* Label + quality columns (Missed | Struggled | Fluent) + the Easy
-     scheduling-modifier column attached to Fluent with a divider. */
-  grid-template-columns: minmax(4.5em, 1fr) repeat(3, minmax(4em, 1fr)) minmax(4em, 1fr);
+  grid-template-columns: repeat(4, minmax(4em, 1fr)) auto;
   gap: var(--spacing-2);
   align-items: stretch;
 }
 
+/* Expanded: the quality buttons become the column headers; the label column
+   opens in front and every row below shares the same grid. */
+.rating-matrix__bar--head {
+  grid-template-columns: minmax(4.5em, 1.2fr) repeat(4, minmax(4em, 1fr)) auto;
+}
+
+.rating-matrix__quality,
+.rating-matrix__adjust {
+  min-height: 32px;
+}
+
 .rating-matrix__corner,
 .rating-matrix__col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
   text-align: center;
   padding: 2px 0;
 }
 
-/* Easy sits beside Fluent as a clearly-separated scheduling modifier: the
-   divider is the boundary between the quality group and the modifier. */
-.rating-matrix__fluent-adjust {
-  display: flex;
-  align-items: stretch;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.rating-matrix__divider {
-  flex: 0 0 1px;
-  align-self: stretch;
-  background: var(--border-color);
-  margin: 2px 0;
-}
-
-.rating-matrix__fluent-adjust .rating-matrix__cell,
-.rating-matrix__fluent-adjust .rating-matrix__col {
-  flex: 1 1 0;
-}
-
+/* Mnemonic chord armed: the pending quality's column is lit. */
 .rating-matrix__col--pending {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+/* Rows share the head's label + four quality columns. */
+.rating-matrix__row {
+  display: grid;
+  grid-template-columns: minmax(4.5em, 1.2fr) repeat(4, minmax(4em, 1fr));
+  gap: var(--spacing-2);
+  align-items: stretch;
 }
 
 .rating-matrix__label {
@@ -82,6 +65,18 @@
   text-overflow: ellipsis;
 }
 
+/* The All row is first-class (stronger label, hairline underneath) —
+   part of the grid, not a banner. */
+.rating-matrix__label--all {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.rating-matrix__row--all {
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--border-color);
+}
+
 .rating-matrix__cell {
   display: flex;
   align-items: center;
@@ -90,12 +85,7 @@
   padding: 2px var(--spacing-2);
 }
 
-.rating-matrix__cell--pending-col {
-  outline: 2px solid var(--text-primary);
-  outline-offset: -2px;
-}
-
-/* Profile-mode draft selection: the chosen quality is visibly held. */
+/* Held draft: the chosen quality is visibly marked, nothing has submitted. */
 .rating-matrix__cell--selected {
   outline: 2px solid var(--text-primary);
   outline-offset: -2px;
@@ -107,20 +97,28 @@
   padding: 0 0.35rem;
 }
 
-.rating-matrix__all {
-  margin-top: var(--spacing-2);
-  min-height: 32px;
+/* Subtle unfold: the matrix scales/fades out of the bar. */
+.rating-matrix__unfold {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  transform-origin: top center;
+  animation: rating-matrix-unfold 140ms ease;
 }
 
-/* The all-fluent button's label and its Space keycap share the button's
-   content span (inline layout, no flex gap) — give the keycap deliberate
-   spacing instead of letting it sit glued to the label text. */
-.rating-matrix__all .rating-matrix__hint {
-  margin-left: var(--spacing-2);
+@keyframes rating-matrix-unfold {
+  from {
+    opacity: 0;
+    transform: scaleY(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-.rating-matrix__pending {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  text-align: center;
+@media (prefers-reduced-motion: reduce) {
+  .rating-matrix__unfold {
+    animation: none;
+  }
 }

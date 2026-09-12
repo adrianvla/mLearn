@@ -67,6 +67,7 @@ export const AnkiHoverPreviewContent: Component<AnkiHoverPreviewContentProps> = 
             </div>
             <Show when={shouldShowAnkiEase(props.cardInfo?.ease) || dueValue()}>
               <div class="anki-hover-preview__footer">
+                <span>{t('mlearn.WordHover.CardScheduling')}</span>
                 <Show when={shouldShowAnkiEase(props.cardInfo?.ease)}>
                   <div class="anki-hover-preview__footer-field">
                     <span class="anki-hover-preview__label">{t('mlearn.Flashcards.Card.Ease')}</span>

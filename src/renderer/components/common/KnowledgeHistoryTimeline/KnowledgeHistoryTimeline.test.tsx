@@ -100,6 +100,41 @@ describe('KnowledgeHistoryTimeline', () => {
     dispose();
   });
 
+  it('labels historical Anki scheduler snapshots without presenting a measured status transition', () => {
+    const events: HistoryEvent[] = [{ t: Date.now(), kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known' }];
+    const dispose = render(() => <KnowledgeHistoryTimeline events={events} />, container);
+    expect(container.textContent).toContain('mlearn.Knowledge.History.Kind.SourceSnapshot');
+    expect(container.textContent).not.toContain('mlearn.Knowledge.History.Kind.Status');
+    expect(container.textContent).not.toContain('→');
+    expect(container.textContent).not.toContain('mlearn.WordHover.Status.Unknown');
+    expect(container.textContent).toContain('mlearn.WordHover.Status.Known');
+    dispose();
+  });
+
+  it('prioritizes measured outcomes over accompanying projected status changes', () => {
+    const events: HistoryEvent[] = [
+      { t: Date.now(), kind: 'rating', source: 'srs', aspect: 'meaning', quality: 'missed', fromStatus: 'unknown', toStatus: 'known' },
+      { t: Date.now(), kind: 'review', source: 'anki', aspect: 'reading', rating: 'hard', fromStatus: 'unknown', toStatus: 'known' },
+    ];
+    const dispose = render(() => <KnowledgeHistoryTimeline events={events} />, container);
+    expect(container.textContent).toContain('mlearn.Rating.Matrix.Missed');
+    expect(container.textContent).toContain('hard');
+    expect(container.textContent).not.toContain('→');
+    expect(container.textContent).not.toContain('mlearn.WordHover.Status.Known');
+    dispose();
+  });
+
+  it('preserves unknown package capability identity in history', () => {
+    const events: HistoryEvent[] = [{
+      t: Date.now(), kind: 'rating', source: 'srs', quality: 'fluent',
+      targetRef: { kind: 'entry', id: 'pkg-entry', capability: 'x-package::unknown-feature' },
+    }];
+    const dispose = render(() => <KnowledgeHistoryTimeline events={events} />, container);
+    expect(container.textContent).toContain('x-package::unknown-feature');
+    expect(container.textContent).not.toContain('undefined');
+    dispose();
+  });
+
   it('renders nothing when there are no events', () => {
     const dispose = render(() => <KnowledgeHistoryTimeline events={[]} />, container);
     expect(container.querySelector('.knowledge-timeline')).toBeNull();

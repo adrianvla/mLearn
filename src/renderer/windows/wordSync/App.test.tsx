@@ -11,7 +11,7 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn((): { status: string;
   timesSeen: 0,
 }));
 const mockClearAllWordSyncSeen = vi.fn();
-const mockSetAccessStatus = vi.fn();
+const mockSetAccessClaim = vi.fn();
 const mockSetWordClaim = vi.fn();
 const mockClearAccessClaim = vi.fn();
 const mockGetAccessStatus = vi.fn(() => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }));
@@ -48,7 +48,7 @@ const mockWordSyncState = vi.hoisted(() => ({
     },
   } as Record<string, { reading: string; raw_level: number; level: string }>,
   wordSyncSeen: {} as Record<string, number>,
-  getWordTrackingSync: vi.fn((_word: string, _language?: string): { tracker: 'anki' | 'flashcards' | 'nothing' } => ({ tracker: 'nothing' })),
+  getCardByWordSync: vi.fn((_word: string, _language?: string): { id: string } | null => null),
   knownUntracked: {} as Record<string, unknown>,
   ignoredWords: {} as Record<string, unknown>,
   wordKnowledge: {} as Record<string, { word: string; [key: string]: unknown }>,
@@ -93,6 +93,14 @@ mockCommonState.buildWordSyncPreset.mockImplementation(() => (
   mockCommonState.defaultPreset.map((token) => ({ ...token }))
 ));
 
+vi.mock('../../hooks/useKnowledgeProjection', () => ({
+  useKnowledgeProjection: () => ({
+    projection: () => undefined,
+    loading: () => false,
+    capabilities: () => ['sense-recognition', 'surface-reading', 'prosodic-pattern'],
+  }),
+}));
+
 vi.mock('../../context', async () => {
   const { hashWordSync } = await import('../../services/srsAlgorithm');
   return {
@@ -120,7 +128,7 @@ vi.mock('../../context', async () => {
   }),
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
-    getWordTrackingSync: mockWordSyncState.getWordTrackingSync,
+    getCardByWordSync: mockWordSyncState.getCardByWordSync,
     isLoading: () => false,
     store: {
       wordKnowledge: mockWordSyncState.wordKnowledge,
@@ -130,7 +138,7 @@ vi.mock('../../context', async () => {
       wordToCardMap: {},
       flashcards: {},
     },
-    setAccessStatus: mockSetAccessStatus,
+    setAccessClaim: mockSetAccessClaim,
     setWordClaim: mockSetWordClaim,
     clearAccessClaim: mockClearAccessClaim,
     recordAttempt: mockRecordAttempt,
@@ -279,10 +287,7 @@ vi.mock('../../../shared/languageScriptProfile', () => ({
 describe('WordSyncContent', () => {
   let container: HTMLDivElement;
 
-  // Whole-word collapsed keys (1/2/3/4) rate every MEASURED access at one
-  // quality (prosody has no task here and stays unmeasured) and submit
-  // immediately; mnemonic chords (digit + capability letter) draft per-access
-  // and auto-submit only when the last draft completes the profile.
+  // Digits record one selected observed outcome after reveal.
   const press = (key: string, init: KeyboardEventInit = {}) => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key, ...init }));
   };
@@ -293,19 +298,6 @@ describe('WordSyncContent', () => {
     const el = Array.from(container.querySelectorAll('button')).find((b) => (b.textContent ?? '').includes(text));
     if (!el) throw new Error(`button not found: ${text}`);
     return el;
-  };
-
-  // Row cells in column order (Missed, Struggled, Fluent, Easy): a row wraps
-  // its capability label and the four quality cell buttons.
-  const rowCells = (labelKey: string): HTMLButtonElement[] => {
-    const label = Array.from(container.querySelectorAll<HTMLElement>('.word-sync-actions *'))
-      .filter((el) => el.childElementCount === 0 && (el.textContent ?? '').includes(labelKey))
-      .pop();
-    if (!label) throw new Error(`row label not found: ${labelKey}`);
-    let row: HTMLElement | null = label;
-    while (row && row.querySelectorAll('button').length < 4) row = row.parentElement;
-    if (!row) throw new Error(`row container not found for: ${labelKey}`);
-    return Array.from(row.querySelectorAll('button'));
   };
 
   const attemptIdOf = (callIndex: number): string =>
@@ -343,13 +335,13 @@ describe('WordSyncContent', () => {
     mockWordSyncState.ignoredWords = {};
     mockWordSyncState.wordKnowledge = {};
     mockWordSyncState.getCanonicalFormForLanguage.mockReset();
-    mockWordSyncState.getWordTrackingSync.mockReset();
-    mockWordSyncState.getWordTrackingSync.mockImplementation(() => ({ tracker: 'nothing' as const }));
+    mockWordSyncState.getCardByWordSync.mockReset();
+    mockWordSyncState.getCardByWordSync.mockImplementation(() => null);
     mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((_language: string, word: string) => word);
     mockCommonState.filterBuilderProps = null;
     mockCommonState.buildWordSyncPreset.mockClear();
     mockClearAllWordSyncSeen.mockClear();
-    mockSetAccessStatus.mockClear();
+    mockSetAccessClaim.mockClear();
     mockSetWordClaim.mockClear();
     mockClearAccessClaim.mockClear();
     mockGetAccessStatus.mockClear();
@@ -372,7 +364,7 @@ describe('WordSyncContent', () => {
     container.remove();
   });
 
-  it('a whole-word keypress records one attempt per measured access and advances exactly once', async () => {
+  it('a collapsed whole-word keypress records one logical attempt and advances exactly once', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     mockWordSyncState.wordFrequency = {
       '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
@@ -393,12 +385,11 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Every measured access is recorded under ONE shared attemptId — a single
-    // logical attempt, not N independent ratings.
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(3);
+    // The whole-word keypress is one logical attempt over every tested
+    // access: one attempt identity, one observation per tested row.
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
     expect(mockRecordAttempt).toHaveBeenCalledWith(firstShown, 'sense-recognition', 'fluent', expect.objectContaining({ language: 'ja', origin: 'word-sync' }));
-    expect(mockRecordAttempt).toHaveBeenCalledWith(firstShown, 'surface-reading', 'fluent', expect.objectContaining({ language: 'ja' }));
-    expect(mockRecordAttempt).toHaveBeenCalledWith(firstShown, 'surface-recognition', 'fluent', expect.objectContaining({ language: 'ja' }));
+    expect(mockRecordAttempt).toHaveBeenCalledWith(firstShown, 'surface-reading', 'fluent', expect.objectContaining({ language: 'ja', origin: 'word-sync' }));
     expect(allAttemptIds().size).toBe(1);
 
     expect(container.textContent).toContain(firstShown === '赤い' ? '青い:あおい' : '赤い:あかい');
@@ -413,12 +404,12 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
     // Two whole-word attempts → two distinct attemptIds.
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(6);
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(4);
     expect(allAttemptIds().size).toBe(2);
     dispose();
   });
 
-  it('whole-word Easy records fluent evidence and drops the scheduler preference', async () => {
+  it('selected outcome Easy records fluent evidence and drops the scheduler preference', async () => {
     const { WordSyncContent } = await import('./App');
 
     const dispose = mountContent(WordSyncContent);
@@ -438,50 +429,6 @@ describe('WordSyncContent', () => {
     expect(call[2]).toBe('fluent');
     // …and the scheduler preference never reaches Word Sync's evidence store.
     expect((call[3] as { easy?: boolean }).easy).toBeUndefined();
-    dispose();
-  });
-
-  it('Adjust flow: an All-row click fills unresolved accesses and submits the mixed profile immediately', async () => {
-    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
-    mockWordSyncState.wordFrequency = {
-      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
-      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
-    };
-    const { WordSyncContent } = await import('./App');
-
-    const dispose = mountContent(WordSyncContent);
-    await Promise.resolve();
-    await Promise.resolve();
-    // weightedShuffle intentionally randomizes pool order — key assertions on
-    // the presented word, never a specific one.
-    const firstShown = container.textContent!.includes('赤い:あかい') ? '赤い' : '青い';
-    const secondShown = firstShown === '赤い' ? '青い' : '赤い';
-
-    press(' ');
-    await Promise.resolve();
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
-    await Promise.resolve();
-
-    // Explicit draft: sense missed. Nothing is emitted yet.
-    rowCells('mlearn.Knowledge.Capability.sense-recognition')[0]!.click();
-    await Promise.resolve();
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-
-    // The All row's Fluent cell fills the UNDRAFTED accesses (surface-reading,
-    // surface-recognition) and completes the word — submit happens on the click, with
-    // no further input.
-    rowCells('mlearn.WordSync.Rating.AllRow')[2]!.click();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(3);
-    expect(mockRecordAttempt).toHaveBeenCalledWith(firstShown, 'sense-recognition', 'missed', expect.anything());
-    expect(mockRecordAttempt).toHaveBeenCalledWith(firstShown, 'surface-reading', 'fluent', expect.anything());
-    expect(mockRecordAttempt).toHaveBeenCalledWith(firstShown, 'surface-recognition', 'fluent', expect.anything());
-    expect(allAttemptIds().size).toBe(1);
-    expect(mockMarkWordSyncSeen).toHaveBeenCalledTimes(1);
-    expect(mockMarkWordSyncSeen).toHaveBeenCalledWith(firstShown, 'ja');
-    expect(container.textContent).toContain(secondShown === '赤い' ? '赤い:あかい' : '青い:あおい');
     dispose();
   });
 
@@ -571,7 +518,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('manual completion auto-submits exactly once and extra keystrokes do not resubmit', async () => {
+  it('collapsed whole-word rating submits exactly once and extra keystrokes do not resubmit', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     mockWordSyncState.wordFrequency = {
       '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
@@ -587,29 +534,11 @@ describe('WordSyncContent', () => {
 
     press(' ');
     await Promise.resolve();
-    // Chords draft only in the unfolded Adjust state.
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
     await Promise.resolve();
 
-    // Partial profiles NEVER submit: one and two drafts record nothing.
     press('1');
     await Promise.resolve();
-    press('m');
-    await Promise.resolve();
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-    press('3');
-    await Promise.resolve();
-    press('r');
-    await Promise.resolve();
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-
-    // The final draft completes the profile → exactly one submit.
-    press('3');
-    await Promise.resolve();
-    press('w');
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(3);
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
     expect(allAttemptIds().size).toBe(1);
     expect(container.textContent).toContain(firstShown === '赤い' ? '青い:あおい' : '赤い:あかい');
 
@@ -621,11 +550,11 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     press('3');
     await Promise.resolve();
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(3);
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
     dispose();
   });
 
-  it('undo after a whole-word rating retracts the attempt and re-presents the same word', async () => {
+  it('undo after a selected outcome rating retracts the attempt and re-presents the same word', async () => {
     const { WordSyncContent } = await import('./App');
 
     const dispose = mountContent(WordSyncContent);
@@ -651,7 +580,7 @@ describe('WordSyncContent', () => {
     expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
 
     // The re-presented word comes back collapsed…
-    expect(buttonByText('mlearn.Rating.Compact.Adjust').getAttribute('aria-expanded')).toBe('false');
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(1);
 
     // …and clean: rating it again records a fresh attempt, not a replay.
     press(' ');
@@ -663,7 +592,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('undo after a mixed profile restores the seen snapshot and re-presents the word', async () => {
+  it('undo after a missed observation restores the seen snapshot and re-presents the word', async () => {
     const { hashWordSync } = await import('../../services/srsAlgorithm');
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     mockWordSyncState.wordSyncSeen = {
@@ -677,7 +606,7 @@ describe('WordSyncContent', () => {
 
     press(' ');
     await Promise.resolve();
-    // Mixed profile: sense missed, surface-reading/surface-recognition fluent.
+    // One miss is recorded; extra keys cannot submit another hidden answer.
     press('1');
     await Promise.resolve();
     press('m');
@@ -691,7 +620,7 @@ describe('WordSyncContent', () => {
     press('w');
     await Promise.resolve();
     const attemptId = attemptIdOf(0);
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(3);
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
     expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
 
     press('z', { metaKey: true });
@@ -707,33 +636,18 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('a learner statement encodes claims only — no fabricated evidence', async () => {
-    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+  it('keeps explicit corrections separate from review without preset capability claims', async () => {
     const { WordSyncContent } = await import('./App');
-
     const dispose = mountContent(WordSyncContent);
     await Promise.resolve();
     await Promise.resolve();
-
-    // Reveal, then unfold Adjust to reach the statement list.
     press(' ');
     await Promise.resolve();
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
-    await Promise.resolve();
-    buttonByText('mlearn.WordSync.Statement.MeaningNotForm').click();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    // "I know the meaning but not this spelling": a whole-word known claim
-    // plus the explicit missing-written-form bridge claim. Statements never
-    // fabricate evidence for the accesses they do not cover.
-    expect(mockSetWordClaim).toHaveBeenCalledWith('赤い', 'known', 'ja');
-    expect(mockSetAccessStatus).toHaveBeenCalledWith('赤い', 'surface-recognition', 'unknown', 'manual', 'ja');
+    expect(container.textContent).not.toContain('mlearn.WordSync.Statement.MeaningNotForm');
+    expect(container.textContent).toContain('mlearn.TellMlearn.Label');
+    expect(mockSetWordClaim).not.toHaveBeenCalled();
+    expect(mockSetAccessClaim).not.toHaveBeenCalled();
     expect(mockRecordAttempt).not.toHaveBeenCalled();
-
-    // A statement completes the word like a rating: exactly one advance.
-    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
-    expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
     dispose();
   });
 
@@ -749,15 +663,15 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     press(' ');
-    await Promise.resolve();
     // Access rows are visible only in the unfolded Adjust state.
     buttonByText('mlearn.Rating.Compact.Adjust').click();
     await Promise.resolve();
     expect(container.textContent).toContain('mlearn.Knowledge.Capability.sense-recognition');
     expect(container.textContent).not.toContain('mlearn.Knowledge.Capability.surface-reading');
+    // Folding back turns the column headers into the collapsed quality
+    // buttons again — one collapsed Fluent click is a complete attempt.
     buttonByText('mlearn.Rating.Compact.Adjust').click();
     await Promise.resolve();
-    // One pointer click on the collapsed Fluent button is a complete attempt.
     buttonByText('mlearn.Rating.Matrix.Fluent').click();
     await Promise.resolve();
     await Promise.resolve();
@@ -786,8 +700,6 @@ describe('WordSyncContent', () => {
     // Mixed attempt on the first word carries a miss → seen recorded once.
     press(' ');
     await Promise.resolve();
-    // Chords draft only in the unfolded Adjust state.
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
     await Promise.resolve();
     press('1');
     await Promise.resolve();
@@ -804,7 +716,7 @@ describe('WordSyncContent', () => {
     expect(mockMarkWordSyncSeen).toHaveBeenCalledTimes(1);
     expect(mockMarkWordSyncSeen).toHaveBeenNthCalledWith(1, firstShown, 'ja');
 
-    // Fluent whole-word attempt on the second word records no cooldown.
+    // Fluent selected outcome attempt on the second word records no cooldown.
     press(' ');
     await Promise.resolve();
     press('3');
@@ -848,16 +760,14 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('excludes words tracked by another scheduler (Anki/SRS) from the calibration pool', async () => {
-    // Tier-2: the pool calibrates UNTRACKED words. A word scheduled elsewhere
-    // (tracker !== 'nothing') never enters the pool even though the evidence
-    // journal has no entry for it — tracking is policy, not knowledge.
+  it('excludes words already scheduled as flashcards from the calibration pool', async () => {
+    // Scheduling eligibility is independent of the target's knowledge state.
     mockWordSyncState.wordFrequency = {
       '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
       '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
     };
-    mockWordSyncState.getWordTrackingSync.mockImplementation((word: string) => (
-      word === '赤い' ? { tracker: 'anki' as const } : { tracker: 'nothing' as const }
+    mockWordSyncState.getCardByWordSync.mockImplementation((word: string) => (
+      word === '赤い' ? { id: 'existing-review-card' } : null
     ));
     const { WordSyncContent } = await import('./App');
 
@@ -894,7 +804,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('Space reveals the answer and a whole-word Fluent keypress submits it', async () => {
+  it('Space reveals the answer and a selected outcome Fluent keypress submits it', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
 
@@ -911,7 +821,7 @@ describe('WordSyncContent', () => {
     expect(container.textContent).toContain('red');
     expect(mockRecordAttempt).not.toHaveBeenCalled();
 
-    // A whole-word Fluent keypress is a complete attempt on its own.
+    // A selected outcome Fluent keypress is a complete attempt on its own.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'sense-recognition', 'fluent', expect.objectContaining({
@@ -937,7 +847,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     // Same revealed-and-ratable state as the first Space: translation shown,
-    // and a whole-word keypress submits.
+    // and a selected outcome keypress submits.
     expect(container.textContent).toContain('red');
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     await Promise.resolve();
@@ -947,7 +857,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('Enter reveals the answer and a whole-word Fluent keypress submits it', async () => {
+  it('Enter reveals the answer and a selected outcome Fluent keypress submits it', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
 
@@ -1054,13 +964,13 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // A chord before reveal writes nothing — the control is not armed.
+    // A quality key before reveal writes nothing — the control is not armed.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
     await Promise.resolve();
     expect(mockRecordAttempt).not.toHaveBeenCalled();
 
-    // Now the answer is revealed; the same chord completes the single-access
+    // Now the answer is revealed; the same key records the single-access
     // profile and submits it.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
@@ -1253,7 +1163,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('Cmd+Z still works when a collapsed rating button holds focus', async () => {
+  it('Cmd+Z still works when a observed rating button holds focus', async () => {
     // Two words: one click-rating must not finish the session — the collapsed
     // bar has to stay mounted for the undo dispatch to bubble.
     mockWordSyncState.wordFrequency = {
@@ -1283,7 +1193,7 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('a lone quality key arms a chord and writes nothing until the profile completes', async () => {
+  it('routes a surface-reading miss through recordAttempt with one attempt identity', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const { WordSyncContent } = await import('./App');
 
@@ -1291,110 +1201,25 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    // Reveal the answer before rating.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
-    // Chords draft only in the unfolded Adjust state.
     buttonByText('mlearn.Rating.Compact.Adjust').click();
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-
-    // Pending chord: nothing recorded, hint visible.
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-    expect(container.querySelector('.word-sync-rating__col--pending')).not.toBeNull();
-
-    // Sense completion only DRAFTS — a partial profile emits nothing.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+    // Restored matrix rows: All, sense-recognition, surface-reading. The
+    // reading miss drafts; completing the word submits the explicit set.
+    const rows = container.querySelectorAll('.rating-matrix__row');
+    (rows[2].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0]).click();
     await Promise.resolve();
     expect(mockRecordAttempt).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('赤い');
-
-    // Completing the remaining accesses is the submit boundary.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
-    await Promise.resolve();
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(3);
-    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'sense-recognition', 'missed', expect.objectContaining({
-      language: 'ja',
-    }));
-    dispose();
-  });
-
-  it('a non-reading-transparent surface offers the Written-form row (1+W)', async () => {
-    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
-    const { WordSyncContent } = await import('./App');
-
-    const dispose = mountContent(WordSyncContent);
-    await Promise.resolve();
+    (rows[1].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0]).click();
     await Promise.resolve();
 
-    // Draft surface-recognition missed, then complete the profile.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
-    await Promise.resolve();
-    // Chords draft only in the unfolded Adjust state.
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
-    await Promise.resolve();
-    expect(container.textContent).toContain('mlearn.Knowledge.Capability.surface-recognition');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    await Promise.resolve();
-    // surface-recognition is surface-scoped; the wordSync task demonstrates the
-    // chain up to (but not including) it — it has no prerequisites.
-    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'surface-recognition', 'missed', expect.objectContaining({
-      language: 'ja',
-    }));
-    dispose();
-  });
-
-  it('routes a surface-reading miss through recordAttempt with word-presentation demonstration', async () => {
-    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
-    const { WordSyncContent } = await import('./App');
-
-    const dispose = mountContent(WordSyncContent);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
-    await Promise.resolve();
-    // Chords draft only in the unfolded Adjust state.
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
-    await Promise.resolve();
-
-    // Profile submit: surface-reading missed (explicit), other measured
-    // accesses fluent (confirmed), one shared attemptId, encounter marked on the miss.
+    // A reading miss fabricates no fluent evidence elsewhere: both rows hold
+    // explicit misses under one attempt identity.
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'surface-reading', 'missed', expect.objectContaining({
       language: 'ja',
     }));
-    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'sense-recognition', 'fluent', expect.objectContaining({
-      language: 'ja',
-    }));
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
     const attemptIds = new Set(mockRecordAttempt.mock.calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
     expect(attemptIds.size).toBe(1);
     expect(mockMarkWordSyncSeen).toHaveBeenCalledWith('赤い', 'ja');
@@ -1462,33 +1287,6 @@ describe('WordSyncContent', () => {
     }));
   });
 
-  it('cancels attribution with Escape without rating', async () => {
-    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
-    const { WordSyncContent } = await import('./App');
-
-    const dispose = mountContent(WordSyncContent);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    // Reveal first so the control is armed.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
-    await Promise.resolve();
-    // Chords arm only in the unfolded Adjust state.
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
-    await Promise.resolve();
-
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    await Promise.resolve();
-
-    // Chord cancelled: no record, no pending hint, word still presented.
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-    expect(container.textContent).not.toContain('mlearn.Rating.Matrix.PendingHint');
-    expect(container.textContent).toContain('赤い');
-    dispose();
-  });
-
   it('undoes an attempt-attributed rating via the per-hash snapshot', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const { hashWordSync } = await import('../../services/srsAlgorithm');
@@ -1513,17 +1311,10 @@ describe('WordSyncContent', () => {
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    buttonByText('mlearn.Rating.Compact.Adjust').click();
+    const rows = container.querySelectorAll('.rating-matrix__row');
+    (rows[2].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0]).click();
+    (rows[1].querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[0]).click();
     await Promise.resolve();
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'surface-reading', 'missed', expect.anything());
 
@@ -1615,7 +1406,7 @@ describe('WordSyncContent', () => {
     expect(mockRecordAttempt).not.toHaveBeenCalled();
     expect(container.textContent).toContain('赤い:あかい');
 
-    // A fresh chord completes the single-access profile and rates exactly once.
+    // A fresh quality key records the selected outcome and rates exactly once.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await Promise.resolve();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
@@ -1733,74 +1524,6 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
 
     expect(mockCommonState.filterBuilderProps).not.toBeNull();
-    dispose();
-  });
-
-  it('a draft cannot carry through filter reselection of the same word', async () => {
-    // One eligible word: a filter reselection re-presents the SAME word, so the
-    // rating control's resetKey must bump per presentation — otherwise the
-    // stale missed draft from before the filter change would submit after it.
-    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
-    const { WordSyncContent } = await import('./App');
-
-    const dispose = mountContent(WordSyncContent);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    // Reveal, then draft a non-fluent (missed) sense — a partial profile
-    // drafts only.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
-    await Promise.resolve();
-    // Chords draft only in the unfolded Adjust state.
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
-    await Promise.resolve();
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-
-    // Filter reselection rebuilds the pool and re-presents the same word.
-    container.querySelector<HTMLButtonElement>('.word-sync-filter-toggle')!.click();
-    await Promise.resolve();
-    container.querySelector<HTMLButtonElement>('.mock-filter-clear')!.click();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(container.textContent).toContain('赤い:あかい');
-
-    // Reveal: a stale missed sense draft would complete the profile the
-    // moment ANY other access is drafted and submit immediately — it must not.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
-    await Promise.resolve();
-    // The re-presented control starts collapsed; chords need the unfold again.
-    buttonByText('mlearn.Rating.Compact.Adjust').click();
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    await Promise.resolve();
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-
-    // …and the second completion still leaves sense UNDRAFTED: no submit.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
-    await Promise.resolve();
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-
-    // Drafting sense fluent completes the profile exactly once, all-fluent.
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    await Promise.resolve();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
-    await Promise.resolve();
-    const senseFluentCalls = mockRecordAttempt.mock.calls.filter(
-      (c) => c[0] === '赤い' && c[1] === 'sense-recognition' && c[2] === 'fluent',
-    );
-    expect(senseFluentCalls).toHaveLength(1);
-    expect(mockRecordAttempt.mock.calls.some((c) => c[2] === 'missed')).toBe(false);
-    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'sense-recognition', 'fluent', expect.objectContaining({
-      language: 'ja',
-    }));
     dispose();
   });
 

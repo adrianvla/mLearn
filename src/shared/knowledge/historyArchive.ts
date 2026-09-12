@@ -223,7 +223,13 @@ export interface BucketArchive {
   lastDirect?: { t: number; seq: number };
 }
 
+export const KNOWLEDGE_MEASURABLE_VERSION = 2;
+
 export interface KeyArchive {
+  /** Measurable evidence semantics, independent of the physical archive generation. */
+  measurableVersion?: number;
+  /** Some legacy buckets lacked complete records and cannot prove capability evidence. */
+  measurableRebuildIncomplete?: boolean;
   /** Archive generation: 2 = every bucket carries per-row records. */
   v: 1 | 2;
   /** (t, seq) frontier: archived rows all sort before this point. */
@@ -439,6 +445,8 @@ export function compactKeyEvents(
     kept,
     archive: {
       v: previousIncomplete ? 1 : 2,
+      measurableVersion: previous?.measurableVersion ?? (previous ? 1 : KNOWLEDGE_MEASURABLE_VERSION),
+      ...(previous?.measurableRebuildIncomplete ? { measurableRebuildIncomplete: true } : {}),
       frontierT,
       frontierSeq,
       acquisitionCutoff,
@@ -578,6 +586,8 @@ export function mergeArchives(archives: readonly KeyArchive[]): KeyArchive | und
   }
   return {
     v: archives.some((archive) => archive.v === 1) ? 1 : 2,
+    measurableVersion: Math.min(...archives.map((archive) => archive.measurableVersion ?? 1)),
+    ...(archives.some((archive) => archive.measurableRebuildIncomplete) ? { measurableRebuildIncomplete: true } : {}),
     frontierT,
     frontierSeq,
     acquisitionCutoff,
@@ -718,7 +728,7 @@ export function computeRetention(
     if (eventIsMeasurable(event) && matches(event) && event.t < firstEvidenceT) firstEvidenceT = event.t;
   }
   if (archive !== undefined) {
-    const archiveFold = foldArchiveBuckets(archive, matches);
+    const archiveFold = foldArchiveBucketsMeasurable(archive, matches);
     if (archiveFold.firstSeen !== undefined && archiveFold.firstSeen < firstEvidenceT) firstEvidenceT = archiveFold.firstSeen;
   }
   const template = { createdAt: Number.isFinite(firstEvidenceT) ? firstEvidenceT : now, initialEase: 2.5 };

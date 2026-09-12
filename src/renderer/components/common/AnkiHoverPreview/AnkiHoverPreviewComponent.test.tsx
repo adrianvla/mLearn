@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal } from 'solid-js';
-import { AnkiHoverPreview, type AnkiCardFields } from './AnkiHoverPreview';
+import { AnkiHoverPreview, AnkiHoverPreviewContent, type AnkiCardFields } from './AnkiHoverPreview';
 
 vi.mock('../../../context', () => ({
   useLocalization: () => ({
@@ -19,6 +19,17 @@ vi.mock('../../../context', () => ({
 const flushAsync = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('AnkiHoverPreview', () => {
+  it('labels actual Anki ease and due as card scheduling metadata', () => {
+    const container = document.createElement('div');
+    const dispose = render(() => <AnkiHoverPreviewContent loading={false}
+      fields={{ Expression: { value: '会う', order: 0 } }}
+      cardInfo={{ ease: 2350, due: 14, queue: 2, type: 2, interval: 14, mod: 0 }} />, container);
+    expect(container.textContent).toContain('mlearn.WordHover.CardScheduling');
+    expect(container.textContent).toContain('2350');
+    expect(container.textContent).not.toContain('Known');
+    dispose();
+  });
+
   it('keeps tooltip content reactive after card fields are loaded', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

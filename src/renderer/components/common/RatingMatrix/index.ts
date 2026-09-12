@@ -1,6 +1,6 @@
 export {
   RatingMatrix,
   type RatingMatrixProps,
-  type RateOptions,
   type ProfileObservation,
+  type RateOptions,
 } from './RatingMatrix';

@@ -32,53 +32,65 @@
   container-type: inline-size;
 }
 
-.col {
-  padding: 0 0.5rem;
+.word-db-editor .entries-header,
+.word-db-editor .entry {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1.2fr) minmax(0, 2fr) 5rem minmax(14rem, 1.6fr) minmax(11rem, 1.5fr);
+  gap: var(--spacing-3);
 }
 
-.col.word {
-  flex: 2;
-  min-width: 110px;
-  overflow: hidden;
-}
-
-.col.translation {
-  flex: 3;
+.word-db-editor .col {
   min-width: 0;
+  padding: 0;
+}
+
+.word-db-editor .col.word,
+.word-db-editor .col.translation {
   overflow: hidden;
+}
+
+.word-db-editor .col.translation {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.col.level {
-  flex: 1;
-  min-width: 84px;
+.word-db-editor .col.level {
   text-align: center;
 }
 
-.col.tracker {
-  flex: 1.5;
-  min-width: 0;
+.word-db-editor .col.integrations,
+.word-db-editor .col.knowledge {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
-  overflow: hidden;
+  gap: var(--spacing-2);
 }
 
-.col.knowledge {
-  flex: 2;
-  min-width: 224px;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 0.35rem;
-}
+@container (max-width: 849px) {
+  .word-db-editor .entries-header,
+  .word-db-editor .entry {
+    grid-template-columns: minmax(6rem, 1fr) minmax(0, 1fr) minmax(12rem, 1.5fr) minmax(9rem, 1.2fr);
+  }
 
-/* Below this the level column loses the fight for space; the level stays
-   visible on the word's Inspect drawer and hover. */
-@container (max-width: 719px) {
-  .col.level {
+  .word-db-editor .col.level {
     display: none;
+  }
+}
+
+@container (max-width: 639px) {
+  .word-db-editor .entries-header,
+  .word-db-editor .entry {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    row-gap: var(--spacing-3);
+  }
+
+  .word-db-editor .entry {
+    align-items: start;
+  }
+
+  .word-db-editor .col.knowledge,
+  .word-db-editor .col.integrations {
+    align-content: start;
   }
 }
 
@@ -87,6 +99,8 @@
   position: absolute;
   inset: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   padding: calc(var(--word-db-editor-header-height, 0px) + var(--spacing-4) - 1px) 0 0.5rem 0;
   transition: padding-top var(--transition-slow);
 }

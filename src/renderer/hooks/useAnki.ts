@@ -6,7 +6,7 @@
  */
 
 import { createSignal } from 'solid-js';
-import { useSettings } from '../context';
+import { useSettings } from '../context/SettingsContext';
 import { PROXY_SERVER_PORT } from '../../shared/constants';
 import { getBackend } from '../../shared/backends';
 import { DEFAULT_SETTINGS } from '../../shared/types';
@@ -33,7 +33,7 @@ interface AnkiResponse<T = unknown> {
 }
 
 /** Send a request to AnkiConnect via the Electron web server proxy */
-async function ankiRequest<T>(proxyUrl: string, action: string, params?: Record<string, unknown>): Promise<T> {
+export async function ankiRequest<T>(proxyUrl: string, action: string, params?: Record<string, unknown>): Promise<T> {
   const request: AnkiRequest = {
     action,
     version: ANKI_CONNECT_VERSION,

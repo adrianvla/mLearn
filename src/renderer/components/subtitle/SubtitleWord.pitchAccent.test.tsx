@@ -3,7 +3,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { SubtitleWord } from './SubtitleWord';
-import type { LanguageData, Token } from '../../../shared/types';
+import type { AccessStatusResult } from '../../utils/accessKnowledge';
+import type { CapabilityKey, LanguageData, Token } from '../../../shared/types';
 import type { ComprehensiveWordStatusResult } from '../../utils/comprehensiveKnowledge';
 
 const mockSettings: Record<string, unknown> = {
@@ -37,6 +38,7 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(
 );
 const mockGetFrequency = vi.fn(() => null as { raw_level: number; level: string } | null);
 const mockGetFreqLevelNames = vi.fn(() => ({} as Record<string, string>));
+const mockGetAccessStatus = vi.fn<(word: string, capability: CapabilityKey, language?: string) => AccessStatusResult>(() => ({ status: 'unknown', ease: 0, source: 'None', untracked: true }));
 const mockGetCachedTranslation = vi.fn();
 let mockLanguageData: LanguageData = {
   name: 'Japanese',
@@ -74,9 +76,8 @@ vi.mock('../../context', () => ({
   }),
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
-    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
-    getAccessStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
+    getAccessStatus: mockGetAccessStatus,
   }),
 }));
 
@@ -224,7 +225,8 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
       <SubtitleWord token={token} index={0} />
     ), container);
 
-    expect(mockGetComprehensiveWordStatusWithSourceSync).toHaveBeenCalledWith('يكتب', 'ar');
+    expect(mockGetAccessStatus).toHaveBeenCalledWith('يكتب', 'surface-recognition', 'ar');
+    expect(mockGetAccessStatus).toHaveBeenCalledWith('يكتب', 'sense-recognition', 'ar');
     dispose();
   });
 
@@ -424,8 +426,34 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     dispose();
   });
 
+  it('keeps pronunciation scaffolding when written comprehension is known but reading is unknown', () => {
+    mockSettings.hideReadingForKnownWords = true;
+    mockGetAccessStatus.mockImplementation((_word, capability) => ({
+      status: capability === 'surface-recognition' || capability === 'sense-recognition' ? 'known' : 'unknown',
+      ease: 0, source: 'Manual',
+    }));
+    const token: Token = { word: '桜', actual_word: '桜', reading: 'さくら', type: 'noun' };
+    const dispose = render(() => <SubtitleWord token={token} index={0} />, container);
+    expect(container.querySelector('.subtitle-word')?.classList.contains('known')).toBe(true);
+    expect(container.querySelector('rt')?.textContent).toContain('さくら');
+    dispose();
+    mockSettings.hideReadingForKnownWords = false;
+  });
+
+  it('keeps a sound-known word visually unknown when the written identity bridge is missing', () => {
+    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({ status: 'known', basis: 'claim', evidenceStatus: 'unknown', source: 'Manual', timesSeen: 0 });
+    mockGetAccessStatus.mockImplementation((_word, capability) => ({
+      status: capability === 'surface-recognition' ? 'unknown' : 'known', ease: 0, source: 'Manual',
+    }));
+    const token: Token = { word: '桜', actual_word: '桜', reading: 'さくら', type: 'noun' };
+    const dispose = render(() => <SubtitleWord token={token} index={0} />, container);
+    expect(container.querySelector('.subtitle-word')?.classList.contains('known')).toBe(false);
+    dispose();
+  });
+
   it('leaves known words uncolored when colorKnownWords is off', () => {
     mockSettings.colorKnownWords = false;
+    mockGetAccessStatus.mockReturnValue({ status: 'known', ease: 2.5, source: 'Manual' });
     mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
       status: 'known' as const,
       basis: 'evidence' as const,
@@ -450,6 +478,7 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
 
   it('hides prosody overlays for known words when hideProsodyForKnownWords is on', () => {
     mockSettings.hideProsodyForKnownWords = true;
+    mockGetAccessStatus.mockReturnValue({ status: 'known', ease: 2.5, source: 'Manual' });
     mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
       status: 'known' as const,
       basis: 'evidence' as const,
@@ -495,6 +524,7 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
       '3': 'B1',
       '4': 'B2',
     });
+    mockGetAccessStatus.mockReturnValue({ status: 'known', ease: 2.5, source: 'Manual' });
     mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({
       status: 'known' as const,
       basis: 'evidence' as const,

@@ -1,3 +1,4 @@
+import { projectCapabilities } from '../knowledge/capabilityProjection';
 /**
  * Capacitor Bridge Implementation
  *
@@ -1725,6 +1726,7 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
         const active = readActiveEvidence(events);
         result[key] = {
           projection: active.length > 0 ? replayKeyProjection(active) : null,
+          capabilities: projectCapabilities(events.map((event, seq) => ({ event, seq }))),
           hasArchive: false,
           archivedEventCount: 0,
         };

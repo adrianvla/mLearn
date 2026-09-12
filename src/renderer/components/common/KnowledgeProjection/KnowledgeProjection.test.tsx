@@ -10,6 +10,12 @@ import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
 const installLanguageDataMock = vi.fn();
 const lookupWordMock = vi.fn();
 const getNeighborhoodMock = vi.fn();
+vi.mock('../../../../shared/bridges', () => ({
+  getBridge: () => ({ graph: {
+    lookupGraphWord: (_language: string, input: unknown) => lookupWordMock(input),
+    getGraphNeighborhood: (_language: string, input: unknown) => getNeighborhoodMock(input),
+  } }),
+}));
 let graphMeta: { entityCount: number; relationCount: number; ready: boolean; status: 'ready' | 'not-installed' | 'unavailable' | 'error' } = { entityCount: 4, relationCount: 3, ready: true, status: 'ready' };
 vi.mock('../../../context', () => ({
   useLocalization: () => ({ t: (key: string) => key }),
@@ -93,6 +99,7 @@ function neighborhoodLookup() {
 const flushAsync = () => { const { promise, resolve } = Promise.withResolvers<void>(); setTimeout(resolve, 0); return promise; };
 
 async function renderDrawer(overrides: Partial<{
+  language: string;
   initialTab: string;
   projection: KnowledgeProjection;
   events: KnowledgeEvent[];
@@ -121,6 +128,7 @@ async function renderDrawer(overrides: Partial<{
       onGraph={overrides.onGraph}
       onSelectEntity={overrides.onSelectEntity}
       surface="猫"
+      language={overrides.language}
       initialTab={overrides.initialTab as 'overview' | 'relations' | 'history' | 'prediction' | undefined}
       onWordClaim={overrides.onWordClaim}
       onAccessClaim={overrides.onAccessClaim as never}
@@ -170,10 +178,22 @@ describe('KnowledgeProjectionDrawer overview', () => {
     expect(cards.length).toBeGreaterThan(1);
     const overall = host.querySelector('.knowledge-card--overall');
     expect(overall?.textContent).toContain('mlearn.Knowledge.Popup.Overall');
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Why.Claim');
+    const claimed = host.querySelector('.knowledge-card--claim');
+    expect(claimed?.textContent).toContain('mlearn.Knowledge.Basis.Claim');
+    expect(claimed?.textContent).toContain('mlearn.Knowledge.Projection.ClaimOverride');
+    expect(claimed?.querySelector('.knowledge-card__why')).toBeNull();
     // No raw entity id leaks anywhere; capability labels resolve through keys.
     expect(host.textContent).not.toContain('ja:surface:');
     expect(host.textContent).toContain('mlearn.Knowledge.Capability.surface-recognition');
+    dispose();
+  });
+
+  it('uses the inspected language projection readiness instead of the ambient graph', async () => {
+    graphMeta = { entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' };
+    const { host, dispose } = await renderDrawer({ language: 'ja', initialTab: 'relations' });
+    expect(getNeighborhoodMock).toHaveBeenCalled();
+    expect(host.querySelector('.knowledge-drawer__degraded')).toBeNull();
+    expect(host.querySelector('.knowledge-relations__list')).not.toBeNull();
     dispose();
   });
 
@@ -205,7 +225,8 @@ describe('KnowledgeProjectionDrawer overview', () => {
       <KnowledgeProjectionDrawer model={model} open onClose={() => undefined} surface="猫" />
     ), mountHost);
     await flushAsync();
-    expect(document.body.textContent).toContain('mlearn.Knowledge.Projection.Why.Passive');
+    expect(document.body.textContent).toContain('mlearn.WordHover.TimesSeen');
+    expect(document.body.querySelectorAll('.knowledge-overview__cards .knowledge-card')).toHaveLength(0);
     expect(document.body.textContent).not.toContain('mlearn.Knowledge.Projection.Why.Evidence');
     dispose();
   });
@@ -253,6 +274,26 @@ describe('KnowledgeProjectionDrawer relations', () => {
     expect(host.textContent).not.toContain('realizes');
     expect(host.textContent).not.toContain('semantically-related');
     expect(host.textContent).not.toContain('jmdict');
+    dispose();
+  });
+
+  it('groups package grammatical properties by entity semantics, separately from senses', async () => {
+    getNeighborhoodMock.mockResolvedValue({
+      center: { id: 'ja:surface:hash', kind: 'surface', label: '猫' },
+      relations: [
+        { id: 'pkg:property:1', kind: 'grammar-pattern', label: 'arbitrary class', relationType: 'pkg:classifies' },
+        { id: 'pkg:prosody:1', kind: 'grammar-pattern', label: 'p1', relationType: 'has-prosodic-pattern' },
+        { id: 'pkg:pos:1', kind: 'grammar-pattern', label: 'class A', relationType: 'has-pos' },
+        { id: 'ja:sense:s1', kind: 'sense', label: 'cat', relationType: 'has-sense' },
+      ],
+    });
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
+    expect(host.querySelector('.knowledge-relations__section--properties')?.textContent).toContain('arbitrary class');
+    expect(host.querySelector('.knowledge-relations__section--prosody')?.textContent).toContain('p1');
+    expect(host.querySelector('.knowledge-relations__section--grammar-properties')?.textContent).toContain('class A');
+    expect(host.querySelector('.knowledge-relations__section--grammar-properties')?.textContent).not.toContain('p1');
+    expect(host.querySelector('.knowledge-relations__section--meanings')?.textContent).not.toContain('arbitrary class');
+    expect(host.querySelector('.knowledge-relations__section--meanings')?.textContent).toContain('cat');
     dispose();
   });
 

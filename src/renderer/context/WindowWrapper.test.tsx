@@ -23,6 +23,10 @@ const activeGroupGateMock = vi.fn((_props?: { showSwitchTrigger?: boolean }) => 
 const pluginAdapterMock = vi.fn(() => vi.fn());
 const policyScopeMock = vi.fn();
 
+vi.mock('../components/common/KnowledgeProjection/KnowledgeInspectorHost', () => ({
+  KnowledgeInspectorHost: () => <div data-testid="knowledge-inspector-host" />,
+}));
+
 vi.mock('./SettingsContext', () => ({
   SettingsProvider: (props: { children?: JSX.Element }) => <>{props.children}</>,
   useSettings: () => ({
@@ -164,6 +168,13 @@ describe('WindowWrapper', () => {
     expect(activeGroupGateMock).toHaveBeenCalledTimes(1);
     expect(activeGroupGateMock).toHaveBeenCalledWith({ showSwitchTrigger: undefined });
 
+    dispose();
+  });
+
+  it('mounts one shared knowledge inspector host after settings load', async () => {
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper>content</WindowWrapper>, container);
+    expect(container.querySelectorAll('[data-testid="knowledge-inspector-host"]')).toHaveLength(1);
     dispose();
   });
 

@@ -1,6 +1,6 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import { useLocalization } from '../../../context';
-import type { CapabilityKind } from '../../../../shared/graph/types';
+import type { CapabilityKey } from '../../../../shared/graph/types';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { ArchivedHistoryPoint, HistoryCurvePoint, SourceReignBand } from '../../../utils/knowledgeHistory';
 import './KnowledgeHistoryGraph.css';
@@ -25,9 +25,9 @@ export interface KnowledgeHistoryGraphProps {
   /** Coarse archive points (weeks/months) — LOD history left of the exact tail. */
   archivedPoints?: ArchivedHistoryPoint[];
   bands: SourceReignBand[];
-  capability: CapabilityKind;
-  availableCapabilities: readonly CapabilityKind[];
-  onCapabilityChange: (capability: CapabilityKind) => void;
+  capability: CapabilityKey;
+  availableCapabilities: readonly CapabilityKey[];
+  onCapabilityChange: (capability: CapabilityKey) => void;
   mode: 'compact' | 'full';
   now: number;
   firstSeen?: number;
@@ -151,7 +151,7 @@ export const KnowledgeHistoryGraph: Component<KnowledgeHistoryGraphProps> = (pro
               class={`khistory-tab${capability === props.capability ? ' khistory-tab-active' : ''}`}
               onClick={() => props.onCapabilityChange(capability)}
             >
-              {t(CAPABILITY_LABEL_KEYS[capability])}
+              {t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}
             </button>
           )}
         </For>

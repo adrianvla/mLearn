@@ -7,6 +7,7 @@ import {
 } from '../../../services/learnerClaimsInterpreter';
 import { streamChat } from '../../../services/llmProvider';
 import { Button } from '../Button/Button';
+import { Textarea } from '../Input/Input';
 import './TellMlearn.css';
 
 /**
@@ -109,8 +110,11 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
         }
       >
         <div class="tell-mlearn__composer">
-          <textarea
+          <Textarea
             class="tell-mlearn__input"
+            fullWidth
+            resize="none"
+            aria-label={props.label}
             rows={2}
             placeholder={props.placeholder}
             value={text()}

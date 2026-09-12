@@ -57,16 +57,6 @@ vi.mock('../../context', async () => {
       getReadingVariants: (word: string) => [word],
     }),
     useFlashcards: () => ({
-      // Mirrors the real reactive selector chain: subscribes to the anki cache
-      // version and the anki-enabled setting, then consults the shared cache.
-      getWordTrackingSync: (word: string) => {
-        ankiCache.ankiCacheVersion();
-        if (!mockUseAnkiEnabled()) return { tracker: 'nothing' as const };
-        const match = ankiCache.findAnkiWordMatchInCache([word], { language: 'ja', languageData: null });
-        return match
-          ? { tracker: 'anki' as const, ankiLookupWord: match.word }
-          : { tracker: 'nothing' as const };
-      },
       getComprehensiveWordStatusWithSourceSync: (word: string) => {
         ankiCache.ankiCacheVersion();
         if (mockUseAnkiEnabled() && ankiCache.findAnkiWordMatchInCache([word], { language: 'ja', languageData: null })) {
@@ -83,6 +73,7 @@ vi.mock('../../context', async () => {
       updateFlashcard: vi.fn(),
       isLoading: () => false,
       getIgnoredWordsSync: () => [],
+      isWordIgnoredSync: () => false,
       unignoreWordForLanguage: vi.fn(),
     }),
     useLocalization: () => ({ t: (key: string) => key }),
@@ -114,6 +105,8 @@ vi.mock('../../../shared/bridges', () => ({
     },
   }),
 }));
+
+vi.mock('../../services/openKnowledgeInspector', () => ({ openKnowledgeInspector: () => undefined }));
 
 vi.mock('../../services/openGraphInspector', () => ({ openGraphInspector: () => undefined }));
 
@@ -190,11 +183,11 @@ vi.mock('./components', async () => {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-function trackerCellTexts(): Record<string, string> {
+function integrationCellTexts(): Record<string, string> {
   const result: Record<string, string> = {};
   document.querySelectorAll('.entry').forEach((entryEl) => {
     const word = entryEl.querySelector('.col.word .word-text')?.textContent ?? '';
-    result[word] = entryEl.querySelector('.col.tracker')?.textContent ?? '';
+    result[word] = entryEl.querySelector('.col.integrations')?.textContent ?? '';
   });
   return result;
 }
@@ -219,24 +212,24 @@ describe('WordDbEditorContent Anki tracking', () => {
     container.remove();
   });
 
-  it('updates tracker cells and status filters reactively when Anki enables after load', async () => {
+  it('updates integration cells and status filters reactively when Anki enables after load', async () => {
     const { WordDbEditorContent } = await import('./App');
 
     const dispose = render(() => <WordDbEditorContent />, container);
     await flush();
     await flush();
 
-    expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
-    expect(trackerCellTexts()['青い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
+    expect(integrationCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
+    expect(integrationCellTexts()['青い']).toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
 
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '赤い', queue: 2, type: 2 }]);
     setMockUseAnkiEnabled(true);
     await flush();
     await flush();
 
-    // Tracker cell reacts to the async Anki enablement without reloading words
-    expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Anki');
-    expect(trackerCellTexts()['青い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
+    // Integration cell reacts to the async Anki enablement without reloading words
+    expect(integrationCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Integrations.Anki');
+    expect(integrationCellTexts()['青い']).toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
 
     // Status filter uses the live status chain and matches the same rows
     mockSearchBarProps.current?.setFilterTokens?.([
@@ -244,9 +237,9 @@ describe('WordDbEditorContent Anki tracking', () => {
     ]);
     await flush();
 
-    const texts = trackerCellTexts();
+    const texts = integrationCellTexts();
     expect(Object.keys(texts)).toEqual(['赤い']);
-    expect(texts['赤い']).toContain('mlearn.WordDbEditor.Trackers.Anki');
+    expect(texts['赤い']).toContain('mlearn.WordDbEditor.Integrations.Anki');
 
     dispose();
   });
@@ -260,7 +253,7 @@ describe('WordDbEditorContent Anki tracking', () => {
     await flush();
     await flush();
 
-    expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Nothing');
+    expect(integrationCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
 
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '赤い', queue: 2, type: 2 }]);
     window.dispatchEvent(new Event('focus'));
@@ -268,7 +261,7 @@ describe('WordDbEditorContent Anki tracking', () => {
     await flush();
 
     expect(mockGetAnkiWordStatuses.mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect(trackerCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Trackers.Anki');
+    expect(integrationCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Integrations.Anki');
 
     dispose();
   });

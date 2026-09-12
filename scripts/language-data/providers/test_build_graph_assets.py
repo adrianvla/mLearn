@@ -104,7 +104,7 @@ class BuildGraphAssetsTest(unittest.TestCase):
                 ["赤い", "pitch", {"reading": "あかい", "pitches": [{"position": 1}, {"position": 2}]}],
             ]), encoding="utf-8")
             (jitendex / "term_bank_1.json").write_text(json.dumps([
-                ["赤い", "あかい", "", "", 0, [{"type": "structured-content", "content": [{"data": {"content": "glossary"}, "content": [{"tag": "li", "content": "red"}]}]}], 1001],
+                ["赤い", "あかい", "", "", 0, [{"type": "structured-content", "content": [{"tag": "span", "data": {"code": "v5u"}, "content": "5-dan"}, {"tag": "span", "data": {"code": "vi"}, "content": "intransitive"}, {"data": {"content": "glossary"}, "content": [{"tag": "li", "content": "red"}]}]}], 1001],
             ]), encoding="utf-8")
             builder = _load_builder(root)
             builder.build_ja()
@@ -126,6 +126,8 @@ class BuildGraphAssetsTest(unittest.TestCase):
 
             senses = [relation for relation in relations if relation["type"] == "has-sense"]
             self.assertEqual([relation["to"] for relation in senses], ["ja:sense:1001:1"])
+            self.assertEqual(entities["ja:sense:1001:1"]["label"], "red")
+            self.assertEqual({relation["to"] for relation in relations if relation["type"] == "has-pos"}, {"ja:pos:v5u", "ja:pos:vi"})
     def test_ja_marks_name_domain_entries_and_keeps_shared_surfaces_common(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "root-of-app"

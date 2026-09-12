@@ -11,6 +11,8 @@ import type { ReplayProjection } from '../utils/projectionReplay';
 /** Derived per-key learner state served from checkpoint folds + archives. */
 export interface KeyKnowledgeState {
   projection: ReplayProjection | null;
+  /** Capability-scoped learner views; scheduler-only rows carry no capability evidence. */
+  capabilities?: Record<string, ReplayProjection>;
   /** Latest explicit status per source (survives archiving). */
   statusMarkers?: Record<string, { t: number; seq: number; toStatus: string }>;
   /** True when the key has an archive (aggregated old evidence exists). */

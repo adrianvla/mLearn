@@ -96,7 +96,8 @@ interface EvidenceCandidate {
 }
 export function getComprehensiveWordStatusWithSource(
   word: string,
-  deps: ComprehensiveKnowledgeDeps
+  deps: ComprehensiveKnowledgeDeps,
+  scope: 'lexical' | 'sense' = 'lexical',
 ): ComprehensiveWordStatusResult {
   const matches = buildWordFormMatches(word, deps);
   const thresholds = { learning: deps.learningThreshold, known: deps.knownEaseThreshold };
@@ -138,6 +139,7 @@ export function getComprehensiveWordStatusWithSource(
     // - EVIDENCE promotes from every lexical identity access: written-path
     //   attempts and spoken attempts are equally measurements of the object.
     for (const capability of LEXICAL_IDENTITY_CAPABILITIES) {
+      if (scope === 'sense') continue;
       const record = entry?.access?.[capability];
       if (!record) continue;
       const promotesClaims = capability === 'spoken-recognition';

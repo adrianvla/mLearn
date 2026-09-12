@@ -4,14 +4,7 @@
   gap: var(--spacing-2);
   width: min(360px, calc(100vw - var(--spacing-4)));
   min-width: 220px;
-}
-
-/* The rating matrix is tighter here than in full-window contexts: let the
-   label column take its content width and lean on the quality columns for
-   the remainder so capability names never clip. */
-.word-status-knowledge .rating-matrix__head,
-.word-status-knowledge .rating-matrix__row {
-  grid-template-columns: minmax(max-content, 7.5em) repeat(3, minmax(3.5em, 1fr)) minmax(3.5em, 1fr);
+  box-sizing: border-box;
 }
 
 .word-status-knowledge__summary {
@@ -20,11 +13,14 @@
   gap: var(--spacing-1);
 }
 
-.word-status-knowledge__summary strong { color: var(--text-primary); }
-.word-status-knowledge__close { margin-left: auto; padding: 0 var(--spacing-1); }
-.word-status-knowledge__source { color: var(--text-secondary); font-size: var(--font-size-2xs); }
+.word-status-knowledge__summary strong {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
 
-.word-status-knowledge__status { font-size: var(--font-size-2xs); font-weight: 600; }
+.word-status-knowledge__close { margin-left: auto; padding: var(--spacing-1); }
+.word-status-knowledge__source { color: var(--text-secondary); font-size: var(--font-size-2xs); }
+.word-status-knowledge__status { font-size: var(--font-size-2xs); font-weight: var(--font-weight-semibold); }
 .word-status-knowledge__status--unknown { color: var(--color-danger); }
 .word-status-knowledge__status--learning { color: var(--color-warning); }
 .word-status-knowledge__status--known { color: var(--color-success); }

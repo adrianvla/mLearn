@@ -21,9 +21,8 @@ import {
   isDisplayableFrequencyLevel,
 } from '../../shared/languageFeatures';
 import { hashWordSync } from '../services/srsAlgorithm';
-import { buildKnownWordSet, buildTrackedWordSet, type AnkiWordStatusKeys } from './knowledgeUtils';
+import { buildKnownWordSet, buildTrackedWordSet } from './knowledgeUtils';
 
-export type { AnkiWordStatusKeys };
 
 export { buildWordFrequencyMapFromLanguageData };
 
@@ -121,22 +120,10 @@ export function buildLearningWordSet(
   store: FlashcardStore,
   learningThreshold: number,
   knownThreshold: number,
-  ankiLearningKeys?: ReadonlySet<string>,
 ): Set<string> {
   const learning = new Set<string>();
   const knownEase = knownThreshold / 1000;
   const learningEase = learningThreshold / 1000;
-
-  // Flashcards in learning or relearning state
-  for (const [lk, cardIds] of Object.entries(store.wordToCardMap)) {
-    for (const id of cardIds) {
-      const card = store.flashcards[id];
-      if (card && (card.state === 'learning' || card.state === 'relearning')) {
-        learning.add(lk);
-        break;
-      }
-    }
-  }
 
   // Knowledge-derived learning — the canonical effective-state rule (no raw
   // ease band inference): a claim decides ('learning' admits the word;
@@ -154,13 +141,6 @@ export function buildLearningWordSet(
       learning.add(lk);
     }
   }
-
-  // Word candidates (auto-tracked but not yet flashcards)
-  for (const lk of Object.keys(store.wordCandidates)) {
-    learning.add(lk);
-  }
-
-  if (ankiLearningKeys) for (const lk of ankiLearningKeys) learning.add(lk);
 
   return learning;
 }
@@ -294,7 +274,6 @@ export function computeLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
-  ankiKeys?: AnkiWordStatusKeys,
 ): LevelStats[] {
   const levelBuckets = buildLevelBuckets(wordFrequency, levelNames, languageData);
   if (levelBuckets.size === 0) return [];
@@ -306,10 +285,9 @@ export function computeLevelStats(
     store.ignoredWords,
     store.wordKnowledge,
     knownThreshold,
-    ankiKeys?.known,
   );
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
-  const trackedSet = buildTrackedWordSet(store, language, ankiKeys);
+  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
+  const trackedSet = buildTrackedWordSet(store, language);
   const passiveOnlySet = buildPassiveOnlyWordSet(store);
 
   return [...levelBuckets.entries()]
@@ -371,7 +349,6 @@ export function computeWordLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
-  ankiKeys?: AnkiWordStatusKeys,
 ): ComprehensiveWordStats {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -380,10 +357,9 @@ export function computeWordLevelStats(
     store.ignoredWords,
     store.wordKnowledge,
     knownThreshold,
-    ankiKeys?.known,
   );
 
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
+  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
   const freqHashSet = buildFrequencyHashSet(wordFrequency, language, canonicalizeWord);
 
   // Bucket frequency words by level
@@ -478,7 +454,6 @@ export function computeBeyondExamLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
-  ankiKeys?: AnkiWordStatusKeys,
 ): LevelStats | null {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -487,10 +462,9 @@ export function computeBeyondExamLevelStats(
     store.ignoredWords,
     store.wordKnowledge,
     knownThreshold,
-    ankiKeys?.known,
   );
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
-  const trackedSet = buildTrackedWordSet(store, language, ankiKeys);
+  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
+  const trackedSet = buildTrackedWordSet(store, language);
   const passiveOnlySet = buildPassiveOnlyWordSet(store);
 
   let known = 0;
@@ -546,7 +520,6 @@ export function computeLevelCoverage(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
-  ankiKeys?: AnkiWordStatusKeys,
 ): Array<{ level: number; name: string; total: number; known: number; pct: number }> {
   const knownSet = buildKnownWordSet(
     store.flashcards,
@@ -555,7 +528,6 @@ export function computeLevelCoverage(
     store.ignoredWords,
     store.wordKnowledge,
     knownThreshold,
-    ankiKeys?.known,
   );
 
   const levelTotals = new Map<number, number>();

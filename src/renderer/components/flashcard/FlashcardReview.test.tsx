@@ -7,6 +7,9 @@ import type { JSX } from 'solid-js';
 import type { Flashcard, LanguageData, Settings } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { FlashcardReview } from './FlashcardReview';
+import { knowledgeInspection, closeKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { surfaceEntityId } from '../../../shared/graph/load';
+import { hashWordSync } from '../../services/srsAlgorithm';
 
 const toastMocks = vi.hoisted(() => ({ showToast: vi.fn(() => 0) }));
 
@@ -38,7 +41,7 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Flashcards.Review.Attribution.Marked': return `Marked ${String(params?.aspect ?? '')} as unknown`;
     case 'mlearn.Knowledge.Capability.sense-recognition': return 'Meaning';
     case 'mlearn.Knowledge.Capability.surface-reading': return 'Reading';
-    case 'mlearn.Knowledge.Capability.surface-recognition': return 'Written form';
+    case 'mlearn.Knowledge.Capability.surface-recognition': return 'Recognize this spelling';
     case 'mlearn.Rating.Matrix.Missed': return 'Missed';
     case 'mlearn.Rating.Matrix.Struggled': return 'Struggled';
     case 'mlearn.Rating.Matrix.Fluent': return 'Fluent';
@@ -56,6 +59,10 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     default: return key;
   }
 };
+
+vi.mock('../../hooks/useKnowledgeProjection', () => ({
+  useKnowledgeProjection: () => ({ loading: () => false, capabilities: () => ['sense-recognition', 'surface-reading', 'prosodic-pattern'] }),
+}));
 
 vi.mock('../../context', () => ({
   useFlashcards: () => ({
@@ -135,8 +142,6 @@ vi.mock('../common/Feedback/Toast', () => ({
 
 vi.mock('../common', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../common')>();
-  // Real RatingMatrix: rating tests exercise the actual input controller.
-  const RatingMatrix = actual.RatingMatrix;
   const Button = (props: {
     children?: JSX.Element;
     class?: string;
@@ -187,7 +192,6 @@ vi.mock('../common', async (importOriginal) => {
     return el;
   };
   return {
-    RatingMatrix,
     Button,
     Panel,
     Badge,
@@ -204,6 +208,7 @@ vi.mock('../common', async (importOriginal) => {
     IconBtn,
     HoverReveal,
     SafeHtml,
+    RatingMatrix: actual.RatingMatrix,
   };
 });
 
@@ -262,21 +267,6 @@ function modeSelectOptions(container: HTMLDivElement): string[] {
     .filter((value): value is string => value !== null);
 }
 
-function matrixRow(container: HTMLDivElement, label: string): Element | null {
-  return Array.from(container.querySelectorAll('.rating-matrix__row'))
-    .find((row) => row.querySelector('.rating-matrix__label')?.textContent === label) ?? null;
-}
-
-function matrixCell(container: HTMLDivElement, label: string, quality: 0 | 1 | 2): HTMLButtonElement | null {
-  const row = matrixRow(container, label);
-  return (row?.querySelectorAll<HTMLButtonElement>('.rating-matrix__cell')[quality]) ?? null;
-}
-
-const rate = (quality: '1' | '2' | '3', letter: string) => {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: quality }));
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: letter }));
-};
-
 function clickShowAnswer(container: HTMLDivElement): void {
   const button = container.querySelector<HTMLButtonElement>('.flashcard-show-answer-btn');
   if (!button) throw new Error('Show Answer button missing');
@@ -308,7 +298,20 @@ describe('FlashcardReview review modes', () => {
   });
 
   afterEach(() => {
+    closeKnowledgeInspector();
     container.remove();
+  });
+
+  it('opens the shared inspector on the reviewed card identity without recording an outcome', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    const inspect = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Inspect');
+    expect(inspect).toBeDefined();
+    inspect!.click();
+    expect(knowledgeInspection()).toEqual({ language: 'ja', surface: '犬', target: { kind: 'surface', id: surfaceEntityId('ja', hashWordSync('犬')) } });
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+    expect(mockAnswerCard).not.toHaveBeenCalled();
+    dispose();
   });
 
   it('hides the mode selector when only the meaning aspect is available', () => {
@@ -407,225 +410,68 @@ describe('FlashcardReview failure attribution', () => {
     container.remove();
   });
 
-  it('renders the rating matrix only after the answer is revealed', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
+  it('collapsed digit rates every tested capability under one whole-word attempt', () => {
+    const dispose = render(() => <FlashcardReview reviewMode="reading" />, container);
     expect(container.querySelector('.rating-matrix')).toBeNull();
-
     clickShowAnswer(container);
-
-    expect(container.querySelector('.rating-matrix')).not.toBeNull();
-    expect(matrixRow(container, 'Reading')).not.toBeNull();
+    // Canonical collapsed digit: the whole tested word rates at once —
+    // every tested capability, one logical attempt; strays are absorbed.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'missed', expect.objectContaining({ taskType: 'srs-review' }));
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({ taskType: 'srs-review' }));
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', expect.any(String), expect.any(Number), expect.objectContaining({ tested: ['sense-recognition', 'surface-reading'] }));
     dispose();
   });
 
-  it('a kana card front supplies the reading: no reading or written-form attribution offered', () => {
-    // Real isReadingScriptText needs a surface-reading lexeme config to classify
-    // pure-kana text as reading script.
-    const kanaJaLanguageData: LanguageData = {
-      ...jaLanguageData,
-      textProcessing: {
-        ...jaLanguageData.textProcessing,
-        lexemeNormalization: { type: 'surface-reading', surfaceScripts: ['Han'], readingScripts: ['Hira'] },
-      } as LanguageData['textProcessing'],
-    };
-    mockLangMap = { ja: kanaJaLanguageData, de: deLanguageData };
-    mockLanguageData = kanaJaLanguageData;
-    setMockCard(makeCard({ content: { type: 'word', front: 'もたれる', reading: 'もたれる', back: 'to lean' } }));
-
+  it('Space reveals without submitting; the compact bar mounts armed on reveal', () => {
     const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-
-    // Reading was supplied by the surface; form recognition is not independently
-    // learnable on a reading-transparent front — neither row is offered.
-    expect(matrixRow(container, 'Reading')).toBeNull();
-    expect(matrixRow(container, 'Written form')).toBeNull();
-    expect(matrixRow(container, 'Meaning')).not.toBeNull();
-    dispose();
-  });
-
-  it('does not record an attempt until a profile is explicitly submitted', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-
-    expect(matrixRow(container, 'Written form')).not.toBeNull();
-    rate('1', 'w');
-
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-    expect(mockAnswerCard).not.toHaveBeenCalled();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
-
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-recognition', 'missed', expect.objectContaining({ language: 'ja' }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
-    dispose();
-  });
-
-  it('hides the wrong-reading button when the language lacks a reading capability', () => {
-    setMockCard(makeCard({ language: 'de' }));
-    mockLanguageData = deLanguageData;
-
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-
-    expect(matrixRow(container, 'Reading')).toBeNull();
-    dispose();
-  });
-
-  it('hides the reading row when the card has no distinct reading', () => {
-    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: '犬', back: 'dog' } }));
-
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-
-    expect(matrixRow(container, 'Reading')).toBeNull();
-    dispose();
-  });
-
-  it('shows the wrong-prosody button when the card carries prosody data', () => {
-    setMockCard(makeCard({
-      content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'tone', display: 'HL' } },
-    }));
-
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-
-    expect(matrixRow(container, 'Prosody')).not.toBeNull();
-    dispose();
-  });
-
-  it('records a surface-reading miss with demonstrated-path evidence and Again scheduling', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-    rate('1', 'r');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
-
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({
-      language: 'ja',
-      demonstrated: ['surface-recognition'],
-    }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
-    dispose();
-  });
-
-  it('records a prosody miss with the demonstrated path (click parity)', () => {
-    setMockCard(makeCard({
-      content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'tone', display: 'HL' } },
-    }));
-
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-    // Click the Prosody × Missed cell — same evidence as the 1+P chord.
-    const cell = matrixCell(container, 'Prosody', 0);
-    if (!cell) throw new Error('Prosody missed cell missing');
-    cell.click();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
-
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'prosodic-pattern', 'missed', expect.objectContaining({
-      language: 'ja',
-      demonstrated: ['surface-recognition', 'surface-reading'],
-    }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
-    dispose();
-  });
-
-  it('fluent meaning via chord: Good scheduling plus known-anchor evidence', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-    rate('3', 'm');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
-
-    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: expect.any(String) }));
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'fluent', expect.objectContaining({ language: 'ja' }));
-    dispose();
-  });
-
-  it('Space reveals only and never records evidence or mutates the scheduler', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-
-    expect(container.querySelector('.rating-matrix')).not.toBeNull();
+    const compactActions = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality'));
+    // No rating surface exists before the reveal.
+    expect(container.querySelector('.rating-matrix')).toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    expect(compactActions().length).toBeGreaterThan(0);
+    expect(compactActions().every((action) => action.disabled)).toBe(false);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     expect(mockRecordAttempt).not.toHaveBeenCalled();
     expect(mockAnswerCard).not.toHaveBeenCalled();
     dispose();
   });
-
-  it('F submits one profile attempt with every tested capability', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
+  it('a mixed drafted profile schedules on its weakest evidence under one attempt', () => {
+    const dispose = render(() => <FlashcardReview reviewMode="reading" />, container);
     clickShowAnswer(container);
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
-
-    // Sense + surface-reading + written-form recognition are tested on the
-    // default ja card: every tested capability receives fluent evidence, none
-    // fabricated beyond.
-    const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
-    expect(calls.length).toBe(3);
-    // One physical submit = one logical attempt: shared attemptId across all
-    // observations and the SRS review event.
-    const attemptIds = new Set(calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
-    expect(attemptIds.size).toBe(1);
-    expect(mockAnswerCard).toHaveBeenCalledWith('good', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: [...attemptIds][0] }));
-    dispose();
-  });
-
-  it('Adjust starts fluent, submits only the reading exception, and shares one attempt ID', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-    const adjust = container.querySelector<HTMLButtonElement>('.rating-matrix__compact-adjust');
-    if (!adjust) throw new Error('Adjust button missing');
-    adjust.click();
-    expect(adjust.getAttribute('aria-expanded')).toBe('true');
-    expect(container.querySelectorAll('.rating-matrix__cell--selected').length).toBe(3);
-
-    const readingMissed = matrixCell(container, 'Reading', 0);
-    if (!readingMissed) throw new Error('Reading missed cell missing');
-    readingMissed.click();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
-
-    const calls = mockRecordAttempt.mock.calls;
-    expect(calls).toHaveLength(3);
-    expect(calls.find((call) => call[1] === 'surface-reading')?.[2]).toBe('missed');
-    expect(calls.filter((call) => call[1] !== 'surface-reading').every((call) => call[2] === 'fluent')).toBe(true);
-    expect(new Set(calls.map((call) => (call[3] as { attemptId?: string }).attemptId)).size).toBe(1);
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', 'card-1', expect.any(Number), expect.anything());
-    dispose();
-  });
-
-  it('Shift+F adds Easy scheduling with identical fluent evidence', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', shiftKey: true }));
-
-    const calls = mockRecordAttempt.mock.calls.filter((call) => call[2] === 'fluent');
-    const attemptIds = new Set(calls.map((call) => (call[3] as { attemptId?: string })?.attemptId));
-    expect(attemptIds.size).toBe(1);
-    expect(mockAnswerCard).toHaveBeenCalledWith('easy', 'card-1', expect.any(Number), expect.objectContaining({ attemptId: [...attemptIds][0] }));
-    expect(calls.length).toBe(3);
-    dispose();
-  });
-
-  it('Alt marks the attempt as worked out (method=inference)', () => {
-    const dispose = render(() => <FlashcardReview />, container);
-
-    clickShowAnswer(container);
+    container.querySelector<HTMLButtonElement>('.rating-matrix__adjust')!.click();
+    // sense fluent, reading missed — the weaker LATER row must dominate
+    // scheduling, so this fails against an observations[0]-quality bug.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', altKey: true }));
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'fluent', expect.objectContaining({ taskType: 'srs-review' }));
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({ taskType: 'srs-review' }));
+    expect(mockAnswerCard).toHaveBeenCalledWith('again', expect.any(String), expect.any(Number), expect.objectContaining({ tested: ['sense-recognition', 'surface-reading'] }));
+    dispose();
+  });
 
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'fluent', expect.objectContaining({
-      method: 'inference',
+  it('audio supplied before reveal still offers Reading and records the scaffold with the attempt', () => {
+    mockSettings.flashcardAutoTts = true;
+    const dispose = render(() => <FlashcardReview reviewMode="reading" />, container);
+    clickShowAnswer(container);
+    // A revealed cue changes the evidence condition, not the rating surface:
+    // the Reading row stays ratable and the audio scaffold travels with the
+    // attempt so the projection can weigh it. Collapsed digit = whole word.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'missed', expect.objectContaining({
+      taskType: 'srs-review',
+      scaffolds: { audio: true },
+    }));
+    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({
+      taskType: 'srs-review',
+      scaffolds: { audio: true },
     }));
     dispose();
   });

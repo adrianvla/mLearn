@@ -16,7 +16,7 @@ import {
 
 export { migrateAspectRecordsToAccess };
 /** Capabilities a rating row can address directly (sense knowledge rides the word-level projection). */
-export type RatedCapability = Exclude<CapabilityKind, 'sense-recognition'>;
+export type RatedCapability = CapabilityKey;
 
 const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
 
@@ -44,15 +44,18 @@ export interface AccessStatusResult {
  */
 export function getAccessStatusSync(
   word: string,
-  capability: CapabilityKind,
+  capability: CapabilityKey,
   deps: ComprehensiveKnowledgeDeps,
 ): AccessStatusResult {
-  const meaning = getComprehensiveWordStatusWithSource(word, deps);
   if (capability === 'sense-recognition') {
+    const meaning = getComprehensiveWordStatusWithSource(word, deps, 'sense');
     return {
       status: meaning.status,
       ease: meaning.ease ?? (meaning.status === 'known' ? deps.knownEaseThreshold : meaning.status === 'learning' ? deps.learningThreshold : 0),
       source: meaning.source,
+      untracked: meaning.basis === 'unmeasured',
+      ...(meaning.basis === 'claim' || meaning.basis === 'evidence' ? { basis: meaning.basis } : {}),
+      ...(meaning.claim !== undefined ? { claim: meaning.claim } : {}),
     };
   }
 
@@ -129,8 +132,11 @@ export function demonstratesFor(capability: CapabilityKind, cue: AccessCue = 'wr
  * character-reading, morpheme-recognition) write no aspect field — the
  * event's targetRef.capability is the only address.
  */
-export function legacyAspectFor(capability: CapabilityKind): KnowledgeAspect | undefined {
-  return CAPABILITY_ASPECT[capability];
+export function legacyAspectFor(capability: CapabilityKey): KnowledgeAspect | undefined {
+  for (const [key, aspect] of Object.entries(CAPABILITY_ASPECT)) {
+    if (key === capability) return aspect;
+  }
+  return undefined;
 }
 
 export function aspectSourceToDisplay(source: KnowledgeSource | 'manual'): WordKnowledgeSource {
@@ -159,4 +165,3 @@ export function applyAccessWrite(
     updatedAt: input.now,
   };
 }
-

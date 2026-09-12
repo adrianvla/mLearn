@@ -13,7 +13,7 @@ let flashcardStoreMock: {
   dailyStats: Record<string, Record<string, { newCardsStudied: number; reviewCardsStudied: number; lapses: number; timeSpent: number; graduated: number }>>;
   wordKnowledge: Record<string, { word?: string; statusChangedAtSeen?: number }>;
 };
-let settingsMock: { language: string; newDayHour: number; known_ease_threshold: number; srsLearningThreshold: number };
+let settingsMock: { language: string; newDayHour: number; easeThresholdKnown: number; easeThresholdLearning: number };
 let summariesMock: Record<string, KeyHistorySummary> = {};
 let knowledgeEventsChanged: (() => void) | null = null;
 let flashcardsLoading = false;
@@ -112,7 +112,7 @@ describe('Dashboard', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     flashcardStoreMock = { flashcards: {}, dailyStats: {}, wordKnowledge: {} };
-    settingsMock = { language: 'ja', newDayHour: 4, known_ease_threshold: 1.8, srsLearningThreshold: 3 };
+    settingsMock = { language: 'ja', newDayHour: 4, easeThresholdKnown: 1.8, easeThresholdLearning: 3 };
     summariesMock = {};
     flashcardsLoading = false;
     // Exercise the production invalidation path: the knowledge log cache is

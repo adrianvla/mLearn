@@ -1,3 +1,4 @@
+import { getTokenLookupWord } from '../../utils/wordForms';
 import { Component, Show, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
 import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks, Token } from '../../../shared/types';
@@ -11,19 +12,15 @@ import { OverlayControls } from '../../components/overlay';
 import { VideoUnknownWordsSidebar, type VideoWordEntry } from '../../components/video/VideoUnknownWordsSidebar';
 import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../components/watchTogether';
 import { CloudReLoginModal } from '../../components/cloud';
-import { AnkiModifyWarningModal } from '../../components/flashcard/AnkiModifyWarningModal';
 import { useSubtitles } from '../../hooks/useSubtitles';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../context';
-import { useAnki } from '../../hooks/useAnki';
 import { useTokenizer, useTranslation, getCachedTranslation } from '../../hooks/useTranslation';
 import { useWatchTogether } from '../../hooks/useWatchTogether';
 import { cleanContextPhrase } from '../../utils/phraseExtraction';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { toUniqueIdentifier } from '../../services/statsService';
-import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
 import { buildWordHoverFlashcardContent } from '../../components/subtitle/wordHoverHelpers';
 import { bulkAddWords } from '../../utils/bulkAddWords';
-import { getTokenLookupWord, getWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoom, isShareableWatchTogetherUrl } from '../../services/watchTogetherRoomService';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../services/cloudSessionManager';
@@ -103,7 +100,6 @@ export const App: Component = () => {
   const { settings, updateSettings, updateSetting } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
-  const anki = useAnki();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const wordLookupOptions = {
@@ -135,8 +131,6 @@ export const App: Component = () => {
   const tokenizerCapabilities = createMemo(() => langCtx.getLanguageFeatures().tokenizerCapabilities);
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
-  const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
-  const [pendingAddAllEntries, setPendingAddAllEntries] = createSignal<VideoWordEntry[]>([]);
   const [explainerOpen, setExplainerOpen] = createSignal(false);
   const [explainerWord, setExplainerWord] = createSignal('');
   const [explainerContext, setExplainerContext] = createSignal('');
@@ -178,10 +172,6 @@ export const App: Component = () => {
     isYouTubeUrl(videoState()?.url ?? lastVideoUrl()) ? 'nudge' : 'snap'
   ));
   const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || '', langCtx.currentLangData()));
-  const ankiCacheOptions = createMemo(() => ({
-    language: settings.language,
-    languageData: langCtx.currentLangData(),
-  }));
 
   const watchTogether = useWatchTogether({
     getVideo: () => null,
@@ -190,16 +180,6 @@ export const App: Component = () => {
     getCurrentTime: () => currentTime(),
   });
 
-  const getWordForms = (word: string): string[] => (
-    getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants, {
-      languageData: langCtx.currentLangData(),
-      language: settings.language,
-    })
-  );
-  const getTrackedAnkiWord = (word: string): string | null => {
-    if (!settings.use_anki) return null;
-    return findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions())?.word ?? null;
-  };
 
   onMount(() => {
     const cleanups: Array<() => void> = [];
@@ -759,48 +739,25 @@ export const App: Component = () => {
   };
 
   const addAllVideoWords = async (entries: VideoWordEntry[]) => {
-    if (settings.use_anki && !settings.skipAnkiModifyWarning) {
-      setPendingAddAllEntries(entries);
-      setShowAnkiAddAllWarning(true);
-      return;
-    }
     await processAddAll(entries);
   };
 
   const processAddAll = async (entries: VideoWordEntry[]) => {
     setIsAddingAllSidebarWords(true);
     try {
-      const updatedAny = await bulkAddWords({
+      await bulkAddWords({
         entries,
-        wordOf: (entry) => entry.word,
-        trackedAnkiWordOf: getTrackedAnkiWord,
-        formsOf: getWordForms,
-        statusOf: (word: string) => {
-          const status = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
-          return status === 'known' ? 2 : status === 'learning' ? 1 : 0;
-        },
-        updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
         addFlashcard: addVideoWordFlashcard,
         onEntryError: (entry, err) => {
-          log.error(`Failed to update Anki cards for "${entry.word}":`, err);
-          showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
+          log.error(`Failed to add flashcard for "${entry.word}":`, err);
+          showToast({ message: t('mlearn.WordHover.FlashcardAddFailed'), variant: 'error' });
         },
       });
-      if (updatedAny) await refreshAnkiWordsCache(ankiCacheOptions());
     } finally {
       setIsAddingAllSidebarWords(false);
     }
   };
 
-  const confirmAnkiAddAll = (dontRemind: boolean) => {
-    if (dontRemind) {
-      updateSetting('skipAnkiModifyWarning', true);
-    }
-    const entries = pendingAddAllEntries();
-    setShowAnkiAddAllWarning(false);
-    setPendingAddAllEntries([]);
-    void processAddAll(entries);
-  };
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
     await flashcardCtx.ignoreWordForLanguage(entry.word);
@@ -1193,15 +1150,6 @@ export const App: Component = () => {
               word={explainerWord()}
               contextPhrase={explainerContext()}
               initialPosition={explainerPosition()}
-            />
-
-            <AnkiModifyWarningModal
-              isOpen={showAnkiAddAllWarning()}
-              title={t('mlearn.Sidebar.AnkiAddAllWarning.Title')}
-              message={t('mlearn.Sidebar.AnkiAddAllWarning.Message')}
-              confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
-              onConfirm={confirmAnkiAddAll}
-              onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
             />
 
             <WatchTogetherModeModal

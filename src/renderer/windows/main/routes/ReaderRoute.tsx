@@ -1,3 +1,4 @@
+import { getWrittenComprehensionStatus } from '../../../utils/writtenComprehension';
 import { withCloudAuth } from '../../../services/cloudSessionManager';
 /**
  * Reader Route
@@ -47,9 +48,6 @@ import {
 import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
 import { bulkAddWords } from '../../../utils/bulkAddWords';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
-import { useAnki } from '../../../hooks/useAnki';
-import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
 import { syncReaderPluginActivity } from './readerPluginActivity';
@@ -121,7 +119,7 @@ interface ReaderPageWordSource {
   token: Token;
   contextPhrase: string;
   pageId: string;
-  box: OcrBox;
+  box?: OcrBox;
   boxIndex: number;
 }
 
@@ -146,6 +144,13 @@ interface ReaderCompatibleOcrResult {
   sent_size?: { width: number; height: number };
 }
 
+interface ReaderPageTokenData {
+  boxIndex: number;
+  box?: OcrBox;
+  tokens: Token[];
+  contextPhrase: string;
+}
+
 interface ReaderTextPageProps {
   page: PageImage;
   tokenizeMany: (texts: string[]) => Promise<Token[][]>;
@@ -154,6 +159,7 @@ interface ReaderTextPageProps {
   onWordLeave: () => void;
   vertical?: boolean;
   onTokenized?: () => void;
+  onTokenDataChange?: (entries: ReaderPageTokenData[]) => void;
   onTokenizeStateChange?: (inFlight: boolean) => void;
 }
 
@@ -211,7 +217,7 @@ function normalizeReaderOcrResult(result: ReaderCompatibleOcrResult): OcrResult 
   };
 }
 
-const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
+export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const [tokenParagraphs, setTokenParagraphs] = createSignal<Token[][]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
   const { settings } = useSettings();
@@ -247,6 +253,7 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const hasTokenParagraphs = () => tokenParagraphs().some((paragraph) => paragraph.length > 0);
   createEffect(() => {
     const paragraphs = bodyBlocksWithOffsets();
+    props.onTokenDataChange?.([]);
     if (!paragraphs.length) {
       setTokenParagraphs([]);
       return;
@@ -275,6 +282,9 @@ const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
             return applyReadingSpansToTokens(block, tokens, sliceReadingSpansForRange(spans, start, start + block.length));
           });
           setTokenParagraphs(nextTokenParagraphs);
+          props.onTokenDataChange?.(nextTokenParagraphs.map((tokens, boxIndex) => ({
+            boxIndex, tokens, contextPhrase: paragraphs[boxIndex].block,
+          })));
           setTokenizeFailed(false);
           reportInFlightDone();
           props.onTokenized?.();
@@ -536,7 +546,6 @@ export const ReaderRoute: Component = () => {
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
-  const anki = useAnki();
   const { detectGrammarInText, supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
   const ocrEnabled = () => settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled;
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -546,18 +555,10 @@ export const ReaderRoute: Component = () => {
     language: settings.language,
     ...wordLookupOptions,
   });
-  const ankiCacheOptions = createMemo(() => ({
-    language: settings.language,
-    languageData: currentLangData(),
-  }));
   const getWordForms = (word: string): string[] => (
     getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: currentLangData() })
   );
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
-  const getTrackedAnkiWord = (word: string): string | null => {
-    if (!settings.use_anki) return null;
-    return findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions())?.word ?? null;
-  };
   const { tokenize, tokenizeMany } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { lookup } = useDictionary({ language: settings.language, ...wordLookupOptions });
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
@@ -774,9 +775,6 @@ export const ReaderRoute: Component = () => {
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
 
-  // Anki Add All warning state
-  const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
-  const [pendingAddAllEntries, setPendingAddAllEntries] = createSignal<ReaderUnknownWordEntry[]>([]);
 
   // Helper function to get file path using Electron's webUtils API (Electron 32+)
   // Falls back to legacy File.path property for older Electron versions
@@ -1047,7 +1045,7 @@ export const ReaderRoute: Component = () => {
   // REQ39: OCR pages are displayed concurrently — per-page encounter state, reset per fresh OCR pass.
   const ocrGrammarEncounterRecorder = createGrammarEncounterRecorder('reader-ocr', { exclusive: false });
 
-  const handlePageTokenData = (pageId: string, entries: Array<{ boxIndex: number; box: OcrBox; tokens: Token[]; contextPhrase: string }>) => {
+  const handlePageTokenData = (pageId: string, entries: ReaderPageTokenData[], source: 'ocr' | 'text' = 'ocr') => {
     const nextEntries: ReaderPageWordSource[] = [];
 
     for (const entry of entries) {
@@ -1074,7 +1072,7 @@ export const ReaderRoute: Component = () => {
     // REQ39: journal grammar occurrences for OCR'd page text as factual-exposure encounters.
     // Dedupe is per page with reset on a fresh (empty) token pass, so incremental box fills
     // and overlay re-renders cannot flood the journal.
-    if (supportsGrammar()) {
+    if (source === 'ocr' && supportsGrammar()) {
       const languageData = currentLangData();
       const grammar = languageData?.grammar;
       if (!grammar?.length) return;
@@ -1093,7 +1091,7 @@ export const ReaderRoute: Component = () => {
   const getAnchorRectForWord = (entry: ReaderPageWordSource): DOMRect | null => {
     const image = imageRefs()[entry.pageId];
     const result = ocrResults[entry.pageId];
-    if (!image || !result) return null;
+    if (!image || !result || !entry.box) return null;
 
     const imageRect = image.getBoundingClientRect();
     const sentWidth = result.sent_size?.width || (result.original_size?.width || 0) * (result.client_scale || 1) || image.naturalWidth;
@@ -1365,7 +1363,7 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
-        if (flashcardCtx.getComprehensiveWordStatusSync(entry.word, settings.language) === 'known') {
+        if (getWrittenComprehensionStatus({ surface: entry.token.surface ?? entry.token.word, lexicalWord: entry.word, language: settings.language }, flashcardCtx.getAccessStatus) === 'known') {
           continue;
         }
 
@@ -1486,7 +1484,7 @@ export const ReaderRoute: Component = () => {
   const handleAddSidebarWord = async (entry: ReaderUnknownWordEntry) => {
     if (
       addingSidebarWords().has(entry.key)
-      || flashcardCtx.hasWordSync(entry.word, settings.language)
+      || flashcardCtx.getCardByWordSync(entry.word, settings.language)
       || flashcardCtx.isWordIgnoredSync(entry.word, settings.language)
     ) {
       return;
@@ -1499,51 +1497,28 @@ export const ReaderRoute: Component = () => {
       return;
     }
 
-    if (settings.use_anki && !settings.skipAnkiModifyWarning) {
-      setPendingAddAllEntries(entries);
-      setShowAnkiAddAllWarning(true);
-      return;
-    }
     await processAddAll(entries);
   };
 
   const processAddAll = async (entries: ReaderUnknownWordEntry[]) => {
     setIsAddingAllSidebarWords(true);
     try {
-      const updatedAny = await bulkAddWords({
+      await bulkAddWords({
         entries,
-        wordOf: (entry) => entry.word,
-        trackedAnkiWordOf: getTrackedAnkiWord,
-        formsOf: getWordForms,
-        statusOf: (word: string) => {
-          const status = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
-          return status === 'known' ? 2 : status === 'learning' ? 1 : 0;
-        },
-        updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
         addFlashcard: addReaderWordFlashcard,
         skip: (entry) =>
-          flashcardCtx.hasWordSync(entry.word, settings.language)
+          !!flashcardCtx.getCardByWordSync(entry.word, settings.language)
           || flashcardCtx.isWordIgnoredSync(entry.word, settings.language),
         onEntryError: (entry, err) => {
-          log.error(`Failed to update Anki cards for "${entry.word}":`, err);
-          showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
+          log.error(`Failed to add flashcard for "${entry.word}":`, err);
+          showToast({ message: t('mlearn.WordHover.FlashcardAddFailed'), variant: 'error' });
         },
       });
-      if (updatedAny) await refreshAnkiWordsCache(ankiCacheOptions());
     } finally {
       setIsAddingAllSidebarWords(false);
     }
   };
 
-  const confirmAnkiAddAll = (dontRemind: boolean) => {
-    if (dontRemind) {
-      updateSettings({ skipAnkiModifyWarning: true });
-    }
-    const entries = pendingAddAllEntries();
-    setShowAnkiAddAllWarning(false);
-    setPendingAddAllEntries([]);
-    void processAddAll(entries);
-  };
 
   const handleIgnoreSidebarWord = async (entry: ReaderUnknownWordEntry) => {
     await flashcardCtx.ignoreWordForLanguage(entry.word, entry.token.reading);
@@ -3086,7 +3061,7 @@ export const ReaderRoute: Component = () => {
                                     onTokenDataChange={(entries) => handlePageTokenData(page.id, entries)}
                                     highlightedOriginalIndices={(() => {
                                       const entry = sidebarHoveredEntry();
-                                      if (!entry || entry.pageId !== page.id || entry.box.__originalIdx == null) return undefined;
+                                      if (!entry || entry.pageId !== page.id || entry.box?.__originalIdx == null) return undefined;
                                       return new Set([entry.box.__originalIdx]);
                                     })()}
                                 />
@@ -3101,6 +3076,7 @@ export const ReaderRoute: Component = () => {
                             onWordHover={handleOcrWordHover}
                             onWordLeave={handleOcrWordLeave}
                             vertical={readerBookVertical()}
+                            onTokenDataChange={(entries) => handlePageTokenData(page.id, entries, 'text')}
                             onTokenized={scheduleTextPageOverflowAudit}
                             onTokenizeStateChange={handleTokenizeStateChange}
                           />
@@ -3223,16 +3199,6 @@ export const ReaderRoute: Component = () => {
         <MagnifyingGlass
             imageElements={Object.values(imageRefs())}
             active={magnifierActive()}
-        />
-
-        {/* Anki Add All warning modal */}
-        <AnkiModifyWarningModal
-          isOpen={showAnkiAddAllWarning()}
-          title={t('mlearn.Sidebar.AnkiAddAllWarning.Title')}
-          message={t('mlearn.Sidebar.AnkiAddAllWarning.Message')}
-          confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
-          onConfirm={confirmAnkiAddAll}
-          onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
         />
       </section>
   );

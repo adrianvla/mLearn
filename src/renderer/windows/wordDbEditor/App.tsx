@@ -10,8 +10,6 @@ import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings
 import type { WordStatus } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
-import { getBridge } from '../../../shared/bridges';
-import { WINDOW_TYPES } from '../../../shared/constants';
 import './WordDbEditorLayout.css';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
 import {
@@ -29,15 +27,16 @@ import {
 } from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
-  import { isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
+import { getWordFormCandidates } from '../../utils/wordForms';
+import { isAnkiCacheFetched, refreshAnkiWordsCache, findAnkiWordMatchInCache } from '../../services/ankiWordsCache';
 import { wordStatusToNumeric } from '../../components/subtitle/wordHoverHelpers';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.wordDbEditor.app");
 
 export const WordDbEditorContent: Component = () => {
-  const { getWordFrequency, currentLangData, getFreqLevelNames } = useLanguage();
-  const { addFlashcard, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync, getWordTrackingSync, store: flashcardStore } = useFlashcards();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getCanonicalForm, getWordVariants } = useLanguage();
+  const { addFlashcard, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync, store: flashcardStore } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
   const anki = useAnki();
@@ -128,20 +127,6 @@ export const WordDbEditorContent: Component = () => {
 
   // Load words from storage on mount
   onMount(async () => {
-    // Focus query: knowledge popups open this window with { query: word }.
-    const bridge = getBridge();
-    const cleanupContext = bridge.window.onWindowContext((context) => {
-      if (typeof context?.query === 'string' && context.query.trim()) {
-        setSearchQuery(context.query);
-        // The query arrives after mount (Inspect from a knowledge popup):
-        // run the same search pipeline as the Search button, otherwise the
-        // input fills in and nothing else happens.
-        handleSearch();
-      }
-    });
-    bridge.window.getWindowContext(WINDOW_TYPES.WORD_DB_EDITOR);
-    if (cleanupContext) onCleanup(cleanupContext);
-
     const onWindowFocus = () => {
       if (ankiEnabled() && !isAnkiCacheFetched(ankiCacheOptions())) {
         void refreshAnkiWordsCache(ankiCacheOptions());
@@ -493,7 +478,7 @@ export const WordDbEditorContent: Component = () => {
     const hasSavedDefinitions = definitions.length > 0;
     const hasSavedProsody = Boolean(entry.prosody?.type && entry.prosody.type !== 'none')
       || entry.prosodyPosition !== null
-      || getWordTrackingSync(entry.word).tracker === 'flashcards';
+      || Boolean(getCardByWordSync(entry.word, settings.language));
 
     if (!hasSavedDefinitions && !hasSavedProsody) {
       return null;
@@ -589,15 +574,6 @@ export const WordDbEditorContent: Component = () => {
     });
   });
 
-  let measureTimer: ReturnType<typeof setTimeout> | undefined;
-  createEffect(() => {
-    virtualizer().getVirtualItems();
-    if (measureTimer) clearTimeout(measureTimer);
-    measureTimer = setTimeout(() => {
-      virtualizer().measure();
-    }, 80);
-  });
-
   createEffect(() => {
     const header = headerRef();
     if (!header) return;
@@ -670,7 +646,7 @@ export const WordDbEditorContent: Component = () => {
                       <div
                         class="virtual-row"
                         data-index={item.index}
-                        ref={(el) => virtualizer().measureElement(el)}
+                        ref={(el) => virtualizer().measureElement(el, item.index)}
                         style={{
                           position: 'absolute',
                           top: '0',
@@ -691,7 +667,6 @@ export const WordDbEditorContent: Component = () => {
                             onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}
                             onAnkiPreview={ankiEnabled() ? handleAnkiPreview : undefined}
                             ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}
-                            forceTracker={browseMode() === 'ignored' ? 'ignored' : undefined}
                         />
                       </div>
                     );
@@ -719,7 +694,7 @@ export const WordDbEditorContent: Component = () => {
           {/* Anki Card Preview Modal */}
           <Show when={ankiPreviewOpen() && ankiPreviewEntry()}>
             <AnkiCardPreviewModal
-                word={getWordTrackingSync(ankiPreviewEntry()!.word).ankiLookupWord || ankiPreviewEntry()!.word}
+                word={findAnkiWordMatchInCache(getWordFormCandidates(ankiPreviewEntry()!.word, getCanonicalForm, getWordVariants, { language: settings.language, languageData: currentLangData() }), { language: settings.language, languageData: currentLangData() })?.word || ankiPreviewEntry()!.word}
                 isOpen={ankiPreviewOpen()}
                 onClose={() => {
                   setAnkiPreviewOpen(false);

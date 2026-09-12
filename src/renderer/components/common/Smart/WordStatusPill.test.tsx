@@ -162,25 +162,31 @@ describe('WordStatusPill', () => {
     container.remove();
   });
 
-  it('uses the supplied language metadata for non-active Anki lookups', () => {
+  it('claims the supplied language independently of Anki', () => {
     const dispose = render(() => (
       <WordStatusPill word="Haus" language="de" />
     ), container);
 
     container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    expect(ankiMocks.findAnkiWordMatchInCacheMock).toHaveBeenCalledWith(
-      ['de:Haus', 'Haus'],
-      {
-        language: 'de',
-        languageData: germanLanguageData,
-      },
-    );
+    expect(setWordClaimMock).toHaveBeenCalledWith('de:Haus', 'known', 'de');
+    expect(updateWordCardsMock).not.toHaveBeenCalled();
 
     dispose();
   });
 
-  it('updates Anki with the original matched expression instead of the normalized lookup key', async () => {
+  it('suppresses the nested knowledge popover when the parent already displays knowledge', () => {
+    const dispose = render(() => (
+      <WordStatusPill word="Haus" language="de" suppressKnowledgePopover />
+    ), container);
+
+    expect(container.querySelector('[data-testid="tooltip"]')).toBeNull();
+    expect(container.querySelector('[data-testid="mock-knowledge-popup"]')).toBeNull();
+    expect(container.querySelector('button')).not.toBeNull();
+    dispose();
+  });
+
+  it('records a manual claim without altering matching Anki cards', async () => {
     skipAnkiModifyWarning = true;
     updateWordCardsMock.mockResolvedValueOnce({ updated: 1, repositioned: 0 });
     ankiMocks.findAnkiWordMatchInCacheMock.mockReturnValue({
@@ -196,7 +202,8 @@ describe('WordStatusPill', () => {
     container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await Promise.resolve();
 
-    expect(updateWordCardsMock).toHaveBeenCalledWith('你好(ni hao)', 1800);
+    expect(setWordClaimMock).toHaveBeenCalledWith('ja:你好', 'known', 'ja');
+    expect(updateWordCardsMock).not.toHaveBeenCalled();
     expect(updateWordCardsMock).not.toHaveBeenCalledWith('你好', expect.anything());
 
     dispose();

@@ -469,17 +469,12 @@ export {
   type WordStatusPillKnowledgeProps,
 } from './WordStatusPillKnowledge';
 
-// RatingMatrix
-export {
-  RatingMatrix,
-  type RatingMatrixProps,
-  type RateOptions,
-  type ProfileObservation,
-} from './RatingMatrix';
-
 // TellMlearn — natural-language claim escape hatch (single-shot, not a chat)
 export {
   TellMlearn,
   type AppliedLearnerClaim,
   type TellMlearnProps,
 } from './TellMlearn/TellMlearn';
+
+// RatingMatrix — the canonical rating control over T2 observation types
+export { RatingMatrix, type RatingMatrixProps, type ProfileObservation, type RateOptions } from './RatingMatrix';

@@ -56,8 +56,8 @@ vi.mock('../../context', () => ({
   useSettings: () => ({
     settings: {
       language: settingsLanguageMock,
-      known_ease_threshold: 3500,
-      srsLearningThreshold: 1500,
+      easeThresholdKnown: 3.5,
+      easeThresholdLearning: 1.5,
     },
   }),
 }));

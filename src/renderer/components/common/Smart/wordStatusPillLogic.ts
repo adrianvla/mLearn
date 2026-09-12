@@ -1,7 +1,5 @@
 export interface WordStatusChangeActionOptions {
-  isInAnki: boolean;
   hasNonManualSource: boolean;
-  skipAnkiModifyWarning: boolean;
   skipStatusSourceWarning: boolean;
 }
 
@@ -13,13 +11,9 @@ export interface WordStatusSourceLabelOptions {
   canonicalWord?: string | null;
 }
 
-export type WordStatusChangeAction = 'show-anki-warning' | 'show-status-source-warning' | 'apply';
+export type WordStatusChangeAction = 'show-status-source-warning' | 'apply';
 
 export function getWordStatusChangeAction(options: WordStatusChangeActionOptions): WordStatusChangeAction {
-  if (options.isInAnki && !options.skipAnkiModifyWarning) {
-    return 'show-anki-warning';
-  }
-
   if (options.hasNonManualSource && !options.skipStatusSourceWarning) {
     return 'show-status-source-warning';
   }

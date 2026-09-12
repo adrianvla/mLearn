@@ -4,27 +4,21 @@ import { buildWordStatusSourceLabel, getWordStatusChangeAction } from './wordSta
 describe('getWordStatusChangeAction', () => {
   it('shows the status-source warning when a non-manual source already tracks the word', () => {
     expect(getWordStatusChangeAction({
-      isInAnki: false,
       hasNonManualSource: true,
-      skipAnkiModifyWarning: false,
       skipStatusSourceWarning: false,
     })).toBe('show-status-source-warning');
   });
 
-  it('shows the Anki warning before the status-source warning when the word is in Anki', () => {
+  it('keeps one explicit claim warning for existing evidence', () => {
     expect(getWordStatusChangeAction({
-      isInAnki: true,
       hasNonManualSource: true,
-      skipAnkiModifyWarning: false,
       skipStatusSourceWarning: false,
-    })).toBe('show-anki-warning');
+    })).toBe('show-status-source-warning');
   });
 
-  it('applies the status change immediately once both warnings are skipped', () => {
+  it('applies the status change immediately when the claim warning is skipped', () => {
     expect(getWordStatusChangeAction({
-      isInAnki: true,
       hasNonManualSource: true,
-      skipAnkiModifyWarning: true,
       skipStatusSourceWarning: true,
     })).toBe('apply');
   });

@@ -38,8 +38,6 @@ import type { WordStatus } from '../../../shared/constants';
 import { ATTEMPT_QUALITIES, SRS_EASE, type AttemptQuality } from '../../../shared/constants';
 import type { CapabilityKind } from '../../../shared/graph/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
-import type { GraphRelatedNode } from '../../../shared/graph/ipc';
-import type { WordSyncStatement } from './WordSyncRating';
 import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
@@ -72,18 +70,10 @@ import {
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
-import { useOptionalGraph } from '../../context';
-import type { RatedCapability } from '../../utils/accessKnowledge';
+import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { calibrationPoolItem, selectNextEncounter } from '../../learning/engine';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import './WordSync.css';
-
-/** One graph-attested character component of the presented word. */
-interface WordCharacterComponent {
-  /** Graph entity id (`${language}:char:${glyph}`) — the canonical claim address. */
-  id: string;
-  label: string;
-}
 
 interface PoolEntry {
   word: string;
@@ -102,10 +92,6 @@ interface WordSyncUndoEntry {
   previousSeenAt: Record<string, number | undefined>;
   /** Attempt ids whose events must be retracted when this rating is undone. */
   attemptIds: AttemptId[];
-  /** Accesses that received a CLAIM in this rating; undo withdraws them. */
-  claimedAccesses: RatedCapability[];
-  /** True when this rating set the whole-word claim; undo withdraws it. */
-  wordClaimed: boolean;
   previousRatedCount: number;
   previousLastRating: AttemptQuality | null;
   previousSamplingLevel: number;
@@ -129,17 +115,17 @@ export const WordSyncContent: Component = () => {
     appendRetractions,
     recomputeWordKnowledgeFromEvidence,
     getWordKnowledge,
-    getWordTrackingSync,
+    getCardByWordSync,
     getWordSyncSeenSnapshotForForms,
     getComprehensiveWordStatusWithSourceSync,
     getAccessStatus,
-    setAccessStatus,
+    setAccessClaim,
     setWordClaim,
     clearAccessClaim,
     recordAttempt,
     isKnowledgeReady,
   } = useFlashcards();
-  const graph = useOptionalGraph();
+
 
   // ─── State ───────────────────────────────────────────
   const [currentWord, setCurrentWord] = createSignal<PoolEntry | null>(null);
@@ -317,7 +303,7 @@ export const WordSyncContent: Component = () => {
         if (resolved.excluded) continue;
         const writtenAccess = hasSurfaceRecognitionAccess(knowledge);
         if (resolved.status === 'known' && writtenAccess) continue;
-        if (getWordTrackingSync(word, lang).tracker !== 'nothing') continue;
+        if (getCardByWordSync(word, lang) !== null) continue;
         const record = {
           status: wordSyncPoolStatus(resolved.status, Boolean(knowledge)),
           level: entry.raw_level,
@@ -446,12 +432,11 @@ export const WordSyncContent: Component = () => {
     });
   }
 
-  // Profile-mode submit: ONE logical attempt (one attemptId, one undo entry,
-  // one advance) carrying N aspect observations. Every tested aspect has an
-  // explicit claim here, so no prerequisite demonstration is inferred.
+  // One logical attempt and one undo entry for the selected observed task.
   function handleSubmitProfile(observations: readonly ProfileObservation[], opts?: RateOptions) {
     const w = currentWord();
-    if (!w || observations.length === 0) return;
+    if (!w || observations.length === 0
+      || observations.some((observation) => !testedAccesses().some((capability) => capability === observation.capability))) return;
     // opts.easy is scheduler-only and Word Sync has no scheduler — the
     // recorded evidence (fluent) is identical either way, so it is ignored.
     void opts;
@@ -478,8 +463,6 @@ export const WordSyncContent: Component = () => {
           language: settings.language,
           previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
           attemptIds: [attemptId],
-          claimedAccesses: [],
-          wordClaimed: false,
           previousRatedCount: ratedCount(),
           previousLastRating: lastRating(),
           previousSamplingLevel: samplingLevel(),
@@ -518,113 +501,6 @@ export const WordSyncContent: Component = () => {
     pickNext();
   }
 
-  /**
-   * Natural learner corrections ("I know this word when I hear it") — the
-   * USER speaks in statements; mLearn encodes the epistemics: claims stay
-   * claims, observed transfer stays evidence, and an access the statement
-   * does not cover stays unmeasured. Statements complete the word like a
-   * rating (one undo entry) and never fabricate evidence for untouched
-   * accesses.
-   */
-  function handleStatement(statement: WordSyncStatement) {
-    const w = currentWord();
-    if (!w) return;
-    const lang = settings.language;
-    const attemptId = nextAttemptId();
-    const claimedAccesses: RatedCapability[] = [];
-    let wordClaimed = false;
-
-    switch (statement.kind) {
-      // Claim: spoken-form cue → lexical identity works.
-      case 'known-spoken': {
-        setAccessStatus(w.word, 'spoken-recognition', 'known', 'manual', lang);
-        claimedAccesses.push('spoken-recognition');
-        break;
-      }
-      // Claims: the lexical object is known through its sense; the written
-      // surface is a missing bridge, NOT a wholly unknown word.
-      case 'known-meaning-unknown-form': {
-        setWordClaim(w.word, 'known', lang);
-        wordClaimed = true;
-        setAccessStatus(w.word, 'surface-recognition', 'unknown', 'manual', lang);
-        claimedAccesses.push('surface-recognition');
-        break;
-      }
-      // Claims per component character, addressed to the graph character
-      // ENTITY (character-recognition: the glyph is familiar). No-op when the
-      // graph provides no components.
-      case 'known-characters': {
-        for (const character of componentCharacters()) {
-          setAccessStatus(character.label, 'character-recognition', 'known', 'manual', lang, undefined, { kind: 'character', id: character.id });
-        }
-        break;
-      }
-      // Evidence: the learner just demonstrated compositional transfer —
-      // observed inference, never retroactive knowledge of the whole.
-      case 'inferred-from-parts': {
-        const timing = stopWordTiming();
-        for (const capability of ['sense-recognition', 'surface-recognition'] as const) {
-          recordAttempt(w.word, capability, 'fluent', {
-            language: lang,
-            method: 'inference',
-            attemptId,
-            origin: 'word-sync',
-            ...(timing ? { timing } : {}),
-            scaffolds: promptScaffolds(),
-          });
-        }
-        break;
-      }
-      // Claims: the written bridge works; pitch production is the weak spot.
-      case 'readable-pitch-wrong': {
-        setAccessStatus(w.word, 'surface-reading', 'known', 'manual', lang);
-        claimedAccesses.push('surface-reading');
-        setAccessStatus(w.word, 'prosodic-pattern', 'learning', 'manual', lang);
-        claimedAccesses.push('prosodic-pattern');
-        break;
-      }
-      // Claim: the written-form bridge explicitly does not exist (yet).
-      case 'never-seen-form': {
-        setAccessStatus(w.word, 'surface-recognition', 'unknown', 'manual', lang);
-        claimedAccesses.push('surface-recognition');
-        break;
-      }
-    }
-
-    setUndoStack((prev) => {
-      const next = [
-        ...prev,
-        {
-          word: w,
-          language: lang,
-          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, lang),
-          attemptIds: [attemptId],
-          claimedAccesses,
-          wordClaimed,
-          previousRatedCount: ratedCount(),
-          previousLastRating: lastRating(),
-          previousSamplingLevel: samplingLevel(),
-          previousLevelCursors: new Map(levelCursors),
-        },
-      ];
-      if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-      return next;
-    });
-
-    markWordSyncSeen(w.word, lang);
-    setSessionRatedSet((s) => { s.add(w.word); return s; });
-    setRatedCount((c) => c + 1);
-    setLastRating('fluent');
-    pickNext();
-  }
-
-  /** Graph character components of the current word (empty without graph data). */
-  function componentCharacters(): WordCharacterComponent[] {
-    // Filled from the graph resource; a synchronous read keeps statement
-    // handling simple — the resource resolves when the word is presented.
-    return characterComponents() ?? [];
-  }
-
   // ─── "Tell mLearn…" — natural-language claim escape hatch ──────────
   // Statements become typed CLAIM ops; nothing here fabricates evidence,
   // and every applied op carries its inverse through the claim model.
@@ -647,22 +523,22 @@ export const WordSyncContent: Component = () => {
           // id) is a legitimate claim address — the journal validates the id
           // and the projection renders unknown ids inertly. Only the
           // whole-word sense path is reserved (it has no access row).
-          const isValid = isValidCapabilityId(op.capability) && op.capability !== 'sense-recognition';
+          const isValid = isValidCapabilityId(op.capability) && currentProjection.capabilities().includes(op.capability) && op.capability !== 'sense-recognition';
           if (!isValid) break;
-          const capability = op.capability as RatedCapability;
+          const capability = op.capability;
           const before = getAccessStatus(w.word, capability, lang);
           // Undo restores the PRIOR CLAIM PRESENCE exactly — it never
           // converts evidence into a claim.
           const restorePriorClaim = () => {
             if (before.claim !== undefined) {
-              setAccessStatus(w.word, capability, before.claim, 'manual', lang);
+              setAccessClaim(w.word, capability, before.claim, lang);
             } else {
               clearAccessClaim(w.word, capability, lang);
             }
           };
           if (op.op === 'setAccessClaim') {
             if (before.claim === op.status) break; // no-op: already claimed exactly so
-            setAccessStatus(w.word, capability, op.status, 'manual', lang);
+            setAccessClaim(w.word, capability, op.status, lang);
             applied.push({
               labelKey: CAPABILITY_LABEL_KEYS[capability] ?? capability,
               statusKey: STATUS_LABEL_KEYS[op.status],
@@ -708,7 +584,7 @@ export const WordSyncContent: Component = () => {
     const w = currentWord();
     if (!w) return '';
     const accessStates: Record<string, WordStatus | undefined> = {};
-    for (const capability of [...testedAccesses(), 'spoken-recognition' as const]) {
+    for (const capability of currentProjection.capabilities()) {
       accessStates[capability] = getAccessStatus(w.word, capability, settings.language).status;
     }
     return buildClaimPromptContext({
@@ -717,7 +593,6 @@ export const WordSyncContent: Component = () => {
       language: settings.language,
       accessStates,
       wordClaim: store.wordKnowledge[w.storageKey]?.claim ?? null,
-      componentCharacters: componentCharacters().map((character) => character.label),
     });
   }
 
@@ -748,17 +623,9 @@ export const WordSyncContent: Component = () => {
 
     setUndoStack((prev) => prev.slice(0, -1));
 
-    // Epistemic state = active evidence + active claims: retract the attempt
-    // events, withdraw any claims this rating made, then let the projection
-    // replay rebuild wordKnowledge. Only the policy cooldown map (seen) uses
-    // a snapshot restore — it is not learner truth.
+    // Retract the observed attempt and replay projection. The policy cooldown
+    // uses a snapshot restore; explicit corrections retain their own undo.
     appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds);
-    for (const capability of undoEntry.claimedAccesses) {
-      clearAccessClaim(undoEntry.word.word, capability, undoEntry.language);
-    }
-    if (undoEntry.wordClaimed) {
-      setWordClaim(undoEntry.word.word, null, undoEntry.language);
-    }
     void recomputeWordKnowledgeFromEvidence(undoEntry.word.word, undoEntry.language);
     restoreWordSyncRating(undoEntry.previousSeenAt, undoEntry.language);
     setSessionRatedSet((rated) => {
@@ -934,35 +801,20 @@ export const WordSyncContent: Component = () => {
   // Matrix rows: accesses THIS interaction tests (supplied information
   // excluded — the shared gate in languageFeatures owns the tested/supplied
   // distinction).
+  const currentProjection = useKnowledgeProjection(() => {
+    const word = currentWord();
+    return word ? { language: settings.language, surface: word.word } : undefined;
+  });
   const testedAccesses = createMemo<CapabilityKind[]>(() => {
     const w = currentWord();
-    if (!w) return ['sense-recognition'];
+    if (!w) return [];
     return [...getTestedAccesses({
       languageData: langCtx.currentLangData(),
       surface: w.word,
       hasReadingData: !!displayedReading(),
       hasProsodyData: !!currentWordProsody(),
-    })];
+    })].filter((capability) => currentProjection.capabilities().includes(capability));
   });
-
-  // A spoken representation exists (kana/pronunciation data) — enables the
-  // heard-it statement; the session itself never plays audio.
-  const hasSpokenForm = createMemo(() => !!displayedReading());
-
-  // Graph character components of the current word. Empty until a graph
-  // builder emits has-character structure — the statement simply hides.
-  const [characterComponents] = createResource(() => currentWord()?.word, async (word): Promise<WordCharacterComponent[]> => {
-    if (graph.readiness() !== 'ready') return [];
-    const lookup = await graph.lookupWord({ surface: word });
-    const entry = lookup?.entries[0];
-    if (!entry) return [];
-    const related: GraphRelatedNode[] = await graph.getRelated(entry.id, ['has-character']);
-    return related
-      .filter((node: GraphRelatedNode) => node.kind === 'character')
-      .map((node: GraphRelatedNode) => ({ id: node.id, label: node.label ?? '' }))
-      .filter((component) => component.label.length > 0);
-  });
-  const hasCharacterComponents = createMemo(() => (characterComponents() ?? []).length > 0);
 
   const wordColoredProsodyCtx: WordRenderTextContext = {
     languageData: langCtx.currentLangData,
@@ -1145,12 +997,8 @@ export const WordSyncContent: Component = () => {
             accesses={testedAccesses()}
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
-            scaffolds={promptScaffolds()}
             armed={showAnswer() && !!currentWord() && !finished()}
-            hasSpokenForm={hasSpokenForm()}
-            hasCharacterComponents={hasCharacterComponents()}
             onSubmit={handleSubmitProfile}
-            onStatement={handleStatement}
           />
           <Show when={currentWord()}>
             <TellMlearn

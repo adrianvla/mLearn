@@ -1,3 +1,4 @@
+import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
@@ -10,7 +11,7 @@ import * as SRS from '../services/srsAlgorithm';
 import { replayKeyProjection, type ReplayProjection } from '../../shared/utils/projectionReplay';
 import { GRAMMAR_ENCOUNTER_EASE_BUMP, GRAMMAR_FAIL_EASE_PENALTY, initialGrammarEase } from '../../shared/utils/grammarPolicy';
 import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
-import { UNTRACKED_LABEL_KEY, knowledgeStatusLabelKey } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
+import { UNMEASURED_LABEL_KEY, knowledgeStatusLabelKey } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
 
 // ── IPC callback captures ────────────────────────────────────────────
 let flashcardsCb: (store: FlashcardStore | null) => void;
@@ -134,12 +135,13 @@ const knowledgeJournal = vi.hoisted(() => {
   });
   const getKnowledgeStates = vi.fn(async (keys: readonly string[]) => {
     const rows = allRows();
-    const out: Record<string, { projection: ReplayProjection | null; hasArchive: boolean; archivedEventCount: number }> = {};
+    const out: Record<string, { projection: ReplayProjection | null; capabilities?: Record<string, ReplayProjection>; hasArchive: boolean; archivedEventCount: number }> = {};
     for (const key of keys) {
       // Faithful to the store: the projection is the fold over the key's rows
       // (replayKeyProjection applies retractions, as the real checkpoint does).
       out[key] = {
         projection: replayKeyProjection((rows[key] ?? []) as KnowledgeEvent[]),
+        capabilities: projectCapabilities(((rows[key] ?? []) as KnowledgeEvent[]).map((event, seq) => ({ event, seq }))),
         hasArchive: false,
         archivedEventCount: 0,
       };
@@ -361,7 +363,6 @@ type FlashcardCtx = {
   getNewCount: () => number;
   hasWordSync: (word: string, language?: string) => boolean;
   getCardByWordSync: (word: string, language?: string) => Flashcard | null;
-  getWordTrackingSync: (word: string, language?: string) => { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string };
   getCardsByWordSync: (word: string, language?: string) => Flashcard[];
   isWordIgnoredSync: (word: string, language?: string) => boolean;
   getIgnoredWordsSync: () => Array<{ word: string; reading?: string; language: string; ignoredAt: number }>;
@@ -394,7 +395,7 @@ type FlashcardCtx = {
   setWordClaim: (word: string, claim: 'unknown' | 'learning' | 'known' | null, language?: string) => void;
   isKnowledgeReady: () => boolean;
   getAccessStatus: (word: string, capability: CapabilityKind, language?: string) => AccessStatusResult;
-  setAccessStatus: (word: string, capability: CapabilityKind, status: 'unknown' | 'learning' | 'known', source: string, language?: string, attemptId?: AttemptId) => void;
+  setAccessClaim: (word: string, capability: CapabilityKind, status: 'unknown' | 'learning' | 'known', language?: string) => void;
   clearAccessClaim: (word: string, capability: CapabilityKind, language?: string) => void;
   recordAttempt: (
     word: string,
@@ -403,7 +404,6 @@ type FlashcardCtx = {
     options?: {
       language?: string;
       method?: 'recall' | 'inference';
-      demonstrated?: readonly CapabilityKind[];
       timing?: { activeLatencyMs: number; wallLatencyMs: number; interruptionCount: number; interrupted: boolean; stalled: boolean };
       attemptId?: AttemptId;
       origin?: string;
@@ -414,7 +414,6 @@ type FlashcardCtx = {
   ) => { attemptId: AttemptId };
   recomputeWordKnowledgeFromEvidence: (word: string, language?: string) => Promise<void>;
   // setWordKnowledgeEase is intentionally not public — attempt evidence only.
-  setWordBankStatus: (word: string, status: 'unknown' | 'learning' | 'known', bank: string, options?: { reading?: string; language?: string; content?: Partial<Record<string, unknown>> & { front: string; back: string } }) => Promise<void>;
   markWordSyncSeen: (word: string, language?: string) => void;
   trackGrammarFailed: (pattern: string, level?: number, language?: string) => void;
   getGrammarKnowledge: (pattern: string, language?: string) => { pattern: string; ease: number; timesEncountered: number; timesFailed: number; lastSeen: number; level: number; language: string } | undefined;
@@ -483,6 +482,7 @@ function makeEmptyStore(overrides?: Partial<FlashcardStore>): FlashcardStore {
     suggestedFlashcards: {},
     wordSyncSeen: {},
     meta: {
+      capabilityProjectionVersion: 2,
       perLanguage: {
         ja: { newCardsToday: 0, reviewsToday: 0, newCardsDate: '' },
       },
@@ -1815,7 +1815,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('setAccessStatus keeps surface-scoped accesses on the presented hash only (#230 exception)', async () => {
+  it('setAccessClaim keeps surface-scoped accesses on the presented hash only (#230 exception)', async () => {
     mockGetWordVariants.mockImplementation((word: string) => word === 'さすが' ? ['さすが', '流石'] : [word]);
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -1824,17 +1824,17 @@ describe('FlashcardProvider', () => {
     const sasugaKanjiLk = `ja:${SRS.hashWordSync('流石')}`;
 
     // surface-recognition evidence belongs to the exact written form presented…
-    ctx.setAccessStatus('流石', 'surface-recognition', 'unknown', 'manual', 'ja');
+    ctx.setAccessClaim('流石', 'surface-recognition', 'unknown', 'ja');
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.access?.['surface-recognition']?.status).toBe('unknown');
     expect(ctx.store.wordKnowledge[sasugaLk]?.access?.['surface-recognition']).toBeUndefined();
 
     // …while surface-reading is ALSO surface-scoped: failing to read 流石
     // says nothing about さすが, whose script supplies its own pronunciation.
-    ctx.setAccessStatus('さすが', 'surface-reading', 'unknown', 'manual', 'ja');
+    ctx.setAccessClaim('さすが', 'surface-reading', 'unknown', 'ja');
     expect(ctx.store.wordKnowledge[sasugaLk]?.access?.['surface-reading']?.status).toBe('unknown');
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.access?.['surface-reading']).toBeUndefined();
     // Lexeme-scoped accesses (prosodic-pattern) still fan out across the family (#230).
-    ctx.setAccessStatus('さすが', 'prosodic-pattern', 'unknown', 'manual', 'ja');
+    ctx.setAccessClaim('さすが', 'prosodic-pattern', 'unknown', 'ja');
     expect(ctx.store.wordKnowledge[sasugaLk]?.access?.['prosodic-pattern']?.status).toBe('unknown');
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.access?.['prosodic-pattern']?.status).toBe('unknown');
     dispose();
@@ -1846,7 +1846,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja:${SRS.hashWordSync('ねこ')}`;
 
-    ctx.setAccessStatus('ねこ', 'surface-reading', 'known', 'manual', 'ja');
+    ctx.setAccessClaim('ねこ', 'surface-reading', 'known', 'ja');
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.claim).toBe('known');
 
     ctx.clearAccessClaim('ねこ', 'surface-reading', 'ja');
@@ -1884,7 +1884,7 @@ describe('FlashcardProvider', () => {
     }));
 
     // The learner overrides the evidence with an explicit Known claim…
-    ctx.setAccessStatus('いぬ', 'surface-reading', 'known', 'manual', 'ja');
+    ctx.setAccessClaim('いぬ', 'surface-reading', 'known', 'ja');
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.claim).toBe('known');
     // …and the underlying evidence classification AND its timestamp
     // fingerprint are preserved, not overwritten by the claim.
@@ -2221,22 +2221,22 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('setWordBankStatus manual bank writes an explicit claim', async () => {
+  it('setWordClaim writes an explicit claim', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    await ctx.setWordBankStatus('学校', 'known', 'manual');
+    ctx.setWordClaim('学校', 'known');
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
     const lk = `ja:${hash}`;
-    // A manual bank write is an explicit claim; the bank never touches knownUntracked.
+    // A write is an explicit claim; the bank never touches knownUntracked.
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
     expect(ctx.store.knownUntracked[lk]).toBeUndefined();
     dispose();
   });
 
-  it('setWordBankStatus manual bank unknown writes an unknown claim', async () => {
+  it('setWordClaim unknown writes an unknown claim', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
@@ -2247,7 +2247,7 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    await ctx.setWordBankStatus('学校', 'unknown', 'manual');
+    ctx.setWordClaim('学校', 'unknown');
     // 'unknown' is an explicit claim written over the previous one — the
     // legacy bank is never touched and the entry is never deleted.
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('unknown');
@@ -2256,11 +2256,11 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('setWordBankStatus passive bank writes a claim', async () => {
+  it('setWordClaim writes a claim', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    await ctx.setWordBankStatus('学校', 'known', 'passive');
+    ctx.setWordClaim('学校', 'known');
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
     const lk = `ja:${hash}`;
@@ -2270,12 +2270,12 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('setWordBankStatus stores inflected passive status under the language primary form key', async () => {
+  it('setWordClaim stores inflected claim under the language primary form key', async () => {
     mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    await ctx.setWordBankStatus('يكتب', 'known', 'passive');
+    ctx.setWordClaim('يكتب', 'known');
 
     const SRS = await import('../services/srsAlgorithm');
     const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;
@@ -2287,7 +2287,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('setWordBankStatus can target a non-active passive word language explicitly', async () => {
+  it('setWordClaim can target a non-active word language explicitly', async () => {
     mockSettings.language = 'ja';
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
       language === 'ar' && word === 'يكتب' ? 'كتب' : word
@@ -2295,7 +2295,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    await ctx.setWordBankStatus('يكتب', 'known', 'passive', { language: 'ar' });
+    ctx.setWordClaim('يكتب', 'known', 'ar');
 
     const SRS = await import('../services/srsAlgorithm');
     const arKey = `ar:${SRS.hashWordSync('كتب')}`;
@@ -2307,7 +2307,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('setWordBankStatus passive bank unknown writes an unknown claim', async () => {
+  it('setWordClaim unknown writes an unknown claim', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
@@ -2318,130 +2318,11 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    await ctx.setWordBankStatus('学校', 'unknown', 'passive');
+    ctx.setWordClaim('学校', 'unknown');
     // 'unknown' is an explicit claim, not entry deletion; ease stays untouched.
     expect(ctx.store.wordKnowledge[lk]).toBeDefined();
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('unknown');
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
-    dispose();
-  });
-
-  it('setWordBankStatus ignored bank ignores word', async () => {
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-
-    await ctx.setWordBankStatus('学校', 'known', 'ignored');
-    expect(ctx.isWordIgnoredSync('学校')).toBe(true);
-    dispose();
-  });
-
-  it('setWordBankStatus can target a non-active ignored word language explicitly', async () => {
-    mockSettings.language = 'ja';
-    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
-      language === 'ar' && word === 'يكتب' ? 'كتب' : word
-    ));
-    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => (
-      language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
-    ));
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-
-    await ctx.setWordBankStatus('يكتب', 'known', 'ignored', { language: 'ar' });
-
-    const SRS = await import('../services/srsAlgorithm');
-    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
-    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
-    expect(ctx.store.ignoredWords[arKey]?.word).toBe('كتب');
-    expect(ctx.store.ignoredWords[arKey]?.language).toBe('ar');
-    expect(ctx.store.ignoredWords[jaKey]).toBeUndefined();
-    expect(ctx.isWordIgnoredSync('يكتب', 'ar')).toBe(true);
-    dispose();
-  });
-
-  it('setWordBankStatus flashcard bank removes cards for unknown', async () => {
-    const { ctx, dispose } = await mountProvider();
-    const SRS = await import('../services/srsAlgorithm');
-    const hash = SRS.hashWordSync('学校');
-    const lk = `ja:${hash}`;
-    const cardId = 'c1';
-    flashcardsCb(makeEmptyStore({
-      flashcards: {
-        [cardId]: {
-          id: cardId,
-          content: { type: 'word', front: '学校', back: 'school' },
-          state: 'review',
-          ease: 2.5,
-          interval: 0,
-          dueDate: 0,
-          reviews: 0,
-          lapses: 0,
-          learningStep: 0,
-          createdAt: 1,
-          lastReviewed: 0,
-          lastUpdated: 1,
-          language: 'ja',
-        },
-      },
-      wordToCardMap: { [lk]: [cardId] },
-    }));
-
-    await ctx.setWordBankStatus('学校', 'unknown', 'flashcard');
-    expect(ctx.store.flashcards[cardId]).toBeUndefined();
-    dispose();
-  });
-
-  it('setWordBankStatus flashcard bank updates existing card state', async () => {
-    const { ctx, dispose } = await mountProvider();
-    const SRS = await import('../services/srsAlgorithm');
-    const hash = SRS.hashWordSync('学校');
-    const lk = `ja:${hash}`;
-    const cardId = 'c1';
-    flashcardsCb(makeEmptyStore({
-      flashcards: {
-        [cardId]: {
-          id: cardId,
-          content: { type: 'word', front: '学校', back: 'school' },
-          state: 'new',
-          ease: 2.5,
-          interval: 0,
-          dueDate: 0,
-          reviews: 0,
-          lapses: 0,
-          learningStep: 0,
-          createdAt: 1,
-          lastReviewed: 0,
-          lastUpdated: 1,
-          language: 'ja',
-        },
-      },
-      wordToCardMap: { [lk]: [cardId] },
-    }));
-
-    await ctx.setWordBankStatus('学校', 'known', 'flashcard');
-    expect(ctx.store.flashcards[cardId]?.state).toBe('review');
-    expect(ctx.store.flashcards[cardId]?.ease).toBe(mockSettings.known_ease_threshold / 1000);
-    dispose();
-  });
-
-  it('setWordBankStatus flashcard bank creates card when content provided', async () => {
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-
-    await ctx.setWordBankStatus('学校', 'learning', 'flashcard', {
-      content: { type: 'word', front: '学校', back: 'school' },
-    });
-    expect(Object.keys(ctx.store.flashcards)).toHaveLength(1);
-    const card = Object.values(ctx.store.flashcards)[0];
-    expect(card?.state).toBe('learning');
-    expect(card?.ease).toBe(mockSettings.srsLearningThreshold / 1000);
-    dispose();
-  });
-
-  it('setWordBankStatus flashcard bank throws when no card and no content', async () => {
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-
-    await expect(ctx.setWordBankStatus('学校', 'known', 'flashcard')).rejects.toThrow('no content was provided');
     dispose();
   });
 
@@ -2952,7 +2833,7 @@ describe('FlashcardProvider', () => {
     const resolved = ctx.getComprehensiveWordStatusWithSourceSync('受動');
     expect(resolved.status).toBe('unknown');
     expect(resolved.basis).toBe('unmeasured');
-    expect(knowledgeStatusLabelKey(resolved.status, resolved.basis)).toBe(UNTRACKED_LABEL_KEY);
+    expect(knowledgeStatusLabelKey(resolved.status, resolved.basis)).toBe(UNMEASURED_LABEL_KEY);
     dispose();
   });
 
@@ -3400,6 +3281,135 @@ describe('FlashcardProvider', () => {
     // Restore the shared mock setting mutated above (beforeEach does not reset it).
     mockSettings.easeThresholdKnown = DEFAULT_SETTINGS.easeThresholdKnown;
     dispose();
+  });
+
+  it('records one exact reading observation without creating meaning evidence', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    ctx.recordAttempt('苗字', 'surface-reading', 'fluent', {});
+
+    const events = mockAppendEvents.mock.calls.flatMap(([batch]) => Object.values(batch).flat());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'rating', targetRef: { capability: 'surface-reading' }, toStatus: 'known' });
+    expect(ctx.store.wordKnowledge[`ja:${SRS.hashWordSync('苗字')}`]?.ease).toBe(SRS.MIN_EASE);
+    expect(ctx.getAccessStatus('苗字', 'sense-recognition').status).toBe('unknown');
+    dispose();
+  });
+
+  it('keeps an attributed reading review scheduler-only', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'reading-review', state: 'new' });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const attempt = ctx.recordAttempt(card.content.front, 'surface-reading', 'fluent');
+    mockAppendEvents.mockClear();
+
+    ctx.answerCard('good', card.id, undefined, attempt);
+
+    const events = mockAppendEvents.mock.calls.flatMap(([batch]) => Object.values(batch).flat());
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'review', schedulerCardId: card.id });
+    expect(events[0].aspect).toBeUndefined();
+    expect(ctx.store.wordKnowledge[`ja:${SRS.hashWordSync(card.content.front)}`]?.ease).toBe(SRS.MIN_EASE);
+    dispose();
+  });
+
+  it('rebuilds independent access evidence and claims during replay', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    ctx.recordAttempt('苗字', 'sense-recognition', 'fluent');
+    ctx.recordAttempt('苗字', 'surface-reading', 'missed');
+    ctx.setAccessClaim('苗字', 'surface-reading', 'known');
+    await ctx.recomputeWordKnowledgeFromEvidence('苗字');
+    const entry = ctx.store.wordKnowledge[`ja:${SRS.hashWordSync('苗字')}`];
+    expect(entry?.ease).toBe(mockSettings.easeThresholdKnown + mockSettings.manualStatusEaseBuffer);
+    expect(entry?.access?.['surface-reading']).toMatchObject({ status: 'unknown', claim: 'known' });
+    expect(ctx.getAccessStatus('苗字', 'surface-reading').status).toBe('known');
+    dispose();
+  });
+
+  it('imports real Anki reviews into the same capability projection on refresh', async () => {
+    const previous = mockSettings.use_anki;
+    mockSettings.use_anki = true;
+    const anki = await import('../hooks/useAnki');
+    const request = vi.spyOn(anki, 'ankiRequest').mockResolvedValue({
+      '999': [{ id: Date.now(), cid: 999, usn: 0, ease: 3, ivl: 3, lastIvl: 1, factor: 2500, time: 1200, type: 1 }],
+    });
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: 'review-import', cardId: 999, mod: 10 }]);
+    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
+    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
+    await vi.waitFor(() => expect(ctx.store.wordKnowledge[`ja:${SRS.hashWordSync('review-import')}`]?.lastEvidenceSource).toBe('anki'));
+    const entry = ctx.store.wordKnowledge[`ja:${SRS.hashWordSync('review-import')}`];
+    expect(entry?.hasActiveEvidence).toBe(true);
+    expect(entry?.access?.['surface-reading']).toBeUndefined();
+    expect(ctx.getAccessStatus('review-import', 'sense-recognition').status).toBe('known');
+    request.mockRestore();
+    dispose();
+    mockSettings.use_anki = previous;
+  });
+
+  it('repairs a version-one mixed-capability cache once at startup', async () => {
+    const key = `ja:${SRS.hashWordSync('cache-repair')}`;
+    mockAppendEvents.mockClear();
+    await mockAppendEvents({ [key]: [{ t: 1, kind: 'rating', source: 'manual', aspect: 'reading', easeAfter: 2.5, attemptId: 'old-reading' }] });
+    const { ctx, dispose } = await mountProvider();
+    const loaded = makeEmptyStore({ wordKnowledge: { [key]: {
+      word: 'cache-repair', language: 'ja', ease: 2.5, lastSeen: 1, timesSeen: 0, timesHovered: 0, hasActiveEvidence: true,
+    } } });
+    loaded.meta.capabilityProjectionVersion = 1;
+    flashcardsCb(loaded);
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    expect(ctx.store.wordKnowledge[key]?.ease).toBe(SRS.MIN_EASE);
+    expect(ctx.store.wordKnowledge[key]?.access?.['surface-reading']?.status).toBe('known');
+    expect(ctx.store.meta.capabilityProjectionVersion).toBe(2);
+    dispose();
+  });
+
+  it('keeps Japanese text meaning known when reading is unknown and prosody is irrelevant to that task', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    ctx.recordAttempt('会う', 'sense-recognition', 'fluent');
+    ctx.recordAttempt('会う', 'surface-reading', 'missed');
+    ctx.recordAttempt('会う', 'prosodic-pattern', 'missed');
+    await ctx.recomputeWordKnowledgeFromEvidence('会う', 'ja');
+    // A meaning task queries its directed access, without aggregating unrelated failures.
+    expect(ctx.getAccessStatus('会う', 'sense-recognition', 'ja').status).toBe('known');
+    expect(ctx.getAccessStatus('会う', 'surface-reading', 'ja').status).toBe('unknown');
+    expect(ctx.getAccessStatus('会う', 'prosodic-pattern', 'ja').status).toBe('unknown');
+    dispose();
+  });
+
+  it('does not infer meaning from recognizing the written or spoken identity', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    ctx.recordAttempt('会う', 'surface-recognition', 'fluent');
+    ctx.recordAttempt('会う', 'spoken-recognition', 'fluent');
+    expect(ctx.getComprehensiveWordStatusSync('会う')).toBe('known');
+    expect(ctx.getAccessStatus('会う', 'sense-recognition').status).toBe('unknown');
+    expect(ctx.getAccessStatus('会う', 'sense-recognition').untracked).toBe(true);
+    dispose();
+  });
+
+  it('keeps Anki scheduler metadata out of known sets and suggestion cleanup', async () => {
+    const previous = mockSettings.use_anki;
+    mockSettings.use_anki = true;
+    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: 'source-only', factor: 4000, queue: 2, type: 2 }]);
+    const { ctx, dispose } = await mountProvider();
+    const key = `ja:${SRS.hashWordSync('source-only')}`;
+    flashcardsCb(makeEmptyStore({ suggestedFlashcards: {
+      [key]: { id: 'source-only', word: 'source-only', language: 'ja', createdAt: Date.now(), lastSeen: Date.now(), count: 1 },
+    } }));
+    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
+    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
+    expect(ctx.isWordKnownByText('source-only')).toBe(false);
+    expect(await ctx.cleanupKnownSuggestions()).toBe(0);
+    expect(ctx.store.suggestedFlashcards[key]).toBeDefined();
+    dispose();
+    mockSettings.use_anki = previous;
   });
 
   it('recordAttempt refuses evidence for a scaffold-supplied access (acceptance B)', async () => {
@@ -4329,85 +4339,6 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  // ─── getWordTrackingSync ─────────────────────────────────────────
-  it('getWordTrackingSync returns flashcards when a card exists for the word', async () => {
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-    await ctx.addFlashcard({ front: '花', back: 'flower' }, undefined, true);
-
-    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'flashcards' });
-    dispose();
-  });
-
-  it('getWordTrackingSync returns nothing when use_anki is false even with an Anki cache match', async () => {
-    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
-    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
-    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-
-    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'nothing' });
-    dispose();
-  });
-
-  it('getWordTrackingSync returns anki with ankiLookupWord when use_anki and the cache matches', async () => {
-    mockSettings.use_anki = true;
-    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
-    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
-    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-
-    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'anki', ankiLookupWord: '花' });
-    dispose();
-  });
-
-  it('getWordTrackingSync returns nothing when use_anki is true but the cache has no match', async () => {
-    mockSettings.use_anki = true;
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-
-    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'nothing' });
-    dispose();
-  });
-
-  it('getWordTrackingSync prefers flashcards over anki', async () => {
-    mockSettings.use_anki = true;
-    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
-    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
-    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-    await ctx.addFlashcard({ front: '花', back: 'flower' }, undefined, true);
-
-    expect(ctx.getWordTrackingSync('花')).toEqual({ tracker: 'flashcards' });
-    dispose();
-  });
-
-  it('getWordTrackingSync re-evaluates when the anki cache version bumps', async () => {
-    mockSettings.use_anki = true;
-    mockBackend.getAnkiWordStatuses.mockResolvedValue([]);
-    const { createRoot, createMemo } = await import('solid-js');
-    const { refreshAnkiWordsCache } = await import('../services/ankiWordsCache');
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
-
-    let tracking: { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string } | undefined;
-    const disposeMemo = createRoot((d) => {
-      createMemo(() => { tracking = ctx.getWordTrackingSync('花'); });
-      return d;
-    });
-    expect(tracking?.tracker).toBe('nothing');
-
-    mockBackend.getAnkiWordStatuses.mockResolvedValue([{ word: '花', factor: 1300, queue: 0, type: 0 }]);
-    await refreshAnkiWordsCache({ language: 'ja', languageData: mockLangData.ja });
-
-    expect(tracking?.tracker).toBe('anki');
-    expect(tracking?.ankiLookupWord).toBe('花');
-    disposeMemo();
-    dispose();
-  });
-
   // ─── addLevelStudyFlashcards bulk per-femory benchmark (perf guard) ──────
   // Sandboxed: getBridge()/getBackend() are mocked, so saveFlashcards is a no-op
   // and this test can never read or write the user's real flashcard files.
@@ -4586,7 +4517,6 @@ describe('recordAttempt quality semantics', () => {
 
     ctx.recordAttempt('学校', 'sense-recognition', 'struggled', { language: 'ja2' });
 
-    // A badly struggled known item regresses: absolute learning-anchor write.
     expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(mockSettings.easeThresholdLearning, 5);
     dispose();
     mockSettings.language = 'ja';
@@ -4630,7 +4560,6 @@ describe('recordAttempt quality semantics', () => {
     });
     flashcardsCb(withKnown);
     ctx.recordAttempt('学校', 'surface-reading', 'fluent', { language: 'ja2' });
-    // Existing known evidence (ease above the anchor) is untouched.
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.ease).toBe(2.2);
     dispose();
     mockSettings.language = 'ja';
@@ -4641,15 +4570,13 @@ describe('recordAttempt quality semantics', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('学校', 'prosodic-pattern', 'struggled', { language: 'ja2', demonstrated: ['surface-recognition', 'surface-reading'] });
+    ctx.recordAttempt('学校', 'prosodic-pattern', 'struggled', { language: 'ja2' });
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['prosodic-pattern']?.status).toBe('learning');
-    // Demonstrated accesses still yield positive evidence: a written-cue
-    // prosody measurement proves surface-recognition AND surface-reading.
-    expect(entry?.access?.['surface-recognition']?.status).toBe('learning');
-    expect(entry?.access?.['surface-reading']?.status).toBe('learning');
+    expect(entry?.access?.['surface-recognition']).toBeUndefined();
+    expect(entry?.access?.['surface-reading']).toBeUndefined();
     dispose();
     mockSettings.language = 'ja';
   });
@@ -4683,8 +4610,6 @@ describe('recordAttempt quality semantics', () => {
       interruptionCount: 1,
       interrupted: true,
     });
-    // New-style addressing: the observation targets the presented surface
-    // entity with the canonical capability (the legacy aspect field rides along).
     expect(attemptEvents[0]).toMatchObject({
       targetRef: { kind: 'surface', id: `ja2:surface:${SRS.hashWordSync('学校')}`, capability: 'sense-recognition' },
       presentedSurface: '学校',
@@ -4695,26 +4620,21 @@ describe('recordAttempt quality semantics', () => {
 });
 
 describe('recordAttempt missed (attribution semantics)', () => {
-  it('failed prosodic-pattern records negative prosody evidence and positive surface-reading evidence', async () => {
+  it('failed prosodic-pattern records only the observed prosody failure', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
 
-    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2', demonstrated: ['surface-recognition', 'surface-reading'] });
+    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['prosodic-pattern']?.status).toBe('unknown');
-    // surface-reading was successfully traversed → explicit learning record
-    // (real evidence, not inheritance); so was surface-recognition.
-    expect(entry?.access?.['surface-recognition']?.status).toBe('learning');
-    expect(entry?.access?.['surface-reading']?.status).toBe('learning');
-    // Retired cascade marker must never appear on a live access record:
-    // this is real evidence, not an inherited projection.
+    expect(entry?.access?.['surface-recognition']).toBeUndefined();
+    expect(entry?.access?.['surface-reading']).toBeUndefined();
     expect((entry?.access?.['surface-reading'] as unknown as Record<string, unknown> | undefined)?.inherited).toBeUndefined();
-    // Demonstrated surface-recognition: word-level ease anchored at the learning band.
-    expect(entry?.ease).toBeGreaterThanOrEqual(mockSettings.easeThresholdLearning);
+    expect(entry?.ease).toBe(SRS.MIN_EASE);
     dispose();
     mockSettings.language = 'ja';
   });
@@ -4724,17 +4644,14 @@ describe('recordAttempt missed (attribution semantics)', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('学校', 'surface-reading', 'missed', { language: 'ja2', demonstrated: ['surface-recognition'] });
+    ctx.recordAttempt('学校', 'surface-reading', 'missed', { language: 'ja2' });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['surface-reading']?.status).toBe('unknown');
-    // No inference: a failed read demonstrates nothing about prosody —
-    // prosodic-pattern stays absent entirely.
     expect(entry?.access?.['prosodic-pattern']).toBeUndefined();
-    // The failed read still proves the written form was recognized.
-    expect(entry?.access?.['surface-recognition']?.status).toBe('learning');
+    expect(entry?.access?.['surface-recognition']).toBeUndefined();
     dispose();
     mockSettings.language = 'ja';
   });
@@ -4753,20 +4670,19 @@ describe('recordAttempt missed (attribution semantics)', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2', demonstrated: ['surface-recognition', 'surface-reading'] });
+    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['surface-reading']?.status).toBe('known');
     expect(entry?.access?.['surface-reading']?.lastStatusChange).toBe(5);
     expect(entry?.ease).toBe(2.5);
-    // The untracked surface-recognition still gets its traversal evidence seeded.
-    expect(entry?.access?.['surface-recognition']?.status).toBe('learning');
+    expect(entry?.access?.['surface-recognition']).toBeUndefined();
     expect(entry?.access?.['prosodic-pattern']?.status).toBe('unknown');
     dispose();
     mockSettings.language = 'ja';
   });
 
-  it('untracked surface-reading is seeded learning by a prosody failure\u2019s demonstrated traversal', async () => {
+  it('unmeasured surface-reading stays absent after a prosody failure', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
@@ -4777,14 +4693,11 @@ describe('recordAttempt missed (attribution semantics)', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2', demonstrated: ['surface-recognition', 'surface-reading'] });
+    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
     const entry = ctx.store.wordKnowledge[lk];
-    // surface-reading had no record (untracked — sense knowledge rides the
-    // word level and never fabricates accesses); the prosodic-pattern failure's
-    // demonstrated traversal writes explicit surface-reading learning evidence.
-    expect(entry?.access?.['surface-reading']?.status).toBe('learning');
-    expect(entry?.access?.['surface-recognition']?.status).toBe('learning');
+    expect(entry?.access?.['surface-reading']).toBeUndefined();
+    expect(entry?.access?.['surface-recognition']).toBeUndefined();
     expect(entry?.access?.['prosodic-pattern']?.status).toBe('unknown');
     dispose();
     mockSettings.language = 'ja';
@@ -4794,7 +4707,6 @@ describe('recordAttempt missed (attribution semantics)', () => {
 describe('recordAttempt missed with orthogonal accesses', () => {
   it('failed prosodic-pattern leaves the orthogonal gender access untouched (no record, no inference)', async () => {
     mockSettings.language = 'ru2x';
-    // ru2 + prosody: exercise prosodic-pattern alongside gender by declaring pitch-accent support.
     mockLangData.ru2x = {
       name: 'Chain + Gender',
       settings: { fixed: {} },
@@ -4805,39 +4717,35 @@ describe('recordAttempt missed with orthogonal accesses', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('школа', 'prosodic-pattern', 'missed', { language: 'ru2x', demonstrated: ['surface-recognition', 'surface-reading'] });
+    ctx.recordAttempt('школа', 'prosodic-pattern', 'missed', { language: 'ru2x' });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ru2x:${await SRS.hashWord('школа')}`;
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['prosodic-pattern']?.status).toBe('unknown');
-    expect(entry?.access?.['surface-recognition']?.status).toBe('learning');
-    expect(entry?.access?.['surface-reading']?.status).toBe('learning');
-    // Orthogonal access: no record at all — neither evidence nor phantom.
+    expect(entry?.access?.['surface-recognition']).toBeUndefined();
+    expect(entry?.access?.['surface-reading']).toBeUndefined();
     expect(entry?.access?.['gender']).toBeUndefined();
     dispose();
     delete mockLangData.ru2x;
     mockSettings.language = 'ja';
   });
 
-  it('failed gender demonstrates only the written-form bridge: no reading/prosody evidence fabricated', async () => {
+  it('failed package capability leaves all other capabilities unmeasured', async () => {
     mockSettings.language = 'ru2';
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('школа', 'gender', 'missed', { language: 'ru2', demonstrated: ['surface-recognition'] });
+    ctx.recordAttempt('школа', 'gender', 'missed', { language: 'ru2' });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ru2:${await SRS.hashWord('школа')}`;
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['gender']?.status).toBe('unknown');
-    // Gender demonstrates only surface-recognition: no reading/prosody evidence.
     expect(entry?.access?.['surface-reading']).toBeUndefined();
     expect(entry?.access?.['prosodic-pattern']).toBeUndefined();
-    expect(entry?.access?.['surface-recognition']?.status).toBe('learning');
-    // The demonstrated surface-recognition still anchors word-level ease at
-    // learning — the written form was traversed, only gender failed.
-    expect(entry?.ease).toBeGreaterThanOrEqual(mockSettings.easeThresholdLearning);
+    expect(entry?.access?.['surface-recognition']).toBeUndefined();
+    expect(entry?.ease).toBe(SRS.MIN_EASE);
     dispose();
     mockSettings.language = 'ja';
   });
@@ -4875,10 +4783,10 @@ describe('attempt undo integrity (P0)', () => {
     const { attemptId } = ctx.recordAttempt('学校', 'sense-recognition', 'struggled', { language: 'ja2' });
     expect(typeof attemptId).toBe('string');
     ctx.answerCard('hard', 'card-1', 1000, { attemptId });
-    // SRS reviews materialize as ACTIVE evidence: the entry carries the review outcome.
-    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(ctx.store.flashcards['card-1'].ease);
+    // Attributed reviews change retention; the observed struggle remains the evidence.
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(mockSettings.easeThresholdLearning + mockSettings.manualStatusEaseBuffer);
     expect(ctx.store.wordKnowledge[lk]?.hasActiveEvidence).toBe(true);
-    expect(ctx.store.wordKnowledge[lk]?.lastEvidenceSource).toBe('srs');
+    expect(ctx.store.wordKnowledge[lk]?.lastEvidenceSource).toBe('manual');
 
     // Undo appends the tombstone and lets the projection REPLAY rebuild state —
     // no knowledge snapshots involved. Run the idempotent replay explicitly and
@@ -5025,7 +4933,7 @@ describe('recordAttempt logs no-transition submissions', () => {
       .flatMap(([, es]) => es)
       .filter((e) => e.kind === 'rating');
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ kind: 'rating', quality: 'missed', fromStatus: 'known', toStatus: 'known' });
+    expect(events[0]).toMatchObject({ kind: 'rating', quality: 'missed', fromStatus: 'known', toStatus: 'unknown' });
     // The claim stays; the observation is also recorded as ACTIVE evidence.
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
     expect(ctx.store.wordKnowledge[lk]?.hasActiveEvidence).toBe(true);

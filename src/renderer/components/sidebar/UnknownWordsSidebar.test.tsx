@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
+import { hashWordSync } from '../../services/srsAlgorithm';
 import type { TranslationResponse } from '../../../shared/types';
 import type { LanguageColoredProsodyConfig, LanguageData } from '../../../shared/types';
 
@@ -10,7 +11,7 @@ const translationByWord = new Map<string, TranslationResponse | null | undefined
 const trackedWords = new Set<string>();
 const flashcardsByWord = new Map<string, { ease: number }>();
 const ankiMatchesByWord = new Map<string, { word: string; cards: Array<{ factor?: number; queue?: number; type?: number }> }>();
-const wordStatusPillProps: Array<{ word: string; language?: string }> = [];
+const openKnowledgeInspectorMock = vi.fn();
 const mockHasWordSync = vi.fn((word: string) => trackedWords.has(word));
 const mockGetCardByWordSync = vi.fn((word: string) => flashcardsByWord.get(word) ?? null);
 const mockGetComprehensiveWordStatusSync = vi.fn(() => 'unknown');
@@ -102,12 +103,11 @@ vi.mock('../language-specific', async (importOriginal) => {
 });
 
 vi.mock('../common/Smart', () => ({
-  ResourcePill: (props: { word: string }) => <span class="mock-resource-pill">{`resource:${props.word}`}</span>,
-  WordStatusPill: (props: { word: string; language?: string }) => {
-    wordStatusPillProps.push({ word: props.word, language: props.language });
-    return <span class="mock-status-pill">{`status:${props.word}`}</span>;
-  },
+  ResourcePill: (props: { word: string; language?: string }) => <span class="mock-resource-pill" data-language={props.language}>{`resource:${props.word}`}</span>,
+
 }));
+
+vi.mock('../../services/openKnowledgeInspector', () => ({ openKnowledgeInspector: openKnowledgeInspectorMock }));
 
 vi.mock('../../context', () => ({
   useLocalization: () => ({
@@ -215,7 +215,7 @@ describe('UnknownWordsSidebar', () => {
     trackedWords.clear();
     flashcardsByWord.clear();
     ankiMatchesByWord.clear();
-    wordStatusPillProps.length = 0;
+    openKnowledgeInspectorMock.mockClear();
     mockHasWordSync.mockClear();
     mockGetCardByWordSync.mockClear();
     mockGetComprehensiveWordStatusSync.mockClear();
@@ -307,6 +307,25 @@ describe('UnknownWordsSidebar', () => {
     ]);
     expect(onAddAllClick.mock.calls[0][1]).toEqual([]);
 
+    dispose();
+  });
+
+  it('allows bulk card creation for passive knowledge while excluding actual cards', async () => {
+    trackedWords.add('seen');
+    flashcardsByWord.set('card', { ease: 2.5 });
+    const words = ['seen', 'card'].map(word => ({
+      key: word, word, token: { word, actual_word: word, partOfSpeech: 'noun', type: 'word' }, contextPhrase: word,
+    }));
+    const onAddAllClick = vi.fn();
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+    const dispose = render(() => <UnknownWordsSidebar words={() => words}
+      addingWordKeys={() => new Set<string>()} isAddingAll={() => false}
+      onAddWord={() => undefined} onIgnoreWord={() => undefined}
+      sortOptions={() => [{ value: 'word', label: 'Word' }]} defaultSort="word"
+      emptyMessage="No words" onAddAllClick={onAddAllClick} />, container);
+    await Promise.resolve();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Add All')?.click();
+    expect(onAddAllClick).toHaveBeenCalledWith([expect.objectContaining({ word: 'seen' })], []);
     dispose();
   });
 
@@ -408,7 +427,7 @@ describe('UnknownWordsSidebar', () => {
     const words = [{
       key: 'word-1',
       word: '赤い',
-      token: { word: '赤い', actual_word: '赤い', partOfSpeech: 'adjective', type: 'adjective' },
+      token: { word: '赤い', surface: '赤かった', actual_word: '赤い', partOfSpeech: 'adjective', type: 'adjective' },
       contextPhrase: '赤い花',
     }];
 
@@ -430,11 +449,15 @@ describe('UnknownWordsSidebar', () => {
 
     await Promise.resolve();
 
+    expect(container.querySelector('.mock-resource-pill')?.getAttribute('data-language')).toBe('ja');
+    expect(mockGetComprehensiveWordStatusWithSourceSync).toHaveBeenCalledWith('赤い', 'ja');
     expect(mockGetCardByWordSync).toHaveBeenCalledWith('赤い', 'ja');
-    expect(mockGetComprehensiveWordStatusSync).toHaveBeenCalledWith('赤い', 'ja');
-    expect(mockHasWordSync).toHaveBeenCalledWith('赤い', 'ja');
     expect(mockIsWordIgnoredSync).toHaveBeenCalledWith('赤い', 'ja');
-    expect(wordStatusPillProps).toContainEqual({ word: '赤い', language: 'ja' });
+    expect(container.querySelector('.mock-status-pill')).toBeNull();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')?.click();
+    expect(openKnowledgeInspectorMock).toHaveBeenCalledWith({
+      language: 'ja', surface: '赤かった', target: { kind: 'surface', id: `ja:surface:${hashWordSync('赤かった')}` },
+    });
     dispose();
   });
 

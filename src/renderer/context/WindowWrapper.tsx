@@ -25,6 +25,7 @@ import { setBuiltinModelReady } from './llmModelSignals';
 import { createAnkiCacheToastGate } from './windowWrapperNotifications';
 import { LowPowerGateProvider } from './LowPowerGateContext';
 import { GraphProvider } from './GraphContext';
+import { KnowledgeInspectorHost } from '../components/common/KnowledgeProjection/KnowledgeInspectorHost';
 import { isElectron } from '../../shared/platform';
 import { getBridge } from '../../shared/bridges';
 import { installRendererLogSink } from '../utils/installLogSink';
@@ -394,6 +395,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
                     </div>
                   </Show>
                   <FlashcardCreationChoiceModal />
+                  <KnowledgeInspectorHost />
                   <GlobalCloudReLoginModal />
                 </FlashcardProvider>
                 <ToastContainer />

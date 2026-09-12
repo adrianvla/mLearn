@@ -172,15 +172,15 @@ class Graph:
         return len(ids), len(loaded["relations"]), size
 
 
-def text_content(value: object) -> list[str]:
+def text_content(value: object, in_glossary: bool = False) -> list[str]:
     if isinstance(value, str):
-        return [value]
+        return [value] if in_glossary else []
     if isinstance(value, list):
-        return [text for item in value for text in text_content(item)]
+        return [text for item in value for text in text_content(item, in_glossary)]
     if isinstance(value, dict):
-        if value.get("data", {}).get("content") != "glossary":
-            return text_content(value.get("content", []))
-        return text_content(value.get("content", []))
+        data = value.get("data")
+        is_glossary = isinstance(data, dict) and data.get("content") == "glossary"
+        return text_content(value.get("content", []), in_glossary or is_glossary)
     return []
 
 

@@ -1,11 +1,9 @@
-import { Component, Match, Switch, createEffect, createMemo, createSignal } from 'solid-js';
+import { Component, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { useFlashcards, useLocalization, useSettings } from '../../../context';
-import type { WordStatus } from '../../subtitle/wordHoverHelpers';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview';
 import { FlashcardHoverPreview } from '../FlashcardHoverPreview';
 import { PillBtn } from '../Button';
 import { ClockIcon } from '../Misc';
-import { EasePill } from './EasePill';
 import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
 
@@ -17,12 +15,9 @@ const ICON_ANKI = 'anki';
 export interface ResourcePillProps {
   word: string;
   language?: string;
-  isTracked: boolean;
   isAdding: boolean;
   isInAnki: boolean;
   ankiWord?: string | null;
-  ease?: number;
-  effectiveStatus: WordStatus;
   onAdd: (event?: MouseEvent) => void;
 }
 
@@ -113,46 +108,25 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
   const addActionUsesAnki = createMemo(() => settings.use_anki && !settings.enable_flashcard_creation);
 
   return (
-    <Switch>
-      <Match when={props.isAdding}>
-        <PillBtn
-          variant="yellow"
-          icon={<ClockIcon size={14} />}
-          label={t('mlearn.Global.Status.Adding')}
-          disabled={true}
-        />
-      </Match>
-      <Match when={props.isTracked}>
-        <EasePill
-          ease={props.ease}
-          isInAnki={props.isInAnki}
-          effectiveStatus={props.effectiveStatus}
-          ankiHoverLoading={ankiHoverLoading()}
-          ankiHoverCard={ankiHoverCard()}
-          ankiHoverCardInfo={ankiHoverCardInfo()}
-          builtInCard={builtInCard()}
-          onTooltipShow={handleTooltipShow}
-        />
-      </Match>
-      <Match when={props.isInAnki}>
+    <Show when={!props.isAdding} fallback={
+      <PillBtn variant="yellow" icon={<ClockIcon size={14} />} label={t('mlearn.Global.Status.Adding')} disabled />
+    }>
+      <Show when={builtInCard()}>
+        <FlashcardHoverPreview builtInCard={builtInCard()}>
+          <PillBtn variant="gray" icon="mlearn-logo" label={t('mlearn.WordDbEditor.Integrations.Flashcard')} />
+        </FlashcardHoverPreview>
+      </Show>
+      <Show when={props.isInAnki}>
         <FlashcardHoverPreview
-          builtInCard={builtInCard()}
           ankiLoading={ankiHoverLoading()}
           ankiFields={ankiHoverCard()}
           ankiCardInfo={ankiHoverCardInfo()}
-          footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
           onShow={handleTooltipShow}
         >
-          <span onClick={(event: MouseEvent) => props.onAdd(event)}>
-            <PillBtn
-              variant="blue"
-              icon={ICON_ANKI}
-              label={t('mlearn.WordHover.InAnki')}
-            />
-          </span>
+          <PillBtn variant="gray" icon={ICON_ANKI} label={t('mlearn.WordHover.InAnki')} />
         </FlashcardHoverPreview>
-      </Match>
-      <Match when={true}>
+      </Show>
+      <Show when={!builtInCard() && (!props.isInAnki || !addActionUsesAnki())}>
         <PillBtn
           variant="blue"
           icon={addActionUsesAnki() ? ICON_ANKI : ICON_CROSS2}
@@ -160,7 +134,7 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
           label={addActionUsesAnki() ? t('mlearn.WordHover.AddToAnki') : t('mlearn.Global.Flashcard')}
           onClick={props.onAdd}
         />
-      </Match>
-    </Switch>
+      </Show>
+    </Show>
   );
 };

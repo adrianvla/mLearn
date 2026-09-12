@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal, type JSX } from 'solid-js';
+import type { Flashcard } from '../../../../shared/types';
 import type { ResourcePillProps } from './ResourcePill';
 
 const settingsState = {
@@ -12,7 +13,7 @@ const settingsState = {
   ankiLearningEase: 1500,
   ankiKnownEase: 1800,
 };
-const mockGetCardByWordSync = vi.fn(() => null);
+const mockGetCardByWordSync = vi.fn((_word: string): Flashcard | null => null);
 
 vi.mock('../../../context', () => ({
   useLocalization: () => ({
@@ -37,7 +38,6 @@ vi.mock('../../../context', () => ({
     settings: settingsState,
   }),
   useFlashcards: () => ({
-    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     getCardByWordSync: mockGetCardByWordSync,
   }),
 }));
@@ -67,18 +67,13 @@ vi.mock('../Tooltip', () => ({
   Tooltip: (props: { children?: JSX.Element }) => <>{props.children}</>,
 }));
 
-vi.mock('./EasePill', () => ({
-  EasePill: (props: { ease?: number; isInAnki: boolean; effectiveStatus: string }) => (
-    <span class="mock-ease-pill">{`ease:${props.ease ?? 'none'}:${props.isInAnki ? 'anki' : 'srs'}:${props.effectiveStatus}`}</span>
-  ),
-}));
-
 describe('ResourcePill', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
     settingsState.enable_flashcard_creation = true;
-    mockGetCardByWordSync.mockClear();
+    mockGetCardByWordSync.mockReset();
+    mockGetCardByWordSync.mockReturnValue(null);
     container = document.createElement('div');
     document.body.appendChild(container);
   });
@@ -87,24 +82,39 @@ describe('ResourcePill', () => {
     container.remove();
   });
 
-  it('renders the tracked ease state', async () => {
+  it('renders independent card integrations without fabricating ease', async () => {
     const { ResourcePill } = await import('./ResourcePill');
 
     const dispose = render(() => (
       <ResourcePill
         word="apple"
-        isTracked={true}
+
         isAdding={false}
         isInAnki={true}
         ankiWord="apple"
-        ease={1.85}
-        effectiveStatus="learning"
+
+
         onAdd={() => undefined}
       />
     ), container);
 
-    expect(container.querySelector('.mock-ease-pill')?.textContent).toBe('ease:1.85:anki:learning');
+    expect(container.textContent).toContain('In Anki');
+    expect(container.textContent).not.toContain('ease:');
 
+    dispose();
+  });
+
+  it('shows both integrations when an actual card and an Anki match coexist', async () => {
+    mockGetCardByWordSync.mockReturnValue({
+      id: 'card', language: 'ja', state: 'new', ease: 2.5, interval: 0,
+      dueDate: 0, reviews: 0, lapses: 0, learningStep: 0, createdAt: 0,
+      lastReviewed: 0, lastUpdated: 0, content: { type: 'word', front: 'apple', back: 'fruit' },
+    });
+    const { ResourcePill } = await import('./ResourcePill');
+    const dispose = render(() => <ResourcePill word="apple" isAdding={false} isInAnki onAdd={() => undefined} />, container);
+    expect(container.textContent).toContain('mlearn.WordDbEditor.Integrations.Flashcard');
+    expect(container.textContent).toContain('In Anki');
+    expect(Array.from(container.querySelectorAll('button')).some(button => button.textContent === 'Flashcard')).toBe(false);
     dispose();
   });
 
@@ -115,11 +125,11 @@ describe('ResourcePill', () => {
       <ResourcePill
         word="赤い"
         language="ja"
-        isTracked={true}
+
         isAdding={false}
         isInAnki={false}
-        ease={1.85}
-        effectiveStatus="learning"
+
+
         onAdd={() => undefined}
       />
     ), container);
@@ -135,11 +145,11 @@ describe('ResourcePill', () => {
     const dispose = render(() => (
       <ResourcePill
         word="apple"
-        isTracked={false}
+
         isAdding={true}
         isInAnki={false}
-        ease={undefined}
-        effectiveStatus="unknown"
+
+
         onAdd={() => undefined}
       />
     ), container);
@@ -155,54 +165,55 @@ describe('ResourcePill', () => {
     const onAdd = vi.fn();
     const [pillProps, setPillProps] = createSignal<ResourcePillProps>({
       word: 'apple',
-      isTracked: true,
+
       isAdding: false,
       isInAnki: true,
       ankiWord: 'apple',
-      ease: 1.85,
-      effectiveStatus: 'learning',
+
+
       onAdd,
     });
 
     const dispose = render(() => <ResourcePill {...pillProps()} />, container);
 
-    expect(container.querySelector('.mock-ease-pill')?.textContent).toBe('ease:1.85:anki:learning');
+    expect(container.textContent).toContain('In Anki');
+    expect(container.textContent).not.toContain('ease:');
 
     setPillProps({
       word: 'banana',
-      isTracked: false,
+
       isAdding: false,
       isInAnki: false,
       ankiWord: undefined,
-      ease: undefined,
-      effectiveStatus: 'unknown',
+
+
       onAdd,
     });
 
-    expect(container.querySelector('.mock-ease-pill')).toBeNull();
+    expect(container.textContent).not.toContain('In Anki');
     expect(container.textContent).toContain('Flashcard');
 
     dispose();
   });
 
-  it('renders the Anki-only pill and forwards clicks to the add handler', async () => {
+  it('keeps the Anki preview separate from the add-card action', async () => {
     const { ResourcePill } = await import('./ResourcePill');
     const onAdd = vi.fn();
 
     const dispose = render(() => (
       <ResourcePill
         word="apple"
-        isTracked={false}
+
         isAdding={false}
         isInAnki={true}
         ankiWord="apple"
-        ease={undefined}
-        effectiveStatus="learning"
+
+
         onAdd={onAdd}
       />
     ), container);
 
-    const button = Array.from(container.querySelectorAll('button')).find((element) => element.textContent === 'In Anki');
+    const button = Array.from(container.querySelectorAll('button')).find((element) => element.textContent === 'Flashcard');
     button?.click();
 
     expect(container.textContent).toContain('In Anki');
@@ -218,11 +229,11 @@ describe('ResourcePill', () => {
     const dispose = render(() => (
       <ResourcePill
         word="apple"
-        isTracked={false}
+
         isAdding={false}
         isInAnki={false}
-        ease={undefined}
-        effectiveStatus="unknown"
+
+
         onAdd={() => undefined}
       />
     ), container);

@@ -1,3 +1,4 @@
+import { getWrittenComprehensionStatus } from '../../utils/writtenComprehension';
 /**
  * OCR Word Component
  * Individual word in an OCR overlay box with configurable hover trigger behavior.
@@ -73,15 +74,13 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
 
-  const comprehensiveKnowledge = createMemo(() => {
-    const word = lookupWord();
-    if (!word) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
-    return flashcardCtx.getComprehensiveWordStatusWithSourceSync(word, settings.language);
-  });
+  const comprehensionStatus = createMemo(() => getWrittenComprehensionStatus({
+    surface: displayWord(), lexicalWord: lookupWord(), language: settings.language,
+  }, flashcardCtx.getAccessStatus));
   // Knowledge-derived rendering stays neutral until the learner projection is
   // hydrated AND the legacy epistemic migration has settled — otherwise every
   // token flashes Untracked and known-coloring visibly "settles" at startup.
-  const wordIsKnown = createMemo(() => knowledgeReady() && comprehensiveKnowledge().status === 'known');
+  const wordIsKnown = createMemo(() => knowledgeReady() && comprehensionStatus() === 'known');
 
   // Get color from user overrides or package POS metadata.
   const getWordColor = createMemo((): string | undefined => {

@@ -12,8 +12,12 @@ import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
+import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, SkeletonText, RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
 import { ProsodyOverlay } from '../language-specific';
+import { KnowledgeCapabilitySummary } from '../common/WordStatusPillKnowledge/KnowledgeCapabilitySummary';
+import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { surfaceEntityId } from '../../../shared/graph/load';
+import { hashWordSync } from '../../services/srsAlgorithm';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
@@ -35,6 +39,8 @@ import { decomposeCompound, MIN_PART_LENGTH, type CompoundAnalysis, type Compoun
 import './WordHover.css';
 import { getLogger } from '../../../shared/utils/logger';
 import type { GraphWordLookup } from '../../../shared/graph/ipc';
+import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
+import { nextAttemptId } from '../../../shared/knowledgeEvents';
 
 const log = getLogger("renderer.components.wordHover");
 
@@ -129,8 +135,6 @@ export interface WordHoverProps {
   translationData?: WordHoverTranslationData;
   isLoading?: boolean;
   level?: number;
-  isInSRS?: boolean;
-  ease?: number;
   contextPhrase?: string; // The subtitle text for context
   isOCR?: boolean; // Whether in OCR mode (reader) vs video mode
   ocrImageElement?: HTMLImageElement | null; // The page image element for OCR screenshot capture
@@ -158,7 +162,7 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { meta: graphMeta, getTargetsForSurfaces } = useOptionalGraph();
-  const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
+  const { addFlashcard, getCardByWordSync, getComprehensiveWordStatusWithSourceSync, recordAttempt } = useFlashcards();
   const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants, getWordFrequency } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
@@ -183,6 +187,19 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     ...props.token,
     word: props.word || props.token.word,
   }, tokenizerCapabilities()) || displayWord());
+  const knowledge = useKnowledgeProjection(() => ({ language: settings.language, surface: actualWord() }));
+
+  const submitKnowledgeRating = (observations: readonly ProfileObservation[], options?: RateOptions) => {
+    if (observations.length === 0) return;
+    const attemptId = observations.length > 1 ? nextAttemptId() : undefined;
+    for (const observation of observations) {
+      recordAttempt(actualWord(), observation.capability, observation.quality, {
+        language: settings.language,
+        method: observation.method ?? options?.method,
+        ...(attemptId ? { attemptId } : {}),
+      });
+    }
+  };
 
   const isShown = createMemo(() => props.visible !== false);
 
@@ -204,19 +221,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
 
-  
-  // REACTIVE: Check if word is in SRS using synchronous method
-  // This properly integrates with SolidJS's reactive system
-  const isInSRS = createMemo(() => {
-    // Early exit if we're adding a flashcard (show tracked state optimistically)
-    if (isAddingFlashcard()) return true;
-    
-    const word = actualWord();
-    if (!word) return props.isInSRS ?? false;
-    
-    // Use sync method for proper reactivity with store
-    return hasWordSync(word, settings.language) || (props.isInSRS ?? false);
-  });
   
   // REACTIVE: Get flashcard for the word (if tracked)
   const currentFlashcard = createMemo(() => {
@@ -242,15 +246,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const resolution = resolveCompoundDisplay(graphLookup(), actualWord(), currentLangData(), getWordFrequency());
     return resolution.kind === 'pending' || resolution.kind === 'none' ? null : resolution.analysis;
   });
-  // REACTIVE: Get current ease from flashcard if tracked
-  const currentEase = createMemo(() => {
-    const card = currentFlashcard();
-    if (card) {
-      return card.ease;
-    }
-    return props.ease;
-  });
-  
   // Generate the UUID used for example extraction when the hovered word changes.
   createEffect(() => {
     const word = actualWord();
@@ -453,7 +448,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
-      // isInSRS and currentEase are now reactive memos that will update automatically
       // when the flashcard is added to the store
       setIsAddingFlashcard(false);
     } else {
@@ -503,8 +497,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         }
 
         await addFlashcard(content, ease, undefined, settings.language);
-        // isInSRS and currentEase are now reactive memos that will update automatically
-        // when the flashcard is added to the store via BroadcastChannel sync
+          // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
         log.error('Failed to add flashcard:', err);
         alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
@@ -649,7 +642,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   };
 
   // Flashcard pill - computed values for reactivity
-  const isTracked = createMemo(() => isInSRS() || props.isInSRS === true);
+  const hasFlashcard = createMemo(() => currentFlashcard() !== null);
   const grammarOccurrences = createMemo(() => props.grammarOccurrences ?? []);
 
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
@@ -677,7 +670,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   // Handle adding flashcard when word is already in Anki (duplicate check)
   const handleAddWithAnkiCheck = (entry?: DictionaryEntry, e?: MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
-    if (wordInAnki() && !isTracked() && !settings.skipAnkiDuplicateWarning) {
+    if (wordInAnki() && !hasFlashcard() && !settings.skipAnkiDuplicateWarning) {
       setShowDuplicateWarning(true);
       return;
     }
@@ -846,22 +839,36 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <For each={grammarOccurrences()}>
                 {(occurrence) => <PillLabel variant="blue">{occurrence.realizedForm}</PillLabel>}
               </For>
+            </div>
+            <Show when={props.visible !== false}>
+              <KnowledgeCapabilitySummary word={actualWord()} language={settings.language} projection={knowledge.projection()} />
+              <RatingMatrix
+                capabilities={knowledge.capabilities()}
+                keyboardMode={settings.ratingKeyboardMode}
+                armed={isShown()}
+                resetKey={`${settings.language}:${actualWord()}`}
+                onSubmit={submitKnowledgeRating}
+              />
+            </Show>
+            <div class="pills word-hover-actions">
               <WordStatusPill
                 word={actualWord()}
                 language={settings.language}
+                suppressKnowledgePopover
                 onModalOpenChange={setIsStatusModalOpen}
               />
               <ResourcePill
                 word={actualWord()}
                 language={settings.language}
-                isTracked={isTracked()}
                 isAdding={isAddingFlashcard()}
                 isInAnki={wordInAnki()}
                 ankiWord={ankiMatch()?.word ?? actualWord()}
-                ease={currentEase() ?? props.ease}
-                effectiveStatus={effectiveStatus()}
                 onAdd={handleAddToSRS}
               />
+              <Btn variant="ghost" size="sm" onClick={() => openKnowledgeInspector({
+                language: settings.language, surface: actualWord(),
+                target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(actualWord())) },
+              })}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
               <LLMPill />
              </div>
           </div>

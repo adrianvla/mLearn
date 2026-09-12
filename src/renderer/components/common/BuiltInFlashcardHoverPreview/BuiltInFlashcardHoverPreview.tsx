@@ -56,6 +56,7 @@ export const BuiltInFlashcardHoverPreview: Component<BuiltInFlashcardHoverPrevie
             </div>
             <Show when={card().ease !== undefined || card().dueDate !== undefined || card().state !== undefined || (card().reviews !== undefined && card().reviews > 0) || (card().lapses !== undefined && card().lapses > 0)}>
               <div class="built-in-flashcard-hover-preview__footer">
+                <span>{t('mlearn.WordHover.CardScheduling')}</span>
                 <Show when={card().ease !== undefined}>
                   <div class="built-in-flashcard-hover-preview__footer-field">
                     <span class="built-in-flashcard-hover-preview__label">{t('mlearn.CardEditor.Statistics.Ease')}</span>

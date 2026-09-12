@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { encodeCompact } from '../../shared/graph/compact';
 import { buildKnowledgeProjection } from './knowledgeProjection';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
@@ -79,6 +80,35 @@ describe('LinguisticGraphService', () => {
     expect(result).toMatchObject({ centerDenseId: 0, relationCount: 1, relations: [{ relationType: 'realizes', provenance: 'reading', domain: 'common' }] });
     expect(result?.relations[0]?.confidence).toBeCloseTo(0.9);
     await expect(service.getNeighborhood('ja', { entityId: id, depth: 2 })).resolves.toBeNull();
+  });
+
+  it('includes lexical properties of a surface without traversing related surfaces', async () => {
+    const id = `xx:surface:${crypto.createHash('sha256').update('word').digest('hex')}`;
+    fs.writeFileSync(path.join(directory, 'languages', 'xx.graph.json'), JSON.stringify(encodeCompact({
+      schemaVersion: 1, language: 'xx', generatedAt: '2026-01-01', sourceVersions: {},
+      entities: [
+        { id, kind: 'surface', label: 'word' },
+        { id: 'entry', kind: 'dictionary-entry' },
+        { id: 'property', kind: 'grammar-pattern', label: 'arbitrary class' },
+        { id: 'sibling', kind: 'surface' },
+        { id: 'other-property', kind: 'grammar-pattern', label: 'unrelated class' },
+      ],
+      relations: [
+        { from: id, to: 'entry', type: 'realizes' },
+        { from: 'entry', to: 'property', type: 'has-pos' },
+        { from: id, to: 'sibling', type: 'semantically-related' },
+        { from: 'sibling', to: 'other-property', type: 'has-pos' },
+      ],
+    })));
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory);
+    const result = await service.getNeighborhood('xx', { entityId: id });
+    expect(result?.relations).toContainEqual(expect.objectContaining({ id: 'property', relationType: 'has-pos', label: 'arbitrary class' }));
+    expect(result?.relations.some((node) => node.id === 'other-property')).toBe(false);
+    const limited = await service.getNeighborhood('xx', { entityId: id, limit: 1 });
+    expect(limited?.relations).toHaveLength(1);
+    const support = await service.getNeighborhood('xx', { entityId: id, relationClasses: ['support'] });
+    expect(support?.relations.some((node) => node.id === 'property')).toBe(false);
   });
 
   it('rides center-surface capability states on the neighborhood payload and omits them otherwise', async () => {

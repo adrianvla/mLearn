@@ -14,14 +14,16 @@ import { TabContainer } from '../Tabs';
 import { SkeletonRows, SkeletonText } from '../Skeleton';
 import {
   BASIS_LABEL_KEYS,
-  UNTRACKED_LABEL_KEY,
-  isUntrackedKnowledge,
+  UNMEASURED_LABEL_KEY,
+  isUnmeasuredKnowledge,
   knowledgeStatusLabelKey,
   projectionStateForCapability,
   type KnowledgeBasisToken,
 } from '../WordStatusPillKnowledge/knowledgeSummary';
 import './KnowledgeProjection.css';
 import type { WordKnowledgeModel } from './wordKnowledgeModel';
+import { getBridge } from '../../../../shared/bridges';
+import type { KnowledgeInspection } from '../../../services/openKnowledgeInspector';
 
 type Tone = 'evidence' | 'claim' | 'predicted' | 'unmeasured';
 /** Canonical per-word inspector tabs: understand → connect → history → expectation. */
@@ -82,6 +84,8 @@ export interface KnowledgeProjectionDrawerProps {
   model: WordKnowledgeModel;
   /** Inspected surface text. */
   surface: string;
+  target?: KnowledgeInspection['target'];
+  language?: string;
   /** Open the standalone graph window on an entity — secondary affordance. */
   onGraph?: (entityId: string) => void;
   /** Recenter the host graph view on an entity (relation navigation). */
@@ -92,11 +96,6 @@ export interface KnowledgeProjectionDrawerProps {
   onWordClaim?: (claim: WordStatus | null) => void;
   /** Deliberate access claim editing. Absent = read-only. */
   onAccessClaim?: (capability: RatedCapability, claim: WordStatus | null) => void;
-  /**
-   * Applicable non-sense accesses with their effective state as resolved by
-   * the access resolvers (status, claim, basis token, untracked flag).
-   */
-  accessStates?: readonly { capability: RatedCapability; status: WordStatus; claim?: WordStatus; basis?: KnowledgeBasisToken; untracked?: boolean }[];
 }
 
 const INSPECTOR_TABS: { key: InspectorTab; label: string }[] = [
@@ -253,7 +252,12 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     let disposed = false;
     setFocusedId(undefined);
     setLookupState('loading');
-    void graph.lookupWord({ surface }).then((result) => {
+    const target = props.target;
+    const input = target?.kind === 'surface' ? { hash: target.id.slice(target.id.lastIndexOf(':') + 1) } : { surface };
+    const request = props.language
+      ? getBridge().graph.lookupGraphWord(props.language, input)
+      : graph.lookupWord(input);
+    void request.then((result) => {
       if (disposed) return;
       setLookup(result);
       setLookupState(result ? 'ready' : 'missing');
@@ -268,12 +272,15 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   // Neighborhood of the inspected entity: the surface itself, or the relation
   // targeted by relation navigation. Absence degrades honestly.
   createEffect(() => {
-    if (!props.open || !graph.meta().ready) return;
-    const target = focusedId() ?? lookup()?.surfaceId;
+    if (!props.open || !(props.language ? model().projection?.status === 'ready' : graph.meta().ready)) return;
+    const target = focusedId() ?? props.target?.id ?? lookup()?.surfaceId;
     if (!target) return;
     let disposed = false;
     setRelationsState('loading');
-    void graph.getNeighborhood({ entityId: target, depth: 1 }).then((next) => {
+    const request = props.language
+      ? getBridge().graph.getGraphNeighborhood(props.language, { entityId: target, depth: 1 })
+      : graph.getNeighborhood({ entityId: target, depth: 1 });
+    void request.then((next) => {
       if (disposed) return;
       setNeighborhood(next);
       setRelationsState('ready');
@@ -305,19 +312,10 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
 
   /** Effective (status, basis, claim) for one capability, from the resolvers' reported fields only. */
   const effectiveFor = (capability: CapabilityKey): { status: WordStatus; basis: KnowledgeBasisToken; claim?: WordStatus; untracked: boolean } => {
-    if (capability === 'sense-recognition') {
-      const overall = model().overall;
-      return { status: overall.status, basis: overall.basis, claim: model().wordClaim ?? undefined, untracked: isUntrackedKnowledge(overall.status, overall.basis) };
-    }
-    const access = (props.accessStates ?? []).find((entry) => entry.capability === capability);
-    if (access) {
-      const basis = access.basis ?? (access.claim ? 'claim' : 'unmeasured');
-      return { status: access.status, basis, claim: access.claim, untracked: access.untracked ?? isUntrackedKnowledge(access.status, basis) };
-    }
-    const state = stateFor(capability);
-    if (state) {
-      const status: WordStatus = state.classification === 'known' || state.classification === 'learning' ? state.classification : 'unknown';
-      return { status, basis: state.basis, untracked: isUntrackedKnowledge(status, state.basis) };
+    const projected = stateFor(capability);
+    if (projected) {
+      const status: WordStatus = projected.classification === 'known' || projected.classification === 'learning' ? projected.classification : 'unknown';
+      return { status, basis: projected.basis, claim: projected.basis === 'claim' ? status : undefined, untracked: isUnmeasuredKnowledge(status, projected.basis) };
     }
     return { status: 'unknown', basis: 'unmeasured', untracked: true };
   };
@@ -331,7 +329,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       const effective = effectiveFor(capability);
       return {
         capability,
-        labelKey: CAPABILITY_LABEL_KEYS[capability] ?? `mlearn.Knowledge.Capability.${capability}`,
+        labelKey: CAPABILITY_LABEL_KEYS[capability] ?? capability,
         status: effective.status,
         basis: effective.basis,
         claim: effective.claim,
@@ -340,12 +338,10 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         isSense: capability === 'sense-recognition',
       };
     };
-    cards.push(card('sense-recognition'));
-    for (const access of props.accessStates ?? []) cards.push(card(access.capability));
-    // Projection-only capabilities (e.g. grammar targets, package extensions).
+    // Applicability is supplied by the graph, including package extensions.
     for (const target of model().projection?.targets ?? []) {
-      for (const state of target.states) {
-        if (!covered.has(state.capability)) cards.push(card(state.capability));
+      for (const capability of target.applicableCapabilities) {
+        if (!covered.has(capability)) cards.push(card(capability));
       }
     }
     return cards;
@@ -361,7 +357,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     if (!props.onAccessClaim) return null;
     return <KnowledgeClaimControls
       claim={card.claim}
-      onClaim={(claim) => props.onAccessClaim?.(card.capability as RatedCapability, claim)}
+      onClaim={(claim) => props.onAccessClaim?.(card.capability, claim)}
     />;
   };
 
@@ -429,6 +425,20 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     ]);
     if (forms.length > 0) sections.push({ key: 'forms', title: t('mlearn.Knowledge.Projection.Relations.Sections.Forms'), items: forms });
 
+    const grammar = fromRelations(new Set<GraphRelationType>(['has-pos']));
+    if (grammar.length > 0) sections.push({ key: 'grammar-properties', title: t('mlearn.Knowledge.Projection.Identity.Sections.Grammar'), items: grammar });
+
+    const prosody = fromRelations(new Set<GraphRelationType>(['has-prosodic-pattern']));
+    if (prosody.length > 0) sections.push({ key: 'prosody', title: t('mlearn.Knowledge.Capability.prosodic-pattern'), items: prosody });
+
+    const properties = dedupe(nb.relations
+      .filter((relation) => !consumed.has(relation.id) && relation.kind === 'grammar-pattern')
+      .map((relation) => {
+        consumed.add(relation.id);
+        return { id: relation.id, label: relation.label ?? relation.id, phrase: relationPhraseKey(relation.relationType), meta: relationMetadata(relation), relation };
+      }));
+    if (properties.length > 0) sections.push({ key: 'properties', title: t('mlearn.Knowledge.Projection.Relations.Sections.Properties'), items: properties });
+
     const components = fromRelations(CHARACTER_RELATIONS);
     if (components.length > 0) sections.push({ key: 'components', title: t('mlearn.Knowledge.Projection.Identity.Sections.Characters'), items: components });
 
@@ -474,9 +484,9 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   };
 
   const overall = () => model().overall;
-  const overallUntracked = () => isUntrackedKnowledge(overall().status, overall().basis);
+  const overallUntracked = () => isUnmeasuredKnowledge(overall().status, overall().basis);
   const overallLabelKey = () => (
-    overallUntracked() ? UNTRACKED_LABEL_KEY : statusLabelKey(overall().status)
+    overallUntracked() ? UNMEASURED_LABEL_KEY : statusLabelKey(overall().status)
   );
   const overallTone = () => (overallUntracked() ? 'unmeasured' : overall().basis);
 
@@ -556,14 +566,9 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
             <Show when={capabilityCards().length > 0}>
               <div class="knowledge-overview__cards">
                 <For each={capabilityCards()}>{(card) => {
-                  // Without a projection state (graph absent), the sense card
-                  // still explains itself: claims stay claims, and the
-                  // comprehensive resolver's exposure count stays familiarity
-                  // (Why.Passive) — never upgraded to evidence.
                   const why = () => {
                     if (card.state) return knowledgeWhyNarrative(card.state);
                     if (card.claim) return { key: 'mlearn.Knowledge.Projection.Why.Claim' };
-                    if (overall().timesSeen > 0) return { key: 'mlearn.Knowledge.Projection.Why.Passive', params: { count: String(overall().timesSeen) } };
                     return { key: 'mlearn.Knowledge.Projection.Why.Unmeasured' };
                   };
                   return (
@@ -572,9 +577,9 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
                         <h3 class="knowledge-card__title">{t(card.labelKey)}</h3>
                         <p class="knowledge-card__state">
                           <strong>{t(knowledgeStatusLabelKey(card.status, card.basis, card.untracked))}</strong>
-                          <span> · {t(BASIS_LABEL_KEYS[card.basis])}</span>
+                          <Show when={card.basis === 'claim' || card.basis === 'evidence'}><span> · {t(BASIS_LABEL_KEYS[card.basis])}</span></Show>
                         </p>
-                        <p class="knowledge-card__why">{t(why().key, why().params)}</p>
+                        <Show when={card.basis !== 'claim'}><p class="knowledge-card__why">{t(why().key, why().params)}</p></Show>
                         <Show when={card.basis === 'claim' && (card.state?.evidence.length ?? 0) > 0}>
                           <p class="knowledge-card__override">{t('mlearn.Knowledge.Projection.ClaimOverride')}</p>
                         </Show>
@@ -605,8 +610,8 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
 
         <Show when={tab() === 'relations'}>
           <div class="knowledge-relations">
-            <Show when={graph.readiness() !== 'pending'} fallback={<SkeletonText lines={2} />}>
-              <Show when={graph.meta().ready} fallback={
+            <Show when={props.language ? model().projection !== undefined : graph.readiness() !== 'pending'} fallback={<SkeletonText lines={2} />}>
+              <Show when={props.language ? model().projection?.status === 'ready' : graph.meta().ready} fallback={
                 <div class="knowledge-drawer__degraded">
                   <p>{t('mlearn.Knowledge.Projection.Identity.NotInstalled')}</p>
                   <p>{t('mlearn.Knowledge.GraphContract.Degraded')}</p>

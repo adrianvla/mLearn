@@ -23,6 +23,15 @@ function makeCard(overrides?: Partial<Flashcard>): Flashcard {
 }
 
 describe('buildKnownWordSet', () => {
+  it('lets a current unknown claim override a legacy known marker', () => {
+    const wordKnowledge: Record<string, PassiveWordKnowledge> = {
+      'ja:h1': { word: 'entry', language: 'ja', ease: 4.5, claim: 'unknown', lastSeen: 1, timesSeen: 0, timesHovered: 0, hasActiveEvidence: true },
+    };
+    const known = buildKnownWordSet({}, {}, { 'ja:h1': true, 'ja:false': false }, {}, wordKnowledge, 4000);
+    expect(known.has('ja:h1')).toBe(false);
+    expect(known.has('ja:false')).toBe(false);
+  });
+
   it('includes knownUntracked words as legacy residue', () => {
     const set = buildKnownWordSet(
       {}, {}, { 'ja:h1': true }, {}, {}, 4000

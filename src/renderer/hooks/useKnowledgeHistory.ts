@@ -2,7 +2,7 @@ import { createMemo, createResource } from 'solid-js';
 import { useLanguage, useSettings } from '../context';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 import { eventCapability } from '../../shared/knowledgeEvents';
-import type { CapabilityKind } from '../../shared/graph/types';
+import type { CapabilityKey } from '../../shared/graph/types';
 import { eventsVersion, getEvents, getKnowledgeArchive } from '../services/knowledgeEvents';
 import { hashWordSync } from '../services/srsAlgorithm';
 import { archivedCurvePoints, replayKnowledgeHistory, type ArchivedHistoryPoint } from '../utils/knowledgeHistory';
@@ -17,7 +17,7 @@ export interface KnowledgeHistoryResult {
   replay: () => ReturnType<typeof replayKnowledgeHistory>;
 }
 
-export function useKnowledgeHistory(word: () => string, capability: () => CapabilityKind): KnowledgeHistoryResult {
+export function useKnowledgeHistory(word: () => string, capability: () => CapabilityKey | undefined): KnowledgeHistoryResult {
   const { settings } = useSettings();
   const { langData, currentLangData, getCanonicalFormForLanguage, getWordVariantsForLanguage } = useLanguage();
   const version = createMemo(() => eventsVersion());
@@ -25,6 +25,7 @@ export function useKnowledgeHistory(word: () => string, capability: () => Capabi
   const [events] = createResource(
     () => [word(), capability(), settings.language, version()] as const,
     async ([surface, activeCapability, language]) => {
+      if (!surface || !activeCapability) return [];
       const languageData = language === settings.language ? currentLangData() : langData[language] ?? null;
       const forms = getWordFormCandidates(
         surface,
@@ -48,6 +49,7 @@ export function useKnowledgeHistory(word: () => string, capability: () => Capabi
   const [archivedPoints] = createResource(
     () => [word(), capability(), settings.language, version()] as const,
     async ([surface, activeCapability, language]) => {
+      if (!surface || !activeCapability) return [];
       const languageData = language === settings.language ? currentLangData() : langData[language] ?? null;
       const forms = getWordFormCandidates(
         surface,

@@ -35,7 +35,7 @@ export const EntriesHeader: Component<EntriesHeaderProps> = (props) => {
       <button type="button" class="col knowledge" onClick={() => props.onSort('status')}>
         {t('mlearn.WordDbEditor.Columns.Knowledge')}{getSortIndicator('status')}
       </button>
-      <div class="col tracker">{t('mlearn.WordDbEditor.Columns.TrackedBy')}</div>
+      <div class="col integrations">{t('mlearn.WordDbEditor.Columns.Integrations')}</div>
     </div>
   );
 };

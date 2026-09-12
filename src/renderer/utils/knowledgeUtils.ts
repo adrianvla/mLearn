@@ -1,11 +1,5 @@
 import type { Flashcard, FlashcardStore, PassiveWordKnowledge, IgnoredWordEntry } from '../../shared/types';
 
-/** Anki-bank status keys folded into the O(n) set builders (structural — produced by services/ankiWordsCache). */
-export interface AnkiWordStatusKeys {
-  known: ReadonlySet<string>;
-  learning: ReadonlySet<string>;
-}
-
 /**
  * Builds a Set of language-prefixed word hashes that are Tier-2 known.
  * O(n) to build, O(1) to query.
@@ -29,8 +23,6 @@ export interface AnkiWordStatusKeys {
  * un-know words the user once marked. New code never writes knownUntracked —
  * claims land in wordKnowledge instead.
  *
- * anki bank keys are kept when supplied: Anki activity is active evidence.
- *
  * ignoredWords deliberately NOT included: exclusion is teaching policy, not
  * knowledge. Use store.ignoredWords keys directly where selection needs them.
  *
@@ -45,11 +37,10 @@ export function buildKnownWordSet(
   _ignoredWords: Record<string, IgnoredWordEntry>,
   wordKnowledge: Record<string, PassiveWordKnowledge>,
   knownEaseThreshold: number,
-  ankiKnownKeys?: ReadonlySet<string>,
 ): Set<string> {
   // Legacy residue: pre-Tier-2 stores keep orphan hashes here. Union preserves
   // past user "known" marks; never written by new code.
-  const known = new Set<string>(Object.keys(knownUntracked));
+  const known = new Set<string>(Object.keys(knownUntracked).filter((key) => knownUntracked[key]));
 
   const threshold = knownEaseThreshold / 1000;
   for (const [lk, knowledge] of Object.entries(wordKnowledge)) {
@@ -58,12 +49,12 @@ export function buildKnownWordSet(
     // it out even when the ease is high and evidence is active.
     if (knowledge.claim === 'known') {
       known.add(lk);
-    } else if (knowledge.claim === undefined && knowledge.ease >= threshold && knowledge.hasActiveEvidence === true) {
+    } else if (knowledge.claim !== undefined) {
+      known.delete(lk);
+    } else if (knowledge.ease >= threshold && knowledge.hasActiveEvidence === true) {
       known.add(lk);
     }
   }
-
-  if (ankiKnownKeys) for (const lk of ankiKnownKeys) known.add(lk);
 
   return known;
 }
@@ -94,7 +85,6 @@ export function isWordKnown(
 export function buildKnownWordSetFromStore(
   store: FlashcardStore,
   knownEaseThreshold: number,
-  ankiKnownKeys?: ReadonlySet<string>,
 ): Set<string> {
   return buildKnownWordSet(
     store.flashcards,
@@ -103,11 +93,10 @@ export function buildKnownWordSetFromStore(
     store.ignoredWords,
     store.wordKnowledge,
     knownEaseThreshold,
-    ankiKnownKeys,
   );
 }
 
-export function buildTrackedWordSet(store: FlashcardStore, language: string, ankiKeys?: AnkiWordStatusKeys): Set<string> {
+export function buildTrackedWordSet(store: FlashcardStore, language: string): Set<string> {
   const tracked = new Set<string>();
   const prefix = language + ':';
   for (const lk of Object.keys(store.wordToCardMap)) if (lk.startsWith(prefix)) tracked.add(lk);
@@ -121,9 +110,5 @@ export function buildTrackedWordSet(store: FlashcardStore, language: string, ank
   for (const lk of Object.keys(store.wordCandidates)) if (lk.startsWith(prefix)) tracked.add(lk);
   for (const lk of Object.keys(store.knownUntracked)) if (lk.startsWith(prefix)) tracked.add(lk);
   for (const lk of Object.keys(store.ignoredWords)) if (lk.startsWith(prefix)) tracked.add(lk);
-  if (ankiKeys) {
-    for (const lk of ankiKeys.known) if (lk.startsWith(prefix)) tracked.add(lk);
-    for (const lk of ankiKeys.learning) if (lk.startsWith(prefix)) tracked.add(lk);
-  }
   return tracked;
 }

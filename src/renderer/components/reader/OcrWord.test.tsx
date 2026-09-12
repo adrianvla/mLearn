@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { OcrWord } from './OcrWord';
+import type { AccessStatusResult } from '../../utils/accessKnowledge';
 import type { LanguageData, Token } from '../../../shared/types';
 import type { ComprehensiveWordStatusResult } from '../../utils/comprehensiveKnowledge';
 
@@ -37,6 +38,7 @@ const originalMockLanguageData = mockLanguageData;
 const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(
   (): ComprehensiveWordStatusResult => ({ status: 'unknown', basis: 'unmeasured', evidenceStatus: 'unknown', source: 'None', timesSeen: 0 }),
 );
+const mockGetAccessStatus = vi.fn<() => AccessStatusResult>(() => ({ status: 'unknown', ease: 0, source: 'None', untracked: true }));
 const mockGetCachedTranslation = vi.fn();
 
 vi.mock('../../hooks/useTranslation', () => ({
@@ -49,11 +51,10 @@ vi.mock('../../context', () => ({
   useSettings: () => ({ settings: mockSettings }),
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
-    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     trackWordHovered: mockTrackWordHovered,
     cancelWordHover: mockCancelWordHover,
     getComprehensiveWordStatusWithSourceSync: mockGetComprehensiveWordStatusWithSourceSync,
-    getAccessStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
+    getAccessStatus: mockGetAccessStatus,
   }),
   useLanguage: () => ({
     currentLangData: () => mockLanguageData,
@@ -75,6 +76,8 @@ describe('OcrWord', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    mockGetAccessStatus.mockReset();
+    mockGetAccessStatus.mockReturnValue({ status: 'unknown', ease: 0, source: 'None', untracked: true });
     mockSettings.showReadingAnnotations = true;
     mockTrackWordHovered.mockClear();
     mockCancelWordHover.mockClear();
@@ -94,6 +97,16 @@ describe('OcrWord', () => {
     type: 'verb',
     partOfSpeech: 'verb',
   };
+
+  it('reads the exact presented access separately from lexical meaning', () => {
+    mockGetComprehensiveWordStatusWithSourceSync.mockReturnValue({ status: 'known', basis: 'claim', evidenceStatus: 'unknown', source: 'Manual', timesSeen: 0 });
+    mockGetAccessStatus.mockReturnValueOnce({ status: 'unknown', ease: 0, source: 'None', untracked: true })
+      .mockReturnValueOnce({ status: 'known', ease: 2.5, source: 'Manual' });
+    const dispose = render(() => <OcrWord token={token} />, container);
+    expect(mockGetAccessStatus).toHaveBeenCalledWith('يكتب', 'surface-recognition', 'ar');
+    expect(mockGetAccessStatus).toHaveBeenCalledWith('يكتب', 'sense-recognition', 'ar');
+    dispose();
+  });
 
   it('tracks hover with the tokenizer lookup word instead of pre-canonicalizing in the UI', () => {
     const dispose = render(() => <OcrWord token={token} />, container);

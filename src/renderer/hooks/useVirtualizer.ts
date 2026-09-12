@@ -1,4 +1,4 @@
-import { createSignal, createMemo, createEffect, onCleanup, type Accessor } from 'solid-js';
+import { batch, createSignal, createMemo, createEffect, onCleanup, type Accessor } from 'solid-js';
 
 export interface VirtualItem {
   index: number;
@@ -24,7 +24,7 @@ export interface Virtualizer {
   getTotalSize: () => number;
   scrollToIndex: (index: number, options?: VirtualizerScrollOptions) => void;
   measure: () => void;
-  measureElement: (el: HTMLElement | null) => void;
+  measureElement: (el: HTMLElement | null, index?: number) => void;
 }
 
 export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
@@ -36,6 +36,7 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
 
   // Internal measurements cache
   const measurements = new Map<number, number>();
+  const [measurementRevision, setMeasurementRevision] = createSignal(0);
 
   const getItemSize = (index: number): number => {
     if (measureDynamic && measurements.has(index)) {
@@ -57,6 +58,7 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
   initMetrics();
 
   const totalSize = createMemo(() => {
+    measurementRevision();
     let total = 0;
     for (let i = 0; i < getCount(); i++) {
       total += getItemSize(i);
@@ -65,6 +67,7 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
   });
 
   const virtualItems = createMemo(() => {
+    measurementRevision();
     const st = scrollTop();
     const ch = containerHeight();
     const count = getCount();
@@ -138,21 +141,62 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
     });
   });
 
-  const measureElement = (el: HTMLElement | null) => {
+  const renderedElements = new Map<number, HTMLElement>();
+  const elementIndexes = new WeakMap<HTMLElement, number>();
+  const updateMeasurement = (el: HTMLElement) => {
+    const index = elementIndexes.get(el);
+    if (index === undefined) return;
+    if (!Number.isInteger(index) || index < 0 || index >= getCount()) return;
+    const height = el.getBoundingClientRect().height;
+    if (height > 0 && measurements.get(index) !== height) {
+      measurements.set(index, height);
+      setMeasurementRevision(revision => revision + 1);
+    }
+  };
+  const rowObserver = measureDynamic && typeof ResizeObserver !== 'undefined'
+    ? new ResizeObserver(entries => batch(() => {
+      for (const entry of entries) {
+        const el = entry.target;
+        if (el instanceof HTMLElement && renderedElements.get(elementIndexes.get(el) ?? -1) === el) updateMeasurement(el);
+      }
+    }))
+    : undefined;
+
+  createEffect(() => {
+    const visible = new Set(virtualItems().map(item => item.index));
+    for (const [index, el] of renderedElements) {
+      if (!visible.has(index)) {
+        rowObserver?.unobserve(el);
+        renderedElements.delete(index);
+      }
+    }
+  });
+  onCleanup(() => {
+    rowObserver?.disconnect();
+    renderedElements.clear();
+  });
+
+  const measureElement = (el: HTMLElement | null, itemIndex?: number) => {
     if (!el || !measureDynamic) return;
     const indexAttr = el.getAttribute('data-index');
-    if (indexAttr == null) return;
-    const index = Number(indexAttr);
-    if (Number.isNaN(index)) return;
-    const height = el.getBoundingClientRect().height;
-    if (height > 0) {
-      measurements.set(index, height);
+    if (itemIndex === undefined && indexAttr === null) return;
+    const index = itemIndex ?? Number(indexAttr);
+    if (!Number.isInteger(index) || index < 0 || index >= getCount()) return;
+    const previous = renderedElements.get(index);
+    if (previous !== el) {
+      if (previous) rowObserver?.unobserve(previous);
+      renderedElements.set(index, el);
+      elementIndexes.set(el, index);
+      rowObserver?.observe(el);
     }
+    updateMeasurement(el);
   };
 
   const measure = () => {
     if (!measureDynamic) return;
-    setScrollTop((v) => v);
+    batch(() => {
+      for (const el of renderedElements.values()) updateMeasurement(el);
+    });
   };
 
   const scrollToIndex = (index: number, scrollOptions: VirtualizerScrollOptions = {}) => {

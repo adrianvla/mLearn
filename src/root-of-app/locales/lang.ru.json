@@ -1260,7 +1260,7 @@
           "Title": "Статистика"
         },
         "WordDatabase": {
-          "Description": "Просмотр и управление отслеживаемым словарём",
+          "Description": "Просмотр словаря и свидетельств обучения",
           "Title": "База слов",
           "EmptyHint": "Найти слово",
           "NoMatches": "Ничего не найдено",
@@ -1386,8 +1386,6 @@
     },
     "Rating": {
       "Compact": {
-        "AllFluent": "Всё бегло",
-        "AllEasy": "Всё легко",
         "Adjust": "Настроить"
       },
       "Matrix": {
@@ -1395,16 +1393,13 @@
         "Struggled": "С трудом",
         "Fluent": "Легко",
         "Easy": "Легко",
-        "AllFluent": "Всё легко",
-        "EverythingElseFluent": "Остальное легко",
-        "AllFluentKey": "F",
-        "PendingHint": "Оценка (1–3), затем клавиша аспекта"
+        "AllRow": "Всё"
       }
     },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "Значение",
-        "surface-recognition": "Письменная форма",
+        "surface-recognition": "Узнавание этого написания",
         "spoken-recognition": "Устная форма",
         "surface-reading": "Чтение",
         "pronunciation-production": "Произношение",
@@ -1441,7 +1436,7 @@
         "Excluded": "Исключено из изучения",
         "Why": {
           "Claim": "Ваша отметка",
-          "Evidence": "Свидетельства из {count} повторений SRS",
+          "Evidence": "Записанные наблюдения: {count}",
           "Predicted": "Предсказано по поддержке графа",
           "PredictedLinks": "Предсказано через {count} путей поддержки графа",
           "Passive": "Встречалось {count} раз при чтении — пассивное знакомство не является свидетельством",
@@ -1505,7 +1500,8 @@
           "Sections": {
             "Meanings": "Значения",
             "Forms": "Написания",
-            "Related": "Связанные"
+            "Related": "Связанные",
+            "Properties": "Свойства"
           },
           "MeaningN": "Значение {n}",
           "GrammarPattern": "Грамматическая модель",
@@ -1522,7 +1518,6 @@
         "Orthography": "Письменная форма"
       },
       "AspectInherited": "(унаследовано)",
-      "Untracked": "Не отслеживается",
       "History": {
         "Empty": "Истории знания пока нет.",
         "Today": "Сегодня",
@@ -1532,7 +1527,8 @@
           "Review": "Повторение",
           "Rating": "Ручная оценка",
           "Rollup": "Пассивный контакт",
-          "Claim": "Ручная отметка"
+          "Claim": "Ручная отметка",
+          "SourceSnapshot": "Старый снимок Anki"
         },
         "Source": {
           "KnownWordsList": "Список известных слов",
@@ -1556,7 +1552,8 @@
       "EvidenceSource": {
         "Prefix": "Источник доказательств: ",
         "None": "Нет"
-      }
+      },
+      "Unmeasured": "Не оценено"
     },
     "LevelStudy": {
       "Title": "Изучение по уровням",
@@ -3070,7 +3067,8 @@
         "Knowledge": "Знания",
         "TrackedBy": "Источник",
         "Translation": "Перевод",
-        "Word": "Слово"
+        "Word": "Слово",
+        "Integrations": "Карточки и интеграции"
       },
       "EditTranslation": {
         "PitchError": "Не удалось получить данные о тоновом ударении",
@@ -3101,7 +3099,13 @@
         "Nothing": "Нет трекера"
       },
       "Title": "База слов",
-      "AdvancedFilters": "Advanced Filters"
+      "AdvancedFilters": "Advanced Filters",
+      "Integrations": {
+        "Flashcard": "Карточка mLearn",
+        "Anki": "Anki",
+        "Ignored": "Исключено из повторений",
+        "AddFlashcard": "Добавить карточку mLearn"
+      }
     },
     "WordHover": {
       "AddToAnki": "Добавить в Anki",
@@ -3142,7 +3146,9 @@
       "AnkiEase": "Anki Ease: {ease}",
       "AnkiUpdateSuccess": "Обновлено {count} карточек Anki",
       "AnkiUpdateRepositioned": "Обновлено {count} карточек, перемещено {repositioned} новых",
-      "AnkiUpdateFailed": "Не удалось обновить карточки Anki"
+      "AnkiUpdateFailed": "Не удалось обновить карточки Anki",
+      "CardScheduling": "Расписание карточки",
+      "FlashcardAddFailed": "Не удалось добавить карточку"
     },
     "ConnectionStatus": {
       "Connected": "Подключено",
@@ -3176,10 +3182,6 @@
       "WordCount": "{count} слов"
     },
     "WordSync": {
-      "Rating": {
-        "AllRow": "Всё",
-        "PendingHint": "Оценка 1–4, затем клавиша аспекта — нажмите оценку ещё раз для всех аспектов"
-      },
       "Statement": {
         "Label": "Описать словами",
         "KnownSpoken": "Я знаю это слово на слух.",

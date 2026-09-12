@@ -1,3 +1,5 @@
+import { DatabaseSync } from 'node:sqlite';
+import type { KeyArchive } from '../../shared/knowledge/historyArchive';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -45,6 +47,91 @@ function ankiStatus(t: number, toStatus: KnowledgeEvent['toStatus']): KnowledgeE
 }
 
 describe('KnowledgeHistoryStore', () => {
+  it('keeps capability projections independent through archival and retraction', () => {
+    const s = store();
+    const now = Date.now();
+    const old = now - 400 * DAY;
+    const key = 'xx:word';
+    s.appendEvents({ [key]: [
+      { t: old, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 2.5, attemptId: 'meaning' },
+      { t: old + 30 * DAY, kind: 'rating', source: 'manual', aspect: 'reading', easeAfter: 1.3, attemptId: 'reading' },
+      { t: old + 30 * DAY, kind: 'review', source: 'srs', rating: 'good', easeAfter: 3.0, attemptId: 'reading', schedulerCardId: 'card' },
+    ] });
+    const expected = s.getKnowledgeState(key).capabilities;
+    expect(expected?.['sense-recognition']?.ease).toBe(2.5);
+    expect(expected?.['surface-reading']?.ease).toBe(1.3);
+    expect(s.getExactEvents([key])[key]).toHaveLength(3);
+    s.compact(now);
+    expect(s.getKnowledgeState(key).capabilities).toEqual(expected);
+    s.appendEvents({ [key]: [{ t: now, kind: 'retraction', source: 'manual', retracts: 'reading' }] });
+    const retracted = s.getKnowledgeState(key).capabilities;
+    expect(retracted?.['sense-recognition']?.ease).toBe(2.5);
+    expect(retracted?.['surface-reading']).toBeUndefined();
+    s.close();
+  });
+
+  it('rebuilds old mixed Anki archive folds without losing review retraction or audit rows', () => {
+    const now = Date.now();
+    const s = store();
+    const key = 'xx:snapshot-migration';
+    s.appendEvents({ [key]: [
+      { t: now - 500 * DAY, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 1.3, attemptId: 'anchor' },
+      { t: now - 400 * DAY, kind: 'review', source: 'anki', aspect: 'meaning', easeAfter: 1600, rating: 'hard', attemptId: 'real-review', ankiReviewId: 1 },
+      { t: now - 390 * DAY, kind: 'status', source: 'anki', aspect: 'meaning', easeAfter: 3000, toStatus: 'known' },
+      { t: now, kind: 'status', source: 'anki', aspect: 'meaning', easeAfter: 3000, toStatus: 'known' },
+    ] });
+    s.compact(now);
+    const before = s.getKnowledgeState(key);
+    expect(before.capabilities?.['sense-recognition']?.ease).toBe(1.6);
+    s.close();
+
+    const db = new DatabaseSync(path.join(dir, 'knowledge-history.sqlite3'));
+    const row = db.prepare('SELECT json FROM archives WHERE key = ?').get(key);
+    if (!row || typeof row.json !== 'string') expect.fail('archive missing');
+    const archive: KeyArchive = JSON.parse(row.json);
+    delete archive.measurableVersion;
+    for (const bucket of Object.values(archive.buckets)) {
+      bucket.measurableFold = bucket.fold;
+      bucket.ratings.push({ t: now - 390 * DAY, seq: 999, rating: 'easy' });
+    }
+    db.prepare('UPDATE archives SET json = ? WHERE key = ?').run(JSON.stringify(archive), key);
+    db.close();
+
+    const reopened = store();
+    expect(reopened.getKnowledgeState(key).capabilities).toEqual(before.capabilities);
+    expect(reopened.getKnowledgeState(key).projection).toEqual(before.projection);
+    expect(Object.values(reopened.getArchive(key)?.buckets ?? {}).flatMap((bucket) => bucket.ratings)).toHaveLength(1);
+    expect(reopened.getKnowledgeState(key).archivedEventCount).toBe(before.archivedEventCount);
+    reopened.appendEvents({ [key]: [{ t: now + 1, kind: 'retraction', source: 'manual', retracts: 'real-review' }] });
+    expect(reopened.getKnowledgeState(key).capabilities?.['sense-recognition']?.ease).toBe(1.3);
+    expect(reopened.getExactEvents([key])[key].some((event) => event.kind === 'status' && event.source === 'anki')).toBe(true);
+    reopened.close();
+  });
+
+  it('withholds uncertain measurable support when an old archive has no complete records', () => {
+    const now = Date.now();
+    const s = store();
+    const key = 'xx:recordless';
+    s.appendEvents({ [key]: [ankiReview(now - 500 * DAY, 1.3), ankiStatus(now - 400 * DAY, 'known')] });
+    s.compact(now);
+    s.close();
+    const db = new DatabaseSync(path.join(dir, 'knowledge-history.sqlite3'));
+    const row = db.prepare('SELECT json FROM archives WHERE key = ?').get(key);
+    if (!row || typeof row.json !== 'string') expect.fail('archive missing');
+    const archive: KeyArchive = JSON.parse(row.json);
+    delete archive.measurableVersion;
+    archive.v = 1;
+    db.prepare('UPDATE archives SET json = ? WHERE key = ?').run(JSON.stringify(archive), key);
+    db.prepare('DELETE FROM bucket_recs WHERE key = ?').run(key);
+    db.close();
+    const reopened = store();
+    const restored = reopened.getArchive(key);
+    expect(restored?.measurableRebuildIncomplete).toBe(true);
+    expect(restored?.archivedEventCount).toBe(1);
+    expect(Object.values(restored?.buckets ?? {}).every((bucket) => bucket.measurableFold.hasEvidence === false)).toBe(true);
+    reopened.close();
+  });
+
   it('round-trips appends through exact rows and derives matching projections', () => {
     const s = store();
     const now = Date.now();

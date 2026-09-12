@@ -280,7 +280,7 @@ describe('computeWordLevelStats', () => {
     expect(advanced?.known).toBe(0);
   });
 
-  it('counts learning words from flashcard state', () => {
+  it('does not infer learner knowledge from a scheduled learning card', () => {
     const store = makeStore({
       flashcards: {
         c1: {
@@ -310,7 +310,15 @@ describe('computeWordLevelStats', () => {
     });
 
     const intermediate = result.byLevel.find((l) => l.level === 3);
-    expect(intermediate?.learning).toBe(1);
+    expect(intermediate?.learning).toBe(0);
+    expect(intermediate?.known).toBe(0);
+  });
+
+  it('does not infer learning from a candidate selected for future study', () => {
+    const store = makeStore({ wordCandidates: { [lk('en', 'hello')]: { word: 'hello', language: 'en', count: 20, lastSeen: 1 } } });
+    const result = computeWordLevelStats(store, makeFreq(), 'en', 1800, 1550, { 5: 'Beginner' });
+    expect(result.byLevel[0].known).toBe(0);
+    expect(result.byLevel[0].learning).toBe(0);
   });
 
   it('counts outside levels for tracked words not in frequency list', () => {
@@ -500,7 +508,7 @@ describe('computeLevelStats', () => {
     expect(level.untracked).toBe(0);
   });
 
-  it('counts learning from learning-state flashcards + wordKnowledge', () => {
+  it('counts only projected learning while preserving separate card selection state', () => {
     const store = makeStore({
       flashcards: {
         card1: {
@@ -540,7 +548,7 @@ describe('computeLevelStats', () => {
       levelNames,
     );
 
-    expect(level.learning).toBe(2);
+    expect(level.learning).toBe(1);
     expect(level.known).toBe(0);
   });
 

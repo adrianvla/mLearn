@@ -6,7 +6,7 @@
 .entry {
   display: flex;
   align-items: center;
-  padding: 0.75rem 1rem;
+  padding: var(--spacing-3) var(--spacing-4);
   border-bottom: 1px solid var(--border-color);
   transition: background 0.15s ease;
 }
@@ -21,21 +21,21 @@
   background: var(--border-color);
 }
 
-/* Tracker label */
-.tracker-label {
+/* Integration label */
+.integration-label {
   font-size: 0.8rem;
   color: var(--text-secondary);
   white-space: nowrap;
 }
 
-.tracker-label--anki {
+.integration-label--anki {
   cursor: default;
   text-decoration: underline dotted;
   text-underline-offset: 2px;
 }
 
-/* Compact buttons inside the tracker column */
-.word-db-editor .col.tracker .btn {
+/* Compact buttons inside the integrations column */
+.word-db-editor .col.integrations .btn {
   padding: 0.2rem 0.5rem;
   font-size: 0.75rem;
 }
@@ -44,7 +44,7 @@
 .word-db-editor .col.word {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
 }
 
 .word-db-editor .col.word .word-text {
@@ -65,4 +65,15 @@
   min-height: var(--size-md);
   padding-top: 0.375rem;
   padding-bottom: 0.375rem;
+}
+
+.word-db-editor .col.word .word-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.word-db-editor .col.knowledge > *,
+.word-db-editor .col.integrations > * {
+  max-width: 100%;
 }

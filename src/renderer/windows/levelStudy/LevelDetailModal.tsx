@@ -13,7 +13,6 @@ import {
   BEYOND_EXAM_LEVEL,
 } from '../../utils/wordLevelStats';
 import { buildKnownWordSetFromStore, buildTrackedWordSet } from '../../utils/knowledgeUtils';
-import { buildAnkiStatusKeySets } from '../../services/ankiWordsCache';
 import { getReadingAnnotationScripts, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -71,24 +70,15 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     const lang = activeLanguage();
     const langData = activeLanguageData();
     const freq = resolveLevelStudyWordFrequency({}, langData);
-    const knownThreshold = settings.known_ease_threshold;
-    const learningThreshold = settings.srsLearningThreshold;
+    const knownThreshold = settings.easeThresholdKnown * 1000;
+    const learningThreshold = settings.easeThresholdLearning * 1000;
 
     return untrack(() => {
       const store = flashcards.store;
-      const ankiKeys = settings.use_anki
-        ? buildAnkiStatusKeySets(
-          lang,
-          settings.ankiLearningThreshold,
-          settings.ankiKnownThreshold,
-          (word) => [language.getCanonicalFormForLanguage(lang, word)],
-          langData,
-        )
-        : undefined;
-      const knownSet = buildKnownWordSetFromStore(store, knownThreshold, ankiKeys?.known);
-      const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold, ankiKeys?.learning);
+      const knownSet = buildKnownWordSetFromStore(store, knownThreshold);
+      const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
       const passiveOnlySet = buildPassiveOnlyWordSet(store);
-      const trackedSet = buildTrackedWordSet(store, lang, ankiKeys);
+      const trackedSet = buildTrackedWordSet(store, lang);
 
       const result: WordListItem[] = [];
       const levelNames = getLevelStudyLevelNames(langData, freq);
@@ -109,8 +99,8 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     props.level;
     activeLanguage();
     activeLanguageData();
-    settings.known_ease_threshold;
-    settings.srsLearningThreshold;
+    settings.easeThresholdKnown * 1000;
+    settings.easeThresholdLearning * 1000;
     flashcards.isLoading();
     setWordsForLevel(buildWordsForLevelSnapshot());
   });

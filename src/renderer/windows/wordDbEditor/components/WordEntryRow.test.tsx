@@ -4,11 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { Show, createSignal, type JSX } from 'solid-js';
 import type { WordEntry } from './WordEntryRow';
-import type { LanguageData } from '../../../../shared/types';
+import type { Flashcard, LanguageData } from '../../../../shared/types';
 
 const mockGetCard = vi.fn();
 const mockGetKnowledgeProjection = vi.fn();
-let lastDrawerProps: { open?: boolean; initialTab?: string; surface?: string } | null = null;
 const getNeighborhoodMock = vi.fn();
 const getEventsMock = vi.fn();
 const getKnowledgeRowsMock = vi.fn();
@@ -18,7 +17,9 @@ const hashA = 'a'.repeat(64);
 const hashB = 'b'.repeat(64);
 // Mirrors the mocked hashWordSync below; the row derives graph entity ids from it directly.
 const hashFor = (word: string): string => `hash:${word.length}`;
-const getWordTrackingSyncMock = vi.fn((_word: string): { tracker: 'flashcards' | 'anki' | 'nothing'; ankiLookupWord?: string } => ({ tracker: 'anki' }));
+const getCardByWordSyncMock = vi.fn((): Flashcard | null => null);
+const isWordIgnoredSyncMock = vi.fn(() => false);
+const openKnowledgeInspectorMock = vi.fn();
 const findAnkiWordMatchMock = vi.fn((): { word: string; lookupKey: string; cards: never[] } | null => null);
 const extractProsodyDataMock = vi.fn();
 const extractProsodyDataForReadingMock = vi.fn();
@@ -28,7 +29,7 @@ const getCachedReadingMock = vi.fn();
 const fetchTranslationMock = vi.fn();
 const prosodyOverlayProps: Array<{ word: string; prosodyPosition?: number | null; prosodyType?: string; class?: string }> = [];
 let mockLanguageData: LanguageData | null = null;
-let mockSettings: { language: string; coloredProsodyRelevantOnly?: boolean } = { language: 'ja' };
+let mockSettings: { language: string; use_anki?: boolean; coloredProsodyRelevantOnly?: boolean } = { language: 'ja' };
 
 vi.mock('../../../../shared/backends', () => ({
   getBackend: () => ({
@@ -39,7 +40,7 @@ vi.mock('../../../../shared/backends', () => ({
 vi.mock('../../../context', () => ({
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string>) => {
-      if (key === 'mlearn.WordDbEditor.Trackers.Anki') return 'Anki';
+      if (key === 'mlearn.WordDbEditor.Integrations.Anki') return 'Anki';
       if (key === 'mlearn.WordDbEditor.Anki.Preview') return 'Preview';
       if (key === 'mlearn.WordDbEditor.Anki.PreviewTitle') return `Anki Preview - ${params?.word ?? ''}`;
       return key;
@@ -52,7 +53,8 @@ vi.mock('../../../context', () => ({
     currentLangData: () => mockLanguageData,
   }),
   useFlashcards: () => ({
-    getWordTrackingSync: getWordTrackingSyncMock,
+    getCardByWordSync: getCardByWordSyncMock,
+    isWordIgnoredSync: isWordIgnoredSyncMock,
     store: { meta: { learningSteps: [1], relearnSteps: [1], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 365 } },
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
     getAccessStatus: () => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }),
@@ -118,7 +120,7 @@ vi.mock('../../../components/common', () => ({
     return <div data-testid="graph-viz-stub" onClick={() => props.onSelect?.(`ja:surface:${hashB}`)} />;
   },
   KnowledgeProjectionDrawer: (props: { open?: boolean; initialTab?: string; surface?: string }) => {
-    lastDrawerProps = props;
+    void props;
     return null;
   },
 }));
@@ -141,6 +143,8 @@ vi.mock('../../../services/knowledgeEvents', () => ({
 vi.mock('../../../services/srsAlgorithm', () => ({
   hashWordSync: (word: string) => `hash:${word.length}`,
 }));
+
+vi.mock('../../../services/openKnowledgeInspector', () => ({ openKnowledgeInspector: openKnowledgeInspectorMock }));
 
 vi.mock('../../../services/openGraphInspector', () => ({ openGraphInspector: openGraphInspectorMock }));
 
@@ -205,7 +209,6 @@ describe('WordEntryRow', () => {
     mockGetCard.mockReset();
     mockGetKnowledgeProjection.mockReset();
     mockGetKnowledgeProjection.mockResolvedValue({ status: 'unavailable', targets: [] });
-    lastDrawerProps = null;
     getNeighborhoodMock.mockReset();
     getNeighborhoodMock.mockResolvedValue(null);
     getEventsMock.mockReset();
@@ -214,10 +217,11 @@ describe('WordEntryRow', () => {
     getKnowledgeRowsMock.mockResolvedValue({});
     openGraphInspectorMock.mockReset();
     lastVizProps = null;
-    getWordTrackingSyncMock.mockReset();
-    getWordTrackingSyncMock.mockImplementation(() => ({ tracker: 'anki' }));
+    getCardByWordSyncMock.mockReset();
+    isWordIgnoredSyncMock.mockReturnValue(false);
+    openKnowledgeInspectorMock.mockReset();
     findAnkiWordMatchMock.mockReset();
-    findAnkiWordMatchMock.mockReturnValue(null);
+    findAnkiWordMatchMock.mockImplementation(() => ({ word: '', lookupKey: '', cards: [] }));
     getCachedTranslationMock.mockReset();
     getCachedTranslationMock.mockReturnValue(null);
     getCachedReadingMock.mockReset();
@@ -231,7 +235,7 @@ describe('WordEntryRow', () => {
     extractProsodyDataForReadingMock.mockReturnValue(undefined);
     extractReadingValueMock.mockReset();
     extractReadingValueMock.mockReturnValue(null);
-    mockSettings = { language: 'ja' };
+    mockSettings = { language: 'ja', use_anki: true };
     mockLanguageData = makeLanguageData({
       name: 'Japanese',
       prosody: { type: 'japanese-pitch-accent' },
@@ -255,6 +259,54 @@ describe('WordEntryRow', () => {
   afterEach(() => {
     vi.useRealTimers();
     container.remove();
+  });
+
+  it('shows mLearn and Anki card presence together without choosing a knowledge owner', async () => {
+    getCardByWordSyncMock.mockReturnValue({
+      id: 'card', language: 'ja', state: 'new', ease: 2.5, interval: 0,
+      dueDate: 0, reviews: 0, lapses: 0, learningStep: 0, createdAt: 0,
+      lastReviewed: 0, lastUpdated: 0, content: { type: 'word', front: '赤い', back: 'red' },
+    });
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const remove = vi.fn();
+    const dispose = render(() => <WordEntryRow entry={makeEntry('赤い')} levelNames={{}}
+      onStatusChange={() => undefined} onAddFlashcard={() => undefined}
+      onRemoveFlashcard={remove} onAnkiPreview={() => undefined} />, container);
+    const integrations = container.querySelector('.col.integrations');
+    expect(integrations?.textContent).toContain('mlearn.WordDbEditor.Integrations.Flashcard');
+    expect(integrations?.textContent).toContain('Anki');
+    expect(integrations?.textContent).toContain('Preview');
+    expect(integrations?.textContent).not.toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
+    Array.from(integrations?.querySelectorAll('button') ?? []).find(b => b.textContent === 'mlearn.Global.Remove')?.click();
+    expect(remove).toHaveBeenCalledWith(makeEntry('赤い'));
+    dispose();
+  });
+
+  it('offers a mLearn card for an Anki entry and keeps exclusion policy separate', async () => {
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const add = vi.fn();
+    const dispose = render(() => <WordEntryRow entry={makeEntry('赤い')} levelNames={{}}
+      onStatusChange={() => undefined} onAddFlashcard={add}
+      onRemoveFlashcard={() => undefined} />, container);
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'mlearn.WordDbEditor.Integrations.AddFlashcard')?.click();
+    expect(add).toHaveBeenCalledWith(makeEntry('赤い'));
+    expect(container.querySelector('[data-testid="anki-hover-trigger"]')).not.toBeNull();
+    dispose();
+  });
+
+  it('shows exclusion independently of Anki and suppresses adding a review card', async () => {
+    isWordIgnoredSyncMock.mockReturnValue(true);
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const unignore = vi.fn();
+    const dispose = render(() => <WordEntryRow entry={makeEntry('赤い')} levelNames={{}}
+      onStatusChange={() => undefined} onAddFlashcard={() => undefined}
+      onRemoveFlashcard={() => undefined} onUnignore={unignore} />, container);
+    expect(container.textContent).toContain('mlearn.WordDbEditor.Integrations.Ignored');
+    expect(container.textContent).not.toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
+    expect(container.querySelector('[data-testid="anki-hover-trigger"]')).not.toBeNull();
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'mlearn.WordDbEditor.Actions.Unignore')?.click();
+    expect(unignore).toHaveBeenCalledWith(makeEntry('赤い'));
+    dispose();
   });
 
   it('shows returned Anki cards even when the backend marks the match as poor', async () => {
@@ -327,7 +379,7 @@ describe('WordEntryRow', () => {
   });
 
   it('uses the matched Anki expression for hover card lookup', async () => {
-    getWordTrackingSyncMock.mockReturnValue({ tracker: 'anki', ankiLookupWord: '会う' });
+    findAnkiWordMatchMock.mockReturnValue({ word: '会う', lookupKey: '会う', cards: [] });
     mockGetCard.mockResolvedValue({
       error: false,
       poor: false,
@@ -1402,7 +1454,7 @@ describe('WordEntryRow', () => {
     dispose();
   });
 
-  it('renders the Knowledge pill as the primary knowledge control before tracker, forwarding status changes', async () => {
+  it('renders the Knowledge pill as the primary knowledge control before integrations, forwarding status changes', async () => {
     const { WordEntryRow } = await import('./WordEntryRow');
     const onStatusChange = vi.fn();
 
@@ -1417,7 +1469,7 @@ describe('WordEntryRow', () => {
     ), container);
 
     const knowledgeCol = container.querySelector('.col.knowledge');
-    const trackerCol = container.querySelector('.col.tracker');
+    const trackerCol = container.querySelector('.col.integrations');
     expect(knowledgeCol).not.toBeNull();
     expect(trackerCol).not.toBeNull();
     expect(knowledgeCol!.compareDocumentPosition(trackerCol!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -1459,12 +1511,11 @@ describe('WordEntryRow', () => {
     const inspectBtn = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Inspect');
     expect(inspectBtn).not.toBeUndefined();
     inspectBtn!.click();
-    expect(lastDrawerProps).toMatchObject({ open: true, initialTab: 'overview', surface: '猫' });
+    expect(openKnowledgeInspectorMock).toHaveBeenCalledWith({ language: 'ja', surface: '猫', target: { kind: 'surface', id: `ja:surface:${hashFor('猫')}` } });
     dispose();
   });
-  it('expands the local graph view for the entry and recensters state and label together', async () => {
+  it('recenters linguistic relations without computing another learner state', async () => {
     mockGetKnowledgeProjection.mockResolvedValue({ status: 'ready', surfaceId: `ja:surface:${hashA}`, targets: [] });
-    const rating = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', rating: 'good', easeAfter: 2.8, attemptId: 'active' };
     getNeighborhoodMock.mockImplementation((query: { entityId: string }) => Promise.resolve(
       query.entityId === `ja:surface:${hashFor('殖える')}`
         ? {
@@ -1480,10 +1531,6 @@ describe('WordEntryRow', () => {
             relations: [],
           },
     ));
-    getKnowledgeRowsMock.mockImplementation((keys: readonly string[]) => Promise.resolve(
-      keys.includes(`ja:${hashB}`) ? { [`ja:${hashB}`]: [{ event: rating, seq: 0 }] } : {},
-    ));
-
     // Dynamic import is the harness convention in this file: the vi.mock registrations above must run before the module loads.
     const { WordEntryRow } = await import('./WordEntryRow');
     const dispose = render(() => (
@@ -1511,7 +1558,8 @@ describe('WordEntryRow', () => {
     expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashFor('殖える')}`, depth: 1 }));
     expect(document.body.querySelector('[data-testid="graph-viz-stub"]')).not.toBeNull();
     expect(lastVizProps?.neighborhood?.center.label).toBe('殖える');
-    expect(lastVizProps?.centerState).toBe('unmeasured');
+    expect(lastVizProps?.centerState).toBeUndefined();
+    expect(getKnowledgeRowsMock).not.toHaveBeenCalled();
 
     // Open in the full inspector window for the currently selected entity.
     const openInWindow = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.OpenInWindow');
@@ -1519,13 +1567,14 @@ describe('WordEntryRow', () => {
     openInWindow!.click();
     expect(openGraphInspectorMock).toHaveBeenCalledWith({ entityId: `ja:surface:${hashFor('殖える')}` });
 
-    // Recenter on the support neighbor: label AND learner state must switch together.
+    // Recenter on the neighbor while retaining its graph identity.
     document.body.querySelector<HTMLElement>('[data-testid="graph-viz-stub"]')!.click();
     await flushAsync();
     await flushAsync();
     expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashB}`, depth: 1 }));
     expect(lastVizProps?.neighborhood?.center.label).toBe('増える');
-    expect(lastVizProps?.centerState).toBe('evidence-backed-known');
+    expect(lastVizProps?.centerState).toBeUndefined();
+    expect(getKnowledgeRowsMock).not.toHaveBeenCalled();
     // Recentering must not re-open the inspector; the only call is the
     // entry's own OpenInWindow click.
     expect(openGraphInspectorMock).toHaveBeenCalledTimes(1);

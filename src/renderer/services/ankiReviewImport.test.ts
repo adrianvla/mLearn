@@ -146,6 +146,14 @@ beforeEach(() => {
 });
 
 describe('importAnkiReviewHistory', () => {
+  it('rejects invalid review buttons for word and grammar evidence', async () => {
+    mocks.getAnkiWordStatuses.mockResolvedValue([{ word: 'known pattern', cardId: 1 }]);
+    const invalid = [0, 5, -1, 1.5].map((ease) => ({ ...grammarReview, ease }));
+    const result = await importAnkiReviewHistory('example', { fetchReviews: async () => ({ '1': invalid }) });
+    expect(result.imported).toBe(0);
+    expect(mapAnkiGrammarReviews({ language: 'example', grammar: [{ pattern: 'known pattern', meaning: 'x', level: 1 }], card: grammarCard, reviews: invalid, existingReviewIdsByTarget: new Map() }).events).toEqual([]);
+  });
+
   it('returns zeros without fetching reviews when no words have card ids', async () => {
     mocks.getAnkiWordStatuses.mockResolvedValue([
       { word: 'a', cardId: null },
@@ -178,6 +186,9 @@ describe('importAnkiReviewHistory', () => {
       source: 'anki',
       aspect: 'meaning',
       rating: 'easy',
+      targetRef: { kind: 'surface', id: `ja:surface:${hashWordSync('食べる')}`, capability: 'sense-recognition' },
+      presentedSurface: '食べる',
+      schedulerCardId: '11',
       intervalBefore: 4,
       intervalAfter: 10,
       easeAfter: 1950, // raw anki factor, not scaled

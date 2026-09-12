@@ -50,7 +50,6 @@ vi.mock('../../context', () => ({
     getWordVariants: (word: string) => [word],
   }),
   useFlashcards: () => ({
-    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     addFlashcard: vi.fn(),
     removeFlashcard: vi.fn(),
     getCardByWord: vi.fn(async () => null),

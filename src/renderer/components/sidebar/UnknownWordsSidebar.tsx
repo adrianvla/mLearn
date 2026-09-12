@@ -3,7 +3,10 @@ import { createStore } from 'solid-js/store';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
 import { Btn, CloseIcon, CollapsibleStickyHeader, IconBtn, PillBtn, PillLabel, Select } from '../common';
 import { WordWithReading } from '../language-specific';
-import { ResourcePill, WordStatusPill } from '../common/Smart';
+import { ResourcePill } from '../common/Smart';
+import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { surfaceEntityId } from '../../../shared/graph/load';
+import { hashWordSync } from '../../services/srsAlgorithm';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getCachedTranslation, useTranslation } from '../../hooks/useTranslation';
 import {
@@ -77,13 +80,9 @@ const UnknownWordRow: Component<{
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData } = useLanguage();
-  const { getCardByWordSync, getComprehensiveWordStatusSync, getComprehensiveWordStatusWithSourceSync, getAccessStatus, isKnowledgeReady } = useFlashcards();
+  const { getComprehensiveWordStatusWithSourceSync, getAccessStatus, isKnowledgeReady } = useFlashcards();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
-  const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word, settings.language));
-  const isTracked = createMemo(() => props.isAdding || currentFlashcard() !== null);
-  const currentEase = createMemo(() => currentFlashcard()?.ease);
-  const effectiveStatus = createMemo(() => getComprehensiveWordStatusSync(props.entry.word, settings.language));
   const comprehensiveKnowledge = createMemo(() => (
     getComprehensiveWordStatusWithSourceSync(props.entry.word, settings.language)
   ));
@@ -223,7 +222,15 @@ const UnknownWordRow: Component<{
             </PillLabel>
           )}
         </Show>
-        <WordStatusPill word={props.entry.word} language={settings.language} />
+        <PillBtn
+          variant="gray"
+          label={t('mlearn.Knowledge.Popup.Inspect')}
+          onClick={() => {
+            const surface = props.entry.token.surface ?? props.entry.token.word;
+            openKnowledgeInspector({ language: settings.language, surface,
+              target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(surface)) } });
+          }}
+        />
         <PillBtn
           variant="gray"
           label={t('mlearn.Sidebar.Ignore')}
@@ -233,12 +240,9 @@ const UnknownWordRow: Component<{
         <ResourcePill
           word={props.entry.word}
           language={settings.language}
-          isTracked={isTracked()}
           isAdding={props.isAdding}
           isInAnki={isInAnki()}
           ankiWord={ankiMatch()?.word ?? primaryWord()}
-          ease={currentEase()}
-          effectiveStatus={effectiveStatus()}
           onAdd={() => props.onAddWord(props.entry)}
         />
       </div>
@@ -249,7 +253,7 @@ const UnknownWordRow: Component<{
 export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const { hasWordSync, isWordIgnoredSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
+  const { getCardByWordSync, isWordIgnoredSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { currentLangData, getFrequency, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
@@ -310,7 +314,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   const addableEntries = createMemo(() =>
     props.words().filter((entry) =>
       !props.addingWordKeys().has(entry.key)
-      && !hasWordSync(entry.word, settings.language)
+      && !getCardByWordSync(entry.word, settings.language)
       && !excludedByWord().has(entry.word)
     )
   );

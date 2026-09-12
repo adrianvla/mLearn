@@ -1,7 +1,9 @@
 .tell-mlearn {
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--spacing-2);
 }
 
 .tell-mlearn__toggle {
@@ -9,27 +11,24 @@
 }
 
 .tell-mlearn__composer {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.tell-mlearn__input {
-  width: 100%;
-  resize: vertical;
-  min-height: 44px;
+  gap: var(--spacing-2);
 }
 
 .tell-mlearn__actions {
+  flex-wrap: wrap;
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);
   align-items: center;
 }
 
 .tell-mlearn__summary {
+  overflow-wrap: anywhere;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--spacing-1);
   align-items: baseline;
 }
 

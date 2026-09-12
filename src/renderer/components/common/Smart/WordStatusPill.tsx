@@ -1,20 +1,15 @@
-import { Component, createEffect, createMemo, createSignal } from 'solid-js';
+import { Component, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
-import { ankiCacheVersion, findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
-import { ANKI_EASE } from '../../../../shared/constants';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
-import { useAnki } from '../../../hooks/useAnki';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import {
-  getAnkiEaseForStatus,
   type WordStatus,
 } from '../../subtitle/wordHoverHelpers';
 import { PillBtn } from '../Button';
 import { Tooltip } from '../Tooltip';
 import { AnkiModifyWarningModal } from '../../flashcard/AnkiModifyWarningModal';
-import { showToast } from '../Feedback/Toast';
 import { buildWordStatusSourceLabel, getWordStatusChangeAction } from './wordStatusPillLogic';
-import { isUntrackedKnowledge, knowledgeStatusLabelKey } from '../WordStatusPillKnowledge/knowledgeSummary';
+import { isUnmeasuredKnowledge, knowledgeStatusLabelKey } from '../WordStatusPillKnowledge/knowledgeSummary';
 import { WordStatusPillKnowledge } from '../WordStatusPillKnowledge';
 import { KnowledgeGate } from '../KnowledgeGate';
 
@@ -33,6 +28,8 @@ export interface WordStatusPillProps {
   onStatusChange?: (status: WordStatus) => void;
   onModalOpenChange?: (isOpen: boolean) => void;
   iconOnly?: boolean;
+  /** Parent already presents knowledge controls; avoid opening a nested portal. */
+  suppressKnowledgePopover?: boolean;
 }
 
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
@@ -47,12 +44,9 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   } = useLanguage();
   const { getComprehensiveWordStatusWithSourceSync, setWordClaim } = useFlashcards();
   const { t } = useLocalization();
-  const anki = useAnki();
 
   const [showStatusSourceWarning, setShowStatusSourceWarning] = createSignal(false);
-  const [showAnkiModifyWarning, setShowAnkiModifyWarning] = createSignal(false);
   const [pendingStatus, setPendingStatus] = createSignal<WordStatus | null>(null);
-  const [pendingSkipAnki, setPendingSkipAnki] = createSignal(false);
   // The knowledge tooltip is interactive (Portal-mounted) — while open it counts
   // as an internal modal so hover-popover parents don't close mid-interaction.
   const [knowledgeTooltipOpen, setKnowledgeTooltipOpen] = createSignal(false);
@@ -73,16 +67,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
         { languageData: targetLanguageData(), language: targetLanguage() },
       )
   ));
-  const ankiCacheOptions = createMemo(() => ({
-    language: targetLanguage(),
-    languageData: targetLanguageData(),
-  }));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
-  const matchedAnki = createMemo(() => {
-    ankiCacheVersion();
-    return settings.use_anki ? findAnkiWordMatchInCache(wordForms(), ankiCacheOptions()) : null;
-  });
-  const matchedAnkiWord = createMemo(() => matchedAnki()?.word ?? null);
   const comprehensiveResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word, targetLanguage()));
   const effectiveStatus = createMemo(() => comprehensiveResult().status);
 
@@ -113,37 +98,19 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   createEffect(() => {
     props.word;
     setShowStatusSourceWarning(false);
-    setShowAnkiModifyWarning(false);
     setPendingStatus(null);
-    setPendingSkipAnki(false);
     setKnowledgePinned(false);
   });
 
   createEffect(() => {
-    props.onModalOpenChange?.(showStatusSourceWarning() || showAnkiModifyWarning() || knowledgeTooltipOpen());
+    props.onModalOpenChange?.(showStatusSourceWarning() || knowledgeTooltipOpen());
   });
 
-  const applyStatusChange = (nextStatus: WordStatus, skipAnki = false) => {
+  const applyStatusChange = (nextStatus: WordStatus) => {
     const word = primaryWord();
     if (!word) return;
 
     setWordClaim(word, nextStatus, targetLanguage());
-
-    const ankiWord = matchedAnkiWord();
-    if (!skipAnki && ankiWord && settings.use_anki && nextStatus !== 'unknown') {
-      const ankiEase = getAnkiEaseForStatus(nextStatus, ANKI_EASE.DEFAULT_LEARNING, ANKI_EASE.DEFAULT_KNOWN);
-      anki.updateWordCards(ankiWord, ankiEase).then((result) => {
-        if (result.updated > 0) {
-          void refreshAnkiWordsCache(ankiCacheOptions());
-          const message = result.repositioned > 0
-            ? t('mlearn.WordHover.AnkiUpdateRepositioned', { count: String(result.updated), repositioned: String(result.repositioned) })
-            : t('mlearn.WordHover.AnkiUpdateSuccess', { count: String(result.updated) });
-          showToast({ message, variant: 'success' });
-        }
-      }).catch(() => {
-        showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
-      });
-    }
 
     props.onStatusChange?.(nextStatus);
   };
@@ -154,16 +121,9 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     const hasIntentionalSource = hasIntentionalBasis(comprehensiveResult());
 
     const action = getWordStatusChangeAction({
-      isInAnki: !!matchedAnkiWord() && settings.use_anki,
       hasNonManualSource: hasIntentionalSource,
-      skipAnkiModifyWarning: settings.skipAnkiModifyWarning,
       skipStatusSourceWarning: settings.skipStatusSourceWarning,
     });
-
-    if (action === 'show-anki-warning') {
-      setShowAnkiModifyWarning(true);
-      return;
-    }
 
     if (action === 'show-status-source-warning') {
       setShowStatusSourceWarning(true);
@@ -188,10 +148,8 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
 
   const confirmStatusSourceChange = (dontRemind: boolean) => {
     const nextStatus = pendingStatus();
-    const skipAnki = pendingSkipAnki();
 
     setShowStatusSourceWarning(false);
-    setPendingSkipAnki(false);
     setPendingStatus(null);
 
     if (dontRemind) {
@@ -199,71 +157,32 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     }
 
     if (nextStatus) {
-      applyStatusChange(nextStatus, skipAnki);
-    }
-  };
-
-  const confirmAnkiModify = (dontRemind: boolean) => {
-    const nextStatus = pendingStatus();
-
-    setShowAnkiModifyWarning(false);
-
-    if (dontRemind) {
-      updateSettings({ skipAnkiModifyWarning: true });
-    }
-
-    const hasIntentionalSource = hasIntentionalBasis(comprehensiveResult());
-
-    if (hasIntentionalSource && !settings.skipStatusSourceWarning) {
-      setShowStatusSourceWarning(true);
-      return;
-    }
-
-    setPendingStatus(null);
-    if (nextStatus) {
       applyStatusChange(nextStatus);
-    }
-  };
-
-  const confirmAnkiModifyBuiltInOnly = (dontRemind: boolean) => {
-    const nextStatus = pendingStatus();
-
-    setShowAnkiModifyWarning(false);
-
-    if (dontRemind) {
-      updateSettings({ skipAnkiModifyWarning: true });
-    }
-
-    const hasIntentionalSource = hasIntentionalBasis(comprehensiveResult());
-
-    if (hasIntentionalSource && !settings.skipStatusSourceWarning) {
-      setPendingSkipAnki(true);
-      setShowStatusSourceWarning(true);
-      return;
-    }
-
-    setPendingStatus(null);
-    if (nextStatus) {
-      applyStatusChange(nextStatus, true);
     }
   };
 
   const statusVariant = createMemo(() => {
     // Untracked is the honest "no claim, no evidence" state — muted, never
     // danger red; red is reserved for an actual negative epistemic state.
-    if (isUntrackedKnowledge(effectiveStatus(), comprehensiveResult().basis)) return 'gray';
+    if (isUnmeasuredKnowledge(effectiveStatus(), comprehensiveResult().basis)) return 'gray';
     const status = effectiveStatus();
     return status === 'unknown' ? 'red' : status === 'learning' ? 'orange' : 'green';
   });
 
   const statusIcon = createMemo(() => {
-    if (isUntrackedKnowledge(effectiveStatus(), comprehensiveResult().basis)) return undefined;
+    if (isUnmeasuredKnowledge(effectiveStatus(), comprehensiveResult().basis)) return undefined;
     return effectiveStatus() === 'unknown' ? ICON_CROSS2 : ICON_CHECK;
   });
 
   const statusLabel = createMemo(() => (
     t(knowledgeStatusLabelKey(effectiveStatus(), comprehensiveResult().basis))
   ));
+  const pill = () => <PillBtn
+    variant={statusVariant()}
+    icon={statusIcon()}
+    label={props.iconOnly ? '' : statusLabel()}
+    onClick={handleStatusChange}
+  />;
 
   return (
     <>
@@ -271,30 +190,25 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
           pill shows a neutral loading placeholder — claiming Known or reading
           a status from a half-loaded store would present false semantics. */}
       <KnowledgeGate variant="pill">
-        <Tooltip
-          interactive
-          pinned={knowledgePinned() || undefined}
-          onRequestClose={() => setKnowledgePinned(false)}
-          onShow={() => setKnowledgeTooltipOpen(true)}
-          onHide={() => setKnowledgeTooltipOpen(false)}
-          content={
-            <WordStatusPillKnowledge
-              word={props.word}
-              language={targetLanguage()}
-              pinned={knowledgePinned()}
-              onClose={() => setKnowledgePinned(false)}
-              onPin={() => setKnowledgePinned(true)}
-              statusSourceLabel={statusSourceLabel()}
-            />
-          }
-        >
-          <PillBtn
-            variant={statusVariant()}
-            icon={statusIcon()}
-            label={props.iconOnly ? '' : statusLabel()}
-            onClick={handleStatusChange}
-          />
-        </Tooltip>
+        <Show when={!props.suppressKnowledgePopover} fallback={pill()}>
+          <Tooltip
+            interactive
+            pinned={knowledgePinned() || undefined}
+            onRequestClose={() => setKnowledgePinned(false)}
+            onShow={() => setKnowledgeTooltipOpen(true)}
+            onHide={() => setKnowledgeTooltipOpen(false)}
+            content={
+              <WordStatusPillKnowledge
+                word={props.word}
+                language={targetLanguage()}
+                pinned={knowledgePinned()}
+                onClose={() => setKnowledgePinned(false)}
+                onPin={() => setKnowledgePinned(true)}
+                statusSourceLabel={statusSourceLabel()}
+              />
+            }
+          >{pill()}</Tooltip>
+        </Show>
       </KnowledgeGate>
       <AnkiModifyWarningModal
         isOpen={showStatusSourceWarning()}
@@ -306,20 +220,6 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
         onCancel={() => {
           setShowStatusSourceWarning(false);
           setPendingStatus(null);
-          setPendingSkipAnki(false);
-        }}
-      />
-      <AnkiModifyWarningModal
-        isOpen={showAnkiModifyWarning()}
-        title={t('mlearn.WordHover.AnkiModifyWarning.Title')}
-        message={t('mlearn.WordHover.AnkiModifyWarning.Message')}
-        confirmText={t('mlearn.WordHover.AnkiModifyWarning.Confirm')}
-        onConfirm={confirmAnkiModify}
-        onConfirmBuiltInOnly={confirmAnkiModifyBuiltInOnly}
-        onCancel={() => {
-          setShowAnkiModifyWarning(false);
-          setPendingStatus(null);
-          setPendingSkipAnki(false);
         }}
       />
     </>

@@ -70,7 +70,7 @@ export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent
   const eventLabel = (event: HistoryEvent): string | undefined => {
     if (event.aspect !== undefined) return t(aspectLabelKey(event.aspect));
     const capability = eventCapability(event);
-    return capability === undefined ? undefined : t(CAPABILITY_LABEL_KEYS[capability]);
+    return capability === undefined ? undefined : t(CAPABILITY_LABEL_KEYS[capability] ?? capability);
   };
 
   const withLabel = (label: string | undefined, rest: string): string => (label === undefined ? rest : `${label} ${rest}`);
@@ -81,6 +81,13 @@ export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent
     if (event.kind === 'claim') {
       if (event.toStatus) return withLabel(aspect, `→ ${t(statusKey(event.toStatus))}`);
       return t('mlearn.Knowledge.Projection.Evidence.ClaimCleared');
+    }
+    if (event.kind === 'status' && event.source === 'anki') {
+      return event.toStatus ? withLabel(aspect, `· ${t(statusKey(event.toStatus))}`) : aspect ?? '';
+    }
+    if (event.kind === 'rating' || event.kind === 'review') {
+      if (event.quality) return withLabel(aspect, `· ${t(QUALITY_LABEL_KEYS[event.quality])}`);
+      if (event.rating) return withLabel(aspect, `· ${event.rating}`);
     }
     if (event.fromStatus && event.toStatus) {
       const transition = `${t(statusKey(event.fromStatus))} → ${t(statusKey(event.toStatus))}`;
@@ -147,7 +154,7 @@ export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent
                   fallback={
                     <div class="knowledge-timeline__event">
                       <span class="knowledge-timeline__mark" aria-hidden="true" />
-                      <span class="knowledge-timeline__kind">{t(KIND_LABEL_KEYS[row.kind])}</span>
+                      <span class="knowledge-timeline__kind">{t(row.kind === 'status' && row.source === 'anki' ? 'mlearn.Knowledge.History.Kind.SourceSnapshot' : KIND_LABEL_KEYS[row.kind])}</span>
                       <span class="knowledge-timeline__detail">{row.detail}</span>
                       <small class="knowledge-timeline__source">{t(sourceLabelKey(row.events[0].source as EvidenceSource))}</small>
                     </div>
@@ -155,7 +162,7 @@ export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent
                 >
                   <button type="button" class="knowledge-timeline__summary" aria-expanded={expanded().has(row.key)} onClick={() => toggle(row.key)}>
                     <span class="knowledge-timeline__mark" aria-hidden="true" />
-                    <span class="knowledge-timeline__kind">{t(KIND_LABEL_KEYS[row.kind])}</span>
+                    <span class="knowledge-timeline__kind">{t(row.kind === 'status' && row.source === 'anki' ? 'mlearn.Knowledge.History.Kind.SourceSnapshot' : KIND_LABEL_KEYS[row.kind])}</span>
                     <span class="knowledge-timeline__count">{t('mlearn.Knowledge.History.Times', { count: String(row.events.length) })}</span>
                     <span class="knowledge-timeline__detail">{row.detail}</span>
                     <small class="knowledge-timeline__source">{t(sourceLabelKey(row.events[0].source as EvidenceSource))}</small>

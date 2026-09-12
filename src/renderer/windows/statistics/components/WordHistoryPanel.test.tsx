@@ -3,11 +3,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { Flashcard, LanguageData, PassiveWordKnowledge } from '../../../../shared/types';
+import type { CapabilityKey } from '../../../../shared/graph/types';
 import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import type { HistoryCurvePoint, SourceReignBand, ArchivedHistoryPoint } from '../../../utils/knowledgeHistory';
 import { WordHistoryPanel } from './WordHistoryPanel';
 
 const h = vi.hoisted(() => ({
+  capabilities: ['sense-recognition', 'surface-reading'] as CapabilityKey[],
   wordGetter: (() => '') as () => string,
   capabilityGetter: (() => 'sense-recognition') as () => string,
   events: [] as KnowledgeEvent[],
@@ -36,6 +38,10 @@ vi.mock('../../../context', () => ({
     ),
   }),
   useLocalization: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock('../../../hooks/useKnowledgeProjection', () => ({
+  useKnowledgeProjection: () => ({ capabilities: () => h.capabilities }),
 }));
 
 vi.mock('../../../hooks/useKnowledgeHistory', () => ({
@@ -110,6 +116,7 @@ describe('WordHistoryPanel', () => {
     document.body.appendChild(container);
     h.wordGetter = () => '';
     h.capabilityGetter = () => 'sense-recognition';
+    h.capabilities = ['sense-recognition', 'surface-reading'];
     h.events = [];
     h.points = [];
     h.bands = [];
@@ -225,6 +232,26 @@ describe('WordHistoryPanel', () => {
     expect(matchLabels).toContain('appletree');
     expect(matchLabels).not.toContain('apfel');
 
+    dispose();
+  });
+
+  it('does not invent capability tabs when graph applicability is unavailable', () => {
+    h.capabilities = [];
+    const dispose = render(() => <WordHistoryPanel />, container);
+    typeQuery(container, 'apple');
+    expect(h.capabilityGetter()).toBeUndefined();
+    expect(container.querySelector('.khistory-tabs')).toBeNull();
+    dispose();
+  });
+
+  it('shows package applicability even without a prior access record', () => {
+    h.capabilities = ['pkg:discourse-register'];
+    const dispose = render(() => <WordHistoryPanel />, container);
+    typeQuery(container, 'apple');
+    expect(h.capabilityGetter()).toBe('pkg:discourse-register');
+    expect(container.querySelectorAll('.khistory-tab')).toHaveLength(1);
+    expect(container.textContent).toContain('pkg:discourse-register');
+    expect(container.textContent).not.toContain('mlearn.Knowledge.Capability.surface-reading');
     dispose();
   });
 

@@ -12,7 +12,7 @@ vi.mock('../../shared/backends', () => ({
   }),
 }));
 
-vi.mock('../context', () => ({
+vi.mock('../context/SettingsContext', () => ({
   useSettings: vi.fn(() => ({
     settings: {
       ankiUrl: 'http://localhost:8765',

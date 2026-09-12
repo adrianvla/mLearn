@@ -26,7 +26,7 @@ const log = getLogger("renderer.characterGrid.app");
 // Tier-2 semantics: three per-character signal sources, resolved in strict
 // priority — claim outranks evidence, evidence outranks prediction:
 //   1. claim     — the user's own explicit statement about this character
-//                  (setAccessStatus('surface-reading', …, 'manual') claim
+//                  (setAccessClaim('surface-reading', …) claim
 //                  record).
 //   2. evidence  — character-reading attempt records on SINGLE-character word
 //                  entries (capability 'surface-reading'). Reading attempts on

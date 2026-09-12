@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { hashWordSync } from './srsAlgorithm';
+import type { AnkiWordStatusRecord } from '../../shared/backends/types';
 import type { LanguageData } from '../../shared/types';
 
 const mockGetAnkiWords = vi.fn<() => Promise<string[]>>();
-const mockGetAnkiWordStatuses = vi.fn<() => Promise<Array<{ word: string; factor?: number; queue?: number; type?: number }>>>();
+const mockGetAnkiWordStatuses = vi.fn<() => Promise<AnkiWordStatusRecord[]>>();
 const mockQueryKnowledgeEvents = vi.fn<(keys: string[]) => Promise<Record<string, unknown[]>>>();
 const mockGetKnowledgeStates = vi.fn<(keys: string[]) => Promise<Record<string, unknown>>>();
 const mockAppendKnowledgeEvents = vi.fn<(events: Record<string, unknown[]>) => Promise<boolean>>();
@@ -79,44 +79,44 @@ describe('ankiWordsCache', () => {
     expect(findWordInAnkiCache(['仲間', 'なかま'])).toBe('仲間');
   });
 
-  it('materializes a first-sight Anki status once, then stays silent on a restart-equivalent refresh', async () => {
+  it('refreshes Anki source metadata without manufacturing learner evidence', async () => {
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '仲間', factor: 2300, queue: 2, type: 2 }]);
-    const options = { language: 'ja', languageData: latinLanguage, ankiLearningThreshold: 1500, ankiKnownThreshold: 1800 };
-    const lk = `ja:${hashWordSync('仲間')}`;
-
     const { refreshAnkiWordsCache } = await import('./ankiWordsCache');
-    await refreshAnkiWordsCache({ ...options });
-
-    expect(mockAppendKnowledgeEvents).toHaveBeenCalledTimes(1);
-    const firstBatch = mockAppendKnowledgeEvents.mock.calls[0][0];
-    expect(firstBatch[lk][0]).toMatchObject({ source: 'anki', fromStatus: 'unknown', toStatus: 'known', easeAfter: 1.8 });
-    expect(mockGetKnowledgeStates).toHaveBeenCalledWith([lk]);
-
-    vi.resetModules();
-    const restarted = await import('./ankiWordsCache');
-    mockGetKnowledgeStates.mockResolvedValue({
-      [lk]: { projection: null, hasArchive: false, archivedEventCount: 0, statusMarkers: { anki: { t: 1, seq: 1, toStatus: 'known' } } },
-    });
-    mockAppendKnowledgeEvents.mockClear();
-    await restarted.refreshAnkiWordsCache({ ...options });
+    await refreshAnkiWordsCache({ language: 'ja', languageData: latinLanguage, ankiLearningThreshold: 1500, ankiKnownThreshold: 1800 });
     expect(mockAppendKnowledgeEvents).not.toHaveBeenCalled();
+    expect(mockGetKnowledgeStates).not.toHaveBeenCalled();
   });
 
-  it('writes exactly one diff event when the Anki bank status actually changed', async () => {
-    mockGetAnkiWordStatuses.mockResolvedValue([{ word: '仲間', factor: 2300, queue: 2, type: 2 }]);
-    const options = { language: 'ja', languageData: latinLanguage, ankiLearningThreshold: 1500, ankiKnownThreshold: 1800 };
-    const lk = `ja:${hashWordSync('仲間')}`;
+  it('syncs real reviews only for changed cards on cache refresh', async () => {
+    const card = { word: 'entry', cardId: 42, mod: 1, factor: 2300, queue: 2, type: 2 };
+    mockGetAnkiWordStatuses.mockResolvedValue([card]);
+    const { refreshAnkiWordsCache, registerAnkiReviewSync, findWordInAnkiCache } = await import('./ankiWordsCache');
+    const sync = vi.fn().mockResolvedValue(undefined);
+    const unregister = registerAnkiReviewSync(sync);
+    await refreshAnkiWordsCache({ language: 'example', languageData: latinLanguage });
+    expect(sync).toHaveBeenCalledWith('example', [card]);
+    findWordInAnkiCache(['entry']);
+    await refreshAnkiWordsCache({ language: 'example', languageData: latinLanguage });
+    expect(sync).toHaveBeenCalledTimes(1);
+    mockGetAnkiWordStatuses.mockResolvedValue([{ ...card, mod: 2 }]);
+    await refreshAnkiWordsCache({ language: 'example', languageData: latinLanguage });
+    expect(sync).toHaveBeenCalledTimes(2);
+    mockGetAnkiWordStatuses.mockRejectedValue(new Error('disconnected'));
+    await refreshAnkiWordsCache({ language: 'example', languageData: latinLanguage });
+    expect(sync).toHaveBeenCalledTimes(2);
+    expect(mockAppendKnowledgeEvents).not.toHaveBeenCalled();
+    unregister();
+  });
 
-    vi.resetModules();
-    const mod = await import('./ankiWordsCache');
-    mockGetKnowledgeStates.mockResolvedValue({
-      [lk]: { projection: null, hasArchive: false, archivedEventCount: 0, statusMarkers: { anki: { t: 1, seq: 1, toStatus: 'learning' } } },
-    });
-    await mod.refreshAnkiWordsCache({ ...options });
-
-    expect(mockAppendKnowledgeEvents).toHaveBeenCalledTimes(1);
-    const batch = mockAppendKnowledgeEvents.mock.calls[0][0];
-    expect(batch[lk][0]).toMatchObject({ source: 'anki', fromStatus: 'learning', toStatus: 'known' });
+  it('retries a failed evidence sync on the next explicit cache refresh', async () => {
+    mockGetAnkiWordStatuses.mockResolvedValue([{ word: 'retry', cardId: 43, mod: 1 }]);
+    const { refreshAnkiWordsCache, registerAnkiReviewSync } = await import('./ankiWordsCache');
+    const sync = vi.fn().mockRejectedValueOnce(new Error('revlog unavailable')).mockResolvedValue(undefined);
+    const unregister = registerAnkiReviewSync(sync);
+    await refreshAnkiWordsCache({ language: 'example' });
+    await refreshAnkiWordsCache({ language: 'example' });
+    expect(sync).toHaveBeenCalledTimes(2);
+    unregister();
   });
 
   it('returns null when none of the candidate forms exist in Anki', async () => {
@@ -422,43 +422,5 @@ describe('searchAnkiWordsCache', () => {
     await fetchAnkiWordsCache(options);
     expect(searchAnkiWordsCache('Apple', 6, options)).toEqual(['Apple', 'applesauce', 'Pineapple']);
     expect(searchAnkiWordsCache('Apple', 6, { language: 'zh', languageData: null })).toEqual([]);
-  });
-});
-
-
-describe('buildAnkiStatusKeySets', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    mockGetAnkiWords.mockReset();
-    mockGetAnkiWords.mockResolvedValue([]);
-    mockGetAnkiWordStatuses.mockReset();
-  });
-
-  it('splits cache words into known and learning keys with caller form expansion', async () => {
-    mockGetAnkiWordStatuses.mockResolvedValue([
-      { word: '犬', factor: 2000, queue: 2, type: 2 },
-      { word: '猫', factor: 1600, queue: 1, type: 1 },
-      { word: '鳥', factor: 1000, queue: 0, type: 0 },
-    ]);
-
-    const { fetchAnkiWordsCache, buildAnkiStatusKeySets, ankiCacheVersion } = await import('./ankiWordsCache');
-    await fetchAnkiWordsCache();
-    ankiCacheVersion();
-
-    const { hashWordSync } = await import('./srsAlgorithm');
-    // Variant expansion: both surface forms of the same word get the status keys.
-    const sets = buildAnkiStatusKeySets('ja', 1550, 1800, (word) => word === '犬' ? ['犬', 'いぬ'] : [word]);
-
-    expect(sets.known).toEqual(new Set(['ja:' + hashWordSync('犬'), 'ja:' + hashWordSync('いぬ')]));
-    expect(sets.learning).toEqual(new Set(['ja:' + hashWordSync('猫')]));
-    // factor below the learning threshold contributes nothing.
-    expect(sets.known.has('ja:' + hashWordSync('鳥'))).toBe(false);
-  });
-
-  it('returns empty sets before any fetch', async () => {
-    const { buildAnkiStatusKeySets } = await import('./ankiWordsCache');
-    const sets = buildAnkiStatusKeySets('ja', 1550, 1800, (word) => [word]);
-    expect(sets.known.size).toBe(0);
-    expect(sets.learning.size).toBe(0);
   });
 });

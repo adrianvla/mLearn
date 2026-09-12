@@ -14,7 +14,6 @@ import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video
 import type { VideoWordEntry } from '../../../components/video';
 import { Panel, Btn, NavBtn, VideoIcon, Spinner } from '../../../components/common';
 import { isLLMReady } from '../../../services/llmProvider';
-import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
@@ -31,8 +30,6 @@ import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { tokensToColoredHtml, parseWorkName, type ParseWorkNameOptions } from '../../../utils/subtitleParsing';
 import { toUniqueIdentifier } from '../../../services/statsService';
-import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
-import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../../services/cloudSessionManager';
 import {
@@ -112,11 +109,6 @@ export const VideoRoute: Component = () => {
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
-  const anki = useAnki();
-  const ankiCacheOptions = createMemo(() => ({
-    language: settings.language,
-    languageData: langCtx.currentLangData(),
-  }));
   const mediaNameParseOptions = (): ParseWorkNameOptions => ({
     languageCodes: langCtx.supportedLanguages(),
   });
@@ -127,10 +119,6 @@ export const VideoRoute: Component = () => {
     })
   );
   const tokenizerCapabilities = createMemo(() => langCtx.getLanguageFeatures().tokenizerCapabilities);
-  const getTrackedAnkiWord = (word: string): string | null => {
-    if (!settings.use_anki) return null;
-    return findAnkiWordMatchInCache(getWordForms(word), ankiCacheOptions())?.word ?? null;
-  };
 
   const watchTogether = useWatchTogether({
     getVideo: () => document.querySelector('video'),
@@ -170,9 +158,6 @@ export const VideoRoute: Component = () => {
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
 
-  // Anki Add All warning state
-  const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
-  const [pendingAddAllEntries, setPendingAddAllEntries] = createSignal<VideoWordEntry[]>([]);
 
   const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -678,48 +663,25 @@ export const VideoRoute: Component = () => {
   };
 
   const addAllVideoWords = async (entries: VideoWordEntry[]) => {
-    if (settings.use_anki && !settings.skipAnkiModifyWarning) {
-      setPendingAddAllEntries(entries);
-      setShowAnkiAddAllWarning(true);
-      return;
-    }
     await processAddAll(entries);
   };
 
   const processAddAll = async (entries: VideoWordEntry[]) => {
     setIsAddingAllSidebarWords(true);
     try {
-      const updatedAny = await bulkAddWords({
+      await bulkAddWords({
         entries,
-        wordOf: (entry) => entry.word,
-        trackedAnkiWordOf: getTrackedAnkiWord,
-        formsOf: getWordForms,
-        statusOf: (word: string) => {
-          const status = flashcardCtx.getComprehensiveWordStatusSync(word, settings.language);
-          return status === 'known' ? 2 : status === 'learning' ? 1 : 0;
-        },
-        updateWordCards: (ankiWord, ease) => anki.updateWordCards(ankiWord, ease),
         addFlashcard: addVideoWordFlashcard,
         onEntryError: (entry, err) => {
-          log.error(`Failed to update Anki cards for "${entry.word}":`, err);
-          showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
+          log.error(`Failed to add flashcard for "${entry.word}":`, err);
+          showToast({ message: t('mlearn.WordHover.FlashcardAddFailed'), variant: 'error' });
         },
       });
-      if (updatedAny) await refreshAnkiWordsCache(ankiCacheOptions());
     } finally {
       setIsAddingAllSidebarWords(false);
     }
   };
 
-  const confirmAnkiAddAll = (dontRemind: boolean) => {
-    if (dontRemind) {
-      updateSetting('skipAnkiModifyWarning', true);
-    }
-    const entries = pendingAddAllEntries();
-    setShowAnkiAddAllWarning(false);
-    setPendingAddAllEntries([]);
-    void processAddAll(entries);
-  };
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
     await flashcardCtx.ignoreWordForLanguage(entry.word);
@@ -1490,16 +1452,6 @@ export const VideoRoute: Component = () => {
           onClose={() => setShowWordSidebar(false)}
         />
       </Show>
-
-      {/* Anki Add All warning modal */}
-      <AnkiModifyWarningModal
-        isOpen={showAnkiAddAllWarning()}
-        title={t('mlearn.Sidebar.AnkiAddAllWarning.Title')}
-        message={t('mlearn.Sidebar.AnkiAddAllWarning.Message')}
-        confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
-        onConfirm={confirmAnkiAddAll}
-        onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
-      />
 
       <WatchTogetherModeModal
         isOpen={showWatchTogetherModeModal()}

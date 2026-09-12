@@ -125,6 +125,8 @@ export function retentionConditionFor(
  * knowledge). Address-less events (retractions, rollups) are unaffected.
  */
 export function eventIsMeasurable(event: KnowledgeEvent): boolean {
+  // Legacy Anki cache diffs describe scheduler metadata, never an observed retrieval.
+  if (event.kind === 'status' && event.source === 'anki') return false;
   const capability = eventCapability(event);
   return capability === undefined || isAccessMeasurable(capability, event.scaffolds);
 }

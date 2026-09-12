@@ -245,6 +245,69 @@ describe('createVirtualizer', () => {
     });
   });
 
+  it('updates row offsets and total height immediately when mounted rows change height', () => {
+    const root = createRoot(dispose => {
+      const el = createMockElement({ clientHeight: 300 });
+      return { dispose, virtualizer: createVirtualizer({ count: 3, getScrollElement: () => el, estimateSize: () => 56, measureDynamic: true }) };
+    });
+    const row = document.createElement('div');
+    row.dataset.index = '0';
+    let height = 56;
+    row.getBoundingClientRect = () => new DOMRect(0, 0, 300, height);
+    root.virtualizer.measureElement(row);
+    height = 96;
+    root.virtualizer.measure();
+    expect(root.virtualizer.getTotalSize()).toBe(208);
+    expect(root.virtualizer.getVirtualItems()[1].start).toBe(96);
+    const stableItems = root.virtualizer.getVirtualItems();
+    root.virtualizer.measure();
+    expect(root.virtualizer.getVirtualItems()).toBe(stableItems);
+    root.dispose();
+  });
+
+  it('observes only rendered rows, handles responsive wrapping, and disconnects on disposal', () => {
+    const observers: MockResizeObserver[] = [];
+    class MockResizeObserver implements ResizeObserver {
+      readonly targets = new Set<Element>();
+      readonly disconnect = vi.fn(() => this.targets.clear());
+      constructor(readonly callback: ResizeObserverCallback) { observers.push(this); }
+      observe(target: Element) { this.targets.add(target); }
+      unobserve(target: Element) { this.targets.delete(target); }
+      resize(target: Element) {
+        this.callback([{ target, contentRect: target.getBoundingClientRect(), borderBoxSize: [], contentBoxSize: [], devicePixelContentBoxSize: [] }], this);
+      }
+    }
+    vi.stubGlobal('ResizeObserver', MockResizeObserver);
+    const root = createRoot(dispose => {
+      const el = createMockElement({ clientHeight: 100 });
+      el.scrollTo = vi.fn();
+      return { dispose, virtualizer: createVirtualizer({ count: 100, getScrollElement: () => el, estimateSize: () => 56, overscan: 0, measureDynamic: true }) };
+    });
+    try {
+      const row = document.createElement('div');
+      row.dataset.index = '0';
+      let height = 56;
+      row.getBoundingClientRect = () => new DOMRect(0, 0, 300, height);
+      root.virtualizer.measureElement(row);
+      const observer = observers.find(item => item.targets.has(row));
+      if (!observer) throw new Error('Rendered row was not observed');
+      height = 96;
+      observer.resize(row);
+      expect(root.virtualizer.getVirtualItems()[1].start).toBe(96);
+      expect(root.virtualizer.getTotalSize()).toBe(5640);
+      const stableItems = root.virtualizer.getVirtualItems();
+      observer.resize(row);
+      expect(root.virtualizer.getVirtualItems()).toBe(stableItems);
+      root.virtualizer.scrollToIndex(50, { behavior: 'auto' });
+      expect(observer.targets.has(row)).toBe(false);
+      root.dispose();
+      expect(observer.disconnect).toHaveBeenCalledOnce();
+      expect(observer.targets.size).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('should not break when scroll element is null', () => {
     createRoot((dispose) => {
       const virtualizer = createVirtualizer({

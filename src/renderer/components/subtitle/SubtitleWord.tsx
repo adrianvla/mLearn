@@ -1,3 +1,4 @@
+import { getWrittenComprehensionStatus } from '../../utils/writtenComprehension';
 /**
  * Subtitle Word Component
  * Individual word/token in a subtitle with hover and click functionality
@@ -108,16 +109,14 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return isTokenTranslatable(props.token);
   });
 
-  const comprehensiveKnowledge = createMemo(() => {
-    const word = lookupWord();
-    if (!word) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
-    return flashcardCtx.getComprehensiveWordStatusWithSourceSync(word, settings.language);
-  });
+  const comprehensionStatus = createMemo(() => getWrittenComprehensionStatus({
+    surface: displayWord(), lexicalWord: lookupWord(), language: settings.language,
+  }, flashcardCtx.getAccessStatus));
 
   // Knowledge-derived rendering stays neutral until the learner projection is
   // hydrated AND the legacy epistemic migration has settled — otherwise every
   // token flashes Untracked and blur/coloring visibly "settles" at startup.
-  const wordIsKnown = createMemo(() => flashcardCtx.isKnowledgeReady() && comprehensiveKnowledge().status === 'known');
+  const wordIsKnown = createMemo(() => flashcardCtx.isKnowledgeReady() && comprehensionStatus() === 'known');
 
   // Determine word class based on token type
   const getWordClass = createMemo(() => {
@@ -262,8 +261,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
     if (!readingAnnotationsEnabled(settings)) return false;
 
-    // Hide reading for known words if the setting is enabled
-    if (hideReadingAnnotationsForKnownWords(settings) && wordIsKnown()) return false;
+    if (hideReadingAnnotationsForKnownWords(settings) && flashcardCtx.isKnowledgeReady()
+      && flashcardCtx.getAccessStatus(displayWord(), 'surface-reading', settings.language).status === 'known') return false;
 
     const reading = effectiveReading();
     if (!reading) return false;

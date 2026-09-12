@@ -19,7 +19,7 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   opacity:0;
 }
 
-/* Hover popup - width driven by footer pills + padding + border */
+/* Viewport-bounded dictionary and knowledge popover. */
 .subtitle_hover {
   position: relative;
   background: var(--bg);
@@ -37,14 +37,13 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   display: flex;
   flex-direction: column;
   font-family: var(--font-family-sans);
-  max-height: 350px;
+  max-height: min(560px, calc(100dvh - var(--spacing-8)));
   overflow: hidden;
   box-sizing: border-box;
   text-shadow: none !important;
   -webkit-text-stroke: unset !important;
-  /* Width = pills width + footer padding (20px) + border (2px) via fit-content */
-  width: fit-content;
-  min-width: 280px;
+  width: min(30rem, calc(100vw - var(--spacing-4)));
+  min-width: 0;
 }
 
 
@@ -97,41 +96,44 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 
 /* Content area - scrollable, takes remaining space above footer */
 .subtitle_hover_content {
-  padding: 20px;
+  padding: var(--spacing-4);
   width: 100%;
   box-sizing: border-box;
   overflow-y: auto;
   flex: 1;
   min-height: 0; /* Allow shrinking for scroll */
-  max-width:600px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .subtitle_hover_content a{
   color: var(--text-primary);
 }
 
-/* Footer - NOT absolute, so pills width + padding (20px) drives parent's fit-content width */
+/* Metadata, learner state and actions remain separately spaced. */
 .subtitle_hover .footer {
   width:100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px; /* 10px left + 10px right = 20px total */
+  justify-content: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
   box-sizing: border-box;
   background: var(--accent-bg);
   backdrop-filter: var(--backdrop-filter-nodim);
   border-top: 1px solid var(--border-color);
-  flex-shrink: 0; /* Don't shrink footer */
-  /* width determined by pills (fit-content flows up) */
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 55dvh;
+  overflow-y: auto;
 }
 
 
-/* Pills container in hover - no wrap, drives parent's fit-content width */
+/* Integration and dictionary controls wrap within the popover. */
 .subtitle_hover .pills {
   display: flex;
-  gap: 8px; /* Matching old project gap for pill spacing */
-  flex-wrap: nowrap;
-  width: fit-content; /* Pills determine their natural width */
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+  width: 100%;
   align-items: stretch; /* Make all pills same height */
   overflow: visible;
   justify-content: flex-start;
@@ -141,14 +143,14 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 /* Both label-pill and btn-pill should have identical sizing */
 .subtitle_hover .pills .label-pill,
 .subtitle_hover .pills .btn-pill {
-  font-size: 0.8em; /* Match old project */
-  padding: 5px 10px; /* Match old project: padding: 5px; padding-inline: 10px */
-  border-radius: 10px; /* Match old project */
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-md);
   white-space: nowrap; /* Prevent wrapping inside pills */
   flex-shrink: 0;
   /* Ensure consistent height calculation */
   height: auto;
-  min-height: 100%;
+  min-height: var(--size-sm);
   box-sizing: border-box;
   /* Fix blur issues */
   transform: translateZ(0);
@@ -323,4 +325,25 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.subtitle_hover .word-hover-actions {
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--border-color);
+  align-items: center;
+}
+
+.subtitle_hover .knowledge-capability-summary {
+  margin-top: var(--spacing-1);
+}
+
+.subtitle_hover .rating-matrix {
+  margin-top: var(--spacing-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .word-hover-container,
+  .subtitle_hover {
+    transition: none;
+  }
 }

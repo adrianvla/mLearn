@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   tokenize: vi.fn(),
   trackWordHovered: vi.fn(),
   cancelWordHover: vi.fn(),
+  getAccessStatus: vi.fn(() => ({ status: 'unknown' as const, ease: 0, source: 'None' as const, untracked: true })),
 }));
 
 vi.mock('../../hooks', () => ({
@@ -25,7 +26,7 @@ vi.mock('../../context', () => ({
   }),
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
-    getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
+    getAccessStatus: mocks.getAccessStatus,
     trackWordHovered: mocks.trackWordHovered,
     cancelWordHover: mocks.cancelWordHover,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0 }),
@@ -67,6 +68,7 @@ describe('OcrOverlay', () => {
       offsetTop: { value: 0 },
     });
     mocks.tokenize.mockReset();
+    mocks.getAccessStatus.mockClear();
     mocks.trackWordHovered.mockReset();
     mocks.cancelWordHover.mockReset();
   });
@@ -99,6 +101,8 @@ describe('OcrOverlay', () => {
 
     const word = container.querySelector('.ocr-word');
     expect(word).not.toBeNull();
+    expect(mocks.getAccessStatus).toHaveBeenCalledWith('new crop', 'surface-recognition', 'test');
+    expect(mocks.getAccessStatus).toHaveBeenCalledWith('new crop', 'sense-recognition', 'test');
     word?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     expect(onWordHover).toHaveBeenCalledOnce();
 

@@ -1874,6 +1874,8 @@ export interface PerLanguageMeta {
  * Flashcard store meta information
  */
 export interface FlashcardMeta {
+  /** Materialized learner cache schema; evidence remains in the journal. */
+  capabilityProjectionVersion?: number;
   /** Per-language daily counters */
   perLanguage: Record<string, PerLanguageMeta>;
   /** Maximum new cards per day (user setting stored here for sync) */

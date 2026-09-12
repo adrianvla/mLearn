@@ -1260,7 +1260,7 @@
           "Title": "統計"
         },
         "WordDatabase": {
-          "Description": "追跡中の語彙を閲覧・管理",
+          "Description": "語彙と学習記録を見る",
           "Title": "単語データベース",
           "EmptyHint": "単語を検索",
           "NoMatches": "一致する単語がありません",
@@ -1386,8 +1386,6 @@
     },
     "Rating": {
       "Compact": {
-        "AllFluent": "すべてスムーズ",
-        "AllEasy": "すべて簡単",
         "Adjust": "調整"
       },
       "Matrix": {
@@ -1395,16 +1393,13 @@
         "Struggled": "苦労した",
         "Fluent": "スムーズ",
         "Easy": "簡単",
-        "AllFluent": "すべてスムーズ",
-        "EverythingElseFluent": "残りはすべてスムーズ",
-        "AllFluentKey": "F",
-        "PendingHint": "品質（1〜3）→ 側面キー"
+        "AllRow": "全体"
       }
     },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "意味",
-        "surface-recognition": "表記",
+        "surface-recognition": "この表記を認識",
         "spoken-recognition": "音",
         "surface-reading": "読み",
         "pronunciation-production": "発音",
@@ -1441,7 +1436,7 @@
         "Excluded": "学習対象から除外",
         "Why": {
           "Claim": "あなたの申告",
-          "Evidence": "{count} 回のSRS復習による証拠",
+          "Evidence": "記録された観察: {count}",
           "Predicted": "グラフのサポートから予測",
           "PredictedLinks": "{count} 本のグラフサポート経路から予測",
           "Passive": "読みの中で {count} 回見かけた — 受動的な接触はエビデンスではなく熟知です",
@@ -1505,7 +1500,8 @@
           "Sections": {
             "Meanings": "意味",
             "Forms": "表記",
-            "Related": "関連語"
+            "Related": "関連語",
+            "Properties": "属性"
           },
           "MeaningN": "意味 {n}",
           "GrammarPattern": "文法パターン",
@@ -1522,7 +1518,6 @@
         "Orthography": "表記"
       },
       "AspectInherited": "(継承)",
-      "Untracked": "未追跡",
       "History": {
         "Empty": "知識の履歴はまだありません。",
         "Today": "今日",
@@ -1532,7 +1527,8 @@
           "Review": "復習",
           "Rating": "手動評価",
           "Rollup": "パッシブ接触",
-          "Claim": "手動設定"
+          "Claim": "手動設定",
+          "SourceSnapshot": "過去のAnki状態"
         },
         "Source": {
           "KnownWordsList": "既知単語リスト",
@@ -1556,7 +1552,8 @@
       "EvidenceSource": {
         "Prefix": "証拠のソース: ",
         "None": "なし"
-      }
+      },
+      "Unmeasured": "未評価"
     },
     "LevelStudy": {
       "Title": "レベル学習",
@@ -3070,7 +3067,8 @@
         "Knowledge": "知識",
         "TrackedBy": "追跡元",
         "Translation": "翻訳",
-        "Word": "単語"
+        "Word": "単語",
+        "Integrations": "カードと連携"
       },
       "EditTranslation": {
         "PitchError": "ピッチアクセントデータの取得に失敗しました",
@@ -3101,7 +3099,13 @@
         "Nothing": "トラッカーなし"
       },
       "Title": "単語データベース",
-      "AdvancedFilters": "Advanced Filters"
+      "AdvancedFilters": "Advanced Filters",
+      "Integrations": {
+        "Flashcard": "mLearnカード",
+        "Anki": "Anki",
+        "Ignored": "復習から除外",
+        "AddFlashcard": "mLearnカードを追加"
+      }
     },
     "WordHover": {
       "AddToAnki": "Ankiに追加",
@@ -3142,7 +3146,9 @@
       "AnkiEase": "Anki Ease: {ease}",
       "AnkiUpdateSuccess": "{count}枚のAnkiカードを更新しました",
       "AnkiUpdateRepositioned": "{count}枚のカードを更新、{repositioned}枚の新しいカードを再配置しました",
-      "AnkiUpdateFailed": "Ankiカードの更新に失敗しました"
+      "AnkiUpdateFailed": "Ankiカードの更新に失敗しました",
+      "CardScheduling": "カードのスケジュール",
+      "FlashcardAddFailed": "単語カードを追加できませんでした"
     },
     "ConnectionStatus": {
       "Connected": "接続済み",
@@ -3176,10 +3182,6 @@
       "WordCount": "{count} 語"
     },
     "WordSync": {
-      "Rating": {
-        "AllRow": "全体",
-        "PendingHint": "品質（1〜4）→ 側面キー。すべての側面は品質をもう一度押してください"
-      },
       "Statement": {
         "Label": "言葉で伝える",
         "KnownSpoken": "聞いたら分かる言葉です。",
