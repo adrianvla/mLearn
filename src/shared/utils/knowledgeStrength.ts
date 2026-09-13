@@ -35,8 +35,9 @@ export function statusToStrength(status: WordStatus): number {
 }
 
 /**
- * Canonical status classification on the SRS ease scale — the ONE rule every
- * resolver (replay, target explanations, predictor, renderer) must agree on.
+ * Legacy ease-only bands, now used only by grammar curriculum coverage.
+ * This does not resolve claims or Unmeasured; canonical lexical/capability
+ * readers must use knowledge/effectiveKnowledge.
  */
 export function easeToStatus(ease: number): WordStatus {
   if (ease >= SRS_EASE.DEFAULT_KNOWN) return 'known';

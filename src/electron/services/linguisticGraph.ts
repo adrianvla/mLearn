@@ -12,7 +12,7 @@ import { buildKnowledgeProjection } from './knowledgeProjection';
 import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
 import type { CompoundPart } from '../../shared/graph/morphology/compounds';
 import type { PredictionInput } from '../../shared/prediction/supportPredictor';
-import { easeToStatus } from '../../shared/utils/knowledgeStrength';
+import { effectiveStateFromEntry, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { siblingJournalKeys } from '../../shared/graph/addressing';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
@@ -171,7 +171,7 @@ export class LinguisticGraphService {
         if (relations.length >= limit) break;
       }
     }
-    const centerStates = center.kind === 'surface' ? await this.centerStates(loaded, language, query.entityId) : undefined;
+    const centerStates = center.kind === 'surface' ? await this.centerStates(loaded, language, query.entityId, query.thresholds) : undefined;
     return { center, centerDenseId: dense, relationCount: relations.length, relations, ...(centerStates?.length ? { centerStates } : {}) };
   }
 
@@ -180,23 +180,25 @@ export class LinguisticGraphService {
    * buildKnowledgeProjection the inspector uses — one payload instead of a
    * serial per-node call. Best effort: any failure degrades to absence.
    */
-  private async centerStates(loaded: LoadedGraph, language: string, surfaceId: string): Promise<GraphNeighborhoodCenterState[] | undefined> {
+  private async centerStates(loaded: LoadedGraph, language: string, surfaceId: string, requestedThresholds?: EffectiveThresholds): Promise<GraphNeighborhoodCenterState[] | undefined> {
     try {
       const prefix = `${language}:surface:`;
       const hash = surfaceId.startsWith(prefix) ? surfaceId.slice(prefix.length) : undefined;
       if (!hash) return undefined;
-      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }] = await Promise.all([
+      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }, { loadSettings }] = await Promise.all([
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
+        import('./settings'),
       ]);
       const store = await loadFlashcards();
+      const thresholds = requestedThresholds ?? effectiveThresholds(loadSettings());
       const plain = this.toLingualGraph(loaded);
       const keys = siblingJournalKeys(plain, surfaceId);
       // Rows carry stable journal seq; archives carry aggregated old evidence.
       const rowLog = getKnowledgeRows(keys);
       const rows = keys.flatMap((key) => rowLog[key] ?? []);
       const archives = getKnowledgeArchives(keys).map(({ archive }) => archive).filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
-      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { archives });
+      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { archives, thresholds });
       return projection.targets
         .filter((target) => target.targetRef.id === surfaceId)
         .flatMap((target) => target.states.map(({ capability, classification, basis }) => ({ capability, classification, basis })));
@@ -209,7 +211,7 @@ export class LinguisticGraphService {
     return Promise.all(inputs.slice(0, 100).map(async (input) => ({ input, lookup: await this.lookupWord(language, input) })));
   }
 
-  async getKnowledgeProjection(language: string, surface: string): Promise<KnowledgeProjection> {
+  async getKnowledgeProjection(language: string, surface: string, requestedThresholds?: EffectiveThresholds): Promise<KnowledgeProjection> {
     try {
       const loaded = await this.ensure(language);
       if (!loaded) return { status: 'not-installed', targets: [] };
@@ -218,11 +220,13 @@ export class LinguisticGraphService {
       if (!loaded.graph.has(surfaceId)) {
         return { status: 'ready', surfaceId, targets: [], querySurface: surface, surfaceKnown: false, compoundAnalysis: null };
       }
-      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }] = await Promise.all([
+      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }, { loadSettings }] = await Promise.all([
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
+        import('./settings'),
       ]);
       const store = await loadFlashcards();
+      const thresholds = requestedThresholds ?? effectiveThresholds(loadSettings());
       const plain = this.toLingualGraph(loaded);
       // Graph-relative addressing: evidence recorded through an authoritative
       // variant surface resolves to the shared lexical object, so the
@@ -233,8 +237,8 @@ export class LinguisticGraphService {
       const archives = getKnowledgeArchives(keys)
         .map(({ archive }) => archive)
         .filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
-      const compound = await this.compoundSupport(plain, language, surfaceId);
-      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { compound, archives });
+      const compound = await this.compoundSupport(plain, language, surfaceId, thresholds);
+      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { compound, archives, thresholds });
       return { ...projection, querySurface: surface, surfaceKnown: true, compoundAnalysis: compound?.analysis ?? null };
     } catch {
       return { status: 'error', targets: [] };
@@ -246,7 +250,7 @@ export class LinguisticGraphService {
    * from component-of graph edges (primary representation); `isKnownPart`
    * consults each part surface's own evidence projection, never the compound's.
    */
-  private async compoundSupport(plain: LingualGraph, language: string, surfaceId: string): Promise<PredictionInput['compound'] | undefined> {
+  private async compoundSupport(plain: LingualGraph, language: string, surfaceId: string, thresholds: EffectiveThresholds): Promise<PredictionInput['compound'] | undefined> {
     try {
       const analysis = attestedCompoundAnalysis(plain, surfaceId);
       if (!analysis) return undefined;
@@ -268,7 +272,7 @@ export class LinguisticGraphService {
             if (!leaf.entryId.startsWith(prefix)) return false;
             const state = states[`${language}:${leaf.entryId.slice(prefix.length)}`];
             const meaning = state?.capabilities?.['sense-recognition'];
-            return meaning ? (meaning.claim ?? easeToStatus(meaning.ease)) === 'known' : false;
+            return effectiveStateFromEntry(meaning, thresholds).status === 'known';
           })
           .map((leaf) => leaf.lemma),
       );
@@ -291,5 +295,5 @@ export function setupLinguisticGraphIPC(): void {
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_RELATED, (_event, language: string, entityId: string, relationTypes: GraphRelationType[]) => service.getRelated(language, entityId, relationTypes));
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, (_event, language: string, inputs: GraphLookupInput[]) => service.getTargetsForSurfaces(language, inputs));
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_NEIGHBORHOOD, (_event, language: string, query: GraphNeighborhoodQuery) => service.getNeighborhood(language, query));
-  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, (_event, language: string, surface: string) => service.getKnowledgeProjection(language, surface));
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, (_event, language: string, surface: string, thresholds?: EffectiveThresholds) => service.getKnowledgeProjection(language, surface, thresholds));
 }

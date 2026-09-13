@@ -4,7 +4,7 @@ import { bucketRepresentative, type KeyArchive } from '../../../../shared/knowle
 import { eventAppliesToCapability } from '../../../../shared/graph/addressing';
 import type { CapabilityKey } from '../../../../shared/graph/types';
 import { applyEventToFold, emptyKeyFold, mergeKeyFolds, projectKeyFold } from '../../../../shared/utils/projectionReplay';
-import { easeToStatus } from '../../../../shared/utils/knowledgeStrength';
+import { effectiveStateFromEntry, effectiveThresholds, type EffectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 
 export type TrajectoryState = WordStatus | 'unmeasured';
 export interface TrajectoryPoint {
@@ -17,7 +17,7 @@ export interface TrajectoryPoint {
 /** Presentation replay uses the canonical fold. No normalized score or prediction.
  * Inside compressed periods we cannot reconstruct intermediate state, so leave
  * gaps. After a bucket ends its exact sufficient statistics seed the tail. */
-export function knowledgeTrajectoryData(events: readonly KnowledgeEvent[], archives: readonly KeyArchive[], capability: CapabilityKey) {
+export function knowledgeTrajectoryData(events: readonly KnowledgeEvent[], archives: readonly KeyArchive[], capability: CapabilityKey, thresholds: EffectiveThresholds = effectiveThresholds()) {
   const buckets = archives.flatMap((archive) => Object.entries(archive.buckets).flatMap(([key, bucket]) => {
     const representative = bucketRepresentative(key);
     return representative && eventAppliesToCapability(representative, capability) ? [bucket] : [];
@@ -39,7 +39,8 @@ export function knowledgeTrajectoryData(events: readonly KnowledgeEvent[], archi
       const projection = projectKeyFold(mergeKeyFolds(prefix, exact));
       const incomplete = compressed.some((range) => range.from <= event.t && range.to > event.t);
       const claim = projection?.claim !== undefined;
-      const state = incomplete && !claim ? undefined : projection?.claim ?? (projection?.hasActiveEvidence ? easeToStatus(projection.ease) : 'unmeasured');
+      const effective = effectiveStateFromEntry(projection ?? undefined, thresholds);
+      const state = incomplete && !claim ? undefined : effective.basis === 'unmeasured' ? 'unmeasured' : effective.status;
       points.push({ t: event.t, state, claim, event });
     });
   return { points, compressed };

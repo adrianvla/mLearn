@@ -32,11 +32,11 @@ describe('buildKnownWordSet', () => {
     expect(known.has('ja:false')).toBe(false);
   });
 
-  it('includes knownUntracked words as legacy residue', () => {
+  it('does not treat unmigrated legacy residue as evidence', () => {
     const set = buildKnownWordSet(
       {}, {}, { 'ja:h1': true }, {}, {}, 4000
     );
-    expect(set.has('ja:h1')).toBe(true);
+    expect(set.has('ja:h1')).toBe(false);
   });
 
   it('excludes ignoredWords: exclusion is teaching policy, not knowledge', () => {
@@ -137,8 +137,8 @@ describe('buildKnownWordSet', () => {
     );
     expect(set.has('ja:h7')).toBe(true);
     expect(set.has('ja:h8')).toBe(true);
-    expect(set.has('ja:h9')).toBe(true);
-    expect(set.size).toBe(3);
+    expect(set.has('ja:h9')).toBe(false);
+    expect(set.size).toBe(2);
   });
 });
 
@@ -218,10 +218,10 @@ describe('buildKnownWordSetFromStore', () => {
 
     const set = buildKnownWordSetFromStore(store, 4000);
     expect(set.has('ja:h1')).toBe(true);
-    expect(set.has('ja:h2')).toBe(true);
+    expect(set.has('ja:h2')).toBe(false);
     expect(set.has('ja:h3')).toBe(true);
     // Ignored words are policy exclusions, not knowledge.
     expect(set.has('ja:h10')).toBe(false);
-    expect(set.size).toBe(3);
+    expect(set.size).toBe(2);
   });
 });

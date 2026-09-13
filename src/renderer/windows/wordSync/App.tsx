@@ -65,7 +65,6 @@ import {
   isWordEligible,
   isWordSyncRecentlyRated,
   wordSyncPoolStatus,
-  hasSurfaceRecognitionAccess,
   isBridgeCandidate,
 } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
@@ -301,11 +300,11 @@ export const WordSyncContent: Component = () => {
         // overlay is exactly Word Sync's job, and re-presenting it is a cheap
         // bridge completion, not re-teaching a novel lexical object.
         if (resolved.excluded) continue;
-        const writtenAccess = hasSurfaceRecognitionAccess(knowledge);
+        const writtenAccess = getAccessStatus(word, 'surface-recognition', lang).status === 'known';
         if (resolved.status === 'known' && writtenAccess) continue;
         if (getCardByWordSync(word, lang) !== null) continue;
         const record = {
-          status: wordSyncPoolStatus(resolved.status, Boolean(knowledge)),
+          status: wordSyncPoolStatus(resolved.status, resolved.basis),
           level: entry.raw_level,
           seenRecently,
         };
@@ -418,8 +417,8 @@ export const WordSyncContent: Component = () => {
           setShowAnswer(false);
           setShowTranslation(false);
           setPresentationCount((c) => c + 1);
+          setCurrentWord(group[cursor]);
         });
-        setCurrentWord(group[cursor]);
         return;
       }
     }
@@ -432,8 +431,9 @@ export const WordSyncContent: Component = () => {
     });
   }
 
-  // One logical attempt and one undo entry for the selected observed task.
-  function handleSubmitProfile(observations: readonly ProfileObservation[], opts?: RateOptions) {
+  // One logical attempt and one reactive update: row writes must not repeatedly
+  // rebuild knowledge consumers before the next word can render.
+  const handleSubmitProfile = (observations: readonly ProfileObservation[], opts?: RateOptions) => batch(() => {
     const w = currentWord();
     if (!w || observations.length === 0
       || observations.some((observation) => !testedAccesses().some((capability) => capability === observation.capability))) return;
@@ -499,7 +499,7 @@ export const WordSyncContent: Component = () => {
     // worst: struggled — the sampling level stays put.
 
     pickNext();
-  }
+  });
 
   // ─── "Tell mLearn…" — natural-language claim escape hatch ──────────
   // Statements become typed CLAIM ops; nothing here fabricates evidence,
@@ -995,6 +995,11 @@ export const WordSyncContent: Component = () => {
         <div class="word-sync-actions">
           <WordSyncRating
             accesses={testedAccesses()}
+            wordClaim={store.wordKnowledge[currentWord()?.storageKey ?? '']?.claim ?? null}
+            claims={Object.fromEntries(currentProjection.capabilities().map((capability) => [
+              capability,
+              currentWord() ? getAccessStatus(currentWord()!.word, capability, settings.language).claim : undefined,
+            ]))}
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
             armed={showAnswer() && !!currentWord() && !finished()}
@@ -1002,6 +1007,7 @@ export const WordSyncContent: Component = () => {
           />
           <Show when={currentWord()}>
             <TellMlearn
+              resetKey={`${settings.language}:${currentWord()?.word ?? ''}:${presentationCount()}`}
               label={t('mlearn.TellMlearn.Label')}
               placeholder={t('mlearn.TellMlearn.Placeholder')}
               sendLabel={t('mlearn.TellMlearn.Send')}

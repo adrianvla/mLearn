@@ -14,7 +14,7 @@ const mockClearAllWordSyncSeen = vi.fn();
 const mockSetAccessClaim = vi.fn();
 const mockSetWordClaim = vi.fn();
 const mockClearAccessClaim = vi.fn();
-const mockGetAccessStatus = vi.fn(() => ({ status: 'unknown' as const, ease: 0, source: 'None', untracked: true }));
+const mockGetAccessStatus = vi.fn(() => ({ status: 'unknown' as 'unknown' | 'learning' | 'known', ease: 0, source: 'None', untracked: true }));
 // Configurable per test: pool-eligibility reads (written-form bridge, bridge
 // candidates) go through getWordKnowledge.
 const mockGetWordKnowledge = vi.fn((): {
@@ -52,6 +52,7 @@ const mockWordSyncState = vi.hoisted(() => ({
   knownUntracked: {} as Record<string, unknown>,
   ignoredWords: {} as Record<string, unknown>,
   wordKnowledge: {} as Record<string, { word: string; [key: string]: unknown }>,
+  capabilities: ['sense-recognition', 'surface-reading', 'prosodic-pattern'],
   currentLangData: null as { textProcessing?: { readingAnnotation?: boolean }; prosody?: { type?: string } } | null,
   getCanonicalFormForLanguage: vi.fn((_language: string, word: string) => word),
 }));
@@ -97,7 +98,7 @@ vi.mock('../../hooks/useKnowledgeProjection', () => ({
   useKnowledgeProjection: () => ({
     projection: () => undefined,
     loading: () => false,
-    capabilities: () => ['sense-recognition', 'surface-reading', 'prosodic-pattern'],
+    capabilities: () => mockWordSyncState.capabilities,
   }),
 }));
 
@@ -274,7 +275,7 @@ vi.mock('../../../shared/languageFeatures', async () => {
       const accesses: string[] = ['sense-recognition'];
       if (available.includes('surface-reading') && hasReadingData && !supplies) accesses.push('surface-reading');
       if (available.includes('prosodic-pattern') && hasProsodyData) accesses.push('prosodic-pattern');
-      if (available.includes('surface-recognition') && !supplies) accesses.push('surface-recognition');
+      if (surface.trim()) accesses.push('surface-recognition');
       return accesses;
     }),
   };
@@ -354,6 +355,7 @@ describe('WordSyncContent', () => {
     mockAppendRetractions.mockClear();
     mockRecomputeProjection.mockClear();
     mockWordSyncState.currentLangData = null;
+    mockWordSyncState.capabilities = ['sense-recognition', 'surface-reading', 'prosodic-pattern'];
     isReadingScriptTextFn.mockImplementation(() => false);
     mockFetchTranslation.mockReset();
     mockFetchTranslation.mockResolvedValue({ data: [] });
@@ -362,6 +364,40 @@ describe('WordSyncContent', () => {
   afterEach(() => {
     while (disposals.length) disposals.pop()!();
     container.remove();
+  });
+
+  it('flushes one knowledge update for a complete rating, after advancing the word', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    mockWordSyncState.capabilities = ['sense-recognition', 'surface-reading', 'surface-recognition'];
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    const [revision, setRevision] = createSignal(0);
+    const flushedRevisions: number[] = [];
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(() => {
+      createEffect(() => { flushedRevisions.push(revision()); });
+      return <WordSyncContent />;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    const firstShown = container.textContent!.includes('赤い:あかい') ? '赤い' : '青い';
+    mockRecordAttempt.mockImplementation(() => {
+      setRevision(value => value + 1);
+      return { attemptId: 'attempt-sync-1' };
+    });
+    try {
+      press(' ');
+      flushedRevisions.length = 0;
+      press('3');
+      expect(mockRecordAttempt).toHaveBeenCalledTimes(3);
+      expect(flushedRevisions).toEqual([3]);
+      expect(container.textContent).toContain(firstShown === '赤い' ? '青い:あおい' : '赤い:あかい');
+    } finally {
+      mockRecordAttempt.mockImplementation(() => ({ attemptId: 'attempt-sync-1' }));
+      dispose();
+    }
   });
 
   it('a collapsed whole-word keypress records one logical attempt and advances exactly once', async () => {
@@ -651,11 +687,12 @@ describe('WordSyncContent', () => {
     dispose();
   });
 
-  it('a reading-script surface offers only the sense row and one collapsed click submits', async () => {
+  it('a reading-script surface tests meaning and spelling recognition, with one collapsed submission', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     // Pure reading-script surface (もたれる-style): the interaction supplies the
-    // segmental reading — only the sense row is offered at all.
+    // segmental reading, but recognizing the displayed spelling is still tested.
     isReadingScriptTextFn.mockImplementation(() => true);
+    mockWordSyncState.capabilities = ['sense-recognition', 'surface-reading', 'surface-recognition'];
     const { WordSyncContent } = await import('./App');
 
     const dispose = mountContent(WordSyncContent);
@@ -668,6 +705,7 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     expect(container.textContent).toContain('mlearn.Knowledge.Capability.sense-recognition');
     expect(container.textContent).not.toContain('mlearn.Knowledge.Capability.surface-reading');
+    expect(container.textContent).toContain('mlearn.Knowledge.Capability.surface-recognition');
     // Folding back turns the column headers into the collapsed quality
     // buttons again — one collapsed Fluent click is a complete attempt.
     buttonByText('mlearn.Rating.Compact.Adjust').click();
@@ -676,8 +714,9 @@ describe('WordSyncContent', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(1);
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
     expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'sense-recognition', 'fluent', expect.anything());
+    expect(mockRecordAttempt).toHaveBeenCalledWith('赤い', 'surface-recognition', 'fluent', expect.anything());
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
     isReadingScriptTextFn.mockImplementation(() => false);
     dispose();
@@ -1240,6 +1279,7 @@ describe('WordSyncContent', () => {
       ease: 2.5,
       access: { 'surface-recognition': { status: 'known' } },
     }));
+    mockGetAccessStatus.mockReturnValue({ status: 'known', ease: 2.5, source: 'Anki', untracked: false });
     const { WordSyncContent } = await import('./App');
 
     const dispose = mountContent(WordSyncContent);
@@ -1249,6 +1289,7 @@ describe('WordSyncContent', () => {
     // Pool empty → the finished state renders instead of any word.
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
     dispose();
+    mockGetAccessStatus.mockReturnValue({ status: 'unknown', ease: 0, source: 'None', untracked: true });
     // Restore the shared mock's default shape (mockReturnValue persists across tests).
     mockGetComprehensiveWordStatusWithSourceSync.mockImplementation(() => ({
       status: 'unknown',

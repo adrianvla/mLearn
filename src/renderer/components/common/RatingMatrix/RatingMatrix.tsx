@@ -20,6 +20,7 @@ import { createStore } from 'solid-js/store';
 import {
   ATTEMPT_QUALITIES,
   type AttemptQuality,
+  type WordStatus,
   type RatingKeyboardMode,
 } from '../../../../shared/constants';
 import type { CapabilityKey, CapabilityKind } from '../../../../shared/graph/types';
@@ -47,6 +48,10 @@ export interface RatingMatrixProps {
   /** Tested capability rows, in display order — revealed cues included; scaffold
    * weighting stays in the evidence layer. Core kinds and package-declared keys alike. */
   capabilities: readonly CapabilityKey[];
+  /** Saved statements displayed using the same quality selections as manual ratings. */
+  claims?: Readonly<Partial<Record<CapabilityKey, WordStatus>>>;
+  /** Whole-word selection; specific capability statements take precedence. */
+  wordClaim?: WordStatus | null;
   keyboardMode: RatingKeyboardMode;
   /** The control owns its rating keys only while armed. */
   armed: boolean;
@@ -111,6 +116,16 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
   const [drafts, setDrafts] = createStore<Partial<Record<CapabilityKey, AccessDraft>>>({});
   let pendingTimer: number | undefined;
 
+  const claimQuality = (capability: CapabilityKey): AttemptQuality | undefined => {
+    const status = props.claims?.[capability]
+      ?? (props.capabilities.includes(capability) ? props.wordClaim : undefined);
+    return status === 'known' ? 'fluent' : status === 'learning' ? 'struggled' : status === 'unknown' ? 'missed' : undefined;
+  };
+  const displayedCapabilities = () => [...new Set([
+    ...props.capabilities,
+    ...Object.keys(props.claims ?? {}).filter((capability) => props.claims?.[capability] !== undefined),
+  ])];
+
   const actionable = () => props.armed && !submitted() && props.capabilities.length > 0;
 
   const clearPending = () => {
@@ -129,6 +144,17 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     setSubmitted(false);
     clearPending();
   }));
+  // An explanation supersedes any earlier draft for the affected row. Undo
+  // removes that selection through the same reactive claim source.
+  createEffect(on(() => props.claims, (claims, previous) => {
+    for (const capability of new Set([...Object.keys(claims ?? {}), ...Object.keys(previous ?? {})])) {
+      if (claims?.[capability] !== previous?.[capability]) {
+        setDrafts(capability, undefined);
+      }
+    }
+  }));
+  createEffect(on(() => props.wordClaim, () => clearDrafts()));
+
   const submit = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     if (submitted()) return;
     setSubmitted(true);
@@ -215,12 +241,16 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     setExpanded((shown) => !shown);
   };
 
-  const isDraftSelected = (capability: CapabilityKey, action: RatingAction): boolean => {
-    const draft = drafts[capability];
+  const isSelected = (capability: CapabilityKey, action: RatingAction): boolean => {
+    const quality = claimQuality(capability);
+    const draft = drafts[capability] ?? (quality ? { quality } : undefined);
     if (!draft) return false;
     if (action === 'easy') return draft.quality === 'fluent' && !!draft.easy;
     return draft.quality === action && !draft.easy;
   };
+
+  const isAllSelected = (action: RatingAction): boolean => props.capabilities.length > 0
+    && props.capabilities.every((capability) => isSelected(capability, action));
 
   const cellHint = (capability: CapabilityKey, action: RatingAction): string[] => {
     if (props.keyboardMode === 'mnemonic') {
@@ -318,6 +348,8 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                   variant={ACTION_VARIANTS[action]}
                   size="sm"
                   class="rating-matrix__quality"
+                  classList={{ 'rating-matrix__cell--selected': isAllSelected(action) }}
+                  aria-pressed={isAllSelected(action)}
                   disabled={!actionable()}
                   onClick={(e) => submitWholeWord(action, e.altKey)}
                 >
@@ -358,6 +390,9 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                   size="xs"
                   class="rating-matrix__cell"
                   disabled={!actionable()}
+                  classList={{ 'rating-matrix__cell--selected': isAllSelected(action) }}
+                  aria-pressed={isAllSelected(action)}
+                  aria-label={`${t('mlearn.Rating.Matrix.AllRow')}: ${t(ACTION_LABEL_KEYS[action])}`}
                   onClick={(e) => fillAll(action, e.altKey)}
                 >
                   <KeyboardShortcut keys={[ACTION_KEYS[action]]} class="rating-matrix__hint" />
@@ -365,10 +400,12 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
               )}
             </For>
           </div>
-          <For each={props.capabilities}>
+          <For each={displayedCapabilities()}>
             {(capability) => (
               <div class="rating-matrix__row">
-                <span class="rating-matrix__label">{t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}</span>
+                <span class="rating-matrix__label">
+                  {t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}
+                </span>
                 <For each={RATING_ACTIONS}>
                   {(action) => (
                     <Button
@@ -376,11 +413,15 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                       variant={ACTION_VARIANTS[action]}
                       size="xs"
                       class="rating-matrix__cell"
-                      classList={{ 'rating-matrix__cell--selected': isDraftSelected(capability, action) }}
-                      disabled={!actionable()}
+                      classList={{ 'rating-matrix__cell--selected': isSelected(capability, action) }}
+                      aria-pressed={isSelected(capability, action)}
+                      aria-label={`${t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}: ${t(ACTION_LABEL_KEYS[action])}`}
+                      disabled={!actionable() || !props.capabilities.includes(capability)}
                       onClick={(e) => draftAccess(capability, action, e.altKey)}
                     >
-                      <KeyboardShortcut keys={cellHint(capability, action)} class="rating-matrix__hint" />
+                      <Show when={props.capabilities.includes(capability)}>
+                        <KeyboardShortcut keys={cellHint(capability, action)} class="rating-matrix__hint" />
+                      </Show>
                     </Button>
                   )}
                 </For>

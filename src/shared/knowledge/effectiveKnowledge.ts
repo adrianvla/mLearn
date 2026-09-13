@@ -1,5 +1,5 @@
-import type { WordStatus } from '../../shared/constants';
-import type { PassiveWordKnowledge } from '../../shared/types';
+import type { WordStatus } from '../constants';
+import { DEFAULT_SETTINGS, type PassiveWordKnowledge, type Settings } from '../types';
 
 /**
  * THE canonical effective-learner-state resolver (Tier 2).
@@ -36,6 +36,20 @@ export interface EffectiveThresholds {
   known: number;
 }
 
+/** Inputs common to materialized entries and journal projections. */
+export type EffectiveKnowledgeEntry = Pick<PassiveWordKnowledge,
+  'ease' | 'timesSeen' | 'timesHovered' | 'hasActiveEvidence' | 'lastStatusChange' | 'claim'>;
+
+/** Shared configured thresholds, preserving the renderer's migration fallbacks. */
+export function effectiveThresholds(
+  settings: Partial<Pick<Settings, 'easeThresholdLearning' | 'easeThresholdKnown' | 'srsLearningThreshold' | 'known_ease_threshold'>> = DEFAULT_SETTINGS,
+): EffectiveThresholds {
+  return {
+    learning: settings.easeThresholdLearning ?? ((settings.srsLearningThreshold ?? DEFAULT_SETTINGS.srsLearningThreshold) / 1000),
+    known: settings.easeThresholdKnown ?? ((settings.known_ease_threshold ?? DEFAULT_SETTINGS.known_ease_threshold) / 1000),
+  };
+}
+
 export interface EffectiveWordState {
   /** What every UI displays. Claim override ?? evidence classification. */
   status: WordStatus;
@@ -57,8 +71,8 @@ export function evidenceStatusFromEase(ease: number | undefined, thresholds: Eff
   return 'unknown';
 }
 
-export function effectiveStateFromEntry(
-  entry: PassiveWordKnowledge | undefined,
+export function effectiveStateFromEntry<T extends EffectiveKnowledgeEntry>(
+  entry: T | undefined,
   thresholds: EffectiveThresholds,
 ): EffectiveWordState {
   if (!entry) {

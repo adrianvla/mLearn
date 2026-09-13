@@ -364,6 +364,7 @@ export const WelcomeRoute: Component = () => {
       source.levelNames,
       source.langData,
       language.getCanonicalFormForLanguage,
+      flashcards.getComprehensiveWordStatusWithSourceSync,
     );
     if (stats.length === 0) return null;
     return { levels: stats };

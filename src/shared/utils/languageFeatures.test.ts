@@ -46,6 +46,7 @@ import {
   getCanonicalPartOfSpeech,
   getTranslatablePartOfSpeechTypes,
   getTokenJoinSeparator,
+  getTestedAccesses,
   getTokenizerCapabilities,
   getTokenizerRuntimeConfig,
   grammarPointMatchesTokens,
@@ -1230,6 +1231,16 @@ describe('language feature bricks', () => {
       ],
       roughRussianLanguage,
     )).toBe(false);
+  });
+
+  it('tests recognition of the displayed spelling even when its reading is supplied', () => {
+    expect(getTestedAccesses({ languageData: surfaceReadingLanguage, surface: 'ばったり',
+      hasReadingData: true, hasProsodyData: false })).toEqual(['sense-recognition', 'surface-recognition']);
+  });
+
+  it('does not require reading annotations or multiple spellings to test written recognition', () => {
+    expect(getTestedAccesses({ surface: 'example', hasReadingData: false, hasProsodyData: false }))
+      .toEqual(['sense-recognition', 'surface-recognition']);
   });
 
   it('detects reading-script text from language metadata', () => {

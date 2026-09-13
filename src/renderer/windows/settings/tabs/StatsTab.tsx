@@ -17,12 +17,13 @@ import './StatsTab.css';
 
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
-  const { store } = useFlashcards();
+  const { store, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage } = useLanguage();
   const { t } = useLocalization();
 
   const [timeWatched, setTimeWatched] = createSignal('0h 0m');
 
+  // The existing Viewed display groups Unknown + Unmeasured; the data keeps them separate.
   const wordStats = createMemo<ComprehensiveWordStats>(() =>
     computeWordLevelStats(
       store,
@@ -33,6 +34,7 @@ export const StatsTab: Component = () => {
       getFreqLevelNames(),
       currentLangData(),
       getCanonicalFormForLanguage,
+      getComprehensiveWordStatusWithSourceSync,
     ),
   );
 
@@ -69,12 +71,12 @@ export const StatsTab: Component = () => {
             <div class="stats-distribution-bar">
               <div class="bar-segment bar-segment-learned" style={{ width: `${pct(wordStats().allEncountered.known, wordStats().allEncountered.total)}%` }} />
               <div class="bar-segment bar-segment-learning" style={{ width: `${pct(wordStats().allEncountered.learning, wordStats().allEncountered.total)}%` }} />
-              <div class="bar-segment bar-segment-viewed" style={{ width: `${pct(wordStats().allEncountered.unknown, wordStats().allEncountered.total)}%` }} />
+              <div class="bar-segment bar-segment-viewed" style={{ width: `${pct(wordStats().allEncountered.unknown + wordStats().allEncountered.untracked, wordStats().allEncountered.total)}%` }} />
             </div>
             <div class="stats-distribution-legend">
               <span class="legend-entry"><span class="legend-dot legend-dot-learned" />{t('mlearn.Statistics.Legend.Learned')} ({wordStats().allEncountered.known})</span>
               <span class="legend-entry"><span class="legend-dot legend-dot-learning" />{t('mlearn.Statistics.Legend.Learning')} ({wordStats().allEncountered.learning})</span>
-              <span class="legend-entry"><span class="legend-dot legend-dot-viewed" />{t('mlearn.Statistics.Legend.Viewed')} ({wordStats().allEncountered.unknown})</span>
+              <span class="legend-entry"><span class="legend-dot legend-dot-viewed" />{t('mlearn.Statistics.Legend.Viewed')} ({wordStats().allEncountered.unknown + wordStats().allEncountered.untracked})</span>
             </div>
           </div>
         </div>
@@ -101,7 +103,7 @@ export const StatsTab: Component = () => {
                     <td>{row.name}</td>
                     <td class="stat-num">{row.known}</td>
                     <td class="stat-num">{row.learning}</td>
-                    <td class="stat-num">{row.unknown}</td>
+                    <td class="stat-num">{row.unknown + row.untracked}</td>
                     <td class="stat-num">{row.totalDictionaryWords}</td>
                     <td class="stat-num">{row.knownPct}%</td>
                   </tr>
@@ -118,7 +120,7 @@ export const StatsTab: Component = () => {
           <div class="dashboard-stats-row compact">
             <StatCard label={t('mlearn.Statistics.Legend.Learned')} value={wordStats().outsideLevels.known} size="sm" color="success" />
             <StatCard label={t('mlearn.Statistics.Legend.Learning')} value={wordStats().outsideLevels.learning} size="sm" color="warning" />
-            <StatCard label={t('mlearn.Statistics.Legend.Viewed')} value={wordStats().outsideLevels.unknown} size="sm" />
+            <StatCard label={t('mlearn.Statistics.Legend.Viewed')} value={wordStats().outsideLevels.unknown + wordStats().outsideLevels.untracked} size="sm" />
             <StatCard label={t('mlearn.Statistics.Dashboard.OutsideLevelsTotal')} value={wordStats().outsideLevels.total} size="sm" />
           </div>
         </div>

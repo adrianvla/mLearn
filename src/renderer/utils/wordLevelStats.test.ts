@@ -113,7 +113,8 @@ describe('computeWordLevelStats', () => {
       totalDictionaryWords: 2,
       known: 0,
       learning: 0,
-      unknown: 2,
+      unknown: 0,
+      untracked: 2,
       knownPct: 0,
     });
     expect(result.outsideLevels.total).toBe(0);
@@ -201,7 +202,8 @@ describe('computeWordLevelStats', () => {
 
     const beginner = result.byLevel.find((l) => l.level === 5);
     expect(beginner?.known).toBe(1);
-    expect(beginner?.unknown).toBe(1);
+    expect(beginner?.unknown).toBe(0);
+    expect(beginner?.untracked).toBe(1);
   });
   it('passive-only high ease never counts as known or learning (untracked semantics)', () => {
     const store = makeStore({
@@ -217,10 +219,10 @@ describe('computeWordLevelStats', () => {
     const beginner = result.byLevel.find((l) => l.level === 5);
     expect(beginner?.known).toBe(0);
     // REQ13: pure passive exposure is familiarity only — it leaves the
-    // learning bucket. (This view has no untracked bucket; computeLevelStats
-    // is where passive-only words count as untracked.)
+    // learning bucket; the canonical state is unmeasured.
     expect(beginner?.learning).toBe(0);
-    expect(beginner?.unknown).toBe(2);
+    expect(beginner?.unknown).toBe(0);
+    expect(beginner?.untracked).toBe(2);
   });
 
   it('matches canonicalized frequency words to stored knowledge keys', () => {
@@ -503,9 +505,9 @@ describe('computeLevelStats', () => {
     );
 
     expect(level.known).toBe(0);
-    // The card still makes the word tracked — it just is no longer known.
-    expect(level.unknown).toBe(1);
-    expect(level.untracked).toBe(0);
+    // Card ownership does not measure knowledge.
+    expect(level.unknown).toBe(0);
+    expect(level.untracked).toBe(1);
   });
 
   it('counts only projected learning while preserving separate card selection state', () => {
@@ -915,20 +917,11 @@ describe('computeBeyondExamLevelStats', () => {
   });
 });
 describe('getWordLevelStatus', () => {
-  const known = new Set<string>();
-  const learning = new Set<string>();
-  const tracked = new Set<string>([lk('ja', 'abc'), lk('ja', 'active')]);
-
-  it('classifies tracked-but-unmeasured words as unknown', () => {
-    expect(getWordLevelStatus('abc', 'ja', known, learning, tracked)).toBe('unknown');
+  it('encodes canonical Unmeasured as the existing Untracked label', () => {
+    expect(getWordLevelStatus({ status: 'unknown', basis: 'unmeasured' })).toBe('untracked');
   });
-
-  it('a pure passive tracked word is untracked, never unknown', () => {
-    const passiveOnly = new Set<string>([lk('ja', 'abc')]);
-    expect(getWordLevelStatus('abc', 'ja', known, learning, tracked, undefined, passiveOnly)).toBe('untracked');
-    // Active provenance stays unknown.
-    expect(getWordLevelStatus('active', 'ja', known, learning, tracked, undefined, passiveOnly)).toBe('unknown');
+  it('preserves explicit Unknown', () => {
+    expect(getWordLevelStatus({ status: 'unknown', basis: 'claim' })).toBe('unknown');
+    expect(getWordLevelStatus({ status: 'unknown', basis: 'evidence' })).toBe('unknown');
   });
 });
-
-

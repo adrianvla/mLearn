@@ -40,7 +40,7 @@ function stripRetractedRows(rows: readonly JournalRow[]): JournalRow[] {
     return !(event.attemptId !== undefined && retracted.has(`${event.attemptId}`));
   });
 }
-import { easeToStatus } from '../utils/knowledgeStrength';
+import { effectiveStateFromEntry, effectiveThresholds, type EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import { deriveRetentionSchedule, type RetentionPolicy } from '../srs/retentionScheduler';
 import type { CapabilityKey } from './types';
 
@@ -84,22 +84,6 @@ export interface TargetExplanation {
  */
 
 
-/**
- * One classification rule for a replayed projection: claim ?? active evidence,
- * unmeasured when only passive familiarity exists. The projection (timesSeen,
- * ease, prediction) stays attached for familiarity consumers either way.
- */
-function effectiveState(projection: ReplayProjection): TargetState {
-  if (projection.claim !== undefined) {
-    if (projection.claim === 'known') return 'claimed-known';
-    if (projection.claim === 'learning') return 'claimed-learning';
-    return 'claimed-unknown';
-  }
-  if (!projection.hasActiveEvidence) return 'unmeasured';
-  const status = easeToStatus(projection.ease);
-  return status === 'known' ? 'evidence-backed-known' : status;
-}
-
 /** Shared explainability assembly: active evidence first, predictions never become evidence. */
 export function assembleTargetExplanation(
   capability: CapabilityKey,
@@ -118,6 +102,7 @@ export function assembleTargetExplanation(
   matcher: (event: KnowledgeEvent) => boolean = (event) => eventAppliesToCapability(event, capability),
   /** Sibling-key archives (aggregated old evidence) for the queried target. */
   archives?: readonly KeyArchive[],
+  thresholds: EffectiveThresholds = effectiveThresholds(),
 ): TargetExplanation {
   const rows = toJournalRows(rawRows);
   const active = stripRetractedRows(rows);
@@ -141,6 +126,12 @@ export function assembleTargetExplanation(
   // Retention over the frontier sequence: exact rows + residue columns in one
   // (t, seq) order — true journal seq on both sides, no ordering ambiguity.
   const retention = computeRetention(mergedArchive, evidenceRows, policy, now, matcher);
-  const state: TargetState = projection ? effectiveState(projection) : prediction ? 'predicted' : 'unmeasured';
+  const effective = effectiveStateFromEntry(projection ?? undefined, thresholds);
+  // Presentation vocabulary only: classification and basis come from the shared resolver.
+  const state: TargetState = effective.basis === 'claim'
+    ? `claimed-${effective.status}`
+    : effective.basis === 'unmeasured'
+      ? (!projection && prediction ? 'predicted' : 'unmeasured')
+      : effective.status === 'known' ? 'evidence-backed-known' : effective.status;
   return { state, evidence, projection, retention, ...(prediction ? { prediction } : {}) };
 }

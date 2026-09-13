@@ -1,3 +1,4 @@
+import type { EffectiveThresholds } from '../shared/knowledge/effectiveKnowledge';
 /**
  * Electron Preload Script
  * Exposes a safe IPC bridge to renderer processes
@@ -65,8 +66,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, language, inputs),
   getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery): Promise<GraphNeighborhood | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_NEIGHBORHOOD, language, query),
-  getKnowledgeProjection: (language: string, surface: string): Promise<KnowledgeProjection> =>
-    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, language, surface),
+  getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds): Promise<KnowledgeProjection> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, language, surface, thresholds),
 
   // ========== Localization ==========
   getLocalization: () => ipcRenderer.send(IPC_CHANNELS.GET_LOCALIZATION),

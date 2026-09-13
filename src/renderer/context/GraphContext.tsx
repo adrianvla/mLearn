@@ -1,3 +1,4 @@
+import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { createContext, createEffect, createSignal, onCleanup, useContext, type ParentComponent } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../../shared/graph/ipc';
@@ -83,7 +84,7 @@ export const GraphProvider: ParentComponent = (props) => {
         (language) => getBridge().graph.getGraphTargetsForSurfaces(language, inputs), [],
       ),
       getNeighborhood: (query) => active(
-        (language) => getBridge().graph.getGraphNeighborhood(language, query), null,
+        (language) => getBridge().graph.getGraphNeighborhood(language, { ...query, thresholds: effectiveThresholds(settings) }), null,
       ),
     }}>
       {props.children}

@@ -3,7 +3,8 @@ import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { CapabilityKey } from '../../../../shared/graph/types';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource } from '../../../../shared/constants';
-import { useLocalization } from '../../../context';
+import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
+import { useLocalization, useSettings } from '../../../context';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
 import { WordEaseTrajectory } from './WordEaseTrajectory';
 import { SkeletonRows } from '../Skeleton';
@@ -33,6 +34,7 @@ export const KnowledgeTrajectory: Component<TrajectoryProps> = (props) => {
 /** Capability history remains categorical and spelling scoped. */
 const CapabilityTrajectory: Component<TrajectoryProps & { capability: CapabilityKey; selector: JSX.Element }> = (props) => {
   const { t } = useLocalization();
+  const { settings } = useSettings();
   let container: HTMLElement | undefined;
   const [width, setWidth] = createSignal(640);
   onMount(() => {
@@ -46,7 +48,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
   const [inspected, setInspected] = createSignal<TrajectoryPoint>();
   const capability = () => props.capability;
   const history = useKnowledgeHistory(() => props.surface, capability, () => props.language);
-  const data = createMemo(() => knowledgeTrajectoryData(history.events() ?? [], history.archives(), capability() ?? ''));
+  const data = createMemo(() => knowledgeTrajectoryData(history.events() ?? [], history.archives(), capability() ?? '', effectiveThresholds(settings)));
   const points = createMemo(() => allTime() ? data().points : data().points.slice(-30));
   const compressed = () => allTime() || !points().length ? data().compressed : [];
   const times = () => [...points().map((point) => point.t), ...compressed().flatMap((range) => [range.from, range.to])];

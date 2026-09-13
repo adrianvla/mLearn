@@ -1,3 +1,4 @@
+import type { KnowledgeBasis } from '../../../shared/knowledge/effectiveKnowledge';
 import { SRS_EASE, WORD_STATUS } from '../../../shared/constants';
 import { WORD_SYNC_STATUS_UNTRACKED } from '../../components/common/FilterBuilder/presets';
 import { extractUniqueStudyCharacters, isFrequencyLevelAtOrEasierThanTarget } from '../../../shared/languageFeatures';
@@ -23,18 +24,10 @@ export function shouldIncludeForLevel(rawLevel: number, target: number, language
   return isFrequencyLevelAtOrEasierThanTarget(rawLevel, target, languageData);
 }
 
-/**
- * Status string for a word-sync pool record. The comprehensive resolver
- * flattens resolver-unknown and never-encountered into one status; the
- * knowledge-record presence distinguishes them (tracked unknown vs
- * untracked). Learning is its own bucket, so an Unknown filter operand
- * never matches a Learning word. Known words can enter the pool ONLY as
- * written-form bridge candidates; they report as their tracked status.
- */
-export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning' | 'known', hasKnowledgeRecord: boolean): string {
-  if (resolvedStatus === 'learning') return String(WORD_STATUS.LEARNING);
-  if (resolvedStatus === 'known') return String(WORD_STATUS.KNOWN);
-  return hasKnowledgeRecord ? String(WORD_STATUS.UNKNOWN) : WORD_SYNC_STATUS_UNTRACKED;
+/** Encode canonical knowledge for filter operands; Untracked means Unmeasured. */
+export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning' | 'known', basis: KnowledgeBasis): string {
+  if (basis === 'unmeasured') return WORD_SYNC_STATUS_UNTRACKED;
+  return String(WORD_STATUS[resolvedStatus.toUpperCase() as keyof typeof WORD_STATUS]);
 }
 
 /**
@@ -63,7 +56,7 @@ export function hasSurfaceRecognitionAccess(
   knowledge: { access?: Partial<Record<string, { status?: string; claim?: string }>> } | undefined,
 ): boolean {
   const record = knowledge?.access?.['surface-recognition'];
-  return record?.status === 'known' || record?.claim === 'known';
+  return (record?.claim ?? record?.status) === 'known';
 }
 
 /**

@@ -1400,7 +1400,7 @@
       "Capability": {
         "sense-recognition": "意味",
         "surface-recognition": "この表記を認識",
-        "spoken-recognition": "音",
+        "spoken-recognition": "音声で認識",
         "surface-reading": "読み",
         "pronunciation-production": "発音",
         "prosodic-pattern": "アクセント",

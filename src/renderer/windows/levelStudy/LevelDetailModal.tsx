@@ -6,13 +6,10 @@ import { showToast } from '../../components/common/Feedback/Toast';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import {
   getWordLevelStatus,
-  buildLearningWordSet,
-  buildPassiveOnlyWordSet,
   getLevelStudyLevelNames,
   resolveLevelStudyWordFrequency,
   BEYOND_EXAM_LEVEL,
 } from '../../utils/wordLevelStats';
-import { buildKnownWordSetFromStore, buildTrackedWordSet } from '../../utils/knowledgeUtils';
 import { getReadingAnnotationScripts, isDisplayableFrequencyLevel } from '../../../shared/languageFeatures';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -70,23 +67,15 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     const lang = activeLanguage();
     const langData = activeLanguageData();
     const freq = resolveLevelStudyWordFrequency({}, langData);
-    const knownThreshold = settings.easeThresholdKnown * 1000;
-    const learningThreshold = settings.easeThresholdLearning * 1000;
 
     return untrack(() => {
-      const store = flashcards.store;
-      const knownSet = buildKnownWordSetFromStore(store, knownThreshold);
-      const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
-      const passiveOnlySet = buildPassiveOnlyWordSet(store);
-      const trackedSet = buildTrackedWordSet(store, lang);
-
       const result: WordListItem[] = [];
       const levelNames = getLevelStudyLevelNames(langData, freq);
       for (const [word, entry] of Object.entries(freq)) {
         if (props.level === BEYOND_EXAM_LEVEL) {
           if (isDisplayableFrequencyLevel(entry.raw_level, levelNames, langData)) continue;
         } else if (entry.raw_level !== props.level) continue;
-        const status = getWordLevelStatus(word, lang, knownSet, learningSet, trackedSet, language.getCanonicalFormForLanguage, passiveOnlySet);
+        const status = getWordLevelStatus(flashcards.getComprehensiveWordStatusWithSourceSync(word, lang));
         result.push({ word, reading: entry.reading || '', status });
       }
       return result.sort((a, b) => a.word.localeCompare(b.word));

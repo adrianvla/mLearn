@@ -17,6 +17,7 @@ let drawer: KnowledgeProjectionDrawerProps | undefined;
 vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ graph: { getKnowledgeProjection: mocks.projection } }) }));
 vi.mock('../../../services/knowledgeEvents', () => ({ eventsVersion: () => version(), getEvents: mocks.history }));
 vi.mock('../../../services/openGraphInspector', () => ({ openGraphInspector: mocks.graph }));
+vi.mock('../../../context/SettingsContext', () => ({ useSettings: () => ({ settings: { easeThresholdLearning: 1.55, easeThresholdKnown: 1.8 } }) }));
 vi.mock('../../../context/FlashcardContext', () => ({ useFlashcards: () => ({
   getComprehensiveWordStatusWithSourceSync: mocks.summary,
   setWordClaim: mocks.wordClaim, setAccessClaim: mocks.accessClaim, clearAccessClaim: mocks.clearClaim,
@@ -56,7 +57,7 @@ describe('shared canonical inspector host', () => {
     expect(drawer?.target).toBe(target);
     expect(drawer?.language).toBe('pkg');
     expect(drawer?.surface).toBe('alias');
-    expect(mocks.projection).toHaveBeenCalledExactlyOnceWith('pkg', 'alias');
+    expect(mocks.projection).toHaveBeenCalledExactlyOnceWith('pkg', 'alias', { learning: 1.55, known: 1.8 });
     expect(mocks.history).toHaveBeenCalledExactlyOnceWith([`pkg:${hashWordSync('alias')}`]);
 
     drawer?.onWordClaim?.('known');

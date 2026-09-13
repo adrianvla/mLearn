@@ -1,3 +1,4 @@
+import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 /**
  * PlatformBridge Interface
  *
@@ -127,7 +128,7 @@ export interface GraphBridge {
   getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
   getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
   getGraphNeighborhood: (language: string, query: import('../graph/ipc').GraphNeighborhoodQuery) => Promise<import('../graph/ipc').GraphNeighborhood | null>;
-  getKnowledgeProjection: (language: string, surface: string) => Promise<import('../graph/ipc').KnowledgeProjection>;
+  getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds) => Promise<import('../graph/ipc').KnowledgeProjection>;
 }
 
 export interface FileBridge {

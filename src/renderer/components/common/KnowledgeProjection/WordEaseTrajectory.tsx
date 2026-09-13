@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show, onMount, onCleanup, type Component, type JSX } from 'solid-js';
-import { DEFAULT_SETTINGS } from '../../../../shared/types';
+import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, SRS_EASE } from '../../../../shared/constants';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import { eventCapability } from '../../../../shared/knowledgeEvents';
@@ -12,7 +12,7 @@ import { wordEaseTrajectoryData, type WordEasePoint } from './wordEaseTrajectory
 export const WordEaseTrajectory: Component<{ surface: string; language: string; selector: JSX.Element; currentEase?: number }> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const thresholds = () => ({ learning: settings.easeThresholdLearning ?? DEFAULT_SETTINGS.easeThresholdLearning, known: settings.easeThresholdKnown ?? DEFAULT_SETTINGS.easeThresholdKnown });
+  const thresholds = () => effectiveThresholds(settings);
   const history = useWordEaseHistory(() => props.surface, () => props.language);
   const data = createMemo(() => wordEaseTrajectoryData(history.entries(), props.language, thresholds()));
   const [allTime, setAllTime] = createSignal(false);

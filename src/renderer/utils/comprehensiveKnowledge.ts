@@ -1,7 +1,7 @@
 import { LEXICAL_IDENTITY_CAPABILITIES } from '../../shared/graph/access';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource, type WordStatus, type WordKnowledgeSource } from '../../shared/constants';
 import type { IgnoredWordEntry, PassiveWordKnowledge } from '../../shared/types';
-import { effectiveStateFromEntry, type EffectiveWordState, type KnowledgeBasis } from './effectiveKnowledge';
+import { effectiveStateFromEntry, type EffectiveWordState, type EffectiveThresholds, type KnowledgeBasis } from '../../shared/knowledge/effectiveKnowledge';
 /**
  * Comprehensive synchronous word status — Tier-2 semantics.
  *
@@ -99,7 +99,26 @@ export function getComprehensiveWordStatusWithSource(
   deps: ComprehensiveKnowledgeDeps,
   scope: 'lexical' | 'sense' = 'lexical',
 ): ComprehensiveWordStatusResult {
-  const matches = buildWordFormMatches(word, deps);
+  return resolveWordMatches(buildWordFormMatches(word, deps), deps, scope);
+}
+
+/** Already-addressed materialized keys use the same lexical resolver as text readers. */
+export function getEffectiveWordStateForKeys(
+  keys: readonly string[],
+  wordKnowledge: Record<string, PassiveWordKnowledge>,
+  thresholds: EffectiveThresholds,
+): ComprehensiveWordStatusResult {
+  return resolveWordMatches(keys.map(lk => ({ lk, word: wordKnowledge[lk]?.word ?? lk })), {
+    wordKnowledge, ignoredWords: {},
+    learningThreshold: thresholds.learning, knownEaseThreshold: thresholds.known,
+  }, 'lexical');
+}
+
+function resolveWordMatches(
+  matches: readonly WordFormMatch[],
+  deps: Pick<ComprehensiveKnowledgeDeps, 'wordKnowledge' | 'ignoredWords' | 'learningThreshold' | 'knownEaseThreshold'>,
+  scope: 'lexical' | 'sense',
+): ComprehensiveWordStatusResult {
   const thresholds = { learning: deps.learningThreshold, known: deps.knownEaseThreshold };
 
   let excluded = false;
@@ -184,7 +203,8 @@ export function getComprehensiveWordStatusWithSource(
     // sync; legacy entries may differ and the strongest is the honest read).
     if (
       effective.hasEvidence
-      && (!bestEvidence || STATUS_RANK[effective.evidenceStatus] > STATUS_RANK[bestEvidence.effective.evidenceStatus])
+      && (!bestEvidence || STATUS_RANK[effective.evidenceStatus] > STATUS_RANK[bestEvidence.effective.evidenceStatus]
+        || (bestEvidence.effective.basis === 'unmeasured' && effective.basis !== 'unmeasured'))
     ) {
       bestEvidence = {
         effective,

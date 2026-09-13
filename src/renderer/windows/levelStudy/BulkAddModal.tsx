@@ -17,7 +17,8 @@ import {
 import { showToast } from '../../components/common/Feedback/Toast';
 import { useFlashcards, useLocalization } from '../../context';
 import type { LevelStudyTargetStatus } from '../../context/FlashcardContext';
-import { WORD_STATUS, type WordStatus } from '../../../shared/constants';
+import { WORD_STATUS } from '../../../shared/constants';
+import { wordSyncPoolStatus } from '../wordSync/wordSyncPool';
 import type { LanguageData, WordFrequencyMap } from '../../../shared/types';
 import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
 
@@ -96,13 +97,9 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
     return filterValidation().ok ? parseTokens(tokens()) : null;
   });
 
-  // Mirrors getWordLevelStatus: untracked = unknown comprehensive status + no card tracking.
   const toFilterStatus = (word: string): string => {
-    const comprehensive: WordStatus = flashcards.getComprehensiveWordStatusSync(word, props.language);
-    if (comprehensive === 'unknown' && !flashcards.hasWordSync(word, props.language)) {
-      return WORD_SYNC_STATUS_UNTRACKED;
-    }
-    return String(WORD_STATUS[comprehensive.toUpperCase() as keyof typeof WORD_STATUS]);
+    const resolved = flashcards.getComprehensiveWordStatusWithSourceSync(word, props.language);
+    return wordSyncPoolStatus(resolved.status, resolved.basis);
   };
 
   const freqWords = createMemo(() => {

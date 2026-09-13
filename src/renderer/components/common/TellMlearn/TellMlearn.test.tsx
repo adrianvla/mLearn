@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { TellMlearn, type AppliedLearnerClaim } from './TellMlearn';
 import type { LearnerClaimOp } from '../../../services/learnerClaimsInterpreter';
@@ -93,6 +94,23 @@ describe('TellMlearn', () => {
     emit(callbacks);
   };
 
+  it('discards a pending explanation and its undo state when the word changes', async () => {
+    const [resetKey, setResetKey] = createSignal('first');
+    const abort = vi.fn();
+    streamImpl.mockReturnValue({ abort });
+    const dispose = render(() => <TellMlearn label="Explain" placeholder="Explain" sendLabel="Apply"
+      undoLabel="Undo" updatedLabel="Updated" noChangeLabel="No change" errorLabel="Error"
+      resetKey={resetKey()} buildContext={() => resetKey()} onApply={onApply} translate={t} />, container);
+    await sendStatement('I know this word', () => {});
+    const callbacks = streamImpl.mock.calls[0][2] as StreamCallbacks;
+    setResetKey('second');
+    expect(abort).toHaveBeenCalledOnce();
+    callbacks.onDone('', [{ id: 'old', name: 'set_word_claim', arguments: { status: 'known' } }]);
+    expect(onApply).not.toHaveBeenCalled();
+    expect(container.querySelector('.tell-mlearn__summary')).toBeNull();
+    dispose();
+  });
+
   it('uses the shared textarea with an accessible name and no native resize control', () => {
     const dispose = renderField();
     container.querySelector<HTMLButtonElement>('.tell-mlearn__toggle')?.click();
@@ -105,9 +123,9 @@ describe('TellMlearn', () => {
   it('applies parsed tool calls and renders the deterministic summary (acceptance M)', async () => {
     const dispose = renderField();
     await sendStatement('I know this word when I hear it.', (cbs) => {
-      cbs.onToolCall({ id: '1', name: 'set_access_claim', arguments: { capability: 'spoken-recognition', status: 'known' } });
+      cbs.onToolCall({ id: '1', name: 'set_access_claim', arguments: { capability: 'spoken-recognition', status: 'known', basis: 'unassisted' } });
       cbs.onDone('', [
-        { id: '1', name: 'set_access_claim', arguments: { capability: 'spoken-recognition', status: 'known' } },
+        { id: '1', name: 'set_access_claim', arguments: { capability: 'spoken-recognition', status: 'known', basis: 'unassisted' } },
       ]);
     });
     await Promise.resolve();
@@ -124,6 +142,39 @@ describe('TellMlearn', () => {
       cbs.onDone('', [{ id: '1', name: 'write_evidence', arguments: { quality: 'fluent' } }]);
     });
     await Promise.resolve();
+    expect(onApply).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Nothing to change');
+    dispose();
+  });
+
+  // The LLM is mocked at the existing transport boundary: these exercise
+  // interpreted cue conditions through application, not live-model accuracy.
+  it.each([
+    ['I know what 内科 means ONLY when I see the ないか scaffold.', 'cue-dependent', 'learning'],
+    ['I recognize it after you show me the reading; I need that help.', 'cue-dependent', 'learning'],
+    ['I can retrieve the reading only with the hint/scaffold.', 'cue-dependent', 'learning'],
+    ['Once I see the reading I recognize it; I cannot get there without it.', 'cue-dependent', 'learning'],
+    ['The hint helps, but I can read it myself.', 'unassisted', 'known'],
+    ['I do not need the scaffold to read it.', 'unassisted', 'known'],
+  ])('applies the retrieval condition for "%s"', async (statement, basis, status) => {
+    const dispose = renderField();
+    await sendStatement(statement, (cbs) => cbs.onDone('', [
+      { id: '1', name: 'set_access_claim', arguments: { capability: 'surface-reading', status: 'known', basis } },
+    ]));
+    expect(onApply).toHaveBeenCalledExactlyOnceWith([
+      { op: 'setAccessClaim', capability: 'surface-reading', status },
+    ]);
+    const messages = streamImpl.mock.calls[0][0] as Array<{ role: string; content: string }>;
+    expect(messages[0].content).toContain('separate ability WITHOUT an answer-supplying cue from recognition AFTER that cue');
+    expect(messages[1].content).toContain(statement);
+    dispose();
+  });
+
+  it('leaves independent reading unchanged when only seeing the supplied reading was reported', async () => {
+    const dispose = renderField();
+    await sendStatement('I saw the reading.', (cbs) => cbs.onDone('', [
+      { id: '1', name: 'set_access_claim', arguments: { capability: 'surface-reading', status: 'known', basis: 'cue-only' } },
+    ]));
     expect(onApply).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Nothing to change');
     dispose();

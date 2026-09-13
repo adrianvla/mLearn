@@ -1400,7 +1400,7 @@
       "Capability": {
         "sense-recognition": "Значение",
         "surface-recognition": "Узнавание этого написания",
-        "spoken-recognition": "Устная форма",
+        "spoken-recognition": "Узнавание на слух",
         "surface-reading": "Чтение",
         "pronunciation-production": "Произношение",
         "prosodic-pattern": "Просодия",

@@ -5,7 +5,7 @@ import { eventCapability, eventIsMeasurable, readActiveEvidence, type KnowledgeE
 import type { PassiveWordKnowledge } from '../../../../shared/types';
 import { applyEventToFold, emptyKeyFold, mergeKeyFolds, projectKeyFold, type FoldState, type ReplayProjection } from '../../../../shared/utils/projectionReplay';
 import { getComprehensiveWordStatusWithSource } from '../../../utils/comprehensiveKnowledge';
-import { evidenceStatusFromEase, type EffectiveThresholds } from '../../../utils/effectiveKnowledge';
+import { evidenceStatusFromEase, type EffectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 
 export interface WordEaseHistoryEntry { word: string; key: string; events: KnowledgeEvent[]; archive?: KeyArchive }
 export interface WordEasePoint { t: number; ease?: number; event: KnowledgeEvent; word: string; matchedWord?: string }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PassiveWordKnowledge } from '../../shared/types';
 import type { ComprehensiveKnowledgeDeps } from './comprehensiveKnowledge';
 import { getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from './comprehensiveKnowledge';
-import { effectiveStateFromEntry } from './effectiveKnowledge';
+import { effectiveStateFromEntry } from '../../shared/knowledge/effectiveKnowledge';
 
 function makeDeps(overrides: Partial<ComprehensiveKnowledgeDeps> = {}): ComprehensiveKnowledgeDeps {
   return {

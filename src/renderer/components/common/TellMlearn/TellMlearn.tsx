@@ -1,4 +1,4 @@
-import { Component, For, Show, createSignal } from 'solid-js';
+import { Component, For, Show, createEffect, createSignal, on, onCleanup } from 'solid-js';
 import {
   CLAIM_SYSTEM_PROMPT,
   LEARNER_CLAIM_TOOLS,
@@ -28,6 +28,8 @@ export interface AppliedLearnerClaim {
 }
 
 export interface TellMlearnProps {
+  /** Identity of the word/presentation being explained. */
+  resetKey?: string | number;
   label: string;
   placeholder: string;
   sendLabel: string;
@@ -51,14 +53,32 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
   const [summaryKeys, setSummaryKeys] = createSignal<Array<{ labelKey: string; statusKey?: string }> | null>(null);
   const [undoStack, setUndoStack] = createSignal<Array<() => void>>([]);
 
+  let requestVersion = 0;
+  let activeRequest: { abort: () => void } | undefined;
+  const cancelRequest = () => {
+    requestVersion += 1;
+    activeRequest?.abort();
+    activeRequest = undefined;
+  };
+  createEffect(on(() => props.resetKey, () => {
+    cancelRequest();
+    setText('');
+    setBusy(false);
+    setFailed(false);
+    setSummaryKeys(null);
+    setUndoStack([]);
+  }));
+  onCleanup(cancelRequest);
+
   const send = () => {
     const statement = text().trim();
     if (!statement || busy()) return;
+    const version = ++requestVersion;
     setBusy(true);
     setFailed(false);
     setSummaryKeys(null);
     const toolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-    streamChat(
+    activeRequest = streamChat(
       [
         { role: 'system', content: CLAIM_SYSTEM_PROMPT },
         { role: 'user', content: `${props.buildContext()}\n\nLearner says: ${statement}` },
@@ -68,6 +88,8 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
         onChunk: () => {},
         onToolCall: (toolCall) => toolCalls.push({ name: toolCall.name, arguments: toolCall.arguments ?? {} }),
         onDone: (_finalContent, allToolCalls) => {
+          if (version !== requestVersion) return;
+          activeRequest = undefined;
           const ops = parseClaimToolCalls(allToolCalls);
           if (ops.length === 0) {
             setSummaryKeys([]);
@@ -80,6 +102,8 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
           setBusy(false);
         },
         onError: () => {
+          if (version !== requestVersion) return;
+          activeRequest = undefined;
           setFailed(true);
           setBusy(false);
         },

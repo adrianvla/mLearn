@@ -20,7 +20,10 @@ vi.mock('../../context', () => ({
       params?.count !== undefined ? `${key}[${params.count}]` : key,
   }),
   useFlashcards: () => ({
-    getComprehensiveWordStatusSync: getComprehensiveWordStatusSyncMock,
+    getComprehensiveWordStatusWithSourceSync: (word: string) => ({
+      status: getComprehensiveWordStatusSyncMock(word),
+      basis: getComprehensiveWordStatusSyncMock(word) === 'unknown' ? 'unmeasured' : 'evidence',
+    }),
     hasWordSync: hasWordSyncMock,
     addLevelStudyFlashcards: addLevelStudyFlashcardsMock,
   }),

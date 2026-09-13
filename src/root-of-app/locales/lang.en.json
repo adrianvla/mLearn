@@ -1400,7 +1400,7 @@
       "Capability": {
         "sense-recognition": "Meaning",
         "surface-recognition": "Recognize this spelling",
-        "spoken-recognition": "Spoken form",
+        "spoken-recognition": "Recognize by sound",
         "surface-reading": "Reading",
         "pronunciation-production": "Pronunciation",
         "prosodic-pattern": "Prosody",

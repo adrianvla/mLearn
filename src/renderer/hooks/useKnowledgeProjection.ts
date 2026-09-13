@@ -1,3 +1,5 @@
+import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
+import { useSettings } from '../context/SettingsContext';
 import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import type { KnowledgeProjection } from '../../shared/graph/ipc';
@@ -12,19 +14,21 @@ export interface ProjectionQuery {
 const pending = new Map<string, Promise<KnowledgeProjection>>();
 
 export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefined>) {
+  const { settings } = useSettings();
   const [projection, setProjection] = createSignal<KnowledgeProjection>();
   const [loading, setLoading] = createSignal(false);
   createEffect(() => {
     const input = query();
     const version = eventsVersion();
+    const thresholds = effectiveThresholds(settings);
     setProjection(undefined);
     if (!input?.surface) { setLoading(false); return; }
     let disposed = false;
     setLoading(true);
-    const key = JSON.stringify([input.language, input.surface, version]);
+    const key = JSON.stringify([input.language, input.surface, version, thresholds.learning, thresholds.known]);
     let request = pending.get(key);
     if (!request) {
-      request = getBridge().graph.getKnowledgeProjection(input.language, input.surface);
+      request = getBridge().graph.getKnowledgeProjection(input.language, input.surface, thresholds);
       pending.set(key, request);
       void request.finally(() => pending.delete(key)).catch(() => undefined);
     }

@@ -7,6 +7,7 @@
 .rating-matrix {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   gap: var(--spacing-2);
 }
 
@@ -21,7 +22,7 @@
 /* Expanded: the quality buttons become the column headers; the label column
    opens in front and every row below shares the same grid. */
 .rating-matrix__bar--head {
-  grid-template-columns: minmax(4.5em, 1.2fr) repeat(4, minmax(4em, 1fr)) auto;
+  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
 }
 
 .rating-matrix__quality,
@@ -49,7 +50,7 @@
 /* Rows share the head's label + four quality columns. */
 .rating-matrix__row {
   display: grid;
-  grid-template-columns: minmax(4.5em, 1.2fr) repeat(4, minmax(4em, 1fr));
+  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
   gap: var(--spacing-2);
   align-items: stretch;
 }
@@ -60,9 +61,11 @@
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   padding-right: var(--spacing-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
 }
 
 /* The All row is first-class (stronger label, hairline underneath) —
@@ -85,7 +88,7 @@
   padding: 2px var(--spacing-2);
 }
 
-/* Held draft: the chosen quality is visibly marked, nothing has submitted. */
+/* One selection treatment for manual drafts and explained knowledge. */
 .rating-matrix__cell--selected {
   outline: 2px solid var(--text-primary);
   outline-offset: -2px;
@@ -97,28 +100,30 @@
   padding: 0 0.35rem;
 }
 
-/* Subtle unfold: the matrix scales/fades out of the bar. */
 .rating-matrix__unfold {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  transform-origin: top center;
-  animation: rating-matrix-unfold 140ms ease;
 }
 
-@keyframes rating-matrix-unfold {
-  from {
-    opacity: 0;
-    transform: scaleY(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
+.rating-matrix__bar--head .rating-matrix__adjust {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-self: end;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .rating-matrix__unfold {
-    animation: none;
+@media (max-width: 480px) {
+  .rating-matrix__bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .rating-matrix__adjust {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .rating-matrix__bar--head,
+  .rating-matrix__row {
+    grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
   }
 }

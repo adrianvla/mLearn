@@ -818,11 +818,11 @@ export interface TestedAccessesInput {
 
 /**
  * Accesses THIS interaction actually tests — the single source for
- * rating-matrix rows. tested != available: a surface written entirely in the
- * reading script (もたれる) supplies the reading, so Reading is not a tested
- * row (cannot fail what was supplied), while written-form recognition is only
- * meaningful where the surface is not reading-transparent (文脈 yes,
- * さようなら no). Meaning is always tested by a word-presentation task;
+ * rating-matrix rows. A surface that supplies its reading need not test reading
+ * retrieval, but recognizing that exact spelling remains independently testable.
+ * This does not require alternate spellings or a reading-annotation feature.
+ * Callers intersect these task candidates with graph-attested capabilities.
+ * Meaning is always tested by a word-presentation task;
  * spoken recognition is never tested by a written presentation (no audio cue
  * — claim-only until a spoken task exists); gender/pronunciation-production
  * have no testing interaction yet and are excluded until one exists.
@@ -833,7 +833,7 @@ export function getTestedAccesses(input: TestedAccessesInput): readonly Capabili
   const accesses: CapabilityKind[] = ['sense-recognition'];
   if (available.includes('surface-reading') && input.hasReadingData && !surfaceSuppliesReading) accesses.push('surface-reading');
   if (available.includes('prosodic-pattern') && input.hasProsodyData) accesses.push('prosodic-pattern');
-  if (available.includes('surface-recognition') && !surfaceSuppliesReading) accesses.push('surface-recognition');
+  if (input.surface.trim()) accesses.push('surface-recognition');
   return accesses;
 }
 

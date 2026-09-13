@@ -1,59 +1,23 @@
 import type { Flashcard, FlashcardStore, PassiveWordKnowledge, IgnoredWordEntry } from '../../shared/types';
 
-/**
- * Builds a Set of language-prefixed word hashes that are Tier-2 known.
- * O(n) to build, O(1) to query.
- *
- * Known rule (mirrors effectiveKnowledge.ts exactly):
- * - wordKnowledge entries with an explicit claim === 'known' (user statement)
- * - OR entries whose ease >= threshold AND hasActiveEvidence === true
- *   (SRS review / Anki / attempt / migration evidence). Pure passive exposure
- *   never establishes Known — the ease must be backed by active evidence.
- * An explicit claim wins regardless of ease; a 'learning'/'unknown' claim
- * keeps the word out even if ease is high.
- *
- * Flashcards in 'review' state are NOT knowledge on their own: their reviews
- * are evidence events, and legacy review cards were migration-backfilled into
- * wordKnowledge — so the wordKnowledge projection decides. Cards still count
- * only when the co-located wordKnowledge entry qualifies (their reviews are
- * what made hasActiveEvidence true).
- *
- * knownUntracked is unioned only as legacy residue: stores migrated from
- * pre-Tier-2 keep orphan hashes there, and dropping them would silently
- * un-know words the user once marked. New code never writes knownUntracked —
- * claims land in wordKnowledge instead.
- *
- * ignoredWords deliberately NOT included: exclusion is teaching policy, not
- * knowledge. Use store.ignoredWords keys directly where selection needs them.
- *
- * remaining legacy params (flashcards/wordToCardMap) are accepted for caller
- * compatibility but no longer consulted — the co-located word knowledge
- * projection is the single source of truth.
- */
+import { DEFAULT_SETTINGS } from '../../shared/types';
+import { getEffectiveWordStateForKeys } from './comprehensiveKnowledge';
+
+/** Index canonical lexical state; card ownership and legacy markers are not evidence. */
 export function buildKnownWordSet(
   _flashcards: Record<string, Flashcard>,
   _wordToCardMap: Record<string, string[]>,
-  knownUntracked: Record<string, boolean>,
+  _knownUntracked: Record<string, boolean>,
   _ignoredWords: Record<string, IgnoredWordEntry>,
   wordKnowledge: Record<string, PassiveWordKnowledge>,
   knownEaseThreshold: number,
+  keysForEntry?: (key: string, entry: PassiveWordKnowledge) => readonly string[],
 ): Set<string> {
-  // Legacy residue: pre-Tier-2 stores keep orphan hashes here. Union preserves
-  // past user "known" marks; never written by new code.
-  const known = new Set<string>(Object.keys(knownUntracked).filter((key) => knownUntracked[key]));
-
-  const threshold = knownEaseThreshold / 1000;
-  for (const [lk, knowledge] of Object.entries(wordKnowledge)) {
-    // An active claim overrides the evidence classification (claim ?? evidence):
-    // only a 'known' claim admits the word; a 'learning'/'unknown' claim keeps
-    // it out even when the ease is high and evidence is active.
-    if (knowledge.claim === 'known') {
-      known.add(lk);
-    } else if (knowledge.claim !== undefined) {
-      known.delete(lk);
-    } else if (knowledge.ease >= threshold && knowledge.hasActiveEvidence === true) {
-      known.add(lk);
-    }
+  const known = new Set<string>();
+  for (const lk of Object.keys(wordKnowledge)) {
+    if (getEffectiveWordStateForKeys(keysForEntry?.(lk, wordKnowledge[lk]) ?? [lk], wordKnowledge, {
+      known: knownEaseThreshold / 1000, learning: DEFAULT_SETTINGS.easeThresholdLearning,
+    }).status === 'known') known.add(lk);
   }
 
   return known;
@@ -72,11 +36,9 @@ export function isWordKnown(
 ): boolean {
   if (knownSet.has(lk)) return true;
 
-  const knowledge = wordKnowledge[lk];
-  if (!knowledge) return false;
-  if (knowledge.claim === 'known') return true;
-  if (knowledge.claim !== undefined) return false;
-  return knowledge.ease >= knownEaseThreshold / 1000 && knowledge.hasActiveEvidence === true;
+  return getEffectiveWordStateForKeys([lk], wordKnowledge, {
+    known: knownEaseThreshold / 1000, learning: DEFAULT_SETTINGS.easeThresholdLearning,
+  }).status === 'known';
 }
 
 /**
@@ -85,6 +47,7 @@ export function isWordKnown(
 export function buildKnownWordSetFromStore(
   store: FlashcardStore,
   knownEaseThreshold: number,
+  keysForEntry?: (key: string, entry: PassiveWordKnowledge) => readonly string[],
 ): Set<string> {
   return buildKnownWordSet(
     store.flashcards,
@@ -93,6 +56,7 @@ export function buildKnownWordSetFromStore(
     store.ignoredWords,
     store.wordKnowledge,
     knownEaseThreshold,
+    keysForEntry,
   );
 }
 

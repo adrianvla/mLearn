@@ -95,6 +95,7 @@ export const LevelStudyTab: Component = () => {
       levelNames(),
       langData,
       language.getCanonicalFormForLanguage,
+      flashcards.getComprehensiveWordStatusWithSourceSync,
     );
   });
 
@@ -114,6 +115,7 @@ export const LevelStudyTab: Component = () => {
       levelNames(),
       langData,
       language.getCanonicalFormForLanguage,
+      flashcards.getComprehensiveWordStatusWithSourceSync,
     );
     return beyond != null ? { ...beyond, name: t('mlearn.LevelStudy.LevelCard.BeyondExam') } : null;
   });

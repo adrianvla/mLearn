@@ -1,3 +1,4 @@
+import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import type { CompoundAnalysis } from './morphology/compounds';
 import type { CapabilityKey, GraphDomain, GraphEntityKind, GraphRelationType, RelationCategory } from './types';
 
@@ -47,6 +48,8 @@ export interface GraphNeighborhoodCenterState {
 }
 
 export interface GraphNeighborhoodQuery {
+  /** Effective-state thresholds of the requesting renderer. */
+  thresholds?: EffectiveThresholds;
   entityId: string;
   /** Currently bounded to one hop; retained for a stable batch API. */
   depth?: 1 | 2;

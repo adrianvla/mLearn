@@ -6,6 +6,7 @@ import type { GraphMeta } from '../../shared/graph/ipc';
 const mockBridge = {
   graph: {
     getGraphMeta: vi.fn(),
+    getGraphNeighborhood: vi.fn().mockResolvedValue(null),
     lookupGraphWord: vi.fn(),
     getGraphRelated: vi.fn(),
     getGraphTargetsForSurfaces: vi.fn(),
@@ -26,6 +27,8 @@ describe('GraphContext', () => {
     await vi.waitFor(() => expect(graph?.meta().ready).toBe(true));
     await graph!.getTargetsForSurfaces([{ surface: '猫' }]);
     expect(mockBridge.graph.getGraphTargetsForSurfaces).toHaveBeenCalledWith('ja', [{ surface: '猫' }]);
+    await graph!.getNeighborhood({ entityId: 'ja:surface:x' });
+    expect(mockBridge.graph.getGraphNeighborhood).toHaveBeenCalledWith('ja', { entityId: 'ja:surface:x', thresholds: { learning: 1.55, known: 1.8 } });
     dispose();
   });
 

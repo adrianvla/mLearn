@@ -11,7 +11,7 @@ describe('categorical Inspector trajectory', () => {
       event(1, { easeAfter: 1.3 }), event(2, { easeAfter: 1.5 }),
       event(2), event(3, { kind: 'claim', toStatus: 'unknown' }), event(4, { kind: 'claim', easeAfter: undefined }),
     ], [], 'sense-recognition');
-    expect(points.map((point) => point.state)).toEqual(['unknown', 'learning', 'known', 'unknown', 'known']);
+    expect(points.map((point) => point.state)).toEqual(['unknown', 'unknown', 'known', 'unknown', 'known']);
     expect(points.map((point) => point.claim)).toEqual([false, false, false, true, false]);
   });
   it('never promotes passive exposure or scaffolded observations and strips retracted attempts', () => {
@@ -23,7 +23,7 @@ describe('categorical Inspector trajectory', () => {
     expect(points.map((point) => point.state)).toEqual(['unmeasured']);
   });
   it('normalizes real Anki factors using the shared reducer', () => {
-    expect(knowledgeTrajectoryData([event(1, { source: 'anki', easeAfter: 1500 })], [], 'sense-recognition').points[0].state).toBe('learning');
+    expect(knowledgeTrajectoryData([event(1, { source: 'anki', easeAfter: 1500 })], [], 'sense-recognition').points[0].state).toBe('unknown');
   });
   it('leaves compressed intervals unknown, then seeds exact tail from canonical archive folds', () => {
     const day = 86400000;

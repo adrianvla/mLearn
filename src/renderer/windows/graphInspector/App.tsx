@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, type Component } from 'solid-js';
+import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { assembleTargetExplanation, type TargetState } from '../../../shared/graph/explanations';
 import type { KeyArchive } from '../../../shared/knowledge/historyArchive';
@@ -81,7 +82,7 @@ export const GraphInspectorContent: Component = () => {
   const grouped = createMemo(() => Object.fromEntries(classes.map((category) => [category,
     neighborhood()?.relations.filter((relation) => relation.relationType && categoryFor(relation.relationType) === category) ?? [],
   ])) as Record<RelationCategory, NonNullable<GraphNeighborhood['relations']>>);
-  const explanation = createMemo(() => selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta, Date.now(), undefined, undefined, archive() ? [archive() as KeyArchive] : undefined) : undefined);
+  const explanation = createMemo(() => selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta, Date.now(), undefined, undefined, archive() ? [archive() as KeyArchive] : undefined, effectiveThresholds(settings)) : undefined);
 
   return <div class="graph-inspector">
     <Show when={graph.readiness() === 'pending'}><div class="graph-inspector__empty" aria-busy="true"><SkeletonText lines={4} /></div></Show>

@@ -3937,7 +3937,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('captureSuggestedFlashcard skips words marked as knownUntracked', async () => {
+  it('captureSuggestedFlashcard does not infer knowledge from an unmigrated orphan marker', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('手動既知');
@@ -3948,7 +3948,8 @@ describe('FlashcardProvider', () => {
 
     await ctx.captureSuggestedFlashcard({ word: '手動既知', level: 5 });
 
-    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    expect(ctx.getComprehensiveWordStatusWithSourceSync('手動既知').basis).toBe('unmeasured');
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(1);
     dispose();
   });
 

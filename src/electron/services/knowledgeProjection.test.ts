@@ -373,3 +373,15 @@ describe('modeling-grade latency in projected evidence', () => {
     expect(packageState?.lastDirectSuccess).toBe(555);
   });
 });
+
+it.each([
+  [1.4, 'unknown'], [2.1 - 0.000001, 'unknown'], [2.1, 'learning'],
+  [2.1 + 0.000001, 'learning'], [2.7 - 0.000001, 'learning'], [2.7, 'known'], [2.7 + 0.000001, 'known'],
+] as const)('forwards configured thresholds into target and lexical-summary state at ease %s', (ease, expected) => {
+  const result = buildKnowledgeProjection(graph, surfaceId, [
+    { t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: ease },
+  ], policy, 2, undefined, { thresholds: { learning: 2.1, known: 2.7 } });
+  const meaning = result.targets.find(target => target.targetRef.id === senseId)?.states.find(state => state.capability === 'sense-recognition');
+  expect(meaning).toMatchObject({ classification: expected, basis: 'evidence' });
+  expect(result.lexical?.sense).toEqual({ classification: expected, basis: 'evidence' });
+});

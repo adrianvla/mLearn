@@ -10,7 +10,6 @@
 import type {
   FlashcardStore,
   LanguageData,
-  PassiveWordKnowledge,
   WordFrequencyEntry,
   WordFrequencyMap,
 } from '../../shared/types';
@@ -21,7 +20,8 @@ import {
   isDisplayableFrequencyLevel,
 } from '../../shared/languageFeatures';
 import { hashWordSync } from '../services/srsAlgorithm';
-import { buildKnownWordSet, buildTrackedWordSet } from './knowledgeUtils';
+import { buildTrackedWordSet } from './knowledgeUtils';
+import { getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys, type ComprehensiveWordStatusResult } from './comprehensiveKnowledge';
 
 
 export { buildWordFrequencyMapFromLanguageData };
@@ -35,6 +35,7 @@ export interface LevelWordStats {
   known: number;
   learning: number;
   unknown: number;
+  untracked: number;
   knownPct: number;
 }
 
@@ -42,6 +43,7 @@ export interface OutsideLevelStats {
   known: number;
   learning: number;
   unknown: number;
+  untracked: number;
   total: number;
 }
 
@@ -52,6 +54,7 @@ export interface ComprehensiveWordStats {
     known: number;
     learning: number;
     unknown: number;
+    untracked: number;
     total: number;
   };
 }
@@ -79,70 +82,42 @@ function wordKey(language: string, word: string, canonicalizeWord?: Canonicalize
   return langKey(language, hashWordSync(storageWord));
 }
 
-/**
- * Pure passive exposure is familiarity, never epistemic evidence — mirrors
- * effectiveKnowledge.ts exactly: no claim, no active-evidence marker, no
- * explicit status change. Such words are Untracked, never Learning/Unknown.
- */
-export function isPurePassiveKnowledgeEntry(knowledge: PassiveWordKnowledge): boolean {
-  return knowledge.claim === undefined
-    && knowledge.hasActiveEvidence !== true
-    && knowledge.lastStatusChange === undefined;
-}
+export type ResolveLearnerState = (word: string, language: string) => ComprehensiveWordStatusResult;
 
-/**
- * Build a Set of language-prefixed hashes whose knowledge entries carry only
- * passive familiarity (seen/hovered, no active evidence, no claim, no explicit
- * status change). The untracked buckets count these as untracked even though
- * buildTrackedWordSet includes every wordKnowledge key.
- */
-export function buildPassiveOnlyWordSet(store: FlashcardStore): Set<string> {
-  const passiveOnly = new Set<string>();
-  for (const [lk, knowledge] of Object.entries(store.wordKnowledge)) {
-    if (isPurePassiveKnowledgeEntry(knowledge)) passiveOnly.add(lk);
-  }
-  return passiveOnly;
-}
-
-/**
- * Build a Set of word hashes that are considered "learning".
- *
- * A word is learning if:
- * - It has flashcards in 'learning' or 'relearning' state
- * - OR its resolved effective state is 'learning' (mirrors
- *   effectiveKnowledge.effectiveStateFromEntry: an explicit claim decides the
- *   classification — only a 'learning' claim admits the word; without a claim,
- *   ACTIVE evidence ease classifies, with the known band gated on
- *   hasActiveEvidence. Pure passive exposure is untracked, never learning)
- * - OR it exists as a word candidate (auto-tracked for potential flashcards)
- */
-export function buildLearningWordSet(
+/** Materialized-key index, resolved by the same API as Reader and Word Sync. */
+function buildStateSets(
   store: FlashcardStore,
-  learningThreshold: number,
+  wordFrequency: WordFrequencyMap,
+  language: string,
   knownThreshold: number,
-): Set<string> {
+  learningThreshold: number,
+  canonicalizeWord?: CanonicalizeWordForLanguage,
+  resolveState?: ResolveLearnerState,
+) {
+  const known = new Set<string>();
   const learning = new Set<string>();
-  const knownEase = knownThreshold / 1000;
-  const learningEase = learningThreshold / 1000;
-
-  // Knowledge-derived learning — the canonical effective-state rule (no raw
-  // ease band inference): a claim decides ('learning' admits the word;
-  // 'known'/'unknown' claims keep it out), otherwise ACTIVE evidence ease
-  // classifies with the known band gated on hasActiveEvidence. Pure passive
-  // entries (familiarity only) never land here — they are untracked (REQ13).
-  for (const [lk, knowledge] of Object.entries(store.wordKnowledge)) {
-    if (knowledge.claim !== undefined) {
-      if (knowledge.claim === 'learning') learning.add(lk);
-    } else if (
-      !isPurePassiveKnowledgeEntry(knowledge)
-      && knowledge.ease >= learningEase
-      && (knowledge.ease < knownEase || knowledge.hasActiveEvidence !== true)
-    ) {
-      learning.add(lk);
-    }
+  const measured = new Set<string>();
+  const add = (key: string, state: ComprehensiveWordStatusResult) => {
+    known.delete(key);
+    learning.delete(key);
+    measured.delete(key);
+    if (state.basis !== 'unmeasured') measured.add(key);
+    if (state.status === 'known') known.add(key);
+    if (state.status === 'learning') learning.add(key);
+  };
+  const resolve = resolveState ?? ((word: string) => getComprehensiveWordStatusWithSource(word, {
+    getCanonicalForm: value => canonicalizeWord?.(language, value) ?? value,
+    hashWordSync, langKey, language, wordKnowledge: store.wordKnowledge, ignoredWords: store.ignoredWords,
+    knownEaseThreshold: knownThreshold / 1000, learningThreshold: learningThreshold / 1000,
+  }));
+  for (const key of buildTrackedWordSet(store, language)) {
+    const word = store.wordKnowledge[key]?.word;
+    add(key, word && resolveState ? resolve(word, language) : getEffectiveWordStateForKeys([key], store.wordKnowledge, {
+      known: knownThreshold / 1000, learning: learningThreshold / 1000,
+    }));
   }
-
-  return learning;
+  for (const word of Object.keys(wordFrequency)) add(wordKey(language, word, canonicalizeWord), resolve(word, language));
+  return { known, learning, measured };
 }
 
 /**
@@ -162,23 +137,9 @@ function buildFrequencyHashSet(
 
 export type WordLevelStatus = 'known' | 'learning' | 'unknown' | 'untracked';
 
-export function getWordLevelStatus(
-  word: string,
-  language: string,
-  knownSet: Set<string>,
-  learningSet: Set<string>,
-  trackedSet: Set<string>,
-  canonicalizeWord?: CanonicalizeWordForLanguage,
-  passiveOnlySet?: ReadonlySet<string>,
-): WordLevelStatus {
-  const lk = wordKey(language, word, canonicalizeWord);
-
-  if (knownSet.has(lk)) return 'known';
-  if (learningSet.has(lk)) return 'learning';
-  // Pure passive familiarity is untracked even though every wordKnowledge key
-  // is "tracked" — exposure alone is not an epistemic measurement (REQ13).
-  if (trackedSet.has(lk) && !passiveOnlySet?.has(lk)) return 'unknown';
-  return 'untracked';
+/** Untracked is the existing filter label for canonical Unmeasured. */
+export function getWordLevelStatus(state: Pick<ComprehensiveWordStatusResult, 'status' | 'basis'>): WordLevelStatus {
+  return state.basis === 'unmeasured' ? 'untracked' : state.status;
 }
 
 function roundPct(count: number, total: number): number {
@@ -274,21 +235,14 @@ export function computeLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  resolveState?: ResolveLearnerState,
 ): LevelStats[] {
   const levelBuckets = buildLevelBuckets(wordFrequency, levelNames, languageData);
   if (levelBuckets.size === 0) return [];
 
-  const knownSet = buildKnownWordSet(
-    store.flashcards,
-    store.wordToCardMap,
-    store.knownUntracked,
-    store.ignoredWords,
-    store.wordKnowledge,
-    knownThreshold,
+  const { known: knownSet, learning: learningSet, measured: measuredSet } = buildStateSets(
+    store, wordFrequency, language, knownThreshold, learningThreshold, canonicalizeWord, resolveState,
   );
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
-  const trackedSet = buildTrackedWordSet(store, language);
-  const passiveOnlySet = buildPassiveOnlyWordSet(store);
 
   return [...levelBuckets.entries()]
     .sort(([a], [b]) => compareFrequencyLevelsForDisplay(a, b, languageData))
@@ -304,9 +258,7 @@ export function computeLevelStats(
           known++;
         } else if (learningSet.has(lk)) {
           learning++;
-        } else if (trackedSet.has(lk) && !passiveOnlySet.has(lk)) {
-          // Tracked via the wordKnowledge scan, but the entry carries only
-          // passive familiarity — it counts as untracked (REQ13).
+        } else if (measuredSet.has(lk)) {
           unknown++;
         }
       }
@@ -349,25 +301,19 @@ export function computeWordLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  resolveState?: ResolveLearnerState,
 ): ComprehensiveWordStats {
-  const knownSet = buildKnownWordSet(
-    store.flashcards,
-    store.wordToCardMap,
-    store.knownUntracked,
-    store.ignoredWords,
-    store.wordKnowledge,
-    knownThreshold,
+  const { known: knownSet, learning: learningSet, measured: measuredSet } = buildStateSets(
+    store, wordFrequency, language, knownThreshold, learningThreshold, canonicalizeWord, resolveState,
   );
-
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
   const freqHashSet = buildFrequencyHashSet(wordFrequency, language, canonicalizeWord);
 
   // Bucket frequency words by level
-  const levelBuckets = new Map<number, { total: number; known: number; learning: number; unknown: number }>();
+  const levelBuckets = new Map<number, { total: number; known: number; learning: number; unknown: number; untracked: number }>();
   const sortedLevels = getSortedFrequencyLevels(wordFrequency, levelNames, languageData);
 
   for (const level of sortedLevels) {
-    levelBuckets.set(level, { total: 0, known: 0, learning: 0, unknown: 0 });
+    levelBuckets.set(level, { total: 0, known: 0, learning: 0, unknown: 0, untracked: 0 });
   }
 
   for (const [word, entry] of Object.entries(wordFrequency)) {
@@ -380,13 +326,15 @@ export function computeWordLevelStats(
       bucket.known++;
     } else if (learningSet.has(lk)) {
       bucket.learning++;
-    } else {
+    } else if (measuredSet.has(lk)) {
       bucket.unknown++;
+    } else {
+      bucket.untracked++;
     }
   }
 
   const byLevel: LevelWordStats[] = sortedLevels.map((level) => {
-    const b = levelBuckets.get(level) ?? { total: 0, known: 0, learning: 0, unknown: 0 };
+    const b = levelBuckets.get(level) ?? { total: 0, known: 0, learning: 0, unknown: 0, untracked: 0 };
     return {
       level,
       name: getFrequencyLevelLabel(level, levelNames, languageData),
@@ -394,12 +342,13 @@ export function computeWordLevelStats(
       known: b.known,
       learning: b.learning,
       unknown: b.unknown,
+      untracked: b.untracked,
       knownPct: b.total > 0 ? Math.round((b.known / b.total) * 100) : 0,
     };
   });
 
   // Outside levels: tracked words not in the frequency list
-  const outside: OutsideLevelStats = { known: 0, learning: 0, unknown: 0, total: 0 };
+  const outside: OutsideLevelStats = { known: 0, learning: 0, unknown: 0, untracked: 0, total: 0 };
   const allTracked = buildTrackedWordSet(store, language);
 
   for (const lk of allTracked) {
@@ -409,8 +358,10 @@ export function computeWordLevelStats(
       outside.known++;
     } else if (learningSet.has(lk)) {
       outside.learning++;
-    } else {
+    } else if (measuredSet.has(lk)) {
       outside.unknown++;
+    } else {
+      outside.untracked++;
     }
   }
 
@@ -420,14 +371,16 @@ export function computeWordLevelStats(
     allEncountered.add(lk);
   }
 
-  const allStats = { known: 0, learning: 0, unknown: 0, total: allEncountered.size };
+  const allStats = { known: 0, learning: 0, unknown: 0, untracked: 0, total: allEncountered.size };
   for (const lk of allEncountered) {
     if (knownSet.has(lk)) {
       allStats.known++;
     } else if (learningSet.has(lk)) {
       allStats.learning++;
-    } else {
+    } else if (measuredSet.has(lk)) {
       allStats.unknown++;
+    } else {
+      allStats.untracked++;
     }
   }
 
@@ -454,18 +407,11 @@ export function computeBeyondExamLevelStats(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  resolveState?: ResolveLearnerState,
 ): LevelStats | null {
-  const knownSet = buildKnownWordSet(
-    store.flashcards,
-    store.wordToCardMap,
-    store.knownUntracked,
-    store.ignoredWords,
-    store.wordKnowledge,
-    knownThreshold,
+  const { known: knownSet, learning: learningSet, measured: measuredSet } = buildStateSets(
+    store, wordFrequency, language, knownThreshold, learningThreshold, canonicalizeWord, resolveState,
   );
-  const learningSet = buildLearningWordSet(store, learningThreshold, knownThreshold);
-  const trackedSet = buildTrackedWordSet(store, language);
-  const passiveOnlySet = buildPassiveOnlyWordSet(store);
 
   let known = 0;
   let learning = 0;
@@ -482,9 +428,7 @@ export function computeBeyondExamLevelStats(
       known++;
     } else if (learningSet.has(lk)) {
       learning++;
-    } else if (trackedSet.has(lk) && !passiveOnlySet.has(lk)) {
-      // Tracked via the wordKnowledge scan, but the entry carries only passive
-      // familiarity — it counts as untracked (REQ13).
+    } else if (measuredSet.has(lk)) {
       unknown++;
     } else {
       untracked++;
@@ -520,14 +464,10 @@ export function computeLevelCoverage(
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
+  resolveState?: ResolveLearnerState,
 ): Array<{ level: number; name: string; total: number; known: number; pct: number }> {
-  const knownSet = buildKnownWordSet(
-    store.flashcards,
-    store.wordToCardMap,
-    store.knownUntracked,
-    store.ignoredWords,
-    store.wordKnowledge,
-    knownThreshold,
+  const { known: knownSet } = buildStateSets(
+    store, wordFrequency, language, knownThreshold, knownThreshold, canonicalizeWord, resolveState,
   );
 
   const levelTotals = new Map<number, number>();

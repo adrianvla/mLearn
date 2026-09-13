@@ -306,23 +306,23 @@ describe('THIRTY_DAYS_MS', () => {
 
 describe('wordSyncPoolStatus', () => {
   it('maps resolver learning to the Learning status string', () => {
-    expect(wordSyncPoolStatus('learning', true)).toBe(String(WORD_STATUS.LEARNING));
-    expect(wordSyncPoolStatus('learning', true)).toBe('1');
+    expect(wordSyncPoolStatus('learning', 'evidence')).toBe(String(WORD_STATUS.LEARNING));
+    expect(wordSyncPoolStatus('learning', 'evidence')).toBe('1');
   });
 
   it('maps resolver unknown with a knowledge record to the Unknown status string', () => {
-    expect(wordSyncPoolStatus('unknown', true)).toBe(String(WORD_STATUS.UNKNOWN));
-    expect(wordSyncPoolStatus('unknown', true)).toBe('0');
+    expect(wordSyncPoolStatus('unknown', 'evidence')).toBe(String(WORD_STATUS.UNKNOWN));
+    expect(wordSyncPoolStatus('unknown', 'evidence')).toBe('0');
   });
 
   it('maps resolver unknown without a knowledge record to untracked', () => {
-    expect(wordSyncPoolStatus('unknown', false)).toBe(WORD_SYNC_STATUS_UNTRACKED);
-    expect(wordSyncPoolStatus('unknown', false)).toBe('untracked');
+    expect(wordSyncPoolStatus('unknown', 'unmeasured')).toBe(WORD_SYNC_STATUS_UNTRACKED);
+    expect(wordSyncPoolStatus('unknown', 'unmeasured')).toBe('untracked');
   });
 
   it('never collapses Learning into Unknown (guards an "anything not known is unknown" regression)', () => {
-    expect(wordSyncPoolStatus('learning', true)).not.toBe(wordSyncPoolStatus('unknown', true));
-    expect(wordSyncPoolStatus('learning', false)).not.toBe(wordSyncPoolStatus('unknown', true));
+    expect(wordSyncPoolStatus('learning', 'evidence')).not.toBe(wordSyncPoolStatus('unknown', 'evidence'));
+    expect(wordSyncPoolStatus('learning', 'claim')).not.toBe(wordSyncPoolStatus('unknown', 'evidence'));
   });
 });
 
@@ -372,9 +372,9 @@ describe('written-form bridge selection', () => {
   });
 
   it('wordSyncPoolStatus reports known bridge words as known', () => {
-    expect(wordSyncPoolStatus('known', true)).toBe(String(WORD_STATUS.KNOWN));
-    expect(wordSyncPoolStatus('learning', true)).toBe(String(WORD_STATUS.LEARNING));
-    expect(wordSyncPoolStatus('unknown', false)).toBe(WORD_SYNC_STATUS_UNTRACKED);
+    expect(wordSyncPoolStatus('known', 'evidence')).toBe(String(WORD_STATUS.KNOWN));
+    expect(wordSyncPoolStatus('learning', 'evidence')).toBe(String(WORD_STATUS.LEARNING));
+    expect(wordSyncPoolStatus('unknown', 'unmeasured')).toBe(WORD_SYNC_STATUS_UNTRACKED);
   });
 
   it('bridge candidates get a selection weight boost; it is policy, not knowledge', () => {

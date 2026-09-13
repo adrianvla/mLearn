@@ -6,6 +6,7 @@ import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
 import type { GraphRelatedNode, GraphWordLookup, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
 import type { CapabilityKey, GraphRelationType } from '../../../../shared/graph/types';
 import type { WordStatus } from '../../../../shared/constants';
+import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { RatedCapability } from '../../../utils/accessKnowledge';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
@@ -281,7 +282,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     let disposed = false;
     setRelationsState('loading');
     const request = props.language
-      ? getBridge().graph.getGraphNeighborhood(props.language, { entityId: target, depth: 1 })
+      ? getBridge().graph.getGraphNeighborhood(props.language, { entityId: target, depth: 1, thresholds: effectiveThresholds(settings) })
       : graph.getNeighborhood({ entityId: target, depth: 1 });
     void request.then((next) => {
       if (disposed) return;

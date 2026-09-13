@@ -1,3 +1,4 @@
+import type { EffectiveThresholds } from './knowledge/effectiveKnowledge';
 /**
  * Global Type Declarations
  * Extends Window interface with mLearn IPC API
@@ -96,7 +97,7 @@ export interface MLearnIPC {
   getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
   getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
   getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery) => Promise<GraphNeighborhood | null>;
-  getKnowledgeProjection: (language: string, surface: string) => Promise<KnowledgeProjection>;
+  getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds) => Promise<KnowledgeProjection>;
   
   // Localization
   getLocalization: () => void;

@@ -13,7 +13,7 @@ import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/c
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
 import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
-import { effectiveStateFromEntry, type EffectiveWordState } from '../utils/effectiveKnowledge';
+import { evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
 import type { CapabilityKind } from '../../shared/graph/types';
 import { isAccessMeasurable } from '../../shared/knowledgeEvents';
@@ -41,7 +41,7 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
-import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
+import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
 import { appendEvents, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
@@ -1806,6 +1806,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     return buildKnownWordSetFromStore(
       store,
       settings.easeThresholdKnown * 1000,
+      (key, entry) => {
+        const language = entry.language ?? key.split(':')[0];
+        return [...new Set([key, ...getWordFormsForLanguage(entry.word, language)
+          .map(form => langKey(language, SRS.hashWordSync(form)))])];
+      },
     );
   });
   /** Teaching-policy exclusions (ignoredWords): never select/teach/test these. */
@@ -2242,7 +2247,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   /** Passive rows classify by the same anchors as the resolver; source stays passiveTracking so replay never marks lastStatusChange. */
   const passiveEaseToStatus = (ease: number): WordStatus =>
-    ease >= passiveKnownEaseThreshold() ? 'known' : ease >= passiveLearningEaseThreshold() ? 'learning' : 'unknown';
+    evidenceStatusFromEase(ease, effectiveThresholds(settings));
 
   const shouldGarbageCollectSuggestion = (suggestion: SuggestedFlashcard): boolean => (
     getAccessStatusSync(suggestion.word, 'sense-recognition', comprehensiveDeps(suggestion.language)).status === 'known'
@@ -2986,11 +2991,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   // a claim decides, ACTIVE evidence classifies through the ease bands, and
   // pure passive familiarity is never Known/Learning (REQ13 — no independent
   // raw-ease arithmetic here).
-  const effectiveWordState = (lk: string): EffectiveWordState =>
-    effectiveStateFromEntry(store.wordKnowledge[lk], {
-      learning: settings.srsLearningThreshold / 1000,
-      known: settings.known_ease_threshold / 1000,
-    });
+  const effectiveWordState = (lk: string) => {
+    const entry = store.wordKnowledge[lk];
+    return entry?.word
+      ? getComprehensiveWordStatusWithSourceSync(entry.word, entry.language ?? lk.split(':')[0])
+      : getEffectiveWordStateForKeys([lk], store.wordKnowledge, {
+        learning: passiveLearningEaseThreshold(), known: passiveKnownEaseThreshold(),
+      });
+  };
 
   const isWordKnown = (wordHash: string): boolean => {
     const lk = wordHash.includes(':') ? wordHash : langKey(settings.language, wordHash);
@@ -3003,34 +3011,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   // Convenience: check if word is known by raw word text (sync hash)
-  const isWordKnownByText = (word: string, language = settings.language): boolean => {
-    for (const form of getWordFormsForLanguage(word, language)) {
-      const wordHash = SRS.hashWordSync(form);
-      if (isWordKnown(langKey(language, wordHash))) {
-        return true;
-      }
-    }
-    return false;
-  };
+  const isWordKnownByText = (word: string, language = settings.language): boolean =>
+    getComprehensiveWordStatusWithSourceSync(word, language).status === 'known';
 
-  // Convenience: check if word is learning by raw word text (sync hash)
-  const isWordLearningByText = (word: string, language = settings.language): boolean => {
-    for (const form of getWordFormsForLanguage(word, language)) {
-      const wordHash = SRS.hashWordSync(form);
-      if (isWordLearning(langKey(language, wordHash))) {
-        return true;
-      }
-    }
-    return false;
-  };
+  const isWordLearningByText = (word: string, language = settings.language): boolean =>
+    getComprehensiveWordStatusWithSourceSync(word, language).status === 'learning';
 
-  const passiveLearningEaseThreshold = (): number => (
-    settings.easeThresholdLearning ?? ((settings.srsLearningThreshold ?? DEFAULT_SETTINGS.srsLearningThreshold) / 1000)
-  );
-
-  const passiveKnownEaseThreshold = (): number => (
-    settings.easeThresholdKnown ?? ((settings.known_ease_threshold ?? DEFAULT_SETTINGS.known_ease_threshold) / 1000)
-  );
+  const passiveLearningEaseThreshold = (): number => effectiveThresholds(settings).learning;
+  const passiveKnownEaseThreshold = (): number => effectiveThresholds(settings).known;
 
   const comprehensiveDeps = (language: string): Parameters<typeof getComprehensiveWordStatusWithSource>[1] => ({
     getCanonicalForm: (value: string) => getPrimaryWordFormForLanguage(value, language),
@@ -3482,8 +3470,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           const source = projected.evidenceSource;
           const record: NonNullable<PassiveWordKnowledge['access']>[string] = {
             ...existing?.access?.[capability],
-            status: projected.ease >= settings.easeThresholdKnown ? 'known'
-              : projected.ease >= settings.easeThresholdLearning ? 'learning' : 'unknown',
+            status: evidenceStatusFromEase(projected.ease, {
+              known: passiveKnownEaseThreshold(), learning: passiveLearningEaseThreshold(),
+            }),
             ease: projected.ease,
             source: source === 'manual' || source === 'srs' || source === 'anki' || source === 'passiveTracking'
               || source === 'knownWordsList' || source === 'ignoredWords' ? aspectSourceToDisplay(source) : 'None',

@@ -1400,7 +1400,7 @@
       "Capability": {
         "sense-recognition": "意思",
         "surface-recognition": "识别此书写形式",
-        "spoken-recognition": "读音",
+        "spoken-recognition": "听音识别",
         "surface-reading": "拼读",
         "pronunciation-production": "发音",
         "prosodic-pattern": "声调",

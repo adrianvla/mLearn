@@ -1,3 +1,5 @@
+import { getComprehensiveWordStatusWithSource } from '../../utils/comprehensiveKnowledge';
+import type { PassiveWordKnowledge } from '../../../shared/types';
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,6 +48,11 @@ vi.mock('../../context', () => ({
   useFlashcards: () => ({
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     store: storeMock,
+    getComprehensiveWordStatusWithSourceSync: (word: string, language: string) => getComprehensiveWordStatusWithSource(word, {
+      getCanonicalForm: value => value, hashWordSync, langKey: (lang, hash) => `${lang}:${hash}`,
+      language, ignoredWords: {}, wordKnowledge: storeMock.wordKnowledge as Record<string, PassiveWordKnowledge>,
+      knownEaseThreshold: 3.5, learningThreshold: 1.5,
+    }),
     isLoading: () => flashcardsLoading(),
     addLevelStudyFlashcards: addLevelStudyFlashcardsMock,
   }),

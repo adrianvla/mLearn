@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { RatingMatrix } from './RatingMatrix';
+import type { WordStatus } from '../../../../shared/constants';
 import type { CapabilityKey } from '../../../../shared/graph/types';
 
 const mockT = (key: string): string => key;
@@ -64,6 +65,43 @@ describe('RatingMatrix (canonical rating control)', () => {
     dispose?.();
     dispose = null;
     container.remove();
+  });
+
+  it('selects claim qualities in the same buttons, including sound recognition, and clears on undo', () => {
+    const [claims, setClaims] = createSignal<Partial<Record<CapabilityKey, WordStatus>>>({});
+    dispose = render(() => <RatingMatrix capabilities={CAPABILITIES} keyboardMode="mnemonic" armed
+      claims={claims()} onSubmit={onSubmit} />, container);
+    adjust();
+    key('1'); key('p');
+    setClaims({ 'prosodic-pattern': 'known', 'spoken-recognition': 'learning', 'surface-recognition': 'unknown' });
+    const selected = () => Array.from(container.querySelectorAll('[aria-pressed="true"]')).map(b => b.getAttribute('aria-label'));
+    expect(selected()).toEqual([
+      'mlearn.Knowledge.Capability.prosodic-pattern: mlearn.Rating.Matrix.Fluent',
+      'mlearn.Knowledge.Capability.surface-recognition: mlearn.Rating.Matrix.Missed',
+      'mlearn.Knowledge.Capability.spoken-recognition: mlearn.Rating.Matrix.Struggled',
+    ]);
+    expect(container.querySelector('.rating-matrix__claim')).toBeNull();
+    setClaims({});
+    expect(selected()).toEqual([]);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('selects the whole tested profile from a word claim, with specific exceptions and explicit Easy override', () => {
+    const [wordClaim, setWordClaim] = createSignal<WordStatus | null>('known');
+    const [claims, setClaims] = createSignal<Partial<Record<CapabilityKey, WordStatus>>>({});
+    dispose = render(() => <RatingMatrix capabilities={CAPABILITIES} keyboardMode="mnemonic" armed
+      wordClaim={wordClaim()} claims={claims()} onSubmit={onSubmit} />, container);
+    adjust();
+    expect(container.querySelectorAll('[aria-pressed="true"]')).toHaveLength(5);
+    expect(rows()[0].querySelectorAll('[aria-pressed="true"]')).toHaveLength(1);
+    setClaims({ 'surface-recognition': 'unknown' });
+    expect(rows()[0].querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
+    key('4'); key('p');
+    expect(rows()[3].querySelectorAll('button')[3].getAttribute('aria-pressed')).toBe('true');
+    expect(onSubmit).not.toHaveBeenCalled();
+    setWordClaim(null);
+    setClaims({});
+    expect(container.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
   });
 
   it('collapsed digits rate the whole word exactly once; strays are absorbed', () => {

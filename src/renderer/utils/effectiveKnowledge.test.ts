@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveStateFromEntry, evidenceStatusFromEase } from './effectiveKnowledge';
-import type { PassiveWordKnowledge } from '../../shared/types';
+import { effectiveStateFromEntry, evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
+import { DEFAULT_SETTINGS, type PassiveWordKnowledge } from '../../shared/types';
 
 const thresholds = { learning: 1.55, known: 1.8 };
 
@@ -77,5 +77,16 @@ describe('evidenceStatusFromEase', () => {
     expect(evidenceStatusFromEase(1.55, thresholds)).toBe('learning');
     expect(evidenceStatusFromEase(1.3, thresholds)).toBe('unknown');
     expect(evidenceStatusFromEase(undefined, thresholds)).toBe('unknown');
+  });
+});
+
+describe('effectiveThresholds', () => {
+  it('preserves defaults and both migrated setting fallbacks', () => {
+    expect(effectiveThresholds()).toEqual({ learning: DEFAULT_SETTINGS.easeThresholdLearning, known: DEFAULT_SETTINGS.easeThresholdKnown });
+    expect(effectiveThresholds({})).toEqual(effectiveThresholds());
+    expect(effectiveThresholds({ srsLearningThreshold: 2100, known_ease_threshold: 2700 })).toEqual({ learning: 2.1, known: 2.7 });
+  });
+  it('prefers configured effective thresholds over scheduling thresholds', () => {
+    expect(effectiveThresholds({ easeThresholdLearning: 1.7, easeThresholdKnown: 2.2, srsLearningThreshold: 2100, known_ease_threshold: 2700 })).toEqual({ learning: 1.7, known: 2.2 });
   });
 });

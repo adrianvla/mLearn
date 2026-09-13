@@ -1400,7 +1400,7 @@
       "Capability": {
         "sense-recognition": "Sens",
         "surface-recognition": "Reconnaître cette forme écrite",
-        "spoken-recognition": "Forme orale",
+        "spoken-recognition": "Reconnaître à l’écoute",
         "surface-reading": "Lecture",
         "pronunciation-production": "Prononciation",
         "prosodic-pattern": "Prosodie",

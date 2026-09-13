@@ -19,13 +19,13 @@ describe('electron graph bridge', () => {
     await graph.getGraphRelated('ja', 'ja:surface:x', ['realizes']);
     await graph.getGraphTargetsForSurfaces('ja', [{ surface: '猫' }]);
     await graph.getGraphNeighborhood('ja', { entityId: 'ja:surface:x' });
-    await graph.getKnowledgeProjection('ja', '猫');
+    await graph.getKnowledgeProjection('ja', '猫', { learning: 1.7, known: 2.2 });
 
     expect(ipc.getGraphMeta).toHaveBeenCalledWith('ja');
     expect(ipc.lookupGraphWord).toHaveBeenCalledWith('ja', { surface: '猫' });
     expect(ipc.getGraphRelated).toHaveBeenCalledWith('ja', 'ja:surface:x', ['realizes']);
     expect(ipc.getGraphTargetsForSurfaces).toHaveBeenCalledWith('ja', [{ surface: '猫' }]);
     expect(ipc.getGraphNeighborhood).toHaveBeenCalledWith('ja', { entityId: 'ja:surface:x' });
-    expect(ipc.getKnowledgeProjection).toHaveBeenCalledWith('ja', '猫');
+    expect(ipc.getKnowledgeProjection).toHaveBeenCalledWith('ja', '猫', { learning: 1.7, known: 2.2 });
   });
 });
