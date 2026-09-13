@@ -43,7 +43,6 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   wordKnowledge: {},
   grammarKnowledge: {},
   suggestedFlashcards: {},
-  wordSyncSeen: {},
   meta: {
     perLanguage: {},
     maxNewCardsPerDay: 10,
@@ -426,7 +425,7 @@ interface ZhMigrationReport {
   timestamp: string;
   migratedKeyCounts: Record<string, number>;
   collisionCounts: Record<string, number>;
-  orphanCounts: { knownUntracked: number; wordSyncSeen: number };
+  orphanCounts: { knownUntracked: number; };
   loserSnapshots: Array<{ survivorId: string; loser: Flashcard; oldMapKeys: string[] }>;
 }
 
@@ -448,7 +447,6 @@ function containsLegacyZhData(store: FlashcardStore): boolean {
     store.knownUntracked,
     store.ignoredWords,
     store.suggestedFlashcards,
-    store.wordSyncSeen,
     store.grammarKnowledge,
   ];
   return Object.values(store.flashcards).some(card => legacyZhSource('', card.language) !== undefined)
@@ -546,7 +544,7 @@ function migrateV2ToV3(store: FlashcardStore, metadata: LanguageData, backupPath
     timestamp: new Date().toISOString(),
     migratedKeyCounts: {},
     collisionCounts: {},
-    orphanCounts: { knownUntracked: 0, wordSyncSeen: 0 },
+    orphanCounts: { knownUntracked: 0, },
     loserSnapshots: [],
   };
   const count = (map: string) => { report.migratedKeyCounts[map] = (report.migratedKeyCounts[map] ?? 0) + 1; };
@@ -606,7 +604,7 @@ function migrateV2ToV3(store: FlashcardStore, metadata: LanguageData, backupPath
   const grammarKnowledge = migrateKeyed(store.grammarKnowledge, 'grammarKnowledge', entry => entry.pattern, entry => ({ ...entry, language: 'zh' }), (a, b): GrammarKnowledgeEntry => ({ ...((a.lastSeen >= b.lastSeen) ? a : b), ease: Math.max(a.ease, b.ease), timesEncountered: a.timesEncountered + b.timesEncountered, timesFailed: a.timesFailed + b.timesFailed, lastSeen: Math.max(a.lastSeen, b.lastSeen), language: 'zh' }));
 
   const corpus = collectZhCorpus(store, metadata);
-  const migrateInverted = <T>(map: Record<string, T>, name: 'knownUntracked' | 'wordSyncSeen', merge: (a: T, b: T) => T): Record<string, T> => {
+  const migrateInverted = <T>(map: Record<string, T>, name: 'knownUntracked', merge: (a: T, b: T) => T): Record<string, T> => {
     const result: Record<string, T> = {};
     for (const [key, value] of Object.entries(map)) {
       if (!isLegacyZhKey(key)) {
@@ -622,7 +620,6 @@ function migrateV2ToV3(store: FlashcardStore, metadata: LanguageData, backupPath
     return result;
   };
   const knownUntracked = migrateInverted(store.knownUntracked, 'knownUntracked', (a, b) => Boolean(a || b));
-  const wordSyncSeen = migrateInverted(store.wordSyncSeen, 'wordSyncSeen', (a, b) => Math.max(a, b));
 
   const meta = { ...store.meta, perLanguage: { ...store.meta.perLanguage } };
   const hansMeta = meta.perLanguage['zh-Hans'];
@@ -663,7 +660,7 @@ function migrateV2ToV3(store: FlashcardStore, metadata: LanguageData, backupPath
   const wordStatsMap: Record<string, WordStats> = {};
   for (const [key, ids] of Object.entries(wordToCardMap)) wordStatsMap[key] = calculateWordStats(ids.map(id => flashcards[id]).filter((card): card is Flashcard => Boolean(card)));
 
-  const migrated: FlashcardStore = { ...store, flashcards, wordToCardMap, wordStatsMap, wordKnowledge, wordCandidates, knownUntracked, ignoredWords, suggestedFlashcards, wordSyncSeen, grammarKnowledge, meta, dailyStats, version: CURRENT_VERSION };
+  const migrated: FlashcardStore = { ...store, flashcards, wordToCardMap, wordStatsMap, wordKnowledge, wordCandidates, knownUntracked, ignoredWords, suggestedFlashcards, grammarKnowledge, meta, dailyStats, version: CURRENT_VERSION };
   fs.writeFileSync(path.join(path.dirname(backupPath), 'flashcards.zh-variant-merge-report.json'), JSON.stringify(report, null, 2));
   migrationInfo = { occurred: true, backupPath, fromVersion: 2 };
   return migrated;
@@ -811,7 +808,6 @@ function migrateV1ToV2(store: V1FlashcardStore, backupPath: string): FlashcardSt
     wordKnowledge: {},
     grammarKnowledge: {},
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     meta,
     dailyStats: {},
     version: 5,
@@ -912,7 +908,7 @@ function deriveRecordKey(
  *
  * Source-backed records (cards, word knowledge, ignores, candidates,
  * suggestions — all carry a raw word) rebuild under v2 keys. Key-only records
- * (wordSyncSeen, knownUntracked, knowledge/ignore rows without a raw word)
+ * (knownUntracked, knowledge/ignore rows without a raw word)
  * are NOT recoverable and keep their legacy keys verbatim; reads salvage them
  * lazily via legacyCasingCandidates when a raw surface becomes available.
  * Future versions (stored > current) are never downgraded. Idempotent: the
@@ -1085,7 +1081,7 @@ function rebuildKeyedRecordsForNormalization(store: FlashcardStore): FlashcardSt
     ignoredWords,
     wordCandidates,
     suggestedFlashcards,
-    // wordSyncSeen / knownUntracked / grammarKnowledge: key-only or
+    // knownUntracked / grammarKnowledge: key-only or
     // pattern-addressed — preserved verbatim in their legacy namespace.
     meta: { ...store.meta, normalizationVersion: CURRENT_NORMALIZATION_VERSION },
   };
@@ -1125,7 +1121,6 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     wordKnowledge: fc_to_check.wordKnowledge || {},
     grammarKnowledge: fc_to_check.grammarKnowledge || {},
     suggestedFlashcards: fc_to_check.suggestedFlashcards || {},
-    wordSyncSeen: fc_to_check.wordSyncSeen || {},
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
     version: fc_to_check.version < CURRENT_VERSION ? CURRENT_VERSION : fc_to_check.version,

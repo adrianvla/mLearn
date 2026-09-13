@@ -52,7 +52,6 @@ export {
   statusResolver,
   levelResolver,
   sourceResolver,
-  recencyResolver,
 } from './presets';
 
 import './FilterBuilder.css';

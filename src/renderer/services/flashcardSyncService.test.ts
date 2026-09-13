@@ -71,7 +71,6 @@ function makeEmptyStore(): FlashcardStore {
     dailyStats: {},
     version: 4,
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     meta: {
       perLanguage: {},
       newCardsToday: 0,

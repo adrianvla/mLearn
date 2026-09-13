@@ -6,7 +6,7 @@ import type { JSX } from 'solid-js';
 
 const getFreqLevelNamesMock = vi.fn((): Record<string, string> => ({}));
 const localizationMock = vi.fn((key: string, _params?: Record<string, number | string>) => key);
-const getComprehensiveWordStatusSyncMock = vi.fn((_word: string) => 'unknown');
+const getComprehensiveWordStatusSyncMock = vi.fn((_word: string, _language?: string) => 'unknown');
 let currentLangDataMock: Record<string, unknown> = {};
 let flashcardStoreMock: {
   wordKnowledge: Record<string, {
@@ -731,4 +731,18 @@ describe('CharacterGridContent', () => {
 
     dispose();
   });
+});
+
+vi.mock('../../hooks/useKnowledgeProjections', async () => {
+  const { projectionFixture } = await import('../../../../test/projectionFixture');
+  return { useKnowledgeProjections: (query: () => { surfaces: string[] } | undefined) => ({ loading: () => false,
+    projections: () => new Map((query()?.surfaces ?? []).map(word => {
+      const status = getComprehensiveWordStatusSyncMock(word, languageMock);
+      const projection = projectionFixture(status, status === 'unknown' ? 'unmeasured' : 'evidence');
+      const entry = Object.values(flashcardStoreMock.wordKnowledge).find(entry => entry.word === word && entry.language === languageMock);
+      const access = entry?.access?.['surface-reading'];
+      if (access) projection.targets.push({ targetRef: { kind: 'surface', id: word }, applicableCapabilities: ['surface-reading'], states: [{ capability: 'surface-reading', classification: access.status as 'known', basis: access.claim ? 'claim' : 'evidence', evidence: [], evidenceSourceCounts: {} }] });
+      return [word, projection];
+    })),
+  }) };
 });

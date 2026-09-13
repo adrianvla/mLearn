@@ -1,3 +1,4 @@
+import { projectedWordStatus } from '../../../../shared/graph/targets';
 import { Show, createMemo, createSignal, type Component } from 'solid-js';
 import { useFlashcards, useLocalization, useSettings } from '../../../context';
 import { surfaceEntityId } from '../../../../shared/graph/load';
@@ -21,12 +22,12 @@ export interface WordStatusPillKnowledgeProps {
 }
 
 export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = (props) => {
-  const { getComprehensiveWordStatusWithSourceSync, recordAttempt } = useFlashcards();
+  const { recordAttempt } = useFlashcards();
   const { settings } = useSettings();
   const { t } = useLocalization();
   const language = () => props.language ?? settings.language;
-  const overall = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word, language()));
   const knowledge = useKnowledgeProjection(() => ({ language: language(), surface: props.word }));
+  const overall = createMemo(() => projectedWordStatus(knowledge.projection()));
   const [showRate, setShowRate] = createSignal(false);
   const submit = (observations: readonly ProfileObservation[], options?: RateOptions) => {
     if (observations.length === 0) return;

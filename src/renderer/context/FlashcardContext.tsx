@@ -59,7 +59,7 @@ const log = getLogger("renderer.context.flashcard");
 
 // Current store version
 const CURRENT_VERSION = 3;
-const CAPABILITY_PROJECTION_VERSION = 2;
+const CAPABILITY_PROJECTION_VERSION = 3;
 
 type StoredFlashcardStore = Partial<FlashcardStore> & {
   wordToCardMap?: Record<string, string | string[]>;
@@ -131,7 +131,6 @@ function getDefaultStore(): FlashcardStore {
     knownUntracked: {},
     ignoredWords: {},
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     wordKnowledge: {},
     grammarKnowledge: {},
     meta: { ...SRS.getDefaultMeta(), capabilityProjectionVersion: CAPABILITY_PROJECTION_VERSION },
@@ -302,10 +301,6 @@ interface FlashcardContextValue {
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
   /** Selection predicate: evidence-backed known OR explicit exclusion (never claims knowledge). */
   isWordSettledSync: (word: string, language?: string) => boolean;
-  /** Snapshot wordSyncSeen timestamps across all surface-form hashes (undo support for cooldown restore). Policy data only — never knowledge. */
-  getWordSyncSeenSnapshotForForms: (word: string, language?: string) => Record<string, number | undefined>;
-  /** Policy-cooldown restore (wordSyncSeen only). */
-  restoreWordSyncRating: (previousSeenAt: Record<string, number | undefined>, language?: string) => void;
   /** Projection refresh: rebuild wordKnowledge for a word's family keys from ACTIVE evidence. */
   recomputeWordKnowledgeFromEvidence: (word: string, language?: string) => Promise<void>;
   /**
@@ -333,8 +328,6 @@ interface FlashcardContextValue {
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
 
   // Word sync seen tracking
-  markWordSyncSeen: (word: string, language?: string) => void;
-  clearAllWordSyncSeen: () => void;
 
   // Grammar knowledge tracking
   trackGrammarEncountered: (pattern: string, levelOrOpts?: number | GrammarEncounterOptions, language?: string) => void;
@@ -607,7 +600,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
       meta,
       dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},
       suggestedFlashcards: partial.suggestedFlashcards || {},
-      wordSyncSeen: partial.wordSyncSeen || {},
       ...(partial.rev !== undefined ? { rev: partial.rev } : {}),
       version: CURRENT_VERSION,
   };
@@ -695,9 +687,7 @@ function mergeKnowledgeMaps(local: FlashcardStore, incoming: FlashcardStore): vo
     const current = local.ignoredWords[lk];
     if (!current || entry.ignoredAt > current.ignoredAt) local.ignoredWords[lk] = entry;
   }
-  for (const [lk, seen] of Object.entries(incoming.wordSyncSeen)) {
-    if (seen > (local.wordSyncSeen[lk] ?? 0)) local.wordSyncSeen[lk] = seen;
-  }
+
   mergeWordCandidates(local, incoming);
   mergeGrammarKnowledge(local, incoming);
   mergeSuggestedFlashcards(local, incoming);
@@ -3270,7 +3260,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           entry.lastSeen = now;
           entry.hasActiveEvidence = true;
           entry.lastEvidenceSource = 'manual';
-          if (options?.origin === 'word-sync') entry.wordSyncRatedAt = now;
         }
       }));
       saveFlashcards();
@@ -3332,64 +3321,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }).catch((e) => log.warn('knowledge event append failed:', e));
     return { attemptId };
   };
-  // ========================
-  // Word Sync Seen
-  // ========================
-
-  // Multi-hash rule (#230): the sync pool filters on the canonical-form hash,
-  // so the seen mark must cover the canonical form plus every surface form.
-  const getWordSyncSeenKeysForLanguage = (word: string, language = settings.language): string[] => {
-    const keys = new Set<string>();
-    const canonical = getCanonicalFormForLanguage(language, word);
-    if (canonical) keys.add(langKey(language, SRS.hashWordSync(canonical)));
-    for (const form of getWordFormsForLanguage(word, language)) {
-      keys.add(langKey(language, SRS.hashWordSync(form)));
-    }
-    return [...keys];
-  };
-
-  const markWordSyncSeen = (word: string, language = settings.language) => {
-    const now = Date.now();
-    setStore(produce((s) => {
-      for (const lk of getWordSyncSeenKeysForLanguage(word, language)) {
-        s.wordSyncSeen[lk] = now;
-      }
-    }));
-    saveFlashcards();
-  };
-
-  const getWordSyncSeenSnapshotForForms = (word: string, language = settings.language): Record<string, number | undefined> => {
-    const snapshot: Record<string, number | undefined> = {};
-    for (const lk of getWordSyncSeenKeysForLanguage(word, language)) {
-      snapshot[lk] = store.wordSyncSeen[lk];
-    }
-    return snapshot;
-  };
-
-  /** Policy-cooldown restore (wordSyncSeen). NOT epistemic: knowledge restores via retraction + projection replay. */
-  const restoreWordSyncRating = (
-    previousSeenAt: Record<string, number | undefined>,
-    _language = settings.language,
-  ) => {
-    setStore(produce((s) => {
-      for (const [seenLk, prev] of Object.entries(previousSeenAt)) {
-        if (prev === undefined) {
-          delete s.wordSyncSeen[seenLk];
-        } else {
-          s.wordSyncSeen[seenLk] = prev;
-        }
-      }
-    }));
-    saveFlashcards();
-  };
-
-  const clearAllWordSyncSeen = () => {
-    setStore(produce((s) => {
-      s.wordSyncSeen = {};
-    }));
-    saveFlashcards();
-  };
-
   /**
    * Undo bookkeeping: append a retraction tombstone for each attemptId to every
    * form-family key of the word. Projections drop retracted events via
@@ -3453,7 +3384,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           lastSeen: meaning?.lastSeen ?? Math.max(...Object.values(capabilities).map((projection) => projection.lastSeen)),
           firstSeen: meaning?.firstSeen,
           lastStatusChange: meaning?.lastStatusChange,
-          wordSyncRatedAt: meaning?.wordSyncRatedAt,
           lastEvidenceSource: meaning?.evidenceSource,
           hasActiveEvidence: meaning?.hasActiveEvidence ?? false,
           access: {},
@@ -4141,6 +4071,12 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     const result = await importAnkiReviewHistory(language, {
       statuses,
       fetchReviews: (cards) => ankiRequest(proxy, 'getReviewsOfCards', { cards }),
+      fetchCards: (cards) => ankiRequest(proxy, 'cardsInfo', { cards }),
+      fields: {
+        expression: settings.anki_field_expression ?? DEFAULT_SETTINGS.anki_field_expression,
+        reading: settings.anki_field_reading ?? DEFAULT_SETTINGS.anki_field_reading,
+        meaning: settings.anki_field_meaning ?? DEFAULT_SETTINGS.anki_field_meaning,
+      },
     });
     await Promise.all(result.importedWords.map((word) => recomputeWordKnowledgeFromEvidence(word, language)));
     return;
@@ -4349,14 +4285,10 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     getComprehensiveWordStatusWithSourceSync,
     isWordKnownComprehensiveSync,
     isWordSettledSync,
-    getWordSyncSeenSnapshotForForms,
-    restoreWordSyncRating,
     appendRetractions,
     recomputeWordKnowledgeFromEvidence,
     setWordClaim,
     recordAttempt,
-    markWordSyncSeen,
-    clearAllWordSyncSeen,
     trackGrammarEncountered,
     trackGrammarFailed,
     recordGrammarAttempt,

@@ -6,7 +6,7 @@ import type { KnowledgeLexicalSummary, KnowledgeProjection, KnowledgeProjectionB
 import { relationsOf, type LingualGraph } from '../../shared/graph/load';
 import { learnableTargetsFor } from '../../shared/graph/targets';
 import { predictTargetAccessibility, type PredictionInput } from '../../shared/prediction/supportPredictor';
-import { attemptActiveLatencyMs, readActiveEvidence } from '../../shared/knowledgeEvents';
+import { attemptActiveLatencyMs, eventCapability, readActiveEvidence } from '../../shared/knowledgeEvents';
 import { evidenceStatusFromEase, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { DEFAULT_ENABLED_DOMAINS, type CapabilityKey, type GraphDomain, type GraphEntity, type LearnableTarget } from '../../shared/graph/types';
 import type { RetentionPolicy } from '../../shared/srs/retentionScheduler';
@@ -91,7 +91,7 @@ function entryCapabilityState(
     policy,
     now,
     undefined,
-    (event) => entryIds.some((entryId) => eventAppliesToTarget(graph, event, { entityId: entryId, capability }, queriedSurfaceId)),
+    (event) => (realizedEntryIds(graph, queriedSurfaceId).length ? entryIds : [queriedSurfaceId]).some((entryId) => eventAppliesToTarget(graph, event, { entityId: entryId, capability }, queriedSurfaceId)),
     archives,
     thresholds,
   );
@@ -126,7 +126,7 @@ export function buildKnowledgeProjection(
   const domainEnabled = (entity: GraphEntity | undefined): entity is GraphEntity =>
     entity !== undefined && (!entity.domain || enabledDomains.includes(entity.domain));
   const surface = graph.nodes.get(surfaceId);
-  if (!domainEnabled(surface)) return { status: 'ready', surfaceId, targets: [] };
+  if (surface && !domainEnabled(surface)) return { status: 'ready', surfaceId, targets: [] };
   const realizedEntries = realizedEntryIds(graph, surfaceId);
   const entryIds = realizedEntries.filter((id) => domainEnabled(graph.nodes.get(id)));
   // One entry can list the same sense/lexeme several times (bank duplication
@@ -269,81 +269,32 @@ export function buildKnowledgeProjection(
     groups.set(entity.id, group);
   }
 
-  // Package-defined accesses (open world, acceptance I): events addressed
-  // with a capability outside the graph-applicable set survive as INERT
-  // states on their entity — claims, inspector, policy, and sync see them
-  // under their own id; core never interprets their semantics.
+  // Authored accesses survive package changes as inert states. A missing
+  // surface retains its exact journal address; this does not invent graph
+  // applicability, transfer evidence to another entity, or create new events.
   const generated = new Set([...groups.values()].flatMap((group) => group.states.map((state) => `${group.targetRef.id}:${state.capability}`)));
-  // Archive buckets carry the full raw address, so package-defined accesses
-  // whose exact rows compacted still surface their (id, capability) pair.
-  const archivedCapabilities: Array<{ id: string; capability: CapabilityKey }> = [];
+  const authored = new Map<string, LearnableTarget>();
+  const collect = (event: KnowledgeEvent) => {
+    const capability = eventCapability(event);
+    const id = event.targetRef?.id ?? surfaceId;
+    if (capability === undefined || !entityIds.has(id)) return;
+    const key = `${id}:${capability}`;
+    if (!generated.has(key)) authored.set(key, { entityId: id, capability });
+  };
+  readActiveEvidence(events).forEach(collect);
   for (const archive of options?.archives ?? []) {
-    for (const bucketKey of Object.keys(archive.buckets)) {
-      const representative = bucketRepresentative(bucketKey);
-      const ref = representative?.targetRef;
-      if (!ref || ref.capability === undefined) continue;
-      if (!generated.has(`${ref.id}:${ref.capability}`)) archivedCapabilities.push({ id: ref.id, capability: ref.capability });
+    for (const key of Object.keys(archive.buckets)) {
+      const event = bucketRepresentative(key);
+      if (event) collect(event);
     }
   }
-  for (const event of readActiveEvidence(events)) {
-    const ref = event.targetRef;
-    const capability = ref?.capability;
-    if (!ref || capability === undefined || generated.has(`${ref.id}:${capability}`)) continue;
-    if (!entityIds.has(ref.id)) continue;
-    const entity = graph.nodes.get(ref.id);
-    if (!entity) continue;
-    generated.add(`${ref.id}:${capability}`);
-    const explanation = targetExplanation(graph, rows, { entityId: ref.id, capability }, surfaceId, policy, now, undefined, options?.archives, thresholds);
-    if (explanation.evidence.length === 0 && !archivedCapabilities.some((entry) => entry.id === ref.id && entry.capability === capability)) continue;
-    const { classification, basis } = classificationOf(explanation.state);
-    const active = explanation.evidence;
-    // Mixed exact+archived package targets get the same archive-stat merge
-    // as ordinary targets — source counts and direct-success timestamps must
-    // not lose their archived half.
-    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, { entityId: ref.id, capability }, surfaceId));
-    const sourceCounts = active.reduce<Record<string, number>>((counts, row) => {
-      counts[row.source] = (counts[row.source] ?? 0) + (row.timesSeenDelta ?? 1);
-      return counts;
-    }, {});
-    for (const [source, count] of Object.entries(archivedStats.sourceSeen)) {
-      sourceCounts[source] = (sourceCounts[source] ?? 0) + count;
-    }
-    const lastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
-    const state: KnowledgeProjectionState = {
-      capability,
-      classification,
-      basis,
-      ...(lastSuccess !== undefined ? { lastDirectSuccess: lastSuccess } : {}),
-      evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((row) => ({
-        timestamp: row.t,
-        source: row.source,
-        ...(row.quality ?? row.rating ? { quality: row.quality ?? row.rating } : {}),
-      })),
-      evidenceSourceCounts: sourceCounts,
-    };
-    const group = groups.get(entity.id) ?? {
-      targetRef: { kind: entity.kind, id: entity.id },
-      applicableCapabilities: [],
-      states: [],
-    };
-    group.states.push(state);
-    groups.set(entity.id, group);
-  }
-
-  // Archive-only package capabilities: accesses whose exact rows compacted
-  // entirely still generate their inert state from bucket statistics.
-  const seenArchived = new Set<string>();
-  for (const entry of archivedCapabilities) {
-    const pairKey = `${entry.id}:${entry.capability}`;
-    if (generated.has(pairKey) || seenArchived.has(pairKey)) continue;
-    seenArchived.add(pairKey);
-    const entity = graph.nodes.get(entry.id);
-    if (!entity) continue;
-    const target: LearnableTarget = { entityId: entry.id, capability: entry.capability };
+  for (const target of authored.values()) {
+    const entity = graph.nodes.get(target.entityId)
+      ?? (target.entityId === surfaceId ? { id: surfaceId, kind: 'surface' as const } : undefined);
+    if (!entity || !domainEnabled(entity)) continue;
     const explanation = targetExplanation(graph, rows, target, surfaceId, policy, now, undefined, options?.archives, thresholds);
-    if (explanation.evidence.length === 0 && explanation.projection === null) continue;
-    generated.add(pairKey);
     const { classification, basis } = classificationOf(explanation.state);
+    if (basis !== 'claim' && basis !== 'evidence') continue;
     const active = explanation.evidence;
     const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId));
     const sourceCounts: Record<string, number> = { ...archivedStats.sourceSeen };
@@ -355,12 +306,12 @@ export function buildKnowledgeProjection(
       applicableCapabilities: [],
       states: [],
     };
-    const archiveOnlyLastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
+    const lastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
     group.states.push({
-      capability: entry.capability,
+      capability: target.capability,
       classification,
       basis,
-      ...(archiveOnlyLastSuccess !== undefined ? { lastDirectSuccess: archiveOnlyLastSuccess } : {}),
+      ...(lastSuccess !== undefined ? { lastDirectSuccess: lastSuccess } : {}),
       evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((row) => ({
         timestamp: row.t,
         source: row.source,
@@ -383,7 +334,14 @@ export function buildKnowledgeProjection(
   const missingBridges: CapabilityKey[] = [];
   if (surfaceRecognition.classification !== 'known') missingBridges.push('surface-recognition');
   if (surfaceReading.classification !== 'known') missingBridges.push('surface-reading');
+  // An observed bridge is tracked even when lexical identity is unresolved.
+  // Positive reading/prosody evidence alone never promotes identity to Known.
+  const measuredBridge = groups.get(surfaceId)?.states.find(state => state.basis === 'claim' || state.basis === 'evidence');
   const lexical: KnowledgeLexicalSummary = {
+    overall: [senseState, spokenState, surfaceRecognition].find(state => state.classification === 'known')
+      ?? [senseState, spokenState, surfaceRecognition].find(state => state.classification === 'learning')
+      ?? [senseState, spokenState, surfaceRecognition].find(state => state.basis === 'claim' || state.basis === 'evidence')
+      ?? (measuredBridge ? { classification: 'unknown', basis: measuredBridge.basis } : { classification: 'unmeasured', basis: 'unmeasured' }),
     entryIds,
     sense: senseState,
     spoken: spokenState,

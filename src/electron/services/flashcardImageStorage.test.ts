@@ -41,7 +41,6 @@ function makeMinimalStore(overrides: Partial<FlashcardStore> = {}): FlashcardSto
     wordKnowledge: {},
     grammarKnowledge: {},
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     meta: {
       newCardsToday: 0,
       reviewsToday: 0,

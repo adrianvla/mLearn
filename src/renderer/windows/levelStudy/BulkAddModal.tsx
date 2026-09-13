@@ -1,3 +1,5 @@
+import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
+import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
 import {
   Modal,
@@ -80,6 +82,8 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
     (language) => loadDictionaryUniverse(language),
   );
 
+  const projected = useKnowledgeProjections(() => ({ language: props.language, surfaces: [...Object.keys(props.frequency), ...(dictionaryWords() ?? []).map(entry => entry[0])] }));
+
   const filterSetup = createMemo(() => (
     buildLevelStudyBulkAddFields(props.levelNames, t, props.languageData)
   ));
@@ -98,11 +102,12 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
   });
 
   const toFilterStatus = (word: string): string => {
-    const resolved = flashcards.getComprehensiveWordStatusWithSourceSync(word, props.language);
+    const resolved = projectedWordStatus(projected.projections().get(word));
     return wordSyncPoolStatus(resolved.status, resolved.basis);
   };
 
   const freqWords = createMemo(() => {
+    if (projected.loading()) return [];
     const ast = filterAst();
     if (tokens().length > 0 && !ast) return [];
 

@@ -17,10 +17,10 @@ describe('learner claims interpreter', () => {
   it('keeps recognition of 内科 after the ないか scaffold separate from independent reading', () => {
     // Model reports lexical recognition, but overstates the cue-dependent access.
     expect(parseClaimToolCalls([
-      call('set_word_claim', { status: 'known' }),
+      call('set_access_claim', { capability: 'sense-recognition', status: 'known', basis: 'unassisted' }),
       call('set_access_claim', { capability: 'surface-reading', status: 'known', basis: 'cue-dependent' }),
     ])).toEqual([
-      { op: 'setWordClaim', status: 'known' },
+      { op: 'setAccessClaim', capability: 'sense-recognition', status: 'known' },
       { op: 'setAccessClaim', capability: 'surface-reading', status: 'learning' },
     ]);
   });
@@ -118,9 +118,19 @@ describe('learner claims interpreter', () => {
     });
     expect(context).toContain('Current word: 苗字 (みょうじ)');
     expect(context).toContain('sense-recognition=known');
+    expect(context).toContain('Applicable accesses: sense-recognition, surface-reading');
     expect(context).not.toContain('surface-reading='); // unmeasured stays absent
     expect(context).toContain('Whole-word claim: none');
     expect(context).toContain('苗 字');
+  });
+
+  it('exposes unmeasured and package-declared accesses as available claim targets', () => {
+    const context = buildClaimPromptContext({
+      word: 'example', language: 'test',
+      accessStates: { 'sense-recognition': undefined, 'x-acme::relation': undefined },
+    });
+    expect(context).toContain('Applicable accesses: sense-recognition, x-acme::relation');
+    expect(context).toContain('Learner access state: unmeasured');
   });
 
   it('maps capability ids to their localization labels', () => {

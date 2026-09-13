@@ -1,3 +1,4 @@
+import { ankiCardCapabilities } from '../../shared/knowledge/ankiEvidence';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { hashWordSync } from './srsAlgorithm';
 import type { AnkiReviewEntry } from '../hooks/useAnki';
@@ -20,8 +21,29 @@ vi.mock('./knowledgeEvents', () => ({
   appendEvents: mocks.appendEvents,
 }));
 
-import { importAnkiReviewHistory, mapAnkiGrammarReviews } from './ankiReviewImport';
+import { importAnkiReviewHistory as importHistory, mapAnkiGrammarReviews } from './ankiReviewImport';
 import type { AnkiCardInfo } from '../hooks/useAnki';
+import { loadLinguisticGraph, surfaceEntityId } from '../../shared/graph/load';
+import { buildKnowledgeProjection } from '../../electron/services/knowledgeProjection';
+import { unresolvedProjectionTargets } from '../../shared/graph/targets';
+import { projectionStateForCapability } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
+import { assembleWordKnowledgeModel } from '../components/common/KnowledgeProjection/wordKnowledgeModel';
+import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
+
+// Existing importer tests use an explicit meaning-only template: the prompt
+// supplies the reading, and only the meaning is withheld.
+async function importAnkiReviewHistory(language: string, deps: Parameters<typeof importHistory>[1]) {
+  const statuses = deps.statuses ?? await mocks.getAnkiWordStatuses();
+  return importHistory(language, {
+    ...deps, statuses,
+    fetchCards: deps.fetchCards ?? (async ids => statuses.filter((row: { cardId?: number }) => ids.includes(row.cardId!))
+      .map((row: { cardId: number; word: string }) => ({
+        ...grammarCard, cardId: row.cardId,
+        fields: { Expression: { value: row.word, order: 0 }, Reading: { value: 'pronunciation', order: 1 }, Meaning: { value: 'definition', order: 2 } },
+        question: row.word + ' pronunciation', answer: 'definition',
+      }))),
+  });
+}
 
 const grammarCard: AnkiCardInfo = {
   cardId: 1, type: 2, queue: 2, due: 1, factor: 2500, interval: 1, note: 1,
@@ -146,6 +168,86 @@ beforeEach(() => {
 });
 
 describe('importAnkiReviewHistory', () => {
+  const word = 'プラットホーム';
+  const surface = surfaceEntityId('test', hashWordSync(word));
+  const graph = loadLinguisticGraph({
+    schemaVersion: 1, language: 'test', generatedAt: '', sourceVersions: {},
+    entities: [
+      { id: surface, kind: 'surface', label: word },
+      { id: 'entry', kind: 'dictionary-entry' }, { id: 'sense', kind: 'sense' },
+      { id: 'pronunciation', kind: 'pronunciation' },
+    ],
+    relations: [
+      { from: surface, to: 'entry', type: 'realizes' },
+      { from: 'entry', to: 'sense', type: 'has-sense' },
+      { from: surface, to: 'pronunciation', type: 'has-pronunciation' },
+    ],
+  });
+  const policy = { learningSteps: [1, 10], relearnSteps: [10], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 36500 };
+  const card: AnkiCardInfo = {
+    ...grammarCard, question: word, answer: 'pronunciation definition',
+    fields: { Expression: { value: word, order: 0 }, Reading: { value: 'pronunciation', order: 1 }, Meaning: { value: 'definition', order: 2 } },
+  };
+  const testable = ['sense-recognition', 'surface-reading', 'surface-recognition'];
+  const projectImported = () => {
+    const log = mocks.appendEvents.mock.calls[0]?.[0] as KnowledgeEventLog | undefined;
+    return buildKnowledgeProjection(graph, surface, log?.[`test:${hashWordSync(word)}`] ?? [], policy, 10000);
+  };
+
+  it('projects strong template-scoped reviews once and leaves no supported access to reprobe', async () => {
+    const statuses = [{ word, cardId: 1 }, { word, cardId: 1 }, { word, cardId: 2 }];
+    const fetchReviews = vi.fn(async () => ({ '1': [review({ id: 1000, factor: 2500 })], '2': [review({ id: 2000, cid: 2, factor: 2500 })] }));
+    await importHistory('test', { statuses, fetchReviews, fetchCards: async () => [card, { ...card, cardId: 2 }] });
+    expect(fetchReviews).toHaveBeenCalledWith([1, 2]);
+    const projection = projectImported();
+    for (const capability of testable) {
+      // Inspect and Word Sync consume this exact projection, not an Anki flag.
+      expect(projectionStateForCapability(projection, capability)).toMatchObject({ classification: 'known', evidenceSourceCounts: { anki: 2 } });
+    }
+    expect(unresolvedProjectionTargets(projection, testable)).toEqual([]);
+    expect(assembleWordKnowledgeModel({ projection }).overall).toMatchObject({ status: 'known', basis: 'evidence' });
+    mocks.queryAnkiReviewIdSets.mockResolvedValue({ [`test:${hashWordSync(word)}`]: [1000, 2000] });
+    mocks.appendEvents.mockClear();
+    await importHistory('test', { statuses, fetchReviews, fetchCards: async () => [card, { ...card, cardId: 2 }] });
+    expect(mocks.appendEvents).not.toHaveBeenCalled();
+  });
+
+  it('does not credit a supplied reading and can still probe it', async () => {
+    await importHistory('test', {
+      statuses: [{ word, cardId: 1 }],
+      fetchReviews: async () => ({ '1': [review({ factor: 2500 })] }),
+      fetchCards: async () => [{ ...card, question: `${word} pronunciation` }],
+    });
+    const projection = projectImported();
+    expect(projectionStateForCapability(projection, 'sense-recognition')?.classification).toBe('known');
+    expect(unresolvedProjectionTargets(projection, testable).map(target => target.capability)).toEqual(['surface-recognition', 'surface-reading']);
+  });
+
+  it.each([1, 2])('a recent Anki button %s remains weak even with a high scheduling factor', async ease => {
+    await importHistory('test', {
+      statuses: [{ word, cardId: 1 }], fetchCards: async () => [card],
+      fetchReviews: async () => ({ '1': [review({ id: 1000, factor: 2500 }), review({ id: 2000, ease, factor: 2500 })] }),
+    });
+    const projection = projectImported();
+    expect(projectionStateForCapability(projection, 'sense-recognition')?.classification).toBe(ease === 1 ? 'unknown' : 'learning');
+    expect(assembleWordKnowledgeModel({ projection }).overall.status).toBe(ease === 1 ? 'unknown' : 'learning');
+    expect(unresolvedProjectionTargets(projection, testable)).toHaveLength(3);
+  });
+
+  it('card existence and parsed fields without reviews do not establish knowledge', async () => {
+    await importHistory('test', { statuses: [{ word, cardId: 1, factor: 2500 }], fetchCards: async () => [card], fetchReviews: async () => ({}) });
+    expect(mocks.appendEvents).not.toHaveBeenCalled();
+    expect(unresolvedProjectionTargets(projectImported(), testable)).toHaveLength(3);
+  });
+
+  it('leaves unverifiable template direction unmeasured and does not infer prosody', () => {
+    expect(ankiCardCapabilities({ ...card, question: undefined, answer: undefined }, word, undefined)).toEqual([]);
+    expect(ankiCardCapabilities({ ...card, question: 'definition', answer: word }, word, undefined)).toEqual([]);
+    expect(ankiCardCapabilities(card, word, undefined)).toEqual(testable);
+    expect(ankiCardCapabilities({ ...card, fields: { ...card.fields, Reading: { value: word, order: 1 } } }, word, undefined)).toEqual(['sense-recognition', 'surface-recognition']);
+    expect(ankiCardCapabilities({ ...card, fields: { ...card.fields, Reading: { value: `${word}<svg><text>decorative labels</text></svg>`, order: 1 } } }, word, undefined)).toEqual(['sense-recognition', 'surface-recognition']);
+  });
+
   it('rejects invalid review buttons for word and grammar evidence', async () => {
     mocks.getAnkiWordStatuses.mockResolvedValue([{ word: 'known pattern', cardId: 1 }]);
     const invalid = [0, 5, -1, 1.5].map((ease) => ({ ...grammarReview, ease }));
@@ -186,6 +288,9 @@ describe('importAnkiReviewHistory', () => {
       source: 'anki',
       aspect: 'meaning',
       rating: 'easy',
+      quality: 'fluent',
+      timesSeenDelta: 1,
+      origin: 'anki-review',
       targetRef: { kind: 'surface', id: `ja:surface:${hashWordSync('食べる')}`, capability: 'sense-recognition' },
       presentedSurface: '食べる',
       schedulerCardId: '11',

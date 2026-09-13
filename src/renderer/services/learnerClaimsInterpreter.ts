@@ -25,7 +25,7 @@ export const LEARNER_CLAIM_TOOLS: LLMToolDefinition[] = [
   {
     name: 'set_access_claim',
     description:
-      'Record that the learner CLAIMS a specific access on the current word (e.g. known when heard, reading always wrong). Status is known, learning, or unknown. This is the learner\'s own statement — not a test result.',
+      'Record that the learner CLAIMS a specific access on the current word (e.g. meaning known, reading unknown). Call once per independently stated access, covering successes AND failures in the same response. Status is known, learning, or unknown. This is the learner\'s own statement — not a test result.',
     parameters: {
       type: 'object',
       properties: {
@@ -60,7 +60,7 @@ export const LEARNER_CLAIM_TOOLS: LLMToolDefinition[] = [
   {
     name: 'set_word_claim',
     description:
-      'Record a whole-word status claim (known / learning / unknown) — the learner knows the LEXICAL OBJECT itself, independent of any one access.',
+      'Record an explicitly stated whole-word status claim (known / learning / unknown). For a meaning-specific statement use set_access_claim with sense-recognition instead; do not replace a mixed access profile with a whole-word claim.',
     parameters: {
       type: 'object',
       properties: {
@@ -154,6 +154,7 @@ export function buildClaimPromptContext(input: ClaimContextInput): string {
     `Language: ${input.language}`,
   ];
   const accesses = Object.entries(input.accessStates).filter(([, status]) => status !== undefined);
+  lines.push(`Applicable accesses: ${Object.keys(input.accessStates).join(', ') || 'none'}`);
   lines.push(`Learner access state: ${
     accesses.length > 0
       ? accesses.map(([capability, status]) => `${capability}=${status}`).join(', ')
@@ -170,6 +171,20 @@ export const CLAIM_SYSTEM_PROMPT = [
   'You translate a language learner\'s correction about ONE word into typed claim operations.',
   'Use ONLY the provided tools. Do not invent knowledge the learner did not state.',
   'Claims are the learner\'s own statements (I know / I do not know); they are not test results.',
+  'ONE word can have MULTIPLE independently stated accesses. Read every clause, including clauses',
+  'after "but" or "also" and routes written as A -> B. Emit all supported access claims in one response,',
+  'covering successful routes as well as failed ones. Do not stop after the most obvious failure.',
+  'Meaning recognition is sense-recognition, written form -> pronunciation is surface-reading,',
+  'and written form -> recognition of the lexical item is surface-recognition. Knowing the meaning',
+  'from a supplied reading supports sense-recognition: the reading is its input, not the meaning answer.',
+  'Do not infer spoken-recognition from a displayed reading unless recognition by sound is stated.',
+  'Deriving a meaning from written components is inference, not automatic recognition of the lexical',
+  'item or fluent reading. Do not turn compositional inference alone into known surface-recognition.',
+  'For example, "I infer the meaning from the written components, cannot retrieve the pronunciation,',
+  'but know the meaning from the reading" supports sense-recognition known and surface-reading unknown,',
+  'both basis=unassisted for their respective retrievals. The meaning was not supplied. Leave prosody',
+  'and spelling recognition unchanged unless independently stated. An inference-only meaning report',
+  'supports sense-recognition learning, not known recall. No statement here is an observed attempt.',
   'For each access, separate ability WITHOUT an answer-supplying cue from recognition AFTER that cue.',
   'Resolve conditions, negation, and temporal scope before choosing a status. Expressions such as',
   '"only when", "after you show me", "with the hint/scaffold", and "once I see the reading"',
@@ -184,17 +199,18 @@ export const CLAIM_SYSTEM_PROMPT = [
   'Use basis=cue-only when only recognition after seeing the answer is stated and independent',
   'ability is unspecified; omit that access claim. Use basis=unassisted for explicit independent',
   'ability or failure, including "I can read it without hints" and "I cannot read it at all".',
-  'For example, "I know what it means only once you show me the reading" supports a whole-word',
-  'known claim for the recognized lexical item and surface-reading learning with basis=cue-dependent.',
+  'For example, "I know what it means only once you show me the reading" supports sense-recognition',
+  'known with basis=unassisted and surface-reading learning with basis=cue-dependent.',
   '"I cannot read it myself, but after you show me the reading I know the word" instead supports',
-  'surface-reading unknown with basis=cue-dependent and a separate whole-word known claim.',
+  'surface-reading unknown with basis=cue-dependent and a separate sense-recognition known claim.',
   '"I saw the reading" alone establishes no access or whole-word knowledge. "I know it when I hear it"',
   'supports spoken-recognition known with basis=unassisted: the sound is the input to listening,',
   'not its answer. It does not establish surface-reading. "The hint helps, but I can read it myself"',
   'supports surface-reading known with basis=unassisted. Preserve independently stated abilities.',
-  'Lexical recognition after a reading cue can support a whole-word claim, but merely repeating',
+  'Meaning recognition after a reading cue can support a sense-recognition claim, but merely repeating',
   'a supplied translation does not establish lexical knowledge. Do not use a whole-word claim',
   'to bypass a cued access restriction. Leave unstated or ambiguous abilities unchanged.',
-  'Prefer the fewest operations that faithfully capture the statement. If the statement is',
-  'already reflected in the learner state, emit no operations.',
+  'Use only applicable accesses. Consolidate repeated clauses about the same access into one claim;',
+  'do not discard distinct accesses to minimize tool calls. Emit explicit claims even when the effective',
+  'status already matches: the application handles unchanged claims. Emit no operations for no stated ability.',
 ].join(' ');

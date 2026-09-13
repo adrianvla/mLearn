@@ -12,7 +12,6 @@ import { normalizeEvidenceEase, statusToEase } from './knowledgeStrength';
  * replaying — never by restoring snapshots of epistemic state.
  *
  * Fidelity contract (what replay derives vs what stays external):
- * - derived: ease, lastStatusChange, timesSeen, timesHovered, wordSyncRatedAt,
  *   lastSeen (= last event t), firstSeen (= first event t)
  * - NOT derived (presentation/policy data, preserved by callers): word,
  *   reading, language labels, forms[] sub-skill copies
@@ -20,7 +19,6 @@ import { normalizeEvidenceEase, statusToEase } from './knowledgeStrength';
 export interface ReplayProjection {
   ease: number;
   lastStatusChange?: number;
-  wordSyncRatedAt?: number;
   timesSeen: number;
   timesHovered: number;
   firstSeen: number;
@@ -47,6 +45,15 @@ const EXPLICIT_STATUS_SOURCES = new Set(['manual', 'srs', 'anki']);
  * rows never contribute a status-derived outcome.
  */
 export function outcomeEase(event: KnowledgeEvent): number | undefined {
+  // A scheduling factor is not a successful retrieval. A failed/hard Anki
+  // review must lower this same projection even when the factor stays high.
+  if (event.source === 'anki' && event.kind === 'review') {
+    if (event.rating === 'again') return statusToEase('unknown');
+    if (event.rating === 'hard') return Math.min(
+      event.easeAfter === undefined ? Infinity : normalizeEvidenceEase(event.source, event.easeAfter),
+      statusToEase('learning'),
+    );
+  }
   if (event.easeAfter !== undefined) return normalizeEvidenceEase(event.source, event.easeAfter);
   if (event.toStatus !== undefined && EXPLICIT_STATUS_SOURCES.has(event.source)) return statusToEase(event.toStatus);
   return undefined;
@@ -66,9 +73,6 @@ export interface FoldState {
   easeSeq: number;
   lastStatusChange?: number;
   lastStatusChangeSeq: number;
-  wordSyncRatedAt?: number;
-  wordSyncT: number;
-  wordSyncSeq: number;
   timesSeen: number;
   timesHovered: number;
   firstSeen?: number;
@@ -95,8 +99,6 @@ export function emptyKeyFold(): FoldState {
     easeT: -Infinity,
     easeSeq: -1,
     lastStatusChangeSeq: -1,
-    wordSyncT: -Infinity,
-    wordSyncSeq: -1,
     timesSeen: 0,
     timesHovered: 0,
     firstSeq: -1,
@@ -194,11 +196,7 @@ function applyEvidenceRow(state: FoldState, event: KnowledgeEvent, seq: number):
       state.lastStatusChangeSeq = seq;
     }
   }
-  if (event.origin === 'word-sync' && newer(event.t, seq, state.wordSyncT, state.wordSyncSeq)) {
-    state.wordSyncRatedAt = event.t;
-    state.wordSyncT = event.t;
-    state.wordSyncSeq = seq;
-  }
+
 }
 
 /**
@@ -217,11 +215,7 @@ export function mergeKeyFolds(earlier: FoldState, later: FoldState): FoldState {
     merged.lastStatusChange = later.lastStatusChange;
     merged.lastStatusChangeSeq = later.lastStatusChangeSeq;
   }
-  if (newer(later.wordSyncT, later.wordSyncSeq, merged.wordSyncT, merged.wordSyncSeq)) {
-    merged.wordSyncRatedAt = later.wordSyncRatedAt;
-    merged.wordSyncT = later.wordSyncT;
-    merged.wordSyncSeq = later.wordSyncSeq;
-  }
+
   merged.timesSeen += later.timesSeen;
   merged.timesHovered += later.timesHovered;
   if (later.firstSeen !== undefined && (merged.firstSeen === undefined || newer(merged.firstSeen, merged.firstSeq, later.firstSeen, later.firstSeq))) {
@@ -263,7 +257,6 @@ export function projectKeyFold(state: FoldState): ReplayProjection | null {
   return {
     ease: state.ease ?? 0,
     ...(state.lastStatusChange !== undefined ? { lastStatusChange: state.lastStatusChange } : {}),
-    ...(state.wordSyncRatedAt !== undefined ? { wordSyncRatedAt: state.wordSyncRatedAt } : {}),
     ...(state.claim !== undefined ? { claim: state.claim } : {}),
     ...(state.claimAt !== undefined ? { claimAt: state.claimAt } : {}),
     ...(state.evidenceSource !== undefined ? { evidenceSource: state.evidenceSource } : {}),
@@ -288,4 +281,3 @@ export function replayKeyProjection(events: readonly KnowledgeEvent[]): ReplayPr
 
   return projectKeyFold(state);
 }
-

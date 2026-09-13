@@ -2437,10 +2437,6 @@
             "Description": "Limit für automatisch erstellte Karten",
             "Label": "Max. neue pro Tag"
           },
-          "StaleLearningDays": {
-            "Label": "Schwelle für veraltete Lernwörter (Tage)",
-            "Description": "Als \"Lernend\" markierte Wörter nach dieser Anzahl Tagen ohne Statusänderung erneut in der Wortsynchronisation anzeigen"
-          },
           "EaseMapping": {
             "LearningEase": {
               "Label": "Integriertes SRS: Lern-Ease",
@@ -3230,9 +3226,6 @@
       "FilterUnknownLearning": "Unbekannte & Lernende",
       "FilterPassive": "Nur passive",
       "StatusFilterTitle": "Statusfilter",
-      "RecencyAll": "Alle",
-      "RecencyHideRecent": "Neue ausblenden (30 T.)",
-      "RecencyFilterTitle": "Zeitfilter",
       "LevelFilterAll": "Alle",
       "LevelFilterOthers": "Andere",
       "LevelFilterTitle": "Stufenfilter",
@@ -3458,7 +3451,6 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency",
         "State": "Status",
         "Language": "Sprache",
         "Suspended": "Ausgesetzt",
@@ -3469,10 +3461,6 @@
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
-      },
-      "Recency": {
-        "Recent": "Recently rated",
-        "NotRecent": "Not recently rated"
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",

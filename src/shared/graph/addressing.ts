@@ -82,14 +82,14 @@ export interface EventAddress {
 
 /** Entry ids realized by a surface (`realizes`; resolves either endpoint orientation). */
 export function realizedEntryIds(graph: LingualGraph, surfaceId: string): string[] {
-  return relationsOf(graph, surfaceId)
+  return [...new Set(relationsOf(graph, surfaceId)
     .filter((relation) => relation.type === 'realizes')
     .flatMap((relation): string[] => {
       const candidate = relation.from === surfaceId ? relation.to : relation.to === surfaceId ? relation.from : undefined;
       if (candidate === undefined) return [];
       // Only the dictionary-entry endpoint names the lexical identity.
       return graph.nodes.get(candidate)?.kind === 'dictionary-entry' ? [candidate] : [];
-    });
+    }))];
 }
 
 /** Surface ids realizing an entry — the authoritative variant family. */
@@ -164,7 +164,10 @@ export function eventAppliesToTarget(
   if (!ref) return true; // legacy flat event: capability routing only, caller scoped the key
   if (ENTRY_LEVEL_CAPABILITIES[target.capability]) {
     const context = lexicalContextEntryIds(graph, target.entityId);
-    if (context.length === 0) return false;
+    // No ontology entry means no transfer, but the exact authored surface
+    // address still owns its evidence when a package drops that surface.
+    if (context.length === 0) return ref.kind === 'surface' && ref.to === undefined
+      && ref.id === target.entityId && ref.id === queriedSurfaceId;
     if (ref.to !== undefined) return context.includes(ref.to);
     if (ref.kind !== 'surface') return false;
     const entries = realizedEntryIds(graph, ref.id);
@@ -221,4 +224,3 @@ export function siblingJournalKeys(graph: LingualGraph, surfaceId: string): stri
   }
   return [...keys];
 }
-

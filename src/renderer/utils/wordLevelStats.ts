@@ -82,7 +82,7 @@ function wordKey(language: string, word: string, canonicalizeWord?: Canonicalize
   return langKey(language, hashWordSync(storageWord));
 }
 
-export type ResolveLearnerState = (word: string, language: string) => ComprehensiveWordStatusResult;
+export type ResolveLearnerState = (word: string, language: string) => Pick<ComprehensiveWordStatusResult, 'status' | 'basis'>;
 
 /** Materialized-key index, resolved by the same API as Reader and Word Sync. */
 function buildStateSets(
@@ -97,7 +97,7 @@ function buildStateSets(
   const known = new Set<string>();
   const learning = new Set<string>();
   const measured = new Set<string>();
-  const add = (key: string, state: ComprehensiveWordStatusResult) => {
+  const add = (key: string, state: Pick<ComprehensiveWordStatusResult, 'status' | 'basis'>) => {
     known.delete(key);
     learning.delete(key);
     measured.delete(key);
@@ -110,7 +110,7 @@ function buildStateSets(
     hashWordSync, langKey, language, wordKnowledge: store.wordKnowledge, ignoredWords: store.ignoredWords,
     knownEaseThreshold: knownThreshold / 1000, learningThreshold: learningThreshold / 1000,
   }));
-  for (const key of buildTrackedWordSet(store, language)) {
+  for (const key of resolveState ? [] : buildTrackedWordSet(store, language)) {
     const word = store.wordKnowledge[key]?.word;
     add(key, word && resolveState ? resolve(word, language) : getEffectiveWordStateForKeys([key], store.wordKnowledge, {
       known: knownThreshold / 1000, learning: learningThreshold / 1000,

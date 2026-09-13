@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { grammarEntityId } from '../../shared/graph/load';
 import {
   PRESETS,
-  calibrationPoolItem,
   selectEncounterBatch,
   selectNextEncounter,
   type EncounterInputs,
@@ -21,7 +20,7 @@ describe('selectNextEncounter', () => {
     const calibration = selectNextEncounter({
       preset: 'CALIBRATION',
       nowMs: 10_000,
-      wordSyncPoolItems: [calibrationPoolItem('de:neu', 'neu', 'de', 1)],
+      wordSyncPoolItems: [{ key: 'de:neu', word: 'neu', language: 'de', targets: [target], scores: { novelty: 1 } }],
       rng: () => 0.5,
     });
 
@@ -201,7 +200,7 @@ describe('candidate origin reachability', () => {
     collect({
       preset: 'CALIBRATION',
       nowMs: 10_000,
-      wordSyncPoolItems: [calibrationPoolItem('de:neu', 'neu', 'de', 1)],
+      wordSyncPoolItems: [{ key: 'de:neu', word: 'neu', language: 'de', targets: [target], scores: { novelty: 1 } }],
       weakTargets: [{ word: 'haus', language: 'de', status: 'learning', ease: 1.55 }],
       probeTargets: [{
         target: { entityId: 'de:grammar:past tense', capability: 'grammar-recognition' },

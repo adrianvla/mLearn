@@ -195,7 +195,6 @@ describe('buildKnownWordSetFromStore', () => {
       },
       grammarKnowledge: {},
       suggestedFlashcards: {},
-      wordSyncSeen: {},
       meta: {
         perLanguage: {},
         newCardsToday: 0,

@@ -124,8 +124,7 @@ describe('grammar encounter journaling', () => {
     const trackGrammarEncountered = vi.fn<GrammarEncounterTracker['trackGrammarEncountered']>();
     const trackGrammarFailed = vi.fn();
     const setWordClaim = vi.fn();
-    const restoreWordSyncRating = vi.fn();
-    const tracker = { trackGrammarEncountered, trackGrammarFailed, setWordClaim, restoreWordSyncRating };
+    const tracker = { trackGrammarEncountered, trackGrammarFailed, setWordClaim };
     const recorder = createGrammarEncounterRecorder('subtitle');
 
     const encounters = journalGrammarEncounters(tracker, recorder, 'line-1', detect());
@@ -134,7 +133,6 @@ describe('grammar encounter journaling', () => {
     expect(trackGrammarEncountered).toHaveBeenCalledTimes(2);
     expect(trackGrammarFailed).not.toHaveBeenCalled();
     expect(setWordClaim).not.toHaveBeenCalled();
-    expect(restoreWordSyncRating).not.toHaveBeenCalled();
 
     for (const call of trackGrammarEncountered.mock.calls) {
       expect(Object.keys(call[1] ?? {}).sort()).toEqual(['confidence', 'origin', 'span']);

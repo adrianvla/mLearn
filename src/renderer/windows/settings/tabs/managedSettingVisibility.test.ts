@@ -16,7 +16,7 @@ describe('managed Anki child visibility', () => {
 });
 
 describe('managed frequency child visibility', () => {
-  it.each(['proportionOfLevelCards', 'wordSyncStaleLearningDays'] as const)(
+  it.each(['proportionOfLevelCards'] as const)(
     'shows frequency settings when %s is independently managed',
     (managedKey) => {
       expect(shouldShowFrequencySettings(false, (key) => key === managedKey)).toBe(true);

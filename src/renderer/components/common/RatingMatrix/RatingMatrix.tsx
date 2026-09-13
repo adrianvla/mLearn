@@ -57,6 +57,8 @@ export interface RatingMatrixProps {
   armed: boolean;
   /** Resets drafts, collapse state and the submitted guard when it changes. */
   resetKey?: string | number;
+  /** Focused probes show their exact tested rows immediately. */
+  initiallyExpanded?: boolean;
   /** One logical attempt: the full observation set, in display order. */
   onSubmit: (observations: readonly ProfileObservation[], opts?: RateOptions) => void;
 }
@@ -140,7 +142,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
   createEffect(on(() => props.resetKey, () => {
     clearDrafts();
-    setExpanded(false);
+    setExpanded(props.initiallyExpanded === true);
     setSubmitted(false);
     clearPending();
   }));

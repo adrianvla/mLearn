@@ -246,7 +246,7 @@ export interface KnowledgeEvent {
    * the legacy `aspect` projection).
    */
   targetRef?: { kind: string; id: string; capability?: CapabilityKey; to?: string };
-  /** Presenting surface/policy channel that produced the observation (e.g. 'word-sync'); replay maps this to policy markers like wordSyncRatedAt. */
+  /** Product surface that produced the observation (e.g. 'word-sync'); preserved as evidence provenance. */
   origin?: string;
 }
 

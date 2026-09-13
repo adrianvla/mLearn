@@ -1,3 +1,6 @@
+import { projectedWordStatus } from '../../../shared/graph/targets';
+import { getLogger } from '../../../shared/utils/logger';
+import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
 import { Component, Show, batch, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack } from 'solid-js';
 import {
   WindowWrapper,
@@ -35,42 +38,31 @@ import type { LearnerClaimOp } from '../../services/learnerClaimsInterpreter';
 import { buildClaimPromptContext } from '../../services/learnerClaimsInterpreter';
 import { CAPABILITY_LABEL_KEYS, isValidCapabilityId } from '../../../shared/graph/access';
 import type { WordStatus } from '../../../shared/constants';
-import { ATTEMPT_QUALITIES, SRS_EASE, type AttemptQuality } from '../../../shared/constants';
+import { ATTEMPT_QUALITIES, type AttemptQuality } from '../../../shared/constants';
 import type { CapabilityKind } from '../../../shared/graph/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
-import { ankiCacheVersion, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
+import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
 import { KnowledgeSkeleton } from '../../components/common';
-import { getLogger } from '../../../shared/utils/logger';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import {
-  extractStudyCharacters,
-  getCharacterStudyScripts,
   getFrequencyLevelLabel,
   getFrequencyLevelVisualRank,
   getLearningLanguageLevelForLanguage,
   sortFrequencyLevelsByDifficulty,
   wordNeedsReadingAnnotation,
 } from '../../../shared/languageFeatures';
-import {
-  wasExplicitlySyncRated,
-  calculateCharacterStudyBoost,
-  calculateWordWeight,
-  isWordEligible,
-  isWordSyncRecentlyRated,
-  wordSyncPoolStatus,
-  isBridgeCandidate,
-} from './wordSyncPool';
+import { wordSyncPoolStatus, wordSyncProbe } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
-import { calibrationPoolItem, selectNextEncounter } from '../../learning/engine';
+import { selectNextEncounter } from '../../learning/engine';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import './WordSync.css';
 
@@ -81,14 +73,11 @@ interface PoolEntry {
   levelName: string;
   storageKey: string;
   weight: number;
-  /** Known lexical object with a missing written-form bridge (cheap sync win). */
-  bridge: boolean;
 }
 
 interface WordSyncUndoEntry {
   word: PoolEntry;
   language: string;
-  previousSeenAt: Record<string, number | undefined>;
   /** Attempt ids whose events must be retracted when this rating is undone. */
   attemptIds: AttemptId[];
   previousRatedCount: number;
@@ -103,21 +92,12 @@ const MAX_UNDO_STACK_SIZE = 50;
 export const WordSyncContent: Component = () => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const log = getLogger('renderer.wordSync');
   const langCtx = useLanguage();
   const {
     store,
     isLoading,
-    markWordSyncSeen,
-    clearAllWordSyncSeen,
-    restoreWordSyncRating,
     appendRetractions,
     recomputeWordKnowledgeFromEvidence,
-    getWordKnowledge,
-    getCardByWordSync,
-    getWordSyncSeenSnapshotForForms,
-    getComprehensiveWordStatusWithSourceSync,
-    getAccessStatus,
     setAccessClaim,
     setWordClaim,
     clearAccessClaim,
@@ -149,7 +129,7 @@ export const WordSyncContent: Component = () => {
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>([]);
   const [filterPresetInitialized, setFilterPresetInitialized] = createSignal(false);
   const [showTranslation, setShowTranslation] = createSignal(false);
-  // Reveal-first gate (Anki-style): the prompt word is shown first; the first
+  // Reveal-first gate: the prompt word is shown first; the first
   // Space/Enter reveals the answer, the second submits the profile rating.
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [additionalInfoInAnswer, setAdditionalInfoInAnswer] = createSignal(false);
@@ -175,7 +155,6 @@ export const WordSyncContent: Component = () => {
   };
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
 
-  const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
   const [undoStack, setUndoStack] = createSignal<WordSyncUndoEntry[]>([]);
 
   // ─── Translation for current word ───────────────────
@@ -240,82 +219,76 @@ export const WordSyncContent: Component = () => {
     return { ok: false as const, errors: result.errors };
   });
 
-  // ─── Known character set for language-defined study scripts ─────
-  const characterStudyScripts = createMemo(() => getCharacterStudyScripts(langCtx.currentLangData()));
-  function buildKnownCharacterSetSnapshot(scripts: readonly string[], lang: string): Set<string> {
-    if (scripts.length === 0) return new Set();
-
-    const prefix = lang + ':';
-    const result = new Set<string>();
-
-    for (const [key, entry] of Object.entries(store.wordKnowledge)) {
-      if (!key.startsWith(prefix)) continue;
-      if (!wasExplicitlySyncRated(entry)) continue;
-      if (entry.ease < SRS_EASE.DEFAULT_KNOWN) continue;
-      for (const ch of extractStudyCharacters(entry.word, scripts)) {
-        result.add(ch);
-      }
-    }
-
-    return result;
-  }
-
   // ─── Word pool ──────────────────────────────────────
+  const log = getLogger('renderer.wordSync');
+  const trace = (phase: string, details: Record<string, unknown> = {}) => log.debug('session lifecycle', { phase, at: performance.now(), ...details });
+  const [poolPrepared, setPoolPrepared] = createSignal(false);
+  const [sessionQueue, setSessionQueue] = createSignal<Map<number, PoolEntry[]>>();
   const [wordPool, setWordPool] = createSignal<Map<number, PoolEntry[]>>(new Map(), { equals: false });
+
+  const poolProjection = useKnowledgeProjections(() => isKnowledgeReady() && filterPresetInitialized() && poolPrepared() && !sessionQueue() ? {
+    language: settings.language, surfaces: [...wordPool().values()].flat().filter(entry => {
+      const filter = filterAst();
+      return filter.ok && (!filter.ast || ['untracked', '0', '1', '2'].some(status =>
+        evaluateAst<unknown>(filter.ast!, { status, level: entry.level }, filterResolvers())));
+    }).map(entry => entry.word),
+  } : undefined);
+  let scanRevision = 0;
+  onCleanup(() => { scanRevision++; });
+  const [eligibleWords] = createResource(() => {
+    const revision = ++scanRevision;
+    const projections = poolProjection.projections();
+    const filter = filterAst();
+    return poolPrepared() && !sessionQueue() && poolProjection.ready() && filterPresetInitialized() && filter.ok ? {
+      pool: wordPool(), tokens: filterTokens(),
+      entries: [...wordPool().values()].flat(), projections, filter: filter.ast, revision,
+      language: settings.language, data: langCtx.currentLangData(),
+    } : undefined;
+  }, async (input) => {
+    trace('accelerator ready', { surfaces: input.projections.size });
+    trace('filters applied', { tokens: input.tokens });
+    const eligible = new Set<string>();
+    let cursor = 0;
+    const entries = input.entries;
+    await Promise.all(Array.from({ length: Math.min(8, entries.length) }, async () => {
+      while (input.revision === scanRevision && cursor < entries.length) {
+        const entry = entries[cursor++];
+        const projection = input.projections.get(entry.word);
+        if (projection?.status !== 'ready') continue;
+        const summary = projectedWordStatus(projection);
+        if (input.filter && !evaluateAst<unknown>(input.filter, { status: wordSyncPoolStatus(summary.status, summary.basis), level: entry.level }, filterResolvers())) continue;
+        const reference = await fetchTranslation(entry.word, input.language, {
+          getCanonicalForm: langCtx.getCanonicalForm, getWordVariants: langCtx.getWordVariants,
+          dictionaryTargetLanguage, languageData: langCtx.currentLangData,
+        });
+        const reading = reference?.data?.[0]?.reading || entry.reading;
+        const prosody = extractProsodyFromTranslationData(reference ?? undefined, input.data, reading);
+        const possible = getTestedAccesses({ languageData: input.data, surface: entry.word, hasReadingData: !!reading, hasProsodyData: !!prosody });
+        const probe = wordSyncProbe(projection, possible);
+        if (probe.targets.length && (!input.filter || evaluateAst<unknown>(input.filter, { status: probe.status, level: entry.level }, filterResolvers()))) eligible.add(entry.word);
+      }
+    }));
+    trace('candidate count', { count: eligible.size, revision: input.revision });
+    return { eligible, pool: input.pool, tokens: input.tokens, revision: input.revision };
+  });
 
   function buildWordPoolSnapshot(): Map<number, PoolEntry[]> {
     const freq = langCtx.getWordFrequency();
     const names = levelNames();
-    const staleDaysMs = settings.wordSyncStaleLearningDays * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    const studyScripts = characterStudyScripts();
-    const ast = filterAst();
-    const resolvers = filterResolvers();
     const lang = settings.language;
     const languageData = langCtx.currentLangData();
 
     return untrack(() => {
-      const rated = sessionRatedSet();
-      const characterSet = buildKnownCharacterSetSnapshot(studyScripts, lang);
       const groups = new Map<number, PoolEntry[]>();
 
       for (const [word, entry] of Object.entries(freq)) {
-        if (rated.has(word)) continue;
 
         const storageWord = langCtx.getCanonicalFormForLanguage(lang, word);
         const lk = `${lang}:${hashWordSync(storageWord)}`;
 
-        const knowledge = getWordKnowledge(lk);
-        const seenRecently = isWordSyncRecentlyRated(knowledge, store.wordSyncSeen[lk], staleDaysMs, now);
-        // Tier-2: the comprehensive resolver reads ONLY the evidence journal +
-        // claims (wordKnowledge). There is no "anki bank" to delegate to — live
-        // Anki matching is tracking, not knowledge. Words scheduled by another
-        // tracker (built-in SRS flashcards or Anki) are excluded here as
-        // teaching policy: Word Sync calibrates untracked words, and re-quizzing
-        // words another scheduler already owns would double-schedule them.
-        const resolved = getComprehensiveWordStatusWithSourceSync(word, lang);
-        // Excluded words are teaching-policy removals, not knowledge — either way
-        // they never enter the calibration pool. A KNOWN word with a missing
-        // written-form bridge is NOT excluded: reconstructing the learner
-        // overlay is exactly Word Sync's job, and re-presenting it is a cheap
-        // bridge completion, not re-teaching a novel lexical object.
-        if (resolved.excluded) continue;
-        const writtenAccess = getAccessStatus(word, 'surface-recognition', lang).status === 'known';
-        if (resolved.status === 'known' && writtenAccess) continue;
-        if (getCardByWordSync(word, lang) !== null) continue;
-        const record = {
-          status: wordSyncPoolStatus(resolved.status, resolved.basis),
-          level: entry.raw_level,
-          seenRecently,
-        };
-
-        if (ast.ok && ast.ast && !evaluateAst<unknown>(ast.ast, record, resolvers)) continue;
-
-        if (!isWordEligible(knowledge, seenRecently, true, staleDaysMs, now)) continue;
-
-        const characterStudyBoost = calculateCharacterStudyBoost(word, characterSet, studyScripts);
-        const bridge = isBridgeCandidate(resolved.status, writtenAccess, Boolean(knowledge));
-        const weight = calculateWordWeight(knowledge?.ease, characterStudyBoost, bridge);
+        // Structural/policy pool only. Knowledge admission waits for the same
+        // on-demand projection as Inspect; no materialized-status fallback.
+        if (store.ignoredWords[lk]) continue;
 
         const lvl = entry.raw_level;
         if (!groups.has(lvl)) groups.set(lvl, []);
@@ -325,8 +298,7 @@ export const WordSyncContent: Component = () => {
           level: lvl,
           levelName: getFrequencyLevelLabel(lvl, names, languageData),
           storageKey: lk,
-          weight,
-          bridge,
+          weight: 1,
         });
       }
 
@@ -340,7 +312,7 @@ export const WordSyncContent: Component = () => {
 
   function rebuildWordPool(): Map<number, PoolEntry[]> {
     const groups = buildWordPoolSnapshot();
-    setWordPool(groups);
+    batch(() => { setWordPool(groups); setPoolPrepared(true); });
     return groups;
   }
 
@@ -366,13 +338,14 @@ export const WordSyncContent: Component = () => {
   }
 
   function pickNext() {
+    const pool = sessionQueue();
+    if (!pool || !isKnowledgeReady()) return;
     const levels = sortedLevels();
     if (levels.length === 0) { setFinished(true); setShowAnswer(false); setShowTranslation(false); return; }
 
     let lvl = samplingLevel();
     if (!levels.includes(lvl)) lvl = levels[0];
 
-    const pool = wordPool();
     const idx = levels.indexOf(lvl);
 
     // Build directional try order: current level first, then expand
@@ -395,28 +368,15 @@ export const WordSyncContent: Component = () => {
       if (!group || group.length === 0) continue;
       const cursor = levelCursors.get(tryLvl) ?? 0;
       if (cursor < group.length) {
-        const decision = selectNextEncounter({
-          preset: 'CALIBRATION',
-          nowMs: Date.now(),
-          wordSyncPoolItems: group.slice(cursor).map((entry) => (
-            calibrationPoolItem(entry.storageKey, entry.word, settings.language, entry.weight, { bridge: entry.bridge })
-          )),
-        });
-        const selectedIndex = decision?.action === 'DEFER'
-          ? cursor
-          : group.findIndex((entry, index) => index >= cursor && entry.storageKey === decision?.candidate.key);
-        const nextIndex = selectedIndex >= cursor ? selectedIndex : cursor;
-        if (nextIndex !== cursor) [group[cursor], group[nextIndex]] = [group[nextIndex], group[cursor]];
         batch(() => {
           stopWordTiming();
-          wordTimer = createEncounterTimer();
-          wordTimer.start();
           levelCursors.set(tryLvl, cursor + 1);
           setSamplingLevel(tryLvl);
           setTranslationSeenAtPrompt(false);
           setShowAnswer(false);
           setShowTranslation(false);
           setPresentationCount((c) => c + 1);
+          trace('next card selected', { word: group[cursor].word, cursor, total: totalAvailable() });
           setCurrentWord(group[cursor]);
         });
         return;
@@ -435,16 +395,14 @@ export const WordSyncContent: Component = () => {
   // rebuild knowledge consumers before the next word can render.
   const handleSubmitProfile = (observations: readonly ProfileObservation[], opts?: RateOptions) => batch(() => {
     const w = currentWord();
-    if (!w || observations.length === 0
+    if (!w || currentProjection.projection()?.status !== 'ready' || observations.length === 0
       || observations.some((observation) => !testedAccesses().some((capability) => capability === observation.capability))) return;
     // opts.easy is scheduler-only and Word Sync has no scheduler — the
     // recorded evidence (fluent) is identical either way, so it is ignored.
     void opts;
     const attemptId = nextAttemptId();
     const timing = stopWordTiming();
-    let anyMissed = false;
     for (const observation of observations) {
-      if (observation.quality === 'missed') anyMissed = true;
       recordAttempt(w.word, observation.capability, observation.quality, {
         language: settings.language,
         method: observation.method,
@@ -461,7 +419,6 @@ export const WordSyncContent: Component = () => {
         {
           word: w,
           language: settings.language,
-          previousSeenAt: getWordSyncSeenSnapshotForForms(w.word, settings.language),
           attemptIds: [attemptId],
           previousRatedCount: ratedCount(),
           previousLastRating: lastRating(),
@@ -473,9 +430,8 @@ export const WordSyncContent: Component = () => {
       return next;
     });
 
-    if (anyMissed) markWordSyncSeen(w.word, settings.language);
 
-    setSessionRatedSet((s) => { s.add(w.word); return s; });
+    trace('rating write', { word: w.word });
     setRatedCount((c) => c + 1);
 
     // The attempt's sampling direction follows its WORST aspect (the per-aspect
@@ -498,6 +454,7 @@ export const WordSyncContent: Component = () => {
     }
     // worst: struggled — the sampling level stays put.
 
+    setCurrentWord(null);
     pickNext();
   });
 
@@ -519,14 +476,12 @@ export const WordSyncContent: Component = () => {
       switch (op.op) {
         case 'setAccessClaim':
         case 'clearAccessClaim': {
-          // Open-world: any valid capability id (core or namespaced package
-          // id) is a legitimate claim address — the journal validates the id
-          // and the projection renders unknown ids inertly. Only the
-          // whole-word sense path is reserved (it has no access row).
-          const isValid = isValidCapabilityId(op.capability) && currentProjection.capabilities().includes(op.capability) && op.capability !== 'sense-recognition';
+          // Every graph-applicable access, including Meaning, uses the same
+          // claim path. A meaning claim must not become a whole-profile claim.
+          const isValid = isValidCapabilityId(op.capability) && currentProjection.capabilities().includes(op.capability);
           if (!isValid) break;
           const capability = op.capability;
-          const before = getAccessStatus(w.word, capability, lang);
+          const before = projectedAccess(capability);
           // Undo restores the PRIOR CLAIM PRESENCE exactly — it never
           // converts evidence into a claim.
           const restorePriorClaim = () => {
@@ -585,7 +540,7 @@ export const WordSyncContent: Component = () => {
     if (!w) return '';
     const accessStates: Record<string, WordStatus | undefined> = {};
     for (const capability of currentProjection.capabilities()) {
-      accessStates[capability] = getAccessStatus(w.word, capability, settings.language).status;
+      accessStates[capability] = projectedAccess(capability).status;
     }
     return buildClaimPromptContext({
       word: w.word,
@@ -597,23 +552,20 @@ export const WordSyncContent: Component = () => {
   }
 
   function recheckAll() {
-    clearAllWordSyncSeen();
+    setSessionQueue(undefined);
+    setCurrentWord(null);
     setFilterTokens(buildDefaultFilterPreset());
     setFinished(false);
     setRatedCount(0);
     setLastRating(null);
     setUndoStack([]);
-    setSessionRatedSet(new Set<string>());
     setShowAnswer(false);
     setShowTranslation(false);
     levelCursors = new Map();
 
     const levels = sortedLevels();
     if (levels.length > 0) setSamplingLevel(levels[0]);
-    queueMicrotask(() => {
-      rebuildWordPool();
-      pickNext();
-    });
+    rebuildWordPool();
   }
 
   function undoLastWordSyncRating() {
@@ -623,16 +575,9 @@ export const WordSyncContent: Component = () => {
 
     setUndoStack((prev) => prev.slice(0, -1));
 
-    // Retract the observed attempt and replay projection. The policy cooldown
-    // uses a snapshot restore; explicit corrections retain their own undo.
+    // Retract the observed attempt and replay projection; corrections retain their own undo.
     appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds);
     void recomputeWordKnowledgeFromEvidence(undoEntry.word.word, undoEntry.language);
-    restoreWordSyncRating(undoEntry.previousSeenAt, undoEntry.language);
-    setSessionRatedSet((rated) => {
-      const next = new Set(rated);
-      next.delete(undoEntry.word.word);
-      return next;
-    });
     setRatedCount(undoEntry.previousRatedCount);
     setLastRating(undoEntry.previousLastRating);
     setSamplingLevel(undoEntry.previousSamplingLevel);
@@ -689,19 +634,21 @@ export const WordSyncContent: Component = () => {
     // A store re-delivery re-opens the readiness gate: drop the session so the
     // pool and presented word rebuild from the reconciled store instead of
     // surviving stale.
-    if (!isKnowledgeReady()) {
+    if (!isKnowledgeReady() || langCtx.isLoading() || isLoading()) {
       if (initialized()) {
         // Reopen the session CLEAN: a store re-delivery reconciled the
         // knowledge the old session state was derived from — preserving part
         // of it (rated set without count, undo without snapshots) would mix
         // inconsistent state.
+        trace('projection not ready');
+        setSessionQueue(undefined);
+        setPoolPrepared(false);
         setInitialized(false);
         setCurrentWord(null);
         setFinished(false);
         setRatedCount(0);
         setLastRating(null);
         setUndoStack([]);
-        setSessionRatedSet(new Set<string>());
         setShowAnswer(false);
         setShowTranslation(false);
         levelCursors = new Map();
@@ -716,6 +663,7 @@ export const WordSyncContent: Component = () => {
     }
 
     if (!langCtx.isLoading() && !isLoading() && !initialized()) {
+      trace('projection ready');
       setInitialized(true);
       const levels = sortedLevels();
       if (levels.length > 0) setSamplingLevel(levels[0]);
@@ -724,38 +672,7 @@ export const WordSyncContent: Component = () => {
     }
   });
 
-  // The pool snapshot is built untracked; anki syncs must refresh it or words the
-  // cache just marked known keep appearing (and counts keep regressing) until restart.
-  // defer + untracked guard: never rebuild on the init flip itself — pickNext has
-  // already advanced cursors, and a reshuffle would re-present already-rated words.
-  createEffect(on(ankiCacheVersion, () => {
-    if (untrack(() => !initialized())) return;
-    levelCursors = new Map();
-    rebuildWordPool();
-  }, { defer: true }));
-
-  onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    // This window owns its pool exclusions, so it cannot wait for another
-    // window to populate the Anki cache: without it, tracked words slip into
-    // the pool until some other surface happens to refresh the cache. The
-    // options must match the resolver's lookup signature (language + language
-    // data + thresholds) or the primed entry misses the pool's own lookups.
-    // The cache service deduplicates concurrent fetches and backs off failures.
-    if (settings.use_anki && !isAnkiCacheFetched({
-      language: settings.language,
-      languageData: langCtx.currentLangData(),
-      ankiLearningThreshold: settings.ankiLearningThreshold,
-      ankiKnownThreshold: settings.ankiKnownThreshold,
-    })) {
-      void refreshAnkiWordsCache({
-        language: settings.language,
-        languageData: langCtx.currentLangData(),
-        ankiLearningThreshold: settings.ankiLearningThreshold,
-        ankiKnownThreshold: settings.ankiKnownThreshold,
-      }).catch((e) => log.warn('anki cache refresh failed:', e));
-    }
-  });
+  onMount(() => window.addEventListener('keydown', handleKeyDown));
   onCleanup(() => {
     window.removeEventListener('keydown', handleKeyDown);
     stopWordTiming();
@@ -774,11 +691,18 @@ export const WordSyncContent: Component = () => {
     return getFrequencyLevelVisualRank(w.level, langCtx.getFreqLevelNames(), langCtx.currentLangData());
   });
 
-  const totalAvailable = createMemo(() => {
-    let total = 0;
-    for (const group of wordPool().values()) total += group.length;
-    return total;
-  });
+  const totalAvailable = createMemo(() => [...(sessionQueue()?.values() ?? [])].reduce((total, group) => total + group.length, 0));
+  createEffect(on(() => eligibleWords(), result => {
+    if (!result || sessionQueue() || result.pool !== wordPool() || result.tokens !== filterTokens()
+      || result.revision !== scanRevision || !isKnowledgeReady() || !poolProjection.ready()) return;
+    const queue = new Map([...result.pool].map(([level, group]) => [level, group.filter(entry => result.eligible.has(entry.word))]));
+    batch(() => {
+      setSessionQueue(queue);
+      levelCursors = new Map();
+      trace('session queue created', { count: [...queue.values()].reduce((n, group) => n + group.length, 0) });
+      untrack(pickNext);
+    });
+  }));
 
   // The definition comes from the dictionary's chosen entry; pair it with that
   // entry's own reading (data[0].reading) so reading and definition belong to
@@ -805,21 +729,49 @@ export const WordSyncContent: Component = () => {
     const word = currentWord();
     return word ? { language: settings.language, surface: word.word } : undefined;
   });
-  const testedAccesses = createMemo<CapabilityKind[]>(() => {
+  // The encounter owns its tested set once admitted. Journal updates during
+  // an active response must not silently change which question was asked.
+  const [probe, setProbe] = createSignal<{ presentation: number; capabilities: CapabilityKind[]; focused: boolean }>();
+  const testedAccesses = createMemo(() => probe()?.presentation === presentationCount() ? probe()!.capabilities : []);
+  createEffect(on(() => [currentProjection.projection(), translation.loading, presentationCount()] as const, ([projection, loading, presentation]) => {
     const w = currentWord();
-    if (!w) return [];
-    return [...getTestedAccesses({
-      languageData: langCtx.currentLangData(),
-      surface: w.word,
-      hasReadingData: !!displayedReading(),
-      hasProsodyData: !!currentWordProsody(),
-    })].filter((capability) => currentProjection.capabilities().includes(capability));
-  });
+    if (!w || loading || projection?.status !== 'ready'
+      || (probe()?.presentation === presentation && showAnswer())) return;
+    const possible = getTestedAccesses({
+      languageData: langCtx.currentLangData(), surface: w.word,
+      hasReadingData: !!displayedReading(), hasProsodyData: !!currentWordProsody(),
+    });
+    trace('projection update', { word: w.word });
+    const admitted = wordSyncProbe(projection, possible);
+    const targets = admitted.targets;
+    const ast = filterAst();
+    const record = { status: admitted.status, level: w.level };
+    const decision = selectNextEncounter({
+      preset: 'CALIBRATION', nowMs: Date.now(),
+      wordSyncPoolItems: [{ key: w.storageKey, word: w.word, language: settings.language, targets, scores: { novelty: 1 } }],
+    });
+    if (targets.length === 0 || decision?.action === 'DEFER' || (ast.ok && ast.ast && !evaluateAst<unknown>(ast.ast, record, filterResolvers()))) {
+      setCurrentWord(null);
+      untrack(pickNext);
+      return;
+    }
+    stopWordTiming();
+    wordTimer = createEncounterTimer();
+    wordTimer.start();
+    trace('card rendered', { word: w.word, presentation, targets: targets.length });
+    setProbe({ presentation: presentationCount(), capabilities: [...new Set(targets.map(target => target.capability))] as CapabilityKind[], focused: admitted.focused });
+  }));
+
+  const projectedAccess = (capability: string) => {
+    const state = projectionStateForCapability(currentProjection.projection(), capability);
+    const status: WordStatus = state?.classification === 'known' || state?.classification === 'learning' ? state.classification : 'unknown';
+    return { status, ease: state?.strength?.ease ?? 0, claim: state?.basis === 'claim' ? status : undefined };
+  };
 
   const wordColoredProsodyCtx: WordRenderTextContext = {
     languageData: langCtx.currentLangData,
     prosodyPosition: () => currentWordProsody()?.position ?? null,
-    prosodyKnowledge: () => getAccessStatus(currentWord()?.word ?? '', 'prosodic-pattern', settings.language),
+    prosodyKnowledge: () => projectedAccess('prosodic-pattern'),
     partOfSpeechColor: () => undefined,
     surface: 'other',
     settings: () => settings,
@@ -870,7 +822,7 @@ export const WordSyncContent: Component = () => {
     {/* Real loading only (language data or learner projection still hydrating):
         the shared skeleton owns that gap; once data is present the session
         renders exactly as before, with the body handling its own empty state. */}
-    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady()} fallback={<KnowledgeSkeleton variant="word-sync" />}>
+    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && (!currentWord() || testedAccesses().length > 0)} fallback={<KnowledgeSkeleton variant="word-sync" />}>
       <div class="word-sync-header">
         <span class="word-sync-counter">
           {t('mlearn.WordSync.Progress', {
@@ -903,17 +855,17 @@ export const WordSyncContent: Component = () => {
             fields={filterContext().fields}
             paletteItems={filterContext().paletteItems}
             tokens={filterTokens()}
-            onChange={(tokens) => {
+            onChange={(tokens) => batch(() => {
+              setSessionQueue(undefined);
+              setCurrentWord(null);
+              setRatedCount(0);
+              setUndoStack([]);
               setFilterTokens(tokens);
               levelCursors = new Map();
               setFinished(false);
               setLastRating(null);
-              setUndoStack([]);
-              queueMicrotask(() => {
-                rebuildWordPool();
-                pickNext();
-              });
-            }}
+              rebuildWordPool();
+            })}
             evaluation={filterValidation()}
           />
         </Popover>
@@ -995,14 +947,14 @@ export const WordSyncContent: Component = () => {
         <div class="word-sync-actions">
           <WordSyncRating
             accesses={testedAccesses()}
-            wordClaim={store.wordKnowledge[currentWord()?.storageKey ?? '']?.claim ?? null}
-            claims={Object.fromEntries(currentProjection.capabilities().map((capability) => [
+            focusedProbe={probe()?.focused}
+            claims={Object.fromEntries(testedAccesses().map((capability) => [
               capability,
-              currentWord() ? getAccessStatus(currentWord()!.word, capability, settings.language).claim : undefined,
+              currentWord() ? projectedAccess(capability).claim : undefined,
             ]))}
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
-            armed={showAnswer() && !!currentWord() && !finished()}
+            armed={showAnswer() && currentProjection.projection()?.status === 'ready' && !!currentWord() && !finished()}
             onSubmit={handleSubmitProfile}
           />
           <Show when={currentWord()}>

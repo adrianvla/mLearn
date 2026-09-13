@@ -61,10 +61,14 @@ export const SRSTab: Component = () => {
       const result = await importAnkiReviewHistory(settings.language, {
         fetchReviews: (ids: number[]) => anki.getReviewsOfCards(ids),
         fetchCards: (ids: number[]) => anki.getCardsInfo(ids),
+        fields: {
+          expression: settings.anki_field_expression ?? DEFAULT_SETTINGS.anki_field_expression,
+          reading: settings.anki_field_reading ?? DEFAULT_SETTINGS.anki_field_reading,
+          meaning: settings.anki_field_meaning ?? DEFAULT_SETTINGS.anki_field_meaning,
+        },
         grammar: currentLangData()?.grammar,
       });
-      // Anki evidence is no longer a knowledge source — refresh materialized
-      // wordKnowledge projections from the freshly appended event journal.
+      // Refresh materialized projections from the appended Anki evidence.
       for (const word of result.importedWords) {
         void recomputeWordKnowledgeFromEvidence(word, settings.language);
       }
@@ -562,20 +566,7 @@ export const SRSTab: Component = () => {
             />
           </SettingRow>
 
-          <SettingRow
-            label={t('mlearn.Settings.SRS.BuiltInFlashcards.StaleLearningDays.Label')}
-            description={t('mlearn.Settings.SRS.BuiltInFlashcards.StaleLearningDays.Description')}
-            settingKey="wordSyncStaleLearningDays"
-          >
-            <input
-              type="number"
-              class="setting-input"
-              value={settings.wordSyncStaleLearningDays}
-              min={1}
-              max={365}
-              onChange={(e) => updateSettings({ wordSyncStaleLearningDays: parseInt(e.currentTarget.value) || 30 })}
-            />
-          </SettingRow>
+
         </Show>
 
         <SettingRow

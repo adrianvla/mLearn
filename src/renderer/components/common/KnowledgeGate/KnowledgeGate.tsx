@@ -37,6 +37,8 @@ export const KnowledgeSkeleton: Component<{ variant?: KnowledgeSkeletonVariant; 
 
 export interface KnowledgeGateProps {
   children: JSX.Element;
+  /** Additional canonical query readiness, when the consumer loads on demand. */
+  ready?: boolean;
   /** Placeholder shown while knowledge has not hydrated. Defaults to the shared skeleton. */
   fallback?: JSX.Element;
   /** Skeleton variant used when no explicit fallback is supplied. */
@@ -48,7 +50,7 @@ export const KnowledgeGate: Component<KnowledgeGateProps> = (props) => {
   const { isKnowledgeReady } = useFlashcards();
   return (
     <Show
-      when={isKnowledgeReady()}
+      when={isKnowledgeReady() && props.ready !== false}
       fallback={props.fallback ?? <KnowledgeSkeleton variant={props.variant} class={props.class} />}
     >
       {props.children}

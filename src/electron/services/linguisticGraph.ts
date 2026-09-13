@@ -217,9 +217,6 @@ export class LinguisticGraphService {
       if (!loaded) return { status: 'not-installed', targets: [] };
       const hash = crypto.createHash('sha256').update(surface).digest('hex');
       const surfaceId = `${language}:surface:${hash}`;
-      if (!loaded.graph.has(surfaceId)) {
-        return { status: 'ready', surfaceId, targets: [], querySurface: surface, surfaceKnown: false, compoundAnalysis: null };
-      }
       const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }, { loadSettings }] = await Promise.all([
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
@@ -239,7 +236,7 @@ export class LinguisticGraphService {
         .filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
       const compound = await this.compoundSupport(plain, language, surfaceId, thresholds);
       const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { compound, archives, thresholds });
-      return { ...projection, querySurface: surface, surfaceKnown: true, compoundAnalysis: compound?.analysis ?? null };
+      return { ...projection, querySurface: surface, surfaceKnown: loaded.graph.has(surfaceId), compoundAnalysis: compound?.analysis ?? null };
     } catch {
       return { status: 'error', targets: [] };
     }

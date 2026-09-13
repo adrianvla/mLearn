@@ -225,7 +225,6 @@ export interface Settings {
   maxNewCardsPerDay: number;
   proportionOfLevelCards: number;
   /** Days after which a "learning" word is re-shown in Word Sync (default 30) */
-  wordSyncStaleLearningDays: number;
   createUnseenCards: boolean;
   /** Use LLM to generate example sentences when auto-creating flashcards */
   flashcardLLMExamples: boolean;
@@ -646,7 +645,6 @@ export const DEFAULT_SETTINGS: Settings = {
   timeWatched: 0,
   maxNewCardsPerDay: 10,
   proportionOfLevelCards: 0.5,
-  wordSyncStaleLearningDays: 30,
   createUnseenCards: true,
   flashcardLLMExamples: false,
   newDayHour: 4,
@@ -1900,7 +1898,7 @@ export interface FlashcardMeta {
   maxInterval: number;
   /**
    * Normalization-semantics version used for key-derived persisted data
-   * (wordKnowledge/event/wordSyncSeen hashes). Absent = legacy v1 (ambient
+   * (wordKnowledge/event hashes). Absent = legacy v1 (ambient
    * host-locale casing). Bump CURRENT_NORMALIZATION_VERSION when step
    * semantics change; source-backed indexes rebuild, key-only legacy records
    * are preserved read-only in their original namespace.
@@ -1940,12 +1938,6 @@ export interface FlashcardStore {
    * them via the Suggested Flashcards tab.
    */
   suggestedFlashcards: Record<string, SuggestedFlashcard>;
-  /**
-   * Timestamps recording when words were last seen in the Word Sync window.
-   * Keyed by language-prefixed word hash (same scheme as wordKnowledge).
-   * Words seen less than ~30 days ago are skipped on next sync.
-   */
-  wordSyncSeen: Record<string, number>;
   /** Version for migrations */
   version: number;
   /**
@@ -2070,8 +2062,6 @@ export interface PassiveWordKnowledge {
   statusChangedAtSeen?: number;
   /** Timestamp of last knowledge status change (manual rating, sync, or SRS-driven) */
   lastStatusChange?: number;
-  /** Timestamp when this word was explicitly rated in the Word Sync window (undefined = never) */
-  wordSyncRatedAt?: number;
   /**
    * Active explicit user claim ("I know/learn/don't know this") — overrides the
    * evidence-derived classification of the effective state until cleared.

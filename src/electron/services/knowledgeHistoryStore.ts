@@ -78,7 +78,7 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
 
 /** 2 = per-row contribution records (bucket_recs + attempt_index) exist. */
 export const KNOWLEDGE_STORE_SCHEMA_VERSION = 2;
-export const KNOWLEDGE_STORE_FOLD_VERSION = 1;
+export const KNOWLEDGE_STORE_FOLD_VERSION = 2;
 export const STORE_FILE_NAME = 'knowledge-history.sqlite3';
 /** Maximum keys compacted per pass — bounded incremental work. */
 export const COMPACTION_KEY_BUDGET = 200;

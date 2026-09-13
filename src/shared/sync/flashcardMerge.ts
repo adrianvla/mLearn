@@ -37,7 +37,7 @@ import type {
  * `lastStatusChange`/`statusChangedAtSeen` mark explicit status history — none
  * of it travels with a journal, so adopting it would let sync invent Tier-1
  * truth (REQ2 violation). The receiving device's own active-evidence markers
- * stay. `wordSyncRatedAt` is a re-ask policy marker (not knowledge truth) and
+ * stay.
  * is preserved; `deriveSyncKnowledgeJournal` mirrors it as event provenance.
  */
 export function sanitizeSyncedKnowledgeEntry(
@@ -65,7 +65,7 @@ export function sanitizeSyncedKnowledgeEntry(
  * - ease lands as a `passiveTracking` rollup — passive strength, never an
  *   active promotion, and `origin` carries the sync provenance ('word-sync'
  *   when the entry was explicitly rated in the word-sync channel, so replay
- *   restores the wordSyncRatedAt policy marker);
+ *   preserves the journal provenance);
  * - an explicit claim lands as a `source: 'manual'` claim event with
  *   `origin: 'sync'`, stamped at the original claimAt so the claim semantics
  *   survive the hop. 'sync' is deliberately NOT a status source: claims are
@@ -85,7 +85,7 @@ export function deriveSyncKnowledgeJournal(
   const log: KnowledgeEventLog = {};
   for (const [lk, entry] of applied) {
     const events: KnowledgeEvent[] = [];
-    const easeAnchor = entry.wordSyncRatedAt ?? entry.lastStatusChange ?? entry.lastSeen ?? 0;
+    const easeAnchor = entry.lastStatusChange ?? entry.lastSeen ?? 0;
     if (typeof entry.ease === 'number' && Number.isFinite(entry.ease)) {
       events.push({
         t: easeAnchor,
@@ -93,7 +93,7 @@ export function deriveSyncKnowledgeJournal(
         source: 'passiveTracking',
         aspect: 'meaning',
         easeAfter: entry.ease,
-        origin: entry.wordSyncRatedAt !== undefined ? 'word-sync' : 'sync',
+        origin: 'sync',
       });
     }
     if (entry.claim !== undefined) {
@@ -180,7 +180,6 @@ export function mergeFlashcardStoresWithJournal(current: FlashcardStore, incomin
   merged.knownUntracked ??= {};
   merged.ignoredWords ??= {};
   merged.wordKnowledge ??= {};
-  merged.wordSyncSeen ??= {};
 
   const appliedKnowledge = mergeWordKnowledge(merged.wordKnowledge, incoming.wordKnowledge ?? {});
   for (const [lk, value] of Object.entries(incoming.knownUntracked ?? {})) {
@@ -190,9 +189,7 @@ export function mergeFlashcardStoresWithJournal(current: FlashcardStore, incomin
     const existing: IgnoredWordEntry | undefined = merged.ignoredWords[lk];
     if (!existing || entry.ignoredAt > existing.ignoredAt) merged.ignoredWords[lk] = entry;
   }
-  for (const [lk, seen] of Object.entries(incoming.wordSyncSeen ?? {})) {
-    if (seen > (merged.wordSyncSeen[lk] ?? 0)) merged.wordSyncSeen[lk] = seen;
-  }
+
 
   // Word candidates union-max (ported from flashcardSyncService). Legacy numeric
   // payloads carry no timestamp, so they cannot win the lastSeen comparison.

@@ -127,6 +127,8 @@ export interface KnowledgeProjectionTarget {
  * heuristics.
  */
 export interface KnowledgeLexicalSummary {
+  /** Strongest projected lexical-identity access. Measured bridges alone remain Unknown but tracked; never derived from scheduler metadata. */
+  overall: { classification: KnowledgeProjectionClassification; basis: KnowledgeProjectionBasis };
   /** Entry ids the queried surface authoritatively realizes. */
   entryIds: string[];
   sense: { classification: KnowledgeProjectionClassification; basis: KnowledgeProjectionBasis };
@@ -148,6 +150,6 @@ export interface KnowledgeProjection {
   surfaceKnown?: boolean;
   /** Graph-attested decomposition (primary representation). null = the graph knows the surface but carries no attested structure; undefined = unavailable. */
   compoundAnalysis?: CompoundAnalysis | null;
-  /** Graph-relative lexical-object summary. Absent when the surface is unknown to the graph. */
+  /** Graph-relative lexical-object summary, retaining exact authored evidence even for graph-unmapped surfaces. */
   lexical?: KnowledgeLexicalSummary;
 }

@@ -1,3 +1,6 @@
+import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
+import { projectedWordStatus } from '../../../shared/graph/targets';
+import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
 /**
  * Character Grid Window
  * Displays a visual grid of language-defined study characters with
@@ -71,10 +74,19 @@ export const CharacterGridContent: Component = () => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const flashcardCtx = useFlashcards();
+  const projected = useKnowledgeProjections(() => flashcardCtx.isKnowledgeReady() && !languageLoading() ? {
+    language: settings.language,
+    surfaces: [...new Set([
+      ...Object.keys(getWordFrequency()),
+      ...Object.keys(getWordFrequency()).flatMap(word => extractUniqueStudyCharacters(word, getCharacterStudyScripts(currentLangData()))),
+      ...Object.values(flashcardCtx.store.wordKnowledge).filter(entry => entry?.language === settings.language).map(entry => entry.word),
+      ...Object.values(flashcardCtx.store.flashcards).filter(card => card.language === settings.language).map(card => card.content.front || card.content.word || ''),
+    ].filter(Boolean))],
+  } : undefined);
   // Character states derive from language metadata AND the learner
   // projection: the unsupported/empty banners and unmeasured cells are only
   // honest once both have settled.
-  const contentPending = () => isLoading() || languageLoading() || !flashcardCtx.isKnowledgeReady();
+  const contentPending = () => isLoading() || languageLoading() || !flashcardCtx.isKnowledgeReady() || projected.loading();
   const [characterData, setCharacterData] = createSignal<StudyCharacterData[]>([]);
   const [hoveredCharacter, setHoveredCharacter] = createSignal<StudyCharacterData | null>(null);
   const [hoveredLevel, setHoveredLevel] = createSignal<number | null>(null);
@@ -152,7 +164,7 @@ export const CharacterGridContent: Component = () => {
         level !== undefined && declaredLevels.has(level) ? level : undefined
       );
 
-      const wordSet = new Set<string>();
+      const wordSet = new Set<string>(Object.keys(getWordFrequency()));
 
       for (const entry of Object.values(flashcardCtx.store.wordKnowledge)) {
         if (entry && entry.language === lang) {
@@ -175,7 +187,7 @@ export const CharacterGridContent: Component = () => {
 
       const trackedWordsArray: Array<{ word: string; status: number }> = [];
       for (const word of wordSet) {
-        const status = flashcardCtx.getComprehensiveWordStatusSync(word, lang);
+        const status = projectedWordStatus(projected.projections().get(word)).status;
         if (status === 'known') {
           trackedWordsArray.push({ word, status: WORD_STATUS.KNOWN });
         } else if (status === 'learning') {
@@ -285,24 +297,15 @@ export const CharacterGridContent: Component = () => {
         }
       }
 
-      // Direct character-reading signal: surface-reading access records on
-      // word entries that ARE a single study character describe the character
-      // itself — word aggregation above is prediction only. A claim record
-      // (source 'Manual', claim set) is the user's explicit statement; any
-      // other record is character-reading attempt evidence. Both outrank
-      // prediction below.
+      // Only the exact single-character target can establish direct knowledge.
       const directByCharacter = new Map<string, NonNullable<StudyCharacterData['direct']>>();
-      for (const entry of Object.values(flashcardCtx.store.wordKnowledge)) {
-        if (!entry || entry.language !== lang) continue;
-        const chars = extractUniqueStudyCharacters(entry.word.trim(), studyScripts());
-        if (chars.length !== 1) continue;
-        const record = entry.access?.['surface-reading'];
-        if (!record) continue;
-        const kind: DirectCharacterKnowledge['kind'] = record.claim !== undefined ? 'claim' : 'evidence';
-        const existing = directByCharacter.get(chars[0]);
-        if (!existing || (kind === 'claim' && existing.kind !== 'claim')) {
-          directByCharacter.set(chars[0], { kind, status: record.status });
-        }
+      for (const character of characterMap.keys()) {
+        const state = projectionStateForCapability(projected.projections().get(character), 'surface-reading');
+        if (!state || (state.basis !== 'claim' && state.basis !== 'evidence')) continue;
+        directByCharacter.set(character, {
+          kind: state.basis,
+          status: state.classification === 'known' || state.classification === 'learning' ? state.classification : 'unknown',
+        });
       }
       for (const item of characterMap.values()) {
         const direct = directByCharacter.get(item.character);
@@ -402,6 +405,7 @@ export const CharacterGridContent: Component = () => {
 
   // Rebuild when language data changes
   createEffect(() => {
+    projected.projections();
     if (currentLangData()) {
       buildCharacterStats();
     }

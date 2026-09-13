@@ -422,7 +422,6 @@ function buildMockFlashcardStore(language: string): FlashcardStore {
     },
     dailyStats,
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     version: 2,
   };
 }

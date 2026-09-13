@@ -225,7 +225,6 @@ export {
   statusResolver,
   levelResolver,
   sourceResolver,
-  recencyResolver,
 } from './FilterBuilder';
 
 // Knowledge readiness gate

@@ -280,3 +280,16 @@ describe('LevelDetailModal', () => {
     dispose();
   });
 });
+
+vi.mock('../../hooks/useKnowledgeProjections', async () => {
+  const { useFlashcards } = await import('../../context');
+  const { projectionFixture } = await import('../../../../test/projectionFixture');
+  return { useKnowledgeProjections: (query: () => { language: string; surfaces: string[] } | undefined) => ({
+    loading: () => false,
+    projections: () => new Map((query()?.surfaces ?? []).map(word => {
+      const ctx = useFlashcards();
+      const state = ctx.getComprehensiveWordStatusWithSourceSync?.(word, query()!.language);
+      return [word, projectionFixture(state?.status ?? ctx.getComprehensiveWordStatusSync?.(word) ?? 'unknown', state?.basis ?? 'unmeasured')];
+    })),
+  }) };
+});

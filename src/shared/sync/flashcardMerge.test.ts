@@ -35,7 +35,6 @@ function makeStore(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
     meta: { ...META },
     dailyStats: {},
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     version: 3,
     ...overrides,
   };
@@ -140,7 +139,6 @@ describe('mergeFlashcardStores — sync epistemic honesty (REQ59)', () => {
         'ja:h1': entry({
           ease: 4.5,
           lastSeen: 500,
-          wordSyncRatedAt: 480,
           lastStatusChange: 490,
           statusChangedAtSeen: 3,
           hasActiveEvidence: true,
@@ -152,7 +150,7 @@ describe('mergeFlashcardStores — sync epistemic honesty (REQ59)', () => {
     const merged = mergeFlashcardStores(current, incoming);
 
     const applied = merged.wordKnowledge['ja:h1'];
-    expect(applied).toMatchObject({ ease: 4.5, lastSeen: 500, wordSyncRatedAt: 480 });
+    expect(applied).toMatchObject({ ease: 4.5, lastSeen: 500 });
     expect(applied?.hasActiveEvidence).toBeUndefined();
     expect(applied?.lastEvidenceSource).toBeUndefined();
     expect(applied?.lastStatusChange).toBeUndefined();
@@ -222,14 +220,14 @@ describe('deriveSyncKnowledgeJournal', () => {
     });
   });
 
-  it('marks word-sync rated entries with the word-sync provenance channel', () => {
+  it('keeps materialized sync rollups in the sync provenance channel', () => {
     const journal = deriveSyncKnowledgeJournal([
-      ['ja:h2', entry({ ease: 3.0, lastSeen: 400, wordSyncRatedAt: 380 })],
+      ['ja:h2', entry({ ease: 3.0, lastSeen: 400 })],
     ]);
 
     const [rollup] = journal['ja:h2'] as KnowledgeEvent[];
-    expect(rollup.origin).toBe('word-sync');
-    expect(rollup.t).toBe(380);
+    expect(rollup.origin).toBe('sync');
+    expect(rollup.t).toBe(400);
   });
 
   it('omits events for entries without ease or claim', () => {
@@ -313,15 +311,6 @@ describe('mergeFlashcardStores — non-knowledge collections', () => {
     expect(merged.ignoredWords['ja:older-current']?.ignoredAt).toBe(10);
     expect(merged.ignoredWords['ja:newer-incoming']?.ignoredAt).toBe(20);
     expect(merged.ignoredWords['ja:brand-new']?.word).toBe('追加');
-  });
-
-  it('merges wordSyncSeen with max-wins', () => {
-    const current = makeStore({ wordSyncSeen: { 'ja:a': 50, 'ja:b': 10 } });
-    const incoming = makeStore({ wordSyncSeen: { 'ja:a': 5, 'ja:b': 90, 'ja:c': 7 } });
-
-    const merged = mergeFlashcardStores(current, incoming);
-
-    expect(merged.wordSyncSeen).toEqual({ 'ja:a': 50, 'ja:b': 90, 'ja:c': 7 });
   });
 
   it('union-max merges wordCandidates', () => {
@@ -465,7 +454,6 @@ describe('mergeFlashcardStores — store-level guarantees', () => {
       grammarKnowledge: { '〜てしまう': { pattern: '〜てしまう', ease: 3, timesEncountered: 2, timesFailed: 0, lastSeen: 5, level: 3 } },
       dailyStats: { '2026-08-30': { ja: { date: '2026-08-30', newCardsStudied: 1, reviewCardsStudied: 2, lapses: 0, timeSpent: 1000, graduated: 1 } } },
       suggestedFlashcards: { 'ja:s': { id: 's1', word: '語', language: 'ja', createdAt: 1, lastSeen: 1, count: 1 } },
-      wordSyncSeen: { 'ja:h1': 42 },
       version: 3,
     });
     const incoming = makeStore({
@@ -484,7 +472,6 @@ describe('mergeFlashcardStores — store-level guarantees', () => {
     expect(merged.grammarKnowledge['〜てしまう']?.ease).toBe(3);
     expect(merged.dailyStats['2026-08-30']?.ja?.newCardsStudied).toBe(1);
     expect(merged.suggestedFlashcards['ja:s']?.word).toBe('語');
-    expect(merged.wordSyncSeen['ja:h1']).toBe(42);
     expect(merged.meta.maxNewCardsPerDay).toBe(20);
     expect(merged.version).toBe(3);
     // Incoming entries still merge into the kept collections.
@@ -495,12 +482,10 @@ describe('mergeFlashcardStores — store-level guarantees', () => {
     const current = makeStore({
       flashcards: { c1: card() },
       wordKnowledge: { 'ja:h1': entry({ claim: 'known', claimAt: 200 }) },
-      wordSyncSeen: { 'ja:h1': 10 },
     });
     const incoming = makeStore({
       flashcards: { c1: card({ reviews: 3, lastUpdated: 500 }) },
       wordKnowledge: { 'ja:h1': entry({ claim: 'learning', claimAt: 300 }) },
-      wordSyncSeen: { 'ja:h1': 20 },
     });
     const currentSnapshot = JSON.stringify(current);
     const incomingSnapshot = JSON.stringify(incoming);
@@ -531,6 +516,5 @@ describe('mergeFlashcardStores — store-level guarantees', () => {
     const merged = mergeFlashcardStores(current, incoming);
 
     expect(merged.wordKnowledge['ja:h1']?.claim).toBe('known');
-    expect(merged.wordSyncSeen).toEqual({});
   });
 });

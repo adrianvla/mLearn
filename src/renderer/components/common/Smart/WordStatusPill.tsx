@@ -1,3 +1,5 @@
+import { useKnowledgeProjection } from '../../../hooks/useKnowledgeProjection';
+import { projectedWordStatus } from '../../../../shared/graph/targets';
 import { Component, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
@@ -45,7 +47,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     getWordVariantsForLanguage,
     currentLangData,
   } = useLanguage();
-  const { getComprehensiveWordStatusWithSourceSync, setWordClaim } = useFlashcards();
+  const { setWordClaim } = useFlashcards();
   const { t } = useLocalization();
 
   const [showStatusSourceWarning, setShowStatusSourceWarning] = createSignal(false);
@@ -71,7 +73,19 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       )
   ));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
-  const comprehensiveResult = createMemo(() => getComprehensiveWordStatusWithSourceSync(props.word, targetLanguage()));
+  const projection = useKnowledgeProjection(() => ({ language: targetLanguage(), surface: props.word }));
+  const comprehensiveResult = createMemo(() => {
+    const payload = projection.projection();
+    const status = projectedWordStatus(payload);
+    return {
+      ...status,
+      claim: status.basis === 'claim' ? status.status : undefined,
+      evidenceStatus: status.status,
+      source: status.basis === 'claim' ? 'Manual' as const : 'None' as const,
+      matchedWord: props.word,
+      timesSeen: Math.max(0, ...(payload?.targets.flatMap(target => target.states.map(state => state.strength?.timesSeen ?? 0)) ?? [])),
+    };
+  });
   const effectiveStatus = createMemo(() => comprehensiveResult().status);
 
   const statusSourceLabel = createMemo(() => {
@@ -197,7 +211,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       {/* Unresolved ≠ Untracked: before the learner projection hydrates the
           pill shows a neutral loading placeholder — claiming Known or reading
           a status from a half-loaded store would present false semantics. */}
-      <KnowledgeGate variant="pill">
+      <KnowledgeGate variant="pill" ready={!projection.loading()}>
         <Show when={!props.suppressKnowledgePopover} fallback={pill()}>
           <Tooltip
             interactive

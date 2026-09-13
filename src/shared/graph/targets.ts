@@ -1,3 +1,4 @@
+import type { KnowledgeProjection } from './ipc';
 import { relationsOf, type LingualGraph } from './load';
 import {
   type CapabilityKind,
@@ -72,4 +73,25 @@ export function isIdentityShareableCapability(capability: CapabilityKind | strin
 
 function dedupe(values: readonly CapabilityKind[]): CapabilityKind[] {
   return [...new Set(values)];
+}
+
+/** Probe selection consumes projected classifications, never source-specific knowledge. */
+export function unresolvedProjectionTargets(projection: KnowledgeProjection | undefined, testable: readonly string[]): LearnableTarget[] {
+  if (projection?.status !== 'ready') return [];
+  const allowed = new Set(testable);
+  return projection.targets.flatMap(target => target.applicableCapabilities
+    .filter(capability => allowed.has(capability)
+      && target.states.find(state => state.capability === capability)?.classification !== 'known')
+    .map(capability => ({ entityId: target.targetRef.id, capability })));
+}
+
+/** Presentation-only compact category. Prediction never becomes measured knowledge. */
+export function projectedWordStatus(projection: KnowledgeProjection | undefined): {
+  status: 'known' | 'learning' | 'unknown'; basis: 'claim' | 'evidence' | 'unmeasured';
+} {
+  const overall = projection?.status === 'ready' ? projection.lexical?.overall : undefined;
+  return {
+    status: overall?.classification === 'known' || overall?.classification === 'learning' ? overall.classification : 'unknown',
+    basis: overall?.basis === 'claim' || overall?.basis === 'evidence' ? overall.basis : 'unmeasured',
+  };
 }

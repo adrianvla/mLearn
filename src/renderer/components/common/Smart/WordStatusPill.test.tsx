@@ -222,7 +222,7 @@ describe('WordStatusPill', () => {
     dispose();
   });
 
-  it('shows the matched canonical word in the status tooltip for reading aliases', () => {
+  it('shows canonical projection provenance without a frequency-alias assertion', () => {
     comprehensiveResultMock = {
       status: 'known',
       basis: 'claim',
@@ -237,7 +237,7 @@ describe('WordStatusPill', () => {
     ), container);
 
     expect(container.querySelector('[data-testid="mock-knowledge-popup"]')?.getAttribute('data-source')).toContain(
-      'mlearn.Knowledge.Basis.Claim (→ 連続)',
+      'mlearn.Knowledge.Basis.Claim',
     );
 
     dispose();
@@ -357,4 +357,13 @@ describe('WordStatusPill', () => {
     dispose();
     knowledgeReady.ready = true;
   });
+});
+
+vi.mock('../../../hooks/useKnowledgeProjection', async () => {
+  const { projectionFixture } = await import('../../../../../test/projectionFixture');
+  return { useKnowledgeProjection: () => ({ loading: () => !knowledgeReady.ready, projection: () => {
+    const result = projectionFixture(comprehensiveResultMock.status, comprehensiveResultMock.basis);
+    result.targets.push({ targetRef: { kind: 'surface', id: 'fixture' }, applicableCapabilities: [], states: [{ capability: 'sense-recognition', classification: 'unmeasured', basis: 'unmeasured', evidence: [], evidenceSourceCounts: {}, strength: { ease: 0, timesSeen: comprehensiveResultMock.timesSeen, timesHovered: 0 } }] });
+    return result;
+  } }) };
 });

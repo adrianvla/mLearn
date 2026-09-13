@@ -2437,10 +2437,6 @@
             "Description": "Лимит автоматически создаваемых карточек",
             "Label": "Макс. новых в день"
           },
-          "StaleLearningDays": {
-            "Label": "Порог устаревших изучаемых слов (дни)",
-            "Description": "Повторно показывать слова со статусом \"Изучаю\" в синхронизации через указанное количество дней без изменения статуса"
-          },
           "EaseMapping": {
             "LearningEase": {
               "Label": "Встроенный SRS: Ease изучения",
@@ -3230,9 +3226,6 @@
       "FilterUnknownLearning": "Неизвестные и изучаемые",
       "FilterPassive": "Только пассивные",
       "StatusFilterTitle": "Фильтр по статусу",
-      "RecencyAll": "Все",
-      "RecencyHideRecent": "Скрыть недавние (30 д)",
-      "RecencyFilterTitle": "Фильтр по давности",
       "LevelFilterAll": "Все",
       "LevelFilterOthers": "Прочие",
       "LevelFilterTitle": "Фильтр по уровню",
@@ -3458,7 +3451,6 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency",
         "State": "Состояние",
         "Language": "Язык",
         "Suspended": "Приостановлена",
@@ -3469,10 +3461,6 @@
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
-      },
-      "Recency": {
-        "Recent": "Recently rated",
-        "NotRecent": "Not recently rated"
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",

@@ -2467,10 +2467,6 @@
             "Description": "自动创建闪卡的限制",
             "Label": "每日最大新卡数"
           },
-          "StaleLearningDays": {
-            "Label": "学习状态过期天数",
-            "Description": "在单词同步中标记为“学习中”的单词在此天数内状态未更改时重新显示"
-          },
           "EaseMapping": {
             "LearningEase": {
               "Label": "内置 SRS：学习难度系数",
@@ -3230,9 +3226,6 @@
       "FilterUnknownLearning": "未知与学习中",
       "FilterPassive": "仅被动",
       "StatusFilterTitle": "状态筛选",
-      "RecencyAll": "全部",
-      "RecencyHideRecent": "隐藏最近 (30天)",
-      "RecencyFilterTitle": "时间筛选",
       "LevelFilterAll": "全部",
       "LevelFilterOthers": "其他",
       "LevelFilterTitle": "级别筛选",
@@ -3458,7 +3451,6 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency",
         "State": "状态",
         "Language": "语言",
         "Suspended": "暂停",
@@ -3469,10 +3461,6 @@
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
-      },
-      "Recency": {
-        "Recent": "Recently rated",
-        "NotRecent": "Not recently rated"
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",

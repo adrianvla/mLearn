@@ -52,7 +52,6 @@ function makeStore(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
     wordKnowledge: {},
     grammarKnowledge: {},
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     meta: {
       perLanguage: {
         ja: {

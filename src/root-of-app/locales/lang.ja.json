@@ -2437,10 +2437,6 @@
             "Description": "自動作成カードの上限",
             "Label": "1日の最大新規カード数"
           },
-          "StaleLearningDays": {
-            "Label": "学習停滞しきい値（日数）",
-            "Description": "ステータスが変更されずにこの日数が経過した「学習中」の単語を単語同期で再表示する"
-          },
           "EaseMapping": {
             "LearningEase": {
               "Label": "内蔵SRS: 学習Ease",
@@ -3230,9 +3226,6 @@
       "FilterUnknownLearning": "未知・学習中",
       "FilterPassive": "パッシブのみ",
       "StatusFilterTitle": "ステータスフィルター",
-      "RecencyAll": "すべて",
-      "RecencyHideRecent": "最近を非表示 (30日)",
-      "RecencyFilterTitle": "期間フィルター",
       "LevelFilterAll": "すべて",
       "LevelFilterOthers": "その他",
       "LevelFilterTitle": "レベルフィルター",
@@ -3458,7 +3451,6 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency",
         "State": "状態",
         "Language": "言語",
         "Suspended": "一時停止",
@@ -3469,10 +3461,6 @@
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
-      },
-      "Recency": {
-        "Recent": "Recently rated",
-        "NotRecent": "Not recently rated"
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",

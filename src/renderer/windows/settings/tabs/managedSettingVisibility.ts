@@ -17,6 +17,5 @@ export function shouldShowFrequencySettings(
   isSettingManaged: (key: PolicySettingKey) => boolean,
 ): boolean {
   return supportsFrequencyLevels
-    || isSettingManaged('proportionOfLevelCards')
-    || isSettingManaged('wordSyncStaleLearningDays');
+    || isSettingManaged('proportionOfLevelCards');
 }

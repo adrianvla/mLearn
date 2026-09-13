@@ -50,6 +50,14 @@ vi.mock('../../../context/GraphContext', () => ({
 const inspectorProjection: KnowledgeProjection = {
   status: 'ready',
   surfaceId: 'ja:surface:hash',
+  lexical: {
+    overall: { classification: 'known', basis: 'claim' },
+    entryIds: ['ja:entry:cat'],
+    sense: { classification: 'unmeasured', basis: 'unmeasured' },
+    spoken: { classification: 'unmeasured', basis: 'unmeasured' },
+    surfaceRecognition: { classification: 'known', basis: 'claim' },
+    synchronized: false, missingBridges: ['surface-reading'],
+  },
   targets: [
     {
       targetRef: { kind: 'surface', id: 'ja:surface:hash' },

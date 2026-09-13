@@ -480,9 +480,8 @@ function makeEmptyStore(overrides?: Partial<FlashcardStore>): FlashcardStore {
     wordKnowledge: {},
     grammarKnowledge: {},
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     meta: {
-      capabilityProjectionVersion: 2,
+      capabilityProjectionVersion: 3,
       perLanguage: {
         ja: { newCardsToday: 0, reviewsToday: 0, newCardsDate: '' },
       },
@@ -2957,7 +2956,6 @@ describe('FlashcardProvider', () => {
           word: '学校', language: 'ja', claim: 'learning', claimAt: 100,
         },
       },
-      wordSyncSeen: { [seenKey]: 10 },
     }));
 
     // Incoming NEWER claim entry wins over the local entry.
@@ -2968,14 +2966,11 @@ describe('FlashcardProvider', () => {
           word: '学校', language: 'ja', claim: 'known', claimAt: 200,
         },
       },
-      wordSyncSeen: { [seenKey]: 50 },
     });
     state.handler!({ data: { type: 'update', store: remoteNewer } } as MessageEvent);
 
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
     expect(ctx.store.wordKnowledge[lk]?.claimAt).toBe(200);
-    // Non-knowledge policy maps still reconcile per-entry (max seen wins).
-    expect(ctx.store.wordSyncSeen[seenKey]).toBe(50);
 
     // Incoming STALE entry (older claimAt) must not clobber the newer local write.
     const remoteStale = makeEmptyStore({
@@ -2985,13 +2980,11 @@ describe('FlashcardProvider', () => {
           word: '学校', language: 'ja', claim: 'unknown', claimAt: 50,
         },
       },
-      wordSyncSeen: { [seenKey]: 5 },
     });
     state.handler!({ data: { type: 'update', store: remoteStale } } as MessageEvent);
 
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
     expect(ctx.store.wordKnowledge[lk]?.claimAt).toBe(200);
-    expect(ctx.store.wordSyncSeen[seenKey]).toBe(50);
     dispose();
     vi.unstubAllGlobals();
   });
@@ -3333,7 +3326,10 @@ describe('FlashcardProvider', () => {
     const previous = mockSettings.use_anki;
     mockSettings.use_anki = true;
     const anki = await import('../hooks/useAnki');
-    const request = vi.spyOn(anki, 'ankiRequest').mockResolvedValue({
+    const request = vi.spyOn(anki, 'ankiRequest').mockImplementation(async (_url, action) => action === 'cardsInfo' ? [{
+      cardId: 999, question: 'review-import pronunciation', answer: 'definition',
+      fields: { Expression: { value: 'review-import' }, Reading: { value: 'pronunciation' }, Meaning: { value: 'definition' } },
+    }] : {
       '999': [{ id: Date.now(), cid: 999, usn: 0, ease: 3, ivl: 3, lastIvl: 1, factor: 2500, time: 1200, type: 1 }],
     });
     const { ctx, dispose } = await mountProvider();
@@ -3364,7 +3360,7 @@ describe('FlashcardProvider', () => {
     await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
     expect(ctx.store.wordKnowledge[key]?.ease).toBe(SRS.MIN_EASE);
     expect(ctx.store.wordKnowledge[key]?.access?.['surface-reading']?.status).toBe('known');
-    expect(ctx.store.meta.capabilityProjectionVersion).toBe(2);
+    expect(ctx.store.meta.capabilityProjectionVersion).toBe(3);
     dispose();
   });
 
@@ -3431,74 +3427,6 @@ describe('FlashcardProvider', () => {
     // Same rating with reading explicitly hidden measures normally.
     ctx.recordAttempt('苗字', 'surface-reading', 'fluent', { scaffolds: { reading: false } });
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.status).toBe('known');
-    dispose();
-  });
-
-  it('markWordSyncSeen can write a non-active stored word language explicitly', async () => {
-    mockSettings.language = 'ja';
-    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
-      language === 'ar' && word === 'يكتب' ? 'كتب' : word
-    ));
-    const { ctx, dispose } = await mountProvider();
-    const SRS = await import('../services/srsAlgorithm');
-    flashcardsCb(makeEmptyStore());
-
-    ctx.markWordSyncSeen('يكتب', 'ar');
-
-    const arKey = `ar:${SRS.hashWordSync('كتب')}`;
-    const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
-    expect(ctx.store.wordSyncSeen[arKey]).toEqual(expect.any(Number));
-    expect(ctx.store.wordSyncSeen[jaKey]).toBeUndefined();
-    dispose();
-  });
-
-  it('markWordSyncSeen writes the canonical hash alongside variant surface hashes', async () => {
-    mockSettings.language = 'ja';
-    mockGetCanonicalFormForLanguage.mockImplementation((_language: string, word: string) => word);
-    // Active-language path (language === settings.language) reads getWordVariants.
-    mockGetWordVariants.mockImplementation((word: string) => (word === '流石' ? ['さすが'] : []));
-    mockGetWordVariantsForLanguage.mockImplementation((_language: string, word: string) => (
-      word === '流石' ? ['さすが'] : []
-    ));
-    const { ctx, dispose } = await mountProvider();
-    const SRS = await import('../services/srsAlgorithm');
-    flashcardsCb(makeEmptyStore());
-
-    ctx.markWordSyncSeen('流石', 'ja');
-
-    // The sync pool filters on the canonical hash (流石) while the primary form
-    // is さすが — a single primary-form write never matched the filter key.
-    expect(ctx.store.wordSyncSeen[`ja:${SRS.hashWordSync('流石')}`]).toEqual(expect.any(Number));
-    expect(ctx.store.wordSyncSeen[`ja:${SRS.hashWordSync('さすが')}`]).toEqual(expect.any(Number));
-    dispose();
-  });
-
-  it('restoreWordSyncRating restores only the policy seen map (knowledge is evidence-replay territory)', async () => {
-    mockSettings.language = 'ja2';
-    const lk = `ja2:${SRS.hashWordSync('学校')}`;
-    const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
-      wordKnowledge: {
-        [lk]: { ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '学校', language: 'ja2' },
-      },
-      wordSyncSeen: { [`${lk}:seen`]: 123 },
-    }));
-    await Promise.resolve();
-
-    ctx.restoreWordSyncRating({ [`${lk}:seen`]: undefined }, 'ja2');
-    expect(ctx.store.wordSyncSeen[`${lk}:seen`]).toBeUndefined();
-    // Knowledge is NOT touched by the policy restore.
-    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.0);
-    dispose();
-    mockSettings.language = 'ja';
-  });
-
-  it('restoreWordSyncRating re-adds a cleared cooldown timestamp on undo-of-clear', async () => {
-    const { ctx, dispose } = await mountProvider();
-    const lk = `ja2:${SRS.hashWordSync('学校')}`;
-
-    ctx.restoreWordSyncRating({ [`${lk}:seen`]: 555 }, 'ja2');
-    expect(ctx.store.wordSyncSeen[`${lk}:seen`]).toBe(555);
     dispose();
   });
 

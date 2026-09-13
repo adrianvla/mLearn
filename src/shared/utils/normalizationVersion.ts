@@ -9,7 +9,7 @@
  *
  * Migration policy (see design doc §2):
  * - source-backed records (raw word available) are rebuilt under v2 keys;
- * - key-only records (wordSyncSeen, knownUntracked, event buckets without a raw
+ * - key-only records (knownUntracked, event buckets without a raw
  *   surface) keep their legacy keys, preserved read-only;
  * - `legacyCasingCandidates` provides best-effort continuity probing of legacy
  *   keys when the raw surface IS available — an optimization, never a guarantee.

@@ -1,3 +1,5 @@
+import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
+import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createSignal, For, Show, untrack } from 'solid-js';
 import { Modal, Btn, PillBtn } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
@@ -63,8 +65,9 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     canRenderProsodyOverlay() ? {} : null
   );
 
+  const projected = useKnowledgeProjections(() => ({ language: activeLanguage(), surfaces: Object.keys(resolveLevelStudyWordFrequency({}, activeLanguageData())) }));
+
   const buildWordsForLevelSnapshot = (): WordListItem[] => {
-    const lang = activeLanguage();
     const langData = activeLanguageData();
     const freq = resolveLevelStudyWordFrequency({}, langData);
 
@@ -75,7 +78,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
         if (props.level === BEYOND_EXAM_LEVEL) {
           if (isDisplayableFrequencyLevel(entry.raw_level, levelNames, langData)) continue;
         } else if (entry.raw_level !== props.level) continue;
-        const status = getWordLevelStatus(flashcards.getComprehensiveWordStatusWithSourceSync(word, lang));
+        const status = getWordLevelStatus(projectedWordStatus(projected.projections().get(word)));
         result.push({ word, reading: entry.reading || '', status });
       }
       return result.sort((a, b) => a.word.localeCompare(b.word));
@@ -91,7 +94,8 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     settings.easeThresholdKnown * 1000;
     settings.easeThresholdLearning * 1000;
     flashcards.isLoading();
-    setWordsForLevel(buildWordsForLevelSnapshot());
+    projected.projections();
+    setWordsForLevel(projected.loading() ? [] : buildWordsForLevelSnapshot());
   });
 
   const selectedWords = createMemo(() => {

@@ -1,3 +1,5 @@
+import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
+import { projectedWordStatus } from '../../../shared/graph/targets';
 /**
  * Word Database Editor Window
  * Allows editing word knowledge status, creating flashcards, and searching words
@@ -43,6 +45,7 @@ export const WordDbEditorContent: Component = () => {
   const [searchQuery, setSearchQuery] = createSignal('');
   const [entries, setEntries] = createSignal<WordEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = createSignal<WordEntry[]>([]);
+  const projected = useKnowledgeProjections(() => ({ language: settings.language, surfaces: entries().map(entry => entry.word) }));
   const [isLoading, setIsLoading] = createSignal(false);
   const [loadProgress, setLoadProgress] = createSignal(0);
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
@@ -90,7 +93,7 @@ export const WordDbEditorContent: Component = () => {
   });
 
   const filterContext = createMemo(() => buildWordDbEditorFields(getLevelNames(), t, currentLangData(), {
-    status: liveEntryResolver((entry) => wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).status)),
+    status: liveEntryResolver((entry) => wordStatusToNumeric(projectedWordStatus(projected.projections().get(entry.word)).status)),
     source: liveEntryResolver((entry) => getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).source),
   }));
 
@@ -176,7 +179,7 @@ export const WordDbEditorContent: Component = () => {
   };
 
   const knowledgeStatusToNumeric = (word: string): number => {
-    return wordStatusToNumeric(getComprehensiveWordStatusWithSourceSync(word, settings.language).status);
+    return wordStatusToNumeric(projectedWordStatus(projected.projections().get(word)).status);
   };
 
   const mergeReadings = (...groups: Array<string | undefined | null | readonly string[]>): string[] => {
@@ -215,7 +218,7 @@ export const WordDbEditorContent: Component = () => {
       .sort((a, b) => (b.ignoredAt ?? 0) - (a.ignoredAt ?? 0) || a.word.localeCompare(b.word));
   });
 
-  createEffect(on([entries, ignoredEntries, filterTokens, browseMode, hasLoadedWords], () => {
+  createEffect(on([entries, ignoredEntries, filterTokens, browseMode, hasLoadedWords, projected.projections], () => {
     if (browseMode() === 'all' && !hasLoadedWords()) {
       return;
     }

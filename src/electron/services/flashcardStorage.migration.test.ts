@@ -50,7 +50,7 @@ function card(id: string, front: string, language: 'zh-Hans' | 'zh-Hant', overri
 
 function store(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
   return {
-    flashcards: {}, wordCandidates: {}, wordToCardMap: {}, wordStatsMap: {}, knownUntracked: {}, ignoredWords: {}, wordKnowledge: {}, grammarKnowledge: {}, suggestedFlashcards: {}, wordSyncSeen: {},
+    flashcards: {}, wordCandidates: {}, wordToCardMap: {}, wordStatsMap: {}, knownUntracked: {}, ignoredWords: {}, wordKnowledge: {}, grammarKnowledge: {}, suggestedFlashcards: {},
     meta: { perLanguage: {}, maxNewCardsPerDay: 10, maxNewCardsPerDayLearning: 20, maxReviewsPerDay: -1, learningSteps: [1, 10], relearnSteps: [10], graduatingInterval: 1, easyInterval: 4, newIntervalModifier: 100, reviewIntervalModifier: 100, maxInterval: 36500 },
     dailyStats: {}, version: 2,
     ...overrides,
@@ -136,14 +136,13 @@ describe('flashcardStorage v2→v3 zh variant migration', () => {
     writePackage();
     const recoverable = key('zh-Hant', '學');
     const orphan = `zh-Hans:${hash('orphan')}`;
-    write(store({ wordCandidates: { [recoverable]: { word: '學', language: 'zh-Hant', count: 1, lastSeen: 1 } }, knownUntracked: { [recoverable]: true, [orphan]: true }, wordSyncSeen: { [recoverable]: 4, [orphan]: 2 } }));
+    write(store({ wordCandidates: { [recoverable]: { word: '學', language: 'zh-Hant', count: 1, lastSeen: 1 } }, knownUntracked: { [recoverable]: true, [orphan]: true }, }));
 
     const migrated = await loadFlashcards();
     const canonical = canonicalKeyHash('zh', '学', { hashWord: hash, languageData: zhMetadata });
     expect(migrated.knownUntracked).toEqual({ [canonical]: true, [`zh:${hash('orphan')}`]: true });
-    expect(migrated.wordSyncSeen).toEqual({ [canonical]: 4, [`zh:${hash('orphan')}`]: 2 });
     const report = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.zh-variant-merge-report.json'), 'utf-8'));
-    expect(report.orphanCounts).toEqual({ knownUntracked: 1, wordSyncSeen: 1 });
+    expect(report.orphanCounts).toEqual({ knownUntracked: 1, });
   });
 
   it('(e) merges meta and daily stats by their specified rules', async () => {
@@ -451,15 +450,13 @@ describe('flashcardStorage normalization-version keyed-record migration (D3)', (
         [legacyAmbientKey]: legacyKnowledge('Izmir', 'tst', 9),
         [orphanKey]: legacyKnowledge(undefined, 'tst', 4), // key-only: no raw word
       },
-      wordSyncSeen: { [legacyAmbientKey]: 11, [orphanKey]: 12 },
       knownUntracked: { [orphanKey]: true },
     }));
 
     const migrated = await loadFlashcards();
     const v2Key = `tst:${hash('izmir')}`;
     expect(migrated.wordKnowledge[v2Key]?.lastSeen).toBe(9);
-    expect(migrated.wordKnowledge[orphanKey]?.lastSeen).toBe(4); // key-only row kept read-only
-    expect(migrated.wordSyncSeen).toEqual({ [legacyAmbientKey]: 11, [orphanKey]: 12 });
+    expect(migrated.wordKnowledge[orphanKey]?.lastSeen).toBe(4);
     expect(migrated.knownUntracked).toEqual({ [orphanKey]: true });
   });
 

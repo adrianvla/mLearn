@@ -10,7 +10,6 @@ type Translate = (key: string, params?: Record<string, string | number>) => stri
 const STATUS_FIELD = 'status';
 const LEVEL_FIELD = 'level';
 const SOURCE_FIELD = 'source';
-const RECENCY_FIELD = 'recency';
 const FLASHCARD_STATE_FIELD = 'state';
 const FLASHCARD_LANGUAGE_FIELD = 'language';
 const FLASHCARD_SUSPENDED_FIELD = 'suspended';
@@ -49,30 +48,10 @@ export function buildWordSyncPreset(
   targetLevel: number | null | undefined,
   languageData?: LanguageData | null,
 ): FilterToken[] {
-  if (targetLevel === null || targetLevel === undefined) {
-    // No target level: still default to Untracked-only (plus the recency
-    // clause) so the default session never presents measured words.
-    return [statusUntrackedToken(), ...buildNotRecentlyRatedClause()];
-  }
-
-  // Default pool = Untracked only. Unknown means *measured not-known* — those
-  // words are calibration too, but they are deliberately opt-in via the
-  // filter: the default session targets words with no measurement at all.
-  const tokens: FilterToken[] = [statusUntrackedToken()];
-
-  const levels = getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
-
-  if (levels.length > 0) {
-    tokens.push(...buildLevelRangeClause(levels));
-  }
-
-  // Unconditional: the pool default never re-shows words rated within the
-  // cooldown window, whether or not an exam level is set.
-  return tokens.concat(buildNotRecentlyRatedClause());
+  const levels = targetLevel == null ? [] : getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
+  return [statusUntrackedToken(), ...(levels.length ? buildLevelRangeClause(levels) : [])];
 }
 
-// Status clause stays meaningful without a target level; wordSync's preset
-// returns Untracked + the not-recently-rated clause in that case.
 export function buildBulkAddDefaultPreset(
   levelNames: Record<string, string>,
   targetLevel: number | null | undefined,
@@ -125,12 +104,7 @@ function buildLevelRangeClause(levels: number[]): FilterToken[] {
   return tokens;
 }
 
-function buildNotRecentlyRatedClause(): FilterToken[] {
-  return [
-    { instanceId: uniqueId(), kind: 'operator', op: 'AND' },
-    { instanceId: uniqueId(), kind: 'operand', field: RECENCY_FIELD, op: 'eq', value: 'false' },
-  ];
-}
+
 
 export function buildEmptyPreset(): FilterToken[] {
   return [];
@@ -157,12 +131,7 @@ export function sourceResolver<R extends { knowledgeSource?: string }>(): FieldR
   };
 }
 
-export function recencyResolver<R extends { seenRecently: boolean }>(): FieldResolver<R> {
-  return {
-    read: (record) => record.seenRecently,
-    valueLabel: (value) => value,
-  };
-}
+
 
 export function buildWordSyncFields(
   levelNames: Record<string, string>,
@@ -172,7 +141,6 @@ export function buildWordSyncFields(
   const fields: FieldConfig<unknown>[] = [
     buildStatusField(t, { includeUntracked: true }),
     buildLevelField(levelNames, t, languageData),
-    buildRecencyField(t),
   ];
 
   return { fields, paletteItems: buildPaletteItems(fields, t) };
@@ -391,18 +359,7 @@ function buildSourceField(t: Translate): FieldConfig<unknown> {
   };
 }
 
-function buildRecencyField(t: Translate): FieldConfig<unknown> {
-  return {
-    field: RECENCY_FIELD,
-    label: t('mlearn.FilterBuilder.Field.Recency'),
-    allowedOps: [...EQ_OPS],
-    values: [
-      { value: 'true', label: t('mlearn.FilterBuilder.Recency.Recent') },
-      { value: 'false', label: t('mlearn.FilterBuilder.Recency.NotRecent') },
-    ],
-    resolver: propertyResolver('seenRecently'),
-  };
-}
+
 
 function buildFlashcardStateField(t: Translate): FieldConfig<unknown> {
   return {

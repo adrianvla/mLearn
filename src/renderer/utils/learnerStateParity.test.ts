@@ -6,7 +6,7 @@ import { getAccessStatusSync } from './accessKnowledge';
 import { buildKnownWordSetFromStore } from './knowledgeUtils';
 import { computeLevelStats, computeWordLevelStats, getWordLevelStatus } from './wordLevelStats';
 import { hashWordSync } from '../services/srsAlgorithm';
-import { isBridgeCandidate, isWordEligible, wordSyncPoolStatus } from '../windows/wordSync/wordSyncPool';
+import { wordSyncPoolStatus } from '../windows/wordSync/wordSyncPool';
 
 const word = 'sample';
 const key = `xx:${hashWordSync(word)}`;
@@ -73,11 +73,10 @@ describe('canonical learner state across consumers', () => {
     expect(assertParity(data, 'untracked').excluded).toBe(true);
   });
 
-  it('Known remains Known when ignored or recently rated', () => {
-    const data = store(entry({ ease: known, hasActiveEvidence: true, wordSyncRatedAt: 100 }));
+  it('Known remains Known when ignored', () => {
+    const data = store(entry({ ease: known, hasActiveEvidence: true }));
     data.ignoredWords[key] = { word, language: 'xx', ignoredAt: 1 };
     expect(assertParity(data, 'known').excluded).toBe(true);
-    expect(isWordEligible(data.wordKnowledge[key], true, true, 1000, 101)).toBe(false);
     delete data.ignoredWords[key];
     expect(assertParity(data, 'known').excluded).toBeUndefined();
   });
@@ -86,10 +85,9 @@ describe('canonical learner state across consumers', () => {
     const data = store(entry({ access: { 'spoken-recognition': {
       status: 'known', ease: known, source: 'Manual', lastStatusChange: 1, updatedAt: 1,
     } } }));
-    const state = assertParity(data, 'known');
+    assertParity(data, 'known');
     const written = getAccessStatusSync(word, 'surface-recognition', deps(data));
     expect(written.untracked).toBe(true);
-    expect(isBridgeCandidate(state.status, written.status === 'known', true)).toBe(true);
   });
 
   it('a newer spoken claim overrides the word projection in every consumer', () => {

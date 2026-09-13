@@ -73,7 +73,6 @@ function makeStore(overrides: Partial<FlashcardStore> = {}): FlashcardStore {
     },
     dailyStats: {},
     suggestedFlashcards: {},
-    wordSyncSeen: {},
     version: 6,
     ...overrides,
   };

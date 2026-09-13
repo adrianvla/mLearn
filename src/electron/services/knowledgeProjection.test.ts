@@ -27,6 +27,39 @@ const graph = loadLinguisticGraph({
 });
 
 describe('buildKnowledgeProjection', () => {
+  it('retains exact-surface historical ratings when the installed graph no longer contains that surface', () => {
+    const missing = 'ja:surface:removed';
+    const events = [{ t: 1, kind: 'rating' as const, source: 'manual' as const, aspect: 'meaning' as const, easeAfter: 1.8, origin: 'word-sync' as const, attemptId: 'original' }];
+    const result = buildKnowledgeProjection(graph, missing, events, policy, 10);
+    expect(result.lexical?.overall).toEqual({ classification: 'known', basis: 'evidence' });
+    expect(result.targets).toEqual([expect.objectContaining({
+      targetRef: { kind: 'surface', id: missing }, applicableCapabilities: [],
+      states: [expect.objectContaining({ capability: 'sense-recognition', classification: 'known', evidenceSourceCounts: { manual: 1 } })],
+    })]);
+    const retracted = buildKnowledgeProjection(graph, missing, [...events,
+      { t: 2, kind: 'retraction', source: 'manual', retracts: 'original' },
+    ], policy, 10);
+    expect(retracted.lexical?.overall.basis).toBe('unmeasured');
+    expect(events[0]).not.toHaveProperty('targetRef');
+  });
+
+  it('retains and clears an explicit claim on an absent surface without transferring its identity', () => {
+    const missing = 'ja:surface:removed';
+    const targetRef = { kind: 'surface' as const, id: missing, capability: 'sense-recognition' };
+    const claim = { t: 1, kind: 'claim' as const, source: 'manual' as const, targetRef, toStatus: 'known' as const };
+    expect(buildKnowledgeProjection(graph, missing, [claim], policy).lexical?.overall).toEqual({ classification: 'known', basis: 'claim' });
+    expect(buildKnowledgeProjection(graph, missing, [claim, { ...claim, t: 2, toStatus: undefined }], policy).lexical?.overall.basis).toBe('unmeasured');
+    expect(buildKnowledgeProjection(graph, surfaceId, [claim], policy).lexical?.overall.basis).toBe('unmeasured');
+  });
+
+  it('keeps a reading-only claim tracked without promoting lexical identity to Known', () => {
+    const result = buildKnowledgeProjection(graph, surfaceId, [
+      { t: 1, kind: 'claim', source: 'manual', aspect: 'reading', toStatus: 'known' },
+    ], policy, 10);
+    expect(result.lexical?.overall).toEqual({ classification: 'unknown', basis: 'claim' });
+    expect(result.lexical?.sense.classification).not.toBe('known');
+  });
+
   it('emits one state per (entity, capability) even when package data duplicates relations', () => {
     const duplicated = loadLinguisticGraph({
       schemaVersion: 1,
@@ -40,6 +73,7 @@ describe('buildKnowledgeProjection', () => {
       ],
       relations: [
         { from: surfaceId, to: 'ja:dictionary-entry:cat', type: 'realizes' },
+        { from: surfaceId, to: 'ja:dictionary-entry:cat', type: 'realizes' },
         { from: 'ja:dictionary-entry:cat', to: senseId, type: 'has-sense' },
         // Package banks repeat entries: the same has-sense edge twice must not
         // duplicate the sense's states in the projection payload.
@@ -47,6 +81,7 @@ describe('buildKnowledgeProjection', () => {
       ],
     });
     const result = buildKnowledgeProjection(duplicated, surfaceId, [], policy);
+    expect(result.lexical?.entryIds).toEqual(['ja:dictionary-entry:cat']);
     const sense = result.targets.find((target) => target.targetRef.id === senseId);
     const recognitionStates = sense?.states.filter((state) => state.capability === 'sense-recognition') ?? [];
     expect(recognitionStates).toHaveLength(1);
@@ -371,6 +406,12 @@ describe('modeling-grade latency in projected evidence', () => {
     expect(packageState).toBeDefined();
     expect(packageState?.evidenceSourceCounts).toEqual({ srs: 7 });
     expect(packageState?.lastDirectSuccess).toBe(555);
+    const withoutSurface = { ...graph, nodes: new Map([...graph.nodes].filter(([id]) => id !== surfaceId)) };
+    const retained = buildKnowledgeProjection(withoutSurface, surfaceId, [], policy, 10_000, undefined, { archives: [archive] });
+    expect(retained.lexical?.overall).toEqual({ classification: 'known', basis: 'evidence' });
+    const retainedSurface = retained.targets.find(target => target.targetRef.id === surfaceId)!;
+    expect(retainedSurface.applicableCapabilities).toEqual([]);
+    expect(retainedSurface.states.find(state => state.capability === 'x-test::glyph-tone')?.evidenceSourceCounts).toEqual({ srs: 7 });
   });
 });
 

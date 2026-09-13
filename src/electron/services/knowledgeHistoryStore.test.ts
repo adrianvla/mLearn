@@ -82,7 +82,7 @@ describe('KnowledgeHistoryStore', () => {
     ] });
     s.compact(now);
     const before = s.getKnowledgeState(key);
-    expect(before.capabilities?.['sense-recognition']?.ease).toBe(1.6);
+    expect(before.capabilities?.['sense-recognition']?.ease).toBe(1.55);
     s.close();
 
     const db = new DatabaseSync(path.join(dir, 'knowledge-history.sqlite3'));

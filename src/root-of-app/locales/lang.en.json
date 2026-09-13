@@ -2467,10 +2467,6 @@
             "Description": "Limit for auto-created flashcards",
             "Label": "Max New Cards Per Day"
           },
-          "StaleLearningDays": {
-            "Label": "Stale Learning Threshold (days)",
-            "Description": "Re-show words marked as \"Learning\" in Word Sync after this many days without a status change"
-          },
           "EaseMapping": {
             "LearningEase": {
               "Label": "Built-in SRS: Learning Ease",
@@ -3230,9 +3226,6 @@
       "FilterUnknownLearning": "Unknown & learning",
       "FilterPassive": "Passive only",
       "StatusFilterTitle": "Status filter",
-      "RecencyAll": "All",
-      "RecencyHideRecent": "Hide recent (30d)",
-      "RecencyFilterTitle": "Recency filter",
       "LevelFilterAll": "All",
       "LevelFilterOthers": "Others",
       "LevelFilterTitle": "Level filter",
@@ -3458,7 +3451,6 @@
         "Status": "Status",
         "Level": "Level",
         "Source": "Source",
-        "Recency": "Recency",
         "State": "State",
         "Language": "Language",
         "Suspended": "Suspended",
@@ -3469,10 +3461,6 @@
         "Unknown": "Unknown",
         "Learning": "Learning",
         "Known": "Known"
-      },
-      "Recency": {
-        "Recent": "Recently rated",
-        "NotRecent": "Not recently rated"
       },
       "TokenAdded": "Filter added",
       "TokenRemoved": "Filter removed",

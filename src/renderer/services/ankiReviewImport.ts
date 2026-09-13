@@ -1,3 +1,4 @@
+import { ankiCardCapabilities, ankiPlainText as stripHtml } from '../../shared/knowledge/ankiEvidence';
 import type { AnkiWordStatusRecord } from '../../shared/backends/types';
 import { getBackend } from '../../shared/backends';
 import { getBridge } from '../../shared/bridges';
@@ -9,7 +10,8 @@ import { appendEvents } from './knowledgeEvents';
 import { hashWordSync } from './srsAlgorithm';
 import { grammarEvidenceKey, grammarTarget, type GrammarCapability } from '../../shared/grammar/evidence';
 import { surfaceEntityId } from '../../shared/graph/load';
-import type { GrammarPoint } from '../../shared/types';
+import { type GrammarPoint } from '../../shared/types';
+import { CAPABILITY_ASPECT } from '../../shared/graph/access';
 
 const log = getLogger('renderer.services.ankiReviewImport');
 
@@ -34,8 +36,9 @@ export interface AnkiReviewImportDeps {
   /** Cache refresh supplies only changed cards; manual import reads all cards. */
   statuses?: readonly AnkiWordStatusRecord[];
   fetchReviews: (cardIds: number[]) => Promise<Record<string, AnkiReviewEntry[]>>;
-  /** Optional card metadata enables conservative grammar imports from explicit card text. */
+  /** Rendered card sides are required to attribute vocabulary reviews to accesses. */
   fetchCards?: (cardIds: number[]) => Promise<AnkiCardInfo[]>;
+  fields?: { expression: string; reading: string; meaning: string };
   grammar?: readonly GrammarPoint[];
 }
 
@@ -48,6 +51,8 @@ function toReviewEvent(entry: AnkiReviewEntry, easeBefore: number | undefined): 
     source: 'anki',
     aspect: 'meaning',
     rating: RATING_BY_BUTTON[entry.ease],
+    quality: ankiQuality(entry.ease),
+    timesSeenDelta: 1,
     intervalBefore: entry.lastIvl,
     intervalAfter: entry.ivl,
     // Anki events carry the RAW anki factor (e.g. 1800), not SRS ease — replay
@@ -65,11 +70,6 @@ function ankiQuality(ease: number): KnowledgeEvent['quality'] {
 function cardContainsPattern(card: AnkiCardInfo, pattern: string): boolean {
   const fields = Object.values(card.fields).map((field) => field.value).join('\n');
   return fields.includes(pattern);
-}
-
-/** Strip AnkiConnect HTML from a rendered card side. */
-function stripHtml(value: string | undefined): string {
-  return (value ?? '').replace(/<[^>]*>/g, '');
 }
 
 /**
@@ -197,7 +197,7 @@ export async function importAnkiReviewHistory(
   }
   if (byWord.size === 0) return { words: 0, imported: 0, skipped: 0, importedWords: [] };
 
-  const allCardIds = [...byWord.values()].flat();
+  const allCardIds = [...new Set([...byWord.values()].flat())];
   const reviewsByCard = new Map<number, AnkiReviewEntry[]>();
   for (let i = 0; i < allCardIds.length; i += REVIEW_BATCH_SIZE) {
     const batch = allCardIds.slice(i, i + REVIEW_BATCH_SIZE);
@@ -219,8 +219,10 @@ export async function importAnkiReviewHistory(
   let ambiguousGrammar: string[] = [];
 
   const cardsById = new Map<number, AnkiCardInfo>();
-  if (deps.fetchCards && deps.grammar?.length) {
-    for (const card of await deps.fetchCards(allCardIds)) cardsById.set(card.cardId, card);
+  if (deps.fetchCards) {
+    for (let i = 0; i < allCardIds.length; i += REVIEW_BATCH_SIZE) {
+      for (const card of await deps.fetchCards(allCardIds.slice(i, i + REVIEW_BATCH_SIZE))) cardsById.set(card.cardId, card);
+    }
   }
   const existingGrammarIds = new Map<string, Set<number>>();
   for (const [key, ids] of Object.entries(storedIdSets as Record<string, number[]>)) {
@@ -234,6 +236,8 @@ export async function importAnkiReviewHistory(
     const wordEvents: KnowledgeEvent[] = [];
     let wordImported = false;
     for (const cardId of cardIds) {
+      const card = cardsById.get(cardId);
+      const capabilities = card ? ankiCardCapabilities(card, word, deps.fields) : [];
       // Factor chains are per-card in Anki — sort and chain easeBefore within one
       // card only, then merge across the word's cards.
       const entries = (reviewsByCard.get(cardId) ?? []).slice().sort((a, b) => a.id - b.id);
@@ -246,13 +250,18 @@ export async function importAnkiReviewHistory(
           skipped++;
           continue;
         }
-        event.targetRef = { kind: 'surface', id: surfaceEntityId(language, hashWordSync(word)), capability: 'sense-recognition' };
-        event.presentedSurface = word;
-        event.schedulerCardId = String(cardId);
-        wordEvents.push(event);
-        existingIds.add(entry.id);
+        for (const capability of capabilities) {
+          wordEvents.push({
+            ...event,
+            aspect: CAPABILITY_ASPECT[capability],
+            targetRef: { kind: 'surface', id: surfaceEntityId(language, hashWordSync(word)), capability },
+            presentedSurface: word,
+            schedulerCardId: String(cardId),
+            origin: 'anki-review',
+          });
+        }
+        if (capabilities.length > 0) existingIds.add(entry.id);
       }
-      const card = cardsById.get(cardId);
       if (card && deps.grammar) {
         const mapped = mapAnkiGrammarReviews({ language, grammar: deps.grammar, card, reviews: entries, existingReviewIdsByTarget: existingGrammarIds });
         for (const mappedEvent of mapped.events) {

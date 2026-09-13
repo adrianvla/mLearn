@@ -1,3 +1,5 @@
+import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
+import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createSignal, For, Show } from 'solid-js';
 import { useLocalization, useFlashcards, useLanguage, useSettings } from '../../context';
 import { LevelCard } from './LevelCard';
@@ -79,8 +81,11 @@ export const LevelStudyTab: Component = () => {
     return langData ? getLevelStudyLevelNames(langData, frequency()) : {};
   });
 
+  const projected = useKnowledgeProjections(() => flashcards.isKnowledgeReady() && !language.isLoading()
+    ? { language: resolvedLanguageData().language, surfaces: Object.keys(frequency()) } : undefined);
+
   const stats = createMemo(() => {
-    if (flashcards.isLoading()) return [];
+    if (flashcards.isLoading() || projected.loading()) return [];
     const resolved = resolvedLanguageData();
     const langData = resolved.data;
     if (!langData) return [];
@@ -94,13 +99,13 @@ export const LevelStudyTab: Component = () => {
       settings.easeThresholdLearning * 1000,
       levelNames(),
       langData,
-      language.getCanonicalFormForLanguage,
-      flashcards.getComprehensiveWordStatusWithSourceSync,
+      undefined,
+      (word) => projectedWordStatus(projected.projections().get(word)),
     );
   });
 
   const beyondCard = createMemo<LevelStats | null>(() => {
-    if (flashcards.isLoading()) return null;
+    if (flashcards.isLoading() || projected.loading()) return null;
     const resolved = resolvedLanguageData();
     const langData = resolved.data;
     if (!langData) return null;
@@ -114,8 +119,8 @@ export const LevelStudyTab: Component = () => {
       settings.easeThresholdLearning * 1000,
       levelNames(),
       langData,
-      language.getCanonicalFormForLanguage,
-      flashcards.getComprehensiveWordStatusWithSourceSync,
+      undefined,
+      (word) => projectedWordStatus(projected.projections().get(word)),
     );
     return beyond != null ? { ...beyond, name: t('mlearn.LevelStudy.LevelCard.BeyondExam') } : null;
   });
@@ -208,7 +213,7 @@ export const LevelStudyTab: Component = () => {
           installed frequency data: until both are authoritative, keep the
           tab's geometry with placeholders instead of a blank panel, zeroed
           coverage, or a false empty state. */}
-      <Show when={flashcards.isKnowledgeReady() && !language.isLoading()} fallback={
+      <Show when={flashcards.isKnowledgeReady() && !language.isLoading() && !projected.loading()} fallback={
         <div class="level-study-boot" aria-busy="true">
           <SkeletonCard lines={2} />
           <SkeletonRows rows={3} />

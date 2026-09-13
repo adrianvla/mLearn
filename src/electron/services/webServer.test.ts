@@ -280,7 +280,6 @@ describe('webServer', () => {
       meta: { ...TEST_META },
       dailyStats: {},
       suggestedFlashcards: {},
-      wordSyncSeen: {},
       version: 3,
       ...overrides,
     };
@@ -349,7 +348,6 @@ describe('webServer', () => {
         wordKnowledge: {
           'ja:h1': { ease: 2.5, lastSeen: 1, timesSeen: 0, timesHovered: 0, word: '学校', language: 'ja', claim: 'known', claimAt: 200 },
         },
-        wordSyncSeen: { 'ja:h1': 10 },
       });
       vi.mocked(loadFlashcards).mockResolvedValue(persisted);
       const staleSnapshot = testStore({
@@ -366,7 +364,6 @@ describe('webServer', () => {
       expect(saved.wordKnowledge['ja:h1']?.claimAt).toBe(200);
       // Collections absent from the snapshot are not deleted.
       expect(saved.flashcards['card-1']?.reviews).toBe(4);
-      expect(saved.wordSyncSeen['ja:h1']).toBe(10);
       // The response reports the merged state.
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body) as { status: string; store: FlashcardStore };

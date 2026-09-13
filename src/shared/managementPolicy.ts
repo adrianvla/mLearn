@@ -87,7 +87,6 @@ const settingRegistry = {
   flashcards_add_picture: 'boolean',
   maxNewCardsPerDay: 'number',
   proportionOfLevelCards: 'number',
-  wordSyncStaleLearningDays: 'number',
   createUnseenCards: 'boolean',
   flashcardLLMExamples: 'boolean',
   newDayHour: 'number',

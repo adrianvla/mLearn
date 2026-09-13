@@ -223,7 +223,7 @@ export interface BucketArchive {
   lastDirect?: { t: number; seq: number };
 }
 
-export const KNOWLEDGE_MEASURABLE_VERSION = 2;
+export const KNOWLEDGE_MEASURABLE_VERSION = 3;
 
 export interface KeyArchive {
   /** Measurable evidence semantics, independent of the physical archive generation. */
