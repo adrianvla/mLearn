@@ -8,8 +8,8 @@
  * - Collapsed: 1/2/3/4 rate the whole word (Missed/Struggled/Fluent/Easy).
  * - Expanded (Adjust): same digits arm the pending column (mnemonic mode);
  *   the same digit again fills the All row; digit + capability mnemonic
- *   drafts that row. The word submits the moment every tested row holds a
- *   draft; partial states never submit. Spatial mode maps 1-4/QWER/ASDF/
+ *   drafts that row. The word submits when every tested row has a draft or
+ *   an explicit claim; claims themselves never become observations. Spatial mode maps 1-4/QWER/ASDF/
  *   ZXCV/7890 by quality × row, row 0 being All.
  * - Escape clears a pending chord first, then folds. Alt marks inference.
  * - Untouched rows fabricate no evidence; only explicit drafts and explicit
@@ -218,7 +218,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     submit(observations, Object.keys(opts).length > 0 ? opts : undefined);
   };
 
-  /** Capability cell: draft only; submits the moment the last access is drafted. */
+  /** Complete when every tested row is explicitly rated or already claimed; only drafts become observations. */
   const draftAccess = (capability: CapabilityKey, action: RatingAction, alt: boolean) => {
     if (!actionable()) return;
     clearPending();
@@ -231,8 +231,8 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     const observations: ProfileObservation[] = [];
     for (const tested of props.capabilities) {
       const draft = drafts[tested];
-      if (!draft) return; // Partial states never submit.
-      observations.push(observationFromDraft(tested, draft));
+      if (draft) observations.push(observationFromDraft(tested, draft));
+      else if (claimQuality(tested) === undefined) return; // An untouched, unclaimed row is still unanswered.
     }
     submit(observations, undefined);
   };

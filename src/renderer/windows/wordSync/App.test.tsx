@@ -818,6 +818,41 @@ beforeEach(() => {
     dispose();
   });
 
+  it('advances after rating the last unclaimed row following a natural-language adjustment', async () => {
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    mockWordSyncState.capabilities = ['surface-recognition', 'surface-reading', 'prosodic-pattern', 'sense-recognition'];
+    mockWordSyncState.wordFrequency = { '水筒': { reading: 'すいとう', raw_level: 2, level: 'N2' } };
+    mockWordSyncState.levelNames = { 2: 'N2' };
+    const [claims, setClaims] = createSignal<Record<string, WordStatus | undefined>>({});
+    mockGetAccessStatus.mockImplementation((_word, capability) => ({ status: 'unknown', ease: 0, source: 'None', untracked: true, claim: claims()[capability!] }));
+    mockSetAccessClaim.mockImplementation((_word, capability: string, status: WordStatus) => setClaims(previous => ({ ...previous, [capability]: status })));
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    press(' '); await settle();
+    buttonByText('mlearn.Rating.Compact.Adjust').click();
+    buttonByText('mlearn.TellMlearn.Label').click();
+    const input = container.querySelector<HTMLTextAreaElement>('.tell-mlearn__input')!;
+    input.value = "I know すいとう so it's kinda struggled, then I know the prosody, then I actually like the kanji kinda suggested me it but I couldn't have guessed without the reading side by side. When it opened I was like aahhh";
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    buttonByText('mlearn.TellMlearn.Send').click();
+    // Replay the reported model interpretation, independently of whether that
+    // interpretation is accurate: applying claims must not wedge completion.
+    const callbacks = mockStreamChat.mock.calls.at(-1)![2] as LLMStreamCallbacks;
+    callbacks.onDone('', ['sense-recognition', 'surface-reading', 'prosodic-pattern'].map(capability => ({
+      id: capability, name: 'set_access_claim', arguments: { capability, status: capability === 'prosodic-pattern' ? 'known' : 'learning', basis: 'unassisted' },
+    })));
+    await settle(); await settle();
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+    const missing = container.querySelector<HTMLButtonElement>('[aria-label="mlearn.Knowledge.Capability.surface-recognition: mlearn.Rating.Matrix.Missed"]')!;
+    missing.click(); await settle(); await settle();
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(1);
+    expect(mockRecordAttempt.mock.calls[0][0]).toBe('水筒');
+    expect(mockRecordAttempt.mock.calls[0][1]).toBe('surface-recognition');
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 1');
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+  });
+
   it('applies and undoes meaning success and reading failure from the same explanation', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     const [claims, setClaims] = createSignal<Record<string, WordStatus | undefined>>({});

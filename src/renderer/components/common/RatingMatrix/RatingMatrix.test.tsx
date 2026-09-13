@@ -67,6 +67,35 @@ describe('RatingMatrix (canonical rating control)', () => {
     container.remove();
   });
 
+  it('completes the remaining clicked row without turning selected claims into observations', () => {
+    const [claims, setClaims] = createSignal<Partial<Record<CapabilityKey, WordStatus>>>({});
+    dispose = render(() => <RatingMatrix capabilities={CAPABILITIES} keyboardMode="mnemonic" armed
+      claims={claims()} onSubmit={onSubmit} />, container);
+    adjust();
+    setClaims({ 'sense-recognition': 'learning', 'surface-reading': 'learning', 'prosodic-pattern': 'known' });
+    expect(onSubmit).not.toHaveBeenCalled();
+    rows()[4].querySelectorAll('button')[0].click();
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith([{ capability: 'surface-recognition', quality: 'missed' }], undefined);
+    rows()[4].querySelectorAll('button')[0].click();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires an answer again after an access claim is undone', () => {
+    const [claims, setClaims] = createSignal<Partial<Record<CapabilityKey, WordStatus>>>({
+      'sense-recognition': 'learning', 'surface-reading': 'learning', 'prosodic-pattern': 'known',
+    });
+    dispose = render(() => <RatingMatrix capabilities={CAPABILITIES} keyboardMode="mnemonic" armed claims={claims()} onSubmit={onSubmit} />, container);
+    adjust();
+    setClaims({ 'sense-recognition': 'learning', 'prosodic-pattern': 'known' });
+    rows()[4].querySelectorAll('button')[0].click();
+    expect(onSubmit).not.toHaveBeenCalled();
+    rows()[2].querySelectorAll('button')[0].click();
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith([
+      { capability: 'surface-reading', quality: 'missed' },
+      { capability: 'surface-recognition', quality: 'missed' },
+    ], undefined);
+  });
+
   it('selects claim qualities in the same buttons, including sound recognition, and clears on undo', () => {
     const [claims, setClaims] = createSignal<Partial<Record<CapabilityKey, WordStatus>>>({});
     dispose = render(() => <RatingMatrix capabilities={CAPABILITIES} keyboardMode="mnemonic" armed
@@ -97,8 +126,7 @@ describe('RatingMatrix (canonical rating control)', () => {
     setClaims({ 'surface-recognition': 'unknown' });
     expect(rows()[0].querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
     key('4'); key('p');
-    expect(rows()[3].querySelectorAll('button')[3].getAttribute('aria-pressed')).toBe('true');
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith([{ capability: 'prosodic-pattern', quality: 'fluent', easy: true }], { easy: true });
     setWordClaim(null);
     setClaims({});
     expect(container.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
