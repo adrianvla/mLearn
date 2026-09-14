@@ -578,7 +578,7 @@ export const DEFAULT_SETTINGS: Settings = {
   simplifyHomeScreen: true,
   hover_known_get_from_dictionary: false,
   showDictionary: true,
-  show_pos: true,
+  show_pos: false,
   language: '',
   languageVariants: {},
   dictionaryTargetLanguages: {},

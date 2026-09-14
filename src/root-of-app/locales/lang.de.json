@@ -1970,8 +1970,8 @@
           "Label": "Prosodie bei bekannten Wörtern ausblenden"
         },
         "ShowPos": {
-          "Description": "Grammatische Informationen zu Wörtern anzeigen",
-          "Label": "Wortart anzeigen"
+          "Description": "Die native Grammatikbezeichnung des Sprachpakets in Wort-Pop-ups und anderen Nachschlageansichten anzeigen",
+          "Label": "Native Grammatikbezeichnung anzeigen"
         }
       },
       "ReadingAppearance": {

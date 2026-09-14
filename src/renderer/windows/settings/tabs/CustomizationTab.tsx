@@ -255,6 +255,19 @@ export const CustomizationTab: Component = () => {
         </SettingGroup>
       </Show>
 
+      <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}>
+        <SettingRow
+          label={t('mlearn.Settings.DisplayOptions.ShowPos.Label')}
+          description={t('mlearn.Settings.DisplayOptions.ShowPos.Description')}
+          settingKey="show_pos"
+        >
+          <ToggleSwitch
+            checked={settings.show_pos ?? DEFAULT_SETTINGS.show_pos}
+            onChange={(checked) => updateSettings({ show_pos: checked })}
+          />
+        </SettingRow>
+      </SettingGroup>
+
       <SettingGroup title={t('mlearn.Settings.Groups.SubtitleAppearance')}>
         <SettingRow
           label={t('mlearn.Settings.Subtitle.Theme.Label')}

@@ -1970,8 +1970,8 @@
           "Label": "Masquer la prosodie pour les mots connus"
         },
         "ShowPos": {
-          "Description": "Afficher les informations grammaticales des mots",
-          "Label": "Afficher la partie du discours"
+          "Description": "Afficher l'étiquette grammaticale native du pack de langue dans les infobulles de mots et les autres vues de recherche",
+          "Label": "Afficher l'étiquette grammaticale native"
         }
       },
       "ReadingAppearance": {

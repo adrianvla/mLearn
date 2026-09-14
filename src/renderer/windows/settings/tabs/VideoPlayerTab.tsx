@@ -119,16 +119,6 @@ export const VideoPlayerTab: Component = () => {
           </SettingRow>
         </Show>
 
-        <SettingRow
-          label={t('mlearn.Settings.DisplayOptions.ShowPos.Label')}
-          description={t('mlearn.Settings.DisplayOptions.ShowPos.Description')}
-          settingKey="show_pos"
-        >
-          <ToggleSwitch
-            checked={settings.show_pos}
-            onChange={(checked) => updateSettings({ show_pos: checked })}
-          />
-        </SettingRow>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.BlurEffect')}>

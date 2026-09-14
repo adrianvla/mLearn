@@ -19,7 +19,7 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   opacity:0;
 }
 
-/* Viewport-bounded dictionary and knowledge popover. */
+/* Compact dictionary popover whose action strip determines its natural width. */
 .subtitle_hover {
   position: relative;
   background: var(--bg);
@@ -37,13 +37,14 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   display: flex;
   flex-direction: column;
   font-family: var(--font-family-sans);
-  max-height: min(560px, calc(100dvh - var(--spacing-8)));
+  max-height: min(350px, calc(100dvh - var(--spacing-8)));
   overflow: hidden;
   box-sizing: border-box;
   text-shadow: none !important;
   -webkit-text-stroke: unset !important;
-  width: min(30rem, calc(100vw - var(--spacing-4)));
-  min-width: 0;
+  width: fit-content;
+  min-width: min(280px, calc(100vw - var(--spacing-4)));
+  max-width: calc(100vw - var(--spacing-4));
 }
 
 
@@ -102,39 +103,40 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   overflow-y: auto;
   flex: 1;
   min-height: 0; /* Allow shrinking for scroll */
-  max-width: 100%;
+  max-width: 600px;
   overflow-wrap: anywhere;
 }
 .subtitle_hover_content a{
   color: var(--text-primary);
 }
 
-/* Dictionary metadata and quick actions share the historical compact footer. */
+/* Dictionary metadata and quick actions share one compact horizontal strip. */
 .subtitle_hover .footer {
   width:100%;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
   box-sizing: border-box;
   background: var(--accent-bg);
   backdrop-filter: var(--backdrop-filter-nodim);
   border-top: 1px solid var(--border-color);
   flex: 0 0 auto;
   min-height: 0;
-  max-height: 55dvh;
-  overflow-y: auto;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 
-/* Integration and dictionary controls wrap within the popover. */
+/* Keep the frequently used controls on one stable muscle-memory row. */
 .subtitle_hover .pills {
   display: flex;
-  gap: var(--spacing-2);
-  flex-wrap: wrap;
-  width: 100%;
-  align-items: stretch; /* Make all pills same height */
+  gap: 8px;
+  flex-wrap: nowrap;
+  width: max-content;
+  align-items: center;
   overflow: visible;
   justify-content: flex-start;
 }
@@ -143,14 +145,14 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 /* Both label-pill and btn-pill should have identical sizing */
 .subtitle_hover .pills .label-pill,
 .subtitle_hover .pills .btn-pill {
-  font-size: var(--font-size-xs);
-  padding: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--radius-md);
+  font-size: 0.8em;
+  padding: 5px 10px;
+  border-radius: 10px;
   white-space: nowrap; /* Prevent wrapping inside pills */
   flex-shrink: 0;
   /* Ensure consistent height calculation */
-  height: auto;
-  min-height: var(--size-sm);
+  height: var(--size-md);
+  min-height: var(--size-md);
   box-sizing: border-box;
   /* Fix blur issues */
   transform: translateZ(0);
@@ -346,5 +348,5 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   }
 }
 
-.subtitle_hover .word-hover-inspect { border: none; background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--font-size-xs); padding: var(--spacing-1); cursor: pointer; }
+.subtitle_hover .word-hover-inspect { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--font-size-xs); padding: var(--spacing-1); white-space: nowrap; cursor: pointer; }
 .subtitle_hover .word-hover-inspect:hover { color: var(--text-primary); text-decoration: underline; }

@@ -154,7 +154,13 @@
 
 .graph-viz__detail-state { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
 
-.graph-viz__detail .btn { align-self: flex-start; }
+.graph-viz__detail .btn {
+  align-self: flex-start;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
 
 @media (max-width: 720px) {
   .graph-viz__layout { grid-template-columns: 1fr; }

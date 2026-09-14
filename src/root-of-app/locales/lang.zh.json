@@ -1970,8 +1970,8 @@
           "Label": "隐藏已掌握单词的韵律"
         },
         "ShowPos": {
-          "Description": "显示单词的语法信息",
-          "Label": "显示词性"
+          "Description": "在单词悬停框和其他查询界面中显示语言包的原生语法标签",
+          "Label": "显示原生语法类型标签"
         }
       },
       "ReadingAppearance": {

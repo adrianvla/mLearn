@@ -1,4 +1,8 @@
-.graph-inspector { height: 100%; overflow: auto; padding: 24px; color: var(--text-primary); background: var(--bg-primary); }
+/* This entry point mounts into #root (not the shared #app container). Give the
+   standalone window a bounded height so its content owns vertical scrolling
+   while the global body overflow lock remains intact. */
+#root { height: 100%; min-height: 0; }
+.graph-inspector { height: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 24px; color: var(--text-primary); background: var(--bg-primary); }
 .graph-inspector__header { margin-bottom: 20px; }
 .graph-inspector__header h1 { margin: 0 0 0.25rem; font-size: var(--font-size-xl); }
 .graph-inspector__header p { margin: 0; color: var(--text-secondary); }

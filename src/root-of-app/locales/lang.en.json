@@ -1970,8 +1970,8 @@
           "Label": "Hide Prosody for Known Words"
         },
         "ShowPos": {
-          "Description": "Display grammatical information for words",
-          "Label": "Show Part of Speech"
+          "Description": "Show the language package's native grammar label in word hovers and other lookup surfaces",
+          "Label": "Show native grammar type label"
         }
       },
       "ReadingAppearance": {

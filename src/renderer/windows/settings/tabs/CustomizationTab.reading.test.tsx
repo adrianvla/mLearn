@@ -16,6 +16,9 @@ let supportsColoredProsody = false;
 const translations: Record<string, string> = {
   'mlearn.Settings.Scaffold.Prosody.Label': 'Pitch-accent coloring',
   'mlearn.Settings.Scaffold.Prosody.Description': 'Prefer pitch-accent coloring on words. mLearn fades it automatically as you learn.',
+  'mlearn.Settings.Groups.DisplayOptions': 'Display options',
+  'mlearn.Settings.DisplayOptions.ShowPos.Label': 'Show native grammar type label',
+  'mlearn.Settings.DisplayOptions.ShowPos.Description': 'Show native grammar labels in lookup surfaces',
   'mlearn.Settings.Groups.ReadingAppearance': 'Reading text',
   'mlearn.Settings.ReadingAppearance.MoreContrast.Label': 'More contrast in reading text',
   'mlearn.Settings.ReadingAppearance.MoreContrast.Description': 'Use the primary text color for reading annotations',
@@ -164,6 +167,25 @@ describe('CustomizationTab reading appearance', () => {
     expect(updateSettingsMock).toHaveBeenCalledWith({ readingAnnotationSizePercent: 130 });
     expect(preview.style.getPropertyValue('--reading-annotation-scale')).toBe('1.3');
     expect(container.textContent).toContain('130%');
+
+    dispose();
+  });
+
+  it('keeps native grammar type labels hidden by default and exposes the toggle in Appearance', async () => {
+    const { CustomizationTab } = await import('./CustomizationTab');
+    const dispose = render(() => <CustomizationTab />, container);
+
+    const toggle = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.parentElement?.textContent?.includes('Show native grammar type label')) as HTMLButtonElement;
+
+    expect(DEFAULT_SETTINGS.show_pos).toBe(false);
+    expect(toggle).toBeDefined();
+    expect(toggle.dataset.checked).toBe('false');
+
+    toggle.click();
+
+    expect(updateSettingsMock).toHaveBeenCalledWith({ show_pos: true });
+    expect(toggle.dataset.checked).toBe('true');
 
     dispose();
   });

@@ -60,11 +60,14 @@
   margin-left: 0.25rem;
 }
 
-/* Make the status pill match the Level pill's taller height in the DB table */
+/* Level and knowledge pills use one exact row height regardless of icons. */
+.word-db-editor .col.level .label-pill,
 .word-db-editor .col.knowledge .btn-pill {
+  height: var(--size-md);
   min-height: var(--size-md);
-  padding-top: 0.375rem;
-  padding-bottom: 0.375rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  box-sizing: border-box;
 }
 
 .word-db-editor .col.word .word-text {

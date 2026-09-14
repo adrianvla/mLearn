@@ -1970,8 +1970,8 @@
           "Label": "既知語のプロソディを隠す"
         },
         "ShowPos": {
-          "Description": "単語の文法情報を表示",
-          "Label": "品詞を表示"
+          "Description": "単語ホバーやその他の検索画面に言語パッケージ固有の文法ラベルを表示します",
+          "Label": "固有の文法種別ラベルを表示"
         }
       },
       "ReadingAppearance": {
