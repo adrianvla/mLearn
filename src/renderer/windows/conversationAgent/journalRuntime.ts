@@ -10,7 +10,6 @@ import type {
   MistakeWidgetData,
 } from '../../../shared/types';
 
-const SEA_EVENT_LIMIT = 200;
 
 type JournalDisplayMessage = ConversationMessage & {
   eventId: string;
@@ -21,6 +20,7 @@ type JournalDisplayMessage = ConversationMessage & {
 export interface JournalThreadSelection {
   roomId: string;
   threadId: string;
+  continuityRoomIds?: string[];
 }
 
 export function createJournalThreadStore(): {
@@ -33,12 +33,11 @@ export function createJournalThreadStore(): {
   const [threadEvents, setThreadEvents] = createSignal<JournalEvent[]>([]);
   const [seaEvents, setSeaEvents] = createSignal<JournalEvent[]>([]);
   let requestId = 0;
-  let unsubscribe: (() => void) | undefined;
+  let selected: JournalThreadSelection | null = null;
 
   const teardown = (): void => {
     requestId++;
-    unsubscribe?.();
-    unsubscribe = undefined;
+    selected = null;
     setThreadEvents([]);
     setSeaEvents([]);
   };
@@ -47,27 +46,29 @@ export function createJournalThreadStore(): {
     async select(selection): Promise<void> {
       teardown();
       if (!selection) return;
+      selected = selection;
 
       const currentRequest = requestId;
       const journal = getBridge().journal;
-      const sea = await journal.readSeaProjection(selection.roomId);
-      const subscription = await journal.subscribeRoom(selection.roomId, SEA_EVENT_LIMIT);
+      const sea = (await Promise.all([...new Set([selection.roomId, ...(selection.continuityRoomIds ?? [])])]
+        .map((roomId) => journal.readSeaProjection(roomId)))).flat();
       const thread = await journal.readThread(selection.roomId, selection.threadId);
       if (currentRequest !== requestId) return;
 
       setSeaEvents(sea);
       setThreadEvents(thread);
-      unsubscribe = subscriptionUnsubscribe(subscription);
     },
 
     threadEvents,
     seaEvents,
 
     async append(draft): Promise<JournalEvent> {
+      const session = requestId;
       const event = await getBridge().journal.appendEvent(draft.roomId, draft);
+      if (session !== requestId || !selected) return event;
       if (event.scope.kind === 'sea') {
         setSeaEvents((events) => [...events, event]);
-      } else {
+      } else if (event.roomId === selected.roomId && event.scope.threadId === selected.threadId) {
         setThreadEvents((events) => [...events, event]);
       }
       return event;
@@ -132,11 +133,6 @@ export function buildLLMHistory(
   participants: Participant[],
 ): LLMChatMessage[] {
   return projectHistoryForParticipant(events, participantId, participants);
-}
-
-function subscriptionUnsubscribe(value: unknown): (() => void) | undefined {
-  if (!isRecord(value) || typeof value.unsubscribe !== 'function') return undefined;
-  return value.unsubscribe as () => void;
 }
 
 function messagePayload(payload: unknown): { text: string; widget?: ChatWidget; widgets?: ChatWidget[]; modality?: 'voice' } | undefined {

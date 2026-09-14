@@ -26,7 +26,7 @@ function event(overrides: Partial<JournalEvent> & Pick<JournalEvent, 'id' | 'typ
     scope: overrides.scope ?? { kind: 'thread', threadId: 'thread-1' },
     type: overrides.type,
     actorId: overrides.actorId ?? 'user',
-    witnesses: overrides.witnesses ?? [],
+    witnesses: overrides.witnesses ?? ['user', 'a', 'b', 'missing'],
     payload: overrides.payload ?? { text: 'text' },
     createdAt: overrides.createdAt ?? 1,
   };
@@ -58,11 +58,24 @@ describe('journalRuntime', () => {
     expect(store.threadEvents()).toEqual([threadOne, appended]);
 
     await store.select({ roomId: 'room-2', threadId: 'thread-2' });
-    expect(unsubscribe).toHaveBeenCalledOnce();
     expect(store.seaEvents()).toEqual([seaTwo]);
     expect(store.threadEvents()).toEqual([threadTwo]);
     store.teardown();
-    expect(unsubscribe).toHaveBeenCalledTimes(2);
+    expect(store.threadEvents()).toEqual([]);
+  });
+
+  it('does not apply a late append from A to the selected Thread B', async () => {
+    mockJournal.readSeaProjection.mockResolvedValue([]);
+    mockJournal.readThread.mockResolvedValue([]);
+    let finish!: (value: JournalEvent) => void;
+    mockJournal.appendEvent.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const store = createJournalThreadStore();
+    await store.select({ roomId: 'room-1', threadId: 'thread-1' });
+    const pending = store.append({ roomId: 'room-1', scope: { kind: 'thread', threadId: 'thread-1' }, type: 'message.user', actorId: 'user', witnesses: ['user'], payload: { text: 'A' } });
+    await store.select({ roomId: 'room-2', threadId: 'thread-2' });
+    finish(event({ id: 'late-a', type: 'message.user' }));
+    await pending;
+    expect(store.threadEvents()).toEqual([]);
   });
 
   it('folds message sidecars into display messages and skips malformed events', () => {

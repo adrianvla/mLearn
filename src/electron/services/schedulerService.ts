@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { appendEvent, readSeaProjection } from './journalService';
-import { loadWorld, saveWorld } from './worldStore';
+import { loadWorld, saveWorld, withWorldMutation } from './worldStore';
 import {
   evaluateProactivity,
   isInQuietHours,
@@ -72,11 +72,13 @@ export function createSchedulerService(deps: SchedulerDeps) {
   }
 
   async function bumpUnread(roomId: string): Promise<void> {
-    const world = await loadWorld();
-    const room = world.rooms.find((item) => item.id === roomId);
-    if (room === undefined) return;
-    room.unreadCount = (room.unreadCount ?? 0) + 1;
-    await saveWorld(world);
+    return withWorldMutation(async () => {
+      const world = await loadWorld();
+      const room = world.rooms.find((item) => item.id === roomId);
+      if (room === undefined) return;
+      room.unreadCount = (room.unreadCount ?? 0) + 1;
+      await saveWorld(world);
+    });
   }
 
   async function reconcile(roomId: string): Promise<ReconcileResult> {

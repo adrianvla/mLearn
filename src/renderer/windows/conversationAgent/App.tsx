@@ -3,7 +3,7 @@
  * AI-powered language tutor with tokenized chat, tool calling, and speech I/O
  */
 
-import { Component, Show, For, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, Show, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
@@ -17,16 +17,6 @@ import {
   ensureCloudAccessToken,
   handleCloudSessionError,
 } from '../../services/cloudSessionManager';
-import {
-  loadAgents,
-  addAgent,
-  updateAgent,
-  loadActiveAgentId,
-  saveActiveAgentId,
-  migrateIfNeeded,
-  loadAllMemories,
-  generateAgentId,
-} from '../../services/agentConfigService';
 import {
   Btn,
   IconBtn,
@@ -45,7 +35,7 @@ import { ChatBubble } from './ChatBubble';
 import { ThreadInfoPanel } from './ThreadInfoPanel';
 import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
-import { AgentSetupModal } from './AgentSetupModal';
+
 import { AgeVerificationModal } from './AgeVerificationModal';
 import { CommandPalette } from './CommandPalette';
 import type { SlashCommand } from './CommandPalette';
@@ -58,16 +48,15 @@ import { createCheckerAgent } from '../../services/checkerAgent';
 import { inferTurnAffect } from '../../../shared/socialState';
 import type { TurnAffectOptions, TurnSocialState } from '../../../shared/socialState';
 import type { StreamCallbacks } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry, StreamStats } from '../../../shared/types';
+import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, StreamStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getConversationErrorMessage } from './errorUtils';
 import { shouldHideAssistantBubble } from './messageState';
 import { createJournalThreadStore, eventsToDisplayMessages, buildLLMHistory } from './journalRuntime';
 import { runRoomTurn } from '../../../shared/roomOrchestrator';
-import { compileContext, type CompiledContext, type LearnerProjection } from '../../../shared/contextCompiler';
+import { compileContext, visibleThreadEventsFor, type CompiledContext, type LearnerProjection } from '../../../shared/contextCompiler';
 import { renderCompiledContext } from './roomMessages';
 import { createVoicePrefetch } from './voicePrefetch';
-import { selectSpeaker } from '../../../shared/speakerSelection';
 import { HARNESS_ACTOR, USER_ACTOR, type MessagePayload, type Participant, type WorldSnapshot } from '../../../shared/world';
 import { shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
@@ -75,6 +64,7 @@ import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.conversationAgent.app");
 const HISTORY_WINDOW = 40;
+const SELECTION_KEY = 'conversation-selection';
 
 type EventMessage = ConversationMessage & { eventId: string };
 
@@ -94,7 +84,7 @@ function lastContextMessage(context: CompiledContext): string {
  * Known tool names used by the conversation agent.
  * Used to detect and hide partial tool call text during streaming.
  */
-const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats', 'note_mistake', 'recall_backstory', 'save_memory', 'search_wikipedia', 'search_fandom'];
+const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_conversation_context', 'note_mistake', 'save_memory', 'search_wikipedia'];
 
 /**
  * Strip any trailing partial tool call text from streamed content.
@@ -177,13 +167,12 @@ const PhoneIcon: Component = () => (
 );
 
 export const ConversationContent: Component = () => {
-  const { settings, updateSettings, openCloudReLoginModal } = useSettings();
+  const { settings, openCloudReLoginModal } = useSettings();
   const server = useServer();
   const {
     currentLangData,
     isTokenTranslatable,
     getLanguageFeatures,
-    getFrequency,
     getLevelName,
     getCanonicalForm,
     getWordVariants,
@@ -241,21 +230,7 @@ export const ConversationContent: Component = () => {
   const [voiceSessionStart, setVoiceSessionStart] = createSignal<number>(0);
   const [voiceAftermath, setVoiceAftermath] = createSignal<VoiceSessionAftermath | null>(null);
 
-  // Agent setup & memory state
-  const [agents, setAgents] = createSignal<AgentConfig[]>([]);
-  const [activeAgentId, setActiveAgentId] = createSignal<string | null>(null);
-  const [allMemories, setAllMemories] = createSignal<AgentMemoryEntry[]>([]);
-  void allMemories;
-  const [showSetupModal, setShowSetupModal] = createSignal(false);
-  const [editingAgent, setEditingAgent] = createSignal<AgentConfig | null>(null);
-  const [legacyAgentsLoaded, setLegacyAgentsLoaded] = createSignal(false);
   let firstRunModalHandled = false;
-
-  const activeAgent = (): AgentConfig | null => {
-    const id = activeAgentId();
-    if (!id) return null;
-    return agents().find((a) => a.id === id) || null;
-  };
 
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
@@ -278,7 +253,11 @@ export const ConversationContent: Component = () => {
   const journal = createJournalThreadStore();
   const [liveOverlay, setLiveOverlay] = createSignal<ConversationMessage | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
+  /** Event ids whose tokenization has been launched in this selection session; reset on thread switch. */
   const tokenizedMessageIds = new Set<string>();
+  const tokenizationFailures = new Map<string, number>();
+  const MAX_TOKENIZATION_ATTEMPTS = 3;
+  const [tokenizationRetryTick, setTokenizationRetryTick] = createSignal(0);
   const interruptedSpokenText = new Map<string, { text: string; interruptedAt: string }>();
   const supersededEvents = new Set<string>();
   const participantAgents = new Map<string, AgentInstance>();
@@ -329,7 +308,7 @@ export const ConversationContent: Component = () => {
     const tutor = tutorSelections();
     const level = Number(settings.learningLanguageLevels?.[settings.language] ?? 0);
     const notSettled = (word: string): boolean => !flashcardCtx.isWordSettledSync(word, settings.language);
-    const mediaFailures = (media?.failedWords ?? [])
+    const mediaFailures = [...(media?.failedWords ?? [])]
       .sort((a, b) => a.ease - b.ease)
       .slice(0, 15)
       .map((w) => w.word)
@@ -337,41 +316,21 @@ export const ConversationContent: Component = () => {
     const selectedWords = (tutor?.selectedWords ?? []).map((w) => w.word);
     return {
       language: promptLangName(),
-      wordsBasis: 'evidence',
+      wordsBasis: 'prediction',
       grammarBasis: 'prediction',
       failedWords: [...new Set([...mediaFailures, ...selectedWords])],
       grammarPoints: [
-        ...(media?.failedGrammar ?? []).sort((a, b) => a.ease - b.ease).slice(0, 10).map((g) => g.pattern),
+        ...[...(media?.failedGrammar ?? [])].sort((a, b) => a.ease - b.ease).slice(0, 10).map((g) => g.pattern),
         ...(tutor?.selectedGrammar ?? []).map((g) => g.pattern),
       ],
       // Exposure signal only (patterns repeatedly seen, never failed) — kept
       // out of grammarPoints so prediction never masquerades as failure.
       grammarExposure: media?.grammarExposure?.map((g) => g.pattern),
-      levelEstimate: level > 0 ? (getLevelName(level) ?? undefined) : media?.assessedLevelName ?? undefined,
+      levelEstimate: level > 0 ? (getLevelName(level) ?? undefined) : undefined,
     };
   };
   const activeRoom = () => world()?.rooms.find((room) => room.id === selection()?.roomId) ?? null;
   const activeThread = () => world()?.threads.find((thread) => thread.id === selection()?.threadId) ?? null;
-  const mediaContextForTools = (): ConversationAgentContext | null => {
-    const context = mediaContext();
-    const media = activeThread()?.mediaRef;
-    if (!media) return context;
-    return {
-      mediaHash: media.mediaHash,
-      mediaName: media.mediaName,
-      mediaType: media.mediaType,
-      assessedLevel: context?.assessedLevel ?? null,
-      assessedLevelName: media.assessedLevelName ?? context?.assessedLevelName ?? '',
-      language: context?.language ?? settings.language,
-      failedWords: context?.failedWords ?? [],
-      failedGrammar: context?.failedGrammar ?? [],
-      grammarExposure: context?.grammarExposure ?? [],
-      wordLevelPercentages: context?.wordLevelPercentages ?? { entries: [], totalUnique: 0, totalOccurrences: 0 },
-      grammarLevelPercentages: context?.grammarLevelPercentages ?? { entries: [], totalUnique: 0, totalOccurrences: 0 },
-      subtitleHistory: media.subtitleHistory,
-      characterContext: media.characterContext,
-    };
-  };
   const rosterParticipants = () => {
     const room = activeRoom();
     if (!room) return [];
@@ -384,25 +343,21 @@ export const ConversationContent: Component = () => {
   // text drives bounded turn-specific ranking/budgeting; scopeId keeps each
   // participant's view separate, and the journal-size version invalidates
   // speculative work if the world changed mid-utterance.
+  let previousContextWorld: WorldSnapshot | null = null;
+  let contextWorldRevision = 0;
   const voiceContextPrefetch = createVoicePrefetch(
-    (turnText: string, scopeId: string): string => {
-      const participant = rosterParticipants().find((candidate) => candidate.id === scopeId);
-      if (!participant) return '';
-      return renderCompiledContext(
-        compileContext({
-          participant,
-          participants: rosterParticipants(),
-          seaEvents: journal.seaEvents(),
-          threadEvents: journal.threadEvents(),
-          learnerProjection: learnerProjection(),
-          threadMedia: activeThread()?.mediaRef,
-          turn: { text: turnText },
-        }),
-        rosterParticipants(),
-        youLabel(),
-      );
+    (turnText: string, scopeId: string): CompiledContext => {
+      const participant = rosterParticipants().find(candidate => candidate.id === scopeId);
+      if (!participant) throw new Error('Conversation participant is unavailable');
+      return compileContext({ participant, participants: rosterParticipants(),
+        seaEvents: journal.seaEvents(), threadEvents: journal.threadEvents(),
+        learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef,
+        threadIntent: activeThread()?.intent, turn: { text: turnText } });
     },
-    () => `${journal.seaEvents().length}:${journal.threadEvents().length}`,
+    () => {
+      if (world() !== previousContextWorld) { previousContextWorld = world(); contextWorldRevision++; }
+      return `${selectionSession}:${contextWorldRevision}:${journal.seaEvents().length}:${journal.threadEvents().length}:${JSON.stringify(learnerProjection())}`;
+    },
   );
   let lastUserMessageEventId: string | null = null;
   let lastUserMessageEventRoomId: string | null = null;
@@ -422,23 +377,43 @@ export const ConversationContent: Component = () => {
     setMessageOverrides((overrides) => new Map(overrides).set(eventId, update(message)));
   };
 
+  // Tokenization lifecycle: every visible message is a candidate whenever it
+  // enters the display list — on append AND on thread mount/restore — so a
+  // restored thread never depends on the "new message arrived" path. Launched
+  // ids are tracked per selection session and reset by selectRoom; completions
+  // from a stale session are dropped, and failures unmark the event with a
+  // bounded retry so a tokenizer that becomes ready later still applies.
   createEffect(() => {
+    void tokenizationRetryTick();
     for (const message of displayMessages() as EventMessage[]) {
       if (
         (message.role !== 'assistant' && message.role !== 'user')
         ||
         message.tokens?.length
         || tokenizedMessageIds.has(message.eventId)
+        || (tokenizationFailures.get(message.eventId) ?? 0) >= MAX_TOKENIZATION_ATTEMPTS
         || !shouldTokenizeTextForLanguage(message.content, settings.language, currentLangData())
       ) continue;
 
       tokenizedMessageIds.add(message.eventId);
+      const launchedAtSession = selectionSession;
       void tokenizeCached(message.content)
         .then((tokens) => {
+          // Stale session: never touch the mark — selectRoom's reset owns it,
+          // and deleting here could erase the live session's mark and cause a
+          // duplicate launch for the same event.
+          if (launchedAtSession !== selectionSession) return;
           if (!tokens.length || displayMessages().find((item) => (item as EventMessage).eventId === message.eventId)?.tokens?.length) return;
           updateMessageOverride(message.eventId, (current) => ({ ...current, tokens }));
         })
-        .catch((error: unknown) => log.error('error', error));
+        .catch((error: unknown) => {
+          if (launchedAtSession !== selectionSession) return;
+          tokenizedMessageIds.delete(message.eventId);
+          const attempts = (tokenizationFailures.get(message.eventId) ?? 0) + 1;
+          tokenizationFailures.set(message.eventId, attempts);
+          if (attempts < MAX_TOKENIZATION_ATTEMPTS) setTokenizationRetryTick((tick) => tick + 1);
+          log.error('error', error);
+        });
     }
   });
 
@@ -475,20 +450,18 @@ export const ConversationContent: Component = () => {
     };
   };
 
-  const getParticipantAgent = (participant: Participant): AgentInstance => {
+  const getParticipantAgent = (participant: Participant, compiled?: CompiledContext): AgentInstance => {
     const cached = participantAgents.get(participant.id);
-    if (cached) return cached;
+    if (cached && !compiled) return cached;
+    const runtimeSession = selectionSession;
     const runtimeAgent = createConversationAgent({
     getSettings: () => settings,
+    tokenize: tokenizeCached,
     getLanguage: () => settings.language,
     getLanguageName: () => promptLangName(),
+    getLanguageData: currentLangData,
     getLanguageFeatures: () => getLanguageFeatures(),
-    getMediaContext: mediaContextForTools,
     flashcardCtx,
-    getFrequency,
-    getTargetLevel: () => Number(settings.learningLanguageLevels?.[settings.language] ?? 0) || null,
-    getLanguageData: () => currentLangData(),
-    getLevelName,
     isVoiceMode: isVoiceCallActive,
     onVoiceMistake: (mistake: VoiceMistake) => {
       if (!isValidVoiceMistake(mistake)) return;
@@ -501,41 +474,35 @@ export const ConversationContent: Component = () => {
     },
     onVoiceNudgeScheduled: scheduleVoiceNudge,
     onMemorySaved: (content: string) => {
+      if (runtimeSession !== selectionSession) return;
       const room = activeRoom();
-      if (!room) return;
-      // Provenance applies only when the saved belief belongs to the room the
-      // tracked turn was sent in; otherwise the id would point across rooms.
-      const provenanceEventId = lastUserMessageEventRoomId === room.id ? lastUserMessageEventId : null;
+      const threadId = selection()?.threadId;
+      if (!room || !threadId) return;
+      const sourceEventId = lastUserMessageEventRoomId === room.id ? lastUserMessageEventId : null;
       void journal.append({
         roomId: room.id,
-        scope: { kind: 'sea' },
+        scope: { kind: 'thread', threadId },
         type: 'memory.belief',
         actorId: HARNESS_ACTOR,
         witnesses: [USER_ACTOR, participant.id],
-        payload: {
-          ownerId: participant.id,
-          kind: 'belief',
-          text: content,
-          ...(provenanceEventId ? { sourceEventIds: [provenanceEventId] } : {}),
-        },
-        ...(provenanceEventId ? { provenance: { sourceThreadEventIds: [provenanceEventId] } } : {}),
-      });
+        payload: { ownerId: participant.id, kind: 'belief', text: content,
+          ...(sourceEventId ? { sourceEventIds: [sourceEventId] } : {}) },
+      }).catch(error => log.error('Conversation memory write failed', error));
     },
     getDisabledTools: () => new Set(settings.agentMemoryEnabled ? [] : ['save_memory']),
     getWorldContext: (turnText) => renderCompiledContext(
-      compileContext({
-        participant,
+      compiled ?? compileContext({
+        participant: world()?.participants.find(item => item.id === participant.id) ?? participant,
         participants: rosterParticipants(),
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
         learnerProjection: learnerProjection(),
-        threadMedia: activeThread()?.mediaRef,
+        threadMedia: activeThread()?.mediaRef, threadIntent: activeThread()?.intent,
         ...(turnText ? { turn: { text: turnText } } : {}),
       }),
       rosterParticipants(),
       youLabel(),
     ),
-    getVoiceWorldContext: (turnText) => voiceContextPrefetch.resolveFinal(turnText, participant.id),
     getTurnSocialState: () => {
       // Checker verdicts land AFTER the turn's prompt is built (the checker runs
       // post-turn), so a fresh verdict rides the NEXT prompt instead — one-shot.
@@ -615,6 +582,9 @@ export const ConversationContent: Component = () => {
 
   const runCheckerOnMessage = (userText: string, messageEventId: string, _assistantEventId?: string) => {
     const customInstructions = translatedInstructions || undefined;
+    const room = activeRoom();
+    const threadId = selection()?.threadId;
+    const session = selectionSession;
     void enqueueCheckerTask(async () => {
       const result = await checkerAgent.checkMessage(userText, promptLangName(), customInstructions, {
         speakerRole: 'user',
@@ -622,6 +592,7 @@ export const ConversationContent: Component = () => {
         includeSafety: settings.agentSafetyChecker,
         languageFeatures: getLanguageFeatures(),
       });
+      if (session !== selectionSession) return;
       if (result.error === 'quota' && settings.agentSafetyChecker) { agent.lockSafety(); setIsSafetyLockedState(true); return; }
       if (result.socialClimate) {
         // Describes THIS turn's message but arrives after its prompt was built —
@@ -632,8 +603,6 @@ export const ConversationContent: Component = () => {
         return;
       }
 
-      const room = activeRoom();
-      const threadId = selection()?.threadId;
       if (!room || !threadId) return;
       const witnesses = [USER_ACTOR, ...room.participantIds];
       if (result.corrections.length) await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'correction', actorId: HARNESS_ACTOR, witnesses, payload: { messageEventId, corrections: result.corrections } });
@@ -644,15 +613,29 @@ export const ConversationContent: Component = () => {
     });
   };
 
-  onMount(async () => {
+  let initialSelection: Promise<void> = Promise.resolve();
+  let contextIngress: Promise<void> = Promise.resolve();
+  onMount(() => {
+    initialSelection = (async () => {
+    const session = selectionSession;
     const snapshot = await getBridge().world.getWorldState();
+    if (session !== selectionSession) return;
     setWorld(snapshot);
-    const firstRoom = snapshot.rooms[0];
-    if (firstRoom) await selectRoom(firstRoom.id);
+    let saved: { roomId?: string; threadId?: string } | null = null;
+    try {
+      const raw = await getBridge().kvStore.kvGet(SELECTION_KEY);
+      if (raw) saved = JSON.parse(raw);
+    } catch (error) { log.warn('Unable to restore conversation selection', error); }
+    if (session !== selectionSession) return;
+    const savedThread = snapshot.threads.find(thread => thread.id === saved?.threadId && thread.roomId === saved?.roomId);
+    const roomId = savedThread?.roomId ?? snapshot.rooms[0]?.id;
+    if (roomId) await selectRoom(roomId, savedThread?.id);
+    })();
+    void initialSelection.catch(error => log.error('Unable to load conversations', error));
   });
 
   createEffect(() => {
-    if (firstRunModalHandled || !legacyAgentsLoaded() || agents().length > 0) return;
+    if (firstRunModalHandled) return;
     const snapshot = world();
     if (!snapshot) return;
     firstRunModalHandled = true;
@@ -660,52 +643,6 @@ export const ConversationContent: Component = () => {
       setShowNewConversationModal(true);
     }
   });
-
-  // Load agents and memories on mount (with migration from old format)
-  onMount(async () => {
-    const language = settings.language;
-    await migrateIfNeeded(language);
-    const loadedAgents = await loadAgents();
-    setAgents(loadedAgents);
-
-    const storedActiveId = await loadActiveAgentId();
-    if (storedActiveId && loadedAgents.some((a) => a.id === storedActiveId)) {
-      setActiveAgentId(storedActiveId);
-    } else if (loadedAgents.length > 0) {
-      setActiveAgentId(loadedAgents[0].id);
-      await saveActiveAgentId(loadedAgents[0].id);
-    }
-
-    setLegacyAgentsLoaded(true);
-
-    const mems = await loadAllMemories(language);
-    setAllMemories(mems);
-
-  });
-
-  const handleSetupComplete = async (config: AgentConfig) => {
-    let updatedAgents: AgentConfig[];
-    if (config.id) {
-      // Edit existing agent
-      updatedAgents = await updateAgent(config);
-      setAgents(updatedAgents);
-    } else {
-      // Create new agent
-      const newConfig = { ...config, id: generateAgentId() };
-      updatedAgents = await addAgent(newConfig);
-      setAgents(updatedAgents);
-      setActiveAgentId(newConfig.id);
-      await saveActiveAgentId(newConfig.id);
-    }
-    setShowSetupModal(false);
-    setEditingAgent(null);
-
-    // Only run greeting + topic generation for newly created agents
-    if (!config.id && isConnected() && messages().length === 0) {
-      const greetingContext = `[The learner just opened the chat. Greet them warmly and start a natural conversation in ${promptLangName()}. Keep it short — 1 to 2 sentences.]`;
-      void runContextTurn(greetingContext);
-    }
-  };
 
   const selectRoom = async (roomId: string, requestedThreadId?: string): Promise<void> => {
     const mySession = ++selectionSession;
@@ -722,16 +659,27 @@ export const ConversationContent: Component = () => {
       setWorld((current) => current ? { ...current, threads: [...current.threads, thread] } : current);
     }
     cancelVoiceScheduledNudge();
+    setMediaContext(null);
+    setTutorSelections({ selectedGrammar: [], selectedWords: [] });
+    translatedInstructions = null;
+    pendingCheckerSocial = null;
+    turnHeuristicSocial = null;
+    for (const runtime of participantAgents.values()) runtime.abortStream();
     agent.abortStream();
     clearAssistantStreamState();
     agent.unlockSafety();
     setIsSafetyLockedState(false);
     setLiveOverlay(null);
     setMessageOverrides(new Map());
+    // Token marks/failure budgets belong to the previous selection session —
+    // without this reset, restored events stay skipped forever (A→B→A bug).
+    tokenizedMessageIds.clear();
+    tokenizationFailures.clear();
     participantAgents.clear();
     setSelection({ roomId, threadId });
-    await journal.select({ roomId, threadId });
+    await journal.select({ roomId, threadId, continuityRoomIds: snapshot.rooms.map(item => item.id) });
     if (mySession !== selectionSession) return;
+    await getBridge().kvStore.kvSet(SELECTION_KEY, JSON.stringify({ roomId, threadId }));
     await getBridge().world.clearRoomUnread(roomId);
     setWorld((current) => current ? { ...current, rooms: current.rooms.map((item) => item.id === roomId ? { ...item, unreadCount: 0 } : item) } : current);
     setSidebarVisible(false);
@@ -745,16 +693,32 @@ export const ConversationContent: Component = () => {
     await selectRoom(room.id, thread.id);
   };
 
-  const handleScenarioCreated = async (result: { roomId: string; threadId: string }): Promise<void> => {
+  const handleScenarioCreated = async (result: { roomId: string; threadId: string; intent?: string }): Promise<void> => {
     const snapshot = await getBridge().world.getWorldState();
     setWorld(snapshot);
     setShowNewConversationModal(false);
     await selectRoom(result.roomId, result.threadId);
+    // Selected participants are already structured (journaled membership on
+    // the room). The optional free-text intent rides the canonical
+    // context-turn path — same mechanism as greetings — so the room
+    // orchestrator picks the responder and compiles it per participant.
+    const intent = result.intent?.trim();
+    if (intent && !isStreaming() && messages().length === 0) {
+      void runContextTurn(`[The learner set the goal for this conversation: ${intent}. Open the conversation by working toward it naturally in ${promptLangName()}. Keep it short — 1 to 2 sentences.]`);
+    }
   };
 
   const handleUpdateParticipant = async (participant: Participant): Promise<void> => {
     await getBridge().world.updateParticipant(participant);
+    participantAgents.delete(participant.id);
     setWorld(await getBridge().world.getWorldState());
+  };
+
+  const handleRenameThread = async (title: string): Promise<void> => {
+    const thread = activeThread();
+    if (!thread) return;
+    const updatedThread = await getBridge().world.updateThread({ ...thread, title: title || undefined });
+    setWorld((current) => current ? { ...current, threads: current.threads.map((item) => item.id === updatedThread.id ? updatedThread : item) } : current);
   };
 
   const handleDeleteThread = async (): Promise<void> => {
@@ -844,9 +808,11 @@ export const ConversationContent: Component = () => {
       setWorld((current) => current ? { ...current, threads: current.threads.map((item) => item.id === updatedThread.id ? updatedThread : item) } : current);
     };
     const receiveContext = async (rawCtx: Record<string, unknown>) => {
+        await initialSelection;
         if (typeof rawCtx.roomId === 'string') {
           await selectRoom(rawCtx.roomId, typeof rawCtx.threadId === 'string' ? rawCtx.threadId : undefined);
         }
+        if (typeof rawCtx.callId === 'string') setVoiceOverlayRequested(true);
         if (rawCtx.initialTab === 'stats') setShowDetailsDrawer(true);
         if (isConversationAgentContext(rawCtx)) {
           setMediaContext(rawCtx);
@@ -878,12 +844,12 @@ export const ConversationContent: Component = () => {
         }
     };
     const cleanup = bridge.window.onWindowContext((ctx) => {
-      if (isRecord(ctx)) void receiveContext(ctx);
+      if (isRecord(ctx)) contextIngress = contextIngress.then(() => receiveContext(ctx)).catch(error => log.error('Unable to open conversation context', error));
     });
     bridge.window.getWindowContext('conversation-agent');
     if (cleanup) onCleanup(cleanup);
     const cleanupOpen = bridge.window.onOpenRoomEvent((payload) => {
-      void selectRoom(payload.roomId, payload.threadId);
+      void selectRoom(payload.roomId, payload.threadId).then(() => { if (payload.callId) setVoiceOverlayRequested(true); }).catch(error => log.error('Unable to open conversation', error));
     });
     if (cleanupOpen) onCleanup(cleanupOpen);
   });
@@ -1049,7 +1015,7 @@ export const ConversationContent: Component = () => {
     setExplainerOpen(false);
   };
 
-  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void): StreamCallbacks => {
+  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void, keepStreaming = false): StreamCallbacks => {
     let streamTokenizeId = 0;
     let streamTokenizeTimer: ReturnType<typeof setTimeout> | null = null;
     return {
@@ -1079,7 +1045,7 @@ export const ConversationContent: Component = () => {
       },
       onDone: (finalContent, tokens, widgets, streamStats) => {
         onDone?.(finalContent, tokens, widgets, streamStats);
-        clearAssistantStreamState();
+        if (!keepStreaming) clearAssistantStreamState();
       },
       onError: (error) => {
         clearAssistantStreamState();
@@ -1091,7 +1057,9 @@ export const ConversationContent: Component = () => {
     };
   };
 
-  const sendTextMessage = async (text: string) => {
+  const runConversationTurn = async (text: string, contextOnly = false, modality: 'text' | 'voice' = isVoiceCallActive() ? 'voice' : 'text'): Promise<void> => {
+    await initialSelection;
+    await contextIngress;
     const room = activeRoom();
     const threadId = selection()?.threadId;
     if (!text || isStreaming() || isSafetyLockedState()) return;
@@ -1101,7 +1069,7 @@ export const ConversationContent: Component = () => {
       if (!firstRoom) return;
       setWorld(snapshot);
       await selectRoom(firstRoom.id);
-      return sendTextMessage(text);
+      return runConversationTurn(text, contextOnly, modality);
     }
     cancelVoiceScheduledNudge();
     turnHeuristicSocial = inferTurnAffect(text, turnSocialOpts(text));
@@ -1110,88 +1078,82 @@ export const ConversationContent: Component = () => {
     const voiceTurnTiming = isVoiceCallActive() ? { speechEndTs: lastVadSpeechEndTs ?? Date.now(), requestDispatchTs: 0 } : null;
     let prefetchLogged = false;
     const witnesses = [USER_ACTOR, ...room.participantIds];
-    const userEvent = await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: isVoiceCallActive() ? 'voice' : 'text' } satisfies MessagePayload });
-    lastUserMessageEventId = userEvent.id;
+    const session = selectionSession;
+    const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: isVoiceCallActive() ? 'voice' : 'text' } satisfies MessagePayload });
+    if (session !== selectionSession) return;
+    lastUserMessageEventId = userEvent?.id ?? null;
     lastUserMessageEventRoomId = room.id;
     setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
     startAssistantStream(displayMessages().length);
     let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
-    await runRoomTurn({
-      room,
-      participants: world()?.participants ?? [],
-      seaEvents: journal.seaEvents(),
-      threadEvents: [...journal.threadEvents(), userEvent],
-      compileContextFn: (input) => compileContext({ ...input, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef, turn: { text } }),
-      runAgentTurn: async (participantId, context) => {
-        const participant = (world()?.participants ?? []).find((candidate) => candidate.id === participantId);
-        if (!participant) return { text: '' };
-        const runtimeAgent = getParticipantAgent(participant);
-        runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(journal.threadEvents(), participant.id, world()?.participants ?? [])));
-        if (voiceTurnTiming) voiceTurnTiming.requestDispatchTs = Date.now();
-        return new Promise((resolve, reject) => runtimeAgent.processMessage(lastContextMessage(context), [], {
-          ...buildStreamCallbacks((final, tokens, widgets, streamStats) => {
-            if (voiceTurnTiming && streamStats && !prefetchLogged) {
-              prefetchLogged = true;
-              const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
-              const { cacheHit, compileMs } = voiceContextPrefetch.lastStats();
-              log.info('[VoicePrefetch] voice turn', { cacheHit, compileMs, totalMs: dispatchMs + streamStats.timeToFirstToken });
-            }
-            pendingResponse = { tokens, widgets };
-            resolve({ text: final });
-          }),
-          onError: (error) => reject(new Error(error)),
-        }));
-      },
-      appendEvent: async (draft) => {
-        const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets
-          ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
-          : draft);
-        if (draft.type === 'message.character' && pendingResponse.tokens?.length) {
-          updateMessageOverride(event.id, (message) => ({ ...message, tokens: pendingResponse.tokens }));
-        }
-        return event;
-      },
-    });
-    setLiveOverlay(null);
-    if (settings.agentMistakeChecker || settings.agentSafetyChecker) runCheckerOnMessage(text, userEvent.id, undefined);
-    // The turn is over — agent-initiated turns (greetings, nudges) start clean.
-    turnHeuristicSocial = null;
+    try {
+      await runRoomTurn({
+        room,
+        ...(contextOnly ? { contextTurn: { text, threadId } } : {}),
+        modality,
+        participants: world()?.participants ?? [],
+        seaEvents: journal.seaEvents(),
+        threadEvents: journal.threadEvents(),
+        compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef, threadIntent: activeThread()?.intent, turn: { text } }),
+        runAgentTurn: async (participantId, context) => {
+          const participant = (world()?.participants ?? []).find((candidate) => candidate.id === participantId);
+          if (!participant) return { text: '' };
+          if (session !== selectionSession) throw new Error('Conversation selection changed');
+          const runtimeAgent = getParticipantAgent(participant, context);
+          runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(
+            visibleThreadEventsFor(participant, journal.threadEvents(), journal.seaEvents()), participant.id, world()?.participants ?? [])));
+          if (voiceTurnTiming) voiceTurnTiming.requestDispatchTs = Date.now();
+          const history = runtimeAgent.getHistory();
+          const last = history.at(-1);
+          const currentText = contextOnly ? text : last?.content ?? lastContextMessage(context);
+          if (!contextOnly && last) runtimeAgent.popHistory(1);
+          return new Promise((resolve, reject) => runtimeAgent.processMessage(currentText, [], {
+            ...buildStreamCallbacks((final, tokens, widgets, streamStats) => {
+              if (session !== selectionSession) { reject(new Error('Conversation selection changed')); return; }
+              if (voiceTurnTiming && streamStats && !prefetchLogged) {
+                prefetchLogged = true;
+                const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
+                const { cacheHit, compileMs } = voiceContextPrefetch.lastStats();
+                log.info('[VoicePrefetch] voice turn', { cacheHit, compileMs, totalMs: dispatchMs + streamStats.timeToFirstToken });
+              }
+              pendingResponse = { tokens, widgets };
+              resolve({ text: final });
+            }, true),
+            onError: (error) => reject(new Error(error)),
+          }));
+        },
+        appendEvent: async (draft) => {
+          if (session !== selectionSession) throw new Error('Conversation selection changed');
+          const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets
+            ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
+            : draft);
+          if (draft.type === 'message.character' && contextOnly && modality === 'text' && settings.autoSpeak && settings.speechEnabled) {
+            speakAssistantText((draft.payload as MessagePayload).text);
+          }
+          if (draft.type === 'message.character' && pendingResponse.tokens?.length) {
+            updateMessageOverride(event.id, (message) => ({ ...message, tokens: pendingResponse.tokens }));
+          }
+          return event;
+        },
+      });
+      if (session !== selectionSession) return;
+      setLiveOverlay(null);
+      if (userEvent && (settings.agentMistakeChecker || settings.agentSafetyChecker)) runCheckerOnMessage(text, userEvent.id);
+    } catch (error) {
+      if (session === selectionSession) {
+        setLiveOverlay({ role: 'assistant', content: getConversationErrorMessage(error), timestamp: Date.now(), isError: true });
+      }
+    } finally {
+      if (session === selectionSession) {
+        clearAssistantStreamState();
+        turnHeuristicSocial = null;
+      }
+    }
   };
 
-  const runContextTurn = async (context: string, modality: 'text' | 'voice' = 'text'): Promise<void> => {
-    const room = activeRoom();
-    const threadId = selection()?.threadId;
-    if (!room || !threadId || isStreaming() || isSafetyLockedState()) return;
-    const participants = rosterParticipants();
-    const latestEvent = journal.threadEvents().at(-1);
-    const latestPayload = latestEvent?.payload;
-    const latestText = typeof latestPayload === 'object' && latestPayload !== null && 'text' in latestPayload
-      && typeof latestPayload.text === 'string' ? latestPayload.text : undefined;
-    const participantId = selectSpeaker(participants, { lastEventText: latestText }) ?? participants[0]?.id;
-    const participant = participants.find((candidate) => candidate.id === participantId);
-    if (!participant) return;
-    const runtimeAgent = getParticipantAgent(participant);
-    runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(journal.threadEvents(), participant.id, world()?.participants ?? [])));
-    setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
-    startAssistantStream(displayMessages().length);
-    await new Promise<void>((resolve, reject) => runtimeAgent.continueWithContext(context, {
-      ...buildStreamCallbacks(async (text, tokens, widgets) => {
-        const event = await journal.append({
-          roomId: room.id,
-          scope: { kind: 'thread', threadId },
-          type: 'message.character',
-          actorId: participant.id,
-          witnesses: [USER_ACTOR, ...room.participantIds],
-          payload: { text, widgets, widget: widgets?.at(-1), modality } satisfies MessagePayload,
-        });
-        if (tokens?.length) updateMessageOverride(event.id, (message) => ({ ...message, tokens }));
-        setLiveOverlay(null);
-        if (settings.autoSpeak && settings.speechEnabled) speakAssistantText(text);
-        resolve();
-      }),
-      onError: (error) => reject(new Error(error)),
-    }));
-  };
+  const sendTextMessage = (text: string): Promise<void> => runConversationTurn(text);
+  const runContextTurn = (context: string, modality: 'text' | 'voice' = 'text'): Promise<void> =>
+    runConversationTurn(context, true, modality);
 
   const handleRequestGreeting = () => {
     if (isStreaming() || messages().length > 0) return;
@@ -1485,16 +1447,8 @@ export const ConversationContent: Component = () => {
             label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
             class="ca-overflow-menu"
           >
-            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { void newThread(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.NewThread')}</Btn>
+            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { setShowNewConversationModal(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Btn>
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { setShowDetailsDrawer(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Btn>
-            <div class="ca-overflow-word-hover">
-              <span>{t('mlearn.ConversationAgent.Menu.WordHover')}</span>
-              <div>
-                <For each={['hover', 'long-hover', 'key-hover'] as const}>
-                  {(mode) => <Btn variant="ghost" class={currentTriggerMode() === mode ? 'active' : ''} onClick={() => updateSettings({ readerWordHoverTrigger: mode })}>{mode}</Btn>}
-                </For>
-              </div>
-            </div>
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Btn>
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Btn>
           </Popover>
@@ -1688,8 +1642,9 @@ export const ConversationContent: Component = () => {
               scheduledNudge={voiceScheduledNudge()}
               onAbort={handleAbort}
               onSpeechEnd={(ts) => { lastVadSpeechEndTs = ts; }}
-              agentName={rosterParticipants()[0]?.displayName ?? activeAgent()?.agentName}
-              profilePhoto={rosterParticipants()[0]?.profilePhoto ?? activeAgent()?.profilePhoto}
+              agentName={rosterParticipants()[0]?.displayName}
+              profilePhoto={rosterParticipants()[0]?.profilePhoto}
+              defaultVoiceSampleId={rosterParticipants()[0]?.voiceSampleId}
               onCallStateChange={(active, reason) => {
                 setIsVoiceCallActive(active);
                 if (!active) cancelVoiceScheduledNudge();
@@ -1747,21 +1702,13 @@ export const ConversationContent: Component = () => {
             thread={activeThread()}
             context={mediaContext()}
             participants={rosterParticipants()}
+            onRenameThread={handleRenameThread}
             onUpdateParticipant={handleUpdateParticipant}
             onDeleteThread={handleDeleteThread}
           />
         </aside>
         </>
       </Show>
-
-      {/* Agent setup modal */}
-      <AgentSetupModal
-        isOpen={showSetupModal()}
-        onComplete={handleSetupComplete}
-        onClose={() => { setShowSetupModal(false); setEditingAgent(null); }}
-        initialConfig={editingAgent()}
-      />
-
       <Show when={showNewConversationModal()}>
         <NewConversationModal
           world={world()}

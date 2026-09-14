@@ -21,19 +21,19 @@ export interface VoicePrefetchStats {
   compileMs: number;
 }
 
-export interface VoicePrefetch {
+export interface VoicePrefetch<T = string> {
   /** Compile speculatively for a partial transcript (latest-wins). */
   onPartial: (text: string, scopeId?: string) => void;
   /** Resolve the context for the final transcript, reusing cached work when it matches. */
-  resolveFinal: (text: string, scopeId?: string) => string;
+  resolveFinal: (text: string, scopeId?: string) => T;
   /** Telemetry from the most recent resolveFinal call. */
   lastStats: () => VoicePrefetchStats;
 }
 
-interface PrefetchCache {
+interface PrefetchCache<T> {
   inputText: string;
   normalized: string;
-  output: string;
+  output: T;
   /** Partition key: which participant's view this compile belongs to. */
   scopeId: string;
   /** World version at compile time; a mismatch means the cache is stale. */
@@ -54,14 +54,14 @@ function normalizeTokens(text: string): string {
  * us (journal growth, roster change): a cache entry only survives if BOTH the
  * input text and the world version still match.
  */
-export function createVoicePrefetch(
-  compile: (text: string, scopeId: string) => string,
+export function createVoicePrefetch<T>(
+  compile: (text: string, scopeId: string) => T,
   version: () => string = () => '',
-): VoicePrefetch {
-  let cache: PrefetchCache | null = null;
+): VoicePrefetch<T> {
+  let cache: PrefetchCache<T> | null = null;
   let stats: VoicePrefetchStats = { cacheHit: false, compileMs: 0 };
 
-  const compileNow = (text: string, scopeId: string): string => {
+  const compileNow = (text: string, scopeId: string): T => {
     const startedAt = performance.now();
     const output = compile(text, scopeId);
     stats = { cacheHit: false, compileMs: performance.now() - startedAt };

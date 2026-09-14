@@ -9,7 +9,7 @@
  * 'membership' journal events (contextCompiler derives absence intervals).
  */
 
-import { compileContext, type CompiledContext } from './contextCompiler';
+import { compileContext, visibleEventsFor, type CompiledContext } from './contextCompiler';
 import { selectSpeaker } from './speakerSelection';
 import type { LLMChatMessage } from './types';
 import {
@@ -77,7 +77,7 @@ export function projectHistoryForParticipant(
 ): LLMChatMessage[] {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const history: LLMChatMessage[] = [];
-  for (const e of events) {
+  for (const e of visibleEventsFor(participantId, events, byId.get(participantId)?.capabilities)) {
     if (e.type !== 'message.user' && e.type !== 'message.character') continue;
     const text = messageText(e.payload);
     if (text === undefined) continue;
@@ -122,6 +122,8 @@ export interface RunRoomTurnInput {
   threadEvents: JournalEvent[]; // active thread INCLUDING the triggering user message as the last event
   runAgentTurn: RoomAgentRunner; // injected (renderer supplies AgentInstance-backed runner)
   appendEvent: (draft: JournalEventDraft) => Promise<JournalEvent>;
+  contextTurn?: { text: string; threadId: string };
+  modality?: 'text' | 'voice';
   maxCharacterExchanges?: number; // default 3 — max character→character turns AFTER the first response
   compileContextFn?: typeof compileContext; // default: the real one
   userActorId?: string; // default USER_ACTOR
@@ -163,7 +165,7 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
     contexts.set(p.id, compileContextFn({ participant: p, participants, seaEvents, threadEvents }));
   }
   const firstSpeakerId = selectSpeaker(roster, {
-    lastEventText: lastMessageText(threadEvents),
+    lastEventText: input.contextTurn?.text ?? lastMessageText(threadEvents),
     lastSpeakerId: userActorId,
   });
   if (firstSpeakerId === null) {
@@ -173,7 +175,7 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
   const speakerIds: string[] = [];
   const events: JournalEvent[] = [];
   const currentThreadEvents = [...threadEvents];
-  const threadId = threadIdOf(threadEvents);
+  const threadId = input.contextTurn?.threadId ?? threadIdOf(threadEvents);
 
   const runAndAppend = async (speakerId: string, context: CompiledContext): Promise<void> => {
     const result = await runAgentTurn(speakerId, context);
@@ -183,7 +185,7 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
       type: 'message.character',
       actorId: speakerId,
       witnesses: unique([...room.participantIds, userActorId]),
-      payload: { text: result.text } satisfies MessagePayload,
+      payload: { text: result.text, modality: input.modality ?? 'text' } satisfies MessagePayload,
     };
     const appended = await appendEvent(draft);
     speakerIds.push(speakerId);

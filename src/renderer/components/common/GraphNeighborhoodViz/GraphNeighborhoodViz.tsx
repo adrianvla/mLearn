@@ -3,12 +3,14 @@
  * arrowheads. A lexical intermediary is shown when a property is reached via it.
  */
 import { type Component, For, Show, createEffect, createMemo, createSignal, untrack, onMount, onCleanup } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import type { GraphNeighborhood, GraphNode, GraphRelatedNode } from '../../../../shared/graph/ipc';
 import { relationCategory } from '../../../../shared/graph/types';
 import type { TargetState } from '../../../../shared/graph/explanations';
 import { useLocalization } from '../../../context';
 import { Btn, IconBtn } from '../Button';
 import './GraphNeighborhoodViz.css';
+import { layoutOverview, uniqueConnections, type OverviewNode } from './graphOverview';
 
 const WIDTH = 760;
 const HEIGHT = 560;
@@ -137,16 +139,18 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
   const nodeLabel = (node: GraphNode) => labelOf(node) || t(kindLabelKey(node.kind));
   const relationLabel = (type: string) => RELATION_PHRASE_KEYS[type]
     ? t(`mlearn.GraphInspector.Relation.${RELATION_PHRASE_KEYS[type]}`) : humanize(type);
-  const groups = createMemo(() => groupNeighborhood(props.neighborhood));
   const [compact, setCompact] = createSignal(false);
+  const overview = createMemo(() => layoutOverview(props.neighborhood, compact()));
+  const isOverview = () => !groupKey();
+  const groups = createMemo(() => groupNeighborhood(props.neighborhood));
   const pageSize = () => compact() ? 4 : PAGE_SIZE;
-  const viewportWidth = () => compact() ? 360 : WIDTH;
-  const viewportHeight = () => compact() ? (group()?.via ? 224 : 156) + Math.max(0, visible().length - 1) * 64 + 76 : Math.max(240, visible().length * 64 + 64);
+  const viewportWidth = () => isOverview() ? overview().width : compact() ? 360 : WIDTH;
+  const viewportHeight = () => isOverview() ? overview().height : compact() ? (group()?.via ? 224 : 156) + Math.max(0, visible().length - 1) * 64 + 76 : Math.max(240, visible().length * 64 + 64);
   const [groupKey, setGroupKey] = createSignal<string>();
   const group = createMemo(() => groups().find((item) => item.key === groupKey()) ?? groups()[0]);
   const [page, setPage] = createSignal(0);
   const [query, setQuery] = createSignal('');
-  const filtered = createMemo(() => group()?.relations.filter((node) => `${nodeLabel(node)} ${t(kindLabelKey(node.kind))}`.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase())) ?? []);
+  const filtered = createMemo(() => uniqueConnections(group()?.relations ?? []).filter((node) => `${nodeLabel(node)} ${t(kindLabelKey(node.kind))}`.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase())) ?? []);
   const pageCount = () => Math.max(1, Math.ceil(filtered().length / pageSize()));
   const currentPage = () => Math.min(page(), pageCount() - 1);
   const visible = createMemo(() => filtered().slice(currentPage() * pageSize(), (currentPage() + 1) * pageSize()));
@@ -224,9 +228,15 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
     });
   });
 
-  const chooseGroup = (key: string) => {
+  const chooseGroup = (key: string | undefined) => {
     setGroupKey(key); setPage(0); setQuery(''); setSelection(undefined); setView(undefined);
   };
+  const overviewLabel = (item: OverviewNode) => item.groupKey ? `${relationLabel(item.records[0].relationType)} · ${item.count}` : nodeLabel(item.node);
+  const pickOverview = (item: OverviewNode) => {
+    if (item.groupKey) chooseGroup(item.groupKey);
+    else if (item.node.id !== props.neighborhood.center.id) setSelection(item.records[0] ?? item.node);
+  };
+  const allRecords = () => props.neighborhood.relations.filter((item) => item.id === selection()?.id);
   const navigate = (id: string) => { if (id !== props.neighborhood.center.id) props.onSelect?.(id); };
   const travel = (index: number) => {
     const visit = visits()[index];
@@ -257,45 +267,48 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
     }
   };
 
-  return <div class="graph-viz" aria-busy={props.busy}>
+  const SelectionDetails: Component = () => (<Show when={selection()}><aside class="graph-viz__detail" classList={{ 'graph-viz__detail--floating': compact() }} aria-live="polite" onKeyDown={(event) => { if (event.key === 'Escape') setSelection(undefined); }}>
+            <Show when={selection()} fallback={<p class="graph-viz__note">{text('SelectHint')}</p>}>{(node) => <>
+              <div class="graph-viz__detail-heading"><Show when={compact()}><IconBtn icon="cross" size="sm" variant="ghost" aria-label={t('mlearn.Global.Close')} onClick={() => setSelection(undefined)} /></Show><strong>{nodeLabel(node())}</strong><Show when={props.onSelect}><Btn size="sm" variant="secondary" onClick={() => navigate(node().id)}>{text('Explore')}</Btn></Show></div>
+              <For each={[...new Map(allRecords().map((record) => [JSON.stringify([record.relationType, record.via?.id]), record])).values()]}>{(record) => <p>{relationLabel(record.relationType)} · {text('ConnectedTo', { label: nodeLabel(record.via ?? props.neighborhood.center) })}</p>}</For>
+
+              <details><summary>{t('mlearn.GraphInspector.Details')}</summary><dl><dt>{text('Identifier')}</dt><dd>{node().id}</dd><Show when={node().relationType}><dt>{text('Relationship')}</dt><dd>{node().relationType}</dd></Show><Show when={node().provenance}><dt>{t('mlearn.GraphInspector.Provenance')}</dt><dd>{node().provenance}</dd></Show><Show when={node().label !== node().displayLabel && node().displayLabel}><dt>{text('SourceLabel')}</dt><dd>{node().label}</dd></Show><Show when={node().role}><dt>{text('Role')}</dt><dd>{node().role}</dd></Show></dl><For each={allRecords()}>{(record) => <p>{[record.relationType, record.provenance, record.confidence, record.order, record.role].filter((value) => value !== undefined).join(' · ')}</p>}</For></details>
+            </>}</Show>
+          </aside></Show>);
+
+  return <div class="graph-viz" classList={{ 'graph-viz--overview': isOverview(), 'graph-viz--compact': compact() }} aria-busy={props.busy}>
     <header class="graph-viz__header">
       <nav class="graph-viz__history" aria-label={text('History')}>
         <IconBtn icon="chevron" iconRotation={-90} size="sm" variant="ghost" aria-label={text('Back')} disabled={!props.onSelect || cursor() <= 0} onClick={() => travel(cursor() - 1)} />
         <IconBtn icon="chevron" iconRotation={90} size="sm" variant="ghost" aria-label={text('Forward')} disabled={!props.onSelect || cursor() >= visits().length - 1} onClick={() => travel(cursor() + 1)} />
         <Show when={cursor() > 0}><button type="button" class="graph-viz__breadcrumb" onClick={() => travel(0)}>{visits()[0]?.label}</button><span aria-hidden="true">/</span></Show>
       </nav>
-      <div class="graph-viz__heading"><h2>{nodeLabel(props.neighborhood.center)}</h2><span>{t(kindLabelKey(props.neighborhood.center.kind))}</span></div>
+      <div class="graph-viz__heading"><h2>{nodeLabel(props.neighborhood.center)}</h2></div>
       <Show when={props.busy}><span class="graph-viz__loading" role="status">{t('mlearn.Global.Loading')}</span></Show>
-      <span class="graph-viz__count">{text('Connections', { count: props.neighborhood.relationCount })}</span>
+
     </header>
     <Show when={groups().length} fallback={<p class="graph-viz__empty">{t('mlearn.GraphInspector.Neighborhood.Empty')}</p>}>
       <div class="graph-viz__layout" inert={props.busy}>
-        <nav class="graph-viz__index" aria-label={text('Relationships')}>
-          <For each={['identity', 'property', 'support', 'extension']}>{(category) => <Show when={groups().some((item) => item.category === category)}>
-            <h3>{category === 'extension' ? text('Other') : t(`mlearn.GraphInspector.${category}`)}</h3>
-            <For each={groups().filter((item) => item.category === category)}>{(item) => <button type="button"
-              class={`graph-viz__group graph-viz__group--${category}`} aria-pressed={group()?.key === item.key} onClick={() => chooseGroup(item.key)}>
-              <span>{relationLabel(item.type)}<Show when={item.via}><small>{text('Via', { label: nodeLabel(item.via!) })}</small></Show></span><span class="graph-viz__group-count">{item.relations.length}</span>
-            </button>}</For>
-          </Show>}</For>
-          <Show when={props.neighborhood.relations.length < props.neighborhood.relationCount}>
-            <p class="graph-viz__note">{t('mlearn.GraphInspector.Neighborhood.Truncated', { shown: props.neighborhood.relations.length, total: props.neighborhood.relationCount })}</p>
-            <Show when={props.onLoadMore}><Btn variant="ghost" size="sm" loading={props.loadingMore} onClick={props.onLoadMore}>{text('LoadMore')}</Btn></Show>
-          </Show>
-        </nav>
         <div class="graph-viz__workspace">
           <div class="graph-viz__toolbar">
-            <strong>{relationLabel(group()!.type)}</strong>
-            <label class="graph-viz__search"><span class="graph-viz__sr-only">{text('Filter')}</span><input type="search" value={query()} placeholder={text('Filter')} onInput={(event) => { setQuery(event.currentTarget.value); setPage(0); setSelection(undefined); setView(undefined); }} /></label>
+            <label class="graph-viz__filter"><span class="graph-viz__sr-only">{text('Relationships')}</span>
+              <select value={groupKey() ?? ''} onChange={(event) => chooseGroup(event.currentTarget.value || undefined)}>
+                <option value="">{text('All')}</option>
+                <For each={groups()}>{(item) => <option value={item.key}>{relationLabel(item.type)}{item.via ? ` · ${nodeLabel(item.via)}` : ''}</option>}</For>
+              </select>
+            </label>
+            <Show when={!isOverview()}><label class="graph-viz__search"><span class="graph-viz__sr-only">{text('Filter')}</span><input type="search" value={query()} placeholder={text('Filter')} onInput={(event) => { setQuery(event.currentTarget.value); setPage(0); setSelection(undefined); setView(undefined); }} /></label></Show>
           </div>
           <div class="graph-viz__stage">
             <svg ref={svg} class="graph-viz__svg" style={{ height: `${viewportHeight()}px` }} viewBox={`0 0 ${viewportWidth()} ${viewportHeight()}`} role="group" tabindex={0} aria-label={text('Canvas')}
               onWheel={(event) => {
+                if (compact() && !event.ctrlKey && !event.metaKey) return;
                 event.preventDefault();
                 if (event.ctrlKey || event.metaKey) { const at = point(event); zoom(Math.exp(-event.deltaY * 0.01), at.x, at.y); }
                 else { const old = currentView(); const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? HEIGHT : 1; setView({ ...old, tx: old.tx - event.deltaX * unit, ty: old.ty - event.deltaY * unit }); }
               }}
               onPointerDown={(event) => {
+                if (compact() && event.pointerType === 'touch') return;
                 if (event.button !== 0 || (event.target as Element).closest('[data-node]')) return;
                 const at = point(event); pan = { pointer: event.pointerId, x: at.x, y: at.y, view: currentView(), moved: false };
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -319,7 +332,7 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
                 event.preventDefault();
               }}>
               <g transform={`translate(${currentView().tx} ${currentView().ty}) scale(${currentView().scale})`}>
-                <Show when={group()?.via}><path class="graph-viz__edge" d={compact() ? "M 180 84 V 103" : `M 206 ${viewportHeight() / 2} H 224`} /></Show>
+                <Show when={isOverview()} fallback={<>                <Show when={group()?.via}><path class="graph-viz__edge" d={compact() ? "M 180 84 V 103" : `M 206 ${viewportHeight() / 2} H 224`} /></Show>
                 <For each={layout().nodes}>{(node) => <path class={`graph-viz__edge graph-viz__edge--${group()!.category}`} classList={{ 'is-selected': selection() === node.relation }} d={edgePath(node)} />}</For>
                 <g data-node="center" class="graph-viz__center">
                   <rect class={`graph-viz__chip ${props.centerState ? `graph-viz__center-ring--${props.centerState}` : ''}`} x={layout().center.x - layout().center.w / 2} y={layout().center.y - layout().center.h / 2} width={layout().center.w} height={layout().center.h} rx="6" />
@@ -336,33 +349,39 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
                   aria-label={`${nodeLabel(node.relation!)} · ${t(kindLabelKey(node.relation!.kind))}`} aria-pressed={selection() === node.relation}
                   onClick={() => setSelection(node.relation)} onDblClick={() => navigate(node.id)} onKeyDown={(event) => nodeKeyDown(event, node.relation!)}>
                   <rect class="graph-viz__chip" x={node.x - node.w / 2} y={node.y - node.h / 2} width={node.w} height={node.h} rx={node.relation?.kind === 'pronunciation' ? 18 : 4} />
-                  <text class="graph-viz__kind" x={node.x - node.w / 2 + 14} y={node.y - 8}>{t(kindLabelKey(node.relation!.kind))}<Show when={group()!.relations.filter((item) => item.kind === node.relation!.kind && nodeLabel(item) === nodeLabel(node.relation!)).length > 1}>{` · ${group()!.relations.indexOf(node.relation!) + 1}`}</Show><Show when={node.relation?.order !== undefined}>{` · ${node.relation!.order! + 1}`}</Show></text>
+                  <text class="graph-viz__kind" x={node.x - node.w / 2 + 14} y={node.y - 8}>{relationLabel(node.relation!.relationType)}<Show when={node.relation?.order !== undefined}>{` · ${node.relation!.order! + 1}`}</Show></text>
                   <text class={`graph-viz__label ${node.relation?.kind === 'sense' ? 'graph-viz__label--sense' : ''}`} x={node.x - node.w / 2 + 14} y={node.y + 14}>{fitLabel(nodeLabel(node.relation!), node.w - 28, node.relation?.kind === 'sense' ? 14 : 15)}</text>
                   <title>{nodeLabel(node.relation!)}</title>
-                </g>}</For>
+                </g>}</For></>}>
+                  <For each={overview().edges}>{(edge) => {
+                    const from = overview().nodes.find((item) => item.node.id === edge.from)!;
+                    const to = overview().nodes.find((item) => item.node.id === edge.to)!;
+                    return <path class="graph-viz__edge" classList={{ 'is-selected': selection()?.id === edge.to || selection()?.id === edge.from }} d={compact() ? `M ${from.x - from.w / 2} ${from.y} H ${edge.from === props.neighborhood.center.id ? 24 : 46} V ${to.y} H ${to.x - to.w / 2}` : from.x === to.x ? `M ${from.x + from.w / 2} ${from.y} H ${from.x + from.w / 2 + 20} V ${to.y} H ${to.x + to.w / 2}` : `M ${from.x + from.w / 2} ${from.y} C ${from.x + from.w / 2 + 40} ${from.y}, ${to.x - to.w / 2 - 40} ${to.y}, ${to.x - to.w / 2} ${to.y}`}><title>{relationLabel(edge.records[0].relationType)}</title></path>;
+                  }}</For>
+                  <For each={overview().nodes}>{(item) => <g data-node={item.node.id} class="graph-viz__node" classList={{ 'graph-viz__center': item.node.id === props.neighborhood.center.id, 'graph-viz__node--selected': selection()?.id === item.node.id }} role="button" tabindex={0} aria-label={overviewLabel(item)} aria-pressed={selection()?.id === item.node.id}
+                    onClick={() => pickOverview(item)} onDblClick={() => item.groupKey ? chooseGroup(item.groupKey) : navigate(item.node.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pickOverview(item); } }}>
+                    <rect class={`graph-viz__chip ${item.node.id === props.neighborhood.center.id && props.centerState ? `graph-viz__center-ring--${props.centerState}` : ''}`} x={item.x - item.w / 2} y={item.y - item.h / 2} width={item.w} height={item.h} rx="12" />
+                    <text class="graph-viz__kind" x={item.x - item.w / 2 + 14} y={item.y - 10}>{item.groupKey ? text('TapToSee') : item.node.id === props.neighborhood.center.id ? '' : item.records[0] ? relationLabel(item.records[0].relationType) : t(kindLabelKey(item.node.kind))}</text>
+                    <text class="graph-viz__label" x={item.x - item.w / 2 + 14} y={item.y + 14}>{fitLabel(overviewLabel(item), item.w - 28)}</text><title>{overviewLabel(item)}</title>
+                  </g>}</For>
+                </Show>
               </g>
             </svg>
-            <Show when={!visible().length}><p class="graph-viz__no-results">{text('NoMatches')}</p></Show>
+            <Show when={!isOverview() && !visible().length}><p class="graph-viz__no-results">{text('NoMatches')}</p></Show>
             <div class="graph-viz__controls">
               <IconBtn icon="zoom-out" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.ZoomOut')} disabled={currentView().scale <= MIN_SCALE} onClick={() => zoom(1 / 1.2)} />
-              <output>{Math.round(currentView().scale * 100)}%</output>
+
               <IconBtn icon="zoom-in" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.ZoomIn')} disabled={currentView().scale >= MAX_SCALE} onClick={() => zoom(1.2)} />
               <IconBtn icon="fit" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.Fit')} onClick={() => setView(undefined)} />
             </div>
           </div>
           <footer class="graph-viz__footer">
-            <span>{text('Hint')}</span>
-            <div class="graph-viz__pagination"><Btn size="sm" variant="ghost" disabled={currentPage() === 0} onClick={() => changePage(currentPage() - 1)}>{text('Previous')}</Btn><span aria-live="polite">{text('Page', { page: currentPage() + 1, total: pageCount() })}</span><Btn size="sm" variant="ghost" disabled={currentPage() >= pageCount() - 1} onClick={() => changePage(currentPage() + 1)}>{text('Next')}</Btn></div>
+
+            <Show when={!isOverview() && pageCount() > 1}><div class="graph-viz__pagination"><Btn size="sm" variant="ghost" disabled={currentPage() === 0} onClick={() => changePage(currentPage() - 1)}>{text('Previous')}</Btn><span aria-live="polite">{text('Page', { page: currentPage() + 1, total: pageCount() })}</span><Btn size="sm" variant="ghost" disabled={currentPage() >= pageCount() - 1} onClick={() => changePage(currentPage() + 1)}>{text('Next')}</Btn></div></Show>
+            <Show when={props.neighborhood.relations.length < props.neighborhood.relationCount && props.onLoadMore}><Btn variant="ghost" size="sm" loading={props.loadingMore} onClick={props.onLoadMore}>{text('LoadMore')}</Btn></Show>
           </footer>
-          <aside class="graph-viz__detail" aria-live="polite">
-            <Show when={selection()} fallback={<p class="graph-viz__note">{text('SelectHint')}</p>}>{(node) => <>
-              <div class="graph-viz__detail-heading"><strong>{nodeLabel(node())}</strong><span>{t(kindLabelKey(node().kind))}</span><Show when={props.onSelect}><Btn size="sm" variant="secondary" onClick={() => navigate(node().id)}>{text('Explore')}</Btn></Show></div>
-              <Show when={node().relationType}><p>{relationLabel(node().relationType!)} · {text('ConnectedTo', { label: nodeLabel(node().via ?? props.neighborhood.center) })}</p></Show>
-              <Show when={node().confidence !== undefined}><p>{t('mlearn.GraphInspector.Confidence')}: {Math.round(node().confidence! * 100)}%</p></Show>
-              <details><summary>{t('mlearn.GraphInspector.Details')}</summary><dl><dt>{text('Identifier')}</dt><dd>{node().id}</dd><Show when={node().relationType}><dt>{text('Relationship')}</dt><dd>{node().relationType}</dd></Show><Show when={node().provenance}><dt>{t('mlearn.GraphInspector.Provenance')}</dt><dd>{node().provenance}</dd></Show><Show when={node().label !== node().displayLabel && node().displayLabel}><dt>{text('SourceLabel')}</dt><dd>{node().label}</dd></Show><Show when={node().role}><dt>{text('Role')}</dt><dd>{node().role}</dd></Show></dl></details>
-            </>}</Show>
-          </aside>
-          <Show when={group()?.category === 'support'}><p class="graph-viz__note graph-viz__support-note">{t('mlearn.GraphInspector.SupportCaption')}</p></Show>
+          <Show when={compact()} fallback={<SelectionDetails />}><Portal><SelectionDetails /></Portal></Show>
+          <Show when={!isOverview() && group()?.category === 'support'}><p class="graph-viz__note graph-viz__support-note">{t('mlearn.GraphInspector.SupportCaption')}</p></Show>
           <Show when={props.centerState}><p class="graph-viz__note">{nodeLabel(props.neighborhood.center)} · {t(stateKey(props.centerState!))}</p></Show>
         </div>
       </div>

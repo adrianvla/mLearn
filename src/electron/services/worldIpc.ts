@@ -27,26 +27,28 @@ import type {
   Thread,
   WorldSnapshot,
 } from '../../shared/world';
-import { loadWorld, saveWorld } from './worldStore';
+import { loadWorld, saveWorld, withWorldMutation } from './worldStore';
 import { appendEvent, eraseThread, readSeaProjection, readThread } from './journalService';
 import { openManagedChildWindow } from './windowManager';
 import { loadSettings } from './settings';
 import { consolidateRoom } from './dreamerRuntime';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
-  return loadWorld();
+  return withWorldMutation(loadWorld);
 }
 
 export async function createRoom(title: string): Promise<Room> {
-  const state = await loadWorld();
-  const room: Room = {
-    id: `room-${randomUUID()}`,
-    title,
-    participantIds: [],
-    createdAt: Date.now(),
-  };
-  await saveWorld({ ...state, rooms: [...state.rooms, room] });
-  return room;
+  return withWorldMutation(async () => {
+    const state = await loadWorld();
+    const room: Room = {
+      id: `room-${randomUUID()}`,
+      title,
+      participantIds: [],
+      createdAt: Date.now(),
+    };
+    await saveWorld({ ...state, rooms: [...state.rooms, room] });
+    return room;
+  });
 }
 
 export async function applyMembership(
@@ -54,64 +56,75 @@ export async function applyMembership(
   participantId: string,
   kind: 'add' | 'remove',
 ): Promise<MembershipChangeResult> {
-  const state = await loadWorld();
-  const room = state.rooms.find((r) => r.id === roomId);
-  if (!room) {
-    throw new Error(`[world] room not found: ${roomId}`);
-  }
-  const result = applyMembershipChange(room, participantId, kind);
-  if (result.event === null) {
-    return { room: result.room, event: null };
-  }
-  const updatedRoom = result.room;
-  // Witnesses = roster AFTER the change (contract: absence intervals derive from membership events).
-  const event = await appendEvent(roomId, { ...result.event, witnesses: updatedRoom.participantIds });
-  await saveWorld({ ...state, rooms: state.rooms.map((r) => (r.id === roomId ? updatedRoom : r)) });
-  return { room: updatedRoom, event };
+  return withWorldMutation(async () => {
+    const state = await loadWorld();
+    const room = state.rooms.find((r) => r.id === roomId);
+    if (!room) {
+      throw new Error(`[world] room not found: ${roomId}`);
+    }
+    const result = applyMembershipChange(room, participantId, kind);
+    if (result.event === null) {
+      return { room: result.room, event: null };
+    }
+    const updatedRoom = result.room;
+    const event = await appendEvent(roomId, result.event);
+    await saveWorld({ ...state, rooms: state.rooms.map((r) => (r.id === roomId ? updatedRoom : r)) });
+    return { room: updatedRoom, event };
+  });
 }
 
 export async function createThread(roomId: string, title?: string): Promise<Thread> {
-  const state = await loadWorld();
-  const room = state.rooms.find((r) => r.id === roomId);
-  if (!room) {
-    throw new Error(`[world] room not found: ${roomId}`);
-  }
-  const thread = makeThread(
-    roomId,
-    `thr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
-    Date.now(),
-    title
-  );
-  await saveWorld({ ...state, threads: [...state.threads, thread] });
-  return thread;
+  return withWorldMutation(async () => {
+    const state = await loadWorld();
+    const room = state.rooms.find((r) => r.id === roomId);
+    if (!room) {
+      throw new Error(`[world] room not found: ${roomId}`);
+    }
+    const thread = makeThread(
+      roomId,
+      `thr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+      Date.now(),
+      title
+    );
+    await saveWorld({ ...state, threads: [...state.threads, thread] });
+    return thread;
+  });
 }
 
 export async function updateThread(thread: Thread): Promise<Thread> {
-  const state = await loadWorld();
-  const index = state.threads.findIndex((item) => item.id === thread.id);
-  if (index === -1) {
-    throw new Error(`[world] thread not found: ${thread.id}`);
-  }
-  const threads = [...state.threads];
-  threads[index] = thread;
-  await saveWorld({ ...state, threads });
-  return thread;
+  return withWorldMutation(async () => {
+    const state = await loadWorld();
+    const index = state.threads.findIndex((item) => item.id === thread.id);
+    if (index === -1) {
+      throw new Error(`[world] thread not found: ${thread.id}`);
+    }
+    const threads = [...state.threads];
+    threads[index] = thread;
+    await saveWorld({ ...state, threads });
+    return thread;
+  });
 }
 
 /** Thread deletion is real erasure: the world record and the thread-scoped journal events both go. */
 export async function deleteThread(roomId: string, threadId: string): Promise<void> {
-  const state = await loadWorld();
-  await saveWorld({ ...state, threads: state.threads.filter((item) => item.id !== threadId) });
-  await eraseThread(roomId, threadId);
+  return withWorldMutation(async () => {
+    const state = await loadWorld();
+    await saveWorld({ ...state, threads: state.threads.filter((item) => item.id !== threadId) });
+    await eraseThread(roomId, threadId);
+  });
 }
 
 export async function rememberThis(input: RememberThisInput): Promise<JournalEvent> {
+  const source = (await readThread(input.roomId, input.threadId)).find(event => event.id === input.sourceEventId);
+  if (!source || !source.witnesses.includes(input.ownerId)) {
+    throw new Error('[world] memory must reference an event witnessed by its owner');
+  }
   return appendEvent(input.roomId, {
     roomId: input.roomId,
     scope: { kind: 'sea' },
     type: 'memory.belief',
     actorId: HARNESS_ACTOR,
-    witnesses: [],
+    witnesses: source.witnesses,
     payload: {
       ownerId: input.ownerId,
       kind: input.kind,
@@ -123,16 +136,19 @@ export async function rememberThis(input: RememberThisInput): Promise<JournalEve
 }
 
 export async function promoteParticipant(participantId: string): Promise<Participant> {
-  const state = await loadWorld();
-  const participant = state.participants.find((candidate) => candidate.id === participantId);
-  if (!participant) throw new Error(`[world] participant not found: ${participantId}`);
-  if (participant.kind === 'persistent') return participant;
-  const updated: Participant = { ...participant, kind: 'persistent' };
-  await saveWorld({
-    ...state,
-    participants: state.participants.map((candidate) => (candidate.id === participantId ? updated : candidate)),
+  return withWorldMutation(async () => {
+    const state = await loadWorld();
+    const participant = state.participants.find((candidate) => candidate.id === participantId);
+    if (!participant) throw new Error(`[world] participant not found: ${participantId}`);
+    if (participant.kind === 'persistent') return participant;
+    const updated: Participant = { ...participant, kind: 'persistent' };
+    await saveWorld({
+      ...state,
+      participants: state.participants.map((candidate) => (candidate.id === participantId ? updated : candidate)),
   });
   return updated;
+
+  });
 }
 
 export async function integrateThread(input: IntegrateThreadInput): Promise<IntegrateThreadResult> {
@@ -276,45 +292,53 @@ export async function createParticipant(input: {
   voiceSampleId?: string;
   profilePhoto?: string;
 }): Promise<Participant> {
-  const world = await loadWorld();
-  const participant: Participant = {
-    id: `participant-${randomUUID()}`,
-    displayName: input.displayName,
-    kind: input.kind,
-    personaText: input.personaText,
-    facets: input.facets,
-    canon: input.canon,
-    voiceSampleId: input.voiceSampleId,
-    profilePhoto: input.profilePhoto,
-    setupComplete: true,
-  };
-  world.participants.push(participant);
-  await saveWorld(world);
-  return participant;
+  return withWorldMutation(async () => {
+    const world = await loadWorld();
+    const participant: Participant = {
+      id: `participant-${randomUUID()}`,
+      displayName: input.displayName,
+      kind: input.kind,
+      personaText: input.personaText,
+      facets: input.facets,
+      canon: input.canon,
+      voiceSampleId: input.voiceSampleId,
+      profilePhoto: input.profilePhoto,
+      setupComplete: true,
+    };
+    world.participants.push(participant);
+    await saveWorld(world);
+    return participant;
+  });
 }
 
 export async function updateParticipant(participant: Participant): Promise<Participant> {
-  const world = await loadWorld();
-  const index = world.participants.findIndex((item) => item.id === participant.id);
-  if (index === -1) throw new Error(`[world] participant not found: ${participant.id}`);
-  world.participants[index] = participant;
-  await saveWorld(world);
-  return participant;
+  return withWorldMutation(async () => {
+    const world = await loadWorld();
+    const index = world.participants.findIndex((item) => item.id === participant.id);
+    if (index === -1) throw new Error(`[world] participant not found: ${participant.id}`);
+    world.participants[index] = participant;
+    await saveWorld(world);
+    return participant;
+  });
 }
 
 export async function deleteParticipant(participantId: string): Promise<void> {
-  const world = await loadWorld();
-  world.participants = world.participants.filter((item) => item.id !== participantId);
-  for (const room of world.rooms) {
-    room.participantIds = room.participantIds.filter((id) => id !== participantId);
-  }
-  await saveWorld(world);
+  return withWorldMutation(async () => {
+    const world = await loadWorld();
+    world.participants = world.participants.filter((item) => item.id !== participantId);
+    for (const room of world.rooms) {
+      room.participantIds = room.participantIds.filter((id) => id !== participantId);
+    }
+    await saveWorld(world);
+  });
 }
 
 export async function clearRoomUnread(roomId: string): Promise<void> {
-  const world = await loadWorld();
-  const room = world.rooms.find((item) => item.id === roomId);
-  if (room === undefined) return;
-  room.unreadCount = 0;
-  await saveWorld(world);
+  return withWorldMutation(async () => {
+    const world = await loadWorld();
+    const room = world.rooms.find((item) => item.id === roomId);
+    if (room === undefined) return;
+    room.unreadCount = 0;
+    await saveWorld(world);
+  });
 }

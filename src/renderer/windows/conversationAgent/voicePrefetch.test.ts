@@ -58,6 +58,7 @@ type AgentDeps = Parameters<typeof createConversationAgent>[0];
 function createVoiceDeps(overrides?: Partial<AgentDeps>): AgentDeps {
   return {
     getSettings: () => ({ ...DEFAULT_SETTINGS }),
+    tokenize: mockBackend.tokenize,
     getLanguage: () => 'ja',
     getLanguageName: () => 'Japanese',
     getLanguageFeatures: () => DEFAULT_LANGUAGE_FEATURES,
@@ -207,13 +208,13 @@ describe('voice world-context prompt', () => {
   });
 
   it('appends Remembered Context before the safety instructions when the dep is provided', () => {
-    const getVoiceWorldContext = vi.fn(() => REMEMBERED_CONTEXT_MARKER);
-    const prompt = sendPrompt(createVoiceDeps({ getVoiceWorldContext }), 'hello');
+    const getWorldContext = vi.fn(() => REMEMBERED_CONTEXT_MARKER);
+    const prompt = sendPrompt(createVoiceDeps({ getWorldContext }), 'hello');
 
-    expect(getVoiceWorldContext).toHaveBeenCalledWith('hello');
-    expect(prompt).toContain('## Remembered Context');
+    expect(getWorldContext).toHaveBeenCalledWith('hello');
     expect(prompt).toContain(REMEMBERED_CONTEXT_MARKER);
-    const contextIdx = prompt.indexOf('## Remembered Context');
+    expect(prompt).toContain(REMEMBERED_CONTEXT_MARKER);
+    const contextIdx = prompt.indexOf(REMEMBERED_CONTEXT_MARKER);
     const safetyIdx = prompt.indexOf(SAFETY_MARKER);
     expect(contextIdx).toBeGreaterThan(-1);
     expect(safetyIdx).toBeGreaterThan(contextIdx);
@@ -229,16 +230,17 @@ describe('voice world-context prompt', () => {
 
   it('keeps the prompt byte-identical when the dep returns nothing usable', () => {
     const withoutDep = sendPrompt(createVoiceDeps(), 'hello');
-    const emptyDep = sendPrompt(createVoiceDeps({ getVoiceWorldContext: () => '   ' }), 'hello');
+    const emptyDep = sendPrompt(createVoiceDeps({ getWorldContext: () => '' }), 'hello');
 
     expect(emptyDep).toBe(withoutDep);
   });
 
-  it('does not call getVoiceWorldContext in text mode', () => {
-    const getVoiceWorldContext = vi.fn(() => REMEMBERED_CONTEXT_MARKER);
-    const prompt = sendPrompt(createVoiceDeps({ isVoiceMode: () => false, getVoiceWorldContext }), 'hello');
+  it('uses the same world context in text mode', () => {
+    const getWorldContext = vi.fn(() => REMEMBERED_CONTEXT_MARKER);
+    const prompt = sendPrompt(createVoiceDeps({ isVoiceMode: () => false, getWorldContext }), 'hello');
 
-    expect(getVoiceWorldContext).not.toHaveBeenCalled();
+    expect(getWorldContext).toHaveBeenCalledWith('hello');
+    expect(prompt).toContain(REMEMBERED_CONTEXT_MARKER);
     expect(prompt).not.toContain('## Remembered Context');
   });
 });

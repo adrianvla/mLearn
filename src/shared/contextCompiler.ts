@@ -56,13 +56,14 @@ export interface LearnerProjection {
 
 /** One participant's redacted view of the world, ready for prompt assembly. */
 export interface CompiledContext {
-  persona: { text: string; facets: Record<string, number | string> };
+  persona: { id?: string; displayName?: string; text: string; facets: Record<string, number | string> };
   canonBaseline?: { lore: string; quotes: string[]; context: string; coordinate: CanonCoordinate };
   negativeKnowledge: string[];
   relationships: { toId: string; label: string }[];
   memories: { kind: MemoryEntry['kind']; text: string; createdAt: number }[];
   openLoops: { text: string; createdAt: number }[];
   learnerProjection?: LearnerProjection;
+  threadIntent?: string;
   threadMedia?: ThreadMediaRef;
   recentThreadEvents: { seq: number; type: EventType; actorId: string; text?: string; createdAt: number }[];
   /** The caller's own witness-scoped view of the room's memory state. */
@@ -84,6 +85,7 @@ export interface CompileContextInput {
   threadEvents?: JournalEvent[]; // active thread stream, unfiltered; the compiler filters
   grounding?: ScenarioGrounding; // per-participant doesNotKnow source
   learnerProjection?: LearnerProjection;
+  threadIntent?: string;
   threadMedia?: ThreadMediaRef; // media the active thread was launched from
   turn?: TurnContext; // current-turn text + budget overrides; ranking/budgeting only when present
 }
@@ -172,8 +174,15 @@ export function visibleEventsFor(
   events: JournalEvent[],
   capabilities?: Participant['capabilities'],
 ): JournalEvent[] {
-  const absence = absenceSource(participantId, events);
-  return events.filter((e) => isVisibleFor(participantId, absence, e, capabilities));
+  const rooms = new Map<string, JournalEvent[]>();
+  for (const event of events) {
+    const key = `${event.roomId}:${event.scope.kind === 'sea' ? 'sea' : event.scope.threadId}`;
+    rooms.set(key, [...(rooms.get(key) ?? []), event]);
+  }
+  return [...rooms.values()].flatMap((stream) => {
+    const absence = absenceSource(participantId, stream);
+    return stream.filter((event) => isVisibleFor(participantId, absence, event, capabilities));
+  });
 }
 
 /**
@@ -184,6 +193,22 @@ export function visibleEventsFor(
  * ranked and token-budgeted for the current turn; filtering always precedes
  * budgeting (see contextRanking).
  */
+
+/** Sea and Thread sequence numbers are independent. Cross-stream membership
+ * intervals use timestamps; explicit witnesses remain the visibility authority. */
+export function visibleThreadEventsFor(
+  participant: Participant,
+  threadEvents: JournalEvent[],
+  seaEvents: JournalEvent[],
+): JournalEvent[] {
+  return threadEvents.filter((event) => {
+    const membership = seaEvents.filter((item) => item.roomId === event.roomId)
+      .map((item) => ({ ...item, seq: item.createdAt }));
+    return isVisibleFor(participant.id, absenceSource(participant.id, membership),
+      { ...event, seq: event.createdAt }, participant.capabilities);
+  });
+}
+
 export function compileContext(input: CompileContextInput): CompiledContext {
   const { participant, seaEvents = [], threadEvents, grounding, learnerProjection, threadMedia, turn } = input;
   const { capabilities } = participant;
@@ -191,12 +216,11 @@ export function compileContext(input: CompileContextInput): CompiledContext {
   // Membership events are sea-scoped (durable roster changes); the intervals
   // they open apply to thread events too, so a removed participant sees
   // nothing of the gap in either stream.
-  const absence = absenceSource(participant.id, seaEvents);
-  const visibleSea = seaEvents.filter((e) => isVisibleFor(participant.id, absence, e, capabilities));
-  const visibleThread = (threadEvents ?? []).filter((e) => isVisibleFor(participant.id, absence, e, capabilities));
+  const visibleSea = visibleEventsFor(participant.id, seaEvents, capabilities);
+  const visibleThread = visibleThreadEventsFor(participant, threadEvents ?? [], seaEvents);
 
   const context: CompiledContext = {
-    persona: { text: participant.personaText, facets: participant.facets ?? {} },
+    persona: { id: participant.id, displayName: participant.displayName, text: participant.personaText, facets: participant.facets ?? {} },
     negativeKnowledge: [],
     relationships: [],
     memories: [],
@@ -233,9 +257,10 @@ export function compileContext(input: CompileContextInput): CompiledContext {
   // Tombstones derive from the visible stream: a correction this viewer never
   // saw has not erased the memory in their view (matches projectionForCaller).
   // Unconditional — applies with or without `turn`.
-  const tombstoned = tombstonedIds(visibleSea);
+  const memoryEvents = [...visibleSea, ...visibleThread];
+  const tombstoned = tombstonedIds(memoryEvents);
 
-  for (const e of visibleSea) {
+  for (const e of memoryEvents) {
     if (e.type !== 'memory.belief') continue;
     if (tombstoned.has(e.id)) continue;
     const payload = e.payload;
@@ -278,6 +303,8 @@ export function compileContext(input: CompileContextInput): CompiledContext {
   if (learnerProjection) {
     context.learnerProjection = learnerProjection;
   }
+
+  if (input.threadIntent) context.threadIntent = input.threadIntent;
 
   if (threadMedia) {
     context.threadMedia = threadMedia;

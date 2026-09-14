@@ -188,8 +188,5 @@ describe('wikiResearch', () => {
     expect(grounding.fillSegments).toEqual(['Invented transition.']);
   });
 
-  it('loads the exploration agent after its wikitext helper was consolidated', async () => {
-    const { exploreWikiForStoryContext } = await import('../windows/conversationAgent/wikiExplorationAgent');
-    expect(typeof exploreWikiForStoryContext).toBe('function');
-  });
+
 });

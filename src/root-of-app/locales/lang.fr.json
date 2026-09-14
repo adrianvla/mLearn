@@ -9,7 +9,7 @@
       "property": "Propriétés",
       "support": "Aide associée",
       "SupportCaption": "Associé — pas une connaissance. Les liens d’aide ne transmettent jamais la connaissance.",
-      "Details": "Détails développeur",
+      "Details": "Détails du lien",
       "Target": "Cible",
       "Projection": "Projection",
       "Retention": "Rétention",
@@ -24,7 +24,7 @@
         "Excluded": "Exclu"
       },
       "Neighborhood": {
-        "Title": "Graphe local",
+        "Title": "Graphe linguistique",
         "Toggle": "Graphe",
         "Empty": "Aucune relation autour de cet élément.",
         "Truncated": "{shown} relations affichées sur {total}.",
@@ -70,7 +70,7 @@
       },
       "Kind": {
         "Entity": "Entité",
-        "Surface": "Surface",
+        "Surface": "Mot",
         "DictionaryEntry": "Entrée de dictionnaire",
         "Lexeme": "Lexème",
         "Sense": "Sens",
@@ -90,8 +90,8 @@
         "Relationships": "Relations",
         "Other": "Autres relations",
         "Via": "via {label}",
-        "LoadMore": "Charger plus de liens",
-        "Filter": "Rechercher dans cette relation",
+        "LoadMore": "Plus de liens",
+        "Filter": "Rechercher un lien",
         "Canvas": "Diagramme des relations. Glisser pour déplacer ; Ctrl ou Command et défiler pour zoomer. Les flèches déplacent ; plus et moins zooment ; zéro ajuste.",
         "NoMatches": "Aucun lien correspondant.",
         "Hint": "Glisser pour déplacer · Ctrl/⌘ + défilement pour zoomer",
@@ -106,7 +106,9 @@
         "Role": "Rôle",
         "ConnectedTo": "lié à {label}",
         "LoadFailed": "Impossible de charger le graphe.",
-        "Retry": "Réessayer"
+        "Retry": "Réessayer",
+        "All": "Tous les liens",
+        "TapToSee": "Tout afficher"
       }
     },
     "Management": {
@@ -819,24 +821,23 @@
       },
       "NewConversation": {
         "Title": "Nouvelle conversation",
-        "Hint": "Choisissez quelqu'un que vous connaissez, ou décrivez avec qui vous voulez parler et ce que vous voulez pratiquer.",
-        "FieldLabel": "Conversation",
-        "Placeholder": "Avec qui voulez-vous parler, ou que voulez-vous pratiquer ?",
+        "Hint": "Choisissez avec qui converser et, si vous le souhaitez, fixez un objectif.",
+        "Placeholder": "De quoi voulez-vous parler ou vous exercer ?",
         "Cancel": "Annuler",
         "Start": "Démarrer",
         "Starting": "Démarrage…",
         "PeopleLabel": "Personnes que vous connaissez",
-        "TalkTo": "Parler à {name}",
         "DidYouMean": "Vouliez-vous dire :",
         "Failed": "Échec de la création de la conversation",
-        "StartAria": "Démarrer la conversation"
+        "StartAria": "Démarrer la conversation",
+        "PeopleHint": "Toutes les personnes choisies participent à la conversation et peuvent répondre.",
+        "IntentLabel": "Objectif (facultatif)",
+        "ToggleParticipant": "Inclure {name} dans la conversation"
       },
       "Menu": {
         "OverflowAria": "Menu de conversation",
         "CloseAria": "Fermer le menu de conversation",
-        "NewThread": "Nouveau fil",
         "Details": "Détails de la conversation",
-        "WordHover": "Survol des mots",
         "Settings": "Paramètres",
         "MemoryBrowser": "Navigateur de mémoire"
       },
@@ -854,7 +855,21 @@
         "Cancel": "Annuler",
         "DeleteThread": "Supprimer le fil",
         "DeleteThreadConfirm": "Supprimer le fil ?",
-        "ConfirmDelete": "Confirmer la suppression"
+        "ConfirmDelete": "Confirmer la suppression",
+        "ContextLabel": "Contexte",
+        "Rename": "Renommer",
+        "MediaAnalysis": "Analyse du média",
+        "DangerZone": "Zone sensible",
+        "Kind": {
+          "Persistent": "Permanent",
+          "Temporary": "Temporaire"
+        },
+        "EditParticipant": "Modifier le participant",
+        "PersonaPlaceholder": "Qui est cette personne — comment parle-t-elle et se comporte-t-elle ?",
+        "PhotoChange": "Changer la photo",
+        "PhotoRemove": "Supprimer la photo",
+        "VoiceLabel": "Voix",
+        "Saving": "Enregistrement…"
       }
     },
     "ErrorModal": {

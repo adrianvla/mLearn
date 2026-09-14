@@ -158,6 +158,7 @@ export interface Thread {
   roomId?: string;
   title?: string;
   scenarioRef?: string;
+  intent?: string;
   mediaRef?: ThreadMediaRef;
   state: 'active' | 'archived' | 'integrated';
   createdAt: number;

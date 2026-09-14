@@ -1,38 +1,8 @@
 // @vitest-environment happy-dom
 
-/**
- * Characterization (parity) test — conversational-runtime overhaul, Phase 1 QA gate
- * (see .sisyphus/plans/conversational-runtime-overhaul.md, gate 3).
- *
- * Locks TODAY's golden path for the conversationAgent window so later phases cannot
- * silently regress it:
- *
- *   send → streamed chunks render incrementally → create_quiz tool round-trip
- *   executes (widget renders + follow-up inference fires) → the checker agent fires
- *   its own second LLM stream (assistant safety scan, then user mistake check) and
- *   applies a correction to the user message.
- *
- * It asserts what the code does TODAY — if an assertion fails on current code the
- * test is wrong, not the production code.
- *
- * Mock scope:
- * - `shared/bridges` + `shared/backends` are mocked (the bridge boundary). The LLM
- *   stream is driven by capturing the callback passed to `bridge.llm.onLLMStreamChunk`
- *   and emitting `LLMStreamChunk`s into it (same technique as
- *   services/conversationAgent.test.ts).
- * - `../../context` and `../../hooks` are stubbed per the repo's window-test
- *   convention (wordDefinition/App.test.tsx, ChatBubble.test.tsx, LevelStudyTab.test.tsx):
- *   the provider/hook layer is infrastructure with its own test files. ALL chat-runtime
- *   code under test is real: ConversationContent's send/stream/tool/checker
- *   orchestration, conversationAgent, checkerAgent, ChatBubble, messageState.
- * - UI primitives (`components/common`, `components` barrel) are replaced with plain
- *   DOM equivalents so behavior (text, clicks, disabled state) is asserted instead of
- *   markup snapshots.
- *
- * Out of scope (not exercised, not stubbed-to-force): voice panel, word hover,
- * agent-setup wizard internals, cloud provider flows. Voice requires real STT/TTS
- * plumbing that is not feasible in happy-dom.
- */
+/** Mounted Conversation runtime tests. The IPC/backend and provider boundaries
+ * are controlled; turn orchestration, prompt construction, journal projection,
+ * message rendering and the shared token component are real. */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
@@ -162,6 +132,8 @@ vi.mock('../../context', () => ({
     statusMessage: () => '',
   }),
   useFlashcards: () => ({
+    getAccessStatus: () => ({ status: 'unknown' }),
+    isKnowledgeReady: () => true,
     getWordKnowledge: () => undefined,
     isWordSettledSync: (word: string) => settledWords.has(word),
     trackGrammarFailed: vi.fn(),
@@ -388,6 +360,46 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
   });
 
+  it('re-tokenizes restored bubbles when returning to a thread (A→B→A)', async () => {
+    currentWorld = {
+      rooms: [
+        { id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 },
+        { id: 'room-b', title: 'Partner', participantIds: ['agent-b'], createdAt: 2 },
+      ],
+      threads: [
+        { id: 'thread-a', roomId: 'room-a', state: 'active', createdAt: 1 },
+        { id: 'thread-b', roomId: 'room-b', state: 'active', createdAt: 2 },
+      ],
+      participants: [
+        { id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true },
+        { id: 'agent-b', displayName: 'Partner', kind: 'persistent', personaText: 'Helpful partner', setupComplete: true },
+      ],
+    };
+    journalEvents = [appendJournalEvent({
+      roomId: 'room-a',
+      scope: { kind: 'thread', threadId: 'thread-a' },
+      type: 'message.character',
+      actorId: 'agent-a',
+      witnesses: ['user', 'agent-a'],
+      payload: { text: 'こんにちは' },
+    })];
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+
+    // Thread A mounts: the restored bubble tokenizes.
+    await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
+
+    // Switch to thread B, then back to A. The previously loaded bubble must
+    // tokenize again instead of rendering as plain text.
+    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
+    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-a', 'thread-a'));
+    await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
+    expect(chatText(container)).toContain('こんにちは');
+  });
+
   it('appends user and character journal events for a streamed send', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
@@ -410,6 +422,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
     await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(1));
     expect(chatText(container)).toContain('hola');
+    const sentHistory = mockBridge.llm.llmStream.mock.calls[0][0];
+    expect(sentHistory.filter((message: { role: string; content: string }) => message.role === 'user' && message.content === 'hola')).toHaveLength(1);
 
     emitChunk({ content: 'こんにちは' });
     expect(chatText(container)).toContain('こんにちは');
@@ -421,6 +435,24 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(journalEvents.map((event) => event.type)).toEqual(['message.user', 'message.character']));
     expect(chatText(container)).toContain('こんにちは、元気？');
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(2));
+  });
+
+  it('keeps AI memory notes in the disposable Thread without writing Sea', async () => {
+    testSettings.agentMemoryEnabled = true;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
+    const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    textarea.value = 'I enjoy coffee';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const send = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
+    await vi.waitFor(() => expect(send.disabled).toBe(false));
+    send.click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(1));
+    emitChunk({ content: 'Noted.', done: true, toolCalls: [{ id: 'memory-tool', name: 'save_memory', arguments: { content: 'Enjoys coffee' } }] });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'memory.belief')).toBe(true));
+    expect(journalEvents.every(event => event.scope.kind === 'thread')).toBe(true);
+    expect(journalEvents.find(event => event.type === 'memory.belief')?.payload).toMatchObject({ ownerId: 'agent-a', text: 'Enjoys coffee' });
   });
 
   it('translates arriving media context into the active thread and renders it in Thread', async () => {
@@ -543,9 +575,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
     expect(container.querySelector('[role="tab"]')).toBeNull();
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
-    expect(container.textContent).toContain('mlearn.ConversationAgent.Menu.NewThread');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Sidebar.NewConversation');
     expect(container.textContent).toContain('mlearn.ConversationAgent.Menu.Details');
-    expect(container.textContent).toContain('mlearn.ConversationAgent.Menu.WordHover');
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.Menu.WordHover');
   });
 
   it('opens details from a media chip and initial stats context', async () => {

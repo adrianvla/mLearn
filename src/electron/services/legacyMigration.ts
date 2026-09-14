@@ -19,7 +19,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getUserDataPath } from '../utils/platform';
-import { appendEvent } from './journalService';
+import { appendEvent, readThread, readSeaProjection } from './journalService';
 import { loadWorld, saveWorld } from './worldStore';
 import { HARNESS_ACTOR, USER_ACTOR } from '../../shared/world';
 import type { AgentConfig, AgentMemoryEntry, ConversationMessage, ConversationSession } from '../../shared/types';
@@ -151,12 +151,20 @@ function messagePayload(message: ConversationMessage): Record<string, unknown> {
  */
 export async function runLegacyMigration(): Promise<MigrationSummary> {
   const store = await loadKvStore();
-  if (store[MIGRATION_MARKER_KEY] === MIGRATION_MARKER_VALUE) {
-    return { migrated: false, rooms: 0, threads: 0, participants: 0, memoryEvents: 0, messageEvents: 0 };
-  }
-
   const world = await loadWorld();
   const agents = parseJsonArray<AgentConfig>(store[AGENTS_KEY]);
+  let singleAgentId: string | undefined;
+  if (agents.length === 0 && store['agent-config']) {
+    const single = JSON.parse(store['agent-config']) as AgentConfig;
+    if (single?.setupComplete) {
+      singleAgentId = single.id || 'agent_legacy_single';
+      agents.push({ ...single, id: singleAgentId });
+    }
+  }
+  if (store[MIGRATION_MARKER_KEY] === MIGRATION_MARKER_VALUE
+    && agents.every(agent => world.participants.some(participant => participant.id === agent.id))) {
+    return { migrated: false, rooms: 0, threads: 0, participants: 0, memoryEvents: 0, messageEvents: 0 };
+  }
 
   const sessionsByLang: Record<string, ConversationSession[]> = {};
   for (const lang of languagesWithKeyPrefix(store, SESSIONS_PREFIX)) {
@@ -165,6 +173,14 @@ export async function runLegacyMigration(): Promise<MigrationSummary> {
   const memoriesByLang: Record<string, AgentMemoryEntry[]> = {};
   for (const lang of languagesWithKeyPrefix(store, MEMORIES_PREFIX)) {
     memoriesByLang[lang] = parseJsonArray<AgentMemoryEntry>(store[`${MEMORIES_PREFIX}${lang}`]);
+  }
+
+  if (singleAgentId) {
+    memoriesByLang['legacy-single'] = parseJsonArray<AgentMemoryEntry>(store['agent-memories'])
+      .map(memory => ({ ...memory, agentId: singleAgentId! }));
+    for (const sessions of Object.values(sessionsByLang)) {
+      for (const session of sessions) if (!session.agentId) session.agentId = singleAgentId;
+    }
   }
 
   let participants = 0;
@@ -220,7 +236,14 @@ export async function runLegacyMigration(): Promise<MigrationSummary> {
         threads += 1;
       }
 
-      for (const message of session.messages) {
+      const existingMessages = (await readThread(roomId, session.id))
+        .filter(event => event.type === 'message.user' || event.type === 'message.character');
+      const sourceMessages = session.messages.filter(message => message.role === 'user' || message.role === 'assistant');
+      for (const [index, message] of sourceMessages.entries()) {
+        const sourceKey = `${session.id}:${index}`;
+        if (existingMessages.some(event => (event.payload as Record<string, unknown>).legacyMessageId === sourceKey)
+          || (existingMessages[index] && !(existingMessages[index].payload as Record<string, unknown>).legacyMessageId
+            && (existingMessages[index].payload as Record<string, unknown>).text === message.content)) continue;
         if (message.role === 'user') {
           await appendEvent(roomId, {
             roomId,
@@ -228,7 +251,7 @@ export async function runLegacyMigration(): Promise<MigrationSummary> {
             type: 'message.user',
             actorId: USER_ACTOR,
             witnesses: [USER_ACTOR, session.agentId],
-            payload: messagePayload(message),
+            payload: { ...messagePayload(message), legacyMessageId: sourceKey, legacyCreatedAt: message.timestamp },
           });
           messageEvents += 1;
         } else if (message.role === 'assistant') {
@@ -238,7 +261,7 @@ export async function runLegacyMigration(): Promise<MigrationSummary> {
             type: 'message.character',
             actorId: session.agentId,
             witnesses: [USER_ACTOR, session.agentId],
-            payload: messagePayload(message),
+            payload: { ...messagePayload(message), legacyMessageId: sourceKey, legacyCreatedAt: message.timestamp },
           });
           messageEvents += 1;
         }
@@ -251,6 +274,9 @@ export async function runLegacyMigration(): Promise<MigrationSummary> {
     for (const memory of memories) {
       const roomId = roomIdForAgent(memory.agentId);
       if (!world.rooms.some((room) => room.id === roomId)) continue; // agent config missing
+      const existing = await readSeaProjection(roomId);
+      if (existing.some(event => event.type === 'memory.belief'
+        && (event.payload as Record<string, unknown>).sourceMemoryId === memory.id)) continue;
       await appendEvent(roomId, {
         roomId,
         scope: { kind: 'sea' },

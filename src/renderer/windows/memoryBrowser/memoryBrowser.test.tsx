@@ -107,12 +107,18 @@ const mockBridge = {
 
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => mockBridge }));
 
-vi.mock('../../context', () => ({
-  WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
-  useLocalization: () => ({
-    t: (key: string) => key,
-  }),
-}));
+vi.mock('../../context', async () => {
+  const { createContext, useContext } = await import('solid-js');
+  const Context = createContext<{ t: (key: string) => string }>();
+  return {
+    WindowWrapper: (props: { children?: JSX.Element }) => <Context.Provider value={{ t: (key: string) => key }}>{props.children}</Context.Provider>,
+    useLocalization: () => {
+      const context = useContext(Context);
+      if (!context) throw new Error('Localization consumer mounted outside WindowWrapper');
+      return context;
+    },
+  };
+});
 
 describe('memory browser window', () => {
   let container: HTMLDivElement;

@@ -48,6 +48,7 @@ function toPosClass(pos: string): string | null {
 
 export interface SubtitleWordProps {
   token: Token;
+  class?: string;
   index: number;
   lookAheadPos?: string; // POS of the next token (for prosody rendering)
   onClick?: (token: Token) => void;
@@ -120,7 +121,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Determine word class based on token type
   const getWordClass = createMemo(() => {
-    const classes = ['subtitle-word', 'subtitle_word', `word_${randomId}`];
+    const classes = [props.class ?? '', 'subtitle-word', 'subtitle_word', `word_${randomId}`];
     
     if (wordIsKnown()) {
       classes.push('known');

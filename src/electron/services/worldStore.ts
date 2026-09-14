@@ -55,3 +55,12 @@ export async function saveWorld(state: WorldState): Promise<void> {
   await fs.promises.writeFile(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
   await fs.promises.rename(tmpPath, filePath);
 }
+
+// Serialize complete read-modify-write operations, including scheduler updates.
+// Atomic rename alone does not prevent two callers from overwriting each other.
+let mutationQueue: Promise<unknown> = Promise.resolve();
+export function withWorldMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = mutationQueue.then(operation, operation);
+  mutationQueue = result.then(() => undefined, () => undefined);
+  return result;
+}

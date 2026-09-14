@@ -3,19 +3,17 @@
  * Renders a single message with tokenized text, widgets, and timestamps
  */
 
-import { Component, Show, For, createSignal, createMemo, createEffect, onMount, onCleanup } from 'solid-js';
-import { useSettings, useLanguage, useLocalization } from '../../context';
+import { Component, Show, For, createSignal, createMemo, createEffect } from 'solid-js';
+import { useLanguage, useLocalization } from '../../context';
 import { formatClockTime } from '../../utils/timeFormatting';
 import { Btn, Input, Spinner, IconBtn, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon, SafeHtml } from '../../components';
-import { matchesKeybind } from '../../components/common/Input/KeybindInput';
+import { SubtitleWord } from '../../components/subtitle/SubtitleWord';
 import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
-import { getPartOfSpeechColor, getTokenJoinSeparator } from '../../../shared/languageFeatures';
-import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, ConversationSafetyFlag, StreamStats } from '../../../shared/types';
+import { getTokenJoinSeparator } from '../../../shared/languageFeatures';
+import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, ConversationSafetyFlag } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './ChatBubble.css';
 
-const LONG_HOVER_DELAY = 500;
-const DEBUG_HOVER_DELAY = 600;
 
 /**
  * Find the index of an error span in text using context for disambiguation.
@@ -97,8 +95,7 @@ interface ChatBubbleProps {
 
 export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   const { t, locale } = useLocalization();
-  const [showDebugStats, setShowDebugStats] = createSignal(false);
-  let debugHoverTimeout: ReturnType<typeof setTimeout> | null = null;
+
 
   const formatTime = (ts: number): string => formatClockTime(ts, locale());
 
@@ -125,33 +122,6 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
     return safety.severity === 'urgent'
       ? t('mlearn.ConversationAgent.Safety.UrgentNotice')
       : t('mlearn.ConversationAgent.Safety.SensitiveNotice');
-  };
-
-  const handleTimeMouseEnter = () => {
-    if (!props.message.streamStats) return;
-    debugHoverTimeout = setTimeout(() => setShowDebugStats(true), DEBUG_HOVER_DELAY);
-  };
-
-  const handleTimeMouseLeave = () => {
-    if (debugHoverTimeout) {
-      clearTimeout(debugHoverTimeout);
-      debugHoverTimeout = null;
-    }
-    setShowDebugStats(false);
-  };
-
-  onCleanup(() => {
-    if (debugHoverTimeout) clearTimeout(debugHoverTimeout);
-  });
-
-  const formatStats = (stats: StreamStats): string => {
-    const parts: string[] = [];
-    if (stats.tokensPerSecond > 0) {
-      parts.push(t('mlearn.ConversationAgent.Debug.TokensPerSecond', { value: stats.tokensPerSecond.toFixed(1) }));
-    }
-    parts.push(t('mlearn.ConversationAgent.Debug.TimeToFirstToken', { value: String(stats.timeToFirstToken) }));
-    parts.push(t('mlearn.ConversationAgent.Debug.TotalTime', { value: String(stats.totalTime) }));
-    return parts.join(' · ');
   };
 
   return (
@@ -286,8 +256,6 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
       <Show when={props.message.role !== 'system'}>
         <div
           class="chat-bubble-footer"
-          onMouseEnter={handleTimeMouseEnter}
-          onMouseLeave={handleTimeMouseLeave}
         >
           <span>{formatTime(props.message.timestamp)}</span>
           <Show when={isAssistant() && !props.isStreaming && props.onRegenerate}>
@@ -300,11 +268,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
                 aria-label={t('mlearn.ConversationAgent.Regenerate')}
             />
           </Show>
-          <Show when={showDebugStats() && props.message.streamStats}>
-            <span class="chat-bubble-debug-stats">
-              {formatStats(props.message.streamStats!)}
-            </span>
-          </Show>
+
         </div>
       </Show>
       </div>
@@ -592,123 +556,9 @@ interface ChatTokenProps {
   triggerKey: string;
 }
 
-const ChatToken: Component<ChatTokenProps> = (props) => {
-  const { settings } = useSettings();
-  const { currentLangData, isTokenTranslatable } = useLanguage();
-  let wordRef: HTMLSpanElement | undefined;
-  let longHoverTimeout: ReturnType<typeof setTimeout> | null = null;
-  const [isMouseOver, setIsMouseOver] = createSignal(false);
-  const [isKeyHeld, setIsKeyHeld] = createSignal(false);
-
-  /** Whether this token is a translatable word (not punctuation/symbol) */
-  const tokenCanTranslate = createMemo(() => {
-    const word = props.token.word;
-    if (!word || !word.trim()) return false;
-    return isTokenTranslatable(props.token);
-  });
-
-  const clearLongHoverTimeout = () => {
-    if (longHoverTimeout) {
-      clearTimeout(longHoverTimeout);
-      longHoverTimeout = null;
-    }
-  };
-
-  const triggerHoverFromElement = () => {
-    if (!wordRef) return;
-    const rect = wordRef.getBoundingClientRect();
-    props.onTokenHover?.(props.token, rect, wordRef);
-  };
-
-  const handleMouseEnter = () => {
-    if (!tokenCanTranslate()) return;
-    setIsMouseOver(true);
-    const mode = settings.readerWordHoverTrigger ?? props.triggerMode;
-
-    switch (mode) {
-      case 'hover':
-        triggerHoverFromElement();
-        break;
-      case 'long-hover':
-        clearLongHoverTimeout();
-        longHoverTimeout = setTimeout(() => {
-          if (isMouseOver()) triggerHoverFromElement();
-        }, LONG_HOVER_DELAY);
-        break;
-      case 'key-hover':
-        if (isKeyHeld()) triggerHoverFromElement();
-        break;
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setIsMouseOver(false);
-    clearLongHoverTimeout();
-    props.onTokenLeave?.();
-  };
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    const mode = settings.readerWordHoverTrigger ?? props.triggerMode;
-    if (mode !== 'key-hover') return;
-    const keybind = settings.readerWordHoverKey ?? props.triggerKey;
-    if (matchesKeybind(e, keybind) && !isKeyHeld()) {
-      setIsKeyHeld(true);
-      if (isMouseOver()) triggerHoverFromElement();
-    }
-  };
-
-  const handleKeyUp = (e: KeyboardEvent) => {
-    const mode = settings.readerWordHoverTrigger ?? props.triggerMode;
-    if (mode !== 'key-hover') return;
-    const keybind = settings.readerWordHoverKey ?? props.triggerKey;
-    if (matchesKeybind(e, keybind)) {
-      setIsKeyHeld(false);
-      if (isMouseOver()) {
-        props.onTokenLeave?.();
-      }
-    }
-  };
-
-  /** Get POS color from user overrides or package POS metadata. */
-  const getTokenColor = createMemo((): string | undefined => {
-    if (!settings.enableWordColoring) return undefined;
-    if (!settings.colorKnownWords && props.token.isKnown === true) return undefined;
-    if (!settings.do_colour_codes) return undefined;
-    const pos = props.token.partOfSpeech ?? props.token.type ?? '';
-    if (!pos) return undefined;
-
-    const langData = currentLangData();
-    return getPartOfSpeechColor(pos, settings.colour_codes, langData);
-  });
-
-  onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-  });
-
-  onCleanup(() => {
-    window.removeEventListener('keydown', handleKeyDown);
-    window.removeEventListener('keyup', handleKeyUp);
-    clearLongHoverTimeout();
-  });
-
-  const tokenClass = createMemo(() => {
-    if (!tokenCanTranslate()) return 'chat-token';
-    return `chat-token ${props.token.isKnown === false ? 'unknown' : 'known'}`;
-  });
-
-  return (
-    <span
-      ref={wordRef}
-      class={tokenClass()}
-      style={getTokenColor() ? { color: getTokenColor() } : undefined}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      {props.token.word}
-    </span>
-  );
-};
+const ChatToken: Component<ChatTokenProps> = (props) => (
+  <SubtitleWord class="chat-token" token={props.token} index={0} onHover={props.onTokenHover} onLeave={props.onTokenLeave} />
+);
 
 // Quiz widget
 interface QuizWidgetProps {

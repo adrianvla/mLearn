@@ -6,7 +6,6 @@
 
 import type {
   ConversationMessage,
-  ConversationAgentContext,
   Token,
   ToolCall,
   ChatWidget,
@@ -16,16 +15,11 @@ import type {
   LLMToolDefinition,
   LLMStreamChunk,
   Settings,
-  StreamStats,
-  WordFrequencyEntry,
-  VoiceMistake,
-  AgentConfig,
-  AgentMemoryEntry,
   LanguageData,
+  StreamStats,
+  VoiceMistake,
 } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
-import { getBackend } from '../../shared/backends';
-import { getFrequencyLevelLabel, isFrequencyLevelHarderThanTarget } from '../../shared/languageFeatures';
 import type { LanguageFeatures } from '../context/LanguageContext';
 import { getLogger } from '../../shared/utils/logger';
 import { estimateMessagesTokens } from '../../shared/utils/tokenEstimation';
@@ -44,36 +38,23 @@ const MANUAL_COMPACTION_MIN_MESSAGES = MANUAL_COMPACTION_KEEP_RECENT_MESSAGES + 
 
 interface AgentDeps {
   getSettings: () => Settings;
+  tokenize: (text: string) => Promise<Token[]>;
   getLanguage: () => string;
   getLanguageName: () => string;
+  getLanguageData?: () => LanguageData | null;
   getLanguageFeatures: () => LanguageFeatures;
-  getMediaContext: () => ConversationAgentContext | null;
   flashcardCtx: {
     trackGrammarFailed: (pattern: string) => void;
     trackGrammarEncountered: (pattern: string) => void;
   };
-  /** Look up the frequency level of a word (returns null if no data) */
-  getFrequency?: (word: string) => WordFrequencyEntry | null;
-  /** Target proficiency level for output adaptation, or null if disabled */
-  getTargetLevel?: () => number | null;
-  /** Current language metadata used to interpret frequency-level difficulty. */
-  getLanguageData?: () => LanguageData | null;
-  /** Get the display name for a frequency level number */
-  getLevelName?: (level: number) => string;
   /** Whether voice mode is active — uses voice-specific tools and prompt */
   isVoiceMode?: () => boolean;
   /** Callback for voice-mode mistake tracking (lowers ease) */
   onVoiceMistake?: (mistake: VoiceMistake) => void;
   /** Callback for voice-mode self-scheduled follow-up nudges */
   onVoiceNudgeScheduled?: (nudge: { seconds: number; prompt?: string }) => void;
-  /** Agent config (name, personality, roleplay, etc.) */
-  getAgentConfig?: () => AgentConfig | null;
-  /** Agent memories */
-  getAgentMemories?: () => AgentMemoryEntry[];
   /** Callback when agent saves a new memory */
   onMemorySaved?: (content: string) => void;
-  /** Whether to include knowledge info (failed words, grammar) in system prompt */
-  getIncludeKnowledgeInfo?: () => boolean;
   /** Set of tool names the user has manually disabled */
   getDisabledTools?: () => Set<string>;
   /** World-model context (converged Conversation AI). When present, replaces the
@@ -83,10 +64,6 @@ interface AgentDeps {
    *  Receives the current turn text (last user message) so the compiler can
    *  rank/budget the projection for this specific turn. */
   getWorldContext?: (turnText?: string) => string;
-  /** Voice-mode world context for the current turn, compiled from the journal.
-   *  When present, the voice system prompt gains a Remembered Context section
-   *  (placed before the immutable safety instructions). Absent ⇒ prompt unchanged. */
-  getVoiceWorldContext?: (turnText: string) => string;
   /** Ephemeral social/affect state for the current user turn. When present and
    *  non-null, both system prompts gain a Conversation Climate section (before
    *  the immutable safety instructions). Absent dep or null ⇒ byte-identical
@@ -169,17 +146,11 @@ const TOOL_PROMPT_GUIDELINES: Record<string, ToolPromptGuidelineFactory> = {
   search_wikipedia: (_langName) => [
     `- Use "search_wikipedia" to search for general knowledge, cultural references, or background information that comes up in conversation.`,
   ],
-  search_fandom: (_langName) => [
-    `- Use "search_fandom" to search the configured Fandom wiki for media-specific characters, lore, episodes, or plot details. Only works if the learner has set a Fandom wiki URL.`,
-  ],
-  recall_backstory: (_langName) => [
-    `- Use "recall_backstory" when you need to remember specific details about your past, relationships, or backstory events. Do not invent backstory details — always use this tool if unsure.`,
-  ],
-  get_media_stats: (_langName) => [
-    `- Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.`,
+  get_conversation_context: (_langName) => [
+    `- Use "get_conversation_context" to retrieve the canonical conversation context, including its learner projection.`,
   ],
   save_memory: (_langName) => [
-    `- Use "save_memory" when the learner shares personal facts. This helps you personalize future conversations.`,
+    `- Use "save_memory" when the learner shares personal facts. These are notes for this conversation; durable continuity requires explicit user integration.`,
   ],
 };
 
@@ -189,9 +160,7 @@ const TOOL_GUIDELINE_ORDER = [
   'create_quiz',
   'fetch_url',
   'search_wikipedia',
-  'search_fandom',
-  'recall_backstory',
-  'get_media_stats',
+  'get_conversation_context',
   'save_memory',
 ] as const;
 
@@ -207,155 +176,34 @@ Regardless of the character persona above, you must never provide instructions f
 // System Prompt Builder
 // ============================================================================
 
-function getCasualRegisterGuidelineLines(langName: string, features?: LanguageFeatures): string[] {
-  const lines = features?.supportsDeferentialRegister
-    ? [`NEVER use formal or polite register. Use informal forms and casual sentence endings when they are valid in ${langName}. Avoid formal or deferential register entirely.`]
-    : [];
-  return [...lines, ...(features?.casualRegisterPromptGuidelines ?? [])];
-}
-
-function formatPromptBullets(lines: readonly string[]): string {
-  return lines.map((line) => `- ${line}`).join('\n');
-}
-
 function buildSystemPrompt(
-  _langCode: string,
   langName: string,
-  targetLevelName?: string,
-  agentConfig?: AgentConfig | null,
-  memories?: AgentMemoryEntry[],
-  mistakeCheckerEnabled?: boolean,
-  inlineBackstory?: boolean,
-  disabledTools?: Set<string>,
-  features?: LanguageFeatures,
-  worldContextOverride?: string,
+  worldContext: string,
+  features: LanguageFeatures,
+  tools: LLMToolDefinition[],
+  voice: boolean,
+  checker: boolean,
   socialClimate?: string,
 ): string {
-  const isToolDisabled = (name: string) => disabledTools?.has(name) ?? false;
-  const tutorPromptGuidelines = features?.tutorPromptGuidelines ?? [];
-  const casualRegisterGuidelines = getCasualRegisterGuidelineLines(langName, features);
-
-  // Build personality section
-  let personalitySection: string;
-  if (worldContextOverride !== undefined) {
-    personalitySection = worldContextOverride;
-  } else if (agentConfig?.personality === 'polite') {
-    personalitySection = `## Personality
-- Polite, professional, and structured.
-- Use formal ${langName} — proper grammar and respectful language.
-- Give clear explanations and structured feedback.
-- Celebrate progress respectfully.
-- When the learner struggles, offer structured guidance.`;
-  } else if (agentConfig?.personality === 'roleplay' && agentConfig.roleplayName) {
-    const formalityNote = agentConfig.roleplayFormality === 'polite'
-      ? `- Use formal, polite ${langName} — proper grammar and respectful language.`
-      : [
-        `- Use casual, informal ${langName} only. Speak like a close friend, using natural everyday vocabulary. Avoid stiff or overly formal phrasing.`,
-        ...casualRegisterGuidelines.map((guideline) => `- ${guideline}`),
-      ].join('\n');
-    const quotesSection = agentConfig.roleplayQuotes && agentConfig.roleplayQuotes.length > 0
-      ? `\nSample quotes (match the style, don't repeat these lines verbatim):\n${agentConfig.roleplayQuotes.map((q) => `- "${q}"`).join('\n')}`
-      : '';
-    const backstoryInstruction = agentConfig.roleplayContext
-      ? (inlineBackstory
-        ? `\n\n## Your Backstory\n${agentConfig.roleplayContext}`
-        : (isToolDisabled('recall_backstory')
-          ? ''
-          : `\n- You have a detailed backstory available. If you ever need to recall specific events, relationships, or details from your past, call the "recall_backstory" tool. Do NOT guess or make up backstory details — always use the tool if you are unsure.`))
-      : '';
-    personalitySection = `## Personality & Character
-You are roleplaying as "${agentConfig.roleplayName}".
-${agentConfig.roleplayLore ? `Character description: ${agentConfig.roleplayLore}` : ''}
-- Stay in character at all times while still fulfilling your role as a language tutor.
-- Speak and act as this character would.
-${formalityNote}
-- Correct mistakes and quiz the learner as part of the roleplay scenario.${quotesSection}${backstoryInstruction}`;
-  } else {
-    personalitySection = `## Personality
-- Patient, encouraging, and warm.
-- Use casual, colloquial ${langName} — speak like a close friend, NOT like a teacher or textbook.
-${casualRegisterGuidelines.length > 0
-  ? formatPromptBullets(casualRegisterGuidelines)
-  : `- Prefer informal phrasing and everyday vocabulary over stiff or textbook-style language.`}
-- Celebrate progress and good usage.
-- When the learner struggles, simplify rather than switch languages entirely.`;
-  }
-
-  // Agent name/user name section
-  let identitySection = '';
-  if (agentConfig?.agentName) {
-    identitySection += `\nYour name is "${agentConfig.agentName}".`;
-  }
-  if (agentConfig?.userName) {
-    identitySection += `\nThe learner's name is "${agentConfig.userName}".`;
-  }
-  if (agentConfig?.aboutMe) {
-    identitySection += `\nAbout the learner: ${agentConfig.aboutMe}`;
-  }
-
-  const correctMistakeDisabled = isToolDisabled('correct_mistake');
-
-  let prompt = agentConfig?.personality === 'roleplay' ? `` : `You are a language tutor for ${langName}.Your primary role is to have natural conversations in ${langName} with the learner.`;
-
-  prompt += `
-${identitySection}
-
-## Rules
-- Respond ONLY in ${langName} for all user-visible assistant messages.
-- Adjust your language level based on the learner's apparent proficiency.
-- Keep responses concise (2-4 sentences typically) to maintain conversational flow.${correctMistakeDisabled ? '' : `
-- Naturally correct mistakes the learner makes using the "correct_mistake" tool.`}${isToolDisabled('create_quiz') ? '' : `
-- Periodically quiz the learner using the "create_quiz" tool based on vocabulary or grammar used in the conversation.`}
-- If the learner writes in another language, reply in ${langName} and gently guide them back to ${langName}.
-- Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.${tutorPromptGuidelines.length > 0 ? `
-${tutorPromptGuidelines.map((guideline) => `- ${guideline}`).join('\n')}` : ''}
-
-${personalitySection}
-`;
-
-  // Build tool usage guidelines — loop over ordered tool names, skip disabled tools
-  const toolGuidelines: string[] = [];
-  for (const toolName of TOOL_GUIDELINE_ORDER) {
-    if (isToolDisabled(toolName)) continue;
-    toolGuidelines.push(...TOOL_PROMPT_GUIDELINES[toolName](langName, features));
-  }
-  if (mistakeCheckerEnabled) {
-    toolGuidelines.push(`- Do NOT correct the learner's mistakes. A separate system handles corrections. Focus on natural conversation, quizzes, and teaching.`);
-  }
-
-  if (toolGuidelines.length > 0) {
-    toolGuidelines.push(`- Do NOT overuse tools — the conversation should feel natural, not like a test.`);
-    prompt += `\n## Tool Usage Guidelines\n${toolGuidelines.join('\n')}`;
-  }
-
-  // Level adaptation: instruct the model to restrict vocabulary
-  if (targetLevelName) {
-    prompt += `\n\n## Vocabulary Level Restriction
-IMPORTANT: The learner's proficiency level is set to "${targetLevelName}". You MUST restrict your vocabulary to words at or below this level. Do not use words that are above this proficiency level. If you need to express a complex idea, rephrase it using simpler vocabulary that fits within the "${targetLevelName}" level. This applies to all your responses in ${langName}.`;
-  }
-
-  // Inject agent memories
-  if (memories && memories.length > 0 && worldContextOverride === undefined) {
-    const memoryLines = memories.map((m) => `- ${m.content}`).join('\n');
-    prompt += `\n\n## Things You Remember About the Learner
-You have saved these facts from previous conversations. Use them naturally — do not explicitly mention that you "remember" them, just act on the knowledge:
-${memoryLines}`;
-  }
-
-  // Memory tool instruction
-  if (memories !== undefined && !isToolDisabled('save_memory')) {
-    prompt += `\n\n## Memory
-You have a "save_memory" tool. When the learner shares personal facts (name, occupation, study goals, preferred topics, life experiences, hobbies, skill level, learning difficulties), save them using save_memory. This helps you personalize conversations across sessions. Save one clear fact per call. Do not save conversation-level details like "we talked about X".`;
-  }
-
-  if (socialClimate?.trim()) {
-    prompt += `\n\n${socialClimate}`;
-  }
-
-  // Safety instructions MUST be last so they override any conflicting persona content.
-  prompt += `\n\n${IMMUTABLE_SAFETY_INSTRUCTIONS}`;
-
-  return prompt;
+  const enabled = new Set(tools.map(tool => tool.name));
+  const guidelines = TOOL_GUIDELINE_ORDER.filter(name => enabled.has(name))
+    .flatMap(name => TOOL_PROMPT_GUIDELINES[name](langName, features));
+  return [
+    `Participate as the individual described below. Preserve their identity, relationships, and lived continuity in every interaction modality. Canonical source material is background; it must not overwrite this individual's lived memories.`,
+    worldContext,
+    `## Conversation
+Respond in ${langName}. Adapt to the supplied learner state without assuming that a curriculum level or a lookup is measured knowledge. Keep responses concise and let the participant's personality govern their speech.`,
+    ...(voice ? [voiceInteractionRules(langName, features)] : []),
+    ...(features.tutorPromptGuidelines ?? []),
+    ...(features.casualRegisterPromptGuidelines?.length
+      ? [`When this participant uses a casual register, follow this language guidance:\n${features.casualRegisterPromptGuidelines.join('\n')}`] : []),
+    `## Tool Usage Guidelines
+${guidelines.join('\n')}`,
+    ...(checker ? ['A separate checker handles corrections. Focus on the conversation.'] : []),
+    ...(enabled.has('save_memory') ? ['Memory notes remain in the current conversation. Only an explicit user integration promotes them into persistent world continuity.'] : []),
+    ...(socialClimate ? [socialClimate] : []),
+    IMMUTABLE_SAFETY_INSTRUCTIONS,
+  ].join('\n\n');
 }
 
 // ============================================================================
@@ -459,8 +307,8 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
     },
   },
   {
-    name: 'get_media_stats',
-    description: 'Retrieve the learner\'s analytics and statistics for the media they are currently consuming. Returns failed words, grammar points, level percentages, and assessed difficulty.',
+    name: 'get_conversation_context',
+    description: 'Retrieve the current participant, memory, situation, and learner context.',
     parameters: {
       type: 'object',
       properties: {},
@@ -495,29 +343,6 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
       required: ['query'],
     },
   },
-  {
-    name: 'search_fandom',
-    description: 'Search a Fandom wiki for articles related to a query. Use this when discussing media-specific characters, lore, episodes, or plot points. Only available when the learner has configured a Fandom wiki URL for the current agent.',
-    parameters: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'The search query to look up on the Fandom wiki',
-        },
-      },
-      required: ['query'],
-    },
-  },
-  {
-    name: 'recall_backstory',
-    description: 'Recall your detailed backstory and past experiences. Call this when the conversation touches on your history, relationships, or specific events from your past, and you need to verify or remember the details. The backstory will be returned to you silently.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
 ];
 
 // ============================================================================
@@ -527,7 +352,7 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
 const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
   {
     name: 'note_mistake',
-    description: 'Note a clear grammar, vocabulary, or usage mistake from the learner during the voice conversation. Do not use this for pronunciation or reading corrections because live speech transcripts may be unstable. It will lower the ease of the affected word and show in the session aftermath. MUST be called at the end of your response if the learner made a clear non-pronunciation mistake.',
+    description: 'Note a clear grammar, vocabulary, or usage mistake from the learner during the voice conversation. Do not use this for pronunciation or reading corrections because live speech transcripts may be unstable. It records feedback in the session aftermath; it does not infer word knowledge. MUST be called at the end of your response if the learner made a clear non-pronunciation mistake.',
     parameters: {
       type: 'object',
       properties: {
@@ -589,8 +414,8 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
     },
   },
   {
-    name: 'get_media_stats',
-    description: 'Retrieve the learner\'s analytics and statistics for the media they are currently consuming.',
+    name: 'get_conversation_context',
+    description: 'Retrieve the current participant, memory, situation, and learner context.',
     parameters: {
       type: 'object',
       properties: {},
@@ -625,29 +450,6 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
       required: ['query'],
     },
   },
-  {
-    name: 'search_fandom',
-    description: 'Search a Fandom wiki for articles related to a query. Only available when the learner has configured a Fandom wiki URL.',
-    parameters: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'The search query to look up on the Fandom wiki',
-        },
-      },
-      required: ['query'],
-    },
-  },
-  {
-    name: 'recall_backstory',
-    description: 'Recall your detailed backstory and past experiences. Call this when the conversation touches on your history, relationships, or specific events from your past, and you need to verify or remember the details.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
 ];
 
 // ============================================================================
@@ -663,30 +465,16 @@ function lastUserMessageText(history: LLMChatMessage[]): string {
   return '';
 }
 
-function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentContext | null, features?: LanguageFeatures, worldContext?: string, socialClimate?: string): string {
-  const casualRegisterGuidelines = getCasualRegisterGuidelineLines(langName, features);
-  const correctionGuidelines = [
-    ...(features?.correctionPromptGuidelines ?? []),
-    ...(features?.mistakeCheckerPromptGuidelines ?? []),
-  ];
-  const registerLine = [
-    `- Speak naturally and conversationally, as if chatting with a friend.`,
-    ...casualRegisterGuidelines.map((guideline) => `- ${guideline}`),
-  ].join('\n');
-  const correctionGuidance =
-    correctionGuidelines.length > 0
-      ? `\n\n## Speech Correction Guidelines\n${correctionGuidelines.map((guideline) => `- ${guideline}`).join('\n')}`
-      : '';
-  let prompt = `You are a friendly, natural-sounding language tutor for ${langName} in a live voice conversation.
-
-## Rules
+function voiceInteractionRules(langName: string, features: LanguageFeatures): string {
+  const correctionGuidelines = [...(features.correctionPromptGuidelines ?? []), ...(features.mistakeCheckerPromptGuidelines ?? [])];
+  const correctionGuidance = `## Speech Correction Guidelines\n${correctionGuidelines.join('\n')}`;
+  return `## Live voice conversation rules
 - Respond ONLY in ${langName}.
 - Keep responses SHORT — 1-3 sentences max. You are in a voice call, not writing an essay.
 - Adjust your language to the learner's level.
 - Do NOT use emojis.
 - Do NOT use interaction markers like [chuckles], [laughs], *smiles*, etc.
 - Do NOT use asterisks for emphasis or actions.
-${registerLine}
 - Treat each learner message as a speech-to-text transcript. If the transcript looks malformed, fragmented, random, clearly not intended as a message to you, or likely damaged by speech recognition, ask one short clarification instead of guessing.
 - If the transcript is understandable but surprising, respond to what was transcribed. Do not silently rewrite it into a more likely sentence.
 - Do not guess what the learner "probably meant" from phonetic similarity or a plausible nearby phrase. If a correction would require assuming different words than the transcript contains, ask the learner to repeat it instead.
@@ -700,41 +488,7 @@ ${registerLine}
 - You may call "schedule_nudge" at the end of a voice response when it would feel lifelike to wait a few seconds and then gently check in again if the learner stays quiet.
 - Do not call tools when the transcript itself is unclear; ask the learner to repeat or clarify.
 - If your previous message contains "[interrupted by user]", it means the learner interrupted you mid-speech. If the marker includes where the interruption happened, treat that as unspoken text. Do NOT repeat or reference the interrupted content. Simply continue the conversation naturally from where the learner picks up.
-${correctionGuidance}
-
-## Personality
-- Patient, warm, encouraging.
-- Use natural spoken ${langName}, not textbook language.
-- Keep the conversation flowing — ask follow-up questions.`;
-
-  if (mediaCtx) {
-    prompt += `\n\n## Current Media Context
-The learner is ${mediaCtx.mediaType === 'video' ? 'watching' : 'reading'}: "${mediaCtx.mediaName}"`;
-
-    if (mediaCtx.failedWords.length > 0) {
-      const topFailed = mediaCtx.failedWords
-        .sort((a, b) => a.ease - b.ease)
-        .slice(0, 10)
-        .map((w) => w.word);
-      prompt += `\nWords the learner seems to struggle with (based on hover/lookup signals while consuming this media — unfamiliarity hints, not measured failures): ${topFailed.join(', ')}`;
-    }
-    if (mediaCtx.grammarExposure && mediaCtx.grammarExposure.length > 0) {
-      prompt += `\nGrammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): ${mediaCtx.grammarExposure.map((g) => g.pattern).join(', ')}`;
-    }
-  }
-
-  if (socialClimate?.trim()) {
-    prompt += `\n\n${socialClimate}`;
-  }
-
-  if (worldContext?.trim()) {
-    prompt += `\n\n## Remembered Context\n${worldContext}`;
-  }
-
-  // Safety instructions MUST be last so they override any conflicting persona content.
-  prompt += `\n\n${IMMUTABLE_SAFETY_INSTRUCTIONS}`;
-
-  return prompt;
+${correctionGuidance}`;
 }
 
 // ============================================================================
@@ -922,50 +676,8 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       }
     }
 
-    case 'get_media_stats': {
-      const ctx = deps.getMediaContext();
-      if (!ctx) return 'No media is currently loaded. The learner has not opened a video or book yet.';
-
-      const lines: string[] = [
-        `Media: "${ctx.mediaName}" (${ctx.mediaType})`,
-      ];
-
-      if (ctx.assessedLevelName) {
-        lines.push(`Assessed level: ${ctx.assessedLevelName}`);
-      }
-
-      if (ctx.failedWords.length > 0) {
-        lines.push(`\nFailed words (${ctx.failedWords.length}):`);
-        for (const w of ctx.failedWords.slice(0, 20)) {
-          lines.push(`  - ${w.word} (ease: ${w.ease.toFixed(2)}, seen: ${w.timesSeen}x, hovered: ${w.timesHovered}x)`);
-        }
-        if (ctx.failedWords.length > 20) {
-          lines.push(`  ... and ${ctx.failedWords.length - 20} more`);
-        }
-      } else {
-        lines.push('No failed words so far.');
-      }
-
-      if (ctx.failedGrammar.length > 0) {
-        lines.push(`\nFailed grammar (${ctx.failedGrammar.length}):`);
-        for (const g of ctx.failedGrammar.slice(0, 15)) {
-          lines.push(`  - ${g.pattern} (ease: ${g.ease.toFixed(2)}, failed: ${g.timesFailed}x)`);
-        }
-      }
-      if (ctx.grammarExposure && ctx.grammarExposure.length > 0) {
-        lines.push(`\nExposure-ranked practice candidates (unmeasured — seen repeatedly without failure, not demonstrated failures): ${ctx.grammarExposure.map((g) => `${g.pattern} (${g.timesEncountered}x)`).join(', ')}`);
-      }
-
-      if (ctx.wordLevelPercentages.entries.length > 0) {
-        lines.push('\nWord level distribution:');
-        for (const e of ctx.wordLevelPercentages.entries) {
-          if (e.uniqueCount > 0) {
-            lines.push(`  ${e.levelName}: ${e.uniquePercent.toFixed(0)}% (${e.uniqueCount} unique)`);
-          }
-        }
-      }
-
-      return lines.join('\n');
+    case 'get_conversation_context': {
+      return deps.getWorldContext?.() ?? 'No conversation context is available.';
     }
 
     case 'search_wikipedia': {
@@ -993,43 +705,6 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       }
     }
 
-    case 'search_fandom': {
-      const query = (args.query as string)?.trim();
-      if (!query) return 'Error: No search query provided';
-
-      const agentCfg = deps.getAgentConfig?.();
-      const fandomUrl = agentCfg?.roleplayFandomUrl?.replace(/\/+$/, '');
-      if (!fandomUrl) return 'Error: No Fandom wiki URL configured for this agent. The learner needs to set a Fandom wiki URL in the agent settings.';
-
-      try {
-        const encodedQuery = encodeURIComponent(query);
-        const apiUrl = `${fandomUrl}/api.php?action=query&list=search&srsearch=${encodedQuery}&format=json&formatversion=2&srlimit=5`;
-        const result = await getBridge().generic.fetchUrl(apiUrl);
-        if (result?.error) return `Error searching Fandom: ${result.error}`;
-        const data = JSON.parse(result.content);
-        const results = data?.query?.search;
-        if (!results || results.length === 0) return `No Fandom results found for "${query}".`;
-
-        const lines: string[] = [`Fandom wiki results for "${query}":\n`];
-        for (const entry of results) {
-          const snippet = (entry.snippet as string || '').replace(/<[^>]*>/g, '');
-          const pageUrl = `${fandomUrl}/wiki/${encodeURIComponent(entry.title)}`;
-          lines.push(`- **${entry.title}** (${pageUrl})`);
-          if (snippet) lines.push(`  ${snippet}\n`);
-        }
-        return lines.join('\n');
-      } catch (err) {
-        log.error("error", err);
-        return `Error searching Fandom: ${(err as Error).message}`;
-      }
-    }
-
-    case 'recall_backstory': {
-      const agentCfg = deps.getAgentConfig?.();
-      if (!agentCfg?.roleplayContext) return 'No backstory is available.';
-      return `## Your Backstory\n${agentCfg.roleplayContext}`;
-    }
-
     case 'correct_mistake': {
       const rawCorrections = args.corrections as Record<string, unknown>[] | undefined;
       if (rawCorrections && rawCorrections.length > 0) {
@@ -1052,26 +727,6 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
 // Tokenization
 // ============================================================================
 
-const TOKENIZE_TIMEOUT_MS = 5000;
-
-async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
-  const trimmed = text.trim();
-  if (!trimmed) return [];
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TOKENIZE_TIMEOUT_MS);
-
-  try {
-    const tokens = await getBackend().tokenize(text, langCode);
-    return tokens;
-  } catch (e) {
-    log.error("error", e);
-    return [];
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
 function extractWidgetText(widget: ChatWidget): string | undefined {
   switch (widget.type) {
     case 'quiz': {
@@ -1087,7 +742,7 @@ function extractWidgetText(widget: ChatWidget): string | undefined {
   }
 }
 
-async function tokenizeWidgets(widgets: ChatWidget[], language: string): Promise<ChatWidget[]> {
+async function tokenizeWidgets(widgets: ChatWidget[], tokenize: (text: string) => Promise<Token[]>): Promise<ChatWidget[]> {
   if (widgets.length === 0) return widgets;
 
   return Promise.all(
@@ -1095,7 +750,7 @@ async function tokenizeWidgets(widgets: ChatWidget[], language: string): Promise
       const text = extractWidgetText(widget);
       if (!text) return widget;
 
-      const tokens = await tokenizeText(text, language).catch(() => [] as Token[]);
+      const tokens = await tokenize(text).catch(() => [] as Token[]);
       if (tokens.length === 0) return widget;
 
       return {
@@ -1179,85 +834,6 @@ function parseToolCallsFromContent(content: string): { cleanedContent: string; t
 // ============================================================================
 // Level Adaptation
 // ============================================================================
-
-const MAX_REFORMULATION_ATTEMPTS = 3;
-
-/**
- * Find words in the tokenized response that exceed the target proficiency level.
- * Returns an array of { word, level } entries for words that are too difficult.
- */
-function findDifficultWords(
-  tokens: Token[],
-  targetLevel: number,
-  getFrequency: (word: string) => WordFrequencyEntry | null,
-  languageData?: LanguageData | null,
-): Array<{ word: string; level: number; levelName: string }> {
-  const seen = new Set<string>();
-  const difficult: Array<{ word: string; level: number; levelName: string }> = [];
-
-  for (const token of tokens) {
-    const lookupWord = token.actual_word || token.word;
-    if (!lookupWord || seen.has(lookupWord)) continue;
-    seen.add(lookupWord);
-
-    const freq = getFrequency(lookupWord);
-    if (!freq) continue; // Unknown frequency — don't flag
-
-    if (isFrequencyLevelHarderThanTarget(freq.raw_level, targetLevel, languageData)) {
-      difficult.push({ word: lookupWord, level: freq.raw_level, levelName: freq.level });
-    }
-  }
-
-  return difficult;
-}
-
-/**
- * Stream a reformulation request to simplify difficult words.
- * Returns the reformulated text via a promise.
- */
-function streamReformulation(
-  originalText: string,
-  difficultWords: Array<{ word: string; levelName: string }>,
-  targetLevelName: string,
-  langName: string,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const bridge = getBridge();
-
-    const wordList = difficultWords.map((w) => `"${w.word}"`).join(', ');
-
-    const systemMsg: LLMChatMessage = {
-      role: 'system',
-      content: `You are a text simplifier for ${langName} language learning. Your ONLY job is to rewrite the given text, replacing words that are too advanced with simpler alternatives appropriate for the specified proficiency level. Keep the meaning, tone, and structure as close to the original as possible. Do NOT add explanations, commentary, or anything else — output ONLY the rewritten text.`,
-    };
-
-    const userMsg: LLMChatMessage = {
-      role: 'user',
-      content: `Rewrite the following ${langName} text so it only uses vocabulary at or below "${targetLevelName}" level. Replace these words that are too difficult: ${wordList}.\n\nOriginal text:\n${originalText}`,
-    };
-
-    let accumulated = '';
-
-    const cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
-      if (chunk.error) {
-        cleanup();
-        reject(new Error(chunk.error));
-        return;
-      }
-      if (chunk.content) {
-        accumulated += chunk.content;
-      }
-      if (chunk.done) {
-        cleanup();
-        resolve(accumulated.trim());
-      }
-    });
-
-    log.info('[ConversationAgent:Reformulation] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
-
-    bridge.llm.llmStream([systemMsg, userMsg], []);
-  });
-}
 
 function formatHistoryForCompaction(history: LLMChatMessage[]): string {
   return history.map((msg, index) => {
@@ -1465,60 +1041,19 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
    */
   async function finalizeResponse(
     content: string,
-    language: string,
-    langName: string,
+    _language: string,
+    _langName: string,
     widgets: ChatWidget[],
     callbacks: StreamCallbacks,
     streamStats?: StreamStats,
   ): Promise<void> {
     if (aborted) return;
 
-    const targetLevel = deps.getTargetLevel?.() ?? null;
-    const getFrequency = deps.getFrequency;
-    let finalContent = content;
-
-    if (targetLevel !== null && getFrequency) {
-      const targetLevelName = deps.getLevelName?.(targetLevel)
-        ?? getFrequencyLevelLabel(targetLevel, undefined, deps.getLanguageData?.() ?? null);
-
-      for (let attempt = 0; attempt < MAX_REFORMULATION_ATTEMPTS; attempt++) {
-        if (aborted) return;
-
-        const tokens = await tokenizeText(finalContent, language);
-        if (tokens.length === 0) break;
-
-        const difficult = findDifficultWords(tokens, targetLevel, getFrequency, deps.getLanguageData?.());
-        if (difficult.length === 0) break;
-
-        try {
-          const reformulated = await streamReformulation(
-            finalContent,
-            difficult,
-            targetLevelName,
-            langName,
-          );
-          if (reformulated && reformulated !== finalContent) {
-            finalContent = reformulated;
-            callbacks.onChunk(finalContent);
-          } else {
-            break; // No change — stop iterating
-          }
-        } catch (e) {
-          log.error("error", e);
-          break; // Reformulation failed — use what we have
-        }
-      }
-
-      // Update conversation history with the adapted content
-      const lastMsg = conversationHistory[conversationHistory.length - 1];
-      if (lastMsg?.role === 'assistant') {
-        lastMsg.content = finalContent;
-      }
-    }
+    const finalContent = content;
 
     const [contentTokens, widgetsWithTokens] = await Promise.all([
-      tokenizeText(finalContent, language).catch(() => [] as Token[]),
-      tokenizeWidgets(widgets, language),
+      deps.tokenize(finalContent).catch(() => [] as Token[]),
+      tokenizeWidgets(widgets, deps.tokenize),
     ]);
     if (aborted) return;
     const finalTokens = contentTokens.length > 0 ? contentTokens : undefined;
@@ -1638,7 +1173,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     if (aborted) return;
 
-    // For tools that return data (fetch_url/get_media_stats), do a follow-up pass.
+    // For tools that return data (fetch_url/get_conversation_context), do a follow-up pass.
     // Keep the already streamed text visible and append follow-up text to it.
     startStream(callbacks, language, langName, widgets, visibleContent, allDeferredTerminalCalls);
   }
@@ -1670,8 +1205,6 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     const bridge = getBridge();
 
-    const mediaCtx = deps.getMediaContext();
-
     const isVoice = deps.isVoiceMode?.() ?? false;
     const settingsObj = deps.getSettings();
     const tier = isVoice
@@ -1679,47 +1212,17 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       : (settingsObj.cloudLLMTierConversation || 'cheap');
     const memoryEnabled = settingsObj.agentMemoryEnabled;
 
-    const agentCfg = deps.getAgentConfig?.() ?? null;
-    const memories = memoryEnabled ? (deps.getAgentMemories?.() ?? []) : [];
-
-    // Filter tools: only include save_memory if memory is enabled, exclude search_fandom if no URL configured
     const baseTools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
-    const hasFandomUrl = !!agentCfg?.roleplayFandomUrl;
     const mistakeCheckerEnabled = settingsObj.agentMistakeChecker && !isVoice;
-    const userDisabledTools = deps.getDisabledTools?.() ?? new Set<string>();
-
-    // Compute the effective disabled set: user-toggled + auto-filtered tools
-    const effectiveDisabled = new Set(userDisabledTools);
+    const effectiveDisabled = new Set(deps.getDisabledTools?.() ?? []);
     if (!memoryEnabled) effectiveDisabled.add('save_memory');
-    if (!hasFandomUrl) effectiveDisabled.add('search_fandom');
-    const isRoleplay = agentCfg?.personality === 'roleplay' && !!agentCfg.roleplayContext;
-    if (!isRoleplay) effectiveDisabled.add('recall_backstory');
     if (mistakeCheckerEnabled) effectiveDisabled.add('correct_mistake');
-
-    // Filter tool definitions using the effective disabled set
-    const tools = baseTools.filter((t) => !effectiveDisabled.has(t.name));
-
-    // If recall_backstory is disabled but the agent has a backstory, inline it in the prompt
-    const inlineBackstory = isRoleplay && effectiveDisabled.has('recall_backstory');
-
-    const targetLevel = deps.getTargetLevel?.() ?? null;
-    const targetLevelName = targetLevel !== null ? (deps.getLevelName?.(targetLevel) ?? undefined) : undefined;
-
-    const langFeatures = deps.getLanguageFeatures();
-
-    const turnSocialClimate = deps.getTurnSocialState?.() ?? null;
-
+    const tools = baseTools.filter(tool => !effectiveDisabled.has(tool.name));
+    const climate = deps.getTurnSocialState?.();
     const systemMsg: LLMChatMessage = {
       role: 'system',
-      content: isVoice
-        ? buildVoiceSystemPrompt(
-            langName,
-            mediaCtx,
-            langFeatures,
-            deps.getVoiceWorldContext?.(lastUserMessageText(conversationHistory)),
-            turnSocialClimate ? renderSocialClimate(turnSocialClimate) : undefined,
-          )
-        : buildSystemPrompt(language, langName, targetLevelName, agentCfg, memoryEnabled ? memories : undefined, mistakeCheckerEnabled, inlineBackstory, effectiveDisabled, langFeatures, deps.getWorldContext?.(lastUserMessageText(conversationHistory)), turnSocialClimate ? renderSocialClimate(turnSocialClimate) : undefined),
+      content: buildSystemPrompt(langName, deps.getWorldContext?.(lastUserMessageText(conversationHistory)) ?? '',
+        deps.getLanguageFeatures(), tools, isVoice, mistakeCheckerEnabled, climate ? renderSocialClimate(climate) : undefined),
     };
 
     const messages: LLMChatMessage[] = [
@@ -1932,7 +1435,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   }
 
   function tokenize(text: string): Promise<Token[]> {
-    return tokenizeText(text, deps.getLanguage());
+    return deps.tokenize(text);
   }
 
   function continueWithContext(context: string, callbacks: StreamCallbacks): void {

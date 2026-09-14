@@ -235,7 +235,7 @@ describe('context compiler', () => {
     expect(ctx.memories).toEqual([]);
     expect(ctx.openLoops).toEqual([]);
     expect(ctx.recentThreadEvents).toEqual([]);
-    expect(ctx.persona).toEqual({ text: 'A warm mentor persona.', facets: {} });
+    expect(ctx.persona).toEqual({ id: 'A', displayName: 'Aria', text: 'A warm mentor persona.', facets: {} });
   });
 
   it('copies persona text and facets', () => {
@@ -331,7 +331,7 @@ describe('context compiler — tombstones and turn budgets', () => {
 
     const ctx = compileContext({ participant: a, participants: [a], seaEvents: sea });
     expect(ctx).toEqual({
-      persona: { text: 'A warm mentor persona.', facets: {} },
+      persona: { id: 'A', displayName: 'Aria', text: 'A warm mentor persona.', facets: {} },
       negativeKnowledge: [],
       relationships: [],
       memories: [{ kind: 'belief', text: 'Kept memory.', createdAt: 1001 }],

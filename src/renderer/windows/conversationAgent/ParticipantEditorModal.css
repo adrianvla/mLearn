@@ -1,0 +1,59 @@
+/* Participant character editor modal. */
+
+.participant-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+  min-width: 0;
+}
+
+.participant-editor-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.participant-editor-avatar {
+  display: inline-flex;
+  width: 3.5rem;
+  height: 3.5rem;
+  flex: 0 0 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  object-fit: cover;
+}
+
+.participant-editor-identity-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.participant-editor-kind {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.participant-editor-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.participant-editor-photo-input {
+  display: none;
+}
+
+.participant-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

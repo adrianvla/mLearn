@@ -9,7 +9,7 @@
       "property": "属性",
       "support": "相关支持",
       "SupportCaption": "相关——不是知识。支持链接不会继承知识。",
-      "Details": "开发者详情",
+      "Details": "连接详情",
       "Target": "目标",
       "Projection": "投影",
       "Retention": "保持",
@@ -24,7 +24,7 @@
         "Excluded": "已排除"
       },
       "Neighborhood": {
-        "Title": "局部关系图",
+        "Title": "语言图谱",
         "Toggle": "图谱",
         "Empty": "该项周围暂无关系。",
         "Truncated": "已显示 {total} 条关系中的 {shown} 条。",
@@ -70,7 +70,7 @@
       },
       "Kind": {
         "Entity": "条目",
-        "Surface": "字面",
+        "Surface": "词语",
         "DictionaryEntry": "词典条目",
         "Lexeme": "词位",
         "Sense": "义项",
@@ -90,8 +90,8 @@
         "Relationships": "关系",
         "Other": "其他关系",
         "Via": "经由 {label}",
-        "LoadMore": "加载更多连接",
-        "Filter": "在此关系中搜索",
+        "LoadMore": "更多连接",
+        "Filter": "查找连接",
         "Canvas": "关系图。拖动以平移；按住 Ctrl 或 Command 并滚动以缩放。方向键平移，加减键缩放，零键适应视图。",
         "NoMatches": "没有匹配的连接。",
         "Hint": "拖动以平移 · Ctrl/⌘ + 滚动以缩放",
@@ -106,7 +106,9 @@
         "Role": "角色",
         "ConnectedTo": "与 {label} 相连",
         "LoadFailed": "无法加载图谱。",
-        "Retry": "重试"
+        "Retry": "重试",
+        "All": "所有连接",
+        "TapToSee": "轻点查看全部"
       }
     },
     "Management": {
@@ -819,24 +821,23 @@
       },
       "NewConversation": {
         "Title": "新对话",
-        "Hint": "选择认识的人，或描述你想和谁交谈、想练习什么。",
-        "FieldLabel": "对话",
-        "Placeholder": "你想和谁交谈，或想练习什么？",
+        "Hint": "选择对话对象，并可选择设定一个目标。",
+        "Placeholder": "你想聊什么或练习什么？",
         "Cancel": "取消",
         "Start": "开始",
         "Starting": "正在开始…",
         "PeopleLabel": "认识的人",
-        "TalkTo": "与{name}交谈",
         "DidYouMean": "你是想找：",
         "Failed": "创建对话失败",
-        "StartAria": "开始对话"
+        "StartAria": "开始对话",
+        "PeopleHint": "所选的每个人都会加入对话并可以回应。",
+        "IntentLabel": "目标（可选）",
+        "ToggleParticipant": "将 {name} 加入对话"
       },
       "Menu": {
         "OverflowAria": "对话菜单",
         "CloseAria": "关闭对话菜单",
-        "NewThread": "新话题",
         "Details": "对话详情",
-        "WordHover": "单词悬停",
         "Settings": "设置",
         "MemoryBrowser": "记忆浏览器"
       },
@@ -854,7 +855,21 @@
         "Cancel": "取消",
         "DeleteThread": "删除话题",
         "DeleteThreadConfirm": "删除话题？",
-        "ConfirmDelete": "确认删除"
+        "ConfirmDelete": "确认删除",
+        "ContextLabel": "上下文",
+        "Rename": "重命名",
+        "MediaAnalysis": "媒体分析",
+        "DangerZone": "危险操作",
+        "Kind": {
+          "Persistent": "永久",
+          "Temporary": "临时"
+        },
+        "EditParticipant": "编辑参与者",
+        "PersonaPlaceholder": "这个人是谁？他们如何说话和行动？",
+        "PhotoChange": "更换照片",
+        "PhotoRemove": "移除照片",
+        "VoiceLabel": "语音",
+        "Saving": "保存中…"
       }
     },
     "ErrorModal": {

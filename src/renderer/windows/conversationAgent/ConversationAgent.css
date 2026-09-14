@@ -208,16 +208,10 @@
   padding: var(--spacing-1);
   gap: var(--spacing-1);
 }
-.ca-overflow-menu .ca-overflow-item,
-.ca-overflow-word-hover button {
+.ca-overflow-menu .ca-overflow-item {
   width: 100%; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-primary); cursor: pointer; font: inherit; padding: var(--spacing-2); text-align: left;
 }
-.ca-overflow-menu .ca-overflow-item:hover,
-.ca-overflow-word-hover button:hover,
-.ca-overflow-word-hover button.active { background: var(--bg-secondary); }
-.ca-overflow-word-hover { padding: var(--spacing-2); color: var(--text-secondary); font-size: var(--font-size-xs); display: flex; flex-direction: column; gap: var(--spacing-1); }
-.ca-overflow-word-hover > div { display: flex; gap: var(--spacing-1); }
-.ca-overflow-word-hover button { flex: 1; font-size: var(--font-size-xs); text-align: center; }
+.ca-overflow-menu .ca-overflow-item:hover { background: var(--bg-secondary); }
 
 .ca-details-backdrop { position: absolute; z-index: var(--z-modal-backdrop); inset: var(--window-controls-block-start-inset) 0 0; border: 0; background: var(--overlay-bg-soft); }
 .ca-details-drawer {

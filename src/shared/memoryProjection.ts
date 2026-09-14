@@ -136,7 +136,7 @@ export function deriveRoomProjection(events: JournalEvent[]): RoomMemoryProjecti
       case 'relationship': {
         const rec = e.payload as Record<string, unknown>;
         projection.relationships.push({
-          fromId: typeof rec.fromId === 'string' ? rec.fromId : e.actorId,
+          fromId: entry.ownerId,
           toId: typeof rec.toId === 'string' ? rec.toId : '',
           text: entry.text,
           sourceEventId: e.id,

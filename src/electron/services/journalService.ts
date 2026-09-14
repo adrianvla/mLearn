@@ -80,16 +80,18 @@ async function loadStreamHead(key: string, filePath: string): Promise<StreamStat
   const raw = await fs.promises.readFile(filePath, 'utf-8');
   const lines = raw.split('\n');
   const complete: string[] = [];
+  let partialTail = false;
   for (const line of lines) {
     if (line.length === 0) continue;
     try {
       JSON.parse(line);
       complete.push(line);
     } catch {
+      partialTail = true;
       break; // partial tail — discard everything after the last complete line
     }
   }
-  if (complete.length < lines.length) {
+  if (partialTail) {
     const recovered = complete.length > 0 ? `${complete.join('\n')}\n` : '';
     await fs.promises.writeFile(filePath, recovered, 'utf-8');
     log.warn(`[journal] Discarded partial tail of ${filePath} (crash recovery)`);
@@ -114,6 +116,7 @@ async function readStream(roomId: string, scope: EventScope): Promise<JournalEve
       }
       return events;
     } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') return [];
       log.error(`[journal] Failed to read stream ${filePath}:`, error);
       return [];
     }

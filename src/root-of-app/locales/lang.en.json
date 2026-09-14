@@ -9,7 +9,7 @@
       "property": "Properties",
       "support": "Related support",
       "SupportCaption": "Related — not knowledge. Support links never inherit knowledge.",
-      "Details": "Developer details",
+      "Details": "Connection details",
       "Target": "Target",
       "Projection": "Projection",
       "Retention": "Retention",
@@ -24,7 +24,7 @@
         "Excluded": "Excluded"
       },
       "Neighborhood": {
-        "Title": "Local graph",
+        "Title": "Language graph",
         "Toggle": "Graph",
         "Empty": "No relations around this item.",
         "Truncated": "Showing {shown} of {total} relations.",
@@ -70,7 +70,7 @@
       },
       "Kind": {
         "Entity": "Entity",
-        "Surface": "Surface",
+        "Surface": "Word",
         "DictionaryEntry": "Dictionary entry",
         "Lexeme": "Lexeme",
         "Sense": "Sense",
@@ -90,8 +90,8 @@
         "Relationships": "Relationships",
         "Other": "Other relationships",
         "Via": "via {label}",
-        "LoadMore": "Load more connections",
-        "Filter": "Find in this relationship",
+        "LoadMore": "More connections",
+        "Filter": "Find a connection",
         "Canvas": "Relationship diagram. Drag to pan; Control or Command and scroll to zoom. Arrow keys pan; plus and minus zoom; zero fits.",
         "NoMatches": "No matching connections.",
         "Hint": "Drag to pan · Ctrl/⌘ + scroll to zoom",
@@ -106,7 +106,9 @@
         "Role": "Role",
         "ConnectedTo": "connected to {label}",
         "LoadFailed": "The graph could not be loaded.",
-        "Retry": "Retry"
+        "Retry": "Retry",
+        "All": "All connections",
+        "TapToSee": "Tap to see all"
       }
     },
     "Management": {
@@ -819,24 +821,23 @@
       },
       "NewConversation": {
         "Title": "New conversation",
-        "Hint": "Choose someone you know, or describe who you want to talk to and what you want to practice.",
-        "FieldLabel": "Conversation",
-        "Placeholder": "Who do you want to talk to, or what do you want to practice?",
+        "Hint": "Pick who the conversation is with, and optionally set a goal for it.",
+        "Placeholder": "What do you want to talk about or practice?",
         "Cancel": "Cancel",
         "Start": "Start",
         "Starting": "Starting…",
         "PeopleLabel": "People you know",
-        "TalkTo": "Talk to {name}",
         "DidYouMean": "Did you mean:",
         "Failed": "Failed to create conversation",
-        "StartAria": "Start conversation"
+        "StartAria": "Start conversation",
+        "PeopleHint": "Everyone you pick joins the conversation and can respond.",
+        "IntentLabel": "Goal (optional)",
+        "ToggleParticipant": "Include {name} in the conversation"
       },
       "Menu": {
         "OverflowAria": "Conversation menu",
         "CloseAria": "Close conversation menu",
-        "NewThread": "New thread",
         "Details": "Conversation details",
-        "WordHover": "Word hover",
         "Settings": "Settings",
         "MemoryBrowser": "Memory Browser"
       },
@@ -854,7 +855,21 @@
         "Cancel": "Cancel",
         "DeleteThread": "Delete thread",
         "DeleteThreadConfirm": "Delete thread?",
-        "ConfirmDelete": "Confirm delete"
+        "ConfirmDelete": "Confirm delete",
+        "ContextLabel": "Context",
+        "Rename": "Rename",
+        "MediaAnalysis": "Media analysis",
+        "DangerZone": "Danger zone",
+        "Kind": {
+          "Persistent": "Persistent",
+          "Temporary": "Temporary"
+        },
+        "EditParticipant": "Edit participant",
+        "PersonaPlaceholder": "Who is this person — how do they speak and behave?",
+        "PhotoChange": "Change photo",
+        "PhotoRemove": "Remove photo",
+        "VoiceLabel": "Voice",
+        "Saving": "Saving…"
       }
     },
     "ErrorModal": {

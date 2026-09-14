@@ -48,7 +48,7 @@ describe('GraphInspectorContent', () => {
     document.body.appendChild(container);
     const dispose = render(() => <GraphInspectorContent />, container);
     await flush();
-    expect(container.textContent).toContain('mlearn.GraphInspector.property');
+    (container.querySelector('.graph-inspector__details') as HTMLButtonElement).click();
     (container.querySelectorAll('.graph-inspector__chip')[1] as HTMLButtonElement).click();
     await flush();
     expect(container.textContent).toContain('mlearn.GraphInspector.State.Known');

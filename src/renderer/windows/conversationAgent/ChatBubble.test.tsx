@@ -19,7 +19,11 @@ vi.mock('../../context', () => ({
   useSettings: () => ({
     settings: mockSettings,
   }),
+  useFlashcards: () => ({ getAccessStatus: () => ({ status: 'unknown' }), isKnowledgeReady: () => true }),
   useLanguage: () => ({
+    getLanguageFeatures: () => ({ tokenizerCapabilities: {} }),
+    getFrequency: () => null,
+    getFreqLevelNames: () => ({}),
     currentLangData: () => mockLanguageData,
     isTranslatable: (partOfSpeech: string) => partOfSpeech === 'noun',
     isTokenTranslatable: (token: Token) => (token.partOfSpeech ?? token.type) === 'noun',

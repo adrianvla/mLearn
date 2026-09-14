@@ -1,62 +1,103 @@
+/**
+ * Conversation Details — answers "what is this thread, who is in it, and what
+ * context governs it" from the canonical world model (Thread / Room roster /
+ * Participants). Media analysis is a collapsed secondary section tied to the
+ * thread's own mediaRef; global learning stats live in Statistics, not here.
+ */
+
 import { Component, For, Show, createSignal } from 'solid-js';
 import type { ConversationAgentContext } from '../../../shared/types';
 import type { Participant, Thread } from '../../../shared/world';
-import { Btn, FormField, Input, Textarea } from '../../components/common';
+import { Btn, FormField, Input, Tag } from '../../components/common';
 import { useLocalization } from '../../context';
-import { MediaStatsTab } from './MediaStatsTab';
+import { ParticipantEditorModal } from './ParticipantEditorModal';
 import './ThreadInfoPanel.css';
 
 interface ThreadInfoPanelProps {
   thread: Thread | null;
   context: ConversationAgentContext | null;
   participants: Participant[];
+  onRenameThread: (title: string) => Promise<void> | void;
   onUpdateParticipant: (participant: Participant) => Promise<void> | void;
   onDeleteThread: () => Promise<void> | void;
 }
 
 export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   const { t } = useLocalization();
-  const [editingParticipantId, setEditingParticipantId] = createSignal<string | null>(null);
-  const [displayName, setDisplayName] = createSignal('');
-  const [personaText, setPersonaText] = createSignal('');
+  const [renaming, setRenaming] = createSignal(false);
+  const [titleDraft, setTitleDraft] = createSignal('');
+  const [editingParticipant, setEditingParticipant] = createSignal<Participant | null>(null);
   const [confirmingDelete, setConfirmingDelete] = createSignal(false);
   const mediaRef = () => props.thread?.mediaRef;
-  const mediaKey = () => mediaRef()?.mediaHash ?? props.context?.mediaHash ?? null;
-  const statsContext = () => {
-    const media = mediaRef();
-    const context = props.context;
-    return media && context ? { ...context, ...media } : context;
+
+  const kindLabel = (participant: Participant): string => participant.kind === 'persistent'
+    ? t('mlearn.ConversationAgent.Details.Kind.Persistent')
+    : t('mlearn.ConversationAgent.Details.Kind.Temporary');
+
+  const startRename = (): void => {
+    setTitleDraft(props.thread?.title ?? '');
+    setRenaming(true);
   };
-  const startEditing = (participant: Participant): void => {
-    setEditingParticipantId(participant.id);
-    setDisplayName(participant.displayName);
-    setPersonaText(participant.personaText);
+
+  const commitRename = async (): Promise<void> => {
+    await props.onRenameThread(titleDraft().trim());
+    setRenaming(false);
   };
+
   const saveParticipant = async (participant: Participant): Promise<void> => {
-    await props.onUpdateParticipant({ ...participant, displayName: displayName().trim(), personaText: personaText() });
-    setEditingParticipantId(null);
+    await props.onUpdateParticipant(participant);
+    setEditingParticipant(null);
   };
 
   return (
     <div class="ca-thread-info">
-      <div class="ca-thread-info-heading">
+      <section class="ca-thread-section">
         <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ThreadLabel')}</span>
-        <span class="ca-thread-info-title">{props.thread?.title || t('mlearn.ConversationAgent.Details.UntitledThread')}</span>
-      </div>
+        <Show
+          when={renaming()}
+          fallback={
+            <div class="ca-thread-title-row">
+              <span class="ca-thread-info-title">{props.thread?.title || t('mlearn.ConversationAgent.Details.UntitledThread')}</span>
+              <Show when={props.thread}>
+                <Btn variant="ghost" size="sm" onClick={startRename}>{t('mlearn.ConversationAgent.Details.Rename')}</Btn>
+              </Show>
+            </div>
+          }
+        >
+          <div class="ca-thread-rename">
+            <FormField label={t('mlearn.ConversationAgent.Details.NameLabel')}>
+              <Input value={titleDraft()} onInput={(event) => setTitleDraft(event.currentTarget.value)} />
+            </FormField>
+            <div class="ca-thread-rename-actions">
+              <Btn variant="ghost" size="sm" onClick={() => setRenaming(false)}>{t('mlearn.ConversationAgent.Details.Cancel')}</Btn>
+              <Btn variant="primary" size="sm" onClick={() => { void commitRename(); }}>{t('mlearn.ConversationAgent.Details.Save')}</Btn>
+            </div>
+          </div>
+        </Show>
+      </section>
+
+      <Show when={props.thread?.intent}>
+        <section class="ca-thread-section">
+          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.NewConversation.IntentLabel')}</span>
+          <p>{props.thread?.intent}</p>
+        </section>
+      </Show>
+
       <Show when={mediaRef()}>
         {(media) => (
-          <div class="ca-thread-media-card">
-            <span class="ca-thread-media-name">{media().mediaName}</span>
-            <span class="ca-thread-media-meta">
-              {media().mediaType}{media().assessedLevelName ? ` · ${media().assessedLevelName}` : ''}
-            </span>
-          </div>
+          <section class="ca-thread-section">
+            <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ContextLabel')}</span>
+            <div class="ca-thread-media-card">
+              <span class="ca-thread-media-name">{media().mediaName}</span>
+              <span class="ca-thread-media-meta">
+                {media().mediaType}{media().assessedLevelName ? ` · ${media().assessedLevelName}` : ''}
+              </span>
+            </div>
+          </section>
         )}
       </Show>
-      <Show when={mediaKey()} keyed fallback={<MediaStatsTab context={statsContext()} />}>
-        <MediaStatsTab context={statsContext()} />
-      </Show>
-      <section class="ca-thread-participants">
+
+      <section class="ca-thread-section">
         <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ParticipantsLabel')}</span>
         <div class="ca-thread-participant-list">
           <For each={props.participants}>
@@ -68,32 +109,22 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
                   </Show>
                   <div class="ca-thread-participant-identity">
                     <span class="ca-thread-participant-name">{participant.displayName}</span>
-                    <span class="ca-thread-participant-kind">{participant.kind}</span>
+                    <Tag class="ca-thread-participant-kind" headless size="sm">{kindLabel(participant)}</Tag>
                   </div>
-                  <Btn variant="ghost" size="sm" onClick={() => startEditing(participant)}>{t('mlearn.ConversationAgent.Details.Edit')}</Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => setEditingParticipant(participant)}>{t('mlearn.ConversationAgent.Details.Edit')}</Btn>
                 </div>
-                <Show when={editingParticipantId() === participant.id} fallback={<p class="ca-thread-participant-persona">{participant.personaText.slice(0, 120)}</p>}>
-                  <div class="ca-thread-participant-form">
-                    <FormField label={t('mlearn.ConversationAgent.Details.NameLabel')}>
-                      <Input value={displayName()} onInput={(event) => setDisplayName(event.currentTarget.value)} />
-                    </FormField>
-                    <FormField label={t('mlearn.ConversationAgent.Details.PersonaLabel')}>
-                      <Textarea value={personaText()} onInput={(event) => setPersonaText(event.currentTarget.value)} rows={4} />
-                    </FormField>
-                    <div class="ca-thread-participant-actions">
-                      <Btn variant="ghost" size="sm" onClick={() => setEditingParticipantId(null)}>{t('mlearn.ConversationAgent.Details.Cancel')}</Btn>
-                      <Btn variant="primary" size="sm" onClick={() => { void saveParticipant(participant); }}>{t('mlearn.ConversationAgent.Details.Save')}</Btn>
-                    </div>
-                  </div>
+                <Show when={participant.personaText.trim()}>
+                  <p class="ca-thread-participant-persona">{participant.personaText}</p>
                 </Show>
               </article>
             )}
           </For>
         </div>
       </section>
+
       <Show when={props.thread}>
-        <section class="ca-thread-actions">
-          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ThreadLabel')}</span>
+        <section class="ca-thread-section ca-thread-actions">
+          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.DangerZone')}</span>
           <Show
             when={confirmingDelete()}
             fallback={<Btn variant="danger" onClick={() => setConfirmingDelete(true)}>{t('mlearn.ConversationAgent.Details.DeleteThread')}</Btn>}
@@ -105,6 +136,16 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
             </div>
           </Show>
         </section>
+      </Show>
+
+      <Show when={editingParticipant()} keyed>
+        {(participant) => (
+          <ParticipantEditorModal
+            participant={participant}
+            onSave={saveParticipant}
+            onClose={() => setEditingParticipant(null)}
+          />
+        )}
       </Show>
     </div>
   );

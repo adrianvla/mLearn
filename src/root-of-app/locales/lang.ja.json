@@ -9,7 +9,7 @@
       "property": "属性",
       "support": "関連サポート",
       "SupportCaption": "関連 — 知識ではありません。サポートリンクは知識を継承しません。",
-      "Details": "開発者詳細",
+      "Details": "つながりの詳細",
       "Target": "対象",
       "Projection": "投影",
       "Retention": "保持",
@@ -24,7 +24,7 @@
         "Excluded": "除外"
       },
       "Neighborhood": {
-        "Title": "ローカルグラフ",
+        "Title": "言語グラフ",
         "Toggle": "グラフ",
         "Empty": "この項目に関連はありません。",
         "Truncated": "{total} 件の関係のうち {shown} 件を表示しています。",
@@ -70,7 +70,7 @@
       },
       "Kind": {
         "Entity": "項目",
-        "Surface": "表記",
+        "Surface": "単語",
         "DictionaryEntry": "辞書項目",
         "Lexeme": "語彙素",
         "Sense": "語義",
@@ -90,8 +90,8 @@
         "Relationships": "関係",
         "Other": "その他の関係",
         "Via": "{label} 経由",
-        "LoadMore": "つながりをさらに読み込む",
-        "Filter": "この関係内を検索",
+        "LoadMore": "つながりをさらに表示",
+        "Filter": "つながりを検索",
         "Canvas": "関係図。ドラッグで移動、Ctrl または Command とスクロールで拡大縮小。矢印キーで移動、プラスとマイナスで拡大縮小、0 で全体表示。",
         "NoMatches": "一致するつながりはありません。",
         "Hint": "ドラッグで移動 · Ctrl/⌘ + スクロールで拡大縮小",
@@ -106,7 +106,9 @@
         "Role": "役割",
         "ConnectedTo": "{label} とのつながり",
         "LoadFailed": "グラフを読み込めませんでした。",
-        "Retry": "再試行"
+        "Retry": "再試行",
+        "All": "すべてのつながり",
+        "TapToSee": "タップしてすべて表示"
       }
     },
     "Management": {
@@ -819,24 +821,23 @@
       },
       "NewConversation": {
         "Title": "新しい会話",
-        "Hint": "知っている人を選ぶか、誰と話したいか・何を練習したいかを書いてください。",
-        "FieldLabel": "会話",
-        "Placeholder": "誰と話したいですか？何を練習したいですか？",
+        "Hint": "会話の相手を選び、必要なら目標を設定します。",
+        "Placeholder": "何について話したり練習したりしたいですか？",
         "Cancel": "キャンセル",
         "Start": "開始",
         "Starting": "開始中…",
         "PeopleLabel": "知っている人",
-        "TalkTo": "{name}と話す",
         "DidYouMean": "もしかして：",
         "Failed": "会話を作成できませんでした",
-        "StartAria": "会話を開始"
+        "StartAria": "会話を開始",
+        "PeopleHint": "選んだ人は全員会話に参加し、返答できます。",
+        "IntentLabel": "目標（任意）",
+        "ToggleParticipant": "{name} を会話に加える"
       },
       "Menu": {
         "OverflowAria": "会話メニュー",
         "CloseAria": "会話メニューを閉じる",
-        "NewThread": "新しいスレッド",
         "Details": "会話の詳細",
-        "WordHover": "単語ホバー",
         "Settings": "設定",
         "MemoryBrowser": "メモリブラウザ"
       },
@@ -854,7 +855,21 @@
         "Cancel": "キャンセル",
         "DeleteThread": "スレッドを削除",
         "DeleteThreadConfirm": "スレッドを削除しますか？",
-        "ConfirmDelete": "削除を確定"
+        "ConfirmDelete": "削除を確定",
+        "ContextLabel": "コンテキスト",
+        "Rename": "名前を変更",
+        "MediaAnalysis": "メディア分析",
+        "DangerZone": "危険な操作",
+        "Kind": {
+          "Persistent": "永続",
+          "Temporary": "一時"
+        },
+        "EditParticipant": "参加者を編集",
+        "PersonaPlaceholder": "この人は誰ですか？どのように話し、振る舞いますか？",
+        "PhotoChange": "写真を変更",
+        "PhotoRemove": "写真を削除",
+        "VoiceLabel": "音声",
+        "Saving": "保存中…"
       }
     },
     "ErrorModal": {

@@ -231,6 +231,31 @@ describe('runLegacyMigration', () => {
     expect(world.participants).toHaveLength(1);
   });
 
+  it('imports the original single-agent format directly without writing intermediate keys', async () => {
+    const original = { 'agent-config': JSON.stringify(AGENT), 'agent-memories': JSON.stringify([{ id: 'old-m', content: 'A shared memory', timestamp: 5 }]) };
+    fs.writeFileSync(kvStorePath(), JSON.stringify(original));
+    await mod.runLegacyMigration();
+    const world = await worldMod.loadWorld();
+    expect(world.participants).toHaveLength(1);
+    expect(world.participants[0].displayName).toBe('Kaori');
+    expect((await journalMod.readSeaProjection(world.rooms[0].id))[0].payload).toMatchObject({ text: 'A shared memory' });
+    expect(readKvStore()['agent-configs']).toBeUndefined();
+    expect(readKvStore()['agent-config']).toBe(original['agent-config']);
+  });
+
+  it('resumes after a crash without duplicating already appended legacy messages or memories', async () => {
+    seedKvStore();
+    await mod.runLegacyMigration();
+    const before = await journalMod.readThread('room-legacy-agent_123', 'sess_1');
+    const seaBefore = await journalMod.readSeaProjection('room-legacy-agent_123');
+    const kv = readKvStore();
+    delete kv['world-migration-v1'];
+    fs.writeFileSync(kvStorePath(), JSON.stringify(kv));
+    await mod.runLegacyMigration();
+    expect(await journalMod.readThread('room-legacy-agent_123', 'sess_1')).toEqual(before);
+    expect(await journalMod.readSeaProjection('room-legacy-agent_123')).toEqual(seaBefore);
+  });
+
   it('no-ops without error when there is no legacy kv data at all', async () => {
     const summary = await mod.runLegacyMigration();
     expect(summary.migrated).toBe(true);

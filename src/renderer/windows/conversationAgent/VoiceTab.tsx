@@ -2018,7 +2018,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
               </div>
             </Show>
 
-            <Show when={isCallActive() && !isInitializing()}>
+            <Show when={import.meta.env.DEV && isCallActive() && !isInitializing()}>
               <details class="voice-advanced">
                 <summary>{t('mlearn.ConversationAgent.Voice.Advanced')}</summary>
                 <div class="voice-debug-panel">

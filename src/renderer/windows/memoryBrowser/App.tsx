@@ -64,7 +64,7 @@ function callerCutoff(participantId: string, events: JournalEvent[]): number | u
   return firstAdded?.seq;
 }
 
-export const MemoryBrowserApp: Component = () => {
+const MemoryBrowserContent: Component = () => {
   const { t } = useLocalization();
 
   const [rooms, setRooms] = createSignal<Room[]>([]);
@@ -141,7 +141,6 @@ export const MemoryBrowserApp: Component = () => {
   });
 
   return (
-    <WindowWrapper showDragRegion={false}>
       <div class="memory-browser">
         <header class="memory-browser-header">
           <span class="memory-browser-title">{t('mlearn.MemoryBrowser.Title')}</span>
@@ -227,6 +226,11 @@ export const MemoryBrowserApp: Component = () => {
           </Show>
         </div>
       </div>
-    </WindowWrapper>
   );
 };
+
+export const MemoryBrowserApp: Component = () => (
+  <WindowWrapper showDragRegion={false}>
+    <MemoryBrowserContent />
+  </WindowWrapper>
+);

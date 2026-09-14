@@ -67,7 +67,7 @@ export function renderCompiledContext(
   const resolveName = (actorId: string): string =>
     actorId === USER_ACTOR ? userLabel : (byId.get(actorId)?.displayName ?? actorId);
   const sections: string[] = [];
-  sections.push(`## Persona\n${ctx.persona.text}`);
+  sections.push(`## Persona\n${ctx.persona.displayName ? `You are ${ctx.persona.displayName} (${ctx.persona.id}).\n` : ''}${ctx.persona.text}`);
   if (ctx.canonBaseline) {
     sections.push(`## Canon Baseline\n${ctx.canonBaseline.lore}`);
     if (ctx.canonBaseline.quotes.length > 0) {
@@ -85,7 +85,7 @@ export function renderCompiledContext(
   }
   if (ctx.relationships.length > 0) {
     sections.push(
-      `## Relationships\n${ctx.relationships.map((r) => `- ${r.label}`).join('\n')}`,
+      `## Relationships\n${ctx.relationships.map((r) => `- ${resolveName(r.toId)}: ${r.label}`).join('\n')}`,
     );
   }
   if (ctx.memories.length > 0) {
@@ -114,6 +114,7 @@ export function renderCompiledContext(
     }
     if (parts.length > 0) sections.push(`## Learner\n${parts.join('\n')}`);
   }
+  if (ctx.threadIntent) sections.push(`## Conversation intent\n${ctx.threadIntent}`);
   if (ctx.threadMedia) {
     const media = ctx.threadMedia;
     const mediaLines = [`The learner is currently ${media.mediaType === 'video' ? 'watching' : 'reading'}: "${media.mediaName}"`];

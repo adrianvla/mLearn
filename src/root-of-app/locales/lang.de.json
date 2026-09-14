@@ -9,7 +9,7 @@
       "property": "Eigenschaften",
       "support": "Verwandte Unterstützung",
       "SupportCaption": "Verwandt — kein Wissen. Unterstützungslinks übertragen kein Wissen.",
-      "Details": "Entwicklerdetails",
+      "Details": "Verbindungsdetails",
       "Target": "Ziel",
       "Projection": "Projektion",
       "Retention": "Behalten",
@@ -24,7 +24,7 @@
         "Excluded": "Ausgeschlossen"
       },
       "Neighborhood": {
-        "Title": "Lokaler Graph",
+        "Title": "Sprachgraph",
         "Toggle": "Graph",
         "Empty": "Keine Beziehungen zu diesem Eintrag.",
         "Truncated": "{shown} von {total} Beziehungen werden angezeigt.",
@@ -70,7 +70,7 @@
       },
       "Kind": {
         "Entity": "Entität",
-        "Surface": "Schreibform",
+        "Surface": "Wort",
         "DictionaryEntry": "Wörterbucheintrag",
         "Lexeme": "Lexem",
         "Sense": "Sinn",
@@ -90,8 +90,8 @@
         "Relationships": "Beziehungen",
         "Other": "Weitere Beziehungen",
         "Via": "über {label}",
-        "LoadMore": "Weitere Verbindungen laden",
-        "Filter": "In dieser Beziehung suchen",
+        "LoadMore": "Weitere Verbindungen",
+        "Filter": "Verbindung suchen",
         "Canvas": "Beziehungsdiagramm. Zum Verschieben ziehen; Strg oder Command und scrollen zum Zoomen. Pfeiltasten verschieben; Plus und Minus zoomen; Null passt ein.",
         "NoMatches": "Keine passenden Verbindungen.",
         "Hint": "Ziehen zum Verschieben · Strg/⌘ + Scrollen zum Zoomen",
@@ -106,7 +106,9 @@
         "Role": "Rolle",
         "ConnectedTo": "verbunden mit {label}",
         "LoadFailed": "Der Graph konnte nicht geladen werden.",
-        "Retry": "Erneut versuchen"
+        "Retry": "Erneut versuchen",
+        "All": "Alle Verbindungen",
+        "TapToSee": "Alle anzeigen"
       }
     },
     "Management": {
@@ -819,24 +821,23 @@
       },
       "NewConversation": {
         "Title": "Neue Unterhaltung",
-        "Hint": "Wähle jemanden, den du kennst, oder beschreibe, mit wem du sprechen und was du üben möchtest.",
-        "FieldLabel": "Unterhaltung",
-        "Placeholder": "Mit wem möchtest du sprechen oder was möchtest du üben?",
+        "Hint": "Wähle, mit wem du conversieren möchtest, und lege optional ein Ziel fest.",
+        "Placeholder": "Worüber möchtest du sprechen oder üben?",
         "Cancel": "Abbrechen",
         "Start": "Starten",
         "Starting": "Wird gestartet…",
         "PeopleLabel": "Bekannte Personen",
-        "TalkTo": "Mit {name} sprechen",
         "DidYouMean": "Meintest du:",
         "Failed": "Unterhaltung konnte nicht erstellt werden",
-        "StartAria": "Unterhaltung starten"
+        "StartAria": "Unterhaltung starten",
+        "PeopleHint": "Alle ausgewählten Personen nehmen an der Unterhaltung teil und können antworten.",
+        "IntentLabel": "Ziel (optional)",
+        "ToggleParticipant": "{name} in die Unterhaltung aufnehmen"
       },
       "Menu": {
         "OverflowAria": "Unterhaltungsmenü",
         "CloseAria": "Unterhaltungsmenü schließen",
-        "NewThread": "Neuer Thread",
         "Details": "Unterhaltungsdetails",
-        "WordHover": "Wort-Hover",
         "Settings": "Einstellungen",
         "MemoryBrowser": "Speicher-Browser"
       },
@@ -854,7 +855,21 @@
         "Cancel": "Abbrechen",
         "DeleteThread": "Thread löschen",
         "DeleteThreadConfirm": "Thread löschen?",
-        "ConfirmDelete": "Löschen bestätigen"
+        "ConfirmDelete": "Löschen bestätigen",
+        "ContextLabel": "Kontext",
+        "Rename": "Umbenennen",
+        "MediaAnalysis": "Medienanalyse",
+        "DangerZone": "Gefahrenzone",
+        "Kind": {
+          "Persistent": "Dauerhaft",
+          "Temporary": "Temporär"
+        },
+        "EditParticipant": "Teilnehmer bearbeiten",
+        "PersonaPlaceholder": "Wer ist diese Person — wie spricht und verhält sie sich?",
+        "PhotoChange": "Foto ändern",
+        "PhotoRemove": "Foto entfernen",
+        "VoiceLabel": "Stimme",
+        "Saving": "Speichern…"
       }
     },
     "ErrorModal": {

@@ -62,6 +62,33 @@ describe('worldIpc', () => {
     tempDir.cleanup();
   });
 
+  it('serializes simultaneous world edits without losing rooms', async () => {
+    seedWorld([]);
+    await Promise.all([mod.createRoom('First'), mod.createRoom('Second')]);
+    expect((await mod.getWorldState()).rooms.map(room => room.title).sort()).toEqual(['First', 'Second']);
+  });
+
+  it('explicit memory promotion preserves source witnesses and rejects an unwitnessed owner', async () => {
+    seedWorld([room('r1', ['p1'])]);
+    const thread = await mod.createThread('r1');
+    const source = await journal.appendEvent('r1', {
+      roomId: 'r1', scope: { kind: 'thread', threadId: thread.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'p1'],
+      payload: { text: 'Meet tomorrow.' },
+    });
+    const input = {
+      roomId: 'r1', threadId: thread.id, sourceEventId: source.id,
+      ownerId: 'p1', kind: 'belief' as const, text: 'We plan to meet tomorrow.',
+    };
+    await expect(mod.rememberThis({ ...input, ownerId: 'absent' })).rejects.toThrow('witnessed');
+    expect(await journal.readSeaProjection('r1')).toEqual([]);
+    const memory = await mod.rememberThis(input);
+    expect(memory.scope).toEqual({ kind: 'sea' });
+    expect(memory.witnesses).toEqual(['user', 'p1']);
+    expect(memory.provenance?.sourceThreadEventIds).toEqual([source.id]);
+    expect(await journal.readThread('r1', thread.id)).toHaveLength(1);
+  });
+
   it('getWorldState returns the persisted snapshot', async () => {
     seedWorld([room('r1', ['p1'])]);
     const state = await mod.getWorldState();
@@ -79,7 +106,7 @@ describe('worldIpc', () => {
     expect(result.event!.actorId).toBe('harness');
     expect(result.event!.scope).toEqual({ kind: 'sea' });
     expect(result.event!.payload).toEqual({ participantId: 'p2', action: 'added' });
-    expect(result.event!.witnesses).toEqual(['p1', 'p2']);
+    expect(result.event!.witnesses).toEqual(['p1', 'p2', 'user']);
     expect(result.room.participantIds).toEqual(['p1', 'p2']);
 
     const state = await mod.getWorldState();
@@ -102,13 +129,13 @@ describe('worldIpc', () => {
     expect(events).toHaveLength(0);
   });
 
-  it('membership remove removes the participant and journals with post-change witnesses', async () => {
+  it('membership remove removes the participant and preserves witnesses including the departing person', async () => {
     seedWorld([room('r1', ['p1', 'p2'])]);
     const result = await mod.applyMembership('r1', 'p2', 'remove');
 
     expect(result.event).not.toBeNull();
     expect(result.event!.payload).toEqual({ participantId: 'p2', action: 'removed' });
-    expect(result.event!.witnesses).toEqual(['p1']);
+    expect(result.event!.witnesses).toEqual(['p1', 'p2', 'user']);
     expect(result.room.participantIds).toEqual(['p1']);
 
     const state = await mod.getWorldState();

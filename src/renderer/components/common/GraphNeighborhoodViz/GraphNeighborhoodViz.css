@@ -6,16 +6,8 @@
 .graph-viz__heading h2 { margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); overflow-wrap: anywhere; }
 .graph-viz__heading > span, .graph-viz__count { color: var(--text-secondary); font-size: var(--font-size-xs); }
 .graph-viz__count { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.graph-viz__layout { display: grid; grid-template-columns: 12rem minmax(0, 1fr); }
-.graph-viz__index { padding: var(--spacing-3) var(--spacing-3) var(--spacing-3) 0; border-right: 1px solid var(--border-color); max-height: 44rem; overflow-y: auto; }
-.graph-viz__index h3 { margin: var(--spacing-4) 0 var(--spacing-2); color: var(--text-secondary); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
-.graph-viz__index h3:first-child { margin-top: 0; }
-.graph-viz__group { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-2); width: 100%; padding: var(--spacing-2); margin: 0; border: 0; border-radius: var(--radius-sm); color: var(--text-primary); background: none; text-align: left; font: inherit; font-size: var(--font-size-sm); cursor: pointer; }
-.graph-viz__group:hover { background: var(--bg-secondary); }
-.graph-viz__group[aria-pressed="true"] { color: var(--text-primary); background: var(--bg-secondary); font-weight: var(--font-weight-semibold); }
-.graph-viz__group small { display: block; color: var(--text-secondary); font-size: var(--font-size-xs); font-weight: normal; margin-top: var(--spacing-1); overflow-wrap: anywhere; }
-.graph-viz__group-count { color: var(--text-secondary); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
-.graph-viz__workspace { min-width: 0; padding-left: var(--spacing-3); }
+.graph-viz__layout { display: block; }
+.graph-viz__workspace { min-width: 0; padding-left: 0; }
 .graph-viz__toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); min-height: 3.5rem; }
 .graph-viz__toolbar > strong { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
 .graph-viz__search { min-width: 0; width: 12rem; }
@@ -62,9 +54,6 @@
 .graph-viz__sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 760px) {
   .graph-viz__layout { grid-template-columns: 1fr; }
-  .graph-viz__index { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--spacing-1); border-right: 0; border-bottom: 1px solid var(--border-color); padding: var(--spacing-2) 0; max-height: 12rem; }
-  .graph-viz__index h3 { width: 100%; margin: var(--spacing-2) 0 0; }
-  .graph-viz__group { width: auto; max-width: 100%; }
   .graph-viz__workspace { padding-left: 0; }
   .graph-viz__heading { flex: 1; }
   .graph-viz__header { flex-wrap: wrap; }
@@ -73,3 +62,15 @@
 }
 
 .graph-viz__loading { color: var(--text-secondary); font-size: var(--font-size-xs); }
+
+.graph-viz__filter select { max-width: 100%; border: 0; border-radius: var(--radius-md); padding: var(--spacing-2) var(--spacing-3); color: var(--text-primary); background: var(--bg-secondary); font: inherit; font-size: var(--font-size-sm); cursor: pointer; }
+.graph-viz__filter { min-width: 0; max-width: 100%; }
+.graph-viz--compact.graph-viz--overview .graph-viz__svg { max-height: none; }
+.graph-viz--compact .graph-viz__svg { touch-action: pan-y; }
+.graph-viz__detail details { margin-top: var(--spacing-2); }
+.graph-viz__stage { border-radius: var(--radius-lg); }
+.graph-viz__controls { border: 0; border-radius: var(--radius-md); }
+.graph-viz__footer:empty { display: none; }
+
+.graph-viz__detail--floating { position: fixed; bottom: var(--spacing-3); left: var(--spacing-3); right: var(--spacing-3); z-index: var(--z-popover); max-height: 35vh; overflow-y: auto; border: 1px solid var(--border-color-intense); border-radius: var(--radius-lg); padding: var(--spacing-3); background: var(--bg-nt-primary); color: var(--text-primary); }
+.graph-viz__detail--floating .graph-viz__detail-heading > .btn:first-child { margin-left: 0; }
