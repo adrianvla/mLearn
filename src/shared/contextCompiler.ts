@@ -23,6 +23,8 @@ import type {
   Participant,
   ScenarioGrounding,
   ThreadMediaRef,
+  Thread,
+  Room,
 } from './world';
 import { projectionForCaller, tombstonedIds, type RoomMemoryProjection } from './memoryProjection';
 import {
@@ -56,6 +58,7 @@ export interface LearnerProjection {
 
 /** One participant's redacted view of the world, ready for prompt assembly. */
 export interface CompiledContext {
+  scenario?: { sharedFacts: string[]; constraints: string[]; goals: string[]; knowledge: string[] };
   persona: { id?: string; displayName?: string; text: string; facets: Record<string, number | string> };
   canonBaseline?: { lore: string; quotes: string[]; context: string; coordinate: CanonCoordinate };
   negativeKnowledge: string[];
@@ -79,6 +82,8 @@ export interface TurnContext {
 
 /** Everything compileContext needs to project one participant's context. */
 export interface CompileContextInput {
+  room?: Room;
+  thread?: Thread;
   participant: Participant;
   participants: Participant[];
   seaEvents: JournalEvent[]; // full unfiltered sea stream; the compiler filters
@@ -210,14 +215,24 @@ export function visibleThreadEventsFor(
 }
 
 export function compileContext(input: CompileContextInput): CompiledContext {
-  const { participant, seaEvents = [], threadEvents, grounding, learnerProjection, threadMedia, turn } = input;
+  const { grounding, learnerProjection, threadMedia, turn } = input;
+  const sandbox = input.thread?.sandbox;
+  const binding = sandbox?.bindings.find(item => item.baseline.id === input.participant.id);
+  if (sandbox && !binding) throw new Error('Participant is not bound to this sandbox');
+  const participant = binding?.localOverride ?? binding?.baseline ?? input.participant;
+  const seaEvents = sandbox
+    ? (input.seaEvents ?? []).filter(event => event.scope.kind === 'sea' && event.seq <= (sandbox.baselineHeads[event.roomId] ?? 0))
+    : (input.seaEvents ?? []);
+  const threadEvents = input.thread
+    ? input.threadEvents?.filter(event => event.scope.kind === 'thread' && event.scope.threadId === input.thread!.id)
+    : input.threadEvents;
   const { capabilities } = participant;
 
   // Membership events are sea-scoped (durable roster changes); the intervals
   // they open apply to thread events too, so a removed participant sees
   // nothing of the gap in either stream.
   const visibleSea = visibleEventsFor(participant.id, seaEvents, capabilities);
-  const visibleThread = visibleThreadEventsFor(participant, threadEvents ?? [], seaEvents);
+  const visibleThread = visibleThreadEventsFor(participant, threadEvents ?? [], sandbox ? [] : seaEvents);
 
   const context: CompiledContext = {
     persona: { id: participant.id, displayName: participant.displayName, text: participant.personaText, facets: participant.facets ?? {} },
@@ -248,6 +263,22 @@ export function compileContext(input: CompileContextInput): CompiledContext {
     context.negativeKnowledge.push(...participant.canon.baseline.notYetHappened);
   }
 
+  // Explicit saved Thread selection retains its historical scope. Ordinary
+  // Room turns consume the persistent situation without selecting a Thread.
+  const scenario = input.thread ? input.thread.scenario : input.room?.scenario;
+  if (scenario) {
+    const own = scenario.participants.find(item => item.kind === 'temporary' && item.localId === participant.id);
+    context.scenario = {
+      sharedFacts: scenario.scene.sharedFacts,
+      constraints: [...scenario.scene.socialConstraints, ...(own?.kind === 'temporary' ? own.profile.behaviorConstraints : [])],
+      goals: own?.kind === 'temporary' ? own.profile.goals : [],
+      knowledge: scenario.participants.flatMap(item => item.kind === 'temporary'
+        ? item.profile.initialKnowledge.filter(fact => fact.witnesses.includes(participant.id)).map(fact => fact.text) : []),
+    };
+    context.relationships.push(...scenario.relationships.filter(relation => relation.fromId === participant.id)
+      .map(relation => ({ toId: relation.toId, label: relation.label })));
+  }
+
   const groundingEntry =
     grounding?.perParticipant[participant.id] ?? grounding?.perParticipant[participant.displayName];
   if (groundingEntry) {
@@ -257,7 +288,9 @@ export function compileContext(input: CompileContextInput): CompiledContext {
   // Tombstones derive from the visible stream: a correction this viewer never
   // saw has not erased the memory in their view (matches projectionForCaller).
   // Unconditional — applies with or without `turn`.
-  const memoryEvents = [...visibleSea, ...visibleThread];
+  const memoryEvents = [...new Map([...visibleSea, ...visibleThread].map(event => [
+    JSON.stringify([event.roomId, event.scope, event.id]), event,
+  ])).values()];
   const tombstoned = tombstonedIds(memoryEvents);
 
   for (const e of memoryEvents) {
@@ -304,7 +337,7 @@ export function compileContext(input: CompileContextInput): CompiledContext {
     context.learnerProjection = learnerProjection;
   }
 
-  if (input.threadIntent) context.threadIntent = input.threadIntent;
+  if (input.threadIntent && !scenario) context.threadIntent = input.threadIntent;
 
   if (threadMedia) {
     context.threadMedia = threadMedia;

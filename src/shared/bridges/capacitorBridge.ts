@@ -2097,6 +2097,9 @@ const journalBridge: JournalBridge = {
 };
 
 const worldBridge: WorldBridge = {
+  async prepareScenario() { throw new Error('Not supported on mobile'); },
+  async activateScenario() { throw new Error('Not supported on mobile'); },
+  async cancelScenario() { throw new Error('Not supported on mobile'); },
   async getWorldState(): Promise<WorldSnapshot> {
     return { rooms: [], threads: [], participants: [] };
   },
@@ -2106,7 +2109,10 @@ const worldBridge: WorldBridge = {
   async applyMembership(): Promise<MembershipChangeResult> {
     throw new Error('Not supported on mobile');
   },
-  async createThread(): Promise<Thread> {
+  async createSandbox(): Promise<Thread> {
+    throw new Error('Not supported on mobile');
+  },
+  async createPersistentRoom(): Promise<Room> {
     throw new Error('Not supported on mobile');
   },
   async updateThread(): Promise<Thread> {

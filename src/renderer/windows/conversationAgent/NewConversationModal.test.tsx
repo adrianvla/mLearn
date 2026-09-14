@@ -5,14 +5,18 @@ import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import type { WorldSnapshot } from '../../../shared/world';
 
+const createSandbox = vi.fn();
+const prepareScenario = vi.fn();
+const activateScenario = vi.fn();
+const cancelScenario = vi.fn(async () => {});
 const createParticipant = vi.fn();
 const createRoom = vi.fn();
 const applyMembership = vi.fn();
-const createThread = vi.fn();
+const createPersistentRoom = vi.fn();
 const updateThread = vi.fn(async (thread) => thread);
 
 vi.mock('../../../shared/bridges', () => ({
-  getBridge: () => ({ world: { createParticipant, createRoom, applyMembership, createThread, updateThread } }),
+  getBridge: () => ({ world: { prepareScenario, activateScenario, cancelScenario, createSandbox, createParticipant, createRoom, applyMembership, createPersistentRoom, updateThread } }),
 }));
 
 vi.mock('../../context', () => ({
@@ -31,8 +35,8 @@ vi.mock('../../components/common', () => ({
   Textarea: (props: { value?: string; onInput?: (event: InputEvent) => void; placeholder?: string; rows?: number }) => (
     <textarea value={props.value} placeholder={props.placeholder} rows={props.rows} onInput={(event) => props.onInput?.(event)} />
   ),
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; 'aria-pressed'?: boolean; class?: string }) => (
-    <button type="button" aria-label={props['aria-label']} aria-pressed={props['aria-pressed']} class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; 'aria-pressed'?: boolean; 'aria-checked'?: boolean; role?: 'radio'; class?: string }) => (
+    <button type="button" role={props.role} aria-label={props['aria-label']} aria-pressed={props['aria-pressed']} aria-checked={props['aria-checked']} class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   HintText: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
 }));
@@ -64,14 +68,22 @@ describe('NewConversationModal', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    prepareScenario.mockReset(); activateScenario.mockReset(); cancelScenario.mockClear();
+    prepareScenario.mockImplementation(async (request) => ({ operationId: request.operationId, status: 'ready', origin: 'generated', request,
+      bindings: [], scenario: { scene: { sharedFacts: ['A busy café'], socialConstraints: [] }, participants: [], relationships: [], adaptations: [] } }));
+    activateScenario.mockResolvedValue({ id: 'sandbox-1', state: 'active', createdAt: 1, sandbox: { bindings: [], baselineHeads: {} } });
+    createSandbox.mockReset();
+    createSandbox.mockResolvedValue({ id: 'sandbox-1', state: 'active', createdAt: 1, sandbox: {
+      operationId: 'test', bindings: [], baselineHeads: {},
+    } });
     createParticipant.mockReset();
     createRoom.mockReset();
     applyMembership.mockReset();
-    createThread.mockReset();
+    createPersistentRoom.mockReset();
     createParticipant.mockResolvedValue({ id: 'temporary-1', displayName: 'Partner', kind: 'temporary', personaText: '', setupComplete: true });
     createRoom.mockImplementation(async (title: string) => ({ id: 'room-1', title, participantIds: [], createdAt: 1 }));
     applyMembership.mockImplementation(async (roomId: string, participantId: string) => ({ room: { id: roomId, title: '', participantIds: [participantId], createdAt: 1 }, event: null }));
-    createThread.mockResolvedValue({ id: 'thread-1', roomId: 'room-1', state: 'active', createdAt: 1 });
+    createPersistentRoom.mockResolvedValue({ id: 'room-9', title: 'Rin, Alex', participantIds: ['participant-1', 'participant-2'], createdByOperation: 'op', createdAt: 1 });
   });
 
   afterEach(() => {
@@ -79,7 +91,7 @@ describe('NewConversationModal', () => {
     container.remove();
   });
 
-  const startButton = (): HTMLButtonElement => container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"]') as HTMLButtonElement;
+  const startButton = (): HTMLButtonElement => container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"], button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement;
   const personButton = (name: string): HTMLButtonElement =>
     Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === `mlearn.ConversationAgent.NewConversation.ToggleParticipant-${name}`)!;
   const typeIntent = (text: string): void => {
@@ -88,7 +100,7 @@ describe('NewConversationModal', () => {
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   };
 
-  it('keeps selection structured: each selected person joins the room roster by id', async () => {
+  it('keeps selected people in an independent sandbox by exact id', async () => {
     const onCreated = vi.fn();
     dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
 
@@ -100,11 +112,11 @@ describe('NewConversationModal', () => {
     expect(alexButton.getAttribute('aria-pressed')).toBe('true');
     startButton().click();
 
-    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-1', threadId: 'thread-1' }));
-    expect(createRoom).toHaveBeenCalledWith('Rin, Alex');
-    expect(applyMembership).toHaveBeenCalledWith('room-1', 'participant-1', 'add');
-    expect(applyMembership).toHaveBeenCalledWith('room-1', 'participant-2', 'add');
-    expect(createThread).toHaveBeenCalledWith('room-1');
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'sandbox-1', threadId: 'sandbox-1' }));
+    expect(createSandbox).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1', 'participant-2'] });
+    expect(createRoom).not.toHaveBeenCalled();
+    expect(applyMembership).not.toHaveBeenCalled();
+    expect(createPersistentRoom).not.toHaveBeenCalled();
     expect(createParticipant).not.toHaveBeenCalled();
   });
 
@@ -118,8 +130,7 @@ describe('NewConversationModal', () => {
     expect(personButton('Alex').getAttribute('aria-pressed')).toBe('false');
     startButton().click();
 
-    await vi.waitFor(() => expect(applyMembership).toHaveBeenCalledTimes(1));
-    expect(applyMembership).toHaveBeenCalledWith('room-1', 'participant-1', 'add');
+    await vi.waitFor(() => expect(createSandbox).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'] }));
   });
 
   it('passes the intent separately instead of turning the selection into text', async () => {
@@ -130,18 +141,22 @@ describe('NewConversationModal', () => {
     typeIntent('practice ordering coffee at a busy café');
     startButton().click();
 
+    await vi.waitFor(() => expect(container.textContent).toContain('A busy café'));
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(startButton().getAttribute('aria-label')).toBe('mlearn.ConversationAgent.NewConversation.UseScenario');
+    startButton().click();
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({
-      roomId: 'room-1',
-      threadId: 'thread-1',
+      roomId: 'sandbox-1',
+      threadId: 'sandbox-1',
       intent: 'practice ordering coffee at a busy café',
     }));
     // Selection must not leak into the intent field, and the intent must not
     // become a participant persona.
-    expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('practice ordering coffee at a busy café');
+    expect(prepareScenario.mock.calls[0][0].intent).toBe('practice ordering coffee at a busy café');
     expect(createParticipant).not.toHaveBeenCalled();
   });
 
-  it('keeps the first unresolved free-text partner temporary until explicit promotion', async () => {
+  it('reviews an intent-only generated situation without creating permanent scaffolding', async () => {
     const onCreated = vi.fn();
     const text = 'practice ordering coffee at a busy café';
     dispose = render(() => <NewConversationModal world={world([])} onClose={vi.fn()} onCreated={onCreated} />, container);
@@ -149,10 +164,28 @@ describe('NewConversationModal', () => {
     typeIntent(text);
     startButton().click();
 
-    await vi.waitFor(() => expect(createParticipant).toHaveBeenCalledWith({ displayName: 'Partner', kind: 'temporary', personaText: text }));
-    // The created participant names the room even though props.world is a stale snapshot.
-    await vi.waitFor(() => expect(createRoom).toHaveBeenCalledWith('Partner'));
-    await vi.waitFor(() => expect(applyMembership).toHaveBeenCalledWith('room-1', 'temporary-1', 'add'));
+    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: [], intent: text }));
+    await vi.waitFor(() => expect(container.textContent).toContain('A busy café'));
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(createParticipant).not.toHaveBeenCalled();
+    expect(createRoom).not.toHaveBeenCalled();
+    expect(applyMembership).not.toHaveBeenCalled();
+    startButton().click();
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'sandbox-1', threadId: 'sandbox-1', intent: text }));
+  });
+
+  it('opens persistent generated intent as a Room Sea conversation', async () => {
+    activateScenario.mockResolvedValue({ id: 'room-intent', title: 'Garden', participantIds: [rin.id], createdAt: 1 });
+    const onCreated = vi.fn();
+    dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
+    (container.querySelectorAll('[role="radio"]')[1] as HTMLButtonElement).click();
+    personButton('Rin').click();
+    typeIntent('Plan a garden');
+    startButton().click();
+    await vi.waitFor(() => expect(container.textContent).toContain('A busy café'));
+    expect(prepareScenario).toHaveBeenCalledWith(expect.objectContaining({ scope: 'persistent', participantIds: [rin.id] }));
+    startButton().click();
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-intent', threadId: null }));
   });
 
   it('resolves free text to an existing identity without re-creating it', async () => {
@@ -162,7 +195,7 @@ describe('NewConversationModal', () => {
     typeIntent('Alex');
     startButton().click();
 
-    await vi.waitFor(() => expect(applyMembership).toHaveBeenCalledWith('room-1', 'participant-2', 'add'));
+    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-2'], intent: 'Alex' }));
     expect(createParticipant).not.toHaveBeenCalled();
   });
 
@@ -184,7 +217,7 @@ describe('NewConversationModal', () => {
     expect(pressed[0].textContent).toContain('Alex');
     startButton().click();
 
-    await vi.waitFor(() => expect(applyMembership).toHaveBeenCalledWith('room-1', 'alex-2', 'add'));
+    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['alex-2'], intent: 'Alex' }));
     expect(createParticipant).not.toHaveBeenCalled();
   });
 
@@ -197,7 +230,7 @@ describe('NewConversationModal', () => {
 
   it('disables Start while bridge work is in progress', async () => {
     let resolveRoom: (value: { id: string; title: string; participantIds: string[]; createdAt: number }) => void = () => {};
-    createRoom.mockImplementation(() => new Promise((resolve) => { resolveRoom = resolve; }));
+    createSandbox.mockImplementation(() => new Promise((resolve) => { resolveRoom = resolve; }));
     dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={vi.fn()} />, container);
 
     personButton('Rin').click();
@@ -208,13 +241,68 @@ describe('NewConversationModal', () => {
   });
 });
 
+describe('persistent scope creation', () => {
+  let container: HTMLDivElement;
+  let dispose: () => void;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    prepareScenario.mockReset(); activateScenario.mockReset(); cancelScenario.mockClear();
+    prepareScenario.mockImplementation(async (request) => ({ operationId: request.operationId, status: 'ready', origin: 'generated', request,
+      bindings: [], scenario: { scene: { sharedFacts: ['A busy café'], socialConstraints: [] }, participants: [], relationships: [], adaptations: [] } }));
+    createSandbox.mockReset();
+    createPersistentRoom.mockReset();
+    createPersistentRoom.mockResolvedValue({ id: 'room-9', title: 'Rin', participantIds: ['participant-1'], createdByOperation: 'op', createdAt: 1 });
+  });
+  afterEach(() => { dispose?.(); container.remove(); });
+
+  const startButton = (): HTMLButtonElement => container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"], button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement;
+  const personButton = (name: string): HTMLButtonElement =>
+    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === `mlearn.ConversationAgent.NewConversation.ToggleParticipant-${name}`)!;
+  const scopeOption = (key: string): HTMLButtonElement =>
+    (Array.from(container.querySelectorAll('button[role="radio"]')) as HTMLButtonElement[]).find((button) => button.textContent === key)!;
+  const typeIntent = (text: string): void => {
+    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    textarea.value = text;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  it('creates a persistent room through the main-owned command instead of a sandbox', async () => {
+    const onCreated = vi.fn();
+    dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
+
+    scopeOption('mlearn.ConversationAgent.NewConversation.ScopePersistent').click();
+    personButton('Rin').click();
+    startButton().click();
+
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-9', threadId: null }));
+    expect(createPersistentRoom).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent' });
+    expect(createSandbox).not.toHaveBeenCalled();
+  });
+  it('routes a persistent intent through Director staging with the scope attached', async () => {
+    const onCreated = vi.fn();
+    dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
+
+    scopeOption('mlearn.ConversationAgent.NewConversation.ScopePersistent').click();
+    typeIntent('plan the garden');
+    personButton('Rin').click();
+    startButton().click();
+
+    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith(
+      { operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent', intent: 'plan the garden' }));
+    expect(createPersistentRoom).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+});
+
 describe('RoomSidebar', () => {
   it('renders the New conversation button and fires onNewConversation', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const onNewConversation = vi.fn();
     const dispose = render(() => (
-      <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewThread={vi.fn()} onNewConversation={onNewConversation} />
+      <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={onNewConversation} />
     ), container);
 
     Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')!.click();

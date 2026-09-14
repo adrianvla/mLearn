@@ -10,7 +10,6 @@ interface RoomSidebarProps {
   threadId: string | null;
   onSelectRoom: (roomId: string) => void;
   onSelectThread: (threadId: string) => void;
-  onNewThread: () => void;
   onNewConversation: () => void;
 }
 
@@ -41,11 +40,23 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
           )}
         </For>
       </div>
+      <Show when={props.world?.threads.some(thread => thread.sandbox)}>
+        <div class="room-sidebar-threads">
+          <div class="room-sidebar-thread-header">{t('mlearn.ConversationAgent.Sidebar.TemporaryPractice')}</div>
+          <For each={(props.world?.threads ?? []).filter(thread => thread.sandbox).sort((a, b) => b.createdAt - a.createdAt)}>
+            {(thread) => (
+              <Btn variant="ghost" class={`room-sidebar-thread ${thread.id === props.threadId ? 'room-sidebar-thread--active' : ''}`}
+                onClick={() => props.onSelectThread(thread.id)}>
+                {thread.title || thread.sandbox!.bindings.map(binding => (binding.localOverride ?? binding.baseline).displayName).join(', ')}
+              </Btn>
+            )}
+          </For>
+        </div>
+      </Show>
       <Show when={selectedRoom()}>
         <div class="room-sidebar-threads">
           <div class="room-sidebar-thread-header">
             <span>{selectedRoom()!.title}</span>
-            <Btn variant="ghost" size="sm" onClick={props.onNewThread}>{t('mlearn.ConversationAgent.Sidebar.NewThread')}</Btn>
           </div>
           <For each={threads()}>
             {(thread) => (

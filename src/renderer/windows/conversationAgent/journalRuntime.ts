@@ -9,7 +9,7 @@ import type {
   LLMChatMessage,
   MistakeWidgetData,
 } from '../../../shared/types';
-
+import { sanitizeJournalMessageText } from '../../../shared/modelContent';
 
 type JournalDisplayMessage = ConversationMessage & {
   eventId: string;
@@ -19,8 +19,9 @@ type JournalDisplayMessage = ConversationMessage & {
 
 export interface JournalThreadSelection {
   roomId: string;
-  threadId: string;
+  threadId: string | null;
   continuityRoomIds?: string[];
+  baselineHeads?: Record<string, number>;
 }
 
 export function createJournalThreadStore(): {
@@ -51,8 +52,10 @@ export function createJournalThreadStore(): {
       const currentRequest = requestId;
       const journal = getBridge().journal;
       const sea = (await Promise.all([...new Set([selection.roomId, ...(selection.continuityRoomIds ?? [])])]
-        .map((roomId) => journal.readSeaProjection(roomId)))).flat();
-      const thread = await journal.readThread(selection.roomId, selection.threadId);
+        .map((roomId) => journal.readSeaProjection(roomId)))).flat().filter(event => !selection.baselineHeads || event.seq <= (selection.baselineHeads[event.roomId] ?? 0));
+      const thread = selection.threadId
+        ? await journal.readThread(selection.roomId, selection.threadId)
+        : sea.filter(event => event.roomId === selection.roomId && event.witnesses.includes('user'));
       if (currentRequest !== requestId) return;
 
       setSeaEvents(sea);
@@ -68,6 +71,9 @@ export function createJournalThreadStore(): {
       if (session !== requestId || !selected) return event;
       if (event.scope.kind === 'sea') {
         setSeaEvents((events) => [...events, event]);
+        if (!selected.threadId && event.roomId === selected.roomId && event.witnesses.includes('user')) {
+          setThreadEvents((events) => [...events, event]);
+        }
       } else if (event.roomId === selected.roomId && event.scope.threadId === selected.threadId) {
         setThreadEvents((events) => [...events, event]);
       }
@@ -98,8 +104,8 @@ export function eventsToDisplayMessages(
         eventId: event.id,
         displayName: isUser ? youLabel : (participantsById.get(event.actorId)?.displayName ?? event.actorId),
         role: isUser ? 'user' : 'assistant',
-        content: payload.text,
         timestamp: event.createdAt,
+        content: sanitizeJournalMessageText(event.type, payload.text),
       };
       if (payload.modality === 'voice') message.modality = 'voice';
       if (payload.widget) message.widget = payload.widget;

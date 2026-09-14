@@ -814,12 +814,18 @@
         "ExploringWikiDetail": "Exploration du wiki : {detail}"
       },
       "Sidebar": {
+        "TemporaryPractice": "Entraînement temporaire",
         "Title": "Conversations",
         "NewConversation": "Nouvelle conversation",
-        "NewThread": "Nouveau fil",
         "UntitledThread": "Fil sans titre"
       },
       "NewConversation": {
+        "ChangeScenario": "Modifier la préparation",
+        "UseScenario": "Utiliser cette situation",
+        "GeneratedNotice": "Cette situation fictive est générée, sans recherche canonique. Vérifiez-la avant de commencer.",
+        "PrivatePreview": "État initial privé — affiché ici pour vérification, pas partagé avec tout le monde.",
+        "Scene": "Situation",
+        "TemporaryHint": "Cet entraînement est enregistré séparément. Les souvenirs et modifications ici ne changent pas votre monde.",
         "Title": "Nouvelle conversation",
         "Hint": "Choisissez avec qui converser et, si vous le souhaitez, fixez un objectif.",
         "Placeholder": "De quoi voulez-vous parler ou vous exercer ?",
@@ -832,7 +838,11 @@
         "StartAria": "Démarrer la conversation",
         "PeopleHint": "Toutes les personnes choisies participent à la conversation et peuvent répondre.",
         "IntentLabel": "Objectif (facultatif)",
-        "ToggleParticipant": "Inclure {name} dans la conversation"
+        "ToggleParticipant": "Inclure {name} dans la conversation",
+        "ScopeLabel": "Où cela doit-il vivre ?",
+        "ScopeTemporary": "Pratique temporaire",
+        "ScopePersistent": "Mon monde (salon permanent)",
+        "PersistentHint": "Les messages, souvenirs et relations deviennent partie intégrante de votre monde persistent."
       },
       "Menu": {
         "OverflowAria": "Menu de conversation",
@@ -845,6 +855,8 @@
         "StartAria": "Démarrer l'appel"
       },
       "Details": {
+        "PracticeVersion": "Version pour cet entraînement",
+        "RoomLabel": "Salon",
         "ThreadLabel": "Fil",
         "UntitledThread": "Fil sans titre",
         "ParticipantsLabel": "Participants",

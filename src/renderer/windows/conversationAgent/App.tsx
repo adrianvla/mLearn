@@ -57,7 +57,7 @@ import { runRoomTurn } from '../../../shared/roomOrchestrator';
 import { compileContext, visibleThreadEventsFor, type CompiledContext, type LearnerProjection } from '../../../shared/contextCompiler';
 import { renderCompiledContext } from './roomMessages';
 import { createVoicePrefetch } from './voicePrefetch';
-import { HARNESS_ACTOR, USER_ACTOR, type MessagePayload, type Participant, type WorldSnapshot } from '../../../shared/world';
+import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type Participant, type WorldSnapshot } from '../../../shared/world';
 import { shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -329,11 +329,12 @@ export const ConversationContent: Component = () => {
       levelEstimate: level > 0 ? (getLevelName(level) ?? undefined) : undefined,
     };
   };
-  const activeRoom = () => world()?.rooms.find((room) => room.id === selection()?.roomId) ?? null;
+  const activeRoom = () => world()?.rooms.find((room) => room.id === selection()?.roomId) ?? (activeThread() ? sandboxContext(activeThread()!) : undefined) ?? null;
   const activeThread = () => world()?.threads.find((thread) => thread.id === selection()?.threadId) ?? null;
   const rosterParticipants = () => {
     const room = activeRoom();
     if (!room) return [];
+    if (activeThread()?.sandbox) return threadParticipants(activeThread()!, []);
     const byId = new Map((world()?.participants ?? []).map((participant) => [participant.id, participant]));
     return room.participantIds.map((id) => byId.get(id)).filter((participant): participant is Participant => participant !== undefined);
   };
@@ -349,7 +350,7 @@ export const ConversationContent: Component = () => {
     (turnText: string, scopeId: string): CompiledContext => {
       const participant = rosterParticipants().find(candidate => candidate.id === scopeId);
       if (!participant) throw new Error('Conversation participant is unavailable');
-      return compileContext({ participant, participants: rosterParticipants(),
+      return compileContext({ room: activeRoom() ?? undefined, thread: activeThread() ?? undefined, participant, participants: rosterParticipants(),
         seaEvents: journal.seaEvents(), threadEvents: journal.threadEvents(),
         learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef,
         threadIntent: activeThread()?.intent, turn: { text: turnText } });
@@ -461,6 +462,12 @@ export const ConversationContent: Component = () => {
     getLanguageName: () => promptLangName(),
     getLanguageData: currentLangData,
     getLanguageFeatures: () => getLanguageFeatures(),
+    getObservedLearnerText: () => {
+      if (runtimeSession !== selectionSession) return '';
+      const event = journal.threadEvents().find(candidate => candidate.id === lastUserMessageEventId
+        && candidate.type === 'message.user' && candidate.actorId === USER_ACTOR);
+      return event ? (event.payload as MessagePayload).text : '';
+    },
     flashcardCtx,
     isVoiceMode: isVoiceCallActive,
     onVoiceMistake: (mistake: VoiceMistake) => {
@@ -477,11 +484,11 @@ export const ConversationContent: Component = () => {
       if (runtimeSession !== selectionSession) return;
       const room = activeRoom();
       const threadId = selection()?.threadId;
-      if (!room || !threadId) return;
+      if (!room) return;
       const sourceEventId = lastUserMessageEventRoomId === room.id ? lastUserMessageEventId : null;
       void journal.append({
         roomId: room.id,
-        scope: { kind: 'thread', threadId },
+        scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
         type: 'memory.belief',
         actorId: HARNESS_ACTOR,
         witnesses: [USER_ACTOR, participant.id],
@@ -492,7 +499,9 @@ export const ConversationContent: Component = () => {
     getDisabledTools: () => new Set(settings.agentMemoryEnabled ? [] : ['save_memory']),
     getWorldContext: (turnText) => renderCompiledContext(
       compiled ?? compileContext({
-        participant: world()?.participants.find(item => item.id === participant.id) ?? participant,
+        room: activeRoom() ?? undefined,
+        thread: activeThread() ?? undefined,
+        participant: rosterParticipants().find(item => item.id === participant.id) ?? participant,
         participants: rosterParticipants(),
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
@@ -603,12 +612,12 @@ export const ConversationContent: Component = () => {
         return;
       }
 
-      if (!room || !threadId) return;
+      if (!room) return;
       const witnesses = [USER_ACTOR, ...room.participantIds];
-      if (result.corrections.length) await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'correction', actorId: HARNESS_ACTOR, witnesses, payload: { messageEventId, corrections: result.corrections } });
+      if (result.corrections.length) await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'correction', actorId: HARNESS_ACTOR, witnesses, payload: { messageEventId, corrections: result.corrections } });
       if (result.safety) {
         agent.lockSafety(); setIsSafetyLockedState(true);
-        await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'safety_flag', actorId: HARNESS_ACTOR, witnesses, payload: { messageEventId, flag: result.safety } });
+        await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'safety_flag', actorId: HARNESS_ACTOR, witnesses, payload: { messageEventId, flag: result.safety } });
       }
     });
   };
@@ -627,8 +636,8 @@ export const ConversationContent: Component = () => {
       if (raw) saved = JSON.parse(raw);
     } catch (error) { log.warn('Unable to restore conversation selection', error); }
     if (session !== selectionSession) return;
-    const savedThread = snapshot.threads.find(thread => thread.id === saved?.threadId && thread.roomId === saved?.roomId);
-    const roomId = savedThread?.roomId ?? snapshot.rooms[0]?.id;
+    const savedThread = snapshot.threads.find(thread => thread.id === saved?.threadId && threadContextId(thread) === saved?.roomId);
+    const roomId = savedThread ? threadContextId(savedThread) : (snapshot.rooms.find(room => room.id === saved?.roomId)?.id ?? snapshot.rooms[0]?.id ?? snapshot.threads.find(thread => thread.sandbox)?.id);
     if (roomId) await selectRoom(roomId, savedThread?.id);
     })();
     void initialSelection.catch(error => log.error('Unable to load conversations', error));
@@ -636,10 +645,11 @@ export const ConversationContent: Component = () => {
 
   createEffect(() => {
     if (firstRunModalHandled) return;
+    if (settings.llmProvider === 'cloud' ? showSplash() : showDisclaimer()) return;
     const snapshot = world();
     if (!snapshot) return;
     firstRunModalHandled = true;
-    if (!snapshot.participants.some((participant) => participant.kind === 'persistent')) {
+    if (snapshot.rooms.length === 0 && snapshot.threads.length === 0) {
       setShowNewConversationModal(true);
     }
   });
@@ -649,15 +659,12 @@ export const ConversationContent: Component = () => {
     const snapshot = await getBridge().world.getWorldState();
     if (mySession !== selectionSession) return;
     setWorld(snapshot);
-    const room = snapshot.rooms.find((candidate) => candidate.id === roomId);
+    const selectedSandbox = snapshot.threads.find(thread => thread.sandbox && thread.id === roomId && (!requestedThreadId || thread.id === requestedThreadId));
+    const room = snapshot.rooms.find((candidate) => candidate.id === roomId) ?? (selectedSandbox ? sandboxContext(selectedSandbox) : undefined);
     if (!room) return;
-    let threadId = requestedThreadId ?? snapshot.threads.find((thread) => thread.roomId === roomId && thread.state === 'active')?.id;
-    if (!threadId) {
-      const thread = await getBridge().world.createThread(roomId);
-      if (mySession !== selectionSession) return;
-      threadId = thread.id;
-      setWorld((current) => current ? { ...current, threads: [...current.threads, thread] } : current);
-    }
+    const requestedThread = requestedThreadId ? snapshot.threads.find(thread => thread.id === requestedThreadId && threadContextId(thread) === roomId) : undefined;
+    if (requestedThreadId && !requestedThread) throw new Error('Conversation is unavailable');
+    const threadId = selectedSandbox?.id ?? requestedThread?.id ?? null;
     cancelVoiceScheduledNudge();
     setMediaContext(null);
     setTutorSelections({ selectedGrammar: [], selectedWords: [] });
@@ -677,39 +684,29 @@ export const ConversationContent: Component = () => {
     tokenizationFailures.clear();
     participantAgents.clear();
     setSelection({ roomId, threadId });
-    await journal.select({ roomId, threadId, continuityRoomIds: snapshot.rooms.map(item => item.id) });
+    await journal.select({ roomId, threadId, continuityRoomIds: selectedSandbox ? Object.keys(selectedSandbox.sandbox!.baselineHeads) : snapshot.rooms.map(item => item.id), baselineHeads: selectedSandbox?.sandbox?.baselineHeads });
     if (mySession !== selectionSession) return;
     await getBridge().kvStore.kvSet(SELECTION_KEY, JSON.stringify({ roomId, threadId }));
-    await getBridge().world.clearRoomUnread(roomId);
+    if (!selectedSandbox) await getBridge().world.clearRoomUnread(roomId);
     setWorld((current) => current ? { ...current, rooms: current.rooms.map((item) => item.id === roomId ? { ...item, unreadCount: 0 } : item) } : current);
     setSidebarVisible(false);
   };
 
-  const newThread = async (): Promise<void> => {
-    const room = activeRoom();
-    if (!room || isStreaming()) return;
-    const thread = await getBridge().world.createThread(room.id);
-    setWorld((current) => current ? { ...current, threads: [...current.threads, thread] } : current);
-    await selectRoom(room.id, thread.id);
-  };
-
-  const handleScenarioCreated = async (result: { roomId: string; threadId: string; intent?: string }): Promise<void> => {
+  // Creation runs only through the canonical New Conversation boundary; the
+  // legacy Room-linked createThread entry is gone. Existing room-linked
+  // threads (including legacy-migrated ones) remain listed and selectable.
+  const handleScenarioCreated = async (result: { roomId: string; threadId: string | null; intent?: string }): Promise<void> => {
     const snapshot = await getBridge().world.getWorldState();
     setWorld(snapshot);
+    await selectRoom(result.roomId, result.threadId ?? undefined);
     setShowNewConversationModal(false);
-    await selectRoom(result.roomId, result.threadId);
-    // Selected participants are already structured (journaled membership on
-    // the room). The optional free-text intent rides the canonical
-    // context-turn path — same mechanism as greetings — so the room
-    // orchestrator picks the responder and compiles it per participant.
-    const intent = result.intent?.trim();
-    if (intent && !isStreaming() && messages().length === 0) {
-      void runContextTurn(`[The learner set the goal for this conversation: ${intent}. Open the conversation by working toward it naturally in ${promptLangName()}. Keep it short — 1 to 2 sentences.]`);
-    }
+    // Creation publishes setup context. The next actual exchange consumes it;
+    // setup is not submitted to the turn engine as a synthetic user action.
   };
 
+
   const handleUpdateParticipant = async (participant: Participant): Promise<void> => {
-    await getBridge().world.updateParticipant(participant);
+    await getBridge().world.updateParticipant(participant, activeThread()?.sandbox ? activeThread()!.id : undefined);
     participantAgents.delete(participant.id);
     setWorld(await getBridge().world.getWorldState());
   };
@@ -1063,7 +1060,7 @@ export const ConversationContent: Component = () => {
     const room = activeRoom();
     const threadId = selection()?.threadId;
     if (!text || isStreaming() || isSafetyLockedState()) return;
-    if (!room || !threadId) {
+    if (!room) {
       const snapshot = await getBridge().world.getWorldState();
       const firstRoom = snapshot.rooms[0];
       if (!firstRoom) return;
@@ -1079,7 +1076,7 @@ export const ConversationContent: Component = () => {
     let prefetchLogged = false;
     const witnesses = [USER_ACTOR, ...room.participantIds];
     const session = selectionSession;
-    const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: { kind: 'thread', threadId }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: isVoiceCallActive() ? 'voice' : 'text' } satisfies MessagePayload });
+    const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: isVoiceCallActive() ? 'voice' : 'text' } satisfies MessagePayload });
     if (session !== selectionSession) return;
     lastUserMessageEventId = userEvent?.id ?? null;
     lastUserMessageEventRoomId = room.id;
@@ -1088,20 +1085,21 @@ export const ConversationContent: Component = () => {
     let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
     try {
       await runRoomTurn({
+        thread: activeThread() ?? undefined,
         room,
-        ...(contextOnly ? { contextTurn: { text, threadId } } : {}),
+        ...(contextOnly ? { contextTurn: { text, threadId: threadId ?? undefined } } : {}),
         modality,
-        participants: world()?.participants ?? [],
+        participants: rosterParticipants(),
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
-        compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef, threadIntent: activeThread()?.intent, turn: { text } }),
+        compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, thread: activeThread() ?? undefined, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef, threadIntent: activeThread()?.intent, turn: { text } }),
         runAgentTurn: async (participantId, context) => {
-          const participant = (world()?.participants ?? []).find((candidate) => candidate.id === participantId);
+          const participant = rosterParticipants().find((candidate) => candidate.id === participantId);
           if (!participant) return { text: '' };
           if (session !== selectionSession) throw new Error('Conversation selection changed');
           const runtimeAgent = getParticipantAgent(participant, context);
           runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(
-            visibleThreadEventsFor(participant, journal.threadEvents(), journal.seaEvents()), participant.id, world()?.participants ?? [])));
+            visibleThreadEventsFor(participant, journal.threadEvents(), activeThread()?.sandbox ? [] : journal.seaEvents()), participant.id, rosterParticipants())));
           if (voiceTurnTiming) voiceTurnTiming.requestDispatchTs = Date.now();
           const history = runtimeAgent.getHistory();
           const last = history.at(-1);
@@ -1330,7 +1328,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleClear = () => {
-    void newThread();
+    setShowNewConversationModal(true);
     setLiveOverlay(null);
     clearAssistantStreamState();
   };
@@ -1470,15 +1468,13 @@ export const ConversationContent: Component = () => {
                 roomId={selection()?.roomId ?? null}
                 threadId={selection()?.threadId ?? null}
                 onSelectRoom={(roomId) => { void selectRoom(roomId); }}
-                onSelectThread={(threadId) => { const room = activeRoom(); if (room) void selectRoom(room.id, threadId); }}
-                onNewThread={() => { void newThread(); }}
+                onSelectThread={(threadId) => { const thread = world()?.threads.find(item => item.id === threadId); if (thread) void selectRoom(threadContextId(thread), threadId); }}
           onNewConversation={() => { setShowNewConversationModal(true); }}
               />
             </div>
             </>
           </Show>
           <div class={`ca-chat-content ${sidebarVisible() ? 'ca-chat-content--with-sidebar' : ''}`}>
-            {/* TTS indicator */}
             <Show when={isSpeaking()}>
               <div class="ca-tts-indicator">
                 <div class="ca-tts-bars">
@@ -1698,8 +1694,9 @@ export const ConversationContent: Component = () => {
         <>
         <button type="button" class="ca-details-backdrop" aria-label="Close conversation details" onClick={() => setShowDetailsDrawer(false)} />
         <aside class="ca-details-drawer">
-          <ThreadInfoPanel
+          <ThreadInfoPanel roomTitle={activeRoom()?.title}
             thread={activeThread()}
+            roomScenario={activeRoom()?.scenario}
             context={mediaContext()}
             participants={rosterParticipants()}
             onRenameThread={handleRenameThread}
@@ -1713,7 +1710,7 @@ export const ConversationContent: Component = () => {
         <NewConversationModal
           world={world()}
           onClose={() => setShowNewConversationModal(false)}
-          onCreated={(result) => { void handleScenarioCreated(result); }}
+          onCreated={handleScenarioCreated}
         />
       </Show>
 

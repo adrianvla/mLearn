@@ -7,13 +7,15 @@
 
 import { Component, For, Show, createSignal } from 'solid-js';
 import type { ConversationAgentContext } from '../../../shared/types';
-import type { Participant, Thread } from '../../../shared/world';
+import type { Participant, Thread, ScenarioSpec } from '../../../shared/world';
 import { Btn, FormField, Input, Tag } from '../../components/common';
 import { useLocalization } from '../../context';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
 import './ThreadInfoPanel.css';
 
 interface ThreadInfoPanelProps {
+  roomTitle?: string;
+  roomScenario?: ScenarioSpec;
   thread: Thread | null;
   context: ConversationAgentContext | null;
   participants: Participant[];
@@ -30,7 +32,9 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   const [confirmingDelete, setConfirmingDelete] = createSignal(false);
   const mediaRef = () => props.thread?.mediaRef;
 
-  const kindLabel = (participant: Participant): string => participant.kind === 'persistent'
+  const kindLabel = (participant: Participant): string => props.thread?.sandbox
+    ? t('mlearn.ConversationAgent.Details.PracticeVersion')
+    : participant.kind === 'persistent'
     ? t('mlearn.ConversationAgent.Details.Kind.Persistent')
     : t('mlearn.ConversationAgent.Details.Kind.Temporary');
 
@@ -51,13 +55,16 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
 
   return (
     <div class="ca-thread-info">
+      <Show when={props.thread?.sandbox}>
+        <section class="ca-thread-section">{t('mlearn.ConversationAgent.NewConversation.TemporaryHint')}</section>
+      </Show>
       <section class="ca-thread-section">
-        <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ThreadLabel')}</span>
+        <span class="ca-thread-info-label">{t(props.thread ? 'mlearn.ConversationAgent.Details.ThreadLabel' : 'mlearn.ConversationAgent.Details.RoomLabel')}</span>
         <Show
           when={renaming()}
           fallback={
             <div class="ca-thread-title-row">
-              <span class="ca-thread-info-title">{props.thread?.title || t('mlearn.ConversationAgent.Details.UntitledThread')}</span>
+              <span class="ca-thread-info-title">{props.thread ? props.thread.title || t('mlearn.ConversationAgent.Details.UntitledThread') : props.roomTitle}</span>
               <Show when={props.thread}>
                 <Btn variant="ghost" size="sm" onClick={startRename}>{t('mlearn.ConversationAgent.Details.Rename')}</Btn>
               </Show>
@@ -81,6 +88,14 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
           <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.NewConversation.IntentLabel')}</span>
           <p>{props.thread?.intent}</p>
         </section>
+      </Show>
+
+      <Show when={(props.thread ? props.thread.scenario : props.roomScenario)} keyed>
+        {(scenario) => <section class="ca-thread-section">
+          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.NewConversation.Scene')}</span>
+          <For each={scenario.scene.sharedFacts}>{fact => <p>{fact}</p>}</For>
+          <For each={scenario.scene.socialConstraints}>{constraint => <p>{constraint}</p>}</For>
+        </section>}
       </Show>
 
       <Show when={mediaRef()}>

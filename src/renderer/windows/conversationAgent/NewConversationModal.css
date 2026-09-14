@@ -7,6 +7,7 @@
 }
 
 .new-conversation-actions {
+  flex-wrap: wrap;
   display: flex;
   justify-content: flex-end;
   gap: var(--spacing-2);
@@ -97,4 +98,51 @@
 .new-conversation-error {
   color: var(--color-danger);
   font-size: var(--font-size-sm);
+}
+
+.new-conversation-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.new-conversation-preview p { margin: 0; }
+.new-conversation-preview details {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3);
+}
+.new-conversation-preview summary { cursor: pointer; font-weight: var(--font-weight-semibold); }
+.new-conversation-preview details[open] > * + * { margin-top: var(--spacing-2); }
+
+.new-conversation-scope {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.new-conversation-scope-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  padding: 0;
+  margin-bottom: var(--spacing-2);
+}
+
+.new-conversation-scope-options {
+  display: flex;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.new-conversation-scope-option {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.new-conversation-scope-option--active {
+  border-color: var(--color-primary);
+  background: var(--bg-tertiary);
 }

@@ -24,6 +24,7 @@ import type { LanguageFeatures } from '../context/LanguageContext';
 import { getLogger } from '../../shared/utils/logger';
 import { estimateMessagesTokens } from '../../shared/utils/tokenEstimation';
 import { renderSocialClimate } from '../../shared/socialState';
+import { sanitizeModelSpeech } from '../../shared/modelContent';
 import type { TurnSocialState } from '../../shared/socialState';
 
 const log = getLogger("renderer.services.conversationAgent");
@@ -43,6 +44,8 @@ interface AgentDeps {
   getLanguageName: () => string;
   getLanguageData?: () => LanguageData | null;
   getLanguageFeatures: () => LanguageFeatures;
+  /** Actual human utterance for this turn; model-formatted history is not evidence. */
+  getObservedLearnerText?: () => string;
   flashcardCtx: {
     trackGrammarFailed: (pattern: string) => void;
     trackGrammarEncountered: (pattern: string) => void;
@@ -498,6 +501,23 @@ ${correctionGuidance}`;
 /**
  * Parse a single correction entry from tool call arguments.
  */
+function validatedCorrectionArguments(args: Record<string, unknown>, learnerText: string): Record<string, unknown> {
+  const entries = Array.isArray(args.corrections) ? args.corrections : [args];
+  const corrections = entries.filter((entry: unknown): entry is Record<string, unknown> => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const value = entry as Record<string, unknown>;
+    const span = value.error_span, correction = value.correction;
+    if (typeof span !== 'string' || !span.trim() || typeof correction !== 'string' || !correction.trim() || span === correction) return false;
+    if (value.affected_pattern !== undefined && typeof value.affected_pattern !== 'string') return false;
+    const before = value.context_before ?? '', after = value.context_after ?? '';
+    if (typeof before !== 'string' || typeof after !== 'string') return false;
+    const located = before + span + after;
+    const index = learnerText.indexOf(located);
+    return index >= 0 && learnerText.indexOf(located, index + 1) < 0;
+  });
+  return { corrections };
+}
+
 function parseCorrectionEntry(
   entry: Record<string, unknown>,
   deps: AgentDeps,
@@ -715,7 +735,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
         });
         return `Corrections: ${items.join(', ')}`;
       }
-      return 'Correction applied.';
+      return 'No correction accepted: an unambiguous observed learner span is required.';
     }
 
     default:
@@ -778,56 +798,50 @@ const KNOWN_TOOL_NAMES = new Set([...AGENT_TOOLS.map((t) => t.name), ...VOICE_AG
  *
  * Returns the cleaned content (with tool call text removed) and any parsed tool calls.
  */
-function parseToolCallsFromContent(content: string): { cleanedContent: string; toolCalls: ToolCall[] } {
+function parseToolCallsFromContent(content: string, streaming = false): { cleanedContent: string; toolCalls: ToolCall[] } {
   const toolCalls: ToolCall[] = [];
-
-  let cleanedContent = content;
+  const names = Array.from(KNOWN_TOOL_NAMES);
+  const startPattern = new RegExp(`\\b(${names.join('|')})\\s*(\\(\\s*)?\\{`, 'g');
+  let cleanedContent = '', cursor = 0;
   let match: RegExpExecArray | null;
-
-  // Strip `interruptedbyuser` markers (emitted inline when the user interrupts TTS)
-  cleanedContent = cleanedContent.replace(/\s*interruptedbyuser\s*/g, ' ');
-
-  // Pattern 1: tool_name({ ... }) — with parentheses
-  const toolCallPattern = new RegExp(
-    `(${Array.from(KNOWN_TOOL_NAMES).join('|')})\\s*\\(\\s*(\\{[\\s\\S]*?\\})\\s*\\)`,
-    'g',
-  );
-
-  const matches: { fullMatch: string; name: string; argsStr: string }[] = [];
-  while ((match = toolCallPattern.exec(cleanedContent)) !== null) {
-    matches.push({ fullMatch: match[0], name: match[1], argsStr: match[2] });
-  }
-
-  // Pattern 2: tool_name{ ... } — without parentheses (some models emit this)
-  const toolCallNoParen = new RegExp(
-    `(${Array.from(KNOWN_TOOL_NAMES).join('|')})\\s*(\\{[\\s\\S]*?\\})`,
-    'g',
-  );
-  while ((match = toolCallNoParen.exec(cleanedContent)) !== null) {
-    // Avoid duplicates from pattern 1 (which would include parentheses)
-    if (!matches.some((m) => m.fullMatch.includes(match![0]))) {
-      matches.push({ fullMatch: match[0], name: match[1], argsStr: match[2] });
+  while ((match = startPattern.exec(content)) !== null) {
+    cleanedContent += content.slice(cursor, match.index);
+    const start = startPattern.lastIndex - 1;
+    let depth = 0, quoted = false, escaped = false, end = start;
+    for (; end < content.length; end++) {
+      const char = content[end];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') quoted = false;
+      } else if (char === '"') quoted = true;
+      else if (char === '{') depth++;
+      else if (char === '}' && --depth === 0) break;
     }
-  }
-
-  for (const { fullMatch, name, argsStr } of matches) {
+    // An incomplete or malformed invocation is control output, not dialogue.
+    // Never repair its arguments or execute an inferred tool call.
+    if (end === content.length) { cursor = end; break; }
     try {
-      const args = JSON.parse(argsStr) as Record<string, unknown>;
-      toolCalls.push({
-        id: `parsed_${Date.now()}_${toolCalls.length}`,
-        name,
-        arguments: args,
-      });
-      cleanedContent = cleanedContent.replace(fullMatch, '');
-    } catch (e) {
-      log.error("error", e);
-      // If JSON parsing fails, leave the text in place
+      const args: unknown = JSON.parse(content.slice(start, end + 1));
+      if (args && typeof args === 'object' && !Array.isArray(args)) {
+        toolCalls.push({ id: `parsed_${Date.now()}_${toolCalls.length}`, name: match[1], arguments: args as Record<string, unknown> });
+      }
+    } catch { /* Discard invalid control output without logging private arguments. */ }
+    cursor = end + 1;
+    if (match[2]) {
+      const closing = /^\s*\)/.exec(content.slice(cursor));
+      if (closing) cursor += closing[0].length;
     }
+    startPattern.lastIndex = cursor;
   }
-
-  // Clean up residual whitespace from removed tool calls
-  cleanedContent = cleanedContent.replace(/\n{3,}/g, '\n\n').trim();
-
+  let suffix = content.slice(cursor);
+  if (streaming) {
+    // Hold a possible tool-name prefix until the next chunk disambiguates it.
+    const partial = /\b([a-z_]+)(?:\s*\(?\s*)$/.exec(suffix);
+    if (partial && names.some(name => name.startsWith(partial[1]))) suffix = suffix.slice(0, partial.index);
+  }
+  cleanedContent += suffix;
+  cleanedContent = cleanedContent.replace(/\s*interruptedbyuser\s*/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   return { cleanedContent, toolCalls };
 }
 
@@ -1086,7 +1100,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
         newId = `${tc.id}_dup${Math.random().toString(36).slice(2, 9)}`;
       }
       usedIds.add(newId);
-      return { ...tc, id: newId };
+      return { ...tc, id: newId, arguments: tc.name === 'correct_mistake'
+        ? validatedCorrectionArguments(tc.arguments, deps.getObservedLearnerText?.() ?? lastUserMessageText(conversationHistory)) : tc.arguments };
     });
 
     const widgets: ChatWidget[] = [...existingWidgets];
@@ -1268,7 +1283,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       if (chunk.content) {
         if (!firstTokenTime) firstTokenTime = Date.now();
         accumulated += chunk.content;
-        callbacks.onChunk(contentPrefix + accumulated);
+        callbacks.onChunk(contentPrefix + parseToolCallsFromContent(sanitizeModelSpeech(accumulated, true), true).cleanedContent);
       }
 
       if (chunk.toolCalls) {
@@ -1293,6 +1308,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
         }
         const streamStats: StreamStats = { timeToFirstToken, totalTime, tokensPerSecond };
 
+        const parsed = parseToolCallsFromContent(sanitizeModelSpeech(accumulated));
+        accumulated = parsed.cleanedContent;
+        callbacks.onChunk(contentPrefix + accumulated);
+
         if (collectedToolCalls.length > 0) {
           const visibleContent = contentPrefix + accumulated;
           handleToolCalls(
@@ -1312,7 +1331,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
         }
 
         // Fallback: detect tool calls emitted as plain text in the content
-        const { cleanedContent: parsedClean, toolCalls: parsedToolCalls } = parseToolCallsFromContent(accumulated);
+        const { cleanedContent: parsedClean, toolCalls: parsedToolCalls } = parsed;
         if (parsedToolCalls.length > 0) {
           // Update the UI with the cleaned content (tool call text removed)
           const visibleContent = contentPrefix + parsedClean;
@@ -1379,6 +1398,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
         streamCleanup();
         streamCleanup = null;
         if (accumulated) {
+          accumulated = parseToolCallsFromContent(sanitizeModelSpeech(accumulated)).cleanedContent;
           conversationHistory.push({ role: 'assistant', content: accumulated });
           const finalVisibleContent = contentPrefix + accumulated;
           finalizeResponse(finalVisibleContent, language, langName, widgets, callbacks).catch(() => {

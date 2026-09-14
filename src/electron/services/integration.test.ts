@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
-import type { IntegrateThreadInput, Participant } from '../../shared/world';
+import type { IntegrateThreadInput, Participant, Thread } from '../../shared/world';
 
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/tmp/test'), isPackaged: false },
@@ -25,6 +25,17 @@ function seedParticipant(participant: Participant): void {
   );
 }
 
+function seedThread(thread: Thread): void {
+  const filePath = path.join(tempDir.tmpDir, 'world.json');
+  const current = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as { threads: Thread[] };
+  current.threads.push(thread);
+  fs.writeFileSync(filePath, JSON.stringify(current), 'utf-8');
+}
+
+const newThread = (roomId: string): Thread => ({
+  id: `thr_${Math.random().toString(36).slice(2, 10)}`, roomId, state: 'active', createdAt: Date.now(),
+});
+
 describe('world integration', () => {
   beforeEach(async () => {
     tempDir = createTempDir();
@@ -34,6 +45,30 @@ describe('world integration', () => {
   });
 
   afterEach(() => tempDir.cleanup());
+
+  it('rejects a batch that grants an absent person a private source, before admitting any draft', async () => {
+    const room = await world.createRoom('Private practice');
+    const thread = newThread(room.id); seedThread(thread);
+    const source = await journal.appendEvent(room.id, {
+      roomId: room.id, scope: { kind: 'thread', threadId: thread.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user'],
+      payload: { text: 'Private source' },
+    });
+    await expect(world.integrateThread({
+      roomId: room.id, threadId: thread.id, integrationId: 'private-admission',
+      promoteParticipantIds: [],
+      drafts: [
+        { actorId: 'user', witnesses: ['user'], payload: {
+          ownerId: 'user', kind: 'fact', text: 'Selected fact', sourceEventIds: [source.id],
+        } },
+        { actorId: 'user', witnesses: ['user', 'absent'], payload: {
+          ownerId: 'absent', kind: 'belief', text: 'Leaked fact', sourceEventIds: [source.id],
+        } },
+      ],
+    })).rejects.toThrow(/witness/);
+    expect(await journal.readSeaProjection(room.id)).toEqual([]);
+    expect(await journal.readThread(room.id, thread.id)).toEqual([source]);
+  });
 
   it('keeps remember-this Sea memory after its source thread is erased', async () => {
     const roomId = 'room-memory';
@@ -62,8 +97,8 @@ describe('world integration', () => {
   });
 
   it('is idempotent and resumes a partially persisted integration without duplicates', async () => {
-    const roomId = 'room-integration';
-    const threadId = 'thread-integration';
+    const roomId = (await world.createRoom('Integration')).id;
+    const thread = newThread(roomId); seedThread(thread); const threadId = thread.id;
     const input: IntegrateThreadInput = {
       roomId,
       threadId,
@@ -74,7 +109,7 @@ describe('world integration', () => {
       ],
       promoteParticipantIds: [],
     };
-    await journal.appendEvent(roomId, {
+    const source = await journal.appendEvent(roomId, {
       roomId,
       scope: { kind: 'thread', threadId },
       type: 'message.user',
@@ -82,6 +117,7 @@ describe('world integration', () => {
       witnesses: ['user'],
       payload: { text: 'thread source' },
     });
+    for (const draft of input.drafts) draft.payload.sourceEventIds = [source.id];
     // Simulate a process kill after the first draft was committed but before the batch marker.
     await journal.appendEvent(roomId, {
       roomId,
@@ -109,5 +145,50 @@ describe('world integration', () => {
     seedParticipant({ id: 'temp-1', displayName: 'Temp', kind: 'temporary', personaText: 'persona', setupComplete: true });
     await expect(world.promoteParticipant('temp-1')).resolves.toMatchObject({ id: 'temp-1', kind: 'persistent' });
     await expect(world.getWorldState()).resolves.toMatchObject({ participants: [{ id: 'temp-1', kind: 'persistent' }] });
+  });
+
+  it('rejects a promotion outside the selected thread before writing memories', async () => {
+    const outsider = await world.createParticipant({ displayName: 'Elsewhere', kind: 'temporary', personaText: 'Local elsewhere' });
+    const room = await world.createRoom('Integration');
+    const thread = newThread(room.id); seedThread(thread);
+    const source = await journal.appendEvent(room.id, {
+      roomId: room.id, scope: { kind: 'thread', threadId: thread.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user'], payload: { text: 'Source' },
+    });
+    const input: IntegrateThreadInput = {
+      roomId: room.id, threadId: thread.id, integrationId: 'invalid-promotion',
+      promoteParticipantIds: [outsider.id],
+      drafts: [{ actorId: 'user', witnesses: ['user'], payload: {
+        ownerId: 'user', kind: 'fact', text: 'Fact', sourceEventIds: [source.id],
+      } }],
+    };
+    await expect(world.integrateThread(input)).rejects.toThrow(/participant/);
+    expect(await journal.readSeaProjection(room.id)).toEqual([]);
+    expect((await world.getWorldState()).participants.find(p => p.id === outsider.id)?.kind).toBe('temporary');
+  });
+
+  it('admits one selection once when two windows retry concurrently', async () => {
+    const room = await world.createRoom('Integration');
+    const thread = newThread(room.id); seedThread(thread);
+    const source = await journal.appendEvent(room.id, {
+      roomId: room.id, scope: { kind: 'thread', threadId: thread.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user'], payload: { text: 'Selected source' },
+    });
+    const input: IntegrateThreadInput = {
+      roomId: room.id, threadId: thread.id, integrationId: 'concurrent-admission', promoteParticipantIds: [],
+      drafts: [{ actorId: 'user', witnesses: ['user'], payload: {
+        ownerId: 'user', kind: 'fact', text: 'Selected fact', sourceEventIds: [source.id],
+      } }],
+    };
+    const results = await Promise.all([world.integrateThread(input), world.integrateThread(input)]);
+    expect(results.map(result => result.alreadyApplied).sort()).toEqual([false, true]);
+    const events = await journal.readSeaProjection(room.id);
+    expect(events.map(event => event.type)).toEqual(['memory.belief', 'integration']);
+    expect(events[0].provenance?.sourceThreadEventIds).toEqual([source.id]);
+    await expect(world.integrateThread({ ...input, drafts: [{
+      ...input.drafts[0], payload: { ...input.drafts[0].payload, text: 'Changed selection' },
+    }] })).rejects.toThrow(/conflict/);
+    await journal.eraseThread(room.id, thread.id);
+    expect(await world.integrateThread(input)).toEqual({ appended: events, alreadyApplied: true });
   });
 });

@@ -440,17 +440,21 @@ export interface JournalBridge {
 }
 
 export interface WorldBridge {
+  prepareScenario: (input: import('../world').CreateCastInput) => Promise<import('../world').ScenarioCreation>;
+  activateScenario: (operationId: string) => Promise<import('../world').ScenarioActivation>;
+  cancelScenario: (operationId: string) => Promise<void>;
   getWorldState: () => Promise<WorldSnapshot>;
   createRoom: (title: string) => Promise<Room>;
   applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove') => Promise<MembershipChangeResult>;
-  createThread: (roomId: string, title?: string) => Promise<Thread>;
+  createSandbox: (input: import('../world').CreateCastInput) => Promise<Thread>;
+  createPersistentRoom: (input: import('../world').CreateCastInput) => Promise<Room>;
   updateThread: (thread: Thread) => Promise<Thread>;
   deleteThread: (roomId: string, threadId: string) => Promise<void>;
   rememberThis: (input: RememberThisInput) => Promise<JournalEvent>;
   integrateThread: (input: IntegrateThreadInput) => Promise<IntegrateThreadResult>;
   promoteParticipant: (participantId: string) => Promise<Participant>;
   createParticipant: (input: { displayName: string; kind: 'persistent' | 'temporary'; personaText: string; facets?: Record<string, number | string>; canon?: Participant['canon']; voiceSampleId?: string; profilePhoto?: string }) => Promise<Participant>;
-  updateParticipant: (participant: Participant) => Promise<Participant>;
+  updateParticipant: (participant: Participant, threadId?: string) => Promise<Participant>;
   deleteParticipant: (participantId: string) => Promise<void>;
   clearRoomUnread: (roomId: string) => Promise<void>;
 }

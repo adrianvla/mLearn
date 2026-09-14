@@ -814,12 +814,18 @@
         "ExploringWikiDetail": "Wiki-Erkundung: {detail}"
       },
       "Sidebar": {
+        "TemporaryPractice": "Temporäres Üben",
         "Title": "Unterhaltungen",
         "NewConversation": "Neue Unterhaltung",
-        "NewThread": "Neuer Thread",
         "UntitledThread": "Unbenannter Thread"
       },
       "NewConversation": {
+        "ChangeScenario": "Aufbau ändern",
+        "UseScenario": "Diese Situation verwenden",
+        "GeneratedNotice": "Dies ist eine generierte fiktive Übungssituation, kein recherchierter Kanon. Prüfe sie vor dem Start.",
+        "PrivatePreview": "Privater Ausgangszustand — nur zur Prüfung hier angezeigt, nicht mit allen geteilt.",
+        "Scene": "Situation",
+        "TemporaryHint": "Diese Übung wird separat gespeichert. Erinnerungen und Änderungen hier verändern deine Welt nicht.",
         "Title": "Neue Unterhaltung",
         "Hint": "Wähle, mit wem du conversieren möchtest, und lege optional ein Ziel fest.",
         "Placeholder": "Worüber möchtest du sprechen oder üben?",
@@ -832,7 +838,11 @@
         "StartAria": "Unterhaltung starten",
         "PeopleHint": "Alle ausgewählten Personen nehmen an der Unterhaltung teil und können antworten.",
         "IntentLabel": "Ziel (optional)",
-        "ToggleParticipant": "{name} in die Unterhaltung aufnehmen"
+        "ToggleParticipant": "{name} in die Unterhaltung aufnehmen",
+        "ScopeLabel": "Wo soll dies bestehen?",
+        "ScopeTemporary": "Temporäre Übung",
+        "ScopePersistent": "Meine Welt (dauerhafter Raum)",
+        "PersistentHint": "Nachrichten, Erinnerungen und Beziehungen hier werden Teil deiner dauerhaften Welt."
       },
       "Menu": {
         "OverflowAria": "Unterhaltungsmenü",
@@ -845,6 +855,8 @@
         "StartAria": "Anruf starten"
       },
       "Details": {
+        "PracticeVersion": "Übungsversion",
+        "RoomLabel": "Raum",
         "ThreadLabel": "Thread",
         "UntitledThread": "Unbenannter Thread",
         "ParticipantsLabel": "Teilnehmer",

@@ -134,12 +134,17 @@ export interface SchedulePayload {
 // ---------------------------------------------------------------------------
 
 export interface Room {
+  /** Persistent situation; survives individual encounters and Room return. */
+  scenario?: ScenarioSpec;
+  scenarioRef?: string;
   id: string;
   title: string; // auto-named from participants; sticky once user-renamed
   titleUserSet?: boolean;
   participantIds: string[];
   cultureRef?: string; // room-culture document id (later phases)
   unreadCount?: number; // proactive delivery while room window closed (Q3)
+  /** Creation retry identity; a retried persistent creation returns this Room instead of duplicating it. */
+  createdByOperation?: string;
   createdAt: number;
 }
 
@@ -158,10 +163,64 @@ export interface Thread {
   roomId?: string;
   title?: string;
   scenarioRef?: string;
+  scenario?: ScenarioSpec;
   intent?: string;
   mediaRef?: ThreadMediaRef;
   state: 'active' | 'archived' | 'integrated';
   createdAt: number;
+  /** A durable sandbox has its own cast, never permanent Room membership. */
+  sandbox?: {
+    operationId: string;
+    requestHash: string;
+    bindings: { originId?: string; baseline: Participant; localOverride?: Participant }[];
+    /** Pin lived history without duplicating private journal payloads. */
+    baselineHeads: Record<string, number>;
+  };
+}
+
+export interface CreateCastInput {
+  operationId: string;
+  participantIds: string[];
+  intent?: string;
+  title?: string;
+  /** Absent = disposable practice sandbox. 'persistent' publishes a permanent Room. */
+  scope?: 'persistent';
+}
+
+export type ScenarioActivation = Room | Thread;
+
+export interface ScenarioCreation {
+  operationId: string;
+  requestHash: string;
+  request: CreateCastInput;
+  status: 'generating' | 'ready' | 'failed' | 'cancelled' | 'activated';
+  origin: 'generated';
+  createdAt: number;
+  bindings: NonNullable<Thread['sandbox']>['bindings'];
+  baselineHeads: Record<string, number>;
+  scenario?: ScenarioSpec;
+  error?: string;
+  threadId?: string;
+  roomId?: string;
+}
+
+/** Journal context key; an independent sandbox does not require a Room. */
+export function threadContextId(thread: Thread): string {
+  return thread.sandbox ? thread.id : (thread.roomId ?? thread.id);
+}
+
+export function threadParticipants(thread: Thread, participants: Participant[]): Participant[] {
+  return thread.sandbox
+    ? thread.sandbox.bindings.map(binding => binding.localOverride ?? binding.baseline)
+    : participants;
+}
+
+/** Transient roster view for the shared turn engine, not a stored Room. */
+export function sandboxContext(thread: Thread): Room | undefined {
+  if (!thread.sandbox) return undefined;
+  const participants = threadParticipants(thread, []);
+  return { id: thread.id, title: thread.title ?? participants.map(person => person.displayName).join(', '),
+    participantIds: participants.map(person => person.id), createdAt: thread.createdAt };
 }
 
 /** Persistent OR thread-temporary individual. Migrates from legacy AgentConfig. */
@@ -286,6 +345,7 @@ export interface WorldSnapshot {
   rooms: Room[];
   threads: Thread[];
   participants: Participant[];
+  scenarioCreations?: ScenarioCreation[];
 }
 
 /** Result of WORLD_APPLY_MEMBERSHIP — updated room plus the journaled membership event. */

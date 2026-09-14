@@ -814,12 +814,18 @@
         "ExploringWikiDetail": "Wiki探索中: {detail}"
       },
       "Sidebar": {
+        "TemporaryPractice": "一時的な練習",
         "Title": "会話",
         "NewConversation": "新しい会話",
-        "NewThread": "新しいスレッド",
         "UntitledThread": "無題のスレッド"
       },
       "NewConversation": {
+        "ChangeScenario": "設定を変更",
+        "UseScenario": "この状況を使う",
+        "GeneratedNotice": "これは生成された架空の練習です。原作の調査に基づくものではありません。開始前に確認してください。",
+        "PrivatePreview": "非公開の初期状態 — 確認用の表示で、全員に共有される情報ではありません。",
+        "Scene": "状況",
+        "TemporaryHint": "この練習は別に保存されます。ここでの記憶や編集は、あなたの世界を変更しません。",
         "Title": "新しい会話",
         "Hint": "会話の相手を選び、必要なら目標を設定します。",
         "Placeholder": "何について話したり練習したりしたいですか？",
@@ -832,7 +838,11 @@
         "StartAria": "会話を開始",
         "PeopleHint": "選んだ人は全員会話に参加し、返答できます。",
         "IntentLabel": "目標（任意）",
-        "ToggleParticipant": "{name} を会話に加える"
+        "ToggleParticipant": "{name} を会話に加える",
+        "ScopeLabel": "どこに保存しますか？",
+        "ScopeTemporary": "一時的な練習",
+        "ScopePersistent": "マイワールド（永続ルーム）",
+        "PersistentHint": "ここでの会話、記憶、関係は永続的な世界の一部になります。"
       },
       "Menu": {
         "OverflowAria": "会話メニュー",
@@ -845,6 +855,8 @@
         "StartAria": "通話を開始"
       },
       "Details": {
+        "PracticeVersion": "この練習での設定",
+        "RoomLabel": "ルーム",
         "ThreadLabel": "スレッド",
         "UntitledThread": "無題のスレッド",
         "ParticipantsLabel": "参加者",

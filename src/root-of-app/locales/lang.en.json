@@ -814,12 +814,18 @@
         "ExploringWikiDetail": "Exploring wiki: {detail}"
       },
       "Sidebar": {
+        "TemporaryPractice": "Temporary practice",
         "Title": "Conversations",
         "NewConversation": "New conversation",
-        "NewThread": "New thread",
         "UntitledThread": "Untitled thread"
       },
       "NewConversation": {
+        "ChangeScenario": "Review another setup",
+        "UseScenario": "Use this situation",
+        "GeneratedNotice": "This is a generated fictional practice situation, not researched canon. Review it before starting.",
+        "PrivatePreview": "Private starting state — shown here for your review, not shared with everyone.",
+        "Scene": "Situation",
+        "TemporaryHint": "This practice is saved separately. Memories and edits here do not change your world.",
         "Title": "New conversation",
         "Hint": "Pick who the conversation is with, and optionally set a goal for it.",
         "Placeholder": "What do you want to talk about or practice?",
@@ -832,7 +838,11 @@
         "StartAria": "Start conversation",
         "PeopleHint": "Everyone you pick joins the conversation and can respond.",
         "IntentLabel": "Goal (optional)",
-        "ToggleParticipant": "Include {name} in the conversation"
+        "ToggleParticipant": "Include {name} in the conversation",
+        "ScopeLabel": "Where should this live?",
+        "ScopeTemporary": "Temporary practice",
+        "ScopePersistent": "My world (persistent room)",
+        "PersistentHint": "Messages, memories and relationships here become part of your persistent world."
       },
       "Menu": {
         "OverflowAria": "Conversation menu",
@@ -845,6 +855,8 @@
         "StartAria": "Start call"
       },
       "Details": {
+        "PracticeVersion": "Practice version",
+        "RoomLabel": "Room",
         "ThreadLabel": "Thread",
         "UntitledThread": "Untitled thread",
         "ParticipantsLabel": "Participants",

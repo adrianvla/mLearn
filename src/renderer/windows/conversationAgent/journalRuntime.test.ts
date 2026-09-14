@@ -38,6 +38,21 @@ describe('journalRuntime', () => {
     mockJournal.subscribeRoom.mockResolvedValue({ events: [], headSeq: 0, unsubscribe });
   });
 
+  it('loads a persistent Room view from Sea while keeping other Rooms out of its transcript', async () => {
+    const own = event({ id: 'own', type: 'message.user', scope: { kind: 'sea' } });
+    const other = event({ id: 'other', roomId: 'room-2', type: 'message.character', scope: { kind: 'sea' } });
+    mockJournal.readSeaProjection.mockImplementation(async id => id === 'room-1' ? [own] : [other]);
+    const store = createJournalThreadStore();
+    await store.select({ roomId: 'room-1', threadId: null, continuityRoomIds: ['room-2'] });
+    expect(store.threadEvents()).toEqual([own]);
+    expect(store.seaEvents()).toEqual([own, other]);
+    expect(mockJournal.readThread).not.toHaveBeenCalled();
+    const reply = event({ id: 'reply', type: 'message.character', scope: { kind: 'sea' } });
+    mockJournal.appendEvent.mockResolvedValue(reply);
+    await store.append(reply);
+    expect(store.threadEvents()).toEqual([own, reply]);
+  });
+
   it('loads, appends, reselects, and tears down journal streams', async () => {
     const seaOne = event({ id: 'sea-1', type: 'membership', scope: { kind: 'sea' } });
     const threadOne = event({ id: 'thread-1', type: 'message.user' });
@@ -113,5 +128,21 @@ describe('journalRuntime', () => {
     expect(buildLLMHistory([event({ id: 'unknown', type: 'message.character', actorId: 'missing', payload: { text: 'Mine' } })], 'missing', participants)).toEqual([
       { role: 'assistant', content: 'Mine' },
     ]);
+  });
+
+  it('renders persisted character rows through the reasoning-marker boundary and leaves user rows verbatim', () => {
+    const leaked = 'もちろんです！'
+      + '\n\n[thinking] The user is repeating the initial request. I should reiterate.'
+      + '<channel|>そうですね。書き出しましょう。';
+    const messages = eventsToDisplayMessages([
+      event({ id: 'leak', type: 'message.character', actorId: 'a', payload: { text: leaked } }),
+      event({ id: 'user', type: 'message.user', payload: { text: '[thinking] my literal words <channel|>' } }),
+    ], participants, 'You');
+
+    expect(messages).toHaveLength(2);
+    expect(messages[0].content).not.toMatch(/\[thinking\]/i);
+    expect(messages[0].content).not.toMatch(/<\|?channel\|?>/i);
+    expect(messages[0].content).toContain('書き出しましょう');
+    expect(messages[1].content).toBe('[thinking] my literal words <channel|>');
   });
 });

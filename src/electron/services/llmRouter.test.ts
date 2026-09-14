@@ -73,6 +73,7 @@ beforeEach(async () => {
   vi.resetModules();
   mockIpcListeners.clear();
   vi.clearAllMocks();
+  mockBuiltinStreamChat.mockReset();
   mockLoadSettings.mockReturnValue({
     llmProvider: 'builtin',
     ollamaUrl: 'http://localhost:11434',
@@ -86,6 +87,41 @@ beforeEach(async () => {
 });
 
 describe('setupLLMRouterIPC', () => {
+  it('collects bounded main-job output and releases the provider for the next job', async () => {
+    mockBuiltinStreamChat.mockImplementation(async (sender) => {
+      sender.send('llm-stream-chunk', { content: 'hello' });
+      sender.send('llm-stream-chunk', { content: ' world', done: true });
+    });
+    await expect(mod.completeJob([{ role: 'user', content: 'First' }], new AbortController().signal)).resolves.toBe('hello world');
+    await expect(mod.completeJob([{ role: 'user', content: 'Bounded' }], new AbortController().signal, 4)).rejects.toThrow(/budget/);
+    expect(mockBuiltinAbortStream).toHaveBeenCalledOnce();
+    await expect(mod.completeJob([{ role: 'user', content: 'Next' }], new AbortController().signal)).resolves.toBe('hello world');
+  });
+
+  it('does not send a queued local job to cloud after provider settings change', async () => {
+    mod.setupLLMRouterIPC();
+    const owner = createMockSender();
+    await mockIpcListeners.get('llm-stream')![0](createMockEvent(owner), [{ role: 'user', content: 'Foreground' }], []);
+    const result = mod.completeJob([{ role: 'user', content: 'Private local setup' }], new AbortController().signal);
+    const rejected = expect(result).rejects.toThrow(/settings changed/);
+    mockLoadSettings.mockReturnValue({ llmProvider: 'cloud' });
+    owner.send('llm-stream-chunk', { done: true });
+    await rejected;
+    expect(mockCloudStreamChat).not.toHaveBeenCalled();
+  });
+  it('queues a main-owned job behind conversation and cancels it without aborting the foreground owner', async () => {
+    mod.setupLLMRouterIPC();
+    const owner = createMockSender();
+    await mockIpcListeners.get('llm-stream')![0](createMockEvent(owner), [{ role: 'user', content: 'Foreground' }], []);
+    const controller = new AbortController();
+    const result = mod.completeJob([{ role: 'user', content: 'Scenario' }], controller.signal);
+    const rejected = expect(result).rejects.toThrow(/cancel/i);
+    controller.abort();
+    await rejected;
+    expect(mockBuiltinAbortStream).not.toHaveBeenCalled();
+    owner.send('llm-stream-chunk', { done: true });
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+  });
   it('registers LLM_STREAM listener', () => {
     mod.setupLLMRouterIPC();
     expect(mockIpcListeners.has('llm-stream')).toBe(true);

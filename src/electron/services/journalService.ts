@@ -22,7 +22,8 @@ import { app, ipcMain } from 'electron';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 import { IPC_CHANNELS } from '../../shared/constants';
-import { HARNESS_ACTOR } from '../../shared/world';
+import { HARNESS_ACTOR, USER_ACTOR } from '../../shared/world';
+import { loadWorld } from './worldStore';
 import type { DeletionPayload, EventScope, JournalEvent, JournalEventDraft } from '../../shared/world';
 
 const log = getLogger('electron.journal');
@@ -141,7 +142,22 @@ async function appendEventUnlocked(roomId: string, draft: JournalEventDraft): Pr
 
 /** Assigns id/seq/createdAt and appends one line to the scope's stream file. */
 export async function appendEvent(roomId: string, draft: JournalEventDraft): Promise<JournalEvent> {
-  return enqueueWrite(() => appendEventUnlocked(roomId, draft));
+  return enqueueWrite(async () => {
+    if (draft.roomId !== roomId) throw new Error('[journal] context mismatch');
+    const world = await loadWorld();
+    const sandbox = world.threads.find(thread => thread.sandbox &&
+      (thread.id === roomId || (draft.scope.kind === 'thread' && thread.id === draft.scope.threadId)));
+    if (sandbox) {
+      if (roomId !== sandbox.id || draft.scope.kind !== 'thread' || draft.scope.threadId !== sandbox.id) {
+        throw new Error('[journal] sandbox events must stay in their own thread');
+      }
+      const bound = new Set([USER_ACTOR, HARNESS_ACTOR, ...sandbox.sandbox!.bindings.map(binding => binding.baseline.id)]);
+      if (!bound.has(draft.actorId) || draft.witnesses.some(id => !bound.has(id))) {
+        throw new Error('[journal] actor and witnesses must be bound to the sandbox');
+      }
+    }
+    return appendEventUnlocked(roomId, draft);
+  });
 }
 
 export async function subscribeRoom(

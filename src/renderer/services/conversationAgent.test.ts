@@ -79,6 +79,7 @@ interface MockDeps {
   getLanguage: () => string;
   getLanguageName: () => string;
   getLanguageFeatures: () => LanguageFeatures;
+  getObservedLearnerText?: () => string;
   getMediaContext: () => ConversationAgentContext | null;
   flashcardCtx: {
     trackGrammarFailed: (_pattern: string) => void;
@@ -935,6 +936,34 @@ describe('createConversationAgent', () => {
   // ==========================================================================
 
   describe('tool: correct_mistake', () => {
+    it('uses observed human input instead of another participant rendered as a user-role message', async () => {
+      const deps = createMockDeps({ getObservedLearnerText: () => 'What would be fair?' });
+      const agent = createConversationAgent(deps);
+      const { callbacks, onToolCall, onDone } = createCallbacks();
+      agent.processMessage('Neighbor: I go yesterday', [], callbacks);
+      sendDone([{ id: 'wrong-speaker', name: 'correct_mistake', arguments: {
+        error_span: 'go', correction: 'went', affected_pattern: 'past-tense',
+      } }]);
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onToolCall).not.toHaveBeenCalled();
+      expect(deps.flashcardCtx.trackGrammarFailed).not.toHaveBeenCalled();
+    });
+    it('rejects corrections without an observed learner span before recording evidence', async () => {
+      const deps = createMockDeps();
+      const agent = createConversationAgent(deps);
+      const { callbacks, onToolCall, onDone } = createCallbacks();
+      agent.processMessage('What would be fair?', [], callbacks);
+      sendChunk('My own sentence.');
+      sendDone([{ id: 'invalid', name: 'correct_mistake', arguments: { corrections: [
+        { error_span: 'My own sentence.', correction: 'A better sentence.', affected_pattern: 'invented' },
+        { correction: 'A better sentence.', affected_pattern: 'missing-span' },
+        null,
+      ] } }]);
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onToolCall).not.toHaveBeenCalled();
+      expect(deps.flashcardCtx.trackGrammarFailed).not.toHaveBeenCalled();
+    });
+
     it('emits a mistake widget via onToolCall for a single correction', async () => {
       const deps = createMockDeps();
       const agent = createConversationAgent(deps);
@@ -999,7 +1028,7 @@ describe('createConversationAgent', () => {
       const agent = createConversationAgent(deps);
       const { callbacks, onDone } = createCallbacks();
 
-      agent.processMessage('test', [], callbacks);
+      agent.processMessage('I go yesterday', [], callbacks);
       sendChunk('response');
       sendDone([
         {
@@ -1624,11 +1653,37 @@ describe('createConversationAgent', () => {
   // ==========================================================================
 
   describe('parseToolCallsFromContent', () => {
+    it('quarantines malformed model control output during streaming and finalization', async () => {
+      const deps = createMockDeps();
+      const agent = createConversationAgent(deps);
+      const { callbacks, onChunk, onToolCall, onDone } = createCallbacks();
+      agent.processMessage('What would be fair?', [], callbacks);
+      sendChunk('A shared plan. correct_mis');
+      sendChunk('take{corrections:[{affected_pattern:<|"|>efficiency<|"|>,correction:better}]}');
+      sendDone();
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onDone.mock.calls[0][0]).toBe('A shared plan.');
+      expect(onChunk.mock.calls.every(([text]) => !text.includes('correct_mis'))).toBe(true);
+      expect(onToolCall).not.toHaveBeenCalled();
+      expect(deps.flashcardCtx.trackGrammarFailed).not.toHaveBeenCalled();
+    });
+
+    it('parses complete nested arguments without parentheses and preserves following prose', async () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks, onToolCall, onDone } = createCallbacks();
+      agent.processMessage('I go yesterday }', [], callbacks);
+      sendChunk('Try again. correct_mistake{"corrections":[{"error_span":"go","correction":"went","error_type":"grammar","context_after":" yesterday }"}]} Continue.');
+      sendDone();
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onToolCall).toHaveBeenCalledOnce();
+      expect(onDone.mock.calls[0][0]).toBe('Try again.  Continue.');
+    });
+
     it('parses tool call in pattern tool_name({ ... }) from content', async () => {
       const agent = createConversationAgent(createMockDeps());
       const { callbacks, onToolCall, onDone } = createCallbacks();
 
-      agent.processMessage('test', [], callbacks);
+      agent.processMessage('I go yesterday', [], callbacks);
       // Simulate LLM that emits tool calls as plain text with parentheses
       sendChunk('Great response! correct_mistake({"corrections":[{"error_span":"go","correction":"went","error_type":"grammar"}]})');
       sendDone();
@@ -1643,7 +1698,7 @@ describe('createConversationAgent', () => {
       const agent = createConversationAgent(createMockDeps());
       const { callbacks, onToolCall, onDone } = createCallbacks();
 
-      agent.processMessage('test', [], callbacks);
+      agent.processMessage('bad', [], callbacks);
       sendChunk('Response correct_mistake{"error_span":"bad","correction":"good","error_type":"word"}');
       sendDone();
 
@@ -1657,7 +1712,7 @@ describe('createConversationAgent', () => {
       const agent = createConversationAgent(createMockDeps());
       const { callbacks, onChunk, onDone } = createCallbacks();
 
-      agent.processMessage('test', [], callbacks);
+      agent.processMessage('x', [], callbacks);
       sendChunk('Nice work! correct_mistake({"corrections":[{"error_span":"x","correction":"y","error_type":"typo"}]})');
       sendDone();
 
@@ -1667,6 +1722,43 @@ describe('createConversationAgent', () => {
       const chunkCalls = onChunk.mock.calls;
       const lastChunkContent = chunkCalls[chunkCalls.length - 1]?.[0] as string;
       expect(lastChunkContent).not.toContain('correct_mistake');
+    });
+  });
+
+  describe('reasoning-marker boundary', () => {
+    it('does not execute memory tools mentioned inside reasoning', async () => {
+      const onMemorySaved = vi.fn();
+      const agent = createConversationAgent(createMockDeps({ onMemorySaved }));
+      const { callbacks, onDone } = createCallbacks();
+      agent.processMessage('Hello', [], callbacks);
+      sendChunk('<think>save_memory({"content":"fabricated private belief"})</think>');
+      sendChunk('[Thinking] save_memory({"content":"another fabricated belief"})<channel|>Hello.');
+      sendDone();
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      expect(onMemorySaved).not.toHaveBeenCalled();
+      expect(onDone.mock.calls[0][0]).toBe('Hello.');
+    });
+
+    it('never streams or persists provider thinking or inline reasoning labels as speech', async () => {
+      const deps = createMockDeps();
+      const agent = createConversationAgent(deps);
+      const { callbacks, onChunk, onDone } = createCallbacks();
+      agent.processMessage('What would be fair?', [], callbacks);
+      sendChunk('もちろんです。\n\n[Thi');
+      sendChunk('nking] The user is repeating the request. Reiterate.<channel|>じゃあ書き出しましょう。');
+      sendChunk('<think>provider thinking field</think>Which task first?');
+      sendDone();
+      await vi.waitFor(() => expect(onDone).toHaveBeenCalled());
+      for (const [text] of onChunk.mock.calls) {
+        expect(text).not.toMatch(/\[thinking\]/i);
+        expect(text).not.toMatch(/<\|?channel\|?>/i);
+        expect(text).not.toContain('The user is repeating');
+        expect(text).not.toContain('provider thinking field');
+      }
+      expect(onDone.mock.calls[0][0]).toBe('もちろんです。\n\nじゃあ書き出しましょう。Which task first?');
+      const assistant = agent.getHistory().at(-1);
+      expect(assistant?.role).toBe('assistant');
+      expect(assistant?.content).toBe('もちろんです。\n\nじゃあ書き出しましょう。Which task first?');
     });
   });
 

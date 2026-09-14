@@ -4,6 +4,7 @@
  */
 
 import { USER_ACTOR, type JournalEvent, type Participant } from '../../../shared/world';
+import { sanitizeJournalMessageText } from '../../../shared/modelContent';
 import type { CompiledContext } from '../../../shared/contextCompiler';
 
 export interface RoomMessage {
@@ -36,8 +37,9 @@ export function projectMessages(
   const result: RoomMessage[] = [];
   for (const e of events) {
     if (e.type !== 'message.user' && e.type !== 'message.character') continue;
-    const text = messageText(e.payload);
-    if (text === undefined) continue;
+    const rawText = messageText(e.payload);
+    if (rawText === undefined) continue;
+    const text = sanitizeJournalMessageText(e.type, rawText);
     const isUser = e.actorId === USER_ACTOR;
     result.push({
       id: e.id,
@@ -113,6 +115,13 @@ export function renderCompiledContext(
       parts.push(`Grammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): ${lp.grammarExposure.join(', ')}`);
     }
     if (parts.length > 0) sections.push(`## Learner\n${parts.join('\n')}`);
+  }
+  if (ctx.scenario) {
+    const scene = ctx.scenario;
+    sections.push(`## Current situation\n${scene.sharedFacts.join('\n')}`);
+    if (scene.constraints.length) sections.push(`## Situation constraints\n${scene.constraints.join('\n')}`);
+    if (scene.goals.length) sections.push(`## Your goals in this situation\n${scene.goals.join('\n')}`);
+    if (scene.knowledge.length) sections.push(`## Your starting knowledge\n${scene.knowledge.join('\n')}`);
   }
   if (ctx.threadIntent) sections.push(`## Conversation intent\n${ctx.threadIntent}`);
   if (ctx.threadMedia) {

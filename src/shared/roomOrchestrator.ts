@@ -11,10 +11,13 @@
 
 import { compileContext, visibleEventsFor, type CompiledContext } from './contextCompiler';
 import { selectSpeaker } from './speakerSelection';
+import { sanitizeJournalMessageText, sanitizeModelSpeech } from './modelContent';
 import type { LLMChatMessage } from './types';
 import {
   HARNESS_ACTOR,
   USER_ACTOR,
+  sandboxContext,
+  threadParticipants,
   type JournalEvent,
   type JournalEventDraft,
   type MembershipPayload,
@@ -79,8 +82,9 @@ export function projectHistoryForParticipant(
   const history: LLMChatMessage[] = [];
   for (const e of visibleEventsFor(participantId, events, byId.get(participantId)?.capabilities)) {
     if (e.type !== 'message.user' && e.type !== 'message.character') continue;
-    const text = messageText(e.payload);
-    if (text === undefined) continue;
+    const rawText = messageText(e.payload);
+    if (rawText === undefined) continue;
+    const text = sanitizeJournalMessageText(e.type, rawText);
     if (e.actorId === participantId) {
       history.push({ role: 'assistant', content: text });
     } else if (e.actorId === USER_ACTOR) {
@@ -116,13 +120,14 @@ export type RoomAgentRunner = (
 ) => Promise<RoomAgentRunResult>;
 
 export interface RunRoomTurnInput {
+  thread?: Thread;
   room: Room;
   participants: Participant[]; // all known participants (lookup by id)
   seaEvents: JournalEvent[]; // room sea stream (witness-relevant)
   threadEvents: JournalEvent[]; // active thread INCLUDING the triggering user message as the last event
   runAgentTurn: RoomAgentRunner; // injected (renderer supplies AgentInstance-backed runner)
   appendEvent: (draft: JournalEventDraft) => Promise<JournalEvent>;
-  contextTurn?: { text: string; threadId: string };
+  contextTurn?: { text: string; threadId?: string };
   modality?: 'text' | 'voice';
   maxCharacterExchanges?: number; // default 3 — max character→character turns AFTER the first response
   compileContextFn?: typeof compileContext; // default: the real one
@@ -141,6 +146,11 @@ export interface RoomTurnResult {
  * speaker by name). Termination is guaranteed by the exchange cap.
  */
 export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResult> {
+  if (input.thread?.sandbox) {
+    const context = sandboxContext(input.thread)!;
+    if (input.room.id !== context.id) throw new Error('Sandbox turn context mismatch');
+    input = { ...input, room: context, participants: threadParticipants(input.thread, []) };
+  }
   const {
     room,
     participants,
@@ -162,7 +172,7 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
   // the speaker from the user's triggering message.
   const contexts = new Map<string, CompiledContext>();
   for (const p of roster) {
-    contexts.set(p.id, compileContextFn({ participant: p, participants, seaEvents, threadEvents }));
+    contexts.set(p.id, compileContextFn({ room, thread: input.thread, participant: p, participants, seaEvents, threadEvents }));
   }
   const firstSpeakerId = selectSpeaker(roster, {
     lastEventText: input.contextTurn?.text ?? lastMessageText(threadEvents),
@@ -175,17 +185,17 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
   const speakerIds: string[] = [];
   const events: JournalEvent[] = [];
   const currentThreadEvents = [...threadEvents];
-  const threadId = input.contextTurn?.threadId ?? threadIdOf(threadEvents);
+  const threadId = input.thread?.id ?? input.contextTurn?.threadId ?? threadIdOf(threadEvents);
 
   const runAndAppend = async (speakerId: string, context: CompiledContext): Promise<void> => {
     const result = await runAgentTurn(speakerId, context);
     const draft: JournalEventDraft = {
       roomId: room.id,
-      scope: { kind: 'thread', threadId },
+      scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
       type: 'message.character',
       actorId: speakerId,
       witnesses: unique([...room.participantIds, userActorId]),
-      payload: { text: result.text, modality: input.modality ?? 'text' } satisfies MessagePayload,
+      payload: { text: sanitizeModelSpeech(result.text), modality: input.modality ?? 'text' } satisfies MessagePayload,
     };
     const appended = await appendEvent(draft);
     speakerIds.push(speakerId);
@@ -214,6 +224,8 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
       break;
     }
     const context = compileContextFn({
+      room,
+      thread: input.thread,
       participant: nextParticipant,
       participants,
       seaEvents,
@@ -251,9 +263,9 @@ function lastMessageText(events: JournalEvent[]): string | undefined {
   return undefined;
 }
 
-function threadIdOf(events: JournalEvent[]): string {
+function threadIdOf(events: JournalEvent[]): string | undefined {
   for (const e of events) {
     if (e.scope.kind === 'thread') return e.scope.threadId;
   }
-  throw new Error('runRoomTurn: threadEvents must contain a thread-scoped event');
+  return undefined;
 }

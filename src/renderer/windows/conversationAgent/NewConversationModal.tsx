@@ -1,19 +1,14 @@
 /**
- * New conversation — two separate concepts:
- *  1. Participants: structured selection over known persistent people/agents;
- *     selection stores participant IDs and they join the room roster through
- *     journaled membership events.
- *  2. Intent: optional free text handed to the room orchestrator as setup
- *     context. It never replaces or becomes a participant.
- *
- * With nobody selected, the legacy free-text resolution still applies
- * (existing identity → disambiguation → new partner described by the text) —
- * the only bootstrap path when no persistent participants exist yet.
+ * Structured selection creates conversations through main-owned publication.
+ * Temporary practice saves an independent sandbox; persistent scope publishes
+ * a permanent Room through the same Director boundary. Intent stays separate
+ * from the selected identities and prepares a Director proposal for review
+ * before atomic activation.
  */
 
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
-import type { Participant, WorldSnapshot } from '../../../shared/world';
+import { threadContextId, type Participant, type WorldSnapshot, type ScenarioCreation } from '../../../shared/world';
 import { resolveParticipant } from '../../services/participantConstruction';
 import { Btn, FormField, HintText, ModalForm, Textarea } from '../../components/common';
 import { useLocalization } from '../../context';
@@ -21,7 +16,8 @@ import './NewConversationModal.css';
 
 export interface NewConversationResult {
   roomId: string;
-  threadId: string;
+  /** Sandbox threads select themselves; persistent rooms may open Sea scope. */
+  threadId: string | null;
   /** Optional user goal, passed to the orchestrator as setup context. */
   intent?: string;
 }
@@ -36,22 +32,23 @@ export function firstCapitalizedWordSequence(text: string): string {
   return text.match(/\b[A-Z][\p{L}'-]*(?:\s+[A-Z][\p{L}'-]*)*/u)?.[0] ?? '';
 }
 
-export function temporaryParticipantName(text: string): string {
-  const match = text.match(/["“]([^"”]+)["”]|^talk to ([^,.]+)/i);
-  return match?.[1]?.trim() || match?.[2]?.trim() || 'Partner';
-}
-
 function participantInitial(participant: Participant): string {
   return participant.displayName.trim().charAt(0).toUpperCase() || '?';
 }
 
 export const NewConversationModal: Component<NewConversationModalProps> = (props) => {
   const { t } = useLocalization();
-  const [intent, setIntent] = createSignal('');
-  const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set());
+  const saved = props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating' || item.status === 'failed');
+  const [intent, setIntent] = createSignal(saved?.request.intent ?? '');
+  const [scope, setScope] = createSignal<'sandbox' | 'persistent'>(saved?.request.scope === 'persistent' ? 'persistent' : 'sandbox');
+  const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set(saved?.request.participantIds ?? []));
+  const [preview, setPreview] = createSignal<ScenarioCreation | null>(saved?.status === 'ready' ? saved : null);
   const [candidates, setCandidates] = createSignal<Participant[]>([]);
   const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
+  const [error, setError] = createSignal<string | null>(saved?.error ?? null);
+  let creationKey: string | undefined = saved ? JSON.stringify({ ids: saved.request.participantIds, intent: saved.request.intent?.trim() ?? '' }) : undefined;
+  let creationOperationId: string | undefined = saved?.operationId;
+  let generation = 0;
   const persistentParticipants = createMemo(() => (props.world?.participants ?? []).filter((participant) => participant.kind === 'persistent'));
 
   const isSelected = (participant: Participant): boolean => selectedIds().has(participant.id);
@@ -67,36 +64,59 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     setError(null);
   };
 
-  /**
-   * Creates the room, journals membership for every selected ID, opens the
-   * thread. `resolve` are participants to consult for the room title beyond
-   * props.world — e.g. one created in this same submission, which the stale
-   * snapshot cannot know about.
-   */
-  const startWithSelection = async (ids: string[], resolve: Participant[] = []): Promise<void> => {
+  const close = async (): Promise<void> => {
+    generation++;
+    try {
+      if (creationOperationId) await getBridge().world.cancelScenario(creationOperationId);
+      props.onClose();
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+  };
+
+  const changeScenario = async (): Promise<void> => {
+    if (creationOperationId) await getBridge().world.cancelScenario(creationOperationId);
+    setPreview(null); creationKey = undefined; creationOperationId = undefined;
+  };
+
+  const startWithSelection = async (ids: string[]): Promise<void> => {
     const bridge = getBridge().world;
-    const known = [...(props.world?.participants ?? []), ...resolve];
-    const selected = ids
-      .map((id) => known.find((participant) => participant.id === id))
-      .filter((participant): participant is Participant => participant !== undefined);
-    const room = await bridge.createRoom(selected.map((participant) => participant.displayName).join(', '));
-    for (const id of ids) {
-      await bridge.applyMembership(room.id, id, 'add');
-    }
-    const thread = await bridge.createThread(room.id);
     const trimmedIntent = intent().trim();
-    if (trimmedIntent) await bridge.updateThread({ ...thread, intent: trimmedIntent });
-    await props.onCreated({ roomId: room.id, threadId: thread.id, ...(trimmedIntent ? { intent: trimmedIntent } : {}) });
+    const persistent = scope() === 'persistent';
+    const key = JSON.stringify({ ids, intent: trimmedIntent, scope: scope() });
+    if (key !== creationKey) { creationKey = key; creationOperationId = crypto.randomUUID(); }
+    const request = { operationId: creationOperationId!, participantIds: ids,
+      ...(persistent ? { scope: 'persistent' as const } : {}),
+      ...(trimmedIntent ? { intent: trimmedIntent } : {}) };
+    if (trimmedIntent) {
+      const current = ++generation;
+      const prepared = await bridge.prepareScenario(request);
+      if (current === generation) setPreview(prepared);
+      return;
+    }
+    if (persistent) {
+      const room = await bridge.createPersistentRoom(request);
+      await props.onCreated({ roomId: room.id, threadId: null });
+      return;
+    }
+    const thread = await bridge.createSandbox(request);
+    await props.onCreated({ roomId: threadContextId(thread), threadId: thread.id });
   };
 
   const handleStart = async (): Promise<void> => {
     const ids = [...selectedIds()];
     const text = intent().trim();
-    if (busy() || (ids.length === 0 && !text)) return;
+    if (busy() || (!preview() && ids.length === 0 && !text)) return;
 
     setBusy(true);
     setError(null);
     try {
+      const prepared = preview();
+      if (prepared) {
+        const activated = await getBridge().world.activateScenario(prepared.operationId);
+        await props.onCreated('participantIds' in activated
+          ? { roomId: activated.id, threadId: null }
+          : { roomId: threadContextId(activated), threadId: activated.id, intent: text });
+        return;
+      }
       if (ids.length > 0) {
         await startWithSelection(ids);
         return;
@@ -115,14 +135,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
         return;
       }
 
-      // No structured selection matched: the existing bootstrap path creates a
-      // temporary conversation partner described by the text.
-      const participant = await getBridge().world.createParticipant({
-        displayName: temporaryParticipantName(text),
-        kind: 'temporary',
-        personaText: text,
-      });
-      await startWithSelection([participant.id], [participant]);
+      await startWithSelection([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('mlearn.ConversationAgent.NewConversation.Failed'));
     } finally {
@@ -133,7 +146,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   return (
     <ModalForm
       isOpen={true}
-      onClose={props.onClose}
+      onClose={() => { void close(); }}
       title={t('mlearn.ConversationAgent.NewConversation.Title')}
       size="md"
       showCloseButton={true}
@@ -142,68 +155,122 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       onSubmit={handleStart}
       footer={
         <div class="new-conversation-actions">
-          <Btn variant="ghost" onClick={props.onClose} disabled={busy()}>{t('mlearn.ConversationAgent.NewConversation.Cancel')}</Btn>
+          <Btn variant="ghost" onClick={() => { void close(); }}>{t('mlearn.ConversationAgent.NewConversation.Cancel')}</Btn>
+          <Show when={preview()}>
+            <Btn variant="ghost" disabled={busy()} onClick={() => { void changeScenario().catch(err => setError(String(err))); }}>{t('mlearn.ConversationAgent.NewConversation.ChangeScenario')}</Btn>
+          </Show>
           <Btn
             variant="primary"
-            aria-label={t('mlearn.ConversationAgent.NewConversation.StartAria')}
+            aria-label={t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.StartAria')}
             onClick={handleStart}
-            disabled={busy() || (selectedIds().size === 0 && !intent().trim())}
+            disabled={busy() || (!preview() && selectedIds().size === 0 && !intent().trim())}
           >
-            {busy() ? t('mlearn.ConversationAgent.NewConversation.Starting') : t('mlearn.ConversationAgent.NewConversation.Start')}
+            {busy() ? t('mlearn.ConversationAgent.NewConversation.Starting') : t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.Start')}
           </Btn>
         </div>
       }
     >
       <div class="new-conversation-form">
-        <Show when={persistentParticipants().length > 0}>
-          <fieldset class="new-conversation-people">
-            <legend class="new-conversation-people-label">{t('mlearn.ConversationAgent.NewConversation.PeopleLabel')}</legend>
-            <div class="new-conversation-people-list">
-              <For each={persistentParticipants()}>
-                {(participant) => (
-                  <Btn
-                    variant="ghost"
-                    class={`new-conversation-person ${isSelected(participant) ? 'new-conversation-person--selected' : ''}`}
-                    aria-label={t('mlearn.ConversationAgent.NewConversation.ToggleParticipant', { name: participant.displayName })}
-                    aria-pressed={isSelected(participant)}
-                    onClick={() => toggleParticipant(participant)}
-                    disabled={busy()}
-                  >
-                    <Show
-                      when={participant.profilePhoto}
-                      fallback={<span class="new-conversation-avatar">{participantInitial(participant)}</span>}
-                    >
-                      <img class="new-conversation-avatar" src={participant.profilePhoto} alt="" />
-                    </Show>
-                    <span class="new-conversation-person-name">{participant.displayName}</span>
-                  </Btn>
-                )}
-              </For>
+        <Show when={!preview()}>
+          <fieldset class="new-conversation-scope">
+            <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}</legend>
+            <div class="new-conversation-scope-options" role="radiogroup" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}>
+              <Btn
+                variant="ghost"
+                class={`new-conversation-scope-option ${scope() === 'sandbox' ? 'new-conversation-scope-option--active' : ''}`}
+                role="radio"
+                aria-checked={scope() === 'sandbox'}
+                onClick={() => setScope('sandbox')}
+                disabled={busy()}
+              >{t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')}</Btn>
+              <Btn
+                variant="ghost"
+                class={`new-conversation-scope-option ${scope() === 'persistent' ? 'new-conversation-scope-option--active' : ''}`}
+                role="radio"
+                aria-checked={scope() === 'persistent'}
+                onClick={() => setScope('persistent')}
+                disabled={busy()}
+              >{t('mlearn.ConversationAgent.NewConversation.ScopePersistent')}</Btn>
             </div>
-            <HintText>{t('mlearn.ConversationAgent.NewConversation.PeopleHint')}</HintText>
           </fieldset>
+          <Show when={persistentParticipants().length > 0}>
+            <fieldset class="new-conversation-people">
+              <legend class="new-conversation-people-label">{t('mlearn.ConversationAgent.NewConversation.PeopleLabel')}</legend>
+              <div class="new-conversation-people-list">
+                <For each={persistentParticipants()}>
+                  {(participant) => (
+                    <Btn
+                      variant="ghost"
+                      class={`new-conversation-person ${isSelected(participant) ? 'new-conversation-person--selected' : ''}`}
+                      aria-label={t('mlearn.ConversationAgent.NewConversation.ToggleParticipant', { name: participant.displayName })}
+                      aria-pressed={isSelected(participant)}
+                      onClick={() => toggleParticipant(participant)}
+                      disabled={busy()}
+                    >
+                      <Show
+                        when={participant.profilePhoto}
+                        fallback={<span class="new-conversation-avatar">{participantInitial(participant)}</span>}
+                      >
+                        <img class="new-conversation-avatar" src={participant.profilePhoto} alt="" />
+                      </Show>
+                      <span class="new-conversation-person-name">{participant.displayName}</span>
+                    </Btn>
+                  )}
+                </For>
+              </div>
+              <HintText>{t('mlearn.ConversationAgent.NewConversation.PeopleHint')}</HintText>
+              <Show when={selectedIds().size > 0}>
+                <HintText>{t(scope() === 'persistent'
+                  ? 'mlearn.ConversationAgent.NewConversation.PersistentHint'
+                  : 'mlearn.ConversationAgent.NewConversation.TemporaryHint')}</HintText>
+              </Show>
+            </fieldset>
+          </Show>
+          <FormField label={t('mlearn.ConversationAgent.NewConversation.IntentLabel')}>
+            <Textarea
+              value={intent()}
+              onInput={(event) => setIntent(event.currentTarget.value)}
+              placeholder={t('mlearn.ConversationAgent.NewConversation.Placeholder')}
+              rows={4}
+            />
+          </FormField>
+          <Show when={candidates().length > 0}>
+            <div class="new-conversation-disambiguation">
+              <span>{t('mlearn.ConversationAgent.NewConversation.DidYouMean')}</span>
+              <div class="new-conversation-people-list">
+                <For each={candidates()}>
+                  {(participant) => (
+                    <Btn variant="ghost" class="new-conversation-person" onClick={() => toggleParticipant(participant)} disabled={busy()}>
+                      {participant.displayName}
+                    </Btn>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
         </Show>
-        <FormField label={t('mlearn.ConversationAgent.NewConversation.IntentLabel')}>
-          <Textarea
-            value={intent()}
-            onInput={(event) => setIntent(event.currentTarget.value)}
-            placeholder={t('mlearn.ConversationAgent.NewConversation.Placeholder')}
-            rows={4}
-          />
-        </FormField>
-        <Show when={candidates().length > 0}>
-          <div class="new-conversation-disambiguation">
-            <span>{t('mlearn.ConversationAgent.NewConversation.DidYouMean')}</span>
-            <div class="new-conversation-people-list">
-              <For each={candidates()}>
-                {(participant) => (
-                  <Btn variant="ghost" class="new-conversation-person" onClick={() => toggleParticipant(participant)} disabled={busy()}>
-                    {participant.displayName}
-                  </Btn>
-                )}
+        <Show when={preview()} keyed>
+          {(prepared) => (
+            <div class="new-conversation-preview">
+              <HintText>{t('mlearn.ConversationAgent.NewConversation.GeneratedNotice')}</HintText>
+              <For each={prepared.scenario?.scene.sharedFacts ?? []}>{fact => <p>{fact}</p>}</For>
+              <For each={prepared.scenario?.participants ?? []}>
+                {(reference) => {
+                  const profile = reference.kind === 'temporary' ? reference.profile : undefined;
+                  const existing = reference.kind === 'existing' ? prepared.bindings.find(item => item.originId === reference.participantId)?.baseline : undefined;
+                  return <details>
+                    <summary>{profile?.name ?? existing?.displayName}</summary>
+                    <p>{profile?.personaText ?? existing?.personaText}</p>
+                    <Show when={profile}>
+                      <HintText>{t('mlearn.ConversationAgent.NewConversation.PrivatePreview')}</HintText>
+                      <For each={profile?.goals ?? []}>{goal => <p>{goal}</p>}</For>
+                      <For each={profile?.initialKnowledge ?? []}>{fact => <p>{fact.text}</p>}</For>
+                    </Show>
+                  </details>;
+                }}
               </For>
             </div>
-          </div>
+          )}
         </Show>
         <Show when={error()}>
           <div class="new-conversation-error">{error()}</div>

@@ -3,6 +3,7 @@
   flex-direction: column;
   gap: var(--spacing-3);
   height: 100%;
+  min-width: 0;
   overflow-y: auto;
   padding: var(--spacing-4);
 }
@@ -18,9 +19,18 @@
 .room-sidebar-new-conversation:hover { border-color: var(--border-color-intense); background: var(--bg-secondary); }
 .room-sidebar-rooms, .room-sidebar-threads { display: flex; flex-direction: column; gap: var(--spacing-2); }
 .room-sidebar-room, .room-sidebar-thread {
+  min-width: 0;
   width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);
   background: var(--bg-primary); color: var(--text-primary); cursor: pointer; padding: var(--spacing-2) var(--spacing-3); text-align: left;
 }
+.room-sidebar-room .btn-content, .room-sidebar-thread .btn-content {
+  min-width: 0;
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  justify-content: flex-start;
+}
+.room-sidebar-rooms, .room-sidebar-threads { min-width: 0; }
 .room-sidebar-room { display: flex; justify-content: space-between; align-items: center; }
 .room-sidebar-room--active, .room-sidebar-thread--active { background: var(--bg-success); border-color: var(--border-success); }
 .room-sidebar-unread { min-width: 1.25rem; border-radius: var(--radius-full); background: var(--bg-danger); color: var(--text-on-color); text-align: center; font-size: var(--font-size-xs); }

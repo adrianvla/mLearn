@@ -338,3 +338,59 @@ describe('runRoomTurn', () => {
     expect(result.stoppedReason).toBe('no-eligible-speaker');
   });
 });
+
+it('continues a persistent Room directly in Sea without manufacturing a Thread', async () => {
+  const user = { ...messageEvent('u', 1, USER_ACTOR, 'Alice, hello', ['p_a', USER_ACTOR]), scope: { kind: 'sea' as const } };
+  const { appendEvent, appended } = makeAppender();
+  await runRoomTurn({ room: room('r1', ['p_a']), participants: [participant('p_a', 'Alice')], seaEvents: [user],
+    threadEvents: [user], runAgentTurn: async () => ({ text: 'Welcome back.' }), appendEvent, maxCharacterExchanges: 0 });
+  expect(appended).toHaveLength(1);
+  expect(appended[0].scope).toEqual({ kind: 'sea' });
+});
+
+const V05_LEAKED_REPLY = 'もちろん！まずは作業をリストアップしましょう。'
+  + '\n\n[thinking] The user is repeating the initial request. I should reiterate the list approach.'
+  + '<channel|>そうですね。公平に分けるには、まず作業を書き出しましょう。';
+
+describe('reasoning-marker boundary', () => {
+  it('does not persist reasoning control syntax as character speech', async () => {
+    const a = participant('p_a', 'Alice');
+    const r = room('r1', ['p_a']);
+    const threadEvents = [messageEvent('evt_1', 1, USER_ACTOR, 'Hello Alice', ['p_a', USER_ACTOR])];
+    const { appendEvent, appended } = makeAppender();
+    await runRoomTurn({
+      room: r,
+      participants: [a],
+      seaEvents: [],
+      threadEvents,
+      runAgentTurn: async () => ({ text: V05_LEAKED_REPLY }),
+      appendEvent,
+      maxCharacterExchanges: 0,
+    });
+    expect(appended).toHaveLength(1);
+    const text = messageTextOf(appended[0]);
+    expect(text).not.toMatch(/\[thinking\]/i);
+    expect(text).not.toMatch(/<\|?channel\|?>/i);
+    expect(text).not.toContain('The user is repeating');
+    expect(text).toContain('公平に分けるには');
+  });
+
+  it('projects persisted leaked character rows clean while keeping user rows verbatim', () => {
+    const leaked = messageEvent('evt_2', 2, 'p_a', V05_LEAKED_REPLY, ['p_a', USER_ACTOR]);
+    const userRow = messageEvent('evt_3', 3, USER_ACTOR, '[thinking] my literal words <channel|>', ['p_a', USER_ACTOR]);
+    const history = projectHistoryForParticipant([leaked, userRow], 'p_a', [participant('p_a', 'Alice')]);
+    const assistant = history.find((m) => m.role === 'assistant');
+    expect(assistant?.content).not.toMatch(/\[thinking\]/i);
+    expect(assistant?.content).not.toMatch(/<\|?channel\|?>/i);
+    expect(assistant?.content).toContain('公平に分けるには');
+    const user = history.find((m) => m.role === 'user');
+    expect(user?.content).toBe(userRow.payload.text);
+  });
+});
+
+function messageTextOf(event: JournalEvent): string {
+  const payload: unknown = event.payload;
+  return payload !== null && typeof payload === 'object' && 'text' in payload && typeof payload.text === 'string'
+    ? payload.text
+    : '';
+}

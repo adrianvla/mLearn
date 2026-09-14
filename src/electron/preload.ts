@@ -595,8 +595,15 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_ROOM, title),
   applyMembership: (roomId: string, participantId: string, kind: 'add' | 'remove'): Promise<import('../shared/world').MembershipChangeResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_APPLY_MEMBERSHIP, roomId, participantId, kind),
-  createThread: (roomId: string, title?: string): Promise<import('../shared/world').Thread> =>
-    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_THREAD, roomId, title),
+  prepareScenario: (input: import('../shared/world').CreateCastInput): Promise<import('../shared/world').ScenarioCreation> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_PREPARE_SCENARIO, input),
+  activateScenario: (id: string): Promise<import('../shared/world').ScenarioActivation> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_ACTIVATE_SCENARIO, id),
+  cancelScenario: (id: string): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.WORLD_CANCEL_SCENARIO, id),
+  createSandbox: (input: import('../shared/world').CreateCastInput): Promise<import('../shared/world').Thread> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_SANDBOX, input),
+  createPersistentRoom: (input: import('../shared/world').CreateCastInput): Promise<import('../shared/world').Room> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_PERSISTENT_ROOM, input),
   updateThread: (thread: import('../shared/world').Thread): Promise<import('../shared/world').Thread> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_THREAD, thread),
   deleteThread: (roomId: string, threadId: string): Promise<void> =>
@@ -617,8 +624,8 @@ const mLearnIPC = {
     profilePhoto?: string;
   }): Promise<import('../shared/world').Participant> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_PARTICIPANT, input),
-  updateParticipant: (participant: import('../shared/world').Participant): Promise<import('../shared/world').Participant> =>
-    ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_PARTICIPANT, participant),
+  updateParticipant: (participant: import('../shared/world').Participant, threadId?: string): Promise<import('../shared/world').Participant> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_PARTICIPANT, participant, threadId),
   deleteParticipant: (participantId: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_DELETE_PARTICIPANT, participantId),
   clearRoomUnread: (roomId: string): Promise<void> =>

@@ -460,7 +460,11 @@ function streamChatUnified(
     let buffer = '';
     let doneSent = false;
     // Track thinking state for models that still use thinking mode
-    // (fallback if `think: false` is not supported by the Ollama version)
+    // (fallback if `think: false` is not supported by the Ollama version).
+    // Thinking is wrapped in `<think>` regions as transport metadata, never
+    // speech: the canonical model-content boundary (shared/modelContent.ts
+    // sanitizeModelSpeech) strips it before anything becomes user-visible or
+    // persisted character speech.
     let inThinking = false;
 
     res.on('data', (rawChunk: Buffer) => {

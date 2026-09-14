@@ -814,12 +814,18 @@
         "ExploringWikiDetail": "正在探索 wiki：{detail}"
       },
       "Sidebar": {
+        "TemporaryPractice": "临时练习",
         "Title": "对话",
         "NewConversation": "新对话",
-        "NewThread": "新话题",
         "UntitledThread": "未命名话题"
       },
       "NewConversation": {
+        "ChangeScenario": "修改设置",
+        "UseScenario": "使用此情境",
+        "GeneratedNotice": "这是生成的虚构练习情境，并非经过考证的原作设定。请在开始前确认。",
+        "PrivatePreview": "私有初始状态——仅供你在此审核，不会分享给所有人。",
+        "Scene": "情境",
+        "TemporaryHint": "此练习单独保存。这里的记忆和编辑不会改变你的世界。",
         "Title": "新对话",
         "Hint": "选择对话对象，并可选择设定一个目标。",
         "Placeholder": "你想聊什么或练习什么？",
@@ -832,7 +838,11 @@
         "StartAria": "开始对话",
         "PeopleHint": "所选的每个人都会加入对话并可以回应。",
         "IntentLabel": "目标（可选）",
-        "ToggleParticipant": "将 {name} 加入对话"
+        "ToggleParticipant": "将 {name} 加入对话",
+        "ScopeLabel": "保存在哪里？",
+        "ScopeTemporary": "临时练习",
+        "ScopePersistent": "我的世界（永久房间）",
+        "PersistentHint": "这里的消息、记忆和关系将成为你永久世界的一部分。"
       },
       "Menu": {
         "OverflowAria": "对话菜单",
@@ -845,6 +855,8 @@
         "StartAria": "开始通话"
       },
       "Details": {
+        "PracticeVersion": "练习版本",
+        "RoomLabel": "房间",
         "ThreadLabel": "话题",
         "UntitledThread": "未命名话题",
         "ParticipantsLabel": "参与者",

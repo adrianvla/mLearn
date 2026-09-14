@@ -9,6 +9,8 @@
  */
 
 import { ipcMain, type IpcMainEvent } from 'electron';
+import { EventEmitter } from 'events';
+import { getUserDataPath } from '../utils/platform';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
@@ -29,9 +31,17 @@ interface QueuedStreamRequest {
   tools: LLMToolDefinition[];
   tier?: string;
   think?: boolean;
+  expectedRoute?: string;
+}
+
+function routeKey(settings: Settings): string {
+  return JSON.stringify([getUserDataPath(), settings.llmProvider, settings.ollamaUrl, settings.ollamaModel,
+    settings.builtinModel, settings.cloudApiUrl, settings.overrideCloudEndpointUrl,
+    settings.cloudAuthAccessToken, settings.cloudAuthToken]);
 }
 
 let activeOwner: number | null = null;
+let activeProvider: Settings['llmProvider'] | null = null;
 let activeSender: Electron.WebContents | null = null;
 let activeOriginalSend: ((channel: string, ...args: unknown[]) => void) | null = null;
 let activeDestroyedListener: (() => void) | null = null;
@@ -47,7 +57,7 @@ function wrapSenderSend(sender: Electron.WebContents): void {
     originalSend(channel, ...args);
     if (channel === IPC_CHANNELS.LLM_STREAM_CHUNK) {
       const chunk = args[0] as LLMStreamChunk | undefined;
-      if (chunk?.done) {
+      if (chunk?.done && activeSender === sender) {
         releaseStream();
       }
     }
@@ -67,6 +77,7 @@ function releaseStream(): void {
   activeOriginalSend = null;
   activeSender = null;
   activeOwner = null;
+  activeProvider = null;
   drainQueue();
 }
 
@@ -79,7 +90,7 @@ function drainQueue(): void {
     activeOwner = next.sender.id;
     activeSender = next.sender;
     wrapSenderSend(next.sender);
-    void dispatchStream(next.sender, next.messages, next.tools, next.tier, next.think);
+    void dispatchStream(next.sender, next.messages, next.tools, next.tier, next.think, next.expectedRoute);
     return;
   }
 }
@@ -131,11 +142,14 @@ async function dispatchStream(
   tools: LLMToolDefinition[],
   tier?: string,
   think?: boolean,
+  expectedRoute?: string,
 ): Promise<void> {
   const settings = loadSettings();
   const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
+  activeProvider = provider;
 
   try {
+    if (expectedRoute !== undefined && expectedRoute !== routeKey(settings)) throw new Error('Inference settings changed while the job was queued');
     if (provider === 'cloud') {
       const adapter = getCloudAdapter();
       await adapter.streamChat(messages, tools || [], {
@@ -164,7 +178,7 @@ async function dispatchStream(
 /** Route an abort to the provider configured in settings (existing routing logic). */
 function abortProvider(senderId: number): void {
   const settings = loadSettings();
-  const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
+  const provider = activeProvider ?? settings.llmProvider ?? DEFAULT_SETTINGS.llmProvider;
 
   if (provider === 'cloud') {
     cloudAdapter?.abort();
@@ -173,6 +187,46 @@ function abortProvider(senderId: number): void {
   } else {
     builtinAbortStream();
   }
+}
+
+let nextJobOwner = -100;
+
+/** Main-owned inference shares the conversation queue and owns only its cancellation. */
+export function completeJob(messages: LLMChatMessage[], signal: AbortSignal, maxOutputCharacters = 24000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let text = '';
+    const sender = Object.assign(new EventEmitter(), {
+      id: nextJobOwner--,
+      isDestroyed: () => settled,
+      send: (_channel: string, chunk: LLMStreamChunk) => {
+        if (settled) return;
+        if (chunk.error) { cancel(new Error(chunk.error)); return; }
+        text += chunk.content ?? '';
+        if (text.length > maxOutputCharacters) { cancel(new Error('Model output exceeded the scenario budget')); return; }
+        if (chunk.done) finish();
+      },
+    }) as unknown as Electron.WebContents;
+    const finish = (error?: Error): void => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', onAbort);
+      if (error) reject(error); else resolve(text);
+    };
+    const cancel = (error: Error): void => {
+      finish(error);
+      for (let i = queue.length - 1; i >= 0; i--) if (queue[i].sender.id === sender.id) queue.splice(i, 1);
+      if (activeOwner === sender.id) {
+        abortProvider(sender.id);
+        if (activeOwner === sender.id) releaseStream();
+      }
+    };
+    const onAbort = (): void => cancel(new Error('Scenario generation cancelled'));
+    if (signal.aborted) { onAbort(); return; }
+    signal.addEventListener('abort', onAbort, { once: true });
+    queue.push({ sender, messages, tools: [], expectedRoute: routeKey(loadSettings()) });
+    if (activeOwner === null) drainQueue();
+  });
 }
 
 /**
@@ -206,7 +260,7 @@ export function setupLLMRouterIPC(): void {
 
     if (activeOwner === sender.id) {
       abortProvider(sender.id);
-      releaseStream();
+      if (activeOwner === sender.id) releaseStream();
     } else if (queue.some((req) => req.sender.id === sender.id)) {
       // Non-owner with queued request: silently cancel it (it was never dispatched).
       for (let i = queue.length - 1; i >= 0; i--) {
