@@ -16,10 +16,16 @@ export interface GraphNode {
   kind: GraphEntityKind;
   domain?: GraphDomain;
   label?: string;
+  /** Package-authored description, when richer than the source label. */
+  displayLabel?: string;
 }
 
 export interface GraphRelatedNode extends GraphNode {
   relationType: GraphRelationType;
+  /** Intermediate lexical entity for properties exposed through a surface. */
+  via?: GraphNode;
+  order?: number;
+  role?: string;
   confidence?: number;
   transparency?: number;
   predictability?: number;
@@ -55,6 +61,8 @@ export interface GraphNeighborhoodQuery {
   depth?: 1 | 2;
   relationClasses?: RelationCategory[];
   limit?: number;
+  /** Offset into the stable neighborhood ordering; counts precede pagination. */
+  offset?: number;
 }
 
 export interface GraphWordLookup {

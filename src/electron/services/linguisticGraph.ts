@@ -5,7 +5,7 @@ import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { COMPACT_RELATION_TYPES, decodeCompact, type CompactAssetJSON, type RuntimeCompactGraph } from '../../shared/graph/compact';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodCenterState, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../../shared/graph/ipc';
-import { RELATION_CATEGORY, type GraphRelationType } from '../../shared/graph/types';
+import { relationCategory, type GraphRelationType } from '../../shared/graph/types';
 import type { LingualGraph } from '../../shared/graph/load';
 import { createCompactGraphView } from '../../shared/graph/compactView';
 import { buildKnowledgeProjection } from './knowledgeProjection';
@@ -95,7 +95,22 @@ export class LinguisticGraphService {
     const labelId = graph.entityLabelStringIds[dense];
     const domainId = graph.entityDomainIds[dense];
     const domains = [undefined, 'common', 'names', 'archaic', 'technical', 'dialectal'] as const;
-    return { id, kind, ...(domains[domainId] ? { domain: domains[domainId] } : {}), ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}) };
+    // Use the package's own meanings to distinguish homographic source entries.
+    // This is a display summary only; the canonical label and ID stay intact.
+    let displayLabel = graph.entityGrammar?.[dense]?.meaning;
+    if (!displayLabel && (kind === 'dictionary-entry' || kind === 'lexeme')) {
+      const meanings = new Set<string>();
+      for (let edge = graph.relationOffsets[dense]; edge < graph.relationOffsets[dense + 1]; edge++) {
+        if (COMPACT_RELATION_TYPES[graph.relationTypeIds[edge]] !== 'has-sense') continue;
+        const target = graph.relationTargets[edge];
+        if (graph.nodeKind(graph.persistentOf[target]) !== 'sense') continue;
+        const meaningLabel = graph.entityLabelStringIds[target];
+        if (meaningLabel >= 0) meanings.add(graph.stringTable[meaningLabel]);
+        if (meanings.size === 2) break;
+      }
+      if (meanings.size) displayLabel = [labelId >= 0 ? graph.stringTable[labelId] : '', [...meanings].join('; ')].filter(Boolean).join(' — ');
+    }
+    return { id, kind, ...(displayLabel ? { displayLabel } : {}), ...(domains[domainId] ? { domain: domains[domainId] } : {}), ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}) };
   }
 
   private related(graph: RuntimeCompactGraph, id: string, relationTypes: readonly GraphRelationType[]): GraphRelatedNode[] {
@@ -104,12 +119,16 @@ export class LinguisticGraphService {
     const allowed = new Set(relationTypes);
     const related: GraphRelatedNode[] = [];
     for (let edge = graph.relationOffsets[dense]; edge < graph.relationOffsets[dense + 1]; edge += 1) {
-      const relationType = COMPACT_RELATION_TYPES[graph.relationTypeIds[edge]];
+      const typeId = graph.relationTypeIds[edge];
+      const relationType = COMPACT_RELATION_TYPES[typeId] ?? graph.extensionRelationTypeStrings?.[typeId - COMPACT_RELATION_TYPES.length];
+      if (!relationType) continue;
       if (!allowed.has(relationType)) continue;
       const node = this.node(graph, graph.persistentOf[graph.relationTargets[edge]]);
       if (node) related.push({
         ...node,
         relationType,
+        ...(graph.relationOrders?.[edge] !== undefined ? { order: graph.relationOrders[edge] } : {}),
+        ...(graph.relationRoles?.[edge] !== undefined ? { role: graph.relationRoles[edge] } : {}),
         ...(graph.relationConfidence && graph.relationConfidence[edge] >= 0 ? { confidence: graph.relationConfidence[edge] } : {}),
         ...(graph.relationTransparency && graph.relationTransparency[edge] >= 0 ? { transparency: graph.relationTransparency[edge] } : {}),
         ...(graph.relationPredictability && graph.relationPredictability[edge] >= 0 ? { predictability: graph.relationPredictability[edge] } : {}),
@@ -150,29 +169,27 @@ export class LinguisticGraphService {
     const dense = loaded.graph.denseOf.get(query.entityId);
     if (!center || dense === undefined) return null;
     const classes = query.relationClasses ? new Set(query.relationClasses) : undefined;
-    const limit = Math.min(Math.max(query.limit ?? 80, 1), 200);
-    const relationTypes = COMPACT_RELATION_TYPES.filter((type) => !classes || classes.has(RELATION_CATEGORY[type]));
-    const relations = this.related(loaded.graph, query.entityId, relationTypes).slice(0, limit);
+    const limit = Number.isFinite(query.limit) ? Math.min(Math.max(Math.floor(query.limit!), 1), 200) : 80;
+    const offset = Number.isFinite(query.offset) ? Math.max(0, Math.floor(query.offset!)) : 0;
+    const relationTypes = [...COMPACT_RELATION_TYPES, ...(loaded.graph.extensionRelationTypeStrings ?? [])]
+      .filter((type) => !classes || (relationCategory(type) !== undefined && classes.has(relationCategory(type)!)));
+    const relations = this.related(loaded.graph, query.entityId, relationTypes);
     // Lexical properties belong to the entry/lexeme realized by a surface.
     // Follow only those identity links, never semantic-support siblings.
-    if (center.kind === 'surface' && relations.length < limit) {
+    if (center.kind === 'surface') {
       const lexicalNodes = this.related(loaded.graph, query.entityId, ['realizes', 'lemma-of', 'inflection-of']);
-      const propertyTypes = relationTypes.filter((type) => RELATION_CATEGORY[type] === 'property');
-      const seen = new Set(relations.map((node) => `${node.relationType}:${node.id}`));
+      const propertyTypes = relationTypes.filter((type) => relationCategory(type) === 'property');
       for (const lexicalNode of lexicalNodes) {
         if (lexicalNode.kind !== 'dictionary-entry' && lexicalNode.kind !== 'lexeme') continue;
         for (const property of this.related(loaded.graph, lexicalNode.id, propertyTypes)) {
-          if (relations.length >= limit) break;
-          const key = `${property.relationType}:${property.id}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          relations.push(property);
+          // Keep distinct lexical paths and qualifiers. These are presentation
+          // context, not new center-to-property edges in the canonical graph.
+          if (property.id !== center.id) relations.push({ ...property, via: lexicalNode });
         }
-        if (relations.length >= limit) break;
       }
     }
     const centerStates = center.kind === 'surface' ? await this.centerStates(loaded, language, query.entityId, query.thresholds) : undefined;
-    return { center, centerDenseId: dense, relationCount: relations.length, relations, ...(centerStates?.length ? { centerStates } : {}) };
+    return { center, centerDenseId: dense, relationCount: relations.length, relations: relations.slice(offset, offset + limit), ...(centerStates?.length ? { centerStates } : {}) };
   }
 
   /**

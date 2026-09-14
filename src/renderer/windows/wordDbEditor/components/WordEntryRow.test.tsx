@@ -127,7 +127,7 @@ vi.mock('../../../components/common', () => ({
 
 
 vi.mock('../../../context/GraphContext', () => ({
-  useOptionalGraph: () => ({ meta: () => ({ ready: true }), getNeighborhood: getNeighborhoodMock }),
+  useOptionalGraph: () => ({ readiness: () => 'ready', meta: () => ({ ready: true }), getNeighborhood: getNeighborhoodMock }),
 }));
 vi.mock('../../../../shared/bridges', () => ({
   getBridge: () => ({

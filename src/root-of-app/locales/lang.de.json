@@ -80,7 +80,34 @@
         "GrammarPattern": "Grammatisches Muster",
         "Analysis": "Analyse"
       },
-      "LatencyUnreliable": "Latenz unzuverlässig (Unterbrechung)"
+      "LatencyUnreliable": "Latenz unzuverlässig (Unterbrechung)",
+      "Explore": {
+        "Title": "Sprachgraph",
+        "History": "Erkundungsverlauf",
+        "Back": "Zurück",
+        "Forward": "Vorwärts",
+        "Connections": "{count} Verbindungen",
+        "Relationships": "Beziehungen",
+        "Other": "Weitere Beziehungen",
+        "Via": "über {label}",
+        "LoadMore": "Weitere Verbindungen laden",
+        "Filter": "In dieser Beziehung suchen",
+        "Canvas": "Beziehungsdiagramm. Zum Verschieben ziehen; Strg oder Command und scrollen zum Zoomen. Pfeiltasten verschieben; Plus und Minus zoomen; Null passt ein.",
+        "NoMatches": "Keine passenden Verbindungen.",
+        "Hint": "Ziehen zum Verschieben · Strg/⌘ + Scrollen zum Zoomen",
+        "Previous": "Zurück",
+        "Page": "{page} / {total}",
+        "Next": "Weiter",
+        "SelectHint": "Ein Element auswählen, um seine vollständige Bezeichnung und Beziehung zu lesen. Zum Erkunden doppelklicken.",
+        "Explore": "Verbindungen erkunden",
+        "Identifier": "Kennung",
+        "Relationship": "Beziehung",
+        "SourceLabel": "Quellbezeichnung",
+        "Role": "Rolle",
+        "ConnectedTo": "verbunden mit {label}",
+        "LoadFailed": "Der Graph konnte nicht geladen werden.",
+        "Retry": "Erneut versuchen"
+      }
     },
     "Management": {
       "ChooseGroup": "Klasse oder Gruppe auswählen",

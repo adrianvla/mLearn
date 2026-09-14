@@ -78,7 +78,7 @@ describe('LinguisticGraphService', () => {
     const id = `ja:surface:${crypto.createHash('sha256').update('猫').digest('hex')}`;
 
     const result = await service.getNeighborhood('ja', { entityId: id, relationClasses: ['property'], limit: 1 });
-    expect(result).toMatchObject({ centerDenseId: 0, relationCount: 1, relations: [{ relationType: 'realizes', provenance: 'reading', domain: 'common' }] });
+    expect(result).toMatchObject({ centerDenseId: 0, relationCount: 3, relations: [{ relationType: 'realizes', provenance: 'reading', domain: 'common' }] });
     expect(result?.relations[0]?.confidence).toBeCloseTo(0.9);
     await expect(service.getNeighborhood('ja', { entityId: id, depth: 2 })).resolves.toBeNull();
   });
@@ -104,12 +104,70 @@ describe('LinguisticGraphService', () => {
     const { LinguisticGraphService } = await import('./linguisticGraph');
     const service = new LinguisticGraphService(directory);
     const result = await service.getNeighborhood('xx', { entityId: id });
-    expect(result?.relations).toContainEqual(expect.objectContaining({ id: 'property', relationType: 'has-pos', label: 'arbitrary class' }));
+    expect(result?.relations).toContainEqual(expect.objectContaining({ id: 'property', relationType: 'has-pos', label: 'arbitrary class', via: expect.objectContaining({ id: 'entry' }) }));
     expect(result?.relations.some((node) => node.id === 'other-property')).toBe(false);
     const limited = await service.getNeighborhood('xx', { entityId: id, limit: 1 });
     expect(limited?.relations).toHaveLength(1);
     const support = await service.getNeighborhood('xx', { entityId: id, relationClasses: ['support'] });
     expect(support?.relations.some((node) => node.id === 'property')).toBe(false);
+  });
+
+  it('pages every distinct qualified edge and exposes unknown package types and descriptive labels', async () => {
+    const entities = [{ id: 'center', kind: 'x-future::utterance', label: 'Utterance' },
+      { id: 'class', kind: 'grammar-pattern', label: 'q7', grammar: { meaning: 'Package-authored description', level: 0 } }];
+    const relations = Array.from({ length: 213 }, (_, order) => ({ from: 'center', to: 'class', type: 'x-future::contextual-role', order, role: 'x-future::participant' }));
+    fs.writeFileSync(path.join(directory, 'languages', 'xx.graph.json'), JSON.stringify(encodeCompact({
+      schemaVersion: 1, language: 'xx', generatedAt: '2026-01-01', sourceVersions: {}, entities, relations,
+    })));
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory);
+    const first = await service.getNeighborhood('xx', { entityId: 'center', limit: 200 });
+    const last = await service.getNeighborhood('xx', { entityId: 'center', offset: 200 });
+    expect(first?.relationCount).toBe(213); expect(first?.relations).toHaveLength(200);
+    expect(last?.relations).toHaveLength(13);
+    expect(last?.relations[12]).toMatchObject({ id: 'class', order: 212, role: 'x-future::participant', label: 'q7', displayLabel: 'Package-authored description', relationType: 'x-future::contextual-role' });
+    expect(new Set([...first!.relations, ...last!.relations].map((row) => row.order)).size).toBe(213);
+    expect((await service.getNeighborhood('xx', { entityId: 'center', relationClasses: ['support'] }))?.relations).toEqual([]);
+  });
+
+  it.skipIf(!process.env.MLEARN_GRAPH_ASSETS_DIR)('exercises installed sparse and dense neighborhoods without modifying their assets', async () => {
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(path.dirname(process.env.MLEARN_GRAPH_ASSETS_DIR!));
+    const results: Record<string, import('../../shared/graph/ipc').GraphNeighborhood> = {};
+    for (const [language, words] of [['ja', ['殖える', '会う', '橋', '食べる']], ['de', ['Haus', 'gehen']]] as const) {
+      for (const word of words) {
+        const id = `${language}:surface:${crypto.createHash('sha256').update(word).digest('hex')}`;
+        const result = await service.getNeighborhood(language, { entityId: id });
+        expect(result, word).not.toBeNull();
+        results[word] = result!;
+        const complete = [...result!.relations];
+        let received = result!.relations.length;
+        while (received < result!.relationCount) {
+          const next = await service.getNeighborhood(language, { entityId: id, offset: received });
+          expect(next!.relations.length).toBeGreaterThan(0);
+          received += next!.relations.length;
+          complete.push(...next!.relations);
+        }
+        expect(received).toBe(result!.relationCount);
+        results[`${word}:complete`] = { ...result!, relations: complete };
+        for (const neighbor of result!.relations.slice(0, 3)) {
+          const around = await service.getNeighborhood(language, { entityId: neighbor.id });
+          if (around) results[neighbor.id] = around;
+        }
+        expect(result!.relations.length).toBeLessThanOrEqual(80);
+        for (const relation of result!.relations) expect(relation.id).toBeTruthy();
+      }
+    }
+    // A shared pronunciation has many distinct lexical neighbors in the installed package.
+    const lookup = await service.lookupWord('ja', { surface: '橋' });
+    const sound = lookup!.pronunciations[0];
+    expect(sound).toBeDefined();
+    const dense = await service.getNeighborhood('ja', { entityId: sound.id });
+    expect(dense!.relationCount).toBeGreaterThan(8);
+    results.dense = dense!;
+    const more = await service.getNeighborhood('ja', { entityId: sound.id, offset: dense!.relations.length });
+    expect(more!.center.id).toBe(sound.id);
+    if (process.env.MLEARN_GRAPH_PREVIEW_OUTPUT) fs.writeFileSync(process.env.MLEARN_GRAPH_PREVIEW_OUTPUT, JSON.stringify(results));
   });
 
   it('rides center-surface capability states on the neighborhood payload and omits them otherwise', async () => {

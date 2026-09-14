@@ -38,6 +38,10 @@
   transition: all 0.2s ease;
   user-select: none;
   position: relative;
+  /* Electron: a button inside a -webkit-app-region: drag area (custom titlebar)
+     must stay clickable, so buttons are never part of a drag region. */
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   /*box-shadow:var(--shadow-special);*/
 }
 

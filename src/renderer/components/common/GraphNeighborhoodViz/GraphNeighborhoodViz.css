@@ -1,167 +1,75 @@
-/**
- * Bounded local neighborhood graph styles.
- * Neighbor nodes are labeled chip pills; edge stroke color AND dash pattern
- * distinguish the three RelationCategory values; the center chip ring is
- * tinted by the center's learner state. Colors only via theme CSS variables.
- */
-
-.graph-viz { min-width: 0; }
-
-.graph-viz__layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 15rem;
-  gap: var(--spacing-3);
-  align-items: stretch;
-}
-
-.graph-viz__stage {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.graph-viz__svg {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 760 / 460;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  touch-action: none;
-}
-
-.graph-viz__empty { color: var(--text-secondary); }
-
-/* Category legend doubles as filter — quiet chips with a category dot. */
-.graph-viz__legend { display: flex; flex-wrap: wrap; gap: var(--spacing-2); }
-.graph-viz__legend-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  padding: 0.15rem 0.5rem;
-  font-size: var(--font-size-xs);
-  cursor: pointer;
-}
-.graph-viz__legend-chip.is-off { opacity: 0.45; }
-.graph-viz__legend-chip small { color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
-.graph-viz__legend-dot { width: 0.55em; height: 0.55em; border-radius: 50%; }
-.graph-viz__legend-chip--identity .graph-viz__legend-dot { background: var(--color-success); }
-.graph-viz__legend-chip--property .graph-viz__legend-dot { background: var(--color-primary); }
-.graph-viz__legend-chip--support .graph-viz__legend-dot { background: var(--color-warning); }
-
-/* Typed edges: identity solid green, property solid primary, support dashed dim. */
-.graph-viz__edge { stroke-width: 1.5; fill: none; transition: opacity 0.15s ease, stroke-width 0.15s ease; }
-.graph-viz__edge--identity { stroke: var(--color-success); }
-.graph-viz__edge--property { stroke: var(--color-primary); }
-.graph-viz__edge--support { stroke: var(--color-warning); stroke-dasharray: 2 4; opacity: 0.8; }
-.graph-viz__edge--active { stroke-width: 3; opacity: 1; }
-.graph-viz__edge--dim { opacity: 0.25; }
-
-.graph-viz__arrow--identity { fill: var(--color-success); }
-.graph-viz__arrow--property { fill: var(--color-primary); }
-.graph-viz__arrow--support { fill: var(--color-warning); }
-
-.graph-viz__node { cursor: grab; }
-.graph-viz__node:active { cursor: grabbing; }
-.graph-viz__node .graph-viz__chip {
-  fill: var(--bg-primary);
-  stroke: var(--border-color);
-  stroke-width: 1.5;
-  transition: stroke-width 0.15s ease, opacity 0.15s ease, stroke 0.15s ease;
-}
-.graph-viz__node:hover .graph-viz__chip,
-.graph-viz__node:focus .graph-viz__chip { stroke-width: 2.5; }
-.graph-viz__node--identity .graph-viz__chip { stroke: var(--color-success); }
-.graph-viz__node--property .graph-viz__chip { stroke: var(--color-primary); }
-.graph-viz__node--support .graph-viz__chip { stroke: var(--color-warning); }
-.graph-viz__node--selected .graph-viz__chip { stroke-width: 3; }
-.graph-viz__node--dim { opacity: 0.3; }
-.graph-viz__node--center { cursor: pointer; }
-.graph-viz__node--center .graph-viz__chip { stroke: var(--text-primary); stroke-width: 2; fill: var(--bg-secondary); }
-
-/* Center chip tinted by the learner state — "how much do I know this". */
-.graph-viz__node--center .graph-viz__center-ring--evidence-backed-known { stroke: var(--color-success); }
-.graph-viz__node--center .graph-viz__center-ring--claimed-known,
-.graph-viz__node--center .graph-viz__center-ring--claimed-learning,
-.graph-viz__node--center .graph-viz__center-ring--claimed-unknown { stroke: var(--color-primary); }
-.graph-viz__node--center .graph-viz__center-ring--learning,
-.graph-viz__node--center .graph-viz__center-ring--unknown { stroke: var(--color-info); }
-.graph-viz__node--center .graph-viz__center-ring--predicted { stroke: var(--color-warning); }
-.graph-viz__node--center .graph-viz__center-ring--unmeasured { stroke: var(--text-secondary); stroke-dasharray: 4 3; }
-
-.graph-viz__label { fill: var(--text-primary); font-size: 13px; pointer-events: none; }
-.graph-viz__label--center { font-weight: var(--font-weight-semibold); font-size: 14px; }
-
-/* Zoom controls float over the canvas, top-right — standard product pattern. */
-.graph-viz__controls {
-  position: absolute;
-  top: 2.6rem;
-  right: var(--spacing-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.graph-viz__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  min-height: 1.5rem;
-}
-
-.graph-viz__truncated { color: var(--text-tertiary); font-size: var(--font-size-xs); }
-
-.graph-viz__show-all {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-primary);
-  cursor: pointer;
-}
-.graph-viz__show-all:hover { text-decoration: underline; }
-
-/* Selection detail: concise panel beside the canvas. */
-.graph-viz__detail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-3);
-  background: var(--bg-primary);
-  min-width: 0;
-}
-
-.graph-viz__detail-header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-2); }
-.graph-viz__detail-header strong { font-size: var(--font-size-lg); word-break: break-word; }
-
-.graph-viz__detail-close { background: none; border: none; color: var(--text-secondary); font-size: 1.1rem; line-height: 1; cursor: pointer; }
-.graph-viz__detail-close:hover { color: var(--color-primary); }
-
-.graph-viz__detail-kind { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
-
-.graph-viz__detail-facts { display: grid; gap: 0.2rem; }
-.graph-viz__detail-phrase { margin: 0; color: var(--text-primary); font-size: var(--font-size-sm); }
-.graph-viz__detail-meta { margin: 0; color: var(--text-tertiary); font-size: var(--font-size-xs); }
-
-.graph-viz__detail-state { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
-
-.graph-viz__detail .btn {
-  align-self: flex-start;
-  max-width: 100%;
-  white-space: normal;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-
-@media (max-width: 720px) {
+.graph-viz { min-width: 0; color: var(--text-primary); }
+.graph-viz__header { display: flex; align-items: center; gap: var(--spacing-3); padding-bottom: var(--spacing-3); border-bottom: 1px solid var(--border-color); }
+.graph-viz__history { display: flex; align-items: center; gap: var(--spacing-1); min-width: 0; }
+.graph-viz__breadcrumb { max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; background: none; color: var(--text-secondary); cursor: pointer; }
+.graph-viz__heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--spacing-2); min-width: 0; }
+.graph-viz__heading h2 { margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); overflow-wrap: anywhere; }
+.graph-viz__heading > span, .graph-viz__count { color: var(--text-secondary); font-size: var(--font-size-xs); }
+.graph-viz__count { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.graph-viz__layout { display: grid; grid-template-columns: 12rem minmax(0, 1fr); }
+.graph-viz__index { padding: var(--spacing-3) var(--spacing-3) var(--spacing-3) 0; border-right: 1px solid var(--border-color); max-height: 44rem; overflow-y: auto; }
+.graph-viz__index h3 { margin: var(--spacing-4) 0 var(--spacing-2); color: var(--text-secondary); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); }
+.graph-viz__index h3:first-child { margin-top: 0; }
+.graph-viz__group { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-2); width: 100%; padding: var(--spacing-2); margin: 0; border: 0; border-radius: var(--radius-sm); color: var(--text-primary); background: none; text-align: left; font: inherit; font-size: var(--font-size-sm); cursor: pointer; }
+.graph-viz__group:hover { background: var(--bg-secondary); }
+.graph-viz__group[aria-pressed="true"] { color: var(--text-primary); background: var(--bg-secondary); font-weight: var(--font-weight-semibold); }
+.graph-viz__group small { display: block; color: var(--text-secondary); font-size: var(--font-size-xs); font-weight: normal; margin-top: var(--spacing-1); overflow-wrap: anywhere; }
+.graph-viz__group-count { color: var(--text-secondary); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+.graph-viz__workspace { min-width: 0; padding-left: var(--spacing-3); }
+.graph-viz__toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); min-height: 3.5rem; }
+.graph-viz__toolbar > strong { font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
+.graph-viz__search { min-width: 0; width: 12rem; }
+.graph-viz__search input { box-sizing: border-box; width: 100%; padding: var(--spacing-2); background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-primary); font: inherit; font-size: var(--font-size-xs); }
+.graph-viz__stage { position: relative; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; }
+.graph-viz__svg { display: block; width: 100%; max-height: 38rem; touch-action: none; cursor: grab; user-select: none; }
+.graph-viz__svg:active { cursor: grabbing; }
+.graph-viz__edge { stroke: var(--text-tertiary); stroke-width: 1; fill: none; pointer-events: none; }
+.graph-viz__edge--identity { stroke-width: 2; }
+.graph-viz__edge--support, .graph-viz__edge--extension { stroke-dasharray: 4 4; }
+.graph-viz__edge.is-selected { stroke: var(--color-primary); stroke-width: 2; }
+.graph-viz__node { cursor: pointer; }
+.graph-viz__node:focus { outline: none; }
+.graph-viz__chip { fill: var(--bg-primary); stroke: var(--border-color-intense); stroke-width: 1; }
+.graph-viz__center .graph-viz__chip { stroke: var(--text-secondary); stroke-width: 1.5; }
+.graph-viz__node--identity .graph-viz__chip { stroke-width: 2; }
+.graph-viz__node--support .graph-viz__chip, .graph-viz__node--extension .graph-viz__chip { stroke-dasharray: 4 3; }
+.graph-viz__node:hover .graph-viz__chip, .graph-viz__node:focus-visible .graph-viz__chip, .graph-viz__node--selected .graph-viz__chip { stroke: var(--text-primary); stroke-width: 2; }
+.graph-viz__label { fill: var(--text-primary); font-size: 15px; pointer-events: none; }
+.graph-viz__label--center { font-size: 20px; font-weight: var(--font-weight-semibold); }
+.graph-viz__label--sense { font-size: 14px; }
+.graph-viz__kind { fill: var(--text-secondary); font-size: 11px; pointer-events: none; }
+.graph-viz__controls { position: absolute; bottom: var(--spacing-2); left: var(--spacing-2); display: flex; align-items: center; gap: var(--spacing-1); padding: var(--spacing-1); border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-primary); }
+.graph-viz__controls output { min-width: 3rem; text-align: center; color: var(--text-secondary); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+.graph-viz__footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); padding: var(--spacing-2) 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.graph-viz__pagination { display: flex; align-items: center; gap: var(--spacing-1); font-variant-numeric: tabular-nums; }
+.graph-viz__detail { border-top: 1px solid var(--border-color); padding: var(--spacing-3) 0; min-height: 4rem; font-size: var(--font-size-sm); }
+.graph-viz__detail-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--spacing-2); }
+.graph-viz__detail-heading strong { font-size: var(--font-size-lg); overflow-wrap: anywhere; }
+.graph-viz__detail-heading > span { color: var(--text-secondary); }
+.graph-viz__detail-heading .btn { margin-left: auto; }
+.graph-viz__detail .btn { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.graph-viz__detail p { margin: var(--spacing-2) 0; overflow-wrap: anywhere; }
+.graph-viz__detail details { color: var(--text-secondary); font-size: var(--font-size-xs); margin-top: var(--spacing-3); }
+.graph-viz__detail summary { cursor: pointer; }
+.graph-viz__detail dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--spacing-2); }
+.graph-viz__detail dd { margin: 0; overflow-wrap: anywhere; }
+.graph-viz__note, .graph-viz__empty { color: var(--text-secondary); font-size: var(--font-size-sm); margin: var(--spacing-3) 0; }
+.graph-viz__support-note { font-size: var(--font-size-xs); }
+.graph-viz__no-results { position: absolute; top: 1rem; left: 1rem; color: var(--text-secondary); }
+.graph-viz__center .graph-viz__center-ring--evidence-backed-known { stroke: var(--color-success); }
+.graph-viz__center .graph-viz__center-ring--predicted { stroke-dasharray: 4 3; }
+.graph-viz :is(button, input, summary):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.graph-viz__sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 760px) {
   .graph-viz__layout { grid-template-columns: 1fr; }
+  .graph-viz__index { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--spacing-1); border-right: 0; border-bottom: 1px solid var(--border-color); padding: var(--spacing-2) 0; max-height: 12rem; }
+  .graph-viz__index h3 { width: 100%; margin: var(--spacing-2) 0 0; }
+  .graph-viz__group { width: auto; max-width: 100%; }
+  .graph-viz__workspace { padding-left: 0; }
+  .graph-viz__heading { flex: 1; }
+  .graph-viz__header { flex-wrap: wrap; }
+  .graph-viz__count { margin-left: 0; }
+  .graph-viz__breadcrumb { max-width: 4rem; }
 }
+
+.graph-viz__loading { color: var(--text-secondary); font-size: var(--font-size-xs); }

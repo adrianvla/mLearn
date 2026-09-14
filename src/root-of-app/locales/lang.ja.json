@@ -80,7 +80,34 @@
         "GrammarPattern": "文法パターン",
         "Analysis": "分析"
       },
-      "LatencyUnreliable": "レイテンシは不信頼（中断あり）"
+      "LatencyUnreliable": "レイテンシは不信頼（中断あり）",
+      "Explore": {
+        "Title": "言語グラフ",
+        "History": "探索履歴",
+        "Back": "戻る",
+        "Forward": "進む",
+        "Connections": "{count} 件のつながり",
+        "Relationships": "関係",
+        "Other": "その他の関係",
+        "Via": "{label} 経由",
+        "LoadMore": "つながりをさらに読み込む",
+        "Filter": "この関係内を検索",
+        "Canvas": "関係図。ドラッグで移動、Ctrl または Command とスクロールで拡大縮小。矢印キーで移動、プラスとマイナスで拡大縮小、0 で全体表示。",
+        "NoMatches": "一致するつながりはありません。",
+        "Hint": "ドラッグで移動 · Ctrl/⌘ + スクロールで拡大縮小",
+        "Previous": "前へ",
+        "Page": "{page} / {total}",
+        "Next": "次へ",
+        "SelectHint": "項目を選択すると、ラベル全体と関係が表示されます。ダブルクリックで探索できます。",
+        "Explore": "つながりを探索",
+        "Identifier": "識別子",
+        "Relationship": "関係",
+        "SourceLabel": "元のラベル",
+        "Role": "役割",
+        "ConnectedTo": "{label} とのつながり",
+        "LoadFailed": "グラフを読み込めませんでした。",
+        "Retry": "再試行"
+      }
     },
     "Management": {
       "ChooseGroup": "クラスまたはグループを選択",

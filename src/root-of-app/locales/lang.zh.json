@@ -80,7 +80,34 @@
         "GrammarPattern": "语法句型",
         "Analysis": "分析"
       },
-      "LatencyUnreliable": "延迟不可靠（有中断）"
+      "LatencyUnreliable": "延迟不可靠（有中断）",
+      "Explore": {
+        "Title": "语言图谱",
+        "History": "探索历史",
+        "Back": "后退",
+        "Forward": "前进",
+        "Connections": "{count} 个连接",
+        "Relationships": "关系",
+        "Other": "其他关系",
+        "Via": "经由 {label}",
+        "LoadMore": "加载更多连接",
+        "Filter": "在此关系中搜索",
+        "Canvas": "关系图。拖动以平移；按住 Ctrl 或 Command 并滚动以缩放。方向键平移，加减键缩放，零键适应视图。",
+        "NoMatches": "没有匹配的连接。",
+        "Hint": "拖动以平移 · Ctrl/⌘ + 滚动以缩放",
+        "Previous": "上一页",
+        "Page": "{page} / {total}",
+        "Next": "下一页",
+        "SelectHint": "选择项目以查看完整标签和关系。双击以探索其连接。",
+        "Explore": "探索连接",
+        "Identifier": "标识符",
+        "Relationship": "关系",
+        "SourceLabel": "原始标签",
+        "Role": "角色",
+        "ConnectedTo": "与 {label} 相连",
+        "LoadFailed": "无法加载图谱。",
+        "Retry": "重试"
+      }
     },
     "Management": {
       "ChooseGroup": "选择班级或小组",

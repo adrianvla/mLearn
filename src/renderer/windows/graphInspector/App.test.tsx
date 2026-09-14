@@ -48,8 +48,6 @@ describe('GraphInspectorContent', () => {
     document.body.appendChild(container);
     const dispose = render(() => <GraphInspectorContent />, container);
     await flush();
-    expect(container.textContent).toContain('mlearn.GraphInspector.SupportCaption');
-    expect(container.textContent).toContain('mlearn.GraphInspector.identity');
     expect(container.textContent).toContain('mlearn.GraphInspector.property');
     (container.querySelectorAll('.graph-inspector__chip')[1] as HTMLButtonElement).click();
     await flush();

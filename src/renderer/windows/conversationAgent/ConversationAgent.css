@@ -146,7 +146,7 @@
   width: 280px;
   flex-shrink: 0;
   border-right: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  background: var(--bg-nt-primary);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -195,7 +195,7 @@
   inset: var(--window-controls-block-start-inset) 0 0;
   display: flex;
   min-height: 0;
-  background: var(--bg);
+  background: var(--bg-nt-primary);
 }
 
 .ca-voice-overlay > * { flex: 1; min-height: 0; }
@@ -229,7 +229,7 @@
   width: min(24rem, calc(100vw - 3rem));
   overflow-y: auto;
   border-left: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  background: var(--bg-nt-primary);
   box-shadow: var(--shadow-lg);
 }
 

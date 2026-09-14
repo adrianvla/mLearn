@@ -80,7 +80,34 @@
         "GrammarPattern": "Grammar pattern",
         "Analysis": "Analysis"
       },
-      "LatencyUnreliable": "latency unreliable (interruption)"
+      "LatencyUnreliable": "latency unreliable (interruption)",
+      "Explore": {
+        "Title": "Language graph",
+        "History": "Exploration history",
+        "Back": "Back",
+        "Forward": "Forward",
+        "Connections": "{count} connections",
+        "Relationships": "Relationships",
+        "Other": "Other relationships",
+        "Via": "via {label}",
+        "LoadMore": "Load more connections",
+        "Filter": "Find in this relationship",
+        "Canvas": "Relationship diagram. Drag to pan; Control or Command and scroll to zoom. Arrow keys pan; plus and minus zoom; zero fits.",
+        "NoMatches": "No matching connections.",
+        "Hint": "Drag to pan · Ctrl/⌘ + scroll to zoom",
+        "Previous": "Previous",
+        "Page": "{page} / {total}",
+        "Next": "Next",
+        "SelectHint": "Select an item to read its full label and relationship. Double-click to explore it.",
+        "Explore": "Explore connections",
+        "Identifier": "Identifier",
+        "Relationship": "Relationship",
+        "SourceLabel": "Source label",
+        "Role": "Role",
+        "ConnectedTo": "connected to {label}",
+        "LoadFailed": "The graph could not be loaded.",
+        "Retry": "Retry"
+      }
     },
     "Management": {
       "ChooseGroup": "Choose a class or group",

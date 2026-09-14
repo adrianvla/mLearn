@@ -80,7 +80,34 @@
         "GrammarPattern": "Motif grammatical",
         "Analysis": "Analyse"
       },
-      "LatencyUnreliable": "latence non fiable (interruption)"
+      "LatencyUnreliable": "latence non fiable (interruption)",
+      "Explore": {
+        "Title": "Graphe linguistique",
+        "History": "Historique de navigation",
+        "Back": "Retour",
+        "Forward": "Suivant",
+        "Connections": "{count} liens",
+        "Relationships": "Relations",
+        "Other": "Autres relations",
+        "Via": "via {label}",
+        "LoadMore": "Charger plus de liens",
+        "Filter": "Rechercher dans cette relation",
+        "Canvas": "Diagramme des relations. Glisser pour déplacer ; Ctrl ou Command et défiler pour zoomer. Les flèches déplacent ; plus et moins zooment ; zéro ajuste.",
+        "NoMatches": "Aucun lien correspondant.",
+        "Hint": "Glisser pour déplacer · Ctrl/⌘ + défilement pour zoomer",
+        "Previous": "Précédent",
+        "Page": "{page} / {total}",
+        "Next": "Suivant",
+        "SelectHint": "Sélectionnez un élément pour lire son libellé complet et sa relation. Double-cliquez pour l’explorer.",
+        "Explore": "Explorer les liens",
+        "Identifier": "Identifiant",
+        "Relationship": "Relation",
+        "SourceLabel": "Libellé source",
+        "Role": "Rôle",
+        "ConnectedTo": "lié à {label}",
+        "LoadFailed": "Impossible de charger le graphe.",
+        "Retry": "Réessayer"
+      }
     },
     "Management": {
       "ChooseGroup": "Choisir une classe ou un groupe",

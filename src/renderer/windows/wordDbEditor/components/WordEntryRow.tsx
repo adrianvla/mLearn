@@ -1,3 +1,4 @@
+import { useGraphNeighborhood } from '../../../hooks/useGraphNeighborhood';
 /**
  * Word Entry Row Component
  * Single row in the word database editor
@@ -35,7 +36,6 @@ import { prosodyVisible } from '../../../../shared/prosodySettings';
 import './WordEntryRow.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
-import type { GraphNeighborhood } from '../../../../shared/graph/ipc';
 import { surfaceEntityId } from '../../../../shared/graph/load';
 import { openKnowledgeInspector } from '../../../services/openKnowledgeInspector';
 import { openGraphInspector } from '../../../services/openGraphInspector';
@@ -165,35 +165,9 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // Bounded local graph view, expanded on demand; node clicks recenter in place.
   const [showGraph, setShowGraph] = createSignal(false);
   const [graphEntityId, setGraphEntityId] = createSignal<string>();
-  const [neighborhood, setNeighborhood] = createSignal<GraphNeighborhood | null>(null);
-  // `neighborhood() === null` is ambiguous (in flight vs genuinely absent);
-  // this flag is the explicit pending half of the readiness pair.
-  const [neighborhoodPending, setNeighborhoodPending] = createSignal(false);
-  // Track the entry's graph surface id (stable hash of the word — identical
-  // to the main-side surface id derivation); resets on entry swap.
+  const { neighborhood, pending: neighborhoodPending, failed: neighborhoodFailed, loadingMore, loadMore, retry: retryNeighborhood } = useGraphNeighborhood(graph, graphEntityId, showGraph);
   createEffect(() => {
     setGraphEntityId(`${settings.language}:surface:${hashWordSync(props.entry.word)}`);
-    setNeighborhood(null);
-    setNeighborhoodPending(false);
-  });
-  createEffect(() => {
-    if (!showGraph()) return;
-    const id = graphEntityId();
-    if (!id || !graph.meta().ready) return;
-    let disposed = false;
-    setNeighborhoodPending(true);
-    void graph.getNeighborhood({ entityId: id, depth: 1 }).then((next) => {
-      if (!disposed) {
-        setNeighborhood(next);
-        setNeighborhoodPending(false);
-      }
-    }).catch(() => {
-      if (!disposed) {
-        setNeighborhood(null);
-        setNeighborhoodPending(false);
-      }
-    });
-    onCleanup(() => { disposed = true; });
   });
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
@@ -582,11 +556,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={graphEntityId()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
           {/* Pending ≠ not-in-graph: the skeleton holds only while the
               lookup is in flight; absence resolves to the explicit note. */}
-          <ReadinessGate when={deriveReadiness({ pending: neighborhoodPending })} instant fallback={<SkeletonRows rows={2} />}>
+          <ReadinessGate when={deriveReadiness({ pending: () => neighborhoodPending() && !neighborhood() })} instant fallback={<SkeletonRows rows={2} />}>
+          <Show when={neighborhoodFailed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Btn size="sm" onClick={retryNeighborhood}>{t('mlearn.GraphInspector.Explore.Retry')}</Btn></p></Show>
           <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
             {(value) => (
               <GraphNeighborhoodViz
                 neighborhood={value()}
+                busy={neighborhoodPending()}
+                onLoadMore={loadMore}
+                loadingMore={loadingMore()}
                 onSelect={setGraphEntityId}
               />
             )}

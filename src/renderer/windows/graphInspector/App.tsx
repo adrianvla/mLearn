@@ -3,16 +3,16 @@ import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledg
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { assembleTargetExplanation, type TargetState } from '../../../shared/graph/explanations';
 import type { KeyArchive } from '../../../shared/knowledge/historyArchive';
-import type { CapabilityKind, GraphRelationType, RelationCategory } from '../../../shared/graph/types';
+import type { CapabilityKind } from '../../../shared/graph/types';
 import type { GraphNeighborhood } from '../../../shared/graph/ipc';
 import { getBridge } from '../../../shared/bridges';
 import { attemptActiveLatencyMs } from '../../../shared/knowledgeEvents';
 import { WindowWrapper, useFlashcards, useGraph, useLocalization, useSettings } from '../../context';
-import { openGraphInspector } from '../../services/openGraphInspector';
-import { GraphNeighborhoodViz, SkeletonText } from '../../components/common';
+import { useGraphNeighborhood } from '../../hooks/useGraphNeighborhood';
+import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
+import { Btn, GraphNeighborhoodViz, SkeletonText } from '../../components/common';
 import './GraphInspector.css';
 
-const classes: RelationCategory[] = ['identity', 'property', 'support'];
 const targetStates: Record<TargetState, string> = {
   'evidence-backed-known': 'Known',
   'claimed-known': 'Known (claim)',
@@ -30,7 +30,7 @@ export const GraphInspectorContent: Component = () => {
   const { store } = useFlashcards();
   const graph = useGraph();
   const [entityId, setEntityId] = createSignal<string>();
-  const [neighborhood, setNeighborhood] = createSignal<GraphNeighborhood | null>();
+  const { neighborhood, pending, failed, loadingMore, loadMore, retry } = useGraphNeighborhood(graph, entityId);
   const [selectedCapability, setSelectedCapability] = createSignal<CapabilityKind>();
   const [events, setEvents] = createSignal<import('../../../shared/graph/explanations').JournalRow[]>([]);
   const [archive, setArchive] = createSignal<KeyArchive | undefined>(undefined);
@@ -52,14 +52,9 @@ export const GraphInspectorContent: Component = () => {
     // switch the pending probe clears the stale neighborhood, and the
     // settled meta triggers a fresh fetch for the new language.
     graph.readiness();
-    // Request identity: a superseded run's late resolution (e.g. an
-    // old-language neighborhood outliving a language switch, or a slow
-    // fetch for a previous entity) must not overwrite the fresh one.
     let disposed = false;
     onCleanup(() => { disposed = true; });
-    void graph.getNeighborhood({ entityId: id, depth: 1 }).then((next) => {
-      if (!disposed) setNeighborhood(next);
-    });
+    setSelectedCapability(undefined);
     const hash = id.match(/:surface:([a-f0-9]{64})$/i)?.[1];
     if (!hash) {
       setEvents([]);
@@ -73,15 +68,12 @@ export const GraphInspectorContent: Component = () => {
     setArchive(undefined);
     void getBridge().knowledgeEvents.getKnowledgeRows([journalKey]).then((log) => {
       if (!disposed) setEvents(log[journalKey] ?? []);
-    });
+    }).catch(() => {});
     void getBridge().knowledgeEvents.getKnowledgeArchive(journalKey).then((envelope) => {
       if (!disposed) setArchive(envelope.archive);
-    });
+    }).catch(() => {});
   });
 
-  const grouped = createMemo(() => Object.fromEntries(classes.map((category) => [category,
-    neighborhood()?.relations.filter((relation) => relation.relationType && categoryFor(relation.relationType) === category) ?? [],
-  ])) as Record<RelationCategory, NonNullable<GraphNeighborhood['relations']>>);
   const explanation = createMemo(() => selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta, Date.now(), undefined, undefined, archive() ? [archive() as KeyArchive] : undefined, effectiveThresholds(settings)) : undefined);
 
   return <div class="graph-inspector">
@@ -93,28 +85,27 @@ export const GraphInspectorContent: Component = () => {
         <p class="graph-inspector__empty">{t('mlearn.Knowledge.GraphContract.Degraded')}</p>
       </div>
     </Show>
-    <Show when={graph.meta().ready && !neighborhood()}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.SelectEntity')}</p></Show>
+    <Show when={pending() && !neighborhood()}><SkeletonText lines={4} /></Show>
+    <Show when={failed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Btn size="sm" variant="secondary" onClick={retry}>{t('mlearn.GraphInspector.Explore.Retry')}</Btn></p></Show>
+    <Show when={graph.meta().ready && !pending() && !failed() && !neighborhood()}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.SelectEntity')}</p></Show>
     <Show when={neighborhood()}>
       <section class="graph-inspector__section">
-        <h2>{t('mlearn.GraphInspector.Neighborhood.Title')}</h2>
+        <h1>{t('mlearn.GraphInspector.Explore.Title')}</h1>
         <GraphNeighborhoodViz
           neighborhood={neighborhood()!}
           centerState={explanation()?.state}
+          busy={pending()}
+          onLoadMore={loadMore}
+          loadingMore={loadingMore()}
           onSelect={(id) => { setSelectedCapability(undefined); setEntityId(id); }}
         />
       </section>
-      <section class="graph-inspector__targets"><h2>{t('mlearn.GraphInspector.Capabilities')}</h2><For each={capabilitiesFor(neighborhood()!)}>{(capability) => <button type="button" class="graph-inspector__chip" classList={{ 'is-active': selectedCapability() === capability }} onClick={() => setSelectedCapability(capability)}>{capability}</button>}</For></section>
-      <For each={classes}>{(category) => <section class={`graph-inspector__section graph-inspector__section--${category}`}>
-        <h2>{t(`mlearn.GraphInspector.${category}`)}</h2><Show when={category === 'support'}><p>{t('mlearn.GraphInspector.SupportCaption')}</p></Show>
-        <For each={grouped()[category]}>{(relation) => <button type="button" class="graph-inspector__relation" onClick={() => openGraphInspector({ entityId: relation.id })}>
-          <span>{relation.relationType}</span><strong>{relation.label ?? relation.id}</strong><small>{metadata(relation)}</small>
-        </button>}</For>
-      </section>}</For>
+      <section class="graph-inspector__targets"><h2>{t('mlearn.GraphInspector.Capabilities')}</h2><For each={capabilitiesFor(neighborhood()!)}>{(capability) => <button type="button" class="graph-inspector__chip" classList={{ 'is-active': selectedCapability() === capability }} onClick={() => setSelectedCapability(capability)}>{t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}</button>}</For></section>
       <button type="button" class="graph-inspector__details" onClick={() => setDetails(!details())}>{t('mlearn.GraphInspector.Details')}</button>
       <Show when={details()}><pre>{`${neighborhood()!.center.id}\ndense: ${neighborhood()!.centerDenseId}\nrelations: ${neighborhood()!.relationCount}`}</pre></Show>
     </Show>
     <Show when={explanation()}>{(value) => <section class="graph-inspector__target">
-      <h2>{t('mlearn.GraphInspector.Target')}</h2><p>{selectedCapability()} · <strong>{t(`mlearn.GraphInspector.State.${targetStates[value().state]}`)}</strong></p>
+      <h2>{t('mlearn.GraphInspector.Target')}</h2><p>{t(CAPABILITY_LABEL_KEYS[selectedCapability()!] ?? selectedCapability()!)} · <strong>{t(`mlearn.GraphInspector.State.${targetStates[value().state]}`)}</strong></p>
       <p>{value().projection ? `${t('mlearn.GraphInspector.Projection')}: ${value().projection!.ease.toFixed(2)}` : t('mlearn.GraphInspector.NoDirectEvidence')}</p>
       <Show when={value().retention}><p>{t('mlearn.GraphInspector.Retention')}: {value().retention!.pressure.toFixed(2)} · {new Date(value().retention!.dueAt).toLocaleString()}</p></Show>
       <h3>{t('mlearn.GraphInspector.Evidence')}</h3><For each={value().evidence}>{(event) => <p>{new Date(event.t).toLocaleDateString()} · {event.source} · {event.quality ?? event.rating ?? ''}{event.stalled ? ` · ${t('mlearn.GraphInspector.LatencyUnreliable')}` : attemptActiveLatencyMs(event) !== undefined ? ` · ${attemptActiveLatencyMs(event)}ms` : ''}</p>}</For>
@@ -126,9 +117,6 @@ export const GraphInspectorContent: Component = () => {
 
 export const GraphInspectorApp: Component = () => <WindowWrapper showDragRegion><GraphInspectorContent /></WindowWrapper>;
 
-function categoryFor(type: GraphRelationType): RelationCategory {
-  return type === 'inflection-of' || type === 'lemma-of' ? 'identity' : type.startsWith('has-') || type === 'realizes' ? 'property' : 'support';
-}
 function capabilitiesFor(neighborhood: GraphNeighborhood): CapabilityKind[] {
   if (neighborhood.center.kind !== 'surface') return [];
   return ['surface-recognition',
@@ -137,7 +125,4 @@ function capabilitiesFor(neighborhood: GraphNeighborhood): CapabilityKind[] {
     // capability belongs in the inspector's selectable set alongside it.
     ...(neighborhood.relations.some((relation) => relation.relationType === 'has-prosodic-pattern') ? ['prosodic-pattern' as const] : []),
   ];
-}
-function metadata(relation: GraphNeighborhood['relations'][number]): string {
-  return [relation.domain, relation.confidence, relation.provenance].filter((value) => value !== undefined).join(' · ');
 }
