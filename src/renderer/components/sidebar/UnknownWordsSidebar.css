@@ -98,9 +98,12 @@
 
 .unknown-words-item {
   padding: var(--spacing-3);
-  background: var(--bg-nt-secondary);
+  background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
+}
+body.reduce-transparency .unknown-words-item {
+  background: var(--bg-nt-secondary);
 }
 
 .unknown-words-item-header {

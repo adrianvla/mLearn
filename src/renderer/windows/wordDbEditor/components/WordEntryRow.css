@@ -9,6 +9,7 @@
   padding: var(--spacing-3) var(--spacing-4);
   border-bottom: 1px solid var(--border-color);
   transition: background 0.15s ease;
+  background:var(--bg-nt-secondary);
 }
 
 /* Neighborhood note (the viz itself renders in a Modal). */

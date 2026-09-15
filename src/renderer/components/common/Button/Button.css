@@ -388,6 +388,12 @@
   min-height: var(--size-md);
   box-sizing: border-box;
 }
+.btn-nav .btn-content:has(svg){
+  min-height:1rem;
+}
+.btn-nav .btn-content > svg{
+  min-width:1rem;
+}
 
 .btn-nav:hover:not(:disabled) {
   background: var(--bg-intense);

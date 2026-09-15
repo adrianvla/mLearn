@@ -337,13 +337,11 @@ export function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
     },
-    frame: isMac ? false : true,
-    backgroundColor: '#000000',
+
+    ...(isMac ? getMacWindowSurfaceOptions() : { backgroundColor: '#000000' }),
   };
 
-  if (isMac) {
-    windowOptions.titleBarStyle = 'hidden';
-  } else if (isWindows) {
+  if (isWindows) {
     // Windows: hide the native frame/title and draw our own menu strip over the
     // title bar area; titleBarOverlay keeps the native ─ □ × controls on top.
     windowOptions.titleBarStyle = 'hidden';
@@ -410,9 +408,8 @@ export function createWelcomeWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
     },
-    frame: isMac ? false : true,
     autoHideMenuBar: !isMac,
-    backgroundColor: '#000000',
+    ...(isMac ? getMacWindowSurfaceOptions() : { backgroundColor: '#000000', frame: true }),
   });
 
   currentWindow = welcomeWindow;
@@ -446,10 +443,8 @@ export function createDiagnosticsWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
     },
-    frame: isMac ? false : true,
     autoHideMenuBar: !isMac,
-    backgroundColor: '#000000',
-    ...(isMac ? { titleBarStyle: 'hidden' } : {}),
+    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true, backgroundColor: '#000000' }),
   });
 
   childWindows.set('diagnostics' as WindowType, window);
@@ -475,9 +470,12 @@ export function createChildWindow(
     return existingWindow;
   }
 
-  const platformOptions: Partial<Electron.BrowserWindowConstructorOptions> = isMac && options.frame !== false
-    ? { titleBarStyle: 'hidden' }
-    : {};
+  // Ordinary macOS child windows get the hidden-titlebar, full-bleed
+  // app-window surface (native traffic lights kept visible).
+  // Callers that explicitly pass frame: false (transparent overlays such as the
+  // launch overlay) keep plain frameless behavior without vibrancy.
+  const platformOptions: Partial<Electron.BrowserWindowConstructorOptions> =
+    isMac && options.frame !== false ? getMacWindowSurfaceOptions() : {};
 
   const defaultOptions: Electron.BrowserWindowConstructorOptions = {
     width: 800,
@@ -488,9 +486,8 @@ export function createChildWindow(
       nodeIntegration: false,
       sandbox: true,
     },
-    frame: isMac ? false : true,
+    ...(isMac ? {} : { frame: true, backgroundColor: '#000000' }),
     autoHideMenuBar: !isMac,
-    backgroundColor: '#000000',
     ...platformOptions,
     ...options,
   };
@@ -716,6 +713,30 @@ function getTitleBarOverlayColor(dark: boolean): string {
 
 function getTitleBarOverlaySymbolColor(dark: boolean): string {
   return dark ? '#ffffff' : '#000000';
+}
+
+// Shared macOS surface for ordinary application windows: no native titlebar,
+// full-bleed renderer with real traffic lights punched into the web UI, and
+// native vibrancy visible underneath transparent renderer regions.
+function getMacWindowSurfaceOptions(): Partial<Electron.BrowserWindowConstructorOptions> {
+  return {
+    // Hides the native titlebar for a full-bleed renderer while KEEPING the
+    // native traffic lights visible (frame:false strips the buttons).
+    titleBarStyle: 'hidden',
+
+    // Makes Window Controls Overlay geometry available to the renderer.
+    titleBarOverlay: true,
+
+    // Put the real AppKit traffic lights exactly where our design expects them.
+    trafficLightPosition: {
+      x: 10,
+      y: 10,
+    },
+
+    // Native material underneath our web scene.
+    vibrancy: 'under-window',
+    visualEffectState: 'followWindow',
+  };
 }
 
 // Setup application menu

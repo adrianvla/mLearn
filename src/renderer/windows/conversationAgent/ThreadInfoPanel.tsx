@@ -22,6 +22,7 @@ interface ThreadInfoPanelProps {
   onRenameThread: (title: string) => Promise<void> | void;
   onUpdateParticipant: (participant: Participant) => Promise<void> | void;
   onDeleteThread: () => Promise<void> | void;
+  onIntegrate?: () => void | Promise<void>;
 }
 
 export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
@@ -137,6 +138,13 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
         </div>
       </section>
 
+      <Show when={props.thread?.sandbox && props.onIntegrate}>
+        <section class="ca-thread-section ca-thread-actions">
+          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Integration.Title')}</span>
+          <p class="ca-thread-integration-hint">{t('mlearn.ConversationAgent.Integration.PanelHint')}</p>
+          <Btn variant="primary" onClick={() => { void props.onIntegrate?.(); }}>{t('mlearn.ConversationAgent.Integration.Open')}</Btn>
+        </section>
+      </Show>
       <Show when={props.thread}>
         <section class="ca-thread-section ca-thread-actions">
           <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.DangerZone')}</span>

@@ -143,4 +143,14 @@ describe('ThreadInfoPanel', () => {
 
     await vi.waitFor(() => expect(onDeleteThread).toHaveBeenCalledTimes(1));
   });
+
+  it('offers the integration review only for sandbox threads and dispatches it', async () => {
+    const onIntegrate = vi.fn(async () => {});
+    renderPanel();
+    expect(buttonWithText('mlearn.ConversationAgent.Integration.Open')).toBeUndefined();
+
+    renderPanel({ thread: { ...thread, sandbox: { operationId: 'op-1', requestHash: 'hash', bindings: [], baselineHeads: {} } }, onIntegrate });
+    buttonWithText('mlearn.ConversationAgent.Integration.Open').click();
+    await vi.waitFor(() => expect(onIntegrate).toHaveBeenCalledTimes(1));
+  });
 });

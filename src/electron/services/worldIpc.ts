@@ -10,6 +10,7 @@
  * Renderer access: setupWorldIPC() (registered in setupAllIPC) → preload → bridges.
  */
 
+import { WORLD_CONTINUITY_ID } from '../../shared/world';
 import { ipcMain } from 'electron';
 import { createHash, randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'util';
@@ -20,11 +21,12 @@ import type {
   CreateCastInput,
   IntegrateThreadInput,
   IntegrateThreadResult,
-  IntegrationPayload,
+  IntegrationPreview,
   JournalEvent,
   MembershipChangeResult,
   OpenRoomEventPayload,
   Participant,
+  PreviewIntegrationInput,
   RememberThisInput,
   Room,
   Thread,
@@ -36,9 +38,13 @@ import { openManagedChildWindow } from './windowManager';
 import { loadSettings } from './settings';
 import { consolidateRoom } from './dreamerRuntime';
 import { prepareScenario, activateScenario, cancelScenario } from './scenarioDirector';
+import * as integration from './integration';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
-  return withWorldMutation(loadWorld);
+  return withWorldMutation(async () => {
+    const world = await loadWorld();
+    return { ...world, integrations: world.integrations?.map(({ prepared: _prepared, ...record }) => record) };
+  });
 }
 
 export async function createRoom(title: string): Promise<Room> {
@@ -99,7 +105,7 @@ export async function createSandbox(input: CreateCastInput): Promise<Thread> {
       if (!person) throw new Error('[world] selected persistent person is unavailable');
       return { originId: id, baseline: structuredClone(person) };
     });
-    const baselineHeads: Record<string, number> = {};
+    const baselineHeads: Record<string, number> = { [WORLD_CONTINUITY_ID]: (await readSeaProjection(WORLD_CONTINUITY_ID)).at(-1)?.seq ?? 0 };
     for (const room of state.rooms) {
       const events = await readSeaProjection(room.id);
       baselineHeads[room.id] = events.at(-1)?.seq ?? 0;
@@ -213,117 +219,15 @@ export async function rememberThis(input: RememberThisInput): Promise<JournalEve
   });
 }
 
-export async function promoteParticipant(participantId: string): Promise<Participant> {
-  return withWorldMutation(() => promoteParticipantUnlocked(participantId));
+export function integrateThread(input: IntegrateThreadInput): Promise<IntegrateThreadResult> {
+  return integration.integrateThread(input);
 }
 
-/** Caller holds the world mutation queue for the complete operation. */
-async function promoteParticipantUnlocked(participantId: string): Promise<Participant> {
-  const state = await loadWorld();
-  const participant = state.participants.find((candidate) => candidate.id === participantId);
-  if (!participant) throw new Error(`[world] participant not found: ${participantId}`);
-  if (participant.kind === 'persistent') return participant;
-  const updated: Participant = { ...participant, kind: 'persistent' };
-  await saveWorld({
-    ...state,
-    participants: state.participants.map((candidate) => (candidate.id === participantId ? updated : candidate)),
-  });
-  return updated;
+/** Main-owned review surface: what a selection would admit, and what blocks it. */
+export function previewIntegration(input: PreviewIntegrationInput): Promise<IntegrationPreview> {
+  return integration.previewIntegration(input);
 }
 
-export async function integrateThread(input: IntegrateThreadInput): Promise<IntegrateThreadResult> {
-  // Take a value snapshot before waiting; callers cannot change an admitted
-  // selection while another world operation is in flight.
-  const selection = structuredClone(input);
-  return withWorldMutation(() => integrateThreadUnlocked(selection));
-}
-
-async function integrateThreadUnlocked(input: IntegrateThreadInput): Promise<IntegrateThreadResult> {
-  if (!input.integrationId?.trim()) throw new Error('[world] integration requires an operation ID');
-  const existing = (await readSeaProjection(input.roomId)).filter(
-    (event) => event.provenance?.integrationId === input.integrationId
-  );
-  const admitted = existing.filter(event => event.type === 'memory.belief');
-  for (const [index, event] of admitted.entries()) {
-    const draft = input.drafts[index];
-    if (!draft || event.actorId !== draft.actorId ||
-        !isDeepStrictEqual(event.witnesses, draft.witnesses) || !isDeepStrictEqual(event.payload, draft.payload)) {
-      throw new Error('[world] integration conflict: operation ID belongs to another selection');
-    }
-  }
-  const marker = existing.find(event => event.type === 'integration');
-  if (marker) {
-    const payload = marker.payload as IntegrationPayload;
-    if (payload.sourceThreadId !== input.threadId || admitted.length !== input.drafts.length ||
-        !isDeepStrictEqual(payload.promotedParticipantIds, input.promoteParticipantIds)) {
-      throw new Error('[world] integration conflict: operation ID belongs to another selection');
-    }
-    // A source sandbox may already have been discarded. An acknowledged
-    // admission remains replayable without retaining its private source data.
-    return { appended: existing, alreadyApplied: true };
-  }
-  const state = await loadWorld();
-  const room = state.rooms.find(candidate => candidate.id === input.roomId);
-  const thread = state.threads.find(candidate => candidate.id === input.threadId && candidate.roomId === input.roomId);
-  if (!room || !thread) throw new Error('[world] integration thread does not belong to this room');
-  for (const participantId of input.promoteParticipantIds) {
-    if (!room.participantIds.includes(participantId) || !state.participants.some(person => person.id === participantId)) {
-      throw new Error('[world] integration participant does not belong to the selected context');
-    }
-  }
-  const sourceEvents = await readThread(input.roomId, input.threadId);
-  const sourcesById = new Map(sourceEvents.map(event => [event.id, event]));
-  // Validate the whole selection before the first write. Admission must not
-  // widen the information audience supplied by the original source events.
-  for (const draft of input.drafts) {
-    const sourceIds = draft.payload.sourceEventIds;
-    if (!sourceIds?.length) throw new Error('[world] integration requires explicit source event IDs');
-    for (const sourceId of sourceIds) {
-      const source = sourcesById.get(sourceId);
-      if (!source) throw new Error('[world] integration source does not belong to this thread');
-      if (!source.witnesses.includes(draft.payload.ownerId) ||
-          !draft.witnesses.includes(draft.payload.ownerId) ||
-          draft.witnesses.some(witness => !source.witnesses.includes(witness))) {
-        throw new Error('[world] integration cannot grant knowledge to an unwitnessed owner or audience');
-      }
-    }
-  }
-  const appended = [...existing];
-  for (const draft of input.drafts.slice(admitted.length)) {
-    appended.push(
-      await appendEvent(input.roomId, {
-        roomId: input.roomId,
-        scope: { kind: 'sea' },
-        type: 'memory.belief',
-        actorId: draft.actorId,
-        witnesses: draft.witnesses,
-        payload: draft.payload,
-        provenance: { integrationId: input.integrationId, sourceThreadEventIds: draft.payload.sourceEventIds },
-      })
-    );
-  }
-  for (const participantId of input.promoteParticipantIds) await promoteParticipantUnlocked(participantId);
-
-  const sourceEventIds = [...new Set(input.drafts.flatMap(draft => draft.payload.sourceEventIds ?? []))];
-  const payload: IntegrationPayload = {
-    integrationId: input.integrationId,
-    sourceThreadId: input.threadId,
-    sourceEventIds,
-    promotedParticipantIds: input.promoteParticipantIds,
-  };
-  appended.push(
-    await appendEvent(input.roomId, {
-      roomId: input.roomId,
-      scope: { kind: 'sea' },
-      type: 'integration',
-      actorId: HARNESS_ACTOR,
-      witnesses: [],
-      payload,
-      provenance: { integrationId: input.integrationId, sourceThreadEventIds: sourceEventIds },
-    })
-  );
-  return { appended, alreadyApplied: false };
-}
 
 /** Open/focus the Conversation AI window at this room/thread, then broadcast OPEN_ROOM_EVENT to all windows. */
 export function openRoomAt(payload: OpenRoomEventPayload): void {
@@ -382,16 +286,20 @@ export function setupWorldIPC(): void {
     IPC_CHANNELS.WORLD_INTEGRATE,
     async (_event, input: IntegrateThreadInput): Promise<IntegrateThreadResult> => {
       const result = await integrateThread(input);
-      // Post-session consolidation: fire-and-forget, policy-gated, marker-idempotent. No live
-      // Thread 'archived' transition exists yet (only legacy migration); when one lands, fire there too.
-      void consolidateRoom(input.roomId, { getSettings: loadSettings });
+      // Post-session consolidation: fire-and-forget, policy-gated, marker-idempotent.
+      // Also fired on replay so a crash between marker and consolidation heals.
+      void consolidateRoom(input.destinationRoomId, { getSettings: loadSettings });
       return result;
     }
   );
 
-  ipcMain.handle(IPC_CHANNELS.WORLD_PROMOTE_PARTICIPANT, async (_event, participantId: string): Promise<Participant> =>
-    promoteParticipant(participantId)
+  ipcMain.handle(IPC_CHANNELS.WORLD_PREVIEW_INTEGRATION, async (_event, input: PreviewIntegrationInput): Promise<IntegrationPreview> =>
+    previewIntegration(input)
   );
+
+  // Crash recovery: re-drive pending integration operations left by an
+  // interrupted publication. Fire-and-forget; failures settle their record.
+  void integration.reconcilePendingIntegrations();
 
   ipcMain.handle(
     IPC_CHANNELS.WORLD_CREATE_PARTICIPANT,
@@ -464,6 +372,7 @@ export async function updateParticipant(participant: Participant, threadId?: str
     }
     const index = world.participants.findIndex((item) => item.id === participant.id);
     if (index === -1) throw new Error(`[world] participant not found: ${participant.id}`);
+    participant = { ...participant, adoption: world.participants[index].adoption };
     world.participants[index] = participant;
     await saveWorld(world);
     return participant;

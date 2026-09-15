@@ -52,7 +52,7 @@ import type {
 import type { KnowledgeEvent, KnowledgeEventLog } from '../knowledgeEvents';
 import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../graph/ipc';
 import type { GraphRelationType } from '../graph/types';
-import type { IntegrateThreadInput, IntegrateThreadResult, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, RememberThisInput, Room, Thread, WorldSnapshot } from '../world';
+import type { IntegrateThreadInput, IntegrateThreadResult, IntegrationPreview, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, PreviewIntegrationInput, RememberThisInput, Room, Thread, WorldSnapshot } from '../world';
 
 // ============================================================================
 // Sub-Interfaces
@@ -452,7 +452,7 @@ export interface WorldBridge {
   deleteThread: (roomId: string, threadId: string) => Promise<void>;
   rememberThis: (input: RememberThisInput) => Promise<JournalEvent>;
   integrateThread: (input: IntegrateThreadInput) => Promise<IntegrateThreadResult>;
-  promoteParticipant: (participantId: string) => Promise<Participant>;
+  previewIntegration: (input: PreviewIntegrationInput) => Promise<IntegrationPreview>;
   createParticipant: (input: { displayName: string; kind: 'persistent' | 'temporary'; personaText: string; facets?: Record<string, number | string>; canon?: Participant['canon']; voiceSampleId?: string; profilePhoto?: string }) => Promise<Participant>;
   updateParticipant: (participant: Participant, threadId?: string) => Promise<Participant>;
   deleteParticipant: (participantId: string) => Promise<void>;

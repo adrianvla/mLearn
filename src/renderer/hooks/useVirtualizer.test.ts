@@ -346,4 +346,80 @@ describe('createVirtualizer', () => {
       dispose();
     });
   });
+
+  it('reuses item objects for overlapping indices when the window shifts', () => {
+    createRoot((dispose) => {
+      const el = createMockElement({ clientHeight: 300, scrollTop: 0 });
+      el.scrollTo = vi.fn();
+      const virtualizer = createVirtualizer({
+        count: 100,
+        getScrollElement: () => el,
+        estimateSize: () => 56,
+        overscan: 0,
+      });
+
+      const before = virtualizer.getVirtualItems();
+      expect(before[0].index).toBe(0);
+
+      virtualizer.scrollToIndex(1, { behavior: 'auto' });
+      const after = virtualizer.getVirtualItems();
+
+      expect(after[0].index).toBe(1);
+      expect(after[0]).toBe(before[1]);
+      expect(after[1]).toBe(before[2]);
+      expect(after[after.length - 1].index).toBe(6);
+
+      dispose();
+    });
+  });
+
+  it('emits new item objects when a row height change shifts offsets', () => {
+    const root = createRoot((dispose) => {
+      const el = createMockElement({ clientHeight: 300 });
+      return { dispose, virtualizer: createVirtualizer({ count: 3, getScrollElement: () => el, estimateSize: () => 56, measureDynamic: true }) };
+    });
+    const row0 = document.createElement('div');
+    row0.dataset.index = '0';
+    row0.getBoundingClientRect = () => new DOMRect(0, 0, 300, 56);
+    const row1 = document.createElement('div');
+    row1.dataset.index = '1';
+    let row1Height = 56;
+    row1.getBoundingClientRect = () => new DOMRect(0, 0, 300, row1Height);
+    root.virtualizer.measureElement(row0);
+    root.virtualizer.measureElement(row1);
+
+    const initial = root.virtualizer.getVirtualItems();
+    row1Height = 96;
+    root.virtualizer.measure();
+    const updated = root.virtualizer.getVirtualItems();
+
+    expect(updated[0]).toBe(initial[0]);
+    expect(updated[1]).not.toBe(initial[1]);
+    expect(updated[1].size).toBe(96);
+    expect(updated[2].start).toBe(152);
+    root.dispose();
+  });
+
+  it('returns the same items array when a recompute leaves the window unchanged', () => {
+    createRoot((dispose) => {
+      const el = createMockElement({ clientHeight: 300, scrollTop: 0 });
+      el.scrollTo = vi.fn();
+      const virtualizer = createVirtualizer({
+        count: 100,
+        getScrollElement: () => el,
+        estimateSize: () => 56,
+        overscan: 0,
+      });
+
+      const before = virtualizer.getVirtualItems();
+      expect(before.length).toBeGreaterThan(0);
+
+      Object.defineProperty(el, 'clientHeight', { value: 299, configurable: true });
+      virtualizer.scrollToIndex(0, { behavior: 'auto' });
+
+      expect(virtualizer.getVirtualItems()).toBe(before);
+
+      dispose();
+    });
+  });
 });

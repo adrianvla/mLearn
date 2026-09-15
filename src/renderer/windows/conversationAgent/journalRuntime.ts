@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
 import { projectHistoryForParticipant } from '../../../shared/roomOrchestrator';
-import { type JournalEvent, type JournalEventDraft, type Participant } from '../../../shared/world';
+import { WORLD_CONTINUITY_ID, type JournalEvent, type JournalEventDraft, type Participant } from '../../../shared/world';
 import type {
   ChatWidget,
   ConversationMessage,
@@ -51,7 +51,7 @@ export function createJournalThreadStore(): {
 
       const currentRequest = requestId;
       const journal = getBridge().journal;
-      const sea = (await Promise.all([...new Set([selection.roomId, ...(selection.continuityRoomIds ?? [])])]
+      const sea = (await Promise.all([...new Set([selection.roomId, WORLD_CONTINUITY_ID, ...(selection.continuityRoomIds ?? [])])]
         .map((roomId) => journal.readSeaProjection(roomId)))).flat().filter(event => !selection.baselineHeads || event.seq <= (selection.baselineHeads[event.roomId] ?? 0));
       const thread = selection.threadId
         ? await journal.readThread(selection.roomId, selection.threadId)

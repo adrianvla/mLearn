@@ -38,6 +38,8 @@ export type EventType =
 /** Reserved actor ids. Anything else is a Participant id. */
 export const USER_ACTOR = 'user';
 export const HARNESS_ACTOR = 'harness';
+/** World continuity journal context; this is not a persistent Room. */
+export const WORLD_CONTINUITY_ID = 'world-continuity';
 
 export interface JournalEvent {
   id: string; // evt_<unique>
@@ -49,7 +51,7 @@ export interface JournalEvent {
   witnesses: string[]; // explicit epistemic set; NOT derived from room membership
   payload: unknown; // type-specific
   createdAt: number;
-  provenance?: { sourceThreadEventIds?: string[]; integrationId?: string };
+  provenance?: { sourceThreadEventIds?: string[]; integrationId?: string; stagedIntegration?: boolean };
 }
 
 /** What callers supply; the journal assigns id/seq/createdAt. */
@@ -225,6 +227,8 @@ export function sandboxContext(thread: Thread): Room | undefined {
 
 /** Persistent OR thread-temporary individual. Migrates from legacy AgentConfig. */
 export interface Participant {
+  /** Immutable adoption identity; ordinary profile edits must preserve it. */
+  adoption?: { sourceThreadId: string; baselineHash: string };
   id: string; // legacy agent_* ids preserved
   displayName: string;
   kind: 'persistent' | 'temporary';
@@ -342,6 +346,7 @@ export interface ScenarioGrounding {
 
 /** Full entity snapshot handed to the renderer over WORLD_GET_STATE. */
 export interface WorldSnapshot {
+  integrations?: Omit<IntegrationRecord, 'prepared'>[];
   rooms: Room[];
   threads: Thread[];
   participants: Participant[];
@@ -379,13 +384,102 @@ export interface DeletionPayload {
 
 /**
  * 'integration' — batch marker for one integrate-into-world run. Idempotency
- * key is integrationId; the marker carries ids only, never transcript content.
+ * key is integrationId; the marker carries ids and the selection hash only,
+ * never transcript content. The marker completes journal preparation. Committed status and entity
+ * publication in world.json are the durable logical commit.
  */
 export interface IntegrationPayload {
   integrationId: string;
   sourceThreadId: string;
+  /** Every source event the operation admitted (the selected consequences). */
   sourceEventIds: string[];
+  /** Sandbox-only people adopted into the persistent world (stable ids). */
   promotedParticipantIds: string[];
+  /** Persistent Room that received the selected consequences. */
+  destinationRoomId: string;
+  /** Hash of the normalized selection; a same-id retry with another selection conflicts. */
+  selectionHash: string;
+  scenarioAdopted: boolean;
+}
+
+/** Durable pending/committed operation record (world.json ledger). Written
+ * before the operation's first physical write so a crash at any later point
+ * is reconcilable after restart without relying on the renderer retrying. */
+export interface IntegrationRecord {
+  integrationId: string;
+  sourceThreadId: string;
+  destinationRoomId: string;
+  memoryEventIds: string[];
+  adoptParticipantIds: string[];
+  includeScenario: boolean;
+  selectionHash: string;
+  status: 'pending' | 'committed' | 'interrupted';
+  note?: string;
+  createdAt: number;
+  settledAt?: number;
+  /** Private prepared publication; removed on commit, never sent to renderers. */
+  prepared?: {
+    participants: Participant[];
+    roomBefore: Room;
+    roomAfter: Room;
+    events: JournalEventDraft[];
+  };
+}
+
+/** WORLD_PREVIEW_INTEGRATION — main-owned preview of one integration selection. */
+export interface PreviewIntegrationInput {
+  threadId: string;
+  destinationRoomId: string;
+  /** Tentative selection; empty arrays request the reviewable catalog. */
+  memoryEventIds: string[];
+  adoptParticipantIds: string[];
+  includeScenario: boolean;
+}
+
+/** One selectable thread consequence (a durable memory of any kind). */
+export interface IntegrationPreviewItem {
+  sourceEventId: string;
+  ownerId: string;
+  kind: MemoryEntry['kind'];
+  text: string;
+  witnesses: string[];
+  /** kind 'relationship' only. */
+  toId?: string;
+  label?: string;
+  /** Set when a prior operation already admitted this source event. */
+  integratedBy?: string;
+}
+
+/** One sandbox person as the destination would see them. */
+export interface IntegrationPreviewPerson {
+  id: string;
+  displayName: string;
+  /** Present when the binding pins an existing persistent person. */
+  originId?: string;
+  /** 'reference' = already persistent; 'adopt' = sandbox-only, becomes persistent. */
+  action: 'reference' | 'adopt';
+  /** Required by the current selection (referenced or scenario cast). */
+  required: boolean;
+  /** The persistent person changed since the sandbox pinned its baseline. */
+  baselineDrift?: boolean;
+  /** The pinned origin person no longer exists in the persistent world. */
+  missing?: boolean;
+}
+
+export interface IntegrationPreview {
+  operations: Omit<IntegrationRecord, 'prepared'>[];
+  threadId: string;
+  threadTitle?: string;
+  destinationRoomId: string;
+  destinationRoomTitle: string;
+  destinationHasScenario: boolean;
+  items: IntegrationPreviewItem[];
+  people: IntegrationPreviewPerson[];
+  scenarioAvailable: boolean;
+  /** Temporary people the current selection requires but the caller did not select. */
+  requiredAdoptions: string[];
+  /** Blocking problems with the tentative selection (empty = publishable). */
+  problems: string[];
 }
 
 /** WORLD_REMEMBER_THIS — one-fact immediate Sea append referencing a thread event. */
@@ -398,20 +492,16 @@ export interface RememberThisInput {
   text: string;
 }
 
-/** One Sea memory event the integration wants appended (witnesses explicit). */
-export interface IntegrationDraft {
-  actorId: string;
-  witnesses: string[];
-  payload: MemoryEventPayload;
-}
-
-/** WORLD_INTEGRATE — deterministic idempotent batch; renderer supplies drafts. */
+/** WORLD_INTEGRATE — selective, destination-aware, idempotent batch.
+ * Content is derived main-side from the canonical source journal; the caller
+ * only names the selection and the destination. */
 export interface IntegrateThreadInput {
-  roomId: string;
-  threadId: string;
   integrationId: string;
-  drafts: IntegrationDraft[];
-  promoteParticipantIds: string[];
+  threadId: string;
+  destinationRoomId: string;
+  memoryEventIds: string[];
+  adoptParticipantIds: string[];
+  includeScenario: boolean;
 }
 
 export interface IntegrateThreadResult {

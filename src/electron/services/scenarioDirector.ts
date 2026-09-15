@@ -1,3 +1,4 @@
+import { WORLD_CONTINUITY_ID } from '../../shared/world';
 import { createHash, randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'util';
 import { getInferencePolicy } from '../../shared/inferencePolicy';
@@ -58,7 +59,7 @@ async function generate(request: CreateCastInput, hash: string, signal: AbortSig
       if (!person) throw new Error('Selected person is unavailable');
       return { originId: id, baseline: structuredClone(person) };
     });
-    const baselineHeads: Record<string, number> = {};
+    const baselineHeads: Record<string, number> = { [WORLD_CONTINUITY_ID]: (await readSeaProjection(WORLD_CONTINUITY_ID)).at(-1)?.seq ?? 0 };
     for (const room of world.rooms) baselineHeads[room.id] = (await readSeaProjection(room.id)).at(-1)?.seq ?? 0;
     const created: ScenarioCreation = { operationId: request.operationId, requestHash: hash, request,
       status: 'generating', origin: 'generated', createdAt: Date.now(), bindings, baselineHeads };

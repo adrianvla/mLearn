@@ -49,10 +49,12 @@ html, body {
   font-family: var(--font-family-sans);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
-  background-color: var(--bg-opaque);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+body.reduce-transparency{
+  background-color: var(--bg-opaque);
 }
 
 body {

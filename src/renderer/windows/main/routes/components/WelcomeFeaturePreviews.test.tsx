@@ -83,7 +83,7 @@ describe('WelcomeVideoPreview', () => {
       container,
     );
 
-    expect(container.querySelector('.wfv-player-title')?.textContent).toBe('Clip');
+    expect(container.querySelector('.wfv-media-title')?.textContent).toBe('Clip');
     const play = container.querySelector<HTMLButtonElement>('button.wfv-play');
     play?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(onResume).toHaveBeenCalledWith(item);
@@ -107,8 +107,8 @@ describe('WelcomeVideoPreview', () => {
       container,
     );
 
-    expect(container.querySelector('div.wfv-player.wfv-player-empty')).not.toBeNull();
-    expect(container.querySelector('.wfv-player-empty .wfv-empty')?.textContent).toBe('No video yet');
+    expect(container.querySelector('div.wfv-media-frame.wfv-media-empty')).not.toBeNull();
+    expect(container.querySelector('.wfv-media-empty .wfv-empty')?.textContent).toBe('No video yet');
     expect(container.querySelector('button.wfv-play')).toBeNull();
 
     dispose();
@@ -127,7 +127,7 @@ describe('WelcomeReaderPreview', () => {
     container.remove();
   });
 
-  it('makes the whole page the resume button with the real title and progress', () => {
+  it('makes the whole frame the resume button with the real title and progress', () => {
     const onResume = vi.fn();
     const item = makeRecentItem({ type: 'book', name: 'Chapter', path: '/book.pdf' });
     const dispose = render(
@@ -142,17 +142,18 @@ describe('WelcomeReaderPreview', () => {
       container,
     );
 
-    const page = container.querySelector<HTMLButtonElement>('button.wfv-page-button');
-    expect(page?.getAttribute('aria-label')).toBe('Continue');
-    expect(page?.querySelector('.wfv-page-title')?.textContent).toBe('Chapter');
-    expect(page?.querySelector<HTMLProgressElement>('progress.wfv-progress')?.value).toBe(40);
-    page?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const frame = container.querySelector<HTMLButtonElement>('button.wfv-media-frame');
+    expect(frame?.classList.contains('wfv-reader-resume')).toBe(true);
+    expect(frame?.getAttribute('aria-label')).toBe('Continue');
+    expect(frame?.querySelector('.wfv-media-title')?.textContent).toBe('Chapter');
+    expect(frame?.querySelector<HTMLProgressElement>('progress.wfv-progress')?.value).toBe(40);
+    frame?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(onResume).toHaveBeenCalledWith(item);
 
     dispose();
   });
 
-  it('keeps a physical page stack with description when there is no item', () => {
+  it('keeps a physical media frame with description when there is no item', () => {
     const dispose = render(
       () => (
         <WelcomeReaderPreview
@@ -165,9 +166,9 @@ describe('WelcomeReaderPreview', () => {
       container,
     );
 
-    expect(container.querySelector('.wfv-page-stack')).not.toBeNull();
+    expect(container.querySelector('.wfv-media-frame.wfv-media-empty')).not.toBeNull();
     expect(container.querySelector('.wfv-empty')?.textContent).toBe('No book yet');
-    expect(container.querySelector('button.wfv-page-button')).toBeNull();
+    expect(container.querySelector('button.wfv-reader-resume')).toBeNull();
 
     dispose();
   });

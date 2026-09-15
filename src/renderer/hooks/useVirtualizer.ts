@@ -66,13 +66,18 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
     return total;
   });
 
+  let previousItems: VirtualItem[] = [];
+
   const virtualItems = createMemo(() => {
     measurementRevision();
     const st = scrollTop();
     const ch = containerHeight();
     const count = getCount();
 
-    if (count === 0 || ch === 0) return [];
+    if (count === 0 || ch === 0) {
+      if (previousItems.length > 0) previousItems = [];
+      return previousItems;
+    }
 
     let start = 0;
     let cumulative = 0;
@@ -97,18 +102,28 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
     start = Math.max(0, start - overscan);
     end = Math.min(count - 1, end + overscan);
 
-    const items: VirtualItem[] = [];
     let offset = 0;
     for (let i = 0; i < start; i++) {
       offset += getItemSize(i);
     }
 
+    // Consumers render items through reference-keyed <For>: reuse the prior
+    // object for an index whose geometry is unchanged so resize/relayout
+    // recomputes keep rows mounted, and hand back the previous array when the
+    // window is identical so downstream memos skip entirely.
+    const previousByIndex = new Map(previousItems.map((item): [number, VirtualItem] => [item.index, item]));
+    const items: VirtualItem[] = [];
     for (let i = start; i <= end; i++) {
       const size = getItemSize(i);
-      items.push({ index: i, start: offset, size });
+      const previous = previousByIndex.get(i);
+      items.push(previous && previous.start === offset && previous.size === size ? previous : { index: i, start: offset, size });
       offset += size;
     }
 
+    if (previousItems.length === items.length && previousItems.every((item, i) => item === items[i])) {
+      return previousItems;
+    }
+    previousItems = items;
     return items;
   });
 

@@ -160,11 +160,33 @@ export async function appendEvent(roomId: string, draft: JournalEventDraft): Pro
   });
 }
 
+/** Main-only recovery reader. Never exposed through journal IPC. Only rows
+ *  written by the staged hidden-preparation protocol are operation content. */
+export async function readPreparedIntegrationEvents(roomId: string, integrationId: string): Promise<JournalEvent[]> {
+  return (await readStream(roomId, { kind: 'sea' })).filter(event =>
+    event.provenance?.integrationId === integrationId && event.provenance?.stagedIntegration === true);
+}
+
+async function readCanonicalSea(roomId: string): Promise<JournalEvent[]> {
+  const events = await readStream(roomId, { kind: 'sea' });
+  const world = await loadWorld();
+  const records = new Map((world.integrations ?? []).map(record => [record.integrationId, record]));
+  return events.filter(event => {
+    const id = event.provenance?.integrationId;
+    if (!id) return true;
+    // Canonical only when the staged protocol wrote it AND the durable
+    // ledger certified the operation. Anything else claiming an
+    // integrationId (dev-era rows, foreign writes) stays quarantined.
+    return event.provenance?.stagedIntegration === true
+      && records.get(id)?.status === 'committed';
+  });
+}
+
 export async function subscribeRoom(
   roomId: string,
   limit: number
 ): Promise<{ events: JournalEvent[]; headSeq: number }> {
-  const events = await readStream(roomId, { kind: 'sea' });
+  const events = await readCanonicalSea(roomId);
   const tail = events.slice(Math.max(0, events.length - limit));
   const headSeq = events.length > 0 ? events[events.length - 1].seq : 0;
   return { events: tail, headSeq };
@@ -174,7 +196,7 @@ export async function queryEvents(
   roomId: string,
   opts: { beforeSeq?: number; limit: number }
 ): Promise<JournalEvent[]> {
-  const events = await readStream(roomId, { kind: 'sea' });
+  const events = await readCanonicalSea(roomId);
   const before = opts.beforeSeq === undefined ? Number.POSITIVE_INFINITY : opts.beforeSeq;
   const eligible = events.filter((event) => event.seq < before);
   return eligible.slice(Math.max(0, eligible.length - opts.limit));
@@ -182,7 +204,7 @@ export async function queryEvents(
 
 /** Sea-scope events only. Never returns thread-scoped events (structural: reads the Sea file only). */
 export async function readSeaProjection(roomId: string, limit?: number): Promise<JournalEvent[]> {
-  const events = await readStream(roomId, { kind: 'sea' });
+  const events = await readCanonicalSea(roomId);
   if (limit === undefined || limit >= events.length) return events;
   return events.slice(events.length - limit);
 }

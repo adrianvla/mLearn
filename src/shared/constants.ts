@@ -381,7 +381,7 @@ export const IPC_CHANNELS = {
   WORLD_DELETE_THREAD: 'world-delete-thread',
   WORLD_REMEMBER_THIS: 'world-remember-this',
   WORLD_INTEGRATE: 'world-integrate',
-  WORLD_PROMOTE_PARTICIPANT: 'world-promote-participant',
+  WORLD_PREVIEW_INTEGRATION: 'world-preview-integration',
   WORLD_CREATE_PARTICIPANT: 'world-create-participant',
   WORLD_UPDATE_PARTICIPANT: 'world-update-participant',
   WORLD_DELETE_PARTICIPANT: 'world-delete-participant',
@@ -426,7 +426,7 @@ export const SUBTITLE_THEMES = ['marker', 'background', 'shadow'] as const;
 export type SubtitleTheme = typeof SUBTITLE_THEMES[number];
 
 // App themes
-export const APP_THEMES = ['light', 'dark', 'glass-light', 'glass-dark', 'light-high-contrast', 'dark-high-contrast', 'darker', 'custom'] as const;
+export const APP_THEMES = ['light', 'dark', 'glass-light', 'glass-dark', 'light-high-contrast', 'dark-high-contrast', 'oled', 'custom'] as const;
 export type AppTheme = typeof APP_THEMES[number];
 
 export const SRS_EASE = {

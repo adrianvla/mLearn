@@ -3,7 +3,7 @@
  * AI-powered language tutor with tokenized chat, tool calling, and speech I/O
  */
 
-import { Component, Show, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { For, Component, Show, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
@@ -33,6 +33,7 @@ import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
 import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTranslation } from '../../hooks';
 import { ChatBubble } from './ChatBubble';
 import { ThreadInfoPanel } from './ThreadInfoPanel';
+import { IntegrationModal } from './IntegrationModal';
 import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 
@@ -248,6 +249,7 @@ export const ConversationContent: Component = () => {
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
   let hoverRequestId = 0;
 
+  const [integrationRecoveryError, setIntegrationRecoveryError] = createSignal<string | null>(null);
   const [world, setWorld] = createSignal<WorldSnapshot | null>(null);
   const [selection, setSelection] = createSignal<{ roomId: string; threadId: string | null } | null>(null);
   const journal = createJournalThreadStore();
@@ -265,6 +267,7 @@ export const ConversationContent: Component = () => {
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
   const [showNewConversationModal, setShowNewConversationModal] = createSignal(false);
   const [showOverflowMenu, setShowOverflowMenu] = createSignal(false);
+  const [showIntegrationModal, setShowIntegrationModal] = createSignal(false);
   let overflowAnchorRef: HTMLButtonElement | undefined;
   const [showDetailsDrawer, setShowDetailsDrawer] = createSignal(false);
   const [voiceOverlayRequested, setVoiceOverlayRequested] = createSignal(false);
@@ -1348,6 +1351,34 @@ export const ConversationContent: Component = () => {
 
   return (
     <div class="conversation-agent">
+      <Show when={integrationRecoveryError()}><p class="integration-error" role="alert">{integrationRecoveryError()}</p></Show>
+      <For each={world()?.integrations?.filter(record => record.status !== 'committed')}>
+        {(record) => <div class="integration-error" role="status">
+          <span>{t(record.status === 'pending' ? 'mlearn.ConversationAgent.Integration.Pending' : 'mlearn.ConversationAgent.Integration.Interrupted')} {record.note}</span>
+          <Show when={record.status === 'interrupted'}>
+            <details>
+              <summary>{t('mlearn.ConversationAgent.Integration.CurrentWorldState')}</summary>
+              <p>{t('mlearn.ConversationAgent.Integration.PeopleLabel')}: {record.adoptParticipantIds.map(id => {
+                const person = world()?.participants.find(item => item.id === id);
+                return `${person?.displayName ?? id}: ${t(person ? 'mlearn.ConversationAgent.Integration.Present' : 'mlearn.ConversationAgent.Integration.Absent')}`;
+              }).join(', ')}</p>
+              <p>{t('mlearn.ConversationAgent.Integration.CurrentRoster')}: {world()?.rooms.find(room => room.id === record.destinationRoomId)?.participantIds.map(id => world()?.participants.find(person => person.id === id)?.displayName ?? id).join(', ')}</p>
+              <p>{t('mlearn.ConversationAgent.Integration.ScenarioLabel')}: {t(world()?.rooms.some(room => room.id === record.destinationRoomId && room.scenarioRef === record.integrationId) ? 'mlearn.ConversationAgent.Integration.Present' : 'mlearn.ConversationAgent.Integration.Absent')}</p>
+            </details>
+          </Show>
+          <Show when={record.status === 'pending'}>
+            <Btn onClick={async () => {
+              try {
+                await getBridge().world.integrateThread({ integrationId: record.integrationId,
+                  threadId: record.sourceThreadId, destinationRoomId: record.destinationRoomId,
+                  memoryEventIds: record.memoryEventIds, adoptParticipantIds: record.adoptParticipantIds,
+                  includeScenario: record.includeScenario });
+              } catch (error) { setIntegrationRecoveryError(String(error)); }
+              finally { setWorld(await getBridge().world.getWorldState()); }
+            }}>{t('mlearn.ConversationAgent.Integration.Retry')}</Btn>
+          </Show>
+        </div>}
+      </For>
       <Show when={showSplash() && settings.llmProvider === 'cloud'}>
         <AgeVerificationModal onAccept={() => setShowSplash(false)} />
       </Show>
@@ -1694,6 +1725,9 @@ export const ConversationContent: Component = () => {
         <>
         <button type="button" class="ca-details-backdrop" aria-label="Close conversation details" onClick={() => setShowDetailsDrawer(false)} />
         <aside class="ca-details-drawer">
+          <div class="ca-details-actions">
+            <Btn variant="ghost" onClick={() => setShowDetailsDrawer(false)}>{t('mlearn.ConversationAgent.Integration.Close')}</Btn>
+          </div>
           <ThreadInfoPanel roomTitle={activeRoom()?.title}
             thread={activeThread()}
             roomScenario={activeRoom()?.scenario}
@@ -1702,6 +1736,7 @@ export const ConversationContent: Component = () => {
             onRenameThread={handleRenameThread}
             onUpdateParticipant={handleUpdateParticipant}
             onDeleteThread={handleDeleteThread}
+            onIntegrate={() => { setShowIntegrationModal(true); }}
           />
         </aside>
         </>
@@ -1711,6 +1746,21 @@ export const ConversationContent: Component = () => {
           world={world()}
           onClose={() => setShowNewConversationModal(false)}
           onCreated={handleScenarioCreated}
+        />
+      </Show>
+      <Show when={showIntegrationModal() && activeThread()?.sandbox}>
+        <IntegrationModal
+          thread={activeThread()!}
+          rooms={world()?.rooms ?? []}
+          onClose={() => setShowIntegrationModal(false)}
+          onIntegrated={async () => {
+            setWorld(await getBridge().world.getWorldState());
+            const thread = activeThread()!;
+            const sandbox = thread.sandbox;
+            await journal.select({ roomId: thread.id, threadId: thread.id,
+              continuityRoomIds: sandbox ? Object.keys(sandbox.baselineHeads) : undefined,
+              baselineHeads: sandbox?.baselineHeads });
+          }}
         />
       </Show>
 

@@ -24,82 +24,67 @@ export interface WelcomeMediaPreviewProps {
 /** Mini player surface for the most recent video; empty keeps a physical player shell. */
 export const WelcomeVideoPreview: Component<WelcomeMediaPreviewProps> = (props) => {
   return (
-    <div class="wfv-video">
+    <div class="wfv-media">
       <Show
         when={props.item}
         fallback={
-          <div class="wfv-player wfv-player-empty">
-            <svg class="wfv-player-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+          <div class="wfv-media-frame wfv-media-empty">
+            <svg class="wfv-media-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
             <p class="wfv-empty">{props.emptyLabel}</p>
           </div>
         }
       >
         {(item) => (
-          <>
-            <div class="wfv-player">
-              <Show when={item().thumbnail}>
-                <img class="wfv-video-thumb" src={item().thumbnail} alt="" />
-              </Show>
-              <span class="wfv-player-title">{item().name}</span>
-              <button
-                type="button"
-                class="wfv-play"
-                aria-label={props.continueLabel}
-                onClick={() => props.onResume(item())}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
-              </button>
+          <div class="wfv-media-frame">
+            <Show when={item().thumbnail}>
+              <img class="wfv-media-thumb" src={item().thumbnail} alt="" />
+            </Show>
+            <div class="wfv-media-title">
+              <span>{item().name}</span>
+              <progress class="wfv-progress" max="100" value={item().progress} />
             </div>
-            <progress class="wfv-progress" max="100" value={item().progress} />
-          </>
+            <button
+              type="button"
+              class="wfv-play"
+              aria-label={props.continueLabel}
+              onClick={() => props.onResume(item())}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+            </button>
+          </div>
         )}
       </Show>
     </div>
   );
 };
 
-/** Layered reader page for the most recent book; the whole page is the resume button. */
+/** Mini reader surface for the most recent book; the whole frame is the resume button. */
 export const WelcomeReaderPreview: Component<WelcomeMediaPreviewProps> = (props) => {
   return (
-    <div class="wfv-reader">
+    <div class="wfv-media">
       <Show
         when={props.item}
         fallback={
-          <div class="wfv-page-stack">
-            <span class="wfv-page-sheet" aria-hidden="true" />
-            <span class="wfv-page-sheet" aria-hidden="true" />
-            <div class="wfv-page">
-              <p class="wfv-empty">{props.emptyLabel}</p>
-            </div>
+          <div class="wfv-media-frame wfv-media-empty">
+            <p class="wfv-empty">{props.emptyLabel}</p>
           </div>
         }
       >
         {(item) => (
-          <div class="wfv-page-stack">
-            <span class="wfv-page-sheet" aria-hidden="true" />
-            <span class="wfv-page-sheet" aria-hidden="true" />
-            <button
-              type="button"
-              class="wfv-page wfv-page-button"
-              aria-label={props.continueLabel}
-              onClick={() => props.onResume(item())}
-            >
-              <span class="wfv-page-title">{item().name}</span>
-              <Show
-                when={item().thumbnail}
-                fallback={
-                  <span class="wfv-page-body">
-                    <span class="wfv-page-line" />
-                    <span class="wfv-page-line" />
-                    <span class="wfv-page-line wfv-page-line-short" />
-                  </span>
-                }
-              >
-                <img class="wfv-page-cover" src={item().thumbnail} alt="" />
-              </Show>
+          <button
+            type="button"
+            class="wfv-media-frame wfv-reader-resume"
+            aria-label={props.continueLabel}
+            onClick={() => props.onResume(item())}
+          >
+            <Show when={item().thumbnail}>
+              <img class="wfv-media-thumb" src={item().thumbnail} alt="" />
+            </Show>
+            <div class="wfv-media-title">
+              <span>{item().name}</span>
               <progress class="wfv-progress" max="100" value={item().progress} />
-            </button>
-          </div>
+            </div>
+          </button>
         )}
       </Show>
     </div>

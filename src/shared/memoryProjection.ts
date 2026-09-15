@@ -165,6 +165,6 @@ export function projectionForCaller(
   cutoff?: number,
 ): RoomMemoryProjection {
   const visible = visibleEventsFor(callerId, events);
-  const bounded = cutoff === undefined ? visible : visible.filter((e) => e.seq >= cutoff);
+  const bounded = cutoff === undefined ? visible : visible.filter((e) => Boolean(e.provenance?.integrationId) || e.seq >= cutoff);
   return deriveRoomProjection(bounded);
 }

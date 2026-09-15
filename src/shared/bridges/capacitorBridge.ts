@@ -57,7 +57,7 @@ import { emptyTransitions, applyTransitions } from '../knowledge/historyArchive'
 import type { KeyHistorySummary, KeyKnowledgeState } from '../knowledge/historyQueries';
 import { replayKeyProjection } from '../utils/projectionReplay';
 import type { AppUpdateState } from '../appUpdate';
-import type { IntegrateThreadResult, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
+import type { IntegrateThreadResult, IntegrationPreview, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
@@ -2127,7 +2127,7 @@ const worldBridge: WorldBridge = {
   async integrateThread(): Promise<IntegrateThreadResult> {
     throw new Error('Not supported on mobile');
   },
-  async promoteParticipant(): Promise<Participant> {
+  async previewIntegration(): Promise<IntegrationPreview> {
     throw new Error('Not supported on mobile');
   },
   async createParticipant(): Promise<Participant> {

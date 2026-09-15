@@ -41,7 +41,7 @@ describe('journalRuntime', () => {
   it('loads a persistent Room view from Sea while keeping other Rooms out of its transcript', async () => {
     const own = event({ id: 'own', type: 'message.user', scope: { kind: 'sea' } });
     const other = event({ id: 'other', roomId: 'room-2', type: 'message.character', scope: { kind: 'sea' } });
-    mockJournal.readSeaProjection.mockImplementation(async id => id === 'room-1' ? [own] : [other]);
+    mockJournal.readSeaProjection.mockImplementation(async id => id === 'world-continuity' ? [] : id === 'room-1' ? [own] : [other]);
     const store = createJournalThreadStore();
     await store.select({ roomId: 'room-1', threadId: null, continuityRoomIds: ['room-2'] });
     expect(store.threadEvents()).toEqual([own]);
@@ -59,7 +59,7 @@ describe('journalRuntime', () => {
     const seaTwo = event({ id: 'sea-2', type: 'membership', roomId: 'room-2', scope: { kind: 'sea' } });
     const threadTwo = event({ id: 'thread-2', type: 'message.user', roomId: 'room-2', scope: { kind: 'thread', threadId: 'thread-2' } });
     const appended = event({ id: 'appended', type: 'message.user' });
-    mockJournal.readSeaProjection.mockImplementation(async (roomId) => roomId === 'room-1' ? [seaOne] : [seaTwo]);
+    mockJournal.readSeaProjection.mockImplementation(async (roomId) => roomId === 'world-continuity' ? [] : roomId === 'room-1' ? [seaOne] : [seaTwo]);
     mockJournal.readThread.mockImplementation(async (roomId) => roomId === 'room-1' ? [threadOne] : [threadTwo]);
     mockJournal.appendEvent.mockResolvedValue(appended);
     const store = createJournalThreadStore();

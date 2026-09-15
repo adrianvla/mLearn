@@ -49,7 +49,7 @@ const settingRegistry = {
       'glass-dark',
       'light-high-contrast',
       'dark-high-contrast',
-      'darker',
+      'oled',
       'custom',
     ],
   },

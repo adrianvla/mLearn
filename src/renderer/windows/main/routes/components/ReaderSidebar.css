@@ -14,7 +14,7 @@
   flex-direction: column;
   background: var(--bg);
   border-right: 1px solid var(--border-color);
-  padding: var(--reader-sidebar-padding-block-start) 0.5rem 1rem;
+  padding: 0 0.5rem 0;
   z-index: 90;
   user-select: none;
 }
@@ -26,6 +26,8 @@
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
+  padding-top: var(--reader-sidebar-padding-block-start);
+  padding-bottom: var(--reader-thumbnail-gap);
 }
 
 .reader-sidebar .page-list-virtual {

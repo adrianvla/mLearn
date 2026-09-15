@@ -153,3 +153,4 @@
 
 .ca-thread-actions { display: flex; flex-direction: column; gap: var(--spacing-2); }
 .ca-thread-delete-confirm { display: flex; align-items: center; gap: var(--spacing-2); flex-wrap: wrap; }
+.ca-thread-integration-hint { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }

@@ -15,7 +15,7 @@ import { getBridge } from '../../../shared/bridges';
 import { SkeletonRows } from '../../components/common';
 import { getLogger } from '../../../shared/utils/logger';
 import { projectionForCaller, type RoomMemoryProjection } from '@shared/memoryProjection';
-import { USER_ACTOR, type JournalEvent, type Participant, type Room } from '@shared/world';
+import { WORLD_CONTINUITY_ID, USER_ACTOR, type JournalEvent, type Participant, type Room } from '@shared/world';
 import './MemoryBrowser.css';
 
 const log = getLogger('renderer.memoryBrowser.app');
@@ -80,7 +80,8 @@ const MemoryBrowserContent: Component = () => {
     const room = selectedRoom();
     if (!room) return [];
     const byId = new Map(participants().map((p) => [p.id, p]));
-    return room.participantIds
+    const relevantIds = new Set([...room.participantIds, ...events().flatMap(event => event.witnesses)]);
+    return [...relevantIds]
       .map((id) => byId.get(id))
       .filter((p): p is Participant => p !== undefined);
   });
@@ -128,9 +129,10 @@ const MemoryBrowserContent: Component = () => {
     void (async () => {
       try {
         const snapshot = await getBridge().world.getWorldState();
-        setRooms(snapshot.rooms);
+        const contexts = [...snapshot.rooms, { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
+        setRooms(contexts);
         setParticipants(snapshot.participants);
-        const first = snapshot.rooms[0];
+        const first = contexts[0];
         if (first) await loadRoom(first.id);
       } catch (err) {
         log.error('error', err);

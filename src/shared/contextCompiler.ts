@@ -150,7 +150,7 @@ function isVisibleFor(
   e: JournalEvent,
   capabilities?: Participant['capabilities'],
 ): boolean {
-  return (capabilities?.witnessScope === 'all' || e.witnesses.includes(participantId)) && !inAbsence(absence, e.seq);
+  return (capabilities?.witnessScope === 'all' || e.witnesses.includes(participantId)) && (Boolean(e.provenance?.integrationId) || !inAbsence(absence, e.seq));
 }
 
 function isMemoryKind(value: unknown): value is MemoryEntry['kind'] {

@@ -396,3 +396,13 @@ textarea.ca-chat-textarea,
   user-select: none;
   flex-shrink: 0;
 }
+
+.ca-details-actions {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--spacing-2);
+  background: var(--bg-nt-primary);
+  z-index: 1;
+}

@@ -105,7 +105,8 @@
 
 .welcome-continue-progress::-webkit-progress-bar {
   background: var(--bg-intense);
-  border: 1px solid var(--border-color);
+  /*border: 1px solid var(--border-color);*/
+  box-shadow: var(--border-color-intense) 0px 0px 0px 1px;
   border-radius: var(--radius-full);
 }
 
@@ -131,7 +132,7 @@
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  background: var(--bg-intense);
+  background: var(--bg);
   border: 1px solid var(--border-color-intense);
   border-radius: var(--radius-md);
   cursor: pointer;

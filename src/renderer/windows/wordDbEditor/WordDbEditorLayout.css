@@ -6,9 +6,12 @@
 .word-db-editor {
   position: relative;
   height: 100vh;
-  background: var(--bg-primary);
+  background: var(--transparent);
   color: var(--text-primary);
   overflow: hidden;
+}
+body.reduce-transparency .word-db-editor{
+  background: var(--bg-opaque);
 }
 
 .word-db-editor > .collapsible-sticky-header {
@@ -101,7 +104,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
-  padding: calc(var(--word-db-editor-header-height, 0px) + var(--spacing-4) - 1px) 0 0.5rem 0;
+  padding: calc(var(--word-db-editor-header-height, 0px) + 1px) 0 0.5rem 0;
   transition: padding-top var(--transition-slow);
 }
 

@@ -7,13 +7,16 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 2rem;
-  background: var(--bg-opaque);
+  background: linear-gradient(180deg,var(--transparent) 0%, var(--transparent) 30%, var(--bg-opaque) 130%);
   color: var(--text-primary);
   user-select: none;
   min-height: 0;
   /* Center the column vertically when it fits; fall back to top-aligned
      scrolling so small windows never clip the top of the content. */
   justify-content: safe center;
+}
+body.reduce-transparency .welcome-container {
+  background: var(--bg-opaque);
 }
 
 .welcome-header,
@@ -143,9 +146,12 @@
   flex: 0 0 auto;
   min-height: 0;
   padding: 1rem;
-  background: var(--bg-nt-primary);
+  background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
+}
+body.reduce-transparency .welcome-continue-section {
+  background: var(--bg-nt-secondary);
 }
 
 .welcome-continue-section h2 {

@@ -13,6 +13,7 @@ import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../shared/graph/ipc';
 import type { GraphRelationType } from '../shared/graph/types';
+import type { IntegrateThreadInput, IntegrateThreadResult, IntegrationPreview, PreviewIntegrationInput } from '../shared/world';
 import { getLogger } from '../shared/utils/logger';
 
 const log = getLogger('electron.preload');
@@ -610,10 +611,10 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_DELETE_THREAD, roomId, threadId),
   rememberThis: (input: import('../shared/world').RememberThisInput): Promise<import('../shared/world').JournalEvent> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_REMEMBER_THIS, input),
-  integrateThread: (input: import('../shared/world').IntegrateThreadInput): Promise<import('../shared/world').IntegrateThreadResult> =>
+  integrateThread: (input: IntegrateThreadInput): Promise<IntegrateThreadResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_INTEGRATE, input),
-  promoteParticipant: (participantId: string): Promise<import('../shared/world').Participant> =>
-    ipcRenderer.invoke(IPC_CHANNELS.WORLD_PROMOTE_PARTICIPANT, participantId),
+  previewIntegration: (input: PreviewIntegrationInput): Promise<IntegrationPreview> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_PREVIEW_INTEGRATION, input),
   createParticipant: (input: {
     displayName: string;
     kind: 'persistent' | 'temporary';

@@ -240,19 +240,4 @@ describe('worldIpc', () => {
     await expect(mod.createPersistentRoom({ operationId: 'persist-4', participantIds: [] })).rejects.toThrow(/selected people/);
   });
 
-  it('a completed WORLD_INTEGRATE fires one post-session dreamer consolidation', async () => {
-    seedWorld([room('r1', ['p1'])], [thread('t1', 'r1')]);
-    mod.setupWorldIPC();
-    const handle = vi.mocked((await import('electron')).ipcMain.handle);
-    const integrate = handle.mock.calls.find((call) => call[0] === IPC_CHANNELS.WORLD_INTEGRATE)?.[1] as
-      | (event: unknown, input: { roomId: string; threadId: string; integrationId: string; drafts: never[]; promoteParticipantIds: never[] }) => Promise<unknown>
-      | undefined;
-    if (!integrate) throw new Error('WORLD_INTEGRATE handler not registered');
-
-    await integrate({}, { roomId: 'r1', threadId: 't1', integrationId: 'int-1', drafts: [], promoteParticipantIds: [] });
-    await new Promise((resolve) => setImmediate(resolve));
-
-    expect(mockConsolidateRoom).toHaveBeenCalledTimes(1);
-    expect(mockConsolidateRoom).toHaveBeenCalledWith('r1', { getSettings: mockLoadSettings });
-  });
 });

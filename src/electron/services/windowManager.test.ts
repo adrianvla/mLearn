@@ -36,6 +36,23 @@ type MockWindow = {
 };
 
 const createdWindows: MockWindow[] = [];
+const capturedWindowOptions: unknown[] = [];
+
+type CapturedWindowOptions = {
+  frame?: unknown;
+  titleBarOverlay?: unknown;
+  titleBarStyle?: unknown;
+  trafficLightPosition?: { x: number; y: number };
+  vibrancy?: unknown;
+  visualEffectState?: unknown;
+  backgroundColor?: unknown;
+  transparent?: unknown;
+  alwaysOnTop?: unknown;
+};
+
+function lastWindowOptions(): CapturedWindowOptions {
+  return capturedWindowOptions[capturedWindowOptions.length - 1] as CapturedWindowOptions;
+}
 
 function makeMockWindow(): MockWindow {
   const win: MockWindow = {
@@ -104,7 +121,8 @@ class MockBrowserWindow {
     isDestroyed: ReturnType<typeof vi.fn>;
   };
 
-  constructor(_opts?: unknown) {
+  constructor(opts?: unknown) {
+    capturedWindowOptions.push(opts);
     const w = makeMockWindow();
     this.loadURL = w.loadURL;
     this.loadFile = w.loadFile;
@@ -279,6 +297,7 @@ describe('windowManager', () => {
     mockFromWebContents.mockReset();
     mockFromWebContents.mockImplementation(() => makeMockWindow());
     MockBrowserWindow.fromWebContents = mockFromWebContents;
+    capturedWindowOptions.length = 0;
   });
 
   describe('getMainWindow', () => {
@@ -465,6 +484,89 @@ describe('windowManager', () => {
     expect(welcome.close).toHaveBeenCalledOnce();
     expect(main.focus).toHaveBeenCalledOnce();
     expect(getCurrentWindow()).toBe(main);
+  });
+
+  // Dynamic import per test is required: beforeEach calls vi.resetModules(),
+  // so module-level window state must be re-created fresh for every test.
+  describe('macOS window surface', () => {
+    it('gives the main window the hidden-titlebar app-window surface', async () => {
+      vi.doMock('../utils/platform', () => ({
+        isMac: true,
+        isLinux: false,
+        isWindows: false,
+        isPackaged: false,
+        getAppPath: vi.fn(() => '/tmp/appPath'),
+      }));
+      const { createMainWindow } = await import('./windowManager');
+      createMainWindow();
+
+      const opts = lastWindowOptions();
+      expect(opts.frame).toBeUndefined();
+      expect(opts.titleBarOverlay).toBe(true);
+      expect(opts.trafficLightPosition).toEqual({ x: 10, y: 10 });
+      expect(opts.vibrancy).toBe('under-window');
+      expect(opts.visualEffectState).toBe('followWindow');
+      expect(opts.titleBarStyle).toBe('hidden');
+      expect('backgroundColor' in opts).toBe(false);
+    });
+
+    it('gives ordinary child windows the app-window surface on macOS', async () => {
+      vi.doMock('../utils/platform', () => ({
+        isMac: true,
+        isLinux: false,
+        isWindows: false,
+        isPackaged: false,
+        getAppPath: vi.fn(() => '/tmp/appPath'),
+      }));
+      const { createChildWindow } = await import('./windowManager');
+      createChildWindow('settings' as never);
+
+      const opts = lastWindowOptions();
+      expect(opts.frame).toBeUndefined();
+      expect(opts.titleBarOverlay).toBe(true);
+      expect(opts.trafficLightPosition).toEqual({ x: 10, y: 10 });
+      expect(opts.vibrancy).toBe('under-window');
+      expect(opts.visualEffectState).toBe('followWindow');
+      expect(opts.titleBarStyle).toBe('hidden');
+      expect('backgroundColor' in opts).toBe(false);
+    });
+
+    it('keeps explicit frame:false overlay children free of vibrancy and overlay controls', async () => {
+      vi.doMock('../utils/platform', () => ({
+        isMac: true,
+        isLinux: false,
+        isWindows: false,
+        isPackaged: false,
+        getAppPath: vi.fn(() => '/tmp/appPath'),
+      }));
+      const { launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+
+      const opts = lastWindowOptions();
+      expect(opts.frame).toBe(false);
+      expect(opts.transparent).toBe(true);
+      expect(opts.backgroundColor).toBeUndefined();
+      expect(opts.alwaysOnTop).toBe(true);
+      expect(opts.vibrancy).toBeUndefined();
+      expect(opts.titleBarOverlay).toBeUndefined();
+      expect(opts.trafficLightPosition).toBeUndefined();
+    });
+
+    it('lets explicit caller options override the macOS surface defaults', async () => {
+      vi.doMock('../utils/platform', () => ({
+        isMac: true,
+        isLinux: false,
+        isWindows: false,
+        isPackaged: false,
+        getAppPath: vi.fn(() => '/tmp/appPath'),
+      }));
+      const { createChildWindow } = await import('./windowManager');
+      createChildWindow('settings' as never, { titleBarOverlay: false, backgroundColor: '#111111' });
+
+      const opts = lastWindowOptions();
+      expect(opts.titleBarOverlay).toBe(false);
+      expect(opts.backgroundColor).toBe('#111111');
+    });
   });
 
   describe('createChildWindow', () => {

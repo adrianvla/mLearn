@@ -7,8 +7,14 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--bg-opaque);
+  background: var(--transparent);
   color: var(--text-primary);
+}
+body.reduce-transparency .reader-route {
+  background: var(--bg-opaque);
+}
+body:not(.reduce-transparency) .reader-route .panel{
+  background: var(--transparent);
 }
 
 .reader-route--sharpen .page-image,

@@ -9,7 +9,7 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem;
-  background: var(--bg-nt-primary);
+  background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal), background var(--transition-normal);
@@ -17,6 +17,9 @@
   min-width: 0;
   height: 100%;
   min-height: 0;
+}
+body.reduce-transparency .welcome-feature-card {
+  background: var(--bg-nt-primary);
 }
 
 /* Stretched main-action button: covers the whole card, behind preview controls */
@@ -41,6 +44,9 @@
 .welcome-feature-card:has(.welcome-feature-card-main:hover) {
   box-shadow: var(--shadow-lg);
   border-color: var(--border-color-intense);
+  background: var(--bg-secondary);
+}
+body.reduce-transparency .welcome-feature-card:has(.welcome-feature-card-main:hover) {
   background: var(--bg-nt-secondary);
 }
 
@@ -62,9 +68,12 @@
   transform: none;
   box-shadow: none;
   border-color: var(--border-color);
-  background: var(--bg-nt-primary);
+  background: var(--bg);
 }
 
+body.reduce-transparency .welcome-feature-card.is-main-disabled:has(.welcome-feature-card-main:hover) {
+  background: var(--bg-nt-primary);
+}
 .welcome-feature-card-header {
   display: flex;
   align-items: center;
@@ -79,7 +88,7 @@
   width: 40px;
   height: 40px;
   flex-shrink: 0;
-  background: var(--bg-nt-secondary);
+  background: var(--bg);
   border: 1px solid var(--border-color-intense);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);

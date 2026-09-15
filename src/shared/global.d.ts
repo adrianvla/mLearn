@@ -354,7 +354,7 @@ sendLogRecord: (record: unknown) => void;
   deleteThread: (roomId: string, threadId: string) => Promise<void>;
   rememberThis: (input: import('./world').RememberThisInput) => Promise<import('./world').JournalEvent>;
   integrateThread: (input: import('./world').IntegrateThreadInput) => Promise<import('./world').IntegrateThreadResult>;
-  promoteParticipant: (participantId: string) => Promise<import('./world').Participant>;
+  previewIntegration: (input: import('./world').PreviewIntegrationInput) => Promise<import('./world').IntegrationPreview>;
   createParticipant: (input: {
     displayName: string;
     kind: 'persistent' | 'temporary';
