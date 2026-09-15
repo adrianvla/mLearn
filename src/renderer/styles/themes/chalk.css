@@ -1,0 +1,17 @@
+/* Chalk — Quartz without translucency: opaque light surfaces. The Quartz
+   palette defaults live on :root in index.css; Chalk swaps the translucent
+   pair for its opaque equivalents and drops the blur. The dependent aliases
+   are redefined here because custom properties baked on :root would
+   otherwise keep resolving against Quartz's translucent --bg. */
+body.theme-chalk,
+.theme-chalk {
+    --bg: var(--bg-nt-primary);
+    --bg-intense: var(--bg-nt-secondary);
+    --panel-bg: var(--bg);
+    --panel-bg-hover: var(--bg-intense);
+    --bg-primary: var(--bg);
+    --bg-secondary: var(--bg-intense);
+    --bg-tertiary: var(--bg-intense);
+    --backdrop-filter: none;
+    --backdrop-filter-nodim: none;
+}

@@ -17,6 +17,7 @@ import { useLocalization, useSettings, useLowPowerGate } from '../../context';
 import { useLanguage } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
+import { isDarkColorScheme } from '../../../shared/constants';
 import { streamChat, isLLMReady } from '../../services/llmProvider';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, getLanguagePromptName, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
@@ -83,7 +84,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   let abortGeneration: (() => void) | null = null;
   const [wordGridRef, setWordGridRef] = createSignal<HTMLDivElement | undefined>(undefined);
 
-  const isDark = () => settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
+  const isDark = () => isDarkColorScheme(settings.colorScheme);
 
   const languageDataFor = (language: string) => resolveWordSelectorLanguageData(
     language,

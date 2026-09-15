@@ -23,7 +23,7 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     colorKnownWords: true,
     do_colour_codes: true,
     colour_codes: {},
-    theme: 'light',
+    colorScheme: 'quartz',
     customColors: {},
     hover_known_get_from_dictionary: false,
     show_pos: true,

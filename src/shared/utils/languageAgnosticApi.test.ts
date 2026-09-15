@@ -404,9 +404,8 @@ describe('language-agnostic runtime API naming', () => {
     ];
     const themeCssFiles = [
       'src/renderer/styles/themes/dark.css',
-      'src/renderer/styles/themes/darker.css',
-      'src/renderer/styles/themes/glass-dark.css',
-      'src/renderer/styles/themes/glass-light.css',
+      'src/renderer/styles/themes/glass.css',
+      'src/renderer/styles/themes/oled.css',
     ].map(readRepoFile);
 
     for (const css of genericCssFiles) {

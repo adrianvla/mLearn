@@ -33,7 +33,7 @@ examples/plugins/    # Plugin templates (shiritori, discord-activity)
 - **Two tsconfigs**: root (ESNext, renderer+shared) + `src/electron/tsconfig.json` (CommonJS, excludes bridges/backends/platform)
 - **Path aliases**: `@/` → `src/`, `@shared/` → `src/shared/`, `@renderer/` → `src/renderer/`
 - **Strict TS**: `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`
-- **CSS**: Co-located `.css` per component, no CSS modules. 6 override theme files in `src/renderer/styles/themes/` + default light in `src/renderer/styles/index.css`. Applied via `body.theme-{name}`. No hardcoded colors in TSX. Do not add CSS variable fallbacks.
+- **CSS**: Co-located `.css` per component, no CSS modules. Themes: two axes in `src/renderer/styles/themes/` — surface structure (`tactile`/`glass`/`flat.css` → `body.theme-{uiType}`) and palettes (`dark.css` hosts Dark Quartz + Slate with shared dark rules, plus `chalk.css`/`oled.css`/`*-high-contrast.css` → `body.theme-{colorScheme}`; Quartz defaults live on `:root` in `src/renderer/styles/index.css`). No hardcoded colors in TSX. Do not add CSS variable fallbacks.
 - **Localization**: `t('mlearn.Section.Key')` with `{param}`. 5 UI languages in `src/root-of-app/locales/`. Validate JSON after editing locale files.
 - **Flashcard keys**: SHA-256 hashes (64-char hex), not raw text.
 - **Tests**: Co-located `*.test.ts`/`*.test.tsx`. Vitest 3 projects: `node` (electron+shared+extension), `examples` (plugins), `renderer` (happy-dom). Pool: `forks`, maxWorkers: 4, setup: `test/setup.ts`. Write tests for every new feature.

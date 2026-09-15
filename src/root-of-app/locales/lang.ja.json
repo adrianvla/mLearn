@@ -1963,18 +1963,25 @@
       },
       "Appearance": {
         "Theme": {
-          "Dark": "ダーク",
+          "Chalk": "チョーク",
           "DarkHighContrast": "ダーク高コントラスト",
-          "Darker": "ダーカー",
+          "DarkQuartz": "ダーククォーツ",
+          "Oled": "OLED",
           "Description": "アプリケーションのビジュアルテーマを選択",
-          "GlassDark": "グラスダーク",
-          "GlassLight": "グラスライト",
           "Label": "テーマ",
-          "Light": "ライト",
           "LightHighContrast": "ライト高コントラスト",
+          "Quartz": "クォーツ",
+          "Slate": "スレート",
           "Custom": "カスタム",
           "CustomCssDescription": "カスタムテーマのCSSを編集します。変更はリアルタイムで適用されます。",
           "CustomCssLabel": "カスタムCSS"
+        },
+        "UiType": {
+          "Description": "アプリケーションのサーフェススタイルを選択",
+          "Flat": "フラット（デバッグ）",
+          "Glass": "ガラス",
+          "Label": "インターフェーススタイル",
+          "Tactile": "タクタイル"
         },
         "SimplifyHomeScreen": {
           "Description": "ホーム画面をインタラクティブなプレビューなしのシンプルなボタングリッドで表示します。",

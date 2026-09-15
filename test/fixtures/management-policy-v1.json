@@ -20,8 +20,8 @@
       "sourceGroupName": "German A",
       "locked": true
     },
-    "theme": {
-      "value": "dark",
+    "colorScheme": {
+      "value": "dark-quartz",
       "sourceGroupId": "school",
       "sourceGroupName": "School",
       "locked": true

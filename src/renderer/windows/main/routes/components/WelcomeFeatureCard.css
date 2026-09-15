@@ -70,10 +70,10 @@ body.reduce-transparency .welcome-feature-card:has(.welcome-feature-card-main:ho
   border-color: var(--border-color);
   background: var(--bg);
 }
-
 body.reduce-transparency .welcome-feature-card.is-main-disabled:has(.welcome-feature-card-main:hover) {
   background: var(--bg-nt-primary);
 }
+
 .welcome-feature-card-header {
   display: flex;
   align-items: center;

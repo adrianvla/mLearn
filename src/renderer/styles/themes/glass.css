@@ -1,0 +1,100 @@
+/* Glass — floating translucent panel structure. Combine with a palette:
+   body.theme-glass + body.theme-dark-quartz (or theme-quartz, slate,
+   chalk, ...). Replaces the old single-axis glass-dark/glass-light themes;
+   colors always come from the palette layer. */
+
+body.theme-glass {
+    --glass-spacing: 8px;
+}
+
+/* Glass word hover: scheme-tinted translucent card over video content. */
+body.theme-glass.theme-dark-quartz .subtitle_hover,
+.subtitle_hover.theme-glass.theme-dark-quartz,
+body.theme-glass.theme-slate .subtitle_hover,
+.subtitle_hover.theme-glass.theme-slate {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+body.theme-glass.theme-quartz .subtitle_hover,
+.subtitle_hover.theme-glass.theme-quartz,
+body.theme-glass.theme-chalk .subtitle_hover,
+.subtitle_hover.theme-glass.theme-chalk {
+    background-color: rgba(255, 255, 255, 0.4);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+/* Prosody bars read directly off the video; no theme filter. */
+body.theme-glass .subtitle_hover .prosody-overlay-wrapper,
+.subtitle_hover.theme-glass .prosody-overlay-wrapper {
+    filter: none;
+}
+
+body.theme-glass .label-pill,
+body.theme-glass .btn-pill,
+body.theme-glass .label-status {
+    box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+body.theme-glass .panel {
+    margin: var(--glass-spacing);
+    border-radius: var(--radius-full);
+}
+body.theme-glass .reader-sidebar.panel {
+    border-radius: var(--radius-md);
+    height: calc(100vh - 48px - 30px - calc(4 * var(--glass-spacing)));
+    top: calc(48px + var(--glass-spacing))
+}
+body.theme-glass nav {
+    background: transparent;
+    border-radius: 0 !important;
+    border: none;
+    padding: 0;
+    margin: 0 var(--glass-spacing) !important;
+}
+body.theme-glass .nav-group, body.theme-glass .video-controls .video-controls-left, body.theme-glass .video-controls .video-controls-right {
+    background: var(--bg);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+}
+body.theme-glass .nav-group > *, body.theme-glass .video-controls .video-controls-left > *, body.theme-glass .video-controls .video-controls-right > * {
+    background: transparent;
+    border: none;
+    height: 100%;
+    border-radius: 0;
+    padding: 0 0.5rem;
+}
+body.theme-glass .nav-group > *:not(:nth-child(1)) {
+    border-left: 1px solid var(--border-color);
+}
+body.theme-glass .nav-group > *:first-child {
+    padding-left: 0.5rem;
+}
+body.theme-glass .nav-group > *:last-child {
+    padding-right: 0.5rem;
+}
+
+body.theme-glass .drop-zone {
+    border-radius: var(--radius-lg);
+}
+
+body.theme-glass .video-controls .panel {
+    background: transparent;
+    border-radius: 0 !important;
+    border: none;
+    padding: 0;
+    margin: 0 var(--glass-spacing) !important;
+    backdrop-filter: none;
+}
+body.theme-glass .video-controls .panel .progress-bar-container, body.theme-glass .video-controls .panel .progress-bar, body.theme-glass .video-controls .panel .progress-bar-fill {
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+body.theme-glass .video-controls .video-controls-left, body.theme-glass .video-controls .video-controls-right, body.theme-glass .video-controls .panel .progress-bar-container {
+    backdrop-filter: var(--backdrop-filter);
+}

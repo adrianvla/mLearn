@@ -41,13 +41,14 @@ describe('PillLabel', () => {
     const baseThemeCss = readFileSync(path.join(process.cwd(), 'src/renderer/styles/index.css'), 'utf-8');
     const defaultCustomThemeCss = readFileSync(path.join(process.cwd(), 'src/shared/defaultCustomThemeCss.ts'), 'utf-8');
     const darkThemeFiles = [
-      { file: 'dark.css', themeClass: 'theme-dark' },
-      { file: 'darker.css', themeClass: 'theme-darker' },
+      { file: 'dark.css', themeClass: 'theme-dark-quartz' },
+      { file: 'dark.css', themeClass: 'theme-slate' },
+      { file: 'oled.css', themeClass: 'theme-oled' },
       { file: 'dark-high-contrast.css', themeClass: 'theme-dark-high-contrast' },
-      { file: 'glass-dark.css', themeClass: 'theme-glass-dark' },
     ];
     const lightThemeFiles = [
-      'glass-light.css',
+      'glass.css',
+      'chalk.css',
       'light-high-contrast.css',
     ];
 
@@ -75,14 +76,14 @@ describe('PillLabel', () => {
       expect(themeCss).toMatch(new RegExp(`body\\.${themeClass},\\s*\\.${themeClass}\\s*\\{`));
       expect(themeCss).toContain('--pill-default-filter: invert(1) hue-rotate(180deg) saturate(200%);');
       expect(themeCss).toMatch(
-        new RegExp(`body\\.${themeClass} \\.label-pill,\\s*\\.${themeClass} \\.label-pill\\s*\\{[\\s\\S]*?filter: var\\(--pill-default-filter\\);`),
+        new RegExp(`body\\.${themeClass} \\.label-pill,[\\s\\S]*?filter: var\\(--pill-default-filter\\);`),
       );
       expect(themeCss).not.toMatch(/\.label-pill[^{}]*,[^{]*\{[^}]*filter:\s*invert\(1\)\s*hue-rotate\(180deg\)\s*saturate\(200%\)/);
       expect(themeCss).not.toMatch(/\.label-pill(?:\[data-level="[1-7]"\])?\s*\{[^}]*filter:\s*invert\(1\)\s*hue-rotate\(180deg\)\s*saturate\(200%\)/);
       for (const level of [1, 2, 3, 4, 5, 6, 7]) {
         expect(themeCss).toContain(`--pill-level-${level}-filter: invert(1) hue-rotate(180deg) saturate(200%);`);
         expect(themeCss).toMatch(
-          new RegExp(`body\\.${themeClass} \\.label-pill\\[data-level="${level}"\\],\\s*\\.${themeClass} \\.label-pill\\[data-level="${level}"\\]\\s*\\{[\\s\\S]*?filter: var\\(--pill-level-${level}-filter\\);`),
+          new RegExp(`body\\.${themeClass} \\.label-pill\\[data-level="${level}"\\],[\\s\\S]*?filter: var\\(--pill-level-${level}-filter\\);`),
         );
         expect(themeCss).not.toMatch(new RegExp(`\\.label-pill\\[data-level="${level}"\\]\\s*\\{[^}]*filter:\\s*invert\\(1\\)\\s*hue-rotate\\(180deg\\)\\s*saturate\\(200%\\)`));
       }

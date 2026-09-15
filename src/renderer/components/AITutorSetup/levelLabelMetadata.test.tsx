@@ -74,7 +74,7 @@ const grammarLanguage: LanguageData = {
 let activeLanguageData: LanguageData = frequencyLanguage;
 let tutorSettings = {
   language: 'xx',
-  theme: 'light',
+  colorScheme: 'quartz',
   easeThresholdUnknown: 1.6,
   easeThresholdLearning: 2.2,
   easeThresholdKnown: 3,
@@ -204,7 +204,7 @@ describe('AI tutor setup level labels', () => {
     activeLanguageData = frequencyLanguage;
     tutorSettings = {
       language: 'xx',
-      theme: 'light',
+      colorScheme: 'quartz',
       easeThresholdUnknown: 1.6,
       easeThresholdLearning: 2.2,
       easeThresholdKnown: 3,

@@ -6,6 +6,7 @@
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onCleanup, onMount } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, type TranslationEntry, type WordFrequencyMap } from '../../../shared/types';
+import { isDarkColorScheme } from '../../../shared/constants';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { useOptionalGraph } from '../../context/GraphContext';
 import { toUniqueIdentifier } from '../../services/statsService';
@@ -707,7 +708,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       ref={hoverRef}
     >
       <div
-        class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? 'dark' : ''}`}
+        class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${isDarkColorScheme(settings.colorScheme) ? 'dark' : ''}`}
         role="dialog"
         aria-label={actualWord()}
         ref={(el) => { subtitleHoverRef = el; }}

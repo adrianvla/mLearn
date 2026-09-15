@@ -14,7 +14,7 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     colorKnownWords: true,
     do_colour_codes: false,
     colour_codes: {},
-    theme: 'dark',
+    colorScheme: 'dark-quartz',
     language: 'ja',
     hover_known_get_from_dictionary: false,
     show_pos: false,

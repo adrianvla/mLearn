@@ -1,0 +1,5 @@
+/* Tactile — the default surface structure: standard panels and native
+   controls, no structural overrides. SettingsContext applies
+   body.theme-tactile; the palette stylesheets (quartz/dark-quartz/oled/
+   high-contrast) supply every color. This file reserves the axis so
+   tactile-specific structure has a home. */

@@ -2,13 +2,18 @@
  * Global CSS Variables and Base Styles
  * Unified theming system for the entire application
  * 
- * Light theme is the default (defined in :root below).
- * Other themes override these base styles.
+ * Quartz is the default light palette (defined on :root below); Chalk,
+ * Dark Quartz and Slate live in themes/. Two axes, applied as body classes
+ * by SettingsContext: surface structure (theme-tactile | theme-glass |
+ * theme-flat) and palette (theme-quartz | theme-chalk | theme-dark-quartz |
+ * theme-slate | ...).
  */
+@import "./themes/tactile.css";
+@import "./themes/glass.css";
+@import "./themes/flat.css";
 @import "./themes/dark.css";
+@import "./themes/chalk.css";
 @import "./themes/oled.css";
-@import "./themes/glass-light.css";
-@import "./themes/glass-dark.css";
 @import "./themes/light-high-contrast.css";
 @import "./themes/dark-high-contrast.css";
 
@@ -62,14 +67,14 @@
   --bg-opaque: #f5f5f5;
   --transparent: #00000000;
 
-  --bg: rgba(200,200,200, 0.7);
-  --bg-intense: rgba(220,220,220, 0.8);
+  --bg: rgba(85, 85, 85, 0.22);
+  --bg-intense: rgba(85, 85, 85, 0.3);
   --bg-nt-primary: rgb(238,238,238); /*non-translucent*/
   --bg-nt-secondary: rgb(230,230,230); /*non-translucent*/
   --accent-bg: rgba(255, 255, 255, 0.2);
   --accent: rgba(255, 255, 255, 0.8);
-  --backdrop-filter: blur(10px) saturate(1) brightness(1.1);
-  --backdrop-filter-nodim: blur(10px) saturate(1) brightness(1.1);
+  --backdrop-filter: blur(10px) saturate(2);
+  --backdrop-filter-nodim: blur(10px) saturate(2);
   --border-color: rgba(85, 85, 85, 0.15);
   --border-color-intense: rgba(85, 85, 85, 0.25);
 

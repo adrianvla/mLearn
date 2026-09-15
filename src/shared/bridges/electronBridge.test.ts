@@ -250,7 +250,7 @@ describe('settingsBridge', () => {
 
   it('saveSettings passes settings argument to ipc.saveSettings', () => {
     const bridge = createElectronBridge();
-    const settings = { theme: 'dark' } as never;
+    const settings = { colorScheme: 'dark-quartz' } as never;
     bridge.settings.saveSettings(settings);
     expect(mockIPC.saveSettings).toHaveBeenCalledWith(settings);
   });

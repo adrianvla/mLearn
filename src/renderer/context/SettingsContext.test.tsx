@@ -203,7 +203,8 @@ describe('SettingsProvider', () => {
     const { ctx, dispose } = await mountProvider();
     expect(ctx.isLoading()).toBe(true);
     expect(ctx.isCloudReLoginModalOpen()).toBe(false);
-    expect(ctx.settings.theme).toBe(DEFAULT_SETTINGS.theme);
+    expect(ctx.settings.uiType).toBe(DEFAULT_SETTINGS.uiType);
+    expect(ctx.settings.colorScheme).toBe(DEFAULT_SETTINGS.colorScheme);
     expect(ctx.settings.language).toBe(DEFAULT_SETTINGS.language);
     dispose();
   });
@@ -244,10 +245,10 @@ describe('SettingsProvider', () => {
 
   it('after receiving settings: isLoading=false, store updated', async () => {
     const { ctx, dispose } = await mountProvider();
-    const loaded = makeSettings({ theme: 'dark', language: 'de' });
+    const loaded = makeSettings({ colorScheme: 'dark-quartz', language: 'de' });
     settingsCb(loaded);
     expect(ctx.isLoading()).toBe(false);
-    expect(ctx.settings.theme).toBe('dark');
+    expect(ctx.settings.colorScheme).toBe('dark-quartz');
     expect(ctx.settings.language).toBe('de');
     dispose();
   });
@@ -433,8 +434,8 @@ describe('SettingsProvider', () => {
   it('updateSetting: updates store and saves via bridge', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings());
-    ctx.updateSetting('theme', 'dark');
-    expect(ctx.settings.theme).toBe('dark');
+    ctx.updateSetting('colorScheme', 'dark-quartz');
+    expect(ctx.settings.colorScheme).toBe('dark-quartz');
     expect(mockBridge.settings.saveSettings).toHaveBeenCalled();
     dispose();
   });
@@ -442,8 +443,8 @@ describe('SettingsProvider', () => {
   it('updateSettings: merges partial and saves', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings());
-    ctx.updateSettings({ theme: 'darker', language: 'de' });
-    expect(ctx.settings.theme).toBe('darker');
+    ctx.updateSettings({ colorScheme: 'oled', language: 'de' });
+    expect(ctx.settings.colorScheme).toBe('oled');
     expect(ctx.settings.language).toBe('de');
     expect(mockBridge.settings.saveSettings).toHaveBeenCalled();
     dispose();
@@ -503,7 +504,7 @@ describe('SettingsProvider', () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings());
     mockResetBackend.mockClear();
-    ctx.updateSetting('theme', 'dark');
+    ctx.updateSetting('colorScheme', 'dark-quartz');
     expect(mockResetBackend).not.toHaveBeenCalled();
     expect(mockBridge.settings.onSettingsSaved).not.toHaveBeenCalled();
     dispose();
@@ -584,19 +585,19 @@ describe('SettingsProvider', () => {
 
   it('saveSettings before load queues as pending, saved after load', async () => {
     const { ctx, dispose } = await mountProvider();
-    ctx.updateSettings({ theme: 'darker' });
+    ctx.updateSettings({ colorScheme: 'oled' });
     expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
     settingsCb(makeSettings());
     expect(mockBridge.settings.saveSettings).toHaveBeenCalled();
     const savedArg = mockBridge.settings.saveSettings.mock.calls[0][0] as Settings;
-    expect(savedArg.theme).toBe('darker');
+    expect(savedArg.colorScheme).toBe('oled');
     dispose();
   });
 
   it('applySettingsToDOM: sets CSS variables and theme class', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings({
-      theme: 'dark',
+      colorScheme: 'dark-quartz',
       subtitle_font_size: 32,
       subtitle_font_weight: 700,
       blur_amount: 10,
@@ -610,9 +611,39 @@ describe('SettingsProvider', () => {
     expect(root.style.getPropertyValue('--reading-annotation-color')).toBe('');
     expect(document.body.style.getPropertyValue('--reading-annotation-color')).toBe('var(--text-primary)');
     expect(root.style.getPropertyValue('--reading-annotation-scale')).toBe('1.3');
-    expect(document.body.classList.contains('theme-dark')).toBe(true);
-    ctx.updateSetting('theme', 'light');
-    expect(document.body.classList.contains('theme-dark')).toBe(false);
+    expect(document.body.classList.contains('theme-dark-quartz')).toBe(true);
+    expect(document.body.classList.contains('theme-tactile')).toBe(true);
+    expect(document.body.classList.contains('reduce-transparency')).toBe(false);
+    ctx.updateSetting('colorScheme', 'quartz');
+    expect(document.body.classList.contains('theme-dark-quartz')).toBe(false);
+    expect(document.body.classList.contains('theme-quartz')).toBe(true);
+    expect(document.body.classList.contains('reduce-transparency')).toBe(false);
+    ctx.updateSetting('colorScheme', 'chalk');
+    expect(document.body.classList.contains('theme-chalk')).toBe(true);
+    expect(document.body.classList.contains('reduce-transparency')).toBe(true);
+    ctx.updateSetting('colorScheme', 'oled');
+    expect(document.body.classList.contains('theme-oled')).toBe(true);
+    expect(document.body.classList.contains('reduce-transparency')).toBe(true);
+    dispose();
+  });
+
+  it('migrates a persisted legacy theme even when defaults are pre-merged', async () => {
+    // Capacitor spreads DEFAULT_SETTINGS over storage before emitting, so
+    // the legacy key arrives alongside default uiType/colorScheme.
+    const { ctx, dispose } = await mountProvider();
+    settingsCb({ ...makeSettings(), theme: 'glass-dark' } as Settings);
+    expect(ctx.settings.uiType).toBe('glass');
+    expect(ctx.settings.colorScheme).toBe('dark-quartz');
+    expect((ctx.settings as unknown as Record<string, unknown>).theme).toBeUndefined();
+    dispose();
+  });
+
+  it('migrates first-build light/dark scheme values without a theme key', async () => {
+    // The first two-axis build persisted colorScheme values that the four
+    // standalone palettes replaced; those objects carry no legacy `theme`.
+    const { ctx, dispose } = await mountProvider();
+    settingsCb({ ...makeSettings(), colorScheme: 'dark' } as unknown as Settings);
+    expect(ctx.settings.colorScheme).toBe('dark-quartz');
     dispose();
   });
 
@@ -669,9 +700,9 @@ describe('SettingsProvider', () => {
 
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings());
-    const updatedSettings = makeSettings({ theme: 'glass-dark' });
+    const updatedSettings = makeSettings({ colorScheme: 'dark-quartz' });
     state.handler!({ data: { type: 'update', settings: updatedSettings } } as MessageEvent);
-    expect(ctx.settings.theme).toBe('glass-dark');
+    expect(ctx.settings.colorScheme).toBe('dark-quartz');
     dispose();
     vi.unstubAllGlobals();
   });
@@ -783,7 +814,7 @@ describe('SettingsProvider', () => {
     const { ctx, dispose } = await mountProvider();
 
     settingsCb(makeSettings({
-      theme: 'darker',
+      colorScheme: 'oled',
       llmEnabled: true,
       cloudAuthStatus: 'signed-in',
       cloudAuthUserId: 'learner-1',
@@ -794,14 +825,14 @@ describe('SettingsProvider', () => {
     }));
 
     expect(ctx.isLoading()).toBe(true);
-    expect(ctx.settings.theme).toBe(DEFAULT_SETTINGS.theme);
+    expect(ctx.settings.colorScheme).toBe(DEFAULT_SETTINGS.colorScheme);
     expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
     expect(postMessage).not.toHaveBeenCalled();
     ctx.updateSetting('llmEnabled', true);
     expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
     expect(postMessage).not.toHaveBeenCalled();
     state.handler!({ data: { type: 'update', settings: makeSettings({
-      theme: 'darker',
+      colorScheme: 'oled',
       llmEnabled: true,
       cloudAuthStatus: 'signed-in',
       cloudAuthUserId: 'learner-1',
@@ -811,7 +842,7 @@ describe('SettingsProvider', () => {
       cloudApiUrl: 'https://school.example',
     }) } } as MessageEvent);
     expect(ctx.isLoading()).toBe(true);
-    expect(ctx.settings.theme).toBe(DEFAULT_SETTINGS.theme);
+    expect(ctx.settings.colorScheme).toBe(DEFAULT_SETTINGS.colorScheme);
     expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
     expect(postMessage).not.toHaveBeenCalled();
 
@@ -821,13 +852,13 @@ describe('SettingsProvider', () => {
       source: 'cache',
     });
     await vi.waitFor(() => expect(ctx.isLoading()).toBe(false));
-    expect(ctx.settings.theme).toBe('dark');
+    expect(ctx.settings.colorScheme).toBe('dark-quartz');
     expect(ctx.settings.llmEnabled).toBe(false);
     for (const [snapshot] of mockBridge.settings.saveSettings.mock.calls) {
-      expect(snapshot).toEqual(expect.objectContaining({ theme: 'dark', llmEnabled: false }));
+      expect(snapshot).toEqual(expect.objectContaining({ colorScheme: 'dark-quartz', llmEnabled: false }));
     }
     for (const [{ settings: snapshot }] of postMessage.mock.calls) {
-      expect(snapshot).toEqual(expect.objectContaining({ theme: 'dark', llmEnabled: false }));
+      expect(snapshot).toEqual(expect.objectContaining({ colorScheme: 'dark-quartz', llmEnabled: false }));
     }
     dispose();
     vi.unstubAllGlobals();

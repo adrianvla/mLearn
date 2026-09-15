@@ -1,0 +1,6 @@
+/* Flat — placeholder surface structure (debug). Until a real flat stylesheet
+   exists, paint the body an unmistakable red. !important keeps it visible
+   over base.css and palette backgrounds. */
+body.theme-flat {
+    background: #ff0000 !important;
+}

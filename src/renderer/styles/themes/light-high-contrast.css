@@ -33,7 +33,6 @@ body.theme-light-high-contrast {
     --overlay-bg-soft: rgba(0, 0, 0, 0.4);
 
 }
-
 /* === End index.css === */
 body.theme-light-high-contrast .loader{
     --bg: white;

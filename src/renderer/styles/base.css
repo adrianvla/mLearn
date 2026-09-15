@@ -1,5 +1,10 @@
 /* Shared global styles (non-theme-variable rules). */
 
+/* Word hover pill anchors its level badge (was duplicated in every theme file). */
+.subtitle_hover .pill {
+  position: relative;
+}
+
 /* ========== Shared Animations ========== */
 @keyframes spin {
   to {
@@ -53,10 +58,9 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-body.reduce-transparency{
+body.reduce-transparency {
   background-color: var(--bg-opaque);
 }
-
 body {
   overflow: hidden;
   -webkit-user-select: none;

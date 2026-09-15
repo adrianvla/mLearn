@@ -73,11 +73,11 @@ describe('management policy service', () => {
   });
 
   it('applies managed setting values without mutating the base settings', () => {
-    const base = { ...DEFAULT_SETTINGS, llmEnabled: true, theme: 'light' as const };
+    const base = { ...DEFAULT_SETTINGS, llmEnabled: true, colorScheme: 'quartz' as const };
     const next = applyManagedSettings(base, fixture as EffectiveManagementPolicy);
 
     expect(next.llmEnabled).toBe(false);
-    expect(next.theme).toBe('dark');
+    expect(next.colorScheme).toBe('dark-quartz');
     expect(base.llmEnabled).toBe(true);
   });
 

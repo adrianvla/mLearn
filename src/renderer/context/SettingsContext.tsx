@@ -12,8 +12,8 @@ import type {
   ManagedSettingRule,
   PolicySettingKey,
 } from '../../shared/managementPolicy';
-import type { SubtitleTheme, AppTheme } from '../../shared/constants';
-import { APP_THEMES } from '../../shared/constants';
+import type { SubtitleTheme } from '../../shared/constants';
+import { COLOR_SCHEMES, isDarkColorScheme, isOpaqueColorScheme, migrateLegacyThemeSettings, UI_TYPES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend, configureBackend } from '../../shared/backends';
 import { isCapacitor, initPlatformBodyClass } from '../../shared/platform';
@@ -317,6 +317,13 @@ export const SettingsProvider: ParentComponent = (props) => {
         migratedSettings = true;
       }
 
+      // Capacitor storage keeps unknown keys — map the legacy single-axis
+      // theme onto uiType/colorScheme here too (the Electron loader already
+      // migrates it before persisted settings reach the renderer).
+      if (migrateLegacyThemeSettings(mergedSettings as Settings & Record<string, unknown>)) {
+        migratedSettings = true;
+      }
+
       pendingLoadedSettings = mergedSettings;
       beginInitialSettingsLoad(migratedSettings);
     }));
@@ -338,20 +345,25 @@ export const SettingsProvider: ParentComponent = (props) => {
     );
     root.style.setProperty('--reading-annotation-scale', `${readingAnnotationSizePercent(s) / 100}`);
 
-    // Theme - remove all theme classes first, then apply the current one
-    APP_THEMES.forEach(theme => {
-      document.body.classList.remove(`theme-${theme}`);
+    // Appearance — one class per axis: surface structure + palette. A color
+    // scheme of 'custom' yields body.theme-custom, which user CSS targets.
+    UI_TYPES.forEach(uiType => {
+      document.body.classList.remove(`theme-${uiType}`);
     });
-
-    // Apply current theme class (light is default, no class needed)
-    if (s.theme !== 'light') {
-      document.body.classList.add(`theme-${s.theme}`);
-    }
+    COLOR_SCHEMES.forEach(colorScheme => {
+      document.body.classList.remove(`theme-${colorScheme}`);
+    });
+    document.body.classList.add(`theme-${s.uiType}`);
+    document.body.classList.add(`theme-${s.colorScheme}`);
+    // Opaque palettes (Slate, Chalk, high contrast) render as if
+    // reduce-transparency were on; the class drives component-level opaque
+    // surface rules. It is derived, not a stored setting.
+    document.body.classList.toggle('reduce-transparency', isOpaqueColorScheme(s.colorScheme));
 
     // Custom theme: inject user-edited CSS into a dedicated <style> element
     const CUSTOM_STYLE_ID = 'mlearn-custom-theme-css';
     const existingCustomStyle = document.getElementById(CUSTOM_STYLE_ID);
-    if (s.theme === 'custom' && s.customThemeCSS) {
+    if (s.colorScheme === 'custom' && s.customThemeCSS) {
       let styleEl = existingCustomStyle as HTMLStyleElement | null;
       if (!styleEl) {
         styleEl = document.createElement('style');
@@ -365,7 +377,7 @@ export const SettingsProvider: ParentComponent = (props) => {
 
     // Update status bar text color on Capacitor (light text for dark themes, dark text for light themes)
     if (isCapacitor()) {
-      const isDark = s.theme === 'dark' || s.theme === 'glass-dark' || s.theme === 'dark-high-contrast' || s.theme === 'darker';
+      const isDark = isDarkColorScheme(s.colorScheme);
       import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
         StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
       }).catch(() => { /* StatusBar plugin unavailable */ });
@@ -867,14 +879,6 @@ export function useOptionalSettings(): SettingsContextValue | undefined {
 }
 
 // Specialized hooks for common operations
-export function useTheme() {
-  const { settings, updateSetting } = useSettings();
-
-  return {
-    theme: () => settings.theme,
-    setTheme: (theme: AppTheme) => updateSetting('theme', theme),
-  };
-}
 
 export function useSubtitleSettings() {
   const { settings, updateSetting, updateSettings } = useSettings();

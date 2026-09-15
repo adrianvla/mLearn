@@ -1029,7 +1029,7 @@ describe('language feature bricks', () => {
       showReadingAnnotations: false,
     });
     expect(isSettingFixedByLanguage(fixedSettingsLanguage, 'showReadingAnnotations')).toBe(true);
-    expect(isSettingFixedByLanguage(fixedSettingsLanguage, 'theme')).toBe(false);
+    expect(isSettingFixedByLanguage(fixedSettingsLanguage, 'colorScheme')).toBe(false);
   });
 
   it('lets language metadata mark POS categories as ignored even without an allow-list', () => {

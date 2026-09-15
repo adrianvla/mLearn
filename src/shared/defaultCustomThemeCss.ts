@@ -1,8 +1,8 @@
 /**
  * Default CSS for the "Custom" theme.
  *
- * This is a copy of the dark theme (src/renderer/styles/themes/dark.css) with
- * every `theme-dark` selector replaced by `theme-custom` so the rules activate
+ * This is a copy of the dark palette (src/renderer/styles/themes/dark.css) with
+ * every `theme-dark-quartz` selector replaced by `theme-custom` so the rules activate
  * when `<body>` carries the `theme-custom` class. It serves as a starter that
  * the user can edit freely from the Settings UI.
  */

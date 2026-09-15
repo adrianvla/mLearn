@@ -191,7 +191,17 @@ describe('loadSettings', () => {
     fs.writeFileSync(settingsPath, JSON.stringify({ language: 'de' }), 'utf-8');
     const settings = mod.loadSettings();
     expect(settings.language).toBe('de');
-    expect(settings.theme).toBeDefined();
+    expect(settings.uiType).toBe('tactile');
+    expect(settings.colorScheme).toBe('quartz');
+  });
+
+  it('migrates the legacy single-axis theme setting to uiType/colorScheme', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({ language: 'de', theme: 'glass-dark' }), 'utf-8');
+    const settings = mod.loadSettings();
+    expect(settings.uiType).toBe('glass');
+    expect(settings.colorScheme).toBe('dark-quartz');
+    expect((settings as unknown as Record<string, unknown>).theme).toBeUndefined();
   });
 
   it('returns DEFAULT_SETTINGS when file contains corrupt JSON', () => {

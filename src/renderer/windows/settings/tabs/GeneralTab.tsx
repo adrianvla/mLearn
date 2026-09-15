@@ -6,7 +6,7 @@ import { Component, createMemo, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon, Textarea } from '../../../components/common';
 import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type LanguageDataMap, type Settings } from '../../../../shared/types';
-import { type AppTheme } from '../../../../shared/constants';
+import { type ColorScheme, type UiType } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBundledLocaleCodes } from '../../../../shared/bridges/bundledLanguageAssets';
 import { canonicalLanguage } from '../../../../shared/languageVariants';
@@ -82,14 +82,19 @@ export const GeneralTab: Component = () => {
   const [dataImportError, setDataImportError] = createSignal<string | null>(null);
   const [dataExporting, setDataExporting] = createSignal(false);
   const [dataImporting, setDataImporting] = createSignal(false);
-  const themeOptions = createMemo(() => [
-    { value: 'light', label: t('mlearn.Settings.Appearance.Theme.Light') },
-    { value: 'dark', label: t('mlearn.Settings.Appearance.Theme.Dark') },
-    { value: 'darker', label: t('mlearn.Settings.Appearance.Theme.Darker') },
+  const uiTypeOptions = createMemo(() => [
+    { value: 'tactile', label: t('mlearn.Settings.Appearance.UiType.Tactile') },
+    { value: 'glass', label: t('mlearn.Settings.Appearance.UiType.Glass') },
+    { value: 'flat', label: t('mlearn.Settings.Appearance.UiType.Flat') },
+  ]);
+  const schemeOptions = createMemo(() => [
+    { value: 'dark-quartz', label: t('mlearn.Settings.Appearance.Theme.DarkQuartz') },
+    { value: 'quartz', label: t('mlearn.Settings.Appearance.Theme.Quartz') },
+    { value: 'slate', label: t('mlearn.Settings.Appearance.Theme.Slate') },
+    { value: 'chalk', label: t('mlearn.Settings.Appearance.Theme.Chalk') },
+    { value: 'oled', label: t('mlearn.Settings.Appearance.Theme.Oled') },
     { value: 'light-high-contrast', label: t('mlearn.Settings.Appearance.Theme.LightHighContrast') },
     { value: 'dark-high-contrast', label: t('mlearn.Settings.Appearance.Theme.DarkHighContrast') },
-    { value: 'glass-light', label: t('mlearn.Settings.Appearance.Theme.GlassLight') },
-    { value: 'glass-dark', label: t('mlearn.Settings.Appearance.Theme.GlassDark') },
     { value: 'custom', label: t('mlearn.Settings.Appearance.Theme.Custom') },
   ]);
   const uiLanguageOptions = createMemo(() => getBundledLocaleCodes().map((code) => ({
@@ -379,15 +384,28 @@ export const GeneralTab: Component = () => {
 
       <SettingGroup title={t('mlearn.Settings.Groups.Appearance')}>
         <SettingRow
-          label={t('mlearn.Settings.Appearance.Theme.Label')}
-          description={t('mlearn.Settings.Appearance.Theme.Description')}
-          settingKey="theme"
+          label={t('mlearn.Settings.Appearance.UiType.Label')}
+          description={t('mlearn.Settings.Appearance.UiType.Description')}
+          settingKey="uiType"
         >
           <Select
             class="setting-select"
-            value={settings.theme}
-            options={themeOptions()}
-            onChange={(e) => updateSettings({ theme: e.currentTarget.value as AppTheme })}
+            value={settings.uiType}
+            options={uiTypeOptions()}
+            onChange={(e) => updateSettings({ uiType: e.currentTarget.value as UiType })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Appearance.Theme.Label')}
+          description={t('mlearn.Settings.Appearance.Theme.Description')}
+          settingKey="colorScheme"
+        >
+          <Select
+            class="setting-select"
+            value={settings.colorScheme}
+            options={schemeOptions()}
+            onChange={(e) => updateSettings({ colorScheme: e.currentTarget.value as ColorScheme })}
           />
         </SettingRow>
 
@@ -402,7 +420,7 @@ export const GeneralTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={settings.theme === 'custom'}>
+        <Show when={settings.colorScheme === 'custom'}>
           <SettingRow
             label={t('mlearn.Settings.Appearance.Theme.CustomCssLabel')}
             description={t('mlearn.Settings.Appearance.Theme.CustomCssDescription')}

@@ -4,7 +4,7 @@
 
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, DEFAULT_LANGUAGE_CATALOG_URL, DEFAULT_RUNTIME_CATALOG_URL } from './constants';
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
-import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, UiType, ColorScheme, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
 
 export { KNOWLEDGE_ASPECTS } from './constants';
 export type { KnowledgeAspect } from './constants';
@@ -159,7 +159,10 @@ export interface Settings {
   /** Hide the frequency stars row under words already known. */
   hideFrequencyStarsForKnownWords: boolean;
   automaticallyDownloadUpdates: boolean;
-  theme: AppTheme;
+  /** Surface/structure stylesheet: body.theme-{uiType} (tactile | glass | flat). */
+  uiType: UiType;
+  /** Palette: body.theme-{colorScheme} (Dark Quartz, Quartz, Slate, Chalk, …). */
+  colorScheme: ColorScheme;
   /** Custom CSS color overrides that apply globally regardless of theme */
   customColors?: CustomColorOverrides;
   customThemeCSS: string;
@@ -572,7 +575,8 @@ export const DEFAULT_SETTINGS: Settings = {
   frequencyStarMargin: 8,
   hideFrequencyStarsForKnownWords: false,
   automaticallyDownloadUpdates: true,
-  theme: 'light',
+  uiType: 'tactile',
+  colorScheme: 'quartz',
   customColors: {},  // Empty = no custom color overrides
   customThemeCSS: DEFAULT_CUSTOM_THEME_CSS,
   simplifyHomeScreen: true,

@@ -10,11 +10,11 @@
   background: var(--transparent);
   color: var(--text-primary);
 }
-body.reduce-transparency .reader-route {
-  background: var(--bg-opaque);
-}
-body:not(.reduce-transparency) .reader-route .panel{
+.reader-route .panel{
   background: var(--transparent);
+}
+body.reduce-transparency .reader-route .panel{
+  background: var(--bg-opaque);
 }
 
 .reader-route--sharpen .page-image,

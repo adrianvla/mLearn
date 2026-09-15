@@ -425,9 +425,75 @@ export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];
 export const SUBTITLE_THEMES = ['marker', 'background', 'shadow'] as const;
 export type SubtitleTheme = typeof SUBTITLE_THEMES[number];
 
-// App themes
-export const APP_THEMES = ['light', 'dark', 'glass-light', 'glass-dark', 'light-high-contrast', 'dark-high-contrast', 'oled', 'custom'] as const;
-export type AppTheme = typeof APP_THEMES[number];
+// Appearance: two-axis theming. `uiType` picks the surface/structure
+// stylesheet (body.theme-{uiType}); `colorScheme` picks the palette
+// stylesheet (body.theme-{colorScheme}). Palettes: Dark Quartz (translucent
+// dark), Quartz (translucent light), Slate (opaque dark), Chalk (opaque
+// light), plus OLED, the high-contrast pair and user-defined Custom.
+export const UI_TYPES = ['tactile', 'glass', 'flat'] as const;
+export type UiType = typeof UI_TYPES[number];
+export const COLOR_SCHEMES = ['quartz', 'chalk', 'dark-quartz', 'slate', 'oled', 'light-high-contrast', 'dark-high-contrast', 'custom'] as const;
+export type ColorScheme = typeof COLOR_SCHEMES[number];
+
+/** Schemes rendered with light content (status bar style, dark word-hover treatment). */
+export const DARK_COLOR_SCHEMES: readonly ColorScheme[] = ['dark-quartz', 'slate', 'oled', 'dark-high-contrast'];
+
+export const isDarkColorScheme = (scheme: ColorScheme): boolean => DARK_COLOR_SCHEMES.includes(scheme);
+
+
+/** Palettes whose surfaces are fully opaque; they render as if reduce-transparency were on. */
+export const OPAQUE_COLOR_SCHEMES: readonly ColorScheme[] = ['chalk', 'slate', 'oled', 'light-high-contrast', 'dark-high-contrast'];
+
+export const isOpaqueColorScheme = (scheme: ColorScheme): boolean => OPAQUE_COLOR_SCHEMES.includes(scheme);
+// Single-axis theme values persisted by earlier builds. Electron must run
+// this before keepKnownSettingsKeys drops unknown keys; the renderer runs
+// the same mapping for Capacitor storage. The mapped value is authoritative:
+// Capacitor's bridge spreads DEFAULT_SETTINGS over storage before the
+// renderer sees the object, so the new keys can already hold defaults.
+export const LEGACY_THEME_MAP: Record<string, { uiType: UiType; colorScheme: ColorScheme }> = {
+  light: { uiType: 'tactile', colorScheme: 'quartz' },
+  dark: { uiType: 'tactile', colorScheme: 'dark-quartz' },
+  'glass-light': { uiType: 'glass', colorScheme: 'quartz' },
+  'glass-dark': { uiType: 'glass', colorScheme: 'dark-quartz' },
+  darker: { uiType: 'tactile', colorScheme: 'oled' },
+  oled: { uiType: 'tactile', colorScheme: 'oled' },
+  'light-high-contrast': { uiType: 'tactile', colorScheme: 'light-high-contrast' },
+  'dark-high-contrast': { uiType: 'tactile', colorScheme: 'dark-high-contrast' },
+  custom: { uiType: 'tactile', colorScheme: 'custom' },
+};
+
+// The first two-axis build persisted light/dark as scheme values before the
+// four standalone palettes existed. Objects carrying them have no `theme`
+// key, so they need their own normalization pass.
+const LEGACY_COLOR_SCHEME_MAP: Record<string, ColorScheme> = {
+  light: 'quartz',
+  dark: 'dark-quartz',
+};
+
+/**
+ * Normalize legacy appearance values in place: a persisted `theme` key maps
+ * onto uiType/colorScheme, and first-build light/dark scheme values map onto
+ * their palette replacements. Returns true when the object changed (callers
+ * treat that as a migration).
+ */
+export function migrateLegacyThemeSettings(settings: Record<string, unknown>): boolean {
+  let changed = false;
+  if ('theme' in settings) {
+    const mapped = LEGACY_THEME_MAP[String(settings.theme)];
+    if (mapped) {
+      settings.uiType = mapped.uiType;
+      settings.colorScheme = mapped.colorScheme;
+    }
+    delete settings.theme;
+    changed = true;
+  }
+  const legacyScheme = typeof settings.colorScheme === 'string' ? LEGACY_COLOR_SCHEME_MAP[settings.colorScheme] : undefined;
+  if (legacyScheme) {
+    settings.colorScheme = legacyScheme;
+    changed = true;
+  }
+  return changed;
+}
 
 export const SRS_EASE = {
   MIN: 1.3,

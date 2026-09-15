@@ -1,39 +1,11 @@
-/* This file contains patches and overrides for the dark theme */
+/* Dark palettes. Dark Quartz is the translucent chameleon (panels pick up
+   the content behind them, main content stays opaque); Slate is its opaque
+   sibling. Shared dark rules apply to both; each class sets its own surface
+   variables. */
 
-/* === Start WordHover.css === */
-.subtitle_hover.theme-dark,
-body.theme-dark .subtitle_hover {
-    background-color: rgba(60,60,60, 0.5);
-    color: var(--text-primary);
-    -webkit-text-stroke: 1px var(--bg);
-}
-body.theme-dark .subtitle_hover .pitch,
-.subtitle_hover.theme-dark .pitch {
-    filter: invert(1);
-}
-
-body.theme-dark .subtitle_hover .footer,
-.subtitle_hover.theme-dark .footer {
-    border-top: 1px solid var(--border-color);
-    background: rgba(0, 0, 0, 0.1);
-}
-
-body.theme-dark .subtitle_hover hr,
-.subtitle_hover.theme-dark hr {
-    border-top-color: var(--border-color);
-}
-
-body.theme-dark .subtitle_hover_alt_c,
-.subtitle_hover.theme-dark .subtitle_hover_alt_c {
-    background: rgba(0, 0, 0, 0.5);
-}
-
-/* === End WordHover.css === */
-
-
-/* === Start index.css === */
-body.theme-dark,
-.theme-dark {
+/* === Dark Quartz variables === */
+body.theme-dark-quartz,
+.theme-dark-quartz {
     /*--bg-opaque: #0a0a0a;*/
     --bg-opaque: #000;
     --bg-nt-primary: rgb(26,26,26);
@@ -73,98 +45,201 @@ body.theme-dark,
 
     --overlay-bg: rgba(0, 0, 0, 0.6);
     --overlay-bg-soft: rgba(0, 0, 0, 0.4);
-
 }
 
-/* === End index.css === */
+/* === Slate variables — Dark Quartz without translucency (the --bg pair is
+   the exact solid equivalent of Dark Quartz's over the #000 body) === */
+body.theme-slate,
+.theme-slate {
+    --bg-opaque: #000;
+    --bg-nt-primary: rgb(26,26,26);
+    --bg-nt-secondary: rgb(38,38,38);
+    --character-grid-unknown-bg: #616161;
+    --text-primary: #f0f0f0;
+    --text-secondary: #a0a0a0;
+    --text-tertiary: rgba(255, 255, 255, 0.4);
 
+    --bg: rgb(26,26,26);
+    --bg-intense: rgb(38,38,38);
+    --border-color: rgba(255, 255, 255, 0.15);
+    --border-color-intense: rgba(255, 255, 255, 0.25);
 
-/* When inside subtitle hover */
-.subtitle_hover {
-    --prosody-overlay-height: 2px;
+    --backdrop-filter: none;
+    --backdrop-filter-nodim: none;
+
+    /* Dark mode flashcard highlight */
+    --flashcard-highlight: #ff5ec7;
+    --pill-default-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-1-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-2-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-3-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-4-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-5-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-6-filter: invert(1) hue-rotate(180deg) saturate(200%);
+    --pill-level-7-filter: invert(1) hue-rotate(180deg) saturate(200%);
+
+    --panel-bg: rgb(38,38,38);
+    --panel-bg-hover: var(--bg-intense);
+    --panel-border: var(--border-color);
+    --panel-border-hover: var(--border-color-intense);
+    --bg-primary: var(--bg);
+    --bg-secondary: var(--bg-intense);
+    --bg-tertiary: var(--bg-intense);
+    --shadow-border:var(--border-color) 0px 0px 0px 1px;
+
+    --overlay-bg: rgba(0, 0, 0, 0.6);
+    --overlay-bg-soft: rgba(0, 0, 0, 0.4);
 }
 
-.subtitle_hover .pill {
-    position: relative;
+/* === Shared dark rules (Dark Quartz + Slate) === */
+
+/* === Start WordHover.css === */
+body.theme-dark-quartz .subtitle_hover,
+.theme-dark-quartz .subtitle_hover,
+body.theme-slate .subtitle_hover,
+.theme-slate .subtitle_hover {
+    background-color: rgba(60,60,60, 0.5);
+    color: var(--text-primary);
+    -webkit-text-stroke: 1px var(--bg);
+}
+body.theme-dark-quartz .subtitle_hover .pitch,
+.theme-dark-quartz .subtitle_hover .pitch,
+body.theme-slate .subtitle_hover .pitch,
+.theme-slate .subtitle_hover .pitch {
+    filter: invert(1);
 }
 
-body.theme-dark .subtitle_hover .prosody-overlay-wrapper,
-.subtitle_hover.theme-dark .prosody-overlay-wrapper {
+body.theme-dark-quartz .subtitle_hover .footer,
+.theme-dark-quartz .subtitle_hover .footer,
+body.theme-slate .subtitle_hover .footer,
+.theme-slate .subtitle_hover .footer {
+    border-top: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body.theme-dark-quartz .subtitle_hover hr,
+.theme-dark-quartz .subtitle_hover hr,
+body.theme-slate .subtitle_hover hr,
+.theme-slate .subtitle_hover hr {
+    border-top-color: var(--border-color);
+}
+
+body.theme-dark-quartz .subtitle_hover_alt_c,
+.theme-dark-quartz .subtitle_hover_alt_c,
+body.theme-slate .subtitle_hover_alt_c,
+.theme-slate .subtitle_hover_alt_c {
+    background: rgba(0, 0, 0, 0.5);
+}
+/* === End WordHover.css === */
+
+/* === Start Prosody renderer === */
+body.theme-dark-quartz .subtitle_hover .prosody-overlay-wrapper,
+.theme-dark-quartz .subtitle_hover .prosody-overlay-wrapper,
+body.theme-slate .subtitle_hover .prosody-overlay-wrapper,
+.theme-slate .subtitle_hover .prosody-overlay-wrapper {
     filter: none;
 }
-
 /* === End Prosody renderer === */
 
 /* === Start Pill.css === */
-body.theme-dark .label-pill {
+body.theme-dark-quartz .label-pill,
+body.theme-slate .label-pill {
     box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
 
-body.theme-dark .btn-pill,
-body.theme-dark .label-status {
+body.theme-dark-quartz .btn-pill,
+body.theme-dark-quartz .label-status,
+body.theme-slate .btn-pill,
+body.theme-slate .label-status {
     filter: invert(1) hue-rotate(180deg) saturate(200%);
     box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
 
-body.theme-dark .label-pill,
-.theme-dark .label-pill {
+body.theme-dark-quartz .label-pill,
+.theme-dark-quartz .label-pill,
+body.theme-slate .label-pill,
+.theme-slate .label-pill {
     filter: var(--pill-default-filter);
 }
 
-body.theme-dark .label-pill[data-level="1"],
-.theme-dark .label-pill[data-level="1"] {
+body.theme-dark-quartz .label-pill[data-level="1"],
+.theme-dark-quartz .label-pill[data-level="1"],
+body.theme-slate .label-pill[data-level="1"],
+.theme-slate .label-pill[data-level="1"] {
     filter: var(--pill-level-1-filter);
 }
 
-body.theme-dark .label-pill[data-level="2"],
-.theme-dark .label-pill[data-level="2"] {
+body.theme-dark-quartz .label-pill[data-level="2"],
+.theme-dark-quartz .label-pill[data-level="2"],
+body.theme-slate .label-pill[data-level="2"],
+.theme-slate .label-pill[data-level="2"] {
     filter: var(--pill-level-2-filter);
 }
 
-body.theme-dark .label-pill[data-level="3"],
-.theme-dark .label-pill[data-level="3"] {
+body.theme-dark-quartz .label-pill[data-level="3"],
+.theme-dark-quartz .label-pill[data-level="3"],
+body.theme-slate .label-pill[data-level="3"],
+.theme-slate .label-pill[data-level="3"] {
     filter: var(--pill-level-3-filter);
 }
 
-body.theme-dark .label-pill[data-level="4"],
-.theme-dark .label-pill[data-level="4"] {
+body.theme-dark-quartz .label-pill[data-level="4"],
+.theme-dark-quartz .label-pill[data-level="4"],
+body.theme-slate .label-pill[data-level="4"],
+.theme-slate .label-pill[data-level="4"] {
     filter: var(--pill-level-4-filter);
 }
 
-body.theme-dark .label-pill[data-level="5"],
-.theme-dark .label-pill[data-level="5"] {
+body.theme-dark-quartz .label-pill[data-level="5"],
+.theme-dark-quartz .label-pill[data-level="5"],
+body.theme-slate .label-pill[data-level="5"],
+.theme-slate .label-pill[data-level="5"] {
     filter: var(--pill-level-5-filter);
 }
 
-body.theme-dark .label-pill[data-level="6"],
-.theme-dark .label-pill[data-level="6"] {
+body.theme-dark-quartz .label-pill[data-level="6"],
+.theme-dark-quartz .label-pill[data-level="6"],
+body.theme-slate .label-pill[data-level="6"],
+.theme-slate .label-pill[data-level="6"] {
     filter: var(--pill-level-6-filter);
 }
 
-body.theme-dark .label-pill[data-level="7"],
-.theme-dark .label-pill[data-level="7"] {
+body.theme-dark-quartz .label-pill[data-level="7"],
+.theme-dark-quartz .label-pill[data-level="7"],
+body.theme-slate .label-pill[data-level="7"],
+.theme-slate .label-pill[data-level="7"] {
     filter: var(--pill-level-7-filter);
 }
 
 /* Ensure icons inside pills are not double-inverted (applies to both img and SVG) */
-body.theme-dark .label-pill .label-icon img,
-body.theme-dark .btn-pill .btn-icon-wrapper img,
-body.theme-dark .label-pill .label-icon svg,
-body.theme-dark .btn-pill .btn-icon-wrapper svg,
-body.theme-dark .label-pill .label-svg-icon,
-body.theme-dark .btn-pill .btn-svg-icon,
-body.theme-dark .label-status .label-icon img,
-body.theme-dark .label-status .label-icon svg,
-body.theme-dark .label-status .label-svg-icon {
+body.theme-dark-quartz .label-pill .label-icon img,
+body.theme-dark-quartz .btn-pill .btn-icon-wrapper img,
+body.theme-dark-quartz .label-pill .label-icon svg,
+body.theme-dark-quartz .btn-pill .btn-icon-wrapper svg,
+body.theme-dark-quartz .label-pill .label-svg-icon,
+body.theme-dark-quartz .btn-pill .btn-svg-icon,
+body.theme-dark-quartz .label-status .label-icon img,
+body.theme-dark-quartz .label-status .label-icon svg,
+body.theme-dark-quartz .label-status .label-svg-icon,
+body.theme-slate .label-pill .label-icon img,
+body.theme-slate .btn-pill .btn-icon-wrapper img,
+body.theme-slate .label-pill .label-icon svg,
+body.theme-slate .btn-pill .btn-icon-wrapper svg,
+body.theme-slate .label-pill .label-svg-icon,
+body.theme-slate .btn-pill .btn-svg-icon,
+body.theme-slate .label-status .label-icon img,
+body.theme-slate .label-status .label-icon svg,
+body.theme-slate .label-status .label-svg-icon {
     filter: invert(1) hue-rotate(180deg); /* counter the parent invert */
     background: transparent;
 }
 /* === End Pill.css === */
 
 /* === ProgressBar.css === */
-body.theme-dark .progress-bar-track {
+body.theme-dark-quartz .progress-bar-track,
+body.theme-slate .progress-bar-track {
     background: rgba(255, 255, 255, 0.1);
 }
 /* === End ProgressBar.css === */

@@ -1963,18 +1963,25 @@
       },
       "Appearance": {
         "Theme": {
-          "Dark": "Dunkel",
+          "Chalk": "Kreide",
           "DarkHighContrast": "Dunkel hoher Kontrast",
-          "Darker": "Sehr dunkel",
+          "DarkQuartz": "Dunkler Quarz",
+          "Oled": "OLED",
           "Description": "Visuelles Theme der Anwendung wählen",
-          "GlassDark": "Glas dunkel",
-          "GlassLight": "Glas hell",
           "Label": "Theme",
-          "Light": "Hell",
           "LightHighContrast": "Hell hoher Kontrast",
+          "Quartz": "Quarz",
+          "Slate": "Schiefer",
           "Custom": "Benutzerdefiniert",
           "CustomCssDescription": "Bearbeiten Sie das CSS für Ihr benutzerdefiniertes Design. Änderungen werden live angewendet.",
           "CustomCssLabel": "Benutzerdefiniertes CSS"
+        },
+        "UiType": {
+          "Description": "Oberflächenstil der Anwendung wählen",
+          "Flat": "Flach (Debug)",
+          "Glass": "Glas",
+          "Label": "Oberflächenstil",
+          "Tactile": "Taktil"
         },
         "SimplifyHomeScreen": {
           "Description": "Startseite als einfaches Schaltflächenraster ohne interaktive Vorschauen anzeigen.",

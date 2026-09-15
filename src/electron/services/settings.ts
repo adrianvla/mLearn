@@ -11,6 +11,7 @@ import { probeMirrorCatalog } from './catalogMirrors';
 import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 import { isLanguageMetadataFileName } from '../utils/languageCode';
+import { migrateLegacyThemeSettings } from '../../shared/constants';
 import { setUILanguage } from './localization';
 import { ensureLanguageDataInstalled, getLanguageDataCatalogStatus, resolveDictionaryTargetLanguage } from './languageDataService';
 import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
@@ -192,6 +193,12 @@ export function loadSettings(): Settings {
             [migrated.language]: migrated.learningLanguageLevel,
           };
         }
+      }
+      // Legacy single-axis theme → uiType + colorScheme. Must run here:
+      // keepKnownSettingsKeys drops unknown keys on the next save, so the
+      // renderer would never see the old `theme` value.
+      if (migrateLegacyThemeSettings(migrated as Record<string, unknown>)) {
+        log.info('[settings] Migrated legacy theme setting to uiType/colorScheme');
       }
       return normalizeLoadedSettings(migrated);
     }

@@ -95,13 +95,13 @@ describe('management policy contract', () => {
     expect(
       validateEffectiveManagementPolicy({
         ...fixture,
-        settings: { theme: settingRule('dark') },
+        settings: { colorScheme: settingRule('dark-quartz') },
       }).ok,
     ).toBe(true);
     expect(
       validateEffectiveManagementPolicy({
         ...fixture,
-        settings: { theme: settingRule('neon') },
+        settings: { colorScheme: settingRule('neon') },
       }).ok,
     ).toBe(false);
     expect(
@@ -221,7 +221,7 @@ describe('management policy contract', () => {
     expect(result.value.schemaVersion).toBe(1);
     expect(result.value.policyVersionId).toBe('policy-version-1');
     expect(result.value.settings.llmEnabled?.value).toBe(false);
-    expect(result.value.settings.theme?.value).toBe('dark');
+    expect(result.value.settings.colorScheme?.value).toBe('dark-quartz');
     expect(result.value.settings.flashcard_deck?.value).toBeNull();
   });
 });

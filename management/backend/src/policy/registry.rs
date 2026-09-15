@@ -55,18 +55,19 @@ const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
     ("do_colour_known", JsonKind::Boolean),
     ("do_colour_codes", JsonKind::Boolean),
     (
-        "theme",
+        "colorScheme",
         JsonKind::StringLiterals(&[
-            "light",
-            "dark",
-            "glass-light",
-            "glass-dark",
+            "quartz",
+            "chalk",
+            "dark-quartz",
+            "slate",
+            "oled",
             "light-high-contrast",
             "dark-high-contrast",
-            "darker",
             "custom",
         ]),
     ),
+    ("uiType", JsonKind::StringLiterals(&["tactile", "glass", "flat"])),
     ("language", JsonKind::String),
     ("hover_known_get_from_dictionary", JsonKind::Boolean),
     ("show_pos", JsonKind::Boolean),
@@ -318,8 +319,10 @@ mod tests {
 
     #[test]
     fn registry_accepts_only_registered_literal_setting_values() {
-        assert!(validate_setting_rule("theme", &json!("dark")).is_ok());
-        assert!(validate_setting_rule("theme", &json!("neon")).is_err());
+        assert!(validate_setting_rule("uiType", &json!("glass")).is_ok());
+        assert!(validate_setting_rule("uiType", &json!("damascus")).is_err());
+        assert!(validate_setting_rule("colorScheme", &json!("dark-quartz")).is_ok());
+        assert!(validate_setting_rule("colorScheme", &json!("neon")).is_err());
         assert!(validate_setting_rule("readerTextFontStyle", &json!("serif")).is_ok());
         assert!(validate_setting_rule("readerTextFontStyle", &json!("comic")).is_err());
     }
@@ -369,7 +372,7 @@ mod tests {
         assert_eq!(serialized, expected);
         assert_eq!(serialized["schemaVersion"], json!(1));
         assert!(serialized["settings"].get("llmEnabled").is_some());
-        assert_eq!(serialized["settings"]["theme"]["value"], json!("dark"));
+        assert_eq!(serialized["settings"]["colorScheme"]["value"], json!("dark"));
         assert!(serialized["settings"]["flashcard_deck"]["value"].is_null());
     }
 }

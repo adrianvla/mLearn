@@ -41,7 +41,7 @@ const testSettings = {
   uiLanguage: 'en',
   language: 'ja',
   dictionaryTargetLanguages: {} as Record<string, string>,
-  theme: 'light',
+  colorScheme: 'quartz',
   devMode: false,
 };
 

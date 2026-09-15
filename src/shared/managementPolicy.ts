@@ -1,3 +1,4 @@
+import { COLOR_SCHEMES, UI_TYPES } from './constants';
 import { DEFAULT_SETTINGS, type Settings } from './types';
 
 type SettingJsonKind =
@@ -40,18 +41,13 @@ const settingRegistry = {
   enableWordColoring: 'boolean',
   colorKnownWords: 'boolean',
   do_colour_codes: 'boolean',
-  theme: {
+  uiType: {
     kind: 'string',
-    allowedValues: [
-      'light',
-      'dark',
-      'glass-light',
-      'glass-dark',
-      'light-high-contrast',
-      'dark-high-contrast',
-      'oled',
-      'custom',
-    ],
+    allowedValues: [...UI_TYPES],
+  },
+  colorScheme: {
+    kind: 'string',
+    allowedValues: [...COLOR_SCHEMES],
   },
   language: 'string',
   frequencyStarCollapse: {

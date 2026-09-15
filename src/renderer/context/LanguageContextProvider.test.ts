@@ -1014,17 +1014,17 @@ describe('LanguageContext - provider behavior', () => {
   it('getEffectiveSettings overrides base settings with settings.fixed from langData', async () => {
     const { ctx, dispose } = await mountProvider({ language: 'ja' });
     langDataCb(makeJaLangData());
-    const base = { showReadingAnnotations: false, theme: 'dark' } as Record<string, unknown>;
+    const base = { showReadingAnnotations: false, colorScheme: 'dark-quartz' } as Record<string, unknown>;
     const result = ctx.getEffectiveSettings(base);
     expect(result.showReadingAnnotations).toBe(true); // overridden by settings.fixed
-    expect(result.theme).toBe('dark'); // not overridden
+    expect(result.colorScheme).toBe('dark-quartz'); // not overridden
     dispose();
   });
 
   it('getEffectiveSettings returns base settings when no settings.fixed', async () => {
     const { ctx, dispose } = await mountProvider({ language: 'de' });
     langDataCb({ de: { freq: [] } });
-    const base = { showReadingAnnotations: true, theme: 'light' } as Record<string, unknown>;
+    const base = { showReadingAnnotations: true, colorScheme: 'quartz' } as Record<string, unknown>;
     const result = ctx.getEffectiveSettings(base);
     expect(result).toEqual(base);
     dispose();
@@ -1032,7 +1032,7 @@ describe('LanguageContext - provider behavior', () => {
 
   it('getEffectiveSettings returns base settings unchanged before data loaded', async () => {
     const { ctx, dispose } = await mountProvider({ language: 'ja' });
-    const base = { theme: 'light' } as Record<string, unknown>;
+    const base = { colorScheme: 'quartz' } as Record<string, unknown>;
     expect(ctx.getEffectiveSettings(base)).toEqual(base);
     dispose();
   });
@@ -1049,7 +1049,7 @@ describe('LanguageContext - provider behavior', () => {
   it('isSettingFixed returns false for keys not in settings.fixed', async () => {
     const { ctx, dispose } = await mountProvider({ language: 'ja' });
     langDataCb(makeJaLangData());
-    expect(ctx.isSettingFixed('theme')).toBe(false);
+    expect(ctx.isSettingFixed('colorScheme')).toBe(false);
     dispose();
   });
 
