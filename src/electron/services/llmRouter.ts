@@ -35,7 +35,7 @@ interface QueuedStreamRequest {
 }
 
 function routeKey(settings: Settings): string {
-  return JSON.stringify([getUserDataPath(), settings.llmProvider, settings.ollamaUrl, settings.ollamaModel,
+  return JSON.stringify([getUserDataPath(), settings.livingWorldEnabled, settings.llmEnabled, settings.inferenceCloudTier, settings.llmProvider, settings.ollamaUrl, settings.ollamaModel,
     settings.builtinModel, settings.cloudApiUrl, settings.overrideCloudEndpointUrl,
     settings.cloudAuthAccessToken, settings.cloudAuthToken]);
 }

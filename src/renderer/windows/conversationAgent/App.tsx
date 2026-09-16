@@ -168,7 +168,7 @@ const PhoneIcon: Component = () => (
 );
 
 export const ConversationContent: Component = () => {
-  const { settings, openCloudReLoginModal } = useSettings();
+  const { settings, updateSettings, openCloudReLoginModal } = useSettings();
   const server = useServer();
   const {
     currentLangData,
@@ -252,6 +252,9 @@ export const ConversationContent: Component = () => {
   const [integrationRecoveryError, setIntegrationRecoveryError] = createSignal<string | null>(null);
   const [world, setWorld] = createSignal<WorldSnapshot | null>(null);
   const [selection, setSelection] = createSignal<{ roomId: string; threadId: string | null } | null>(null);
+  // Pending first entry into a persistent Room while Living World is off;
+  // the inline confirm routes the user to consent instead of selecting.
+  const [livingWorldPrompt, setLivingWorldPrompt] = createSignal<{ roomId: string; threadId?: string } | null>(null);
   const journal = createJournalThreadStore();
   const [liveOverlay, setLiveOverlay] = createSignal<ConversationMessage | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
@@ -667,6 +670,12 @@ export const ConversationContent: Component = () => {
     if (!room) return;
     const requestedThread = requestedThreadId ? snapshot.threads.find(thread => thread.id === requestedThreadId && threadContextId(thread) === roomId) : undefined;
     if (requestedThreadId && !requestedThread) throw new Error('Conversation is unavailable');
+    // First entry into a persistent Room (non-sandbox) requires Living World
+    // consent; disposable sandboxes are exempt. Declining selects nothing.
+    if (!selectedSandbox && !settings.livingWorldEnabled) {
+      setLivingWorldPrompt({ roomId, threadId: requestedThreadId });
+      return;
+    }
     const threadId = selectedSandbox?.id ?? requestedThread?.id ?? null;
     cancelVoiceScheduledNudge();
     setMediaContext(null);
@@ -705,6 +714,20 @@ export const ConversationContent: Component = () => {
     setShowNewConversationModal(false);
     // Creation publishes setup context. The next actual exchange consumes it;
     // setup is not submitted to the turn engine as a synthetic user action.
+  };
+
+  // Consent for a blocked persistent-Room entry: enabling persists the
+  // setting through the settings bridge, then retries the original selection.
+  const enableLivingWorldAndEnter = async (): Promise<void> => {
+    const prompt = livingWorldPrompt();
+    setLivingWorldPrompt(null);
+    if (!prompt) return;
+    updateSettings({ livingWorldEnabled: true });
+    try {
+      await selectRoom(prompt.roomId, prompt.threadId);
+    } catch (error) {
+      log.error('Unable to open conversation', error);
+    }
   };
 
 
@@ -1068,7 +1091,11 @@ export const ConversationContent: Component = () => {
       const firstRoom = snapshot.rooms[0];
       if (!firstRoom) return;
       setWorld(snapshot);
-      await selectRoom(firstRoom.id);
+      // Consent boundary: a first send must not enter a persistent Room while
+      // Living World is off; it targets a disposable sandbox instead, if any.
+      const fallbackThread = settings.livingWorldEnabled ? undefined : snapshot.threads.find(thread => thread.sandbox);
+      if (!settings.livingWorldEnabled && !fallbackThread) return;
+      await selectRoom(fallbackThread ? fallbackThread.id : firstRoom.id);
       return runConversationTurn(text, contextOnly, modality);
     }
     cancelVoiceScheduledNudge();
@@ -1140,6 +1167,16 @@ export const ConversationContent: Component = () => {
       if (session !== selectionSession) return;
       setLiveOverlay(null);
       if (userEvent && (settings.agentMistakeChecker || settings.agentSafetyChecker)) runCheckerOnMessage(text, userEvent.id);
+      if (userEvent) {
+        // Automatic scoped reflection (MEM-02): the completed encounter
+        // triggers main-owned consolidation of this context; the snapshot
+        // refresh makes evolved scenario state reach the next turn.
+        const triggerContext = threadId ? { roomId: threadId, threadId } : { roomId: room.id };
+        void getBridge().world.triggerReflection(triggerContext)
+          .then(() => getBridge().world.getWorldState())
+          .then((snapshot) => { if (session === selectionSession) setWorld(snapshot); })
+          .catch(() => undefined);
+      }
     } catch (error) {
       if (session === selectionSession) {
         setLiveOverlay({ role: 'assistant', content: getConversationErrorMessage(error), timestamp: Date.now(), isError: true });
@@ -1729,8 +1766,10 @@ export const ConversationContent: Component = () => {
             <Btn variant="ghost" onClick={() => setShowDetailsDrawer(false)}>{t('mlearn.ConversationAgent.Integration.Close')}</Btn>
           </div>
           <ThreadInfoPanel roomTitle={activeRoom()?.title}
+            roomId={activeThread()?.sandbox ? activeThread()?.id : activeRoom()?.id}
             thread={activeThread()}
             roomScenario={activeRoom()?.scenario}
+            reflectionRuns={world()?.reflectionRuns}
             context={mediaContext()}
             participants={rosterParticipants()}
             onRenameThread={handleRenameThread}
@@ -1762,6 +1801,28 @@ export const ConversationContent: Component = () => {
               baselineHeads: sandbox?.baselineHeads });
           }}
         />
+      </Show>
+      <Show when={livingWorldPrompt()}>
+        <Modal
+            isOpen
+            onClose={() => setLivingWorldPrompt(null)}
+            title={t('mlearn.ConversationAgent.LivingWorld.ConsentTitle')}
+            size="sm"
+            footer={
+              <div style={{ display: 'flex', 'justify-content': 'flex-end', gap: 'var(--spacing-2)' }}>
+                <Btn variant="ghost" onClick={() => setLivingWorldPrompt(null)}>
+                  {t('mlearn.ConversationAgent.LivingWorld.NotNow')}
+                </Btn>
+                <Btn variant="primary" onClick={() => { void enableLivingWorldAndEnter(); }}>
+                  {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
+                </Btn>
+              </div>
+            }
+          >
+            <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', 'color': 'var(--text-secondary)' }}>
+              {t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}
+            </p>
+          </Modal>
       </Show>
 
     </div>

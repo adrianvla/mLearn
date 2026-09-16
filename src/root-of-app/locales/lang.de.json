@@ -819,6 +819,12 @@
         "NewConversation": "Neue Unterhaltung",
         "UntitledThread": "Unbenannter Thread"
       },
+      "LivingWorld": {
+        "ConsentTitle": "Living World aktivieren?",
+        "ConsentHint": "Living World ist aus. Dieses Gespräch würde in deiner persistenten Welt leben, in der Erinnerungen, Beziehungen und Veränderungen dauerhaft gespeichert werden. Aktiviere Living World, um fortzufahren, oder bleib bei der temporären Übung.",
+        "EnableAndContinue": "Living World aktivieren und fortfahren",
+        "NotNow": "Nicht jetzt"
+      },
       "NewConversation": {
         "ChangeScenario": "Aufbau ändern",
         "UseScenario": "Diese Situation verwenden",
@@ -920,7 +926,10 @@
         "PhotoChange": "Foto ändern",
         "PhotoRemove": "Foto entfernen",
         "VoiceLabel": "Stimme",
-        "Saving": "Speichern…"
+        "Saving": "Speichern…",
+        "WorldActivity": "Weltaktivität",
+        "WorldActivityPending": "Konsolidierung läuft",
+        "WorldActivityFailed": "Konsolidierung braucht Aufmerksamkeit"
       }
     },
     "ErrorModal": {

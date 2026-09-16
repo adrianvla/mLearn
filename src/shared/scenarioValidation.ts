@@ -3,11 +3,11 @@ import { USER_ACTOR, HARNESS_ACTOR, type ScenarioSpec, type RuntimeProfile, type
 export const SCENARIO_LIMITS = { cast: 6, facts: 16, text: 1500, persona: 4000, outputCharacters: 24000, intent: 4000 } as const;
 
 type RecordValue = Record<string, unknown>;
-function record(value: unknown): RecordValue {
+export function record(value: unknown): RecordValue {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Scenario contains an invalid object');
   return value as RecordValue;
 }
-function text(value: unknown, limit: number = SCENARIO_LIMITS.text): string {
+export function text(value: unknown, limit: number = SCENARIO_LIMITS.text): string {
   if (typeof value !== 'string' || value.length > limit) throw new Error('Scenario contains invalid or oversized text');
   return value;
 }

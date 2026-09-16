@@ -16,7 +16,7 @@ import type {
   Thread,
 } from '../../../shared/world';
 import { Btn, HintText, ModalForm, Tag } from '../../components/common';
-import { useLocalization } from '../../context';
+import { useLocalization, useSettings } from '../../context';
 import { WORLD_CONTINUITY_ID } from '../../../shared/world';
 import './IntegrationModal.css';
 
@@ -38,6 +38,7 @@ const KIND_LABEL_KEYS: Record<MemoryEntry['kind'], string> = {
 
 export const IntegrationModal: Component<IntegrationModalProps> = (props) => {
   const { t } = useLocalization();
+  const { settings, updateSettings } = useSettings();
   const [destinationId, setDestinationId] = createSignal(WORLD_CONTINUITY_ID);
   const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set());
   const [manualAdoptIds, setManualAdoptIds] = createSignal<ReadonlySet<string>>(new Set());
@@ -109,6 +110,7 @@ export const IntegrationModal: Component<IntegrationModalProps> = (props) => {
   const canConfirm = () => Boolean(destinationId())
     && !busy()
     && !committed()
+    && settings.livingWorldEnabled
     && !previewPending()
     && Boolean(preview())
     && (selectedIds().size > 0 || includeScenario() || adoptIds().size > 0)
@@ -149,6 +151,14 @@ export const IntegrationModal: Component<IntegrationModalProps> = (props) => {
         <div class="integration-actions">
           <Btn variant="ghost" onClick={props.onClose}>{t('mlearn.ConversationAgent.Integration.Close')}</Btn>
           <Show when={!committed()}>
+            {/* Admission extends the persistent world; confirm stays blocked
+                until Living World is enabled. */}
+            <Show when={!settings.livingWorldEnabled}>
+              <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
+              <Btn variant="ghost" onClick={() => updateSettings({ livingWorldEnabled: true })}>
+                {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
+              </Btn>
+            </Show>
             <Btn variant="primary" disabled={!canConfirm()} onClick={() => { void confirm(); }}>
               {busy() ? t('mlearn.ConversationAgent.Integration.Committing') : t('mlearn.ConversationAgent.Integration.Confirm')}
             </Btn>

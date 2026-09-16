@@ -234,6 +234,10 @@ export async function runLegacyMigration(): Promise<MigrationSummary> {
       if (!world.threads.some((existing) => existing.id === thread.id)) {
         world.threads.push(thread);
         threads += 1;
+        // Persist the entity world BEFORE appending this thread's events: the
+        // journal validates thread-scoped writes against the saved world, and
+        // a crash-retry below re-reads the existing events from the journal.
+        await saveWorld(world);
       }
 
       const existingMessages = (await readThread(roomId, session.id))

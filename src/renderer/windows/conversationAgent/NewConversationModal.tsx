@@ -11,7 +11,7 @@ import { getBridge } from '../../../shared/bridges';
 import { threadContextId, type Participant, type WorldSnapshot, type ScenarioCreation } from '../../../shared/world';
 import { resolveParticipant } from '../../services/participantConstruction';
 import { Btn, FormField, HintText, ModalForm, Textarea } from '../../components/common';
-import { useLocalization } from '../../context';
+import { useLocalization, useSettings } from '../../context';
 import './NewConversationModal.css';
 
 export interface NewConversationResult {
@@ -38,6 +38,7 @@ function participantInitial(participant: Participant): string {
 
 export const NewConversationModal: Component<NewConversationModalProps> = (props) => {
   const { t } = useLocalization();
+  const { settings, updateSettings } = useSettings();
   const saved = props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating' || item.status === 'failed');
   const [intent, setIntent] = createSignal(saved?.request.intent ?? '');
   const [scope, setScope] = createSignal<'sandbox' | 'persistent'>(saved?.request.scope === 'persistent' ? 'persistent' : 'sandbox');
@@ -105,7 +106,6 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     const ids = [...selectedIds()];
     const text = intent().trim();
     if (busy() || (!preview() && ids.length === 0 && !text)) return;
-
     setBusy(true);
     setError(null);
     try {
@@ -143,6 +143,15 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     }
   };
 
+  // Persistent scope is Living World state: start stays blocked until the
+  // user consents. The consent action persists the setting, then proceeds.
+  const enableLivingWorldAndStart = async (): Promise<void> => {
+    if (busy()) return;
+    setError(null);
+    updateSettings({ livingWorldEnabled: true });
+    await handleStart();
+  };
+
   return (
     <ModalForm
       isOpen={true}
@@ -163,7 +172,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
             variant="primary"
             aria-label={t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.StartAria')}
             onClick={handleStart}
-            disabled={busy() || (!preview() && selectedIds().size === 0 && !intent().trim())}
+            disabled={busy() || (!preview() && selectedIds().size === 0 && !intent().trim())
+              || (!preview() && scope() === 'persistent' && !settings.livingWorldEnabled)}
           >
             {busy() ? t('mlearn.ConversationAgent.NewConversation.Starting') : t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.Start')}
           </Btn>
@@ -192,6 +202,12 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
                 disabled={busy()}
               >{t('mlearn.ConversationAgent.NewConversation.ScopePersistent')}</Btn>
             </div>
+            <Show when={scope() === 'persistent' && !settings.livingWorldEnabled}>
+              <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
+              <Btn variant="primary" disabled={busy()} onClick={() => { void enableLivingWorldAndStart(); }}>
+                {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
+              </Btn>
+            </Show>
           </fieldset>
           <Show when={persistentParticipants().length > 0}>
             <fieldset class="new-conversation-people">

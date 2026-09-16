@@ -3,6 +3,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
+import { createStore } from 'solid-js/store';
+import { DEFAULT_SETTINGS, type Settings } from '../../../shared/types';
 import type { WorldSnapshot } from '../../../shared/world';
 
 const createSandbox = vi.fn();
@@ -19,12 +21,17 @@ vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({ world: { prepareScenario, activateScenario, cancelScenario, createSandbox, createParticipant, createRoom, applyMembership, createPersistentRoom, updateThread } }),
 }));
 
+// Reactive settings store mirrors SettingsContext so consent flips re-render.
+const [settingsStore, setSettingsStore] = createStore<Settings>({ ...DEFAULT_SETTINGS });
+const updateSettingsMock = vi.fn((partial: Partial<Settings>) => setSettingsStore(partial));
+
 vi.mock('../../context', () => ({
   // t(key, params) — interpolates {name} so per-person aria-labels are distinguishable.
   useLocalization: () => ({
     t: (key: string, params?: { name?: string }) => (params?.name !== undefined ? `${key}-${params.name}` : key),
     locale: () => 'en',
   }),
+  useSettings: () => ({ settings: settingsStore, updateSettings: updateSettingsMock }),
 }));
 
 vi.mock('../../components/common', () => ({
@@ -68,6 +75,8 @@ describe('NewConversationModal', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    setSettingsStore({ livingWorldEnabled: true });
+    updateSettingsMock.mockClear();
     prepareScenario.mockReset(); activateScenario.mockReset(); cancelScenario.mockClear();
     prepareScenario.mockImplementation(async (request) => ({ operationId: request.operationId, status: 'ready', origin: 'generated', request,
       bindings: [], scenario: { scene: { sharedFacts: ['A busy café'], socialConstraints: [] }, participants: [], relationships: [], adaptations: [] } }));
@@ -248,6 +257,8 @@ describe('persistent scope creation', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    setSettingsStore({ livingWorldEnabled: true });
+    updateSettingsMock.mockClear();
     prepareScenario.mockReset(); activateScenario.mockReset(); cancelScenario.mockClear();
     prepareScenario.mockImplementation(async (request) => ({ operationId: request.operationId, status: 'ready', origin: 'generated', request,
       bindings: [], scenario: { scene: { sharedFacts: ['A busy café'], socialConstraints: [] }, participants: [], relationships: [], adaptations: [] } }));
@@ -293,6 +304,75 @@ describe('persistent scope creation', () => {
       { operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent', intent: 'plan the garden' }));
     expect(createPersistentRoom).not.toHaveBeenCalled();
     expect(onCreated).not.toHaveBeenCalled();
+  });
+});
+
+describe('living world consent', () => {
+  let container: HTMLDivElement;
+  let dispose: () => void;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    setSettingsStore({ livingWorldEnabled: false });
+    updateSettingsMock.mockClear();
+    prepareScenario.mockReset(); activateScenario.mockReset(); cancelScenario.mockClear();
+    createSandbox.mockReset();
+    createSandbox.mockResolvedValue({ id: 'sandbox-1', state: 'active', createdAt: 1, sandbox: {
+      operationId: 'test', bindings: [], baselineHeads: {},
+    } });
+    createPersistentRoom.mockReset();
+    createPersistentRoom.mockResolvedValue({ id: 'room-9', title: 'Rin', participantIds: ['participant-1'], createdByOperation: 'op', createdAt: 1 });
+  });
+  afterEach(() => { dispose?.(); container.remove(); });
+
+  const startButton = (): HTMLButtonElement => container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"], button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement;
+  const personButton = (name: string): HTMLButtonElement =>
+    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === `mlearn.ConversationAgent.NewConversation.ToggleParticipant-${name}`)!;
+  const scopeOption = (key: string): HTMLButtonElement =>
+    (Array.from(container.querySelectorAll('button[role="radio"]')) as HTMLButtonElement[]).find((button) => button.textContent === key)!;
+  const enableButton = (): HTMLButtonElement =>
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.LivingWorld.EnableAndContinue')!;
+
+  it('shows the consent heads-up and blocks persistent start while Living World is off', () => {
+    dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={vi.fn()} />, container);
+
+    scopeOption('mlearn.ConversationAgent.NewConversation.ScopePersistent').click();
+    personButton('Rin').click();
+
+    expect(container.textContent).toContain('mlearn.ConversationAgent.LivingWorld.ConsentHint');
+    expect(enableButton()).toBeDefined();
+    expect(startButton().disabled).toBe(true);
+    expect(createPersistentRoom).not.toHaveBeenCalled();
+  });
+
+  it('persists consent through the settings bridge and proceeds', async () => {
+    const onCreated = vi.fn();
+    dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
+
+    scopeOption('mlearn.ConversationAgent.NewConversation.ScopePersistent').click();
+    personButton('Rin').click();
+    enableButton().click();
+
+    expect(updateSettingsMock).toHaveBeenCalledWith({ livingWorldEnabled: true });
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-9', threadId: null }));
+    expect(createPersistentRoom).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent' });
+    expect(createSandbox).not.toHaveBeenCalled();
+  });
+
+  it('leaves the disposable sandbox flow usable without consent', async () => {
+    const onCreated = vi.fn();
+    dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
+
+    personButton('Rin').click();
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.LivingWorld.ConsentHint');
+    expect(startButton().disabled).toBe(false);
+    startButton().click();
+
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'sandbox-1', threadId: 'sandbox-1' }));
+    expect(createSandbox).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'] });
+    expect(createPersistentRoom).not.toHaveBeenCalled();
+    expect(updateSettingsMock).not.toHaveBeenCalled();
   });
 });
 

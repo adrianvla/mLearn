@@ -819,6 +819,12 @@
         "NewConversation": "新しい会話",
         "UntitledThread": "無題のスレッド"
       },
+      "LivingWorld": {
+        "ConsentTitle": "Living Worldを有効にしますか？",
+        "ConsentHint": "Living Worldが無効です。この会話は永続的な世界に保存され、思い出や関係、変化がそこに残ります。続けるにはLiving Worldを有効にするか、一時的な練習のままでいてください。",
+        "EnableAndContinue": "Living Worldを有効にして続ける",
+        "NotNow": "今はしない"
+      },
       "NewConversation": {
         "ChangeScenario": "設定を変更",
         "UseScenario": "この状況を使う",
@@ -920,7 +926,10 @@
         "PhotoChange": "写真を変更",
         "PhotoRemove": "写真を削除",
         "VoiceLabel": "音声",
-        "Saving": "保存中…"
+        "Saving": "保存中…",
+        "WorldActivity": "世界の活動",
+        "WorldActivityPending": "統合中（進行中）",
+        "WorldActivityFailed": "統合に注意が必要です"
       }
     },
     "ErrorModal": {

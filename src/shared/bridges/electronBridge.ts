@@ -395,6 +395,7 @@ const worldBridge: WorldBridge = {
   updateThread: (thread) => getIPC().updateThread(thread),
   deleteThread: (roomId, threadId) => getIPC().deleteThread(roomId, threadId),
   rememberThis: (input) => getIPC().rememberThis(input),
+  triggerReflection: (input) => getIPC().triggerReflection(input),
   integrateThread: (input) => getIPC().integrateThread(input),
   previewIntegration: (input) => getIPC().previewIntegration(input),
   createParticipant: (input) => getIPC().createParticipant(input),

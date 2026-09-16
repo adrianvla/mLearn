@@ -33,7 +33,8 @@ export type EventType =
   | 'call_missed'
   | 'call_ended'
   | 'correction'
-  | 'safety_flag';
+  | 'safety_flag'
+  | 'scenario_evolved';
 
 /** Reserved actor ids. Anything else is a Participant id. */
 export const USER_ACTOR = 'user';
@@ -51,7 +52,7 @@ export interface JournalEvent {
   witnesses: string[]; // explicit epistemic set; NOT derived from room membership
   payload: unknown; // type-specific
   createdAt: number;
-  provenance?: { sourceThreadEventIds?: string[]; integrationId?: string; stagedIntegration?: boolean };
+  provenance?: { sourceThreadEventIds?: string[]; integrationId?: string; stagedIntegration?: boolean; reflectionId?: string };
 }
 
 /** What callers supply; the journal assigns id/seq/createdAt. */
@@ -86,12 +87,33 @@ export interface MemoryEventPayload {
   /** kind 'relationship' only: directional edge target + label (D5). */
   toId?: string;
   label?: string;
+  /** kind 'belief' only, reflection-derived rows: this interpretation replaces
+   *  the owner's earlier derived belief (semantic supersession; the replaced
+   *  row stays in journal history but leaves the projection). */
+  supersedesEventId?: string;
+}
+
+/** Terminal states a grounded resolution can give an open loop. */
+export type LoopResolutionStatus = 'satisfied' | 'cancelled' | 'contradicted' | 'superseded';
+
+/** 'resolution' — a participant's grounded close-out of an open loop they own.
+ *  The loop row itself is history; this row is what changes its current state. */
+export interface ResolutionPayload {
+  ownerId: string;
+  text: string;
+  sourceEventIds: string[];
+  /** Open-loop memory event this resolution closes. Absent = free resolution note. */
+  loopId?: string;
+  /** Required when loopId is present; how the loop ends. */
+  status?: LoopResolutionStatus;
 }
 
 /** 'consolidation' — Dreamer window marker; idempotency key for consolidation runs. */
 export interface ConsolidationPayload {
-  windowStart: number; // createdAt of oldest Sea event in the consolidated window
-  windowEnd: number; // createdAt of newest; a run covering <= existing windowEnd is a no-op
+  /** Which maintenance pass produced this marker; absent = reflection (the original format). */
+  kind?: 'reflection' | 'scenario';
+  windowStart: number; // first source sequence in this stream
+  windowEnd: number; // last source sequence in this stream
   producedEventIds: string[]; // beliefs/resolutions this run appended (audit + resume)
 }
 
@@ -272,7 +294,7 @@ export interface CanonBaseline {
 }
 
 export type ParticipantRef =
-  | { kind: 'existing'; participantId: string }
+  | { kind: 'existing'; participantId: string; /** Situation-private goals for a continuing person; global persona is untouched. */ goals?: string[] }
   | { kind: 'temporary'; localId: string; profile: RuntimeProfile };
 
 /** For temp participants; NOT a persistent identity. */
@@ -312,12 +334,110 @@ export interface MemoryEntry {
 // Scenario Director (Phase 6 contract; defined here so all phases share it)
 // ---------------------------------------------------------------------------
 
+/** One authorized Director development, derived from real journal history.
+ *  Never a fabricated occurrence: sourceEventIds cite the supporting events and
+ *  kinds are situation-state interpretations, not new canonical occurrences.
+ *  'reopen' transitions a concluded situation back to active. There is no
+ *  'fact' kind: historical occurrences are only ever real journal events. */
+export interface ScenarioDevelopment {
+  id: string;
+  text: string;
+  kind: 'progress' | 'complication' | 'resolution' | 'reopen';
+  witnesses: string[];
+  sourceEventIds: string[];
+  createdAt: number;
+}
+
+/** A later real event retracting an earlier development: the wrong premise
+ *  leaves the current situation view; journal history is never rewritten. */
+export interface ScenarioRetraction {
+  id: string;
+  developmentId: string;
+  text: string;
+  sourceEventIds: string[];
+  createdAt: number;
+}
+
+/** One validated goal delta for a situation participant (private per-person
+ *  state; applied on top of the participant's base goals, never overwriting
+ *  them). Sources cite the events that justified the change. */
+export interface ScenarioGoalChange {
+  id: string;
+  participantId: string;
+  add: string[];
+  remove: string[];
+  sourceEventIds: string[];
+  createdAt: number;
+}
+
+/** Evolution output for a scenario pass; typed, citation-carrying state
+ *  mutations only. `concluded` closes the situation, `reopened` revives one. */
+export interface ScenarioEvolutionProposal {
+  developments: { text: string; kind: ScenarioDevelopment['kind']; sourceEventIds: string[] }[];
+  goalUpdates: { participantId: string; add: string[]; remove: string[]; sourceEventIds: string[] }[];
+  retractions: { developmentId: string; text: string; sourceEventIds: string[] }[];
+  concluded: { text: string; sourceEventIds: string[] } | null;
+  reopened: { text: string; sourceEventIds: string[] } | null;
+}
+
+/** 'scenario_evolved' — journal history of one accepted Director evolution. */
+export interface ScenarioEvolutionPayload {
+  developments: { text: string; kind: ScenarioDevelopment['kind']; sourceEventIds: string[] }[];
+  goalUpdates: { participantId: string; add: string[]; remove: string[]; sourceEventIds: string[] }[];
+  retractions: { developmentId: string; text: string; sourceEventIds: string[] }[];
+  concluded: { text: string; sourceEventIds: string[] } | null;
+  reopened: { text: string; sourceEventIds: string[] } | null;
+  /** Retained for provenance of window sources (union with per-item citations). */
+  sourceEventIds: string[];
+}
+
 export interface ScenarioSpec {
   scene: { sharedFacts: string[]; userObjectivePrivate: string; socialConstraints: string[] };
   participants: ParticipantRef[];
   relationships: { fromId: string; toId: string; label: string; directional: true }[];
   grounding?: ScenarioGrounding; // when canon-sourced (D15+)
   adaptations: string[]; // user-requested deltas, thread-scoped
+  /** Derived situation state; each entry cites its supporting events. */
+  developments?: ScenarioDevelopment[];
+  /** Later real events retracting earlier developments (wrong premises leave
+   *  the current view; history is preserved). */
+  retractions?: ScenarioRetraction[];
+  /** Validated goal deltas on top of each participant's base goals. */
+  goalChanges?: ScenarioGoalChange[];
+  /** A concluded situation is history; later turns treat it as shared past.
+   *  Authoritative consumers recompute this from the valid resolution
+   *  developments (a retracted conclusion reopens the situation). */
+  status?: 'active' | 'concluded';
+}
+
+/** Durable reflection/evolution maintenance record (world.json ledger). Written
+ * before the run's first physical write so an interrupted run reconciles after
+ * restart. Replay-safe: the derived journal rows carry the operation id in
+ * provenance, so a restart never re-derives (duplicates) the same window. */
+export interface ReflectionRunRecord {
+  reflectionId: string;
+  kind: 'reflection' | 'scenario';
+  /** Journal context id: a Room id, world continuity, or a sandbox Thread id. */
+  contextId: string;
+  scopeKind: 'sea' | 'thread';
+  threadId?: string;
+  windowStart: number;
+  windowEnd: number;
+  sourceEventIds: string[];
+  sourceHash?: string;
+  castHash?: string;
+  /** Exact owner context used for ordinal mapping and interpretation; rechecked before publication/recovery. */
+  personalContextHashes?: Record<string, string>;
+  status: 'pending' | 'committed' | 'failed';
+  error?: string;
+  createdAt: number;
+  settledAt?: number;
+  /** Prepared publication, cleared on commit. Reflection persists its validated
+   *  derived drafts (all-or-nothing resume); scenario persists its before/after
+   *  entity state plus the history event. Never sent to renderers. */
+  prepared?:
+    | { kind: 'reflection'; expectedDrafts: JournalEventDraft[] }
+    | { kind: 'scenario'; scenarioBefore: ScenarioSpec; scenarioAfter: ScenarioSpec; event: JournalEventDraft; entityId: string };
 }
 
 export interface ScenarioGrounding {
@@ -347,6 +467,7 @@ export interface ScenarioGrounding {
 /** Full entity snapshot handed to the renderer over WORLD_GET_STATE. */
 export interface WorldSnapshot {
   integrations?: Omit<IntegrationRecord, 'prepared'>[];
+  reflectionRuns?: Omit<ReflectionRunRecord, 'prepared'>[];
   rooms: Room[];
   threads: Thread[];
   participants: Participant[];

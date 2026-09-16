@@ -134,6 +134,28 @@
   white-space: pre-wrap;
 }
 
+.ca-thread-world-run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin: var(--spacing-1) 0 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.ca-thread-world-run-status {
+  color: var(--text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.ca-thread-world-run-error {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
 /* Secondary: thread-scoped media analysis, collapsed by default. */
 .ca-thread-media-analysis {
   border: 1px solid var(--border-color);

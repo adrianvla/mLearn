@@ -4,6 +4,8 @@ Target: [CONVERSATION_LIVING_WORLD_SPEC.md](CONVERSATION_LIVING_WORLD_SPEC.md), 
 
 Status vocabulary: **reported** (historical claim), **unverified** (no current sufficient evidence), **implemented** (live code exists), **fixture-verified** (controlled production-path test), **live-verified** (appropriate real runtime proof), **failed** (counterexample), **externally blocked** (specific prerequisite missing). Partial evidence does not close an entire requirement.
 
+**Current bounded handoff (2026-09-16): V08 still blocked after re-review and direct repairs.** Fresh deterministic/type/build/crash checks pass, but the real local model and a built-production adversarial probe still commit unsupported Scenario history and loop closure. See the final checkpoint and [V08 review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md). Earlier remediation claims below are historical, not current certification. No V09/V10 work is authorized; no migration is required for intermediate Living World development formats.
+
 ## Dependency-aware execution
 
 1. Ownership and creation: scoped bindings and revision-pinned baselines; validated integration; atomic Director staging/activation; persist and consume scenarios; usable scope/creation/editing/integration paths. A01–A09.
@@ -71,10 +73,10 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | DIRECTOR-01 | A live canonical entry boundary. | unverified (partial V03/V06 evidence) | V03 main-owned staging handles selected IDs plus intent for sandboxes; V06 adds the persistent Room choice through the same staging/activation. Source/media and educational adapters remain open. |
 | DIRECTOR-02 | Separate participants from intent. | unverified | Full condition retained in target; verify through the connected wave above. |
 | DIRECTOR-03 | Materialize actual situations and casts. | unverified (partial V03 evidence) | V03 validates distinct local profiles, goals, knowledge audiences and directional relationships. Source grounding, persistent cast and open-loop materialization remain open. |
-| DIRECTOR-04 | Persist and consume Scenario state. | unverified (partial V03 evidence) | V03 persists Scenario and reference on Thread; actual compiler and turn path consume shared facts and scoped private state. Subsequent evolution remains open. |
+| DIRECTOR-04 | Persist and consume Scenario state. | partial / V08 blocked | Room-first Scenario state and existing-person goals are consumed, with corrected lifecycle replay; unsupported prose authority still blocks V08. |
 | DIRECTOR-05 | Coherent creation lifecycle. | unverified (partial V03/V06 evidence) | V03 fixture proof: durable staging, cancellation, failed retry, reload, baseline conflict and idempotent atomic acceptance. V06: persistent activation is atomic, idempotent and leaves no permanent topology on failure. Full crash/profile/permission matrix remains open. |
 | DIRECTOR-06 | Deterministic when appropriate, generative when useful. | unverified (partial V03/V06 evidence) | Deterministic selected-person entry and persistent Room creation need no model call; intent-based generation keeps the bounded provider queue. Native reliability of generated proposals remains under evaluation. |
-| DIRECTOR-07 | Evolving orchestration. | unverified | Full condition retained in target; verify through the connected wave above. |
+| DIRECTOR-07 | Evolving orchestration. | failed / V08 blocked | Fresh real-model and adversarial evidence promotes unsupported progress prose into subsequent context. See current V08 re-review. |
 | DIRECTOR-08 | Keep the Director out of the cast. | unverified (partial V03 evidence) | V03 separates main-owned proposal generation from character turns; setup creates no user message. Compiler excludes owner private objective and other-person private facts. |
 | DIRECTOR-09 | One policy boundary for entry and continuation. | unverified (partial V06 evidence) | Sandbox and persistent Room entry now share the canonical New Conversation staging/activation; the legacy Room-linked createThread entry is removed. Voice, media, Mission and Campaign entries still need this boundary. |
 | TURN-01 | Bounded orchestration. | unverified | Full condition retained in target; verify through the connected wave above. |
@@ -103,14 +105,14 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | SOCIAL-07 | No mandatory drama. | unverified | Full condition retained in target; verify through the connected wave above. |
 | SOCIAL-08 | User agency and boundaries. | unverified | Full condition retained in target; verify through the connected wave above. |
 | MEM-01 | Canonical memory family. | unverified | Full condition retained in target; verify through the connected wave above. |
-| MEM-02 | Automatic permitted reflection. | unverified | Full condition retained in target; verify through the connected wave above. |
-| MEM-03 | Reflection output. | unverified | Full condition retained in target; verify through the connected wave above. |
+| MEM-02 | Automatic permitted reflection. | partial / V08 blocked | Consent/revocation and publication paths repaired. In-flight trigger/backlog, exhausted-window retry and mounted nonempty exchange proof remain open. |
+| MEM-03 | Reflection output. | failed / V08 blocked | Owner-scoped persona/prior beliefs/loops and exact ordinal mapping work; unsupported model resolutions still close loops without later resolving evidence. |
 | MEM-04 | No sandbox promotion through reflection. | implemented (partial V07 evidence) | Explicit integration is now the only promotion route: the standalone `WORLD_PROMOTE_PARTICIPANT` side door was removed; adoption runs inside the integration operation with provenance and destination mapping. Thread-local reflection remains local. |
-| MEM-05 | Repeated reflection is not repeated learning. | unverified | Full condition retained in target; verify through the connected wave above. |
+| MEM-05 | Repeated reflection is not repeated learning. | partial / V08 blocked | Sequence windows, deduplication and bounded ordinal snapshots tested; salience publication/recovery and semantic duplicate loops remain unverified. |
 | MEM-06 | Bounded useful memory. | unverified | Full condition retained in target; verify through the connected wave above. |
 | MEM-07 | Relevance does not grant access. | unverified | Full condition retained in target; verify through the connected wave above. |
 | MEM-08 | Forgetting and archival are not falsification. | unverified | Full condition retained in target; verify through the connected wave above. |
-| MEM-09 | Corrections and erasure propagate. | unverified | Full condition retained in target; verify through the connected wave above. |
+| MEM-09 | Corrections and erasure propagate. | partial / V08 blocked | Real message corrections, invalid superseders and Scenario lifecycle replay repaired. Published cross-Room continuing-context dependencies and full erasure remain incomplete. |
 | MEM-10 | Selective VoiceMem-inspired improvements. | unverified | Full condition retained in target; verify through the connected wave above. |
 | CTX-01 | One compiler for identity and continuity. | unverified | Full condition retained in target; verify through the connected wave above. |
 | CTX-02 | Inputs have explicit authority. | unverified | Full condition retained in target; verify through the connected wave above. |
@@ -223,9 +225,9 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | A16 | Offscreen activity does not impersonate the user | unverified | Production workflow and specified evidence layer required. |
 | A17 | Foreground resolves a queued background problem | unverified | Production workflow and specified evidence layer required. |
 | A18 | Emergent lore and Room culture survive | unverified | Production workflow and specified evidence layer required. |
-| A19 | Automatic reflection actually runs | unverified | Production workflow and specified evidence layer required. |
+| A19 | Automatic reflection actually runs | failed / V08 blocked | Automatic path and atomic commits exist; fresh real model closes an unresolved loop without evidence. Submitted mounted character replies are empty. |
 | A20 | Long-memory retrieval under a budget | unverified | Production workflow and specified evidence layer required. |
-| A21 | Correction/erasure invalidates derived state | unverified | Production workflow and specified evidence layer required. |
+| A21 | Correction/erasure invalidates derived state | partial / V08 blocked | Real-source correction and lifecycle replay repaired; continuing-context-derived rows lack complete durable causal dependencies. |
 | A22 | Meaningful proactive message | unverified | Production workflow and specified evidence layer required. |
 | A23 | Quiet hours, mute, budgets, and stale contact | unverified | Production workflow and specified evidence layer required. |
 | A24 | Durable delivery failure boundary | unverified | Production workflow and specified evidence layer required. |
@@ -340,3 +342,53 @@ Actual process-crash tests and the cloned-profile Electron flow establish the co
 **Exact V07 remainder:** old pending/interrupted prefixes have no reliable before-image and may have lost their source. Their published topology cannot be rolled back or completed safely by guessing. Older adopted identities lacking an immutable source guard require migration when their current persona no longer matches the pinned baseline. Current notices expose these limitations; they do not constitute world consistency. A deterministic legacy resolution/migration contract is required before calling V07 sound. Full A08/A09 acceptance and real-model material remain unclosed.
 
 **Stop boundary:** no autonomous lives, Dreamer expansion, initiative, Scenario evolution or V08. Existing reflection was only exercised for isolation; its implementation is unchanged. Other A01–A45 acceptance cases remain open.
+
+## Checkpoint — 2026-09-16, V08
+
+Previous turn was progress. This turn implemented the automatic scoped reflection lifecycle and persistent Scenario evolution.
+
+**Automatic scoped reflection.** Reflection is per-person: each cast member consolidates only their own witness/absence-filtered view of the journal window (computed against the full stream, then intersected with the bounded window), with one validated model call per owner and no shared omniscient prompt. Derived rows carry the operation id in provenance; a durable pending record plus persisted expected drafts make interrupted publications resume all-or-nothing, and repeated invalid output retries in-pass up to a named bound before the window closes with an empty marker. Triggers: post-encounter IPC (`WORLD_TRIGGER_REFLECTION`, fired after a completed foreground exchange over the current Room or sandbox Thread context), scheduler idle passes for persistent Rooms, and startup recovery after legacy migration. Sandbox output stays thread-local; the journal rejects thread-scoped writes without a live context-matching Thread record, and sandbox deletion cancels and settles its runs.
+
+**Persistent Scenario evolution.** The Director now evolves the persisted situation from real shared journal history: one bounded validated proposal pass (developments/goal updates/conclusion), one atomic entity compare-and-save, the `scenario_evolved` history row, and a scenario-kind marker sealing the window. Goal deltas stay out of the witnessed journal payload (private per-participant state consumed through the scenario spec). Situations conclude only when justified; a concluded situation is shared past and never evolves again. The compiler and prompt renderer surface developments and conclusion state per person.
+
+**Maintenance status surface.** Details (ThreadInfoPanel) lists pending/failed reflection/evolution runs for the active context with their error notes; committed runs do not surface. Developer diagnostics stay log/Event-Audit facing; no Settings UI.
+
+Verification: full suite 6,792 passed / 21 skipped; both TypeScript configurations and the production build pass. Crash/retry evidence: `scripts/verify-v08-maintenance.cjs` (15/15, actual SIGKILL boundaries on the built services). Live evidence: real local `gemma3:4b` through the real provider path (`LIVE_MODEL_EVIDENCE=PASS`) and an actual Electron main-process run through the production `WORLD_TRIGGER_REFLECTION` IPC handler (`ELECTRON_EVIDENCE=PASS`). Exact records in V08 of the verification doc; provider/fixture layers are labeled separately there.
+
+**Stop boundary: V09 (initiative/contact/voice waves) is NOT authorized by this checkpoint.** Remaining full-acceptance scope is unchanged: A01–A45 remain open; proactive contact, notification/deep-link delivery, incoming-call lifecycle, real human+AI group transport, Mission/Campaign machinery, media bridge, migrations on cloned profiles, correction/erasure end-to-end invalidation, and the mounted-UI maintenance surfaces are required later waves.
+
+## Checkpoint — 2026-09-16, V08 adversarial review (current)
+
+**V08 BLOCKED; V09 remains unauthorized.** The scope remains automatic scoped reflection/Dreamer and persistent Scenario evolution. The fixed roadmap is V08 → V09 → V10 → END.
+
+The reported atomicity was falsified: the crash harness itself expected canonical partial results before commit. Corrections now hide prepared journal rows, atomically publish Scenario plus maintenance status, serialize maintenance world writes, use stream-sequence cursors, revalidate sources/cast, propagate memory retractions, exclude private Director inputs and unwitnessed developments, use the shared bounded/cancellable provider queue, preserve saved Thread scope, and remove the false unconditional retry hint. Three initial adversarial regressions were red, then green. The updated 15-case process crash verifier passes with zero pre-commit canonical output.
+
+**Remaining V08 work:** coherent Threads-only/Living World opt-in enforced by inference/persistence; person-grounded reflection with functioning loop resolution and supersession; interpretation versus occurrence authority; source-driven Scenario goal/conclusion recomputation and existing-person evolution; bounded backlog/retry/resource behavior; real-provider semantic evaluation and mounted Electron automatic-trigger/reload/failure proof. These are V08 defects, not permission to implement V09 and not optional polish. No migration of unreleased intermediate Living World data is required.
+
+Full findings, repairs, commands, evidence layers and limitations: [V08 review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md). No full A01–A45 acceptance case is newly certified. The real-provider rerun returned `LIVE_MODEL_EVIDENCE=BLOCKED`; localhost:11434 was unavailable from this environment. No commit, push or deployment was made.
+
+## Checkpoint — 2026-09-16, submitted V08 remediation (superseded below)
+
+**V08's four architectural blockers are resolved through production paths; V08 is ready for review. V09 remains unauthorized.**
+
+**B1 — Threads-only vs Living World.** One central consent (`Settings.livingWorldEnabled`, default off) enforced main-side at every persistent-state entry point: persistent Room/scenario creation, membership adds, persistent participant creation, remember-this, integration, sea-scope renderer journal appends, all automatic maintenance (post-encounter, idle scheduler, integration trigger, startup recovery — recovery defers while off), and the scheduler's proactive reconcile. Renderer consent surfaces route the user to a single enable action (New Conversation persistent scope, IntegrationModal, first persistent-Room entry). Existing-person edit/delete and membership removal are deliberately ungated user data management. Service-level maintenance exports have no ungated production callers.
+
+**B2/B3/B4 — Person-grounded reflection, loop lifecycle, authority boundary.** Reflection is per-owner with canonical continuing-person context (persona, prior derived beliefs, open loops across Rooms, entitlement-filtered); every belief/resolution must cite events from the owner's visible window; only interpretation kinds (belief/open-loop/relationship) are derivable — model prose cannot become episode/lore/occurrence rows. Open loops are real state: typed resolution rows close them (status + code-mapped target + citations), projections expose only open loops, supersession replaces prior derived beliefs while journals keep history.
+
+**B5 — Scenario correction/reopening.** Typed evolution proposals (developments/goalUpdates/retractions/concluded/reopened, all citation-carrying; `fact` kind deleted) chain without mutating base state; correction is pure derivation (`authoritativeScenario`) — invalidated/retracted entries leave the current view, stored chains and journal history are never rewritten; conclusions auto-reopen when invalidated; existing-person scenario goals work via goal-change chains.
+
+**Verification:** full suite **6,828 passed / 21 skipped**; both TS configs; build; locales; `git diff --check`. Crash verifier 15/15 on the final build. Real provider (local `gemma3:4b` via production path): `LIVE_MODEL_EVIDENCE=PASS`, `LOOP_RESOLUTION_EVIDENCE=PASS` with provenance-filtered evidence. Mounted Electron (`scripts/v08-mounted-electron.cjs`, disposable APFS-cloned profile): sidebar Room selection → real user/character turns → automatic reflection → reload/return → second turn, `MOUNTED_ELECTRON_EVIDENCE=PASS`. Failure behavior of the small model under the strict contract is recorded honestly (windows close, no fabrication).
+
+**Remaining:** gemma3:4b output quality is intermittent (bounded retries/honest windows; no quality certification); A01–A45 full acceptance scope unchanged; V09 (initiative/contact/voice) not started. No commit, push or deployment was made.
+
+## Checkpoint — 2026-09-16, V08 re-review (authoritative current)
+
+**V08 still blocked. Do not begin V09.** The current dirty checkout and all previous repairs were preserved. Full [re-review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md) and [verification](CONVERSATION_LIVING_WORLD_VERIFICATION.md#v08--re-review-after-remediation-2026-09-16-current) distinguish repaired invariants from remaining failures.
+
+Repaired: consent bypasses in direct maintenance/scheduler calls, startup integration recovery and temporary-person promotion; revocation while queued or generating; wrong ordinal mapping after the 12-loop cap and stale cross-Room choices; private goals/pre-join developments in shared Scenario prompts; production message correction ownership; retraction of reopening; invalid superseders; uncited/malformed goal deltas; overclaiming evidence scripts. Added fifteen tests and strengthened existing regressions. No migration of unreleased intermediate schemas.
+
+Final validation: **6,843 passed / 21 skipped**, both TypeScript configurations, production build, **15/15** rebuilt reflection crash checks, locale JSON and diff hygiene. The separate built-production authority probe intentionally remains **exit 2 / BLOCKED**. Real `gemma3:4b` repeats the false completed-layout claim and unsupported satisfied rake-loop transition. The submitted mounted profile proves actual IPC but contains two empty character replies and invented Scenario development. No new mounted success is claimed.
+
+Next concrete V08 work: establish a structural interpretation/proposal versus historical-authority boundary; require genuine resolving evidence for loop closure; preserve causal dependencies on prior personal context after publication; complete bounded automatic backlog/retry and projection recovery; then obtain semantically reviewed real-model output and nonempty mounted exchange → committed reflection/evolution → reload → Room return → second turn. Preserve Room-first persistent ownership, scoped Thread usability and atomic publication. **V09 autonomous lives/offscreen activity/lore generation and V10 initiative/contact remain untouched and unauthorized.**
+
+HANDOFF_VERDICT=BLOCKED

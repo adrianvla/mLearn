@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import type { Participant, Room } from '../../shared/world';
+import { DEFAULT_SETTINGS, type Settings } from '../../shared/types';
 
 const powerMonitorOn = vi.fn();
 const powerMonitorRemoveListener = vi.fn();
@@ -14,6 +15,12 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('./worldIpc', () => ({ openRoomAt: vi.fn() }));
+
+// Living World consent default for the existing proactive-scheduler coverage;
+// individual tests may flip it to verify the Threads-only boundary.
+const mockLoadSettings = vi.hoisted(() => vi.fn());
+vi.mock('./settings', () => ({ loadSettings: mockLoadSettings }));
+const schedulerSettings = (livingWorldEnabled: boolean): Settings => ({ ...DEFAULT_SETTINGS, livingWorldEnabled });
 
 let tempDir: TempDir;
 
@@ -41,6 +48,8 @@ describe('schedulerRuntime', () => {
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-scheduler-runtime-test-');
     vi.resetModules();
+    mockLoadSettings.mockReset();
+    mockLoadSettings.mockReturnValue(schedulerSettings(true));
     powerMonitorOn.mockClear();
     powerMonitorRemoveListener.mockClear();
     runtime = await import('./schedulerRuntime');
@@ -96,5 +105,31 @@ describe('schedulerRuntime', () => {
     runtime.stopScheduler();
     expect(powerMonitorRemoveListener).toHaveBeenCalledWith('suspend', expect.any(Function));
     expect(powerMonitorRemoveListener).toHaveBeenCalledWith('resume', expect.any(Function));
+  });
+
+  it('runs no proactive initiative and no maintenance while Living World consent is off', async () => {
+    mockLoadSettings.mockReturnValue(schedulerSettings(false));
+    await journal.appendEvent('room-1', {
+      roomId: 'room-1',
+      scope: { kind: 'sea' },
+      type: 'schedule',
+      actorId: 'harness',
+      witnesses: ['user'],
+      payload: { candidateId: 'wired', kind: 'message', participantId: 'participant-1', fireAt: Date.now() - 1000, text: 'Hello' },
+    });
+
+    runtime.startScheduler();
+    await flush();
+    // Force every reconcile path (startup, interval, suspend, resume) to run
+    // against the disabled boundary.
+    const handlers = powerMonitorOn.mock.calls.filter(([event]) => event === 'suspend' || event === 'resume');
+    for (const [, handler] of handlers) (handler as () => void)();
+    await flush();
+
+    const events = await journal.readSeaProjection('room-1');
+    expect(events.some((event) => event.type === 'proactive_fulfilled')).toBe(false);
+    // No autonomous-world writes of any kind happened on the consented paths.
+    expect(events.filter((event) => event.type === 'consolidation')).toHaveLength(0);
+    runtime.stopScheduler();
   });
 });

@@ -35,6 +35,7 @@ import { setupKVStoreIPC } from './services/kvStore';
 import { setupLinguisticGraphIPC } from './services/linguisticGraph';
 import { setupJournalIPC } from './services/journalService';
 import { startScheduler, stopScheduler } from './services/schedulerRuntime';
+import { cancelAllMaintenance, reconcilePendingMaintenance } from './services/dreamerRuntime';
 import { setupWorldIPC, openRoomAt } from './services/worldIpc';
 import { runLegacyMigration } from './services/legacyMigration';
 import { setupBrowserDetectionIPC } from './services/browserDetection';
@@ -418,6 +419,10 @@ async function initialize(): Promise<void> {
     log.info('Legacy conversation state migrated to world model', worldMigration);
   }
 
+  // Maintenance recovery (V08): finish interrupted reflection/evolution
+  // publications from the durable ledger before any scheduler pass runs.
+  await reconcilePendingMaintenance();
+
   // Create windows and start services
   await createAppWindows();
 
@@ -477,6 +482,9 @@ app.on('before-quit', () => {
   (app as any).isQuitting = true;
   destroyTray();
   stopScheduler();
+  // In-flight reflection/evolution aborts at phase boundaries; prepared
+  // publications stay reconcilable from the durable ledger.
+  cancelAllMaintenance();
   terminatePythonBackend();
 });
 

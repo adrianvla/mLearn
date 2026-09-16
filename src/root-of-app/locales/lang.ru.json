@@ -819,6 +819,12 @@
         "NewConversation": "Новый диалог",
         "UntitledThread": "Ветка без названия"
       },
+      "LivingWorld": {
+        "ConsentTitle": "Включить Living World?",
+        "ConsentHint": "Living World выключен. Этот разговор будет жить в вашем постоянном мире, где сохраняются воспоминания, отношения и изменения. Включите Living World, чтобы продолжить, или оставайтесь во временной практике.",
+        "EnableAndContinue": "Включить Living World и продолжить",
+        "NotNow": "Не сейчас"
+      },
       "NewConversation": {
         "ChangeScenario": "Изменить подготовку",
         "UseScenario": "Использовать ситуацию",
@@ -920,7 +926,10 @@
         "PhotoChange": "Сменить фото",
         "PhotoRemove": "Удалить фото",
         "VoiceLabel": "Голос",
-        "Saving": "Сохранение…"
+        "Saving": "Сохранение…",
+        "WorldActivity": "Активность мира",
+        "WorldActivityPending": "Консолидация выполняется",
+        "WorldActivityFailed": "Консолидация требует внимания"
       }
     },
     "ErrorModal": {

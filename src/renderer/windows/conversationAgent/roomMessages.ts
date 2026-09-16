@@ -119,6 +119,14 @@ export function renderCompiledContext(
   if (ctx.scenario) {
     const scene = ctx.scenario;
     sections.push(`## Current situation\n${scene.sharedFacts.join('\n')}`);
+    if (scene.developments.length) {
+      sections.push(
+        `## Situation developments\n${scene.developments
+          .map((dev) => `- ${dev.text}`)
+          .join('\n')}`,
+      );
+    }
+    if (scene.concluded) sections.push('This situation has concluded: it is shared past, not an ongoing task.');
     if (scene.constraints.length) sections.push(`## Situation constraints\n${scene.constraints.join('\n')}`);
     if (scene.goals.length) sections.push(`## Your goals in this situation\n${scene.goals.join('\n')}`);
     if (scene.knowledge.length) sections.push(`## Your starting knowledge\n${scene.knowledge.join('\n')}`);

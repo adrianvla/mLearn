@@ -60,6 +60,9 @@ describe('worldIpc', () => {
     tempDir = createTempDir();
     mockConsolidateRoom.mockReset();
     mockLoadSettings.mockReset();
+    // Persistent-entry gates read consent synchronously; existing coverage
+    // runs with Living World enabled, off-cases override explicitly.
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: true });
     vi.resetModules();
     mod = await import('./worldIpc');
     journal = await import('./journalService');
@@ -238,6 +241,108 @@ describe('worldIpc', () => {
   it('createPersistentRoom requires selected people', async () => {
     seedWorld();
     await expect(mod.createPersistentRoom({ operationId: 'persist-4', participantIds: [] })).rejects.toThrow(/selected people/);
+  });
+
+  it('rejects persistent-world entry with the consent error while Living World is off', async () => {
+    seedWorld([room('r1', ['p1'])], [thread('t1', 'r1')], [participant('p1', 'Pat')]);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+
+    await expect(mod.createPersistentRoom({ operationId: 'persist-off', participantIds: ['p1'] }))
+      .rejects.toThrow(/Living World is disabled/);
+    await expect(mod.applyMembership('r1', 'p2', 'add')).rejects.toThrow(/Living World is disabled/);
+
+    const source = await journal.appendEvent('r1', {
+      roomId: 'r1', scope: { kind: 'thread', threadId: 't1' },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'p1'],
+      payload: { text: 'Meet tomorrow.' },
+    });
+    await expect(mod.rememberThis({
+      roomId: 'r1', threadId: 't1', sourceEventId: source.id,
+      ownerId: 'p1', kind: 'belief' as const, text: 'We plan to meet tomorrow.',
+    })).rejects.toThrow(/Living World is disabled/);
+
+    // No topology appeared and nothing leaked into the Sea.
+    expect((await mod.getWorldState()).rooms).toHaveLength(1);
+    expect(await journal.readSeaProjection('r1')).toEqual([]);
+  });
+
+  it('cannot promote a temporary person through updateParticipant without consent', async () => {
+    const temporary = { ...participant('temp', 'Temp'), kind: 'temporary' as const };
+    seedWorld([], [], [temporary]);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    await expect(mod.updateParticipant({ ...temporary, kind: 'persistent' })).rejects.toThrow(/Living World is disabled/);
+    expect((await mod.getWorldState()).participants[0].kind).toBe('temporary');
+  });
+
+  it('rechecks consent after a persistent creation waits for the world queue', async () => {
+    seedWorld();
+    const { withWorldMutation } = await import('./worldStore');
+    const gate = Promise.withResolvers<void>();
+    const blocker = withWorldMutation(() => gate.promise);
+    const pending = mod.createRoom('queued');
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    gate.resolve();
+    await blocker;
+    await expect(pending).rejects.toThrow(/Living World is disabled/);
+    expect((await mod.getWorldState()).rooms).toEqual([]);
+  });
+
+  it('createRoom refuses to extend topology while Living World is off', async () => {
+    seedWorld([room('r1', ['p1'])]);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+
+    await expect(mod.createRoom('Offlimits')).rejects.toThrow(/Living World is disabled/);
+
+    const world = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'world.json'), 'utf-8')) as { rooms: Room[] };
+    expect(world.rooms.map(room => room.id)).toEqual(['r1']);
+  });
+
+  it('createRoom publishes and persists a room while Living World is on', async () => {
+    seedWorld([]);
+    const created = await mod.createRoom('Parlor');
+
+    expect(created.id.startsWith('room-')).toBe(true);
+    expect(created.title).toBe('Parlor');
+
+    const state = await mod.getWorldState();
+    expect(state.rooms).toHaveLength(1);
+    expect(state.rooms[0].title).toBe('Parlor');
+  });
+
+  it('persistent createParticipant is consent-gated and writes nothing while Living World is off', async () => {
+    seedWorld([]);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+
+    await expect(mod.createParticipant({ displayName: 'Durable Dan', kind: 'persistent', personaText: '' }))
+      .rejects.toThrow(/Living World is disabled/);
+
+    expect((await mod.getWorldState()).participants).toEqual([]);
+  });
+
+  it('temporary createParticipant stays available while Living World is off', async () => {
+    seedWorld([]);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+
+    const created = await mod.createParticipant({ displayName: 'One-Scene Odette', kind: 'temporary', personaText: 'Disposable cast' });
+
+    expect(created.kind).toBe('temporary');
+    const state = await mod.getWorldState();
+    expect(state.participants).toHaveLength(1);
+    expect(state.participants[0].displayName).toBe('One-Scene Odette');
+    expect(state.participants[0].kind).toBe('temporary');
+  });
+
+  it('keeps sandbox creation and roster removal usable while Living World is off', async () => {
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    // Persistent person creation is consent-gated, so seed the roster directly.
+    seedWorld([], [], [participant('p1', 'Sam')]);
+    const thread = await mod.createSandbox({ operationId: 'sandbox-off', participantIds: ['p1'] });
+    expect(thread.sandbox?.bindings[0].baseline.displayName).toBe('Sam');
+
+    seedWorld([room('r1', ['p1'])]);
+    const removed = await mod.applyMembership('r1', 'p1', 'remove');
+    expect(removed.room.participantIds).toEqual([]);
+    expect(removed.event).not.toBeNull();
   });
 
 });

@@ -1,6 +1,7 @@
 # Living-world verification
 
-The complete target remains unverified. This record separates controlled production-boundary evidence from live product proof.
+The full A01–A45 target remains unverified. **Current bounded verdict after V08 re-review (2026-09-16): V08 still blocked.** The submitted remediation PASS claims below are historical and superseded by the final re-review section and [V08 review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md). Fresh tests/build/crash checks pass, but actual model output and an adversarial production probe still publish unsupported Scenario history and loop closure. No V09/V10 work is authorized. The final V07 release-history decision creates no migration obligation for intermediate development formats.
+
 
 ## V01 — Integration admission boundary, 2026-09-14
 
@@ -151,3 +152,107 @@ Evidence:
 Final validation: full suite **427 passed / 1 skipped files; 6,789 passed / 9 skipped tests**. After the last small label/layout/identity-hash changes, targeted integration/modal tests passed **28/28**; both TypeScript configurations, production build, all five process-crash probes, locale JSON parsing and `git diff --check` passed. The final rebuilt native retry cleared the prior error and showed completion; an explicitly selected world-scoped private note was visible to A and absent from B in Memory Browser. Narrow item text measured 253 px after the badge fix. Details gained an explicit close button because backdrop-centre activation was intercepted by the narrow drawer.
 
 Profile isolation evidence: original `world.json` and `kv-store.json` checksums remained identical. The original settings checksum changed before the first successful cloned-app launch (13:55:29 versus 13:56:24); differing authentication state was observed, not logged. No command wrote the original profile, but whole-profile byte identity is not claimed. A08/A09 remain open at full acceptance scope. Autonomous lives, Dreamer expansion, initiative, Scenario evolution and V08 were not started.
+
+## V08 — Automatic scoped reflection and persistent Scenario evolution, 2026-09-16 (current)
+
+Production path: completed foreground turn → `WORLD_TRIGGER_REFLECTION` → main-owned `dreamerRuntime.consolidateContext` (policy-gated, in-flight deduplication, abort-aware) → per-person scoped reflection (`dreamerService.runReflection`, one validated model call per cast member's own witness/absence-filtered view) and Director scenario evolution (`scenarioDirector.evolveScenario`, shared-window proposal validated against exact cast identities). Both publish through one durable `ReflectionRunRecord` (world.json ledger), reflection drafts persisted before any journal append (all-or-nothing resume), and scenario evolution through an atomic entity compare-and-save plus the `scenario_evolved` history row and a scenario-kind consolidation marker. Startup recovery (`reconcilePendingMaintenance`) runs in `main.initialize()` after legacy migration; app quit aborts in-flight passes at phase boundaries; sandbox Thread deletion cancels and settles its runs, and thread-scoped journal writes now require a live, context-matching Thread record (erased streams cannot be resurrected).
+
+Controlled production-path evidence (real JSON/NDJSON persistence in temporary directories; providers mocked; journals/world files real):
+
+- `dreamerService.test.ts` (8 tests): thread-scope isolation, per-window idempotency, per-owner view partitioning (Ben's prompt never contains Ava's private disclosure; empty views make no calls), cast-identity rejection with bounded retry then honest window close, provenance on every derived row, all-or-nothing recovery of an interrupted prepared publication (marker verified, never duplicated, no re-derivation), fail-closed settlement of a pending record without prepared output.
+- `scenarioDirector.test.ts` (14 tests incl. evolution): sandbox scenario evolution from real events with validated identities, goal-update rejection for unknown participants (nothing committed), durable conclusion consumed by the compiler (`concluded`, conclusion text in developments), crash recovery between entity save and journal row (prepared cleared on commit), private goal deltas absent from the witnessed `scenario_evolved` payload and from the other cast member's compiled context.
+- `journalService.test.ts` (9) / `threadErasure.test.ts`: thread-scoped writes now validate context ownership (`thread.roomId === roomId`); existing streams/tests updated to seed live Thread records.
+- `scripts/verify-v08-maintenance.cjs` (15 checks, after build, real filesystem, one fresh SIGKILL probe profile each): kill inside the model call → pending record, recovery settles failed, replay derives once; kill after the first derived row → recovery completes the prepared publication all-or-nothing and replays idempotently; kill after the marker → recovery verifies it and settles committed without a duplicate; clean run → exactly one committed record, replay no-ops.
+
+Real-model evaluation (labeled separately; deterministic fixtures prove orchestration, not grounding):
+
+- `scripts/verify-v08-real-model.cjs`: real local `gemma3:4b` through `dreamerLlm.complete` → real `ollamaService` path on a disposable profile. Committed per-person reflection (owner-scoped beliefs citing real source events) and a committed Director evolution (developments citing real events, one private goal update, situation left active — no mandatory drama). `LIVE_MODEL_EVIDENCE=PASS`. Earlier runs with `gemma3:1b` failed output-shape validation three times and were recorded, not mocked; prompt requirements were clarified and parsing made fence-tolerant without loosening identity validation.
+- `scripts/v08-electron-main.cjs` under `npx electron`: actual Electron main process, production `WORLD_TRIGGER_REFLECTION` IPC handler registration and invocation, real model, real journals (asserted `app.getPath('userData')` equals the disposable profile). `ELECTRON_EVIDENCE=PASS` — 7 owner-scoped derived events (owners mara/eli), one reflection marker with all 7 produced ids, one committed `scenario_evolved` with developments citing the real source events. This is a main-process IPC-path run; a full mounted-conversation-window UI run remains open (see limits).
+
+Validation:
+
+- `npm run test`: 425 passed / 3 skipped files; 6,792 passed / 21 skipped tests. One earlier run showed transient WordSync parallel-pool failures that pass both in isolation and in a subsequent full-suite run (order/parallel sensitivity, not V08 code); the failing-check rerun was required and recorded here rather than waived.
+- `npm run typecheck` (both configurations), `npm run build` (pre-existing large-chunk warning retained): exit 0.
+- Crash verifier: 15/15 PASS; real-model script: `LIVE_MODEL_EVIDENCE=PASS`; Electron harness: `ELECTRON_EVIDENCE=PASS`.
+
+Limits: no mounted conversation-window interaction (reflection runs through the production IPC handler inside real Electron, but notification/deep-link/UI surfaces for maintenance state are not exercised — they remain later waves); no per-owner display surface beyond Details status; repeated-reflection salience amplification is bounded per window by the attempt ledger but full A20/A21 invalidation propagation (search indices, queued prompts) is open; VoiceMem-inspired prefetch/prefetch invalidation unchanged; A01–A45 remain open at full acceptance scope.
+
+## V08 — Adversarial review and repair, 2026-09-16 (authoritative current verdict)
+
+**BLOCKED within V08.** [Detailed findings and evidence](CONVERSATION_LIVING_WORLD_V08_REVIEW.md). Scope remains automatic scoped reflection and persistent Scenario evolution; roadmap V08 → V09 → V10 → END. No successor work, commit, push or deployment.
+
+The original “all-or-nothing” claim was false: the supplied crash script explicitly asserted partial canonical rows before settlement. Scenario state also published before history. Corrections introduce canonical preparation gating for Sea/Thread readers and one atomic Scenario/status publication, serialize world mutations, replace wall-clock windows with stream sequences, revalidate sources/cast, invalidate derived memory on correction, remove private goals/relationships from shared Director input, preserve development witnesses, route maintenance through the shared cancellable bounded provider queue, preserve legacy Thread scope, and remove a false retry promise.
+
+New production-path regressions first failed for same-millisecond event loss, visible partial reflection and source-retraction races. Post-repair focused tests: **42 passed / 5 files**. Updated process crash verifier: **15/15 PASS**, now requiring zero canonical output before publication. Scenario failure injection checks unchanged entity/history before retry and one recovered publication. No new native Scenario SIGKILL or mounted UI result is claimed.
+
+Remaining V08 blockers are explicit: missing coherent opt-in for Threads-only privacy; Dreamer lacks continuing-person context and resolution rows do not resolve loops; arbitrary generated prose still gains historical authority; Scenario goals/conclusion do not recompute after source correction; existing-person goal updates are unsupported; bounded backlog/retry/resource behavior and live product verification are incomplete. These are not deferred to V09.
+
+Real-provider rerun: `node scripts/verify-v08-real-model.cjs` exited 2, `LIVE_MODEL_EVIDENCE=BLOCKED`, with no derived/evolution rows and bounded failures in disposable profile `v08-real-G4193P`. The configured localhost:11434 endpoint could not be reached from this environment. The supplied Electron script directly invokes a captured registered handler inside Electron; it does not prove renderer IPC transport or mounted Conversation behavior. Prior row-count PASS labels do not certify semantics.
+
+Validation logs: `/tmp/v08-review-{red,focused,full-tests,typecheck,build,crashes,real-model}.log`. Full suite after the main repairs: **425 passed / 3 skipped files; 6,795 passed / 21 skipped tests**. Both TypeScript configurations and production build pass (existing large-chunk warning). Final small-guard/UI checks are recorded below. Tests used disposable profiles only. No migration obligation was invented for unreleased intermediate formats; no original user profile was changed.
+
+Final small-change checks: **49 passed / 6 targeted files** (including mounted Details tests); both TypeScript configurations pass. `git diff --check` and all six locale JSON parses pass. These checks do not close the V08 blockers.
+
+## V08 — Submitted remediation, 2026-09-16 (historical claim; superseded below)
+
+Continued from the dirty checkout; all Astra repairs preserved; no reset, no V09 work, no commit/push/deploy. This round resolved the four remaining V08 blockers through production paths and re-verified everything, including Astra's regressions.
+
+### B1 — Coherent Threads-only vs Living World boundary
+- One central opt-in: `Settings.livingWorldEnabled` (default **false** = Threads-only), enforced main-side via `src/shared/livingWorld.ts` (`livingWorldEnabled` / `requireLivingWorld`). No per-feature matrix.
+- Gated entry points (consent off → reject/no-op with the consent error): `createPersistentRoom`, `createRoom`, `activateScenario` (persistent scope) and `prepareScenario` (persistent scope, rejects at request time before inference spend), `applyMembership` 'add', `createParticipant` kind 'persistent', `rememberThis`, `integrateThread` (async rejection before any queue wait or world read), sea-scope `JOURNAL_APPEND` (renderer path), `dreamerRuntime.runMaintenance` (covers `WORLD_TRIGGER_REFLECTION`, idle scheduler and integration triggers for both scopes), `schedulerRuntime.reconcileAll` (whole pass — no proactive initiative, no autonomous maintenance), `reconcilePendingMaintenance` (deferred; pending records resolve on the next consented startup).
+- Deliberately ungated (audited): read paths, membership 'remove', `updateParticipant`/`deleteParticipant` on existing people — user data management of already-existing state, never world extension. Service-level `runReflection`/`evolveScenario` exports have no production callers outside the gated runtime wrappers (caller map verified by grep); they remain DI seams for tests.
+- Renderer consent surfaces (route to consent; never the boundary): New Conversation persistent scope heads-up + "Enable Living World and continue", IntegrationModal consent block, App first-entry prompt for persistent Rooms. Locales: `mlearn.ConversationAgent.LivingWorld.*` in all six languages.
+- Tests: consent off — createPersistentRoom/applyMembership-add/rememberThis/createRoom/createParticipant-persistent/integrateThread reject with no world mutation; consolidateContext makes zero model calls (Sea + sandbox); scheduler runs no proactive reconcile and no consolidation. Consent on — all prior behavior. 19 worldIpc tests, integration/dreamerRuntime/schedulerRuntime fixtures updated.
+
+### B2 — Person-grounded reflection
+- Per-owner reflection now carries continuing-person context computed canonically: `personalHistory(ownerId, context)` unions the context stream with all other Rooms' Sea streams + world continuity (Sea only), filtered to rows the owner owns AND witnessed, minus tombstoned/superseded rows. Thread contexts stay thread-local (sandbox isolation unchanged).
+- `makePrompt` includes owner persona, prior derived beliefs (capped 12), and the owner's currently-open loops; `validateDerived` enforces per-belief/per-resolution `sourceEventIds ⊆` the owner's visible window — fabricated or foreign citations reject the whole output (bounded per-owner retries, then honest window close).
+- Cross-Room propagation test: Room B reflection prompt carries the owner's Room A prior belief/open loop and never another person's private rows; second person in Room B receives none of it. Compiled context already filtered cross-Room by witnesses.
+
+### B3 — Real open-loop lifecycle
+- Typed `resolution` rows (`ResolutionPayload`: ownerId, loopId, status satisfied/cancelled/contradicted/superseded, text, per-item sourceEventIds) close an owned open loop; `openLoopStates` derives current loop state (latest valid resolution wins, owner-matched); `deriveRoomProjection`/compiled context expose only currently-open loops; loop history rows are preserved.
+- Model names the target loop by 1-based ordinal in the prompt's openLoops list; canonical code maps ordinal → journal id. When the owner has no open loops the output contract omits `resolutions` entirely. Numeric-string ordinals are coerced; range violations reject.
+- Belief supersession: `supersedesEventId` (validated against the owner's prior derived rows) tombstones the replaced belief in the projection while journal history stays intact.
+
+### B4 — Model prose never becomes history
+- Reflection output kinds restricted to belief/open-loop/relationship — `episode`/`fact` are rejected (adversarial test: hallucinated occurrence prose cannot become episode/lore rows). All beliefs/resolutions must cite events from the owner's entitled view; reflections can only ever append `memory.belief`/`resolution` rows (occurrence types structurally unreachable).
+- Scenario evolution: typed proposal `{developments[loop→sourceEventIds], goalUpdates, retractions, concluded, reopened}`; `fact` kind deleted; every development/retraction/conclusion/reopen must cite events from the shared window; retraction targets must be developments currently in force. Authoritative current state derives via `authoritativeScenario` (shared/scenarioState.ts): retracted/tombstone-invalidated entries leave the current view; the stored chain is never rewritten; `status` derives (concluded only while a valid conclusion stands).
+
+### B5 — Scenario correction and reopening
+- Correction is pure derivation: a correction tombstoning a cited source drops that development/goal change from the authoritative view with no entity write and no journal rewrite; the evolution pass and compiler consume the derived view.
+- conclude → reopen → retract-reopen ordered case verified; correction-of-conclusion auto-reopens while the stored chain keeps the conclusion; existing-person scenario goals (`ParticipantRef.goals` + `ScenarioGoalChange` chain) apply without touching base persona.
+
+### Verification evidence (this round)
+- Full suite: **425 passed / 3 skipped files; 6,828 passed / 21 skipped tests**. Both TypeScript configurations pass; production build passes (pre-existing large-chunk warning); `git diff --check` and all six locale JSON parses pass.
+- Astra regression re-run: `scripts/verify-v08-maintenance.cjs` **15/15 PASS** on the final build (zero canonical derived rows before recovery; per-window idempotent replay; loop resolution exercised via ordinal-mapped fake output).
+- Real provider: `node scripts/verify-v08-real-model.cjs` → **exit 0, `LIVE_MODEL_EVIDENCE=PASS`, `LOOP_RESOLUTION_EVIDENCE=PASS`** on real local `gemma3:4b` through the production `ollamaService` path: committed per-person reflections (owner-scoped beliefs with valid per-item citations), a committed loop resolution mapped by code to the seeded loop id, and a committed cited scenario evolution (progress, no conclusion, no mandatory drama). Evidence only counts reflection-provenance rows — seeded fixtures are excluded. Earlier runs of the same script failed honestly (model emitted `status: "open"`, hallucinated loopIds, string ordinals) and were recorded, driving the prompt/ordinal clarifications without loosening validation.
+- Mounted Electron: `node scripts/v08-mounted-electron.cjs` → **`MOUNTED_ELECTRON_EVIDENCE=PASS`** — real built app in dev contract (vite :3000 + `NODE_ENV=development`), disposable APFS-cloned profile (original untouched), real renderer UI driven over CDP: EULA/intro gates → sidebar click selects the persistent Room → real user message → real character reply committed to Sea → **automatic** main-owned reflection derived rows (no manual trigger) → reload → remount → Garden continuity + history → second real exchange in the same continuity. All reply waits assert new `message.character` rows specifically; failures dump UI state.
+
+### Limits and blockers recorded honestly
+- gemma3:4b is unstable against the strict reflection contract (intermittent malformed JSON, wrong key names, hallucinated loop ids across attempts); per-owner bounded attempts and the ordinal contract make committed output trustworthy when it lands, and failures close windows honestly. No model-quality certification beyond the recorded samples.
+- Proactive initiative remains pre-V08 machinery with its own opt-out (`proactivityEnabled`), now subordinated to Living World consent at the scheduler.
+- Older V08 limits not addressed this round (mounted maintenance Details surfaces beyond status, A20/A21 full invalidation propagation, voice/group/media/migration waves) remain open at full acceptance scope. All A01–A45 remain open; V09 remains unauthorized.
+- Tests used disposable profiles only; the mounted run reads the installed runtime via an APFS clone and never writes the original profile. No commit, push or deployment was made.
+
+
+## V08 — Re-review after remediation, 2026-09-16 (current)
+
+**V08 still blocked.** Full findings, repaired defects, retained limitations and exact counterexamples are in the [authoritative re-review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md#v08-re-review-after-remediation--2026-09-16-authoritative).
+
+Repairs on the existing dirty checkout: direct-service and startup-integration consent gates; revocation rechecks through queued creation/inference and persistent Scenario preparation; temporary-person promotion gate; exact capped ordinal mapping with durable owner-context hashes; shared Scenario prompt exclusion of private goals and pre-join developments; real-message correction ownership; lifecycle replay after reopening retraction; invalid superseder handling; strict per-goal citations/arrays; honest evidence harness checks. Disposable Thread use and Room-first persistent Scenarios remain intact. No new feature-toggle matrix, migrations, V09 or V10 work.
+
+Evidence by layer:
+
+| Layer | Fresh result | Meaning / limitation |
+|---|---|---|
+| Regression/full suite | **6,843 passed / 21 skipped; 425 passed / 3 skipped files**, 39.49 s | Fifteen new tests and strengthened old tests. Logs `/tmp/v08-rereview-{red,red2,recovery-red,corrections-red,queue-red,prompt-red,parser-red,prepare-red}.log` record reproduced failures; final suite `/tmp/v08-rereview-final-tests.log`. |
+| TypeScript | Both configs pass | `/tmp/v08-rereview-final-typecheck.log`. |
+| Production build | Pass; existing large-chunk warning | `/tmp/v08-rereview-final-build.log`. |
+| Process crashes | **15/15 PASS** on final build | `/tmp/v08-rereview-final-crashes.log`; zero canonical rows at prepared B/C boundaries. Reflection matrix only; Scenario has filesystem-failure unit evidence. |
+| Adversarial built production path | **exit 2, AUTHORITY_EVIDENCE=BLOCKED** | `scripts/verify-v08-authority.cjs` turns a suspicion into next-context history and closes the related loop without resolving evidence. `/tmp/v08-rereview-final-authority.log`. |
+| Real local model | **Semantic FAIL**, structural exit 0; `gemma3:4b`, 37,018 ms | `/tmp/v08-rereview-real-model.log`: future layout plan becomes completed layout; considering the rake question becomes satisfied resolution. The harness now labels structural success separately and requires semantic review. |
+| Submitted mounted Electron | Actual Electron/IPC transport; **claimed successful exchanges disproved** | Inspected `/tmp/v08-mounted-run10.log` and retained OS-temp profile `v08-mounted-JP5l2m`: both character texts are empty, and a committed Scenario invents a discussion of herbs/flowers from the user's rake question. |
+| Tightened mounted harness | Syntax-checked, **not rerun** | Requires nonempty replies, committed maintenance, Scenario before reload, restored history and a second reply. No fresh mounted success claim. |
+| Hygiene | Pass | Six locale JSON parses, evidence-script syntax, `git diff --check`. |
+
+The remaining blockers are semantic authority for Scenario history and loop closure, durable dependencies on prior personal context, bounded automatic backlog/retry/projection recovery, and valid mounted product evidence. Model instability is acceptable only when it fails safely; the recorded commits do not. No original user profile was written, no commit/push/deploy, no unreleased-format migration. **V09 remains unauthorized.**

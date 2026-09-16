@@ -33,6 +33,15 @@ describe('journalService', () => {
     ...overrides,
   });
 
+  /** Thread-scoped appends require a live Thread record with matching Room. */
+  const seedThread = (threadId: string): void => {
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'world.json'), JSON.stringify({
+      rooms: [],
+      threads: [{ id: threadId, roomId, state: 'active', createdAt: 1 }],
+      participants: [],
+    }));
+  };
+
   beforeEach(async () => {
     tempDir = createTempDir();
     vi.resetModules();
@@ -45,8 +54,10 @@ describe('journalService', () => {
   });
 
   it('assigns evt_ ids and monotonic per-stream seqs (Sea and Thread independent)', async () => {
+    seedThread('t1');
     const sea1 = await mod.appendEvent(roomId, seaDraft());
     const sea2 = await mod.appendEvent(roomId, seaDraft());
+    seedThread('t1');
     const thread1 = await mod.appendEvent(roomId, seaDraft({ scope: { kind: 'thread', threadId: 't1' } }));
     const thread2 = await mod.appendEvent(roomId, seaDraft({ scope: { kind: 'thread', threadId: 't1' } }));
     const sea3 = await mod.appendEvent(roomId, seaDraft());
@@ -59,7 +70,9 @@ describe('journalService', () => {
   });
 
   it('survives service restart — events readable from fresh module state', async () => {
+    seedThread('t9');
     const sea = await mod.appendEvent(roomId, seaDraft());
+    seedThread('t9');
     await mod.appendEvent(roomId, seaDraft({ scope: { kind: 'thread', threadId: 't9' } }));
 
     vi.resetModules();
@@ -77,7 +90,9 @@ describe('journalService', () => {
   });
 
   it('readSeaProjection excludes thread-scoped events', async () => {
+    seedThread('t1');
     await mod.appendEvent(roomId, seaDraft({ type: 'membership', payload: { add: 'character-a' } }));
+    seedThread('t1');
     await mod.appendEvent(roomId, seaDraft({ scope: { kind: 'thread', threadId: 't1' } }));
 
     const projection = await mod.readSeaProjection(roomId);
@@ -87,8 +102,12 @@ describe('journalService', () => {
   });
 
   it('readThread returns only the requested thread stream', async () => {
+    seedThread('ta');
+    seedThread('tb');
     await mod.appendEvent(roomId, seaDraft());
+    seedThread('ta');
     await mod.appendEvent(roomId, seaDraft({ scope: { kind: 'thread', threadId: 'ta' } }));
+    seedThread('tb');
     await mod.appendEvent(roomId, seaDraft({ scope: { kind: 'thread', threadId: 'tb' } }));
 
     const ta = await mod.readThread(roomId, 'ta');

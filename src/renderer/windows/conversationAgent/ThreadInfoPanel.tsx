@@ -7,7 +7,7 @@
 
 import { Component, For, Show, createSignal } from 'solid-js';
 import type { ConversationAgentContext } from '../../../shared/types';
-import type { Participant, Thread, ScenarioSpec } from '../../../shared/world';
+import type { Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
 import { Btn, FormField, Input, Tag } from '../../components/common';
 import { useLocalization } from '../../context';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
@@ -15,10 +15,13 @@ import './ThreadInfoPanel.css';
 
 interface ThreadInfoPanelProps {
   roomTitle?: string;
+  roomId?: string;
   roomScenario?: ScenarioSpec;
   thread: Thread | null;
   context: ConversationAgentContext | null;
   participants: Participant[];
+  /** Durable reflection/evolution runs for this context; visible in Details. */
+  reflectionRuns?: ReflectionRunRecord[];
   onRenameThread: (title: string) => Promise<void> | void;
   onUpdateParticipant: (participant: Participant) => Promise<void> | void;
   onDeleteThread: () => Promise<void> | void;
@@ -32,6 +35,18 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   const [editingParticipant, setEditingParticipant] = createSignal<Participant | null>(null);
   const [confirmingDelete, setConfirmingDelete] = createSignal(false);
   const mediaRef = () => props.thread?.mediaRef;
+  // Maintenance runs for THIS context: a sandbox Thread has its own journal;
+  // Room turns use the Room's Sea stream (including world continuity for the
+  // integration trigger). Only pending/failed runs surface here — committed
+  // runs are normal operation, not status the user must act on.
+  const contextRuns = () => (props.reflectionRuns ?? []).filter(run => {
+    const contextId = props.thread?.sandbox ? props.thread.id : props.roomId;
+    return run.contextId === contextId && (run.status === 'pending' || run.status === 'failed');
+  });
+
+  const statusLabel = (run: ReflectionRunRecord): string => run.status === 'pending'
+    ? t('mlearn.ConversationAgent.Details.WorldActivityPending')
+    : t('mlearn.ConversationAgent.Details.WorldActivityFailed');
 
   const kindLabel = (participant: Participant): string => props.thread?.sandbox
     ? t('mlearn.ConversationAgent.Details.PracticeVersion')
@@ -88,6 +103,20 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
         <section class="ca-thread-section">
           <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.NewConversation.IntentLabel')}</span>
           <p>{props.thread?.intent}</p>
+        </section>
+      </Show>
+
+      <Show when={contextRuns().length > 0}>
+        <section class="ca-thread-section">
+          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.WorldActivity')}</span>
+          <For each={contextRuns()}>
+            {(run) => (
+              <article class="ca-thread-world-run">
+                <span class="ca-thread-world-run-status">{statusLabel(run)}</span>
+                <Show when={run.error}><p class="ca-thread-world-run-error">{run.error}</p></Show>
+              </article>
+            )}
+          </For>
         </section>
       </Show>
 

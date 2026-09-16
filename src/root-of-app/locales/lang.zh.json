@@ -819,6 +819,12 @@
         "NewConversation": "新对话",
         "UntitledThread": "未命名话题"
       },
+      "LivingWorld": {
+        "ConsentTitle": "启用 Living World？",
+        "ConsentHint": "Living World 未开启。此对话将存在于你的持久世界中，记忆、关系与变化都会保存在那里。启用 Living World 以继续，或保持在临时练习中。",
+        "EnableAndContinue": "启用 Living World 并继续",
+        "NotNow": "暂不"
+      },
       "NewConversation": {
         "ChangeScenario": "修改设置",
         "UseScenario": "使用此情境",
@@ -920,7 +926,10 @@
         "PhotoChange": "更换照片",
         "PhotoRemove": "移除照片",
         "VoiceLabel": "语音",
-        "Saving": "保存中…"
+        "Saving": "保存中…",
+        "WorldActivity": "世界活动",
+        "WorldActivityPending": "整理进行中",
+        "WorldActivityFailed": "整理需要处理"
       }
     },
     "ErrorModal": {

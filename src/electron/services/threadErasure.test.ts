@@ -26,6 +26,11 @@ describe('thread erasure', () => {
   it('removes thread payloads while retaining only source ids in a Sea erasure event', async () => {
     const roomId = 'room-erase';
     const threadId = 'thread-erase';
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'world.json'), JSON.stringify({
+      rooms: [],
+      threads: [{ id: threadId, roomId, state: 'active', createdAt: 1 }],
+      participants: [],
+    }));
     await journal.appendEvent(roomId, {
       roomId,
       scope: { kind: 'sea' },

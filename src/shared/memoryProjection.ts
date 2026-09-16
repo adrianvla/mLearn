@@ -17,7 +17,7 @@
  * empty witness sets are degenerate and visible to no one.
  */
 
-import type { JournalEvent, MemoryEntry } from './world';
+import type { JournalEvent, LoopResolutionStatus, MemoryEntry } from './world';
 import { visibleEventsFor } from './contextCompiler';
 
 export interface RelationshipEntry {
@@ -49,6 +49,7 @@ function isMemoryKind(value: unknown): value is MemoryEntry['kind'] {
 }
 
 function memoryOwner(e: JournalEvent): string | undefined {
+  if (e.type === 'message.user' || e.type === 'message.character' || e.type === 'disclosure') return e.actorId;
   const payload = e.payload;
   if (typeof payload !== 'object' || payload === null) return undefined;
   const ownerId = (payload as Record<string, unknown>).ownerId;
@@ -76,7 +77,104 @@ export function tombstonedIds(events: JournalEvent[]): Set<string> {
     if (memoryOwner(source) !== ownerId) continue;
     ids.add(targetId);
   }
+  const invalidateSources = (): void => {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const event of events) {
+        if (!event.provenance?.reflectionId || ids.has(event.id)) continue;
+        const sources = (event.payload as { sourceEventIds?: unknown } | null)?.sourceEventIds;
+        if (Array.isArray(sources) && sources.some(id => typeof id === 'string' && ids.has(id))) {
+          ids.add(event.id); changed = true;
+        }
+      }
+    }
+  };
+  invalidateSources();
+  // Reflection supersession: a still-valid derived belief with
+  // payload.supersedesEventId replaces the owner's earlier derived belief.
+  // Only derived rows participate (reflection provenance on both sides), so
+  // user-authored memories can never supersede each other here.
+  const derived = new Map(events.filter((e) => e.provenance?.reflectionId !== undefined).map((e) => [e.id, e]));
+  for (const e of derived.values()) {
+    if (ids.has(e.id) || e.type !== 'memory.belief') continue;
+    const supersedes = (e.payload as { supersedesEventId?: unknown } | null)?.supersedesEventId;
+    if (typeof supersedes !== 'string' || !derived.has(supersedes)) continue;
+    if (memoryOwner(derived.get(supersedes)!) !== memoryOwner(e)) continue;
+    ids.add(supersedes);
+  }
+  invalidateSources();
   return ids;
+}
+
+/** Current lifecycle of one journaled open loop. */
+export interface LoopState {
+  loop: MemoryEntry;
+  status: 'open' | LoopResolutionStatus;
+  /** Present when closed: the grounded resolution row that ended it. */
+  resolution?: {
+    eventId: string;
+    ownerId: string;
+    text: string;
+    status: LoopResolutionStatus;
+    sourceEventIds: string[];
+    createdAt: number;
+  };
+}
+
+const LOOP_RESOLUTION_STATUSES: readonly LoopResolutionStatus[] = ['satisfied', 'cancelled', 'contradicted', 'superseded'];
+
+function isLoopResolutionStatus(value: unknown): value is LoopResolutionStatus {
+  return typeof value === 'string' && (LOOP_RESOLUTION_STATUSES as readonly string[]).includes(value);
+}
+
+function resolutionFromEvent(e: JournalEvent): { ownerId: string; text: string; loopId?: string; status?: LoopResolutionStatus; sourceEventIds?: string[] } | null {
+  const payload = e.payload;
+  if (typeof payload !== 'object' || payload === null) return null;
+  const rec = payload as Record<string, unknown>;
+  if (typeof rec.ownerId !== 'string' || typeof rec.text !== 'string') return null;
+  return {
+    ownerId: rec.ownerId,
+    text: rec.text,
+    ...(typeof rec.loopId === 'string' ? { loopId: rec.loopId } : {}),
+    ...(isLoopResolutionStatus(rec.status) ? { status: rec.status } : {}),
+    ...(Array.isArray(rec.sourceEventIds) ? { sourceEventIds: rec.sourceEventIds.filter((x): x is string => typeof x === 'string') } : {}),
+  };
+}
+
+/**
+ * Derives each open loop's current state from the journaled stream: a loop row
+ * (memory.belief, kind 'open-loop') stays open until a non-tombstoned
+ * 'resolution' row owned by the same participant names its loopId. The latest
+ * resolution by sequence wins; earlier resolutions remain history only.
+ * Tombstoned loops (retracted or superseded) are omitted entirely.
+ */
+export function openLoopStates(events: JournalEvent[]): Map<string, LoopState> {
+  const tombstoned = tombstonedIds(events);
+  const states = new Map<string, LoopState>();
+  for (const e of events) {
+    if (e.type !== 'memory.belief' || tombstoned.has(e.id)) continue;
+    const entry = memoryEntryFromEvent(e);
+    if (entry?.kind !== 'open-loop') continue;
+    states.set(e.id, { loop: entry, status: 'open' });
+  }
+  for (const e of events) {
+    if (e.type !== 'resolution' || tombstoned.has(e.id)) continue;
+    const resolution = resolutionFromEvent(e);
+    if (!resolution?.loopId || !resolution.status) continue;
+    const state = states.get(resolution.loopId);
+    if (!state || state.loop.ownerId !== resolution.ownerId) continue;
+    state.status = resolution.status;
+    state.resolution = {
+      eventId: e.id,
+      ownerId: resolution.ownerId,
+      text: resolution.text,
+      status: resolution.status,
+      sourceEventIds: resolution.sourceEventIds ?? [],
+      createdAt: e.createdAt,
+    };
+  }
+  return states;
 }
 
 function memoryEntryFromEvent(e: JournalEvent): MemoryEntry | null {
@@ -109,6 +207,7 @@ function memoryEntryFromEvent(e: JournalEvent): MemoryEntry | null {
  */
 export function deriveRoomProjection(events: JournalEvent[]): RoomMemoryProjection {
   const tombstoned = tombstonedIds(events);
+  const loopStates = openLoopStates(events);
   const projection: RoomMemoryProjection = {
     beliefs: [],
     openLoops: [],
@@ -128,7 +227,9 @@ export function deriveRoomProjection(events: JournalEvent[]): RoomMemoryProjecti
         projection.beliefs.push(entry);
         break;
       case 'open-loop':
-        projection.openLoops.push(entry);
+        // A loop with a grounded resolution keeps its history row but is no
+        // longer unresolved: the projection exposes only currently-open loops.
+        if (loopStates.get(e.id)?.status === 'open') projection.openLoops.push(entry);
         break;
       case 'episode':
         projection.episodes.push(entry);

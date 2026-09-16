@@ -11,6 +11,7 @@
  */
 
 import { WORLD_CONTINUITY_ID } from '../../shared/world';
+import { requireLivingWorld } from '../../shared/livingWorld';
 import { ipcMain } from 'electron';
 import { createHash, randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'util';
@@ -36,19 +37,27 @@ import { loadWorld, saveWorld, withWorldMutation } from './worldStore';
 import { appendEvent, eraseThread, readSeaProjection, readThread } from './journalService';
 import { openManagedChildWindow } from './windowManager';
 import { loadSettings } from './settings';
-import { consolidateRoom } from './dreamerRuntime';
+import { consolidateRoom, consolidateContext, cancelMaintenanceContext } from './dreamerRuntime';
+import { settleMaintenanceRunUnlocked } from './dreamerService';
 import { prepareScenario, activateScenario, cancelScenario } from './scenarioDirector';
 import * as integration from './integration';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
   return withWorldMutation(async () => {
     const world = await loadWorld();
-    return { ...world, integrations: world.integrations?.map(({ prepared: _prepared, ...record }) => record) };
+    return {
+      ...world,
+      integrations: world.integrations?.map(({ prepared: _prepared, ...record }) => record),
+      reflectionRuns: world.reflectionRuns?.map(({ prepared: _prepared, ...record }) => record),
+    };
   });
 }
 
 export async function createRoom(title: string): Promise<Room> {
+  // A persistent Room is Living World topology, whatever entry created it.
+  requireLivingWorld(loadSettings());
   return withWorldMutation(async () => {
+    requireLivingWorld(loadSettings());
     const state = await loadWorld();
     const room: Room = {
       id: `room-${randomUUID()}`,
@@ -66,7 +75,11 @@ export async function applyMembership(
   participantId: string,
   kind: 'add' | 'remove',
 ): Promise<MembershipChangeResult> {
+  // Adding a member extends a persistent Room; leaving stays allowed so a
+  // Threads-only user can still shrink a pre-consent roster.
+  if (kind === 'add') requireLivingWorld(loadSettings());
   return withWorldMutation(async () => {
+    if (kind === 'add') requireLivingWorld(loadSettings());
     const state = await loadWorld();
     const room = state.rooms.find((r) => r.id === roomId);
     if (!room) {
@@ -127,8 +140,11 @@ export async function createSandbox(input: CreateCastInput): Promise<Thread> {
  * between them loses only cosmetic history, never the roster.
  */
 export async function createPersistentRoom(input: CreateCastInput): Promise<Room> {
+  // Persistent topology is Living World state; Threads-only users cannot create it.
+  requireLivingWorld(loadSettings());
   const request = structuredClone(input);
   return withWorldMutation(async () => {
+    requireLivingWorld(loadSettings());
     if (!request.operationId?.trim() || !request.participantIds.length) {
       throw new Error('[world] persistent room requires an operation ID and selected people');
     }
@@ -192,17 +208,30 @@ export async function deleteThread(roomId: string, threadId: string): Promise<vo
     const state = await loadWorld();
     const thread = state.threads.find(item => item.id === threadId);
     if (!thread || threadContextId(thread) !== roomId) throw new Error('[world] thread context mismatch');
-    await saveWorld({ ...state, threads: state.threads.filter((item) => item.id !== threadId),
-      ...(state.scenarioCreations ? { scenarioCreations: state.scenarioCreations.filter(item => item.threadId !== threadId) } : {}) });
+    // Cancel any in-flight maintenance for this context and settle its durable
+    // records: the journal is being erased, so nothing may recreate or resume it.
+    cancelMaintenanceContext(threadId);
+    for (const run of (state.reflectionRuns ?? []).filter(item => item.contextId === threadId && item.status === 'pending')) {
+      await settleMaintenanceRunUnlocked(run.reflectionId, 'failed', 'The sandbox was deleted; the run is not recoverable.');
+    }
+    // Reload after settlement: the settled ledger must not be overwritten by
+    // the pre-settle snapshot below.
+    const fresh = await loadWorld();
+    await saveWorld({ ...fresh, threads: fresh.threads.filter((item) => item.id !== threadId),
+      reflectionRuns: fresh.reflectionRuns?.filter(run => run.threadId !== threadId),
+      ...(fresh.scenarioCreations ? { scenarioCreations: fresh.scenarioCreations.filter(item => item.threadId !== threadId) } : {}) });
     await eraseThread(roomId, threadId);
   });
 }
 
 export async function rememberThis(input: RememberThisInput): Promise<JournalEvent> {
+  // A promoted Sea belief extends the persistent world; consent first.
+  requireLivingWorld(loadSettings());
   const source = (await readThread(input.roomId, input.threadId)).find(event => event.id === input.sourceEventId);
   if (!source || !source.witnesses.includes(input.ownerId)) {
     throw new Error('[world] memory must reference an event witnessed by its owner');
   }
+  requireLivingWorld(loadSettings());
   return appendEvent(input.roomId, {
     roomId: input.roomId,
     scope: { kind: 'sea' },
@@ -299,7 +328,20 @@ export function setupWorldIPC(): void {
 
   // Crash recovery: re-drive pending integration operations left by an
   // interrupted publication. Fire-and-forget; failures settle their record.
+  // Maintenance (reflection/evolution) recovery runs in main.initialize()
+  // AFTER legacy migration so it never races or duplicates startup recovery.
   void integration.reconcilePendingIntegrations();
+
+  ipcMain.handle(
+    IPC_CHANNELS.WORLD_TRIGGER_REFLECTION,
+    async (_event, input: { roomId?: string; threadId?: string }): Promise<boolean> => {
+      const roomId = typeof input?.roomId === 'string' ? input.roomId : undefined;
+      const threadId = typeof input?.threadId === 'string' && input.threadId ? input.threadId : undefined;
+      if (!roomId && !threadId) throw new Error('[world] reflection trigger requires a context');
+      await consolidateContext(threadId ? { roomId: threadId, threadId } : { roomId: roomId! }, { getSettings: loadSettings });
+      return true;
+    }
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.WORLD_CREATE_PARTICIPANT,
@@ -337,7 +379,11 @@ export async function createParticipant(input: {
   voiceSampleId?: string;
   profilePhoto?: string;
 }): Promise<Participant> {
+  // A persistent person is durable persona state: Living World consent governs
+  // it. Temporary people (sandbox casts) remain freely creatable.
+  if (input.kind === 'persistent') requireLivingWorld(loadSettings());
   return withWorldMutation(async () => {
+    if (input.kind === 'persistent') requireLivingWorld(loadSettings());
     const world = await loadWorld();
     const participant: Participant = {
       id: `participant-${randomUUID()}`,
@@ -372,6 +418,7 @@ export async function updateParticipant(participant: Participant, threadId?: str
     }
     const index = world.participants.findIndex((item) => item.id === participant.id);
     if (index === -1) throw new Error(`[world] participant not found: ${participant.id}`);
+    if (participant.kind === 'persistent' && world.participants[index].kind !== 'persistent') requireLivingWorld(loadSettings());
     participant = { ...participant, adoption: world.participants[index].adoption };
     world.participants[index] = participant;
     await saveWorld(world);

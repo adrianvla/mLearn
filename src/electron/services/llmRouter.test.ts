@@ -109,6 +109,21 @@ describe('setupLLMRouterIPC', () => {
     await rejected;
     expect(mockCloudStreamChat).not.toHaveBeenCalled();
   });
+  it('does not dispatch queued maintenance after Living World consent is revoked', async () => {
+    const settings = { ...mockLoadSettings(), livingWorldEnabled: true };
+    mockLoadSettings.mockReturnValue(settings);
+    mod.setupLLMRouterIPC();
+    const owner = createMockSender();
+    await mockIpcListeners.get('llm-stream')![0](createMockEvent(owner), [{ role: 'user', content: 'Foreground' }], []);
+    const controller = new AbortController();
+    const result = mod.completeJob([{ role: 'user', content: 'Private reflection' }], controller.signal).catch(error => error);
+    settings.livingWorldEnabled = false;
+    owner.send('llm-stream-chunk', { done: true });
+    controller.abort();
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+    expect((await result).message).toMatch(/settings changed/);
+  });
+
   it('queues a main-owned job behind conversation and cancels it without aborting the foreground owner', async () => {
     mod.setupLLMRouterIPC();
     const owner = createMockSender();

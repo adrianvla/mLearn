@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { livingWorldEnabled } from '../../shared/livingWorld';
 import { appendEvent, readSeaProjection } from './journalService';
 import { loadWorld, saveWorld, withWorldMutation } from './worldStore';
 import {
@@ -82,6 +83,7 @@ export function createSchedulerService(deps: SchedulerDeps) {
   }
 
   async function reconcile(roomId: string): Promise<ReconcileResult> {
+    if (!livingWorldEnabled(deps.getSettings())) return { fired: [], suppressed: [], dropped: [] };
     const now = deps.now();
     const world = await loadWorld();
     const participantKinds: Record<string, 'persistent' | 'temporary'> = Object.fromEntries(
@@ -97,6 +99,7 @@ export function createSchedulerService(deps: SchedulerDeps) {
     const result: ReconcileResult = { fired: [], suppressed: [], dropped: [] };
 
     for (const event of events) {
+      if (!livingWorldEnabled(deps.getSettings())) return result;
       if (event.type !== 'schedule' || !isScheduledCandidate(event.payload)) continue;
       const candidate = event.payload;
       if (fulfilled.has(candidate.candidateId) || now - candidate.fireAt > STALE_MS) {

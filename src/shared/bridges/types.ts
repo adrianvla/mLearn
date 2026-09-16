@@ -451,6 +451,8 @@ export interface WorldBridge {
   updateThread: (thread: Thread) => Promise<Thread>;
   deleteThread: (roomId: string, threadId: string) => Promise<void>;
   rememberThis: (input: RememberThisInput) => Promise<JournalEvent>;
+  /** Fire-and-forget automatic reflection/evolution trigger for a context. */
+  triggerReflection: (input: { roomId?: string; threadId?: string }) => Promise<boolean>;
   integrateThread: (input: IntegrateThreadInput) => Promise<IntegrateThreadResult>;
   previewIntegration: (input: PreviewIntegrationInput) => Promise<IntegrationPreview>;
   createParticipant: (input: { displayName: string; kind: 'persistent' | 'temporary'; personaText: string; facets?: Record<string, number | string>; canon?: Participant['canon']; voiceSampleId?: string; profilePhoto?: string }) => Promise<Participant>;

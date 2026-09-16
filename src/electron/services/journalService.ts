@@ -23,7 +23,9 @@ import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { HARNESS_ACTOR, USER_ACTOR } from '../../shared/world';
+import { requireLivingWorld } from '../../shared/livingWorld';
 import { loadWorld } from './worldStore';
+import { loadSettings } from './settings';
 import type { DeletionPayload, EventScope, JournalEvent, JournalEventDraft } from '../../shared/world';
 
 const log = getLogger('electron.journal');
@@ -155,6 +157,13 @@ export async function appendEvent(roomId: string, draft: JournalEventDraft): Pro
       if (!bound.has(draft.actorId) || draft.witnesses.some(id => !bound.has(id))) {
         throw new Error('[journal] actor and witnesses must be bound to the sandbox');
       }
+    } else if (draft.scope.kind === 'thread') {
+      // Thread-scoped writes require a live Thread record with matching
+      // journal context: erasing the record (sandbox deletion) stops further
+      // thread-journal writes permanently.
+      const threadId = draft.scope.threadId;
+      const thread = world.threads.find(candidate => candidate.id === threadId);
+      if (!thread || thread.roomId !== roomId) throw new Error('[journal] thread context no longer exists');
     }
     return appendEventUnlocked(roomId, draft);
   });
@@ -167,11 +176,24 @@ export async function readPreparedIntegrationEvents(roomId: string, integrationI
     event.provenance?.integrationId === integrationId && event.provenance?.stagedIntegration === true);
 }
 
-async function readCanonicalSea(roomId: string): Promise<JournalEvent[]> {
-  const events = await readStream(roomId, { kind: 'sea' });
+/** Main-only recovery reader; prepared rows are never renderer context. */
+export async function readPreparedMaintenanceEvents(roomId: string, scope: EventScope, reflectionId: string): Promise<JournalEvent[]> {
+  return (await readStream(roomId, scope)).filter(event => event.provenance?.reflectionId === reflectionId);
+}
+
+async function canonicalEvents(events: JournalEvent[]): Promise<JournalEvent[]> {
   const world = await loadWorld();
   const records = new Map((world.integrations ?? []).map(record => [record.integrationId, record]));
+  const runs = new Map((world.reflectionRuns ?? []).map(record => [record.reflectionId, record]));
   return events.filter(event => {
+    const reflectionId = event.provenance?.reflectionId;
+    if (reflectionId) {
+      const run = runs.get(reflectionId);
+      if (!run || run.contextId !== event.roomId || run.scopeKind !== event.scope.kind
+        || (event.scope.kind === 'thread' && run.threadId !== event.scope.threadId)) return false;
+      // Failed, exhausted windows retain only their empty progress marker.
+      if (run.status !== 'committed' && !(run.status === 'failed' && event.type === 'consolidation')) return false;
+    }
     const id = event.provenance?.integrationId;
     if (!id) return true;
     // Canonical only when the staged protocol wrote it AND the durable
@@ -180,6 +202,10 @@ async function readCanonicalSea(roomId: string): Promise<JournalEvent[]> {
     return event.provenance?.stagedIntegration === true
       && records.get(id)?.status === 'committed';
   });
+}
+
+async function readCanonicalSea(roomId: string): Promise<JournalEvent[]> {
+  return canonicalEvents(await readStream(roomId, { kind: 'sea' }));
 }
 
 export async function subscribeRoom(
@@ -210,7 +236,7 @@ export async function readSeaProjection(roomId: string, limit?: number): Promise
 }
 
 export async function readThread(roomId: string, threadId: string): Promise<JournalEvent[]> {
-  return readStream(roomId, { kind: 'thread', threadId });
+  return canonicalEvents(await readStream(roomId, { kind: 'thread', threadId }));
 }
 
 /** Physically removes a thread stream, retaining only its event ids in Sea provenance. */
@@ -260,9 +286,12 @@ export function setupJournalIPC(): void {
     void flushJournal();
   });
 
-  ipcMain.handle(IPC_CHANNELS.JOURNAL_APPEND, async (_event, roomId: string, draft: JournalEventDraft): Promise<JournalEvent> =>
-    appendEvent(roomId, draft)
-  );
+  ipcMain.handle(IPC_CHANNELS.JOURNAL_APPEND, async (_event, roomId: string, draft: JournalEventDraft): Promise<JournalEvent> => {
+    // Renderer Sea writes extend the persistent world. Main-internal
+    // maintenance recovery calls appendEvent directly and stays unaffected.
+    if (draft.scope.kind === 'sea') requireLivingWorld(loadSettings());
+    return appendEvent(roomId, draft);
+  });
 
   ipcMain.handle(IPC_CHANNELS.JOURNAL_SUBSCRIBE, async (_event, roomId: string, limit: number): Promise<{ events: JournalEvent[]; headSeq: number }> =>
     subscribeRoom(roomId, limit)

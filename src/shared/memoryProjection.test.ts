@@ -86,6 +86,14 @@ describe('memory projection', () => {
     expect(proj.beliefs.map((m) => m.text)).toEqual(['A durable belief.']);
   });
 
+  it('restores a prior belief when its superseder loses its source', () => {
+    const prior = { ...memory(1, 'A', 'belief', 'prior', ['A']), provenance: { reflectionId: 'first' } };
+    const source = memory(2, 'A', 'belief', 'bad evidence', ['A']);
+    const successor = { ...memory(3, 'A', 'belief', 'replacement', ['A'],
+      { sourceEventIds: [source.id], supersedesEventId: prior.id }), provenance: { reflectionId: 'second' } };
+    expect(deriveRoomProjection([prior, source, successor, correction(4, source.id, 'A')]).beliefs.map(b => b.text)).toEqual(['prior']);
+  });
+
   it('redacts an other-owner belief the caller did not witness', () => {
     const sea = [
       memory(1, 'A', 'belief', 'A secret.', ['A', 'user']),

@@ -24,10 +24,15 @@ vi.mock('electron', () => ({
 let tempDir: TempDir;
 vi.mock('../utils/platform', () => ({ getUserDataPath: vi.fn(() => tempDir?.tmpDir ?? '/tmp/test') }));
 vi.mock('./windowManager', () => ({ openManagedChildWindow: vi.fn() }));
-const mockLoadSettings = vi.fn();
+const mockLoadSettings = vi.hoisted(() => vi.fn());
 vi.mock('./settings', () => ({ loadSettings: mockLoadSettings }));
 const mockConsolidateRoom = vi.fn();
-vi.mock('./dreamerRuntime', () => ({ consolidateRoom: mockConsolidateRoom }));
+vi.mock('./dreamerRuntime', () => ({
+  consolidateRoom: mockConsolidateRoom,
+  consolidateContext: vi.fn(async () => undefined),
+  cancelMaintenanceContext: vi.fn(),
+  reconcilePendingMaintenance: vi.fn(async () => undefined),
+}));
 
 let world: typeof import('./worldIpc');
 let journal: typeof import('./journalService');
@@ -87,6 +92,9 @@ describe('world integration', () => {
   beforeEach(async () => {
     tempDir = createTempDir();
     vi.resetModules();
+    // Persistent-entry gates read consent synchronously; existing coverage
+    // runs with Living World enabled, off-cases override explicitly.
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: true });
     world = await import('./worldIpc');
     journal = await import('./journalService');
     integration = await import('./integration');
@@ -505,6 +513,12 @@ describe('world integration', () => {
     expect(await journal.readSeaProjection(destination.id)).toEqual([]);
     expect((await journal.subscribeRoom(destination.id, 100)).events).toEqual([]);
     expect(await journal.queryEvents(destination.id, { limit: 100 })).toEqual([]);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    await integration.reconcilePendingIntegrations();
+    expect((await world.getWorldState()).participants).toEqual([]);
+    expect(await journal.readSeaProjection(destination.id)).toEqual([]);
+    expect((await world.getWorldState()).integrations?.[0].status).toBe('pending');
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: true });
     await integration.reconcilePendingIntegrations();
     expect((await world.getWorldState()).participants.map(p => p.id)).toEqual(['B']);
     expect((await journal.readSeaProjection(destination.id)).filter(e => e.type === 'memory.belief')).toHaveLength(1);
@@ -597,6 +611,26 @@ describe('world integration', () => {
     writeWorld({ rooms: [], threads: [], participants: [] });
     await expect(integration.integrateThread({ integrationId: 'malformed', threadId: 'source', destinationRoomId: 'world-continuity', memoryEventIds: [], adoptParticipantIds: [], includeScenario: 'yes' } as unknown as IntegrateThreadInput)).rejects.toThrow('invalid integration selection');
     expect(readWorld().integrations).toBeUndefined();
+  });
+
+  it('rejects integration before any world mutation while Living World is off', async () => {
+    writeWorld({ rooms: [], threads: [], participants: [person('A', 'Ava')] });
+    const thread = sandboxThread('thr_1', [{ originId: 'A', baseline: person('A', 'Ava') }]);
+    writeWorld({ ...readWorld(), threads: [thread] });
+    const source = await sandboxMemory('thr_1',
+      { ownerId: 'A', kind: 'episode', text: 'A and B prepared the presentation.', sourceEventIds: ['evt_src_1'] },
+      'A', ['A', 'user']);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+
+    await expect(integrate(thread, 'world-continuity', { memoryEventIds: [source.id] }))
+      .rejects.toThrow(/Living World is disabled/);
+
+    // The rejection preceded every write: no pending record, no admitted rows.
+    expect(readWorld().integrations).toBeUndefined();
+    expect(await journal.readSeaProjection('world-continuity')).toEqual([]);
+    // The preview is a read-only review surface and stays available.
+    const input = { threadId: 'thr_1', destinationRoomId: 'world-continuity', memoryEventIds: [source.id], adoptParticipantIds: [], includeScenario: false };
+    expect((await world.previewIntegration(input)).items).toHaveLength(1);
   });
 
 });

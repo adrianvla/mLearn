@@ -2124,6 +2124,9 @@ const worldBridge: WorldBridge = {
   async rememberThis(): Promise<JournalEvent> {
     throw new Error('Not supported on mobile');
   },
+  async triggerReflection(): Promise<boolean> {
+    throw new Error('Not supported on mobile');
+  },
   async integrateThread(): Promise<IntegrateThreadResult> {
     throw new Error('Not supported on mobile');
   },

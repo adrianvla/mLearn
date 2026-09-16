@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
-import { DEFAULT_SETTINGS } from '../../shared/types';
+import { DEFAULT_SETTINGS as BASE_SETTINGS } from '../../shared/types';
 import type { CallPayload, Participant, Room } from '../../shared/world';
+
+const DEFAULT_SETTINGS = { ...BASE_SETTINGS, livingWorldEnabled: true };
 
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/tmp/test'), isPackaged: false },
@@ -63,6 +65,16 @@ describe('schedulerService', () => {
 
   afterEach(() => {
     tempDir.cleanup();
+  });
+
+  it('cannot deliver through direct reconcile without Living World consent', async () => {
+    await schedule('room-1', 'blocked', 1, 'message', 'No consent');
+    const notify = vi.fn();
+    const service = scheduler.createSchedulerService({ now: () => 2, notify,
+      getSettings: () => ({ ...DEFAULT_SETTINGS, livingWorldEnabled: false }) });
+    expect(await service.reconcile('room-1')).toEqual({ fired: [], suppressed: [], dropped: [] });
+    expect((await journal.readSeaProjection('room-1')).map(event => event.type)).toEqual(['schedule']);
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it('delivers eligible past schedules once and drops stale schedules', async () => {

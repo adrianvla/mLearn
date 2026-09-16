@@ -21,6 +21,7 @@ import { isDeepStrictEqual } from 'util';
 import { applyMembershipChange } from '../../shared/roomOrchestrator';
 import { tombstonedIds } from '../../shared/memoryProjection';
 import { HARNESS_ACTOR, USER_ACTOR, WORLD_CONTINUITY_ID, threadContextId } from '../../shared/world';
+import { requireLivingWorld, livingWorldEnabled } from '../../shared/livingWorld';
 import type {
   IntegrationPayload,
   IntegrationPreview,
@@ -39,6 +40,7 @@ import type {
 import type { WorldState } from './worldStore';
 import { loadWorld, saveWorld, withWorldMutation } from './worldStore';
 import { appendEvent, readSeaProjection, readPreparedIntegrationEvents, readThread } from './journalService';
+import { loadSettings } from './settings';
 
 /** Reserved actor ids are never roster entries or adoption targets. */
 const RESERVED_ACTORS: Record<string, boolean> = { [USER_ACTOR]: true, [HARNESS_ACTOR]: true };
@@ -457,6 +459,7 @@ async function settleRecord(integrationId: string, status: 'committed' | 'interr
 
 /** Finish a private, durable preparation. No source Thread is needed. */
 async function finishPrepared(world: WorldState, record: IntegrationRecord): Promise<PublishResult> {
+  requireLivingWorld(loadSettings());
   const plan = record.prepared!;
   if (!plan || !Array.isArray(plan.participants) || !Array.isArray(plan.events)
       || !plan.roomBefore || !plan.roomAfter || plan.roomAfter.id !== record.destinationRoomId
@@ -485,6 +488,7 @@ async function finishPrepared(world: WorldState, record: IntegrationRecord): Pro
   }
   const appended = [...existing];
   for (const draft of plan.events.slice(existing.length)) appended.push(await appendEvent(record.destinationRoomId, draft));
+  requireLivingWorld(loadSettings());
   // The sole logical commit: entity effects and the visibility decision share
   // one atomic rename. Prior journal writes are preparation, including marker.
   await saveWorld({ ...world,
@@ -550,11 +554,18 @@ async function publishUnlocked(request: IntegrateThreadInput): Promise<PublishRe
 }
 
 /** WORLD_INTEGRATE — selective, idempotent, crash-safe publication. */
-export function integrateThread(input: IntegrateThreadInput): Promise<PublishResult> {
+export async function integrateThread(input: IntegrateThreadInput): Promise<PublishResult> {
+  // Selective admission extends the persistent world; consent is checked
+  // before any queue wait or world read. Async so consent refusal REJECTS
+  // (callers may reasonably expect a promise API, not a sync throw).
+  requireLivingWorld(loadSettings());
   // Take a value snapshot before waiting; callers cannot change an admitted
   // selection while another world operation is in flight.
   const request = structuredClone(input);
-  return withWorldMutation(() => publishUnlocked(request));
+  return withWorldMutation(() => {
+    requireLivingWorld(loadSettings());
+    return publishUnlocked(request);
+  });
 }
 
 /**
@@ -563,10 +574,13 @@ export function integrateThread(input: IntegrateThreadInput): Promise<PublishRes
  * prepared-less records are reported as interrupted (fail closed).
  */
 export async function reconcilePendingIntegrations(): Promise<void> {
+  if (!livingWorldEnabled(loadSettings())) return;
   await withWorldMutation(async () => {
+    if (!livingWorldEnabled(loadSettings())) return;
     const world = await loadWorld();
     const pending = (world.integrations ?? []).filter(record => record.status === 'pending');
     for (const record of pending) {
+      if (!livingWorldEnabled(loadSettings())) return;
       try {
         await publishUnlocked({
           integrationId: record.integrationId,

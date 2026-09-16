@@ -513,6 +513,11 @@ export interface Settings {
   /** Daily budget for budgeted-tier cloud inference requests (consumed by the Dreamer phase) */
   inferenceCloudBudgetPerDay: number;
 
+  // Living World consent — the single Threads-only vs persistent-world boundary
+  /** Opt-in to the persistent living world (Rooms, reflection, scenario
+   *  evolution, relationships, open loops). Off = disposable Threads only. */
+  livingWorldEnabled: boolean;
+
   // Proactivity settings
   /** Master switch for proactive companion behavior (D7: opt-out model) */
   proactivityEnabled: boolean;
@@ -752,6 +757,8 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudLLMTierExplanation: 'cheap',
   inferenceCloudTier: 'conservative',
   inferenceCloudBudgetPerDay: 20,
+  /** Living World is opt-in: a user who never consents keeps Threads-only. */
+  livingWorldEnabled: false,
   proactivityEnabled: true,
   proactiveQuietHoursEnabled: false,
   proactiveQuietHoursStart: '22:00',

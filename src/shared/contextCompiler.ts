@@ -26,7 +26,8 @@ import type {
   Thread,
   Room,
 } from './world';
-import { projectionForCaller, tombstonedIds, type RoomMemoryProjection } from './memoryProjection';
+import { projectionForCaller, tombstonedIds, openLoopStates, type RoomMemoryProjection } from './memoryProjection';
+import { authoritativeScenario } from './scenarioState';
 import {
   rankRecentThreadEvents,
   recentTailWithinBudget,
@@ -58,7 +59,16 @@ export interface LearnerProjection {
 
 /** One participant's redacted view of the world, ready for prompt assembly. */
 export interface CompiledContext {
-  scenario?: { sharedFacts: string[]; constraints: string[]; goals: string[]; knowledge: string[] };
+  scenario?: {
+    sharedFacts: string[];
+    constraints: string[];
+    goals: string[];
+    knowledge: string[];
+    /** Director-derived situation developments, each citing supporting events. */
+    developments: { text: string; createdAt: number }[];
+    /** A concluded situation is shared past; later turns treat it as such. */
+    concluded: boolean;
+  };
   persona: { id?: string; displayName?: string; text: string; facets: Record<string, number | string> };
   canonBaseline?: { lore: string; quotes: string[]; context: string; coordinate: CanonCoordinate };
   negativeKnowledge: string[];
@@ -267,13 +277,22 @@ export function compileContext(input: CompileContextInput): CompiledContext {
   // Room turns consume the persistent situation without selecting a Thread.
   const scenario = input.thread ? input.thread.scenario : input.room?.scenario;
   if (scenario) {
-    const own = scenario.participants.find(item => item.kind === 'temporary' && item.localId === participant.id);
+    // Authoritative current view: retracted/invalidated developments and goal
+    // changes leave the situation state; the stored chain is never rewritten.
+    const current = authoritativeScenario(scenario, [...seaEvents, ...(threadEvents ?? [])]);
+    const invalidSources = tombstonedIds([...seaEvents, ...(threadEvents ?? [])]);
+    const knownDevelopments = current.developments.filter(dev =>
+      dev.witnesses?.includes(participant.id) && !dev.sourceEventIds.some(id => invalidSources.has(id)));
+    const own = scenario.participants.find(item =>
+      (item.kind === 'temporary' && item.localId === participant.id) || (item.kind === 'existing' && item.participantId === participant.id));
     context.scenario = {
       sharedFacts: scenario.scene.sharedFacts,
       constraints: [...scenario.scene.socialConstraints, ...(own?.kind === 'temporary' ? own.profile.behaviorConstraints : [])],
-      goals: own?.kind === 'temporary' ? own.profile.goals : [],
+      goals: own !== undefined ? current.currentGoals[own.kind === 'temporary' ? own.localId : own.participantId] ?? [] : [],
       knowledge: scenario.participants.flatMap(item => item.kind === 'temporary'
         ? item.profile.initialKnowledge.filter(fact => fact.witnesses.includes(participant.id)).map(fact => fact.text) : []),
+      developments: knownDevelopments.slice(-12).map(dev => ({ text: dev.text, createdAt: dev.createdAt })),
+      concluded: current.status === 'concluded' && knownDevelopments.some(dev => dev.kind === 'resolution'),
     };
     context.relationships.push(...scenario.relationships.filter(relation => relation.fromId === participant.id)
       .map(relation => ({ toId: relation.toId, label: relation.label })));
@@ -292,6 +311,7 @@ export function compileContext(input: CompileContextInput): CompiledContext {
     JSON.stringify([event.roomId, event.scope, event.id]), event,
   ])).values()];
   const tombstoned = tombstonedIds(memoryEvents);
+  const loopStates = openLoopStates(memoryEvents);
 
   for (const e of memoryEvents) {
     if (e.type !== 'memory.belief') continue;
@@ -313,6 +333,9 @@ export function compileContext(input: CompileContextInput): CompiledContext {
     }
     if (text === undefined) continue;
     if (rec.kind === 'open-loop') {
+      // Loop lifecycle: only loops without a grounded resolution compile as
+      // open. Resolved/cancelled/contradicted/superseded loops stay history.
+      if (loopStates.get(e.id)?.status !== 'open') continue;
       context.openLoops.push({ text, createdAt: e.createdAt });
       continue;
     }

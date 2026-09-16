@@ -819,6 +819,12 @@
         "NewConversation": "Nouvelle conversation",
         "UntitledThread": "Fil sans titre"
       },
+      "LivingWorld": {
+        "ConsentTitle": "Activer Living World ?",
+        "ConsentHint": "Living World est désactivé. Cette conversation vivrait dans votre monde persistant, où souvenirs, relations et changements sont conservés. Activez Living World pour continuer, ou restez en entraînement temporaire.",
+        "EnableAndContinue": "Activer Living World et continuer",
+        "NotNow": "Pas maintenant"
+      },
       "NewConversation": {
         "ChangeScenario": "Modifier la préparation",
         "UseScenario": "Utiliser cette situation",
@@ -920,7 +926,10 @@
         "PhotoChange": "Changer la photo",
         "PhotoRemove": "Supprimer la photo",
         "VoiceLabel": "Voix",
-        "Saving": "Enregistrement…"
+        "Saving": "Enregistrement…",
+        "WorldActivity": "Activité du monde",
+        "WorldActivityPending": "Consolidation en cours",
+        "WorldActivityFailed": "La consolidation demande votre attention"
       }
     },
     "ErrorModal": {

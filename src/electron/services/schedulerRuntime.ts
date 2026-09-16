@@ -1,9 +1,11 @@
 import { Notification, powerMonitor } from 'electron';
 import { getLogger } from '../../shared/utils/logger';
+import { livingWorldEnabled } from '../../shared/livingWorld';
 import { loadSettings } from './settings';
 import { createSchedulerService } from './schedulerService';
 import { loadWorld } from './worldStore';
 import { openRoomAt } from './worldIpc';
+import { consolidateContext } from './dreamerRuntime';
 
 const log = getLogger('schedulerRuntime');
 const RECONCILE_INTERVAL_MS = 60_000;
@@ -15,6 +17,11 @@ let service: SchedulerService | undefined;
 
 async function reconcileAll(): Promise<void> {
   if (!service) return;
+  // Threads-only (consent off): no proactive initiative and no autonomous
+  // world participation of any kind — the whole pass is skipped, including
+  // the proactive notification reconcile. proactivityEnabled stays as the
+  // fine-grained control WITHIN Living World.
+  if (!livingWorldEnabled(loadSettings())) return;
   try {
     const world = await loadWorld();
     for (const room of world.rooms) {
@@ -26,6 +33,13 @@ async function reconcileAll(): Promise<void> {
       } catch (error) {
         log.error('Scheduler reconcile failed for room', room.id, error);
       }
+    }
+    // Idle/maintenance opportunities (MEM-02/LIFE-03): persistent Rooms with
+    // eligible unconsolidated activity are reflected/evolved. Sandbox Threads
+    // are never driven from here; policy gates bound the spend. No eligible
+    // work means no model call (each pass no-ops on an empty window).
+    for (const room of world.rooms) {
+      void consolidateContext({ roomId: room.id }, { getSettings: loadSettings });
     }
   } catch (error) {
     log.error('Scheduler failed to load world', error);

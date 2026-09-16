@@ -2,6 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createStore } from 'solid-js/store';
+import { DEFAULT_SETTINGS, type Settings } from '../../../shared/types';
 import type { IntegrationPreview, Thread } from '../../../shared/world';
 
 const previewIntegration = vi.fn();
@@ -18,10 +20,15 @@ vi.mock('../../components/common', () => ({
   ),
 }));
 
+// Reactive settings store mirrors SettingsContext so consent flips re-render.
+const [settingsStore, setSettingsStore] = createStore<Settings>({ ...DEFAULT_SETTINGS });
+const updateSettingsMock = vi.fn((partial: Partial<Settings>) => setSettingsStore(partial));
+
 vi.mock('../../context', () => ({
   useLocalization: () => ({ t: (key: string, params?: Record<string, string | number>) => (
     params ? `${key}:${JSON.stringify(params)}` : key
   ) }),
+  useSettings: () => ({ settings: settingsStore, updateSettings: updateSettingsMock }),
 }));
 
 vi.mock('../../../shared/bridges', () => ({
@@ -71,6 +78,9 @@ describe('IntegrationModal', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    // Existing coverage runs with Living World enabled; the off-case sets it explicitly.
+    setSettingsStore({ livingWorldEnabled: true });
+    updateSettingsMock.mockClear();
     previewIntegration.mockReset();
     integrateThread.mockReset();
     onIntegrated.mockClear();
@@ -234,6 +244,27 @@ describe('IntegrationModal', () => {
     renderModal(); await flushAll();
     buttonWithText('mlearn.ConversationAgent.Integration.Retry').click(); await flushAll();
     expect(integrateThread).toHaveBeenCalledWith(expect.objectContaining({ integrationId: 'durable-operation', destinationRoomId: 'room-1' }));
+  });
+
+  it('blocks the commit and requires consent while Living World is disabled', async () => {
+    setSettingsStore({ livingWorldEnabled: false });
+    previewIntegration.mockResolvedValue(preview());
+    renderModal(); await flushAll();
+
+    checkboxFor('A and B planned the garden.').click();
+    await flushAll();
+
+    expect(container.textContent).toContain('mlearn.ConversationAgent.LivingWorld.ConsentHint');
+    const confirm = buttonWithText('mlearn.ConversationAgent.Integration.Confirm');
+    expect(confirm.disabled).toBe(true);
+
+    buttonWithText('mlearn.ConversationAgent.LivingWorld.EnableAndContinue').click();
+    expect(updateSettingsMock).toHaveBeenCalledWith({ livingWorldEnabled: true });
+    await flushAll();
+
+    // Consent re-enables the commit; nothing was admitted meanwhile.
+    expect(buttonWithText('mlearn.ConversationAgent.Integration.Confirm').disabled).toBe(false);
+    expect(integrateThread).not.toHaveBeenCalled();
   });
 
 });

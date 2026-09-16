@@ -819,6 +819,12 @@
         "NewConversation": "New conversation",
         "UntitledThread": "Untitled thread"
       },
+      "LivingWorld": {
+        "ConsentTitle": "Enable Living World?",
+        "ConsentHint": "Living World is off. This conversation would live in your persistent world, where memories, relationships and changes are kept. Enable Living World to continue, or stay in temporary practice.",
+        "EnableAndContinue": "Enable Living World and continue",
+        "NotNow": "Not now"
+      },
       "NewConversation": {
         "ChangeScenario": "Review another setup",
         "UseScenario": "Use this situation",
@@ -920,7 +926,10 @@
         "PhotoChange": "Change photo",
         "PhotoRemove": "Remove photo",
         "VoiceLabel": "Voice",
-        "Saving": "Saving…"
+        "Saving": "Saving…",
+        "WorldActivity": "World activity",
+        "WorldActivityPending": "Consolidating (in progress)",
+        "WorldActivityFailed": "Consolidation needs attention"
       }
     },
     "ErrorModal": {

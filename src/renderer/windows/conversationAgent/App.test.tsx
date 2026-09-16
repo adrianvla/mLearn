@@ -308,7 +308,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       threads: [{ id: 'thread-a', roomId: 'room-a', state: 'active', createdAt: 1 }],
       participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true }],
     };
-    testSettings = { ...DEFAULT_SETTINGS };
+    testSettings = { ...DEFAULT_SETTINGS, livingWorldEnabled: true };
     mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'room-a', threadId: 'thread-a' }));
     mockBridge.world.createPersistentRoom.mockClear();
     mockBridge.world.updateThread.mockClear();
