@@ -3,9 +3,12 @@ import type { LanguageData } from '../../shared/types';
 import { warmTranslationCache } from '../hooks/useTranslation';
 import {
   filterSuggestedWords,
+  planSubtitleCapture,
+  recordCaptureAttempt,
   shouldCaptureSuggestedFlashcard,
   shouldKeepSuggestion,
   isWordInDictionary,
+  type SubtitleCaptureState,
 } from './suggestedFlashcards';
 
 const translationCache = vi.hoisted(() => new Map<string, { data?: unknown }>());
@@ -230,6 +233,61 @@ describe('shouldKeepSuggestion', () => {
       undefined,
       leveledLanguage,
     )).toBe(false);
+  });
+
+  it('keeps a harder-than-target word that recurs in the current media (R21)', () => {
+    const result = shouldKeepSuggestion(
+      { word: 'word', language: 'ja', level: 2, mediaRecurrence: 2 },
+      settings({ learningLanguageLevels: { ja: 3 } }),
+      new Set<string>(),
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it('keeps a recurring off-list word outside the frontier level with the stored coverage count', () => {
+    const leveledLanguage: LanguageData = {
+      name: 'Leveled Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      frequencyLevels: {
+        rowLevelIndex: 2,
+        names: { '1': 'N1', '5': 'N5' },
+      },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+        readingAnnotation: { type: 'none' },
+      },
+    };
+
+    expect(shouldKeepSuggestion(
+      { word: 'word', language: 'ja', mediaRecurrence: 5 },
+      settings({ learningLanguageLevels: { ja: 5 } }),
+      new Set<string>(),
+      undefined,
+      undefined,
+      leveledLanguage,
+    )).toBe(true);
+  });
+
+  it('still rejects a one-off off-list word (below the recurrence threshold)', () => {
+    const result = shouldKeepSuggestion(
+      { word: 'word', language: 'ja', mediaRecurrence: 1 },
+      settings({ learningLanguageLevels: { ja: 3 } }),
+      new Set<string>(),
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it('never lets recurrence bypass the known-word check', () => {
+    const result = shouldKeepSuggestion(
+      { word: 'word', language: 'ja', level: 2, mediaRecurrence: 9 },
+      settings({ learningLanguageLevels: { ja: 3 } }),
+      new Set([knownKey('word', 'ja')]),
+    );
+
+    expect(result).toBe(false);
   });
 
   it('returns true when the suggestion level equals the user level', () => {
@@ -614,5 +672,100 @@ describe('isWordInDictionary', () => {
 
   it('treats uncached words as non-dictionary', () => {
     expect(isWordInDictionary('uncached-word', 'ja')).toBe(false);
+  });
+});
+
+describe('planSubtitleCapture / recordCaptureAttempt (R21 producer lifecycle)', () => {
+  const recurrence = (values: Record<string, number>) => new Map(Object.entries(values));
+  const captureState = (): SubtitleCaptureState => ({
+    seenWords: new Set<string>(),
+    inFlight: new Set<string>(),
+    attemptedRecurrence: new Map<string, number>(),
+  });
+
+  it('keeps a first sighting retryable until an attempt completes', () => {
+    const state = captureState();
+    const first = planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 1 }));
+    expect(first.fresh.map((item) => item.word)).toEqual(['粉飾']);
+    expect(first.retry).toEqual([]);
+
+    // No completed attempt means capture may have been disabled or failed;
+    // the same recurrence must remain retryable after availability changes.
+    const second = planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 1 }));
+    expect(second.fresh).toEqual([]);
+    expect(second.retry.map((item) => item.word)).toEqual(['粉飾']);
+    expect(state.seenWords.size).toBe(1);
+  });
+
+  it('deduplicates one planning batch and suppresses overlapping in-flight attempts', () => {
+    const state = captureState();
+    const first = planSubtitleCapture([{ word: '粉飾' }, { word: '粉飾' }], state, recurrence({ 粉飾: 1 }));
+    expect(first.fresh.map((item) => item.word)).toEqual(['粉飾']);
+    expect(first.retry).toEqual([]);
+
+    state.inFlight.add('粉飾');
+    const overlap = planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 2 }));
+    expect(overlap).toEqual({ fresh: [], retry: [] });
+
+    state.inFlight.delete('粉飾');
+    expect(planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 2 })).retry)
+      .toEqual([{ word: '粉飾' }]);
+  });
+
+  it('retries a rejected word when its recorded recurrence grows past the consumed count', () => {
+    // The review-4 reproduction: the word appears once in each of two
+    // successive subtitles. Run 1 is filtered out below MEDIA_MIN_ENCOUNTERS;
+    // run 2 must re-attempt capture without remounting the route.
+    const state = captureState();
+    const run1 = planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 1 }));
+    expect(run1.fresh).toHaveLength(1);
+    state.inFlight.add('粉飾');
+    recordCaptureAttempt(state, '粉飾', false, 1);
+    expect(state.inFlight.has('粉飾')).toBe(false);
+
+    const run2 = planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 2 }));
+    expect(run2.fresh).toEqual([]);
+    expect(run2.retry.map((item) => item.word)).toEqual(['粉飾']);
+
+    // This time persistence succeeds: the capture records a terminal marker.
+    state.inFlight.add('粉飾');
+    recordCaptureAttempt(state, '粉飾', true, 2);
+    expect(state.inFlight.has('粉飾')).toBe(false);
+    expect(state.attemptedRecurrence.get('粉飾')).toBe(Number.POSITIVE_INFINITY);
+    const run3 = planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 3 }));
+    expect(run3.fresh).toEqual([]);
+    expect(run3.retry).toEqual([]);
+  });
+
+  it('does not retry a rejected one-off whose recurrence has not grown', () => {
+    const state = captureState();
+    planSubtitleCapture([{ word: '難単語' }], state, recurrence({ 難単語: 1 }));
+    recordCaptureAttempt(state, '難単語', false, 1);
+
+    const again = planSubtitleCapture([{ word: '難単語' }], state, recurrence({ 難単語: 1 }));
+    expect(again.retry).toEqual([]);
+  });
+
+  it('re-records the consumed recurrence when a retry is rejected again', () => {
+    const state = captureState();
+    planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 2 }));
+    recordCaptureAttempt(state, '粉飾', false, 2);
+
+    expect(planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 2 })).retry.map((item) => item.word)).toEqual([]);
+    expect(planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 3 })).retry.map((item) => item.word)).toEqual(['粉飾']);
+    recordCaptureAttempt(state, '粉飾', false, 3);
+    // The one-off at 3 must not re-filter on every later subtitle.
+    expect(planSubtitleCapture([{ word: '粉飾' }], state, recurrence({ 粉飾: 3 })).retry.map((item) => item.word)).toEqual([]);
+  });
+
+  it('keeps fresh and retry decisions independent per word', () => {
+    const state = captureState();
+    planSubtitleCapture([{ word: '既知' }], state, recurrence({ 既知: 1 }));
+    recordCaptureAttempt(state, '既知', false, 1);
+
+    const planned = planSubtitleCapture([{ word: '既知' }, { word: '新しい' }], state, recurrence({ 既知: 2, 新しい: 1 }));
+    expect(planned.fresh.map((item) => item.word)).toEqual(['新しい']);
+    expect(planned.retry.map((item) => item.word)).toEqual(['既知']);
+    expect(state.seenWords).toEqual(new Set(['既知', '新しい']));
   });
 });

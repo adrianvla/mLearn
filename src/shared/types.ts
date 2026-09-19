@@ -10,6 +10,8 @@ export { KNOWLEDGE_ASPECTS } from './constants';
 export type { KnowledgeAspect } from './constants';
 import type { CapabilityKey, CapabilityKind } from './graph/types';
 export type { CapabilityKey, CapabilityKind } from './graph/types';
+import type { HistoricalBackgroundRecord } from './learningBackground';
+export type { HistoricalBackgroundRecord, HistoricalBackgroundKind } from './learningBackground';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -272,6 +274,28 @@ export interface Settings {
   learningLanguageLevels: Record<string, number | null>;
   frequencyProviderSelections: Record<string, string>;
   frequencyLevelSystemSelections: Record<string, string>;
+  /**
+   * Dated historical background records (R09): old exam/school/self-assessment
+   * results, stored as background for placement. Never knowledge claims.
+   */
+  learningBackground: { records: HistoricalBackgroundRecord[] };
+  /**
+   * Session intensity control (R08): changes practice selection only —
+   * never evidence credibility, mastery thresholds, or scoring.
+   */
+  sessionIntensity: 'gentle' | 'steady' | 'intensive';
+  /**
+   * Learner exam goal (R07): a free-label target plus optional ISO deadline
+   * feed deadline-proximity weighting into the teaching policy. `kind:
+   * 'none'` means no goal weighting. Ordinary settings — never knowledge,
+   * never a questionnaire.
+   *
+   * `language` scopes the goal to the learning language it was recorded for
+   * (R07): a JLPT deadline never weights a German queue. Stamped from the
+   * active learning language when the goal is created in the UI and stamped
+   * once onto legacy goals at settings load.
+   */
+  examGoal: { kind: 'none' | 'exam'; deadline?: string; target?: string; language?: string };
 
   // API URLs
   tokeniserUrl: string;
@@ -667,6 +691,9 @@ export const DEFAULT_SETTINGS: Settings = {
   learningLanguageLevels: {},
   frequencyProviderSelections: {},
   frequencyLevelSystemSelections: {},
+  learningBackground: { records: [] },
+  sessionIntensity: 'steady',
+  examGoal: { kind: 'none' },
   devMode: false,
   lowBatteryMode: false,
   ocr_crop_padding: 200,
@@ -808,8 +835,13 @@ export interface GrammarMatchConfig {
 export interface GrammarPoint {
   /** The grammar pattern text */
   pattern: string;
-  /** Meaning/explanation of the grammar point */
+  /** Meaning/explanation of the grammar point, authored in the package's canonical
+   *  language (English by convention). Non-English UIs show `meanings` variants only. */
   meaning: string;
+  /** Optional localized display variants keyed by UI language; the canonical
+   *  meaning stays in `meaning` so every existing consumer/package boundary
+   *  (e.g. build-graph-assets) keeps a plain string. */
+  meanings?: Partial<Record<string, string>>;
   /** Numeric difficulty level (same scale as frequency levels) */
   level: number;
   /** Optional metadata-driven matcher for non-substring grammars. */
@@ -832,6 +864,79 @@ export interface GrammarPoint {
   contrasts?: string[];
   /** Related constructions. Optional package metadata. */
   related?: string[];
+  /**
+   * Package-declared mLearn-authored practice item sources (original
+   * contexts for contrast questions). Package-owned content, versioned with
+   * the package (G03); item-level lifecycle (assembly, validation,
+   * invalidation) lives in the question pipeline, never in this schema.
+   */
+  items?: GrammarPracticeItemSource[];
+}
+
+/**
+ * One package-declared practice item source: an original context sentence
+ * with an intended answer span, the declared task conditions the span
+ * satisfies, and contrast alternatives each declaring which conditions they
+ * violate. mLearn-authored material — never an official exam bank (R04/R12).
+ */
+export interface GrammarPracticeItemSource {
+  /** Stable package-unique item id. Never repurposed across patterns/meanings (G03). */
+  id: string;
+  /** Original context containing the intended answer span exactly once. */
+  context: string;
+  /** The intended answer span; must occur verbatim (NFC) exactly once in `context`. */
+  answerSpan: string;
+  /** Task conditions the answer span satisfies (package-declared condition ids, R05). */
+  conditions: readonly string[];
+  /** Contrast alternatives; each declares at least one violated task condition. */
+  distractors: ReadonlyArray<{
+    span: string;
+    violates: readonly string[];
+    /** Why this confusion is meaningful — auditable distractor rationale (R12). */
+    rationale: string;
+  }>;
+  /** Additional accepted typed answers; typed grading is never exact-string only. */
+  accepts?: readonly string[];
+  /** Situation/register note the declared conditions assume (provenance). */
+  register?: string;
+  /**
+   * Delivery formats the package declares for this item (R12: MCQ, typing and
+   * appropriate speech formats by objective/preferences). Core renders the
+   * subset it can; absent = MCQ (the canonical delivered form). Typed delivery
+   * grades against `answerSpan` + `accepts` with NFC normalization.
+   */
+  formats?: readonly ('mcq' | 'typed')[];
+  /**
+   * Validation records bound to THIS item's content. A package-declared
+   * semantic record must come from an actually-executed independent validator
+   * (model/teacher) — never authored alongside the content itself — and must
+   * carry the item content version (`contentHash`) it assessed, so a stale
+   * record for changed item content can never apply.
+   */
+  validation?: {
+    semantic?: GrammarItemSemanticValidation;
+  };
+}
+
+/**
+ * An independent semantic-validation record for one practice item (R12):
+ * naturalness, the legitimate answer set, distractor rationale and whether
+ * the proposed gold is correct under the declared task conditions. Written
+ * ONLY by an actually-executed validator; the app never fabricates one.
+ * `contentHash` binds the record to the exact item content version it
+ * assessed (question pipeline `item-v3:` content hash).
+ */
+export interface GrammarItemSemanticValidation {
+  status: 'passed' | 'rejected';
+  /** Who validated (validator identity/kind, e.g. a teacher review or a named model). */
+  validator: string;
+  validatorVersion?: string;
+  /** ISO-8601 timestamp of the actual validation execution. */
+  at: string;
+  /** Item content version the validator assessed (binding). */
+  contentHash: string;
+  /** Validator reasons/notes (audit provenance). */
+  reasons?: readonly string[];
 }
 
 export interface LanguageDataAsset {
@@ -1476,6 +1581,10 @@ export interface LanguageVariantConfig {
 }
 
 export interface LanguageData {
+  /** Package-declared language the canonical grammar `meaning` strings are
+   *  authored in (open-world: each package declares its own; omitted = English
+   *  by convention). Read via grammarPointMeaning, never hardcoded. */
+  meaningLanguage?: string;
   name: string;
   name_translated?: string;
   flagEmoji?: string;
@@ -1997,6 +2106,12 @@ export interface SuggestedFlashcard {
   lastSeen: number;
   /** Number of times the word has been seen since capture */
   count: number;
+  /**
+   * Best recorded passive exposure count of the word in the learner's
+   * CURRENT content at capture time (R21). Recorded coverage recurrence —
+   * keeps an off-list suggestion suggestible/promotable; never knowledge.
+   */
+  mediaRecurrence?: number;
 }
 
 /**
@@ -2142,6 +2257,14 @@ export interface GrammarKnowledgeEntry {
   level: number;
   /** Language this grammar entry belongs to */
   language?: string;
+  /**
+   * True when the replayed journal contained explicit outcomes (ratings,
+   * anki imports, legacy ease rollups). `false` marks passive-encounter-only
+   * familiarity: display must treat the pattern as unmeasured, never
+   * classify the exposure-derived ease. Legacy rows without the flag are
+   * re-stamped by the next materialization pass.
+   */
+  hasActiveEvidence?: boolean;
 }
 
 export interface WordFrequencyEntry {

@@ -339,7 +339,71 @@
       "match": {
         "type": "text",
         "text": "虽然"
-      }
+      },
+      "contrasts": [
+        "即使 ... 也",
+        "如果 ... 就"
+      ],
+      "items": [
+        {
+          "id": "zh-suiran-bingle-1",
+          "context": "虽然他昨天病了，但是他还是来上班了。",
+          "answerSpan": "虽然",
+          "conditions": [
+            "realized-concession"
+          ],
+          "distractors": [
+            {
+              "span": "即使",
+              "violates": [
+                "realized-concession"
+              ],
+              "rationale": "即使 introduces a hypothetical concession and pairs with 也; the clause states a realized past event (昨天…了), and 即使…但是 is not the correct pair."
+            },
+            {
+              "span": "如果",
+              "violates": [
+                "realized-concession"
+              ],
+              "rationale": "如果 introduces a hypothetical condition (paired with 就); the clause is a realized fact, not a hypothesis."
+            }
+          ],
+          "register": "neutral narrative; the concession is a realized past event",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        },
+        {
+          "id": "zh-suiran-tianqi-2",
+          "context": "虽然天气很冷，他还是去游泳了。",
+          "answerSpan": "虽然",
+          "conditions": [
+            "realized-concession"
+          ],
+          "distractors": [
+            {
+              "span": "即使",
+              "violates": [
+                "realized-concession"
+              ],
+              "rationale": "即使 frames an unrealized hypothesis paired with 也; the cold weather here is a realized fact the speaker concedes, so the plain concessive 虽然 is required."
+            },
+            {
+              "span": "如果",
+              "violates": [
+                "realized-concession"
+              ],
+              "rationale": "如果 states a plain condition paired with 就; the sentence concedes a fact and reports what actually happened, it does not posit a condition."
+            }
+          ],
+          "register": "neutral narrative; the concession is a realized fact and the second clause reports what happened",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        }
+      ]
     },
     {
       "pattern": "如果 ... 就",
@@ -573,7 +637,71 @@
       "match": {
         "type": "text",
         "text": "即使"
-      }
+      },
+      "contrasts": [
+        "虽然 ... 但是",
+        "如果 ... 就"
+      ],
+      "items": [
+        {
+          "id": "zh-jishi-xiayu-1",
+          "context": "即使明天下雨，我也不会取消比赛。",
+          "answerSpan": "即使",
+          "conditions": [
+            "hypothetical-concession"
+          ],
+          "distractors": [
+            {
+              "span": "虽然",
+              "violates": [
+                "hypothetical-concession"
+              ],
+              "rationale": "虽然 marks a realized concession paired with 但是; the clause is a hypothesis about tomorrow, and 虽然…也 is not the correct pair."
+            },
+            {
+              "span": "如果",
+              "violates": [
+                "hypothetical-concession"
+              ],
+              "rationale": "如果 states a plain conditional (paired with 就); the 也 in the second clause needs the concessive 即使, not a plain condition."
+            }
+          ],
+          "register": "spoken determination; an unrealized hypothesis about tomorrow",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        },
+        {
+          "id": "zh-jishi-shibai-2",
+          "context": "即使这次失败了，我也不会放弃。",
+          "answerSpan": "即使",
+          "conditions": [
+            "hypothetical-concession"
+          ],
+          "distractors": [
+            {
+              "span": "虽然",
+              "violates": [
+                "hypothetical-concession"
+              ],
+              "rationale": "虽然 concedes a realized fact paired with 但是/可是; the failure here is a hypothetical the speaker anticipates, so the hypothetical concessive 即使 is required."
+            },
+            {
+              "span": "如果",
+              "violates": [
+                "hypothetical-concession"
+              ],
+              "rationale": "如果 states a plain condition without the concessive force; the 也 in the second clause marks determination despite the hypothesis, which is the 即使…也 frame."
+            }
+          ],
+          "register": "spoken determination; an unrealized hypothesis about this attempt",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        }
+      ]
     },
     {
       "pattern": "无论 ... 都",
@@ -591,7 +719,70 @@
       "match": {
         "type": "text",
         "text": "既然"
-      }
+      },
+      "contrasts": [
+        "因为 ... 所以"
+      ],
+      "items": [
+        {
+          "id": "zh-jiran-dao-1",
+          "context": "既然大家都到了，我们就开始吧。",
+          "answerSpan": "既然",
+          "conditions": [
+            "presupposed-reason"
+          ],
+          "distractors": [
+            {
+              "span": "因为",
+              "violates": [
+                "presupposed-reason"
+              ],
+              "rationale": "因为 introduces new information as the cause and pairs with 所以; the 吧 suggestion takes the reason as already accepted by both speaker and hearer (既然…就)."
+            },
+            {
+              "span": "虽然",
+              "violates": [
+                "presupposed-reason"
+              ],
+              "rationale": "虽然 frames the first clause as a concession contrary to the result (paired with 但是); the clause here is the accepted premise the suggestion builds on (既然…就), not a contrast."
+            }
+          ],
+          "register": "spoken; the reason is presupposed and the predicate is a suggestion",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        },
+        {
+          "id": "zh-jiran-jueding-2",
+          "context": "既然你已经决定了，我就不反对了。",
+          "answerSpan": "既然",
+          "conditions": [
+            "presupposed-reason"
+          ],
+          "distractors": [
+            {
+              "span": "因为",
+              "violates": [
+                "presupposed-reason"
+              ],
+              "rationale": "因为 introduces new information as the cause and pairs with 所以; the decision here is already accepted by both speaker and hearer (既然…就), not newly reported."
+            },
+            {
+              "span": "虽然",
+              "violates": [
+                "presupposed-reason"
+              ],
+              "rationale": "虽然 frames the first clause as a concession contrary to the result (paired with 但是); the clause here is the accepted premise the response builds on, not a contrast."
+            }
+          ],
+          "register": "spoken; the reason is presupposed and the predicate is the speaker's response",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        }
+      ]
     },
     {
       "pattern": "与其 ... 不如",
@@ -1214,7 +1405,7 @@
     }
   },
   "languageData": {
-      "version": "zh-package-2026.07.31",
+    "version": "zh-package-2026.09.19-r2",
     "minimumAppVersion": "2.8.0",
     "sourceVersions": {
       "ccCedict": "20260403",

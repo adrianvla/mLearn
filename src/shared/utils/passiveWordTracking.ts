@@ -1,60 +1,30 @@
-import type { PassiveHoverFailAction } from '../constants'
 import type { MediaStatsWordEntry, PassiveWordKnowledge, Settings } from '../types'
 
-type PassiveHoverSettings = Partial<Pick<Settings, 'passiveHoverDelayMs' | 'passiveHoverFailCount' | 'passiveHoverFailAction' | 'passiveHoverEaseDecrease'>>
 type FailedWordEntry = Pick<MediaStatsWordEntry, 'timesHovered'> | Pick<PassiveWordKnowledge, 'timesHovered'>
 
 export const DEFAULT_PASSIVE_HOVER_DELAY_MS = 300
-export const DEFAULT_PASSIVE_HOVER_FAIL_COUNT = 1
-export const DEFAULT_PASSIVE_HOVER_FAIL_ACTION: PassiveHoverFailAction = 'decrease-ease'
-export const DEFAULT_PASSIVE_HOVER_EASE_DECREASE = 0.05
 
 function normalizeInteger(value: number | undefined, fallback: number, minimum: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
   return Math.max(minimum, Math.round(value))
 }
 
-function normalizeNumber(value: number | undefined, fallback: number, minimum: number): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
-  return Math.max(minimum, value)
-}
-
-export function getPassiveHoverDelayMs(settings?: PassiveHoverSettings): number {
+export function getPassiveHoverDelayMs(settings?: Partial<Settings>): number {
   return normalizeInteger(settings?.passiveHoverDelayMs, DEFAULT_PASSIVE_HOVER_DELAY_MS, 0)
 }
 
-export function getPassiveHoverFailCount(settings?: PassiveHoverSettings): number {
-  return normalizeInteger(settings?.passiveHoverFailCount, DEFAULT_PASSIVE_HOVER_FAIL_COUNT, 1)
-}
-
-export function getPassiveHoverFailAction(settings?: PassiveHoverSettings): PassiveHoverFailAction {
-  // Legacy persisted values may still hold the removed flashcard action.
-  const action = settings?.passiveHoverFailAction as string | undefined
-  if (action === 'none') return action
-  // Legacy 'decrease-ease-and-flashcard' normalizes to plain ease decrease:
-  // passive telemetry no longer mutates scheduler cards.
-  if (action === 'decrease-ease' || action === 'decrease-ease-and-flashcard') return 'decrease-ease'
-  return DEFAULT_PASSIVE_HOVER_FAIL_ACTION
-}
-
-export function getPassiveHoverEaseDecrease(settings?: PassiveHoverSettings): number {
-  return normalizeNumber(settings?.passiveHoverEaseDecrease, DEFAULT_PASSIVE_HOVER_EASE_DECREASE, 0)
-}
-
-export function hasReachedPassiveHoverFailCount(timesHovered: number, settings?: PassiveHoverSettings): boolean {
-  return normalizeInteger(timesHovered, 0, 0) >= getPassiveHoverFailCount(settings)
-}
-
-export function shouldDecreaseEaseOnPassiveFailure(settings?: PassiveHoverSettings): boolean {
-  // getPassiveHoverFailAction normalizes the legacy flashcard action away,
-  // so only 'decrease-ease' can request a decrease here.
-  return getPassiveHoverFailAction(settings) === 'decrease-ease' && getPassiveHoverEaseDecrease(settings) > 0
-}
-
-export function isWordMarkedFailed(entry: FailedWordEntry, settings?: PassiveHoverSettings): boolean {
-  return hasReachedPassiveHoverFailCount(entry.timesHovered, settings)
-}
-
-export function getRemainingHoversToFail(entry: FailedWordEntry, settings?: PassiveHoverSettings): number {
-  return Math.max(0, getPassiveHoverFailCount(settings) - normalizeInteger(entry.timesHovered, 0, 0))
+/**
+ * R10, retired (review 2026-09-17T011733): a hover popup must never create
+ * negative epistemic evidence, so passive tracking no longer marks words as
+ * failed under ANY configuration. The former decrease-ease policy
+ * (passiveHoverFailAction / passiveHoverEaseDecrease / passiveHoverFailCount)
+ * was removed from the writer and the settings UI; persisted values for those
+ * keys are inert. The function remains as the single authority so consumers
+ * (media stats, assistance sidebars, suggestions) degrade to honest
+ * empty failed-word lists instead of keeping their own ease arithmetic.
+ */
+export function isWordMarkedFailed(_entry: FailedWordEntry, _settings?: Partial<Settings>): boolean {
+  void _entry
+  void _settings
+  return false
 }

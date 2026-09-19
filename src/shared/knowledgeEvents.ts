@@ -246,6 +246,30 @@ export interface KnowledgeEvent {
    * the legacy `aspect` projection).
    */
   targetRef?: { kind: string; id: string; capability?: CapabilityKey; to?: string };
+  /**
+   * The practice item that produced this attempt, when the attempt came
+   * from a versioned question-bank item (R12/G03). `version` is the ITEM
+   * content version (the question pipeline's `item-v2:` content hash), not
+   * the package version — a changed answer span/conditions/accepts/register
+   * changes it and item-level reconcile retracts the attempts recorded
+   * under the old content. Provenance reference with exactly ONE
+   * projection effect: a SUCCESS on an already-attempted item (same
+   * id+version seen earlier in the replay) is repeated-item familiarity,
+   * not fresh generalization, so it never raises the projected ease (G02);
+   * failure deltas always keep their full force. It is what makes
+   * item-level invalidation possible: retracting a defective item's
+   * attempts appends tombstones for exactly the attemptIds carrying this
+   * reference, without deleting unrelated history. `seed` records the
+   * delivered option ordering when the attempt came from an assembled item.
+   */
+  itemRef?: { id: string; version: string; seed?: number };
+  /** Independent semantic-validation record that authorized delivery of a question item. */
+  validationRef?: {
+    validator: string;
+    validatorVersion?: string;
+    at: string;
+    contentHash: string;
+  };
   /** Product surface that produced the observation (e.g. 'word-sync'); preserved as evidence provenance. */
   origin?: string;
 }

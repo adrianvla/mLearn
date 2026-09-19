@@ -1707,7 +1707,25 @@
           "Unknown": "noch nicht",
           "Unmeasured": "unvermessen"
         },
-        "SeenOnly": "{count}× gesehen"
+        "SeenOnly": "{count}× gesehen",
+        "Practise": "Üben",
+        "SessionPrompt": "Wie gut kennst du „{pattern}“?",
+        "SessionDone": "Durchgang abgeschlossen — {count} Konstruktionen wiederholt.",
+        "SessionSkip": "Überspringen",
+        "Contrast": "Kontrast",
+        "ContrastPrompt": "Wähle die Konstruktion, die in die Lücke passt:",
+        "Correct": "Richtig!",
+        "Incorrect": "Nicht ganz — die Antwort ist: {answer}",
+        "Next": "Weiter",
+        "ModeLabel": "Antwortformat",
+        "ModeMcq": "Auswählen",
+        "ModeType": "Eingeben",
+        "TypePlaceholder": "Fehlende Form eingeben",
+        "Check": "Prüfen",
+        "Validate": "Fragen validieren",
+        "Validating": "Validierung läuft…",
+        "ValidateDone": "Validiert {passed} · abgelehnt {rejected} · unverändert {unchanged}",
+        "ValidateFailed": "Validierung nicht möglich: {errors}"
       },
       "PopulationStats": {
         "Title": "Karteikarten-Anreicherung",
@@ -1752,6 +1770,96 @@
         "Adding": "Hinzufügen...",
         "LoadMore": "Mehr laden",
         "Error": "Fehler beim Hinzufügen"
+      },
+      "Placement": {
+        "Title": "Rückkehrender Lernender",
+        "Description": "Optional: Erfasse ein älteres Prüfungs- oder Schulergebnis als Hintergrund, oder lass eine kurze Stichprobe unerfasster Wörter ein Startniveau vorschlagen. Es wird nichts als bekannt behauptet, und du kannst alles überspringen.",
+        "BackgroundTitle": "Dein Hintergrund",
+        "BackgroundEmpty": "Keine früheren Ergebnisse erfasst.",
+        "AddRecord": "Früheres Ergebnis hinzufügen",
+        "KindLabel": "Art des Ergebnisses",
+        "Kind": {
+          "exam": "Prüfung",
+          "school": "Schulkurs",
+          "self-assessment": "Selbsteinschätzung"
+        },
+        "LabelPlaceholder": "z. B. Goethe-Zertifikat B2, Jahrgang 11",
+        "LevelPlaceholder": "Niveau auf dessen Skala (z. B. B2)",
+        "DateLabel": "Wann es erreicht wurde",
+        "NotePlaceholder": "Optionale Notiz",
+        "SkillsPlaceholder": "Abgedeckte Fertigkeiten (kommagetrennt, z. B. Lesen, Hören)",
+        "ResultLabel": "Ergebnisname",
+        "LevelLabel": "Niveau auf der Eigenskala des Ergebnisses",
+        "NoteLabel": "Optionale Notiz",
+        "SkillsLabel": "Fertigkeiten des Ergebnisses",
+        "ScoreOverallLabel": "Gesamtergebnis (wie ausgewiesen)",
+        "ScoreOverallPlaceholder": "z. B. 72/100",
+        "ScoreSkillLabel": "Ergebnis für {skill} (wie ausgewiesen)",
+        "ScoreSkillPlaceholder": "z. B. 18/30",
+        "SuppliedScore": "Angegebenes Ergebnis: {score}",
+        "SaveRecord": "Speichern",
+        "RemoveRecord": "Diesen Eintrag entfernen",
+        "Start": "Mein Niveau prüfen",
+        "Prompt": "Wie gut kennst du „{word}“?",
+        "Skip": "Überspringen",
+        "Placement": "Vorgeschlagenes Niveau: {level}",
+        "PlacementLowest": "Die Stichprobe schlägt vor, auf dem niedrigsten Niveau zu beginnen.",
+        "MoveAhead": "Das liegt über deinem derzeit eingestellten Niveau – du kannst weiterziehen.",
+        "TraceRow": "{label}: {sampled} gestichprobt · {hits} flüssig · {misses} verfehlt · {skipped} übersprungen",
+        "EvidenceNote": "Nur die {count} gestichprobten Wörter wurden gemessen – alle anderen bleiben unerfasst.",
+        "CleanLatency": "Mediane Aufgabenreaktion ({range} Zeichen): {ms} ms (unbrauchbare Versuche ausgeschlossen)",
+        "UseLevel": "Dieses Niveau verwenden",
+        "Dismiss": "Schließen",
+        "EmptyPools": "Derzeit sind keine unerfassten Wörter für eine Stichprobe verfügbar.",
+        "DateRequired": "Ein Prüfungs- oder Schulergebnis braucht das Datum des Erreichens.",
+        "DateUnknown": "Datum unbekannt",
+        "NoLocks": "Einstufung hier nicht verfügbar: dieser Sitzung fehlt eine windowsübergreifende Sperre.",
+        "NoStorage": "Placement ist hier nicht verfügbar: Die Sitzung konnte nicht gespeichert werden (Speicher voll oder privater Modus)."
+      },
+      "Mock": {
+        "Title": "Checkpoints & Probeprüfungen",
+        "Subtitle": "Feste, deklarierte Blueprints aus dem installierten Sprachpaket. Ergebnisse zeigen Herkunft — niemals eine offizielle Punktzahl.",
+        "ProviderChip": "mlearn-abgeleitet",
+        "Start": "Starten",
+        "BlueprintMeta": "{sections} Abschnitte · {draw} Aufgaben · {seconds}s pro Aufgabe · ohne Hilfsmittel",
+        "FreshFirst": "Neue Aufgabenfamilien zuerst",
+        "Progress": "{index} von {total}",
+        "TimeLeft": "{seconds}s übrig",
+        "PausedNote": "Pausiert — die Aufgaben-Uhr steht; die Pause wird aufgezeichnet.",
+        "Pause": "Pause",
+        "Resume": "Fortsetzen",
+        "Abandon": "Abbrechen",
+        "PausePolicy": "Pausen werden aufgezeichnet und von der Aufgaben-Uhr ausgeschlossen; Timeout lässt die Aufgabe unbeantwortet.",
+        "NoItems": "Noch keine verwendbaren Aufgaben für diese Stufe — führe zuerst die unabhängige Validierung im Grammatikbereich aus.",
+        "NoBlueprints": "Noch kein deklarierter Blueprint für dieses Paket.",
+        "ResultsTitle": "Ergebnisse — {level}",
+        "Abandoned": "abgebrochen",
+        "Answered": "Beantwortet: {count}",
+        "Correct": "Richtig: {count}",
+        "TimedOut": "Unbeantwortet (Zeitüberschreitung): {count}",
+        "HeldOut": "Neue Familien: {count}",
+        "RehearsedBackfill": "Geübte Auffüllung: {count}",
+        "BlueprintVersion": "Blueprint {version}",
+        "ContentVersion": "Paket {version}",
+        "Seed": "Seed {seed}",
+        "ActiveTime": "Aktive Zeit {seconds}s",
+        "PausedTime": "Pausiert {seconds}s · {count} Pausen",
+        "SectionCol": "Abschnitt",
+        "DrawCol": "Deklariert",
+        "AnsweredCol": "Beantwortet",
+        "CorrectCol": "Richtig",
+        "TimedOutCol": "Zeit überschritten",
+        "Assembled": "{assembled}/{requested} zusammengestellt",
+        "Constructions": "Konstruktionen",
+        "AvailabilityGap": "Einige Abschnitte konnten ihren deklarierten Umfang nicht zusammenstellen — fehlende Aufgaben werden gemeldet, nie ersetzt.",
+        "MissedPatterns": "Fehlerhafte Konstruktionen",
+        "NoMissed": "Unter den beantworteten Aufgaben nichts falsch.",
+        "Repair": "Diese üben (gleicher Politik-Ablauf)",
+        "Discuss": "Diese in einem Gespräch besprechen",
+        "ResultsDisclaimer": "Eine richtige Auswahl ist ein erfolgreicher Versuch — kein Beweis voller Beherrschung. Ergebnisse sind diagnostisch, nie eine offizielle Punktzahl.",
+        "BackToBlueprints": "Zurück zu den Blueprints",
+        "Summaries": "Letzte Ergebnisse",
+        "SummaryCounts": "{correct}/{answered} richtig · {timedOut} unbeantwortet"
       }
     },
     "Languages": {
@@ -2133,6 +2241,7 @@
         }
       },
       "Groups": {
+        "LearningGoal": "Lernziel & Intensität",
         "Appearance": "Erscheinungsbild",
         "ReadingAppearance": "Lesehilfen",
         "BlurEffect": "Unschärfe-Effekt",
@@ -2330,26 +2439,10 @@
             "Label": "LLM-Erklärungen aktivieren"
           },
           "PassiveWordTracking": {
-            "Description": "Wortvertrautheit beim Lesen und Hovern automatisch verfolgen. Ein Hover zählt nach {delay} ms. Nach {count} gezählten Hovern wird das Wort als fehlgeschlagen markiert und erscheint in Listen mit schwierigen Wörtern sowie in der KI-Tutor-Wiederholung.",
-            "Action": {
-              "Description": "Was bei jedem gezählten Hover passieren soll, sobald das Wort im fehlgeschlagenen Zustand ist",
-              "Label": "Aktion für fehlgeschlagene Wörter",
-              "Options": {
-                "DecreaseEase": "Ease verringern",
-                "None": "Nichts tun"
-              }
-            },
-            "EaseDecrease": {
-              "Description": "Wie viel Ease abgezogen werden soll, wenn die Aktion für fehlgeschlagene Wörter auf Ease verringern steht",
-              "Label": "Verringerung der Ease"
-            },
-            "FailCount": {
-              "Description": "Wie viele gezählte Hover nötig sind, bis ein Wort in diesem Medium als fehlgeschlagen markiert wird",
-              "Label": "Hover bis zur Fehlmarkierung"
-            },
+            "Description": "Wortvertrautheit beim Lesen und Hovern automatisch verfolgen. Ein Hover zählt nach {delay} ms.",
             "HoverDelay": {
-              "Description": "Wie lange ein Hover dauern muss, bevor er als ein Fehlversuch für ein Wort zählt",
-              "Label": "Verzögerung für gezählten Hover"
+              "Description": "Wie lange ein Hover dauern muss, bevor er als eine Vertrautheitsbegegnung zählt",
+              "Label": "Verzögerung für Hover"
             },
             "Label": "Passives Wort-Tracking"
           },
@@ -2803,6 +2896,28 @@
       },
       "SearchPlaceholder": "Einstellungen durchsuchen...",
       "Behaviour": {
+        "SessionIntensity": {
+          "Label": "Sitzungsintensität",
+          "Description": "Bestimmt, welche Übungen empfohlen werden — sanft stützt sich auf Bekanntes, intensiv hält Padding niedrig. Nie werden Bewertungen oder Belege geändert.",
+          "Gentle": "Sanft",
+          "Steady": "Stetig",
+          "Intensive": "Intensiv"
+        },
+        "ExamGoal": {
+          "Label": "Prüfungsziel",
+          "Description": "Lege ein persönliches Prüfungsziel fest; nahe am Termin rücken Festigung und Reparatur in den Vordergrund.",
+          "None": "Keine",
+          "Exam": "Prüfung",
+          "Target": {
+            "Label": "Ziel",
+            "Description": "Worauf du hinarbeitest (zur eigenen Orientierung)",
+            "Placeholder": "z. B. JLPT N1, Goethe B1"
+          },
+          "Deadline": {
+            "Label": "Prüfungsdatum",
+            "Description": "In den letzten sechs Wochen gewichten die Empfehlungen Festigung am stärksten."
+          }
+        },
         "RatingKeyboardMode": {
           "Label": "Tastaturmodus zum Bewerten",
           "Mnemonic": "Merkzeichen (1+M)",

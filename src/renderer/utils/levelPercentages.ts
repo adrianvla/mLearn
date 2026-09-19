@@ -197,6 +197,16 @@ export function estimateWeightedLevel(
 }
 
 /**
+ * R21 labelled baseline: the historical 2^n category-weight difficulty
+ * estimator (N5=1, N4=2, N3=4, … rank-doubling). Ordinal category weights are
+ * HEURISTICS — not demonstrated equal learning distances, calibrated
+ * comprehension, or a portable CEFR/HSK formula. Kept verbatim as the
+ * explicit versioned baseline; improved fits must ship beside it, not
+ * replace it silently.
+ */
+export const MEDIA_DIFFICULTY_BASELINE_VERSION = 'media-difficulty/2n-weighted@1';
+
+/**
  * Assess the difficulty level of a media based on word frequency distribution.
  *
  * Delegates to `estimateWeightedLevel` with frequency-level ordering — the

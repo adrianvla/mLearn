@@ -5,9 +5,10 @@
 import { Component, Show, For, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input } from '../../../components/common';
-import { PASSIVE_HOVER_FAIL_ACTIONS, SRS_EASE } from '../../../../shared/constants';
+import { SRS_EASE } from '../../../../shared/constants';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../../shared/languageFeatures';
-import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, getPassiveHoverFailAction, getPassiveHoverFailCount } from '@shared/utils/passiveWordTracking';
+import { getPassiveHoverDelayMs } from '@shared/utils/passiveWordTracking';
 import type { RatingKeyboardMode } from '@shared/constants';
 import '../SettingsForm.css';
 
@@ -17,17 +18,6 @@ export const BehaviourTab: Component = () => {
   const { currentLangData, getFreqLevelNames, getLanguageFeatures, getWordFrequency } = useLanguage();
 
   const passiveHoverDelayMs = () => getPassiveHoverDelayMs(settings);
-  const passiveHoverFailCount = () => getPassiveHoverFailCount(settings);
-  const passiveHoverFailAction = () => getPassiveHoverFailAction(settings);
-  const passiveHoverEaseDecrease = () => getPassiveHoverEaseDecrease(settings);
-  const passiveHoverActionOptions = createMemo(() => PASSIVE_HOVER_FAIL_ACTIONS.map((action) => {
-    const key = action === 'decrease-ease' ? 'DecreaseEase'
-      : 'None';
-    return {
-      value: action,
-      label: t(`mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Action.Options.${key}`),
-    };
-  }));
 
   const freqLevels = createMemo(() => {
     const names = getFreqLevelNames();
@@ -102,6 +92,100 @@ export const BehaviourTab: Component = () => {
       }}
       padding="lg"
     >
+
+      <SettingGroup title={t('mlearn.Settings.Groups.LearningGoal')}>
+        <SettingRow
+          label={t('mlearn.Settings.Behaviour.SessionIntensity.Label')}
+          description={t('mlearn.Settings.Behaviour.SessionIntensity.Description')}
+        >
+          <Select
+            class="setting-select"
+            value={settings.sessionIntensity}
+            onChange={(e) => {
+              const value = e.currentTarget.value;
+              if (value === 'gentle' || value === 'steady' || value === 'intensive') {
+                updateSettings({ sessionIntensity: value });
+              }
+            }}
+          >
+            <option value="gentle" selected={settings.sessionIntensity === 'gentle'}>{t('mlearn.Settings.Behaviour.SessionIntensity.Gentle')}</option>
+            <option value="steady" selected={settings.sessionIntensity === 'steady'}>{t('mlearn.Settings.Behaviour.SessionIntensity.Steady')}</option>
+            <option value="intensive" selected={settings.sessionIntensity === 'intensive'}>{t('mlearn.Settings.Behaviour.SessionIntensity.Intensive')}</option>
+          </Select>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Behaviour.ExamGoal.Label')}
+          description={t('mlearn.Settings.Behaviour.ExamGoal.Description')}
+        >
+          <Select
+            class="setting-select"
+            value={settings.examGoal?.kind ?? 'none'}
+            onChange={(e) => {
+              const value = e.currentTarget.value;
+              if (value !== 'exam' && value !== 'none') return;
+              const current = settings.examGoal ?? DEFAULT_SETTINGS.examGoal;
+              updateSettings({ examGoal: value === 'exam'
+                // A goal is scoped to the learning language it is recorded
+                // under (R07): a fresh goal inherits the active language; an
+                // existing scoped goal keeps its stamp.
+                ? { ...current, kind: 'exam', language: current.language ?? settings.language }
+                : { kind: 'none' } });
+            }}
+          >
+            <option value="none" selected={(settings.examGoal?.kind ?? 'none') === 'none'}>{t('mlearn.Settings.Behaviour.ExamGoal.None')}</option>
+            <option value="exam" selected={settings.examGoal?.kind === 'exam'}>{t('mlearn.Settings.Behaviour.ExamGoal.Exam')}</option>
+          </Select>
+        </SettingRow>
+
+        <Show when={settings.examGoal?.kind === 'exam'}>
+          <SettingRow
+            label={t('mlearn.Settings.Behaviour.ExamGoal.Target.Label')}
+            description={t('mlearn.Settings.Behaviour.ExamGoal.Target.Description')}
+          >
+            <Input
+              type="text"
+              value={settings.examGoal?.target ?? ''}
+              placeholder={t('mlearn.Settings.Behaviour.ExamGoal.Target.Placeholder')}
+              onInput={(e) => {
+                const target = e.currentTarget.value;
+                const current = settings.examGoal ?? DEFAULT_SETTINGS.examGoal;
+                // Clearing the field must drop the stored value, not spread the stale one back.
+                const next: typeof DEFAULT_SETTINGS.examGoal = {
+                  ...current,
+                  kind: 'exam',
+                  language: current.language ?? settings.language,
+                };
+                delete next.target;
+                if (target) next.target = target;
+                updateSettings({ examGoal: next });
+              }}
+            />
+          </SettingRow>
+          <SettingRow
+            label={t('mlearn.Settings.Behaviour.ExamGoal.Deadline.Label')}
+            description={t('mlearn.Settings.Behaviour.ExamGoal.Deadline.Description')}
+          >
+            <Input
+              type="date"
+              value={settings.examGoal?.deadline ?? ''}
+              onInput={(e) => {
+                const deadline = e.currentTarget.value;
+                const current = settings.examGoal ?? DEFAULT_SETTINGS.examGoal;
+                // Clearing the date must drop the stored deadline, not spread the stale one back.
+                const next: typeof DEFAULT_SETTINGS.examGoal = {
+                  ...current,
+                  kind: 'exam',
+                  language: current.language ?? settings.language,
+                };
+                delete next.deadline;
+                if (deadline) next.deadline = deadline;
+                updateSettings({ examGoal: next });
+              }}
+            />
+          </SettingRow>
+        </Show>
+      </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.WordKnowledge')}>
         {/* Built-in SRS thresholds (always visible) */}
@@ -222,7 +306,6 @@ export const BehaviourTab: Component = () => {
           label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Label')}
           description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Description', {
             delay: passiveHoverDelayMs(),
-            count: passiveHoverFailCount(),
           })}
           settingKey="passiveEaseEnabled"
         >
@@ -252,35 +335,6 @@ export const BehaviourTab: Component = () => {
           </SettingRow>
 
           <SettingRow
-            label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.FailCount.Label')}
-            description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.FailCount.Description')}
-          >
-            <Input
-              type="number"
-              value={passiveHoverFailCount()}
-              min={1}
-              step={1}
-              onInput={(e) => {
-                const value = Number.parseInt(e.currentTarget.value, 10);
-                if (!Number.isNaN(value)) {
-                  updateSettings({ passiveHoverFailCount: Math.max(1, value) });
-                }
-              }}
-            />
-          </SettingRow>
-
-          <SettingRow
-            label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Action.Label')}
-            description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Action.Description')}
-          >
-            <Select
-              value={passiveHoverFailAction()}
-              options={passiveHoverActionOptions()}
-              onChange={(e) => updateSettings({ passiveHoverFailAction: e.currentTarget.value as typeof PASSIVE_HOVER_FAIL_ACTIONS[number] })}
-            />
-          </SettingRow>
-
-          <SettingRow
             label={t('mlearn.Settings.Behaviour.RatingKeyboardMode.Label')}
             description={t(`mlearn.Settings.Behaviour.RatingKeyboardMode.${settings.ratingKeyboardMode === 'spatial' ? 'SpatialHint' : 'MnemonicHint'}`)}
           >
@@ -293,26 +347,6 @@ export const BehaviourTab: Component = () => {
               onChange={(e) => updateSettings({ ratingKeyboardMode: e.currentTarget.value as RatingKeyboardMode })}
             />
           </SettingRow>
-
-          <Show when={passiveHoverFailAction() === 'decrease-ease'}>
-            <SettingRow
-              label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.EaseDecrease.Label')}
-              description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.EaseDecrease.Description')}
-            >
-              <Input
-                type="number"
-                value={passiveHoverEaseDecrease()}
-                min={0}
-                step={0.01}
-                onInput={(e) => {
-                  const value = Number.parseFloat(e.currentTarget.value);
-                  if (!Number.isNaN(value)) {
-                    updateSettings({ passiveHoverEaseDecrease: Math.max(0, value) });
-                  }
-                }}
-              />
-            </SettingRow>
-          </Show>
 
         </Show>
 

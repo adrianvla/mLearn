@@ -1707,7 +1707,25 @@
           "Unknown": "pas encore",
           "Unmeasured": "non mesurée"
         },
-        "SeenOnly": "vue {count}×"
+        "SeenOnly": "vue {count}×",
+        "Practise": "S’entraîner",
+        "SessionPrompt": "Connais-tu bien « {pattern} » ?",
+        "SessionDone": "Passage terminé — {count} constructions revues.",
+        "SessionSkip": "Passer",
+        "Contrast": "Contraste",
+        "ContrastPrompt": "Choisis la construction qui comble la lacune :",
+        "Correct": "Correct !",
+        "Incorrect": "Pas tout à fait — la réponse est : {answer}",
+        "Next": "Suivant",
+        "ModeLabel": "Format de réponse",
+        "ModeMcq": "Choisir",
+        "ModeType": "Écrire",
+        "TypePlaceholder": "Écrivez la forme manquante",
+        "Check": "Vérifier",
+        "Validate": "Valider les questions",
+        "Validating": "Validation en cours…",
+        "ValidateDone": "Validées {passed} · rejetées {rejected} · inchangées {unchanged}",
+        "ValidateFailed": "Validation impossible : {errors}"
       },
       "PopulationStats": {
         "Title": "Remplissage des flashcards",
@@ -1752,6 +1770,96 @@
         "Adding": "Ajout...",
         "LoadMore": "Charger plus",
         "Error": "Échec de l'ajout"
+      },
+      "Placement": {
+        "Title": "Apprenant qui reprend",
+        "Description": "Optionnel : notez un ancien résultat d'examen ou scolaire comme contexte, ou laissez un court échantillon de mots non mesurés suggérer un niveau de départ. Rien n'est déclaré connu, et vous pouvez tout ignorer.",
+        "BackgroundTitle": "Votre parcours",
+        "BackgroundEmpty": "Aucun résultat antérieur enregistré.",
+        "AddRecord": "Ajouter un résultat passé",
+        "KindLabel": "Type de résultat",
+        "Kind": {
+          "exam": "Examen",
+          "school": "Cours scolaire",
+          "self-assessment": "Auto-évaluation"
+        },
+        "LabelPlaceholder": "ex. Goethe-Zertifikat B2, allemand année 11",
+        "LevelPlaceholder": "Niveau sur son échelle (ex. B2)",
+        "DateLabel": "Quand il a été obtenu",
+        "NotePlaceholder": "Note facultative",
+        "SkillsPlaceholder": "Compétences couvertes (séparées par des virgules, ex. lecture, écoute)",
+        "ResultLabel": "Nom du résultat",
+        "LevelLabel": "Niveau sur l'échelle du résultat",
+        "NoteLabel": "Note facultative",
+        "SkillsLabel": "Compétences couvertes par le résultat",
+        "ScoreOverallLabel": "Score global (tel qu'imprimé)",
+        "ScoreOverallPlaceholder": "p. ex. 72/100",
+        "ScoreSkillLabel": "Score pour {skill} (tel qu'imprimé)",
+        "ScoreSkillPlaceholder": "p. ex. 18/30",
+        "SuppliedScore": "Score fourni : {score}",
+        "SaveRecord": "Enregistrer",
+        "RemoveRecord": "Supprimer cette entrée",
+        "Start": "Vérifier mon niveau",
+        "Prompt": "Connaissez-vous « {word} » ?",
+        "Skip": "Ignorer",
+        "Placement": "Niveau suggéré : {level}",
+        "PlacementLowest": "L'échantillon suggère de commencer par le niveau le plus bas.",
+        "MoveAhead": "C'est au-dessus de votre niveau actuel — vous pouvez avancer.",
+        "TraceRow": "{label} : {sampled} échantillonnés · {hits} fluides · {misses} manqués · {skipped} ignorés",
+        "EvidenceNote": "Seuls les {count} mots échantillonnés ont été mesurés — tous les autres restent non mesurés.",
+        "CleanLatency": "Réponse médiane à la tâche ({range} caractères) : {ms} ms (tentatives inutilisables exclues)",
+        "UseLevel": "Utiliser ce niveau",
+        "Dismiss": "Fermer",
+        "EmptyPools": "Aucun mot non mesuré n'est disponible pour l'échantillonnage pour le moment.",
+        "DateRequired": "Un résultat d'examen ou scolaire nécessite la date d'obtention.",
+        "DateUnknown": "date inconnue",
+        "NoLocks": "Placement indisponible ici : cette session n'a pas de verrou inter-fenêtres.",
+        "NoStorage": "Le placement n'est pas disponible ici : la session n'a pas pu être enregistrée (stockage plein ou mode privé)."
+      },
+      "Mock": {
+        "Title": "Points de contrôle et tests blancs",
+        "Subtitle": "Plans fixes déclarés dérivés du paquet de langue installé. Les résultats montrent la provenance — jamais un score officiel.",
+        "ProviderChip": "dérivé-mlearn",
+        "Start": "Commencer",
+        "BlueprintMeta": "{sections} sections · {draw} questions · {seconds}s par question · sans aide",
+        "FreshFirst": "Familles de questions inédites d’abord",
+        "Progress": "{index} sur {total}",
+        "TimeLeft": "{seconds}s restantes",
+        "PausedNote": "En pause — le chronomètre est arrêté ; la pause est enregistrée.",
+        "Pause": "Pause",
+        "Resume": "Reprendre",
+        "Abandon": "Abandonner",
+        "PausePolicy": "Les pauses sont enregistrées et exclues du chronomètre ; le dépassement laisse la question sans réponse.",
+        "NoItems": "Aucune question exploitable pour ce niveau — lance d’abord la validation indépendante dans la section grammaire.",
+        "NoBlueprints": "Aucun plan déclaré pour ce paquet pour l’instant.",
+        "ResultsTitle": "Résultats — {level}",
+        "Abandoned": "abandonné",
+        "Answered": "Répondu : {count}",
+        "Correct": "Juste : {count}",
+        "TimedOut": "Sans réponse (temps dépassé) : {count}",
+        "HeldOut": "Familles inédites : {count}",
+        "RehearsedBackfill": "Complément déjà travaillé : {count}",
+        "BlueprintVersion": "Plan {version}",
+        "ContentVersion": "Paquet {version}",
+        "Seed": "Germe {seed}",
+        "ActiveTime": "Temps actif {seconds}s",
+        "PausedTime": "En pause {seconds}s · {count} pauses",
+        "SectionCol": "Section",
+        "DrawCol": "Tirage déclaré",
+        "AnsweredCol": "Répondu",
+        "CorrectCol": "Juste",
+        "TimedOutCol": "Temps dépassé",
+        "Assembled": "{assembled}/{requested} assemblées",
+        "Constructions": "Constructions",
+        "AvailabilityGap": "Certaines sections n’ont pas pu assembler leur tirage déclaré — les questions manquantes sont signalées, jamais remplacées.",
+        "MissedPatterns": "Constructions manquées",
+        "NoMissed": "Rien de manqué parmi les questions répondues.",
+        "Repair": "Exercer ces points (même parcours de politique)",
+        "Discuss": "Les discuter en conversation",
+        "ResultsDisclaimer": "Une bonne sélection est une tentative réussie — pas la preuve d’une maîtrise complète. Les résultats sont diagnostiques, jamais un score officiel.",
+        "BackToBlueprints": "Retour aux plans",
+        "Summaries": "Résultats récents",
+        "SummaryCounts": "{correct}/{answered} justes · {timedOut} sans réponse"
       }
     },
     "Languages": {
@@ -2133,6 +2241,7 @@
         }
       },
       "Groups": {
+        "LearningGoal": "Objectif & intensité",
         "Appearance": "Apparence",
         "ReadingAppearance": "Aides de lecture",
         "BlurEffect": "Effet de flou",
@@ -2330,26 +2439,10 @@
             "Label": "Activer les explications LLM"
           },
           "PassiveWordTracking": {
-            "Description": "Suivre automatiquement la familiarité des mots via la lecture et le survol. Un survol compte après {delay} ms. Après {count} survols comptabilisés, le mot est marqué comme en échec et apparaît dans les listes de mots difficiles ainsi que dans la révision avec le tuteur IA.",
-            "Action": {
-              "Description": "Action à effectuer à chaque survol comptabilisé une fois que le mot est dans l'état en échec",
-              "Label": "Action sur mot en échec",
-              "Options": {
-                "DecreaseEase": "Réduire l'ease",
-                "None": "Ne rien faire"
-              }
-            },
-            "EaseDecrease": {
-              "Description": "Quantité d'ease à retirer lorsque l'action sur mot en échec est définie sur réduire l'ease",
-              "Label": "Réduction de l'ease"
-            },
-            "FailCount": {
-              "Description": "Nombre de survols comptabilisés nécessaires avant qu'un mot soit marqué comme en échec pour ce média",
-              "Label": "Survols avant l'échec"
-            },
+            "Description": "Suivre automatiquement la familiarité des mots via la lecture et le survol. Un survol compte après {delay} ms.",
             "HoverDelay": {
-              "Description": "Durée pendant laquelle un survol doit rester actif pour compter comme une tentative vers l'échec",
-              "Label": "Délai du survol comptabilisé"
+              "Description": "Durée pendant laquelle un survol doit rester actif pour compter comme une rencontre de familiarité",
+              "Label": "Délai du survol"
             },
             "Label": "Suivi passif des mots"
           },
@@ -2803,6 +2896,28 @@
       },
       "SearchPlaceholder": "Rechercher dans les paramètres...",
       "Behaviour": {
+        "SessionIntensity": {
+          "Label": "Intensité des sessions",
+          "Description": "Détermine les activités recommandées — douce s’appuie sur le déjà consolidé, intensive limite le remplissage. Ne modifie jamais vos évaluations.",
+          "Gentle": "Douce",
+          "Steady": "Normale",
+          "Intensive": "Intensive"
+        },
+        "ExamGoal": {
+          "Label": "Objectif d’examen",
+          "Description": "Définissez un objectif d’examen personnel ; à l’approche de l’échéance, les recommandations privilégient la consolidation et la réparation.",
+          "None": "Aucun",
+          "Exam": "Examen",
+          "Target": {
+            "Label": "Cible",
+            "Description": "Ce que vous visez (pour votre référence)",
+            "Placeholder": "p. ex. JLPT N1, Goethe B1"
+          },
+          "Deadline": {
+            "Label": "Date de l’examen",
+            "Description": "Dans les six dernières semaines, les recommandations privilégient la consolidation."
+          }
+        },
         "RatingKeyboardMode": {
           "Label": "Mode clavier d’évaluation",
           "Mnemonic": "Mnémotechnique (1+M)",

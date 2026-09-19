@@ -61,6 +61,12 @@ describe('attempt compaction classifier', () => {
     expect(isAggregatableEvent({ t: old, kind: 'status', source: 'manual', aspect: 'meaning', toStatus: 'known' }, NOW)).toBe(false);
     expect(isAggregatableEvent({ t: old, kind: 'retraction', source: 'manual', aspect: 'meaning', retracts: 'x' }, NOW)).toBe(false);
     expect(isAggregatableEvent({ t: old, kind: 'rating', source: 'grammar', aspect: 'grammar' as never }, NOW)).toBe(false);
+    // Question-item provenance (R12/G03) stays ledger-exact forever: item
+    // invalidation must discover every attempt recorded through an item at any age.
+    expect(isAggregatableEvent(attempt({ t: old, itemRef: { id: 'de-weil-fieber-1', version: 'de-package-2026.09.19' } }), NOW)).toBe(false);
+    // Question-item provenance (G03) stays exact forever: item invalidation
+    // must discover every attempt through an item at any archive age.
+    expect(isAggregatableEvent(attempt({ t: old, itemRef: { id: 'de-weil-fieber-1', version: 'v1' } }), NOW)).toBe(false);
     // Recency and acquisition windows still gate.
     expect(isAggregatableEvent(attempt({ t: NOW - 10 * DAY }), NOW)).toBe(false);
   });

@@ -13,11 +13,51 @@ export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning' | 'kno
 }
 
 
-/** One admission rule for the counter and the presented encounter. */
-export function wordSyncProbe(projection: KnowledgeProjection, possible: readonly CapabilityKind[]) {
+/** One admission rule for the counter and the presented encounter.
+ *
+ *  An ABSENT projection — or a READY projection with an empty target list
+ *  and `surfaceKnown: false` (graph-unmapped surface) — is treated as
+ *  UNMEASURED when the caller supplies the surface's canonical entity id:
+ *  one unresolved target per possible capability, status Untracked, focused
+ *  false. Without the entity id those surfaces stay non-admissible (the
+ *  fallback is a total non-crashing status only, never an admission path).
+ *  A ready projection WITH targets keeps the existing admission rule.
+ */
+export function wordSyncProbe(
+  projection: KnowledgeProjection | undefined,
+  possible: readonly CapabilityKind[],
+  surfaceEntityId?: string,
+) {
+  if (!projection) {
+    // Absent surface: admissible only with identity (unmeasured shape).
+    if (surfaceEntityId !== undefined && possible.length > 0) {
+      return {
+        targets: possible.map(capability => ({ entityId: surfaceEntityId, capability })),
+        status: WORD_SYNC_STATUS_UNTRACKED,
+        focused: false,
+      };
+    }
+    return { targets: [], status: WORD_SYNC_STATUS_UNTRACKED, focused: false };
+  }
   // A surface prompt cannot isolate an unmeasured homograph sense from a known one.
   const testable = possible.filter(capability => !projection.targets.some(target => target.states.some(state => state.capability === capability && state.classification === 'known')));
   const targets = unresolvedProjectionTargets(projection, testable);
   const { status, basis } = projectedWordStatus(projection);
-  return { targets, status: wordSyncPoolStatus(status, basis), focused: testable.length < possible.length };
+  // Graph-unmapped surface: a ready projection with NO targets is the
+  // unmeasured shape (surfaceKnown false) — construct identity-backed
+  // targets so the word stays admissible. A graph-unmapped projection that
+  // already carries measured lexical evidence is NOT reconstructed: its
+  // summary decides admission like any measured surface.
+  const lexicalUnmeasured = projection.lexical?.overall?.basis === undefined
+    || projection.lexical.overall.basis === 'unmeasured';
+  const effectiveTargets = targets.length > 0 || projection.targets.length > 0
+    ? targets
+    : (surfaceEntityId !== undefined && projection.surfaceKnown === false && lexicalUnmeasured && possible.length > 0
+      ? possible.map(capability => ({ entityId: surfaceEntityId, capability }))
+      : targets);
+  return {
+    targets: effectiveTargets,
+    status: wordSyncPoolStatus(status, basis),
+    focused: testable.length < possible.length,
+  };
 }

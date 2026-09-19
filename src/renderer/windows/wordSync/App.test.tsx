@@ -48,6 +48,8 @@ vi.mock('../../context', async () => {
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import path from 'path';
 import { render } from 'solid-js/web';
 import { createEffect, createSignal, Show } from 'solid-js';
 import type { Component, JSX } from 'solid-js';
@@ -56,6 +58,7 @@ import type { AccessStatusResult } from '../../utils/accessKnowledge';
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
 import type { WordStatus } from '../../../shared/constants';
 
+let absentProjectionWords = new Set<string>();
 const mockStreamChat = vi.hoisted(() => vi.fn());
 vi.mock('../../services/llmProvider', () => ({ streamChat: mockStreamChat }));
 
@@ -320,6 +323,7 @@ beforeEach(() => {
     mockWordSyncState.knownUntracked = {};
     mockWordSyncState.ignoredWords = {};
     mockWordSyncState.wordKnowledge = {};
+    absentProjectionWords = new Set<string>();
     mockWordSyncState.getCanonicalFormForLanguage.mockReset();
     mockWordSyncState.getCardByWordSync.mockReset();
     mockWordSyncState.getCardByWordSync.mockImplementation(() => null);
@@ -1503,6 +1507,59 @@ beforeEach(() => {
     dispose();
   });
 
+  it('mounted Word Sync rates a REAL HSK Level-1 word from the packaging source with word-sync provenance', async () => {
+    // Finding 1 (mounted-activity half): the word comes from the REAL
+    // packaging-source frequency rows, and the EXISTING Word Sync surface
+    // drives it — this is the accepted activity, not a new one.
+    const freq = JSON.parse(fs.readFileSync(
+      path.join(process.cwd(), 'scripts/language-data/source/root-of-app/languages/zh.freq.json'),
+      'utf8',
+    )) as Array<[string, string, number, string]>;
+    const hskRow = freq.find(([word, , level]) => level === 1 && typeof word === 'string' && word.length > 0);
+    expect(hskRow).toBeDefined();
+    const [hskWord, hskReading] = hskRow!;
+
+    mockWordSyncState.settings.language = 'zh';
+    mockWordSyncState.levelNames = { 1: 'HSK 3.0 Level 1' };
+    mockWordSyncState.wordFrequency = {
+      [hskWord]: { reading: hskReading, raw_level: 1, level: 'HSK 3.0 Level 1' },
+    };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    await settle();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await settle();
+    buttonByText('mlearn.Rating.Compact.Adjust').click();
+    await settle();
+    // Access rows for a zh word may be fewer than ja's — click the first cell
+    // of every access row (skipping the All row) until the word completes.
+    for (let guard = 0; guard < 10; guard += 1) {
+      const accessRows = Array.from(
+        container.querySelectorAll('.rating-matrix__row:not(:first-child)'),
+      ) as HTMLButtonElement[];
+      if (accessRows.length === 0) break;
+      let clicked = false;
+      for (const row of accessRows) {
+        const cell = row.querySelector('.rating-matrix__cell') as HTMLButtonElement | null;
+        if (cell && !cell.disabled) { cell.click(); clicked = true; }
+      }
+      if (!clicked) break;
+      await settle();
+      if (mockRecordAttempt.mock.calls.length > 0) break;
+    }
+    await settle();
+
+    expect(mockRecordAttempt).toHaveBeenCalledWith(
+      hskWord,
+      expect.any(String),
+      'missed',
+      expect.objectContaining({ language: 'zh', origin: 'word-sync' }),
+    );
+    dispose();
+  });
+
   it('never pools comprehensively-known words that already hold written-form access', async () => {
     // Teaching policy: a word whose written-form bridge is already accessible
     // (surface-recognition known) is fully owned elsewhere (e.g. Anki) — Word
@@ -1681,6 +1738,31 @@ beforeEach(() => {
     dispose();
   });
 
+  it('admits an untracked word whose projection is ABSENT from the batched projections (F-N1 scan-level admission; request bounding W07)', async () => {
+    absentProjectionWords = new Set(['يكتب']);
+    mockWordSyncState.settings.language = 'ar';
+    mockWordSyncState.wordFrequency = {
+      'يكتب': {
+        reading: 'yaktub',
+        raw_level: 5,
+        level: 'A1',
+      },
+    };
+    mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+
+    // The batched projections intentionally omit this surface's projection:
+    // admission must still treat the unmeasured word as a candidate.
+    expect(container.textContent).toContain('يكتب');
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+    dispose();
+  });
+
   it('keeps a weak canonical target eligible without a recency gate', async () => {
     mockWordSyncState.settings.language = 'ar';
     mockWordSyncState.wordFrequency = {
@@ -1806,6 +1888,6 @@ vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { useKnowledgeProjection } = await import('../../hooks/useKnowledgeProjection');
   return { useKnowledgeProjections: (query: () => { language: string; surfaces: string[] } | undefined) => {
     const knowledge = useKnowledgeProjection(() => undefined);
-    return { ready: () => mockWordSyncState.collectionReady(), loading: () => !mockWordSyncState.collectionReady(), projections: () => new Map((query()?.surfaces ?? []).map(word => [word, mockWordSyncState.projectionByWord.get(word) ?? knowledge.projection()])) };
+    return { ready: () => mockWordSyncState.collectionReady(), loading: () => !mockWordSyncState.collectionReady(), projections: () => new Map((query()?.surfaces ?? []).filter(word => !absentProjectionWords.has(word)).map(word => [word, mockWordSyncState.projectionByWord.get(word) ?? knowledge.projection()])) };
   } };
 });

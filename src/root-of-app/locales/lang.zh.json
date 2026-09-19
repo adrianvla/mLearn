@@ -1707,7 +1707,25 @@
           "Unknown": "尚未掌握",
           "Unmeasured": "未测量"
         },
-        "SeenOnly": "见过 {count} 次"
+        "SeenOnly": "见过 {count} 次",
+        "Practise": "练习",
+        "SessionPrompt": "你对“{pattern}”掌握得如何？",
+        "SessionDone": "本轮完成 — 共复习了 {count} 个句型。",
+        "SessionSkip": "跳过",
+        "Contrast": "对比",
+        "ContrastPrompt": "选择适合空格的句式：",
+        "Correct": "正确！",
+        "Incorrect": "不完全对 — 答案是：{answer}",
+        "Next": "下一个",
+        "ModeLabel": "作答方式",
+        "ModeMcq": "选择",
+        "ModeType": "输入",
+        "TypePlaceholder": "输入缺失的形式",
+        "Check": "检查",
+        "Validate": "验证题目",
+        "Validating": "验证中…",
+        "ValidateDone": "已验证 {passed} · 已拒绝 {rejected} · 无变化 {unchanged}",
+        "ValidateFailed": "无法执行验证：{errors}"
       },
       "PopulationStats": {
         "Title": "闪卡填充",
@@ -1752,6 +1770,96 @@
         "Adding": "添加中...",
         "LoadMore": "加载更多",
         "Error": "添加失败"
+      },
+      "Placement": {
+        "Title": "回归学习者",
+        "Description": "可选：将旧的考试或学校成绩记录为背景，或让少量未测单词的抽样建议一个起始等级。不会据此断言任何已知，且全部可跳过。",
+        "BackgroundTitle": "你的背景",
+        "BackgroundEmpty": "尚无过往成绩记录。",
+        "AddRecord": "添加过往成绩",
+        "KindLabel": "成绩类型",
+        "Kind": {
+          "exam": "考试",
+          "school": "学校课程",
+          "self-assessment": "自评"
+        },
+        "LabelPlaceholder": "例如：歌德B2证书、高二德语",
+        "LevelPlaceholder": "其自身量表的等级（如 B2）",
+        "DateLabel": "取得时间",
+        "NotePlaceholder": "可选备注",
+        "SkillsPlaceholder": "涵盖的技能（逗号分隔，如阅读、听力）",
+        "ResultLabel": "结果名称",
+        "LevelLabel": "结果自身量表的等级",
+        "NoteLabel": "可选备注",
+        "SkillsLabel": "结果涵盖的技能",
+        "ScoreOverallLabel": "总分（按原样）",
+        "ScoreOverallPlaceholder": "例如 72/100",
+        "ScoreSkillLabel": "{skill}得分（按原样）",
+        "ScoreSkillPlaceholder": "例如 18/30",
+        "SuppliedScore": "已提供的分数：{score}",
+        "SaveRecord": "保存",
+        "RemoveRecord": "删除此记录",
+        "Start": "检测我的等级",
+        "Prompt": "你有多认识“{word}”？",
+        "Skip": "跳过",
+        "Placement": "建议等级：{level}",
+        "PlacementLowest": "抽样建议从最低等级开始。",
+        "MoveAhead": "这高于你当前设置的等级——可以向前推进。",
+        "TraceRow": "{label}：抽样 {sampled} · 流利 {hits} · 不会 {misses} · 跳过 {skipped}",
+        "EvidenceNote": "仅测量了抽样的 {count} 个词——其余单词保持未测。",
+        "CleanLatency": "任务响应中位数（{range} 字符）：{ms} 毫秒（已排除不可用的尝试）",
+        "UseLevel": "使用此等级",
+        "Dismiss": "关闭",
+        "EmptyPools": "当前没有可供抽样的未测单词。",
+        "DateRequired": "考试或学校成绩需要填写取得日期。",
+        "DateUnknown": "日期未知",
+        "NoLocks": "此处置位不可用：此会话没有跨窗口锁。",
+        "NoStorage": "此处无法使用定级：会话无法保存（存储已满或隐私模式）。"
+      },
+      "Mock": {
+        "Title": "检查点与模拟测试",
+        "Subtitle": "由已安装的语言包导出的固定声明式蓝图。结果显示出处 — 绝非官方分数。",
+        "ProviderChip": "mlearn派生",
+        "Start": "开始",
+        "BlueprintMeta": "{sections} 个部分 · {draw} 题 · 每题 {seconds} 秒 · 闭卷",
+        "FreshFirst": "优先使用未见过的题目家族",
+        "Progress": "第 {index}/{total} 题",
+        "TimeLeft": "剩余 {seconds} 秒",
+        "PausedNote": "已暂停 — 计时停止；暂停会被记录。",
+        "Pause": "暂停",
+        "Resume": "继续",
+        "Abandon": "放弃",
+        "PausePolicy": "暂停会被记录并从计时中排除；超时的题目保持未答。",
+        "NoItems": "该级别尚无可用的题目 — 请先在语法部分运行独立验证。",
+        "NoBlueprints": "该语言包还没有声明的蓝图。",
+        "ResultsTitle": "结果 — {level}",
+        "Abandoned": "已放弃",
+        "Answered": "已答：{count}",
+        "Correct": "正确：{count}",
+        "TimedOut": "未答（超时）：{count}",
+        "HeldOut": "未见家族：{count}",
+        "RehearsedBackfill": "练习补足：{count}",
+        "BlueprintVersion": "蓝图 {version}",
+        "ContentVersion": "语言包 {version}",
+        "Seed": "种子 {seed}",
+        "ActiveTime": "有效用时 {seconds} 秒",
+        "PausedTime": "暂停 {seconds} 秒 · {count} 次",
+        "SectionCol": "部分",
+        "DrawCol": "声明题量",
+        "AnsweredCol": "已答",
+        "CorrectCol": "正确",
+        "TimedOutCol": "超时",
+        "Assembled": "已组成 {assembled}/{requested}",
+        "Constructions": "句式",
+        "AvailabilityGap": "部分部分无法组成声明的题量 — 缺口如实报告，绝不替补。",
+        "MissedPatterns": "答错的句式",
+        "NoMissed": "已答题目中没有错误。",
+        "Repair": "练习这些（同一策略流程）",
+        "Discuss": "在会话中聊聊这些",
+        "ResultsDisclaimer": "一次正确选择只是一次成功的尝试，不代表完全掌握。结果仅用于诊断，绝非官方分数。",
+        "BackToBlueprints": "返回蓝图列表",
+        "Summaries": "最近的结果",
+        "SummaryCounts": "{correct}/{answered} 正确 · {timedOut} 未答"
       }
     },
     "Languages": {
@@ -2133,6 +2241,7 @@
         }
       },
       "Groups": {
+        "LearningGoal": "学习目标与强度",
         "Appearance": "外观",
         "ReadingAppearance": "读音显示",
         "BlurEffect": "模糊效果",
@@ -2207,6 +2316,28 @@
         }
       },
       "Behaviour": {
+        "SessionIntensity": {
+          "Label": "学习强度",
+          "Description": "决定练习推荐的内容——轻松档侧重已掌握内容的巩固，强化档减少填充。不会影响你的评分或记录。",
+          "Gentle": "轻松",
+          "Steady": "标准",
+          "Intensive": "强化"
+        },
+        "ExamGoal": {
+          "Label": "考试目标",
+          "Description": "设定个人考试目标；临近截止日期时，推荐会向巩固与修补倾斜。",
+          "None": "无",
+          "Exam": "考试",
+          "Target": {
+            "Label": "目标",
+            "Description": "备考目标（仅作记录）",
+            "Placeholder": "例如 JLPT N1、Goethe B1"
+          },
+          "Deadline": {
+            "Label": "考试日期",
+            "Description": "最后六周内，推荐会最看重巩固。"
+          }
+        },
         "RatingKeyboardMode": {
           "Label": "评分键盘模式",
           "Mnemonic": "助记（1+M）",
@@ -2360,26 +2491,10 @@
             "Label": "启用 LLM 解释"
           },
           "PassiveWordTracking": {
-            "Description": "自动从阅读和悬停中追踪单词熟悉度。悬停持续{delay}毫秒后计为一次。计满{count}次后，该单词将被标记为失败并出现在困难单词列表和 AI 导师复习中。",
-            "Action": {
-              "Description": "单词进入失败状态后每次计次悬停时的操作",
-              "Label": "失败单词操作",
-              "Options": {
-                "DecreaseEase": "降低难度系数",
-                "None": "不执行操作"
-              }
-            },
-            "EaseDecrease": {
-              "Description": "当失败单词操作设为降低难度系数时每次减少的量",
-              "Label": "难度系数降低量"
-            },
-            "FailCount": {
-              "Description": "将此媒体的单词标记为失败所需的计次悬停次数",
-              "Label": "标记失败的悬停次数"
-            },
+            "Description": "自动从阅读和悬停中追踪单词熟悉度。悬停持续{delay}毫秒后计为一次。",
             "HoverDelay": {
-              "Description": "悬停持续多久才计为一次失败单词尝试",
-              "Label": "计次悬停延迟"
+              "Description": "悬停持续多久才计为一次熟悉度接触",
+              "Label": "悬停延迟"
             },
             "Label": "被动单词追踪"
           },

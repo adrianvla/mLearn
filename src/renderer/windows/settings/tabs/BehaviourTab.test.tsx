@@ -31,6 +31,8 @@ const testSettings = {
   passiveEaseEnabled: false,
   manualStatusEaseBuffer: 0.2,
   openAside: true,
+  sessionIntensity: 'steady' as 'gentle' | 'steady' | 'intensive',
+  examGoal: { kind: 'none' } as { kind: 'none' | 'exam'; deadline?: string; target?: string; language?: string },
 };
 
 let testLanguageData: LanguageData = {
@@ -247,6 +249,105 @@ describe('BehaviourTab', () => {
     expect(container.querySelector('[data-setting-key="autoSuggestUnknownWords"]')).not.toBeNull();
     expect(container.querySelector('[data-setting-key="ankiLearningThreshold"]')).not.toBeNull();
     expect(container.querySelector('[data-setting-key="ankiKnownThreshold"]')).not.toBeNull();
+    dispose();
+  });
+
+  it('clears an exam goal and its fields explicitly, preserving the sibling field', async () => {
+    const { BehaviourTab } = await import('./BehaviourTab');
+
+    // exam → none clears the whole goal object.
+    testSettings.sessionIntensity = 'steady';
+    testSettings.examGoal = { kind: 'exam', deadline: '2026-10-01', target: 'JLPT N1' };
+    let dispose = render(() => <BehaviourTab />, container);
+    const goalSelect = Array.from(container.querySelectorAll('select'))[1]!;
+    expect(goalSelect.value).toBe('exam');
+    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(1);
+
+    goalSelect.value = 'none';
+    goalSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'none' } });
+    dispose();
+    updateSettingsMock.mockReset();
+
+    // Emptying the target drops target and keeps the deadline. A goal
+    // recorded before scoping gets the active language stamped on edit.
+    testSettings.examGoal = { kind: 'exam', deadline: '2026-10-01', target: 'JLPT N1' };
+    dispose = render(() => <BehaviourTab />, container);
+    const targetInput = container.querySelector('input[type="text"]') as HTMLInputElement;
+    expect(targetInput.value).toBe('JLPT N1');
+    targetInput.value = '';
+    targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', deadline: '2026-10-01', language: 'xx' } });
+    dispose();
+    updateSettingsMock.mockReset();
+
+    // Emptying the date drops deadline and keeps the target.
+    dispose = render(() => <BehaviourTab />, container);
+    const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
+    expect(dateInput.value).toBe('2026-10-01');
+    dateInput.value = '';
+    dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', target: 'JLPT N1', language: 'xx' } });
+    dispose();
+    updateSettingsMock.mockReset();
+
+    // Non-empty edits set the field.
+    dispose = render(() => <BehaviourTab />, container);
+    const editableTarget = container.querySelector('input[type="text"]') as HTMLInputElement;
+    editableTarget.value = 'Goethe B1';
+    editableTarget.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', deadline: '2026-10-01', target: 'Goethe B1', language: 'xx' } });
+    dispose();
+  });
+
+  it('stamps a fresh exam goal with the active learning language and keeps an existing stamp', async () => {
+    const { BehaviourTab } = await import('./BehaviourTab');
+
+    // Fresh goal: the active learning language is the stamp.
+    testSettings.sessionIntensity = 'steady';
+    testSettings.examGoal = { kind: 'none' };
+    let dispose = render(() => <BehaviourTab />, container);
+    const goalSelect = Array.from(container.querySelectorAll('select'))[1]!;
+    goalSelect.value = 'exam';
+    goalSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', language: 'xx' } });
+    dispose();
+    updateSettingsMock.mockReset();
+
+    // An already-scoped goal keeps its stamp on re-selection.
+    testSettings.examGoal = { kind: 'exam', deadline: '2026-10-01', language: 'ja' };
+    dispose = render(() => <BehaviourTab />, container);
+    const scopedSelect = Array.from(container.querySelectorAll('select'))[1]!;
+    scopedSelect.value = 'exam';
+    scopedSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', deadline: '2026-10-01', language: 'ja' } });
+    dispose();
+    updateSettingsMock.mockReset();
+
+    // Field edits never re-scope an existing stamp.
+    dispose = render(() => <BehaviourTab />, container);
+    const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
+    dateInput.value = '2026-11-15';
+    dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', deadline: '2026-11-15', language: 'ja' } });
+    dispose();
+  });
+
+  it('preselects the session intensity select from settings', async () => {
+    testSettings.sessionIntensity = 'gentle';
+    testSettings.examGoal = { kind: 'none' };
+    const { BehaviourTab } = await import('./BehaviourTab');
+    const dispose = render(() => <BehaviourTab />, container);
+
+    const selects = Array.from(container.querySelectorAll('select'));
+    expect(selects[0]!.value).toBe('gentle');
+    expect(selects[1]!.value).toBe('none');
+    // No exam goal → no target/deadline fields.
+    expect(container.querySelector('input[type="date"]')).toBeNull();
+
+    selects[0]!.value = 'intensive';
+    selects[0]!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(updateSettingsMock).toHaveBeenCalledWith({ sessionIntensity: 'intensive' });
     dispose();
   });
 });

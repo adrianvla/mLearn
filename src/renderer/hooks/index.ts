@@ -31,3 +31,7 @@ export { useWatchTogether } from './useWatchTogether';
 
 export { createVirtualizer } from './useVirtualizer';
 export type { VirtualItem, VirtualizerOptions, Virtualizer, VirtualizerScrollOptions } from './useVirtualizer';
+
+// Policy (R20 encounter decision pin)
+export { useDecisionPin } from './useDecisionPin';
+export type { DecisionPin } from './useDecisionPin';

@@ -7,6 +7,8 @@ import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, cre
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { selectNextEncounter } from '../../learning/engine';
+import { policyContextFromSettings } from '../../learning/policyContext';
+import { useDecisionPin } from '../../hooks/useDecisionPin';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import { Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
@@ -61,7 +63,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     updateFlashcardContent,
     updateFlashcard,
     recordAttempt,
+    queue,
   } = useFlashcards();
+
+  // One pinned decision per encounter (see useDecisionPin): unrelated
+  // reactive updates re-run the selection memo, and the pin re-serves the
+  // SAME decision instead of re-drawing with a fresh unseeded rng draw.
+  // Explicit review actions below call advance() to re-select.
+  const decisionPin = useDecisionPin();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
   // Retrieval-time audio scaffold: whether the spoken form was available
@@ -123,10 +132,36 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const fallback = getCurrentCard();
     if (!fallback) return null;
     const language = languageForCard(fallback);
-    return selectNextEncounter({
-      preset: 'RETENTION',
-      nowMs: Date.now(),
-      reviewQueueEntries: [{
+    // The policy arbitrates within the scheduler's OWN visible workload for
+    // today (the queue — respecting daily caps and same-day scheduling), not
+    // just its first card (R07/R08): goal/deadline weighting and intensity
+    // momentum can only change allocation when there is more than one
+    // candidate. Queued-new cards carry their state so the source scores them
+    // as exploration (novelty), never as fabricated overdue repair.
+    const nowMs = Date.now();
+    const reviewQueueEntries = [...queue().newQueue, ...queue().scheduledQueue]
+      .map((id) => store.flashcards[id])
+      .filter((card): card is Flashcard => !!card && !card.suspended && !card.buried
+        && (card.language || settings.language) === language)
+      .map((card) => ({
+        id: card.id,
+        word: card.content.front,
+        language: languageForCard(card),
+        targets: [{ entityId: `${language}:surface:${card.content.front}`, capability: 'surface-recognition' as const }],
+        dueDate: card.dueDate,
+        interval: card.interval,
+        suspended: card.suspended,
+        buried: card.buried,
+        state: card.state,
+        // Queue membership IS the scheduler's same-day admission.
+        scheduledForToday: true,
+        // Scheduler-replayed journal state feeding the momentum producer (R08).
+        lastReviewed: card.lastReviewed,
+        ease: card.ease,
+        reviews: card.reviews,
+      }));
+    if (!reviewQueueEntries.some((entry) => entry.id === fallback.id)) {
+      reviewQueueEntries.push({
         id: fallback.id,
         word: fallback.content.front,
         language,
@@ -135,8 +170,24 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         interval: fallback.interval,
         suspended: fallback.suspended,
         buried: fallback.buried,
-      }],
-    });
+        state: fallback.state,
+        scheduledForToday: true,
+        lastReviewed: fallback.lastReviewed,
+        ease: fallback.ease,
+        reviews: fallback.reviews,
+      });
+    }
+    // Pinned for the active encounter (R20 repair): this memo re-runs on
+    // every unrelated queue/store/settings update, and the unseeded weighted
+    // draw would silently replace the displayed card. The pin re-serves the
+    // same decision until an explicit review action advances the epoch.
+    return decisionPin.pin(fallback.id, () => selectNextEncounter({
+      preset: 'RETENTION',
+      nowMs,
+      // The goal applies only to the queue's own learning language (R07).
+      context: policyContextFromSettings(settings, language),
+      reviewQueueEntries,
+    }));
   });
 
   const currentCard = createMemo(() => {
@@ -243,6 +294,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       });
       if (completed) setCardsAnswered((previous) => previous + 1);
     });
+    // The answer changed the pool: end the encounter so the next read
+    // re-selects instead of replaying the just-rated pick through the pin.
+    decisionPin.advance();
   };
 
   // Counts
@@ -327,6 +381,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }
   ));
 
+  // A new displayed card starts face-down (R20 repair): the reveal belongs
+  // to one encounter, so an action that moves the displayed card must not
+  // leak a revealed answer onto the next one. `on` fires only when the id
+  // actually changes, so a pinned same-id re-run never flips the reveal.
+  createEffect(on(
+    () => currentCard()?.id,
+    () => {
+      setShowAnswer(false);
+    }
+  ));
+
   // Auto-TTS: play word when a new card appears — the spoken form was
   // available during retrieval, so it is a prompt scaffold.
   createEffect(on(
@@ -360,6 +425,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       setCardsAnswered(prev => Math.max(0, prev - 1));
     }
     setShowAnswer(false);
+    // The undo restored prior pool state: re-select afresh (R20 pin repair).
+    decisionPin.advance();
   };
 
   const handleBury = () => {
@@ -370,6 +437,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       setShowAnswer(false);
       buryCard(card.id);
     });
+    // The bury changed the pool: re-select afresh (R20 pin repair).
+    decisionPin.advance();
   };
 
   const handleRemove = async () => {
@@ -378,6 +447,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     stopTiming();
     setShowAnswer(false);
     await removeFlashcard(card.id, true);
+    // The removal changed the pool: re-select afresh (R20 pin repair).
+    decisionPin.advance();
   };
 
   const handleFlip = () => {

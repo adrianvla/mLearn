@@ -1,4 +1,5 @@
 import { getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, isFrequencyLevelAtOrEasierThanTarget, sortFrequencyLevelsByDifficulty } from '../../shared/languageFeatures';
+import { MEDIA_MIN_ENCOUNTERS } from '../learning/candidateSources';
 import { DEFAULT_SETTINGS, type LanguageData } from '../../shared/types';
 import { isWordInLanguageScript } from '../../shared/utils/textUtils';
 import { hashWordSync } from '../services/srsAlgorithm';
@@ -19,6 +20,14 @@ export interface SuggestedFlashcardInput {
   pos?: string;
   level?: number | null;
   language: string;
+  /**
+   * Recorded passive exposures of this word in the learner's CURRENT
+   * content (R21). A recurring current-media term stays suggestible even
+   * when it sits outside the target frequency level — the media, not the
+   * exam list, is demanding it. Coverage heuristic only, never knowledge;
+   * below MEDIA_MIN_ENCOUNTERS it is a one-off and gains no exception.
+   */
+  mediaRecurrence?: number;
 }
 
 export type ComprehensiveWordStatus = 'known' | 'learning' | 'unknown' | null;
@@ -106,17 +115,23 @@ export function shouldKeepSuggestion(
   );
   const effectiveUserLevel = userLevel === undefined ? settingsLevel : userLevel;
   if (effectiveUserLevel != null) {
-    if (input.level == null || !isDisplayableFrequencyLevel(input.level, undefined, languageData)) {
-      // Off-list/beyond-exam words are kept only when the target is the hardest
-      // displayable level — there, off-list vocabulary is the learner's frontier.
-      const displayable = sortFrequencyLevelsByDifficulty(
-        Object.keys(languageData?.frequencyLevels?.names ?? {}).map(Number),
-        languageData,
-      );
-      if (effectiveUserLevel !== displayable.at(-1)) return false;
-    } else if (!isFrequencyLevelAtOrEasierThanTarget(input.level, effectiveUserLevel, languageData)) {
-      return false;
-    }
+    const levelAdmits = (() => {
+      if (input.level == null || !isDisplayableFrequencyLevel(input.level, undefined, languageData)) {
+        // Off-list/beyond-exam words are kept only when the target is the hardest
+        // displayable level — there, off-list vocabulary is the learner's frontier.
+        const displayable = sortFrequencyLevelsByDifficulty(
+          Object.keys(languageData?.frequencyLevels?.names ?? {}).map(Number),
+          languageData,
+        );
+        return effectiveUserLevel === displayable.at(-1);
+      }
+      return isFrequencyLevelAtOrEasierThanTarget(input.level, effectiveUserLevel, languageData);
+    })();
+    // Current-media recurrence exception (R21): the SAME one-off threshold
+    // as the policy's media-fit source; diminishing returns stay in the
+    // policy's saturating media-relevance score, not here. Dictionary,
+    // script, known and exclusion checks above are never bypassed.
+    if (!levelAdmits && (input.mediaRecurrence ?? 0) < MEDIA_MIN_ENCOUNTERS) return false;
   }
 
   for (const candidate of getDictionaryCandidateWords(input.word, dictionaryOptions)) {
@@ -170,6 +185,10 @@ export async function filterSuggestedWords(
   settings: SuggestedFlashcardFilterSettings,
   languageData?: LanguageData | null,
   wordFormOptions: SuggestedFlashcardWordFormOptions = {},
+  filterOptions: {
+    /** Recorded passive exposures per word in the learner's CURRENT content (R21). */
+    mediaRecurrence?: ReadonlyMap<string, number>;
+  } = {},
 ): Promise<Set<string>> {
   if (!(settings.autoSuggestFlashcards ?? DEFAULT_SETTINGS.autoSuggestFlashcards)) {
     return new Set<string>();
@@ -185,7 +204,7 @@ export async function filterSuggestedWords(
 
   const eligible = allowedWords.filter((word) =>
     shouldKeepSuggestion(
-      { word, language },
+      { word, language, mediaRecurrence: filterOptions.mediaRecurrence?.get(word) },
       settings,
       new Set<string>(),
       null,
@@ -199,4 +218,78 @@ export async function filterSuggestedWords(
     nowMs: 0,
     mediaItems: eligible.map((word) => ({ key: `${language}:${word}`, word, language })),
   }).map((decision) => decision.candidate.word!));
+}
+
+/**
+ * Component-held state across subtitle runs of the current-content capture
+ * producer (R21). Owned by the media route; consumed by
+ * `planSubtitleCapture`/`recordCaptureAttempt`.
+ */
+export interface SubtitleCaptureState {
+  /** Words already accumulated into the sidebar (first-sighting dedupe). */
+  seenWords: Set<string>;
+  /** Words whose async filter/persistence attempt has started but not finished. */
+  inFlight: Set<string>;
+  /**
+   * Per completed attempt: the current-content recurrence a rejection
+   * consumed, or positive infinity after a successful capture. A word with
+   * no completed attempt remains retryable after temporary unavailability.
+   */
+  attemptedRecurrence: Map<string, number>;
+}
+
+/**
+ * Plans one subtitle run's suggestion capture (R21 producer lifecycle).
+ *
+ * A FIRST sighting is always fresh: it accumulates into the sidebar and
+ * attempts capture. A word that was already seen retries while no attempt
+ * completed (capture disabled/failed), or when exposure grew past the last
+ * rejected attempt. Thus continuous playback can promote a recurring
+ * off-list term while a completed one-off rejection is not re-filtered on
+ * every subtitle and a captured word is never re-attempted. Pure over its
+ * inputs; the route owns the mutable state across runs.
+ */
+export function planSubtitleCapture<T extends { word: string }>(
+  gated: readonly T[],
+  state: SubtitleCaptureState,
+  currentRecurrence: ReadonlyMap<string, number>,
+): { fresh: T[]; retry: T[] } {
+  const fresh: T[] = [];
+  const retry: T[] = [];
+  const plannedWords = new Set<string>();
+  for (const entry of gated) {
+    if (plannedWords.has(entry.word)) continue;
+    plannedWords.add(entry.word);
+    if (!state.seenWords.has(entry.word)) {
+      state.seenWords.add(entry.word);
+      fresh.push(entry);
+      continue;
+    }
+    if (state.inFlight.has(entry.word)) continue;
+    const attempted = state.attemptedRecurrence.get(entry.word);
+    if (attempted === undefined || (currentRecurrence.get(entry.word) ?? 0) > attempted) {
+      retry.push(entry);
+    }
+  }
+  return { fresh, retry };
+}
+
+/**
+ * Records a completed capture attempt's outcome (R21): a rejected word stores
+ * the recurrence it consumed so a later growth retries; a captured word gets
+ * a terminal marker. Unavailable or failed attempts are deliberately not
+ * recorded and therefore remain retryable.
+ */
+export function recordCaptureAttempt(
+  state: SubtitleCaptureState,
+  word: string,
+  captured: boolean,
+  currentRecurrence: number,
+): void {
+  state.inFlight.delete(word);
+  if (captured) {
+    state.attemptedRecurrence.set(word, Number.POSITIVE_INFINITY);
+    return;
+  }
+  state.attemptedRecurrence.set(word, currentRecurrence);
 }

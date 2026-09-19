@@ -28,7 +28,7 @@
   },
   "fixed_settings": {},
   "languageData": {
-    "version": "ja-package-2026.07.20",
+    "version": "ja-package-2026.09.19-r2",
     "sourceVersions": {
       "dictionary": "jitendex-2024.10.07.0",
       "pitchAccent": "pitch1"
@@ -428,7 +428,71 @@
     {
       "pattern": "のに",
       "meaning": "although / in spite of",
-      "level": 4
+      "level": 4,
+      "contrasts": [
+        "ので",
+        "から"
+      ],
+      "items": [
+        {
+          "id": "ja-noni-11ji-1",
+          "context": "三時間も勉強したのに、テストは全然できませんでした。",
+          "answerSpan": "のに",
+          "conditions": [
+            "contrary-to-expectation"
+          ],
+          "distractors": [
+            {
+              "span": "から",
+              "violates": [
+                "contrary-to-expectation"
+              ],
+              "rationale": "から gives a causal reading: \"because I studied for three hours, I failed the test\" cannot explain the outcome — 全然できなかった marks the result as the opposite of what the effort implies, so the sentence needs a contrary-to-expectation concession, not a cause."
+            },
+            {
+              "span": "ので",
+              "violates": [
+                "contrary-to-expectation"
+              ],
+              "rationale": "ので gives a soft causal reading that fails for the same reason: the outcome (could not do it at all) contradicts rather than follows from the stated cause."
+            }
+          ],
+          "register": "plain polite speech; an outcome that contradicts the effort stated in the first clause",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        },
+        {
+          "id": "ja-noni-neru-2",
+          "context": "昨日はよく寝たのに、今日は全然集中できません。",
+          "answerSpan": "のに",
+          "conditions": [
+            "contrary-to-expectation"
+          ],
+          "distractors": [
+            {
+              "span": "から",
+              "violates": [
+                "contrary-to-expectation"
+              ],
+              "rationale": "から states a reason the result should follow from; \"because I slept well I cannot concentrate at all\" contradicts the outcome — sleeping well supports concentration, it does not oppose it."
+            },
+            {
+              "span": "ので",
+              "violates": [
+                "contrary-to-expectation"
+              ],
+              "rationale": "ので gives the same soft causal reading that the outcome contradicts; the sentence marks a concession contrary to expectation, not a cause."
+            }
+          ],
+          "register": "plain polite speech; today's state is the opposite of what yesterday's rest implies",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        }
+      ]
     },
     {
       "pattern": "ので",

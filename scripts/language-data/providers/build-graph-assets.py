@@ -233,6 +233,17 @@ def add_grammar_from_metadata(graph: Graph) -> None:
             value = point.get(field)
             if isinstance(value, str) and value.strip():
                 construction[field] = normalized(value)
+        # Package-declared localized meaning variants (canonical string stays
+        # in "meaning"); forwarded so display localization survives packaging.
+        meanings = point.get("meanings")
+        if isinstance(meanings, dict) and meanings:
+            localized = {
+                str(key): normalized(value)
+                for key, value in meanings.items()
+                if isinstance(key, str) and key.strip() and isinstance(value, str) and value.strip()
+            }
+            if localized:
+                construction["meanings"] = localized
         for field in ("attachments", "constraints", "variants", "contrasts", "related"):
             value = point.get(field)
             if isinstance(value, list) and all(isinstance(item, str) for item in value):

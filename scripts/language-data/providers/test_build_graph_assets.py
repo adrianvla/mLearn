@@ -49,6 +49,33 @@ def _payload(value: dict[str, Any]) -> bytes:
 
 
 class BuildGraphAssetsTest(unittest.TestCase):
+    def test_grammar_meanings_localized_variants_survive_packaging(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "root-of-app"
+            languages = root / "languages"
+            languages.mkdir(parents=True)
+            (languages / "de.json").write_text(json.dumps({
+                "meaningLanguage": "en",
+                "grammar": [
+                    {"pattern": "weil", "meaning": "causal subordinator", "meanings": {"de": "kausaler Nebensatz"}, "level": 3},
+                    {"pattern": "um … zu", "meaning": "purpose infinitive", "level": 2},
+                    {"pattern": "je … desto", "meaning": "proportional", "meanings": {"de": 7, "": "x"}, "level": 4},
+                ],
+            }), encoding="utf-8")
+            builder = _load_builder(root)
+            graph = builder.Graph("de", {"provider": "test"})
+            builder.add_grammar_from_metadata(graph)
+
+            constructions = {entity["id"]: entity["grammar"] for entity in graph.entities.values() if entity["kind"] == "grammar-pattern"}
+            weil = constructions["de:grammar:weil"]
+            self.assertEqual(weil["meaning"], "causal subordinator")
+            self.assertEqual(weil["meanings"], {"de": "kausaler Nebensatz"})
+            # No localized variants declared → field absent, canonical intact.
+            self.assertNotIn("meanings", constructions["de:grammar:um … zu"])
+            # Non-string/empty variant entries are dropped, canonical kept.
+            self.assertNotIn("meanings", constructions["de:grammar:je … desto"])
+            self.assertEqual(constructions["de:grammar:je … desto"]["meaning"], "proportional")
+
     def test_glossary_extraction_excludes_grammar_forms_notes_and_examples(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             builder = _load_builder(Path(temp_dir))

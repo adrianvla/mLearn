@@ -32,10 +32,10 @@ const mockSpawn = vi.fn();
 const mockExec = vi.fn();
 const mockExecSync = vi.fn(() => '');
 const mockPlatformPaths = vi.hoisted(() => ({
-  resourcePath: '/tmp/test-resources',
-  appPath: '/tmp/test-resources',
-  pythonExecutablePath: '/tmp/test-resources/env/bin/python3',
-  pipExecutablePath: '/tmp/test-resources/env/bin/pip',
+  resourcePath: '/tmp/mlearn-python-backend-resources',
+  appPath: '/tmp/mlearn-python-backend-resources',
+  pythonExecutablePath: '/tmp/mlearn-python-backend-resources/env/bin/python3',
+  pipExecutablePath: '/tmp/mlearn-python-backend-resources/env/bin/pip',
 }));
 
 vi.mock('child_process', () => ({
@@ -53,7 +53,7 @@ vi.mock('tar', () => ({
 vi.mock('../utils/platform', () => ({
   getResourcePath: vi.fn(() => mockPlatformPaths.resourcePath),
   getAppPath: vi.fn(() => mockPlatformPaths.appPath),
-  getUserDataPath: vi.fn(() => '/tmp/test-userdata'),
+  getUserDataPath: vi.fn(() => '/tmp/mlearn-python-backend-test'),
   getPythonExecutablePath: vi.fn(() => mockPlatformPaths.pythonExecutablePath),
   getPipExecutablePath: vi.fn(() => mockPlatformPaths.pipExecutablePath),
   getRuntimeTarget: vi.fn(() => 'darwin-arm64'),
@@ -94,7 +94,7 @@ vi.mock('./settings', () => ({
   loadLangData: vi.fn(() => mockInstalledLanguageData),
 }));
 
-const mockGetLanguageDataRoot = vi.fn(() => '/tmp/test-userdata/language-data');
+const mockGetLanguageDataRoot = vi.fn(() => '/tmp/mlearn-python-backend-test/language-data');
 
 vi.mock('./languageDataService', () => ({
   getLanguageDataRoot: mockGetLanguageDataRoot,
@@ -237,7 +237,7 @@ describe('pythonBackend', () => {
     vi.resetModules();
 
     Object.defineProperty(process, 'resourcesPath', {
-      value: '/tmp/test-resources',
+      value: '/tmp/mlearn-python-backend-resources',
       writable: true,
       configurable: true,
     });
@@ -254,10 +254,10 @@ describe('pythonBackend', () => {
       ocrEnabled: true,
       catalogMirrorDomain: 'cdn.kikan.net',
     });
-    mockPlatformPaths.resourcePath = '/tmp/test-resources';
-    mockPlatformPaths.appPath = '/tmp/test-resources';
-    mockPlatformPaths.pythonExecutablePath = '/tmp/test-resources/env/bin/python3';
-    mockPlatformPaths.pipExecutablePath = '/tmp/test-resources/env/bin/pip';
+    mockPlatformPaths.resourcePath = '/tmp/mlearn-python-backend-resources';
+    mockPlatformPaths.appPath = '/tmp/mlearn-python-backend-resources';
+    mockPlatformPaths.pythonExecutablePath = '/tmp/mlearn-python-backend-resources/env/bin/python3';
+    mockPlatformPaths.pipExecutablePath = '/tmp/mlearn-python-backend-resources/env/bin/pip';
     mockInstalledLanguageData = {
       ja: {
         name: 'Japanese',
@@ -267,9 +267,9 @@ describe('pythonBackend', () => {
       },
     };
 
-    fs.rmSync('/tmp/test-userdata', { recursive: true, force: true });
-    fs.mkdirSync('/tmp/test-userdata', { recursive: true });
-    fs.writeFileSync('/tmp/test-userdata/python-version.txt', '1.0.0');
+    fs.rmSync('/tmp/mlearn-python-backend-test', { recursive: true, force: true });
+    fs.mkdirSync('/tmp/mlearn-python-backend-test', { recursive: true });
+    fs.writeFileSync('/tmp/mlearn-python-backend-test/python-version.txt', '1.0.0');
 
     // Default spawn mock: --version checks and pip installs complete (close 0),
     // all other processes stay alive (no close event). Tests that need a pip
@@ -740,7 +740,7 @@ describe('pythonBackend', () => {
 
       const backendSpawn = mockSpawn.mock.calls.find((call) => call[0] === '/bin/sh');
       expect(backendSpawn?.[1]).toEqual(expect.arrayContaining([
-        expect.stringContaining('/tmp/test-userdata/language-data'),
+        expect.stringContaining('/tmp/mlearn-python-backend-test/language-data'),
       ]));
       expect(backendSpawn?.[2]).toEqual(expect.objectContaining({
         env: expect.objectContaining({
@@ -934,10 +934,10 @@ describe('pythonBackend', () => {
     });
 
     it('reuses a healthy userData Python runtime on app update when settings already exist', async () => {
-      const envBin = path.join('/tmp/test-userdata', 'env', 'bin');
+      const envBin = path.join('/tmp/mlearn-python-backend-test', 'env', 'bin');
       fs.mkdirSync(envBin, { recursive: true });
       fs.writeFileSync(path.join(envBin, 'python3'), '');
-      fs.writeFileSync('/tmp/test-userdata/python-version.txt', '0.9.0', 'utf-8');
+      fs.writeFileSync('/tmp/mlearn-python-backend-test/python-version.txt', '0.9.0', 'utf-8');
       mockHasSettingsFile.mockReturnValue(true);
 
       const mockWebContents = { send: vi.fn() };
@@ -972,14 +972,14 @@ describe('pythonBackend', () => {
 
       expect(result).toBe(true);
       expect(mockWebContents.send).not.toHaveBeenCalledWith('installer-awaiting-choice');
-      expect(fs.readFileSync('/tmp/test-userdata/python-version.txt', 'utf-8')).toBe('1.0.0');
+      expect(fs.readFileSync('/tmp/mlearn-python-backend-test/python-version.txt', 'utf-8')).toBe('1.0.0');
     });
 
     it('keeps showing installer on app update when no settings profile exists', async () => {
-      const envBin = path.join('/tmp/test-userdata', 'env', 'bin');
+      const envBin = path.join('/tmp/mlearn-python-backend-test', 'env', 'bin');
       fs.mkdirSync(envBin, { recursive: true });
       fs.writeFileSync(path.join(envBin, 'python3'), '');
-      fs.writeFileSync('/tmp/test-userdata/python-version.txt', '0.9.0', 'utf-8');
+      fs.writeFileSync('/tmp/mlearn-python-backend-test/python-version.txt', '0.9.0', 'utf-8');
 
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
@@ -1300,7 +1300,7 @@ describe('pythonBackend', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
       await installPromise;
 
-      expect(verificationCommand).toBe('/tmp/test-userdata/env/bin/python3');
+      expect(verificationCommand).toBe('/tmp/mlearn-python-backend-test/env/bin/python3');
       expect(verificationCommand).not.toBe(repoPythonPath);
     });
 
@@ -2056,7 +2056,7 @@ describe('pythonBackend', () => {
       vi.doMock('../utils/platform', () => ({
         getResourcePath: vi.fn(() => mockPlatformPaths.resourcePath),
         getAppPath: vi.fn(() => mockPlatformPaths.appPath),
-        getUserDataPath: vi.fn(() => '/tmp/test-userdata'),
+        getUserDataPath: vi.fn(() => '/tmp/mlearn-python-backend-test'),
         getPythonExecutablePath: vi.fn(() => mockPlatformPaths.pythonExecutablePath),
         getPipExecutablePath: vi.fn(() => mockPlatformPaths.pipExecutablePath),
         getRuntimeTarget: vi.fn(() => (isWindows ? 'win32-x64' : 'darwin-arm64')),

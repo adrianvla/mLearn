@@ -77,6 +77,13 @@ function langKey(language: string, wordHash: string): string {
   return language + ':' + wordHash;
 }
 
+/** The canonical storage key a word's evidence is written under (writer-side
+ *  derivation: canonical form → hash → language-scoped key). Used to bound
+ *  projection requests to evidence-bearing surfaces only (F-N1 lead). */
+export function wordStorageKey(language: string, word: string, canonicalizeWord?: CanonicalizeWordForLanguage): string {
+  return wordKey(language, word, canonicalizeWord);
+}
+
 function wordKey(language: string, word: string, canonicalizeWord?: CanonicalizeWordForLanguage): string {
   const storageWord = canonicalizeWord ? canonicalizeWord(language, word) : word;
   return langKey(language, hashWordSync(storageWord));

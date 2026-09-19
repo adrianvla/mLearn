@@ -4,7 +4,7 @@ import path from 'path';
 vi.mock('electron', () => ({
   app: {
     isPackaged: false,
-    getPath: vi.fn(() => '/tmp/test-userdata'),
+    getPath: vi.fn(() => '/tmp/mlearn-platform-test'),
   },
 }));
 
@@ -16,7 +16,7 @@ describe('platform utils', () => {
     vi.doMock('electron', () => ({
       app: {
         isPackaged: false,
-        getPath: vi.fn(() => '/tmp/test-userdata'),
+        getPath: vi.fn(() => '/tmp/mlearn-platform-test'),
       },
     }));
     mod = await import('./platform');
@@ -61,7 +61,7 @@ describe('platform utils', () => {
       vi.doMock('electron', () => ({
         app: {
           isPackaged: true,
-          getPath: vi.fn(() => '/tmp/test-userdata'),
+          getPath: vi.fn(() => '/tmp/mlearn-platform-test'),
         },
       }));
       const packaged = await import('./platform');
@@ -80,7 +80,7 @@ describe('platform utils', () => {
       vi.doMock('electron', () => ({
         app: {
           isPackaged: true,
-          getPath: vi.fn(() => '/tmp/test-userdata'),
+          getPath: vi.fn(() => '/tmp/mlearn-platform-test'),
         },
       }));
       const originalResourcesPath = process.resourcesPath;
@@ -110,7 +110,7 @@ describe('platform utils', () => {
       vi.doMock('electron', () => ({
         app: {
           isPackaged: true,
-          getPath: vi.fn(() => '/tmp/test-userdata'),
+          getPath: vi.fn(() => '/tmp/mlearn-platform-test'),
         },
       }));
       Object.defineProperty(process, 'resourcesPath', {

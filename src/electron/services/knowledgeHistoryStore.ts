@@ -67,6 +67,19 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
     if (event.targetRef.capability !== undefined && !isValidCapabilityId(event.targetRef.capability)) return false;
   }
   if (event.taskType !== undefined && (typeof event.taskType !== 'string' || event.taskType.length === 0)) return false;
+  if (event.itemRef !== undefined) {
+    if (!event.itemRef || typeof event.itemRef !== 'object' || Array.isArray(event.itemRef)) return false;
+    if (typeof event.itemRef.id !== 'string' || event.itemRef.id.length === 0) return false;
+    if (typeof event.itemRef.version !== 'string') return false;
+    if (event.itemRef.seed !== undefined && (typeof event.itemRef.seed !== 'number' || !Number.isFinite(event.itemRef.seed))) return false;
+  }
+  if (event.validationRef !== undefined) {
+    if (!event.validationRef || typeof event.validationRef !== 'object' || Array.isArray(event.validationRef)) return false;
+    if (typeof event.validationRef.validator !== 'string' || event.validationRef.validator.length === 0) return false;
+    if (event.validationRef.validatorVersion !== undefined && typeof event.validationRef.validatorVersion !== 'string') return false;
+    if (typeof event.validationRef.at !== 'string' || event.validationRef.at.length === 0) return false;
+    if (typeof event.validationRef.contentHash !== 'string' || event.validationRef.contentHash.length === 0) return false;
+  }
   if (event.scaffolds !== undefined) {
     if (!event.scaffolds || typeof event.scaffolds !== 'object' || Array.isArray(event.scaffolds)) return false;
     for (const visible of Object.values(event.scaffolds)) {

@@ -1,0 +1,337 @@
+.mock-exam {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.mock-exam__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.mock-exam__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.mock-exam__subtitle {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.mock-exam__chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-intense);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+/* Session: fixed queue, no mid-session feedback. */
+
+.mock-exam__session {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-intense);
+}
+
+.mock-exam__step-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.mock-exam__progress {
+  min-width: 3.5rem;
+  font-weight: 600;
+}
+
+.mock-exam__section-name {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.mock-exam__family-note {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.mock-exam__step-timer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.mock-exam__step-timer--low .mock-exam__timer-label {
+  color: var(--color-danger);
+}
+
+.mock-exam__paused-note {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mock-exam__context {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.mock-exam__gap {
+  display: inline-block;
+  min-width: 3.5em;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-hover);
+  border-radius: 3px;
+}
+
+.mock-exam__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mock-exam__option {
+  border: 1px solid var(--border-color);
+  background: none;
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.mock-exam__option:hover:enabled {
+  background: var(--bg-hover);
+}
+
+.mock-exam__option:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.mock-exam__typed {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.mock-exam__typed-input {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  padding: 4px 10px;
+  font-size: 0.9rem;
+}
+
+.mock-exam__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mock-exam__control-btn {
+  border: 1px solid var(--border-color);
+  background: none;
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.mock-exam__control-btn:hover:enabled {
+  background: var(--bg-hover);
+}
+
+.mock-exam__control-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.mock-exam__control-btn--danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.mock-exam__policy-note {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+/* Results: provenance, not scores. */
+
+.mock-exam__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.mock-exam__results-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mock-exam__results-title {
+  font-weight: 600;
+}
+
+.mock-exam__abandoned {
+  color: var(--color-danger);
+  font-size: 0.78rem;
+}
+
+.mock-exam__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: 0.85rem;
+}
+
+.mock-exam__provenance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.mock-exam__sections {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.mock-exam__sections th,
+.mock-exam__sections td {
+  text-align: left;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mock-exam__gap-warning {
+  color: var(--color-danger);
+  font-size: 0.78rem;
+}
+
+.mock-exam__patterns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mock-exam__patterns-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.mock-exam__pattern-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: 0.85rem;
+}
+
+.mock-exam__pattern {
+  font-weight: 600;
+}
+
+.mock-exam__pattern-meaning {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mock-exam__no-missed {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.mock-exam__repair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: 4px;
+}
+
+.mock-exam__disclaimer {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+/* Idle: declared blueprints and bounded summaries. */
+
+.mock-exam__blueprints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--space-2);
+}
+
+.mock-exam__blueprint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.mock-exam__blueprint-level {
+  font-weight: 600;
+  min-width: 3.5rem;
+}
+
+.mock-exam__blueprint-meta {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mock-exam__empty {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mock-exam__summaries {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: var(--space-3);
+}
+
+.mock-exam__summaries-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.mock-exam__summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: baseline;
+  font-size: 0.8rem;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border-color);
+}

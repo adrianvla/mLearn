@@ -6,6 +6,7 @@
 import { Component, createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
+import type { Flashcard } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
@@ -34,6 +35,7 @@ import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, s
 import { fetchTranslation } from '../../../hooks/useTranslation';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { ankiCacheVersion, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
+import { policyContextFromSettings } from '../../../learning/policyContext';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../../shared/encounterTiming';
@@ -42,6 +44,7 @@ import AppLogo from "@renderer/components/common/Misc/AppLogo";
 import { getLogger } from '../../../../shared/utils/logger';
 import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
 import { selectNextEncounter } from '../../../learning/engine';
+import { useDecisionPin } from '../../../hooks/useDecisionPin';
 
 const log = getLogger("renderer.welcome");
 
@@ -217,24 +220,72 @@ export const WelcomeRoute: Component = () => {
   const videoItem = () => recentItems().find((item) => item.type === 'video') ?? null;
   const bookItem = () => recentItems().find((item) => item.type === 'book') ?? null;
 
+  // One pinned decision per encounter (see useDecisionPin): unrelated
+  // reactive updates re-run the selection memo, and the pin re-serves the
+  // SAME decision instead of re-drawing with a fresh unseeded rng draw.
+  const decisionPin = useDecisionPin();
+
   const currentCard = createMemo(() => {
     const fallback = flashcards.getCurrentCard();
     if (!fallback) return null;
     const language = fallback.language || settings.language;
-    const decision = selectNextEncounter({
-      preset: 'RETENTION',
-      nowMs: Date.now(),
-      reviewQueueEntries: [{
+    // The policy arbitrates within the scheduler's OWN visible workload for
+    // today (the queue — respecting daily caps and same-day scheduling), not
+    // just its first card (R07/R08). Queued-new cards carry their state so
+    // the source scores them as exploration (novelty), never as fabricated
+    // overdue repair.
+    const nowMs = Date.now();
+    const targetsFor = (word: string, cardLanguage: string) =>
+      [{ entityId: `${cardLanguage}:surface:${word}`, capability: 'surface-recognition' as const }];
+    const reviewQueueEntries = [...flashcards.queue().newQueue, ...flashcards.queue().scheduledQueue]
+      .map((id) => flashcards.store.flashcards[id])
+      .filter((card): card is Flashcard => !!card && !card.suspended && !card.buried
+        && (card.language || settings.language) === language)
+      .map((card) => ({
+        id: card.id,
+        word: card.content.front,
+        language: card.language || settings.language,
+        targets: targetsFor(card.content.front, card.language || settings.language),
+        dueDate: card.dueDate,
+        interval: card.interval,
+        suspended: card.suspended,
+        buried: card.buried,
+        state: card.state,
+        // Queue membership IS the scheduler's same-day admission.
+        scheduledForToday: true,
+        // Scheduler-replayed journal state feeding the momentum producer (R08).
+        lastReviewed: card.lastReviewed,
+        ease: card.ease,
+        reviews: card.reviews,
+      }));
+    if (!reviewQueueEntries.some((entry) => entry.id === fallback.id)) {
+      reviewQueueEntries.push({
         id: fallback.id,
         word: fallback.content.front,
         language,
-        targets: [{ entityId: `${language}:surface:${fallback.content.front}`, capability: 'surface-recognition' }],
+        targets: targetsFor(fallback.content.front, language),
         dueDate: fallback.dueDate,
         interval: fallback.interval,
         suspended: fallback.suspended,
         buried: fallback.buried,
-      }],
-    });
+        state: fallback.state,
+        scheduledForToday: true,
+        lastReviewed: fallback.lastReviewed,
+        ease: fallback.ease,
+        reviews: fallback.reviews,
+      });
+    }
+    // Pinned for the active encounter (R20 repair): this memo re-runs on
+    // every unrelated queue/store/settings update, and the unseeded weighted
+    // draw would silently replace the displayed card. The pin re-serves the
+    // same decision until an explicit review action advances the epoch.
+    const decision = decisionPin.pin(fallback.id, () => selectNextEncounter({
+      preset: 'RETENTION',
+      nowMs,
+      // The goal applies only to the queue's own learning language (R07).
+      context: policyContextFromSettings(settings, language),
+      reviewQueueEntries,
+    }));
     return decision?.action === 'DEFER'
       ? fallback
       : flashcards.store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
@@ -285,6 +336,9 @@ export const WelcomeRoute: Component = () => {
       tested: ['sense-recognition'],
       scaffolds: { reading: true },
     });
+    // The answer changed the pool: end the encounter so the next displayed
+    // card re-selects instead of replaying the just-rated pick (R20 repair).
+    decisionPin.advance();
   };
   const recentWordRows = createMemo(() =>
     selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),

@@ -30,7 +30,7 @@ import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskG
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
-import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
+import { getPassiveHoverDelayMs } from '../../shared/utils/passiveWordTracking';
 import { registerAnkiReviewSync, refreshAnkiWordsCache } from '../services/ankiWordsCache';
 import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { getWordFormCandidates } from '../utils/wordForms';
@@ -46,9 +46,10 @@ import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAsp
 import { appendEvents, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
 import { nextAttemptId, retentionConditionFor, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { reconcileQuestionItems, type DeclaredItemState } from '../learning/questionBank';
 import type { AttemptTiming } from '../../shared/encounterTiming';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
-import { selectEncounterBatch } from '../learning/engine';
+import { selectRankedEncounters } from '../learning/engine';
 import { getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../utils/translationCacheParsers';
@@ -171,6 +172,12 @@ export interface CaptureSuggestionParams {
   videoUrl?: string;
   source?: string;
   sourceMediaHash?: string;
+  /**
+   * Recorded passive exposures of this word in the learner's CURRENT content
+   * (R21). Lets a repeatedly-blocking off-list term through the suggestion
+   * level gate; stored on the suggestion so promotion keeps the same rule.
+   */
+  mediaRecurrence?: number;
 }
 
 export type LevelStudyTargetStatus = 'new' | 'learning' | 'known' | 'mastered';
@@ -337,8 +344,21 @@ interface FlashcardContextValue {
    * rating event on the capability-scoped grammar journal. Active measurement
    * — unlike encounter rollups, it counts as measuring the construction.
    */
-  recordGrammarAttempt: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number }) => AttemptId;
+  recordGrammarAttempt: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType }) => AttemptId;
   getGrammarKnowledge: (pattern: string, language?: string) => GrammarKnowledgeEntry | undefined;
+  /**
+   * Appends item-invalidation tombstones (items retired, content-changed or
+   * currently invalid under the CURRENT package — G03) and re-materializes the affected
+   * grammar projections (G03): retracts exactly the recorded attempts of
+   * defective/retired question items without touching unrelated history.
+   */
+  retractGrammarItemAttempts: (tombstones: KnowledgeEventLog, language: string, patterns: readonly string[]) => Promise<void>;
+  /**
+   * Package-update reconcile (G03): appends tombstones for attempts recorded
+   * through items the current package no longer declares and re-materializes
+   * the affected patterns. Idempotent; returns the retired item count.
+   */
+  reconcileGrammarItems: (language: string, declaredItems: ReadonlyMap<string, DeclaredItemState>) => Promise<number>;
 
   // Session management
   startSession: () => void;
@@ -849,7 +869,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           additions[key] = [{
             ...grammarRecognitionEvidence(language, entry.pattern, { t: entry.lastSeen, kind: 'rollup' }),
             origin: 'grammar-legacy-migration',
-            easeAfter: entry.ease,
+            // An explicit ease outcome is only migrated when the legacy row
+            // semantics demonstrate measurement: a recorded failure, or
+            // persisted active provenance (a rated row whose journal keys
+            // are missing locally must not be downgraded to passive). Pure
+            // encounter rows were passive: historical trackGrammarEncountered
+            // raised ease by 0.01 per encounter without recording an outcome,
+            // so stamping easeAfter would promote them to active evidence and
+            // render passive exposure as Known (review 2026-09-17T002411_0000-cc07ec).
+            ...(entry.hasActiveEvidence === true || entry.timesFailed > 0 ? { easeAfter: entry.ease } : {}),
             timesSeenDelta: entry.timesEncountered,
             grammarFailedDelta: entry.timesFailed,
           }];
@@ -1996,7 +2024,17 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const suggestionLanguageData = languageDataFor(lang);
     const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? getDictionaryTargetLanguageForSettings(settings, lang);
     const keepSuggestion = shouldKeepSuggestion(
-      { word: storageWord, reading: params.reading, pos: params.pos, level: params.level, language: lang },
+      {
+        word: storageWord,
+        reading: params.reading,
+        pos: params.pos,
+        level: params.level,
+        language: lang,
+        // Current-media recurrence (R21): admits a repeatedly-blocking
+        // off-list term through the level gate; dictionary/script/known/
+        // exclusion checks stay in force.
+        mediaRecurrence: params.mediaRecurrence,
+      },
       settings,
       knownWordSet(),
       getLearningLanguageLevelForLanguage(settings, lang),
@@ -2052,6 +2090,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         if (!existing.reading && params.reading) existing.reading = params.reading;
         if (!existing.source && params.source) existing.source = params.source;
         if (!existing.sourceMediaHash && params.sourceMediaHash) existing.sourceMediaHash = params.sourceMediaHash;
+        // Recurrence is coverage that grows with use: keep the best recorded
+        // count (R21), never a look-up-derived value.
+        if (params.mediaRecurrence != null) {
+          existing.mediaRecurrence = Math.max(existing.mediaRecurrence ?? 0, params.mediaRecurrence);
+        }
       } else {
         s.suggestedFlashcards[suggestionKey] = {
           id: newId ?? crypto.randomUUID(),
@@ -2069,6 +2112,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           createdAt: now,
           lastSeen: now,
           count: 1,
+          ...(params.mediaRecurrence != null ? { mediaRecurrence: params.mediaRecurrence } : {}),
         };
       }
     }));
@@ -2102,7 +2146,17 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const suggestionLanguageData = languageDataFor(lang);
         const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
         const keep = shouldKeepSuggestion(
-          { word: s.word, reading: s.reading, pos: s.pos, level, language: s.language },
+          {
+            word: s.word,
+            reading: s.reading,
+            pos: s.pos,
+            level,
+            language: s.language,
+            // Recorded current-media recurrence (R21): the stored coverage
+            // count, falling back to capture refreshes — both honest counts
+            // of the word recurring in the learner's content.
+            mediaRecurrence: s.mediaRecurrence ?? s.count,
+          },
           { ...settings, autoSuggestFlashcards: true, autoSuggestUnknownWords: true },
           known,
           userLevel,
@@ -2290,7 +2344,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         if (findUnpopulatedFlashcardForWord(suggestion.word, lang)) return false;
         const level = getSuggestedFlashcardLevel(suggestion);
         return !shouldKeepSuggestion(
-          { word: suggestion.word, reading: suggestion.reading, pos: suggestion.pos, level, language: lang },
+          {
+            word: suggestion.word,
+            reading: suggestion.reading,
+            pos: suggestion.pos,
+            level,
+            language: lang,
+            // Same recorded recurrence the list filter honors (R21): GC must
+            // not delete what capture kept for recurring current-media terms.
+            mediaRecurrence: suggestion.mediaRecurrence ?? suggestion.count,
+          },
           settings,
           known,
           userLevel,
@@ -2902,55 +2965,40 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       perfCount('knowledge.trackWordHovered.writes');
       hoverTimers.delete(lk);
       const now = Date.now();
-      let nextEase: number = SRS.MIN_EASE;
-      let nextTimesHovered = 0;
-      let isFailed = false;
 
-        setStore(produce((s) => {
-            if (!s.wordKnowledge[lk]) {
-                s.wordKnowledge[lk] = {
-                    ease: SRS.MIN_EASE,
-                    lastSeen: now,
-                    timesSeen: 0,
-                    timesHovered: 0,
-                    word: storageWord,
-                    reading,
-                    language: lang,
-                };
-            }
-            const k = s.wordKnowledge[lk];
-            const hoveredCount = k.timesHovered + 1;
-            k.timesHovered = hoveredCount;
-            k.lastSeen = now;
-            isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
-            const wasManuallySetRecently = k.lastStatusChange && (now - k.lastStatusChange) < 300000;
-            const easeDecrease = getPassiveHoverEaseDecrease(settings);
-            if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings) && !wasManuallySetRecently) {
-                k.ease = Math.max(SRS.MIN_EASE, k.ease - easeDecrease);
-            }
-            nextEase = k.ease;
-            nextTimesHovered = hoveredCount;
-            // Hover-failure ease changes are evidence, not silent arithmetic:
-            // the projection replay derives timesHovered and ease from these rows.
-            if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings) && !wasManuallySetRecently) {
-                void appendEvents({
-                    [lk]: [{
-                        t: now,
-                        kind: 'status',
-                        source: 'passiveTracking',
-                        aspect: 'meaning',
-                        toStatus: passiveEaseToStatus(nextEase),
-                        easeAfter: nextEase,
-                    }],
-                }).catch((e) => log.warn('knowledge event append failed:', e));
-            }
-
-        }));
+      setStore(produce((s) => {
+        if (!s.wordKnowledge[lk]) {
+          s.wordKnowledge[lk] = {
+            ease: SRS.MIN_EASE,
+            lastSeen: now,
+            timesSeen: 0,
+            timesHovered: 0,
+            word: storageWord,
+            reading,
+            language: lang,
+          };
+        }
+        const k = s.wordKnowledge[lk];
+        k.timesHovered += 1;
+        k.lastSeen = now;
+      }));
       saveFlashcards();
 
-      // Notify media stats listeners so per-media tracking stays in sync
+      // R10 (review 2026-09-17T011733): an ordinary hover is NEVER a failure.
+      // The retired decrease-ease policy used to lower ease and append a
+      // passiveTracking status event once passiveHoverFailCount was reached —
+      // under any configured action. Hovering now records FAMILIARITY only,
+      // so no interaction with a hover popup can create negative epistemic
+      // evidence. The legacy media-stats event keeps its contract shape with
+      // isFailed: false.
       window.dispatchEvent(new CustomEvent('mlearn:word-hovered', {
-        detail: { word, language: lang, ease: nextEase, timesHovered: nextTimesHovered, isFailed },
+        detail: {
+          word,
+          language: lang,
+          ease: store.wordKnowledge[lk]?.ease ?? SRS.MIN_EASE,
+          timesHovered: store.wordKnowledge[lk]?.timesHovered ?? 0,
+          isFailed: false,
+        },
       }));
     }, getPassiveHoverDelayMs(settings));
 
@@ -3500,6 +3548,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           timesEncountered: projection.timesEncountered,
           timesFailed: projection.timesFailed,
           lastSeen: projection.lastSeen,
+          hasActiveEvidence: projection.hasActiveEvidence,
           // 0 is the level placeholder — a seedless load-time pass may stamp
           // it first; a caller's explicit level must still win.
           level: existing?.level || level || 0,
@@ -3574,7 +3623,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const recordGrammarAttempt = (
     pattern: string,
     quality: AttemptQuality,
-    options?: { language?: string; level?: number },
+    options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType },
   ): AttemptId => {
     const language = options?.language ?? settings.language;
     const attemptId = nextAttemptId();
@@ -3594,7 +3643,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         quality,
         attemptId,
         origin: 'grammar-probe',
-        taskType: 'grammar-recognize',
+        taskType: options?.taskType ?? 'grammar-recognize',
+        // Presentation provenance: the surface declares what was visible while
+        // the learner self-assessed (core contract: translation cues do not
+        // invalidate grammar-recognition — SCAFFOLD_INVALIDATES).
+        ...(options?.scaffolds ? { scaffolds: options.scaffolds } : {}),
+        // Practice-item provenance (R12/G03): the versioned question item that
+        // produced this attempt, enabling item-level invalidation later.
+        ...(options?.itemRef ? { itemRef: options.itemRef } : {}),
+        ...(options?.validationRef ? { validationRef: options.validationRef } : {}),
         ...outcome,
       })],
     })
@@ -3609,6 +3666,41 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       ? pattern
       : langKey(language, pattern);
     return store.grammarKnowledge[lk];
+  };
+
+  /**
+   * Item-invalidation bookkeeping (G03): appends the computed tombstones on
+   * their grammar keys and re-materializes every affected pattern — the
+   * projection replay drops the retracted attempts, unrelated history is
+   * never touched (append-only journal).
+   */
+  const retractGrammarItemAttempts = async (tombstones: KnowledgeEventLog, language: string, patterns: readonly string[]): Promise<void> => {
+    if (Object.keys(tombstones).length === 0) return;
+    await appendEvents(tombstones);
+    await materializeGrammarKnowledge(language, patterns.map((pattern) => ({ pattern })));
+  };
+
+  /**
+   * Package-update reconcile (G03): the journal is scanned over the
+   * language's grammar keys only (item provenance lives there), attempts
+   * through items the CURRENT package no longer declares are retracted, and
+   * the affected projections re-materialize. Idempotent: already-retracted
+   * attempts are skipped, so re-runs append nothing.
+   */
+  const reconcileGrammarItems = async (language: string, declaredItems: ReadonlyMap<string, DeclaredItemState>): Promise<number> => {
+    try {
+      const keys = await queryLanguageKeys(language, 'grammar:');
+      if (keys.length === 0) return 0;
+      // Per-key log (not the flattened service view): tombstones must land on
+      // the exact evidence keys the item attempts were written to.
+      const log = await getBridge().knowledgeEvents.queryKnowledgeEvents(keys);
+      const result = reconcileQuestionItems(log, declaredItems);
+      await retractGrammarItemAttempts(result.tombstones, language, [...result.patterns]);
+      return result.retiredItemIds.size;
+    } catch (error) {
+      log.warn('grammar item reconcile failed:', error);
+      return 0;
+    }
   };
 
   /**
@@ -4014,22 +4106,36 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
       if (remaining > 0) {
         const suggestions = getSuggestedFlashcardsSync();
         if (suggestions.length > 0) {
-          // Prefer words with more hits; frontload older suggestions so the bin eventually drains.
-          const sorted = [...suggestions].sort((a, b) => {
-            // More failed/seen first
-            const byCount = b.count - a.count;
-            if (byCount !== 0) return byCount;
-            return a.createdAt - b.createdAt;
-          });
-          const pickIds = selectEncounterBatch({
+          // R21: the SAME teaching policy owns the promotion order — the
+          // manual "more seen first" sort was the labelled baseline heuristic
+          // and is now expressed as media-fit scores (timesSeen, saturating)
+          // in the policy's weighted pick, with canonical journal statuses.
+          // `count` is passive recurrence in the learner's selected content
+          // (coverage); the capture lookup itself is assisted access and is
+          // NOT inflated here (timesHovered stays 0).
+          const canonicalStatus = (word: string, language: string): 'unmeasured' | 'learning' | 'known' => {
+            const status = getComprehensiveWordStatusSync(word, language);
+            return status === 'known' ? 'known' : status === 'learning' ? 'learning' : 'unmeasured';
+          };
+          const pickIds = selectRankedEncounters({
             preset: 'SUGGESTED',
             nowMs: 0,
-            suggestedItems: sorted.map((suggestion) => ({
+            suggestedItems: suggestions.map((suggestion) => ({
               key: suggestion.id,
               word: suggestion.word,
               language: suggestion.language,
+              status: canonicalStatus(suggestion.word, suggestion.language),
+              // Passive recurrence since capture (coverage heuristic) rides
+              // the SAME candidate — no duplicate word entries. The stored
+              // current-content exposure count is the better coverage
+              // measure; capture refreshes are the honest fallback.
+              timesSeen: Math.max(suggestion.count, suggestion.mediaRecurrence ?? 0),
+              // Capture provenance (R20): which media snapshot produced the
+              // suggestion, so its trace row can be audited back to content.
+              ...(suggestion.source !== undefined ? { source: suggestion.source } : {}),
+              ...(suggestion.sourceMediaHash !== undefined ? { sourceMediaHash: suggestion.sourceMediaHash } : {}),
             })),
-          }).slice(0, remaining).map((decision) => decision.candidate.key);
+          }, remaining).map((decision) => decision.candidate.key);
           try {
             createdTotal += await promoteSuggestedFlashcards(pickIds, { useLLM });
           } catch (e) {
@@ -4293,6 +4399,8 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     trackGrammarFailed,
     recordGrammarAttempt,
     getGrammarKnowledge,
+    retractGrammarItemAttempts,
+    reconcileGrammarItems,
     startSession,
     refreshQueue,
     resetSRS,

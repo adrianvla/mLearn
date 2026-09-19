@@ -11,8 +11,8 @@ import { useFlashcards } from '../../context/FlashcardContext';
 import { Input, SelectableCard, PillLabel, EmptyState, HintText, LevelPillsFilter, CollapsibleStickyHeader, HoverReveal } from '../common';
 import type { TutorGrammarSelection } from '../../../shared/types';
 import { compareGrammarLevelsForDisplay, getGrammarLevelLabel, getGrammarLevelVisualRank, sortGrammarLevelsForDisplay } from '../../../shared/languageFeatures';
-import { SRS_EASE, type WordStatus } from '../../../shared/constants';
-import { classifyGrammarStatus } from '../../../shared/utils/grammarPolicy';
+import type { WordStatus } from '../../../shared/constants';
+import { effectiveStateFromEntry, effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 import { knowledgeStatusLabelKey } from '../common/WordStatusPillKnowledge/knowledgeSummary';
 import './GrammarSelector.css';
 
@@ -151,17 +151,27 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
             const knowledge = () => flashcardCtx.getGrammarKnowledge(gp.pattern);
             // Tier-2 read: the materialized grammar cache IS the replayed
             // grammar-recognition projection. Classification goes through the
-            // tested grammar classifier (grammarPolicy) with the canonical
-            // SRS anchors — exposure-only encounter bumps (1.3–1.55) stay
-            // Unknown: observation alone demonstrates nothing. No entry means
-            // Untracked — no measurement, not "unknown".
+            // canonical effectiveKnowledge resolver with the SAME
+            // effectiveThresholds(settings) every word surface uses —
+            // configured thresholds must classify grammar and words
+            // identically (R01 parity). Passive-only exposure
+            // (hasActiveEvidence false) stays Untracked familiarity, and
+            // under the shipped defaults rated evidence classifies with the
+            // SRS anchors (1.55/1.8). No entry means Untracked — no
+            // measurement, not "unknown".
             const grammarStatus = () => {
               const entry = knowledge();
               if (!entry) return { status: 'unknown' as WordStatus, untracked: true, basis: 'unmeasured' as const };
+              const state = effectiveStateFromEntry({
+                ease: entry.ease,
+                timesSeen: entry.timesEncountered,
+                timesHovered: 0,
+                hasActiveEvidence: entry.hasActiveEvidence === true,
+              }, effectiveThresholds(settings));
               return {
-                status: classifyGrammarStatus(entry.ease, { learning: SRS_EASE.DEFAULT_LEARNING, known: SRS_EASE.DEFAULT_KNOWN }),
-                untracked: false,
-                basis: 'evidence' as const,
+                status: state.status,
+                untracked: state.basis === 'unmeasured',
+                basis: state.basis,
               };
             };
             const statusLabel = () => t(knowledgeStatusLabelKey(grammarStatus().status, grammarStatus().basis, grammarStatus().untracked));

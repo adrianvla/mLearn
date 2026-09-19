@@ -1707,7 +1707,25 @@
           "Unknown": "not yet",
           "Unmeasured": "unmeasured"
         },
-        "SeenOnly": "seen {count}×"
+        "SeenOnly": "seen {count}×",
+        "Practise": "Practise",
+        "SessionPrompt": "How well do you know “{pattern}”?",
+        "SessionDone": "Pass complete — {count} constructions reviewed.",
+        "SessionSkip": "Skip",
+        "Contrast": "Contrast",
+        "ContrastPrompt": "Choose the construction that fits the gap:",
+        "Correct": "Correct!",
+        "Incorrect": "Not quite — the answer is: {answer}",
+        "Next": "Next",
+        "ModeLabel": "Answer format",
+        "ModeMcq": "Choose",
+        "ModeType": "Type",
+        "TypePlaceholder": "Type the missing form",
+        "Check": "Check",
+        "Validate": "Validate questions",
+        "Validating": "Validating…",
+        "ValidateDone": "Validated {passed} · rejected {rejected} · unchanged {unchanged}",
+        "ValidateFailed": "Validation could not run: {errors}"
       },
       "PopulationStats": {
         "Title": "Flashcard Population",
@@ -1752,6 +1770,96 @@
         "Adding": "Adding...",
         "LoadMore": "Load more",
         "Error": "Failed to add flashcards"
+      },
+      "Placement": {
+        "Title": "Returning learner",
+        "Description": "Optional: record an old exam or school result as background, or let a short sample of unmeasured words suggest a starting level. Nothing is claimed as known, and you can skip all of it.",
+        "BackgroundTitle": "Your background",
+        "BackgroundEmpty": "No past results recorded.",
+        "AddRecord": "Add past result",
+        "KindLabel": "Type of result",
+        "Kind": {
+          "exam": "Exam",
+          "school": "School course",
+          "self-assessment": "Self-assessment"
+        },
+        "LabelPlaceholder": "e.g. Goethe-Zertifikat B2, Year 11 German",
+        "LevelPlaceholder": "Level on its own scale (e.g. B2)",
+        "DateLabel": "When it was achieved",
+        "NotePlaceholder": "Optional note",
+        "SkillsPlaceholder": "Skills it covered (comma-separated, e.g. reading, listening)",
+        "ResultLabel": "Result name",
+        "LevelLabel": "Level on the result's own scale",
+        "NoteLabel": "Optional note",
+        "SkillsLabel": "Skills the result covered",
+        "ScoreOverallLabel": "Overall score (as printed)",
+        "ScoreOverallPlaceholder": "e.g. 72/100",
+        "ScoreSkillLabel": "Score for {skill} (as printed)",
+        "ScoreSkillPlaceholder": "e.g. 18/30",
+        "SuppliedScore": "Supplied score: {score}",
+        "SaveRecord": "Save",
+        "RemoveRecord": "Remove this record",
+        "Start": "Check my level",
+        "Prompt": "How well do you know “{word}”?",
+        "Skip": "Skip",
+        "Placement": "Suggested level: {level}",
+        "PlacementLowest": "The samples suggest starting from the lowest level.",
+        "MoveAhead": "This is above your currently set level — you can move ahead.",
+        "TraceRow": "{label}: {sampled} sampled · {hits} fluent · {misses} missed · {skipped} skipped",
+        "EvidenceNote": "Only the {count} sampled words were measured — every other word stays unmeasured.",
+        "CleanLatency": "Median task response ({range} chars): {ms} ms (unusable attempts excluded)",
+        "UseLevel": "Use this level",
+        "Dismiss": "Dismiss",
+        "EmptyPools": "No unmeasured words are available to sample right now.",
+        "DateRequired": "An exam or school result needs the date it was achieved.",
+        "DateUnknown": "date unknown",
+        "NoLocks": "Placement is unavailable here: this session has no cross-window lock.",
+        "NoStorage": "Placement is unavailable here: the session could not be stored (storage full or private mode)."
+      },
+      "Mock": {
+        "Title": "Checkpoints & mocks",
+        "Subtitle": "Fixed declared blueprints derived from the installed language package. Results show provenance — never an official score.",
+        "ProviderChip": "mlearn-derived",
+        "Start": "Start",
+        "BlueprintMeta": "{sections} sections · {draw} items · {seconds}s per item · closed book",
+        "FreshFirst": "Held-out item families first",
+        "Progress": "{index} of {total}",
+        "TimeLeft": "{seconds}s left",
+        "PausedNote": "Paused — the item clock is stopped; the pause is recorded.",
+        "Pause": "Pause",
+        "Resume": "Resume",
+        "Abandon": "Abandon",
+        "PausePolicy": "Pauses are recorded and excluded from the item clock; timeout leaves the item unanswered.",
+        "NoItems": "No deliverable items for this level yet — run the independent validation in the grammar section first.",
+        "NoBlueprints": "No declared blueprint for this package yet.",
+        "ResultsTitle": "Results — {level}",
+        "Abandoned": "abandoned",
+        "Answered": "Answered: {count}",
+        "Correct": "Correct: {count}",
+        "TimedOut": "Unanswered (timed out): {count}",
+        "HeldOut": "Held-out families: {count}",
+        "RehearsedBackfill": "Rehearsed backfill: {count}",
+        "BlueprintVersion": "Blueprint {version}",
+        "ContentVersion": "Package {version}",
+        "Seed": "Seed {seed}",
+        "ActiveTime": "Active time {seconds}s",
+        "PausedTime": "Paused {seconds}s · {count} pauses",
+        "SectionCol": "Section",
+        "DrawCol": "Declared draw",
+        "AnsweredCol": "Answered",
+        "CorrectCol": "Correct",
+        "TimedOutCol": "Timed out",
+        "Assembled": "{assembled}/{requested} assembled",
+        "Constructions": "Constructions",
+        "AvailabilityGap": "Some sections could not assemble their declared draw — missing items are reported, never substituted.",
+        "MissedPatterns": "Missed constructions",
+        "NoMissed": "Nothing missed among answered items.",
+        "Repair": "Practise these (same policy walk)",
+        "Discuss": "Discuss these in conversation",
+        "ResultsDisclaimer": "One correct selection is one successful attempt — not proof of full mastery. Results are diagnostic, never an official score.",
+        "BackToBlueprints": "Back to blueprints",
+        "Summaries": "Recent results",
+        "SummaryCounts": "{correct}/{answered} correct · {timedOut} unanswered"
       }
     },
     "Languages": {
@@ -2133,6 +2241,7 @@
         }
       },
       "Groups": {
+        "LearningGoal": "Learning goal & intensity",
         "Appearance": "Appearance",
         "ReadingAppearance": "Reading text",
         "BlurEffect": "Blur Effect",
@@ -2207,6 +2316,28 @@
         }
       },
       "Behaviour": {
+        "SessionIntensity": {
+          "Label": "Session intensity",
+          "Description": "Changes which activities practice recommends — gentle leans on familiar consolidation, intensive keeps padding low. Never changes your evidence or ratings.",
+          "Gentle": "Gentle",
+          "Steady": "Steady",
+          "Intensive": "Intensive"
+        },
+        "ExamGoal": {
+          "Label": "Exam goal",
+          "Description": "Set a personal exam goal; as the deadline nears, recommendations shift toward consolidation and repair.",
+          "None": "None",
+          "Exam": "Exam",
+          "Target": {
+            "Label": "Target",
+            "Description": "What you are working toward (for your own reference)",
+            "Placeholder": "e.g. JLPT N1, Goethe B1"
+          },
+          "Deadline": {
+            "Label": "Exam date",
+            "Description": "Recommendations weight consolidation most in the last six weeks."
+          }
+        },
         "RatingKeyboardMode": {
           "Label": "Rating keyboard mode",
           "Mnemonic": "Mnemonic (1+M)",
@@ -2360,26 +2491,10 @@
             "Label": "Enable LLM Explanations"
           },
           "PassiveWordTracking": {
-            "Description": "Automatically track word familiarity from reading and hovering. A hover counts after {delay} ms. After {count} counted hovers, the word is marked as failed and shows up in struggled-word lists and AI tutor review.",
-            "Action": {
-              "Description": "What to do on each counted hover once the word is in the failed state",
-              "Label": "Failed Word Action",
-              "Options": {
-                "DecreaseEase": "Decrease Ease",
-                "None": "Do Nothing"
-              }
-            },
-            "EaseDecrease": {
-              "Description": "How much ease to subtract when the failed-word action is set to decrease ease",
-              "Label": "Ease Decrease Amount"
-            },
-            "FailCount": {
-              "Description": "How many counted hovers it takes before a word is marked as failed for this media",
-              "Label": "Hovers to Mark Failed"
-            },
+            "Description": "Automatically track word familiarity from reading and hovering. A hover counts after {delay} ms.",
             "HoverDelay": {
-              "Description": "How long a hover must last before it counts as one failed-word attempt",
-              "Label": "Counted Hover Delay"
+              "Description": "How long a hover must last before it counts as one familiarity encounter",
+              "Label": "Hover Delay"
             },
             "Label": "Passive Word Tracking"
           },

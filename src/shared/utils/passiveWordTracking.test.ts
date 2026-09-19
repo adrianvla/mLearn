@@ -1,17 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_PASSIVE_HOVER_EASE_DECREASE,
-  DEFAULT_PASSIVE_HOVER_FAIL_ACTION,
   DEFAULT_PASSIVE_HOVER_DELAY_MS,
-  DEFAULT_PASSIVE_HOVER_FAIL_COUNT,
-  getPassiveHoverEaseDecrease,
-  getPassiveHoverFailAction,
   getPassiveHoverDelayMs,
-  getPassiveHoverFailCount,
-  getRemainingHoversToFail,
-  hasReachedPassiveHoverFailCount,
   isWordMarkedFailed,
-  shouldDecreaseEaseOnPassiveFailure,
 } from '@shared/utils/passiveWordTracking'
 
 describe('getPassiveHoverDelayMs', () => {
@@ -25,49 +16,15 @@ describe('getPassiveHoverDelayMs', () => {
   })
 })
 
-describe('getPassiveHoverFailCount', () => {
-  it('returns the default when the setting is missing', () => {
-    expect(getPassiveHoverFailCount()).toBe(DEFAULT_PASSIVE_HOVER_FAIL_COUNT)
-  })
-
-  it('rounds and clamps invalid values', () => {
-    expect(getPassiveHoverFailCount({ passiveHoverFailCount: 2.2 })).toBe(2)
-    expect(getPassiveHoverFailCount({ passiveHoverFailCount: 0 })).toBe(1)
-  })
-})
-
-describe('passive hover fail action', () => {
-  it('returns the decrease-ease defaults when unset', () => {
-    expect(getPassiveHoverFailAction()).toBe(DEFAULT_PASSIVE_HOVER_FAIL_ACTION)
-    expect(getPassiveHoverEaseDecrease()).toBe(DEFAULT_PASSIVE_HOVER_EASE_DECREASE)
-    expect(shouldDecreaseEaseOnPassiveFailure()).toBe(true)
-  })
-
-  it('supports disabling the ease decrease action', () => {
-    expect(getPassiveHoverFailAction({ passiveHoverFailAction: 'none' })).toBe('none')
-    expect(shouldDecreaseEaseOnPassiveFailure({ passiveHoverFailAction: 'none' })).toBe(false)
-  })
-
-  it('normalizes the legacy decrease-ease-and-flashcard value to plain ease decrease', () => {
-    expect(getPassiveHoverFailAction({ passiveHoverFailAction: 'decrease-ease-and-flashcard' })).toBe('decrease-ease')
-    expect(shouldDecreaseEaseOnPassiveFailure({ passiveHoverFailAction: 'decrease-ease-and-flashcard' })).toBe(true)
-  })
-
-  it('clamps invalid ease decrease values', () => {
-    expect(getPassiveHoverEaseDecrease({ passiveHoverEaseDecrease: -1 })).toBe(0)
-  })
-})
-
-describe('isWordMarkedFailed', () => {
-  it('stays false until the configured hover count is reached', () => {
-    expect(isWordMarkedFailed({ timesHovered: 1 }, { passiveHoverFailCount: 2 })).toBe(false)
-    expect(hasReachedPassiveHoverFailCount(1, { passiveHoverFailCount: 2 })).toBe(false)
-    expect(getRemainingHoversToFail({ timesHovered: 1 }, { passiveHoverFailCount: 2 })).toBe(1)
-  })
-
-  it('becomes true exactly at the configured hover count', () => {
-    expect(isWordMarkedFailed({ timesHovered: 2 }, { passiveHoverFailCount: 2 })).toBe(true)
-    expect(hasReachedPassiveHoverFailCount(2, { passiveHoverFailCount: 2 })).toBe(true)
-    expect(getRemainingHoversToFail({ timesHovered: 4 }, { passiveHoverFailCount: 2 })).toBe(0)
+describe('isWordMarkedFailed (retired hover-failure attribution)', () => {
+  // R10 (review 2026-09-17T011733): a hover popup must never create negative
+  // epistemic evidence. The decrease-ease policy was removed from the writer
+  // and the settings UI, so NO configuration — not even a persisted legacy
+  // 'decrease-ease' — may label a hovered word as failed downstream.
+  it('never marks a word failed, under any settings or hover count', () => {
+    expect(isWordMarkedFailed({ timesHovered: 1 }, { passiveHoverFailAction: 'none' })).toBe(false)
+    expect(isWordMarkedFailed({ timesHovered: 1 }, { passiveHoverFailAction: 'decrease-ease', passiveHoverEaseDecrease: 0.05 })).toBe(false)
+    expect(isWordMarkedFailed({ timesHovered: 50 }, {})).toBe(false)
+    expect(isWordMarkedFailed({ timesHovered: 50 })).toBe(false)
   })
 })

@@ -1387,12 +1387,22 @@ export const ReaderRoute: Component = () => {
 
     void (async () => {
       const capturedPages = new Map<string, string | null>();
+      // Current-content passive exposures per word (R21): recorded coverage
+      // recurrence, used by BOTH the suggestion filter and capture so a
+      // repeatedly-blocking off-list term survives the level gate (the same
+      // MEDIA_MIN_ENCOUNTERS one-off rule the policy's media-fit source
+      // uses). Look-ups (timesHovered) are never counted.
+      const mediaRecurrence = new Map<string, number>();
+      for (const entry of Object.values(mediaStats.stats().wordsEncountered)) {
+        mediaRecurrence.set(entry.word, (mediaRecurrence.get(entry.word) ?? 0) + entry.timesSeen);
+      }
       const allowedWords = await filterSuggestedWords(
         unknown.map(entry => entry.word),
         settings.language,
         settings,
         currentLangData(),
         { getWordForms, dictionaryTargetLanguage: dictionaryTargetLanguage() },
+        { mediaRecurrence },
       );
       for (const entry of unknown) {
         if (capturedSuggestionWords.has(entry.word)) continue;
@@ -1420,6 +1430,7 @@ export const ReaderRoute: Component = () => {
           imageUrl: image || undefined,
           source: bookId || undefined,
           sourceMediaHash: mediaHash || undefined,
+          mediaRecurrence: mediaRecurrence.get(entry.word),
         });
       }
     })();

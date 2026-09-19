@@ -11,10 +11,10 @@ vi.mock('child_process', () => ({
 }));
 
 vi.mock('../utils/platform', () => ({
-  getResourcePath: vi.fn(() => path.join(tempDir?.tmpDir ?? '/tmp/test-userdata', 'dist-electron')),
-  getUserDataPath: vi.fn(() => tempDir?.tmpDir ?? '/tmp/test-userdata'),
-  getPythonExecutablePath: vi.fn(() => path.join(tempDir?.tmpDir ?? '/tmp/test-userdata', 'env', 'bin', 'python3')),
-  getPipExecutablePath: vi.fn(() => path.join(tempDir?.tmpDir ?? '/tmp/test-userdata', 'env', 'bin', 'pip3')),
+  getResourcePath: vi.fn(() => path.join(tempDir?.tmpDir ?? '/tmp/mlearn-python-runtime-req-test', 'dist-electron')),
+  getUserDataPath: vi.fn(() => tempDir?.tmpDir ?? '/tmp/mlearn-python-runtime-req-test'),
+  getPythonExecutablePath: vi.fn(() => path.join(tempDir?.tmpDir ?? '/tmp/mlearn-python-runtime-req-test', 'env', 'bin', 'python3')),
+  getPipExecutablePath: vi.fn(() => path.join(tempDir?.tmpDir ?? '/tmp/mlearn-python-runtime-req-test', 'env', 'bin', 'pip3')),
   isPackaged: false,
   isWindows: false,
 }));

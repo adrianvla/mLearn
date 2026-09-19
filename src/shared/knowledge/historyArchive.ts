@@ -69,7 +69,10 @@ export const KNOWLEDGE_WEEK_POINT_MS = 2 * 365 * 24 * 60 * 60 * 1000;
 /**
  * Archival classifier. Ledger semantics first, then recency, then acquisition
  * residue. Explicit learner statements (claims — manual rows without an
- * attemptId), tombstones, and grammar-detector provenance stay exact forever.
+ * attemptId), tombstones, grammar-detector provenance, and question-item
+ * provenance stay exact forever: item-invalidation (G03) must be able to
+ * discover every attempt recorded through a practice item at any age, and an
+ * archived aggregate would drop the itemRef the retraction scan keys on.
  * Attempt-bearing rows (the common native case, any source) aggregate with a
  * contribution record; an attemptId row whose attempt was retracted never
  * reaches here (compaction drops tombstoned rows outright).
@@ -77,6 +80,7 @@ export const KNOWLEDGE_WEEK_POINT_MS = 2 * 365 * 24 * 60 * 60 * 1000;
 export function isAggregatableEvent(event: KnowledgeEvent, now: number): boolean {
   if (event.kind === 'claim' || event.kind === 'retraction') return false;
   if (event.retracts !== undefined) return false;
+  if (event.itemRef !== undefined || event.validationRef !== undefined) return false;
   if (event.attemptId === undefined && (event.source === 'manual' || event.source === 'grammar')) return false;
   return event.t < now - KNOWLEDGE_ARCHIVE_TAIL_MS;
 }

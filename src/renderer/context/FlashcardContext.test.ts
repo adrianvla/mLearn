@@ -2,6 +2,7 @@ import { projectCapabilities } from '../../shared/knowledge/capabilityProjection
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
+import { selectNextEncounter } from '../learning/engine';
 import type { AttemptQuality } from '../../shared/constants';
 import type { CapabilityKind } from '../../shared/graph/types';
 import type { AttemptId, AttemptScaffolds, AttemptTaskType, EventSourceVersions, KnowledgeEvent } from '../../shared/knowledgeEvents';
@@ -11,6 +12,12 @@ import * as SRS from '../services/srsAlgorithm';
 import { replayKeyProjection, type ReplayProjection } from '../../shared/utils/projectionReplay';
 import { GRAMMAR_ENCOUNTER_EASE_BUMP, GRAMMAR_FAIL_EASE_PENALTY, initialGrammarEase } from '../../shared/utils/grammarPolicy';
 import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
+import { itemContentVersion, retractionEventsForItem, type DeclaredItemState } from '../learning/questionBank';
+import { summarizeGrammarCurriculum, classifyGrammarMeasurements } from '../utils/curriculumCoverage';
+import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
+import { GrammarCoverage } from '../windows/levelStudy/GrammarCoverage';
+import fs from 'fs';
+import path from 'path';
 import { UNMEASURED_LABEL_KEY, knowledgeStatusLabelKey } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
 
 // ── IPC callback captures ────────────────────────────────────────────
@@ -2488,24 +2495,67 @@ describe('FlashcardProvider', () => {
     vi.useRealTimers();
   });
 
-  it('trackWordHovered respects passiveHoverFailAction="none"', async () => {
+  it('trackWordHovered respects passiveHoverFailAction="none" and writes no negative journal evidence', async () => {
     vi.useFakeTimers();
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     const prevAction = mockSettings.passiveHoverFailAction;
+    // The shipped default (DEFAULT_SETTINGS.passiveHoverFailAction) is 'none'.
     mockSettings.passiveHoverFailAction = 'none';
 
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('不変');
     const lk = `ja:${hash}`;
 
+    // Hover well past passiveHoverFailCount — familiarity still accrues,
+    // but no ease drop and NO knowledge-journal append may record a
+    // "failure" for an ordinary lookup (R10: the writer must not manufacture
+    // negative epistemic evidence for passive hovers).
+    mockAppendEvents.mockClear();
     ctx.trackWordHovered('不変');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+    ctx.trackWordHovered('不変');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+    ctx.trackWordHovered('不変');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(3);
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
+    expect(mockAppendEvents).not.toHaveBeenCalled();
+
+    mockSettings.passiveHoverFailAction = prevAction;
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('trackWordHovered never appends journal events for a non-English display pair (de, default action none)', async () => {
+    vi.useFakeTimers();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const prevAction = mockSettings.passiveHoverFailAction;
+    const prevLanguage = mockSettings.language;
+    mockSettings.passiveHoverFailAction = 'none';
+    mockSettings.language = 'de';
+
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('gespielt');
+    const lk = `de:${hash}`;
+
+    mockAppendEvents.mockClear();
+    ctx.trackWordHovered('gespielt');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+    // Interrupted repeat: a second hover cancelled mid-debounce must not
+    // leave any attempt behind either.
+    ctx.trackWordHovered('gespielt');
+    ctx.cancelWordHover('gespielt');
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
 
     expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(1);
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
+    expect(mockAppendEvents).not.toHaveBeenCalled();
 
     mockSettings.passiveHoverFailAction = prevAction;
+    mockSettings.language = prevLanguage;
     dispose();
     vi.useRealTimers();
   });
@@ -2578,7 +2628,7 @@ describe('FlashcardProvider', () => {
     vi.useRealTimers();
   });
 
-  it('trackWordHovered does not decrease ease below the SRS minimum', async () => {
+  it('trackWordHovered leaves an existing ease untouched under a legacy decrease-ease config (demotion retired)', async () => {
     vi.useFakeTimers();
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
@@ -2600,10 +2650,19 @@ describe('FlashcardProvider', () => {
     const prevDecrease = mockSettings.passiveHoverEaseDecrease;
     mockSettings.passiveHoverEaseDecrease = 0.2;
 
+    // The seeded journal-empty row is backfilled asynchronously by the legacy
+    // epistemic migration (passiveTracking rollup, REQ25). Let that settle so
+    // the assertion below measures the HOVER, not the backfill.
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    mockAppendEvents.mockClear();
     ctx.trackWordHovered('下限');
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
 
-    expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(SRS.MIN_EASE, 2);
+    // R10: hover demotion is retired under every configuration — familiarity
+    // accrues, ease stays, and the journal records nothing negative.
+    expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(1);
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(1.35);
+    expect(mockAppendEvents).not.toHaveBeenCalled();
 
     mockSettings.passiveHoverEaseDecrease = prevDecrease;
     dispose();
@@ -2791,6 +2850,35 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+
+  it('does not promote journal-less legacy passive grammar rows to active evidence', async () => {
+    const { ctx, dispose } = await mountProvider();
+    mockAppendEvents.mockClear();
+    flashcardsCb(makeEmptyStore({
+      grammarKnowledge: {
+        'ja:たら': {
+          pattern: 'たら', ease: 2.6, timesEncountered: 10, timesFailed: 0,
+          lastSeen: 100, level: 5, language: 'ja',
+        },
+      },
+    }));
+
+    await vi.waitFor(() => expect(mockAppendEvents).toHaveBeenCalledTimes(1));
+    const [[events]] = mockAppendEvents.mock.calls;
+    const migrated = Object.values(events as Record<string, Array<Record<string, unknown>>>)[0][0] as Record<string, unknown>;
+    expect(migrated.origin).toBe('grammar-legacy-migration');
+    expect(migrated.easeAfter).toBeUndefined();
+    expect(migrated.timesSeenDelta).toBe(10);
+    expect(migrated.grammarFailedDelta).toBe(0);
+    // The materialized projection stays passive: passive exposure can never
+    // render Known (R01 / assistance attribution, review 2026-09-17T002411_0000-cc07ec).
+    await vi.waitFor(() => {
+      const entry = ctx.getGrammarKnowledge('たら');
+      expect(entry).toMatchObject({ hasActiveEvidence: false, timesEncountered: 10, timesFailed: 0 });
+      expect(entry!.ease).toBeCloseTo(1.4, 10); // derived passive ease, not the legacy 2.6
+    });
+    dispose();
+  });
   it('crash recovery: journal-empty passive rows backfill as passiveTracking and render Untracked (REQ25)', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
@@ -3605,6 +3693,50 @@ describe('FlashcardProvider', () => {
     await ctx.captureSuggestedFlashcard({ word: '難単語', level: 2 });
 
     expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard keeps a repeatedly-blocking off-list word through current-media recurrence (R21)', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.learningLanguageLevels = { ja: 3 };
+
+    // The 粉飾 case: an intermediate exam target keeps meeting a domain term
+    // that is on NO frequency list (`level: null`) — recorded passive
+    // exposures in the CURRENT content admit the capture and survive the
+    // promotion list.
+    await ctx.captureSuggestedFlashcard({ word: '粉飾', level: null, mediaRecurrence: 4 });
+
+    const suggestions = ctx.getSuggestedFlashcardsSync();
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0].word).toBe('粉飾');
+    expect(suggestions[0].mediaRecurrence).toBe(4);
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard still skips a one-off word above user level', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.learningLanguageLevels = { ja: 3 };
+
+    // One encounter gains no exception: below MEDIA_MIN_ENCOUNTERS.
+    await ctx.captureSuggestedFlashcard({ word: '難単語', level: 2, mediaRecurrence: 1 });
+
+    expect(ctx.getSuggestedFlashcardsSync()).toHaveLength(0);
+    dispose();
+  });
+
+  it('captureSuggestedFlashcard stores the best recorded recurrence on re-capture', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.learningLanguageLevels = { ja: 3 };
+
+    await ctx.captureSuggestedFlashcard({ word: '粉飾', level: null, mediaRecurrence: 3 });
+    await ctx.captureSuggestedFlashcard({ word: '粉飾', level: null, mediaRecurrence: 7 });
+
+    const suggestions = ctx.getSuggestedFlashcardsSync();
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0].mediaRecurrence).toBe(7);
     dispose();
   });
 
@@ -4451,6 +4583,237 @@ describe('recordAttempt quality semantics', () => {
     mockSettings.language = 'ja';
   });
 
+  describe.each(['de', 'ja', 'zh'] as const)('grammar practice route (%s package → provider → journal → rendered progress)', (language) => {
+    // Real packaging-source packages (installed/remote catalogs refresh via
+    // the campaign-blocked publish step — source-of-truth content here).
+    const languagePackage = JSON.parse(fs.readFileSync(
+      path.join(process.cwd(), 'scripts/language-data/source/root-of-app/languages', `${language}.json`),
+      'utf8',
+    )) as LanguageData;
+    const routePoint = (languagePackage.grammar ?? []).find((candidate) => typeof candidate.level === 'number');
+
+    it('package UI pass → provider writer → canonical journal → rendered progress', async () => {
+      expect(routePoint).toBeDefined();
+
+      mockSettings.language = language;
+      const { ctx, dispose: disposeProvider } = await mountProvider();
+      flashcardsCb(makeEmptyStore());
+      mockAppendEvents.mockClear();
+
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const { createComponent, createSignal } = await import('solid-js');
+      const { render } = await import('solid-js/web');
+      const { GrammarCoverage } = await import('../windows/levelStudy/GrammarCoverage');
+      const [journalSignal, setJournalSignal] = createSignal<KnowledgeEventLog>({});
+      const disposeUi = render(() => createComponent(GrammarCoverage, {
+        language,
+        languageData: languagePackage,
+        get eventLog() { return journalSignal(); },
+        get summary() { return summarizeGrammarCurriculum(language, languagePackage, journalSignal(), effectiveThresholds()); },
+        // LevelStudyTab's real onProbe wiring: component → provider writer.
+        onProbe: (pattern, quality, level) => {
+          ctx.recordGrammarAttempt(pattern, quality, { language, level });
+        },
+      }), container);
+
+      // Expand the chosen construction's level and start the policy pass.
+      const block = () => container.querySelector(`[data-level="${routePoint!.level}"]`) as HTMLElement;
+      (container.querySelector(`.grammar-coverage__level-row[data-level="${routePoint!.level}"]`) as HTMLElement).click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      (block().querySelector('.grammar-coverage__session-btn') as HTMLElement).click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Rate the presented pattern (written-form only; no meaning cue in the pass).
+      const presented = block().querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+      expect(presented).toBeTruthy();
+      (block().querySelector('.grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)') as HTMLElement).click();
+
+      // The provider mutation must settle (materialization) before teardown.
+      await vi.waitFor(() => expect(ctx.getGrammarKnowledge(presented as string, language)).toBeDefined());
+
+      // End the live pass (skips record nothing) so coverage rows render again.
+      // The sanctioned 150ms beat locks ALL session controls after a rating:
+      // wait for an enabled skip (or pass completion) before each click.
+      for (let guard = 0; guard < 120; guard += 1) {
+        const skip = block().querySelector('.grammar-coverage__session-skip') as HTMLButtonElement | null;
+        if (!skip) break; // pass complete
+        if (skip.disabled) {
+          await vi.waitFor(() => {
+            const current = block().querySelector('.grammar-coverage__session-skip') as HTMLButtonElement | null;
+            if (current) expect(current.disabled).toBe(false);
+          });
+        }
+        (block().querySelector('.grammar-coverage__session-skip') as HTMLButtonElement).click();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      await vi.waitFor(() => expect(block().querySelector('.grammar-coverage__session-done')).toBeTruthy());
+
+      // Feed the persisted journal back into the mounted surface: the rated
+      // construction renders as known (rendered progress, not just math).
+      const journal = (mockAppendEvents.mock.calls[0][0] ?? {}) as Record<string, KnowledgeEvent[]>;
+      setJournalSignal(journal);
+      await vi.waitFor(() => expect(container.querySelectorAll('.grammar-coverage__state--known').length).toBeGreaterThan(0));
+      const measurements = classifyGrammarMeasurements(language, journal, effectiveThresholds());
+      expect(measurements.get(presented as string)).toMatchObject({ state: 'known', passiveOnly: false });
+      const summary = summarizeGrammarCurriculum(language, languagePackage, journal, effectiveThresholds());
+      expect(summary.known).toBe(1);
+      expect(summary.complete).toBe(false); // one pass never claims full coverage
+
+      // Flush the provider's debounced flashcards save BEFORE teardown so the
+      // pending BroadcastChannel postMessage cannot race disposal.
+      await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
+      disposeUi();
+      container.remove();
+      disposeProvider();
+      mockSettings.language = 'ja';
+    });
+  });
+
+  it('real zh package under a non-English UI withholds English meanings yet records canonical progress (representative display pair)', async () => {
+    // Representative pair per R05/R19: Chinese data shown in a GERMAN UI. The zh
+    // package's canonical meanings are English-authored with no `meanings` variants,
+    // so under uiLanguage 'de' the resolver WITHHOLDS them (no English leak).
+    const zhPackage = JSON.parse(fs.readFileSync(
+      path.join(process.cwd(), 'scripts/language-data/source/root-of-app/languages/zh.json'),
+      'utf8',
+    )) as LanguageData;
+    const point = (zhPackage.grammar ?? []).find((candidate) => typeof candidate.level === 'number' && typeof candidate.meaning === 'string');
+    expect(point).toBeDefined();
+
+    mockSettings.language = 'zh';
+    mockSettings.uiLanguage = 'de';
+    const { ctx, dispose: disposeProvider } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const { createComponent, createSignal } = await import('solid-js');
+    const { render } = await import('solid-js/web');
+    const { GrammarCoverage } = await import('../windows/levelStudy/GrammarCoverage');
+    const [journalSignal, setJournalSignal] = createSignal<KnowledgeEventLog>({});
+    const disposeUi = render(() => createComponent(GrammarCoverage, {
+      language: 'zh',
+      languageData: zhPackage,
+      get eventLog() { return journalSignal(); },
+      get summary() { return summarizeGrammarCurriculum('zh', zhPackage, journalSignal(), effectiveThresholds()); },
+      onProbe: (pattern, quality, level) => { ctx.recordGrammarAttempt(pattern, quality, { language: 'zh', level }); },
+    }), container);
+
+    const level = point!.level as number;
+    (container.querySelector(`.grammar-coverage__level-row[data-level="${level}"]`) as HTMLElement).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // A German-UI learner must not see English canonical meanings anywhere.
+    expect(container.querySelectorAll('.grammar-coverage__meaning').length).toBe(0);
+
+    (container.querySelector(`[data-level="${level}"] .grammar-coverage__session-btn`) as HTMLElement).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const presented = container.querySelector(`[data-level="${level}"] .grammar-coverage__session-prompt`)?.getAttribute('data-pattern');
+    expect(presented).toBeTruthy();
+    (container.querySelector(`[data-level="${level}"] .grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)`) as HTMLElement).click();
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge(presented as string, 'zh')).toBeDefined());
+
+    for (let guard = 0; guard < 120; guard += 1) {
+      const skip = container.querySelector(`[data-level="${level}"] .grammar-coverage__session-skip`) as HTMLButtonElement | null;
+      if (!skip) break;
+      skip.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    await vi.waitFor(() => expect(container.querySelector(`[data-level="${level}"] .grammar-coverage__session-done`)).toBeTruthy());
+
+    const journal = (mockAppendEvents.mock.calls[0][0] ?? {}) as Record<string, KnowledgeEvent[]>;
+    setJournalSignal(journal);
+    await vi.waitFor(() => expect(container.querySelectorAll('.grammar-coverage__state--known').length).toBeGreaterThan(0));
+    const measurements = classifyGrammarMeasurements('zh', journal, effectiveThresholds());
+    expect(measurements.get(presented as string)).toMatchObject({ state: 'known', passiveOnly: false });
+
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
+    disposeUi();
+    container.remove();
+    disposeProvider();
+    mockSettings.language = 'ja';
+    mockSettings.uiLanguage = DEFAULT_SETTINGS.uiLanguage;
+  });
+
+  it('zh HSK 3.0 lexical category → policy → real word activity → canonical journal → materialized progress', async () => {
+    // Finding 1 end-to-end on REAL HSK-labelled data: a production HSK Level-1
+    // word drives category → TeachingPolicy → word self-assessment → journal → progress.
+    const freq = JSON.parse(fs.readFileSync(
+      path.join(process.cwd(), 'scripts/language-data/source/root-of-app/languages/zh.freq.json'),
+      'utf8',
+    )) as Array<[string, string, number, string]>;
+    const hskWordRow = freq.find(([word, , level]) => level === 1 && typeof word === 'string' && word.length > 0);
+    expect(hskWordRow).toBeDefined();
+    const [word] = hskWordRow!;
+
+    mockSettings.language = 'zh';
+    const { ctx, dispose: disposeProvider } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    // Real HSK category (Level 3.0 band) → policy selects the word (no card).
+    const decision = selectNextEncounter({
+      preset: 'CURRICULUM',
+      nowMs: 1_000,
+      levelStudyItems: [{ key: `zh:${word}`, word, language: 'zh', level: 1 }],
+      curriculumGrammarItems: [],
+    });
+    expect(decision).not.toBeNull();
+    expect(decision!.action).toBe('TEACH');
+    expect(decision!.candidate.word).toBe(word);
+
+    // Real activity provenance: EXACTLY what the Word Sync/encounter writer
+    // passes for a cardless word self-assessment.
+    ctx.recordAttempt(word, 'surface-recognition', 'fluent', {
+      language: 'zh',
+      origin: 'word-sync',
+      taskType: 'word-sync',
+    });
+
+    // Collect the ACTUAL rating row from every append call (no calls[0] guess):
+    const ratingRows = mockAppendEvents.mock.calls.flatMap((call) =>
+      Object.entries(call[0] as Record<string, KnowledgeEvent[]>)
+        .flatMap(([, events]) => events as KnowledgeEvent[]),
+    ).filter((event) => event.kind === 'rating');
+    expect(ratingRows.length).toBe(1);
+    const rating = ratingRows[0];
+    expect(rating.targetRef).toMatchObject({ capability: 'surface-recognition' });
+    expect(rating.origin).toBe('word-sync');
+    expect(rating.taskType).toBe('word-sync');
+    expect(rating.toStatus).toBe('known');
+
+    // Canonical journal → projection on the EXACT captured key: the projected
+    // ease/evidence must equal the recorded rating (journal is the authority).
+    let journalEvents: KnowledgeEvent[] | undefined;
+    // Wait for the rating's own append call (prior tests' in-flight appends can
+    // land mid-test under full-matrix load); guard with Array.isArray so a
+    // non-array value shape can never leak into replayKeyProjection.
+    await vi.waitFor(() => {
+      const ratingJournal = mockAppendEvents.mock.calls
+        .map((call) => call[0] as Record<string, KnowledgeEvent[]>)
+        .find((log) => Object.values(log).some((events) => Array.isArray(events) && events.includes(rating)));
+      journalEvents = ratingJournal
+        ? Object.values(ratingJournal).find((events) => Array.isArray(events) && events.includes(rating))
+        : undefined;
+      expect(journalEvents).toBeDefined();
+    });
+    const projection = replayKeyProjection(journalEvents!);
+    expect(projection).not.toBeNull();
+    expect(projection.ease).toBe(rating.easeAfter);
+    expect(projection.evidenceSource).toBe('manual');
+
+    // Progress: the canonical journal materializes a measured, not-unknown state.
+    await vi.waitFor(() => {
+      const status = ctx.getComprehensiveWordStatusSync(word, 'zh');
+      expect(['learning', 'known']).toContain(status);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
+    disposeProvider();
+    mockSettings.language = 'ja';
+  });
+
   it('fluent sense-recognition is raise-only: never lowers an ease above the known anchor', async () => {
     mockSettings.language = 'ja2';
     const SRS = await import('../services/srsAlgorithm');
@@ -5065,6 +5428,7 @@ describe('trackGrammarEncountered encounter opts (REQ39)', () => {
     });
     // Encounters are factual exposure — never mastery evidence.
     expect(event.easeAfter).toBeUndefined();
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
     dispose();
   });
 
@@ -5084,7 +5448,72 @@ describe('trackGrammarEncountered encounter opts (REQ39)', () => {
   });
 });
 
+const SAVE_FLUSH_MS = 400; // provider SAVE_DEBOUNCE_MS (300) + margin
+
+vi.mock('../context', () => ({
+  useLocalization: () => ({ t: (key: string) => key }),
+  useSettings: () => ({ settings: mockSettings }),
+}));
+
 describe('recordGrammarAttempt (curriculum grammar probe)', () => {
+  beforeEach(setupMockImplementations);
+
+  it('a German grammar probe is UNASSISTED by default (cue-free session surface)', async () => {
+    mockSettings.language = 'de';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    // 'weil' is a real construction of the German source package
+    // (scripts/language-data/source/root-of-app/languages/de.json, B1).
+    const attemptId = ctx.recordGrammarAttempt('weil', 'fluent', { language: 'de', level: 3 });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')).toBeDefined());
+
+    const byKey = mockAppendEvents.mock.calls[0][0] as Record<string, Array<Record<string, unknown>>>;
+    const [event] = byKey[grammarEvidenceKey('de', 'weil', 'grammar-recognition')];
+    expect(event).toMatchObject({
+      kind: 'rating',
+      quality: 'fluent',
+      attemptId,
+      origin: 'grammar-probe',
+      taskType: 'grammar-recognize',
+      easeAfter: 1.8,
+    });
+    // The grammar-probe surface is cue-free by construction: no meaning is
+    // rendered inside the pass, so attempts are unassisted (no scaffolds).
+    expect('scaffolds' in event).toBe(false);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('a row-probe with visible meaning records translation-scaffold provenance', async () => {
+    // The restored per-row probe is a browsing-surface self-assessment: the
+    // meaning is visible, so the record declares the cue (translation) while
+    // staying an active grammar-recognition attempt per the core contract
+    // (SCAFFOLD_INVALIDATES only ever pre-empts sense-recognition).
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    ctx.recordGrammarAttempt('のに', 'struggled', { language: 'ja', level: 2, scaffolds: { translation: true } });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('のに', 'ja')).toBeDefined());
+
+    const byKey = mockAppendEvents.mock.calls[0][0] as Record<string, Array<Record<string, unknown>>>;
+    const [event] = byKey[grammarEvidenceKey('ja', 'のに', 'grammar-recognition')];
+    expect(event).toMatchObject({
+      kind: 'rating',
+      quality: 'struggled',
+      origin: 'grammar-probe',
+      taskType: 'grammar-recognize',
+      scaffolds: { translation: true },
+    });
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+
   beforeEach(setupMockImplementations);
 
   it('writes ONE active rating event on the capability-scoped grammar key', async () => {
@@ -5110,6 +5539,7 @@ describe('recordGrammarAttempt (curriculum grammar probe)', () => {
     });
     expect('timesSeenDelta' in events[0]).toBe(false);
     expect(events[0].targetRef).toMatchObject({ capability: 'grammar-recognition' });
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
     dispose();
     mockSettings.language = 'ja';
   });
@@ -5127,6 +5557,192 @@ describe('recordGrammarAttempt (curriculum grammar probe)', () => {
     const [event] = byKey[grammarEvidenceKey('ja', 'ば', 'grammar-recognition')];
     expect(event).toMatchObject({ kind: 'rating', quality: 'missed', grammarFailedDelta: 1 });
     expect(event.easeAfter).toBeUndefined();
+    dispose();
+    mockSettings.language = 'ja';
+  });
+});
+
+describe('contrast-question item provenance and invalidation (R12/G03)', () => {
+  beforeEach(setupMockImplementations);
+
+  const keyFor = (language: string, pattern: string): string =>
+    grammarEvidenceKey(language, pattern, 'grammar-recognition');
+
+  it('a contrast attempt carries the versioned item reference and task type', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    const attemptId = ctx.recordGrammarAttempt('のに', 'struggled', {
+      language: 'ja',
+      level: 2,
+      itemRef: { id: 'ja-noni-11ji-1', version: 'ja-package-2026.09.19', seed: 314159 },
+      validationRef: {
+        validator: 'teacher-review',
+        validatorVersion: 'rubric-1',
+        at: '2026-09-19T00:00:00Z',
+        contentHash: 'ja-package-2026.09.19',
+      },
+      taskType: 'contrast-mcq',
+    });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('のに', 'ja')).toBeDefined());
+
+    const byKey = mockAppendEvents.mock.calls[0][0] as Record<string, Array<Record<string, unknown>>>;
+    const [event] = byKey[keyFor('ja', 'のに')];
+    expect(event).toMatchObject({
+      kind: 'rating',
+      quality: 'struggled',
+      attemptId,
+      taskType: 'contrast-mcq',
+      itemRef: { id: 'ja-noni-11ji-1', version: 'ja-package-2026.09.19', seed: 314159 },
+      validationRef: {
+        validator: 'teacher-review',
+        validatorVersion: 'rubric-1',
+        at: '2026-09-19T00:00:00Z',
+        contentHash: 'ja-package-2026.09.19',
+      },
+    });
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('retracting an invalidated item recomputes the projection without deleting unrelated history', async () => {
+    mockSettings.language = 'de';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    // One attempt through a (later invalidated) item, plus unrelated evidence
+    // on another pattern recorded directly through the journal.
+    ctx.recordGrammarAttempt('weil', 'struggled', {
+      language: 'de',
+      level: 3,
+      itemRef: { id: 'de-weil-fieber-1', version: 'de-package-2026.09.18' },
+      taskType: 'contrast-mcq',
+    });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')?.ease).toBeCloseTo(1.55));
+
+    // Unrelated evidence recorded through the normal writer (no itemRef):
+    // an ordinary grammar probe on another pattern.
+    const unrelatedAttemptId = ctx.recordGrammarAttempt('obwohl', 'fluent', { language: 'de', level: 3 });
+    expect(unrelatedAttemptId).toBeTruthy();
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('obwohl', 'de')?.ease).toBeCloseTo(1.8));
+
+    // Invalidation: tombstones for exactly the item's attempts, computed by
+    // the pure helper from the LIVE journal (the mock journal derives its
+    // rows from append calls, so it is read BEFORE any clearing), then
+    // appended through the context writer; the projection re-materializes.
+    const itemKey = keyFor('de', 'weil');
+    const queried = await knowledgeJournal.queryKnowledgeEvents([itemKey]);
+    const log = {
+      [itemKey]: (queried[itemKey] ?? []).filter(
+        (event) => (event as { itemRef?: unknown }).itemRef !== undefined,
+      ),
+    } as unknown as KnowledgeEventLog;
+    expect(log[itemKey]).toHaveLength(1);
+    const tombstones = retractionEventsForItem(log, { id: 'de-weil-fieber-1', version: 'de-package-2026.09.18' });
+    expect(Object.keys(tombstones)).toEqual([itemKey]);
+    // The mock journal derives its rows from append calls — never clear it
+    // here; the tombstone append must land on a journal that still holds the
+    // row being retracted and the unrelated evidence being kept.
+    await ctx.retractGrammarItemAttempts(tombstones, 'de', ['weil']);
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')).toBeUndefined());
+    // Unrelated evidence intact.
+    expect(ctx.getGrammarKnowledge('obwohl', 'de')?.ease).toBeCloseTo(1.8);
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('package reconcile retires only undeclared item ids and is idempotent', async () => {
+    mockSettings.language = 'de';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    ctx.recordGrammarAttempt('weil', 'struggled', {
+      language: 'de',
+      level: 3,
+      itemRef: { id: 'de-weil-retired-1', version: 'de-package-2026.09.18' },
+      taskType: 'contrast-mcq',
+    });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')).toBeDefined());
+
+    // The updated package still declares 'de-weil-fieber-1' (kept) but not
+    // 'de-weil-retired-1': the retired attempt retracts, the entry vanishes.
+    // Call COUNTS track appends — clearing the mock would erase the journal
+    // the reconcile reads (allRows derives from append calls).
+    const callsBeforeReconcile = mockAppendEvents.mock.calls.length;
+    const retired = await ctx.reconcileGrammarItems('de', new Map([['de-weil-fieber-1', { version: 'de-package-2026.09.18', invalid: false } satisfies DeclaredItemState]]));
+    expect(retired).toBe(1);
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')).toBeUndefined());
+    expect(mockAppendEvents.mock.calls.length).toBe(callsBeforeReconcile + 1);
+
+    // Idempotent: a second reconcile over the reconciled journal appends nothing.
+    const callsAfterFirst = mockAppendEvents.mock.calls.length;
+    const second = await ctx.reconcileGrammarItems('de', new Map([['de-weil-fieber-1', { version: 'de-package-2026.09.18', invalid: false } satisfies DeclaredItemState]]));
+    expect(second).toBe(0);
+    expect(mockAppendEvents.mock.calls.length).toBe(callsAfterFirst);
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('package reconcile retracts attempts recorded under changed item content and keeps unchanged ones', async () => {
+    mockSettings.language = 'de';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+
+    ctx.recordGrammarAttempt('weil', 'struggled', {
+      language: 'de',
+      level: 3,
+      itemRef: { id: 'de-weil-fieber-1', version: itemContentVersion({ id: 'de-weil-fieber-1', context: 'x', answerSpan: 'x', conditions: [], distractors: [] }) },
+      taskType: 'contrast-mcq',
+    });
+    ctx.recordGrammarAttempt('obwohl', 'fluent', {
+      language: 'de',
+      level: 3,
+      itemRef: { id: 'de-obwohl-current-1', version: 'item-v1:1111111111111111' },
+      taskType: 'contrast-mcq',
+    });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')).toBeDefined());
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('obwohl', 'de')).toBeDefined());
+
+    const callsBefore = mockAppendEvents.mock.calls.length;
+    // Declared state: obwohl's item content unchanged → survives; weil's
+    // declared content version differs → its attempt retracts.
+    const retired = await ctx.reconcileGrammarItems('de', new Map<string, DeclaredItemState>([
+      ['de-weil-fieber-1', { version: 'item-v1:2222222222222222', invalid: false }],
+      ['de-obwohl-current-1', { version: 'item-v1:1111111111111111', invalid: false }],
+    ]));
+    expect(retired).toBe(0); // the item is still declared — only its content changed
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')).toBeUndefined());
+    expect(ctx.getGrammarKnowledge('obwohl', 'de')).toBeDefined();
+    expect(mockAppendEvents.mock.calls.length).toBe(callsBefore + 1);
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('a repeated success on the same item does not raise the projected ease (G02)', async () => {
+    mockSettings.language = 'de';
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    const ref = { id: 'de-weil-fieber-1', version: 'item-v1:3333333333333333' };
+    ctx.recordGrammarAttempt('weil', 'struggled', { language: 'de', level: 3, itemRef: ref, taskType: 'contrast-mcq' });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')?.ease).toBeCloseTo(1.55));
+    // The SAME item again (memorized, familiar): still measured, but the
+    // projection must not read it as fresh generalization.
+    ctx.recordGrammarAttempt('weil', 'fluent', { language: 'de', level: 3, itemRef: ref, taskType: 'contrast-mcq' });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')?.ease).toBeCloseTo(1.55));
+
+    // A DIFFERENT item (fresh generalization) applies fully.
+    ctx.recordGrammarAttempt('weil', 'fluent', { language: 'de', level: 3, itemRef: { id: 'de-weil-studium-2', version: 'item-v1:3333333333333333' }, taskType: 'contrast-mcq' });
+    await vi.waitFor(() => expect(ctx.getGrammarKnowledge('weil', 'de')?.ease).toBeCloseTo(1.8));
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
     dispose();
     mockSettings.language = 'ja';
   });

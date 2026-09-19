@@ -1,4 +1,5 @@
 import { projectedWordStatus } from '../../../shared/graph/targets';
+import { surfaceEntityId } from '../../../shared/graph/load';
 import { getLogger } from '../../../shared/utils/logger';
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
 import { Component, Show, batch, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack } from 'solid-js';
@@ -254,9 +255,25 @@ export const WordSyncContent: Component = () => {
       while (input.revision === scanRevision && cursor < entries.length) {
         const entry = entries[cursor++];
         const projection = input.projections.get(entry.word);
-        if (projection?.status !== 'ready') continue;
+        // An explicit error/materialization failure is a real failure: never
+        // admit on it. An ABSENT projection is an unmeasured surface — the
+        // exact candidate Word Sync exists to teach — admitted via
+        // identity-backed constructed targets (F-N1 bounded fan-out), with
+        // possible derived from the pool's own reading so no translation is
+        // fetched for absent entries (prosody is re-probed at presentation).
+        if (projection?.status === 'error') continue;
         const summary = projectedWordStatus(projection);
         if (input.filter && !evaluateAst<unknown>(input.filter, { status: wordSyncPoolStatus(summary.status, summary.basis), level: entry.level }, filterResolvers())) continue;
+        // ABSENT projection (unmeasured surface): admitted WITHOUT a
+        // translation fetch — `possible` derives from the pool's own
+        // reading; prosody is re-probed at presentation.
+        if (!projection) {
+          const absentPossible = getTestedAccesses({ languageData: input.data, surface: entry.word, hasReadingData: !!entry.reading, hasProsodyData: false });
+          if (absentPossible.length === 0) continue;
+          const probe = wordSyncProbe(undefined, absentPossible, surfaceEntityId(input.language, hashWordSync(entry.word)));
+          if (probe.targets.length && (!input.filter || evaluateAst<unknown>(input.filter, { status: probe.status, level: entry.level }, filterResolvers()))) eligible.add(entry.word);
+          continue;
+        }
         const reference = await fetchTranslation(entry.word, input.language, {
           getCanonicalForm: langCtx.getCanonicalForm, getWordVariants: langCtx.getWordVariants,
           dictionaryTargetLanguage, languageData: langCtx.currentLangData,
@@ -264,7 +281,7 @@ export const WordSyncContent: Component = () => {
         const reading = reference?.data?.[0]?.reading || entry.reading;
         const prosody = extractProsodyFromTranslationData(reference ?? undefined, input.data, reading);
         const possible = getTestedAccesses({ languageData: input.data, surface: entry.word, hasReadingData: !!reading, hasProsodyData: !!prosody });
-        const probe = wordSyncProbe(projection, possible);
+        const probe = wordSyncProbe(projection, possible, surfaceEntityId(input.language, hashWordSync(entry.word)));
         if (probe.targets.length && (!input.filter || evaluateAst<unknown>(input.filter, { status: probe.status, level: entry.level }, filterResolvers()))) eligible.add(entry.word);
       }
     }));
@@ -742,7 +759,7 @@ export const WordSyncContent: Component = () => {
       hasReadingData: !!displayedReading(), hasProsodyData: !!currentWordProsody(),
     });
     trace('projection update', { word: w.word });
-    const admitted = wordSyncProbe(projection, possible);
+    const admitted = wordSyncProbe(projection, possible, surfaceEntityId(settings.language, hashWordSync(w.word)));
     const targets = admitted.targets;
     const ast = filterAst();
     const record = { status: admitted.status, level: w.level };

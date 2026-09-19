@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
     removeHandler: vi.fn(),
   },
   app: {
-    getPath: vi.fn(() => '/tmp/test-userdata'),
+    getPath: vi.fn(() => '/tmp/mlearn-builtin-llm-test'),
     isPackaged: false,
     on: vi.fn(),
   },

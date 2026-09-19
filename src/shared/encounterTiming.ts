@@ -10,6 +10,9 @@
  * Boundaries:
  * - window blur/focus (application switch, minimize on most platforms)
  * - document visibilitychange (tab switch, minimize where reported)
+ * - presentation into an ALREADY backgrounded surface (unfocused window or
+ *   hidden document) starts the attempt PAUSED and interrupted: no blur
+ *   event would ever fire to open a pause retroactively
  *
  * Walking away while the window stays focused is not detectable without
  * aggressive idle heuristics, which would misread a thinking learner. The
@@ -55,6 +58,12 @@ export interface EncounterTimerEventTarget {
 
 export interface EncounterTimerDocument extends EncounterTimerEventTarget {
   readonly hidden: boolean;
+  /**
+   * Renderer focus probe (`document.hasFocus`). Optional so minimal test
+   * harnesses need not implement it; without it the timer can only react to
+   * focus/blur EVENTS and cannot detect an already-unfocused window at start.
+   */
+  hasFocus?(): boolean;
 }
 
 export interface EncounterTimerOptions {
@@ -73,8 +82,16 @@ export function createEncounterTimer(options?: EncounterTimerOptions): Encounter
   // Renderer surfaces run in a window; tests inject harnesses. globalThis
   // keeps this module compilable in DOM-lib-free tsconfig projects.
   const globalAsTarget = globalThis as unknown as EncounterTimerEventTarget & EncounterTimerDocument;
+  // Well-known DOM global (`document`): the visibility/focus surface this
+  // timer must read. In a renderer `globalThis` IS the window, and a window
+  // has NO `hidden`/`hasFocus` of its own — without resolving the document,
+  // the no-options callers (FlashcardReview, PlacementSession, WelcomeRoute,
+  // WordSync) would read `window.hidden` (always undefined → "visible") and
+  // could never probe focus.
+  const rendererScope = globalThis as { document?: EncounterTimerDocument };
+  const realDocument = rendererScope.document;
+  const doc = options?.doc ?? realDocument ?? globalAsTarget;
   const win = options?.win ?? globalAsTarget;
-  const doc = options?.doc ?? globalAsTarget;
   const stallInterruptMs = options?.stallInterruptMs ?? STALL_INTERRUPT_MS;
 
 
@@ -89,6 +106,12 @@ export function createEncounterTimer(options?: EncounterTimerOptions): Encounter
   let stallFlagged = false;
   let interruptionCount = 0;
   const activeWindow = (): boolean => !blurred && !doc.hidden;
+
+  // The surface's ACTUAL focus state right now: the document probe when the
+  // environment provides one, otherwise "not known to be unfocused" (only a
+  // real focus/blur event can then flip the state).
+  const isSurfaceUnfocused = (): boolean =>
+    typeof doc.hasFocus === 'function' ? !doc.hasFocus() : false;
 
   const pause = (): void => {
     if (!running) return;
@@ -162,11 +185,22 @@ export function createEncounterTimer(options?: EncounterTimerOptions): Encounter
       segmentStartedAt = startedAt;
       lastEngagementAt = startedAt;
       started = true;
-      running = activeWindow();
-      blurred = false;
+      // Presentation into an ALREADY-backgrounded surface fires no blur event
+      // afterwards — trust the surface's real initial state instead of a
+      // fresh "focused" assumption (R11: an alt-tab gap is never active
+      // retrieval time, not even one that started before this prompt).
+      blurred = isSurfaceUnfocused();
       interruptionCount = 0;
       stallFlagged = false;
       activeAccumMs = 0;
+      running = activeWindow();
+      if (!running) {
+        // The opening stretch is a PAUSE, not active retrieval: focus and
+        // visibility must RETURN before measurement starts. Count ONE
+        // interruption so consumers flag the attempt as not clean — a paused
+        // start that merely awaited resume must not read as "uninterrupted".
+        interruptionCount = 1;
+      }
       attach();
     },
     stop() {

@@ -18,7 +18,7 @@ import {
 } from '../../shared/curriculum';
 import { replayGrammarRecognition } from '../../shared/grammar/evidence';
 import { stripRetractions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
-import { easeToStatus } from '../../shared/utils/knowledgeStrength';
+import { evidenceStatusFromEase, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { sortGrammarLevelsByDifficulty } from '../../shared/languageFeatures';
 import { grammarEntityId } from '../../shared/graph/load';
 
@@ -28,6 +28,41 @@ export interface GrammarMeasurement {
   passiveOnly: boolean;
   exposures: number;
   failures: number;
+}
+
+/**
+ * Category-bottleneck pressure (R07): mean insecurity of ACTIVELY
+ * measured constructions per package-declared category, in [0, 1]. A
+ * category whose measured constructions stay insecure is a bottleneck (unknown = full
+ * deficit, learning = half); its constructions gain curriculum-relevance in
+ * the teaching policy's SAME weighted pick (no separate scheduler). Bounded
+ * labelled heuristic — a selection signal only, never evidence, and
+ * categories without ACTIVELY measured constructions stay absent (passive
+ * exposure and empty journals invent no pressure).
+ */
+export function grammarCategoryPressure(
+  items: ReadonlyArray<{ pattern: string; category?: string }>,
+  measurements: ReadonlyMap<string, GrammarMeasurement>,
+): Record<string, number> {
+  const totals = new Map<string, { deficit: number; measured: number }>();
+  for (const item of items) {
+    if (!item.category) continue;
+    const measurement = measurements.get(item.pattern);
+    // Active evidence only: passive encounter rollups are familiarity, not
+    // measured attempts, and never invent pressure.
+    if (!measurement || measurement.passiveOnly) continue;
+    const total = totals.get(item.category) ?? { deficit: 0, measured: 0 };
+    total.measured += 1;
+    total.deficit += measurement.state === 'unknown' ? 1 : measurement.state === 'learning' ? 0.5 : 0;
+    totals.set(item.category, total);
+  }
+  const pressure: Record<string, number> = {};
+  for (const [category, total] of totals) {
+    // Mean insecurity of the category's measured constructions: every
+    // pattern unknown → 1, every pattern known → 0.
+    if (total.measured > 0) pressure[category] = Math.min(1, total.deficit / total.measured);
+  }
+  return pressure;
 }
 
 /** One requirement per package-declared grammar construction with a curriculum level. */
@@ -60,7 +95,11 @@ export function grammarLevelName(level: number, languageData: LanguageData): str
  * `:grammar-recognition` carry capability-scoped evidence; the pattern is
  * recovered from the embedded entity id (same shape the materialization uses).
  */
-export function classifyGrammarMeasurements(language: string, eventLog: KnowledgeEventLog): Map<string, GrammarMeasurement> {
+export function classifyGrammarMeasurements(
+  language: string,
+  eventLog: KnowledgeEventLog,
+  thresholds: EffectiveThresholds = effectiveThresholds(),
+): Map<string, GrammarMeasurement> {
   const suffix = ':grammar-recognition';
   const prefix = `${language}:grammar:`;
   const byPattern = new Map<string, KnowledgeEvent[]>();
@@ -80,26 +119,23 @@ export function classifyGrammarMeasurements(language: string, eventLog: Knowledg
     const active = stripRetractions(events);
     let exposures = 0;
     let failures = 0;
-    const rated: KnowledgeEvent[] = [];
     for (const event of active) {
       exposures += event.timesSeenDelta ?? 0;
       failures += event.grammarFailedDelta ?? 0;
-      // Active measurement: interactive ratings, anki imports, and legacy
-      // migration rollups with an explicit ease outcome. Pure delta rollups
-      // are exposure.
-      if (event.kind === 'rating' || event.easeAfter !== undefined) rated.push(event);
     }
-    let state: CurriculumTargetState = 'unmeasured';
-    if (rated.length > 0) {
-      const projection = replayGrammarRecognition(rated);
-      if (projection) state = easeToStatus(projection.ease);
-      else state = failures > 0 ? 'unknown' : 'learning';
-    } else if (failures > 0) {
-      state = 'unknown';
-    }
+    // Replay the COMPLETE ordered sequence — rating, failure, and encounter
+    // rows together — so coverage classification is ledger-exact with the
+    // materialized GrammarSelector projection. Filtering delta rows out
+    // (the pre-review behavior) let a rating followed by a failure rollup
+    // read Known here while the selector read Learning (R01 same-state).
+    const projection = replayGrammarRecognition(active);
+    const measured = projection?.hasActiveEvidence === true;
+    const state: CurriculumTargetState = measured
+      ? evidenceStatusFromEase(projection!.ease, thresholds)
+      : 'unmeasured';
     measurements.set(pattern, {
       state,
-      passiveOnly: rated.length === 0 && failures === 0,
+      passiveOnly: !measured,
       exposures,
       failures,
     });
@@ -112,9 +148,10 @@ export function summarizeGrammarCurriculum(
   language: string,
   languageData: LanguageData,
   eventLog: KnowledgeEventLog,
+  thresholds: EffectiveThresholds = effectiveThresholds(),
 ): CurriculumComponentSummary {
   const requirements = grammarCurriculumRequirements(language, languageData);
-  const measurements = classifyGrammarMeasurements(language, eventLog);
+  const measurements = classifyGrammarMeasurements(language, eventLog, thresholds);
   return summarizeCurriculumComponent(
     'grammar',
     requirements,

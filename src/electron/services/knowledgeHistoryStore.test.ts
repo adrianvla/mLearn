@@ -6,7 +6,7 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
-import { COMPACTION_KEY_BUDGET, KnowledgeHistoryStore } from './knowledgeHistoryStore';
+import { COMPACTION_KEY_BUDGET, KnowledgeHistoryStore, isKnowledgeEvent } from './knowledgeHistoryStore';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -47,6 +47,16 @@ function ankiStatus(t: number, toStatus: KnowledgeEvent['toStatus']): KnowledgeE
 }
 
 describe('KnowledgeHistoryStore', () => {
+  it('accepts a finite delivered-item seed and rejects malformed seed provenance', () => {
+    const event = attemptEvent({
+      t: 1,
+      itemRef: { id: 'de-weil-fieber-1', version: 'item-v2:1234567890abcdef', seed: 314159 },
+    });
+    expect(isKnowledgeEvent(event)).toBe(true);
+    expect(isKnowledgeEvent({ ...event, itemRef: { ...event.itemRef!, seed: Number.NaN } })).toBe(false);
+    expect(isKnowledgeEvent({ ...event, itemRef: { ...event.itemRef!, seed: '314159' } })).toBe(false);
+  });
+
   it('keeps capability projections independent through archival and retraction', () => {
     const s = store();
     const now = Date.now();

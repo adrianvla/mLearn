@@ -48,7 +48,12 @@ describe('KnowledgeHistoryTimeline', () => {
   });
 
   it('aggregates repetitive same-outcome rows behind one count and expands to individual events', () => {
-    const now = Date.now();
+    // Anchor at local noon: the -1/-2/-3h offsets must stay on one calendar
+    // day (raw Date.now() splits them across midnight when the suite runs in
+    // the first three hours after 00:00, breaking the single-day aggregation).
+    const noon = new Date();
+    noon.setHours(12, 0, 0, 0);
+    const now = noon.getTime();
     const events: KnowledgeEvent[] = [
       { t: now - 3600_000, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known' },
       { t: now - 7200_000, kind: 'status', source: 'anki', aspect: 'meaning', fromStatus: 'unknown', toStatus: 'known' },

@@ -9,7 +9,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-2, 8px);
+  gap: 8px;
 }
 
 .grammar-coverage__title {
@@ -94,7 +94,7 @@
 .grammar-coverage__construction {
   display: flex;
   align-items: center;
-  gap: var(--space-2, 8px);
+  gap: 8px;
   padding: 4px 6px;
   border-radius: 6px;
   font-size: 0.85rem;
@@ -165,5 +165,191 @@
 }
 
 .grammar-coverage__probe-btn:hover {
-  background: var(--bg-hover, rgba(128, 128, 128, 0.12));
+  background: var(--bg-intense);
+}
+
+/* Policy-selected practice session (TeachingPolicy -> probe control). */
+.grammar-coverage__session {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 4px 8px;
+}
+
+.grammar-coverage__session-btn {
+  border: 1px solid var(--border-color);
+  background: none;
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.grammar-coverage__session-btn:hover {
+  background: var(--bg-intense);
+}
+
+.grammar-coverage__session-prompt,
+.grammar-coverage__session-done,
+.grammar-coverage__session-probe {
+  font-size: 0.82rem;
+}
+
+.grammar-coverage__session-prompt .grammar-coverage__meaning {
+  margin-left: 6px;
+  color: var(--text-secondary);
+}
+
+.grammar-coverage__session-done {
+  color: var(--text-secondary);
+}
+
+/* Per-row probes pause while a live pass runs on their level (no double evidence). */
+.grammar-coverage__probe-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Session rating buttons are always visible (unlike row probe on-hover). */
+.grammar-coverage__session-probe {
+  display: inline-flex;
+  gap: 4px;
+  opacity: 1;
+}
+
+/* Independent question validation (R12): honest run status under the
+    session controls. */
+.grammar-coverage__validate-status {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  width: 100%;
+}
+
+.grammar-coverage__session-skip {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 2px 6px;
+}
+
+/* Contrast pass (R12): validated package items rendered as MCQ steps. */
+
+.grammar-contrast {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 4px 8px;
+  font-size: 0.85rem;
+}
+
+.grammar-contrast__context {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.grammar-contrast__gap {
+  display: inline-block;
+  min-width: 3.5em;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-intense);
+  border-radius: 3px;
+}
+
+.grammar-contrast__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.grammar-contrast__option {
+  border: 1px solid var(--border-color);
+  background: none;
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.grammar-contrast__option:hover:enabled {
+  background: var(--bg-intense);
+}
+
+.grammar-contrast__option:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+/* Feedback styling only AFTER the graded submission (G02): the chosen wrong
+   option and the gold option are marked post-answer, never pre-answer. */
+.grammar-contrast__option--gold {
+  border-color: var(--color-success);
+}
+
+.grammar-contrast__option--wrong {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.grammar-contrast__feedback {
+  font-size: 0.8rem;
+}
+
+.grammar-contrast__feedback--correct {
+  color: var(--color-success);
+}
+
+.grammar-contrast__feedback--incorrect {
+  color: var(--color-danger);
+}
+
+.grammar-contrast__next {
+  align-self: flex-start;
+}
+
+/* Delivery format toggle (R12): compact, only where the package declares
+   both formats; hidden once the question is answered. */
+.grammar-contrast__modes {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0 2px;
+}
+
+.grammar-contrast__mode-btn {
+  border: 1px solid var(--border-color);
+  background: none;
+  color: inherit;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.grammar-contrast__mode-btn--active {
+  background: var(--bg-intense);
+}
+
+/* Typed delivery: one input + check button. */
+.grammar-contrast__typed {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.grammar-contrast__typed-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  padding: 4px 10px;
+  font-size: 0.9rem;
 }

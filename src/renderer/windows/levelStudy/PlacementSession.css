@@ -1,0 +1,223 @@
+/* Returning-learner placement (R09). Reuses the grammar-coverage session
+   language; only structural rules here — no new color tokens, no fallbacks. */
+
+.placement-session {
+  margin-top: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.placement-session__header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+.placement-session__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.placement-session__toggle {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.placement-session__description {
+  margin: 8px 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.placement-session__background h4 {
+  margin: 10px 0 4px;
+  font-size: 0.9rem;
+}
+
+.placement-session__empty {
+  margin: 4px 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.placement-session__records {
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.placement-session__record {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.placement-session__record-kind,
+.placement-session__record-level,
+.placement-session__record-date {
+  color: var(--text-secondary);
+}
+
+.placement-session__record-score {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.placement-session__record-remove {
+  margin-left: auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  padding: 0 4px;
+}
+
+.placement-session__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.placement-session__form input,
+.placement-session__form select {
+  font-size: 0.85rem;
+  padding: 4px 6px;
+}
+
+.placement-session__form-label {
+  flex: 1 1 160px;
+}
+
+.placement-session__form-level {
+  flex: 0 1 110px;
+}
+
+.placement-session__form-score,
+.placement-session__form-skill-score {
+  flex: 0 1 110px;
+}
+
+.placement-session__add,
+.placement-session__form-save,
+.placement-session__start,
+.placement-session__apply {
+  margin-top: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-intense);
+  cursor: pointer;
+}
+
+.placement-session__date-required {
+  flex-basis: 100%;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.placement-session__start,
+.placement-session__apply {
+  font-weight: 600;
+}
+
+.placement-session__start:disabled,
+.placement-session__apply:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.placement-session__no-pool {
+  margin: 8px 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.placement-session__live {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.placement-session__prompt {
+  font-size: 1.25rem;
+}
+
+.placement-session__probe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.placement-session__rate,
+.placement-session__skip {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-intense);
+  cursor: pointer;
+}
+
+.placement-session__rate:disabled,
+.placement-session__skip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.placement-session__placement {
+  margin: 8px 0 4px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.placement-session__move-ahead {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+}
+
+.placement-session__trace {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.placement-session__evidence-note,
+.placement-session__latency {
+  margin: 4px 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.placement-session__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.placement-session__dismiss {
+  margin-top: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}

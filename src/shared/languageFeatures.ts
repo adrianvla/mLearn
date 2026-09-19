@@ -1847,6 +1847,30 @@ export function compareFrequencyLevelsByDifficulty(
   return order === 'easiest-to-hardest' ? easiestToHardest : -easiestToHardest;
 }
 
+/**
+ * Resolves a grammar point's meaning for display: the localized variant for
+ * the active UI language wins; otherwise the canonical string is shown ONLY
+ * when the UI language matches the package-declared meaning language
+ * (`packageMeaningLanguage`, defaulting to English by convention). Under any
+ * other UI language an untranslated meaning is withheld (undefined) — missing
+ * display data is never backfilled from another language (R05/R19).
+ */
+export function grammarPointMeaning(
+  point: { meaning: string; meanings?: Partial<Record<string, string>> },
+  uiLanguage?: string,
+  packageMeaningLanguage = 'en',
+): string | undefined {
+  if (!point.meaning) return undefined;
+  const localized = uiLanguage ? point.meanings?.[uiLanguage] : undefined;
+  if (localized) return localized;
+  // The canonical string is shown only under the package's declared authored
+  // language (`languageData.meaningLanguage`, English by convention) — under
+  // any other UI language an untranslated meaning is WITHHELD rather than
+  // leaking another language into the learner's display pair (R05/R19).
+  if (!uiLanguage || uiLanguage === packageMeaningLanguage) return point.meaning;
+  return undefined;
+}
+
 export function compareGrammarLevelsByDifficulty(
   left: number,
   right: number,

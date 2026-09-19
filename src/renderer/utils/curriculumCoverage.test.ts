@@ -3,11 +3,13 @@ import type { LanguageData } from '../../shared/types';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import {
   classifyGrammarMeasurements,
+  grammarCategoryPressure,
   grammarCurriculumRequirements,
   grammarLevelOrder,
   summarizeGrammarCurriculum,
 } from './curriculumCoverage';
-import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
+import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
+import { effectiveThresholds, evidenceStatusFromEase } from '../../shared/knowledge/effectiveKnowledge';
 
 const languageData = {
   // JLPT convention: lower level number = harder (N1 = level 1).
@@ -29,6 +31,36 @@ function log(entries: Array<{ pattern: string; event: ReturnType<typeof grammarR
   }
   return result;
 }
+
+describe('grammarCategoryPressure (R07 bottleneck signal)', () => {
+  const items = [
+    { pattern: 'ば', category: 'conditional' },
+    { pattern: '〜わけではない', category: 'negation' },
+    { pattern: 'ない', category: 'negation' },
+    { pattern: 'uncategorized', category: undefined },
+  ];
+
+  it('scores mean insecurity per category from recorded measurements only', () => {
+    const measurements = classifyGrammarMeasurements('ja', log([
+      { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rating', quality: 'missed', easeAfter: 1.3 }) },
+      { pattern: '〜わけではない', event: grammarRecognitionEvidence('ja', '〜わけではない', { t: 2, kind: 'rating', quality: 'fluent', easeAfter: 2.5 }) },
+    ]));
+    const pressure = grammarCategoryPressure(items, measurements);
+    // conditional: its one measured construction is unknown → 1;
+    // negation: its one measured construction is known → 0.
+    expect(pressure).toEqual({ conditional: 1, negation: 0 });
+  });
+
+  it('stays absent without measured attempts and ignores uncategorized items', () => {
+    const measurements = classifyGrammarMeasurements('ja', log([
+      { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rollup', timesSeenDelta: 5 }) },
+    ]));
+    // Passive exposure is not attempt evidence: no pressure invented.
+    expect(measurements.get('ば')?.passiveOnly).toBe(true);
+    expect(grammarCategoryPressure(items, measurements)).toEqual({});
+    expect(grammarCategoryPressure(items, new Map())).toEqual({});
+  });
+});
 
 describe('grammarCurriculumRequirements', () => {
   it('maps package grammar points onto their own scale, skipping unbucketed ones', () => {
@@ -70,6 +102,36 @@ describe('classifyGrammarMeasurements', () => {
     ]));
     expect(measurements.get('ば')?.state).toBe('unknown');
     expect(measurements.get('ば')?.passiveOnly).toBe(false);
+  });
+
+  it('a rating followed by a failure rollup matches the full journal replay (no filtered second authority)', () => {
+    // FINAL review reproduction: coverage used to replay only the rating
+    // (1.8 → Known) while the materialized selector replayed the complete
+    // ordered journal (1.8 − failure penalty → Learning). Coverage must use
+    // the same full replay and resolve the SAME state.
+    const events = log([
+      { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rating', quality: 'fluent', easeAfter: 1.8 }) },
+      { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 2, kind: 'rollup', grammarFailedDelta: 1, origin: 'grammar-failure' }) },
+    ]);
+    const fullReplay = replayGrammarRecognition(events[grammarEvidenceKey('ja', 'ば', 'grammar-recognition')]!)!;
+    expect(fullReplay.hasActiveEvidence).toBe(true);
+    expect(fullReplay.ease).toBeCloseTo(1.8 - 0.15, 10);
+    const covered = classifyGrammarMeasurements('ja', events).get('ば')!;
+    expect(covered.state).toBe(evidenceStatusFromEase(fullReplay.ease, effectiveThresholds()));
+    expect(covered.state).toBe('learning');
+    expect(covered.passiveOnly).toBe(fullReplay.hasActiveEvidence === false);
+    expect(covered.failures).toBe(1);
+  });
+
+  it('rated state uses the configured effective thresholds, not the shipped anchors', () => {
+    // ease 2.6 with easeThresholdKnown 3.0 is Learning. The former
+    // knowledgeStrength.easeToStatus hardcoded the 1.8 anchor and reported
+    // Known — the Level Study vs GrammarSelector disagreement the FINAL
+    // review reproduced.
+    const measurements = classifyGrammarMeasurements('ja', log([
+      { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rating', quality: 'good', easeAfter: 2.6 }) },
+    ]), effectiveThresholds({ easeThresholdLearning: 2.0, easeThresholdKnown: 3.0 }));
+    expect(measurements.get('ば')?.state).toBe('learning');
   });
 
   it('retracted evidence stops measuring the construction', () => {

@@ -44,3 +44,69 @@ describe('projected residual probes', () => {
     expect(wordSyncProbe(projection, ['surface-reading']).status).toBe(String(WORD_STATUS.KNOWN));
   });
 });
+
+describe('wordSyncProbe with an absent projection (F-N1 scan-level seam; request bounding W07)', () => {
+  it('treats an absent projection WITHOUT identity as untracked and NOT admissible', async () => {
+    const { wordSyncProbe } = await import('./wordSyncPool');
+    const probe = wordSyncProbe(undefined, ['sense-recognition', 'surface-reading']);
+    // The probe stays total (no crash) but claims NO targets and admits
+    // nothing: without a surface identity there are no entity ids to claim.
+    expect(probe.targets).toEqual([]);
+    expect(probe.status).toBe(WORD_SYNC_STATUS_UNTRACKED);
+    expect(probe.focused).toBe(false);
+  });
+
+  it('admits an absent projection when the caller supplies its surface identity', async () => {
+    const { wordSyncProbe } = await import('./wordSyncPool');
+    const probe = wordSyncProbe(undefined, ['sense-recognition', 'surface-reading'], 'ja:surface:abc');
+    // Unmeasured by definition: every capability is an unresolved target
+    // under the supplied surface entity id, status Untracked, unfocused.
+    expect(probe.targets.map(t => ({ entityId: t.entityId, capability: t.capability }))).toEqual([
+      { entityId: 'ja:surface:abc', capability: 'sense-recognition' },
+      { entityId: 'ja:surface:abc', capability: 'surface-reading' },
+    ]);
+    expect(probe.status).toBe(WORD_SYNC_STATUS_UNTRACKED);
+    expect(probe.focused).toBe(false);
+  });
+});
+
+describe('wordSyncProbe graph-unmapped surfaces (F-N1 scan-level seam)', () => {
+  const base = { status: 'ready' as const, targets: [] as never[], evidenceSourceCounts: {} };
+
+  it('constructs identity-backed targets for a ready surfaceKnown:false empty projection', async () => {
+    const { wordSyncProbe } = await import('./wordSyncPool');
+    const projection = { ...base, surfaceKnown: false } as unknown as Parameters<typeof wordSyncProbe>[0];
+    const probe = wordSyncProbe(projection, ['sense-recognition', 'surface-reading'], 'ja:surface:abc');
+    expect(probe.targets).toEqual([
+      { entityId: 'ja:surface:abc', capability: 'sense-recognition' },
+      { entityId: 'ja:surface:abc', capability: 'surface-reading' },
+    ]);
+    expect(probe.status).toBe(WORD_SYNC_STATUS_UNTRACKED);
+    expect(probe.focused).toBe(false);
+  });
+
+  it('keeps a graph-unmapped projection WITH measured lexical evidence non-admissible', async () => {
+    const { wordSyncProbe } = await import('./wordSyncPool');
+    const projection = {
+      status: 'ready',
+      targets: [],
+      surfaceKnown: false,
+      lexical: { overall: { classification: 'known', basis: 'evidence' }, entryIds: [], sense: { classification: 'known', basis: 'evidence' }, spoken: { classification: 'unmeasured', basis: 'unmeasured' }, surfaceRecognition: { classification: 'known', basis: 'evidence' }, synchronized: false, missingBridges: [] },
+    } as unknown as Parameters<typeof wordSyncProbe>[0];
+    const probe = wordSyncProbe(projection, ['sense-recognition'], 'ja:surface:abc');
+    // Measured lexical evidence means the projection summary decides: no
+    // identity-backed construction may admit it as fresh untracked — the
+    // probe reports the measured classification so Word Sync excludes it.
+    expect(probe.targets).toEqual([]);
+    expect(probe.status).toBe(String(WORD_STATUS.KNOWN));
+  });
+
+  it('keeps a ready surfaceKnown:true empty-target projection non-admissible', async () => {
+    const { wordSyncProbe } = await import('./wordSyncPool');
+    const projection = { ...base, surfaceKnown: true } as unknown as Parameters<typeof wordSyncProbe>[0];
+    const probe = wordSyncProbe(projection, ['sense-recognition'], 'ja:surface:abc');
+    expect(probe.targets).toEqual([]);
+    expect(probe.status).toBe(WORD_SYNC_STATUS_UNTRACKED);
+    expect(probe.focused).toBe(false);
+  });
+});

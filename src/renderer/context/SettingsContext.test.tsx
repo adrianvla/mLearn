@@ -321,6 +321,34 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
+  it('stamps a legacy exam goal with the active learning language and persists it', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      language: 'ja',
+      examGoal: { kind: 'exam', deadline: '2026-10-11', target: 'JLPT N1' },
+    }));
+
+    expect(ctx.settings.examGoal).toEqual({
+      kind: 'exam', deadline: '2026-10-11', target: 'JLPT N1', language: 'ja',
+    });
+    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
+      examGoal: { kind: 'exam', deadline: '2026-10-11', target: 'JLPT N1', language: 'ja' },
+    }));
+    dispose();
+  });
+
+  it('never re-scopes an already-stamped exam goal', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({
+      language: 'de',
+      examGoal: { kind: 'exam', deadline: '2026-10-11', language: 'ja' },
+    }));
+
+    expect(ctx.settings.examGoal).toEqual({ kind: 'exam', deadline: '2026-10-11', language: 'ja' });
+    expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
+    dispose();
+  });
+
   it('normalizes a persisted signed-out snapshot that still contains an active group', async () => {
     const { ctx, dispose } = await mountProvider();
 

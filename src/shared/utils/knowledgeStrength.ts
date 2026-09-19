@@ -35,15 +35,13 @@ export function statusToStrength(status: WordStatus): number {
 }
 
 /**
- * Legacy ease-only bands, now used only by grammar curriculum coverage.
- * This does not resolve claims or Unmeasured; canonical lexical/capability
- * readers must use knowledge/effectiveKnowledge.
+ * Derivable event outcome: the representative ease a status maps back to.
+ * (The former easeToStatus reader is superseded by
+ * knowledge/effectiveKnowledge: evidenceStatusFromEase with configured
+ * thresholds — grammar curriculum coverage now routes through it. Removed
+ * per the no-deprecated-leftovers rule after migrating its only caller; its
+ * hardcoded-anchor behavior reproduced FINAL review major #2.)
  */
-export function easeToStatus(ease: number): WordStatus {
-  if (ease >= SRS_EASE.DEFAULT_KNOWN) return 'known';
-  if (ease > SRS_EASE.MIN) return 'learning';
-  return 'unknown';
-}
 
 /** Derivable event outcome: the representative ease a status maps back to. */
 export function statusToEase(status: WordStatus): number {

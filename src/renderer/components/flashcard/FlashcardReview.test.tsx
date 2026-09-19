@@ -68,6 +68,7 @@ vi.mock('../../context', () => ({
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
     store: { flashcards: {} },
+    queue: () => ({ newQueue: [], scheduledQueue: [] }),
     queueCounts: () => ({ new: 1, learning: 0, review: 0, total: 1 }),
     getCurrentCard: () => mockCard(),
     getPreviewDueDates: () => ({ again: 1, hard: 2, good: 3, easy: 4 }),
@@ -360,6 +361,24 @@ describe('FlashcardReview review modes', () => {
     await flushEffects();
 
     expect(onModeChange).toHaveBeenCalledWith('meaning');
+    dispose();
+  });
+
+  it('starts the next displayed card face-down once the reveal belonged to the previous one (R20)', async () => {
+    const backFace = () => container.querySelector<HTMLElement>('.flashcard-back');
+    const backHidden = () => backFace()?.classList.contains('flashcard-face--hidden');
+    const dispose = render(() => <FlashcardReview />, container);
+    // Both faces are always mounted; the unrevealed back carries `--hidden`.
+    expect(backHidden()).toBe(true);
+    clickShowAnswer(container);
+    expect(backHidden()).toBe(false);
+
+    // The context advances to a different card: the reveal must not leak
+    // onto it (pre-fix, the revealed answer stayed armed on the next card).
+    setMockCard(makeCard({ id: 'card-2', content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } }));
+    await flushEffects();
+
+    expect(backHidden()).toBe(true);
     dispose();
   });
 

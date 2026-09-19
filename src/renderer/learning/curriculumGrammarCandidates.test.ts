@@ -29,4 +29,13 @@ describe('curriculumGrammarCandidates', () => {
     expect(candidates[0]!.scores['curriculum-relevance']).toBe(0.5);
     expect(candidates[1]!.scores['curriculum-relevance']).toBe(1); // clamped
   });
+
+  it('carries the package content version in meta for trace provenance (R20)', () => {
+    const [versioned] = curriculumGrammarCandidates([{ ...item, contentVersion: 'grammar-data@7' }]);
+    expect(versioned.meta).toEqual({ pattern: '〜わけではない', level: 6, contentVersion: 'grammar-data@7' });
+
+    // Absent version omits the field: the legacy meta shape is unchanged.
+    const [legacy] = curriculumGrammarCandidates([item]);
+    expect(legacy.meta).toEqual({ pattern: '〜わけではない', level: 6 });
+  });
 });

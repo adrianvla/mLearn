@@ -116,6 +116,22 @@ export function migrateLanguageVariantSettings(
   return { settings: next, migrated };
 }
 
+/**
+ * Stamps the learning language onto a legacy exam goal recorded before goals
+ * were scoped (R07): one-time, at load, while the active learning language
+ * is known. The goal keeps applying to the language it was effectively
+ * serving; after a later language switch it no longer follows. Never
+ * re-scopes an already-scoped goal, and `kind: 'none'` is untouched.
+ */
+export function migrateExamGoalSettings(settings: Settings): { settings: Settings; migrated: boolean } {
+  const goal = settings.examGoal;
+  if (goal?.kind !== 'exam' || goal.language !== undefined) return { settings, migrated: false };
+  return {
+    settings: { ...settings, examGoal: { ...goal, language: settings.language } },
+    migrated: true,
+  };
+}
+
 function normalizeSignedOutActiveGroup<T extends Partial<Settings>>(value: T): T {
   if (value.cloudAuthStatus !== 'signed-out') return value;
   return {
@@ -276,6 +292,13 @@ export const SettingsProvider: ParentComponent = (props) => {
       const languageVariantMigration = migrateLanguageVariantSettings(mergedSettings, languageData);
       mergedSettings = languageVariantMigration.settings;
       migratedSettings = languageVariantMigration.migrated;
+
+      // One-time stamp: a legacy exam goal recorded before goals were scoped
+      // inherits the learning language it was serving (R07); the policy read
+      // stays strict.
+      const examGoalMigration = migrateExamGoalSettings(mergedSettings);
+      mergedSettings = examGoalMigration.settings;
+      migratedSettings = migratedSettings || examGoalMigration.migrated;
 
       if (typeof mergedSettings.cloudAuthActiveGroupId !== 'string') {
         mergedSettings.cloudAuthActiveGroupId = DEFAULT_SETTINGS.cloudAuthActiveGroupId;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { LanguageData, MediaStats, LevelPercentages } from '@shared/types';
 import {
+  MEDIA_DIFFICULTY_BASELINE_VERSION,
   computeWordLevelPercentages,
   computeGrammarLevelPercentages,
   assessMediaLevel,
@@ -838,5 +839,22 @@ describe('assessMediaDifficulty', () => {
       headline: null,
       components: { lexical: null, grammar: null, structural: null },
     });
+  });
+});
+
+describe('media difficulty baseline label (R21)', () => {
+  it('keeps the 2^n estimator as an explicit versioned baseline with unchanged math', () => {
+    expect(MEDIA_DIFFICULTY_BASELINE_VERSION).toBe('media-difficulty/2n-weighted@1');
+    // Same fixture → same value the unlabelled estimator always produced;
+    // the label documents the heuristic, it does not change it.
+    const fixture: LevelPercentages = {
+      entries: [
+        { level: 5, levelName: 'N5', uniquePercent: 45, occurrencePercent: 60, uniqueCount: 45, occurrenceCount: 120 },
+        { level: 2, levelName: 'N2', uniquePercent: 55, occurrencePercent: 40, uniqueCount: 55, occurrenceCount: 80 },
+      ],
+      totalUnique: 100,
+      totalOccurrences: 200,
+    };
+    expect(assessMediaLevel(fixture)).toBe(2);
   });
 });

@@ -1707,7 +1707,25 @@
           "Unknown": "未習得",
           "Unmeasured": "未測定"
         },
-        "SeenOnly": "{count}回目撃"
+        "SeenOnly": "{count}回目撃",
+        "Practise": "練習",
+        "SessionPrompt": "「{pattern}」をどのくらい把握していますか？",
+        "SessionDone": "終了 — {count}件の構文を確認しました。",
+        "SessionSkip": "スキップ",
+        "Contrast": "対比",
+        "ContrastPrompt": "空欄に合う構文を選んでください：",
+        "Correct": "正解！",
+        "Incorrect": "惜しい — 答えは: {answer}",
+        "Next": "次へ",
+        "ModeLabel": "回答形式",
+        "ModeMcq": "選ぶ",
+        "ModeType": "入力",
+        "TypePlaceholder": "欠けている形を入力",
+        "Check": "確認",
+        "Validate": "問題を検証",
+        "Validating": "検証中…",
+        "ValidateDone": "検証済み {passed} · 却下 {rejected} · 変更なし {unchanged}",
+        "ValidateFailed": "検証を実行できません: {errors}"
       },
       "PopulationStats": {
         "Title": "フラッシュカード作成状況",
@@ -1752,6 +1770,96 @@
         "Adding": "追加中...",
         "LoadMore": "さらに読み込む",
         "Error": "追加に失敗しました"
+      },
+      "Placement": {
+        "Title": "学習再開者向け",
+        "Description": "任意：以前の試験や学校の結果を背景情報として記録するか、未測定の単語の短いサンプルから開始レベルを提案させられます。既知として主張されることはなく、すべてスキップできます。",
+        "BackgroundTitle": "あなたの背景",
+        "BackgroundEmpty": "過去の結果は記録されていません。",
+        "AddRecord": "過去の結果を追加",
+        "KindLabel": "結果の種類",
+        "Kind": {
+          "exam": "試験",
+          "school": "学校の授業",
+          "self-assessment": "自己評価"
+        },
+        "LabelPlaceholder": "例：Goethe-Zertifikat B2、高校2年ドイツ語",
+        "LevelPlaceholder": "独自尺度でのレベル（例：B2）",
+        "DateLabel": "達成した時期",
+        "NotePlaceholder": "任意のメモ",
+        "SkillsPlaceholder": "対象のスキル（カンマ区切り、例：読解、リスニング）",
+        "ResultLabel": "結果の名称",
+        "LevelLabel": "結果独自尺度でのレベル",
+        "NoteLabel": "任意のメモ",
+        "SkillsLabel": "結果で対象としたスキル",
+        "ScoreOverallLabel": "総合スコア（記載のまま）",
+        "ScoreOverallPlaceholder": "例: 72/100",
+        "ScoreSkillLabel": "{skill}のスコア（記載のまま）",
+        "ScoreSkillPlaceholder": "例: 18/30",
+        "SuppliedScore": "記載スコア: {score}",
+        "SaveRecord": "保存",
+        "RemoveRecord": "この記録を削除",
+        "Start": "レベルを確認",
+        "Prompt": "「{word}」をどのくらい知っていますか？",
+        "Skip": "スキップ",
+        "Placement": "提案レベル：{level}",
+        "PlacementLowest": "サンプルは最も低いレベルから始めることを示唆しています。",
+        "MoveAhead": "現在設定のレベルより上です。先へ進めます。",
+        "TraceRow": "{label}：{sampled} 語サンプル · {hits} スムーズ · {misses} できず · {skipped} スキップ",
+        "EvidenceNote": "サンプルの{count}語のみ測定されました。他の単語は未測定のままです。",
+        "CleanLatency": "タスク応答の中央値（{range}文字）：{ms}ミリ秒（使用できない試行は除外）",
+        "UseLevel": "このレベルを使う",
+        "Dismiss": "閉じる",
+        "EmptyPools": "現在、サンプルできる未測定の単語がありません。",
+        "DateRequired": "試験・学校の結果には達成日が必要です。",
+        "DateUnknown": "日付不明",
+        "NoLocks": "ここでは配置判定は利用できません：このセッションにはウィンドウ間ロックがありません。",
+        "NoStorage": "ここではプレースメントを利用できません：セッションを保存できませんでした（ストレージ満杯またはプライベートモード）。"
+      },
+      "Mock": {
+        "Title": "チェックポイント & 模試",
+        "Subtitle": "インストール済み言語パッケージから導出された固定の宣言型ブループリント。結果は出所つきで表示され、公式スコアではありません。",
+        "ProviderChip": "mlearn派生",
+        "Start": "開始",
+        "BlueprintMeta": "{sections} セクション · {draw} 問 · 1問 {seconds}秒 · テスト条件",
+        "FreshFirst": "未学習の問題ファミリーを優先",
+        "Progress": "{total} 問中 {index} 問目",
+        "TimeLeft": "残り {seconds} 秒",
+        "PausedNote": "一時停止中 — 問題の時計は止まっています。停止は記録されます。",
+        "Pause": "一時停止",
+        "Resume": "再開",
+        "Abandon": "中断",
+        "PausePolicy": "一時停止は記録され、問題の時計から除外されます。時間切れの問題は無回答のまま残ります。",
+        "NoItems": "このレベルには利用可能な問題がまだありません — 先に文法セクションの独立検証を実行してください。",
+        "NoBlueprints": "このパッケージには宣言されたブループリントがまだありません。",
+        "ResultsTitle": "結果 — {level}",
+        "Abandoned": "中断",
+        "Answered": "回答済み: {count}",
+        "Correct": "正解: {count}",
+        "TimedOut": "無回答（時間切れ）: {count}",
+        "HeldOut": "未学習ファミリー: {count}",
+        "RehearsedBackfill": "学習済み補填: {count}",
+        "BlueprintVersion": "ブループリント {version}",
+        "ContentVersion": "パッケージ {version}",
+        "Seed": "シード {seed}",
+        "ActiveTime": "活動時間 {seconds}秒",
+        "PausedTime": "一時停止 {seconds}秒 · {count} 回",
+        "SectionCol": "セクション",
+        "DrawCol": "宣言出題数",
+        "AnsweredCol": "回答済み",
+        "CorrectCol": "正解",
+        "TimedOutCol": "時間切れ",
+        "Assembled": "{assembled}/{requested} 問を構成",
+        "Constructions": "文法項目",
+        "AvailabilityGap": "一部のセクションは宣言された出題数を構成できませんでした — 不足は報告され、決して補われません。",
+        "MissedPatterns": "誤答した文法項目",
+        "NoMissed": "回答済みの問題に誤答はありません。",
+        "Repair": "これらを練習（同じポリシーの歩行）",
+        "Discuss": "会話でこれらを使ってみる",
+        "ResultsDisclaimer": "1つの正解は1回の成功した試行であり、完全な習得の証明ではありません。結果は診断用であり、公式スコアではありません。",
+        "BackToBlueprints": "ブループリント一覧へ戻る",
+        "Summaries": "最近の結果",
+        "SummaryCounts": "{correct}/{answered} 正解 · {timedOut} 無回答"
       }
     },
     "Languages": {
@@ -2133,6 +2241,7 @@
         }
       },
       "Groups": {
+        "LearningGoal": "学習目標と強度",
         "Appearance": "外観",
         "ReadingAppearance": "読みの表示",
         "BlurEffect": "ぼかし効果",
@@ -2330,26 +2439,10 @@
             "Label": "LLM解説を有効にする"
           },
           "PassiveWordTracking": {
-            "Description": "読書中の表示・ホバーをもとに単語の習熟度を自動追跡します。ホバーは {delay} ms 続くと1回として数えられ、{count} 回分たまるとそのメディアで失敗した単語として扱われ、苦手単語一覧やAIチューター復習に表示されます。",
-            "Action": {
-              "Description": "単語が失敗状態に入ったあと、カウント対象ホバーごとに何を行うかを設定します",
-              "Label": "失敗時の動作",
-              "Options": {
-                "DecreaseEase": "Easeを下げる",
-                "None": "何もしない"
-              }
-            },
-            "EaseDecrease": {
-              "Description": "失敗時の動作がEaseを下げるのときに、どれだけEaseを減らすかを指定します",
-              "Label": "Easeの減少量"
-            },
-            "FailCount": {
-              "Description": "そのメディアで単語を失敗扱いにするまでに必要な、カウント対象ホバーの回数",
-              "Label": "失敗扱いまでのホバー回数"
-            },
+            "Description": "読書中の表示・ホバーをもとに単語の習熟度を自動追跡します。ホバーは {delay} ms 続くと1回として数えられます。",
             "HoverDelay": {
-              "Description": "失敗への1回分として数える前に、ホバーを維持する必要がある時間",
-              "Label": "カウント対象ホバーの遅延"
+              "Description": "1回の慣れ接触として数える前に、ホバーを維持する必要がある時間",
+              "Label": "ホバーの遅延"
             },
             "Label": "受動的な単語トラッキング"
           },
@@ -2803,6 +2896,28 @@
       },
       "SearchPlaceholder": "設定を検索...",
       "Behaviour": {
+        "SessionIntensity": {
+          "Label": "セッション強度",
+          "Description": "練習で推奨する内容を調整します。弱めは既習項目の定着を優先し、強めは埋め合わせを減らします。評価や記録には影響しません。",
+          "Gentle": "弱め",
+          "Steady": "標準",
+          "Intensive": "強め"
+        },
+        "ExamGoal": {
+          "Label": "試験目標",
+          "Description": "個人的な試験目標を設定できます。試験日が近づくと、定着と補強が優先されます。",
+          "None": "なし",
+          "Exam": "試験",
+          "Target": {
+            "Label": "目標",
+            "Description": "目指す試験や級（自分用のメモ）",
+            "Placeholder": "例: JLPT N1、Goethe B1"
+          },
+          "Deadline": {
+            "Label": "試験日",
+            "Description": "直近6週間は定着を最も重視した推奨になります。"
+          }
+        },
         "RatingKeyboardMode": {
           "Label": "評価キーボードモード",
           "Mnemonic": "ニーモニック（1+M）",

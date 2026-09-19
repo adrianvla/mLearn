@@ -19,6 +19,14 @@ export interface GrammarProjection {
   timesFailed: number;
   firstSeen: number;
   lastSeen: number;
+  /**
+   * True when the replay contained measured evidence: an explicit outcome
+   * (rating / easeAfter — ratings, anki imports, legacy rollups) or a
+   * failure rollup (`grammarFailedDelta > 0`). Pure encounter rollups are
+   * passive familiarity: consumers must treat `hasActiveEvidence: false`
+   * as unmeasured, never classify the ease.
+   */
+  hasActiveEvidence: boolean;
 }
 
 export function grammarTarget(language: string, pattern: string, capability: GrammarCapability): LearnableTarget {
@@ -51,14 +59,36 @@ export function replayGrammarRecognition(events: readonly KnowledgeEvent[]): Gra
   let ease: number | undefined;
   let timesEncountered = 0;
   let timesFailed = 0;
+  let hasActiveEvidence = false;
+  // Items already attempted earlier in this replay (same id+content version),
+  // in attempt order (G02 repeated-item familiarity).
+  const attemptedItems = new Set<string>();
   for (const event of active) {
     timesEncountered += event.timesSeenDelta ?? 0;
     timesFailed += event.grammarFailedDelta ?? 0;
+    // Active measurement: interactive ratings, anki imports, legacy
+    // migration rollups with an explicit ease outcome, and failure rollups
+    // (interactive/media task failure is measured, unlike pure exposure).
+    if (event.kind === 'rating' || event.easeAfter !== undefined || (event.grammarFailedDelta ?? 0) > 0) {
+      hasActiveEvidence = true;
+    }
+    const itemKey = event.itemRef !== undefined ? `${event.itemRef.id}\u0000${event.itemRef.version}` : null;
     if (event.easeAfter !== undefined) {
-      // Explicit recorded outcome wins (Anki ratings, legacy migration rollups).
-      ease = event.easeAfter;
+      // Repeated-item familiarity (G02): a SUCCESS on an item already
+      // attempted earlier in this replay is not fresh contextual
+      // generalization — it demonstrates recognition of a memorized item.
+      // The observation stays measured and in the journal, but it never
+      // raises the projection. Failures keep their full force: repeated
+      // confusion on the same item is still failure evidence.
+      const repeatSuccess = itemKey !== null && attemptedItems.has(itemKey);
+      if (itemKey !== null) attemptedItems.add(itemKey);
+      if (!repeatSuccess) {
+        // Explicit recorded outcome wins (Anki ratings, legacy migration rollups).
+        ease = event.easeAfter;
+      }
       continue;
     }
+    if (itemKey !== null) attemptedItems.add(itemKey);
     // Observation rows (encounter/failure deltas only) move ease along the
     // grammarPolicy anchors, seeded at the initial ease — identical to the
     // arithmetic the legacy in-place tracker applied.
@@ -71,5 +101,5 @@ export function replayGrammarRecognition(events: readonly KnowledgeEvent[]): Gra
     ease = next;
   }
   if (ease === undefined) return null;
-  return { ease, timesEncountered, timesFailed, firstSeen: active[0].t, lastSeen: active[active.length - 1].t };
+  return { ease, timesEncountered, timesFailed, firstSeen: active[0].t, lastSeen: active[active.length - 1].t, hasActiveEvidence };
 }

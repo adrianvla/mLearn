@@ -1,163 +1,472 @@
 {
-    "name": "German",
-    "flagEmoji": "🇩🇪",
-    "translatable": [
-        "NOUN",
-        "VERB",
-        "ADJ",
-        "ADV"
+  "name": "German",
+  "flagEmoji": "🇩🇪",
+  "translatable": [
+    "NOUN",
+    "VERB",
+    "ADJ",
+    "ADV"
+  ],
+  "name_translated": "Deutsch",
+  "colour_codes": {
+    "NOUN": "#ebccfd",
+    "PROPN": "#ebccfd",
+    "PRON": "#fdccd3",
+    "VERB": "#ffefd1",
+    "SCONJ": "#f5d7b8",
+    "PART": "#f5d7b8",
+    "DET": "#cef5b8",
+    "ADP": "#b8f5de",
+    "AUX": "#ffefd1",
+    "ADJ": "#def6ff",
+    "ADV": "#b8cdf5",
+    "PUNCT": "#8fc99d"
+  },
+  "fixed_settings": {
+    "showReadingAnnotations": false,
+    "showProsody": false
+  },
+  "compoundSplitting": {
+    "locale": "de",
+    "linkingElements": [
+      "",
+      "es",
+      "en",
+      "er",
+      "n",
+      "s"
     ],
-    "name_translated": "Deutsch",
-    "colour_codes": {
-        "NOUN": "#ebccfd",
-        "PROPN": "#ebccfd",
-        "PRON": "#fdccd3",
-        "VERB": "#ffefd1",
-        "SCONJ": "#f5d7b8",
-        "PART": "#f5d7b8",
-        "DET": "#cef5b8",
-        "ADP": "#b8f5de",
-        "AUX": "#ffefd1",
-        "ADJ": "#def6ff",
-        "ADV": "#b8cdf5",
-        "PUNCT": "#8fc99d"
+    "inflectionSuffixes": [
+      "ern",
+      "en",
+      "er",
+      "es",
+      "e",
+      "n",
+      "s"
+    ],
+    "minPartLength": 3,
+    "derivation": "builder"
+  },
+  "languageData": {
+    "version": "de-package-2026.09.19-r3",
+    "sourceVersions": {
+      "dictionary": "freedict-deu-eng-2024.04.21",
+      "frequency": "frequencywords-2018-525f9b560de4",
+      "grammar": "mlearn-authored-v1"
     },
-    "fixed_settings": {
-        "showReadingAnnotations": false,
-        "showProsody": false
-    },
-    "compoundSplitting": {
-        "locale": "de",
-        "linkingElements": [
-            "",
-            "es",
-            "en",
-            "er",
-            "n",
-            "s"
-        ],
-        "inflectionSuffixes": [
-            "ern",
-            "en",
-            "er",
-            "es",
-            "e",
-            "n",
-            "s"
-        ],
-        "minPartLength": 3,
-        "derivation": "builder"
-    },
-    "languageData": {
-        "version": "de-package-2026.07.19",
-        "sourceVersions": {
-            "dictionary": "freedict-deu-eng-2024.04.21",
-            "frequency": "frequencywords-2018-525f9b560de4"
+    "assets": [
+      {
+        "id": "language-metadata",
+        "path": "languages/de.json",
+        "required": true
+      },
+      {
+        "id": "frequency",
+        "path": "languages/de.freq.json",
+        "bundledPath": "languages/de.freq.json",
+        "required": true
+      },
+      {
+        "id": "linguistic-graph",
+        "path": "languages/de.graph.json",
+        "bundledPath": "languages/de.graph.json",
+        "required": false
+      },
+      {
+        "id": "frequencywords-notice",
+        "path": "licenses/frequencywords-README.md",
+        "bundledPath": "licenses/frequencywords-README.md",
+        "required": true
+      }
+    ],
+    "dictionaryPacks": {
+      "en": {
+        "targetLanguage": "en",
+        "name": "English",
+        "version": "de-en-dictionary-de-package-2026.06.29",
+        "bundle": {
+          "url": "https://mlearn.kikan.net/language-data/v1/de-en/dictionary-de-package-2026.06.29.tar.gz",
+          "sizeBytes": 64575979,
+          "sha256": "b0489edf7da23a579e055b5b32c8cf548839a04500f2efc939aab8e85ec8dee1"
         },
         "assets": [
-            {
-                "id": "language-metadata",
-                "path": "languages/de.json",
-                "required": true
-            },
-            {
-                "id": "frequency",
-                "path": "languages/de.freq.json",
-                "bundledPath": "languages/de.freq.json",
-                "required": true
-            },
-            {
-                "id": "linguistic-graph",
-                "path": "languages/de.graph.json",
-                "bundledPath": "languages/de.graph.json",
-                "required": false
-            },
-            {
-                "id": "frequencywords-notice",
-                "path": "licenses/frequencywords-README.md",
-                "bundledPath": "licenses/frequencywords-README.md",
-                "required": true
-            }
-        ],
-        "dictionaryPacks": {
-            "en": {
-                "targetLanguage": "en",
-                "name": "English",
-                "version": "de-en-dictionary-de-package-2026.06.29",
-                "bundle": {
-                    "url": "https://mlearn.kikan.net/language-data/v1/de-en/dictionary-de-package-2026.06.29.tar.gz",
-                    "sizeBytes": 64575979,
-                    "sha256": "b0489edf7da23a579e055b5b32c8cf548839a04500f2efc939aab8e85ec8dee1"
-                },
-                "assets": [
-                    {
-                        "id": "dictionary",
-                        "path": "dictionaries/de/en/dictionary.db",
-                        "sizeBytes": 99393536,
-                        "sha256": "324715d0e8e9dc20ac574d48ffbb3075e9461acdcc5b5cc7c17318f81641ee81",
-                        "required": true
-                    },
-                    {
-                        "id": "metadata",
-                        "path": "dictionaries/de/en/metadata.json",
-                        "sizeBytes": 239,
-                        "sha256": "99206f37fe2b13dfc720d3c01246b8d97b6300eb370e51f338fc6876fb3665ad",
-                        "required": true
-                    }
-                ]
-            }
-        }
-    },
-    "frequencyLevels": {
-        "difficulty": "higher-is-harder",
-        "displayOrder": "ascending",
-        "boundaries": [
-            1000,
-            3000,
-            7000,
-            15000,
-            30000
-        ],
-        "names": {
-            "1": "Core 1,000",
-            "2": "Common 3,000",
-            "3": "Intermediate 7,000",
-            "4": "Upper 15,000",
-            "5": "Advanced 30,000"
-        }
-    },
-    "supportedScripts": [
-        "Latn"
-    ],
-    "runtime": {
-        "nlp": {
-            "tokenizer": {
-                "type": "spacy",
-                "model": "de_core_news_sm",
-                "autoDownload": true,
-                "fallback": "none"
-            },
-            "dictionary": {
-                "type": "sqlite-zlib-json",
-                "schema": "simple-headword-zlib-json",
-                "schemaVersion": "1",
-                "renderer": "simple-glosses",
-                "lookup": {
-                    "normalizers": [
-                        "lowercase",
-                        {
-                            "type": "replace-characters",
-                            "map": {
-                                "ß": "ss",
-                                "ẞ": "ss"
-                            }
-                        }
-                    ]
-                },
-                "targetPathTemplate": "dictionaries/{language}/{target}/dictionary.db",
-                "defaultTargetLanguage": "en",
-                "fallbackPath": "dictionaries/de/en/dictionary.db"
-            }
-        }
+          {
+            "id": "dictionary",
+            "path": "dictionaries/de/en/dictionary.db",
+            "sizeBytes": 99393536,
+            "sha256": "324715d0e8e9dc20ac574d48ffbb3075e9461acdcc5b5cc7c17318f81641ee81",
+            "required": true
+          },
+          {
+            "id": "metadata",
+            "path": "dictionaries/de/en/metadata.json",
+            "sizeBytes": 239,
+            "sha256": "99206f37fe2b13dfc720d3c01246b8d97b6300eb370e51f338fc6876fb3665ad",
+            "required": true
+          }
+        ]
+      }
     }
+  },
+  "frequencyLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "boundaries": [
+      1000,
+      3000,
+      7000,
+      15000,
+      30000
+    ],
+    "names": {
+      "1": "Core 1,000",
+      "2": "Common 3,000",
+      "3": "Intermediate 7,000",
+      "4": "Upper 15,000",
+      "5": "Advanced 30,000"
+    }
+  },
+  "supportedScripts": [
+    "Latn"
+  ],
+  "runtime": {
+    "nlp": {
+      "tokenizer": {
+        "type": "spacy",
+        "model": "de_core_news_sm",
+        "autoDownload": true,
+        "fallback": "none"
+      },
+      "dictionary": {
+        "type": "sqlite-zlib-json",
+        "schema": "simple-headword-zlib-json",
+        "schemaVersion": "1",
+        "renderer": "simple-glosses",
+        "lookup": {
+          "normalizers": [
+            "lowercase",
+            {
+              "type": "replace-characters",
+              "map": {
+                "ß": "ss",
+                "ẞ": "ss"
+              }
+            }
+          ]
+        },
+        "targetPathTemplate": "dictionaries/{language}/{target}/dictionary.db",
+        "defaultTargetLanguage": "en",
+        "fallbackPath": "dictionaries/de/en/dictionary.db"
+      }
+    }
+  },
+  "grammarLevels": {
+    "difficulty": "higher-is-harder",
+    "displayOrder": "ascending",
+    "names": {
+      "1": "A1",
+      "2": "A2",
+      "3": "B1",
+      "4": "B2"
+    }
+  },
+  "grammar": [
+    {
+      "pattern": "haben/sein + Partizip II",
+      "level": 2,
+      "meaning": "Perfekt: conversational past with haben or sein",
+      "meanings": {
+        "de": "Perfekt: gesprochenes Präteritum mit haben oder sein"
+      }
+    },
+    {
+      "pattern": "um … zu",
+      "level": 2,
+      "meaning": "purpose infinitive: in order to",
+      "meanings": {
+        "de": "Finalsatz: um etwas zu tun"
+      }
+    },
+    {
+      "pattern": "seit + Dativ",
+      "level": 2,
+      "meaning": "since/for (a point or span of time)",
+      "meanings": {
+        "de": "seit einem Zeitpunkt oder einer Zeitspanne (Dativ)"
+      }
+    },
+    {
+      "pattern": "weil",
+      "level": 3,
+      "meaning": "causal subordinator; the verb goes to the end",
+      "meanings": {
+        "de": "kausaler Nebensatz; das Verb steht am Ende"
+      },
+      "contrasts": [
+        "deshalb",
+        "obwohl"
+      ],
+      "items": [
+        {
+          "id": "de-weil-fieber-1",
+          "context": "Ich bleibe heute im Bett, weil ich Fieber habe.",
+          "answerSpan": "weil",
+          "conditions": [
+            "subordinate-clause-final-verb",
+            "causal-reading"
+          ],
+          "distractors": [
+            {
+              "span": "deshalb",
+              "violates": [
+                "subordinate-clause-final-verb"
+              ],
+              "rationale": "deshalb joins a main clause with the verb in second position; the continuation \"ich Fieber habe\" has the verb at the end, so deshalb cannot join it as written (\"deshalb habe ich Fieber\" would be the adverb form)."
+            },
+            {
+              "span": "obwohl",
+              "violates": [
+                "causal-reading"
+              ],
+              "rationale": "obwohl marks a concession that contradicts the main clause; a fever supports staying in bed, it does not oppose it."
+            }
+          ],
+          "register": "informal spoken German; present tense; the cause supports the main clause",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        },
+        {
+          "id": "de-weil-studium-2",
+          "context": "Ich lerne jeden Tag Deutsch, weil ich nächstes Jahr in Deutschland studieren möchte.",
+          "answerSpan": "weil",
+          "conditions": [
+            "subordinate-clause-final-verb",
+            "causal-reading"
+          ],
+          "distractors": [
+            {
+              "span": "deshalb",
+              "violates": [
+                "subordinate-clause-final-verb"
+              ],
+              "rationale": "deshalb joins a main clause with the verb in second position; the continuation \"ich … studieren möchte\" has the verb at the end, so deshalb cannot join it as written."
+            },
+            {
+              "span": "obwohl",
+              "violates": [
+                "causal-reading"
+              ],
+              "rationale": "obwohl marks a concession that contradicts the main clause; wanting to study in Germany supports learning German every day, it does not oppose it."
+            }
+          ],
+          "register": "informal spoken German; present tense; the reason supports the main clause",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        }
+      ]
+    },
+    {
+      "pattern": "obwohl",
+      "level": 3,
+      "meaning": "concessive subordinator; the verb goes to the end",
+      "meanings": {
+        "de": "konzessiver Nebensatz; das Verb steht am Ende"
+      },
+      "contrasts": [
+        "weil"
+      ],
+      "items": [
+        {
+          "id": "de-obwohl-regen-1",
+          "context": "Wir gehen spazieren, obwohl es regnet.",
+          "answerSpan": "obwohl",
+          "conditions": [
+            "concessive-reading",
+            "subordinate-clause-final-verb"
+          ],
+          "distractors": [
+            {
+              "span": "weil",
+              "violates": [
+                "concessive-reading"
+              ],
+              "rationale": "weil gives a causal reading; rain opposes the walk, it does not cause it."
+            },
+            {
+              "span": "deshalb",
+              "violates": [
+                "concessive-reading",
+                "subordinate-clause-final-verb"
+              ],
+              "rationale": "deshalb is a causal adverb joining a verb-second main clause (\"deshalb regnet es\"); it is ungrammatical here and gives the wrong reading."
+            }
+          ],
+          "register": "informal spoken German; present tense; the subordinate clause opposes the main clause",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        },
+        {
+          "id": "de-obwohl-krank-2",
+          "context": "Er ist zur Arbeit gegangen, obwohl er krank war.",
+          "answerSpan": "obwohl",
+          "conditions": [
+            "concessive-reading",
+            "subordinate-clause-final-verb"
+          ],
+          "distractors": [
+            {
+              "span": "weil",
+              "violates": [
+                "concessive-reading"
+              ],
+              "rationale": "weil gives a causal reading; \"because he was sick he went to work\" contradicts the main clause — being sick opposes going to work, it does not cause it."
+            },
+            {
+              "span": "deshalb",
+              "violates": [
+                "concessive-reading",
+                "subordinate-clause-final-verb"
+              ],
+              "rationale": "deshalb needs a verb-second continuation, but \"er krank war\" is verb-final; its causal reading would also contradict the main clause."
+            }
+          ],
+          "register": "informal spoken German; past tense; the subordinate clause opposes the main clause",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        }
+      ]
+    },
+    {
+      "pattern": "deshalb",
+      "level": 3,
+      "meaning": "causal adverb; the verb stays in second position",
+      "meanings": {
+        "de": "kausales Adverb; das Verb bleibt auf Position 2"
+      },
+      "contrasts": [
+        "weil",
+        "trotzdem"
+      ],
+      "items": [
+        {
+          "id": "de-deshalb-pruefung-1",
+          "context": "Ich habe morgen eine Prüfung, deshalb lerne ich heute den ganzen Tag.",
+          "answerSpan": "deshalb",
+          "conditions": [
+            "main-clause-verb-second",
+            "causal-reading"
+          ],
+          "distractors": [
+            {
+              "span": "weil",
+              "violates": [
+                "main-clause-verb-second"
+              ],
+              "rationale": "weil introduces a subordinate clause with the verb at the end; the continuation \"lerne ich heute den ganzen Tag\" has the verb in second position (\"weil ich heute den ganzen Tag lerne\" would be the subordinate form)."
+            },
+            {
+              "span": "trotzdem",
+              "violates": [
+                "causal-reading"
+              ],
+              "rationale": "trotzdem marks a concession contrary to the main clause; having an exam tomorrow supports studying, it does not oppose it."
+            }
+          ],
+          "register": "informal spoken German; present tense; the cause precedes the consequence",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        },
+        {
+          "id": "de-deshalb-hause-2",
+          "context": "Es war sehr spät, deshalb bin ich schnell nach Hause gegangen.",
+          "answerSpan": "deshalb",
+          "conditions": [
+            "main-clause-verb-second",
+            "causal-reading"
+          ],
+          "distractors": [
+            {
+              "span": "weil",
+              "violates": [
+                "main-clause-verb-second"
+              ],
+              "rationale": "weil must introduce a subordinate clause with the verb at the end; the continuation \"bin ich … gegangen\" has the verb in second position, so weil cannot join it as written."
+            },
+            {
+              "span": "trotzdem",
+              "violates": [
+                "causal-reading"
+              ],
+              "rationale": "trotzdem marks a concession (\"despite the lateness\"); the lateness supports going home, so the reading contradicts the sentence."
+            }
+          ],
+          "register": "informal spoken German; past tense; the cause precedes the consequence",
+          "formats": [
+            "mcq",
+            "typed"
+          ]
+        }
+      ]
+    },
+    {
+      "pattern": "trotzdem",
+      "level": 3,
+      "meaning": "concessive adverb; the verb stays in second position",
+      "meanings": {
+        "de": "konzessives Adverb; das Verb bleibt auf Position 2"
+      }
+    },
+    {
+      "pattern": "weder … noch",
+      "level": 3,
+      "meaning": "neither … nor (double negation)",
+      "meanings": {
+        "de": "weder … noch (doppelte Verneinung)"
+      }
+    },
+    {
+      "pattern": "je … desto",
+      "level": 4,
+      "meaning": "proportional correlation: the more … the more",
+      "meanings": {
+        "de": "proportionale Korrelation: je mehr, desto mehr"
+      }
+    },
+    {
+      "pattern": "sowohl … als auch",
+      "level": 4,
+      "meaning": "both … and (paired conjunction)",
+      "meanings": {
+        "de": "sowohl … als auch (Doppelkonjunktion)"
+      }
+    },
+    {
+      "pattern": "lassen + Infinitiv",
+      "level": 4,
+      "meaning": "causative/permittive: to have something done, let",
+      "meanings": {
+        "de": "kausal/permissiv: etwas machen lassen"
+      }
+    },
+    {
+      "pattern": "in + Dativ/Akkusativ",
+      "level": 2,
+      "meaning": "location (Dativ) vs. direction (Akkusativ)",
+      "meanings": {
+        "de": "Ort (Dativ) vs. Richtung (Akkusativ)"
+      }
+    }
+  ],
+  "meaningLanguage": "en"
 }

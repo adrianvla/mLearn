@@ -27,7 +27,7 @@ import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
 import { bulkAddWords } from '../../../utils/bulkAddWords';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
-import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
+import { filterSuggestedWords, planSubtitleCapture, recordCaptureAttempt, type SubtitleCaptureState } from '../../../utils/suggestedFlashcards';
 import { tokensToColoredHtml, parseWorkName, type ParseWorkNameOptions } from '../../../utils/subtitleParsing';
 import { toUniqueIdentifier } from '../../../services/statsService';
 import { showToast } from '../../../components/common/Feedback/Toast';
@@ -154,7 +154,13 @@ export const VideoRoute: Component = () => {
 
   // Accumulated unknown words from subtitles
   const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
-  const seenWords = new Set<string>();
+  // Sidebar dedupe + recurrence-retry/in-flight bookkeeping for
+  // current-content suggestion capture (R21).
+  const subtitleCaptureState: SubtitleCaptureState = {
+    seenWords: new Set<string>(),
+    inFlight: new Set<string>(),
+    attemptedRecurrence: new Map<string, number>(),
+  };
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
 
@@ -492,19 +498,27 @@ export const VideoRoute: Component = () => {
 
     const currentSub = subtitles.currentSubtitle();
     const contextPhrase = currentSub?.text || '';
-    const newEntries: VideoWordEntry[] = [];
+    // Current-content passive exposures per word (R21): recorded coverage
+    // recurrence for the sidebar gating, the suggestion filter and capture,
+    // recomputed EVERY run so a recurrence-gated retry sees the grown count.
+    // Look-ups (timesHovered) are never counted.
+    const mediaRecurrence = new Map<string, number>();
+    for (const entry of Object.values(mediaStats.stats().wordsEncountered)) {
+      mediaRecurrence.set(entry.word, (mediaRecurrence.get(entry.word) ?? 0) + entry.timesSeen);
+    }
 
+    // Gated candidates in subtitle order: script/ignored/known checks never
+    // change; the capture planner below decides first sighting vs retry.
+    const gated: VideoWordEntry[] = [];
     for (const token of tokens) {
       const word = getTokenLookupWord(token, tokenizerCapabilities());
       if (!word || !langCtx.isTokenTranslatable(token)) continue;
       if (!isWordInLanguageScript(word, settings.language, langCtx.currentLangData())) continue;
-      if (seenWords.has(word)) continue;
       if (flashcardCtx.isWordIgnoredSync(word, settings.language)) continue;
 
       if (flashcardCtx.getComprehensiveWordStatusSync(word, settings.language) === 'known') continue;
 
-      seenWords.add(word);
-      newEntries.push({
+      gated.push({
         key: `sub:${idx}:${word}`,
         word,
         token,
@@ -515,36 +529,52 @@ export const VideoRoute: Component = () => {
       });
     }
 
+    // First sightings accumulate into the sidebar and attempt capture; an
+    // earlier-rejected word retries only when its recorded recurrence grew
+    // (R21) — continuous playback promotes a recurring off-list term without
+    // remounting, and a one-off is not re-filtered on every subtitle.
+    const { fresh: newEntries, retry: retryEntries } = planSubtitleCapture(gated, subtitleCaptureState, mediaRecurrence);
+
     if (newEntries.length > 0) {
       setAccumulatedWords(prev => [...prev, ...newEntries]);
+    }
 
+    if (newEntries.length + retryEntries.length > 0
+      && settings.autoSuggestFlashcards && settings.enable_flashcard_creation) {
       // Capture each as a lightweight "suggested flashcard" — screenshot +
       // context only (no translation/LLM/TTS). The user reviews them later
       // from the Flashcards → Suggested tab.
-      if (settings.autoSuggestFlashcards && settings.enable_flashcard_creation) {
-        const colourCodes = settings.colour_codes || {};
-        const contextHtml = tokens.length > 0
-          ? tokensToColoredHtml(tokens, colourCodes, undefined, langCtx.currentLangData())
-          : undefined;
-        const mediaName = currentVideoName();
-        const mediaHash = mediaStats.stats().mediaHash;
+      const captureEntries = [...newEntries, ...retryEntries];
+      for (const entry of captureEntries) subtitleCaptureState.inFlight.add(entry.word);
+      const colourCodes = settings.colour_codes || {};
+      const contextHtml = tokens.length > 0
+        ? tokensToColoredHtml(tokens, colourCodes, undefined, langCtx.currentLangData())
+        : undefined;
+      const mediaName = currentVideoName();
+      const mediaHash = mediaStats.stats().mediaHash;
 
-        void (async () => {
+      void (async () => {
+        try {
           const batchImageId = crypto.randomUUID();
           const [image, allowedWords] = await Promise.all([
             captureVideoFrameForFlashcard(batchImageId),
             filterSuggestedWords(
-              newEntries.map(entry => entry.word),
+              captureEntries.map(entry => entry.word),
               settings.language,
               settings,
               langCtx.currentLangData(),
               { getWordForms, dictionaryTargetLanguage: dictionaryTargetLanguage() },
+              { mediaRecurrence },
             ),
           ]);
-          for (const entry of newEntries) {
+          for (const entry of captureEntries) {
             const freq = langCtx.getFrequency(entry.word);
-            if (!allowedWords.has(entry.word)) continue;
-            void flashcardCtx.captureSuggestedFlashcard({
+            const recurrence = mediaRecurrence.get(entry.word) ?? 0;
+            if (!allowedWords.has(entry.word)) {
+              recordCaptureAttempt(subtitleCaptureState, entry.word, false, recurrence);
+              continue;
+            }
+            await flashcardCtx.captureSuggestedFlashcard({
               word: entry.word,
               reading: freq?.reading,
               pos: entry.token.type,
@@ -555,10 +585,18 @@ export const VideoRoute: Component = () => {
               imageUrl: image || undefined,
               source: mediaName || undefined,
               sourceMediaHash: mediaHash || undefined,
+              mediaRecurrence: recurrence,
             });
+            // Mark success only after persistence completes. Disabled capture
+            // and rejected/failed promises leave no terminal marker, so a
+            // later settings change or subtitle recurrence can retry (G04).
+            recordCaptureAttempt(subtitleCaptureState, entry.word, true, recurrence);
           }
-        })();
-      }
+        } catch (error) {
+          for (const entry of captureEntries) subtitleCaptureState.inFlight.delete(entry.word);
+          log.warn('Suggested flashcard capture failed; leaving words retryable:', error);
+        }
+      })();
     }
   });
 
