@@ -64,8 +64,8 @@ export interface CompiledContext {
     constraints: string[];
     goals: string[];
     knowledge: string[];
-    /** Director-derived situation developments, each citing supporting events. */
-    developments: { text: string; createdAt: number }[];
+    /** Director-derived interpretations. Structurally distinct from established occurrences. */
+    interpretations: { authority: 'interpretation'; text: string; createdAt: number }[];
     /** A concluded situation is shared past; later turns treat it as such. */
     concluded: boolean;
   };
@@ -291,7 +291,7 @@ export function compileContext(input: CompileContextInput): CompiledContext {
       goals: own !== undefined ? current.currentGoals[own.kind === 'temporary' ? own.localId : own.participantId] ?? [] : [],
       knowledge: scenario.participants.flatMap(item => item.kind === 'temporary'
         ? item.profile.initialKnowledge.filter(fact => fact.witnesses.includes(participant.id)).map(fact => fact.text) : []),
-      developments: knownDevelopments.slice(-12).map(dev => ({ text: dev.text, createdAt: dev.createdAt })),
+      interpretations: knownDevelopments.slice(-12).map(dev => ({ authority: dev.authority, text: dev.text, createdAt: dev.createdAt })),
       concluded: current.status === 'concluded' && knownDevelopments.some(dev => dev.kind === 'resolution'),
     };
     context.relationships.push(...scenario.relationships.filter(relation => relation.fromId === participant.id)

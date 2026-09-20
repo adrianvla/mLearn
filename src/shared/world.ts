@@ -84,6 +84,9 @@ export interface MemoryEventPayload {
   text: string;
   sourceMemoryId?: string;
   sourceEventIds?: string[];
+  /** Prior derived personal state exposed to the inference. These are causal
+   *  dependencies, not direct evidence and never widen witness authority. */
+  dependencyEventIds?: string[];
   /** kind 'relationship' only: directional edge target + label (D5). */
   toId?: string;
   label?: string;
@@ -102,6 +105,8 @@ export interface ResolutionPayload {
   ownerId: string;
   text: string;
   sourceEventIds: string[];
+  /** Prior derived personal state used as context for this resolution. */
+  dependencyEventIds?: string[];
   /** Open-loop memory event this resolution closes. Absent = free resolution note. */
   loopId?: string;
   /** Required when loopId is present; how the loop ends. */
@@ -341,6 +346,8 @@ export interface MemoryEntry {
  *  'fact' kind: historical occurrences are only ever real journal events. */
 export interface ScenarioDevelopment {
   id: string;
+  /** Generated V08 Scenario prose is derived interpretation, never an occurrence. */
+  authority: 'interpretation';
   text: string;
   kind: 'progress' | 'complication' | 'resolution' | 'reopen';
   witnesses: string[];
@@ -373,7 +380,7 @@ export interface ScenarioGoalChange {
 /** Evolution output for a scenario pass; typed, citation-carrying state
  *  mutations only. `concluded` closes the situation, `reopened` revives one. */
 export interface ScenarioEvolutionProposal {
-  developments: { text: string; kind: ScenarioDevelopment['kind']; sourceEventIds: string[] }[];
+  developments: { authority: 'interpretation'; text: string; kind: ScenarioDevelopment['kind']; sourceEventIds: string[] }[];
   goalUpdates: { participantId: string; add: string[]; remove: string[]; sourceEventIds: string[] }[];
   retractions: { developmentId: string; text: string; sourceEventIds: string[] }[];
   concluded: { text: string; sourceEventIds: string[] } | null;
@@ -382,7 +389,7 @@ export interface ScenarioEvolutionProposal {
 
 /** 'scenario_evolved' — journal history of one accepted Director evolution. */
 export interface ScenarioEvolutionPayload {
-  developments: { text: string; kind: ScenarioDevelopment['kind']; sourceEventIds: string[] }[];
+  developments: { authority: 'interpretation'; text: string; kind: ScenarioDevelopment['kind']; sourceEventIds: string[] }[];
   goalUpdates: { participantId: string; add: string[]; remove: string[]; sourceEventIds: string[] }[];
   retractions: { developmentId: string; text: string; sourceEventIds: string[] }[];
   concluded: { text: string; sourceEventIds: string[] } | null;
@@ -429,8 +436,14 @@ export interface ReflectionRunRecord {
   /** Exact owner context used for ordinal mapping and interpretation; rechecked before publication/recovery. */
   personalContextHashes?: Record<string, string>;
   status: 'pending' | 'committed' | 'failed';
+  /** Explicit user/operator authorization to retry a terminal invalid window. */
+  retryRequestedAt?: number;
+  retryConsumedAt?: number;
+  retryOf?: string;
   error?: string;
   createdAt: number;
+  /** Stable timestamp used by the idempotent salience projection publication. */
+  projectionAt?: number;
   settledAt?: number;
   /** Prepared publication, cleared on commit. Reflection persists its validated
    *  derived drafts (all-or-nothing resume); scenario persists its before/after

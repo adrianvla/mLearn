@@ -9,11 +9,22 @@ import { consolidateContext } from './dreamerRuntime';
 
 const log = getLogger('schedulerRuntime');
 const RECONCILE_INTERVAL_MS = 60_000;
+export const MAX_SCHEDULER_MAINTENANCE_ROOMS = 8;
 
 type SchedulerService = ReturnType<typeof createSchedulerService>;
 
 let timer: ReturnType<typeof setInterval> | undefined;
 let service: SchedulerService | undefined;
+let maintenanceRoomCursor = 0;
+
+function nextMaintenanceRooms<T>(rooms: T[]): T[] {
+  if (rooms.length === 0) return [];
+  const count = Math.min(rooms.length, MAX_SCHEDULER_MAINTENANCE_ROOMS);
+  const start = maintenanceRoomCursor % rooms.length;
+  const selected = Array.from({ length: count }, (_, offset) => rooms[(start + offset) % rooms.length]);
+  maintenanceRoomCursor = (start + count) % rooms.length;
+  return selected;
+}
 
 async function reconcileAll(): Promise<void> {
   if (!service) return;
@@ -38,7 +49,7 @@ async function reconcileAll(): Promise<void> {
     // eligible unconsolidated activity are reflected/evolved. Sandbox Threads
     // are never driven from here; policy gates bound the spend. No eligible
     // work means no model call (each pass no-ops on an empty window).
-    for (const room of world.rooms) {
+    for (const room of nextMaintenanceRooms(world.rooms)) {
       void consolidateContext({ roomId: room.id }, { getSettings: loadSettings });
     }
   } catch (error) {
@@ -77,6 +88,7 @@ export function stopScheduler(): void {
   if (timer !== undefined) clearInterval(timer);
   timer = undefined;
   service = undefined;
+  maintenanceRoomCursor = 0;
   powerMonitor.removeListener('suspend', onSuspend);
   powerMonitor.removeListener('resume', onResume);
 }

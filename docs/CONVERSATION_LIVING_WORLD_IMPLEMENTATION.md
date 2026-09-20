@@ -357,7 +357,7 @@ Verification: full suite 6,792 passed / 21 skipped; both TypeScript configuratio
 
 **Stop boundary: V09 (initiative/contact/voice waves) is NOT authorized by this checkpoint.** Remaining full-acceptance scope is unchanged: A01–A45 remain open; proactive contact, notification/deep-link delivery, incoming-call lifecycle, real human+AI group transport, Mission/Campaign machinery, media bridge, migrations on cloned profiles, correction/erasure end-to-end invalidation, and the mounted-UI maintenance surfaces are required later waves.
 
-## Checkpoint — 2026-09-16, V08 adversarial review (current)
+## Checkpoint — 2026-09-16, V08 adversarial review (historical blocked verdict)
 
 **V08 BLOCKED; V09 remains unauthorized.** The scope remains automatic scoped reflection/Dreamer and persistent Scenario evolution. The fixed roadmap is V08 → V09 → V10 → END.
 
@@ -381,7 +381,7 @@ Full findings, repairs, commands, evidence layers and limitations: [V08 review](
 
 **Remaining:** gemma3:4b output quality is intermittent (bounded retries/honest windows; no quality certification); A01–A45 full acceptance scope unchanged; V09 (initiative/contact/voice) not started. No commit, push or deployment was made.
 
-## Checkpoint — 2026-09-16, V08 re-review (authoritative current)
+## Checkpoint — 2026-09-16, V08 re-review (historical blocked verdict; superseded below)
 
 **V08 still blocked. Do not begin V09.** The current dirty checkout and all previous repairs were preserved. Full [re-review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md) and [verification](CONVERSATION_LIVING_WORLD_VERIFICATION.md#v08--re-review-after-remediation-2026-09-16-current) distinguish repaired invariants from remaining failures.
 
@@ -392,3 +392,18 @@ Final validation: **6,843 passed / 21 skipped**, both TypeScript configurations,
 Next concrete V08 work: establish a structural interpretation/proposal versus historical-authority boundary; require genuine resolving evidence for loop closure; preserve causal dependencies on prior personal context after publication; complete bounded automatic backlog/retry and projection recovery; then obtain semantically reviewed real-model output and nonempty mounted exchange → committed reflection/evolution → reload → Room return → second turn. Preserve Room-first persistent ownership, scoped Thread usability and atomic publication. **V09 autonomous lives/offscreen activity/lore generation and V10 initiative/contact remain untouched and unauthorized.**
 
 HANDOFF_VERDICT=BLOCKED
+
+## Checkpoint — 2026-09-21, V08 closure (authoritative current)
+
+**V08 PASS. V09/V10 remain untouched and unauthorized.** The re-review's remaining blockers were repaired without replacing Room-first ownership, scoped Thread behavior, journal truth, atomic maintenance publication, the shared provider queue, or the existing consent boundary.
+
+- Scenario output is structurally an interpretation from storage through compiler and UI (`authority: 'interpretation'`; `scenario.interpretations`; “not established occurrences”). It cannot masquerade as occurrence history.
+- Loop resolution now needs a later non-derived event explicitly linked to the loop/source; self-citation and unrelated citation stay open. The model gets ordinal eligibility only.
+- Continuing-person inputs now create durable dependency edges. Recursive canonical invalidation crosses Room journals for causal evaluation without cross-Room disclosure or raw-history mutation.
+- Maintenance drains bounded windows, coalesces/reschedules triggers without dropping the boundary arrival, and scheduler Room work is capped with round-robin fairness. Failed sealed windows have a durable explicit Retry through UI/bridge/IPC. Projection effects have an atomic exactly-once operation marker and recover before ledger settlement.
+
+Fresh evidence: targeted **149/149**; full suite **7,252 passed / 9 skipped** (**441 passed / 1 skipped files**); both TS configurations; production build; built crash verifier **19/19**; authority probe PASS. A real installed `gemma4-e4b-q4:latest` run through the production provider path passed structural and semantic review. A real mounted Electron run on disposable profile `v08-mounted-hDAP0L` produced nonempty replies before and after reload, automatic committed reflection/evolution, restored Room/history, owner-scoped cited beliefs, and interpretation-authority Scenario rows. Exact commands, records, logs, and limitations are in [V08 closure verification](CONVERSATION_LIVING_WORLD_VERIFICATION.md#v08--closure-verification-2026-09-21-authoritative-current) and the [closure review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md#v08-closure-review--2026-09-21-authoritative-current-verdict).
+
+No original profile write, migration of unreleased formats, commit, push, or deployment. This closes only the V08 gate; full A01–A45 acceptance is unchanged.
+
+HANDOFF_VERDICT=PASS

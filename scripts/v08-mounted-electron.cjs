@@ -9,7 +9,7 @@
  *
  * Usage: node scripts/v08-mounted-electron.cjs
  * Requires: npm run build (dist/ + dist-electron/), a running local Ollama
- * with gemma3:4b, MLEARN_USER_DATA disposable profile (created here).
+ * with an installed Ollama model, MLEARN_USER_DATA disposable profile (created here).
  */
 
 const { spawn } = require('child_process');
@@ -18,6 +18,7 @@ const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+const MODEL = process.env.V08_OLLAMA_MODEL || 'gemma4-e4b-q4:latest';
 // A free port per run: an orphaned Electron from a previous timed-out run
 // must never receive this harness's traffic (it would look like the app
 // failing to mount).
@@ -27,19 +28,20 @@ const { execSync } = require('child_process');
 
 // Full cloned-profile pattern (VERIFY-08/DATA-01; same as the V07
 // verification): clone the user's installed profile ONCE with APFS
-// copy-on-write so the app sees its real installed Python runtime and
-// language data — the original profile is only ever read. Per-run profiles
-// clone the cache (seconds), then patch settings and seed a deterministic
-// persistent world. Every write lands in the disposable clone only.
+// copy-on-write so the app sees its real installed language data — the
+// original profile is only ever read. Development Electron resolves the
+// checked-in build's dist-electron/env as its runtime. Per-run profiles clone
+// the cache (seconds), then patch settings and seed a deterministic persistent
+// world. Every profile write lands in the disposable clone only.
 const ORIGINAL_PROFILE = path.join(process.env.HOME, 'Library', 'Application Support', 'mLearn');
 const PROFILE_CACHE = '/tmp/v08-profile-clone';
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'v08-mounted-'));
 
-if (!fs.existsSync(path.join(ORIGINAL_PROFILE, 'env', 'bin', 'python3'))) {
-  console.error('NO_INSTALLED_PYTHON_ENV: nothing to clone at', ORIGINAL_PROFILE);
+if (!fs.existsSync(path.join(ROOT, 'dist-electron', 'env', 'bin', 'python3'))) {
+  console.error('NO_DEVELOPMENT_PYTHON_ENV: build runtime missing at', path.join(ROOT, 'dist-electron', 'env'));
   process.exit(2);
 }
-if (!fs.existsSync(path.join(PROFILE_CACHE, 'env', 'bin', 'python3'))) {
+if (!fs.existsSync(path.join(PROFILE_CACHE, 'settings.json'))) {
   console.log('Cloning the installed profile into cache (first run only)...');
   fs.rmSync(PROFILE_CACHE, { recursive: true, force: true });
   execSync(`cp -Rc '${ORIGINAL_PROFILE}' '${PROFILE_CACHE}'`, { stdio: 'inherit' });
@@ -59,7 +61,7 @@ const clonedSettings = JSON.parse(fs.readFileSync(path.join(profile, 'settings.j
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
   ...clonedSettings,
   llmProvider: 'ollama',
-  ollamaModel: 'gemma3:4b',
+  ollamaModel: MODEL,
   llmEnabled: true,
   livingWorldEnabled: true,
   proactivityEnabled: false,
@@ -426,7 +428,7 @@ async function main() {
   console.log('PASS real exchange after reload in the same Room continuity');
 
   // Verify the evolved situation state (world.json scenario) influenced the
-  // continuity: the scenario must carry valid, cited developments or the room
+  // continuity: the scenario must carry valid, cited interpretations or the room
   // must still hold its coherent state after reload.
   const world = JSON.parse(fs.readFileSync(path.join(profile, 'world.json'), 'utf8'));
   const room = world.rooms.find((r) => r.id === 'room-mounted');
@@ -435,17 +437,18 @@ async function main() {
   const evolved = events.filter((e) => e.type === 'scenario_evolved');
   const record = {
     profile: path.basename(profile),
-    surface: 'real mounted Electron app; real renderer UI over CDP; real ollama gemma3:4b',
+    surface: `real mounted Electron app; real renderer UI over CDP; real ollama ${MODEL}`,
     derivedRows: derived.map((e) => ({ type: e.type, witnesses: e.witnesses, payload: e.payload })),
     scenarioEvolvedRows: evolved.length,
     scenarioStatus: room?.scenario?.status ?? 'active',
-    scenarioDevelopments: (room?.scenario?.developments ?? []).map((d) => ({ kind: d.kind, text: d.text, sourceEventIds: d.sourceEventIds })),
+    scenarioInterpretations: (room?.scenario?.developments ?? []).map((d) => ({ authority: d.authority, kind: d.kind, text: d.text, sourceEventIds: d.sourceEventIds })),
     roomEvents: events.length,
   };
   fs.writeFileSync(path.join(os.tmpdir(), 'v08-mounted-record.json'), JSON.stringify(record, null, 2));
   console.log(JSON.stringify(record, null, 2));
   const pass = record.derivedRows.some(row => row.type === 'memory.belief' || row.type === 'resolution')
     && record.scenarioEvolvedRows > 0 && visible.hasRoom && visible.hasHistory
+    && record.scenarioInterpretations.every(item => item.authority === 'interpretation')
     && events.filter(e => e.type === 'message.character' && typeof e.payload?.text === 'string' && e.payload.text.trim()).length >= 2;
   // Transport and durability cannot establish semantic support for model prose.
   console.log(`MOUNTED_TRANSPORT_EVIDENCE=${pass ? 'PASS' : 'BLOCKED'}`);

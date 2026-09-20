@@ -26,6 +26,7 @@ interface ThreadInfoPanelProps {
   onUpdateParticipant: (participant: Participant) => Promise<void> | void;
   onDeleteThread: () => Promise<void> | void;
   onIntegrate?: () => void | Promise<void>;
+  onRetryMaintenance?: (reflectionId: string) => Promise<void> | void;
 }
 
 export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
@@ -34,6 +35,7 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   const [titleDraft, setTitleDraft] = createSignal('');
   const [editingParticipant, setEditingParticipant] = createSignal<Participant | null>(null);
   const [confirmingDelete, setConfirmingDelete] = createSignal(false);
+  const [retryingRunId, setRetryingRunId] = createSignal<string | null>(null);
   const mediaRef = () => props.thread?.mediaRef;
   // Maintenance runs for THIS context: a sandbox Thread has its own journal;
   // Room turns use the Room's Sea stream (including world continuity for the
@@ -41,8 +43,19 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   // runs are normal operation, not status the user must act on.
   const contextRuns = () => (props.reflectionRuns ?? []).filter(run => {
     const contextId = props.thread?.sandbox ? props.thread.id : props.roomId;
-    return run.contextId === contextId && (run.status === 'pending' || run.status === 'failed');
+    return run.contextId === contextId
+      && (run.status === 'pending' || (run.status === 'failed' && run.retryConsumedAt === undefined));
   });
+
+  const retryMaintenance = async (reflectionId: string): Promise<void> => {
+    if (!props.onRetryMaintenance) return;
+    setRetryingRunId(reflectionId);
+    try {
+      await props.onRetryMaintenance(reflectionId);
+    } finally {
+      setRetryingRunId(null);
+    }
+  };
 
   const statusLabel = (run: ReflectionRunRecord): string => run.status === 'pending'
     ? t('mlearn.ConversationAgent.Details.WorldActivityPending')
@@ -114,6 +127,14 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
               <article class="ca-thread-world-run">
                 <span class="ca-thread-world-run-status">{statusLabel(run)}</span>
                 <Show when={run.error}><p class="ca-thread-world-run-error">{run.error}</p></Show>
+                <Show when={run.status === 'failed' && props.onRetryMaintenance}>
+                  <Btn
+                    variant="ghost"
+                    size="sm"
+                    disabled={retryingRunId() === run.reflectionId}
+                    onClick={() => { void retryMaintenance(run.reflectionId); }}
+                  >{t('mlearn.ConversationAgent.Details.RetryWorldActivity')}</Btn>
+                </Show>
               </article>
             )}
           </For>

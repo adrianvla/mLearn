@@ -929,7 +929,8 @@
         "Saving": "Saving…",
         "WorldActivity": "World activity",
         "WorldActivityPending": "Consolidating (in progress)",
-        "WorldActivityFailed": "Consolidation needs attention"
+        "WorldActivityFailed": "Consolidation needs attention",
+        "RetryWorldActivity": "Retry"
       }
     },
     "ErrorModal": {

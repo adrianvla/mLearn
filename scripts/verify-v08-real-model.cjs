@@ -16,6 +16,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const SERVICES = path.join(ROOT, 'dist-electron', 'electron', 'services');
+const MODEL = process.env.V08_OLLAMA_MODEL || 'gemma4-e4b-q4:latest';
 
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'v08-real-'));
 process.env.V08_PROFILE = profile;
@@ -36,7 +37,7 @@ Module._load = function (request, parent, isMain) {
 fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
   ...require(path.join(ROOT, 'dist-electron', 'shared', 'constants.js')).DEFAULT_SETTINGS,
   llmProvider: 'ollama',
-  ollamaModel: 'gemma3:4b',
+  ollamaModel: MODEL,
   llmEnabled: true,
   livingWorldEnabled: true,
 }));
@@ -82,6 +83,10 @@ async function main() {
     roomId: 'room-real', scope: { kind: 'sea' }, type: 'memory.belief', actorId: 'harness', witnesses: ['mara'],
     payload: { ownerId: 'mara', kind: 'open-loop', text: 'Eli asked whether the broken rake gets fixed today.', sourceEventIds: [loopSource.id] },
   });
+  await journal.appendEvent('room-real', {
+    roomId: 'room-real', scope: { kind: 'sea' }, type: 'message.character', actorId: 'eli', witnesses: ['user', 'mara', 'eli'],
+    payload: { text: 'I fixed the broken rake and put it back in the shed.', replyToEventId: loopSource.id },
+  });
 
   const started = Date.now();
   await runtime.consolidateContext({ roomId: 'room-real' }, { getSettings: () => require(path.join(SERVICES_DIR, 'settings.js')).loadSettings() });
@@ -98,7 +103,7 @@ async function main() {
 
   const record = {
     profile: path.basename(profile),
-    model: 'gemma3:4b via real ollamaService path (dreamerLlm.complete)',
+    model: `${MODEL} via real ollamaService path (dreamerLlm.complete)`,
     elapsedMs: elapsed,
     derived: derived.map((event) => ({
       type: event.type, witnesses: event.witnesses,
@@ -106,7 +111,7 @@ async function main() {
     })),
     markers: markers.map((event) => event.payload),
     evolvedEvents: evolved.map((event) => event.payload),
-    scenarioDevelopments: (room?.scenario?.developments ?? []).map((dev) => ({ text: dev.text, kind: dev.kind, createdAt: dev.createdAt })),
+    scenarioInterpretations: (room?.scenario?.developments ?? []).map((dev) => ({ authority: dev.authority, text: dev.text, kind: dev.kind, createdAt: dev.createdAt })),
     scenarioStatus: room?.scenario?.status ?? 'active',
     ledger: ((await world.loadWorld()).reflectionRuns ?? []).map(({ prepared: _prepared, ...rest }) => rest),
   };
@@ -125,12 +130,13 @@ async function main() {
   const beliefRows = record.derived.filter((event) => event.type === 'memory.belief'
     && ['belief', 'open-loop', 'relationship'].includes(event.payload?.kind));
   const interpretationOnly = record.derived.filter((event) => event.type === 'memory.belief').length === beliefRows.length;
+  const scenarioInterpretationOnly = record.scenarioInterpretations.every((item) => item.authority === 'interpretation');
   const loopResolved = record.derived.some((event) => event.type === 'resolution'
     && event.payload?.loopId && event.payload?.status);
-  console.log(`\nSTRUCTURAL_MODEL_EVIDENCE=${hasEvolution && hasDerived && record.markers.length > 0 && derivedCitationsValid && interpretationOnly ? 'PASS' : 'BLOCKED'}`);
+  console.log(`\nSTRUCTURAL_MODEL_EVIDENCE=${hasEvolution && hasDerived && record.markers.length > 0 && derivedCitationsValid && interpretationOnly && scenarioInterpretationOnly ? 'PASS' : 'BLOCKED'}`);
   console.log(`LOOP_RESOLUTION_EVIDENCE=${loopResolved ? 'NEEDS_SEMANTIC_REVIEW' : 'NOT_EXERCISED'}`);
   console.log('LIVE_MODEL_EVIDENCE=NEEDS_SEMANTIC_REVIEW');
-  if (!hasEvolution || !hasDerived || !derivedCitationsValid || !interpretationOnly) process.exitCode = 2;
+  if (!hasEvolution || !hasDerived || !derivedCitationsValid || !interpretationOnly || !scenarioInterpretationOnly) process.exitCode = 2;
 }
 
 main().then(() => { process.exit(process.exitCode ?? 0); }).catch((error) => { console.error(error); process.exit(1); });

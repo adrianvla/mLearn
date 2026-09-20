@@ -357,6 +357,7 @@ describe('Director persistent scenario evolution', () => {
 
     const evolved = await evolvedScenario(thread.id);
     expect(evolved.developments?.map(dev => dev.text)).toEqual(['Mara repaired the shared tools.']);
+    expect(evolved.developments?.[0]).toMatchObject({ authority: 'interpretation' });
     expect(evolved.developments?.[0].sourceEventIds).toEqual([message.id]);
     expect(evolved.developments?.[0].kind).toBe('progress');
     // Goal deltas append; base goals are never mutated in place.
@@ -366,11 +367,12 @@ describe('Director persistent scenario evolution', () => {
     expect(evolved.status).toBe('active');
     const stream = await journal.readThread(thread.id, thread.id);
     const current = authoritativeScenario(evolved, stream);
+    expect(current.developments[0]).toMatchObject({ authority: 'interpretation' });
     expect(current.currentGoals[targetId]).toContain('Plan the herb beds');
     const newcomer = { ...cast[0], id: 'newcomer' };
     const newcomerContext = compileContext({ participant: newcomer, participants: [...cast, newcomer], seaEvents: [],
       room: { id: 'later-room', title: 'Later', createdAt: 1, participantIds: [...cast.map(person => person.id), newcomer.id], scenario: evolved } });
-    expect(newcomerContext.scenario?.developments).toEqual([]);
+    expect(newcomerContext.scenario?.interpretations).toEqual([]);
 
     // The goal delta is private state: the other cast member's compiled
     // context (including the witnessed journal payload) never sees it.

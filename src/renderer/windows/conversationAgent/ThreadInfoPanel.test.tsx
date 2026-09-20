@@ -47,6 +47,7 @@ describe('ThreadInfoPanel', () => {
   const onRenameThread = vi.fn(async () => {});
   const onUpdateParticipant = vi.fn(async () => {});
   const onDeleteThread = vi.fn(async () => {});
+  const onRetryMaintenance = vi.fn(async () => {});
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -54,6 +55,7 @@ describe('ThreadInfoPanel', () => {
     onRenameThread.mockClear();
     onUpdateParticipant.mockClear();
     onDeleteThread.mockClear();
+    onRetryMaintenance.mockClear();
   });
 
   afterEach(() => {
@@ -96,6 +98,21 @@ describe('ThreadInfoPanel', () => {
     buttonWithText('mlearn.ConversationAgent.Details.Save').click();
 
     await vi.waitFor(() => expect(onRenameThread).toHaveBeenCalledWith('Café ordering'));
+  });
+
+  it('offers an explicit retry for a failed maintenance window', async () => {
+    renderPanel({
+      roomId: 'room-1',
+      thread: null,
+      onRetryMaintenance,
+      reflectionRuns: [{
+        reflectionId: 'refl-failed', kind: 'reflection', contextId: 'room-1', scopeKind: 'sea',
+        windowStart: 1, windowEnd: 1, sourceEventIds: ['event-1'], status: 'failed', createdAt: 1,
+        error: 'Invalid model output needs review.',
+      }],
+    });
+    buttonWithText('mlearn.ConversationAgent.Details.RetryWorldActivity').click();
+    await vi.waitFor(() => expect(onRetryMaintenance).toHaveBeenCalledWith('refl-failed'));
   });
 
   it('opens a dedicated editor modal and saves participant fields through it', async () => {

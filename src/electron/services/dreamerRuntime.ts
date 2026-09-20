@@ -45,7 +45,17 @@ export interface MaintenanceContext {
   threadId?: string;
 }
 
-const inFlight = new Map<string, { controller: AbortController; done: Promise<void> }>();
+export const MAX_MAINTENANCE_WINDOWS_PER_PASS = 3;
+export const MAX_COALESCED_TRIGGER_PASSES = 2;
+
+interface ActiveMaintenance {
+  controller: AbortController;
+  done: Promise<void>;
+  followUpRequested: boolean;
+  reschedule: boolean;
+}
+
+const inFlight = new Map<string, ActiveMaintenance>();
 
 /** Resolve the journal context for a trigger. A sandbox Thread reflects on its
  *  own journal; a Room-linked Thread reflects on the Room's Sea stream. */
@@ -74,9 +84,12 @@ async function runMaintenance(context: MaintenanceContext, deps: DreamerRuntimeD
     if (!livingWorldEnabled(deps.getSettings()) || profile !== getUserDataPath() || !(deps.getSettings().llmEnabled ?? DEFAULT_SETTINGS.llmEnabled) || !getInferencePolicy(deps.getSettings()).isPermitted('dreamer')) throw new Error('Maintenance policy changed');
     return complete(prompt, signal);
   };
-  await runReflection(context, { policy, llmFn, signal });
-  if (!livingWorldEnabled(deps.getSettings()) || profile !== getUserDataPath() || signal.aborted || !getInferencePolicy(deps.getSettings()).isPermitted('dreamer')) return;
-  await evolveScenario(context, { policy, llmFn, signal });
+  for (let window = 0; window < MAX_MAINTENANCE_WINDOWS_PER_PASS; window++) {
+    const reflected = await runReflection(context, { policy, llmFn, signal });
+    if (!livingWorldEnabled(deps.getSettings()) || profile !== getUserDataPath() || signal.aborted || !getInferencePolicy(deps.getSettings()).isPermitted('dreamer')) return;
+    const evolved = await evolveScenario(context, { policy, llmFn, signal });
+    if (!reflected && !evolved) return;
+  }
 }
 
 export async function consolidateContext(target: ReflectionTarget, deps: DreamerRuntimeDeps): Promise<void> {
@@ -84,15 +97,31 @@ export async function consolidateContext(target: ReflectionTarget, deps: Dreamer
   if (!context) return;
   const key = `${context.roomId}:${context.scopeKind}:${context.threadId ?? ''}:${getUserDataPath()}`;
   const running = inFlight.get(key);
-  if (running) return running.done;
+  if (running) {
+    running.followUpRequested = true;
+    return running.done;
+  }
   const controller = new AbortController();
-  const done = runMaintenance(context, deps, controller.signal)
+  const active: ActiveMaintenance = { controller, done: Promise.resolve(), followUpRequested: false, reschedule: false };
+  const work = async (): Promise<void> => {
+    for (let pass = 0; pass < MAX_COALESCED_TRIGGER_PASSES; pass++) {
+      active.followUpRequested = false;
+      await runMaintenance(context, deps, controller.signal);
+      if (!active.followUpRequested || controller.signal.aborted) return;
+    }
+    active.reschedule = active.followUpRequested && !controller.signal.aborted;
+  };
+  const done = work()
     .catch((error) => {
       // One context's failure must never propagate into the trigger's IPC path.
       log.error('Maintenance failed for context', context.roomId, error);
     })
-    .finally(() => inFlight.delete(key));
-  inFlight.set(key, { controller, done });
+    .finally(() => {
+      inFlight.delete(key);
+      if (active.reschedule) void consolidateContext(target, deps);
+    });
+  active.done = done;
+  inFlight.set(key, active);
   await done;
 }
 

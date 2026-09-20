@@ -43,12 +43,12 @@ interface PromptShape {
   persona: string;
   continuingContext: {
     priorBeliefs: { id: string; text: string; createdAt: number }[];
-    openLoops: { loopId: string; text: string }[];
+    openLoops: { loop: number; text: string }[];
   };
   /** Keys name the sections the model may emit; absent resolutions key ⇒ the
    *  owner has no open loops and the contract omits resolutions entirely. */
   outputSchema?: Record<string, unknown>;
-  events: { id: string; type: string; actor: string; text?: string; createdAt: number }[];
+  events: { id: string; type: string; actor: string; text?: string; createdAt: number; resolvesLoops?: number[] }[];
 }
 
 function parsePrompt(prompt: string): PromptShape {
@@ -85,26 +85,26 @@ function validOutput(sourceEventIds: string[], loop?: number): string {
   });
 }
 
-async function seedSea(roomId: string, text = 'sea input', witnesses = ['user', 'owner']): Promise<JournalEvent> {
+async function seedSea(roomId: string, text = 'sea input', witnesses = ['user', 'owner'], payload: Record<string, unknown> = {}): Promise<JournalEvent> {
   return journal.appendEvent(roomId, {
     roomId,
     scope: { kind: 'sea' },
     type: 'message.user',
     actorId: 'user',
     witnesses,
-    payload: { text },
+    payload: { text, ...payload },
   });
 }
 
 /** User-authored open-loop row (the remember-this path writes the same shape). */
-async function seedOpenLoop(roomId: string, text: string, ownerId = 'owner'): Promise<JournalEvent> {
+async function seedOpenLoop(roomId: string, text: string, ownerId = 'owner', sourceEventIds: string[] = []): Promise<JournalEvent> {
   return journal.appendEvent(roomId, {
     roomId,
     scope: { kind: 'sea' },
     type: 'memory.belief',
     actorId: ownerId,
     witnesses: [ownerId],
-    payload: { ownerId, kind: 'open-loop', text, sourceEventIds: [] },
+    payload: { ownerId, kind: 'open-loop', text, sourceEventIds },
   });
 }
 
@@ -167,14 +167,18 @@ describe('Dreamer service', () => {
 
   it('maps ordinals to exactly the bounded prompt list, without exposing loop IDs', async () => {
     seedRoomWorld('ordinal');
-    for (let i = 0; i < 13; i++) await seedOpenLoop('ordinal', `loop ${i}`);
-    const source = await seedSea('ordinal', 'later evidence');
+    const opener = await seedSea('ordinal', 'question source');
+    for (let i = 0; i < 13; i++) await seedOpenLoop('ordinal', `loop ${i}`, 'owner', [opener.id]);
+    const source = await seedSea('ordinal', 'later evidence', ['user', 'owner'], { replyToEventId: opener.id });
     let selectedText = '';
     let exposedIds = false;
+    let eligibleLoopOrdinals: number[] = [];
     await dreamer.runDreamer('ordinal', { policy: policy('local', true), llmFn: async (prompt) => {
-      const loops = parsePrompt(prompt).continuingContext.openLoops;
+      const parsed = parsePrompt(prompt);
+      const loops = parsed.continuingContext.openLoops;
       selectedText = loops[0].text;
       exposedIds = loops.some(loop => 'loopId' in loop);
+      eligibleLoopOrdinals = parsed.events.find(event => event.id === source.id)?.resolvesLoops ?? [];
       return resolutionOut('owner', 1, [source.id]);
     } });
     const rows = await journal.readSeaProjection('ordinal');
@@ -182,6 +186,7 @@ describe('Dreamer service', () => {
     const target = rows.find(row => row.id === payloadOf(resolution).loopId)!;
     expect(payloadOf(target).text).toBe(selectedText);
     expect(exposedIds).toBe(false);
+    expect(eligibleLoopOrdinals).toContain(1);
   });
 
   it('rejects stale cross-Room loop choices after another Room resolves the target', async () => {
@@ -316,6 +321,31 @@ describe('Dreamer service', () => {
     expect(stream.filter(event => event.type === 'consolidation')).toHaveLength(2);
   });
 
+  it('reopens a terminal invalid-output window only after an explicit retry request', async () => {
+    const roomId = 'room-explicit-retry';
+    seedRoomWorld(roomId);
+    const source = await seedSea(roomId);
+    let response = JSON.stringify({
+      beliefs: [{ ownerId: 'owner', kind: 'episode', text: 'invalid occurrence', sourceEventIds: [source.id] }],
+      resolutions: [],
+    });
+    const llmFn = vi.fn(async () => response);
+    await dreamer.runDreamer(roomId, { policy: policy('local', true), llmFn, now: 100 });
+    const worldStore = await import('./worldStore');
+    const failed = (await worldStore.loadWorld()).reflectionRuns?.find(run => run.status === 'failed');
+    expect(failed).toBeDefined();
+
+    // Ordinary automatic opportunities skip the sealed terminal window.
+    await dreamer.runDreamer(roomId, { policy: policy('local', true), llmFn, now: 200 });
+    expect(llmFn).toHaveBeenCalledTimes(3);
+
+    response = validOutput([source.id]);
+    await dreamer.requestMaintenanceRetry(failed!.reflectionId);
+    await dreamer.runDreamer(roomId, { policy: policy('local', true), llmFn, now: 300 });
+    expect(derivedRows(await journal.readSeaProjection(roomId))).toHaveLength(1);
+    expect((await worldStore.loadWorld()).reflectionRuns?.filter(run => run.status === 'committed')).toHaveLength(1);
+  });
+
   it('rejects beliefs citing events outside the owner’s witnessed view', async () => {
     const roomId = 'room-citation';
     seedWorld({
@@ -395,7 +425,7 @@ describe('Dreamer service', () => {
     expect(derivedRows(await journal.readSeaProjection(roomId))).toHaveLength(0);
     expect((await journal.readSeaProjection(roomId)).filter(event => event.type === 'consolidation')).toHaveLength(3);
 
-    await seedSea(roomId, 'window four');
+    await seedSea(roomId, 'window four', ['user', 'owner'], { replyToEventId: mine.id });
     respond = (prompt) => {
       const position = parsePrompt(prompt).continuingContext.openLoops.findIndex(entry => entry.text === 'MY_LOOP') + 1;
       if (position === 0) throw new Error('open loop was not offered in the prompt');
@@ -505,7 +535,7 @@ describe('Dreamer service', () => {
   it('runs the loop lifecycle: derive an open loop, then resolve it in a later window', async () => {
     const roomId = 'room-looplife';
     seedRoomWorld(roomId);
-    await seedSea(roomId, 'I still need to pick a date');
+    const opening = await seedSea(roomId, 'I still need to pick a date');
     let respond = (prompt: string): string => JSON.stringify({
       beliefs: [{ ownerId: 'owner', kind: 'open-loop', text: 'OWNER_DATE_LOOP', sourceEventIds: [lastPromptEventId(prompt)] }],
       resolutions: [],
@@ -524,7 +554,7 @@ describe('Dreamer service', () => {
 
     // Later window: the prompt lists the loop; the model resolves it by its
     // 1-based position and canonical code maps that to the journal id.
-    await seedSea(roomId, 'the date is picked');
+    await seedSea(roomId, 'the date is picked', ['user', 'owner'], { replyToEventId: opening.id });
     respond = (prompt) => {
       const position = parsePrompt(prompt).continuingContext.openLoops.findIndex(entry => entry.text === 'OWNER_DATE_LOOP') + 1;
       if (position === 0) throw new Error('open loop was not offered in the prompt');
@@ -541,6 +571,25 @@ describe('Dreamer service', () => {
     if (resolution === undefined) throw new Error('expected resolution row');
     expect(resolution.payload).toMatchObject({ ownerId: 'owner', loopId: loopRow.id, status: 'satisfied', text: 'date confirmed' });
     expect(resolution.provenance?.reflectionId).toBeTruthy();
+  });
+
+  it('does not let the evidence that opened a loop satisfy that same loop', async () => {
+    const roomId = 'room-loop-self-resolution';
+    seedRoomWorld(roomId);
+    const suspicion = await seedSea(roomId, 'A suspects B told C. Nobody has confirmed it.');
+    const loop = await seedOpenLoop(roomId, 'Find out whether B told C.');
+    const llmFn = vi.fn(async (prompt: string) => {
+      const position = parsePrompt(prompt).continuingContext.openLoops.findIndex(entry => entry.text === 'Find out whether B told C.') + 1;
+      return resolutionOut('owner', position, [suspicion.id], 'I will consider this question.');
+    });
+
+    await dreamer.runDreamer(roomId, { policy: policy('local', true), llmFn, now: 100 });
+
+    const { openLoopStates } = await import('../../shared/memoryProjection');
+    const stream = await journal.readSeaProjection(roomId);
+    expect(openLoopStates(stream).get(loop.id)?.status).toBe('open');
+    expect(stream.filter(event => event.type === 'resolution')).toEqual([]);
+    expect(llmFn).toHaveBeenCalledTimes(3);
   });
 
   it('supersedes a prior derived belief: projection keeps only the successor, journal keeps both', async () => {
@@ -598,10 +647,12 @@ describe('Dreamer service', () => {
     });
     await dreamer.runDreamer('room-a', { policy: policy('local', true), llmFn: llmA, now: 100 });
     const roomARows = await journal.readSeaProjection('room-a');
-    expect(roomARows.filter(event => event.type === 'memory.belief' && event.provenance?.reflectionId)).toHaveLength(1);
+    const roomABelief = roomARows.find(event => event.type === 'memory.belief' && event.provenance?.reflectionId);
+    expect(roomABelief).toBeDefined();
 
-    // Room B: Mara's prompt must carry her Room A prior state (context, never
-    // source) and never anyone else's private rows; Kai B sees none of it.
+    // Room B: Mara's prompt must carry her Room A prior state as causal
+    // context (not direct evidence) and never anyone else's private rows;
+    // Kai B sees none of it.
     const roomBSource = await seedSea('room-b', 'ROOM_B_SHARED', ['user', 'mara', 'kai-b']);
     const llmB = vi.fn(async (prompt: string) => {
       const owner = parsePrompt(prompt).task.includes('(mara)') ? 'mara' : 'kai-b';
@@ -627,7 +678,17 @@ describe('Dreamer service', () => {
     const bBelief = roomBRows.find(event => event.type === 'memory.belief' && event.provenance?.reflectionId !== undefined);
     expect(bBelief).toBeDefined();
     expect(payloadOf(bBelief!).sourceEventIds).toEqual([roomBSource.id]);
+    const roomALoop = roomARows.find(event => payloadOf(event).text === 'MARA_ROOM_A_LOOP');
+    expect(payloadOf(bBelief!).dependencyEventIds).toEqual([roomABelief!.id, roomALoop!.id]);
     expect(bBelief!.witnesses).toEqual(['mara']);
+
+    // Later correction of the carried belief invalidates the already-published
+    // Room B descendant through its durable dependency edge.
+    await journal.appendEvent('room-a', {
+      roomId: 'room-a', scope: { kind: 'sea' }, type: 'correction', actorId: 'mara', witnesses: ['mara'],
+      payload: { ownerId: 'mara', targetId: roomABelief!.id },
+    });
+    expect((await journal.readSeaProjection('room-b')).some(event => event.id === bBelief!.id)).toBe(false);
   });
 
   it('reflects a sandbox thread from thread-local personal history only', async () => {
@@ -689,6 +750,34 @@ describe('Dreamer service', () => {
     expect(rawJournal).not.toContain('lastAccessed');
   });
 
+  it('recovers an interrupted projection publication idempotently before settlement', async () => {
+    const roomId = 'room-projection-recovery';
+    seedRoomWorld(roomId);
+    const source = await seedSea(roomId);
+    const originalRename = fs.promises.rename.bind(fs.promises);
+    let interrupted = false;
+    const rename = vi.spyOn(fs.promises, 'rename').mockImplementation(async (...args) => {
+      if (!interrupted && String(args[0]).endsWith('projection-store.json.tmp')) {
+        interrupted = true;
+        throw new Error('projection write interrupted');
+      }
+      return originalRename(...args);
+    });
+
+    await expect(dreamer.runDreamer(roomId, {
+      policy: policy('local', true), llmFn: async () => validOutput([source.id]), now: 123,
+    })).rejects.toThrow('projection write interrupted');
+    expect((await (await import('./worldStore')).loadWorld()).reflectionRuns?.[0].status).toBe('pending');
+    expect(await journal.readSeaProjection(roomId)).toEqual([source]);
+
+    rename.mockRestore();
+    await dreamer.reconcilePendingReflections();
+    const once = await projections.loadProjectionStore();
+    await dreamer.reconcilePendingReflections();
+    expect(await projections.loadProjectionStore()).toEqual(once);
+    expect((await (await import('./worldStore')).loadWorld()).reflectionRuns?.[0].status).toBe('committed');
+  });
+
   it('honors policies and records provenance on every result', async () => {
     const blockedRoom = 'room-blocked';
     seedRoomWorld(blockedRoom);
@@ -704,9 +793,10 @@ describe('Dreamer service', () => {
     for (const kind of ['local', 'unrestricted-cloud'] as const) {
       const roomId = `room-${kind}`;
       seedRoomWorld(roomId);
-      const source = await seedSea(roomId);
-      await seedOpenLoop(roomId, 'POLICY_LOOP'); // exactly one open loop → ordinal 1 maps to it
-      const llmFn = vi.fn(async () => validOutput([source.id], 1));
+      await seedSea(roomId);
+      const policyLoop = await seedOpenLoop(roomId, 'POLICY_LOOP'); // exactly one open loop → ordinal 1 maps to it
+      const resolving = await seedSea(roomId, 'The loop is now resolved.', ['user', 'owner'], { replyToEventId: policyLoop.id });
+      const llmFn = vi.fn(async () => validOutput([resolving.id], 1));
       await dreamer.runDreamer(roomId, { policy: policy(kind, true), llmFn, now: 100 });
       expect(llmFn).toHaveBeenCalledTimes(1);
       const results = (await journal.readSeaProjection(roomId)).filter(
@@ -714,7 +804,7 @@ describe('Dreamer service', () => {
       );
       expect(results).toHaveLength(2);
       for (const event of results) {
-        expect(event.payload).toMatchObject({ sourceEventIds: [source.id] });
+        expect(event.payload).toMatchObject({ sourceEventIds: [resolving.id] });
         expect(event.provenance?.reflectionId).toBeTruthy();
       }
     }
@@ -805,15 +895,16 @@ describe('Dreamer service', () => {
 
   it('hides a prepared prefix from canonical readers until publication commits', async () => {
     seedRoomWorld('atomic');
-    const source = await seedSea('atomic');
-    await seedOpenLoop('atomic', 'ATOMIC_LOOP'); // exactly one open loop → ordinal 1 maps to it
+    await seedSea('atomic');
+    const atomicLoop = await seedOpenLoop('atomic', 'ATOMIC_LOOP'); // exactly one open loop → ordinal 1 maps to it
+    const resolving = await seedSea('atomic', 'The atomic loop is resolved.', ['user', 'owner'], { replyToEventId: atomicLoop.id });
     const original = fs.promises.appendFile.bind(fs.promises);
     const append = vi.spyOn(fs.promises, 'appendFile').mockImplementation(async (...args) => {
       if (String(args[1]).includes('"type":"resolution"')) throw new Error('injected interruption');
       return original(...args);
     });
     try {
-      await expect(dreamer.runDreamer('atomic', { policy: policy('local', true), llmFn: async () => validOutput([source.id], 1) })).rejects.toThrow('interruption');
+      await expect(dreamer.runDreamer('atomic', { policy: policy('local', true), llmFn: async () => validOutput([resolving.id], 1) })).rejects.toThrow('interruption');
     } finally { append.mockRestore(); }
     expect((await journal.readSeaProjection('atomic')).filter(e => e.provenance?.reflectionId)).toEqual([]);
     expect((await journal.subscribeRoom('atomic', 100)).events.filter(e => e.provenance?.reflectionId)).toEqual([]);

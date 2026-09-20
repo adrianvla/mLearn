@@ -929,7 +929,8 @@
         "Saving": "Speichern…",
         "WorldActivity": "Weltaktivität",
         "WorldActivityPending": "Konsolidierung läuft",
-        "WorldActivityFailed": "Konsolidierung braucht Aufmerksamkeit"
+        "WorldActivityFailed": "Konsolidierung braucht Aufmerksamkeit",
+        "RetryWorldActivity": "Erneut versuchen"
       }
     },
     "ErrorModal": {

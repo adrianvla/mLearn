@@ -929,7 +929,8 @@
         "Saving": "保存中…",
         "WorldActivity": "世界活动",
         "WorldActivityPending": "整理进行中",
-        "WorldActivityFailed": "整理需要处理"
+        "WorldActivityFailed": "整理需要处理",
+        "RetryWorldActivity": "重试"
       }
     },
     "ErrorModal": {

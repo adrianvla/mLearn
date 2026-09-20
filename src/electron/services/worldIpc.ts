@@ -38,6 +38,7 @@ import { appendEvent, eraseThread, readSeaProjection, readThread } from './journ
 import { openManagedChildWindow } from './windowManager';
 import { loadSettings } from './settings';
 import { consolidateRoom, consolidateContext, cancelMaintenanceContext } from './dreamerRuntime';
+import { requestMaintenanceRetry } from './dreamerService';
 import { settleMaintenanceRunUnlocked } from './dreamerService';
 import { prepareScenario, activateScenario, cancelScenario } from './scenarioDirector';
 import * as integration from './integration';
@@ -339,6 +340,21 @@ export function setupWorldIPC(): void {
       const threadId = typeof input?.threadId === 'string' && input.threadId ? input.threadId : undefined;
       if (!roomId && !threadId) throw new Error('[world] reflection trigger requires a context');
       await consolidateContext(threadId ? { roomId: threadId, threadId } : { roomId: roomId! }, { getSettings: loadSettings });
+      return true;
+    }
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.WORLD_RETRY_MAINTENANCE,
+    async (_event, reflectionId: string): Promise<boolean> => {
+      if (typeof reflectionId !== 'string' || !reflectionId) throw new Error('[world] maintenance retry requires a run id');
+      const record = await requestMaintenanceRetry(reflectionId);
+      await consolidateContext(
+        record.scopeKind === 'thread'
+          ? { roomId: record.contextId, threadId: record.threadId }
+          : { roomId: record.contextId },
+        { getSettings: loadSettings },
+      );
       return true;
     }
   );

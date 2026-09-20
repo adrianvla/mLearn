@@ -91,6 +91,20 @@ describe('renderCompiledContext', () => {
     };
     expect(renderCompiledContext(ctx, [p1], 'You')).toBe('## Persona\nx');
   });
+
+  it('renders Director prose explicitly as interpretation, never established history', () => {
+    const ctx = {
+      persona: { text: 'x', facets: {} },
+      negativeKnowledge: [], relationships: [], memories: [], openLoops: [], recentThreadEvents: [],
+      scenario: {
+        sharedFacts: ['A suspects B told C. Nobody has confirmed it.'], constraints: [], goals: [], knowledge: [],
+        interpretations: [{ authority: 'interpretation', text: 'B told C.', createdAt: 1 }], concluded: false,
+      },
+    } as unknown as CompiledContext;
+    const out = renderCompiledContext(ctx, [p1], 'You');
+    expect(out).toContain('## Situation interpretations (not established occurrences)');
+    expect(out).not.toContain('## Situation developments');
+  });
   it('renders the grammar exposure line with unmeasured phrasing when present', () => {
     const ctx: CompiledContext = {
       persona: { text: 'x', facets: {} },

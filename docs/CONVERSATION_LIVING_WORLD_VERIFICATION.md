@@ -153,7 +153,7 @@ Final validation: full suite **427 passed / 1 skipped files; 6,789 passed / 9 sk
 
 Profile isolation evidence: original `world.json` and `kv-store.json` checksums remained identical. The original settings checksum changed before the first successful cloned-app launch (13:55:29 versus 13:56:24); differing authentication state was observed, not logged. No command wrote the original profile, but whole-profile byte identity is not claimed. A08/A09 remain open at full acceptance scope. Autonomous lives, Dreamer expansion, initiative, Scenario evolution and V08 were not started.
 
-## V08 — Automatic scoped reflection and persistent Scenario evolution, 2026-09-16 (current)
+## V08 — Automatic scoped reflection and persistent Scenario evolution, 2026-09-16 (historical initial result)
 
 Production path: completed foreground turn → `WORLD_TRIGGER_REFLECTION` → main-owned `dreamerRuntime.consolidateContext` (policy-gated, in-flight deduplication, abort-aware) → per-person scoped reflection (`dreamerService.runReflection`, one validated model call per cast member's own witness/absence-filtered view) and Director scenario evolution (`scenarioDirector.evolveScenario`, shared-window proposal validated against exact cast identities). Both publish through one durable `ReflectionRunRecord` (world.json ledger), reflection drafts persisted before any journal append (all-or-nothing resume), and scenario evolution through an atomic entity compare-and-save plus the `scenario_evolved` history row and a scenario-kind consolidation marker. Startup recovery (`reconcilePendingMaintenance`) runs in `main.initialize()` after legacy migration; app quit aborts in-flight passes at phase boundaries; sandbox Thread deletion cancels and settles its runs, and thread-scoped journal writes now require a live, context-matching Thread record (erased streams cannot be resurrected).
 
@@ -177,7 +177,7 @@ Validation:
 
 Limits: no mounted conversation-window interaction (reflection runs through the production IPC handler inside real Electron, but notification/deep-link/UI surfaces for maintenance state are not exercised — they remain later waves); no per-owner display surface beyond Details status; repeated-reflection salience amplification is bounded per window by the attempt ledger but full A20/A21 invalidation propagation (search indices, queued prompts) is open; VoiceMem-inspired prefetch/prefetch invalidation unchanged; A01–A45 remain open at full acceptance scope.
 
-## V08 — Adversarial review and repair, 2026-09-16 (authoritative current verdict)
+## V08 — Adversarial review and repair, 2026-09-16 (historical blocked verdict)
 
 **BLOCKED within V08.** [Detailed findings and evidence](CONVERSATION_LIVING_WORLD_V08_REVIEW.md). Scope remains automatic scoped reflection and persistent Scenario evolution; roadmap V08 → V09 → V10 → END. No successor work, commit, push or deployment.
 
@@ -235,7 +235,7 @@ Continued from the dirty checkout; all Astra repairs preserved; no reset, no V09
 - Tests used disposable profiles only; the mounted run reads the installed runtime via an APFS clone and never writes the original profile. No commit, push or deployment was made.
 
 
-## V08 — Re-review after remediation, 2026-09-16 (current)
+## V08 — Re-review after remediation, 2026-09-16 (historical blocked verdict; superseded below)
 
 **V08 still blocked.** Full findings, repaired defects, retained limitations and exact counterexamples are in the [authoritative re-review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md#v08-re-review-after-remediation--2026-09-16-authoritative).
 
@@ -256,3 +256,29 @@ Evidence by layer:
 | Hygiene | Pass | Six locale JSON parses, evidence-script syntax, `git diff --check`. |
 
 The remaining blockers are semantic authority for Scenario history and loop closure, durable dependencies on prior personal context, bounded automatic backlog/retry/projection recovery, and valid mounted product evidence. Model instability is acceptable only when it fails safely; the recorded commits do not. No original user profile was written, no commit/push/deploy, no unreleased-format migration. **V09 remains unauthorized.**
+
+## V08 — Closure verification, 2026-09-21 (authoritative current)
+
+**PASS.** Scope is limited to V08 automatic scoped reflection and persistent Scenario interpretation/evolution. V09/V10 were not begun or authorized.
+
+| Layer | Fresh result | Evidence and meaning |
+|---|---|---|
+| Targeted regressions | **149 passed / 10 files** | Loop self-resolution/later-linked resolution, cross-Room dependency invalidation, projection rename recovery/idempotence, trigger follow-up and window bounds, scheduler fair bound, explicit failed-window retry, interpretation compiler/rendering, and Retry UI. `/tmp/v08-close-focused.log`. |
+| Full suite | **441 passed / 1 skipped files; 7,252 passed / 9 skipped tests** | `npm run test`, exit 0. `/tmp/v08-close-full-tests.log`. |
+| TypeScript | Both configurations pass | `npm run typecheck`, exit 0. `/tmp/v08-close-typecheck.log`. |
+| Production build | Pass | `npm run build`, exit 0; existing chunk warnings only. `/tmp/v08-close-build.log`. |
+| Process crash/recovery | **19/19 PASS** | Built services; five probes including SIGKILL after projection-store rename and before ledger settlement. Canonical rows remain hidden while pending; recovery commits exact drafts/marker and does not apply salience twice. `/tmp/v08-close-crashes.log`. |
+| Authority probe | **PASS, exit 0** | `STORED_SCENARIO_INTERPRETATIONS`, `COMPILED_SCENARIO_INTERPRETATIONS`, `SELF_RESOLUTION_BLOCKED=true`, `LATER_EVIDENCE_RESOLVED=true`. `/tmp/v08-close-authority.log`. |
+| Real supported model | **Structural PASS; semantic PASS after inspection** | `gemma4-e4b-q4:latest` through the built runtime/provider path; 23,839 ms; profile `v08-real-dFoCEe`. Four owner-scoped derived rows have valid citations; the rake resolution cites Eli's later explicitly linked repair message; two Scenario rows have interpretation authority. `/tmp/v08-close-real-model.log`, `/tmp/v08-real-model.json`. |
+| Mounted Electron | **Transport PASS; semantic PASS after inspection** | Profile `v08-mounted-hDAP0L`; real main/preload/renderer/bridge/provider; nonempty first reply, automatic committed reflection/evolution, reload/remount, Room plus history visible, nonempty second reply. Two beliefs remain owner interpretations of witnessed dialogue; two Scenario entries are labeled interpretations. `/tmp/v08-close-mounted.log`, `/tmp/v08-mounted-record.json`. |
+| Hygiene | Pass | `git diff --check`, six locale JSON parses, and syntax checks for every modified V08 harness. |
+
+Production invariants verified:
+
+- Scenario-generated prose has no occurrence authority: storage, journal payload, compiler, and UI retain `authority: 'interpretation'` and the UI explicitly says it is not established occurrence history.
+- Loop closure requires later direct evidence structurally linked by `replyToEventId` or correction target; prompt ordinals do not expose canonical loop IDs.
+- Published derived state carries prior-context dependency edges; canonical cross-Room invalidation recursively removes descendants after correction without rewriting journal history or leaking another Room's rows.
+- Runtime backlog work is bounded (three windows/pass, two coalesced passes, reschedule at the boundary); scheduler work is bounded/fair (eight Rooms/reconcile); failed windows reopen only through durable explicit retry.
+- Projection mutation and its operation marker publish atomically before settlement, making the recovery call exactly-once in effect.
+
+No original profile write, commit, push, deployment, V09, or V10 work occurred. Full A01–A45 acceptance remains outside this narrow V08 verdict.

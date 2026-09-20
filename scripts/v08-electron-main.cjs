@@ -12,6 +12,7 @@ const path = require('path');
 const fs = require('fs');
 
 const ROOT = path.join(__dirname, '..');
+const MODEL = process.env.V08_OLLAMA_MODEL || 'gemma4-e4b-q4:latest';
 const SERVICES = path.join(ROOT, 'dist-electron', 'electron', 'services');
 
 const electron = require('electron');
@@ -41,7 +42,7 @@ const run = async () => {
   fs.writeFileSync(path.join(profile, 'settings.json'), JSON.stringify({
     ...require(path.join(ROOT, 'dist-electron', 'shared', 'constants.js')).DEFAULT_SETTINGS,
     llmProvider: 'ollama',
-    ollamaModel: 'gemma3:4b',
+    ollamaModel: MODEL,
     llmEnabled: true,
     livingWorldEnabled: true,
   }));
@@ -79,14 +80,14 @@ const run = async () => {
   const room = (await world.loadWorld()).rooms.find((item) => item.id === 'room-elec');
   const record = {
     surface: 'real Electron main process; production WORLD_TRIGGER_REFLECTION IPC handler; real ollamaService provider path',
-    model: 'gemma3:4b',
+    model: MODEL,
     elapsedMs,
     derivedEvents: events
       .filter((event) => event.type === 'memory.belief' || event.type === 'resolution')
       .map((event) => ({ type: event.type, actorId: event.actorId, witnesses: event.witnesses, payload: event.payload, provenance: event.provenance })),
     consolidationMarkers: events.filter((event) => event.type === 'consolidation').map((event) => event.payload),
     scenarioEvolved: events.filter((event) => event.type === 'scenario_evolved').map((event) => event.payload),
-    scenarioDevelopments: (room?.scenario?.developments ?? []).map((dev) => ({ text: dev.text, kind: dev.kind })),
+    scenarioInterpretations: (room?.scenario?.developments ?? []).map((dev) => ({ authority: dev.authority, text: dev.text, kind: dev.kind })),
     scenarioStatus: room?.scenario?.status ?? 'active',
     ledger: ((await world.loadWorld()).reflectionRuns ?? []).map(({ prepared: _prepared, ...rest }) => rest),
   };

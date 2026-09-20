@@ -929,7 +929,8 @@
         "Saving": "保存中…",
         "WorldActivity": "世界の活動",
         "WorldActivityPending": "統合中（進行中）",
-        "WorldActivityFailed": "統合に注意が必要です"
+        "WorldActivityFailed": "統合に注意が必要です",
+        "RetryWorldActivity": "再試行"
       }
     },
     "ErrorModal": {

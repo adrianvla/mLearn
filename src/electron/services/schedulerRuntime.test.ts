@@ -15,6 +15,8 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('./worldIpc', () => ({ openRoomAt: vi.fn() }));
+const mockConsolidateContext = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock('./dreamerRuntime', () => ({ consolidateContext: mockConsolidateContext }));
 
 // Living World consent default for the existing proactive-scheduler coverage;
 // individual tests may flip it to verify the Threads-only boundary.
@@ -52,6 +54,7 @@ describe('schedulerRuntime', () => {
     mockLoadSettings.mockReturnValue(schedulerSettings(true));
     powerMonitorOn.mockClear();
     powerMonitorRemoveListener.mockClear();
+    mockConsolidateContext.mockClear();
     runtime = await import('./schedulerRuntime');
     journal = await import('./journalService');
     const room: Room = { id: 'room-1', title: 'Test room', participantIds: ['participant-1'], createdAt: 0 };
@@ -131,5 +134,18 @@ describe('schedulerRuntime', () => {
     // No autonomous-world writes of any kind happened on the consented paths.
     expect(events.filter((event) => event.type === 'consolidation')).toHaveLength(0);
     runtime.stopScheduler();
+  });
+
+  it('bounds Room maintenance candidates per reconcile and advances fairly', async () => {
+    const rooms = Array.from({ length: runtime.MAX_SCHEDULER_MAINTENANCE_ROOMS + 2 }, (_, index): Room => ({
+      id: `room-${index}`, title: `Room ${index}`, participantIds: [], createdAt: index,
+    }));
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'world.json'), JSON.stringify({ rooms, threads: [], participants: [] }), 'utf-8');
+
+    runtime.startScheduler();
+    await vi.waitFor(() => expect(mockConsolidateContext).toHaveBeenCalledTimes(runtime.MAX_SCHEDULER_MAINTENANCE_ROOMS));
+    const resume = powerMonitorOn.mock.calls.find(([event]) => event === 'resume')?.[1] as (() => void);
+    resume();
+    await vi.waitFor(() => expect(new Set(mockConsolidateContext.mock.calls.map(([target]) => target.roomId))).toHaveLength(rooms.length));
   });
 });

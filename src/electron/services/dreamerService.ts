@@ -60,7 +60,7 @@ import type {
 import { openLoopStates, tombstonedIds } from '../../shared/memoryProjection';
 import { visibleEventsFor } from '../../shared/contextCompiler';
 import { appendEvent, readSeaProjection, readThread, readPreparedMaintenanceEvents } from './journalService';
-import { loadProjectionStore, saveProjectionStore } from './projectionStore';
+import { applyMaintenanceProjection } from './projectionStore';
 import { getUserDataPath } from '../utils/platform';
 import { loadWorld, saveWorld, withWorldMutation, type WorldState } from './worldStore';
 
@@ -263,7 +263,7 @@ function makePrompt(
   owner: CastMember,
   view: JournalEvent[],
   cast: CastMember[],
-  continuing: { priorBeliefs: { id: string; text: string; createdAt: number }[]; openLoops: { loopId: string; text: string }[] },
+  continuing: { priorBeliefs: { id: string; text: string; createdAt: number }[]; openLoops: OpenLoopChoice[] },
 ): string {
   // When the owner has no open loops, the output contract omits the
   // resolutions key entirely: the model must not be invited to invent loop
@@ -309,6 +309,7 @@ function makePrompt(
       'Every belief and resolution must cite sourceEventIds: the exact ids of the supplied events that support it (at least one, copied verbatim).',
       ...(hasLoops ? [
         'Each resolution\'s loop is the 1-based position of the openLoops entry it closes; you may only close loops from that list.',
+        'A resolution must cite a later supplied event whose resolvesLoops list contains that loop number. That structural link means the event replies to the loop (or its source) or corrects it.',
         'Emit a resolution ONLY when the events show the listed loop genuinely ends; if it stays unresolved, omit it entirely — leaving a loop open is valid.',
       ] : []),
       'Optional fields are omitted when not applicable — never null, never invented status values.',
@@ -316,7 +317,25 @@ function makePrompt(
       'Derive only from the supplied events and your continuing context. Uncertain conclusions stay uncertain in the text. An empty output is valid when nothing durable can be concluded.',
       'Never assert new occurrences as events: there is no field for that — this output shape admits interpretation only.',
     ],
-    events: view.map((event) => ({ id: event.id, type: event.type, actor: event.actorId, text: eventText(event.payload), createdAt: event.createdAt })),
+    events: view.map((event) => ({
+      id: event.id,
+      type: event.type,
+      actor: event.actorId,
+      text: eventText(event.payload),
+      createdAt: event.createdAt,
+      ...(hasLoops ? {
+        resolvesLoops: continuing.openLoops.flatMap((loop, index) => (
+          RESOLVING_EVIDENCE_TYPES.has(event.type)
+          && event.provenance?.reflectionId === undefined
+          && event.id !== loop.loopId
+          && !loop.sourceEventIds.includes(event.id)
+          && eventIsLaterThanLoop(event, loop)
+          && eventIsLinkedToLoop(event, loop)
+            ? [index + 1]
+            : []
+        )),
+      } : {}),
+    })),
   });
 }
 
@@ -325,12 +344,13 @@ function eventText(payload: unknown): string | undefined {
   return typeof text === 'string' ? text : undefined;
 }
 
-function memoryDraft(context: ReflectionContext, reflectionId: string, belief: DreamerBelief): JournalEventDraft {
+function memoryDraft(context: ReflectionContext, reflectionId: string, belief: DreamerBelief, dependencyEventIds: string[]): JournalEventDraft {
   const payload: MemoryEventPayload = {
     ownerId: belief.ownerId,
     kind: belief.kind,
     text: belief.text,
     sourceEventIds: belief.sourceEventIds,
+    ...(dependencyEventIds.length === 0 ? {} : { dependencyEventIds }),
     ...(belief.toId === undefined ? {} : { toId: belief.toId }),
     ...(belief.label === undefined ? {} : { label: belief.label }),
     ...(belief.supersedesEventId === undefined ? {} : { supersedesEventId: belief.supersedesEventId }),
@@ -346,7 +366,7 @@ function memoryDraft(context: ReflectionContext, reflectionId: string, belief: D
   };
 }
 
-function resolutionDraft(context: ReflectionContext, reflectionId: string, resolution: DreamerResolution): JournalEventDraft {
+function resolutionDraft(context: ReflectionContext, reflectionId: string, resolution: DreamerResolution, dependencyEventIds: string[]): JournalEventDraft {
   // validateDerived filled loopId from the canonical open-loop list; a draft
   // without it would be a foreign resolution and must never exist.
   if (resolution.loopId === undefined) throw new Error('Resolution loop was not mapped to a canonical open loop');
@@ -354,6 +374,7 @@ function resolutionDraft(context: ReflectionContext, reflectionId: string, resol
     ownerId: resolution.ownerId,
     text: resolution.text,
     sourceEventIds: resolution.sourceEventIds,
+    ...(dependencyEventIds.length === 0 ? {} : { dependencyEventIds }),
     loopId: resolution.loopId,
     status: resolution.status,
   };
@@ -370,21 +391,6 @@ function resolutionDraft(context: ReflectionContext, reflectionId: string, resol
 
 function maintenanceScope(context: ReflectionContext): JournalEventDraft['scope'] {
   return context.scopeKind === 'thread' ? { kind: 'thread', threadId: context.threadId! } : { kind: 'sea' };
-}
-
-async function updateProjections(contextId: string, touchedEventIds: Set<string>, now: number): Promise<void> {
-  const store = await loadProjectionStore();
-  const room = store[contextId] ?? {};
-  for (const [eventId, entry] of Object.entries(room)) {
-    room[eventId] = touchedEventIds.has(eventId)
-      ? { salience: Math.min(1, entry.salience + 0.2), lastAccessed: now }
-      : { ...entry, salience: entry.salience * 0.9 };
-  }
-  for (const eventId of touchedEventIds) {
-    if (room[eventId] === undefined) room[eventId] = { salience: 1, lastAccessed: now };
-  }
-  store[contextId] = room;
-  await saveProjectionStore(store);
 }
 
 /**
@@ -424,9 +430,35 @@ function castMember(person: Participant): CastMember {
 interface OwnerEligibility {
   targets: Set<string>;
   citationIds: Set<string>;
+  citationEvents: Map<string, JournalEvent>;
   /** The owner's currently-open loops, in prompt order (1-based). */
-  openLoops: { loopId: string; text: string }[];
+  openLoops: OpenLoopChoice[];
   priorBeliefIds: Set<string>;
+}
+
+interface OpenLoopChoice {
+  loopId: string;
+  text: string;
+  roomId: string;
+  scope: JournalEvent['scope'];
+  seq: number;
+  createdAt: number;
+  sourceEventIds: string[];
+}
+
+const RESOLVING_EVIDENCE_TYPES: ReadonlySet<JournalEvent['type']> = new Set([
+  'message.user', 'message.character', 'disclosure', 'membership', 'correction',
+]);
+
+function eventIsLaterThanLoop(event: JournalEvent, loop: OpenLoopChoice): boolean {
+  const sameStream = event.roomId === loop.roomId && JSON.stringify(event.scope) === JSON.stringify(loop.scope);
+  return sameStream ? event.seq > loop.seq : event.createdAt > loop.createdAt;
+}
+
+function eventIsLinkedToLoop(event: JournalEvent, loop: OpenLoopChoice): boolean {
+  if (!isRecord(event.payload)) return false;
+  const target = event.type === 'correction' ? event.payload.targetId : event.payload.replyToEventId;
+  return typeof target === 'string' && (target === loop.loopId || loop.sourceEventIds.includes(target));
 }
 
 /** Model output must speak only as the reflecting owner, toward valid targets,
@@ -446,9 +478,20 @@ function validateDerived(output: DreamerOutput, ownerId: string, eligibility: Ow
     const loop = eligibility.openLoops[resolution.loopIndex - 1];
     if (!loop) return false;
     resolution.loopId = loop.loopId;
+    const resolvingEvidence = resolution.sourceEventIds.some(id => {
+      const event = eligibility.citationEvents.get(id);
+      return event !== undefined
+        && RESOLVING_EVIDENCE_TYPES.has(event.type)
+        && event.provenance?.reflectionId === undefined
+        && id !== loop.loopId
+        && !loop.sourceEventIds.includes(id)
+        && eventIsLaterThanLoop(event, loop)
+        && eventIsLinkedToLoop(event, loop);
+    });
     return resolution.ownerId === ownerId
       && resolution.text.length <= DERIVED_TEXT_LIMIT
-      && cites(resolution.sourceEventIds);
+      && cites(resolution.sourceEventIds)
+      && resolvingEvidence;
   });
 }
 
@@ -510,10 +553,21 @@ function priorDerivedBeliefSummaries(history: JournalEvent[]): { id: string; tex
 }
 
 /** The owner's currently-open loops, oldest first (stream order). */
-function openLoopChoices(history: JournalEvent[]): { loopId: string; text: string }[] {
+function openLoopChoices(history: JournalEvent[]): OpenLoopChoice[] {
   return [...openLoopStates(history).entries()]
     .filter(([, state]) => state.status === 'open')
-    .map(([loopId, state]) => ({ loopId, text: state.loop.text }));
+    .flatMap(([loopId, state]) => {
+      const event = history.find(candidate => candidate.id === loopId);
+      return event ? [{
+        loopId,
+        text: state.loop.text,
+        roomId: event.roomId,
+        scope: event.scope,
+        seq: event.seq,
+        createdAt: event.createdAt,
+        sourceEventIds: state.loop.sourceEventIds,
+      }] : [];
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -614,12 +668,17 @@ export async function stageMaintenanceRun(
   context: ReflectionContext,
   kind: 'reflection' | 'scenario',
   window: JournalEvent[],
+  retryOf?: string,
 ): Promise<'busy' | StagedRun> {
   const staged = await withWorldMutation(async (): Promise<'busy' | ReflectionRunRecord> => {
     const world = await loadWorld();
     const existing = (world.reflectionRuns ?? []).find(item =>
       item.kind === kind && item.contextId === context.roomId && item.scopeKind === context.scopeKind && item.threadId === context.threadId && item.status === 'pending');
     if (existing) return 'busy';
+    const retry = retryOf === undefined ? undefined : (world.reflectionRuns ?? []).find(item =>
+      item.reflectionId === retryOf && item.kind === kind && item.status === 'failed'
+      && item.retryRequestedAt !== undefined && item.retryRequestedAt > (item.retryConsumedAt ?? 0));
+    if (retryOf !== undefined && retry === undefined) return 'busy';
     const record: ReflectionRunRecord = {
       reflectionId: `refl_${randomUUID()}`,
       kind,
@@ -633,12 +692,50 @@ export async function stageMaintenanceRun(
       castHash: maintenanceSourceHashValue(castForContext(world, context)),
       status: 'pending',
       createdAt: Date.now(),
+      ...(retryOf === undefined ? {} : { retryOf }),
     };
-    await saveWorld({ ...world, reflectionRuns: [...(world.reflectionRuns ?? []), record] });
+    const runs = (world.reflectionRuns ?? []).map(item => item.reflectionId === retryOf
+      ? { ...item, retryConsumedAt: Date.now() }
+      : item);
+    await saveWorld({ ...world, reflectionRuns: [...runs, record] });
     return record;
   });
   if (staged === 'busy') return staged;
   return { record: staged, cast: castForContext(await loadWorld(), context) };
+}
+
+/** Deliberately reopen one terminal invalid-output window. Automatic triggers
+ * keep honoring its seal until this durable request is consumed by a new run. */
+export async function requestMaintenanceRetry(reflectionId: string): Promise<ReflectionRunRecord> {
+  return withWorldMutation(async () => {
+    requireLivingWorld(loadSettings());
+    const world = await loadWorld();
+    const target = world.reflectionRuns?.find(item => item.reflectionId === reflectionId);
+    if (!target || target.status !== 'failed') throw new Error('Only a failed maintenance run can be retried');
+    const updated = { ...target, retryRequestedAt: Date.now(), retryConsumedAt: undefined };
+    await saveWorld({ ...world, reflectionRuns: world.reflectionRuns?.map(item => item.reflectionId === reflectionId ? updated : item) });
+    return updated;
+  });
+}
+
+export function requestedMaintenanceRetry(
+  world: WorldState,
+  context: ReflectionContext,
+  kind: 'reflection' | 'scenario',
+): ReflectionRunRecord | undefined {
+  return (world.reflectionRuns ?? []).filter(item =>
+    item.kind === kind && item.contextId === context.roomId && item.scopeKind === context.scopeKind
+    && item.threadId === context.threadId && item.status === 'failed'
+    && item.retryRequestedAt !== undefined && item.retryRequestedAt > (item.retryConsumedAt ?? 0))
+    .at(-1);
+}
+
+export function maintenanceRetryWindow(record: ReflectionRunRecord, stream: JournalEvent[]): JournalEvent[] | null {
+  const byId = new Map(stream.map(event => [event.id, event]));
+  const events = record.sourceEventIds.map(id => byId.get(id));
+  if (events.some(event => event === undefined)) return null;
+  const invalid = tombstonedIds(stream);
+  return (events as JournalEvent[]).every(event => !invalid.has(event.id)) ? events as JournalEvent[] : null;
 }
 
 /** Validated drafts/outputs are persisted before any journal append, so an
@@ -648,7 +745,9 @@ export async function prepareMaintenanceRun(record: ReflectionRunRecord, prepare
   if (!(await maintenanceSourcesValid(record))) throw new MaintenanceConflictError('Maintenance sources or cast changed');
   const world = await loadWorld();
   if (!world.reflectionRuns?.some(item => item.reflectionId === record.reflectionId && item.status === 'pending')) throw new MaintenanceConflictError('Maintenance was cancelled');
-  const runs = (world.reflectionRuns ?? []).map(item => item.reflectionId === record.reflectionId ? { ...item, personalContextHashes: record.personalContextHashes, prepared } : item);
+  const runs = (world.reflectionRuns ?? []).map(item => item.reflectionId === record.reflectionId
+    ? { ...item, personalContextHashes: record.personalContextHashes, projectionAt: record.projectionAt, prepared }
+    : item);
   await saveWorld({ ...world, reflectionRuns: runs });
   });
 }
@@ -673,12 +772,12 @@ export async function maintenanceFailureCount(record: ReflectionRunRecord): Prom
     && item.windowEnd === record.windowEnd && item.status === 'failed').length;
 }
 
-const activePasses = new Map<string, Promise<void>>();
+const activePasses = new Map<string, Promise<unknown>>();
 /** Direct callers and runtime triggers share the same active operation. */
-export function withMaintenancePass(context: ReflectionContext, kind: string, work: () => Promise<void>): Promise<void> {
+export function withMaintenancePass<T>(context: ReflectionContext, kind: string, work: () => Promise<T>): Promise<T> {
   const key = JSON.stringify([getUserDataPath(), context, kind]);
   const running = activePasses.get(key);
-  if (running) return running;
+  if (running) return running as Promise<T>;
   const result = work().finally(() => activePasses.delete(key));
   activePasses.set(key, result);
   return result;
@@ -688,31 +787,33 @@ export function withMaintenancePass(context: ReflectionContext, kind: string, wo
  * Per-person reflection for one journal context. Idempotent per window via the
  * marker; interrupted runs recover from the ledger and provenance.
  */
-export function runReflection(context: ReflectionContext, deps: DreamerDependencies): Promise<void> {
+export function runReflection(context: ReflectionContext, deps: DreamerDependencies): Promise<boolean> {
   return withMaintenancePass(context, 'reflection', () => runReflectionPass(context, deps));
 }
 
-async function runReflectionPass(context: ReflectionContext, deps: DreamerDependencies): Promise<void> {
-  if (!livingWorldEnabled(loadSettings()) || !deps.policy.isPermitted('dreamer')) return;
+async function runReflectionPass(context: ReflectionContext, deps: DreamerDependencies): Promise<boolean> {
+  if (!livingWorldEnabled(loadSettings()) || !deps.policy.isPermitted('dreamer')) return false;
   if (deps.signal?.aborted) throw new Error('Reflection cancelled');
 
   // Finish a previous interrupted run for this context before opening a new window.
   const world0 = await loadWorld();
   const pending = (world0.reflectionRuns ?? []).find(item =>
     item.kind === 'reflection' && item.contextId === context.roomId && item.scopeKind === context.scopeKind && item.threadId === context.threadId && item.status === 'pending');
-  if (pending && !(await completePendingReflection(pending))) return;
+  if (pending && !(await completePendingReflection(pending))) return false;
 
   // Full stream: absence intervals and tombstones must see the whole history,
   // never just the bounded window being consolidated.
   const stream = await readContextStream(context);
+  const retry = requestedMaintenanceRetry(world0, context, 'reflection');
   const lastWindowEnd = maintenanceMarkers(stream, 'reflection').reduce((latest, marker) => Math.max(latest, marker.windowEnd), Number.NEGATIVE_INFINITY);
-  const window = maintenanceWindow(stream, lastWindowEnd).slice(0, REFLECTION_WINDOW_EVENTS);
-  if (window.length === 0) return;
+  const window = retry ? maintenanceRetryWindow(retry, stream) : maintenanceWindow(stream, lastWindowEnd).slice(0, REFLECTION_WINDOW_EVENTS);
+  if (window === null) return false;
+  if (window.length === 0) return false;
   const windowEnd = window.at(-1)!.seq;
-  if (maintenanceMarkers(stream, 'reflection').some((marker) => marker.windowEnd >= windowEnd)) return;
+  if (!retry && maintenanceMarkers(stream, 'reflection').some((marker) => marker.windowEnd >= windowEnd)) return false;
 
-  const staged = await stageMaintenanceRun(context, 'reflection', window);
-  if (staged === 'busy') return;
+  const staged = await stageMaintenanceRun(context, 'reflection', window, retry?.reflectionId);
+  if (staged === 'busy') return false;
   const { record, cast } = staged;
   const targets = new Set(cast.targets);
   const windowIds = new Set(window.map(event => event.id));
@@ -730,8 +831,7 @@ async function runReflectionPass(context: ReflectionContext, deps: DreamerDepend
     // owner's budget. Publication itself stays all-or-nothing — if ANY owner
     // exhausts its budget, the window closes honestly with no derived rows
     // (no inference burn loop, no partial social state).
-    const priorFailures = await maintenanceFailureCount(record);
-    const attemptsLeft = MAX_MAINTENANCE_ATTEMPTS - priorFailures;
+    const attemptsLeft = MAX_MAINTENANCE_ATTEMPTS;
     const drafts: JournalEventDraft[] = [];
     let exhausted: string | null = null;
     for (const owner of cast.owners) {
@@ -742,10 +842,16 @@ async function runReflectionPass(context: ReflectionContext, deps: DreamerDepend
       // personal history and bounded view, never from the model's claims.
       const history = await personalHistory(owner.id, context);
       const openLoops = openLoopChoices(history).slice(-OPEN_LOOP_PROMPT_CAP);
+      const priorBeliefs = priorDerivedBeliefSummaries(history);
+      const dependencyEventIds = [...new Set([
+        ...priorBeliefs.map(belief => belief.id),
+        ...openLoops.map(loop => loop.loopId),
+      ])];
       (record.personalContextHashes ??= {})[owner.id] = maintenanceSourceHash(history);
       const eligibility: OwnerEligibility = {
         targets,
         citationIds: new Set(view.map(event => event.id)),
+        citationEvents: new Map(view.map(event => [event.id, event])),
         openLoops,
         priorBeliefIds: new Set(history.filter(isDerivedBeliefRow).map(event => event.id)),
       };
@@ -753,7 +859,7 @@ async function runReflectionPass(context: ReflectionContext, deps: DreamerDepend
         { id: owner.id, name: owner.displayName, personaText: owner.personaText },
         view,
         cast.names,
-        { priorBeliefs: priorDerivedBeliefSummaries(history), openLoops },
+        { priorBeliefs, openLoops },
       );
       let ownerDrafts: JournalEventDraft[] | null = null;
       for (let attempt = 0; attempt < attemptsLeft && ownerDrafts === null; attempt++) {
@@ -762,8 +868,13 @@ async function runReflectionPass(context: ReflectionContext, deps: DreamerDepend
         const output = parseDreamerOutput(await deps.llmFn(prompt));
         if (output !== null && validateDerived(output, owner.id, eligibility)) {
           ownerDrafts = [
-            ...output.beliefs.map((belief) => memoryDraft(context, record.reflectionId, belief)),
-            ...output.resolutions.map((resolution) => resolutionDraft(context, record.reflectionId, resolution)),
+            ...output.beliefs.map((belief) => memoryDraft(
+              context,
+              record.reflectionId,
+              belief,
+              dependencyEventIds.filter(id => id !== belief.supersedesEventId),
+            )),
+            ...output.resolutions.map((resolution) => resolutionDraft(context, record.reflectionId, resolution, dependencyEventIds)),
           ];
         }
       }
@@ -774,20 +885,14 @@ async function runReflectionPass(context: ReflectionContext, deps: DreamerDepend
       // The attempt budget is exhausted for an owner: close the window honestly.
       await appendMaintenanceMarker(context, 'reflection', record.reflectionId, record.windowStart, record.windowEnd, []);
       await settleMaintenanceRun(record.reflectionId, 'failed', `No valid reflection output after ${MAX_MAINTENANCE_ATTEMPTS} attempts for ${exhausted}; window closed.`);
-      return;
+      return true;
     }
     if (deps.signal?.aborted) throw new Error('Reflection cancelled');
+    record.projectionAt = deps.now ?? Date.now();
     await prepareMaintenanceRun(record, { kind: 'reflection', expectedDrafts: drafts });
     publicationPrepared = true;
     await completePendingReflection({ ...record, prepared: { kind: 'reflection', expectedDrafts: drafts } });
-    const produced = await readMaintenancePreparation(record);
-
-    const touched = new Set(
-      [...window, ...produced]
-        .filter((event) => event.type === 'memory.belief' || event.type === 'resolution')
-        .map((event) => event.id)
-    );
-    await updateProjections(context.roomId, touched, deps.now ?? Date.now());
+    return true;
   } catch (error) {
     if (!publicationPrepared) {
       await settleMaintenanceRun(record.reflectionId, 'failed', error instanceof Error ? error.message : 'Reflection failed');
@@ -868,6 +973,13 @@ async function completePendingReflection(record: ReflectionRunRecord): Promise<b
       await settleMaintenanceRunUnlocked(record.reflectionId, 'failed', 'Maintenance sources or cast changed; nothing was published.');
       return false;
     }
+    const stream = await readContextStream(context);
+    const touched = new Set(
+      [...stream.filter(event => current.sourceEventIds.includes(event.id)), ...produced]
+        .filter(event => event.type === 'memory.belief' || event.type === 'resolution')
+        .map(event => event.id)
+    );
+    await applyMaintenanceProjection(context.roomId, current.reflectionId, touched, current.projectionAt ?? current.createdAt);
     await settleMaintenanceRunUnlocked(record.reflectionId, 'committed');
     return true;
   });

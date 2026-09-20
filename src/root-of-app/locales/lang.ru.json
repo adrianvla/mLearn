@@ -929,7 +929,8 @@
         "Saving": "Сохранение…",
         "WorldActivity": "Активность мира",
         "WorldActivityPending": "Консолидация выполняется",
-        "WorldActivityFailed": "Консолидация требует внимания"
+        "WorldActivityFailed": "Консолидация требует внимания",
+        "RetryWorldActivity": "Повторить"
       }
     },
     "ErrorModal": {

@@ -23,6 +23,8 @@ import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { HARNESS_ACTOR, USER_ACTOR } from '../../shared/world';
+import { WORLD_CONTINUITY_ID } from '../../shared/world';
+import { tombstonedIds } from '../../shared/memoryProjection';
 import { requireLivingWorld } from '../../shared/livingWorld';
 import { loadWorld } from './worldStore';
 import { loadSettings } from './settings';
@@ -181,8 +183,8 @@ export async function readPreparedMaintenanceEvents(roomId: string, scope: Event
   return (await readStream(roomId, scope)).filter(event => event.provenance?.reflectionId === reflectionId);
 }
 
-async function canonicalEvents(events: JournalEvent[]): Promise<JournalEvent[]> {
-  const world = await loadWorld();
+async function canonicalEvents(events: JournalEvent[], loadedWorld?: Awaited<ReturnType<typeof loadWorld>>): Promise<JournalEvent[]> {
+  const world = loadedWorld ?? await loadWorld();
   const records = new Map((world.integrations ?? []).map(record => [record.integrationId, record]));
   const runs = new Map((world.reflectionRuns ?? []).map(record => [record.reflectionId, record]));
   return events.filter(event => {
@@ -204,8 +206,33 @@ async function canonicalEvents(events: JournalEvent[]): Promise<JournalEvent[]> 
   });
 }
 
+function hasDerivedDependencies(event: JournalEvent): boolean {
+  const payload = event.payload;
+  return event.provenance?.reflectionId !== undefined
+    && typeof payload === 'object' && payload !== null
+    && Array.isArray((payload as { dependencyEventIds?: unknown }).dependencyEventIds);
+}
+
+async function readCanonicalSeaBase(roomId: string, world: Awaited<ReturnType<typeof loadWorld>>): Promise<JournalEvent[]> {
+  return canonicalEvents(await readStream(roomId, { kind: 'sea' }), world);
+}
+
 async function readCanonicalSea(roomId: string): Promise<JournalEvent[]> {
-  return canonicalEvents(await readStream(roomId, { kind: 'sea' }));
+  const world = await loadWorld();
+  const current = await readCanonicalSeaBase(roomId, world);
+  if (!current.some(hasDerivedDependencies)) return current;
+
+  // A continuing person's derived state may depend on an entitled belief or
+  // loop from another Room. Resolve those edges against the canonical Sea
+  // union so a later correction cannot leave a stale descendant visible in
+  // this Room. Raw NDJSON history is untouched; only the canonical projection
+  // omits causally invalid derived rows.
+  const contextIds = [...new Set([...world.rooms.map(room => room.id), WORLD_CONTINUITY_ID])];
+  const streams = await Promise.all(contextIds.map(id => id === roomId
+    ? Promise.resolve(current)
+    : readCanonicalSeaBase(id, world)));
+  const invalid = tombstonedIds(streams.flat());
+  return current.filter(event => !invalid.has(event.id));
 }
 
 export async function subscribeRoom(

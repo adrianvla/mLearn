@@ -13,7 +13,7 @@ import { loadSettings } from './settings';
 import { loadWorld, saveWorld, withWorldMutation, type WorldState } from './worldStore';
 import { appendEvent, readSeaProjection } from './journalService';
 import { completeJob } from './llmRouter';
-import { withMaintenancePass, settleMaintenanceRunUnlocked, readMaintenancePreparation, maintenanceSourcesValid, settleMaintenanceRun, stageMaintenanceRun, maintenanceMarkers, maintenanceWindow, prepareMaintenanceRun, maintenanceDraftMatchesRow, maintenanceFailureCount, appendMaintenanceMarker, readContextStream, MAX_MAINTENANCE_ATTEMPTS, MaintenanceConflictError, type ReflectionContext } from './dreamerService';
+import { withMaintenancePass, settleMaintenanceRunUnlocked, readMaintenancePreparation, maintenanceSourcesValid, settleMaintenanceRun, stageMaintenanceRun, maintenanceMarkers, maintenanceWindow, prepareMaintenanceRun, maintenanceDraftMatchesRow, maintenanceFailureCount, appendMaintenanceMarker, readContextStream, requestedMaintenanceRetry, maintenanceRetryWindow, MAX_MAINTENANCE_ATTEMPTS, MaintenanceConflictError, type ReflectionContext } from './dreamerService';
 
 const inFlight = new Map<string, { hash: string; controller: AbortController; promise: Promise<ScenarioCreation> }>();
 
@@ -300,7 +300,7 @@ function evolutionPrompt(entity: EvolutionEntity, cast: { id: string; name: stri
       'Developments, retractions, conclusions and reopens are situation-state interpretations supported by the cited events. Never invent occurrences, speech, consent, decisions or attendance by anyone — especially the user.',
       "'fact' is not an available kind: historical occurrences are only ever the real events listed below.",
       'A retraction explains which earlier development was wrong and why, citing the correcting events.',
-      'Every participantId must be an exact cast id. Developments are shared situation facts, not private interpretations.',
+      'Every participantId must be an exact cast id. Developments are shared situation interpretations, never established occurrence facts or private thoughts.',
       'An empty proposal is valid when nothing durable has changed.',
       'Conclude ONLY when the events clearly resolve the whole situation. An opening exchange or early planning step is not a conclusion — leave it active and propose small progress instead.',
       'Reopen ONLY when new events make a concluded situation relevant again.',
@@ -349,7 +349,7 @@ export function parseEvolutionProposal(raw: string, participantIds: ReadonlySet<
       ? candidate.kind as ScenarioDevelopment['kind'] : undefined;
     const bounded = text(kind === undefined ? undefined : candidate?.text, EVOLUTION_LIMITS.developmentText).trim();
     if (!bounded) throw new Error('Evolution contains an invalid development');
-    return { text: bounded, kind: kind!, sourceEventIds: evolutionCitations(candidate?.sourceEventIds) };
+    return { authority: 'interpretation' as const, text: bounded, kind: kind!, sourceEventIds: evolutionCitations(candidate?.sourceEventIds) };
   });
   const goalUpdates = (Array.isArray(value.goalUpdates) ? value.goalUpdates : []).slice(0, EVOLUTION_LIMITS.goalUpdates).map(item => {
     const candidate = item && typeof item === 'object' && !Array.isArray(item) ? item as Record<string, unknown> : undefined;
@@ -400,12 +400,12 @@ function validateProposalCitations(proposal: ScenarioEvolutionProposal, windowId
 function evolveSpec(spec: ScenarioSpec, proposal: ScenarioEvolutionProposal, witnesses: string[], now: number, currentStatus: 'active' | 'concluded'): ScenarioSpec {
   const developments: ScenarioDevelopment[] = [
     ...(spec.developments ?? []),
-    ...proposal.developments.map(dev => ({ id: `dev_${randomUUID()}`, text: dev.text, kind: dev.kind, witnesses, sourceEventIds: dev.sourceEventIds, createdAt: now })),
+    ...proposal.developments.map(dev => ({ id: `dev_${randomUUID()}`, authority: 'interpretation' as const, text: dev.text, kind: dev.kind, witnesses, sourceEventIds: dev.sourceEventIds, createdAt: now })),
     ...(proposal.concluded
-      ? [{ id: `dev_${randomUUID()}`, text: proposal.concluded.text, kind: 'resolution' as const, witnesses, sourceEventIds: proposal.concluded.sourceEventIds, createdAt: now }]
+      ? [{ id: `dev_${randomUUID()}`, authority: 'interpretation' as const, text: proposal.concluded.text, kind: 'resolution' as const, witnesses, sourceEventIds: proposal.concluded.sourceEventIds, createdAt: now }]
       : []),
     ...(proposal.reopened
-      ? [{ id: `dev_${randomUUID()}`, text: proposal.reopened.text, kind: 'reopen' as const, witnesses, sourceEventIds: proposal.reopened.sourceEventIds, createdAt: now }]
+      ? [{ id: `dev_${randomUUID()}`, authority: 'interpretation' as const, text: proposal.reopened.text, kind: 'reopen' as const, witnesses, sourceEventIds: proposal.reopened.sourceEventIds, createdAt: now }]
       : []),
   ];
   // Goal deltas are private per-person state appended on top of base goals —
@@ -515,28 +515,29 @@ async function recordInvalidEvolutionAttempt(record: ReflectionRunRecord, contex
  * One bounded scenario-evolution pass for a context. Idempotent per window via
  * the scenario-kind marker; interrupted runs resume from the durable record.
  */
-export function evolveScenario(context: ReflectionContext, deps: EvolutionDependencies): Promise<void> {
+export function evolveScenario(context: ReflectionContext, deps: EvolutionDependencies): Promise<boolean> {
   return withMaintenancePass(context, 'scenario', () => evolveScenarioPass(context, deps));
 }
 
-async function evolveScenarioPass(context: ReflectionContext, deps: EvolutionDependencies): Promise<void> {
-  if (!livingWorldEnabled(loadSettings()) || !deps.policy.isPermitted('dreamer')) return;
+async function evolveScenarioPass(context: ReflectionContext, deps: EvolutionDependencies): Promise<boolean> {
+  if (!livingWorldEnabled(loadSettings()) || !deps.policy.isPermitted('dreamer')) return false;
 
   const world0 = await loadWorld();
   const pending = (world0.reflectionRuns ?? []).find(item =>
     item.kind === 'scenario' && item.contextId === context.roomId && item.scopeKind === context.scopeKind && item.threadId === context.threadId && item.status === 'pending');
   if (pending) {
     await finishPreparedEvolution(pending);
-    return;
+    return true;
   }
 
   const world = await loadWorld();
   const entity = locateEvolvableScenario(world, context);
-  if (!entity) return;
+  if (!entity) return false;
 
   // Correction handling is pure derivation: the authoritative view below
   // already drops invalidated entries; the stored chain is never rewritten.
   const stream = await readContextStream(context);
+  const retry = requestedMaintenanceRetry(world0, context, 'scenario');
 
   // A shared development must be known to every cast member: intersect each
   // member's full-stream witness/absence view FIRST, then bound the window (a
@@ -545,18 +546,20 @@ async function evolveScenarioPass(context: ReflectionContext, deps: EvolutionDep
   // situation can be reopened from real new events.
   const lastWindowEnd = maintenanceMarkers(stream, 'scenario').reduce((latest, marker) => Math.max(latest, marker.windowEnd), Number.NEGATIVE_INFINITY);
   const memberViews = entity.cast.map(id => new Set(visibleEventsFor(id, stream).map(event => event.id)));
-  const shared = maintenanceWindow(stream, lastWindowEnd)
+  const retrySources = retry ? maintenanceRetryWindow(retry, stream) : undefined;
+  if (retrySources === null) return false;
+  const shared = (retrySources ?? maintenanceWindow(stream, lastWindowEnd))
     .filter(event => ['message.user', 'message.character', 'disclosure'].includes(event.type))
     .filter(event => entity.cast.length > 0 && memberViews.every(view => view.has(event.id)) && event.witnesses.includes(USER_ACTOR))
     .slice(0, EVOLUTION_LIMITS.windowEvents);
-  if (shared.length === 0) return;
+  if (shared.length === 0) return false;
   const windowEnd = shared.at(-1)!.seq;
-  if (maintenanceMarkers(stream, 'scenario').some(marker => marker.windowEnd >= windowEnd)) return;
+  if (!retry && maintenanceMarkers(stream, 'scenario').some(marker => marker.windowEnd >= windowEnd)) return false;
 
   if (deps.signal?.aborted) throw new Error('Scenario evolution cancelled');
 
-  const staged = await stageMaintenanceRun(context, 'scenario', shared);
-  if (staged === 'busy') return;
+  const staged = await stageMaintenanceRun(context, 'scenario', shared, retry?.reflectionId);
+  if (staged === 'busy') return false;
   const { record } = staged;
 
   let publicationPrepared = false;
@@ -564,8 +567,7 @@ async function evolveScenarioPass(context: ReflectionContext, deps: EvolutionDep
     if (deps.signal?.aborted) throw new Error('Scenario evolution cancelled');
     // Bounded in-pass retries: repeated invalid proposals must not burn
     // inference forever; the window closes honestly at the attempt bound.
-    const priorFailures = await maintenanceFailureCount(record);
-    const attemptsLeft = MAX_MAINTENANCE_ATTEMPTS - priorFailures;
+    const attemptsLeft = MAX_MAINTENANCE_ATTEMPTS;
     // Goal updates may target temporary cast members and continuing people.
     const participantIds = new Set(entity.scenario.participants.map(item => item.kind === 'temporary' ? item.localId : item.participantId));
     const view = authoritativeScenario(entity.scenario, stream);
@@ -591,7 +593,7 @@ async function evolveScenarioPass(context: ReflectionContext, deps: EvolutionDep
     if (proposal === null) {
       await appendMaintenanceMarker(context, 'scenario', record.reflectionId, record.windowStart, record.windowEnd, []);
       await settleMaintenanceRun(record.reflectionId, 'failed', `No valid evolution proposal after ${MAX_MAINTENANCE_ATTEMPTS} attempts; window closed.`);
-      return;
+      return true;
     }
     // An ordinary evolution re-stamps the derived current status so the stored
     // entity converges with the authoritative view (an invalidated conclusion
@@ -615,11 +617,11 @@ async function evolveScenarioPass(context: ReflectionContext, deps: EvolutionDep
     });
     publicationPrepared = true;
     await finishPreparedEvolution((await loadWorld()).reflectionRuns?.find(item => item.reflectionId === record.reflectionId) ?? record);
-    return;
+    return true;
   } catch (error) {
     if (!publicationPrepared) {
       await recordInvalidEvolutionAttempt(record, context);
-      return;
+      return true;
     }
     // Once prepared, the record stays pending: recovery publishes all-or-nothing.
     throw error;

@@ -88,20 +88,31 @@ describe('dreamerRuntime', () => {
     expect(mockRunReflection).toHaveBeenCalledWith({ roomId: 'room-a', scopeKind: 'thread', threadId: 'archive' }, expect.anything());
   });
 
-  it('dedupes concurrent calls for the same room to one run', async () => {
+  it('coalesces a trigger received in flight into one bounded follow-up pass', async () => {
     const gate = Promise.withResolvers<void>();
     mockRunReflection.mockImplementation(() => gate.promise);
 
     const first = runtime.consolidateContext({ roomId: 'room-a' }, { getSettings: () => settings({ llmProvider: 'builtin' }) });
-    // A concurrent trigger for the same context joins the in-flight run
-    // instead of starting a second one.
+    // A concurrent trigger joins the in-flight lifecycle but must not strand
+    // activity that became eligible after the first pass took its snapshot.
     const second = runtime.consolidateContext({ roomId: 'room-a' }, { getSettings: () => settings({ llmProvider: 'builtin' }) });
     await vi.waitFor(() => expect(mockRunReflection).toHaveBeenCalledTimes(1));
 
     gate.resolve();
     await Promise.all([first, second]);
-    await runtime.consolidateContext({ roomId: 'room-a' }, { getSettings: () => settings({ llmProvider: 'builtin' }) });
     expect(mockRunReflection).toHaveBeenCalledTimes(2);
+    await runtime.consolidateContext({ roomId: 'room-a' }, { getSettings: () => settings({ llmProvider: 'builtin' }) });
+    expect(mockRunReflection).toHaveBeenCalledTimes(3);
+  });
+
+  it('drains at most the named number of eligible windows in one pass', async () => {
+    mockRunReflection.mockResolvedValue(true);
+    mockEvolve.mockResolvedValue(false);
+
+    await runtime.consolidateContext({ roomId: 'room-a' }, { getSettings: () => settings({ llmProvider: 'builtin' }) });
+
+    expect(mockRunReflection).toHaveBeenCalledTimes(runtime.MAX_MAINTENANCE_WINDOWS_PER_PASS);
+    expect(mockEvolve).toHaveBeenCalledTimes(runtime.MAX_MAINTENANCE_WINDOWS_PER_PASS);
   });
 
   it('isolates run failures: no throw, error logged, room guard released', async () => {

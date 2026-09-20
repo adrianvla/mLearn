@@ -929,7 +929,8 @@
         "Saving": "Enregistrement…",
         "WorldActivity": "Activité du monde",
         "WorldActivityPending": "Consolidation en cours",
-        "WorldActivityFailed": "La consolidation demande votre attention"
+        "WorldActivityFailed": "La consolidation demande votre attention",
+        "RetryWorldActivity": "Réessayer"
       }
     },
     "ErrorModal": {

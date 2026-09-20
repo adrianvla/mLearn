@@ -14,6 +14,8 @@
  *  C  crash after the marker append, before settlement → recovery verifies the
  *     existing marker and settles committed without duplicating it.
  *  D  clean run → committed; replay is idempotent.
+ *  E  crash after the projection-store rename, before settlement → canonical
+ *     rows stay hidden and recovery reuses the idempotent projection update.
  *
  * Storage/recovery layer only: no model inference, no Electron runtime.
  * Real-model / real-Electron evidence is recorded separately (see
@@ -79,9 +81,13 @@ const run = async () => {
   await journal.appendEvent('room-v08', { roomId: 'room-v08', scope: { kind: 'sea' }, type: 'message.character', actorId: 'mara', witnesses: ['user', 'mara'], payload: { text: 'I will fix them today.' } });
   // A grounded open loop owned by mara: the reflection pass resolves it by id.
   const stream = await journal.readSeaProjection('room-v08');
-  await journal.appendEvent('room-v08', {
+  const loop = await journal.appendEvent('room-v08', {
     roomId: 'room-v08', scope: { kind: 'sea' }, type: 'memory.belief', actorId: 'harness', witnesses: ['mara'],
     payload: { ownerId: 'mara', kind: 'open-loop', text: 'The tools still need repairing.', sourceEventIds: [stream[stream.length - 1].id] },
+  });
+  await journal.appendEvent('room-v08', {
+    roomId: 'room-v08', scope: { kind: 'sea' }, type: 'message.character', actorId: 'mara', witnesses: ['user', 'mara'],
+    payload: { text: 'The shared tools are repaired now.', replyToEventId: loop.id },
   });
   console.log('seeded');
   process.exit(0);
@@ -114,6 +120,7 @@ const llmFn = async (prompt) => {
 
 // Boundary hooks: SIGKILL after specific journal writes land (all awaited).
 const originalAppend = fs.promises.appendFile;
+const originalRename = fs.promises.rename;
 let derivedAppends = 0;
 fs.promises.appendFile = async (filePath, data) => {
   await originalAppend(filePath, data);
@@ -124,6 +131,10 @@ fs.promises.appendFile = async (filePath, data) => {
   }
   derivedAppends += 1;
   if (label === 'B' && derivedAppends >= 1) killSelf(); // after the first derived row only
+};
+fs.promises.rename = async (from, to) => {
+  await originalRename(from, to);
+  if (label === 'E' && String(to).endsWith('projection-store.json')) killSelf();
 };
 
 const run = async () => {
@@ -138,6 +149,7 @@ fs.writeFileSync(READ_STATE, `${COMMON}
 const path = require('path');
 const journal = require(path.join(SERVICES, 'journalService.js'));
 const world = require(path.join(SERVICES, 'worldStore.js'));
+const projections = require(path.join(SERVICES, 'projectionStore.js'));
 const read = async () => {
   const events = await journal.readSeaProjection('room-v08');
   console.log(JSON.stringify({
@@ -145,6 +157,7 @@ const read = async () => {
     derived: events.filter((event) => event.provenance?.reflectionId !== undefined
       && (event.type === 'memory.belief' || event.type === 'resolution')).length,
     markers: events.filter((event) => event.type === 'consolidation').length,
+    projection: (await projections.loadProjectionStore())['room-v08'] ?? {},
     ledger: ((await world.loadWorld()).reflectionRuns ?? []).map((run) => ({ status: run.status, prepared: run.prepared ? run.prepared.kind : undefined })),
   }));
   process.exit(0);
@@ -242,6 +255,21 @@ function readState(label, targetProfile) {
     const idem = JSON.parse(runStage(READ_STATE, p, 'read-D1').stdout);
     check('probe D replay is idempotent (no second window)', idem.derived === 2 && idem.markers === 1, JSON.stringify(idem));
   }
+}
+
+// ── Probe E: projection publication is recoverable and idempotent ───────────
+{
+  const p = fs.mkdtempSync(path.join(os.tmpdir(), 'v08-e-'));
+  reseed('E', p);
+  const killed = runStage(RUN_REFLECTION, p, 'E');
+  check('probe E killed after projection publication, before settlement', killed.signal === 'SIGKILL', killed.stderr.slice(-200));
+  const pre = JSON.parse(runStage(READ_STATE, p, 'read-E0').stdout);
+  check('probe E pre-recovery: canonical rows remain hidden behind pending settlement', pre.derived === 0 && pre.markers === 0 && pre.ledger.some((run) => run.status === 'pending'), JSON.stringify(pre));
+  const projectionBefore = JSON.stringify(pre.projection);
+  recover('recover-E', p);
+  const post = JSON.parse(runStage(READ_STATE, p, 'read-E1').stdout);
+  check('probe E recovery commits the exact prepared rows and marker', post.derived === 2 && post.markers === 1 && post.ledger.some((run) => run.status === 'committed'), JSON.stringify(post));
+  check('probe E recovery does not apply salience twice', JSON.stringify(post.projection) === projectionBefore, JSON.stringify({ before: pre.projection, after: post.projection }));
 }
 
 console.log(failures === 0 ? '\nV08 reflection crash verification: ALL PASS' : `\n${failures} CHECK(S) FAILED`);

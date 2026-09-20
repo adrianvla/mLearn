@@ -1776,6 +1776,10 @@ export const ConversationContent: Component = () => {
             onUpdateParticipant={handleUpdateParticipant}
             onDeleteThread={handleDeleteThread}
             onIntegrate={() => { setShowIntegrationModal(true); }}
+            onRetryMaintenance={async (reflectionId) => {
+              await getBridge().world.retryMaintenance(reflectionId);
+              setWorld(await getBridge().world.getWorldState());
+            }}
           />
         </aside>
         </>

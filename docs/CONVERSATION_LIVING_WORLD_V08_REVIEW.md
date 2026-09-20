@@ -1,6 +1,6 @@
 # V08 adversarial review — 2026-09-16
 
-**Current verdict after re-review: V08 still blocked.** See the final re-review section for the current repairs, remaining blockers, and fresh evidence. The original review below is retained as history.
+**Current verdict after closure review: V08 PASS.** See the 2026-09-21 closure section at the end for the final repairs, production-path evidence, and scope boundary. Earlier blocked verdicts remain below as review history.
 
 **Original bounded verdict: BLOCKED.** This review covers automatic scoped reflection and persistent Scenario evolution, plus their direct integrity/privacy/runtime dependencies. It does not authorize or implement V09, V10, autonomy, initiative, or contact. The roadmap remains **V08 → V09 → V10 → END**.
 
@@ -107,3 +107,29 @@ All of these repairs have production-boundary regressions which failed before th
 **Next V08 step:** close the two demonstrated semantic authority holes, preserve causal dependencies from continuing-person context, finish bounded maintenance backlog/retry/projection recovery, then re-run real-model and genuinely nonempty mounted exchanges through reload and subsequent Room consumption. Keep Room-first ownership and the existing atomic-publication repairs. V09/V10 remain unauthorized.
 
 HANDOFF_VERDICT=BLOCKED
+
+## V08 closure review — 2026-09-21 (authoritative current verdict)
+
+**PASS for V08.** The four blockers retained by the 2026-09-16 re-review are closed on the existing architecture. No autonomous life simulation, offscreen event generation, initiative/contact, notification, voice, V09, or V10 behavior was added. No intermediate Living World migration was invented.
+
+### Blocker closure
+
+1. **Scenario prose has explicit interpretation authority.** Every generated `ScenarioDevelopment` and `scenario_evolved` development now carries `authority: 'interpretation'`. The compiler exposes `scenario.interpretations`, not developments, and the renderer labels the section “Situation interpretations (not established occurrences).” The adversarial suspicion probe still accepts the text `B told C.` as model interpretation, but it can no longer enter the next context or UI as established history. Reflection remains restricted to subjective belief/open-loop/relationship rows.
+2. **Loop closure requires structural resolving evidence.** A resolution must cite a later, direct, non-derived event of an allowed evidence type which explicitly replies to the loop or its source, or is a correction targeting either. The original suspicion, a derived row, an earlier row, or an unrelated later citation cannot close the loop. The model sees only ordinal `resolvesLoops` eligibility; canonical loop/event IDs remain code-owned. The production authority probe proves self-resolution stays open and a later linked answer resolves it.
+3. **Continuing-person dependencies survive publication.** Derived beliefs and resolutions persist conservative `dependencyEventIds` for the prior beliefs/open loops supplied to that owner. Canonical projection invalidation walks both evidence and dependency edges recursively across the union of canonical Sea streams, while returning only the requested Room and leaving raw NDJSON intact. A production-shaped cross-Room regression publishes a Room B descendant, corrects its Room A dependency, and observes the Room B descendant disappear.
+4. **Maintenance is bounded, recoverable, and deliberately retryable.** One pass processes at most three windows; coalesced in-flight triggers receive one bounded follow-up and a trigger arriving at that boundary is rescheduled instead of dropped. Scheduler maintenance considers at most eight Rooms per reconciliation with a round-robin cursor. Invalid-output seals remain fail-closed, but a failed run now has a durable, consent-gated Retry action through the canonical preload/bridge/IPC/UI path; only that explicit request reopens the exact still-valid window. Salience projection publication now stores its operation marker and values in one atomic rename before ledger settlement, so recovery is idempotent. The process verifier adds a real SIGKILL after that rename and proves hidden pre-settlement rows, exact recovery, and no double salience.
+
+### Fresh production-path evidence
+
+- `npm run typecheck`: both TypeScript configurations pass. Log: `/tmp/v08-close-typecheck.log`.
+- `npm run test`: **441 passed / 1 skipped files; 7,252 passed / 9 skipped tests**. Targeted V08/UI coverage: **149 passed / 10 files**. Logs: `/tmp/v08-close-full-tests.log`, `/tmp/v08-close-focused.log`.
+- `npm run build`: passes; only the existing chunk-size/import warnings remain. Log: `/tmp/v08-close-build.log`.
+- `node scripts/verify-v08-maintenance.cjs`: **19/19 PASS** against built services. Probes cover SIGKILL during inference, after a derived append, after marker append, clean replay, and after projection-store rename. Log: `/tmp/v08-close-crashes.log`.
+- `node scripts/verify-v08-authority.cjs`: exit 0, `AUTHORITY_EVIDENCE=PASS`; stored and compiled Scenario rows are interpretations, self-resolution is blocked, and later linked evidence resolves. Log: `/tmp/v08-close-authority.log`.
+- `V08_OLLAMA_MODEL=gemma4-e4b-q4:latest node scripts/verify-v08-real-model.cjs`: real installed Ollama model through `dreamerRuntime → dreamerLlm → ollamaService`, 23,839 ms, disposable profile `v08-real-dFoCEe`. Semantic review passes: Mara's rake loop closes only from Eli's later linked “fixed” message; all four owner-scoped derived rows cite actual entitled context; the two Scenario rows remain explicit interpretations. `STRUCTURAL_MODEL_EVIDENCE=PASS`. Log: `/tmp/v08-close-real-model.log`; record: `/tmp/v08-real-model.json`.
+- `V08_OLLAMA_MODEL=gemma4-e4b-q4:latest node scripts/v08-mounted-electron.cjs`: actual Electron main/preload, mounted Solid renderer over CDP, production bridge and real model, disposable cloned profile `v08-mounted-hDAP0L`. The UI produced a nonempty user event and character reply, automatic reflection and Scenario evolution without a manual trigger, reload/remount, visible Room/history, and a second nonempty real reply in the same continuity. Semantic review passes for the two owner-scoped cited beliefs and two explicitly interpretive Scenario rows. `MOUNTED_TRANSPORT_EVIDENCE=PASS`. Log: `/tmp/v08-close-mounted.log`; record: `/tmp/v08-mounted-record.json`.
+- `git diff --check`, all six locale JSON parses, and all modified evidence-script syntax checks pass. The mounted harness read the installed profile into a disposable clone; no write targeted the original profile. No commit, push, or deployment was performed.
+
+This verdict is deliberately narrow: it closes V08 reflection/Scenario authority, resolution, invalidation, recovery, retry, and bounded scheduling. It does not certify the full A01–A45 product program and does not authorize V09 or V10.
+
+HANDOFF_VERDICT=PASS

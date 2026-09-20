@@ -119,9 +119,9 @@ export function renderCompiledContext(
   if (ctx.scenario) {
     const scene = ctx.scenario;
     sections.push(`## Current situation\n${scene.sharedFacts.join('\n')}`);
-    if (scene.developments.length) {
+    if (scene.interpretations.length) {
       sections.push(
-        `## Situation developments\n${scene.developments
+        `## Situation interpretations (not established occurrences)\n${scene.interpretations
           .map((dev) => `- ${dev.text}`)
           .join('\n')}`,
       );

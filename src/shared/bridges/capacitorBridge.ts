@@ -2127,6 +2127,9 @@ const worldBridge: WorldBridge = {
   async triggerReflection(): Promise<boolean> {
     throw new Error('Not supported on mobile');
   },
+  async retryMaintenance(): Promise<boolean> {
+    throw new Error('Not supported on mobile');
+  },
   async integrateThread(): Promise<IntegrateThreadResult> {
     throw new Error('Not supported on mobile');
   },

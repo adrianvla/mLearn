@@ -83,8 +83,10 @@ export function tombstonedIds(events: JournalEvent[]): Set<string> {
       changed = false;
       for (const event of events) {
         if (!event.provenance?.reflectionId || ids.has(event.id)) continue;
-        const sources = (event.payload as { sourceEventIds?: unknown } | null)?.sourceEventIds;
-        if (Array.isArray(sources) && sources.some(id => typeof id === 'string' && ids.has(id))) {
+        const payload = event.payload as { sourceEventIds?: unknown; dependencyEventIds?: unknown } | null;
+        const sources = [payload?.sourceEventIds, payload?.dependencyEventIds]
+          .flatMap(value => Array.isArray(value) ? value : []);
+        if (sources.some(id => typeof id === 'string' && ids.has(id))) {
           ids.add(event.id); changed = true;
         }
       }
