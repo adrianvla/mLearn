@@ -477,3 +477,4 @@ export {
 
 // RatingMatrix — the canonical rating control over T2 observation types
 export { RatingMatrix, type RatingMatrixProps, type ProfileObservation, type RateOptions } from './RatingMatrix';
+export { PolicyTraceDetails } from './PolicyTrace/PolicyTraceDetails';

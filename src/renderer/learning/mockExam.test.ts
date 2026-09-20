@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { GrammarItemSemanticValidation, GrammarPracticeItemSource, LanguageData } from '../../shared/types';
-import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import type { AttemptId, KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { grammarEvidenceKey } from '../../shared/grammar/evidence';
 import {
   MOCK_MAX_REQUESTED_PER_SECTION,
@@ -10,6 +10,7 @@ import {
   activeStepMs,
   applyMockAnswer,
   assembleMockInstance,
+  bindMockAttempt,
   deriveMockBlueprints,
   gradeMockSubmission,
   isMockPaused,
@@ -18,17 +19,21 @@ import {
   loadStoredMockSession,
   mockAttemptPayload,
   mockMissedPatterns,
+  mockSessionFingerprint,
   mockSessionTiming,
   pauseMockSession,
   presentedMockStep,
+  rebuildStoredMockSession,
   resumeMockSession,
   saveMockSummary,
   saveStoredMockSession,
+  stageMockAnswer,
   startMockSession,
+  storedMockSessionFingerprint,
   summarizeMockResults,
 } from './mockExam';
 import { itemContentVersion, questionBankFromLanguageData } from './questionBank';
-import type { MockBlueprint } from './mockExam';
+import type { MockBlueprint, MockSessionState } from './mockExam';
 
 // ---------------------------------------------------------------------------
 // Fixtures — German-like package declaring item sources per pattern. Records
@@ -581,5 +586,117 @@ describe('persistence (G01/G04)', () => {
     const summaries = loadMockSummaries('de');
     expect(summaries).toHaveLength(MOCK_SUMMARY_LIMIT);
     expect(summaries[0].startedAt).toBe(1_000_000 + MOCK_SUMMARY_LIMIT);
+  });
+
+  it('rebuild is a raw, non-persisting reassembly for cross-window adoption (G01)', () => {
+    const languageData = baseLanguageData();
+    const mockedInstance = assembleMockInstance(blueprint3(), questionBankFromLanguageData('de', languageData), {}, 42, 1000);
+    let state = startMockSession(mockedInstance, 1_000_000);
+    state = applyMockAnswer(state, { kind: 'timeout' }, undefined, 1_005_000);
+    saveStoredMockSession('de', state, 1_005_000);
+    const setItem = vi.spyOn(globalThis.localStorage, 'setItem');
+    const rebuilt = rebuildStoredMockSession('de', languageData);
+    expect(rebuilt).not.toBeNull();
+    // RAW content: same session identity, cursor, answers and pause history
+    // as stored — NO inferred interruption pause, and NO write-back (an
+    // adoption must never ping-pong storage events between windows).
+    expect(rebuilt!.sessionId).toBe(state.sessionId);
+    expect(rebuilt!.cursor).toBe(state.cursor);
+    expect(rebuilt!.pauses).toEqual(state.pauses);
+    expect(rebuilt!.instance.steps.map((step) => step.item.id)).toEqual(state.instance.steps.map((step) => step.item.id));
+    expect(mockSessionFingerprint(rebuilt!)).toBe(mockSessionFingerprint(state));
+    expect(storedMockSessionFingerprint('de')).toBe(mockSessionFingerprint(state));
+    expect(setItem.mock.calls).toHaveLength(0);
+    setItem.mockRestore();
+  });
+
+  it('the durable fingerprint covers cursor, answers, pause history and clock anchors (cross-window verify)', () => {
+    const languageData = baseLanguageData();
+    const mockedInstance = assembleMockInstance(blueprint3(), questionBankFromLanguageData('de', languageData), {}, 42, 1000);
+    let state: MockSessionState = startMockSession(mockedInstance, 1_000_000);
+    const base = mockSessionFingerprint(state);
+    // A pause without a cursor change changes the fingerprint.
+    const paused = pauseMockSession(state, 1_001_000);
+    expect(mockSessionFingerprint(paused)).not.toBe(base);
+    // So does resuming it (the pause closed — the history differs).
+    const resumed = resumeMockSession(paused, 1_002_000);
+    expect(mockSessionFingerprint(resumed)).not.toBe(mockSessionFingerprint(paused));
+    // And an answer (cursor advance).
+    const answered = applyMockAnswer(resumed, { kind: 'timeout' }, undefined, 1_005_000);
+    expect(mockSessionFingerprint(answered)).not.toBe(mockSessionFingerprint(resumed));
+    // Identical content fingerprints identically, including a JSON round
+    // trip (the durable copy must compare equal to the in-memory state).
+    const roundTripped: MockSessionState = JSON.parse(JSON.stringify(answered));
+    expect(mockSessionFingerprint(roundTripped)).toBe(mockSessionFingerprint(answered));
+  });
+
+  it('saveStoredMockSession reports durability: true on success, false when storage refuses (G01)', () => {
+    const languageData = baseLanguageData();
+    const mockedInstance = assembleMockInstance(blueprint3(), questionBankFromLanguageData('de', languageData), {}, 42, 1000);
+    const state = startMockSession(mockedInstance, 1_000_000);
+    expect(saveStoredMockSession('de', state, 1_000_000)).toBe(true);
+    expect(storedMockSessionFingerprint('de')).toBe(mockSessionFingerprint(state));
+
+    // Quota injection: setItem throws; the PREVIOUS durable copy survives
+    // unchanged and the failure is REPORTED — callers must refuse evidence
+    // on false instead of running a session whose cursor cannot advance
+    // (the durable-first contract; previously this failure was swallowed).
+    const storedBefore = globalThis.localStorage!.getItem('mlearn-mock-session:de');
+    const setItem = vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    try {
+      const advanced = applyMockAnswer(state, { kind: 'timeout' }, undefined, 1_005_000);
+      expect(saveStoredMockSession('de', advanced, 1_005_000)).toBe(false);
+      expect(globalThis.localStorage!.getItem('mlearn-mock-session:de')).toBe(storedBefore);
+      expect(storedMockSessionFingerprint('de')).toBe(mockSessionFingerprint(state));
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it('stages a real answer durable-first without a journal id, then binds it (G01)', () => {
+    const languageData = baseLanguageData();
+    const mockedInstance = assembleMockInstance(blueprint3(), questionBankFromLanguageData('de', languageData), {}, 42, 1000);
+    const state = startMockSession(mockedInstance, 1_000_000);
+    const step = presentedMockStep(state)!;
+
+    // Timeouts never stage — they record no evidence and keep the reducer path.
+    expect(stageMockAnswer(state, { kind: 'timeout', stepIndex: 0 }, 1_001_000)).toBeNull();
+
+    const staged = stageMockAnswer(state, { kind: 'mcq', index: goldIndex(step), stepIndex: 0 }, 1_001_000);
+    expect(staged).not.toBeNull();
+    expect(staged!.cursor).toBe(1);
+    expect(staged!.answers).toHaveLength(1);
+    // The staged record is a cursor reservation, NOT yet evidence: no
+    // attempt id until the canonical writer returned one.
+    expect(staged!.answers[0].attemptId).toBeUndefined();
+    const pendingAttemptId = staged!.answers[0].pendingAttemptId!;
+    expect(pendingAttemptId).toEqual(expect.any(String));
+    expect(staged!.answers[0].correct).toBe(true);
+    expect(staged!.answers[0].timedOut).toBe(false);
+
+    // Binding completes the staged record; rebinding or binding onto a
+    // foreign/timeout record is refused (no invented evidence).
+    const bound = bindMockAttempt(staged!, pendingAttemptId);
+    expect(bound.answers[0].attemptId).toBe(pendingAttemptId);
+    expect(bound.answers[0].pendingAttemptId).toBeUndefined();
+    expect(bindMockAttempt(bound, 'attempt-2' as AttemptId)).toBe(bound);
+    // Binding changes the durable fingerprint so stale windows adopt the
+    // settled state instead of retrying the reservation.
+    expect(mockSessionFingerprint(bound)).not.toBe(mockSessionFingerprint(staged!));
+
+    // The declared budget is a hard cutoff for staging too: a late answer
+    // cannot stage a cursor the evidence could not follow.
+    expect(stageMockAnswer(state, { kind: 'mcq', index: goldIndex(step), stepIndex: 0 }, 1_000_000 + (MOCK_PER_ITEM_SECONDS + 2) * 1000)).toBeNull();
+
+    // The staged (unbound) record survives a durable round trip: a crash
+    // after the staged persist leaves an answerable, unbound durable state —
+    // never a corrupt one.
+    saveStoredMockSession('de', staged!, 1_001_000);
+    const restored = loadStoredMockSession('de', languageData, 1_002_000);
+    expect(restored).not.toBeNull();
+    expect(restored!.cursor).toBe(1);
+    expect(restored!.answers[0].attemptId).toBeUndefined();
   });
 });

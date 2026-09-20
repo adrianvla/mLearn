@@ -1717,6 +1717,8 @@
         "Correct": "正解！",
         "Incorrect": "惜しい — 答えは: {answer}",
         "Next": "次へ",
+        "NoLocks": "文法パスにはウィンドウ間ロックが必要です。このブラウザは対応していません。",
+        "StorageUnavailable": "ストレージがこの書き込みを拒否しました（容量制限またはプライベートモード）。操作は記録されていません。再試行できます。",
         "ModeLabel": "回答形式",
         "ModeMcq": "選ぶ",
         "ModeType": "入力",
@@ -1859,7 +1861,9 @@
         "ResultsDisclaimer": "1つの正解は1回の成功した試行であり、完全な習得の証明ではありません。結果は診断用であり、公式スコアではありません。",
         "BackToBlueprints": "ブループリント一覧へ戻る",
         "Summaries": "最近の結果",
-        "SummaryCounts": "{correct}/{answered} 正解 · {timedOut} 無回答"
+        "SummaryCounts": "{correct}/{answered} 正解 · {timedOut} 無回答",
+        "NoLocks": "模擬テストにはウィンドウ間ロックが必要です。このブラウザーではサポートされていません。",
+        "StorageUnavailable": "ストレージがこの書き込みを拒否しました（容量制限またはプライベートモード）。回答は記録されていません。問題は再回答できます。"
       }
     },
     "Languages": {
@@ -3771,6 +3775,20 @@
         "Known": "既知",
         "Learning": "学習中",
         "Unknown": "未知"
+      }
+    },
+    "Review": {
+      "Why": {
+        "Decision": "判定",
+        "Excluded": "除外",
+        "Hide": "詳細を隠す",
+        "Limits": "限界",
+        "NoTrace": "この判定には計算経路の記録がありません。上の理由のみ表示できます。",
+        "Ranking": "順位",
+        "Show": "理由を見る",
+        "Task": "タスク",
+        "Title": "このカードが選ばれた理由",
+        "Weights": "適用中の重み"
       }
     }
   }

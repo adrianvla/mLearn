@@ -24,7 +24,7 @@ vi.mock('../../shared/bridges', () => ({
 describe('knowledgeEvents renderer service', () => {
   beforeEach(() => {
     vi.resetModules();
-    queryKnowledgeEvents.mockReset();
+    queryKnowledgeEvents.mockReset().mockResolvedValue({});
     appendKnowledgeEvents.mockReset().mockResolvedValue(true);
     onKnowledgeEventsChanged.mockReset();
   });
@@ -67,5 +67,27 @@ describe('knowledgeEvents renderer service', () => {
     await svc.appendEvents({ 'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
     expect(appendKnowledgeEvents).toHaveBeenCalledWith({ 'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
     expect(onKnowledgeEventsChanged).toHaveBeenCalled();
+  });
+
+  it('reports a refused durable append without publishing an events-version change', async () => {
+    appendKnowledgeEvents.mockResolvedValue(false);
+    const svc = await importService();
+    const accepted = await svc.appendEventsAcknowledged({
+      'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }],
+    });
+    expect(accepted).toBe(false);
+    expect(onKnowledgeEventsChanged).toHaveBeenCalledTimes(1); // listener registration only; no bump broadcast
+  });
+
+  it('treats a retried stable attempt id as already accepted without appending it twice', async () => {
+    queryKnowledgeEvents.mockResolvedValue({
+      'ja:h2': [{ t: 1, kind: 'rating', source: 'grammar', attemptId: 'stable-attempt', easeAfter: 1.8 }],
+    });
+    const svc = await importService();
+    const accepted = await svc.appendEventsIdempotentAcknowledged({
+      'ja:h2': [{ t: 1, kind: 'rating', source: 'grammar', attemptId: 'stable-attempt', easeAfter: 1.8 }],
+    });
+    expect(accepted).toBe(true);
+    expect(appendKnowledgeEvents).not.toHaveBeenCalled();
   });
 });

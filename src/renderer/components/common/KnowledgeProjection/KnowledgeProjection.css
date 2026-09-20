@@ -227,6 +227,36 @@
 .knowledge-history__retention li > span:first-child { overflow-wrap: anywhere; }
 .knowledge-history__retention small { color: var(--text-tertiary); }
 
+/* R20 policy decision trace (absent = no section at all) */
+.knowledge-drawer__policy-trace {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  background: var(--panel-bg);
+  font-size: var(--font-size-sm);
+}
+
+.knowledge-drawer__policy-title {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.knowledge-drawer__policy-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.knowledge-drawer__policy-brief {
+  font-size: var(--font-size-sm);
+}
+
 .knowledge-history__archive { border-top: 1px solid var(--border-color); padding-block: var(--spacing-3); }
 .knowledge-history__archive > summary { cursor: pointer; color: var(--text-secondary); font-size: var(--font-size-sm); }
 .knowledge-history__archive[open] > summary { margin-bottom: var(--spacing-3); }

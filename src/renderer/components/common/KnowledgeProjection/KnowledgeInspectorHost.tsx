@@ -40,6 +40,8 @@ export const KnowledgeInspectorHost: Component = () => {
     target={inspection().target}
     language={inspection().language}
     model={model()}
+    policyTrace={inspection().policyTrace}
+    policyBrief={inspection().policyBrief}
     onGraph={(entityId) => openGraphInspector({ entityId })}
     onWordClaim={(claim) => setWordClaim(inspection().surface, claim, inspection().language)}
     onAccessClaim={(capability, claim) => {

@@ -14,6 +14,7 @@ vi.mock('../../context', async () => {
     getCanonicalForm: (word: string) => word,
     getWordVariants: (word: string) => [word],
     getCanonicalFormForLanguage: mockWordSyncState.getCanonicalFormForLanguage,
+    getWordVariantsForLanguage: mockWordSyncState.getWordVariantsForLanguage,
   }),
   useOptionalGraph: () => ({
     // Mirrors the real no-provider fallback: readiness never 'ready', so the
@@ -61,6 +62,20 @@ import type { WordStatus } from '../../../shared/constants';
 let absentProjectionWords = new Set<string>();
 const mockStreamChat = vi.hoisted(() => vi.fn());
 vi.mock('../../services/llmProvider', () => ({ streamChat: mockStreamChat }));
+vi.mock('../../services/knowledgeEvents', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../services/knowledgeEvents')>();
+  return {
+    ...original,
+    // Journal-key snapshot for the F-N1 request bound (production
+    // `queryLanguageKeys` → bridge): the fixture's measured words are the
+    // store rows plus the per-word projection fixture, so the bounded
+    // request covers exactly the surfaces that carry evidence.
+    queryLanguageKeys: vi.fn(async () => [
+      ...Object.keys(mockWordSyncState.wordKnowledge),
+      ...mockWordSyncState.projectionByWord.keys(),
+    ]),
+  };
+});
 
 const mockGetComprehensiveWordStatusWithSourceSync = vi.fn((): { status: string; source: string; timesSeen: number; ease?: number } => ({
   status: 'unknown',
@@ -110,6 +125,14 @@ const mockWordSyncState = vi.hoisted(() => ({
   capabilities: ['sense-recognition', 'surface-reading', 'prosodic-pattern'],
   currentLangData: null as { textProcessing?: { readingAnnotation?: boolean }; prosody?: { type?: string } } | null,
   getCanonicalFormForLanguage: vi.fn((_language: string, word: string) => word),
+  getWordVariantsForLanguage: vi.fn((_language: string, word: string) => [word]),
+  /** Surfaces whose ENCOUNTER projection is genuinely absent (the unmeasured
+   *  shape); distinct from the batched-scan seam so the single-surface hook
+   *  can return undefined for exactly these words. */
+  encounterAbsentWords: new Set<string>(),
+  /** Controllable loading accessor for the single-surface hook (null = the
+   *  hook always reports settled). */
+  encounterLoading: null as null | (() => boolean),
 }));
 
 function filterTokenShapes(tokens: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
@@ -131,7 +154,12 @@ mockCommonState.buildWordSyncPreset.mockImplementation(() => (
 
 vi.mock('../../hooks/useKnowledgeProjection', () => ({
   useKnowledgeProjection: (query?: () => { surface: string } | undefined) => ({
-    projection: () => mockWordSyncState.projectionByWord.get(query?.()?.surface ?? '') ?? mockWordSyncState.projection ?? ({
+    projection: () => {
+      const surface = query?.()?.surface ?? '';
+      // Genuinely absent surface (unmeasured shape, F-N1): the hook resolved
+      // and found nothing — undefined, not an error.
+      if (mockWordSyncState.encounterAbsentWords.has(surface)) return undefined;
+      return mockWordSyncState.projectionByWord.get(surface) ?? mockWordSyncState.projection ?? ({
       status: 'ready', targets: [{ targetRef: { kind: 'surface', id: 'test-surface' },
         applicableCapabilities: mockWordSyncState.capabilities,
         states: mockWordSyncState.capabilities.map(capability => {
@@ -139,8 +167,9 @@ vi.mock('../../hooks/useKnowledgeProjection', () => ({
           return { capability, classification: access.claim ?? (access.untracked ? 'unmeasured' : access.status), basis: access.claim ? 'claim' : access.untracked ? 'unmeasured' : 'evidence', evidence: [], evidenceSourceCounts: {} };
         }),
       }],
-    }),
-    loading: () => false,
+    });
+    },
+    loading: () => mockWordSyncState.encounterLoading?.() ?? false,
     capabilities: () => mockWordSyncState.capabilities,
   }),
 }));
@@ -324,7 +353,11 @@ beforeEach(() => {
     mockWordSyncState.ignoredWords = {};
     mockWordSyncState.wordKnowledge = {};
     absentProjectionWords = new Set<string>();
+    mockWordSyncState.encounterAbsentWords = new Set<string>();
+    mockWordSyncState.encounterLoading = null;
     mockWordSyncState.getCanonicalFormForLanguage.mockReset();
+    mockWordSyncState.getWordVariantsForLanguage.mockReset();
+    mockWordSyncState.getWordVariantsForLanguage.mockImplementation((_language: string, word: string) => [word]);
     mockWordSyncState.getCardByWordSync.mockReset();
     mockWordSyncState.getCardByWordSync.mockImplementation(() => null);
     mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((_language: string, word: string) => word);
@@ -1760,6 +1793,79 @@ beforeEach(() => {
     // admission must still treat the unmeasured word as a candidate.
     expect(container.textContent).toContain('يكتب');
     expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+    dispose();
+  });
+
+  it('presents and rates a scan-admitted word whose ENCOUNTER projection is genuinely absent (F-N1)', async () => {
+    absentProjectionWords = new Set(['يكتب']);
+    mockWordSyncState.encounterAbsentWords = new Set(['يكتب']);
+    mockWordSyncState.settings.language = 'ar';
+    mockWordSyncState.wordFrequency = {
+      'يكتب': {
+        reading: 'yaktub',
+        raw_level: 5,
+        level: 'A1',
+      },
+    };
+    mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+
+    // The encounter admitted the unmeasured shape (identity-backed
+    // constructed targets): the card is PRESENTED with the canonical rating
+    // control for its tested accesses — previously an absent projection
+    // died silently here and the word could never be rated (W07 repair).
+    expect(container.textContent).toContain('يكتب');
+    expect(container.querySelector('.rating-matrix__adjust')).toBeTruthy();
+
+    // Reveal, then rate: the submission is accepted for the unmeasured word
+    // and the session finishes honestly.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await settle();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await settle();
+    expect(mockRecordAttempt).toHaveBeenCalled();
+    expect(mockRecordAttempt.mock.calls[0][0]).toBe('يكتب');
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+    dispose();
+  });
+
+  it('does not mis-admit a measured word while its projection is still materializing (F-N1 transient gate)', async () => {
+    // The single-surface hook reports LOADING: an undefined projection is
+    // not yet the unmeasured shape, so the encounter must wait instead of
+    // presenting (and risking a mis-scoped rating).
+    const [loading, setLoading] = createSignal(true);
+    mockWordSyncState.encounterLoading = () => loading();
+    mockWordSyncState.encounterAbsentWords = new Set(['يكتب']);
+    mockWordSyncState.settings.language = 'ar';
+    mockWordSyncState.wordFrequency = {
+      'يكتب': {
+        reading: 'yaktub',
+        raw_level: 5,
+        level: 'A1',
+      },
+    };
+    mockWordSyncState.getCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
+      language === 'ar' && word === 'يكتب' ? 'كتب' : word
+    ));
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    await settle();
+    // No premature presentation while the hook loads: the shared skeleton
+    // owns the gap.
+    expect(container.textContent).not.toContain('يكتب');
+
+    // Settled: the absent projection IS the unmeasured shape — presented.
+    setLoading(false);
+    await settle();
+    await settle();
+    expect(container.textContent).toContain('يكتب');
     dispose();
   });
 

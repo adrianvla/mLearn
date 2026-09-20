@@ -1717,6 +1717,8 @@
         "Correct": "Correct!",
         "Incorrect": "Not quite — the answer is: {answer}",
         "Next": "Next",
+        "NoLocks": "Grammar passes need a cross-window lock; this browser does not support one.",
+        "StorageUnavailable": "Storage refused this write (quota or private mode). The action was not recorded; it stays retryable.",
         "ModeLabel": "Answer format",
         "ModeMcq": "Choose",
         "ModeType": "Type",
@@ -1859,7 +1861,9 @@
         "ResultsDisclaimer": "One correct selection is one successful attempt — not proof of full mastery. Results are diagnostic, never an official score.",
         "BackToBlueprints": "Back to blueprints",
         "Summaries": "Recent results",
-        "SummaryCounts": "{correct}/{answered} correct · {timedOut} unanswered"
+        "SummaryCounts": "{correct}/{answered} correct · {timedOut} unanswered",
+        "NoLocks": "Mock practice needs a cross-window lock; this browser does not support it.",
+        "StorageUnavailable": "Storage refused this write (quota or private mode). The answer was not recorded; the prompt stays retryable."
       }
     },
     "Languages": {
@@ -3771,6 +3775,20 @@
         "Known": "known",
         "Learning": "learning",
         "Unknown": "unknown"
+      }
+    },
+    "Review": {
+      "Why": {
+        "Decision": "Decision",
+        "Excluded": "Excluded",
+        "Hide": "Hide details",
+        "Limits": "Limits",
+        "NoTrace": "No calculation trace was emitted for this decision; only the reason above is available.",
+        "Ranking": "Ranking",
+        "Show": "Why?",
+        "Task": "Task",
+        "Title": "Why this card",
+        "Weights": "Weights in effect"
       }
     }
   }

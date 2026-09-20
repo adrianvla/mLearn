@@ -36,8 +36,8 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 // subtree through the tab's boot gate. Grammar/contrast probes do not flip
 // (their appends are exercised by the dedicated suites).
 let fixtureAttemptCounter = 0;
-const recordGrammarAttemptMock = vi.fn<(pattern: string, quality: string, options?: Record<string, unknown>) => string>(
-  () => `fixture-attempt-${fixtureAttemptCounter += 1}`,
+const recordGrammarAttemptMock = vi.fn<(pattern: string, quality: string, options?: Record<string, unknown>) => Promise<string>>(
+  async () => `fixture-attempt-${fixtureAttemptCounter += 1}`,
 );
 
 // Reactive loading state for the useKnowledgeProjections stub (bottom of
@@ -110,7 +110,7 @@ vi.mock('../../context', () => ({
     reconcileGrammarItems: reconcileGrammarItemsMock,
     // Canonical knowledge writer (LevelStudyTab recordMockAttempt /
     // GrammarCoverage onProbe): the mock/mocks integration drives it.
-    recordGrammarAttempt: recordGrammarAttemptMock,
+    recordGrammarAttemptAcknowledged: recordGrammarAttemptMock,
   }),
   useSettings: () => ({
     settings: {
@@ -186,6 +186,15 @@ describe('LevelStudyTab', () => {
     // results, stored walk cursors, validation records): clear it so no
     // fixture leaks into the next mount (G01 isolation).
     globalThis.localStorage?.clear();
+    // MockExam serializes its durable session mutations with the Web Locks
+    // API; happy-dom reports navigator.locks as null, which DISABLES the
+    // mock surface (G04). These integration tests drive the REAL child's
+    // serialized paths, so inject a pass-through lock (the
+    // PlacementSession.test convention) instead of a no-op fallback.
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
+      configurable: true,
+    });
     recordGrammarAttemptMock.mockReset();
     setProjectionLoading(false);
     settingsUiLanguage = 'en';
@@ -211,6 +220,10 @@ describe('LevelStudyTab', () => {
   });
 
   afterEach(() => {
+    // happy-dom's Navigator type predates the LockManager global; the stub
+    // above installs an own configurable property that shadows it.
+    const lockStubHost = globalThis.navigator as { locks?: unknown };
+    delete lockStubHost.locks;
     container.remove();
   });
 
@@ -853,7 +866,7 @@ const isMockTaskType = (options: unknown): boolean => {
  *  (production: appendEvents → eventsVersion → projection resource), which
  *  unmounts the GrammarCoverage/MockExam subtree through the tab's boot
  *  gate. Walk probes carry no `mock-*` provenance and do not flip. */
-const mockWriterFlippingProjections = (_pattern: string, _quality: string, options?: Record<string, unknown>): string => {
+const mockWriterFlippingProjections = async (_pattern: string, _quality: string, options?: Record<string, unknown>): Promise<string> => {
   if (isMockTaskType(options)) setProjectionLoading(true);
   return `fixture-attempt-${fixtureAttemptCounter += 1}`;
 };

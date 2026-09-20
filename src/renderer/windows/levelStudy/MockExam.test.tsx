@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { MockExam } from './MockExam';
+import type { PlacementLocks } from './PlacementSession';
 import { assembleContrastItem, itemContentVersion, questionBankFromLanguageData } from '../../learning/questionBank';
 import type {
   GrammarItemSemanticValidation,
@@ -171,9 +172,17 @@ function mount(
   languageData: LanguageData = baseLanguageData(),
   overrides: {
     eventLog?: KnowledgeEventLog;
+    /** `null` simulates a lock-less environment (the session surface is
+     *  DISABLED with the G04 note); omitted/default uses a pass-through fake
+     *  lock so single-window tests exercise the serialized path
+     *  (PlacementSession.test convention). */
+    locks?: PlacementLocks | null;
   } = {},
 ): Harness {
-  const onAttempt = vi.fn((_payload: MockJournalPayload): AttemptId => `attempt-${onAttempt.mock.calls.length}`);
+  const locks = Object.prototype.hasOwnProperty.call(overrides, 'locks')
+    ? overrides.locks ?? null
+    : { request: async (_name: string, callback: () => void) => { await callback(); } };
+  const onAttempt = vi.fn(async (_payload: MockJournalPayload): Promise<AttemptId> => `attempt-${onAttempt.mock.calls.length}`);
   const onRepair = vi.fn();
   const onTargetedOutput = vi.fn();
   const container = document.createElement('div');
@@ -189,6 +198,7 @@ function mount(
         onAttempt={onAttempt}
         onRepair={onRepair}
         onTargetedOutput={onTargetedOutput}
+        locks={locks}
       />
     ),
     container,
@@ -462,6 +472,45 @@ describe('MockExam surface (R13/R14)', () => {
     third.container.remove();
   });
 
+  it('resume preserves active time across repeated interruptions instead of granting or consuming extra budget', async () => {
+    vi.useFakeTimers({ now: 1_000_000, toFake: ['Date', 'setInterval', 'clearInterval'] });
+    const languageData = baseLanguageData();
+    const first = mount(languageData);
+    await startBlueprint(first.container, 3);
+    const firstItemId = (first.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+
+    // No answer/pause handler runs during these 80 active seconds; the live
+    // clock must still persist the boundary used by interruption restore.
+    vi.advanceTimersByTime(80_000);
+    first.dispose();
+    first.container.remove();
+
+    // Twenty seconds away is an interruption pause, but the preceding 80
+    // active seconds still count against the original 90-second budget.
+    vi.setSystemTime(1_100_000);
+    const restored = mount(languageData);
+    vi.advanceTimersByTime(500);
+    expect(restored.container.querySelector('[data-testid="mock-timer"]')?.textContent).toContain('seconds=10');
+
+    // Spend another five active seconds, then interrupt and restore again.
+    // The first inferred interruption pause must survive this second reload.
+    vi.advanceTimersByTime(4_500);
+    restored.dispose();
+    restored.container.remove();
+
+    vi.setSystemTime(1_125_000);
+    const restoredAgain = mount(languageData);
+    vi.advanceTimersByTime(500);
+    expect(restoredAgain.container.querySelector('[data-testid="mock-timer"]')?.textContent).toContain('seconds=5');
+    expect((restoredAgain.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')).toBe(firstItemId);
+
+    vi.advanceTimersByTime(5_000);
+    expect(restoredAgain.onAttempt).not.toHaveBeenCalled();
+    expect((restoredAgain.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')).not.toBe(firstItemId);
+    restoredAgain.dispose();
+    restoredAgain.container.remove();
+  });
+
   it('abandoning marks results, records no further evidence, and keeps answered attempts (G04)', async () => {
     const languageData = baseLanguageData();
     const gold = goldIndexById(languageData);
@@ -490,6 +539,298 @@ describe('MockExam surface (R13/R14)', () => {
     expect(harness.container.querySelector('[data-testid="mock-assemble-empty"]')).toBeTruthy();
     expect(harness.container.querySelector('[data-testid="mock-session"]')).toBeNull();
     expect(harness.onAttempt).not.toHaveBeenCalled();
+    harness.dispose();
+    harness.container.remove();
+  });
+
+  it('disables the session surface without a Web Lock (G04): honest note, no Start, nothing restored to act on', async () => {
+    // A stored live session exists, but without a lock primitive nothing may
+    // act on it: the surface shows the honest disabled note instead of an
+    // unserialized session.
+    const languageData = baseLanguageData();
+    const gold = goldIndexById(languageData);
+    const first = mount(languageData);
+    await startBlueprint(first.container, 3);
+    const firstItemId = (first.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+    (first.container.querySelectorAll('.mock-exam__option')[gold.get(firstItemId)!] as HTMLElement).click();
+    await beat();
+    expect(globalThis.localStorage!.getItem('mlearn-mock-session:de')).not.toBeNull();
+    first.dispose();
+    first.container.remove();
+
+    const second = mount(languageData, { locks: null });
+    expect(second.container.querySelector('[data-testid="mock-no-locks"]')).toBeTruthy();
+    expect(second.container.querySelector('[data-testid="mock-start-3"]')).toBeNull();
+    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeNull();
+    expect(second.onAttempt).not.toHaveBeenCalled();
+    second.dispose();
+    second.container.remove();
+  });
+
+  it('a second window adopts the live session another window persisted, without write-back (G01)', async () => {
+    const languageData = baseLanguageData();
+    // The second window mounts BEFORE any session exists: it stays idle
+    // until the first window's write reaches it through the storage event.
+    const second = mount(languageData);
+    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeNull();
+    const first = mount(languageData);
+    await startBlueprint(first.container, 3);
+    expect(first.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
+    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeNull();
+
+    const stored = globalThis.localStorage!.getItem('mlearn-mock-session:de')!;
+    const setItem = vi.spyOn(globalThis.localStorage, 'setItem');
+    // The first window's own start-write, replayed as the browser would
+    // deliver it: both windows receive it (the writer suppresses its own
+    // fingerprint; the idle window adopts raw — which never writes).
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mlearn-mock-session:de', newValue: stored }));
+    await tick();
+    await tick();
+    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
+    expect(first.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
+    expect(second.onAttempt).not.toHaveBeenCalled();
+    expect(first.onAttempt).not.toHaveBeenCalled();
+    // Adoption is a raw rebuild: NO session-key write-back, so two windows
+    // reacting to each other's writes cannot ping-pong.
+    expect(setItem.mock.calls.filter(([key]) => key === 'mlearn-mock-session:de')).toHaveLength(0);
+    // A repeated delivery of the same write is still a no-op write.
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mlearn-mock-session:de', newValue: stored }));
+    await tick();
+    expect(setItem.mock.calls.filter(([key]) => key === 'mlearn-mock-session:de')).toHaveLength(0);
+    setItem.mockRestore();
+    first.dispose();
+    second.dispose();
+    first.container.remove();
+    second.container.remove();
+  });
+
+  it('serializes two windows behind the mock lock: exactly one journal write survives (G01)', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    // Pass-through for the two START claims, then hold the gate so both
+    // windows' submissions queue and serialize behind the mutual-exclusion
+    // lock (PlacementSession.test convention).
+    let claims = 0;
+    let tail = gate;
+    const gating: PlacementLocks = {
+      request: async (_name: string, callback: () => void | Promise<void>) => {
+        claims += 1;
+        if (claims <= 2) { await callback(); return; }
+        const previous = tail;
+        let releaseNext!: () => void;
+        tail = new Promise<void>((resolve) => { releaseNext = resolve; });
+        await previous;
+        try { await callback(); } finally { releaseNext(); }
+      },
+    };
+    const languageData = baseLanguageData();
+    const gold = goldIndexById(languageData);
+    const tabA = mount(languageData, { locks: gating });
+    const tabB = mount(languageData, { locks: gating }); // shares the same lock + localStorage
+
+    await startBlueprint(tabA.container, 3);
+    // B's start ADOPTS the live session A holds instead of starting a
+    // clobbering second one.
+    await startBlueprint(tabB.container, 3);
+    expect(tabB.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).cursor).toBe(0);
+
+    const itemIdA = (tabA.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+    const itemIdB = (tabB.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+    expect(itemIdB).toBe(itemIdA); // both windows present the SAME step
+
+    (tabA.container.querySelectorAll('.mock-exam__option')[gold.get(itemIdA)!] as HTMLElement).click();
+    (tabB.container.querySelectorAll('.mock-exam__option')[gold.get(itemIdB)!] as HTMLElement).click();
+    // The gate is held: neither submission has run.
+    expect(tabA.onAttempt).not.toHaveBeenCalled();
+    expect(tabB.onAttempt).not.toHaveBeenCalled();
+    release();
+    await tick();
+    await tick();
+    // Exactly ONE canonical attempt survives the mutual exclusion; the
+    // stale second submission is dropped and the durable state adopted.
+    expect(tabA.onAttempt.mock.calls.length + tabB.onAttempt.mock.calls.length).toBe(1);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).cursor).toBe(1);
+    // Both windows converge on the SAME next step (the loser adopted).
+    const nextA = (tabA.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id');
+    const nextB = (tabB.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id');
+    expect(nextB).toBe(nextA);
+    tabA.dispose();
+    tabB.dispose();
+    tabA.container.remove();
+    tabB.container.remove();
+  });
+
+  it('a stale window cannot submit into a session another window paused (G01/R13)', async () => {
+    const languageData = baseLanguageData();
+    const gold = goldIndexById(languageData);
+    const tabB = mount(languageData); // idle first
+    const tabA = mount(languageData);
+    await startBlueprint(tabA.container, 3);
+    const itemId = (tabA.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+    // The session's start reaches B through the storage event (raw
+    // adoption): B presents the same step with the same durable content.
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'mlearn-mock-session:de',
+      newValue: globalThis.localStorage!.getItem('mlearn-mock-session:de')!,
+    }));
+    await tick();
+    expect((tabB.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')).toBe(itemId);
+
+    // A pauses (persisted). B has not received a storage event yet: its copy
+    // is stale (unpaused, same cursor).
+    (tabA.container.querySelector('[data-testid="mock-pause-btn"]') as HTMLElement).click();
+    await tick();
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).pauses).toHaveLength(1);
+
+    // B's stale unpaused submit queues for the lock, finds the durable
+    // fingerprint changed (pause history), and is DROPPED with the paused
+    // durable state adopted — no evidence, and A's pause is never clobbered.
+    (tabB.container.querySelectorAll('.mock-exam__option')[gold.get(itemId)!] as HTMLElement).click();
+    await tick();
+    await tick();
+    expect(tabB.onAttempt).not.toHaveBeenCalled();
+    expect(tabA.onAttempt).not.toHaveBeenCalled();
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).pauses).toHaveLength(1);
+    expect(tabB.container.querySelector('[data-testid="mock-paused-note"]')).toBeTruthy();
+    tabA.dispose();
+    tabB.dispose();
+    tabA.container.remove();
+    tabB.container.remove();
+  });
+
+  it('a durable-write failure refuses the submission: no evidence, prompt retryable, honest note (G01/G04)', async () => {
+    const languageData = baseLanguageData();
+    const gold = goldIndexById(languageData);
+    const harness = mount(languageData);
+    await startBlueprint(harness.container, 3);
+    const itemId = (harness.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+
+    // Quota injection BEFORE the answer: the staged cursor write throws, so
+    // the durable cursor still points at the presented step.
+    const setItem = vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    (harness.container.querySelectorAll('.mock-exam__option')[gold.get(itemId)!] as HTMLElement).click();
+    await beat();
+    // The canonical writer was NEVER invoked: no evidence without a cursor
+    // (previously the journal write happened before the swallowed persist).
+    expect(harness.onAttempt).not.toHaveBeenCalled();
+    const storedDuring = globalThis.localStorage!.getItem('mlearn-mock-session:de')!;
+    expect(JSON.parse(storedDuring).cursor).toBe(0);
+    setItem.mockRestore();
+
+    // The presented prompt stays retryable: same step, honest note, and a
+    // retry after storage recovers records exactly one attempt and advances
+    // the durable cursor exactly once.
+    expect((harness.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')).toBe(itemId);
+    expect(harness.container.querySelector('[data-testid="mock-storage-unavailable"]')).toBeTruthy();
+    (harness.container.querySelectorAll('.mock-exam__option')[gold.get(itemId)!] as HTMLElement).click();
+    await beat();
+    expect(harness.onAttempt).toHaveBeenCalledTimes(1);
+    expect(harness.container.querySelector('[data-testid="mock-storage-unavailable"]')).toBeNull();
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).cursor).toBe(1);
+    harness.dispose();
+    harness.container.remove();
+  });
+
+  it('a journal rejection keeps the stable reservation and the same mock step retryable (G01)', async () => {
+    const languageData = baseLanguageData();
+    const gold = goldIndexById(languageData);
+    const harness = mount(languageData);
+    await startBlueprint(harness.container, 3);
+    const itemId = (harness.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+    harness.onAttempt.mockRejectedValueOnce(new Error('journal unavailable'));
+
+    (harness.container.querySelectorAll('.mock-exam__option')[gold.get(itemId)!] as HTMLElement).click();
+    await beat();
+    const pending = JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!);
+    expect(pending.cursor).toBe(1);
+    expect(pending.answers[0].pendingAttemptId).toEqual(expect.any(String));
+    expect((harness.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')).toBe(itemId);
+    expect(harness.container.querySelector('[data-testid="mock-storage-unavailable"]')).toBeTruthy();
+
+    (harness.container.querySelectorAll('.mock-exam__option')[gold.get(itemId)!] as HTMLElement).click();
+    await beat();
+    expect(harness.onAttempt).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).cursor).toBe(1);
+    expect(harness.container.querySelector('[data-testid="mock-storage-unavailable"]')).toBeNull();
+    harness.dispose();
+    harness.container.remove();
+  });
+
+  it('reconciles a nonterminal interrupted submission with the same pending id after remount (G01)', async () => {
+    const languageData = baseLanguageData();
+    const gold = goldIndexById(languageData);
+    const first = mount(languageData);
+    await startBlueprint(first.container, 3);
+    first.onAttempt.mockImplementation(() => new Promise<AttemptId>(() => {}));
+    const itemId = (first.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+    (first.container.querySelectorAll('.mock-exam__option')[gold.get(itemId)!] as HTMLButtonElement).click();
+    await beat();
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!);
+    const attemptId = stored.answers[0].pendingAttemptId as string;
+    expect(stored.cursor).toBe(1);
+    expect(first.onAttempt.mock.calls[0][1]).toBe(attemptId);
+    first.dispose();
+    first.container.remove();
+
+    const second = mount(languageData);
+    await tick();
+    await tick();
+    expect(second.onAttempt.mock.calls[0][1]).toBe(attemptId);
+    const resumed = JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!);
+    expect(resumed.cursor).toBe(1);
+    expect(resumed.answers[0]).toMatchObject({ attemptId });
+    expect(resumed.answers[0].pendingAttemptId).toBeUndefined();
+    second.dispose();
+    second.container.remove();
+  });
+
+  it('keeps a final-step pending submission resumable until remount reconciliation (G01)', async () => {
+    const languageData = baseLanguageData();
+    const gold = goldIndexById(languageData);
+    const first = mount(languageData);
+    await startBlueprint(first.container, 2);
+    first.onAttempt.mockImplementation(() => new Promise<AttemptId>(() => {}));
+    const itemId = (first.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')!;
+    (first.container.querySelectorAll('.mock-exam__option')[gold.get(itemId)!] as HTMLButtonElement).click();
+    await beat();
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!);
+    const attemptId = stored.answers[0].pendingAttemptId as string;
+    expect(stored.finishedAt).toEqual(expect.any(Number));
+    expect(first.onAttempt.mock.calls[0][1]).toBe(attemptId);
+    first.dispose();
+    first.container.remove();
+
+    const second = mount(languageData);
+    await tick();
+    await tick();
+    expect(second.onAttempt.mock.calls[0][1]).toBe(attemptId);
+    expect(globalThis.localStorage!.getItem('mlearn-mock-session:de')).toBeNull();
+    expect(second.container.querySelector('[data-testid="mock-results"]')).toBeTruthy();
+    second.dispose();
+    second.container.remove();
+  });
+
+  it('a start whose durable write fails never starts a cursorless session (G01/G04)', async () => {
+    const languageData = baseLanguageData();
+    const harness = mount(languageData);
+    const setItem = vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    const start = harness.container.querySelector('[data-testid="mock-start-3"]') as HTMLButtonElement;
+    start.click();
+    await tick();
+    setItem.mockRestore();
+    // No session was published and nothing durable exists to resume: the
+    // honest note replaces a silently broken session, and Start stays
+    // retryable once storage recovers.
+    expect(harness.container.querySelector('[data-testid="mock-session"]')).toBeNull();
+    expect(globalThis.localStorage!.getItem('mlearn-mock-session:de')).toBeNull();
+    expect(harness.container.querySelector('[data-testid="mock-storage-unavailable"]')).toBeTruthy();
+    await startBlueprint(harness.container, 3);
+    expect(harness.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
     harness.dispose();
     harness.container.remove();
   });

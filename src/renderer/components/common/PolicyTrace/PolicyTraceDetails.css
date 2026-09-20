@@ -1,0 +1,46 @@
+/**
+ * PolicyTraceDetails Styles — R20 expanded trace rendering (shared by the
+ * review explanation and the knowledge Inspector drawer). Theme variables only.
+ */
+
+.policy-why__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.policy-why__heading {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.policy-why__kv {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.policy-why__kv--rule,
+.policy-why__kv--term {
+  padding-left: 0.75rem;
+}
+
+.policy-why__why {
+  color: var(--text-secondary);
+}
+
+.policy-why__rank {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.125rem 0;
+}
+
+.policy-why__rank[data-selected='true'] .policy-why__kv > span:first-child {
+  color: var(--color-primary);
+}
+
+.policy-why__limit {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}

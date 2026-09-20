@@ -15,3 +15,4 @@ export { FlashcardCreationChoiceModal } from './FlashcardCreationChoiceModal';
 export { FlashcardImage, type FlashcardImageProps } from './FlashcardImage';
 export { OtherLanguageDueHint } from './OtherLanguageDueHint';
 export { AnkiModifyWarningModal, type AnkiModifyWarningModalProps } from './AnkiModifyWarningModal';
+export { PolicyWhy } from './PolicyWhy';

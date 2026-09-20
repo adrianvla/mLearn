@@ -1717,6 +1717,8 @@
         "Correct": "Richtig!",
         "Incorrect": "Nicht ganz — die Antwort ist: {answer}",
         "Next": "Weiter",
+        "NoLocks": "Grammatikdurchgänge benötigen eine fensterübergreifende Sperre; dieser Browser unterstützt keine.",
+        "StorageUnavailable": "Der Speicher hat diesen Schreibvorgang abgelehnt (Kontingent oder privater Modus). Die Aktion wurde nicht erfasst; sie bleibt erneut versuchbar.",
         "ModeLabel": "Antwortformat",
         "ModeMcq": "Auswählen",
         "ModeType": "Eingeben",
@@ -1859,7 +1861,9 @@
         "ResultsDisclaimer": "Eine richtige Auswahl ist ein erfolgreicher Versuch — kein Beweis voller Beherrschung. Ergebnisse sind diagnostisch, nie eine offizielle Punktzahl.",
         "BackToBlueprints": "Zurück zu den Blueprints",
         "Summaries": "Letzte Ergebnisse",
-        "SummaryCounts": "{correct}/{answered} richtig · {timedOut} unbeantwortet"
+        "SummaryCounts": "{correct}/{answered} richtig · {timedOut} unbeantwortet",
+        "NoLocks": "Die Probeklausur benötigt eine fensterübergreifende Sperre; dieser Browser unterstützt sie nicht.",
+        "StorageUnavailable": "Der Speicher hat diesen Schreibvorgang abgelehnt (Kontingent oder privater Modus). Die Antwort wurde nicht erfasst; die Aufgabe bleibt erneut versuchbar."
       }
     },
     "Languages": {
@@ -3771,6 +3775,20 @@
         "Known": "bekannt",
         "Learning": "im Lernen",
         "Unknown": "unbekannt"
+      }
+    },
+    "Review": {
+      "Why": {
+        "Decision": "Entscheidung",
+        "Excluded": "Ausgeschlossen",
+        "Hide": "Details ausblenden",
+        "Limits": "Grenzen",
+        "NoTrace": "Für diese Entscheidung wurde kein Berechnungspfad aufgezeichnet; nur der obige Grund ist verfügbar.",
+        "Ranking": "Rangfolge",
+        "Show": "Warum?",
+        "Task": "Aufgabe",
+        "Title": "Warum diese Karte",
+        "Weights": "Aktive Gewichtungen"
       }
     }
   }

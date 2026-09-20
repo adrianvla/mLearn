@@ -1,5 +1,5 @@
 import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { selectNextEncounter } from '../learning/engine';
@@ -172,6 +172,10 @@ const mockFlushKnowledgeRollup = vi.hoisted(() => vi.fn().mockResolvedValue(unde
 
 vi.mock('../services/knowledgeEvents', () => ({
   appendEvents: mockAppendEvents,
+  appendEventsIdempotentAcknowledged: async (events: Record<string, unknown[]>) => {
+    await mockAppendEvents(events);
+    return true;
+  },
   getKnowledgeStates: knowledgeJournal.getKnowledgeStates,
   queryKnowledgeSummaries: knowledgeJournal.queryKnowledgeSummaries,
   queryLanguageKeys: knowledgeJournal.queryLanguageKeys,
@@ -4584,6 +4588,21 @@ describe('recordAttempt quality semantics', () => {
   });
 
   describe.each(['de', 'ja', 'zh'] as const)('grammar practice route (%s package → provider → journal → rendered progress)', (language) => {
+    // Passes serialize their durable mutations with the Web Locks API;
+    // happy-dom reports navigator.locks as null, which DISABLES the pass
+    // surfaces (G04). These integration tests drive the serialized evidence
+    // loop (the LevelStudyTab.test convention), so inject a pass-through
+    // lock; removed in afterEach.
+    beforeEach(() => {
+      Object.defineProperty(globalThis.navigator, 'locks', {
+        value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
+        configurable: true,
+      });
+    });
+    afterEach(() => {
+      const lockStubHost = globalThis.navigator as { locks?: unknown };
+      delete lockStubHost.locks;
+    });
     // Real packaging-source packages (installed/remote catalogs refresh via
     // the campaign-blocked publish step — source-of-truth content here).
     const languagePackage = JSON.parse(fs.readFileSync(
@@ -4683,6 +4702,13 @@ describe('recordAttempt quality semantics', () => {
 
     mockSettings.language = 'zh';
     mockSettings.uiLanguage = 'de';
+    // Pass surfaces serialize durable mutations with the Web Locks API and are
+    // DISABLED without it (G04); happy-dom reports navigator.locks as null.
+    // Inject the same pass-through lock the describe.each routes above use.
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
+      configurable: true,
+    });
     const { ctx, dispose: disposeProvider } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     mockAppendEvents.mockClear();
@@ -4732,6 +4758,7 @@ describe('recordAttempt quality semantics', () => {
     disposeUi();
     container.remove();
     disposeProvider();
+    delete (globalThis.navigator as { locks?: unknown }).locks;
     mockSettings.language = 'ja';
     mockSettings.uiLanguage = DEFAULT_SETTINGS.uiLanguage;
   });
@@ -5484,6 +5511,33 @@ describe('recordGrammarAttempt (curriculum grammar probe)', () => {
     expect('scaffolds' in event).toBe(false);
     dispose();
     mockSettings.language = 'ja';
+  });
+
+  it('the acknowledged grammar writer rejects when the canonical journal append fails', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockRejectedValueOnce(new Error('journal unavailable'));
+
+    await expect(ctx.recordGrammarAttemptAcknowledged('のに', 'struggled', {
+      language: 'ja',
+      level: 2,
+    })).rejects.toThrow('journal unavailable');
+    dispose();
+  });
+
+  it('the acknowledged grammar writer preserves a caller-reserved attempt id', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+    const attemptId = await ctx.recordGrammarAttemptAcknowledged('のに', 'struggled', {
+      language: 'ja',
+      level: 2,
+      attemptId: 'restart-stable-attempt',
+    });
+    expect(attemptId).toBe('restart-stable-attempt');
+    expect(Object.values(mockAppendEvents.mock.calls[0][0] as Record<string, Array<{ attemptId?: string }>>)[0][0].attemptId)
+      .toBe('restart-stable-attempt');
+    dispose();
   });
 
   it('a row-probe with visible meaning records translation-scaffold provenance', async () => {

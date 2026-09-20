@@ -90,7 +90,7 @@ const newSessionId = (): string => {
  *  with a localized fallback (G04) instead of running an unserialized
  *  multi-tab session. */
 export interface PlacementLocks {
-  request: (name: string, callback: () => void) => Promise<void>;
+  request: (name: string, callback: () => void | Promise<void>) => Promise<void>;
 }
 
 interface StoredPlacement {

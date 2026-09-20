@@ -1717,6 +1717,8 @@
         "Correct": "正确！",
         "Incorrect": "不完全对 — 答案是：{answer}",
         "Next": "下一个",
+        "NoLocks": "语法练习需要跨窗口锁；此浏览器不支持。",
+        "StorageUnavailable": "存储拒绝了此次写入（配额或隐私模式）。该操作未被记录；可以重试。",
         "ModeLabel": "作答方式",
         "ModeMcq": "选择",
         "ModeType": "输入",
@@ -1859,7 +1861,9 @@
         "ResultsDisclaimer": "一次正确选择只是一次成功的尝试，不代表完全掌握。结果仅用于诊断，绝非官方分数。",
         "BackToBlueprints": "返回蓝图列表",
         "Summaries": "最近的结果",
-        "SummaryCounts": "{correct}/{answered} 正确 · {timedOut} 未答"
+        "SummaryCounts": "{correct}/{answered} 正确 · {timedOut} 未答",
+        "NoLocks": "模拟测验需要跨窗口锁；此浏览器不支持该功能。",
+        "StorageUnavailable": "存储拒绝了此次写入（配额或隐私模式）。该回答未被记录；此题仍可重试。"
       }
     },
     "Languages": {
@@ -3771,6 +3775,20 @@
         "Known": "认识",
         "Learning": "学习中",
         "Unknown": "不认识"
+      }
+    },
+    "Review": {
+      "Why": {
+        "Decision": "判定",
+        "Excluded": "已排除",
+        "Hide": "收起详情",
+        "Limits": "局限",
+        "NoTrace": "该判定没有记录计算轨迹；仅能显示上述原因。",
+        "Ranking": "排序",
+        "Show": "为什么？",
+        "Task": "任务",
+        "Title": "为何是这张卡",
+        "Weights": "生效权重"
       }
     }
   }

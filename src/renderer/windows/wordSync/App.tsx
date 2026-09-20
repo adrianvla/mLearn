@@ -64,6 +64,9 @@ import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter } from '../../learning/engine';
+import { getWordFormCandidates } from '../../../shared/utils/wordForms';
+import { wordStorageKey } from '../../utils/wordLevelStats';
+import { eventsVersion, queryLanguageKeys } from '../../services/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import './WordSync.css';
 
@@ -227,20 +230,64 @@ export const WordSyncContent: Component = () => {
   const [sessionQueue, setSessionQueue] = createSignal<Map<number, PoolEntry[]>>();
   const [wordPool, setWordPool] = createSignal<Map<number, PoolEntry[]>>(new Map(), { equals: false });
 
-  const poolProjection = useKnowledgeProjections(() => isKnowledgeReady() && filterPresetInitialized() && poolPrepared() && !sessionQueue() ? {
-    language: settings.language, surfaces: [...wordPool().values()].flat().filter(entry => {
-      const filter = filterAst();
-      return filter.ok && (!filter.ast || ['untracked', '0', '1', '2'].some(status =>
-        evaluateAst<unknown>(filter.ast!, { status, level: entry.level }, filterResolvers())));
-    }).map(entry => entry.word),
-  } : undefined);
+  // ─── F-N1 request bound: projections ONLY for evidence-bearing surfaces ──
+  // A pool word without stored state is unmeasured by definition — its
+  // projection is empty and materializing it wastes an IPC round-trip per
+  // word per reload (≈49k surfaces on the German package → the archived
+  // renderer OOM). The candidate set is the JOURNAL keys (epistemic source
+  // of truth) unioned with the materialized store keys (conservative
+  // superset over pre-journal legacy rows), intersected with the pool
+  // surfaces that survive the filter's coarse status pre-check. Projections
+  // are requested only AFTER the journal snapshot settles; while it loads
+  // no request is issued and the session stays behind the shared skeleton.
+  // If the snapshot query FAILS, the scan does not run (a journal-only
+  // measured word must never look untracked and be re-taught) and the
+  // resource retries on the next eventsVersion change — the LevelStudyTab
+  // placement precedent for the same bound.
+  const [journalKeysResource] = createResource(
+    // The journal key snapshot is language-scoped and independent of the
+    // package metadata: it needs the learning language and knowledge
+    // readiness only — a ready pool must never stay blocked on nullable
+    // metadata.
+    () => (isKnowledgeReady() && !sessionQueue()
+      ? { language: settings.language, version: eventsVersion() }
+      : undefined),
+    async (source: { language: string; version: number }) => new Set(await queryLanguageKeys(source.language)),
+  );
+  const journalKeysHealthy = createMemo(() => journalKeysResource.state === 'ready');
+  const measuredStorageKeys = createMemo(() => new Set(Object.keys(store.wordKnowledge ?? {})));
+  const projectionSurfaces = createMemo(() => {
+    if (!poolPrepared() || !filterPresetInitialized() || sessionQueue()) return [];
+    const filter = filterAst();
+    if (!filter.ok) return [];
+    // An errored resource throws on access: only a ready snapshot is read.
+    const keys = new Set(journalKeysResource.state === 'ready' ? journalKeysResource() ?? [] : []);
+    for (const key of measuredStorageKeys()) keys.add(key);
+    if (keys.size === 0) return [];
+    const lang = settings.language;
+    const languageData = langCtx.currentLangData();
+    const canonicalize = (word: string) => langCtx.getCanonicalFormForLanguage(lang, word);
+    const variants = (word: string) => langCtx.getWordVariantsForLanguage(lang, word);
+    // Match the writer-side identity exactly (LevelStudyTab convention):
+    // journal keys are derived from getWordFormCandidates(...), so test
+    // every candidate form's storage key, not just the canonical one.
+    return [...wordPool().values()].flat().filter(entry => {
+      const coarse = !filter.ast || ['untracked', '0', '1', '2'].some(status =>
+        evaluateAst<unknown>(filter.ast!, { status, level: entry.level }, filterResolvers()));
+      if (!coarse) return false;
+      const candidates = getWordFormCandidates(entry.word, canonicalize, variants, { language: lang, languageData });
+      return candidates.some((candidate) => keys.has(wordStorageKey(lang, candidate)));
+    }).map(entry => entry.word);
+  });
+  const poolProjection = useKnowledgeProjections(() => isKnowledgeReady() && filterPresetInitialized() && poolPrepared() && !sessionQueue() && journalKeysHealthy()
+    ? { language: settings.language, surfaces: projectionSurfaces() } : undefined);
   let scanRevision = 0;
   onCleanup(() => { scanRevision++; });
   const [eligibleWords] = createResource(() => {
     const revision = ++scanRevision;
     const projections = poolProjection.projections();
     const filter = filterAst();
-    return poolPrepared() && !sessionQueue() && poolProjection.ready() && filterPresetInitialized() && filter.ok ? {
+    return poolPrepared() && !sessionQueue() && poolProjection.ready() && filterPresetInitialized() && journalKeysHealthy() && filter.ok ? {
       pool: wordPool(), tokens: filterTokens(),
       entries: [...wordPool().values()].flat(), projections, filter: filter.ast, revision,
       language: settings.language, data: langCtx.currentLangData(),
@@ -412,7 +459,13 @@ export const WordSyncContent: Component = () => {
   // rebuild knowledge consumers before the next word can render.
   const handleSubmitProfile = (observations: readonly ProfileObservation[], opts?: RateOptions) => batch(() => {
     const w = currentWord();
-    if (!w || currentProjection.projection()?.status !== 'ready' || observations.length === 0
+    // Same admission rule as the encounter: a ready projection rates
+    // normally; a genuinely ABSENT one is the unmeasured shape (rated
+    // through its identity-backed targets); a still-loading or errored
+    // projection refuses (the encounter re-presents once it settles).
+    const projection = currentProjection.projection();
+    const unmeasured = projection === undefined && !currentProjection.loading();
+    if (!w || (projection?.status !== 'ready' && !unmeasured) || observations.length === 0
       || observations.some((observation) => !testedAccesses().some((capability) => capability === observation.capability))) return;
     // opts.easy is scheduler-only and Word Sync has no scheduler — the
     // recorded evidence (fluent) is identical either way, so it is ignored.
@@ -750,15 +803,29 @@ export const WordSyncContent: Component = () => {
   // an active response must not silently change which question was asked.
   const [probe, setProbe] = createSignal<{ presentation: number; capabilities: CapabilityKind[]; focused: boolean }>();
   const testedAccesses = createMemo(() => probe()?.presentation === presentationCount() ? probe()!.capabilities : []);
-  createEffect(on(() => [currentProjection.projection(), translation.loading, presentationCount()] as const, ([projection, loading, presentation]) => {
+  createEffect(on(() => [currentProjection.projection(), currentProjection.loading(), translation.loading, presentationCount()] as const, ([projection, projectionLoading, loading, presentation]) => {
     const w = currentWord();
-    if (!w || loading || projection?.status !== 'ready'
+    // Transient gate (F-N1): the single-surface hook resets its projection
+    // to undefined while (re)materializing — an undefined value is only the
+    // unmeasured shape once the hook has SETTLED (loading false). While it
+    // loads the encounter waits instead of mis-admitting a measured word as
+    // untracked.
+    if (!w || loading || projectionLoading
       || (probe()?.presentation === presentation && showAnswer())) return;
+    // An explicit error/materialization failure is a real failure: never
+    // admit on it (unchanged rule).
+    if (projection?.status === 'error') return;
     const possible = getTestedAccesses({
       languageData: langCtx.currentLangData(), surface: w.word,
       hasReadingData: !!displayedReading(), hasProsodyData: !!currentWordProsody(),
     });
     trace('projection update', { word: w.word });
+    // UNMEASURED admission (F-N1): wordSyncProbe treats an ABSENT projection
+    // — and a ready graph-unmapped surface with unmeasured lexical state —
+    // as unmeasured when the canonical entity id is supplied, constructing
+    // identity-backed targets so a scan-admitted word is ratable at the
+    // encounter too (previously an absent projection died silently here and
+    // the word could never be rated).
     const admitted = wordSyncProbe(projection, possible, surfaceEntityId(settings.language, hashWordSync(w.word)));
     const targets = admitted.targets;
     const ast = filterAst();
@@ -971,7 +1038,9 @@ export const WordSyncContent: Component = () => {
             ]))}
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
-            armed={showAnswer() && currentProjection.projection()?.status === 'ready' && !!currentWord() && !finished()}
+            armed={showAnswer() && !!currentWord() && !finished()
+              && (currentProjection.projection()?.status === 'ready'
+                || (currentProjection.projection() === undefined && !currentProjection.loading()))}
             onSubmit={handleSubmitProfile}
           />
           <Show when={currentWord()}>

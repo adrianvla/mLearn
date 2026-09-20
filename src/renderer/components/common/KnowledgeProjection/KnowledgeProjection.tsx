@@ -15,6 +15,8 @@ import { KnowledgeHistoryTimeline, type HistoryEvent } from '../KnowledgeHistory
 import { PillBtn } from '../Button';
 import { TabContainer } from '../Tabs';
 import { SkeletonRows, SkeletonText } from '../Skeleton';
+import { PolicyTraceDetails } from '../PolicyTrace/PolicyTraceDetails';
+import type { PolicyTrace } from '../../../learning/types';
 import {
   BASIS_LABEL_KEYS,
   UNMEASURED_LABEL_KEY,
@@ -99,6 +101,13 @@ export interface KnowledgeProjectionDrawerProps {
   onWordClaim?: (claim: WordStatus | null) => void;
   /** Deliberate access claim editing. Absent = read-only. */
   onAccessClaim?: (capability: RatedCapability, claim: WordStatus | null) => void;
+  /**
+   * The policy decision that selected this surface (R20): rendered in the
+   * SAME drawer — the brief reason plus the emitted typed trace, verbatim
+   * (shared PolicyTraceDetails). Absent = no policy section.
+   */
+  policyTrace?: PolicyTrace;
+  policyBrief?: string;
 }
 
 const INSPECTOR_TABS: { key: InspectorTab; label: string }[] = [
@@ -756,6 +765,23 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
               )}</For>
             </Show>
           </div>
+        </Show>
+
+        {/* R20: the policy decision that selected this surface, auditable in
+            the SAME inspector — brief reason plus the emitted typed trace,
+            rendered verbatim (the shared PolicyTraceDetails). */}
+        <Show when={props.policyTrace}>
+          {(trace) => (
+            <div class="knowledge-drawer__policy-trace" data-testid="inspector-policy-trace">
+              <span class="knowledge-drawer__policy-title">{t('mlearn.Review.Why.Title')}</span>
+              <Show when={props.policyBrief}>
+                <span class="knowledge-drawer__policy-brief">{props.policyBrief}</span>
+              </Show>
+              <div class="knowledge-drawer__policy-details">
+                <PolicyTraceDetails trace={trace()} />
+              </div>
+            </div>
+          )}
         </Show>
       </div>
     </div>

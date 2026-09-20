@@ -6,6 +6,7 @@ import { createSignal } from 'solid-js';
 import { GrammarCoverage } from './GrammarCoverage';
 import { itemContentVersion } from '../../learning/questionBank';
 import { loadQuestionValidationRecords } from '../../learning/questionValidation';
+import type { PlacementLocks } from './PlacementSession';
 import type { GrammarItemSemanticValidation, GrammarPracticeItemSource } from '../../../shared/types';
 import type { CurriculumComponentSummary } from '../../../shared/curriculum';
 import type { AttemptScaffolds, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
@@ -86,14 +87,22 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
  *  load-bearing duplicate-submission protection, the beat is secondary. */
 const beat = () => new Promise<void>((resolve) => setTimeout(resolve, 170));
 
+/** Pass-through fake lock (PlacementSession.test convention): single-window
+ *  tests exercise the serialized path without changing timing. Tests that
+ *  need a lock-less environment pass `null` explicitly. */
+const passThroughLocks: PlacementLocks = {
+  request: async (_name: string, callback: () => void) => { await callback(); },
+};
+
 function mount(
-  onProbe: (p: string, q: AttemptQuality, l: number, scaffolds?: AttemptScaffolds) => void,
+  onProbe: (p: string, q: AttemptQuality, l: number, scaffolds?: AttemptScaffolds, attempt?: unknown) => unknown,
   languageDataOverride?: LanguageData,
   summaryOverride?: CurriculumComponentSummary,
   eventLogOverride?: KnowledgeEventLog,
   onValidated?: () => void,
   repairRequest?: () => { level: number; requestedAt: number } | null,
   onRepairRequestHandled?: (requestedAt: number) => void,
+  locks: PlacementLocks | null = passThroughLocks,
 ) {
   const container = document.createElement('div');
   // Solid attaches delegated listeners on the document; container must be
@@ -106,10 +115,14 @@ function mount(
         languageData={languageDataOverride ?? languageData}
         eventLog={eventLogOverride ?? ({} as KnowledgeEventLog)}
         summary={summaryOverride ?? summary}
-        onProbe={onProbe}
+        onProbe={async (...args) => {
+          await onProbe(...args);
+          return 'fixture-grammar-attempt';
+        }}
         onValidated={onValidated}
         repairRequest={repairRequest?.()}
         onRepairRequestHandled={onRepairRequestHandled}
+        locks={locks}
       />
     ),
     container,
@@ -143,6 +156,22 @@ describe('GrammarCoverage policy-selected practice session', () => {
   // and restore unexpectedly.
   beforeEach(() => {
     localStorage.clear();
+    // Passes serialize their durable mutations with the Web Locks API;
+    // happy-dom reports navigator.locks as null, which DISABLES the pass
+    // surfaces (G04). These tests drive the serialized paths (including
+    // direct createComponent renders that bypass the mount helper's lock
+    // prop), so inject a pass-through lock (the PlacementSession.test
+    // convention); removed in afterEach.
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    // happy-dom's Navigator type predates the LockManager global; the stub
+    // above installs an own configurable property that shadows it.
+    const lockStubHost = globalThis.navigator as { locks?: unknown };
+    delete lockStubHost.locks;
   });
   beforeEach(() => {
     // Resume persistence is per-test: clear the registered pass so no
@@ -493,7 +522,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       get languageData() { return activeLanguage() === 'de' ? germanPackage : languageData; },
       get summary() { return activeLanguage() === 'de' ? germanSummary : summary; },
       eventLog: {} as KnowledgeEventLog,
-      onProbe: () => undefined,
+      onProbe: async () => 'fixture-grammar-attempt',
     }), container);
 
     // The stored de cursor is ACTIVE on load (cursor 0 restored).
@@ -655,7 +684,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       get languageData() { return data(); },
       summary,
       eventLog: {} as KnowledgeEventLog,
-      onProbe: () => undefined,
+      onProbe: async () => 'fixture-grammar-attempt',
     }), container);
 
     // Active under the original package.
@@ -673,6 +702,102 @@ describe('GrammarCoverage policy-selected practice session', () => {
     dispose();
     container.remove();
     localStorage.clear();
+  });
+
+  it('persists the pass cursor synchronously inside the handler, before any effect flush (G01)', async () => {
+    const onProbe = vi.fn();
+    const { container, dispose } = mount(onProbe);
+    await startPass(container, 2);
+    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!)).toMatchObject({ index: 0 });
+
+    // The rating handler synchronously persists a stable pending attempt at
+    // the presented cursor before invoking the journal writer.
+    const setItem = vi.spyOn(localStorage, 'setItem');
+    (levelBlock(container, 2).querySelector(
+      '.grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)',
+    ) as HTMLElement).click();
+    const persistedWrite = setItem.mock.calls.find(([key]) => key === 'mlearn-grammar-pass:ja');
+    expect(persistedWrite).toBeTruthy(); // persisted synchronously IN the handler
+    expect(JSON.parse(persistedWrite![1]!).index).toBe(0);
+    expect(JSON.parse(persistedWrite![1]!).pending?.index).toBe(0);
+    expect(JSON.parse(persistedWrite![1]!).pending?.attemptId).toEqual(expect.any(String));
+    expect(onProbe).toHaveBeenCalledTimes(1);
+    setItem.mockRestore();
+
+    // Completing the walk removes the stored entry (index past the end).
+    await beat();
+    (levelBlock(container, 2).querySelector(
+      '.grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)',
+    ) as HTMLElement).click();
+    await beat();
+    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-done')).toBeTruthy();
+    expect(localStorage.getItem('mlearn-grammar-pass:ja')).toBeNull();
+    dispose();
+    container.remove();
+  });
+
+  it('a language switch with a live pass never files one language under another key (R19/G01)', async () => {
+    const germanData = {
+      language: 'de',
+      grammar: [{ pattern: 'weil', meaning: 'because', level: 2 }],
+      grammarLevels: { names: { '2': 'B1' } },
+    } as unknown as LanguageData;
+    const germanSummary: CurriculumComponentSummary = {
+      component: 'grammar',
+      buckets: [{ level: 2, total: 1, known: 0, learning: 0, unknown: 0, unmeasured: 1 }],
+      total: 1, known: 0, learning: 0, unknown: 0, unmeasured: 1, complete: false,
+    };
+    const [language, setLanguage] = createSignal('ja');
+    const [data, setData] = createSignal(languageData);
+    const onProbe = vi.fn();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const dispose = render(() => (
+      <GrammarCoverage
+        language={language()}
+        languageData={data()}
+        summary={language() === 'ja' ? summary : germanSummary}
+        eventLog={{} as KnowledgeEventLog}
+        onProbe={onProbe}
+      />
+    ), container);
+
+    await startPass(container, 2);
+    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:ja')).not.toBeNull();
+
+    // Switch to German while the Japanese pass is live: the stored Japanese
+    // entry stays under its own key untouched, German's key stays empty, and
+    // the in-memory pass swaps to German's durable state (none) — never
+    // cross-filed through a reactive persist (R19/G01).
+    setLanguage('de');
+    setData(germanData);
+    await tick();
+    await tick();
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-pass:ja')!).level).toBe(2);
+    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:de')).toBeNull();
+    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeNull();
+
+    dispose();
+    container.remove();
+    localStorage.clear();
+  });
+
+  it('disables the pass surfaces without a Web Lock (G04): honest note, no starts, nothing restored to act on', async () => {
+    // A stored live pass exists, but without a lock primitive nothing may
+    // act on it: the honest note replaces the start affordances — never an
+    // unserialized multi-window pass (the MockExam G04 convention).
+    globalThis.localStorage?.setItem('mlearn-grammar-pass:ja', JSON.stringify({ level: 2, queue: ['のに', 'ば'], index: 0, denominator: 'のに\u0000ば' }));
+    const onProbe = vi.fn();
+    const { container, dispose } = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, null);
+    await expand(container, 2);
+    expect(container.querySelector('[data-testid="grammar-no-locks"]')).toBeTruthy();
+    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-btn')).toBeNull();
+    expect(levelBlock(container, 2).querySelector('.grammar-coverage__contrast-btn')).toBeNull();
+    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeNull();
+    expect(onProbe).not.toHaveBeenCalled();
+    dispose();
+    container.remove();
+    globalThis.localStorage?.removeItem('mlearn-grammar-pass:ja');
   });
 });
 
@@ -726,6 +851,15 @@ describe('category-bottleneck pass order (R07 production reachability)', () => {
 describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () => {
   beforeEach(() => {
     localStorage.clear();
+    // Same Web Locks stub as the first describe (see its comment).
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    const lockStubHost = globalThis.navigator as { locks?: unknown };
+    delete lockStubHost.locks;
   });
 
   /**
@@ -893,7 +1027,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     expect(onProbe.mock.calls[0][1]).toBe('struggled'); // one successful MCQ attempt is not proof of mastery (R13)
     expect(onProbe.mock.calls[0][2]).toBe(2);
     expect(onProbe.mock.calls[0][3]).toBeUndefined();
-    expect(onProbe.mock.calls[0][4]).toEqual({
+    expect(onProbe.mock.calls[0][4]).toMatchObject({
       itemRef: { id: current.itemId, version: current.version, seed: expect.any(Number) },
       validationRef: {
         validator: 'fixture-independent-validator@1',
@@ -1140,7 +1274,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     expect(onProbe).toHaveBeenCalledTimes(1);
     expect(onProbe.mock.calls[0][1]).toBe('missed');
     expect(onProbe.mock.calls[0][3]).toBeUndefined(); // keyboard supplied nothing to record
-    expect(onProbe.mock.calls[0][4]).toEqual({
+    expect(onProbe.mock.calls[0][4]).toMatchObject({
       itemRef: { id: current.itemId, version: current.version, seed: expect.any(Number) },
       validationRef: {
         validator: 'fixture-independent-validator@1',
@@ -1292,6 +1426,100 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     even.container.remove();
   });
 
+  it('pins an answered item across a journal refresh and remount (G01/G03)', async () => {
+    const onProbe = vi.fn();
+    const first = mount(onProbe, contrastData, contrastSummary);
+    await startContrast(first.container, 2);
+
+    // Reach the construction with two deliverable items. With equal history
+    // the package-order item is presented first.
+    if (currentItem(first.container, 2).pattern !== 'のに') {
+      (levelBlock(first.container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement).click();
+      await beat();
+    }
+    const presented = currentItem(first.container, 2);
+    expect(presented.pattern).toBe('のに');
+    expect(presented.itemId).toBe('ja-test-noni-1');
+    const options = Array.from(levelBlock(first.container, 2).querySelectorAll('.grammar-contrast__option')) as HTMLButtonElement[];
+    options.find((option) => option.getAttribute('data-option') === presented.gold)!.click();
+    await tick();
+
+    const itemRef = onProbe.mock.calls[0][4].itemRef as { id: string; version: string; seed: number };
+    expect(itemRef.id).toBe(presented.itemId);
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    expect(stored.answered.itemRef).toEqual(itemRef);
+    first.dispose();
+    first.container.remove();
+
+    // Recording A makes B the least-attempted item. Resume must nevertheless
+    // render the pinned A whose durable marker owns the feedback, not reselect
+    // B and consume it without an attempt.
+    const refreshedLog: KnowledgeEventLog = {
+      [grammarEvidenceKey('ja', 'のに', 'grammar-recognition')]: [
+        grammarRecognitionEvidence('ja', 'のに', {
+          t: 2000,
+          kind: 'rating',
+          quality: 'struggled',
+          itemRef,
+        }),
+      ],
+    };
+    const resumed = mount(vi.fn(), contrastData, contrastSummary, refreshedLog);
+    await expand(resumed.container, 2);
+    expect(currentItem(resumed.container, 2).itemId).toBe(presented.itemId);
+    expect(levelBlock(resumed.container, 2).querySelector('.grammar-contrast__feedback--correct')).toBeTruthy();
+    resumed.dispose();
+    resumed.container.remove();
+  });
+
+  it('pins and automatically reconciles a journal-visible pending contrast item after remount (G01/G03)', async () => {
+    const interrupted = vi.fn(() => new Promise<void>(() => {}));
+    const first = mount(interrupted, contrastData, contrastSummary);
+    await startContrast(first.container, 2);
+    if (currentItem(first.container, 2).pattern !== 'のに') {
+      (levelBlock(first.container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement).click();
+      await beat();
+    }
+    const presented = currentItem(first.container, 2);
+    expect(presented.itemId).toBe('ja-test-noni-1');
+    const options = Array.from(levelBlock(first.container, 2).querySelectorAll('.grammar-contrast__option')) as HTMLButtonElement[];
+    options.find((option) => option.getAttribute('data-option') === presented.gold)!.click();
+    await tick();
+
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    const attemptId = stored.pending.attemptId as string;
+    const itemRef = stored.pending.answered.itemRef as { id: string; version: string; seed: number };
+    first.dispose();
+    first.container.remove();
+
+    const refreshedLog: KnowledgeEventLog = {
+      [grammarEvidenceKey('ja', 'のに', 'grammar-recognition')]: [
+        grammarRecognitionEvidence('ja', 'のに', {
+          t: 2000,
+          kind: 'rating',
+          quality: 'struggled',
+          attemptId,
+          itemRef,
+        }),
+      ],
+    };
+    const resumedProbe = vi.fn().mockResolvedValue(undefined);
+    const resumed = mount(resumedProbe, contrastData, contrastSummary, refreshedLog);
+    await expand(resumed.container, 2);
+
+    expect(currentItem(resumed.container, 2).itemId).toBe(presented.itemId);
+    await beat();
+    expect(resumedProbe).toHaveBeenCalledTimes(1);
+    expect(resumedProbe.mock.calls[0][4]).toMatchObject({ attemptId, itemRef });
+    expect(currentItem(resumed.container, 2).itemId).toBe(presented.itemId);
+    expect(levelBlock(resumed.container, 2).querySelector('.grammar-contrast__feedback--correct')).toBeTruthy();
+    const settled = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    expect(settled.pending).toBeUndefined();
+    expect(settled.answered.itemRef).toEqual(itemRef);
+    resumed.dispose();
+    resumed.container.remove();
+  });
+
   // --- Independent validation producer control (R12): the ONLY writer of
   // semantic records in the app — user-triggered, batched off the rating
   // path, honest about failures and named external dependencies. ---
@@ -1425,5 +1653,223 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     expect(onValidated).toHaveBeenCalledTimes(1); // the owner still re-resolves
     dispose();
     container.remove();
+  });
+
+  it('a second window adopting an answered step re-renders the feedback and never re-probes (G01)', async () => {
+    const probeA = vi.fn();
+    const tabA = mount(probeA, contrastData, contrastSummary);
+    await startContrast(tabA.container, 2);
+    const stepA = currentItem(tabA.container, 2);
+    const optionsA = Array.from(levelBlock(tabA.container, 2).querySelectorAll('.grammar-contrast__option')) as HTMLButtonElement[];
+    optionsA[optionsA.findIndex((option) => option.getAttribute('data-option') === stepA.gold)].click();
+    await beat();
+    expect(probeA).toHaveBeenCalledTimes(1);
+
+    // The window that never answered mounts AFTER the answer: the durable
+    // answered marker restores the graded feedback — not a fresh question —
+    // and its consumed controls cannot append a second probe.
+    const probeB = vi.fn();
+    const tabB = mount(probeB, contrastData, contrastSummary);
+    await expand(tabB.container, 2);
+    expect(levelBlock(tabB.container, 2).querySelector('.grammar-contrast__feedback')).toBeTruthy();
+    const optionsB = Array.from(levelBlock(tabB.container, 2).querySelectorAll('.grammar-contrast__option')) as HTMLButtonElement[];
+    for (const option of optionsB) expect(option.disabled).toBe(true);
+    // Advancing consumes the step exactly once: no evidence, marker cleared.
+    (levelBlock(tabB.container, 2).querySelector('.grammar-contrast__next') as HTMLButtonElement).click();
+    await beat();
+    expect(probeB).not.toHaveBeenCalled();
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    expect(stored.index).toBe(1);
+    expect(stored.answered).toBeUndefined();
+    tabA.dispose();
+    tabB.dispose();
+    tabA.container.remove();
+    tabB.container.remove();
+  });
+
+  it('serializes two windows behind the pass lock: exactly one probe survives one presentation (G01)', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    // Pass-through for the two START claims, then hold the gate so both
+    // windows' answers queue and serialize behind the mutual-exclusion lock
+    // (MockExam.test convention).
+    let claims = 0;
+    let tail = gate;
+    const gating: PlacementLocks = {
+      request: async (_name: string, callback: () => void | Promise<void>) => {
+        claims += 1;
+        if (claims <= 2) { await callback(); return; }
+        const previous = tail;
+        let releaseNext!: () => void;
+        tail = new Promise<void>((resolve) => { releaseNext = resolve; });
+        await previous;
+        try { await callback(); } finally { releaseNext(); }
+      },
+    };
+    const probeA = vi.fn();
+    const probeB = vi.fn();
+    const tabA = mount(probeA, contrastData, contrastSummary, undefined, undefined, undefined, undefined, gating);
+    const tabB = mount(probeB, contrastData, contrastSummary, undefined, undefined, undefined, undefined, gating);
+
+    await startContrast(tabA.container, 2);
+    // B's start ADOPTS the live pass A holds instead of starting a second one.
+    await startContrast(tabB.container, 2);
+    expect(currentItem(tabB.container, 2).pattern).toBe(currentItem(tabA.container, 2).pattern);
+
+    const clickGold = (harness: { container: HTMLElement }): void => {
+      const options = Array.from(levelBlock(harness.container, 2).querySelectorAll('.grammar-contrast__option')) as HTMLButtonElement[];
+      const goldIndex = options.findIndex((option) => option.getAttribute('data-option') === currentItem(harness.container, 2).gold);
+      options[goldIndex].click();
+    };
+    clickGold(tabA);
+    clickGold(tabB);
+    // The gate is held: neither answer has run.
+    expect(probeA).not.toHaveBeenCalled();
+    expect(probeB).not.toHaveBeenCalled();
+    release();
+    await tick();
+    await tick();
+    // Exactly ONE probe survives the mutual exclusion; the stale second
+    // answer is dropped with the durable answered state adopted (both
+    // windows show the same graded feedback).
+    expect(probeA.mock.calls.length + probeB.mock.calls.length).toBe(1);
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    expect(stored.index).toBe(0);
+    expect(stored.answered?.index).toBe(0);
+    expect(levelBlock(tabA.container, 2).querySelector('.grammar-contrast__feedback')).toBeTruthy();
+    expect(levelBlock(tabB.container, 2).querySelector('.grammar-contrast__feedback')).toBeTruthy();
+
+    // The winner advances (after the presentation beat); the loser adopts
+    // the advanced presentation through the storage event — one step
+    // consumed, zero further probes.
+    await beat();
+    (levelBlock(tabA.container, 2).querySelector('.grammar-contrast__next') as HTMLButtonElement).click();
+    await beat();
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'mlearn-grammar-contrast-pass:ja',
+      newValue: globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja'),
+    }));
+    await tick();
+    await tick();
+    expect(probeA.mock.calls.length + probeB.mock.calls.length).toBe(1);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!).index).toBe(1);
+    expect(levelBlock(tabB.container, 2).querySelector('.grammar-contrast__feedback')).toBeNull();
+    tabA.dispose();
+    tabB.dispose();
+    tabA.container.remove();
+    tabB.container.remove();
+  });
+
+  it('a durable-write failure refuses the answer: no probe, question retryable, honest note (G01/G04)', async () => {
+    const onProbe = vi.fn();
+    const { container, dispose } = mount(onProbe, contrastData, contrastSummary);
+    await startContrast(container, 2);
+    // Quota injection BEFORE the answer: the answered-marker write throws,
+    // so no marker exists and the probe must be refused.
+    const setItem = vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError');
+    });
+    const options = Array.from(levelBlock(container, 2).querySelectorAll('.grammar-contrast__option')) as HTMLButtonElement[];
+    options[0].click();
+    await beat();
+    expect(onProbe).not.toHaveBeenCalled();
+    setItem.mockRestore();
+
+    // The question stays retryable (no feedback consumed it) and the
+    // refusal is surfaced; a retry after storage recovers records exactly
+    // one probe and writes the marker.
+    expect(levelBlock(container, 2).querySelector('.grammar-contrast__feedback')).toBeNull();
+    expect(container.querySelector('[data-testid="grammar-storage-unavailable"]')).toBeTruthy();
+    const step = currentItem(container, 2);
+    const retryOptions = Array.from(levelBlock(container, 2).querySelectorAll('.grammar-contrast__option')) as HTMLButtonElement[];
+    retryOptions[retryOptions.findIndex((option) => option.getAttribute('data-option') === step.gold)].click();
+    await beat();
+    expect(onProbe).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="grammar-storage-unavailable"]')).toBeNull();
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!).answered?.index).toBe(0);
+    dispose();
+    container.remove();
+  });
+
+  it('a journal rejection keeps the stable reservation and the same question retryable (G01)', async () => {
+    const onProbe = vi.fn()
+      .mockRejectedValueOnce(new Error('journal unavailable'))
+      .mockResolvedValue('attempt-after-recovery');
+    const { container, dispose } = mount(onProbe, contrastData, contrastSummary);
+    await startContrast(container, 2);
+    const presented = currentItem(container, 2);
+    const answer = () => {
+      const options = Array.from(levelBlock(container, 2).querySelectorAll('.grammar-contrast__option')) as HTMLButtonElement[];
+      options[options.findIndex((option) => option.getAttribute('data-option') === presented.gold)].click();
+    };
+
+    answer();
+    await beat();
+    const reserved = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    expect(reserved.index).toBe(0);
+    expect(reserved.answered).toBeUndefined();
+    expect(reserved.pending?.attemptId).toEqual(expect.any(String));
+    expect(currentItem(container, 2).itemId).toBe(presented.itemId);
+    expect(levelBlock(container, 2).querySelector('.grammar-contrast__feedback')).toBeNull();
+    expect(container.querySelector('[data-testid="grammar-storage-unavailable"]')).toBeTruthy();
+
+    answer();
+    await beat();
+    expect(onProbe).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!).answered?.index).toBe(0);
+    expect(levelBlock(container, 2).querySelector('.grammar-contrast__feedback')).toBeTruthy();
+    expect(container.querySelector('[data-testid="grammar-storage-unavailable"]')).toBeNull();
+    dispose();
+    container.remove();
+  });
+
+  it('resumes a nonterminal interrupted pending attempt with the same id (G01)', async () => {
+    const interrupted = vi.fn(() => new Promise<void>(() => {}));
+    const first = mount(interrupted);
+    await startPass(first.container, 2);
+    (levelBlock(first.container, 2).querySelector(
+      '.grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)',
+    ) as HTMLButtonElement).click();
+    await tick();
+    const stored = JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!);
+    const attemptId = stored.pending.attemptId as string;
+    expect(stored.index).toBe(0);
+    expect((interrupted.mock.calls[0] as unknown[])[4]).toMatchObject({ attemptId });
+    first.dispose();
+    first.container.remove();
+
+    const resumed = vi.fn().mockResolvedValue(undefined);
+    const second = mount(resumed);
+    await expand(second.container, 2);
+    await beat();
+    expect(resumed.mock.calls[0][4]).toMatchObject({ attemptId });
+    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!).index).toBe(1);
+    second.dispose();
+    second.container.remove();
+  });
+
+  it('keeps a final-step pending attempt durable across remount until acknowledgement (G01)', async () => {
+    const interrupted = vi.fn(() => new Promise<void>(() => {}));
+    const first = mount(interrupted);
+    await startPass(first.container, 3);
+    (levelBlock(first.container, 3).querySelector(
+      '.grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)',
+    ) as HTMLButtonElement).click();
+    await tick();
+    const stored = JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!);
+    const attemptId = stored.pending.attemptId as string;
+    expect(stored.index).toBe(0);
+    expect((interrupted.mock.calls[0] as unknown[])[4]).toMatchObject({ attemptId });
+    first.dispose();
+    first.container.remove();
+
+    const resumed = vi.fn().mockResolvedValue(undefined);
+    const second = mount(resumed);
+    await expand(second.container, 3);
+    await beat();
+    expect(resumed.mock.calls[0][4]).toMatchObject({ attemptId });
+    expect(localStorage.getItem('mlearn-grammar-pass:ja')).toBeNull();
+    second.dispose();
+    second.container.remove();
   });
 });

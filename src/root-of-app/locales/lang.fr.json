@@ -1717,6 +1717,8 @@
         "Correct": "Correct !",
         "Incorrect": "Pas tout à fait — la réponse est : {answer}",
         "Next": "Suivant",
+        "NoLocks": "Les parcours de grammaire nécessitent un verrou inter-fenêtres ; ce navigateur n'en propose pas.",
+        "StorageUnavailable": "Le stockage a refusé cette écriture (quota ou mode privé). L'action n'a pas été enregistrée ; elle reste réessayable.",
         "ModeLabel": "Format de réponse",
         "ModeMcq": "Choisir",
         "ModeType": "Écrire",
@@ -1859,7 +1861,9 @@
         "ResultsDisclaimer": "Une bonne sélection est une tentative réussie — pas la preuve d’une maîtrise complète. Les résultats sont diagnostiques, jamais un score officiel.",
         "BackToBlueprints": "Retour aux plans",
         "Summaries": "Résultats récents",
-        "SummaryCounts": "{correct}/{answered} justes · {timedOut} sans réponse"
+        "SummaryCounts": "{correct}/{answered} justes · {timedOut} sans réponse",
+        "NoLocks": "L'examen blanc nécessite un verrou multi-fenêtres ; ce navigateur ne le prend pas en charge.",
+        "StorageUnavailable": "Le stockage a refusé cette écriture (quota ou mode privé). La réponse n'a pas été enregistrée ; la question reste réessayable."
       }
     },
     "Languages": {
@@ -3771,6 +3775,20 @@
         "Known": "connu",
         "Learning": "en cours",
         "Unknown": "inconnu"
+      }
+    },
+    "Review": {
+      "Why": {
+        "Decision": "Décision",
+        "Excluded": "Exclus",
+        "Hide": "Masquer les détails",
+        "Limits": "Limites",
+        "NoTrace": "Aucune trace de calcul n'a été produite pour cette décision ; seule la raison ci-dessus est disponible.",
+        "Ranking": "Classement",
+        "Show": "Pourquoi ?",
+        "Task": "Tâche",
+        "Title": "Pourquoi cette carte",
+        "Weights": "Pondérations actives"
       }
     }
   }

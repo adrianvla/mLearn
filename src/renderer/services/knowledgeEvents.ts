@@ -67,11 +67,42 @@ export async function queryLanguageKeys(language: string, prefix?: string): Prom
   return getBridge().knowledgeEvents.queryLanguageKeys(language, prefix);
 }
 
-export async function appendEvents(eventsByKey: KnowledgeEventLog): Promise<void> {
+/** Appends a journal batch and reports whether the durable store accepted it. */
+export async function appendEventsAcknowledged(eventsByKey: KnowledgeEventLog): Promise<boolean> {
   ensureInitialized();
-  if (!await getBridge().knowledgeEvents.appendKnowledgeEvents(eventsByKey)) return;
+  if (!await getBridge().knowledgeEvents.appendKnowledgeEvents(eventsByKey)) return false;
   bumpVersion();
   channel?.postMessage(null);
+  return true;
+}
+
+/**
+ * Restart-safe append for attempts whose stable id is persisted by the
+ * caller before the bridge write. A retry after an interrupted IPC response
+ * observes the already-durable attempt and succeeds without duplicating it.
+ */
+export async function appendEventsIdempotentAcknowledged(eventsByKey: KnowledgeEventLog): Promise<boolean> {
+  ensureInitialized();
+  const keys = Object.keys(eventsByKey).filter((key) => eventsByKey[key]?.length > 0);
+  if (keys.length === 0) return false;
+  const existing = await getBridge().knowledgeEvents.queryKnowledgeEvents(keys);
+  const pending: KnowledgeEventLog = {};
+  for (const key of keys) {
+    const existingAttemptIds = new Set(
+      (existing[key] ?? []).flatMap((event) => event.attemptId === undefined ? [] : [`${event.attemptId}`]),
+    );
+    const events = (eventsByKey[key] ?? []).filter(
+      (event) => event.attemptId === undefined || !existingAttemptIds.has(`${event.attemptId}`),
+    );
+    if (events.length > 0) pending[key] = events;
+  }
+  if (Object.keys(pending).length === 0) return true;
+  return appendEventsAcknowledged(pending);
+}
+
+/** Legacy fire-and-forget-compatible append surface. */
+export async function appendEvents(eventsByKey: KnowledgeEventLog): Promise<void> {
+  await appendEventsAcknowledged(eventsByKey);
 }
 
 export function getVersion(): number {

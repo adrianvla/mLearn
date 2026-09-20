@@ -43,7 +43,7 @@ import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
-import { appendEvents, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
+import { appendEvents, appendEventsIdempotentAcknowledged, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
 import { nextAttemptId, retentionConditionFor, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { reconcileQuestionItems, type DeclaredItemState } from '../learning/questionBank';
@@ -345,6 +345,8 @@ interface FlashcardContextValue {
    * — unlike encounter rollups, it counts as measuring the construction.
    */
   recordGrammarAttempt: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType }) => AttemptId;
+  /** Same canonical writer, but resolves only after the durable journal accepts the event. */
+  recordGrammarAttemptAcknowledged: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType; attemptId?: AttemptId }) => Promise<AttemptId>;
   getGrammarKnowledge: (pattern: string, language?: string) => GrammarKnowledgeEntry | undefined;
   /**
    * Appends item-invalidation tombstones (items retired, content-changed or
@@ -3620,13 +3622,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   // materialization, and coverage see identical evidence. Ease moves along
   // the shared grammar anchors: fluent counts as a successful encounter,
   // struggled as an encounter with friction, missed as a failure.
-  const recordGrammarAttempt = (
+  type GrammarAttemptOptions = { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType; attemptId?: AttemptId };
+  const prepareGrammarAttempt = (
     pattern: string,
     quality: AttemptQuality,
-    options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType },
-  ): AttemptId => {
+    options?: GrammarAttemptOptions,
+  ): { attemptId: AttemptId; language: string; level?: number; events: KnowledgeEventLog } => {
     const language = options?.language ?? settings.language;
-    const attemptId = nextAttemptId();
+    const attemptId = options?.attemptId ?? nextAttemptId();
     // An ACTIVE measurement records its outcome explicitly (easeAfter),
     // like the anki import — it must not inherit the slow exposure-anchor
     // walk that passive encounter rollups use. Missed records a failure
@@ -3636,7 +3639,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       : quality === 'struggled'
         ? { easeAfter: (SRS_EASE.MIN + SRS_EASE.DEFAULT_KNOWN) / 2 }
         : { grammarFailedDelta: 1 };
-    appendEvents({
+    return { attemptId, language, level: options?.level, events: {
       [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(language, pattern, {
         t: Date.now(),
         kind: 'rating',
@@ -3654,10 +3657,30 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         ...(options?.validationRef ? { validationRef: options.validationRef } : {}),
         ...outcome,
       })],
-    })
-      .then(() => queueGrammarMaterialize(language, [{ pattern, level: options?.level }]))
+    } };
+  };
+  const recordGrammarAttempt = (
+    pattern: string,
+    quality: AttemptQuality,
+    options?: GrammarAttemptOptions,
+  ): AttemptId => {
+    const prepared = prepareGrammarAttempt(pattern, quality, options);
+    appendEvents(prepared.events)
+      .then(() => queueGrammarMaterialize(prepared.language, [{ pattern, level: prepared.level }]))
       .catch((e) => log.warn('grammar probe append failed:', e));
-    return attemptId;
+    return prepared.attemptId;
+  };
+  const recordGrammarAttemptAcknowledged = async (
+    pattern: string,
+    quality: AttemptQuality,
+    options?: GrammarAttemptOptions,
+  ): Promise<AttemptId> => {
+    const prepared = prepareGrammarAttempt(pattern, quality, options);
+    if (!await appendEventsIdempotentAcknowledged(prepared.events)) {
+      throw new Error('grammar attempt journal append was refused');
+    }
+    queueGrammarMaterialize(prepared.language, [{ pattern, level: prepared.level }]);
+    return prepared.attemptId;
   };
 
   // Get grammar knowledge entry — serves the replay-materialized cache.
@@ -4398,6 +4421,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     trackGrammarEncountered,
     trackGrammarFailed,
     recordGrammarAttempt,
+    recordGrammarAttemptAcknowledged,
     getGrammarKnowledge,
     retractGrammarItemAttempts,
     reconcileGrammarItems,

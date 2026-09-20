@@ -35,7 +35,7 @@
  */
 
 import type { AttemptQuality } from '../../shared/constants';
-import type {
+import { nextAttemptId, type
   AttemptScaffolds,
   AttemptId,
   KnowledgeEventLog,
@@ -353,6 +353,9 @@ export interface MockAnswerRecord {
   chosenSpan?: string;
   /** Canonical attempt id from the journal writer (absent for timeouts — no event written). */
   attemptId?: AttemptId;
+  /** Stable id reserved before the journal call; survives an interrupted
+   * response so the same append can be reconciled idempotently on restart. */
+  pendingAttemptId?: AttemptId;
   answeredAt: number;
   /** Wall-clock presentation → submission. */
   latencyMs: number;
@@ -601,6 +604,118 @@ export function applyMockAnswer(
   };
 }
 
+/**
+ * Durable-FIRST staging of ONE real submission (G01, PlacementSession
+ * `stageDraw` contract): advances the cursor and records the graded answer
+ * WITHOUT a journal attempt id — the staged record is a durable cursor
+ * reservation, not yet evidence. The canonical writer may be invoked only
+ * AFTER this staged state was persisted successfully; the returned attempt
+ * id is then bound with `bindMockAttempt`. The staged record carries a stable
+ * pending id and terminal stages remain stored, so an interrupted journal
+ * response can be retried idempotently after restart. A FAILED staged persist
+ * must lead the caller to refuse the submission entirely — no evidence
+ * without a cursor. Timeouts never stage (they record no evidence and keep
+ * the plain reducer path). Guards mirror `applyMockAnswer`; refusal returns null.
+ */
+export function stageMockAnswer(
+  state: MockSessionState,
+  submission: MockSubmission,
+  now: number = Date.now(),
+): MockSessionState | null {
+  if (state.finishedAt !== undefined || state.abandoned === true) return null;
+  if (submission.kind === 'timeout') return null;
+  const step = state.instance.steps[state.cursor];
+  if (step === undefined) return null;
+  if (submission.stepIndex !== undefined && submission.stepIndex !== state.cursor) return null;
+  // Same declared-budget cutoff as applyMockAnswer: staging an answer the
+  // reducer would refuse would publish a cursor the evidence cannot follow.
+  if (isMockStepTimedOut(state, now)) return null;
+  const graded = gradeMockSubmission(step, submission);
+  if (graded === null) return null;
+  const wall = Math.max(0, now - state.stepStartedAt);
+  const active = activeStepMs(state, now);
+  const stepPauses = state.pauses.filter((pause) => pause.start >= state.stepStartedAt || (pause.end ?? now) > state.stepStartedAt).length;
+  const record: MockAnswerRecord = {
+    stepIndex: state.cursor,
+    correct: graded.correct,
+    timedOut: false,
+    mode: step.mode,
+    ...(graded.chosenSpan !== undefined ? { chosenSpan: graded.chosenSpan } : {}),
+    answeredAt: now,
+    latencyMs: wall,
+    activeLatencyMs: active,
+    pauseCount: stepPauses,
+    pendingAttemptId: nextAttemptId(),
+    ...(graded.scaffolds !== undefined ? { scaffolds: graded.scaffolds } : {}),
+  };
+  const nextCursor = state.cursor + 1;
+  return {
+    ...state,
+    cursor: nextCursor,
+    answers: [...state.answers, record],
+    stepStartedAt: nextCursor >= state.instance.steps.length ? 0 : now,
+    finishedAt: nextCursor >= state.instance.steps.length ? now : undefined,
+  };
+}
+
+/**
+ * Binds the canonical writer's attempt id to the staged record (the
+ * durable-first contract's second phase). The staged record is the LAST one
+ * (its stepIndex is cursor - 1) and still unbound; anything else returns
+ * the state unchanged (defensive — no invented binding, G01). Binding never
+ * moves the cursor. The attempt id remains absent when the process died
+ * between the staged persist and the bind: the durable answer stands, only
+ * its stable pending id remains recoverable for journal reconciliation.
+ */
+export function bindMockAttempt(state: MockSessionState, attemptId: AttemptId): MockSessionState {
+  const last = state.answers[state.answers.length - 1];
+  // A staged record is a real, non-timeout answer: binding onto a timeout
+  // record (unbound by declaration) or a foreign step would invent evidence.
+  if (
+    last === undefined
+    || last.attemptId !== undefined
+    || last.pendingAttemptId !== attemptId
+    || last.timedOut
+    || last.stepIndex !== state.cursor - 1
+  ) return state;
+  const answers = state.answers.slice(0, -1);
+  answers.push({ ...last, attemptId, pendingAttemptId: undefined });
+  return { ...state, answers };
+}
+
+/** Rebuilds the exact journal payload for a durable pending answer. */
+export function pendingMockAttempt(state: MockSessionState): { attemptId: AttemptId; payload: MockJournalPayload } | null {
+  const answer = state.answers[state.answers.length - 1];
+  if (answer?.pendingAttemptId === undefined || answer.timedOut) return null;
+  const step = state.instance.steps[answer.stepIndex];
+  const semantic = step?.item.validation.semantic;
+  if (step === undefined || semantic === undefined) return null;
+  return {
+    attemptId: answer.pendingAttemptId,
+    payload: {
+      pattern: step.pattern,
+      level: step.level,
+      quality: answer.correct ? 'struggled' : 'missed',
+      ...(answer.scaffolds !== undefined ? { scaffolds: answer.scaffolds } : {}),
+      itemRef: { id: step.item.id, version: step.item.version, seed: step.item.seed },
+      validationRef: {
+        validator: semantic.validator,
+        ...(semantic.validatorVersion !== undefined ? { validatorVersion: semantic.validatorVersion } : {}),
+        at: semantic.at,
+        contentHash: semantic.contentHash,
+      },
+      taskType: step.mode === 'typed' ? 'mock-typed' : 'mock-contrast',
+      timing: {
+        wallLatencyMs: answer.latencyMs,
+        activeLatencyMs: answer.activeLatencyMs,
+        interruptionCount: answer.pauseCount,
+        interrupted: answer.pauseCount > 0,
+        stalled: false,
+      },
+    },
+  };
+}
+
 /** Abandoning is non-epistemic (G04): answered attempts stand, unanswered stay unanswered. */
 export function abandonMockSession(state: MockSessionState): MockSessionState {
   if (state.finishedAt !== undefined || state.abandoned === true) return state;
@@ -719,50 +834,86 @@ export function mockMissedPatterns(state: MockSessionState): readonly { pattern:
 // Persistence: in-progress resume (G01) + bounded finished summaries
 // ---------------------------------------------------------------------------
 
-const sessionStorageKey = (language: string): string => `mlearn-mock-session:${language}`;
+const sessionHeartbeatStorageKey = (language: string): string => `mlearn-mock-session-heartbeat:${language}`;
 const summaryStorageKey = (language: string): string => `mlearn-mock-results:${language}`;
 const pendingResultsStorageKey = (language: string): string => `mlearn-mock-pending-results:${language}`;
+
+/** Durable in-progress session key. Exported for the surface's cross-window
+ *  storage arbitration (the window listens for OTHER windows' session
+ *  writes; PlacementSession's `storage`-listener convention). */
+export const mockSessionStorageKey = (language: string): string => `mlearn-mock-session:${language}`;
+const sessionStorageKey = mockSessionStorageKey;
 
 function storage(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined {
   return globalThis.localStorage;
 }
 
-export function saveStoredMockSession(language: string, state: MockSessionState | null, now: number = Date.now()): void {
+/**
+ * Persists the durable in-progress session (or removes it at terminal
+ * states). Returns whether the durable write succeeded: callers MUST treat
+ * `false` as "cursor not durable" and refuse evidence writes (the
+ * PlacementSession `persistTo` contract — no evidence without a cursor,
+ * G01). Removal is part of the same contract; a failed removal is reported
+ * the same way (the terminal bookkeeping treats a leftover entry as
+ * best-effort cleanup, mirroring PlacementSession's terminal policy).
+ */
+export function saveStoredMockSession(language: string, state: MockSessionState | null, now: number = Date.now()): boolean {
+  const store = storage();
+  if (store === undefined) return false;
   try {
-    if (state === null || state.finishedAt !== undefined || state.abandoned === true) {
-      storage()?.removeItem(sessionStorageKey(language));
+    if (state === null || (state.finishedAt !== undefined && pendingMockAttempt(state) === null) || state.abandoned === true) {
+      store.removeItem(sessionStorageKey(language));
+      store.removeItem(sessionHeartbeatStorageKey(language));
     } else {
-      storage()?.setItem(sessionStorageKey(language), JSON.stringify({ ...state, persistedAt: now }));
+      store.setItem(sessionStorageKey(language), JSON.stringify({ ...state, persistedAt: now }));
+      touchStoredMockSession(language, state, now);
     }
+    return true;
   } catch {
-    // Storage unavailable: resume is simply not offered.
+    // Storage unavailable/quota: the caller must refuse evidence, not
+    // silently run a session whose cursor cannot be kept (G01/G04).
+    return false;
+  }
+}
+
+/** Lightweight active-clock checkpoint; avoids rewriting the fixed instance on every tick. */
+export function touchStoredMockSession(language: string, state: MockSessionState, now: number = Date.now()): void {
+  try {
+    storage()?.setItem(sessionHeartbeatStorageKey(language), JSON.stringify({ sessionId: state.sessionId, activeAt: now }));
+  } catch {
+    // The full persisted state remains the conservative fallback boundary.
   }
 }
 
 /**
- * Restores an in-progress session. The stored instance is revalidated
- * against the CURRENT package: the blueprint identity must still derive, and
- * every queued item must still be declared, content-identical and
- * deliverable. Anything else is discarded (fresh start) — a retired or
- * changed item can never silently resume, and no replan substitutes steps
- * (G01/G03).
+ * Reassembles the durable in-progress session against the CURRENT package
+ * WITHOUT persisting or inferring anything: the blueprint identity must
+ * still derive at the same version, and every queued item must still be
+ * declared, content-identical and deliverable. Anything else is discarded —
+ * a retired or changed item can never silently resume, and no replan
+ * substitutes steps (G01/G03).
+ *
+ * Returns the raw durable content (`persistedAt` carried through). Callers
+ * decide what happens around it: `loadStoredMockSession` adds the offline
+ * interruption pause and makes the restore durable; the cross-window
+ * adoption path uses this raw form so an adoption can never write back and
+ * ping-pong storage events between windows.
  */
-export function loadStoredMockSession(
+export function rebuildStoredMockSession(
   language: string,
   languageData: LanguageData,
-  now: number = Date.now(),
-): MockSessionState | null {
+): (MockSessionState & { persistedAt: number }) | null {
   try {
     const raw = storage()?.getItem(sessionStorageKey(language));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as MockSessionState & { persistedAt?: number };
+    const parsed = JSON.parse(raw) as MockSessionState & { persistedAt: number };
     if (
       typeof parsed?.startedAt !== 'number'
       || !Number.isInteger(parsed.cursor) || parsed.cursor < 0
       || !Array.isArray(parsed.pauses)
       || !Array.isArray(parsed.answers)
       || typeof parsed.persistedAt !== 'number'
-      || parsed.finishedAt !== undefined
+      || (parsed.finishedAt !== undefined && pendingMockAttempt(parsed) === null)
       || parsed.abandoned === true
       || parsed.instance?.blueprint?.language !== language
     ) return null;
@@ -784,18 +935,90 @@ export function loadStoredMockSession(
       steps: steps.filter((step) => step.sectionId === section.section.id),
     }));
     const instance: MockInstance = { ...parsed.instance, blueprint: derived, steps, sections };
-    const interruptionPause = !isMockPaused(parsed) && now > parsed.persistedAt
-      ? [{ start: parsed.persistedAt, end: now }]
-      : [];
-    const restored: MockSessionState = {
+    const rebuilt: MockSessionState & { persistedAt: number } = {
       ...parsed,
       instance,
       cursor: Math.min(parsed.cursor, instance.steps.length),
-      pauses: [...parsed.pauses, ...interruptionPause],
       answers: parsed.answers.filter((answer) => typeof answer?.stepIndex === 'number' && answer.stepIndex < instance.steps.length),
     };
-    if (restored.cursor >= instance.steps.length) return null;
+    if (rebuilt.cursor > instance.steps.length || (rebuilt.cursor === instance.steps.length && pendingMockAttempt(rebuilt) === null)) return null;
+    return rebuilt;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Restores an in-progress session. The stored instance is revalidated
+ * against the CURRENT package (see `rebuildStoredMockSession`); the wall
+ * time since the last durable checkpoint closes as an explicit interruption
+ * pause, so a restored step keeps its full declared active window. The
+ * restored state is persisted back immediately — without this checkpoint a
+ * second reload before the next interaction would rebuild from the older
+ * snapshot and count the first interruption as active time.
+ */
+export function loadStoredMockSession(
+  language: string,
+  languageData: LanguageData,
+  now: number = Date.now(),
+): MockSessionState | null {
+  try {
+    const rebuilt = rebuildStoredMockSession(language, languageData);
+    if (rebuilt === null) return null;
+    let interruptionStart = rebuilt.persistedAt;
+    try {
+      const heartbeatRaw = storage()?.getItem(sessionHeartbeatStorageKey(language));
+      const heartbeat = heartbeatRaw == null ? null : JSON.parse(heartbeatRaw) as { sessionId?: string; activeAt?: number };
+      if (
+        heartbeat?.sessionId === rebuilt.sessionId
+        && typeof heartbeat.activeAt === 'number'
+        && heartbeat.activeAt >= rebuilt.persistedAt
+        && heartbeat.activeAt <= now
+      ) interruptionStart = heartbeat.activeAt;
+    } catch {
+      // A missing/malformed heartbeat falls back to the full state's boundary.
+    }
+    const interruptionPause = !isMockPaused(rebuilt) && now > interruptionStart
+      ? [{ start: interruptionStart, end: now }]
+      : [];
+    const restored: MockSessionState = { ...rebuilt, pauses: [...rebuilt.pauses, ...interruptionPause] };
+    saveStoredMockSession(language, restored, now);
     return restored;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Stable identity fingerprint of the DURABLE session content (G01): the
+ * fields a cross-window action must still match before it may act. Covers
+ * the cursor, the answer count and the FULL pause history — a concurrent
+ * window's pause/resume or cursor advance changes the fingerprint, so a
+ * stale window's queued action is dropped (or adopted) instead of
+ * double-writing evidence or clobbering the shared session.
+ */
+export function mockSessionFingerprint(state: Pick<MockSessionState, 'sessionId' | 'cursor' | 'startedAt' | 'stepStartedAt' | 'finishedAt' | 'abandoned' | 'answers' | 'pauses'>): string {
+  return [
+    state.sessionId,
+    state.cursor,
+    state.startedAt,
+    state.stepStartedAt,
+    state.finishedAt ?? '-',
+    state.abandoned === true ? 'abandoned' : 'live',
+    JSON.stringify(state.answers),
+    JSON.stringify(state.pauses),
+  ].join('|');
+}
+
+/** Fingerprint of the in-progress session as currently stored (null when
+ *  none is stored). Cross-window actions compare this against the in-memory
+ *  fingerprint before acting; a corrupt entry behaves like an absent one —
+ *  the durable copy is untrustworthy, so the action drops and adopts. */
+export function storedMockSessionFingerprint(language: string): string | null {
+  try {
+    const raw = storage()?.getItem(sessionStorageKey(language));
+    if (!raw) return null;
+    return mockSessionFingerprint(JSON.parse(raw) as MockSessionState);
   } catch {
     return null;
   }

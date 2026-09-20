@@ -309,7 +309,16 @@ describe('FlashcardReview review modes', () => {
     const inspect = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Inspect');
     expect(inspect).toBeDefined();
     inspect!.click();
-    expect(knowledgeInspection()).toEqual({ language: 'ja', surface: '犬', target: { kind: 'surface', id: surfaceEntityId('ja', hashWordSync('犬')) } });
+    // R20: the SAME pinned decision that selected the card rides into the
+    // drawer — the identity fields are unchanged and the emitted trace +
+    // brief reason are carried verbatim.
+    const inspection = knowledgeInspection()!;
+    expect(inspection.language).toBe('ja');
+    expect(inspection.surface).toBe('犬');
+    expect(inspection.target).toEqual({ kind: 'surface', id: surfaceEntityId('ja', hashWordSync('犬')) });
+    expect(inspection.policyBrief).toBeTypeOf('string');
+    expect(inspection.policyTrace?.version).toBeTypeOf('string');
+    expect(inspection.policyTrace?.selectedKey).toBeTypeOf('string');
     expect(mockRecordAttempt).not.toHaveBeenCalled();
     expect(mockAnswerCard).not.toHaveBeenCalled();
     dispose();

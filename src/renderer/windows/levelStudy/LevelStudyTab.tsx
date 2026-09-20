@@ -414,14 +414,15 @@ export const LevelStudyTab: Component = () => {
   /** Canonical journal write for a mock attempt: the SAME writer the
    *  practice walks use, carrying `mock-contrast`/`mock-typed` task
    *  provenance plus the versioned item reference (G03). */
-  const recordMockAttempt = (payload: MockJournalPayload): AttemptId =>
-    flashcards.recordGrammarAttempt(payload.pattern, payload.quality, {
+  const recordMockAttempt = (payload: MockJournalPayload, attemptId: AttemptId): Promise<AttemptId> =>
+    flashcards.recordGrammarAttemptAcknowledged(payload.pattern, payload.quality, {
       language: resolvedLanguageData().language,
       level: payload.level,
       ...(payload.scaffolds !== undefined ? { scaffolds: payload.scaffolds } : {}),
       itemRef: payload.itemRef,
       validationRef: payload.validationRef,
       taskType: payload.taskType,
+      attemptId,
     });
   /** Targeted output (R14): the missed constructions pass into the SAME
    *  conversation agent experience. An unconfigured LLM routes to Settings
@@ -580,13 +581,14 @@ export const LevelStudyTab: Component = () => {
             }}
             onValidated={() => setValidationsVersion((version) => version + 1)}
             onProbe={(pattern, quality, level, scaffolds, attempt) => {
-              void flashcards.recordGrammarAttempt(pattern, quality, {
+              return flashcards.recordGrammarAttemptAcknowledged(pattern, quality, {
                 language: resolvedLanguageData().language,
                 level,
                 ...(scaffolds ? { scaffolds } : {}),
                 ...(attempt?.itemRef ? { itemRef: attempt.itemRef } : {}),
                 ...(attempt?.validationRef ? { validationRef: attempt.validationRef } : {}),
                 ...(attempt?.taskType !== undefined ? { taskType: attempt.taskType } : {}),
+                ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
               });
             }}
           />

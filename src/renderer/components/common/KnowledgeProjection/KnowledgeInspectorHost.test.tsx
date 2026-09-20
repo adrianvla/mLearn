@@ -96,4 +96,36 @@ describe('shared canonical inspector host', () => {
     expect(mocks.wordClaim).toHaveBeenCalledWith('same', 'unknown', 'second');
     expect(mocks.summary).toHaveBeenLastCalledWith('same', 'second');
   });
+
+  it('carries the selecting policy decision into the drawer verbatim (R20 Inspector surfacing)', async () => {
+    const trace = {
+      version: 'policy-trace-v3',
+      inputs: {
+        nowMs: 1_000_000, attentionBudgetRemaining: 4, probeBudgetRemaining: 0, probeCooldownMs: 0,
+        deferFloor: 0, minRepeatDistance: 3, recentPickCount: 0, task: 'flashcard-review', candidateCount: 1,
+        goal: null, intensity: null, recentPicks: [], recentPicksOmitted: 0, cooldowns: [], cooldownsOmitted: 0,
+        rng: { seed: null, draws: [], drawsOmitted: 0 },
+      },
+      weights: { base: { novelty: 1 }, effective: { novelty: 1 }, rules: [] },
+      ranking: [{ key: 'card-1', origin: 'retention' as const, contributions: [], total: 1 }],
+      rankingOmitted: 0, selectedKey: 'card-1', action: 'TEACH' as const,
+      exclusions: [], exclusionsOmitted: 0,
+      limits: ['Selection weights are heuristics.'],
+    };
+    dispose = render(() => <KnowledgeInspectorHost />, container);
+    openKnowledgeInspector({
+      language: 'de', surface: 'Karte', target: { kind: 'entry', id: 'de:entry:1' },
+      policyTrace: trace, policyBrief: 'sole eligible candidate, score 1',
+    });
+    await vi.waitFor(() => expect(drawer?.model?.projection).toEqual(payload));
+    // The SAME emitted trace object the decision carried — no recomputation,
+    // no post-hoc narrative between the review and the Inspector.
+    expect(drawer?.policyTrace).toBe(trace);
+    expect(drawer?.policyBrief).toBe('sole eligible candidate, score 1');
+    // Absent policy fields stay absent (no invented section).
+    openKnowledgeInspector({ language: 'de', surface: 'Karte', target: { kind: 'entry', id: 'de:entry:1' } });
+    await vi.waitFor(() => expect(drawer?.model?.projection).toEqual(payload));
+    expect(drawer?.policyTrace).toBeUndefined();
+    expect(drawer?.policyBrief).toBeUndefined();
+  });
 });

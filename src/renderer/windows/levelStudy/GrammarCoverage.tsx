@@ -1,4 +1,4 @@
-import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
+import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
@@ -22,7 +22,8 @@ import { grammarPointMeaning } from '../../../shared/languageFeatures';
 import type { AttemptQuality } from '../../../shared/constants';
 import type { GrammarPracticeItemSource, LanguageData } from '../../../shared/types';
 import type { CurriculumComponentSummary } from '../../../shared/curriculum';
-import type { AttemptScaffolds, KnowledgeEvent, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
+import { nextAttemptId, type AttemptId, type AttemptScaffolds, type KnowledgeEvent, type KnowledgeEventLog } from '../../../shared/knowledgeEvents';
+import type { PlacementLocks } from './PlacementSession';
 import { loadQuestionValidationRecords, questionValidationRecordKey, validateQuestionItemsWithLLM } from '../../learning/questionValidation';
 import './GrammarCoverage.css';
 
@@ -42,8 +43,8 @@ export interface GrammarCoverageProps {
     quality: AttemptQuality,
     level: number,
     scaffolds?: AttemptScaffolds,
-    attempt?: { itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: string },
-  ) => void;
+    attempt?: { itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: string; attemptId?: AttemptId },
+  ) => Promise<AttemptId>;
   /** Signals the owner that validation records changed, so it re-resolves
    *  the language data (the record store is non-reactive localStorage). */
   onValidated?: () => void;
@@ -54,6 +55,12 @@ export interface GrammarCoverageProps {
   repairRequest?: { level: number; requestedAt: number } | null;
   /** Clears the owner-held request only once its policy walk has started. */
   onRepairRequestHandled?: (requestedAt: number) => void;
+  /** Web Locks DI seam (PlacementSession/MockExam convention). Production
+   *  resolves `globalThis.navigator.locks`; when absent (or explicitly
+   *  `null`) the pass surfaces are DISABLED with a localized fallback (G04)
+   *  instead of running an unserialized multi-window pass — the shared
+   *  cursor and answered marker are not atomic without a real lock. */
+  locks?: PlacementLocks | null;
 }
 
 interface ConstructionRow {
@@ -98,6 +105,86 @@ interface StoredPass {
    *  Binds a stored pass to the exact multiset it was planned under,
    *  so a resume cannot silently adopt a changed or truncated denominator (G01/R16). */
   denominator: string;
+  /**
+   * Durable answered marker for the CURRENT step (G01 cross-window). Written
+   * at answer time BEFORE the evidence write, so a second window presenting
+   * the same stored cursor can never append a second probe for one
+   * presentation; the marker also replays the graded feedback in an
+   * adopting window. `chosenIndex: -1` = typed delivery. Cleared by
+   * Next/skip. Absent = the current step is unanswered.
+   */
+  answered?: {
+    index: number;
+    correct: boolean;
+    gold: string;
+    chosenIndex: number;
+    /** Exact delivered item identity. The journal may change item-attempt
+     *  counts after grading, but resume/adoption must keep showing the item
+     *  whose feedback this marker records (G01/G03). */
+    itemRef: { id: string; version: string; seed: number };
+  };
+  /** Restart-safe reservation for the CURRENT step. It keeps the cursor in
+   * place until the stable attempt id is durably present in the journal. */
+  pending?: {
+    index: number;
+    pattern: string;
+    attemptId: AttemptId;
+    quality: AttemptQuality;
+    scaffolds?: AttemptScaffolds;
+    attempt?: { itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: string };
+    answered?: NonNullable<StoredPass['answered']>;
+  };
+}
+
+function validStoredPending(pass: StoredPass, pattern: string | undefined, bank: LanguageQuestionBank): boolean {
+  const pending = pass.pending;
+  if (pending === undefined) return true;
+  if (
+    pattern === undefined
+    || pending.index !== pass.index
+    || pending.pattern !== pattern
+    || typeof pending.attemptId !== 'string'
+    || !['fluent', 'struggled', 'missed'].includes(pending.quality)
+  ) return false;
+  if (pass.kind === 'contrast') {
+    return pending.answered !== undefined
+      && validStoredAnswer(pending.answered, pass.index, pattern, pass.kind, bank);
+  }
+  return pending.answered === undefined;
+}
+
+function validStoredAnswer(
+  answered: StoredPass['answered'],
+  index: number,
+  pattern: string | undefined,
+  kind: StoredPass['kind'],
+  bank: LanguageQuestionBank,
+): boolean {
+  if (answered === undefined) return true;
+  if (
+    kind !== 'contrast'
+    || pattern === undefined
+    || typeof answered !== 'object'
+    || answered === null
+    || answered.index !== index
+    || typeof answered.correct !== 'boolean'
+    || typeof answered.gold !== 'string'
+    || !Number.isInteger(answered.chosenIndex)
+    || answered.chosenIndex < -1
+    || typeof answered.itemRef?.id !== 'string'
+    || typeof answered.itemRef.version !== 'string'
+    || !Number.isInteger(answered.itemRef.seed)
+  ) return false;
+  const source = itemsForPattern(bank, pattern).find((candidate) => candidate.id === answered.itemRef.id);
+  if (source === undefined) return false;
+  const item = questionItemCache.getOrAssemble(source, {
+    language: bank.language,
+    pattern,
+    contentVersion: bank.contentVersion,
+  });
+  return isDeliverableItem(item)
+    && item.version === answered.itemRef.version
+    && item.seed === answered.itemRef.seed;
 }
 
 function levelDenominator(level: number, grammar: NonNullable<LanguageData['grammar']>): string {
@@ -183,7 +270,13 @@ function loadStoredPass(
         && (parsed.mode === undefined || parsed.mode === 'mcq' || parsed.mode === 'typed')
         && Number.isInteger(parsed.index)
         && parsed.index >= 0
-        && parsed.index <= parsed.queue.length;
+        && parsed.index <= parsed.queue.length
+        // The durable answered marker must name exactly the CURRENT step and
+        // carry a well-formed graded outcome; anything else is a corrupt
+        // entry that must never resume (G01).
+        && parsed.index < parsed.queue.length
+        && validStoredAnswer(parsed.answered, parsed.index, parsed.queue[parsed.index], parsed.kind, bank)
+        && validStoredPending(parsed, parsed.queue[parsed.index], bank);
       return valid ? parsed : null;
     } catch {
       return null;
@@ -194,18 +287,31 @@ function loadStoredPass(
   return tryLoad('self-assess') ?? tryLoad('contrast');
 }
 
-function saveStoredPass(language: string, pass: StoredPass | null): void {
+/**
+ * Persists the durable pass (or removes it at completion). Returns whether
+ * the durable write succeeded: callers MUST treat `false` as "cursor not
+ * durable" and refuse evidence writes (the PlacementSession `persistTo`
+ * contract — no probe without a durable cursor, G01). Removal is part of
+ * the same contract; the completion bookkeeping treats a failed removal as
+ * best-effort cleanup (the finished in-memory pass owns the outcome).
+ */
+function saveStoredPass(language: string, pass: StoredPass | null): boolean {
   // null clears the legacy self-assessment key (the completion path always
   // writes the finished pass, whose kind selects its own key).
   const key = passStorageKey(language, pass?.kind === 'contrast' ? 'contrast' : 'self-assess');
+  const store = globalThis.localStorage;
+  if (store === undefined || store === null) return false;
   try {
     if (pass === null || pass.index >= pass.queue.length) {
-      globalThis.localStorage?.removeItem(key);
+      store.removeItem(key);
     } else {
-      globalThis.localStorage?.setItem(key, JSON.stringify(pass));
+      store.setItem(key, JSON.stringify(pass));
     }
+    return true;
   } catch {
-    // Storage unavailable (quota/private mode): resume is simply not offered.
+    // Storage unavailable (quota/private mode): the caller refuses the
+    // action with an honest note instead of a silently broken pass (G04).
+    return false;
   }
 }
 
@@ -258,14 +364,40 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const [expandedLevel, setExpandedLevel] = createSignal<number | null>(null);
+
+  // Web Locks DI seam (PlacementSession/MockExam convention). happy-dom/Node
+  // report `navigator.locks` as null (not undefined) — the typed view treats
+  // both as absent. An explicit `locks` prop (null included) overrides the
+  // global resolution so tests can force each path deterministically.
+  const globalLocks = globalThis as { navigator?: { locks?: PlacementLocks | null } };
+  const locksApi = (): PlacementLocks | null => {
+    if (props.locks !== undefined) return props.locks;
+    return globalLocks.navigator?.locks ?? null;
+  };
+  const locksAvailable = (): boolean => locksApi() != null;
+
   const [session, setSession] = createSignal<StoredPass | null>(
-    loadStoredPass(props.language, props.languageData.grammar ?? [], questionBankFromLanguageData(props.language, props.languageData)),
+    locksApi() != null
+      ? loadStoredPass(props.language, props.languageData.grammar ?? [], questionBankFromLanguageData(props.language, props.languageData))
+      : null,
   );
+  /** The pass this window started with (marker feedback seeds the initial
+   *  presentation below). */
+  const initialPass = session();
+  /** A durable write failed (quota/private storage): the refused action is
+   *  surfaced with an honest note and stays retryable — never a probe
+   *  without a durable cursor (PlacementSession contract, G01/G04). Cleared
+   *  by the next successful durable write. */
+  const [storageUnavailable, setStorageUnavailable] = createSignal(false);
 
   // Package item bank (G03): assembled/deliverable items are cached off the
   // rating path; the rating path only reads resolved items from the cache.
   const bank = createMemo(() => questionBankFromLanguageData(props.language, props.languageData));
-  const [contrastAnswer, setContrastAnswer] = createSignal<{ correct: boolean; chosenIndex: number; gold: string } | null>(null);
+  const [contrastAnswer, setContrastAnswer] = createSignal<{ correct: boolean; chosenIndex: number; gold: string } | null>(
+    initialPass?.answered !== undefined
+      ? { correct: initialPass.answered.correct, chosenIndex: initialPass.answered.chosenIndex, gold: initialPass.answered.gold }
+      : null,
+  );
   // Typed delivery (R12): the submitted string and what supplied it (G05).
   // IME composition is provenance about the input device, never an error.
   const [typedValue, setTypedValue] = createSignal('');
@@ -275,22 +407,170 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     typedComposed = false;
   };
 
+  /** Adopts a loaded pass's presentation state (G01): an answered marker
+   *  replays its graded feedback — the step was consumed (here or in
+   *  another window) and this window never re-asks it — while an
+   *  unanswered pass presents a fresh question. Local presentation only:
+   *  adoption never persists, so it cannot resurrect a cursor or
+   *  ping-pong storage events between windows. */
+  const adoptPresentation = (loaded: StoredPass | null): void => {
+    const answered = loaded?.answered;
+    setContrastAnswer(answered !== undefined
+      ? { correct: answered.correct, chosenIndex: answered.chosenIndex, gold: answered.gold }
+      : null);
+    resetContrastInput();
+  };
+
   const measurements = createMemo(() => classifyGrammarMeasurements(props.language, props.eventLog, effectiveThresholds(settings)));
 
   // Language/package switch: swap the in-memory pass for the durable one of
   // the new language (or none). The old language's stored entry is untouched.
+  // Without a lock primitive the pass surfaces stay disabled: nothing durable
+  // is restored to act on (G04).
   createEffect(on([() => props.language, () => props.languageData], ([language]) => {
-    setContrastAnswer(null);
-    resetContrastInput();
-    setSession(loadStoredPass(language, props.languageData.grammar ?? [], bank()));
+    setStorageUnavailable(false);
+    const loaded = locksApi() != null ? loadStoredPass(language, props.languageData.grammar ?? [], bank()) : null;
+    setSession(loaded);
+    adoptPresentation(loaded);
   }, { defer: true }));
 
-  // Persist every cursor movement; completion removes the stored entry.
-  createEffect(() => {
-    const active = session();
-    if (active === null) return;
-    saveStoredPass(props.language, active);
-  });
+  /** Serializes every durable pass mutation across windows (G01): start,
+   *  rating, answered markers, mode switches, Next and skip each re-verify
+   *  the shared pass inside the lock. Without a real lock primitive the
+   *  pass surfaces are disabled (G04) — the fallback is never "run the
+   *  pass unserialized". */
+  const inGrammarLock = (language: string, critical: () => void | Promise<void>): void => {
+    const locks = locksApi();
+    if (locks == null) return;
+    void locks.request(`mlearn-grammar-session:${language}`, critical);
+  };
+
+  /** Applies a pass mutation and persists it IMMEDIATELY, inside the session
+   *  handler, with the language the handler observes (the MockExam
+   *  precedent). Persistence never rides a reactive effect, so no mid-flush
+   *  language or package flip can file one language's pass under another's
+   *  key (R19/G01), and a projection-refresh reload can never resurrect a
+   *  stale cursor over the just-advanced one: by the time any effect runs,
+   *  storage already holds the new cursor. Completion (index past the end)
+   *  removes the stored entry. Returns whether the durable write succeeded —
+   *  callers refuse the mutation (and any evidence it would produce) on
+   *  `false`, publishing nothing (PlacementSession contract, G01). */
+  let lastWrittenValue: string | null = null;
+  const persistSessionOnly = (language: string, next: StoredPass): boolean => {
+    const ok = saveStoredPass(language, next);
+    if (ok) lastWrittenValue = next.index >= next.queue.length ? null : JSON.stringify(next);
+    return ok;
+  };
+  const applySession = (next: StoredPass): boolean => {
+    const ok = persistSessionOnly(props.language, next);
+    if (ok) {
+      setSession(next);
+    }
+    return ok;
+  };
+  const settlePending = async (language: string, current: StoredPass): Promise<void> => {
+    const pending = current.pending;
+    if (pending === undefined) return;
+    try {
+      await props.onProbe(
+        pending.pattern,
+        pending.quality,
+        current.level,
+        pending.scaffolds,
+        { ...pending.attempt, attemptId: pending.attemptId },
+      );
+    } catch {
+      if (props.language === language) setSession(current);
+      setStorageUnavailable(true);
+      return;
+    }
+    const finalized: StoredPass = pending.answered === undefined
+      ? { ...current, index: current.index + 1, pending: undefined }
+      : { ...current, answered: pending.answered, pending: undefined };
+    if (!persistSessionOnly(language, finalized)) {
+      if (props.language === language) setSession(current);
+      setStorageUnavailable(true);
+      return;
+    }
+    if (props.language !== language) return;
+    setSession(finalized);
+    if (pending.answered !== undefined) {
+      setContrastAnswer({
+        correct: pending.answered.correct,
+        chosenIndex: pending.answered.chosenIndex,
+        gold: pending.answered.gold,
+      });
+    }
+    setStorageUnavailable(false);
+  };
+
+  /** True when the shared pass still matches the snapshot captured before
+   *  this action queued for the lock: the in-memory AND durable passes must
+   *  both equal the capture. Otherwise the pass moved while waiting (another
+   *  window answered, advanced, restarted — or a language/package flip
+   *  swapped the in-memory pass): adopt the durable state and drop the
+   *  captured action — never double-probe, never clobber (G01). The exact
+   *  serialized value (PlacementSession convention) is the compared content,
+   *  so the durable answered marker and mode participate in staleness too.
+   *  Callers abort on a language flip BEFORE calling this, so the live props
+   *  still describe the captured language here. */
+  const verifyOrAdopt = (captured: StoredPass): boolean => {
+    const current = session();
+    const capturedRaw = JSON.stringify(captured);
+    if (current === null || JSON.stringify(current) !== capturedRaw) {
+      const loaded = loadStoredPass(props.language, props.languageData.grammar ?? [], bank());
+      setSession(loaded);
+      adoptPresentation(loaded);
+      return false;
+    }
+    const durable = globalThis.localStorage?.getItem(passStorageKey(props.language, captured.kind === 'contrast' ? 'contrast' : 'self-assess'));
+    if (durable !== capturedRaw) {
+      const loaded = loadStoredPass(props.language, props.languageData.grammar ?? [], bank());
+      setSession(loaded);
+      adoptPresentation(loaded);
+      return false;
+    }
+    return true;
+  };
+
+  let reconciledPendingId: AttemptId | null = null;
+  const reconcilePendingPass = (captured: StoredPass | null): void => {
+    const pending = captured?.pending;
+    if (captured === null || pending === undefined) {
+      reconciledPendingId = null;
+      return;
+    }
+    if (reconciledPendingId === pending.attemptId) return;
+    reconciledPendingId = pending.attemptId;
+    const language = props.language;
+    inGrammarLock(language, async () => {
+      if (props.language !== language || !verifyOrAdopt(captured)) return;
+      await settlePending(language, session()!);
+    });
+  };
+  onMount(() => reconcilePendingPass(session()));
+  createEffect(on([() => props.language, () => props.languageData], () => {
+    reconcilePendingPass(session());
+  }, { defer: true }));
+
+  // Cross-window adoption (G01): when ANOTHER window persists the shared
+  // pass, reload it here so this window never acts on a stale copy (the
+  // step it presents may already be answered/marked elsewhere). Self-writes
+  // are skipped by value; a removal (newValue null) from ANY window
+  // propagates so a window that never wrote still drops its stale copy.
+  // Adoption is a pure re-read (loadStoredPass never persists), so windows
+  // reacting to each other's writes cannot ping-pong.
+  const onStorage = (event: StorageEvent): void => {
+    if (event.key !== passStorageKey(props.language, 'self-assess') && event.key !== passStorageKey(props.language, 'contrast')) return;
+    if (!locksAvailable()) return; // pass surfaces disabled: nothing to adopt
+    if (event.newValue !== null && event.newValue === lastWrittenValue) return;
+    const loaded = loadStoredPass(props.language, props.languageData.grammar ?? [], bank());
+    setSession(loaded);
+    adoptPresentation(loaded);
+    reconcilePendingPass(loaded);
+  };
+  globalThis.addEventListener('storage', onStorage);
+  onCleanup(() => globalThis.removeEventListener('storage', onStorage));
 
   const constructionsByLevel = createMemo(() => {
     const byLevel = new Map<number, ConstructionRow[]>();
@@ -396,7 +676,34 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     clearTimeout(submissionLockTimer);
     setContrastAnswer(null);
     resetContrastInput();
-    setSession({ level, queue, index: 0, denominator: levelDenominator(level, props.languageData.grammar ?? []) });
+    const startLanguage = props.language;
+    const startGrammar = props.languageData.grammar ?? [];
+    const planned: StoredPass = { level, queue, index: 0, denominator: levelDenominator(level, startGrammar) };
+    inGrammarLock(startLanguage, () => {
+      // A language switch while this start waited for the lock aborts: the
+      // planned queue belongs to the captured language, and a queued action
+      // must never commit one language's pass under another's key
+      // (G01/R19 — PlacementSession's queued language-switch guard).
+      if (props.language !== startLanguage) return;
+      // Another window may have started (or advanced) a live pass for this
+      // language while this start queued behind the lock: ADOPT the durable
+      // pass instead of clobbering it with a fresh one (G01; the
+      // PlacementSession adopt semantics — resume priority picks the kind).
+      const existing = loadStoredPass(startLanguage, startGrammar, bank());
+      if (existing !== null && existing.index < existing.queue.length) {
+        setSession(existing);
+        adoptPresentation(existing);
+        return;
+      }
+      // A pass that cannot durably keep its cursor must not start: ratings
+      // would be refused for lack of a cursor (G01), so the failure is
+      // surfaced instead of a silently broken pass (G04).
+      if (!applySession(planned)) {
+        setStorageUnavailable(true);
+        return;
+      }
+      setStorageUnavailable(false);
+    });
   };
 
   /** Rates the construction whose prompt is on screen, then advances. The
@@ -415,17 +722,52 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     setSubmissionsLocked(true);
     clearTimeout(submissionLockTimer);
     submissionLockTimer = window.setTimeout(() => setSubmissionsLocked(false), 150);
-    props.onProbe(pattern, quality, level);
-    setSession({ ...active, index: active.index + 1 });
+    const rateLanguage = props.language;
+    inGrammarLock(rateLanguage, async () => {
+      if (props.language !== rateLanguage) return;
+      if (!verifyOrAdopt(active)) return;
+      // Durable cursor FIRST (PlacementSession contract): the advance is
+      // persisted before the probe. A failed durable write REFUSES this
+      // rating — no evidence without a cursor — and the presented prompt
+      // stays retryable (G01/G04).
+      const current = session()!;
+      if (current.pending !== undefined) {
+        await settlePending(rateLanguage, current);
+        return;
+      }
+      const reserved: StoredPass = {
+        ...current,
+        pending: { index: current.index, pattern, attemptId: nextAttemptId(), quality },
+      };
+      if (!persistSessionOnly(rateLanguage, reserved)) {
+        setStorageUnavailable(true);
+        return;
+      }
+      if (props.language === rateLanguage) setSession(reserved);
+      await settlePending(rateLanguage, reserved);
+    });
   };
 
-  /** Advances without recording anything — a skip is not evidence (G04). */
+  /** Advances without recording anything — a skip is not evidence (G04).
+   *  Serialized like every durable mutation: a skip that queued behind the
+   *  lock while the shared pass moved is dropped with the durable state
+   *  adopted; a failed durable write refuses the skip (honest note). */
   const skipSession = (level: number, presented: string | undefined) => {
     if (submissionsLocked()) return;
     const active = session();
     if (!active || active.level !== level) return;
     if (presented !== undefined && active.queue[active.index] !== presented) return;
-    setSession({ ...active, index: active.index + 1 });
+    const skipLanguage = props.language;
+    inGrammarLock(skipLanguage, () => {
+      if (props.language !== skipLanguage) return;
+      if (!verifyOrAdopt(active)) return;
+      const current = session()!;
+      if (!applySession({ ...current, index: current.index + 1 })) {
+        setStorageUnavailable(true);
+        return;
+      }
+      setStorageUnavailable(false);
+    });
   };
 
   // --- Contrast pass (R12): package item sources, seeded assembly, graded MCQ ---
@@ -490,7 +832,12 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     if (!active || active.level !== level || active.kind !== 'contrast') return null;
     const pattern = active.queue[active.index];
     if (pattern === undefined) return null;
-    const resolved = selectContrastItem(pattern);
+    const pinned = active.answered?.itemRef ?? active.pending?.answered?.itemRef;
+    const resolved = pinned === undefined
+      ? selectContrastItem(pattern)
+      : deliverableItemsFor(pattern).find(({ item }) => (
+        item.id === pinned.id && item.version === pinned.version && item.seed === pinned.seed
+      )) ?? null;
     return resolved === null ? null : { pattern, source: resolved.source, item: resolved.item };
   };
 
@@ -647,13 +994,33 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     clearTimeout(submissionLockTimer);
     setContrastAnswer(null);
     resetContrastInput();
-    setSession({
+    const startLanguage = props.language;
+    const startGrammar = props.languageData.grammar ?? [];
+    const planned: StoredPass = {
       level,
       kind: 'contrast',
       queue,
       index: 0,
       mode: 'mcq',
-      denominator: contrastDenominator(level, bank(), props.languageData.grammar ?? []),
+      denominator: contrastDenominator(level, bank(), startGrammar),
+    };
+    inGrammarLock(startLanguage, () => {
+      // Same queued language-switch guard as every pass start (G01/R19).
+      if (props.language !== startLanguage) return;
+      // Another window may hold a live pass for this language: ADOPT the
+      // durable pass instead of clobbering it (PlacementSession semantics).
+      const existing = loadStoredPass(startLanguage, startGrammar, bank());
+      if (existing !== null && existing.index < existing.queue.length) {
+        setSession(existing);
+        adoptPresentation(existing);
+        return;
+      }
+      // A pass that cannot durably keep its cursor must not start (G01/G04).
+      if (!applySession(planned)) {
+        setStorageUnavailable(true);
+        return;
+      }
+      setStorageUnavailable(false);
     });
   };
 
@@ -691,48 +1058,104 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
    *  attempt through onProbe with the item's versioned reference, and shows
    *  feedback. A correct selection maps to `struggled` (one successful MCQ
    *  attempt is not automatic proof of full objective mastery, R13); a wrong
-   *  selection maps to `missed`. Advancing stays explicit (Next). */
+   *  selection maps to `missed`. Advancing stays explicit (Next).
+   *
+   *  Cross-window integrity (G01): the graded outcome is persisted as the
+   *  pass's durable answered marker BEFORE the probe, under the session
+   *  lock — a second window presenting the same stored cursor finds the
+   *  marker, refuses its own answer (and re-renders the graded feedback),
+   *  so one presentation can never produce two probes. A failed durable
+   *  write REFUSES the answer (no probe without the marker) and the
+   *  question stays retryable. */
   const answerContrast = (level: number, source: GrammarPracticeItemSource, item: QuestionItem, chosenIndex: number) => {
     if (submissionsLocked()) return;
     const active = session();
     if (!active || active.level !== level || active.kind !== 'contrast') return;
     const pattern = active.queue[active.index];
     if (pattern === undefined || item.pattern !== pattern) return;
+    if (active.answered !== undefined) return; // already answered (adopted marker)
     setSubmissionsLocked(true);
     clearTimeout(submissionLockTimer);
     submissionLockTimer = window.setTimeout(() => setSubmissionsLocked(false), 150);
     const result = gradeContrastAnswer(item, source, { kind: 'mcq', index: chosenIndex });
-    props.onProbe(pattern, result.correct ? 'struggled' : 'missed', level, undefined, {
+    const marker: NonNullable<StoredPass['answered']> = {
+      index: active.index,
+      correct: result.correct,
+      gold: result.goldSpan,
+      chosenIndex,
       itemRef: { id: item.id, version: item.version, seed: item.seed },
-      validationRef: validationRefFor(item),
-      taskType: item.taskTemplateId,
+    };
+    const answerLanguage = props.language;
+    inGrammarLock(answerLanguage, async () => {
+      if (props.language !== answerLanguage) return;
+      if (!verifyOrAdopt(active)) return;
+      const current = session()!;
+      if (current.pending !== undefined) {
+        await settlePending(answerLanguage, current);
+        return;
+      }
+      const attempt = {
+        itemRef: { id: item.id, version: item.version, seed: item.seed },
+        validationRef: validationRefFor(item),
+        taskType: item.taskTemplateId,
+      };
+      const reserved: StoredPass = {
+        ...current,
+        pending: {
+          index: current.index,
+          pattern,
+          attemptId: nextAttemptId(),
+          quality: result.correct ? 'struggled' : 'missed',
+          attempt,
+          answered: marker,
+        },
+      };
+      if (!persistSessionOnly(answerLanguage, reserved)) {
+        setStorageUnavailable(true);
+        return; // question stays retryable; no probe without the durable marker
+      }
+      if (props.language === answerLanguage) setSession(reserved);
+      await settlePending(answerLanguage, reserved);
     });
-    setContrastAnswer({ correct: result.correct, chosenIndex, gold: result.goldSpan });
   };
 
   /** Switches the delivery format of the CURRENT step (R12: MCQ / typing by
    *  objective or preference; speech is a named deferral). Only before an
-   *  answer — never replaces a question that was already graded (G01). */
+   *  answer — never replaces a question that was already graded (G01).
+   *  Serialized: a mode switch that queued behind the lock while the shared
+   *  pass moved is dropped with the durable state adopted. */
   const setContrastMode = (level: number, mode: 'mcq' | 'typed') => {
     if (submissionsLocked()) return;
     const active = session();
     if (!active || active.level !== level || active.kind !== 'contrast') return;
     if (contrastAnswer() !== null) return;
-    resetContrastInput();
-    setSession({ ...active, mode });
+    const modeLanguage = props.language;
+    inGrammarLock(modeLanguage, () => {
+      if (props.language !== modeLanguage) return;
+      if (!verifyOrAdopt(active)) return;
+      resetContrastInput();
+      const current = session()!;
+      if (!applySession({ ...current, mode })) {
+        setStorageUnavailable(true);
+        return;
+      }
+      setStorageUnavailable(false);
+    });
   };
 
   /** Grades a typed answer (NFC + trim against the span and the declared
    *  accepted alternatives — never exact-string-only, R12), records the
    *  attempt as the `contrast-typed` task with the input provenance the
    *  grade derived (IME composition supplies orthography, never an error,
-   *  G05), and shows feedback. Advancing stays explicit (Next). */
+   *  G05), and shows feedback. Advancing stays explicit (Next). Same
+   *  durable answered-marker contract as the MCQ answer (G01). */
   const submitTypedContrast = (level: number, source: GrammarPracticeItemSource, item: QuestionItem) => {
     if (submissionsLocked()) return;
     const active = session();
     if (!active || active.level !== level || active.kind !== 'contrast') return;
     const pattern = active.queue[active.index];
     if (pattern === undefined || item.pattern !== pattern) return;
+    if (active.answered !== undefined) return; // already answered (adopted marker)
     const value = typedValue();
     if (value.trim().length === 0) return;
     setSubmissionsLocked(true);
@@ -743,33 +1166,92 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       value,
       ...(typedComposed ? { suppliedBy: 'ime' as const } : { suppliedBy: 'keyboard' as const }),
     });
-    props.onProbe(pattern, result.correct ? 'struggled' : 'missed', level, result.scaffolds, {
+    const marker: NonNullable<StoredPass['answered']> = {
+      index: active.index,
+      correct: result.correct,
+      gold: result.goldSpan,
+      chosenIndex: -1,
       itemRef: { id: item.id, version: item.version, seed: item.seed },
-      validationRef: validationRefFor(item),
-      taskType: 'contrast-typed',
+    };
+    const answerLanguage = props.language;
+    inGrammarLock(answerLanguage, async () => {
+      if (props.language !== answerLanguage) return;
+      if (!verifyOrAdopt(active)) return;
+      const current = session()!;
+      if (current.pending !== undefined) {
+        await settlePending(answerLanguage, current);
+        return;
+      }
+      const attempt = {
+        itemRef: { id: item.id, version: item.version, seed: item.seed },
+        validationRef: validationRefFor(item),
+        taskType: 'contrast-typed',
+      };
+      const reserved: StoredPass = {
+        ...current,
+        pending: {
+          index: current.index,
+          pattern,
+          attemptId: nextAttemptId(),
+          quality: result.correct ? 'struggled' : 'missed',
+          scaffolds: result.scaffolds,
+          attempt,
+          answered: marker,
+        },
+      };
+      if (!persistSessionOnly(answerLanguage, reserved)) {
+        setStorageUnavailable(true);
+        return; // question stays retryable; no probe without the durable marker
+      }
+      if (props.language === answerLanguage) setSession(reserved);
+      await settlePending(answerLanguage, reserved);
+      if (props.language === answerLanguage && session()?.pending === undefined) resetContrastInput();
     });
-    setContrastAnswer({ correct: result.correct, chosenIndex: -1, gold: result.goldSpan });
-    resetContrastInput();
   };
 
-  /** Advances the contrast pass after an answered question (explicit Next). */
+  /** Advances the contrast pass after an answered question (explicit Next).
+   *  The advance clears the durable answered marker: the step is consumed
+   *  exactly once and the next presentation starts unanswered. Serialized;
+   *  a failed durable write keeps the answered view intact (feedback and
+   *  marker stand — Next retries) instead of a mute unanswered question. */
   const advanceContrast = (level: number) => {
     if (submissionsLocked()) return;
     const active = session();
     if (!active || active.level !== level || active.kind !== 'contrast') return;
-    setContrastAnswer(null);
-    resetContrastInput();
-    setSession({ ...active, index: active.index + 1 });
+    const advanceLanguage = props.language;
+    inGrammarLock(advanceLanguage, () => {
+      if (props.language !== advanceLanguage) return;
+      if (!verifyOrAdopt(active)) return;
+      const current = session()!;
+      if (!applySession({ ...current, index: current.index + 1, answered: undefined })) {
+        setStorageUnavailable(true);
+        return;
+      }
+      setStorageUnavailable(false);
+      setContrastAnswer(null);
+      resetContrastInput();
+    });
   };
 
-  /** Skips the unanswered question without recording anything (G04). */
+  /** Skips the unanswered question without recording anything (G04).
+   *  Serialized; a failed durable write refuses the skip (honest note). */
   const skipContrast = (level: number) => {
     if (submissionsLocked()) return;
     const active = session();
     if (!active || active.level !== level || active.kind !== 'contrast') return;
-    setContrastAnswer(null);
-    resetContrastInput();
-    setSession({ ...active, index: active.index + 1 });
+    const skipLanguage = props.language;
+    inGrammarLock(skipLanguage, () => {
+      if (props.language !== skipLanguage) return;
+      if (!verifyOrAdopt(active)) return;
+      const current = session()!;
+      if (!applySession({ ...current, index: current.index + 1, answered: undefined })) {
+        setStorageUnavailable(true);
+        return;
+      }
+      setStorageUnavailable(false);
+      setContrastAnswer(null);
+      resetContrastInput();
+    });
   };
 
   return (
@@ -818,6 +1300,14 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                 </button>
                 <Show when={open()}>
                   <div class="grammar-coverage__session" data-level={level}>
+                    {/* A refused durable write is surfaced, never silent:
+                        the refused action stays retryable and the next
+                        attempt re-tries the write (G01/G04). */}
+                    <Show when={storageUnavailable()}>
+                      <span class="grammar-coverage__session-done" data-testid="grammar-storage-unavailable">
+                        {t('mlearn.LevelStudy.Grammar.StorageUnavailable')}
+                      </span>
+                    </Show>
                     <Show when={sessionActiveFor(level)} fallback={
                       <>
                         <Show when={sessionFor(level)?.done}>
@@ -825,6 +1315,16 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                             {t('mlearn.LevelStudy.Grammar.SessionDone', { count: String(sessionFor(level)?.total ?? 0) })}
                           </span>
                         </Show>
+                        {/* Without a Web Lock the pass surfaces are disabled
+                            (G04): an honest localized note replaces the start
+                            affordances — never an unserialized multi-window
+                            pass. The validation producer stays available
+                            (single-flight, not session-scoped). */}
+                        <Show when={locksAvailable()} fallback={
+                          <span class="grammar-coverage__session-done" data-testid="grammar-no-locks">
+                            {t('mlearn.LevelStudy.Grammar.NoLocks')}
+                          </span>
+                        }>
                         <button type="button" class="grammar-coverage__session-btn" disabled={sessionLive()} onClick={() => startSession(level)}>
                           {t('mlearn.LevelStudy.Grammar.Practise')}
                         </button>
@@ -840,6 +1340,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                           >
                             {t('mlearn.LevelStudy.Grammar.Contrast')}
                           </button>
+                        </Show>
                         </Show>
                         {/* Independent validation producer (R12): runs the configured
                             LOCAL model in bounded batches, off the rating path. Single-
