@@ -1,0 +1,59 @@
+/* Quartz — the translucent light counterpart to Dark Quartz. The window tint
+   establishes a guaranteed light floor over arbitrary desktop content; its
+   panels remain translucent layers above that normalized backdrop. */
+body.theme-quartz,
+.theme-quartz {
+    --color-primary: #c44700;
+    --color-primary-hover: #a83c00;
+    --color-primary-active: #8f3300;
+    --color-success: #2f7d20;
+    --color-warning: #7a5b00;
+    --color-error: #bd3028;
+    --color-info: #1769a5;
+
+    --bg-opaque: #f3f5f7;
+    --bg-nt-primary: #ffffff;
+    --bg-nt-secondary: #e7ebef;
+    --character-grid-unknown-bg: #7b838d;
+
+    --text-primary: #111418;
+    --text-secondary: #242a31;
+    --text-tertiary: #333b44;
+
+    --quartz-window-tint: rgba(255, 255, 255, 0.5);
+    --quartz-window-filter: blur(8px) saturate(0.82) contrast(0.92) brightness(1.04);
+    --bg: rgba(255, 255, 255, 0.5);
+    --bg-intense: rgba(255, 255, 255, 0.72);
+    --accent-bg: rgba(17, 20, 24, 0.1);
+    --accent: rgba(17, 20, 24, 0.16);
+    --border-color: rgba(17, 20, 24, 0.2);
+    --border-color-intense: rgba(17, 20, 24, 0.32);
+
+    --backdrop-filter: blur(12px) saturate(0.88) contrast(0.94) brightness(1.03);
+    --backdrop-filter-nodim: blur(12px) saturate(0.88) contrast(0.94);
+
+    --panel-bg: rgba(255, 255, 255, 0.52);
+    --panel-bg-hover: var(--bg-intense);
+    --panel-border: var(--border-color);
+    --panel-border-hover: var(--border-color-intense);
+    --bg-primary: var(--bg);
+    --bg-secondary: var(--bg-intense);
+    --bg-tertiary: var(--bg-intense);
+    --shadow-border: var(--border-color) 0 0 0 1px;
+
+    --overlay-bg: rgba(20, 25, 31, 0.48);
+    --overlay-bg-soft: rgba(20, 25, 31, 0.22);
+    --scrollbar-thumb: rgba(17, 20, 24, 0.34);
+    --scrollbar-thumb-hover: rgba(17, 20, 24, 0.52);
+    --skeleton-base: rgba(78, 85, 94, 0.28);
+    --skeleton-highlight: rgba(255, 255, 255, 0.72);
+}
+
+/* Several desktop shells intentionally leave their route root transparent so
+   native macOS vibrancy can show through. Quartz must normalize that native
+   material before dark foreground tokens are drawn on top of it. */
+body.theme-quartz {
+    background: var(--quartz-window-tint);
+    -webkit-backdrop-filter: var(--quartz-window-filter);
+    backdrop-filter: var(--quartz-window-filter);
+}

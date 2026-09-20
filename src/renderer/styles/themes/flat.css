@@ -1,6 +1,45 @@
-/* Flat — placeholder surface structure (debug). Until a real flat stylesheet
-   exists, paint the body an unmistakable red. !important keeps it visible
-   over base.css and palette backgrounds. */
-body.theme-flat {
-    background: #ff0000 !important;
+/* Flat — opaque tonal surfaces with divider-based hierarchy. Palette files
+   continue to own color; this layer removes translucency and elevation. */
+body.theme-flat[class] {
+    --border-color: var(--bg-nt-primary);
+    --border-color-intense: var(--bg-nt-secondary);
+    --bg: var(--bg-nt-primary);
+    --bg-intense: var(--bg-nt-secondary);
+    --panel-bg: var(--bg-nt-primary);
+    --panel-bg-hover: var(--bg-nt-secondary);
+    --panel-border: var(--border-color);
+    --panel-border-hover: var(--border-color-intense);
+    --bg-primary: var(--bg-opaque);
+    --bg-secondary: var(--bg-nt-primary);
+    --bg-tertiary: var(--bg-nt-secondary);
+
+    --backdrop-filter: none;
+    --backdrop-filter-nodim: none;
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-lg-intense: none;
+    --shadow-special: none;
+    --shadow-inset: none;
+    --shadow-border: var(--border-color) 0 0 0 1px;
+
+    /*--radius-sm: 2px;*/
+    /*--radius-md: 4px;*/
+    /*--radius-lg: 6px;*/
+    /*--radius-xl: 8px;*/
+    /*--radius-2xl: 12px;*/
+}
+
+body.theme-flat[class] .btn-default {
+    backdrop-filter: none;
+}
+
+body.theme-flat[class] :is(.label-pill, .btn-pill, .label-status) {
+    box-shadow: none;
+}
+
+.subtitle_hover.theme-flat,
+body.theme-flat[class] .subtitle_hover {
+    background-color: var(--bg-nt-primary);
+    color: var(--text-primary);
 }
