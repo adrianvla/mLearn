@@ -12,22 +12,6 @@ import {
   type RelationCategory,
 } from './types';
 
-/**
- * MEMORY NOTE (recorded 2026-08-27, deliberately not optimized yet):
- * decodeCompact steady RSS over process baseline, measured via
- * `node scripts/bench-graph.mjs --compact`:
- *   ja ≈1.1 GB, de ≈0.98 GB, ru ≈0.63 GB, zh ≈0.73 GB.
- * Typed arrays hold only ~25–55 MB of that; the rest is the eagerly
- * materialized id-string side (denseOf Map + persistentOf array +
- * stringTable). Future optimization target: avoid eager denseOf for all
- * entities (hash-prefix on demand), consider string-table interning or a
- * keyed on-disk index so resident size tracks the artifact (ja artifact is
- * 132 MB / 30 MB gzipped), not 8× it. Replica resolution: the electron-main
- * LinguisticGraphService no longer builds a plain-object replica — it serves
- * projections through the lazy compact view (shared/graph/compactView.ts),
- * which materializes objects only for touched nodes' edges.
- */
-
 /** Order-stable wire ids shared by compact graph producers and consumers. */
 export const COMPACT_ENTITY_KINDS = [
   'dictionary-entry', 'lexeme', 'surface', 'sense', 'pronunciation', 'character', 'morpheme', 'grammar-pattern',
