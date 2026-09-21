@@ -176,9 +176,9 @@
           "TokenHint": "Melden Sie sich über die Verbindungseinstellungen an, um sich beim Cloud-LLM zu authentifizieren."
         },
         "CloudTiers": {
-          "Title": "Cloud-LLM-Modellebenen",
-          "Cheap": "Günstig",
-          "Fast": "Schnell",
+          "Title": "Cloud-KI-Bereitstellung",
+          "Standard": "Standard",
+          "Realtime": "Echtzeit · verbraucht 2× Kontingent",
           "Conversation": {
             "Label": "Konversationsagent",
             "Description": "Modellebene für Textchat mit dem AI-Tutor"

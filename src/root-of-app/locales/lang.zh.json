@@ -176,9 +176,9 @@
           "TokenHint": "通过连接设置登录以验证云 LLM。"
         },
         "CloudTiers": {
-          "Title": "云 LLM 模型层级",
-          "Cheap": "廉价",
-          "Fast": "快速",
+          "Title": "云端 AI 服务方式",
+          "Standard": "标准",
+          "Realtime": "实时 · 使用 2× 配额",
           "Conversation": {
             "Label": "对话代理",
             "Description": "AI 导师文本聊天的模型层级"

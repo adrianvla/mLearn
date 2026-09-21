@@ -90,6 +90,14 @@ describe('CloudLLMAdapter', () => {
         const init = mockFetch.mock.calls[0][1] as RequestInit;
         expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
       });
+
+      it('marks main-owned background work as internal without changing the foreground default', async () => {
+        const adapter = new CloudLLMAdapter('https://api.example.com', '');
+        mockFetch.mockResolvedValue(createSSEResponse(['data: [DONE]']));
+        await adapter.streamChat(baseMessages, baseTools, makeCallbacks(), undefined, undefined, 'internal');
+        const init = mockFetch.mock.calls[0][1] as RequestInit;
+        expect(JSON.parse(init.body as string).usage_scope).toBe('internal');
+      });
     });
 
     describe('toOpenAIMessages conversion', () => {

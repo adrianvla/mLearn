@@ -16,6 +16,8 @@ export interface CloudLLMCallbacks {
   onError: (error: string) => void;
 }
 
+export type CloudLLMUsageScope = 'foreground' | 'internal';
+
 class CloudLLMStatusError extends Error {
   readonly status: number;
 
@@ -124,6 +126,7 @@ export class CloudLLMAdapter {
     callbacks: CloudLLMCallbacks,
     tier?: CloudLLMTier,
     think?: boolean,
+    usageScope: CloudLLMUsageScope = 'foreground',
   ): Promise<void> {
     this.abortController = new AbortController();
     const partialToolCalls = new Map<string, PartialCloudToolCallState>();
@@ -148,6 +151,7 @@ export class CloudLLMAdapter {
           tools: openAITools,
           model_tier: tier,
           think,
+          usage_scope: usageScope,
         }),
         signal: this.abortController.signal,
       });

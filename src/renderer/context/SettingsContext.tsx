@@ -6,7 +6,7 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import type { LanguageDataMap, Settings } from '../../shared/types';
-import { DEFAULT_SETTINGS } from '../../shared/types';
+import { DEFAULT_SETTINGS, normalizeCloudLLMTier } from '../../shared/types';
 import type {
   EffectiveManagementPolicy,
   ManagedSettingRule,
@@ -129,6 +129,26 @@ export function migrateExamGoalSettings(settings: Settings): { settings: Setting
   return {
     settings: { ...settings, examGoal: { ...goal, language: settings.language } },
     migrated: true,
+  };
+}
+
+/** Persist the public serving-class rename while preserving the old choice. */
+export function migrateCloudServingClassSettings(settings: Settings): { settings: Settings; migrated: boolean } {
+  const raw = settings as Settings & Record<string, unknown>;
+  const conversation = normalizeCloudLLMTier(raw.cloudLLMTierConversation, DEFAULT_SETTINGS.cloudLLMTierConversation);
+  const voice = normalizeCloudLLMTier(raw.cloudLLMTierVoice, DEFAULT_SETTINGS.cloudLLMTierVoice);
+  const explanation = normalizeCloudLLMTier(raw.cloudLLMTierExplanation, DEFAULT_SETTINGS.cloudLLMTierExplanation);
+  const migrated = conversation !== raw.cloudLLMTierConversation
+    || voice !== raw.cloudLLMTierVoice
+    || explanation !== raw.cloudLLMTierExplanation;
+  return {
+    settings: migrated ? {
+      ...settings,
+      cloudLLMTierConversation: conversation,
+      cloudLLMTierVoice: voice,
+      cloudLLMTierExplanation: explanation,
+    } : settings,
+    migrated,
   };
 }
 
@@ -299,6 +319,10 @@ export const SettingsProvider: ParentComponent = (props) => {
       const examGoalMigration = migrateExamGoalSettings(mergedSettings);
       mergedSettings = examGoalMigration.settings;
       migratedSettings = migratedSettings || examGoalMigration.migrated;
+
+      const cloudServingClassMigration = migrateCloudServingClassSettings(mergedSettings);
+      mergedSettings = cloudServingClassMigration.settings;
+      migratedSettings = migratedSettings || cloudServingClassMigration.migrated;
 
       if (typeof mergedSettings.cloudAuthActiveGroupId !== 'string') {
         mergedSettings.cloudAuthActiveGroupId = DEFAULT_SETTINGS.cloudAuthActiveGroupId;

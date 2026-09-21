@@ -19,6 +19,7 @@ import type {
   StreamStats,
   VoiceMistake,
 } from '../../shared/types';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import type { LanguageFeatures } from '../context/LanguageContext';
 import { getLogger } from '../../shared/utils/logger';
@@ -986,7 +987,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const historyToSummarize = conversationHistory.slice(0, compactedMessages);
     const recentHistory = conversationHistory.slice(compactedMessages);
     const settingsObj = deps.getSettings();
-    const tier = settingsObj.cloudLLMTierConversation || 'cheap';
+    const tier = settingsObj.cloudLLMTierConversation || DEFAULT_SETTINGS.cloudLLMTierConversation;
     hiddenStreamActive = true;
     let summary = '';
     try {
@@ -1223,8 +1224,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const isVoice = deps.isVoiceMode?.() ?? false;
     const settingsObj = deps.getSettings();
     const tier = isVoice
-      ? (settingsObj.cloudLLMTierVoice || 'fast')
-      : (settingsObj.cloudLLMTierConversation || 'cheap');
+      ? (settingsObj.cloudLLMTierVoice || DEFAULT_SETTINGS.cloudLLMTierVoice)
+      : (settingsObj.cloudLLMTierConversation || DEFAULT_SETTINGS.cloudLLMTierConversation);
     const memoryEnabled = settingsObj.agentMemoryEnabled;
 
     const baseTools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;

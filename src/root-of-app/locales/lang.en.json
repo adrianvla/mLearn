@@ -176,9 +176,9 @@
           "TokenHint": "Sign in via Connection settings to authenticate with the cloud LLM."
         },
         "CloudTiers": {
-          "Title": "Cloud LLM Model Tiers",
-          "Cheap": "Cheap",
-          "Fast": "Fast",
+          "Title": "Cloud AI Serving",
+          "Standard": "Standard",
+          "Realtime": "Realtime · uses 2× allowance",
           "Conversation": {
             "Label": "Conversation Agent",
             "Description": "Model tier for text chat with the AI tutor"

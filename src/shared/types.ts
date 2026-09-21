@@ -786,9 +786,9 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudTosAcceptedAt: 0,
   cloudPrivacyAccepted: false,
   cloudPrivacyAcceptedAt: 0,
-  cloudLLMTierConversation: 'cheap',
-  cloudLLMTierVoice: 'fast',
-  cloudLLMTierExplanation: 'cheap',
+  cloudLLMTierConversation: 'standard',
+  cloudLLMTierVoice: 'realtime',
+  cloudLLMTierExplanation: 'standard',
   inferenceCloudTier: 'conservative',
   inferenceCloudBudgetPerDay: 20,
   /** Living World is opt-in: a user who never consents keeps Threads-only. */
@@ -2438,8 +2438,15 @@ export interface LLMResponse {
 /** LLM backend provider */
 export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
 
-/** Cloud LLM model tier */
-export type CloudLLMTier = 'fast' | 'cheap';
+/** User-facing hosted inference serving class. Provider/model selection stays server-side. */
+export type CloudLLMTier = 'standard' | 'realtime';
+
+/** Converts persisted pre-cutover tier values without keeping them in runtime types. */
+export function normalizeCloudLLMTier(value: unknown, fallback: CloudLLMTier): CloudLLMTier {
+  if (value === 'standard' || value === 'cheap') return 'standard';
+  if (value === 'realtime' || value === 'fast') return 'realtime';
+  return fallback;
+}
 
 /** Configuration for a built-in GGUF model */
 export interface BuiltinModelConfig {

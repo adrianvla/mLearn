@@ -8,7 +8,7 @@ import path from 'path';
 import { app, ipcMain, webContents } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { probeMirrorCatalog } from './catalogMirrors';
-import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent } from '../../shared/types';
+import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent, normalizeCloudLLMTier } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 import { isLanguageMetadataFileName } from '../utils/languageCode';
 import { migrateLegacyThemeSettings } from '../../shared/constants';
@@ -132,7 +132,13 @@ function keepKnownSettingsKeys(settings: Record<string, unknown>): LoadedSetting
 }
 
 function normalizeLoadedSettings(settings: Record<string, unknown>): Settings {
-  return { ...DEFAULT_SETTINGS, ...keepKnownSettingsKeys(settings) };
+  const merged = { ...DEFAULT_SETTINGS, ...keepKnownSettingsKeys(settings) };
+  return {
+    ...merged,
+    cloudLLMTierConversation: normalizeCloudLLMTier(merged.cloudLLMTierConversation, DEFAULT_SETTINGS.cloudLLMTierConversation),
+    cloudLLMTierVoice: normalizeCloudLLMTier(merged.cloudLLMTierVoice, DEFAULT_SETTINGS.cloudLLMTierVoice),
+    cloudLLMTierExplanation: normalizeCloudLLMTier(merged.cloudLLMTierExplanation, DEFAULT_SETTINGS.cloudLLMTierExplanation),
+  };
 }
 
 function settingsWithRecoveredInstalledLanguage(): Settings {

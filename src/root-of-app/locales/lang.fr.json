@@ -176,9 +176,9 @@
           "TokenHint": "Connectez-vous via les paramètres de connexion pour vous authentifier auprès du LLM cloud."
         },
         "CloudTiers": {
-          "Title": "Niveaux de modèles LLM Cloud",
-          "Cheap": "Économique",
-          "Fast": "Rapide",
+          "Title": "Service IA cloud",
+          "Standard": "Standard",
+          "Realtime": "Temps réel · utilise 2× le quota",
           "Conversation": {
             "Label": "Agent de conversation",
             "Description": "Niveau de modèle pour le chat texte avec le tuteur IA"

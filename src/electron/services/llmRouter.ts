@@ -104,7 +104,8 @@ function drainQueue(): void {
     activeOwner = next.sender.id;
     activeSender = next.sender;
     wrapSenderSend(next.sender);
-    void dispatchStream(next.sender, next.messages, next.tools, next.tier, next.think, next.expectedRoute);
+    void dispatchStream(next.sender, next.messages, next.tools, next.tier, next.think, next.expectedRoute,
+      next.priority === 'background' ? 'internal' : 'foreground');
     return;
   }
 }
@@ -145,7 +146,7 @@ export function cloudComplete(messages: LLMChatMessage[]): Promise<string> {
       },
       onDone: () => resolve(text),
       onError: (error) => reject(new Error(error)),
-    });
+    }, undefined, undefined, 'internal');
   });
 }
 
@@ -157,6 +158,7 @@ async function dispatchStream(
   tier?: string,
   think?: boolean,
   expectedRoute?: string,
+  usageScope: 'foreground' | 'internal' = 'foreground',
 ): Promise<void> {
   const settings = loadSettings();
   const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
@@ -173,7 +175,7 @@ async function dispatchStream(
           const errorChunk: LLMStreamChunk = { error, done: true };
           sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, errorChunk);
         },
-      }, tier === 'fast' || tier === 'cheap' ? tier : undefined, think);
+      }, tier === 'standard' || tier === 'realtime' ? tier : undefined, think, usageScope);
     } else if (provider === 'ollama') {
       ollamaStreamChatUnified(sender, messages, tools || []);
     } else {

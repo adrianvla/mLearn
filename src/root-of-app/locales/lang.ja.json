@@ -176,9 +176,9 @@
           "TokenHint": "接続設定からサインインしてクラウドLLMの認証を行います。"
         },
         "CloudTiers": {
-          "Title": "クラウドLLMモデルティア",
-          "Cheap": "安価",
-          "Fast": "高速",
+          "Title": "クラウドAIの提供方法",
+          "Standard": "標準",
+          "Realtime": "リアルタイム · 利用枠を2×使用",
           "Conversation": {
             "Label": "会話エージェント",
             "Description": "AIチュターとのテキストチャット用モデルティア"

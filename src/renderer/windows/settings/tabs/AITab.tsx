@@ -603,10 +603,10 @@ export const AITab: Component = () => {
             <Select
               class="setting-select"
               value={settings.cloudLLMTierConversation}
-              onChange={(e) => updateSettings({ cloudLLMTierConversation: e.currentTarget.value as 'cheap' | 'fast' })}
+              onChange={(e) => updateSettings({ cloudLLMTierConversation: e.currentTarget.value as 'standard' | 'realtime' })}
               options={[
-                { value: 'cheap', label: t('mlearn.AI.Settings.CloudTiers.Cheap') },
-                { value: 'fast', label: t('mlearn.AI.Settings.CloudTiers.Fast') },
+                { value: 'standard', label: t('mlearn.AI.Settings.CloudTiers.Standard') },
+                { value: 'realtime', label: t('mlearn.AI.Settings.CloudTiers.Realtime') },
               ]}
             />
           </SettingRow>
@@ -618,10 +618,10 @@ export const AITab: Component = () => {
             <Select
               class="setting-select"
               value={settings.cloudLLMTierVoice}
-              onChange={(e) => updateSettings({ cloudLLMTierVoice: e.currentTarget.value as 'cheap' | 'fast' })}
+              onChange={(e) => updateSettings({ cloudLLMTierVoice: e.currentTarget.value as 'standard' | 'realtime' })}
               options={[
-                { value: 'cheap', label: t('mlearn.AI.Settings.CloudTiers.Cheap') },
-                { value: 'fast', label: t('mlearn.AI.Settings.CloudTiers.Fast') },
+                { value: 'standard', label: t('mlearn.AI.Settings.CloudTiers.Standard') },
+                { value: 'realtime', label: t('mlearn.AI.Settings.CloudTiers.Realtime') },
               ]}
             />
           </SettingRow>
@@ -633,10 +633,10 @@ export const AITab: Component = () => {
             <Select
               class="setting-select"
               value={settings.cloudLLMTierExplanation}
-              onChange={(e) => updateSettings({ cloudLLMTierExplanation: e.currentTarget.value as 'cheap' | 'fast' })}
+              onChange={(e) => updateSettings({ cloudLLMTierExplanation: e.currentTarget.value as 'standard' | 'realtime' })}
               options={[
-                { value: 'cheap', label: t('mlearn.AI.Settings.CloudTiers.Cheap') },
-                { value: 'fast', label: t('mlearn.AI.Settings.CloudTiers.Fast') },
+                { value: 'standard', label: t('mlearn.AI.Settings.CloudTiers.Standard') },
+                { value: 'realtime', label: t('mlearn.AI.Settings.CloudTiers.Realtime') },
               ]}
             />
           </SettingRow>

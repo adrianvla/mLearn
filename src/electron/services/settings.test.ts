@@ -286,6 +286,21 @@ describe('loadSettings migration', () => {
     expect(settings.cloudAuthAccessToken).toBe('token123');
   });
 
+  it('migrates persisted Cheap/Fast serving choices to Standard/Realtime', () => {
+    const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      cloudLLMTierConversation: 'cheap',
+      cloudLLMTierVoice: 'fast',
+      cloudLLMTierExplanation: 'cheap',
+    }), 'utf-8');
+
+    const settings = mod.loadSettings();
+
+    expect(settings.cloudLLMTierConversation).toBe('standard');
+    expect(settings.cloudLLMTierVoice).toBe('realtime');
+    expect(settings.cloudLLMTierExplanation).toBe('standard');
+  });
+
   it('sets cloudAuthStatus to signed-in when cloudAuthAccessToken exists but cloudAuthStatus is absent', () => {
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     fs.writeFileSync(settingsPath, JSON.stringify({ cloudAuthAccessToken: 'tok' }), 'utf-8');
