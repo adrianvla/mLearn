@@ -454,6 +454,8 @@ export interface WorldBridge {
   /** Fire-and-forget automatic reflection/evolution trigger for a context. */
   triggerReflection: (input: { roomId?: string; threadId?: string }) => Promise<boolean>;
   retryMaintenance: (reflectionId: string) => Promise<boolean>;
+  activateContact: (contactId: string) => Promise<import('../world').ContactActionResult>;
+  respondToContact: (contactId: string, response: 'accept' | 'decline') => Promise<import('../world').ContactActionResult>;
   integrateThread: (input: IntegrateThreadInput) => Promise<IntegrateThreadResult>;
   previewIntegration: (input: PreviewIntegrationInput) => Promise<IntegrationPreview>;
   createParticipant: (input: { displayName: string; kind: 'persistent' | 'temporary'; personaText: string; facets?: Record<string, number | string>; canon?: Participant['canon']; voiceSampleId?: string; profilePhoto?: string }) => Promise<Participant>;

@@ -22,6 +22,7 @@ const translations: Record<string, string> = {
   'mlearn.ConversationAgent.Voice.TtsProvider': 'Voice',
   'mlearn.ConversationAgent.Voice.Microphone': 'Microphone',
   'mlearn.ConversationAgent.Voice.DefaultMicrophone': 'Default microphone',
+  'mlearn.ConversationAgent.Voice.MicPermission': 'Microphone access was denied. Allow microphone access in system settings.',
 };
 
 /** Compute hints the voice status IPC payloads carry (contract: device/cpuWarning). */
@@ -40,6 +41,7 @@ type TestModelStatus = VoiceDeviceStatus & {
 
 let modelProgressHandler: ((status: TestModelStatus) => void) | undefined;
 let ttsStatusHandler: ((status: TestTtsStatus) => void) | undefined;
+let sessionReadyHandler: (() => void) | undefined;
 
 const testSettings = {
   ttsProvider: 'kokoro' as const,
@@ -84,10 +86,17 @@ vi.mock('../../../shared/bridges', () => ({
         ttsStatusHandler = callback;
         return cleanup;
       }),
-      onVoiceSessionReady: vi.fn(() => cleanup),
+      onVoiceSessionReady: vi.fn((callback: typeof sessionReadyHandler) => {
+        sessionReadyHandler = callback;
+        return cleanup;
+      }),
       onVoiceSessionStatus: vi.fn(() => cleanup),
       onVoiceSessionError: vi.fn(() => cleanup),
       voiceSendTtsState: vi.fn(),
+      voiceStartSession: vi.fn(),
+      voiceStopSession: vi.fn(),
+      voiceTtsStop: vi.fn(),
+      voiceFlush: vi.fn(),
     },
   }),
 }));
@@ -121,6 +130,7 @@ describe('VoiceTab CPU warning banner', () => {
     document.body.appendChild(container);
     modelProgressHandler = undefined;
     ttsStatusHandler = undefined;
+    sessionReadyHandler = undefined;
   });
 
   afterEach(() => {
@@ -167,6 +177,37 @@ describe('VoiceTab CPU warning banner', () => {
       expect(container.textContent).not.toContain('Realtime voice may lag');
     });
 
+    dispose();
+  });
+
+  it('shows a recoverable error when microphone permission is denied after explicit call start', async () => {
+    const mediaDevices = {
+      enumerateDevices: vi.fn(async () => []),
+      getUserMedia: vi.fn(async () => { throw new DOMException('Denied', 'NotAllowedError'); }),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: mediaDevices });
+    const { VoiceTab } = await import('./VoiceTab');
+    const onCallStateChange = vi.fn();
+    const dispose = render(() => (
+      <VoiceTab
+        autoStartCall
+        messages={[]}
+        isStreaming={false}
+        onSendMessage={vi.fn()}
+        onAbort={vi.fn()}
+        isConnected={true}
+        language="ja"
+        onRequestGreeting={vi.fn()}
+        onCallStateChange={onCallStateChange}
+      />
+    ), container);
+    await vi.waitFor(() => expect(onCallStateChange).toHaveBeenCalledWith(true));
+    sessionReadyHandler?.();
+    await vi.waitFor(() => expect(container.textContent).toContain('Microphone access was denied'));
+    expect(mediaDevices.getUserMedia).toHaveBeenCalledTimes(1);
+    expect(onCallStateChange).not.toHaveBeenCalledWith(false, expect.anything());
     dispose();
   });
 });

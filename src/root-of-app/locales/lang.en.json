@@ -899,6 +899,13 @@
       "Call": {
         "StartAria": "Start call"
       },
+      "IncomingCall": {
+        "Title": "Incoming call",
+        "From": "{name} is calling",
+        "UnknownCaller": "Someone",
+        "Accept": "Accept",
+        "Decline": "Decline"
+      },
       "Details": {
         "PracticeVersion": "Practice version",
         "RoomLabel": "Room",
@@ -942,7 +949,23 @@
         "AutonomyDeveloped": "A permitted offscreen development occurred",
         "AutonomyIntention": "A person formed a grounded intention",
         "AutonomyCancelled": "Stale work was cancelled",
-        "AutonomyWaited": "No development was warranted"
+        "AutonomyWaited": "No development was warranted",
+        "Contact": "Contact",
+        "PauseContact": "Pause",
+        "ResumeContact": "Resume",
+        "ContactEnabled": "Enabled — grounded messages and calls may reach you.",
+        "ContactPaused": "Paused — no proactive contact will be generated or delivered.",
+        "MuteRoomContact": "Mute this Room",
+        "UnmuteRoomContact": "Unmute this Room",
+        "EnableQuietHours": "Enable quiet hours",
+        "DisableQuietHours": "Disable quiet hours",
+        "QuietHoursStart": "From",
+        "QuietHoursEnd": "Until",
+        "ContactStatus": "Recent contact: {status}",
+        "MutePersonContact": "Mute person",
+        "UnmutePersonContact": "Unmute person",
+        "MuteCalls": "Mute calls",
+        "AllowCalls": "Allow calls"
       }
     },
     "ErrorModal": {

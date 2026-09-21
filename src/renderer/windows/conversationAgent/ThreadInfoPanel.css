@@ -156,6 +156,30 @@
   font-size: var(--font-size-xs);
 }
 
+.ca-contact-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.ca-contact-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.ca-contact-controls input {
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-primary);
+  font: inherit;
+}
+
 /* Secondary: thread-scoped media analysis, collapsed by default. */
 .ca-thread-media-analysis {
   border: 1px solid var(--border-color);

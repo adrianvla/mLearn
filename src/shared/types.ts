@@ -557,6 +557,8 @@ export interface Settings {
   proactiveQuietHoursEnd: string;
   /** Per-participant opt-outs; calls are a separate, stricter tier (D20+) */
   proactiveOptOutParticipantIds: string[];
+  /** Rooms muted for every proactive modality. */
+  proactiveOptOutRoomIds: string[];
   proactiveCallOptOutParticipantIds: string[];
 
   // Conversation agent settings
@@ -797,6 +799,7 @@ export const DEFAULT_SETTINGS: Settings = {
   proactiveQuietHoursStart: '22:00',
   proactiveQuietHoursEnd: '08:00',
   proactiveOptOutParticipantIds: [],
+  proactiveOptOutRoomIds: [],
   proactiveCallOptOutParticipantIds: [],
 };
 

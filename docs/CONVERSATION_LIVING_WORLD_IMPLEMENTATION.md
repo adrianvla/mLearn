@@ -4,7 +4,7 @@ Target: [CONVERSATION_LIVING_WORLD_SPEC.md](CONVERSATION_LIVING_WORLD_SPEC.md), 
 
 Status vocabulary: **reported** (historical claim), **unverified** (no current sufficient evidence), **implemented** (live code exists), **fixture-verified** (controlled production-path test), **live-verified** (appropriate real runtime proof), **failed** (counterexample), **externally blocked** (specific prerequisite missing). Partial evidence does not close an entire requirement.
 
-**Current bounded handoff (2026-09-21): V09 PASS.** The main-owned autonomous living-world loop is implemented and verified through deterministic, crash, adversarial, real-model, and mounted Electron production paths. V08's occurrence/reflection authority boundary is preserved. V10 proactive contact, notifications, calls, and voice remain out of scope and unimplemented. See the final V09 checkpoint and [V09 review](CONVERSATION_LIVING_WORLD_V09_REVIEW.md).
+**Current bounded handoff (2026-09-21): V10 PASS.** Grounded proactive contact, durable contact/outbox state, Electron delivery and activation, incoming-call acceptance, and same-context voice continuation are implemented and verified through deterministic, crash, adversarial, real-model, signed-app notification, and mounted Electron paths. V08/V09 authority remains unchanged. See the final V10 checkpoint and [V10 review](CONVERSATION_LIVING_WORLD_V10_REVIEW.md).
 
 ## Dependency-aware execution
 
@@ -19,10 +19,10 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 
 - `NewConversationModal.tsx` routes selected existing people without intent through main-owned `createSandbox`; intent requests use `scenarioDirector.prepareScenario` → owner preview → `activateScenario`. Both publish independent Thread casts atomically. Generated people stay local; no request-as-persona or permanent scaffolding fallback remains. Persistent entry, grounding and scenario evolution still need this boundary.
 - `worldIpc.ts` owns entity commands through `worldStore.withWorldMutation`; JSON save uses rename. Since V07, integration runs through `integration.ts` inside that same world queue: main-owned derivation from the thread journal (no caller-supplied witnesses/payloads), a private prepared ledger record, gated journal preparation and an atomic world-state logical commit with startup reconciliation (corrected in the V07 review).
-- `journalService.ts` owns serialized Sea/Thread NDJSON writes and erasure. V09 autonomous intention/occurrence rows are main-only and canonical only when their committed durable job certifies the exact event ID; renderer append IPC rejects those authorities. Entity and journal files still do not share a physical transaction, so prepared rows remain hidden until the atomic job commit.
+- `journalService.ts` owns serialized Sea/Thread NDJSON writes and erasure. V09 autonomous rows and V10 contact rows are canonical only when their committed durable job/contact certifies the exact event ID; renderer append IPC rejects those authorities. Entity and journal files still do not share a physical transaction, so prepared rows remain hidden until the atomic job/contact commit.
 - `App.tsx` → `runRoomTurn` → per-person `compileContext` → existing agent inference. Text and voice share this path. Compiler filters witness/absence and reads scoped memories. Preserve these semantics; live proof is still required.
 - `dreamerRuntime.ts` runs policy-gated consolidation only following integration, with in-memory in-flight exclusion. Durable automatic post-encounter reflection is incomplete.
-- `main.ts` starts `schedulerRuntime`; its bounded fair V09 pass owns autonomous Room jobs each minute and on resume, separately from the legacy delivery scheduler. `autonomyRuntime` serializes background inference globally, uses the shared priority queue, heals prepared/committed episode work at startup, and triggers ordinary V08 consolidation. V10 notification/contact/call behavior is not used by V09.
+- `main.ts` starts `schedulerRuntime`; delivery reconciliation runs before new inference, then the independent V09 autonomy pass, one fair V10 contact Room, and ordinary maintenance. `contactRuntime` serializes contact inference, uses the shared background queue, delivers only committed contacts through Electron `Notification`, and routes notification/deep-link activation to the exact existing Room/contact. There is no legacy scheduler or renderer-owned contact authority.
 - Historical consolidation evidence is in `CONVERSATION_ARCHITECTURE_VERIFICATION.md`. Its forced hierarchy interpretation is superseded by the target spec. Earlier counts/screenshots are reported evidence, not current verification.
 
 ## Requirements
@@ -65,10 +65,10 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | KNOW-07 | Correctness is structural as well as generative. | unverified | Full condition retained in target; verify through the connected wave above. |
 | EVENT-01 | One authoritative event/projection family. | unverified | Full condition retained in target; verify through the connected wave above. |
 | EVENT-02 | Stable meaning. | unverified | Full condition retained in target; verify through the connected wave above. |
-| EVENT-03 | Different kinds of statements. | unverified | Full condition retained in target; verify through the connected wave above. |
+| EVENT-03 | Different kinds of statements. | fixture-verified (V10) | A proactive message is `message.character`; a call is `contact.invitation`; both retain cause provenance and are not occurrences, learner evidence, or notification-only dialogue. |
 | EVENT-04 | Authorized commit boundary. | implemented (V07 fixture evidence) | Integration content is derived main-side from the canonical thread journal (witnesses/owners/payloads cannot be fabricated by callers); validation covers source scope, retraction, canonical identity dependencies, destination situation conflicts and selected-consequence claims before preparation. Generic journal IPC still requires a complete trusted authority boundary. See verification record V07. |
 | EVENT-05 | No fabricated human actions. | unverified | Full condition retained in target; verify through the connected wave above. |
-| EVENT-06 | Concurrency and idempotency. | partial (V07 reviewed) | Global operation ID plus normalized selection hash; identical renderer submissions serialize. Actual second Electron process exits under the single-instance lock. Independent external profile writers are unsupported; other operation families remain unaudited. |
+| EVENT-06 | Concurrency and idempotency. | partial (V07/V10 reviewed) | V10 adds stable cause-derived contact IDs, per-Room inference joining, serialized world mutations, exact event certification, bounded stable-ID delivery, and idempotent activation/response. Mounted activation-versus-delivery race and two servicing paths pass. Independent external profile writers remain unsupported. |
 | EVENT-07 | Causal invalidation. | unverified | Full condition retained in target; verify through the connected wave above. |
 | DIRECTOR-01 | A live canonical entry boundary. | unverified (partial V03/V06 evidence) | V03 main-owned staging handles selected IDs plus intent for sandboxes; V06 adds the persistent Room choice through the same staging/activation. Source/media and educational adapters remain open. |
 | DIRECTOR-02 | Separate participants from intent. | unverified | Full condition retained in target; verify through the connected wave above. |
@@ -103,7 +103,7 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | SOCIAL-05 | Affect has a subject and cause. | unverified | Full condition retained in target; verify through the connected wave above. |
 | SOCIAL-06 | Emergent lore is first-class history. | unverified | Full condition retained in target; verify through the connected wave above. |
 | SOCIAL-07 | No mandatory drama. | unverified | Full condition retained in target; verify through the connected wave above. |
-| SOCIAL-08 | User agency and boundaries. | unverified | Full condition retained in target; verify through the connected wave above. |
+| SOCIAL-08 | User agency and boundaries. | live-verified (V10 contact scope) | Calls require explicit open then accept; microphone capture starts only after acceptance. Mute, pause, quiet-hours, modality permission, decline, miss and expiry are enforced without relationship mutation. |
 | MEM-01 | Canonical memory family. | unverified | Full condition retained in target; verify through the connected wave above. |
 | MEM-02 | Automatic permitted reflection. | partial / V08 blocked | Consent/revocation and publication paths repaired. In-flight trigger/backlog, exhausted-window retry and mounted nonempty exchange proof remain open. |
 | MEM-03 | Reflection output. | failed / V08 blocked | Owner-scoped persona/prior beliefs/loops and exact ordinal mapping work; unsupported model resolutions still close loops without later resolving evidence. |
@@ -114,34 +114,34 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | MEM-08 | Forgetting and archival are not falsification. | unverified | Full condition retained in target; verify through the connected wave above. |
 | MEM-09 | Corrections and erasure propagate. | partial / V08 blocked | Real message corrections, invalid superseders and Scenario lifecycle replay repaired. Published cross-Room continuing-context dependencies and full erasure remain incomplete. |
 | MEM-10 | Selective VoiceMem-inspired improvements. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CTX-01 | One compiler for identity and continuity. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CTX-02 | Inputs have explicit authority. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CTX-03 | Stable snapshot. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CTX-04 | Bounded selection and graceful uncertainty. | unverified | Full condition retained in target; verify through the connected wave above. |
+| CTX-01 | One compiler for identity and continuity. | live-verified (V10 contact scope) | Contact generation compiles the same participant/Room context used by foreground turns; accepted voice continues through `runConversationTurn` with the same compiler and journal. |
+| CTX-02 | Inputs have explicit authority. | fixture-verified (V10) | Exact visible source IDs, participant perspective, cause kind, witness-filtered events, and code-owned target/Room are validated before preparation, commit, and delivery. |
+| CTX-03 | Stable snapshot. | fixture-verified (V10) | Participant and semantic Room revisions, source hash, foreground head, exact source IDs, permissions, and cause activity are pinned and revalidated at publish/delivery. |
+| CTX-04 | Bounded selection and graceful uncertainty. | live-verified (V10 contact scope) | One cause/Room pass, 12 sources, fixed character budgets, two schema attempts, and first-class `nothing`; invalid or private output fails closed. |
 | CTX-05 | Separate pedagogical policy from character knowledge. | unverified | Full condition retained in target; verify through the connected wave above. |
 | CTX-06 | Scoped capabilities. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-01 | Contact has a cause. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-02 | Proactive messages are world/Room events. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-03 | One durable lifecycle. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-04 | Conservative policy. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-05 | Commit and delivery cannot diverge silently. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-06 | Real notification/deep-link path. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-07 | Real incoming call lifecycle. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-08 | Privacy-aware presentation. | unverified | Full condition retained in target; verify through the connected wave above. |
-| CONTACT-09 | No manipulative pressure or unauthorized external action. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TIME-01 | Separate clocks. | fixture-verified (V09) | Foreground, one-minute scheduler, eligibility delay, retry backoff and effective occurrence time are distinct code-owned values. |
-| TIME-02 | Main-owned lifecycle. | live-verified (V09) | Scheduler survives Conversation-window close; startup recovery and full process restart were mounted-tested. |
-| TIME-03 | Honest background support. | live-verified (V09) | Closed-window episode succeeds while full termination produces no claimed activity and a byte-stable journal. |
-| TIME-04 | Bounded resume and catch-up. | fixture-verified (V09) | Seven-day cap, four-Room startup healing, prepared exact replay and suspend/resume reconciliation are covered; no elapsed-time fabrication. |
-| TIME-05 | Priority and capacity. | fixture-verified (V09) | One global autonomy inference, two Rooms/reconcile, fair cursor; foreground queue priority regression passes. |
-| TIME-06 | Local/cloud policy. | live-verified (V09) | Autonomy uses the shared policy/route boundary and real local `gemma4-e4b-q4:latest`; policy-off blocks with durable backoff. |
-| TIME-07 | Measured boundedness. | live-verified (V09) | Mounted foreground 6,324 ms and later recall 12,332 ms; deterministic caps and no-work/no-poll probes pass. |
-| VOICE-01 | Shared identity and context. | unverified | Full condition retained in target; verify through the connected wave above. |
-| VOICE-02 | Complete real exchange. | unverified | Full condition retained in target; verify through the connected wave above. |
+| CONTACT-01 | Contact has a cause. | live-verified (V10) | Stable contact identity and exact provenance derive from one still-authoritative occurrence, open loop, or intention after a real user/person exchange. Real-model samples cite the exact cause. |
+| CONTACT-02 | Proactive messages are world/Room events. | live-verified (V10) | Message/call invitation is committed once to the existing Sea journal before delivery; canonical projection requires the contact ledger's exact event membership. |
+| CONTACT-03 | One durable lifecycle. | live-verified (V10) | Persisted revision/history distinguishes proposed, ready/scheduled, attempted, delivery-unknown/unavailable, delivered, opened, accepted, declined, missed, expired, cancelled, and superseded with stable IDs/times/expiry. |
+| CONTACT-04 | Conservative policy. | live-verified (V10) | `nothing` is durable and preferred; cooldown/frequency/resource/consent gates avoid model work; malformed, dramatic, manipulative and unsupported output fails closed. |
+| CONTACT-05 | Commit and delivery cannot diverge silently. | live-verified (V10) | Hidden prepared rows plus atomic exact certification precede a bounded outbox attempt. SIGKILL before and after commit recovers one contact/event; delivery-unknown is not unsafely replayed. |
+| CONTACT-06 | Real notification/deep-link path. | live-verified with stated limit (V10) | Signed macOS build reached Electron `Notification` `show`; actual deep link opened the exact existing Room/contact and safe erased/expired activation is covered. The production notification-click callback is fixture-driven; an automated literal Notification Center click was not retained by macOS. |
+| CONTACT-07 | Real incoming call lifecycle. | live-verified (V10) | Canonical invitation → offer → explicit accept → same Room/person/history → real microphone/STT/model/TTS/audio. Decline, miss, expiry, cancellation and stale acceptance are adversarially covered. |
+| CONTACT-08 | Privacy-aware presentation. | live-verified (V10) | Notification body is only person name plus message/call kind. Per-person prompt scope, absent/private disclosure rejection, and exact witnesses pass authority probes. |
+| CONTACT-09 | No manipulative pressure or unauthorized external action. | live-verified (V10) | Prompt and structural guards reject crisis/guilt/jealousy/dependency/false user action and email/SMS/phone/purchase/app/third-party expansion. Real samples are restrained and grounded. |
+| TIME-01 | Separate clocks. | fixture-verified (V09/V10) | V10 stores fictional effective time separately from creation, readiness, attempted/delivered/opened/settled real times and event sequence; fictional timeskips never become notification schedules. |
+| TIME-02 | Main-owned lifecycle. | live-verified (V09/V10) | Scheduler/delivery survive Conversation-window close; startup and resume reconcile committed contact in main; full termination claims no local inference. |
+| TIME-03 | Honest background support. | live-verified (V09/V10) | Main may contact while permitted/alive; persisted ready work is recovered after restart. Process absence is never simulated as contact activity. |
+| TIME-04 | Bounded resume and catch-up. | fixture-verified (V09/V10) | V10 scans committed delivery before one fair contact Room, expires stale records, caps daily frequency, and cannot storm from multiple elapsed/expired causes. |
+| TIME-05 | Priority and capacity. | fixture-verified (V09/V10) | One global contact inference, one fair contact Room/pass, one cause/pass, shared foreground-priority queue, bounded delivery attempts and stable IDs. |
+| TIME-06 | Local/cloud policy. | live-verified (V09/V10) | Contact uses the shared configured route and real local `gemma4-e4b-q4:latest`; policy/resource denial blocks without fallback or model work. |
+| TIME-07 | Measured boundedness. | live-verified (V09/V10) | Named V10 source/input/output/schema/delivery/frequency/expiry bounds pass no-work, concurrency, crash and mounted probes; V09 timing evidence remains unchanged. |
+| VOICE-01 | Shared identity and context. | live-verified (V10 call scope) | Accepted incoming call mounts the existing VoiceTab for the same participant/Room and journal; it creates no voice companion or second memory path. |
+| VOICE-02 | Complete real exchange. | live-verified (V10) | Mounted Push-to-Talk captured acoustic speech, mlx Whisper produced a final transcript, the production model replied, the voice row persisted, and system TTS reported audible playback. |
 | VOICE-03 | Speaker-specific multi-person presentation. | unverified | Full condition retained in target; verify through the connected wave above. |
 | VOICE-04 | Barge-in and cancellation. | unverified | Full condition retained in target; verify through the connected wave above. |
 | VOICE-05 | Partial input is provisional. | unverified | Full condition retained in target; verify through the connected wave above. |
-| VOICE-06 | Failure does not strand the conversation. | unverified | Full condition retained in target; verify through the connected wave above. |
+| VOICE-06 | Failure does not strand the conversation. | fixture-verified (V10 call scope) | Microphone denial remains recoverable after explicit start; denied notifications retain usable canonical in-app contact; stale acceptance reports an error instead of mounting voice. |
 | VOICE-07 | Optional audio evidence, not hidden surveillance. | unverified | Full condition retained in target; verify through the connected wave above. |
 | LEARN-01 | Tier-2 is authoritative. | unverified | Full condition retained in target; verify through the connected wave above. |
 | LEARN-02 | Evidence describes what was observed. | unverified | Full condition retained in target; verify through the connected wave above. |
@@ -173,7 +173,7 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | UX-05 | Character editing is comfortable. | unverified (partial V02 evidence) | V02: editor saves a sandbox-local override; production Electron exercised persona save. Full focus/cancel/source/voice editing matrix remains open. |
 | UX-06 | Preserve Memory Browser quality. | unverified | Full condition retained in target; verify through the connected wave above. |
 | UX-07 | Integration is discoverable and reviewable. | implemented (V07 native evidence) | Details offers selective integration with world/Room destination, dependency preview and situation choice. Pending operations have durable Retry; interrupted records expose affected current topology. Native failure/retry, destination, Memory Browser and reopen path exercised. Old-state resolution remains open. |
-| UX-08 | Activity and contact are usable. | unverified | Full condition retained in target; verify through the connected wave above. |
+| UX-08 | Activity and contact are usable. | live-verified (V10 contact scope) | Details exposes compact contact activity plus global/Room/person/call/quiet-hours controls; message activation targets the exact row; incoming call requires visible Accept/Decline. |
 | UX-09 | Shared intelligent text. | unverified | Full condition retained in target; verify through the connected wave above. |
 | UX-10 | Tokenization lifecycle is reliable. | unverified | Full condition retained in target; verify through the connected wave above. |
 | UX-11 | Header and controls actually work. | unverified | Full condition retained in target; verify through the connected wave above. |
@@ -183,17 +183,17 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | DATA-02 | Deliberate one-way compatibility. | unverified | Full condition retained in target; verify through the connected wave above. |
 | DATA-03 | Do not guess away old continuity. | unverified (partial V06 evidence) | Removing the old creation entry preserved all saved records; no journal or world data was rewritten. Reasoning-marker sanitation filters projection output only — persisted rows are never rewritten, and human text is never altered. |
 | DATA-04 | Crash-safe lifecycle. | partial (V07 reviewed) | New integration preparation is invisible until atomic world publication; SIGKILL/restart matrix passes, including source deletion. Old W1 prefixes lack rollback data and can still leave half-adopted topology. Other lifecycle families remain open. |
-| DATA-05 | Per-profile and institutional isolation. | unverified | Full condition retained in target; verify through the connected wave above. |
-| DATA-06 | Erasure is end-to-end. | unverified | Full condition retained in target; verify through the connected wave above. |
+| DATA-05 | Per-profile and institutional isolation. | fixture-verified (V10 personal-profile scope) | Main runtime pins the active user-data path during inference; every verifier and mounted run used isolated disposable profiles. Institutional scope remains outside V10. |
+| DATA-06 | Erasure is end-to-end. | fixture-verified (V10 contact scope) | Participant deletion cancels active contact; erased Room/person activation fails safely and never recreates identity, Room, message, or invitation. |
 | DATA-07 | Trust untrusted input appropriately. | unverified | Full condition retained in target; verify through the connected wave above. |
-| DATA-08 | Preserve existing safety and provider boundaries. | unverified | Full condition retained in target; verify through the connected wave above. |
+| DATA-08 | Preserve existing safety and provider boundaries. | live-verified (V10 contact scope) | Contact inference uses the existing policy/router/background queue and configured provider only; resource denial performs zero inference and has no hidden fallback. Voice reuses existing STT/model/TTS. |
 | DATA-09 | Minimize private logging. | unverified | Full condition retained in target; verify through the connected wave above. |
 | OPS-01 | Background work is subordinate. | unverified | Full condition retained in target; verify through the connected wave above. |
 | OPS-02 | Incremental processing. | unverified | Full condition retained in target; verify through the connected wave above. |
 | OPS-03 | Explicit error states. | unverified | Full condition retained in target; verify through the connected wave above. |
 | OPS-04 | No infinite repair loop. | unverified | Full condition retained in target; verify through the connected wave above. |
-| OPS-05 | Availability is not consent. | unverified | Full condition retained in target; verify through the connected wave above. |
-| OPS-06 | Debugging is explanatory, not a second implementation. | unverified | Full condition retained in target; verify through the connected wave above. |
+| OPS-05 | Availability is not consent. | live-verified (V10 contact scope) | Living World, proactivity, Room/person mute, call permission, LLM permission, quiet hours, and explicit call acceptance remain separate checks revalidated at side-effect boundaries. |
+| OPS-06 | Debugging is explanatory, not a second implementation. | fixture-verified (V10) | Details reads the same durable contact ledger used by delivery/activation; verifier scripts call built production services and do not create alternate contact semantics. |
 | VERIFY-01 | Four evidence layers. | unverified | Full condition retained in target; verify through the connected wave above. |
 | VERIFY-02 | Deterministic tests use production machinery. | unverified | Full condition retained in target; verify through the connected wave above. |
 | VERIFY-03 | Real-provider tests are separately labeled. | unverified | Full condition retained in target; verify through the connected wave above. |
@@ -427,5 +427,29 @@ Fresh evidence before handoff:
 - Mounted Electron: profile `v09-mounted-pSa2NB`; actual main/preload/Solid renderer/bridge/provider. Foreground 6,324 ms; Conversation window closed while main/dashboard continued; episode job `autonomy_95a2d6fffd9e560fc0b388b42b29ad79`; occurrence `evt_muail9q4_13_r5y2t4j7` witnessed by Eli/Mara only; automatic V08 consequence; full termination with byte-stable journal; restart; UI pause persisted; later recall 12,332 ms; zero proactive rows. `V09_MOUNTED_EVIDENCE=PASS`. All disposable Electron groups were verified stopped.
 
 No V10 schedule creation, notification, proactive contact, incoming call, or voice behavior was added. No original profile was written; no migration, commit, push, or deployment was performed.
+
+HANDOFF_VERDICT=PASS
+
+## Checkpoint — 2026-09-21, V10 proactive contact and incoming-call closure (authoritative current)
+
+**V10 PASS.** The current main-owned path is: authoritative existing cause → one conservative contact decision → hidden prepared Room row → exact durable contact/event commit → bounded Electron delivery → idempotent activation or explicit call response → ordinary text/voice continuation in the same Room and participant history. V08 interpretation and V09 occurrence authority are unchanged.
+
+Durable contacts use a stable cause-derived contact/operation ID, exact source provenance, participant and semantic Room revisions, foreground head, separate effective/processing/delivery times, expiry, delivery-attempt state, and revisioned lifecycle history. External display is not claimed exactly once: a known pre-emission interruption can retry with the same notification ID; `delivery-unknown` is not replayed. Prepared physical rows are invisible until one atomic world commit certifies their exact event IDs.
+
+Controls and bounds: Living World plus proactivity plus LLM/provider permission; global, Room and person contact controls; per-person call permission; quiet hours; four-hour message and 24-hour call cooldowns; two contacts/person/day; one contact Room and one cause/pass; 12 sources; 18,000 input and 2,000 output characters; two schema attempts; two known-safe delivery attempts; 24-hour message and 60-second call expiry. Every delivery rechecks permission, destination, semantic revisions, exact sources, foreground activity, and active cause. `nothing` is persisted as a first-class terminal result.
+
+Fresh final evidence:
+
+- Focused contact service/runtime: **20/20** after a mounted activation/delivery race exposed and repaired an `opened` downgrade; shown delivery also cannot be rescheduled by later quiet hours, backward clock changes do not replay unknown delivery, and multiple expired contacts do not storm on resume.
+- Full suite after those final regressions: **444 passed / 1 skipped files; 7,293 passed / 9 skipped tests**. Both TypeScript configurations and production build pass; only existing Vite import/chunk warnings remain.
+- `verify-v10-authority.cjs`: PASS for same-Room pass joining, exact cause/canonical identity, privacy partitioning, bounded stable-ID delivery, safe preview, and duplicate activation.
+- `verify-v10-crash.cjs`: B/C SIGKILL matrices PASS at partial journal publication and after atomic contact commit; recovery retains exactly one contact/event/attempt and idempotent activation.
+- Real supported model (`gemma4-e4b-q4:latest`): a restrained seed-catalog message and a separately required pronunciation-practice call both pass structural checks and semantic review for grounding, scope, privacy, modality, and non-manipulation. The message's later model continuation acts on the same catalog conflict.
+- Signed packaged macOS build reached actual Electron notification `shown` with a privacy-safe preview while the canonical contact remained usable. macOS did not retain an accessibility-visible notification long enough to automate a literal Notification Center click; the real deep-link path and production notification-click callback were verified separately.
+- Mounted disposable profile: canonical call `contact_fa2aa17d630feef70fdb3d4bb431f5e0` opened in `room-v10-real`, required explicit acceptance, retained Mara and the invitation/history, captured acoustic speech through mlx Whisper (`ご視聴ありがとうございました`), persisted Mara's model reply, and produced system TTS `playing:true` with audible output. Retained evidence snapshot: `/tmp/v10-mounted-evidence.rw0Etu`; checker `V10_MOUNTED_CALL_EVIDENCE=PASS`.
+- Corrected mounted race replay: contact `contact_e1dcbedc15ccf3287fccc84a5b61e886` remained `opened` with zero delivery attempts when deep-link activation raced startup reconcile.
+- Six locale JSON files parse; all V10 scripts syntax-check; `git diff --check` passes. No original profile, commit, push, deployment, or unreleased-format migration.
+
+The literal macOS banner click is the only composite-evidence caveat: actual OS display, actual product deep-link activation, actual incoming-call acceptance, and the real Electron click callback each pass, but one physical Notification Center click was not captured. The V10 mounted acceptance explicitly permits notification activation **or** incoming-call acceptance; the latter is fully exercised through audible voice continuation.
 
 HANDOFF_VERDICT=PASS

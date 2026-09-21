@@ -42,6 +42,7 @@ import { requestMaintenanceRetry } from './dreamerService';
 import { settleMaintenanceRunUnlocked } from './dreamerService';
 import { prepareScenario, activateScenario, cancelScenario } from './scenarioDirector';
 import * as integration from './integration';
+import { activateContact, respondToContact } from './contactService';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
   return withWorldMutation(async () => {
@@ -51,6 +52,7 @@ export async function getWorldState(): Promise<WorldSnapshot> {
       integrations: world.integrations?.map(({ prepared: _prepared, ...record }) => record),
       reflectionRuns: world.reflectionRuns?.map(({ prepared: _prepared, ...record }) => record),
       autonomyJobs: world.autonomyJobs?.map(({ prepared: _prepared, ...record }) => record),
+      contacts: world.contacts?.map(({ prepared: _prepared, ...record }) => record),
     };
   });
 }
@@ -360,6 +362,21 @@ export function setupWorldIPC(): void {
     }
   );
 
+  ipcMain.handle(IPC_CHANNELS.WORLD_ACTIVATE_CONTACT, async (_event, contactId: string) => {
+    if (typeof contactId !== 'string' || !contactId) throw new Error('[world] contact id is required');
+    return activateContact(contactId);
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.WORLD_RESPOND_CONTACT,
+    async (_event, contactId: string, response: 'accept' | 'decline') => {
+      if (typeof contactId !== 'string' || !contactId || (response !== 'accept' && response !== 'decline')) {
+        throw new Error('[world] valid contact response is required');
+      }
+      return respondToContact(contactId, response);
+    },
+  );
+
   ipcMain.handle(
     IPC_CHANNELS.WORLD_CREATE_PARTICIPANT,
     async (_event, input: {
@@ -446,6 +463,20 @@ export async function updateParticipant(participant: Participant, threadId?: str
 export async function deleteParticipant(participantId: string): Promise<void> {
   return withWorldMutation(async () => {
     const world = await loadWorld();
+    const now = Date.now();
+    world.contacts = world.contacts?.map(contact => {
+      if (contact.participantId !== participantId
+        || ['accepted', 'declined', 'missed', 'expired', 'cancelled', 'superseded'].includes(contact.status)) return contact;
+      return {
+        ...contact,
+        status: 'cancelled' as const,
+        revision: contact.revision + 1,
+        settledAt: now,
+        reason: 'The contact destination was erased',
+        history: [...contact.history, { status: 'cancelled' as const, at: now, reason: 'The contact destination was erased' }],
+        prepared: undefined,
+      };
+    });
     world.participants = world.participants.filter((item) => item.id !== participantId);
     for (const room of world.rooms) {
       room.participantIds = room.participantIds.filter((id) => id !== participantId);

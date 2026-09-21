@@ -18,6 +18,7 @@ import type { JournalEvent, JournalEventDraft, WorldSnapshot } from '../../../sh
 
 let streamCallback: (chunk: LLMStreamChunk) => void = () => {};
 let windowContextCallback: (context: unknown) => void = () => {};
+let openRoomCallback: (payload: import('../../../shared/world').OpenRoomEventPayload) => void = () => {};
 let journalEvents: JournalEvent[] = [];
 const worldFixture = {
   rooms: [{ id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 }],
@@ -46,7 +47,7 @@ const mockBridge = {
   },
   window: {
     onWindowContext: vi.fn((callback: (context: unknown) => void) => { windowContextCallback = callback; return () => {}; }),
-    onOpenRoomEvent: vi.fn(() => () => {}),
+    onOpenRoomEvent: vi.fn((callback: typeof openRoomCallback) => { openRoomCallback = callback; return () => {}; }),
     getWindowContext: vi.fn(),
     openWindow: vi.fn(),
   },
@@ -55,6 +56,11 @@ const mockBridge = {
     createPersistentRoom: vi.fn(async (input: { operationId: string; participantIds: string[] }) => ({ id: 'room-new', title: 'New room', participantIds: input.participantIds, createdByOperation: input.operationId, createdAt: Date.now() })),
     updateThread: vi.fn(async (thread: WorldSnapshot['threads'][number]) => thread),
     clearRoomUnread: vi.fn(async () => {}),
+    respondToContact: vi.fn(async (contactId: string, response: 'accept' | 'decline') => ({
+      ok: true as const,
+      contact: currentWorld.contacts!.find(contact => contact.contactId === contactId && contact.modality === 'call')!,
+      response,
+    })),
   },
   journal: {
     appendEvent: vi.fn(async (_roomId: string, draft: JournalEventDraft) => appendJournalEvent(draft)),
@@ -269,7 +275,14 @@ vi.mock('../../components/subtitle/ExplainerPopup', () => ({
 }));
 
 vi.mock('./VoiceTab', () => ({
-  VoiceTab: (props: { autoStartCall?: boolean }) => <div data-testid="voice-tab" data-auto-start={String(props.autoStartCall)} />,
+  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string }) => (
+    <div
+      data-testid="voice-tab"
+      data-auto-start={String(props.autoStartCall)}
+      data-agent-name={props.agentName}
+      data-voice-sample={props.defaultVoiceSampleId}
+    />
+  ),
 }));
 
 vi.mock('./ThreadInfoPanel', () => ({
@@ -302,6 +315,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     document.body.appendChild(container);
     streamCallback = () => {};
     windowContextCallback = () => {};
+    openRoomCallback = () => {};
     journalEvents = [];
     currentWorld = {
       rooms: [{ id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 }],
@@ -344,6 +358,60 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
     await vi.waitFor(() => expect(chatText(container)).toContain('Hello from Partner'));
+  });
+
+  it('requires explicit acceptance before an incoming contact starts the real voice surface', async () => {
+    currentWorld = {
+      ...worldFixture,
+      contacts: [{
+        contactId: 'contact-call', operationId: 'contact-call', roomId: 'room-a', participantId: 'agent-a',
+        targetActorId: 'user', causeKind: 'open-loop', sourceEventIds: ['evt-cause'], sourceHash: 'hash',
+        status: 'opened', revision: 3, history: [{ status: 'opened', at: 3 }], createdAt: 1, effectiveAt: 1,
+        readyAt: 1, expiresAt: Date.now() + 60_000, modality: 'call', callId: 'call-1', eventIds: ['evt-invite'],
+        deliveryAttempts: 1, participantRevision: 'p', roomRevision: 'r',
+      }],
+    };
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onOpenRoomEvent).toHaveBeenCalled());
+
+    openRoomCallback({ roomId: 'room-a', contactId: 'contact-call', callId: 'call-1' });
+    await vi.waitFor(() => expect(container.textContent).toContain('mlearn.ConversationAgent.IncomingCall.Title'));
+    expect(container.querySelector('[data-testid="voice-tab"]')).toBeNull();
+
+    const accept = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.IncomingCall.Accept')!;
+    accept.click();
+    await vi.waitFor(() => expect(mockBridge.world.respondToContact).toHaveBeenCalledWith('contact-call', 'accept'));
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-auto-start')).toBe('true'));
+  });
+
+  it('keeps a multi-person incoming call bound to the contacting person and voice', async () => {
+    currentWorld = {
+      rooms: [{ id: 'room-a', title: 'Garden', participantIds: ['agent-a', 'agent-b'], createdAt: 1 }],
+      threads: [],
+      participants: [
+        { id: 'agent-a', displayName: 'Eli', kind: 'persistent', personaText: 'Eli plans layouts.', setupComplete: true, voiceSampleId: 'voice-eli' },
+        { id: 'agent-b', displayName: 'Mara', kind: 'persistent', personaText: 'Mara keeps the catalog.', setupComplete: true, voiceSampleId: 'voice-mara' },
+      ],
+      contacts: [{
+        contactId: 'contact-call-b', operationId: 'contact-call-b', roomId: 'room-a', participantId: 'agent-b',
+        targetActorId: 'user', causeKind: 'open-loop', sourceEventIds: ['evt-cause'], sourceHash: 'hash',
+        status: 'opened', revision: 3, history: [{ status: 'opened', at: 3 }], createdAt: 1, effectiveAt: 1,
+        readyAt: 1, expiresAt: Date.now() + 60_000, modality: 'call', callId: 'call-b', eventIds: ['evt-invite'],
+        deliveryAttempts: 1, participantRevision: 'p', roomRevision: 'r',
+      }],
+    };
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onOpenRoomEvent).toHaveBeenCalled());
+
+    openRoomCallback({ roomId: 'room-a', contactId: 'contact-call-b', callId: 'call-b' });
+    await vi.waitFor(() => expect(container.textContent).toContain('mlearn.ConversationAgent.IncomingCall.Title'));
+    const accept = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.IncomingCall.Accept')!;
+    accept.click();
+
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-agent-name')).toBe('Mara'));
+    expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-voice-sample')).toBe('voice-mara');
   });
 
   it('tokenizes journal-restored messages without persisted tokens', async () => {

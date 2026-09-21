@@ -7,7 +7,7 @@
 
 import { Component, For, Show, createSignal } from 'solid-js';
 import type { ConversationAgentContext } from '../../../shared/types';
-import type { AutonomyJobRecord, Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
+import type { AutonomyJobRecord, ContactRecord, Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
 import { Btn, FormField, Input, Tag } from '../../components/common';
 import { useLocalization } from '../../context';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
@@ -24,12 +24,25 @@ interface ThreadInfoPanelProps {
   reflectionRuns?: ReflectionRunRecord[];
   autonomyJobs?: AutonomyJobRecord[];
   autonomyEnabled?: boolean;
+  contacts?: Omit<ContactRecord, 'prepared'>[];
+  contactEnabled?: boolean;
+  roomContactMuted?: boolean;
+  quietHoursEnabled?: boolean;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
   onRenameThread: (title: string) => Promise<void> | void;
   onUpdateParticipant: (participant: Participant) => Promise<void> | void;
   onDeleteThread: () => Promise<void> | void;
   onIntegrate?: () => void | Promise<void>;
   onRetryMaintenance?: (reflectionId: string) => Promise<void> | void;
   onSetAutonomyEnabled?: (enabled: boolean) => Promise<void> | void;
+  onSetContactEnabled?: (enabled: boolean) => Promise<void> | void;
+  onSetRoomContactMuted?: (muted: boolean) => Promise<void> | void;
+  onSetQuietHours?: (value: { enabled?: boolean; start?: string; end?: string }) => Promise<void> | void;
+  onSetParticipantMuted?: (participantId: string, muted: boolean) => Promise<void> | void;
+  onSetParticipantCallsAllowed?: (participantId: string, allowed: boolean) => Promise<void> | void;
+  mutedParticipantIds?: string[];
+  callMutedParticipantIds?: string[];
 }
 
 export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
@@ -52,6 +65,9 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   const roomAutonomyJobs = () => props.thread?.sandbox || !props.roomId
     ? []
     : (props.autonomyJobs ?? []).filter(job => job.roomId === props.roomId).slice(-3).reverse();
+  const roomContacts = () => props.thread?.sandbox || !props.roomId
+    ? []
+    : (props.contacts ?? []).filter(contact => contact.roomId === props.roomId).slice(-3).reverse();
 
   const autonomyStatus = (job: AutonomyJobRecord): string => {
     switch (job.status) {
@@ -188,6 +204,53 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
         </section>
       </Show>
 
+      <Show when={!props.thread?.sandbox}>
+        <section class="ca-thread-section">
+          <div class="ca-thread-title-row">
+            <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.Contact')}</span>
+            <Show when={props.onSetContactEnabled}>
+              <Btn variant="ghost" size="sm" onClick={() => { void props.onSetContactEnabled?.(!(props.contactEnabled ?? true)); }}>
+                {t((props.contactEnabled ?? true)
+                  ? 'mlearn.ConversationAgent.Details.PauseContact'
+                  : 'mlearn.ConversationAgent.Details.ResumeContact')}
+              </Btn>
+            </Show>
+          </div>
+          <p>{t((props.contactEnabled ?? true)
+            ? 'mlearn.ConversationAgent.Details.ContactEnabled'
+            : 'mlearn.ConversationAgent.Details.ContactPaused')}</p>
+          <Show when={props.roomId && props.onSetRoomContactMuted}>
+            <Btn variant="ghost" size="sm" onClick={() => { void props.onSetRoomContactMuted?.(!(props.roomContactMuted ?? false)); }}>
+              {t((props.roomContactMuted ?? false)
+                ? 'mlearn.ConversationAgent.Details.UnmuteRoomContact'
+                : 'mlearn.ConversationAgent.Details.MuteRoomContact')}
+            </Btn>
+          </Show>
+          <Show when={props.onSetQuietHours}>
+            <div class="ca-contact-controls">
+              <Btn variant="ghost" size="sm" onClick={() => { void props.onSetQuietHours?.({ enabled: !(props.quietHoursEnabled ?? false) }); }}>
+                {t((props.quietHoursEnabled ?? false)
+                  ? 'mlearn.ConversationAgent.Details.DisableQuietHours'
+                  : 'mlearn.ConversationAgent.Details.EnableQuietHours')}
+              </Btn>
+              <Show when={props.quietHoursEnabled}>
+                <label>{t('mlearn.ConversationAgent.Details.QuietHoursStart')}
+                  <input type="time" value={props.quietHoursStart ?? ''} onInput={event => { void props.onSetQuietHours?.({ start: event.currentTarget.value }); }} />
+                </label>
+                <label>{t('mlearn.ConversationAgent.Details.QuietHoursEnd')}
+                  <input type="time" value={props.quietHoursEnd ?? ''} onInput={event => { void props.onSetQuietHours?.({ end: event.currentTarget.value }); }} />
+                </label>
+              </Show>
+            </div>
+          </Show>
+          <For each={roomContacts()}>
+            {(contact) => <article class="ca-thread-world-run">
+              <span class="ca-thread-world-run-status">{t('mlearn.ConversationAgent.Details.ContactStatus', { status: contact.status })}</span>
+            </article>}
+          </For>
+        </section>
+      </Show>
+
       <Show when={(props.thread ? props.thread.scenario : props.roomScenario)} keyed>
         {(scenario) => <section class="ca-thread-section">
           <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.NewConversation.Scene')}</span>
@@ -228,6 +291,22 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
                 </div>
                 <Show when={participant.personaText.trim()}>
                   <p class="ca-thread-participant-persona">{participant.personaText}</p>
+                </Show>
+                <Show when={!props.thread?.sandbox && props.onSetParticipantMuted}>
+                  <div class="ca-contact-controls">
+                    <Btn variant="ghost" size="sm" onClick={() => { void props.onSetParticipantMuted?.(participant.id, !(props.mutedParticipantIds ?? []).includes(participant.id)); }}>
+                      {t((props.mutedParticipantIds ?? []).includes(participant.id)
+                        ? 'mlearn.ConversationAgent.Details.UnmutePersonContact'
+                        : 'mlearn.ConversationAgent.Details.MutePersonContact')}
+                    </Btn>
+                    <Show when={props.onSetParticipantCallsAllowed}>
+                      <Btn variant="ghost" size="sm" onClick={() => { void props.onSetParticipantCallsAllowed?.(participant.id, (props.callMutedParticipantIds ?? []).includes(participant.id)); }}>
+                        {t((props.callMutedParticipantIds ?? []).includes(participant.id)
+                          ? 'mlearn.ConversationAgent.Details.AllowCalls'
+                          : 'mlearn.ConversationAgent.Details.MuteCalls')}
+                      </Btn>
+                    </Show>
+                  </div>
                 </Show>
               </article>
             )}

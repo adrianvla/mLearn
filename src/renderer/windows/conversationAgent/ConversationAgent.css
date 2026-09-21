@@ -406,3 +406,69 @@ textarea.ca-chat-textarea,
   background: var(--bg-nt-primary);
   z-index: 1;
 }
+.ca-contact-target {
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--color-primary);
+  outline-offset: var(--spacing-1);
+}
+
+.ca-contact-error {
+  position: fixed;
+  z-index: 120;
+  right: var(--spacing-4);
+  bottom: var(--spacing-4);
+  max-width: min(28rem, calc(100vw - var(--spacing-8)));
+  padding: var(--spacing-3) var(--spacing-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-nt-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.ca-incoming-call {
+  position: fixed;
+  z-index: 125;
+  top: var(--spacing-4);
+  left: 50%;
+  display: flex;
+  width: min(32rem, calc(100vw - var(--spacing-8)));
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-nt-primary);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-50%);
+}
+
+.ca-incoming-call-icon {
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+.ca-incoming-call-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.ca-incoming-call-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  color: var(--text-secondary);
+}
+
+.ca-incoming-call-copy strong {
+  color: var(--text-primary);
+}

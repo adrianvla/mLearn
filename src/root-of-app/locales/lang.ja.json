@@ -899,6 +899,13 @@
       "Call": {
         "StartAria": "通話を開始"
       },
+      "IncomingCall": {
+        "Title": "着信",
+        "From": "{name}からの通話",
+        "UnknownCaller": "不明な相手",
+        "Accept": "応答",
+        "Decline": "拒否"
+      },
       "Details": {
         "PracticeVersion": "この練習での設定",
         "RoomLabel": "ルーム",
@@ -942,7 +949,23 @@
         "AutonomyDeveloped": "許可されたオフスクリーンの展開が起きました",
         "AutonomyIntention": "人物が根拠のある意図を持ちました",
         "AutonomyCancelled": "古い処理は取り消されました",
-        "AutonomyWaited": "展開は必要ありませんでした"
+        "AutonomyWaited": "展開は必要ありませんでした",
+        "Contact": "連絡",
+        "PauseContact": "一時停止",
+        "ResumeContact": "再開",
+        "ContactEnabled": "有効 — 根拠のあるメッセージや通話が届くことがあります。",
+        "ContactPaused": "一時停止中 — 積極的な連絡は作成・配信されません。",
+        "MuteRoomContact": "このルームをミュート",
+        "UnmuteRoomContact": "このルームのミュートを解除",
+        "EnableQuietHours": "通知休止時間を有効化",
+        "DisableQuietHours": "通知休止時間を無効化",
+        "QuietHoursStart": "開始",
+        "QuietHoursEnd": "終了",
+        "ContactStatus": "最近の連絡: {status}",
+        "MutePersonContact": "この人をミュート",
+        "UnmutePersonContact": "この人のミュートを解除",
+        "MuteCalls": "通話をミュート",
+        "AllowCalls": "通話を許可"
       }
     },
     "ErrorModal": {

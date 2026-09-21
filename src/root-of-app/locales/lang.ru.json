@@ -899,6 +899,13 @@
       "Call": {
         "StartAria": "Начать звонок"
       },
+      "IncomingCall": {
+        "Title": "Входящий звонок",
+        "From": "Звонит {name}",
+        "UnknownCaller": "Неизвестный собеседник",
+        "Accept": "Принять",
+        "Decline": "Отклонить"
+      },
       "Details": {
         "PracticeVersion": "Версия для практики",
         "RoomLabel": "Комната",
@@ -942,7 +949,23 @@
         "AutonomyDeveloped": "Произошло разрешённое фоновое развитие",
         "AutonomyIntention": "У персонажа появилось обоснованное намерение",
         "AutonomyCancelled": "Устаревшая работа отменена",
-        "AutonomyWaited": "Развитие не было оправдано"
+        "AutonomyWaited": "Развитие не было оправдано",
+        "Contact": "Контакты",
+        "PauseContact": "Приостановить",
+        "ResumeContact": "Возобновить",
+        "ContactEnabled": "Включено — обоснованные сообщения и звонки могут поступать вам.",
+        "ContactPaused": "Приостановлено — инициативные контакты не создаются и не доставляются.",
+        "MuteRoomContact": "Отключить контакты из этой комнаты",
+        "UnmuteRoomContact": "Включить контакты из этой комнаты",
+        "EnableQuietHours": "Включить тихие часы",
+        "DisableQuietHours": "Отключить тихие часы",
+        "QuietHoursStart": "С",
+        "QuietHoursEnd": "До",
+        "ContactStatus": "Недавний контакт: {status}",
+        "MutePersonContact": "Отключить контакты",
+        "UnmutePersonContact": "Включить контакты",
+        "MuteCalls": "Отключить звонки",
+        "AllowCalls": "Разрешить звонки"
       }
     },
     "ErrorModal": {

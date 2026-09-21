@@ -20,23 +20,16 @@ export type EventType =
   | 'memory.belief'
   | 'disclosure'
   | 'resolution'
-  | 'schedule'
   | 'membership'
   | 'consolidation'
   | 'deletion'
   | 'integration'
-  | 'proactive_requested'
-  | 'proactive_fulfilled'
-  | 'call_initiated'
-  | 'call_accepted'
-  | 'call_declined'
-  | 'call_missed'
-  | 'call_ended'
   | 'correction'
   | 'safety_flag'
   | 'scenario_evolved'
   | 'intention'
-  | 'occurrence.simulated';
+  | 'occurrence.simulated'
+  | 'contact.invitation';
 
 /** Reserved actor ids. Anything else is a Participant id. */
 export const USER_ACTOR = 'user';
@@ -62,6 +55,9 @@ export interface JournalEvent {
     /** Main-owned V09 autonomous occurrence operation. Rows remain hidden
      *  until the matching durable job reaches committed status. */
     autonomyJobId?: string;
+    /** Main-owned V10 contact operation. Prepared rows remain hidden until
+     * the contact record certifies their exact event ids. */
+    contactId?: string;
   };
 }
 
@@ -132,19 +128,6 @@ export interface ConsolidationPayload {
   producedEventIds: string[]; // beliefs/resolutions this run appended (audit + resume)
 }
 
-/** 'proactive_requested' / 'proactive_fulfilled' — v1 fulfills from pre-authorized text only. */
-export interface ProactivePayload {
-  candidateId: string; // ProjectionStore candidate; intent piggybacked on normal inference
-  text?: string; // pre-authorized text; absent candidate → drop ("nothing meaningful → nothing")
-  messageEventId?: string; // fulfilled only — the message.character event it produced
-}
-
-/** 'call_initiated' / 'call_accepted' / 'call_declined' / 'call_missed' / 'call_ended' (D19+). */
-export interface CallPayload {
-  callId: string;
-  reason?: string;
-}
-
 /** 'correction' — checker output on a user message; folded into the referenced message's display. */
 export interface CorrectionPayload {
   messageEventId: string;
@@ -155,17 +138,6 @@ export interface CorrectionPayload {
 export interface SafetyFlagPayload {
   messageEventId: string;
   flag: unknown; // ConversationSafetyFlag — kept opaque here to avoid shared/type coupling
-}
-
-/** 'schedule' — a pending proactive intent; the main-process scheduler consumes these. */
-export interface SchedulePayload {
-  candidateId: string; // idempotency anchor — a fulfilled candidateId is never re-fired
-  kind: 'message' | 'call';
-  participantId: string;
-  fireAt: number;
-  text?: string; // pre-authorized text piggybacked on normal inference
-  score?: number; // intent score from normal cognition; re-checked at fire time
-  lastFiredAt?: number; // cooldown input
 }
 
 // ---------------------------------------------------------------------------
@@ -236,6 +208,74 @@ export interface AutonomyJobRecord {
    * sent to renderers. */
   prepared?: { expectedDrafts: JournalEventDraft[] };
 }
+
+// ---------------------------------------------------------------------------
+// V10 proactive contact
+// ---------------------------------------------------------------------------
+
+export type ContactModality = 'message' | 'call';
+
+export type ContactStatus =
+  | 'proposed'
+  | 'scheduled'
+  | 'ready'
+  | 'attempted'
+  | 'delivery-unknown'
+  | 'delivery-unavailable'
+  | 'delivered'
+  | 'opened'
+  | 'accepted'
+  | 'declined'
+  | 'missed'
+  | 'expired'
+  | 'cancelled'
+  | 'superseded';
+
+export interface ContactTransition {
+  status: ContactStatus;
+  at: number;
+  reason?: string;
+}
+
+export interface ContactRecord {
+  contactId: string;
+  operationId: string;
+  roomId: string;
+  participantId: string;
+  targetActorId: typeof USER_ACTOR;
+  causeKind: 'occurrence' | 'open-loop' | 'intention';
+  sourceEventIds: string[];
+  sourceHash: string;
+  status: ContactStatus;
+  revision: number;
+  history: ContactTransition[];
+  createdAt: number;
+  effectiveAt: number;
+  readyAt: number;
+  expiresAt: number;
+  modality?: ContactModality;
+  reason?: string;
+  messageText?: string;
+  eventIds?: string[];
+  messageEventId?: string;
+  callId?: string;
+  attemptedAt?: number;
+  deliveredAt?: number;
+  openedAt?: number;
+  settledAt?: number;
+  deliveryAttempts: number;
+  deliveryState?: 'not-attempted' | 'unknown' | 'shown' | 'denied' | 'unsupported' | 'failed';
+  lastDeliveryError?: string;
+  foregroundHeadEventId?: string;
+  participantRevision: string;
+  roomRevision: string;
+  /** Private validated publication removed at commit. */
+  prepared?: { expectedDrafts: JournalEventDraft[] };
+}
+
+export type ContactActionResult =
+  | { ok: true; contact: Omit<ContactRecord, 'prepared'> }
+  | { ok: false; reason: string; contact?: Omit<ContactRecord, 'prepared'> };
 
 // ---------------------------------------------------------------------------
 // Entities
@@ -561,6 +601,7 @@ export interface WorldSnapshot {
   integrations?: Omit<IntegrationRecord, 'prepared'>[];
   reflectionRuns?: Omit<ReflectionRunRecord, 'prepared'>[];
   autonomyJobs?: Omit<AutonomyJobRecord, 'prepared'>[];
+  contacts?: Omit<ContactRecord, 'prepared'>[];
   rooms: Room[];
   threads: Thread[];
   participants: Participant[];
@@ -579,6 +620,8 @@ export interface OpenRoomEventPayload {
   threadId?: string;
   eventId?: string; // deep-link target — room window scrolls to/highlights this event
   callId?: string; // D20+ — present when the open is a voice-call accept
+  contactId?: string; // V10 durable message/call contact identity
+  contactError?: string; // safe activation failure; never recreates stale state
 }
 
 // ---------------------------------------------------------------------------

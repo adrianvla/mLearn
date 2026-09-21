@@ -129,6 +129,9 @@ export interface RunRoomTurnInput {
   appendEvent: (draft: JournalEventDraft) => Promise<JournalEvent>;
   contextTurn?: { text: string; threadId?: string };
   modality?: 'text' | 'voice';
+  /** A trusted ingress (for example an accepted incoming call) may pin the
+   * first response to the already-authoritative contacting participant. */
+  initialSpeakerId?: string;
   maxCharacterExchanges?: number; // default 3 — max character→character turns AFTER the first response
   compileContextFn?: typeof compileContext; // default: the real one
   userActorId?: string; // default USER_ACTOR
@@ -174,10 +177,12 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
   for (const p of roster) {
     contexts.set(p.id, compileContextFn({ room, thread: input.thread, participant: p, participants, seaEvents, threadEvents }));
   }
-  const firstSpeakerId = selectSpeaker(roster, {
-    lastEventText: input.contextTurn?.text ?? lastMessageText(threadEvents),
-    lastSpeakerId: userActorId,
-  });
+  const firstSpeakerId = input.initialSpeakerId && roster.some(person => person.id === input.initialSpeakerId)
+    ? input.initialSpeakerId
+    : selectSpeaker(roster, {
+        lastEventText: input.contextTurn?.text ?? lastMessageText(threadEvents),
+        lastSpeakerId: userActorId,
+      });
   if (firstSpeakerId === null) {
     return { speakerIds: [], events: [], stoppedReason: 'no-eligible-speaker' };
   }

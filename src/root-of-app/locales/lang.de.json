@@ -899,6 +899,13 @@
       "Call": {
         "StartAria": "Anruf starten"
       },
+      "IncomingCall": {
+        "Title": "Eingehender Anruf",
+        "From": "{name} ruft an",
+        "UnknownCaller": "Jemand",
+        "Accept": "Annehmen",
+        "Decline": "Ablehnen"
+      },
       "Details": {
         "PracticeVersion": "Übungsversion",
         "RoomLabel": "Raum",
@@ -942,7 +949,23 @@
         "AutonomyDeveloped": "Eine zulässige Entwicklung im Hintergrund ist eingetreten",
         "AutonomyIntention": "Eine Person hat eine begründete Absicht entwickelt",
         "AutonomyCancelled": "Veraltete Arbeit wurde abgebrochen",
-        "AutonomyWaited": "Keine Entwicklung war gerechtfertigt"
+        "AutonomyWaited": "Keine Entwicklung war gerechtfertigt",
+        "Contact": "Kontakt",
+        "PauseContact": "Pausieren",
+        "ResumeContact": "Fortsetzen",
+        "ContactEnabled": "Aktiv — begründete Nachrichten und Anrufe können dich erreichen.",
+        "ContactPaused": "Pausiert — es werden keine proaktiven Kontakte erstellt oder zugestellt.",
+        "MuteRoomContact": "Diesen Raum stummschalten",
+        "UnmuteRoomContact": "Raum nicht mehr stummschalten",
+        "EnableQuietHours": "Ruhezeiten aktivieren",
+        "DisableQuietHours": "Ruhezeiten deaktivieren",
+        "QuietHoursStart": "Von",
+        "QuietHoursEnd": "Bis",
+        "ContactStatus": "Letzter Kontakt: {status}",
+        "MutePersonContact": "Person stummschalten",
+        "UnmutePersonContact": "Person nicht mehr stummschalten",
+        "MuteCalls": "Anrufe stummschalten",
+        "AllowCalls": "Anrufe erlauben"
       }
     },
     "ErrorModal": {

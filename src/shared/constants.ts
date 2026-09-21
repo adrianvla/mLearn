@@ -388,6 +388,8 @@ export const IPC_CHANNELS = {
   WORLD_CLEAR_UNREAD: 'world-clear-unread',
   WORLD_TRIGGER_REFLECTION: 'world-trigger-reflection',
   WORLD_RETRY_MAINTENANCE: 'world-retry-maintenance',
+  WORLD_ACTIVATE_CONTACT: 'world-activate-contact',
+  WORLD_RESPOND_CONTACT: 'world-respond-contact',
 
   // Open the room window at a specific room (optionally deep-linked to an event)
   OPEN_ROOM_EVENT: 'open-room-event',

@@ -1,6 +1,6 @@
 # Living-world verification
 
-The full A01–A45 target remains broader than this wave. **Current bounded verdict (2026-09-21): V09 PASS.** V08 is accepted and its occurrence/reflection authority boundary remains intact. V09 autonomous jobs, bounded offscreen episodes, recovery, pause, foreground reconciliation, real-model behavior, and mounted product lifecycle pass the evidence below. V10 proactive contact, notifications, calls, and voice remain excluded. Historical blocked sections are retained as audit history and are superseded by the closure sections.
+The full A01–A45 target remains broader than this wave. **Current bounded verdict (2026-09-21): V10 PASS.** V08/V09 remain accepted and their occurrence/reflection authority boundary is intact. V10 grounded initiative, exact canonical contact, durable delivery, controls/privacy, real notification surface, incoming-call acceptance, and same-context STT/model/TTS continuation pass the evidence below with one explicit composite-evidence caveat for a literal macOS Notification Center click. Historical blocked sections are retained as audit history and are superseded by the closure sections.
 
 
 ## V01 — Integration admission boundary, 2026-09-14
@@ -318,3 +318,68 @@ Boundedness and lifecycle findings:
 Semantic review of the final real-model and mounted records found ordinary plausible activity grounded in supplied seed-library materials; no user impersonation; participant disagreement preserved; no private-text disclosure; no mandatory drama; later continuity based on the authoritative occurrence. The mounted V08 consequence cited another exact certified row from the same episode; the separate real-model gate proves exact occurrence citation and loop resolution.
 
 HANDOFF_VERDICT=PASS
+
+## V10 — Proactive contact and incoming-call closure verification, 2026-09-21 (authoritative current)
+
+**PASS.** This closes the V10 wave only. It does not certify the complete A01–A45 program or authorize post-V10 expansion.
+
+| Layer | Fresh result | Evidence and meaning |
+|---|---|---|
+| Focused regressions | **20/20 contact service/runtime** | Grounded exactly-once contact, first-class nothing, privacy/manipulation guards, cooldowns, quiet/mute/stale/denied delivery, missed calls, cause invalidation, concurrency, stable notification identity, safe activation, notification removal, backward clock adjustment, multiple expired resume, and the final transition repair. |
+| Full suite | **444 passed / 1 skipped files; 7,293 passed / 9 skipped tests** | `npm run test`, exit 0, 40.83 seconds after the final named adversarial regressions. Intermediate happy-dom/tethered-endpoint messages did not produce test failures. |
+| TypeScript | Both configurations pass | `npm run typecheck`, exit 0 after the final production change. |
+| Production build | Pass | `npm run build`, exit 0; existing Vite dynamic-import/chunk warnings only. A signed packaged directory build also completed before the signed-app notification run. |
+| Authority/concurrency probe | **PASS** | Final `node scripts/verify-v10-authority.cjs`: two paths join one Room pass; one exact canonical contact/event; participant-private input excluded; bounded stable-ID delivery; safe preview; duplicate activation idempotent. |
+| Process crash/recovery | **B/C PASS** | Final `node scripts/verify-v10-crash.cjs`: SIGKILL during partial physical publication and after the atomic ready commit; prepared row quarantine, exactly one contact/event/attempt, stable recovery, and repeated activation. |
+| Real supported model | **Structural PASS; semantic PASS after inspection** | Fresh local `gemma4-e4b-q4:latest` message: specific seed-accession conflict, exact occurrence, no Noa/private leakage, no pressure, and a later continuation that cross-references the inventory. Separate `V10_EXPECT_CALL=1`: pre-agreed live pronunciation slot produces a justified in-app call, not an external call. |
+| Signed macOS notification | **Display PASS; literal click not captured** | Signed packaged `mLearn.app` produced Electron/macOS `show` and durable `delivered`/`shown` with stable ID and safe “Incoming call from Mara” preview. This probe preceded the final transition-race repair; final source was rebuilt and race-replayed in mounted Electron. Notification Center did not retain an accessibility-visible item long enough for an automated physical click. |
+| Mounted incoming call | **PASS** | Disposable retained snapshot `/tmp/v10-mounted-evidence.rw0Etu`; `V10_PROFILE=... node scripts/verify-v10-mounted.cjs` → all 8 checks PASS. Canonical call/invitation, same Room/Mara, explicit accept, offer before voice, acoustic Push-to-Talk input, mlx Whisper final STT, persisted model reply, system TTS `playing:true`, audible output. |
+| Mounted race replay | **PASS** | After the final repair, deep-link activation racing startup delivery left contact `contact_e1dcbedc15ccf3287fccc84a5b61e886` at `opened`, `deliveryAttempts: 0`; it was not downgraded or redisplayed. |
+| Controls/failures | **PASS at V10 scope** | Quiet hours, Room/person mute, call opt-out, global consent/proactivity/LLM gates, resource denial, foreground supersession, expiration, denial/unsupported notification, decline/miss/cancel/erasure, microphone denial, stale acceptance, correction/retraction, malformed/manipulative output and no relationship punishment. |
+| Hygiene | **PASS** | Six locale files parse; all five V10 scripts pass `node --check`; `git diff --check`; no original-profile write, commit, push, deployment, or unreleased-format migration. |
+
+### Authority and lifecycle findings
+
+- Eligibility requires both a real prior user/person exchange and one still-authoritative occurrence, open loop, or intention. The stable contact ID is derived from Room, participant, cause kind and cause event. A scheduler tick alone is not a cause.
+- The generated message or call invitation is a Sea-journal event in the existing Room. Its physical row stays noncanonical until the contact record atomically certifies the exact event ID. Renderer append IPC cannot forge contact authority or prepared state.
+- Contact generation receives only the selected participant's compiled view and visible exact sources. Code fixes Room/person/user audience and rejects copied unrelated private disclosure, false human action, dramatic pressure, or external actions. Notification preview never contains message/reason/world text.
+- State distinguishes proposed, ready/scheduled, attempted, delivery-unknown/unavailable, delivered, opened, accepted, declined, missed, expired, cancelled and superseded. Delivery, activation and response are serialized/idempotent. A known crash before emission may use the second stable-ID attempt; an unknown external result is never replayed as exactly-once.
+- Delivery revalidates current controls, destination, semantic Room/person revisions, exact sources, foreground head and active cause. Displayed/unknown/unavailable records are not rescheduled by quiet-hour or clock changes. Expired calls become missed, notifications are removed, and resume processes bounded existing records before one new fair Room.
+- A mounted race initially exposed `opened → attempted → delivery-unavailable` when activation landed between a stale reconcile read and its mutation. The final transition function refuses opened/terminal downgrades, gates external emission on the serialized live result, adds two regressions, and passes a corrected mounted replay.
+
+### A22–A25 and continuity result
+
+- **A22:** real-model message is meaningful, exact-cause, canonical and unique; signed macOS delivery reached `shown`; production click/deep-link activation targets the same Room/event; later model continuation acts on the same catalog conflict. Literal physical Notification Center click is composite rather than a single retained gesture, as stated above.
+- **A23:** controls/staleness adversarial matrix covers quiet hours, mute, denial, provider/resource block, foreground resolution, clock/quiet transition, elapsed expiry/resume, no storm/repeated ringing, and no relationship mutation for decline/ignore.
+- **A24:** actual SIGKILL boundaries prove hidden partial rows, exactly one committed contact/event after restart, bounded delivery, idempotent activation, and safe erased/expired destinations.
+- **A25:** mounted canonical incoming call required explicit acceptance before VoiceTab/microphone, retained exact participant/Room/invitation/history, and completed spoken input → production STT → production model → persisted voice reply → audible TTS. Decline, timeout/missed, cancellation, expiry, microphone denial and stale acceptance are covered by production-path regressions; the accepted path itself is mounted.
+- **A26/A27 touchpoint:** incoming voice uses the existing context compiler, `runConversationTurn`, journal and VoiceTab rather than a second session/person/memory system. Multi-person general voice behavior beyond this V10 call scope is not newly certified.
+- **A28/A29 touchpoint:** scheduler delivery-before-inference ordering, per-Room pass joining, one global contact inference, fair one-Room selection, shared foreground priority, exact committed membership, and activation/delivery races pass.
+
+### Evidence caveat and scope boundary
+
+The actual signed macOS notification surface was shown, and actual product activation/acceptance was mounted, but macOS Notification Center did not expose a retained item to accessibility automation for one literal banner click. The Electron notification click handler is wired and regression-tested with exact target data; real deep-link activation and incoming-call acceptance cover the mounted activation branch required by the V10 stop condition. This is recorded as a caveat rather than described as a captured click.
+
+No external email/SMS/phone/service action was added. No V08/V09 redesign, compatibility layer, original profile write, commit, push or deployment occurred.
+
+HANDOFF_VERDICT=PASS
+
+### V10 final independent adversarial review — 2026-09-21 (authoritative current)
+
+The independent review first reproduced failures rather than accepting the implementation ledger. Confirmed V10 defects were limited to their smallest repair boundaries: atomic call response, live provider/policy revalidation, structural pressure/external-action rejection, bounded resume delivery, caller identity pinning, and live cause/consent revalidation at activation/response. No V08/V09 authority contract or post-V10 feature was changed.
+
+| Layer | Fresh independent result | Evidence and meaning |
+|---|---|---|
+| Red-team regressions | **5 red failures plus 2 additional source-traced counterexample classes** | Competing Accept/Decline, provider revocation during inference, group-guilt text, external phone/payment/messaging requests, all-Room/two-attempt resume delivery, second-roster caller substitution, and stale/muted opened-call acceptance. |
+| Focused final matrix | **71/71; 5 files** | Contact service/runtime, scheduler ownership/bounds, renderer offer/voice ingress, and Room first-speaker identity. |
+| Full suite | **444 passed / 1 skipped files; 7,300 passed / 9 skipped tests** | `npm run test`, exit 0 on the final reviewed tree. |
+| TypeScript/build | **PASS** | Both TypeScript configurations and production build; only pre-existing Vite chunk/import warnings. |
+| V08/V09 preservation | **PASS** | Fresh built `verify-v08-authority.cjs`, `verify-v09-authority.cjs`, and all V09 A/B/C SIGKILL probes. Exact committed-job event membership remains the only occurrence authority consumed by V10. |
+| V10 authority/recovery | **PASS** | Fresh `verify-v10-authority.cjs` and V10 B/C SIGKILL probes: one canonical contact/event, exact Room/person/cause, hidden partial rows, stable bounded delivery, safe preview, idempotent activation. |
+| Real model | **Structural PASS; semantic PASS after inspection** | Fresh `gemma4-e4b-q4:latest` message and forced call. Both required bounded schema repair, retained exact occurrence identity, disclosed no unrelated private state, applied no pressure, and chose plausible in-app modalities. |
+| Mounted accepted call | **8/8 strengthened checks PASS** | Retained disposable profile; verifier now also requires persisted voice-reply actor to equal the authoritative contacting participant. Acoustic speech, mlx Whisper, model reply, canonical persistence, system TTS playing/audible all remain established. |
+| Hygiene | **PASS** | Six locales parse, V10 scripts syntax-check, `git diff --check`; no original-profile write, commit, push, or deployment. |
+
+The literal macOS Notification Center click remains uncaptured, but is not a blocker: actual signed display, exact production click routing, mounted deep-link activation, and mounted explicit call acceptance independently cover the display, target-routing, activation, and consent boundaries. No uncovered semantic transition depends uniquely on the mouse gesture.
+
+Current independent result: **V10 defensibly closed.** This is not a claim that all A01–A45 work outside V10 is complete.

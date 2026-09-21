@@ -156,6 +156,43 @@ describe('worldIpc', () => {
     expect(state.rooms[0].participantIds).toEqual(['p1']);
   });
 
+  it('returns contact lifecycle state without exposing prepared publication drafts', async () => {
+    const filePath = path.join(tempDir.tmpDir, 'world.json');
+    const person = participant('p1', 'Pat');
+    fs.writeFileSync(filePath, JSON.stringify({
+      rooms: [room('r1', ['p1'])], threads: [], participants: [person], contacts: [{
+        contactId: 'contact-1', operationId: 'contact-1', roomId: 'r1', participantId: 'p1', targetActorId: 'user',
+        causeKind: 'open-loop', sourceEventIds: ['cause-1'], sourceHash: 'hash', status: 'proposed', revision: 1,
+        history: [{ status: 'proposed', at: 1 }], createdAt: 1, effectiveAt: 1, readyAt: 1, expiresAt: 10,
+        deliveryAttempts: 0, participantRevision: 'p', roomRevision: 'r',
+        prepared: { expectedDrafts: [{ roomId: 'r1', scope: { kind: 'sea' }, type: 'message.character', actorId: 'p1', witnesses: ['p1', 'user'], payload: { text: 'private draft' } }] },
+      }],
+    }), 'utf-8');
+
+    const state = await mod.getWorldState();
+    expect(state.contacts).toHaveLength(1);
+    expect(state.contacts?.[0]).not.toHaveProperty('prepared');
+  });
+
+  it('cancels nonterminal contact state when its participant is erased', async () => {
+    const filePath = path.join(tempDir.tmpDir, 'world.json');
+    const person = participant('p1', 'Pat');
+    fs.writeFileSync(filePath, JSON.stringify({
+      rooms: [room('r1', ['p1'])], threads: [], participants: [person], contacts: [{
+        contactId: 'contact-1', operationId: 'contact-1', roomId: 'r1', participantId: 'p1', targetActorId: 'user',
+        causeKind: 'open-loop', sourceEventIds: ['cause-1'], sourceHash: 'hash', status: 'ready', revision: 1,
+        history: [{ status: 'ready', at: 1 }], createdAt: 1, effectiveAt: 1, readyAt: 1, expiresAt: Date.now() + 10_000,
+        modality: 'message', eventIds: ['message-1'], deliveryAttempts: 0, participantRevision: 'p', roomRevision: 'r',
+      }],
+    }), 'utf-8');
+
+    await mod.deleteParticipant('p1');
+    const state = await mod.getWorldState();
+    expect(state.participants).toEqual([]);
+    expect(state.rooms[0].participantIds).toEqual([]);
+    expect(state.contacts?.[0]).toMatchObject({ status: 'cancelled', reason: 'The contact destination was erased' });
+  });
+
   it('membership add appends a membership event and persists the updated room', async () => {
     seedWorld([room('r1', ['p1'])]);
     const result = await mod.applyMembership('r1', 'p2', 'add');

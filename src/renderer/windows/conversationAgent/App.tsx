@@ -58,7 +58,7 @@ import { runRoomTurn } from '../../../shared/roomOrchestrator';
 import { compileContext, visibleThreadEventsFor, type CompiledContext, type LearnerProjection } from '../../../shared/contextCompiler';
 import { renderCompiledContext } from './roomMessages';
 import { createVoicePrefetch } from './voicePrefetch';
-import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type Participant, type WorldSnapshot } from '../../../shared/world';
+import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type WorldSnapshot } from '../../../shared/world';
 import { shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -278,6 +278,10 @@ export const ConversationContent: Component = () => {
     void getBridge().world.getWorldState().then(setWorld).catch(error => log.error('Failed to refresh world activity', error));
   };
   const [voiceOverlayRequested, setVoiceOverlayRequested] = createSignal(false);
+  const [voiceContactParticipantId, setVoiceContactParticipantId] = createSignal<string | null>(null);
+  const [incomingCall, setIncomingCall] = createSignal<{ contactId: string; callId: string; participantId?: string } | null>(null);
+  const [contactIngressError, setContactIngressError] = createSignal<string | null>(null);
+  const [contactEventId, setContactEventId] = createSignal<string | null>(null);
   let voiceScheduledNudgeId = 0;
   const [voiceScheduledNudge, setVoiceScheduledNudge] = createSignal<{ id: number; seconds: number; prompt?: string } | null>(null);
 
@@ -298,6 +302,44 @@ export const ConversationContent: Component = () => {
 
   let messagesRef: HTMLDivElement | undefined;
   let textareaRef: HTMLTextAreaElement | undefined;
+
+  createEffect(() => {
+    const eventId = contactEventId();
+    messages();
+    if (!eventId || !messagesRef) return;
+    const target = messagesRef.querySelector<HTMLElement>(`[data-event-id="${CSS.escape(eventId)}"]`);
+    if (target) target.scrollIntoView({ block: 'center' });
+  });
+
+  const ingestContactOpen = (payload: OpenRoomEventPayload): void => {
+    setContactIngressError(payload.contactError ?? null);
+    setContactEventId(payload.eventId ?? null);
+    if (payload.contactId && payload.callId && !payload.contactError) {
+      const participantId = world()?.contacts?.find(contact => contact.contactId === payload.contactId)?.participantId;
+      setIncomingCall({ contactId: payload.contactId, callId: payload.callId, participantId });
+    } else {
+      setIncomingCall(null);
+    }
+  };
+
+  const respondToIncomingCall = async (response: 'accept' | 'decline'): Promise<void> => {
+    const incoming = incomingCall();
+    if (!incoming) return;
+    const result = await getBridge().world.respondToContact(incoming.contactId, response);
+    if (!result.ok) {
+      setContactIngressError(result.reason);
+      setIncomingCall(null);
+      return;
+    }
+    setWorld(await getBridge().world.getWorldState());
+    setIncomingCall(null);
+    if (response === 'accept') {
+      setVoiceContactParticipantId(result.contact.participantId);
+      setVoiceOverlayRequested(true);
+    } else {
+      setVoiceContactParticipantId(null);
+    }
+  };
 
   const langName = () => {
     return getConversationDisplayLanguageName(settings.language, currentLangData(), t, settings.uiLanguage);
@@ -536,8 +578,10 @@ export const ConversationContent: Component = () => {
     return runtimeAgent;
   };
 
+  const activeVoiceParticipant = () => rosterParticipants().find(item => item.id === voiceContactParticipantId())
+      ?? rosterParticipants()[0];
   const activeRuntimeAgent = () => {
-    const participant = rosterParticipants()[0];
+    const participant = activeVoiceParticipant();
     return participant ? getParticipantAgent(participant) : null;
   };
   const requireAgent = (): AgentInstance => {
@@ -839,7 +883,9 @@ export const ConversationContent: Component = () => {
         if (typeof rawCtx.roomId === 'string') {
           await selectRoom(rawCtx.roomId, typeof rawCtx.threadId === 'string' ? rawCtx.threadId : undefined);
         }
-        if (typeof rawCtx.callId === 'string') setVoiceOverlayRequested(true);
+        if (typeof rawCtx.roomId === 'string') {
+          ingestContactOpen(rawCtx as unknown as OpenRoomEventPayload);
+        }
         if (rawCtx.initialTab === 'stats') setShowDetailsDrawer(true);
         if (isConversationAgentContext(rawCtx)) {
           setMediaContext(rawCtx);
@@ -876,7 +922,7 @@ export const ConversationContent: Component = () => {
     bridge.window.getWindowContext('conversation-agent');
     if (cleanup) onCleanup(cleanup);
     const cleanupOpen = bridge.window.onOpenRoomEvent((payload) => {
-      void selectRoom(payload.roomId, payload.threadId).then(() => { if (payload.callId) setVoiceOverlayRequested(true); }).catch(error => log.error('Unable to open conversation', error));
+      void selectRoom(payload.roomId, payload.threadId).then(() => ingestContactOpen(payload)).catch(error => log.error('Unable to open conversation', error));
     });
     if (cleanupOpen) onCleanup(cleanupOpen);
   });
@@ -1123,6 +1169,7 @@ export const ConversationContent: Component = () => {
         room,
         ...(contextOnly ? { contextTurn: { text, threadId: threadId ?? undefined } } : {}),
         modality,
+        initialSpeakerId: modality === 'voice' ? voiceContactParticipantId() ?? undefined : undefined,
         participants: rosterParticipants(),
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
@@ -1580,18 +1627,23 @@ export const ConversationContent: Component = () => {
                 <Index each={messages()}>
                   {(msg, index) => (
                     <Show when={!isEmptyToolOnlyBubble(index)}>
-                      <ChatBubble
-                        message={msg()}
-                        isStreaming={msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null && isStreaming()}
-                        isWaiting={isWaiting() && msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null}
-                        onTokenHover={handleTokenHover}
-                        onTokenLeave={handleTokenLeave}
-                        triggerMode={currentTriggerMode()}
-                        triggerKey={currentKey()}
-                        onQuizAnswer={(widgetIndex, answer) => handleQuizAnswer(index, widgetIndex, answer)}
-                        onRegenerate={undefined}
-                        avatarSrc={rosterParticipants().length === 1 ? rosterParticipants()[0]?.profilePhoto : undefined}
-                      />
+                      <div
+                        data-event-id={(msg() as EventMessage).eventId}
+                        class={(msg() as EventMessage).eventId === contactEventId() ? 'ca-contact-target' : undefined}
+                      >
+                        <ChatBubble
+                          message={msg()}
+                          isStreaming={msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null && isStreaming()}
+                          isWaiting={isWaiting() && msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null}
+                          onTokenHover={handleTokenHover}
+                          onTokenLeave={handleTokenLeave}
+                          triggerMode={currentTriggerMode()}
+                          triggerKey={currentKey()}
+                          onQuizAnswer={(widgetIndex, answer) => handleQuizAnswer(index, widgetIndex, answer)}
+                          onRegenerate={undefined}
+                          avatarSrc={rosterParticipants().length === 1 ? rosterParticipants()[0]?.profilePhoto : undefined}
+                        />
+                      </div>
                     </Show>
                   )}
                 </Index>
@@ -1697,6 +1749,26 @@ export const ConversationContent: Component = () => {
           </div>
         </div>
 
+      <Show when={contactIngressError()} keyed>
+        {(message) => <div class="ca-contact-error" role="status">{message}</div>}
+      </Show>
+
+      <Show when={incomingCall()} keyed>
+        {(call) => {
+          const caller = () => world()?.participants.find(participant => participant.id === call.participantId)?.displayName
+            ?? t('mlearn.ConversationAgent.IncomingCall.UnknownCaller');
+          return <section class="ca-incoming-call" role="dialog" aria-label={t('mlearn.ConversationAgent.IncomingCall.Title')}>
+            <span class="ca-incoming-call-icon"><PhoneIcon /></span>
+            <div class="ca-incoming-call-copy">
+              <strong>{t('mlearn.ConversationAgent.IncomingCall.Title')}</strong>
+              <span>{t('mlearn.ConversationAgent.IncomingCall.From', { name: caller() })}</span>
+            </div>
+            <Btn variant="ghost" onClick={() => { void respondToIncomingCall('decline'); }}>{t('mlearn.ConversationAgent.IncomingCall.Decline')}</Btn>
+            <Btn variant="primary" onClick={() => { void respondToIncomingCall('accept'); }}>{t('mlearn.ConversationAgent.IncomingCall.Accept')}</Btn>
+          </section>;
+        }}
+      </Show>
+
       <Show when={voiceOverlayRequested() || isVoiceCallActive() || voiceAftermath()}>
         <div class="ca-voice-overlay">
           <Show when={voiceAftermath()} fallback={<VoiceTab
@@ -1704,15 +1776,15 @@ export const ConversationContent: Component = () => {
               messages={messages()}
               isStreaming={isStreaming()}
               onSendMessage={sendTextMessage}
-              onPartialTranscript={(text) => voiceContextPrefetch.onPartial(text, rosterParticipants()[0]?.id ?? '')}
+              onPartialTranscript={(text) => voiceContextPrefetch.onPartial(text, activeVoiceParticipant()?.id ?? '')}
               onRequestGreeting={handleRequestGreeting}
               onIdleSilence={handleVoiceIdleSilence}
               scheduledNudge={voiceScheduledNudge()}
               onAbort={handleAbort}
               onSpeechEnd={(ts) => { lastVadSpeechEndTs = ts; }}
-              agentName={rosterParticipants()[0]?.displayName}
-              profilePhoto={rosterParticipants()[0]?.profilePhoto}
-              defaultVoiceSampleId={rosterParticipants()[0]?.voiceSampleId}
+              agentName={activeVoiceParticipant()?.displayName}
+              profilePhoto={activeVoiceParticipant()?.profilePhoto}
+              defaultVoiceSampleId={activeVoiceParticipant()?.voiceSampleId}
               onCallStateChange={(active, reason) => {
                 setIsVoiceCallActive(active);
                 if (!active) cancelVoiceScheduledNudge();
@@ -1724,6 +1796,7 @@ export const ConversationContent: Component = () => {
                   if (reason !== 'completed') {
                     setVoiceSessionStart(0);
                     setVoiceOverlayRequested(false);
+                    setVoiceContactParticipantId(null);
                     return;
                   }
 
@@ -1736,6 +1809,7 @@ export const ConversationContent: Component = () => {
                       messageCount: messages().filter(m => m.role !== 'system').length,
                     });
                   }
+                  setVoiceContactParticipantId(null);
                 }
               }}
               onInterrupted={(spokenText, interruptedAt) => {
@@ -1755,7 +1829,7 @@ export const ConversationContent: Component = () => {
           {(aftermath) => (
             <VoiceAftermath
               aftermath={aftermath()}
-              onDismiss={() => { setVoiceAftermath(null); setVoiceOverlayRequested(false); }}
+              onDismiss={() => { setVoiceAftermath(null); setVoiceOverlayRequested(false); setVoiceContactParticipantId(null); }}
             />
           )}
           </Show>
@@ -1775,7 +1849,15 @@ export const ConversationContent: Component = () => {
             roomScenario={activeRoom()?.scenario}
             reflectionRuns={world()?.reflectionRuns}
             autonomyJobs={world()?.autonomyJobs}
+            contacts={world()?.contacts}
             autonomyEnabled={settings.worldAutonomyEnabled ?? DEFAULT_SETTINGS.worldAutonomyEnabled}
+            contactEnabled={settings.proactivityEnabled ?? DEFAULT_SETTINGS.proactivityEnabled}
+            roomContactMuted={(settings.proactiveOptOutRoomIds ?? DEFAULT_SETTINGS.proactiveOptOutRoomIds).includes(activeRoom()?.id ?? '')}
+            quietHoursEnabled={settings.proactiveQuietHoursEnabled ?? DEFAULT_SETTINGS.proactiveQuietHoursEnabled}
+            quietHoursStart={settings.proactiveQuietHoursStart ?? DEFAULT_SETTINGS.proactiveQuietHoursStart}
+            quietHoursEnd={settings.proactiveQuietHoursEnd ?? DEFAULT_SETTINGS.proactiveQuietHoursEnd}
+            mutedParticipantIds={settings.proactiveOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveOptOutParticipantIds}
+            callMutedParticipantIds={settings.proactiveCallOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveCallOptOutParticipantIds}
             context={mediaContext()}
             participants={rosterParticipants()}
             onRenameThread={handleRenameThread}
@@ -1787,6 +1869,32 @@ export const ConversationContent: Component = () => {
               setWorld(await getBridge().world.getWorldState());
             }}
             onSetAutonomyEnabled={(enabled) => updateSettings({ worldAutonomyEnabled: enabled })}
+            onSetContactEnabled={(enabled) => updateSettings({ proactivityEnabled: enabled })}
+            onSetRoomContactMuted={(muted) => {
+              const roomId = activeRoom()?.id;
+              if (!roomId) return;
+              const current = settings.proactiveOptOutRoomIds ?? DEFAULT_SETTINGS.proactiveOptOutRoomIds;
+              updateSettings({ proactiveOptOutRoomIds: muted
+                ? [...new Set([...current, roomId])]
+                : current.filter(id => id !== roomId) });
+            }}
+            onSetQuietHours={(value) => updateSettings({
+              ...(value.enabled !== undefined ? { proactiveQuietHoursEnabled: value.enabled } : {}),
+              ...(value.start !== undefined ? { proactiveQuietHoursStart: value.start } : {}),
+              ...(value.end !== undefined ? { proactiveQuietHoursEnd: value.end } : {}),
+            })}
+            onSetParticipantMuted={(participantId, muted) => {
+              const current = settings.proactiveOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveOptOutParticipantIds;
+              updateSettings({ proactiveOptOutParticipantIds: muted
+                ? [...new Set([...current, participantId])]
+                : current.filter(id => id !== participantId) });
+            }}
+            onSetParticipantCallsAllowed={(participantId, allowed) => {
+              const current = settings.proactiveCallOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveCallOptOutParticipantIds;
+              updateSettings({ proactiveCallOptOutParticipantIds: allowed
+                ? current.filter(id => id !== participantId)
+                : [...new Set([...current, participantId])] });
+            }}
           />
         </aside>
         </>

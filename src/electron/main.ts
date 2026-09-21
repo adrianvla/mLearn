@@ -37,6 +37,7 @@ import { setupJournalIPC } from './services/journalService';
 import { startScheduler, stopScheduler } from './services/schedulerRuntime';
 import { cancelAllMaintenance, reconcilePendingMaintenance } from './services/dreamerRuntime';
 import { cancelAllAutonomy, reconcilePendingAutonomyRuntime } from './services/autonomyRuntime';
+import { activateContactFromDeepLink, cancelAllContacts } from './services/contactRuntime';
 import { setupWorldIPC, openRoomAt } from './services/worldIpc';
 import { runLegacyMigration } from './services/legacyMigration';
 import { setupBrowserDetectionIPC } from './services/browserDetection';
@@ -132,6 +133,18 @@ function parseRoomDeepLink(rawUrl: string): OpenRoomEventPayload | null {
   }
 }
 
+function parseContactDeepLink(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'mlearn:' || parsed.hostname !== 'contact') return null;
+    const contactId = parsed.pathname.replace(/^\//u, '');
+    return contactId.startsWith('contact_') ? contactId : null;
+  } catch (error) {
+    log.error('parseContactDeepLink failed', error);
+    return null;
+  }
+}
+
 function dispatchAuthDeepLink(payload: AuthDeepLinkPayload): void {
   const { BrowserWindow } = require('electron');
   const windows = BrowserWindow.getAllWindows();
@@ -194,6 +207,11 @@ function handlePossibleDeepLinkValue(value: string): void {
   }
   if (isDiagnosticsDeepLink(value)) {
     createDiagnosticsWindow();
+    return;
+  }
+  const contactId = parseContactDeepLink(value);
+  if (contactId) {
+    void activateContactFromDeepLink(contactId);
     return;
   }
   const roomPayload = parseRoomDeepLink(value);
@@ -488,6 +506,7 @@ app.on('before-quit', () => {
   // publications stay reconcilable from the durable ledger.
   cancelAllMaintenance();
   cancelAllAutonomy();
+  cancelAllContacts();
   terminatePythonBackend();
 });
 

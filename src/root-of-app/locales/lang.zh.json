@@ -899,6 +899,13 @@
       "Call": {
         "StartAria": "开始通话"
       },
+      "IncomingCall": {
+        "Title": "来电",
+        "From": "{name} 正在呼叫",
+        "UnknownCaller": "未知联系人",
+        "Accept": "接听",
+        "Decline": "拒接"
+      },
       "Details": {
         "PracticeVersion": "练习版本",
         "RoomLabel": "房间",
@@ -942,7 +949,23 @@
         "AutonomyDeveloped": "发生了允许的离屏发展",
         "AutonomyIntention": "角色形成了有依据的意图",
         "AutonomyCancelled": "已取消过时的工作",
-        "AutonomyWaited": "没有必要发生发展"
+        "AutonomyWaited": "没有必要发生发展",
+        "Contact": "主动联系",
+        "PauseContact": "暂停",
+        "ResumeContact": "恢复",
+        "ContactEnabled": "已启用 — 有依据的消息和来电可能会送达。",
+        "ContactPaused": "已暂停 — 不会生成或送达主动联系。",
+        "MuteRoomContact": "将此房间静音",
+        "UnmuteRoomContact": "取消此房间静音",
+        "EnableQuietHours": "启用免打扰时段",
+        "DisableQuietHours": "停用免打扰时段",
+        "QuietHoursStart": "开始",
+        "QuietHoursEnd": "结束",
+        "ContactStatus": "最近联系：{status}",
+        "MutePersonContact": "将此人静音",
+        "UnmutePersonContact": "取消此人静音",
+        "MuteCalls": "将来电静音",
+        "AllowCalls": "允许来电"
       }
     },
     "ErrorModal": {

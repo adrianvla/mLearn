@@ -36,7 +36,10 @@ interface QueuedStreamRequest {
 }
 
 function routeKey(settings: Settings): string {
-  return JSON.stringify([getUserDataPath(), settings.livingWorldEnabled, settings.worldAutonomyEnabled ?? DEFAULT_SETTINGS.worldAutonomyEnabled, settings.llmEnabled, settings.inferenceCloudTier, settings.llmProvider, settings.ollamaUrl, settings.ollamaModel,
+  return JSON.stringify([getUserDataPath(), settings.livingWorldEnabled, settings.worldAutonomyEnabled ?? DEFAULT_SETTINGS.worldAutonomyEnabled,
+    settings.proactivityEnabled ?? DEFAULT_SETTINGS.proactivityEnabled,
+    settings.proactiveOptOutParticipantIds, settings.proactiveOptOutRoomIds, settings.proactiveCallOptOutParticipantIds,
+    settings.llmEnabled, settings.inferenceCloudTier, settings.llmProvider, settings.ollamaUrl, settings.ollamaModel,
     settings.builtinModel, settings.cloudApiUrl, settings.overrideCloudEndpointUrl,
     settings.cloudAuthAccessToken, settings.cloudAuthToken]);
 }

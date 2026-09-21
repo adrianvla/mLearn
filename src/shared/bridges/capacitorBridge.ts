@@ -2130,6 +2130,8 @@ const worldBridge: WorldBridge = {
   async retryMaintenance(): Promise<boolean> {
     throw new Error('Not supported on mobile');
   },
+  async activateContact() { throw new Error('Not supported on mobile'); },
+  async respondToContact() { throw new Error('Not supported on mobile'); },
   async integrateThread(): Promise<IntegrateThreadResult> {
     throw new Error('Not supported on mobile');
   },

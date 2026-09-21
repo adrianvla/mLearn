@@ -355,6 +355,8 @@ sendLogRecord: (record: unknown) => void;
   rememberThis: (input: import('./world').RememberThisInput) => Promise<import('./world').JournalEvent>;
   triggerReflection: (input: { roomId?: string; threadId?: string }) => Promise<boolean>;
   retryMaintenance: (reflectionId: string) => Promise<boolean>;
+  activateContact: (contactId: string) => Promise<import('./world').ContactActionResult>;
+  respondToContact: (contactId: string, response: 'accept' | 'decline') => Promise<import('./world').ContactActionResult>;
   integrateThread: (input: import('./world').IntegrateThreadInput) => Promise<import('./world').IntegrateThreadResult>;
   previewIntegration: (input: import('./world').PreviewIntegrationInput) => Promise<import('./world').IntegrationPreview>;
   createParticipant: (input: {

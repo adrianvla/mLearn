@@ -615,6 +615,10 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_TRIGGER_REFLECTION, input),
   retryMaintenance: (reflectionId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_RETRY_MAINTENANCE, reflectionId),
+  activateContact: (contactId: string): Promise<import('../shared/world').ContactActionResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_ACTIVATE_CONTACT, contactId),
+  respondToContact: (contactId: string, response: 'accept' | 'decline'): Promise<import('../shared/world').ContactActionResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_RESPOND_CONTACT, contactId, response),
   integrateThread: (input: IntegrateThreadInput): Promise<IntegrateThreadResult> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_INTEGRATE, input),
   previewIntegration: (input: PreviewIntegrationInput): Promise<IntegrationPreview> =>

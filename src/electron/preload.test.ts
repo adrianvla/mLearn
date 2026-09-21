@@ -159,6 +159,20 @@ describe('preload plugin bus bridge', () => {
     expect(exposedApi).not.toHaveProperty('setScopedPluginValue')
   })
 
+  it('exposes durable contact activation and response through the preload boundary', async () => {
+    await import('./preload')
+
+    const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as {
+      activateContact?: (contactId: string) => Promise<unknown>
+      respondToContact?: (contactId: string, response: 'accept' | 'decline') => Promise<unknown>
+    }
+    exposedApi.activateContact?.('contact-1')
+    exposedApi.respondToContact?.('contact-1', 'accept')
+
+    expect(invokeMock).toHaveBeenCalledWith('world-activate-contact', 'contact-1')
+    expect(invokeMock).toHaveBeenCalledWith('world-respond-contact', 'contact-1', 'accept')
+  })
+
   it('does not expose mLearnInternal for plugin-host windows', async () => {
     Object.defineProperty(globalThis, 'location', {
       configurable: true,

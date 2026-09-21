@@ -899,6 +899,13 @@
       "Call": {
         "StartAria": "Démarrer l'appel"
       },
+      "IncomingCall": {
+        "Title": "Appel entrant",
+        "From": "{name} vous appelle",
+        "UnknownCaller": "Quelqu'un",
+        "Accept": "Accepter",
+        "Decline": "Refuser"
+      },
       "Details": {
         "PracticeVersion": "Version pour cet entraînement",
         "RoomLabel": "Salon",
@@ -942,7 +949,23 @@
         "AutonomyDeveloped": "Un développement hors champ autorisé a eu lieu",
         "AutonomyIntention": "Une personne a formé une intention fondée",
         "AutonomyCancelled": "Le travail obsolète a été annulé",
-        "AutonomyWaited": "Aucun développement n'était justifié"
+        "AutonomyWaited": "Aucun développement n'était justifié",
+        "Contact": "Contact",
+        "PauseContact": "Suspendre",
+        "ResumeContact": "Reprendre",
+        "ContactEnabled": "Activé — des messages et appels justifiés peuvent vous parvenir.",
+        "ContactPaused": "Suspendu — aucun contact proactif ne sera créé ni livré.",
+        "MuteRoomContact": "Mettre ce salon en sourdine",
+        "UnmuteRoomContact": "Réactiver ce salon",
+        "EnableQuietHours": "Activer les heures calmes",
+        "DisableQuietHours": "Désactiver les heures calmes",
+        "QuietHoursStart": "De",
+        "QuietHoursEnd": "À",
+        "ContactStatus": "Contact récent : {status}",
+        "MutePersonContact": "Mettre la personne en sourdine",
+        "UnmutePersonContact": "Réactiver la personne",
+        "MuteCalls": "Couper les appels",
+        "AllowCalls": "Autoriser les appels"
       }
     },
     "ErrorModal": {

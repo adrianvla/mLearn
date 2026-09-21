@@ -208,6 +208,25 @@ describe('makeThread', () => {
 });
 
 describe('runRoomTurn', () => {
+  it('pins an accepted incoming call to its authoritative contacting participant', async () => {
+    const a = participant('p_a', 'Anna');
+    const b = participant('p_b', 'Bella');
+    const threadEvents = [messageEvent('evt_1', 1, USER_ACTOR, 'Hello', ['p_a', 'p_b', USER_ACTOR])];
+    const result = await runRoomTurn({
+      room: room('r1', ['p_a', 'p_b']),
+      participants: [a, b],
+      seaEvents: threadEvents,
+      threadEvents,
+      initialSpeakerId: b.id,
+      runAgentTurn: async id => ({ text: `${id} answered.` }),
+      appendEvent: makeAppender().appendEvent,
+      maxCharacterExchanges: 0,
+    });
+
+    expect(result.speakerIds).toEqual([b.id]);
+    expect(result.events[0]?.actorId).toBe(b.id);
+  });
+
   it('runs character turns sequentially: A fully resolves before B starts', async () => {
     const a = participant('p_a', 'Anna');
     const b = participant('p_b', 'Bella');

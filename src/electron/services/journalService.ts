@@ -190,11 +190,17 @@ export async function readPreparedAutonomyEvents(roomId: string, jobId: string):
   return (await readStream(roomId, { kind: 'sea' })).filter(event => event.provenance?.autonomyJobId === jobId);
 }
 
+/** Main-only recovery reader for V10 contact publication. */
+export async function readPreparedContactEvents(roomId: string, contactId: string): Promise<JournalEvent[]> {
+  return (await readStream(roomId, { kind: 'sea' })).filter(event => event.provenance?.contactId === contactId);
+}
+
 async function canonicalEvents(events: JournalEvent[], loadedWorld?: Awaited<ReturnType<typeof loadWorld>>): Promise<JournalEvent[]> {
   const world = loadedWorld ?? await loadWorld();
   const records = new Map((world.integrations ?? []).map(record => [record.integrationId, record]));
   const runs = new Map((world.reflectionRuns ?? []).map(record => [record.reflectionId, record]));
   const autonomyJobs = new Map((world.autonomyJobs ?? []).map(record => [record.jobId, record]));
+  const contacts = new Map((world.contacts ?? []).map(record => [record.contactId, record]));
   return events.filter(event => {
     const autonomyJobId = event.provenance?.autonomyJobId;
     if (event.type === 'intention' || event.type === 'occurrence.simulated' || autonomyJobId) {
@@ -202,6 +208,13 @@ async function canonicalEvents(events: JournalEvent[], loadedWorld?: Awaited<Ret
       const job = autonomyJobs.get(autonomyJobId);
       if (!job || job.roomId !== event.roomId || event.scope.kind !== 'sea' || job.status !== 'committed'
         || !job.eventIds?.includes(event.id)) return false;
+    }
+    const contactId = event.provenance?.contactId;
+    if (event.type === 'contact.invitation' || contactId) {
+      if (!contactId) return false;
+      const contact = contacts.get(contactId);
+      if (!contact || contact.roomId !== event.roomId || event.scope.kind !== 'sea'
+        || !contact.eventIds?.includes(event.id)) return false;
     }
     const reflectionId = event.provenance?.reflectionId;
     if (reflectionId) {
@@ -332,8 +345,9 @@ export function setupJournalIPC(): void {
     // Renderer Sea writes extend the persistent world. Main-internal
     // maintenance recovery calls appendEvent directly and stays unaffected.
     if (draft.scope.kind === 'sea') requireLivingWorld(loadSettings());
-    if (draft.type === 'intention' || draft.type === 'occurrence.simulated' || draft.provenance?.autonomyJobId) {
-      throw new Error('[journal] autonomous authority is main-owned');
+    if (draft.type === 'intention' || draft.type === 'occurrence.simulated' || draft.type === 'contact.invitation'
+      || draft.provenance?.autonomyJobId || draft.provenance?.contactId) {
+      throw new Error('[journal] autonomous and contact authority is main-owned');
     }
     return appendEvent(roomId, draft);
   });

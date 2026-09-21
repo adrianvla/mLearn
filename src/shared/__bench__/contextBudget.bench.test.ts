@@ -98,16 +98,13 @@ function buildSeaEvents(): JournalEvent[] {
     }
     if (k % 20 === 8) {
       push(
-        'schedule',
-        { candidateId: `cand-${k}`, kind: 'message', participantId: 'p1', fireAt: ms + 3_600_000, score: 0.5 },
-        { actorId: HARNESS_ACTOR },
+        'contact.invitation',
+        { contactId: `contact-${k}`, callId: `call-${k}`, modality: 'call', sourceEventIds: [] },
       );
       continue;
     }
     if (k % 30 === 14) {
-      push('call_initiated', { callId: `call-${k}` });
-      push('call_accepted', { callId: `call-${k}` });
-      push('call_ended', { callId: `call-${k}`, reason: 'completed' });
+      push('message.character', { text: `A proactive follow-up message ${k}.` });
       continue;
     }
     if (k % 16 === 5) {
