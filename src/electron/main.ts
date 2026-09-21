@@ -36,6 +36,7 @@ import { setupLinguisticGraphIPC } from './services/linguisticGraph';
 import { setupJournalIPC } from './services/journalService';
 import { startScheduler, stopScheduler } from './services/schedulerRuntime';
 import { cancelAllMaintenance, reconcilePendingMaintenance } from './services/dreamerRuntime';
+import { cancelAllAutonomy, reconcilePendingAutonomyRuntime } from './services/autonomyRuntime';
 import { setupWorldIPC, openRoomAt } from './services/worldIpc';
 import { runLegacyMigration } from './services/legacyMigration';
 import { setupBrowserDetectionIPC } from './services/browserDetection';
@@ -422,6 +423,7 @@ async function initialize(): Promise<void> {
   // Maintenance recovery (V08): finish interrupted reflection/evolution
   // publications from the durable ledger before any scheduler pass runs.
   await reconcilePendingMaintenance();
+  await reconcilePendingAutonomyRuntime();
 
   // Create windows and start services
   await createAppWindows();
@@ -485,6 +487,7 @@ app.on('before-quit', () => {
   // In-flight reflection/evolution aborts at phase boundaries; prepared
   // publications stay reconcilable from the durable ledger.
   cancelAllMaintenance();
+  cancelAllAutonomy();
   terminatePythonBackend();
 });
 

@@ -542,6 +542,11 @@ export interface Settings {
    *  evolution, relationships, open loops). Off = disposable Threads only. */
   livingWorldEnabled: boolean;
 
+  /** Allow bounded, main-owned AI-to-AI/offscreen world episodes while the
+   * application lifecycle is running. Living World consent remains the outer
+   * authority boundary; this is the explicit pause control within it. */
+  worldAutonomyEnabled: boolean;
+
   // Proactivity settings
   /** Master switch for proactive companion behavior (D7: opt-out model) */
   proactivityEnabled: boolean;
@@ -786,6 +791,7 @@ export const DEFAULT_SETTINGS: Settings = {
   inferenceCloudBudgetPerDay: 20,
   /** Living World is opt-in: a user who never consents keeps Threads-only. */
   livingWorldEnabled: false,
+  worldAutonomyEnabled: true,
   proactivityEnabled: true,
   proactiveQuietHoursEnabled: false,
   proactiveQuietHoursStart: '22:00',

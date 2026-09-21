@@ -273,6 +273,10 @@ export const ConversationContent: Component = () => {
   const [showIntegrationModal, setShowIntegrationModal] = createSignal(false);
   let overflowAnchorRef: HTMLButtonElement | undefined;
   const [showDetailsDrawer, setShowDetailsDrawer] = createSignal(false);
+  const openDetails = (): void => {
+    setShowDetailsDrawer(true);
+    void getBridge().world.getWorldState().then(setWorld).catch(error => log.error('Failed to refresh world activity', error));
+  };
   const [voiceOverlayRequested, setVoiceOverlayRequested] = createSignal(false);
   let voiceScheduledNudgeId = 0;
   const [voiceScheduledNudge, setVoiceScheduledNudge] = createSignal<{ id: number; seconds: number; prompt?: string } | null>(null);
@@ -1468,7 +1472,7 @@ export const ConversationContent: Component = () => {
           <span class="ca-header-title">{activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
           <Show when={activeThread()?.mediaRef} keyed>
             {(media) => (
-              <Btn variant="ghost" class="ca-media-chip" onClick={() => setShowDetailsDrawer(true)}>
+              <Btn variant="ghost" class="ca-media-chip" onClick={openDetails}>
                 {media.mediaName}
               </Btn>
             )}
@@ -1514,7 +1518,7 @@ export const ConversationContent: Component = () => {
             class="ca-overflow-menu"
           >
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { setShowNewConversationModal(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Btn>
-            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { setShowDetailsDrawer(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Btn>
+            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Btn>
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Btn>
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Btn>
           </Popover>
@@ -1770,6 +1774,8 @@ export const ConversationContent: Component = () => {
             thread={activeThread()}
             roomScenario={activeRoom()?.scenario}
             reflectionRuns={world()?.reflectionRuns}
+            autonomyJobs={world()?.autonomyJobs}
+            autonomyEnabled={settings.worldAutonomyEnabled ?? DEFAULT_SETTINGS.worldAutonomyEnabled}
             context={mediaContext()}
             participants={rosterParticipants()}
             onRenameThread={handleRenameThread}
@@ -1780,6 +1786,7 @@ export const ConversationContent: Component = () => {
               await getBridge().world.retryMaintenance(reflectionId);
               setWorld(await getBridge().world.getWorldState());
             }}
+            onSetAutonomyEnabled={(enabled) => updateSettings({ worldAutonomyEnabled: enabled })}
           />
         </aside>
         </>

@@ -930,7 +930,19 @@
         "WorldActivity": "Activité du monde",
         "WorldActivityPending": "Consolidation en cours",
         "WorldActivityFailed": "La consolidation demande votre attention",
-        "RetryWorldActivity": "Réessayer"
+        "RetryWorldActivity": "Réessayer",
+        "Autonomy": "Vie autonome",
+        "PauseAutonomy": "Mettre en pause",
+        "ResumeAutonomy": "Reprendre",
+        "AutonomyWaiting": "Activée — en attente d'une occasion fondée.",
+        "AutonomyPaused": "En pause — aucun épisode hors champ ne sera lancé.",
+        "AutonomyRunning": "Évaluation d'un développement limité",
+        "AutonomyBlocked": "En attente de ressources d'inférence",
+        "AutonomyFailed": "Un développement a échoué sans conséquence",
+        "AutonomyDeveloped": "Un développement hors champ autorisé a eu lieu",
+        "AutonomyIntention": "Une personne a formé une intention fondée",
+        "AutonomyCancelled": "Le travail obsolète a été annulé",
+        "AutonomyWaited": "Aucun développement n'était justifié"
       }
     },
     "ErrorModal": {

@@ -1,6 +1,6 @@
 # Living-world verification
 
-The full A01–A45 target remains unverified. **Current bounded verdict after V08 re-review (2026-09-16): V08 still blocked.** The submitted remediation PASS claims below are historical and superseded by the final re-review section and [V08 review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md). Fresh tests/build/crash checks pass, but actual model output and an adversarial production probe still publish unsupported Scenario history and loop closure. No V09/V10 work is authorized. The final V07 release-history decision creates no migration obligation for intermediate development formats.
+The full A01–A45 target remains broader than this wave. **Current bounded verdict (2026-09-21): V09 PASS.** V08 is accepted and its occurrence/reflection authority boundary remains intact. V09 autonomous jobs, bounded offscreen episodes, recovery, pause, foreground reconciliation, real-model behavior, and mounted product lifecycle pass the evidence below. V10 proactive contact, notifications, calls, and voice remain excluded. Historical blocked sections are retained as audit history and are superseded by the closure sections.
 
 
 ## V01 — Integration admission boundary, 2026-09-14
@@ -282,3 +282,39 @@ Production invariants verified:
 - Projection mutation and its operation marker publish atomically before settlement, making the recovery call exactly-once in effect.
 
 No original profile write, commit, push, deployment, V09, or V10 work occurred. Full A01–A45 acceptance remains outside this narrow V08 verdict.
+
+## V09 — Autonomous living-world closure verification, 2026-09-21 (authoritative current)
+
+**PASS.** This closes the V09 autonomous-world wave only. V10 proactive contact is neither implemented nor claimed.
+
+| Layer | Fresh result | Evidence and meaning |
+|---|---|---|
+| Focused regressions | **50/50**, then **44/44** | Autonomy service/runtime, scheduler, shared foreground/background queue, fair bounded wait, exact authority, V08 occurrence consumption, and repair-prompt regressions. |
+| Full suite | **443 passed / 1 skipped files; 7,277 passed / 9 skipped tests** | `npm test`, exit 0, 40.63 seconds on the final documented tree. |
+| TypeScript | Both configurations pass | `npm run typecheck`, exit 0 after final production changes. |
+| Production build | Pass | `npm run build`, exit 0; existing Vite dynamic-import/chunk warnings only. |
+| Authority/adversarial probe | **PASS** | Final `node scripts/verify-v09-authority.cjs`: same-Room trigger join, grounded intention/episode, exact event-ID certification, actual witnesses, invitee privacy, forged-row quarantine, no-work zero inference, malicious-user rejection, and stale foreground cancellation. Profile `v09-authority-Zqp3GB`; episode `autonomy_ebee277ca5ae67b5df9545ba21733831`; occurrence `evt_muairwud_7_x9jifcld`. |
+| Process crash/recovery | **A/B/C all PASS** | `node scripts/verify-v09-crash.cjs`: SIGKILL during inference leaves no half-authority; partial physical rows remain wholly hidden; atomic commit exposes exactly one episode; fresh recovery/replay produces one occurrence and four exact certified rows without duplication. |
+| Real supported model | **Structural PASS; semantic PASS after inspection** | `node scripts/verify-v09-real-model.cjs`, local `gemma4-e4b-q4:latest`, profile `v09-real-model-xy2F2S`. Mara's grounded intention leads to a bounded seed-sorting episode with Eli; user absent, private Mara disclosure absent from Eli input, exact occurrence cited by a V08 resolution, and later response accurately consumes the occurrence. |
+| Mounted Electron | **Transport/lifecycle PASS; semantic PASS** | `node scripts/v09-mounted-electron.cjs`, profile `v09-mounted-pSa2NB`, record `os.tmpdir()/v09-mounted-record.json`. Actual main/preload/renderer/bridge/provider; foreground 6,324 ms; window-close background continuation; exact episode certification; V08 consequence; full termination and byte-stable journal; restart; Details pause persisted; later recall 12,332 ms; no proactive rows. Teardown check found zero test Electron processes. |
+| UI and privacy | **PASS** | Details shows compact autonomy state and pause/resume without private contents. Six locales parse. Participant contexts are compiled independently; absent/user/private-state adversarial tests pass. |
+| Hygiene | **PASS** | Evidence scripts syntax-check; `git diff --check`; no original-profile write, commit, push, deployment, or migration. |
+
+Authority findings:
+
+- `occurrence.simulated` and intention rows are main-owned. Renderer append IPC rejects both event types and any `autonomyJobId` provenance.
+- Physical NDJSON presence is insufficient: canonical readers require a committed job and exact membership in its `eventIds`. A forged row naming a real committed job remains quarantined.
+- Prompts never assign witness/actor authority. Code owns lead/invitee identity; a decliner is a witness/respondent but not an action actor. User-action claims and unauthorized affected participants fail validation.
+- Prepared drafts stay noncanonical until atomic job settlement. Recovery publishes only the previously validated exact drafts and revalidates consent, Room/person revisions, sources, active intention/open-loop state, and newer foreground activity.
+- Dreamer remains downstream interpretation. V09 occurrences may structurally resolve linked V08 loops; Dreamer cannot create occurrences.
+
+Boundedness and lifecycle findings:
+
+- One global background autonomy inference and per-Room join prevent duplicate concurrent jobs; scheduler work is capped and round-robin. Foreground requests are inserted before queued background requests.
+- A model may wait once, retry once after 60 seconds, then that job becomes terminal. Fair selection advances to another grounded person. Resource blocks back off durably; no eligibility performs no inference.
+- Full process absence never becomes simulated elapsed activity. Startup heals a bounded set of prepared or committed episode Rooms, while the seven-day catch-up cap prevents indefinite replay.
+- `worldAutonomyEnabled` is a distinct persisted pause under the existing Living World consent gate. It does not create V10 schedules, notifications, calls, messages to the user, or contact delivery.
+
+Semantic review of the final real-model and mounted records found ordinary plausible activity grounded in supplied seed-library materials; no user impersonation; participant disagreement preserved; no private-text disclosure; no mandatory drama; later continuity based on the authoritative occurrence. The mounted V08 consequence cited another exact certified row from the same episode; the separate real-model gate proves exact occurrence citation and loop resolution.
+
+HANDOFF_VERDICT=PASS

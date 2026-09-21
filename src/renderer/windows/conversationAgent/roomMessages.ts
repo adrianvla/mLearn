@@ -96,6 +96,16 @@ export function renderCompiledContext(
   if (ctx.openLoops.length > 0) {
     sections.push(`## Open Loops\n${ctx.openLoops.map((l) => `- ${l.text}`).join('\n')}`);
   }
+  if (ctx.intentions.length > 0) {
+    sections.push(`## Your active intentions\n${ctx.intentions.map((item) => `- ${item.text} (${item.status})`).join('\n')}`);
+  }
+  if (ctx.witnessedOccurrences.length > 0) {
+    sections.push(
+      `## Established occurrences you witnessed\n${ctx.witnessedOccurrences
+        .map((item) => `- ${item.summary}`)
+        .join('\n')}`,
+    );
+  }
   if (ctx.learnerProjection) {
     const parts: string[] = [];
     const lp = ctx.learnerProjection;

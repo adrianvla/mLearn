@@ -336,6 +336,8 @@ describe('context compiler — tombstones and turn budgets', () => {
       relationships: [],
       memories: [{ kind: 'belief', text: 'Kept memory.', createdAt: 1001 }],
       openLoops: [],
+      intentions: [],
+      witnessedOccurrences: [],
       recentThreadEvents: [],
       callerProjection: {
         beliefs: [
@@ -374,6 +376,26 @@ describe('context compiler — tombstones and turn budgets', () => {
     );
     expect(rendered).toContain('## Memories\n- Kept memory.');
     expect(rendered).not.toContain('Corrected memory text.');
+  });
+
+  it('does not expose a retracted simulated occurrence to later participant context', () => {
+    const occurrence = evt({
+      roomId: 'room_1', scope: SEA, type: 'occurrence.simulated', actorId: 'A', witnesses: ['A'],
+      payload: {
+        authority: 'simulated-occurrence', operationId: 'job-1', summary: 'Aria arranged the seed envelopes.',
+        actorIds: ['A'], sourceEventIds: ['evt_source'], intentionId: 'intention-1', outcome: 'completed', effectiveAt: 1001,
+      },
+    }, 1);
+    const a = participant({ id: 'A' });
+    const before = compileContext({ participant: a, participants: [a], seaEvents: [occurrence] });
+    expect(before.witnessedOccurrences.map(item => item.eventId)).toEqual([occurrence.id]);
+
+    const after = compileContext({
+      participant: a,
+      participants: [a],
+      seaEvents: [occurrence, correction(2, 'A', occurrence.id, ['A'])],
+    });
+    expect(after.witnessedOccurrences).toEqual([]);
   });
 
   it('keeps a memory when only a non-owner correction targets it', () => {

@@ -133,6 +133,7 @@ const OPEN_LOOP_PROMPT_CAP = 12;
 /** Epistemic event types eligible for consolidation; operational markers are never sources. */
 export const SOURCE_TYPES: ReadonlySet<JournalEvent['type']> = new Set([
   'message.user', 'message.character', 'memory.belief', 'disclosure', 'resolution', 'membership',
+  'intention', 'occurrence.simulated',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -309,7 +310,7 @@ function makePrompt(
       'Every belief and resolution must cite sourceEventIds: the exact ids of the supplied events that support it (at least one, copied verbatim).',
       ...(hasLoops ? [
         'Each resolution\'s loop is the 1-based position of the openLoops entry it closes; you may only close loops from that list.',
-        'A resolution must cite a later supplied event whose resolvesLoops list contains that loop number. That structural link means the event replies to the loop (or its source) or corrects it.',
+        'A resolution must cite a later supplied event whose resolvesLoops list contains that loop number. That structural link means the event replies to or corrects the loop (or its source), or is a validated occurrence causally sourced from it.',
         'Emit a resolution ONLY when the events show the listed loop genuinely ends; if it stays unresolved, omit it entirely — leaving a loop open is valid.',
       ] : []),
       'Optional fields are omitted when not applicable — never null, never invented status values.',
@@ -336,6 +337,13 @@ function makePrompt(
         )),
       } : {}),
     })),
+  });
+}
+
+function repairPrompt(prompt: string): string {
+  return JSON.stringify({
+    ...(JSON.parse(prompt) as Record<string, unknown>),
+    repair: 'The previous response was invalid. Return only one strict JSON object matching outputSchema. Copy every ownerId and sourceEventId exactly from this prompt. kind may only be belief, open-loop, or relationship. Use relationship only with both a valid toId and a non-empty directional label; otherwise use belief. Include resolutions only for listed openLoops, using the listed numeric loop and an event whose resolvesLoops includes it. Omit optional fields instead of null.',
   });
 }
 
@@ -448,6 +456,7 @@ interface OpenLoopChoice {
 
 const RESOLVING_EVIDENCE_TYPES: ReadonlySet<JournalEvent['type']> = new Set([
   'message.user', 'message.character', 'disclosure', 'membership', 'correction',
+  'occurrence.simulated',
 ]);
 
 function eventIsLaterThanLoop(event: JournalEvent, loop: OpenLoopChoice): boolean {
@@ -458,7 +467,10 @@ function eventIsLaterThanLoop(event: JournalEvent, loop: OpenLoopChoice): boolea
 function eventIsLinkedToLoop(event: JournalEvent, loop: OpenLoopChoice): boolean {
   if (!isRecord(event.payload)) return false;
   const target = event.type === 'correction' ? event.payload.targetId : event.payload.replyToEventId;
-  return typeof target === 'string' && (target === loop.loopId || loop.sourceEventIds.includes(target));
+  if (typeof target === 'string' && (target === loop.loopId || loop.sourceEventIds.includes(target))) return true;
+  return event.type === 'occurrence.simulated'
+    && Array.isArray(event.payload.sourceEventIds)
+    && event.payload.sourceEventIds.some(id => id === loop.loopId || loop.sourceEventIds.includes(String(id)));
 }
 
 /** Model output must speak only as the reflecting owner, toward valid targets,
@@ -865,7 +877,8 @@ async function runReflectionPass(context: ReflectionContext, deps: DreamerDepend
       for (let attempt = 0; attempt < attemptsLeft && ownerDrafts === null; attempt++) {
         if (deps.signal?.aborted) throw new Error('Reflection cancelled');
         requireLivingWorld(loadSettings());
-        const output = parseDreamerOutput(await deps.llmFn(prompt));
+        const request = attempt === 0 ? prompt : repairPrompt(prompt);
+        const output = parseDreamerOutput(await deps.llmFn(request));
         if (output !== null && validateDerived(output, owner.id, eligibility)) {
           ownerDrafts = [
             ...output.beliefs.map((belief) => memoryDraft(

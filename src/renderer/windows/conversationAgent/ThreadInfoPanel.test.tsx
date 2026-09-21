@@ -115,6 +115,27 @@ describe('ThreadInfoPanel', () => {
     await vi.waitFor(() => expect(onRetryMaintenance).toHaveBeenCalledWith('refl-failed'));
   });
 
+  it('shows durable autonomy state and exposes the production pause control', async () => {
+    const onSetAutonomyEnabled = vi.fn(async () => {});
+    renderPanel({
+      roomId: 'room-1',
+      thread: null,
+      autonomyEnabled: true,
+      onSetAutonomyEnabled,
+      autonomyJobs: [{
+        jobId: 'job-1', roomId: 'room-1', candidateKind: 'agent-interest',
+        leadParticipantId: participant.id, participantIds: [participant.id], sourceEventIds: ['event-1'],
+        candidateHash: 'hash', status: 'blocked', attempts: 1, createdAt: 1, eligibleAt: 1,
+        reason: 'Autonomy is waiting for permitted inference resources.',
+      }],
+    });
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Details.AutonomyWaiting');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Details.AutonomyBlocked');
+    expect(container.textContent).toContain('Autonomy is waiting for permitted inference resources.');
+    buttonWithText('mlearn.ConversationAgent.Details.PauseAutonomy').click();
+    await vi.waitFor(() => expect(onSetAutonomyEnabled).toHaveBeenCalledWith(false));
+  });
+
   it('opens a dedicated editor modal and saves participant fields through it', async () => {
     renderPanel();
     buttonWithText('mlearn.ConversationAgent.Details.Edit').click();

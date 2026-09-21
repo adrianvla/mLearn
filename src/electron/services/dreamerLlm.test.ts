@@ -8,7 +8,12 @@ describe('maintenance provider boundary', () => {
     completeJob.mockResolvedValue('result');
     const controller = new AbortController();
     expect(await complete('scoped input', controller.signal)).toBe('result');
-    expect(completeJob).toHaveBeenCalledWith([{ role: 'user', content: 'scoped input' }], controller.signal, MAINTENANCE_OUTPUT_CHARACTERS);
+    expect(completeJob).toHaveBeenCalledWith(
+      [{ role: 'user', content: 'scoped input' }],
+      controller.signal,
+      MAINTENANCE_OUTPUT_CHARACTERS,
+      'background',
+    );
   });
   it('refuses unbounded input before provider exposure', async () => {
     await expect(complete('x'.repeat(MAINTENANCE_INPUT_CHARACTERS + 1))).rejects.toThrow('budget');

@@ -7,7 +7,7 @@
 
 import { Component, For, Show, createSignal } from 'solid-js';
 import type { ConversationAgentContext } from '../../../shared/types';
-import type { Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
+import type { AutonomyJobRecord, Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
 import { Btn, FormField, Input, Tag } from '../../components/common';
 import { useLocalization } from '../../context';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
@@ -22,11 +22,14 @@ interface ThreadInfoPanelProps {
   participants: Participant[];
   /** Durable reflection/evolution runs for this context; visible in Details. */
   reflectionRuns?: ReflectionRunRecord[];
+  autonomyJobs?: AutonomyJobRecord[];
+  autonomyEnabled?: boolean;
   onRenameThread: (title: string) => Promise<void> | void;
   onUpdateParticipant: (participant: Participant) => Promise<void> | void;
   onDeleteThread: () => Promise<void> | void;
   onIntegrate?: () => void | Promise<void>;
   onRetryMaintenance?: (reflectionId: string) => Promise<void> | void;
+  onSetAutonomyEnabled?: (enabled: boolean) => Promise<void> | void;
 }
 
 export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
@@ -46,6 +49,22 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
     return run.contextId === contextId
       && (run.status === 'pending' || (run.status === 'failed' && run.retryConsumedAt === undefined));
   });
+  const roomAutonomyJobs = () => props.thread?.sandbox || !props.roomId
+    ? []
+    : (props.autonomyJobs ?? []).filter(job => job.roomId === props.roomId).slice(-3).reverse();
+
+  const autonomyStatus = (job: AutonomyJobRecord): string => {
+    switch (job.status) {
+      case 'pending': return t('mlearn.ConversationAgent.Details.AutonomyRunning');
+      case 'blocked': return t('mlearn.ConversationAgent.Details.AutonomyBlocked');
+      case 'failed': return t('mlearn.ConversationAgent.Details.AutonomyFailed');
+      case 'committed': return job.result === 'episode'
+        ? t('mlearn.ConversationAgent.Details.AutonomyDeveloped')
+        : t('mlearn.ConversationAgent.Details.AutonomyIntention');
+      case 'cancelled': return t('mlearn.ConversationAgent.Details.AutonomyCancelled');
+      default: return t('mlearn.ConversationAgent.Details.AutonomyWaited');
+    }
+  };
 
   const retryMaintenance = async (reflectionId: string): Promise<void> => {
     if (!props.onRetryMaintenance) return;
@@ -134,6 +153,34 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
                     disabled={retryingRunId() === run.reflectionId}
                     onClick={() => { void retryMaintenance(run.reflectionId); }}
                   >{t('mlearn.ConversationAgent.Details.RetryWorldActivity')}</Btn>
+                </Show>
+              </article>
+            )}
+          </For>
+        </section>
+      </Show>
+
+      <Show when={!props.thread?.sandbox}>
+        <section class="ca-thread-section">
+          <div class="ca-thread-title-row">
+            <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.Autonomy')}</span>
+            <Show when={props.onSetAutonomyEnabled}>
+              <Btn variant="ghost" size="sm" onClick={() => { void props.onSetAutonomyEnabled?.(!(props.autonomyEnabled ?? true)); }}>
+                {t((props.autonomyEnabled ?? true)
+                  ? 'mlearn.ConversationAgent.Details.PauseAutonomy'
+                  : 'mlearn.ConversationAgent.Details.ResumeAutonomy')}
+              </Btn>
+            </Show>
+          </div>
+          <p>{t((props.autonomyEnabled ?? true)
+            ? 'mlearn.ConversationAgent.Details.AutonomyWaiting'
+            : 'mlearn.ConversationAgent.Details.AutonomyPaused')}</p>
+          <For each={roomAutonomyJobs()}>
+            {(job) => (
+              <article class="ca-thread-world-run">
+                <span class="ca-thread-world-run-status">{autonomyStatus(job)}</span>
+                <Show when={job.reason && (job.status === 'blocked' || job.status === 'failed')}>
+                  <p class="ca-thread-world-run-error">{job.reason}</p>
                 </Show>
               </article>
             )}

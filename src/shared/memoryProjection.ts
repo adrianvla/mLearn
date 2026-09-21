@@ -49,7 +49,7 @@ function isMemoryKind(value: unknown): value is MemoryEntry['kind'] {
 }
 
 function memoryOwner(e: JournalEvent): string | undefined {
-  if (e.type === 'message.user' || e.type === 'message.character' || e.type === 'disclosure') return e.actorId;
+  if (e.type === 'message.user' || e.type === 'message.character' || e.type === 'disclosure' || e.type === 'occurrence.simulated') return e.actorId;
   const payload = e.payload;
   if (typeof payload !== 'object' || payload === null) return undefined;
   const ownerId = (payload as Record<string, unknown>).ownerId;

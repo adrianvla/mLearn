@@ -50,6 +50,7 @@ export async function getWorldState(): Promise<WorldSnapshot> {
       ...world,
       integrations: world.integrations?.map(({ prepared: _prepared, ...record }) => record),
       reflectionRuns: world.reflectionRuns?.map(({ prepared: _prepared, ...record }) => record),
+      autonomyJobs: world.autonomyJobs?.map(({ prepared: _prepared, ...record }) => record),
     };
   });
 }

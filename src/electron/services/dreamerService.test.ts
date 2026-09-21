@@ -306,6 +306,7 @@ describe('Dreamer service', () => {
     expect(derivedRows(stream)).toHaveLength(0);
     expect(stream.filter(event => event.type === 'consolidation')).toHaveLength(1);
     expect(llmFn).toHaveBeenCalledTimes(3); // MAX_MAINTENANCE_ATTEMPTS, then honest close
+    expect(parsePrompt(llmFn.mock.calls[1]![0] as string)).toHaveProperty('repair');
     expect(await failedReflectionRunCount()).toBe(1);
 
     // Same for the lore 'fact' kind in a later window.

@@ -930,7 +930,19 @@
         "WorldActivity": "World activity",
         "WorldActivityPending": "Consolidating (in progress)",
         "WorldActivityFailed": "Consolidation needs attention",
-        "RetryWorldActivity": "Retry"
+        "RetryWorldActivity": "Retry",
+        "Autonomy": "Autonomous life",
+        "PauseAutonomy": "Pause",
+        "ResumeAutonomy": "Resume",
+        "AutonomyWaiting": "Enabled — waiting for a grounded opportunity.",
+        "AutonomyPaused": "Paused — no offscreen episodes will run.",
+        "AutonomyRunning": "Considering a bounded development",
+        "AutonomyBlocked": "Waiting for inference resources",
+        "AutonomyFailed": "A development failed safely",
+        "AutonomyDeveloped": "A permitted offscreen development occurred",
+        "AutonomyIntention": "A person formed a grounded intention",
+        "AutonomyCancelled": "Stale work was cancelled",
+        "AutonomyWaited": "No development was warranted"
       }
     },
     "ErrorModal": {

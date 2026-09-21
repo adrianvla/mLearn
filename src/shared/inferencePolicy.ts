@@ -6,6 +6,7 @@ export type InferenceKind =
   | 'compaction'
   | 'reformulation'
   | 'dreamer'
+  | 'autonomy'
   | 'scenario-direction'
   | 'proactive';
 

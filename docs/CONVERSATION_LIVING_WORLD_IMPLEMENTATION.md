@@ -4,7 +4,7 @@ Target: [CONVERSATION_LIVING_WORLD_SPEC.md](CONVERSATION_LIVING_WORLD_SPEC.md), 
 
 Status vocabulary: **reported** (historical claim), **unverified** (no current sufficient evidence), **implemented** (live code exists), **fixture-verified** (controlled production-path test), **live-verified** (appropriate real runtime proof), **failed** (counterexample), **externally blocked** (specific prerequisite missing). Partial evidence does not close an entire requirement.
 
-**Current bounded handoff (2026-09-16): V08 still blocked after re-review and direct repairs.** Fresh deterministic/type/build/crash checks pass, but the real local model and a built-production adversarial probe still commit unsupported Scenario history and loop closure. See the final checkpoint and [V08 review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md). Earlier remediation claims below are historical, not current certification. No V09/V10 work is authorized; no migration is required for intermediate Living World development formats.
+**Current bounded handoff (2026-09-21): V09 PASS.** The main-owned autonomous living-world loop is implemented and verified through deterministic, crash, adversarial, real-model, and mounted Electron production paths. V08's occurrence/reflection authority boundary is preserved. V10 proactive contact, notifications, calls, and voice remain out of scope and unimplemented. See the final V09 checkpoint and [V09 review](CONVERSATION_LIVING_WORLD_V09_REVIEW.md).
 
 ## Dependency-aware execution
 
@@ -19,10 +19,10 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 
 - `NewConversationModal.tsx` routes selected existing people without intent through main-owned `createSandbox`; intent requests use `scenarioDirector.prepareScenario` → owner preview → `activateScenario`. Both publish independent Thread casts atomically. Generated people stay local; no request-as-persona or permanent scaffolding fallback remains. Persistent entry, grounding and scenario evolution still need this boundary.
 - `worldIpc.ts` owns entity commands through `worldStore.withWorldMutation`; JSON save uses rename. Since V07, integration runs through `integration.ts` inside that same world queue: main-owned derivation from the thread journal (no caller-supplied witnesses/payloads), a private prepared ledger record, gated journal preparation and an atomic world-state logical commit with startup reconciliation (corrected in the V07 review).
-- `journalService.ts` owns serialized Sea/Thread NDJSON writes and erasure; append IPC remains a broad boundary requiring authority validation. Entity and journal files do not yet share a transaction.
+- `journalService.ts` owns serialized Sea/Thread NDJSON writes and erasure. V09 autonomous intention/occurrence rows are main-only and canonical only when their committed durable job certifies the exact event ID; renderer append IPC rejects those authorities. Entity and journal files still do not share a physical transaction, so prepared rows remain hidden until the atomic job commit.
 - `App.tsx` → `runRoomTurn` → per-person `compileContext` → existing agent inference. Text and voice share this path. Compiler filters witness/absence and reads scoped memories. Preserve these semantics; live proof is still required.
 - `dreamerRuntime.ts` runs policy-gated consolidation only following integration, with in-memory in-flight exclusion. Durable automatic post-encounter reflection is incomplete.
-- `main.ts` starts `schedulerRuntime`; main-owned scheduler reconciles persistent Rooms each minute and on resume. Notifications open Room; autonomous episode generation and full delivery/call lifecycle remain to implement.
+- `main.ts` starts `schedulerRuntime`; its bounded fair V09 pass owns autonomous Room jobs each minute and on resume, separately from the legacy delivery scheduler. `autonomyRuntime` serializes background inference globally, uses the shared priority queue, heals prepared/committed episode work at startup, and triggers ordinary V08 consolidation. V10 notification/contact/call behavior is not used by V09.
 - Historical consolidation evidence is in `CONVERSATION_ARCHITECTURE_VERIFICATION.md`. Its forced hierarchy interpretation is superseded by the target spec. Earlier counts/screenshots are reported evidence, not current verification.
 
 ## Requirements
@@ -84,18 +84,18 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | TURN-03 | Non-speakers still exist. | unverified | Full condition retained in target; verify through the connected wave above. |
 | TURN-04 | No inference explosion. | unverified | Full condition retained in target; verify through the connected wave above. |
 | TURN-05 | Human floor and stopping. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TURN-06 | Candidate actions are validated. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-01 | Autonomy is required. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-02 | User-centred relevance, not user-only existence. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-03 | Eligible triggers. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-04 | Real episode path. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-05 | Causal consequences. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-06 | No invented user participation. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-07 | Event generation and reflection are distinguishable. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-08 | Rich but bounded change. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-09 | Foreground/background reconciliation. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-10 | Observable without requiring supervision. | unverified | Full condition retained in target; verify through the connected wave above. |
-| LIFE-11 | Agent-originated intentions. | unverified | Full condition retained in target; verify through the connected wave above. |
+| TURN-06 | Candidate actions are validated. | live-verified (V09) | Strict bounded JSON repair, exact source/participant IDs, no human-action claims, code-owned witnesses/actors, private-text leak rejection, and pre-commit revalidation. |
+| LIFE-01 | Autonomy is required. | live-verified (V09) | Main-owned scheduler creates durable agent-interest, open-loop and intention-follow-through jobs without a renderer trigger. |
+| LIFE-02 | User-centred relevance, not user-only existence. | live-verified (V09) | Grounding starts from a real exchange, then the mounted app develops and acts after the user leaves; no user event is fabricated. |
+| LIFE-03 | Eligible triggers. | live-verified (V09) | Deterministic eligibility covers grounded interests, active intentions and open loops; no-work probes perform zero inference. |
+| LIFE-04 | Real episode path. | live-verified (V09) | Mounted job `autonomy_95a2d6fffd9e560fc0b388b42b29ad79` certified a two-participant episode and occurrence. |
+| LIFE-05 | Causal consequences. | live-verified (V09) | V08 consumes certified episode rows; exact occurrence citation is proven by the real-model gate, and mounted later context/reply consume the occurrence. |
+| LIFE-06 | No invented user participation. | live-verified (V09) | User is rejected as actor/invitee/witness; adversarial impersonation fails closed; mounted occurrence excludes user and absent Noa. |
+| LIFE-07 | Event generation and reflection are distinguishable. | live-verified (V09) | Only committed V09 jobs authorize `occurrence.simulated`; Dreamer remains interpretation/resolution only. |
+| LIFE-08 | Rich but bounded change. | live-verified (V09) | One job/Room pass, two participants/episode, capped sources/context/output/repairs/retries/follow-throughs and seven-day catch-up. |
+| LIFE-09 | Foreground/background reconciliation. | live-verified (V09) | Foreground invalidates stale background candidates; foreground LLM jobs jump queued background work; later turns receive witnessed occurrences. |
+| LIFE-10 | Observable without requiring supervision. | live-verified (V09) | Compact Details status exposes enabled/paused/waiting/blocked/failed/developed state and persists pause without exposing private content. |
+| LIFE-11 | Agent-originated intentions. | live-verified (V09) | Intentions carry owner grounding/source provenance; bounded wait is terminal per job with fair handoff rather than polling. |
 | SOCIAL-01 | Episodes drive development. | unverified | Full condition retained in target; verify through the connected wave above. |
 | SOCIAL-02 | Preserve asymmetry and disagreement. | unverified | Full condition retained in target; verify through the connected wave above. |
 | SOCIAL-03 | Short- and long-horizon state. | unverified | Full condition retained in target; verify through the connected wave above. |
@@ -129,13 +129,13 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | CONTACT-07 | Real incoming call lifecycle. | unverified | Full condition retained in target; verify through the connected wave above. |
 | CONTACT-08 | Privacy-aware presentation. | unverified | Full condition retained in target; verify through the connected wave above. |
 | CONTACT-09 | No manipulative pressure or unauthorized external action. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TIME-01 | Separate clocks. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TIME-02 | Main-owned lifecycle. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TIME-03 | Honest background support. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TIME-04 | Bounded resume and catch-up. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TIME-05 | Priority and capacity. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TIME-06 | Local/cloud policy. | unverified | Full condition retained in target; verify through the connected wave above. |
-| TIME-07 | Measured boundedness. | unverified | Full condition retained in target; verify through the connected wave above. |
+| TIME-01 | Separate clocks. | fixture-verified (V09) | Foreground, one-minute scheduler, eligibility delay, retry backoff and effective occurrence time are distinct code-owned values. |
+| TIME-02 | Main-owned lifecycle. | live-verified (V09) | Scheduler survives Conversation-window close; startup recovery and full process restart were mounted-tested. |
+| TIME-03 | Honest background support. | live-verified (V09) | Closed-window episode succeeds while full termination produces no claimed activity and a byte-stable journal. |
+| TIME-04 | Bounded resume and catch-up. | fixture-verified (V09) | Seven-day cap, four-Room startup healing, prepared exact replay and suspend/resume reconciliation are covered; no elapsed-time fabrication. |
+| TIME-05 | Priority and capacity. | fixture-verified (V09) | One global autonomy inference, two Rooms/reconcile, fair cursor; foreground queue priority regression passes. |
+| TIME-06 | Local/cloud policy. | live-verified (V09) | Autonomy uses the shared policy/route boundary and real local `gemma4-e4b-q4:latest`; policy-off blocks with durable backoff. |
+| TIME-07 | Measured boundedness. | live-verified (V09) | Mounted foreground 6,324 ms and later recall 12,332 ms; deterministic caps and no-work/no-poll probes pass. |
 | VOICE-01 | Shared identity and context. | unverified | Full condition retained in target; verify through the connected wave above. |
 | VOICE-02 | Complete real exchange. | unverified | Full condition retained in target; verify through the connected wave above. |
 | VOICE-03 | Speaker-specific multi-person presentation. | unverified | Full condition retained in target; verify through the connected wave above. |
@@ -220,11 +220,11 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | A11 | Room history access is not universal witnessing | unverified | Production workflow and specified evidence layer required. |
 | A12 | Belief is not fact | unverified | Production workflow and specified evidence layer required. |
 | A13 | Directional relationships and non-speakers | unverified | Production workflow and specified evidence layer required. |
-| A14 | The autonomous living-world loop | unverified | Production workflow and specified evidence layer required. |
-| A15 | No eligible work means no fabricated life | unverified | Production workflow and specified evidence layer required. |
-| A16 | Offscreen activity does not impersonate the user | unverified | Production workflow and specified evidence layer required. |
-| A17 | Foreground resolves a queued background problem | unverified | Production workflow and specified evidence layer required. |
-| A18 | Emergent lore and Room culture survive | unverified | Production workflow and specified evidence layer required. |
+| A14 | The autonomous living-world loop | live-verified (V09) | Mounted foreground → agent intention → offscreen episode → V08 consequence → restart → later recall passes through production main/preload/renderer/provider paths. |
+| A15 | No eligible work means no fabricated life | fixture-verified (V09) | Empty/ineligible/paused/resource-blocked cases make no model call or authoritative row; termination interval leaves journal bytes unchanged. |
+| A16 | Offscreen activity does not impersonate the user | live-verified (V09) | Structural and malicious-output probes plus mounted actor/witness inspection exclude the user; user-action prose is rejected. |
+| A17 | Foreground resolves a queued background problem | fixture-verified (V09) | Foreground changes cancel stale background candidates before commit, and foreground inference is ordered ahead of queued background jobs. |
+| A18 | Emergent lore and Room culture survive | live-verified (V09 scope) | Certified occurrence survives full quit/restart, enters compiled witnessed history, produces V08 consequences, and is used by a later real reply. |
 | A19 | Automatic reflection actually runs | failed / V08 blocked | Automatic path and atomic commits exist; fresh real model closes an unresolved loop without evidence. Submitted mounted character replies are empty. |
 | A20 | Long-memory retrieval under a budget | unverified | Production workflow and specified evidence layer required. |
 | A21 | Correction/erasure invalidates derived state | partial / V08 blocked | Real-source correction and lifecycle replay repaired; continuing-context-derived rows lack complete durable causal dependencies. |
@@ -234,8 +234,8 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | A25 | Real incoming voice call | unverified | Production workflow and specified evidence layer required. |
 | A26 | Voice/text continuity, attribution, and interruption | unverified | Production workflow and specified evidence layer required. |
 | A27 | Speculative work cannot commit provisional speech | unverified | Production workflow and specified evidence layer required. |
-| A28 | Pause, full quit, and bounded catch-up | unverified | Production workflow and specified evidence layer required. |
-| A29 | Multiple windows and concurrent writes | unverified (partial fixture evidence) | Partial fixture proof: concurrent integration requests use one world queue. Mounted windows, foreground/background jobs and crash cases remain unverified. See verification record V01. |
+| A28 | Pause, full quit, and bounded catch-up | live-verified (V09) | Mounted Details pause persists; full termination claims no activity; restart restores history; startup/prepared recovery is bounded and idempotent. |
+| A29 | Multiple windows and concurrent writes | live + fixture verified (V09) | Mounted Conversation close leaves dashboard/main running; same-Room triggers join one pass; global inference, journal/world queues, stale races and SIGKILL publication boundaries pass. |
 | A30 | Tokenized messages remain usable | unverified (partial V02 evidence) | V02: standalone sandbox reload restored 2 bubbles / 17 interactive tokens in Electron. Full required stale/edit/readiness matrix remains open. |
 | A31 | Production UI controls and editing | unverified (partial V02/V06 evidence) | V02: native creation at 1100/420 px, selected-person text, Details/edit, reload and sidebar; sidebar overflow fixed. V06: persistent scope choice, person selection and creation driven by normal clicks natively; no overflow at 420 px. Full product controls and locales matrix still open. |
 | A32 | Capability-specific learner evidence | unverified | Production workflow and specified evidence layer required. |
@@ -249,7 +249,7 @@ Status vocabulary: **reported** (historical claim), **unverified** (no current s
 | A40 | Saved-profile migration and original-data integrity | unverified | Production workflow and specified evidence layer required. |
 | A41 | Optional audio retention is reversible | unverified | Production workflow and specified evidence layer required. |
 | A42 | Real-model social quality, not just fixtures | unverified (partial V06 evidence) | V05 recorded reasoning-marker leakage into committed speech. V06 fixes it at the canonical model-content boundary with a live regression on the same leaking model: streamed, persisted and reloaded replies are clean. The full quality matrix (corrections, learner evidence, trust) remains open. |
-| A43 | Autonomous interests, not only user reminders | unverified | Production workflow and specified evidence layer required. |
+| A43 | Autonomous interests, not only user reminders | live-verified (V09) | Agent-interest eligibility uses persona/relationship/entitled exchange grounding; real model and mounted product produce owner intentions before separate follow-through. |
 | A44 | Owner inspection does not rewrite perspective | unverified | Production workflow and specified evidence layer required. |
 | A45 | Affect and development are consumed, not decorative fields | unverified | Production workflow and specified evidence layer required. |
 
@@ -405,5 +405,27 @@ HANDOFF_VERDICT=BLOCKED
 Fresh evidence: targeted **149/149**; full suite **7,252 passed / 9 skipped** (**441 passed / 1 skipped files**); both TS configurations; production build; built crash verifier **19/19**; authority probe PASS. A real installed `gemma4-e4b-q4:latest` run through the production provider path passed structural and semantic review. A real mounted Electron run on disposable profile `v08-mounted-hDAP0L` produced nonempty replies before and after reload, automatic committed reflection/evolution, restored Room/history, owner-scoped cited beliefs, and interpretation-authority Scenario rows. Exact commands, records, logs, and limitations are in [V08 closure verification](CONVERSATION_LIVING_WORLD_VERIFICATION.md#v08--closure-verification-2026-09-21-authoritative-current) and the [closure review](CONVERSATION_LIVING_WORLD_V08_REVIEW.md#v08-closure-review--2026-09-21-authoritative-current-verdict).
 
 No original profile write, migration of unreleased formats, commit, push, or deployment. This closes only the V08 gate; full A01–A45 acceptance is unchanged.
+
+HANDOFF_VERDICT=PASS
+
+## Checkpoint — 2026-09-21, V09 autonomous living-world closure (authoritative current)
+
+**V09 PASS. V10 remains excluded.** The accepted V08 authority boundary is unchanged: a committed main-owned autonomy job may publish an exact certified `occurrence.simulated`; Dreamer/Scenario output remains interpretation or resolution and cannot mint occurrences.
+
+Production flow: bounded fair scheduler → deterministic eligibility → durable job identity/source/context hashes → individually compiled lead/invitee prompts through the shared background queue → strict validation and revalidation → hidden prepared journal drafts → exact event-ID certification in one atomic world commit → ordinary V08 consolidation → later foreground compilation. Renderer IPC cannot append intentions, simulated occurrences, or autonomy provenance. A separate persisted `worldAutonomyEnabled` control pauses V09 under the Living World outer consent gate.
+
+Operational bounds: one global autonomy inference; two Rooms per scheduler reconciliation; one candidate per Room pass; four people considered; two episode participants; 24 sources; 24,000 input and 6,000 output characters; two schema attempts; two durable attempts with 60-second backoff; three follow-throughs per intention; seven-day catch-up; four Rooms healed at startup. A second wait becomes terminal for that job and fairness advances to another grounded person. No eligibility means no model call.
+
+Fresh evidence before handoff:
+
+- Focused autonomy/runtime/scheduler/router tests: **50/50**, followed by **44/44** autonomy + V08 reflection tests after bounded repair-prompt hardening.
+- Full suite on the final documented tree: **443 passed / 1 skipped files; 7,277 passed / 9 skipped tests**, 40.63 seconds.
+- Both TypeScript configurations and production build pass; only the existing Vite import/chunk warnings remain.
+- Final built authority probe: `V09_AUTHORITY_EVIDENCE=PASS`, profile `v09-authority-Zqp3GB`, episode job `autonomy_ebee277ca5ae67b5df9545ba21733831`, occurrence `evt_muairwud_7_x9jifcld`.
+- Built SIGKILL matrix: **A/B/C all PASS** for inference crash, partial physical publication, atomic commit, exact recovery and identical replay.
+- Real supported model: profile `v09-real-model-xy2F2S`, `gemma4-e4b-q4:latest`; grounded intention and two-person episode, occurrence `evt_muagho77_8_x5v61hgh`, exact occurrence-citing resolution, private-source exclusion, absent user, and later grounded recall. Structural and semantic review PASS.
+- Mounted Electron: profile `v09-mounted-pSa2NB`; actual main/preload/Solid renderer/bridge/provider. Foreground 6,324 ms; Conversation window closed while main/dashboard continued; episode job `autonomy_95a2d6fffd9e560fc0b388b42b29ad79`; occurrence `evt_muail9q4_13_r5y2t4j7` witnessed by Eli/Mara only; automatic V08 consequence; full termination with byte-stable journal; restart; UI pause persisted; later recall 12,332 ms; zero proactive rows. `V09_MOUNTED_EVIDENCE=PASS`. All disposable Electron groups were verified stopped.
+
+No V10 schedule creation, notification, proactive contact, incoming call, or voice behavior was added. No original profile was written; no migration, commit, push, or deployment was performed.
 
 HANDOFF_VERDICT=PASS

@@ -930,7 +930,19 @@
         "WorldActivity": "Активность мира",
         "WorldActivityPending": "Консолидация выполняется",
         "WorldActivityFailed": "Консолидация требует внимания",
-        "RetryWorldActivity": "Повторить"
+        "RetryWorldActivity": "Повторить",
+        "Autonomy": "Автономная жизнь",
+        "PauseAutonomy": "Приостановить",
+        "ResumeAutonomy": "Возобновить",
+        "AutonomyWaiting": "Включено — ожидание обоснованной возможности.",
+        "AutonomyPaused": "Приостановлено — фоновые эпизоды не запускаются.",
+        "AutonomyRunning": "Рассматривается ограниченное развитие",
+        "AutonomyBlocked": "Ожидание ресурсов вывода",
+        "AutonomyFailed": "Развитие завершилось безопасной ошибкой",
+        "AutonomyDeveloped": "Произошло разрешённое фоновое развитие",
+        "AutonomyIntention": "У персонажа появилось обоснованное намерение",
+        "AutonomyCancelled": "Устаревшая работа отменена",
+        "AutonomyWaited": "Развитие не было оправдано"
       }
     },
     "ErrorModal": {

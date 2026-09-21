@@ -137,6 +137,33 @@ describe('setupLLMRouterIPC', () => {
     owner.send('llm-stream-chunk', { done: true });
     expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
   });
+  it('dispatches newly queued foreground inference before older background work', async () => {
+    mod.setupLLMRouterIPC();
+    const owner = createMockSender();
+    await mockIpcListeners.get('llm-stream')![0](createMockEvent(owner), [{ role: 'user', content: 'Active turn' }], []);
+
+    const background = mod.completeJob(
+      [{ role: 'user', content: 'Autonomy' }],
+      new AbortController().signal,
+      100,
+      'background',
+    );
+    const foreground = mod.completeJob(
+      [{ role: 'user', content: 'Next user turn' }],
+      new AbortController().signal,
+    );
+
+    owner.send('llm-stream-chunk', { done: true });
+    expect(mockBuiltinStreamChat.mock.calls[1]?.[1]).toEqual([{ role: 'user', content: 'Next user turn' }]);
+    const foregroundSender = mockBuiltinStreamChat.mock.calls[1]?.[0];
+    foregroundSender.send('llm-stream-chunk', { content: 'foreground', done: true });
+    expect(mockBuiltinStreamChat.mock.calls[2]?.[1]).toEqual([{ role: 'user', content: 'Autonomy' }]);
+    const backgroundSender = mockBuiltinStreamChat.mock.calls[2]?.[0];
+    backgroundSender.send('llm-stream-chunk', { content: 'background', done: true });
+
+    await expect(foreground).resolves.toBe('foreground');
+    await expect(background).resolves.toBe('background');
+  });
   it('registers LLM_STREAM listener', () => {
     mod.setupLLMRouterIPC();
     expect(mockIpcListeners.has('llm-stream')).toBe(true);

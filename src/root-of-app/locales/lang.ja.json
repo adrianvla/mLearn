@@ -930,7 +930,19 @@
         "WorldActivity": "世界の活動",
         "WorldActivityPending": "統合中（進行中）",
         "WorldActivityFailed": "統合に注意が必要です",
-        "RetryWorldActivity": "再試行"
+        "RetryWorldActivity": "再試行",
+        "Autonomy": "自律した生活",
+        "PauseAutonomy": "一時停止",
+        "ResumeAutonomy": "再開",
+        "AutonomyWaiting": "有効 — 根拠のある機会を待っています。",
+        "AutonomyPaused": "一時停止中 — オフスクリーンの出来事は実行されません。",
+        "AutonomyRunning": "範囲を限定した展開を検討中",
+        "AutonomyBlocked": "推論リソースを待っています",
+        "AutonomyFailed": "展開は安全に失敗しました",
+        "AutonomyDeveloped": "許可されたオフスクリーンの展開が起きました",
+        "AutonomyIntention": "人物が根拠のある意図を持ちました",
+        "AutonomyCancelled": "古い処理は取り消されました",
+        "AutonomyWaited": "展開は必要ありませんでした"
       }
     },
     "ErrorModal": {

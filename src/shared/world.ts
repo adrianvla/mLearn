@@ -34,7 +34,9 @@ export type EventType =
   | 'call_ended'
   | 'correction'
   | 'safety_flag'
-  | 'scenario_evolved';
+  | 'scenario_evolved'
+  | 'intention'
+  | 'occurrence.simulated';
 
 /** Reserved actor ids. Anything else is a Participant id. */
 export const USER_ACTOR = 'user';
@@ -52,7 +54,15 @@ export interface JournalEvent {
   witnesses: string[]; // explicit epistemic set; NOT derived from room membership
   payload: unknown; // type-specific
   createdAt: number;
-  provenance?: { sourceThreadEventIds?: string[]; integrationId?: string; stagedIntegration?: boolean; reflectionId?: string };
+  provenance?: {
+    sourceThreadEventIds?: string[];
+    integrationId?: string;
+    stagedIntegration?: boolean;
+    reflectionId?: string;
+    /** Main-owned V09 autonomous occurrence operation. Rows remain hidden
+     *  until the matching durable job reaches committed status. */
+    autonomyJobId?: string;
+  };
 }
 
 /** What callers supply; the journal assigns id/seq/createdAt. */
@@ -156,6 +166,75 @@ export interface SchedulePayload {
   text?: string; // pre-authorized text piggybacked on normal inference
   score?: number; // intent score from normal cognition; re-checked at fire time
   lastFiredAt?: number; // cooldown input
+}
+
+// ---------------------------------------------------------------------------
+// V09 autonomous lives
+// ---------------------------------------------------------------------------
+
+export type IntentionStatus = 'created' | 'pursued' | 'revised' | 'completed' | 'abandoned';
+
+/** 'intention' — durable state owned by one simulated individual. This is a
+ *  supported decision/state transition, not an occurrence attributed to the
+ *  human user and not permission for an external real-world action. */
+export interface IntentionPayload {
+  intentionId: string;
+  ownerId: string;
+  status: IntentionStatus;
+  text: string;
+  sourceEventIds: string[];
+  previousEventId?: string;
+  /** Stable grounding references let an interest-originated intention cite
+   *  the exact participant revision without pretending persona prose is an
+   *  observed event. */
+  groundingRefs: string[];
+}
+
+/** 'occurrence.simulated' — an authoritative fictional Room occurrence
+ * committed by the V09 validator. `actorIds` and journal witnesses are
+ * code-owned; model output cannot add the user or an absent participant. */
+export interface SimulatedOccurrencePayload {
+  authority: 'simulated-occurrence';
+  operationId: string;
+  summary: string;
+  actorIds: string[];
+  sourceEventIds: string[];
+  intentionId: string;
+  outcome: Exclude<IntentionStatus, 'created'>;
+  /** Fictional occurrence time. Recording/processing time remains the
+   * JournalEvent.createdAt assigned by the journal writer. */
+  effectiveAt: number;
+}
+
+export type AutonomyCandidateKind = 'agent-interest' | 'open-loop' | 'intention-follow-through';
+
+/** Main-owned durable V09 work record. A pending job may hold validated
+ * publication drafts, but its journal rows remain non-canonical until the
+ * atomic world.json status transition to committed. */
+export interface AutonomyJobRecord {
+  jobId: string;
+  roomId: string;
+  candidateKind: AutonomyCandidateKind;
+  leadParticipantId: string;
+  participantIds: string[];
+  sourceEventIds: string[];
+  candidateHash: string;
+  status: 'pending' | 'blocked' | 'deferred' | 'committed' | 'cancelled' | 'failed' | 'skipped';
+  attempts: number;
+  createdAt: number;
+  eligibleAt: number;
+  startedAt?: number;
+  settledAt?: number;
+  retryAt?: number;
+  reason?: string;
+  result?: 'intention' | 'episode' | 'nothing';
+  /** Exact rows certified by the atomic committed transition. A row merely
+   * claiming this job id is never canonical unless its id is listed here. */
+  eventIds?: string[];
+  participantContextHashes?: Record<string, string>;
+  /** Private validated publication, removed at terminal settlement and never
+   * sent to renderers. */
+  prepared?: { expectedDrafts: JournalEventDraft[] };
 }
 
 // ---------------------------------------------------------------------------
@@ -481,6 +560,7 @@ export interface ScenarioGrounding {
 export interface WorldSnapshot {
   integrations?: Omit<IntegrationRecord, 'prepared'>[];
   reflectionRuns?: Omit<ReflectionRunRecord, 'prepared'>[];
+  autonomyJobs?: Omit<AutonomyJobRecord, 'prepared'>[];
   rooms: Room[];
   threads: Thread[];
   participants: Participant[];

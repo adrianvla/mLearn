@@ -930,7 +930,19 @@
         "WorldActivity": "Weltaktivität",
         "WorldActivityPending": "Konsolidierung läuft",
         "WorldActivityFailed": "Konsolidierung braucht Aufmerksamkeit",
-        "RetryWorldActivity": "Erneut versuchen"
+        "RetryWorldActivity": "Erneut versuchen",
+        "Autonomy": "Autonomes Leben",
+        "PauseAutonomy": "Pausieren",
+        "ResumeAutonomy": "Fortsetzen",
+        "AutonomyWaiting": "Aktiv — wartet auf eine begründete Gelegenheit.",
+        "AutonomyPaused": "Pausiert — es laufen keine Episoden im Hintergrund.",
+        "AutonomyRunning": "Eine begrenzte Entwicklung wird erwogen",
+        "AutonomyBlocked": "Wartet auf Inferenzressourcen",
+        "AutonomyFailed": "Eine Entwicklung ist sicher fehlgeschlagen",
+        "AutonomyDeveloped": "Eine zulässige Entwicklung im Hintergrund ist eingetreten",
+        "AutonomyIntention": "Eine Person hat eine begründete Absicht entwickelt",
+        "AutonomyCancelled": "Veraltete Arbeit wurde abgebrochen",
+        "AutonomyWaited": "Keine Entwicklung war gerechtfertigt"
       }
     },
     "ErrorModal": {

@@ -183,11 +183,26 @@ export async function readPreparedMaintenanceEvents(roomId: string, scope: Event
   return (await readStream(roomId, scope)).filter(event => event.provenance?.reflectionId === reflectionId);
 }
 
+/** Main-only recovery reader for V09. Autonomous rows are physically durable
+ * before their logical commit but cannot enter any canonical read path until
+ * the matching world-ledger job is committed. */
+export async function readPreparedAutonomyEvents(roomId: string, jobId: string): Promise<JournalEvent[]> {
+  return (await readStream(roomId, { kind: 'sea' })).filter(event => event.provenance?.autonomyJobId === jobId);
+}
+
 async function canonicalEvents(events: JournalEvent[], loadedWorld?: Awaited<ReturnType<typeof loadWorld>>): Promise<JournalEvent[]> {
   const world = loadedWorld ?? await loadWorld();
   const records = new Map((world.integrations ?? []).map(record => [record.integrationId, record]));
   const runs = new Map((world.reflectionRuns ?? []).map(record => [record.reflectionId, record]));
+  const autonomyJobs = new Map((world.autonomyJobs ?? []).map(record => [record.jobId, record]));
   return events.filter(event => {
+    const autonomyJobId = event.provenance?.autonomyJobId;
+    if (event.type === 'intention' || event.type === 'occurrence.simulated' || autonomyJobId) {
+      if (!autonomyJobId) return false;
+      const job = autonomyJobs.get(autonomyJobId);
+      if (!job || job.roomId !== event.roomId || event.scope.kind !== 'sea' || job.status !== 'committed'
+        || !job.eventIds?.includes(event.id)) return false;
+    }
     const reflectionId = event.provenance?.reflectionId;
     if (reflectionId) {
       const run = runs.get(reflectionId);
@@ -317,6 +332,9 @@ export function setupJournalIPC(): void {
     // Renderer Sea writes extend the persistent world. Main-internal
     // maintenance recovery calls appendEvent directly and stays unaffected.
     if (draft.scope.kind === 'sea') requireLivingWorld(loadSettings());
+    if (draft.type === 'intention' || draft.type === 'occurrence.simulated' || draft.provenance?.autonomyJobId) {
+      throw new Error('[journal] autonomous authority is main-owned');
+    }
     return appendEvent(roomId, draft);
   });
 

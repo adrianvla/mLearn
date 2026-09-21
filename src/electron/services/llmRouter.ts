@@ -32,10 +32,11 @@ interface QueuedStreamRequest {
   tier?: string;
   think?: boolean;
   expectedRoute?: string;
+  priority?: 'foreground' | 'background';
 }
 
 function routeKey(settings: Settings): string {
-  return JSON.stringify([getUserDataPath(), settings.livingWorldEnabled, settings.llmEnabled, settings.inferenceCloudTier, settings.llmProvider, settings.ollamaUrl, settings.ollamaModel,
+  return JSON.stringify([getUserDataPath(), settings.livingWorldEnabled, settings.worldAutonomyEnabled ?? DEFAULT_SETTINGS.worldAutonomyEnabled, settings.llmEnabled, settings.inferenceCloudTier, settings.llmProvider, settings.ollamaUrl, settings.ollamaModel,
     settings.builtinModel, settings.cloudApiUrl, settings.overrideCloudEndpointUrl,
     settings.cloudAuthAccessToken, settings.cloudAuthToken]);
 }
@@ -46,6 +47,16 @@ let activeSender: Electron.WebContents | null = null;
 let activeOriginalSend: ((channel: string, ...args: unknown[]) => void) | null = null;
 let activeDestroyedListener: (() => void) | null = null;
 const queue: QueuedStreamRequest[] = [];
+
+function enqueueRequest(request: QueuedStreamRequest): void {
+  if (request.priority !== 'foreground') {
+    queue.push(request);
+    return;
+  }
+  const firstBackground = queue.findIndex(item => item.priority === 'background');
+  if (firstBackground === -1) queue.push(request);
+  else queue.splice(firstBackground, 0, request);
+}
 
 // Providers differ in completion signalling (ollama is fire-and-forget, cloud/builtin awaited),
 // so the owner's `send` is wrapped for the stream duration: the terminal chunk (done: true,
@@ -192,7 +203,12 @@ function abortProvider(senderId: number): void {
 let nextJobOwner = -100;
 
 /** Main-owned inference shares the conversation queue and owns only its cancellation. */
-export function completeJob(messages: LLMChatMessage[], signal: AbortSignal, maxOutputCharacters = 24000): Promise<string> {
+export function completeJob(
+  messages: LLMChatMessage[],
+  signal: AbortSignal,
+  maxOutputCharacters = 24000,
+  priority: 'foreground' | 'background' = 'foreground',
+): Promise<string> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let text = '';
@@ -224,7 +240,7 @@ export function completeJob(messages: LLMChatMessage[], signal: AbortSignal, max
     const onAbort = (): void => cancel(new Error('Scenario generation cancelled'));
     if (signal.aborted) { onAbort(); return; }
     signal.addEventListener('abort', onAbort, { once: true });
-    queue.push({ sender, messages, tools: [], expectedRoute: routeKey(loadSettings()) });
+    enqueueRequest({ sender, messages, tools: [], expectedRoute: routeKey(loadSettings()), priority });
     if (activeOwner === null) drainQueue();
   });
 }
@@ -250,7 +266,7 @@ export function setupLLMRouterIPC(): void {
       const busyChunk: LLMStreamChunk = { error: 'STREAM_BUSY', done: true };
       activeOriginalSend!(IPC_CHANNELS.LLM_STREAM_CHUNK, busyChunk);
     } else {
-      queue.push({ sender, messages, tools, tier, think });
+      enqueueRequest({ sender, messages, tools, tier, think, priority: 'foreground' });
     }
   });
 

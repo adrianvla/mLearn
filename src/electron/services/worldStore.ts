@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
-import type { IntegrationRecord, Participant, Room, Thread, ScenarioCreation, ReflectionRunRecord } from '../../shared/world';
+import type { AutonomyJobRecord, IntegrationRecord, Participant, Room, Thread, ScenarioCreation, ReflectionRunRecord } from '../../shared/world';
 
 const log = getLogger('electron.world');
 
@@ -21,6 +21,8 @@ export interface WorldState {
   integrations?: IntegrationRecord[];
   /** Durable reflection/evolution maintenance ledger (crash-recovery + window identity). */
   reflectionRuns?: ReflectionRunRecord[];
+  /** Durable V09 autonomous work ledger. */
+  autonomyJobs?: AutonomyJobRecord[];
 }
 
 function worldFilePath(): string {
@@ -49,6 +51,7 @@ export async function loadWorld(): Promise<WorldState> {
       ...(Array.isArray(state.scenarioCreations) ? { scenarioCreations: state.scenarioCreations } : {}),
       ...(Array.isArray(state.integrations) ? { integrations: state.integrations } : {}),
       ...(Array.isArray(state.reflectionRuns) ? { reflectionRuns: state.reflectionRuns } : {}),
+      ...(Array.isArray(state.autonomyJobs) ? { autonomyJobs: state.autonomyJobs } : {}),
     };
   } catch (error) {
     log.warn('[worldStore] Failed to load world.json — using empty world:', error);

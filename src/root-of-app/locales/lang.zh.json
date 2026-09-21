@@ -930,7 +930,19 @@
         "WorldActivity": "世界活动",
         "WorldActivityPending": "整理进行中",
         "WorldActivityFailed": "整理需要处理",
-        "RetryWorldActivity": "重试"
+        "RetryWorldActivity": "重试",
+        "Autonomy": "自主生活",
+        "PauseAutonomy": "暂停",
+        "ResumeAutonomy": "恢复",
+        "AutonomyWaiting": "已启用 — 正在等待有依据的机会。",
+        "AutonomyPaused": "已暂停 — 不会运行离屏事件。",
+        "AutonomyRunning": "正在考虑有限的发展",
+        "AutonomyBlocked": "正在等待推理资源",
+        "AutonomyFailed": "发展已安全失败",
+        "AutonomyDeveloped": "发生了允许的离屏发展",
+        "AutonomyIntention": "角色形成了有依据的意图",
+        "AutonomyCancelled": "已取消过时的工作",
+        "AutonomyWaited": "没有必要发生发展"
       }
     },
     "ErrorModal": {

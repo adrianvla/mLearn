@@ -17,6 +17,8 @@ vi.mock('electron', () => ({
 vi.mock('./worldIpc', () => ({ openRoomAt: vi.fn() }));
 const mockConsolidateContext = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('./dreamerRuntime', () => ({ consolidateContext: mockConsolidateContext }));
+const mockRunRoomAutonomy = vi.hoisted(() => vi.fn(async () => ({ kind: 'waiting' as const })));
+vi.mock('./autonomyRuntime', () => ({ runRoomAutonomy: mockRunRoomAutonomy }));
 
 // Living World consent default for the existing proactive-scheduler coverage;
 // individual tests may flip it to verify the Threads-only boundary.
@@ -55,6 +57,7 @@ describe('schedulerRuntime', () => {
     powerMonitorOn.mockClear();
     powerMonitorRemoveListener.mockClear();
     mockConsolidateContext.mockClear();
+    mockRunRoomAutonomy.mockClear();
     runtime = await import('./schedulerRuntime');
     journal = await import('./journalService');
     const room: Room = { id: 'room-1', title: 'Test room', participantIds: ['participant-1'], createdAt: 0 };
@@ -72,8 +75,9 @@ describe('schedulerRuntime', () => {
     );
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     runtime?.stopScheduler();
+    await flush();
     tempDir.cleanup();
   });
 
@@ -121,6 +125,7 @@ describe('schedulerRuntime', () => {
       payload: { candidateId: 'wired', kind: 'message', participantId: 'participant-1', fireAt: Date.now() - 1000, text: 'Hello' },
     });
 
+    mockRunRoomAutonomy.mockClear();
     runtime.startScheduler();
     await flush();
     // Force every reconcile path (startup, interval, suspend, resume) to run
@@ -133,6 +138,7 @@ describe('schedulerRuntime', () => {
     expect(events.some((event) => event.type === 'proactive_fulfilled')).toBe(false);
     // No autonomous-world writes of any kind happened on the consented paths.
     expect(events.filter((event) => event.type === 'consolidation')).toHaveLength(0);
+    expect(mockRunRoomAutonomy).not.toHaveBeenCalled();
     runtime.stopScheduler();
   });
 
@@ -147,5 +153,18 @@ describe('schedulerRuntime', () => {
     const resume = powerMonitorOn.mock.calls.find(([event]) => event === 'resume')?.[1] as (() => void);
     resume();
     await vi.waitFor(() => expect(new Set(mockConsolidateContext.mock.calls.map(([target]) => target.roomId))).toHaveLength(rooms.length));
+  });
+
+  it('bounds autonomous Room candidates per reconcile and advances fairly', async () => {
+    const rooms = Array.from({ length: runtime.MAX_AUTONOMY_JOBS_PER_RECONCILE + 2 }, (_, index): Room => ({
+      id: `room-${index}`, title: `Room ${index}`, participantIds: [], createdAt: index,
+    }));
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'world.json'), JSON.stringify({ rooms, threads: [], participants: [] }), 'utf-8');
+
+    runtime.startScheduler();
+    await vi.waitFor(() => expect(mockRunRoomAutonomy).toHaveBeenCalledTimes(runtime.MAX_AUTONOMY_JOBS_PER_RECONCILE));
+    const resume = powerMonitorOn.mock.calls.find(([event]) => event === 'resume')?.[1] as (() => void);
+    resume();
+    await vi.waitFor(() => expect(new Set(mockRunRoomAutonomy.mock.calls.map(([roomId]) => roomId))).toHaveLength(rooms.length));
   });
 });

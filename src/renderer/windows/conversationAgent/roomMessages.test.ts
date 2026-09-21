@@ -68,6 +68,8 @@ describe('renderCompiledContext', () => {
       relationships: [],
       memories: [{ kind: 'belief', text: 'Likes coffee', createdAt: 1 }],
       openLoops: [],
+      intentions: [],
+      witnessedOccurrences: [],
       recentThreadEvents: [
         { seq: 1, type: 'message.user', actorId: USER_ACTOR, text: 'hello', createdAt: 1 },
         { seq: 2, type: 'message.character', actorId: 'p1', text: 'hi', createdAt: 2 },
@@ -87,6 +89,8 @@ describe('renderCompiledContext', () => {
       relationships: [],
       memories: [],
       openLoops: [],
+      intentions: [],
+      witnessedOccurrences: [],
       recentThreadEvents: [],
     };
     expect(renderCompiledContext(ctx, [p1], 'You')).toBe('## Persona\nx');
@@ -95,7 +99,7 @@ describe('renderCompiledContext', () => {
   it('renders Director prose explicitly as interpretation, never established history', () => {
     const ctx = {
       persona: { text: 'x', facets: {} },
-      negativeKnowledge: [], relationships: [], memories: [], openLoops: [], recentThreadEvents: [],
+      negativeKnowledge: [], relationships: [], memories: [], openLoops: [], intentions: [], witnessedOccurrences: [], recentThreadEvents: [],
       scenario: {
         sharedFacts: ['A suspects B told C. Nobody has confirmed it.'], constraints: [], goals: [], knowledge: [],
         interpretations: [{ authority: 'interpretation', text: 'B told C.', createdAt: 1 }], concluded: false,
@@ -112,6 +116,8 @@ describe('renderCompiledContext', () => {
       relationships: [],
       memories: [],
       openLoops: [],
+      intentions: [],
+      witnessedOccurrences: [],
       recentThreadEvents: [],
       learnerProjection: { failedWords: ['難しい'], grammarPoints: ['てform'], grammarExposure: ['ている', '〜てしまう'] },
     };
@@ -128,6 +134,8 @@ describe('renderCompiledContext', () => {
       relationships: [],
       memories: [],
       openLoops: [],
+      intentions: [],
+      witnessedOccurrences: [],
       recentThreadEvents: [],
       learnerProjection: { grammarPoints: ['てform'] },
     };

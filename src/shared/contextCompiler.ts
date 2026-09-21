@@ -28,6 +28,7 @@ import type {
 } from './world';
 import { projectionForCaller, tombstonedIds, openLoopStates, type RoomMemoryProjection } from './memoryProjection';
 import { authoritativeScenario } from './scenarioState';
+import { intentionStates, simulatedOccurrencePayload } from './autonomyProjection';
 import {
   rankRecentThreadEvents,
   recentTailWithinBudget,
@@ -75,6 +76,10 @@ export interface CompiledContext {
   relationships: { toId: string; label: string }[];
   memories: { kind: MemoryEntry['kind']; text: string; createdAt: number }[];
   openLoops: { text: string; createdAt: number }[];
+  /** Current private intentions owned by this participant. */
+  intentions: { intentionId: string; status: 'created' | 'pursued' | 'revised'; text: string; createdAt: number }[];
+  /** Established simulated occurrences this participant actually witnessed. */
+  witnessedOccurrences: { eventId: string; summary: string; actorIds: string[]; effectiveAt: number }[];
   learnerProjection?: LearnerProjection;
   threadIntent?: string;
   threadMedia?: ThreadMediaRef;
@@ -250,6 +255,8 @@ export function compileContext(input: CompileContextInput): CompiledContext {
     relationships: [],
     memories: [],
     openLoops: [],
+    intentions: [],
+    witnessedOccurrences: [],
     recentThreadEvents: visibleThread
       .slice()
       .sort((a, b) => a.seq - b.seq)
@@ -312,6 +319,27 @@ export function compileContext(input: CompileContextInput): CompiledContext {
   ])).values()];
   const tombstoned = tombstonedIds(memoryEvents);
   const loopStates = openLoopStates(memoryEvents);
+
+  for (const state of intentionStates(memoryEvents).values()) {
+    if (!state.active || state.payload.ownerId !== participant.id) continue;
+    context.intentions.push({
+      intentionId: state.payload.intentionId,
+      status: state.payload.status as 'created' | 'pursued' | 'revised',
+      text: state.payload.text,
+      createdAt: state.event.createdAt,
+    });
+  }
+  context.intentions = context.intentions.sort((a, b) => a.createdAt - b.createdAt).slice(-8);
+  context.witnessedOccurrences = memoryEvents.flatMap((event) => {
+    if (tombstoned.has(event.id)) return [];
+    const payload = simulatedOccurrencePayload(event);
+    return payload ? [{
+      eventId: event.id,
+      summary: payload.summary,
+      actorIds: payload.actorIds,
+      effectiveAt: payload.effectiveAt,
+    }] : [];
+  }).sort((a, b) => a.effectiveAt - b.effectiveAt).slice(-8);
 
   for (const e of memoryEvents) {
     if (e.type !== 'memory.belief') continue;

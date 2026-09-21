@@ -4,13 +4,20 @@ import path from 'path';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
 import type { JournalEventDraft } from '../../shared/world';
+import { IPC_CHANNELS } from '../../shared/constants';
+
+const ipcHandlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => unknown>());
 
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => '/tmp/test'),
     isPackaged: false,
+    on: vi.fn(),
   },
+  ipcMain: { handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => ipcHandlers.set(channel, handler)) },
 }));
+
+vi.mock('./settings', () => ({ loadSettings: () => ({ livingWorldEnabled: true }) }));
 
 let tempDir: TempDir;
 
@@ -44,6 +51,7 @@ describe('journalService', () => {
 
   beforeEach(async () => {
     tempDir = createTempDir();
+    ipcHandlers.clear();
     vi.resetModules();
     mod = await import('./journalService');
     roomId = 'room-test-1';
@@ -175,5 +183,18 @@ describe('journalService', () => {
     const { events, headSeq } = await mod.subscribeRoom(roomId, 50);
     expect(headSeq).toBe(2);
     expect(events).toHaveLength(2);
+  });
+
+  it('rejects renderer attempts to claim autonomous occurrence authority', async () => {
+    mod.setupJournalIPC();
+    const append = ipcHandlers.get(IPC_CHANNELS.JOURNAL_APPEND)!;
+    await expect(append({}, roomId, seaDraft({
+      type: 'occurrence.simulated',
+      actorId: 'participant-a',
+      witnesses: ['participant-a'],
+      payload: {},
+      provenance: { autonomyJobId: 'forged-job' },
+    }))).rejects.toThrow(/main-owned/);
+    expect(await mod.readSeaProjection(roomId)).toEqual([]);
   });
 });
