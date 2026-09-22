@@ -271,6 +271,21 @@ describe('LLM_STREAM routing to cloud', () => {
     );
   });
 
+  it.each(['standard', 'realtime'])('preserves the %s serving class through Electron IPC', async (tier) => {
+    const sender = createMockSender();
+    const event = createMockEvent(sender);
+    const listeners = mockIpcListeners.get('llm-stream') || [];
+    await listeners[0](event, [{ role: 'user', content: 'hello' }], [], tier);
+    expect(mockCloudStreamChat).toHaveBeenCalledWith(
+      expect.any(Array),
+      [],
+      expect.any(Object),
+      tier,
+      undefined,
+      'foreground',
+    );
+  });
+
   it('selects managed transport only for the configured school endpoint', async () => {
     for (const managed of [false, true]) {
       mockLoadSettings.mockReturnValue({ ...mockLoadSettings(), overrideCloudEndpointUrl: managed, cloudApiUrl: 'https://school.test' });

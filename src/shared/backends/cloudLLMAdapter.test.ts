@@ -54,6 +54,14 @@ describe('CloudLLMAdapter', () => {
 
   describe('streamChat', () => {
     describe('request construction', () => {
+      it.each(['standard', 'realtime'] as const)('preserves the %s serving class in the cloud request', async (tier) => {
+        const adapter = new CloudLLMAdapter('https://api.example.com', '');
+        mockFetch.mockResolvedValue(createSSEResponse(['data: [DONE]']));
+        await adapter.streamChat(baseMessages, baseTools, makeCallbacks(), tier);
+        const init = mockFetch.mock.calls.at(-1)?.[1] as RequestInit;
+        expect(JSON.parse(init.body as string).model_tier).toBe(tier);
+      });
+
       it('sends POST to ${baseUrl}/api/llm/stream', async () => {
         const adapter = new CloudLLMAdapter('https://api.example.com', 'tok');
         mockFetch.mockResolvedValue(createSSEResponse(['data: [DONE]']));
