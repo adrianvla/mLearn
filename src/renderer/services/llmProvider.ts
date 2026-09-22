@@ -3,6 +3,7 @@
  * Single abstraction for all LLM interactions (Explainer + Conversation Agent).
  * Routes to built-in (node-llama-cpp) or Ollama based on user settings.
  */
+import { applicationTaskMessage } from '../../shared/llmTask';
 
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Settings, CloudLLMTier, LanguageData } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
@@ -504,7 +505,7 @@ export function streamExplanation(
   const requiredToolNames = getExplainerToolNames(mode);
 
   const messages: LLMChatMessage[] = [
-    { role: 'system', content: systemPrompt },
+    applicationTaskMessage('explanation', systemPrompt),
     { role: 'user', content: userPrompt },
   ];
 
@@ -689,14 +690,11 @@ function buildExplainerRepairMessages(
     : 'This is phrase mode. Do not add show_explanation.';
 
   return [
-    {
-      role: 'system',
-      content: `You are completing missing language-learning explainer cards for ${language}.
+    applicationTaskMessage('explanation-repair', `You are completing missing language-learning explainer cards for ${language}.
 Only call the missing tool functions requested by the user.
 Do not repeat cards already generated.
 Do not output markdown, prose, or headings.
-Every missing card must be returned as its own tool call.`,
-    },
+Every missing card must be returned as its own tool call.`),
     {
       role: 'user',
       content: `The previous response was incomplete.

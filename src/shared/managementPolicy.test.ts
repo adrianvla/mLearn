@@ -1,3 +1,6 @@
+import contract from './policySettings.json';
+import { DEFAULT_SETTINGS } from './types';
+import { COLOR_SCHEMES, UI_TYPES } from './constants';
 import { describe, expect, it } from 'vitest';
 
 import fixture from '../../test/fixtures/management-policy-v1.json';
@@ -31,6 +34,28 @@ function assertManagedSettingTypeBoundary(
 void assertManagedSettingTypeBoundary;
 
 describe('management policy contract', () => {
+  it('validates every canonical definition against desktop settings and enum domains', () => {
+    for (const [key, descriptor] of Object.entries(contract)) {
+      expect(['boolean', 'number', 'string', 'stringOrNull']).toContain(descriptor.kind);
+      expect(Object.hasOwn(DEFAULT_SETTINGS, key)).toBe(true);
+      expect(validateEffectiveManagementPolicy({ ...fixture, settings: { [key]: settingRule(DEFAULT_SETTINGS[key as keyof typeof contract]) } }).ok, key).toBe(true);
+      if ('allowedValues' in descriptor) {
+        for (const value of descriptor.allowedValues) {
+          expect(validateEffectiveManagementPolicy({ ...fixture, settings: { [key]: settingRule(value) } }).ok, `${key}=${value}`).toBe(true);
+        }
+      }
+    }
+    expect(contract.colorScheme.allowedValues).toEqual([...COLOR_SCHEMES]);
+    expect(contract.uiType.allowedValues).toEqual([...UI_TYPES]);
+  });
+
+  it.each(['colour_known', 'do_colour_known', 'wordSyncStaleLearningDays', 'futureLockedSetting'])('rejects unsupported locked policy setting %s without changing the signed document', key => {
+    const input = { ...fixture, settings: { [key]: settingRule(true) } };
+    const original = JSON.stringify(input);
+    expect(validateEffectiveManagementPolicy(input).ok).toBe(false);
+    expect(JSON.stringify(input)).toBe(original);
+  });
+
   it('matches the shared RFC 8785 canonical byte vectors', () => {
     for (const vector of jcsFixture.vectors) {
       expect(canonicalizePolicyJson(vector.input), vector.name).toBe(

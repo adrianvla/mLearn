@@ -5,7 +5,7 @@
  * Compatible with OpenAI-style streaming API format.
  */
 
-import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, CloudLLMTier } from '../types';
+import type { LLMApplicationTask, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, CloudLLMTier } from '../types';
 import { getLogger } from '../utils/logger';
 
 const log = getLogger("shared.backends.cloudLLM");
@@ -38,9 +38,10 @@ interface OpenAITool {
   };
 }
 
-/** OpenAI-format message */
-interface OpenAIMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
+/** OpenAI conversation message or a management-only application task envelope. */
+interface CloudWireMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool' | 'task';
+  task?: LLMApplicationTask;
   content: string;
   tool_calls?: Array<{
     id: string;
@@ -75,12 +76,19 @@ function toOpenAITools(tools: LLMToolDefinition[]): OpenAITool[] {
 }
 
 /**
- * Convert provider-agnostic chat messages to OpenAI format.
+ * Serialize conversation roles and explicitly classified managed application tasks.
  * Transforms camelCase fields (toolCalls, toolName) to snake_case (tool_calls, tool_call_id).
  */
-function toOpenAIMessages(messages: LLMChatMessage[]): OpenAIMessage[] {
+function serializeCloudMessages(messages: LLMChatMessage[], managed: boolean): CloudWireMessage[] {
   return messages.map(m => {
-    const msg: OpenAIMessage = {
+    if (managed && m.role === 'system') {
+      if (!m.applicationTask || m.toolCalls?.length || m.toolCallId) {
+        throw new Error('Managed system messages require an explicit application task');
+      }
+      return { role: 'task', content: '', task: m.applicationTask };
+    }
+    if (managed && m.applicationTask) throw new Error('Application tasks must originate from a local system message');
+    const msg: CloudWireMessage = {
       role: m.role,
       content: m.content,
     };
@@ -106,12 +114,26 @@ function toOpenAIMessages(messages: LLMChatMessage[]): OpenAIMessage[] {
   });
 }
 
+/** Shared wire boundary for desktop and direct managed mobile requests. */
+export function createCloudLLMRequest(
+  messages: LLMChatMessage[], tools: LLMToolDefinition[], tier: CloudLLMTier | undefined,
+  think: boolean | undefined, usageScope: CloudLLMUsageScope, managed: boolean,
+) {
+  return {
+    messages: serializeCloudMessages(messages, managed),
+    tools: tools.length > 0 ? toOpenAITools(tools) : undefined,
+    model_tier: tier,
+    think,
+    usage_scope: usageScope,
+  };
+}
+
 export class CloudLLMAdapter {
   private readonly baseUrl: string;
   private readonly authToken: string;
   private abortController: AbortController | null = null;
 
-  constructor(baseUrl: string, authToken: string) {
+  constructor(baseUrl: string, authToken: string, private readonly managed = false) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.authToken = authToken;
   }
@@ -139,20 +161,11 @@ export class CloudLLMAdapter {
       headers['Authorization'] = `Bearer ${this.authToken}`;
     }
 
-    const openAIMessages = toOpenAIMessages(messages);
-    const openAITools = tools.length > 0 ? toOpenAITools(tools) : undefined;
-
     try {
       const res = await fetch(`${this.baseUrl}/api/llm/stream`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          messages: openAIMessages,
-          tools: openAITools,
-          model_tier: tier,
-          think,
-          usage_scope: usageScope,
-        }),
+        body: JSON.stringify(createCloudLLMRequest(messages, tools, tier, think, usageScope, this.managed)),
         signal: this.abortController.signal,
       });
 

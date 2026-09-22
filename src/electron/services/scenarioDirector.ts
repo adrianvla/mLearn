@@ -1,3 +1,4 @@
+import { applicationTaskMessage } from '../../shared/llmTask';
 import { HARNESS_ACTOR, USER_ACTOR, WORLD_CONTINUITY_ID } from '../../shared/world';
 import { requireLivingWorld, livingWorldEnabled, LIVING_WORLD_DISABLED_ERROR } from '../../shared/livingWorld';
 import { createHash, randomUUID } from 'crypto';
@@ -81,7 +82,7 @@ async function generate(request: CreateCastInput, hash: string, signal: AbortSig
   try {
     if (signal.aborted) throw new Error('Scenario generation cancelled');
     if (request.scope === 'persistent') requireLivingWorld(loadSettings());
-    const raw = await completeJob([{ role: 'system', content: prompt() }, { role: 'user', content: JSON.stringify({
+    const raw = await completeJob([applicationTaskMessage('scenario-direction', prompt()), { role: 'user', content: JSON.stringify({
       selectedPeople: stage.bindings.map(binding => ({ id: binding.baseline.id, name: binding.baseline.displayName })), intent: request.intent,
     }) }], signal, SCENARIO_LIMITS.outputCharacters);
     const scenario = parseScenarioProposal(raw, request.participantIds, request.intent!);

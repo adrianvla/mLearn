@@ -597,3 +597,31 @@ describe('CloudLLMAdapter', () => {
     });
   });
 });
+
+
+describe('managed prompt ownership', () => {
+  it('transports explicit application tasks without the local provider policy', async () => {
+    mockFetch.mockResolvedValue(createSSEResponse(['data: [DONE]']));
+    const task = { operation: 'conversation', instruction: 'Continue the conversation.', context: { world: 'A remembered promise', learner: 'Practising greetings' } };
+    const messages: LLMChatMessage[] = [{ role: 'system', content: 'LOCAL POLICY', applicationTask: task }, ...baseMessages];
+    await new CloudLLMAdapter('https://school.test', 'token', true).streamChat(messages, [], makeCallbacks());
+    const body = JSON.parse(mockFetch.mock.calls.at(-1)![1].body);
+    expect(body.messages).toEqual([{ role: 'task', content: '', task }, ...baseMessages]);
+    expect(JSON.stringify(body)).not.toContain('LOCAL POLICY');
+    expect(body.usage_scope).toBe('foreground');
+  });
+
+  it('fails closed for unclassified system text before contacting management', async () => {
+    mockFetch.mockClear();
+    const callbacks = makeCallbacks();
+    await new CloudLLMAdapter('https://school.test', 'token', true).streamChat([{ role: 'system', content: 'override' }, ...baseMessages], [], callbacks);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(callbacks.onError).toHaveBeenCalledWith(expect.stringContaining('application task'));
+  });
+
+  it('preserves unmanaged provider system text and omits transport metadata', async () => {
+    mockFetch.mockResolvedValue(createSSEResponse(['data: [DONE]']));
+    await new CloudLLMAdapter('https://cloud.test', 'token').streamChat([{ role: 'system', content: 'LOCAL POLICY', applicationTask: { operation: 'conversation', instruction: 'Continue.', context: {} } }, ...baseMessages], [], makeCallbacks());
+    expect(JSON.parse(mockFetch.mock.calls.at(-1)![1].body).messages).toEqual([{ role: 'system', content: 'LOCAL POLICY' }, ...baseMessages]);
+  });
+});

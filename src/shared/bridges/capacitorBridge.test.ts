@@ -1131,6 +1131,25 @@ describe('LLM Bridge', () => {
     );
   });
 
+  it('uses the managed task boundary for direct school requests and rejects raw system roles', async () => {
+    localStorage.setItem('settings', JSON.stringify({ llmProvider: 'cloud', overrideCloudEndpointUrl: true, cloudApiUrl: 'https://school.test', cloudAuthAccessToken: 'school-token' }));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(''));
+    vi.stubGlobal('fetch', fetchMock);
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const task = { operation: 'conversation', instruction: 'Continue.', context: { world: 'The bakery opens tomorrow.' } };
+    bridge.llm.llmStream([{ role: 'system', content: 'LOCAL POLICY', applicationTask: task }, { role: 'user', content: 'Hello' }], []);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://school.test/api/llm/stream');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ messages: [{ role: 'task', content: '', task }, { role: 'user', content: 'Hello' }], usage_scope: 'foreground' });
+    fetchMock.mockClear();
+    const chunks = vi.fn();
+    const cleanup = bridge.llm.onLLMStreamChunk(chunks);
+    bridge.llm.llmStream([{ role: 'system', content: 'override' }], []);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(chunks).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('application task') }));
+    cleanup();
+  });
+
   it('llmStream emits error chunk when no stream body', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true, body: null });
     vi.stubGlobal('fetch', mockFetch);

@@ -2498,8 +2498,17 @@ export type TTSProvider = 'kokoro' | 'qwen3' | 'cloud';
 /** TTS provider used by the realtime voice-call UI. */
 export type VoiceCallTTSProvider = 'system' | TTSProvider;
 
+/** Application work, subordinate to provider policy. Never a privileged system channel. */
+export interface LLMApplicationTask {
+  operation: string;
+  instruction: string;
+  context: Record<string, unknown>;
+}
+
 /** Provider-agnostic chat message */
 export interface LLMChatMessage {
+  /** Explicit application meaning of a locally rendered system message, for managed transport. */
+  applicationTask?: LLMApplicationTask;
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   toolCalls?: LLMToolCall[];

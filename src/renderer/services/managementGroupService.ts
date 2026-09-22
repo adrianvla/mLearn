@@ -1,3 +1,4 @@
+import { usesManagedLlm } from '../../shared/llmTask';
 import { resolveCloudApiUrl } from '../../shared/backends';
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/types';
 import { resolveCloudAccessToken } from './cloudAuthService';
@@ -82,8 +83,7 @@ export function resetManagementGroupReadiness(): void {
 }
 
 export function requiresManagementGroup(settings: Settings): boolean {
-  return settings.overrideCloudEndpointUrl
-    && settings.cloudApiUrl.trim().length > 0;
+  return usesManagedLlm(settings);
 }
 
 export async function getEligibleGroups(

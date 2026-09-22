@@ -1,0 +1,357 @@
+{
+  "srsLearningThreshold": {
+    "kind": "number"
+  },
+  "known_ease_threshold": {
+    "kind": "number"
+  },
+  "ankiLearningThreshold": {
+    "kind": "number"
+  },
+  "ankiKnownThreshold": {
+    "kind": "number"
+  },
+  "blur_words": {
+    "kind": "boolean"
+  },
+  "blur_known_subtitles": {
+    "kind": "boolean"
+  },
+  "blur_amount": {
+    "kind": "number"
+  },
+  "enableWordColoring": {
+    "kind": "boolean"
+  },
+  "colorKnownWords": {
+    "kind": "boolean"
+  },
+  "do_colour_codes": {
+    "kind": "boolean"
+  },
+  "uiType": {
+    "kind": "string",
+    "allowedValues": [
+      "tactile",
+      "glass",
+      "flat"
+    ]
+  },
+  "colorScheme": {
+    "kind": "string",
+    "allowedValues": [
+      "quartz",
+      "chalk",
+      "dark-quartz",
+      "slate",
+      "oled",
+      "light-high-contrast",
+      "dark-high-contrast",
+      "custom"
+    ]
+  },
+  "language": {
+    "kind": "string"
+  },
+  "frequencyStarCollapse": {
+    "kind": "string",
+    "allowedValues": [
+      "never",
+      "auto",
+      "always"
+    ]
+  },
+  "frequencyStarMargin": {
+    "kind": "number"
+  },
+  "hideFrequencyStarsForKnownWords": {
+    "kind": "boolean"
+  },
+  "hover_known_get_from_dictionary": {
+    "kind": "boolean"
+  },
+  "show_pos": {
+    "kind": "boolean"
+  },
+  "showReadingAnnotations": {
+    "kind": "boolean"
+  },
+  "readingAnnotationMoreContrast": {
+    "kind": "boolean"
+  },
+  "readingAnnotationSizePercent": {
+    "kind": "number"
+  },
+  "hideReadingForKnownWords": {
+    "kind": "boolean"
+  },
+  "showProsody": {
+    "kind": "boolean"
+  },
+  "hideProsodyForKnownWords": {
+    "kind": "boolean"
+  },
+  "showDictionary": {
+    "kind": "boolean"
+  },
+  "simplifyHomeScreen": {
+    "kind": "boolean"
+  },
+  "use_anki": {
+    "kind": "boolean"
+  },
+  "flashcardSkipAnkiChoice": {
+    "kind": "boolean"
+  },
+  "skipAnkiDuplicateWarning": {
+    "kind": "boolean"
+  },
+  "skipStatusSourceWarning": {
+    "kind": "boolean"
+  },
+  "skipAnkiModifyWarning": {
+    "kind": "boolean"
+  },
+  "easeThresholdUnknown": {
+    "kind": "number"
+  },
+  "easeThresholdLearning": {
+    "kind": "number"
+  },
+  "easeThresholdKnown": {
+    "kind": "number"
+  },
+  "easeThresholdMastered": {
+    "kind": "number"
+  },
+  "manualStatusEaseBuffer": {
+    "kind": "number"
+  },
+  "ankiDeckName": {
+    "kind": "string"
+  },
+  "enable_flashcard_creation": {
+    "kind": "boolean"
+  },
+  "automaticFlashcardCreation": {
+    "kind": "boolean"
+  },
+  "flashcard_deck": {
+    "kind": "stringOrNull"
+  },
+  "flashcards_add_picture": {
+    "kind": "boolean"
+  },
+  "maxNewCardsPerDay": {
+    "kind": "number"
+  },
+  "proportionOfLevelCards": {
+    "kind": "number"
+  },
+  "createUnseenCards": {
+    "kind": "boolean"
+  },
+  "flashcardLLMExamples": {
+    "kind": "boolean"
+  },
+  "newDayHour": {
+    "kind": "number"
+  },
+  "flashcardFlipAnimation": {
+    "kind": "boolean"
+  },
+  "leechThreshold": {
+    "kind": "number"
+  },
+  "flashcardMediaType": {
+    "kind": "string",
+    "allowedValues": [
+      "image",
+      "video"
+    ]
+  },
+  "flashcardVideoMargin": {
+    "kind": "number"
+  },
+  "autoSuggestFlashcards": {
+    "kind": "boolean"
+  },
+  "autoSuggestUnknownWords": {
+    "kind": "boolean"
+  },
+  "openAside": {
+    "kind": "boolean"
+  },
+  "rightSidebarOpen": {
+    "kind": "boolean"
+  },
+  "subsOffsetTime": {
+    "kind": "number"
+  },
+  "immediateFetch": {
+    "kind": "boolean"
+  },
+  "subtitleTheme": {
+    "kind": "string",
+    "allowedValues": [
+      "marker",
+      "background",
+      "shadow"
+    ]
+  },
+  "subtitle_font_size": {
+    "kind": "number"
+  },
+  "subtitle_font_weight": {
+    "kind": "number"
+  },
+  "showSubtitles": {
+    "kind": "boolean"
+  },
+  "showTranslation": {
+    "kind": "boolean"
+  },
+  "overlayAutoPosition": {
+    "kind": "boolean"
+  },
+  "overlayTextMode": {
+    "kind": "boolean"
+  },
+  "removeParentheses": {
+    "kind": "boolean"
+  },
+  "removeSpeakerNames": {
+    "kind": "boolean"
+  },
+  "showLiveTranslator": {
+    "kind": "boolean"
+  },
+  "liveTranslatorIncludeKnown": {
+    "kind": "boolean"
+  },
+  "blurKnownWords": {
+    "kind": "boolean"
+  },
+  "llmEnabled": {
+    "kind": "boolean"
+  },
+  "ocrEnabled": {
+    "kind": "boolean"
+  },
+  "voiceEnabled": {
+    "kind": "boolean"
+  },
+  "lowBatteryMode": {
+    "kind": "boolean"
+  },
+  "ocr_crop_padding": {
+    "kind": "number"
+  },
+  "ocrRamSaver": {
+    "kind": "boolean"
+  },
+  "ocrTurboMode": {
+    "kind": "boolean"
+  },
+  "ocrReadingAnnotationFiltering": {
+    "kind": "boolean"
+  },
+  "ocrReadingAnnotationWidthRatio": {
+    "kind": "number"
+  },
+  "ocrReadingAnnotationNeighborWindowMultiplier": {
+    "kind": "number"
+  },
+  "ocrReadingAnnotationNeighborLookahead": {
+    "kind": "number"
+  },
+  "ocrProvider": {
+    "kind": "string",
+    "allowedValues": [
+      "local",
+      "cloud"
+    ]
+  },
+  "readerCropMode": {
+    "kind": "boolean"
+  },
+  "readerDocumentOcr": {
+    "kind": "boolean"
+  },
+  "readerSepiaEnabled": {
+    "kind": "boolean"
+  },
+  "readerSharpenEnabled": {
+    "kind": "boolean"
+  },
+  "readerSharpenTextEnabled": {
+    "kind": "boolean"
+  },
+  "readerWordHoverTrigger": {
+    "kind": "string",
+    "allowedValues": [
+      "hover",
+      "long-hover",
+      "key-hover"
+    ]
+  },
+  "readerWordHoverKey": {
+    "kind": "string"
+  },
+  "readerReadingAnnotationHider": {
+    "kind": "boolean"
+  },
+  "readerCollatePages": {
+    "kind": "boolean"
+  },
+  "readerPageMode": {
+    "kind": "string",
+    "allowedValues": [
+      "single",
+      "double"
+    ]
+  },
+  "readerFirstPageSingle": {
+    "kind": "boolean"
+  },
+  "readerSpreadDirection": {
+    "kind": "string",
+    "allowedValues": [
+      "left-to-right",
+      "right-to-left"
+    ]
+  },
+  "readerTextFontStyle": {
+    "kind": "string",
+    "allowedValues": [
+      "language",
+      "sans",
+      "serif",
+      "mono"
+    ]
+  },
+  "readerTextSize": {
+    "kind": "number"
+  },
+  "readerTextLineHeight": {
+    "kind": "number"
+  },
+  "readerTextWidth": {
+    "kind": "number"
+  },
+  "readerTextMargin": {
+    "kind": "number"
+  },
+  "readerMagnifierHotkey": {
+    "kind": "string"
+  },
+  "readerMagnifierZoom": {
+    "kind": "number"
+  },
+  "readerMagnifierSize": {
+    "kind": "number"
+  },
+  "passiveEaseEnabled": {
+    "kind": "boolean"
+  }
+}

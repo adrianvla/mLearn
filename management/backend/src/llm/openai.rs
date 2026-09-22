@@ -294,6 +294,7 @@ mod tests {
     fn request() -> NormalizedProviderRequest {
         NormalizedProviderRequest {
             messages: vec![GatewayMessage {
+                task: None,
                 role: "user".into(),
                 content: "Hi".into(),
                 tool_calls: None,

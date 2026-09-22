@@ -13,6 +13,7 @@ import { EventEmitter } from 'events';
 import { getUserDataPath } from '../utils/platform';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, Settings } from '../../shared/types';
+import { usesManagedLlm } from '../../shared/llmTask';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { loadSettings } from './settings';
 import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
@@ -137,6 +138,7 @@ function cloudAdapterFromSettings(settings: Settings): CloudLLMAdapter {
   return new CloudLLMAdapter(
     cloudApiUrl,
     settings.cloudAuthAccessToken || settings.cloudAuthToken,
+    usesManagedLlm(settings),
   );
 }
 

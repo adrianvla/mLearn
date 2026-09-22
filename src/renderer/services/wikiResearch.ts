@@ -1,3 +1,4 @@
+import { applicationTaskMessage } from '../../shared/llmTask';
 import type { LLMChatMessage, LLMStreamChunk } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { getLogger } from '../../shared/utils/logger';
@@ -603,17 +604,14 @@ export async function buildPersonaFromWiki(
   }
 
   const hasStoryData = !!chapterSummaries || !!exploredContext || !!extracted.storyContext;
-  const systemMsg: LLMChatMessage = {
-    role: 'system',
-    content: `You are a helpful assistant that creates roleplay character cards for a language learning app where the user is learning ${languageName}.
+  const systemMsg = applicationTaskMessage('character-research', `You are a helpful assistant that creates roleplay character cards for a language learning app where the user is learning ${languageName}.
 
 Output ONLY a JSON object with these fields:
 - "lore": A detailed persona card (5-8 sentences) in ${languageName}. Describe the character's core personality traits, attitudes, emotional tendencies, taboos (things they would never say or do), and distinctive speaking style. Be specific and vivid. ${progressInfo}
 - "quotes": An array of 2-4 of the BEST original quotes from the reference quotes below. Pick quotes that best capture the character's personality and voice. Keep them in their original language. If no reference quotes are provided, write 2-4 characteristic quotes in ${languageName}.${hasStoryData ? `
 - "context": A comprehensive story summary (10-20 sentences) in ${languageName}. Summarize the plot up to the user's progress point. Focus on major events, character development, key relationships, and current story state. This will be used as context for roleplay conversations — make it detailed enough that someone unfamiliar with the story could understand the character's current situation. Do NOT mention events past the user's progress point.` : ''}
 
-Do not include any other text outside the JSON object. No markdown fences.`,
-  };
+Do not include any other text outside the JSON object. No markdown fences.`);
 
   const userMsg: LLMChatMessage = {
     role: 'user',

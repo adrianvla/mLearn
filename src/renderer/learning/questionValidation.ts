@@ -1,3 +1,4 @@
+import { applicationTaskMessage } from '../../shared/llmTask';
 import type {
   GrammarItemSemanticValidation,
   GrammarPracticeItemSource,
@@ -212,10 +213,7 @@ export async function validateQuestionItemsWithLLM(
       };
     });
     const messages: LLMChatMessage[] = [
-      {
-        role: 'system',
-        content: 'Independently validate language-learning questions. Judge the complete item from what the learner will see, not the author intent. Return strict JSON only.',
-      },
+      applicationTaskMessage('question-validation', 'Independently validate language-learning questions. Judge the complete item from what the learner will see, not the author intent. Return strict JSON only.'),
       {
         role: 'user',
         content: `For every item, assess naturalness, objective alignment, EVERY legitimate answer (the full set a competent learner could correctly complete the gap with, including accepted variants), whether every alternative outside that set is a meaningful confusion for the declared discrimination (never a trick or punishment), and accidental clues. Return {"items":[{"id":"...","natural":true,"objectiveAligned":true,"legitimateAnswers":["..."],"distractorsMeaningful":true,"accidentalClues":false,"reasons":["..."]}]}. Include exactly one result per id.\n${JSON.stringify(payload)}`,
