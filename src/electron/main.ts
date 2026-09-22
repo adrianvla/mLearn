@@ -48,6 +48,7 @@ import { setupPluginIPC } from './services/pluginIPC';
 import { setupDiagnosticsIPC } from './services/diagnostics';
 import { createAppUpdaterService, setupAppUpdaterIpc, type AppUpdaterService } from './services/appUpdater';
 import { createTray, destroyTray } from './services/trayManager';
+import { installSolidDevtools } from './services/solidDevtools';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { OpenRoomEventPayload } from '../shared/world';
 import { setupKillHandlers } from './services/processManager';
@@ -442,6 +443,8 @@ async function initialize(): Promise<void> {
   // publications from the durable ledger before any scheduler pass runs.
   await reconcilePendingMaintenance();
   await reconcilePendingAutonomyRuntime();
+
+  await installSolidDevtools({ isPackaged: app.isPackaged });
 
   // Create windows and start services
   await createAppWindows();

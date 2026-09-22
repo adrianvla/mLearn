@@ -4,6 +4,29 @@ import { renameSync, existsSync, unlinkSync, cpSync } from 'fs';
 import solidPlugin from 'vite-plugin-solid';
 import { PYTHON_BACKEND_PORT } from './src/shared/constants';
 
+const SOLID_DEVTOOLS_RUNTIME = "import 'solid-devtools';";
+
+export function isSolidDevtoolsEnabled(command: string, mode: string): boolean {
+  return command === 'serve' && mode !== 'capacitor';
+}
+
+function solidDevtoolsRuntimePlugin(): Plugin {
+  return {
+    name: 'mlearn-solid-devtools-runtime',
+    transformIndexHtml: {
+      order: 'pre',
+      handler() {
+        return [{
+          tag: 'script',
+          attrs: { type: 'module' },
+          children: SOLID_DEVTOOLS_RUNTIME,
+          injectTo: 'head-prepend',
+        }];
+      },
+    },
+  };
+}
+
 /**
  * Vite plugin to move the mobile entry HTML to index.html at the output root.
  * Capacitor requires dist-mobile/index.html.
@@ -58,8 +81,12 @@ export function appManualChunks(id: string): string | undefined {
   return undefined;
 }
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ command, mode }) => {
   const isCapacitor = mode === 'capacitor';
+  const enableSolidDevtools = isSolidDevtoolsEnabled(command, mode);
+  const devtoolsPlugin = enableSolidDevtools
+    ? (await import('solid-devtools/vite')).default()
+    : undefined;
   const input: Record<string, string> = isCapacitor
     ? {
         mobile: resolve(__dirname, 'src/html/mobile.html'),
@@ -86,7 +113,11 @@ export default defineConfig(({ mode }) => {
       };
 
   return {
-    plugins: [solidPlugin(), ...(isCapacitor ? [capacitorHtmlPlugin()] : [])],
+    plugins: [
+      ...(devtoolsPlugin ? [devtoolsPlugin, solidDevtoolsRuntimePlugin()] : []),
+      solidPlugin(),
+      ...(isCapacitor ? [capacitorHtmlPlugin()] : []),
+    ],
     base: './', // Ensure relative paths for Electron / Capacitor
     server: {
       port: 3000,
