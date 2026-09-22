@@ -17,7 +17,9 @@ export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefin
   const { settings } = useSettings();
   const [projection, setProjection] = createSignal<KnowledgeProjection>();
   const [loading, setLoading] = createSignal(false);
+  const [retryVersion, setRetryVersion] = createSignal(0);
   createEffect(() => {
+    retryVersion();
     const input = query();
     const version = eventsVersion();
     const thresholds = effectiveThresholds(settings);
@@ -42,5 +44,5 @@ export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefin
   const capabilities = createMemo(() => [...new Set(
     projection()?.targets.flatMap((target) => target.applicableCapabilities) ?? [],
   )]);
-  return { projection, loading, capabilities };
+  return { projection, loading, capabilities, retry: () => setRetryVersion(value => value + 1) };
 }

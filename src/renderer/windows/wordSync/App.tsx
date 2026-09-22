@@ -85,6 +85,7 @@ interface WordSyncUndoEntry {
   /** Attempt ids whose events must be retracted when this rating is undone. */
   attemptIds: AttemptId[];
   previousRatedCount: number;
+  previousExcludedAtPresentation: number;
   previousLastRating: AttemptQuality | null;
   previousSamplingLevel: number;
   previousLevelCursors: Map<number, number>;
@@ -162,7 +163,7 @@ export const WordSyncContent: Component = () => {
   const [undoStack, setUndoStack] = createSignal<WordSyncUndoEntry[]>([]);
 
   // ─── Translation for current word ───────────────────
-  const [translation] = createResource(
+  const [translation, { refetch: refetchTranslation }] = createResource(
     () => currentWord()?.word,
     async (word) => {
       if (!word) return null;
@@ -176,7 +177,7 @@ export const WordSyncContent: Component = () => {
   );
 
   const translationText = createMemo(() => {
-    const t = translation();
+    const t = translation.state === 'ready' ? translation() : undefined;
     if (!t?.data?.[0]) return '';
     const defs = t.data[0].definitions;
     return Array.isArray(defs) ? defs.join('; ') : defs;
@@ -184,9 +185,6 @@ export const WordSyncContent: Component = () => {
 
   // ─── Pool of eligible words grouped by level ────────
   const levelNames = createMemo(() => langCtx.getFreqLevelNames());
-  const sortedLevels = createMemo(() =>
-    sortFrequencyLevelsByDifficulty(Object.keys(levelNames()).map(Number), langCtx.currentLangData()),
-  );
 
   const filterContext = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() =>
     buildWordSyncFields(levelNames(), t, langCtx.currentLangData()),
@@ -229,6 +227,10 @@ export const WordSyncContent: Component = () => {
   const [poolPrepared, setPoolPrepared] = createSignal(false);
   const [sessionQueue, setSessionQueue] = createSignal<Map<number, PoolEntry[]>>();
   const [wordPool, setWordPool] = createSignal<Map<number, PoolEntry[]>>(new Map(), { equals: false });
+  // Level labels describe a package; they are not the inventory of its queue.
+  const sortedLevels = createMemo(() => sortFrequencyLevelsByDifficulty([...wordPool().keys()], langCtx.currentLangData()));
+  const [excludedAtPresentation, setExcludedAtPresentation] = createSignal(0);
+  const [queueSummary, setQueueSummary] = createSignal({ ignored: 0, filtered: 0, noPrompt: 0 });
 
   // ─── F-N1 request bound: projections ONLY for evidence-bearing surfaces ──
   // A pool word without stored state is unmeasured by definition — its
@@ -281,16 +283,19 @@ export const WordSyncContent: Component = () => {
   });
   const poolProjection = useKnowledgeProjections(() => isKnowledgeReady() && filterPresetInitialized() && poolPrepared() && !sessionQueue() && journalKeysHealthy()
     ? { language: settings.language, surfaces: projectionSurfaces() } : undefined);
-  const projectionUnavailable = createMemo(() => journalKeysResource.state === 'errored' || poolProjection.failed());
+  const projectionUnavailable = () => translation.state === 'errored' || journalKeysResource.state === 'errored' || eligibleWords.state === 'errored' || poolProjection.failed() || currentProjection.projection()?.status === 'error' || currentProjection.projection()?.status === 'not-installed';
   const retryKnowledgeProjections = () => {
+    if (translation.state === 'errored') void Promise.resolve(refetchTranslation()).catch(() => {});
     if (journalKeysResource.state === 'errored') {
       void Promise.resolve(refetchJournalKeys()).catch(() => {});
     }
-    poolProjection.retry();
+    if (eligibleWords.state === 'errored') void Promise.resolve(refetchEligibleWords()).catch(() => {});
+    if (currentWord()) currentProjection.retry();
+    else poolProjection.retry();
   };
   let scanRevision = 0;
   onCleanup(() => { scanRevision++; });
-  const [eligibleWords] = createResource(() => {
+  const [eligibleWords, { refetch: refetchEligibleWords }] = createResource(() => {
     const revision = ++scanRevision;
     const projections = poolProjection.projections();
     const filter = filterAst();
@@ -303,6 +308,8 @@ export const WordSyncContent: Component = () => {
     trace('accelerator ready', { surfaces: input.projections.size });
     trace('filters applied', { tokens: input.tokens });
     const eligible = new Set<string>();
+    let filtered = 0;
+    let noPrompt = 0;
     let cursor = 0;
     const entries = input.entries;
     await Promise.all(Array.from({ length: Math.min(8, entries.length) }, async () => {
@@ -315,17 +322,18 @@ export const WordSyncContent: Component = () => {
         // identity-backed constructed targets (F-N1 bounded fan-out), with
         // possible derived from the pool's own reading so no translation is
         // fetched for absent entries (prosody is re-probed at presentation).
-        if (projection?.status === 'error') continue;
+        if (projection?.status === 'error') throw new Error('Knowledge projection unavailable');
         const summary = projectedWordStatus(projection);
-        if (input.filter && !evaluateAst<unknown>(input.filter, { status: wordSyncPoolStatus(summary.status, summary.basis), level: entry.level }, filterResolvers())) continue;
+        if (input.filter && !evaluateAst<unknown>(input.filter, { status: wordSyncPoolStatus(summary.status, summary.basis), level: entry.level }, filterResolvers())) { filtered++; continue; }
         // ABSENT projection (unmeasured surface): admitted WITHOUT a
         // translation fetch — `possible` derives from the pool's own
         // reading; prosody is re-probed at presentation.
         if (!projection) {
           const absentPossible = getTestedAccesses({ languageData: input.data, surface: entry.word, hasReadingData: !!entry.reading, hasProsodyData: false });
-          if (absentPossible.length === 0) continue;
+          if (absentPossible.length === 0) { noPrompt++; continue; }
           const probe = wordSyncProbe(undefined, absentPossible, surfaceEntityId(input.language, hashWordSync(entry.word)));
           if (probe.targets.length && (!input.filter || evaluateAst<unknown>(input.filter, { status: probe.status, level: entry.level }, filterResolvers()))) eligible.add(entry.word);
+          else noPrompt++;
           continue;
         }
         const reference = await fetchTranslation(entry.word, input.language, {
@@ -337,10 +345,11 @@ export const WordSyncContent: Component = () => {
         const possible = getTestedAccesses({ languageData: input.data, surface: entry.word, hasReadingData: !!reading, hasProsodyData: !!prosody });
         const probe = wordSyncProbe(projection, possible, surfaceEntityId(input.language, hashWordSync(entry.word)));
         if (probe.targets.length && (!input.filter || evaluateAst<unknown>(input.filter, { status: probe.status, level: entry.level }, filterResolvers()))) eligible.add(entry.word);
+        else noPrompt++;
       }
     }));
     trace('candidate count', { count: eligible.size, revision: input.revision });
-    return { eligible, pool: input.pool, tokens: input.tokens, revision: input.revision };
+    return { eligible, filtered, noPrompt, pool: input.pool, tokens: input.tokens, revision: input.revision };
   });
 
   function buildWordPoolSnapshot(): Map<number, PoolEntry[]> {
@@ -412,7 +421,7 @@ export const WordSyncContent: Component = () => {
     const pool = sessionQueue();
     if (!pool || !isKnowledgeReady()) return;
     const levels = sortedLevels();
-    if (levels.length === 0) { setFinished(true); setShowAnswer(false); setShowTranslation(false); return; }
+    if (levels.length === 0) { setCurrentWord(null); setFinished(true); setShowAnswer(false); setShowTranslation(false); return; }
 
     let lvl = samplingLevel();
     if (!levels.includes(lvl)) lvl = levels[0];
@@ -498,6 +507,7 @@ export const WordSyncContent: Component = () => {
           language: settings.language,
           attemptIds: [attemptId],
           previousRatedCount: ratedCount(),
+          previousExcludedAtPresentation: excludedAtPresentation(),
           previousLastRating: lastRating(),
           previousSamplingLevel: samplingLevel(),
           previousLevelCursors: new Map(levelCursors),
@@ -629,9 +639,10 @@ export const WordSyncContent: Component = () => {
   }
 
   function recheckAll() {
+    stopWordTiming();
     setSessionQueue(undefined);
     setCurrentWord(null);
-    setFilterTokens(buildDefaultFilterPreset());
+    setExcludedAtPresentation(0);
     setFinished(false);
     setRatedCount(0);
     setLastRating(null);
@@ -656,6 +667,7 @@ export const WordSyncContent: Component = () => {
     appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds);
     void recomputeWordKnowledgeFromEvidence(undoEntry.word.word, undoEntry.language);
     setRatedCount(undoEntry.previousRatedCount);
+    setExcludedAtPresentation(undoEntry.previousExcludedAtPresentation);
     setLastRating(undoEntry.previousLastRating);
     setSamplingLevel(undoEntry.previousSamplingLevel);
     levelCursors = new Map(undoEntry.previousLevelCursors);
@@ -706,6 +718,24 @@ export const WordSyncContent: Component = () => {
   // projection have loaded — pool eligibility reads must not run against a
   // half-migrated store.
   const [initialized, setInitialized] = createSignal(false);
+  // A session belongs to one language/package/target scope. Journal updates
+  // revalidate the current prompt; a different scope starts a new session.
+  createEffect(on(() => [settings.language, langCtx.getWordFrequency(), langCtx.currentLangData(), getLearningLanguageLevelForLanguage(settings, settings.language)] as const, () => batch(() => {
+    stopWordTiming();
+    setSessionQueue(undefined);
+    setPoolPrepared(false);
+    setInitialized(false);
+    setFilterPresetInitialized(false);
+    setCurrentWord(null);
+    setFinished(false);
+    setRatedCount(0);
+    setExcludedAtPresentation(0);
+    setLastRating(null);
+    setUndoStack([]);
+    setShowAnswer(false);
+    setShowTranslation(false);
+    levelCursors = new Map();
+  }), { defer: true }));
 
   createEffect(() => {
     // A store re-delivery re-opens the readiness gate: drop the session so the
@@ -733,7 +763,7 @@ export const WordSyncContent: Component = () => {
       return;
     }
 
-    if (!filterPresetInitialized() && Object.keys(levelNames()).length > 0) {
+    if (!filterPresetInitialized()) {
       setFilterTokens(buildDefaultFilterPreset());
       setFilterPresetInitialized(true);
       return;
@@ -768,12 +798,14 @@ export const WordSyncContent: Component = () => {
     return getFrequencyLevelVisualRank(w.level, langCtx.getFreqLevelNames(), langCtx.currentLangData());
   });
 
-  const totalAvailable = createMemo(() => [...(sessionQueue()?.values() ?? [])].reduce((total, group) => total + group.length, 0));
-  createEffect(on(() => eligibleWords(), result => {
+  const totalAvailable = createMemo(() => Math.max(0, [...(sessionQueue()?.values() ?? [])].reduce((total, group) => total + group.length, 0) - excludedAtPresentation()));
+  createEffect(on(() => eligibleWords.state === 'ready' ? eligibleWords() : undefined, result => {
     if (!result || sessionQueue() || result.pool !== wordPool() || result.tokens !== filterTokens()
       || result.revision !== scanRevision || !isKnowledgeReady() || !poolProjection.ready()) return;
     const queue = new Map([...result.pool].map(([level, group]) => [level, group.filter(entry => result.eligible.has(entry.word))]));
     batch(() => {
+      setQueueSummary({ ignored: Math.max(0, Object.keys(langCtx.getWordFrequency()).length - [...result.pool.values()].reduce((sum, group) => sum + group.length, 0)), filtered: result.filtered, noPrompt: result.noPrompt });
+      setExcludedAtPresentation(0);
       setSessionQueue(queue);
       levelCursors = new Map();
       trace('session queue created', { count: [...queue.values()].reduce((n, group) => n + group.length, 0) });
@@ -788,13 +820,13 @@ export const WordSyncContent: Component = () => {
   const displayedReading = createMemo(() => {
     const w = currentWord();
     if (!w) return '';
-    return translation()?.data?.[0]?.reading || w.reading;
+    return (translation.state === 'ready' ? translation() : undefined)?.data?.[0]?.reading || w.reading;
   });
 
   const currentWordProsody = createMemo(() => {
     const w = currentWord();
     if (!w) return undefined;
-    return extractProsodyFromTranslationData(translation() ?? undefined, langCtx.currentLangData(), displayedReading());
+    return extractProsodyFromTranslationData((translation.state === 'ready' ? translation() : undefined) ?? undefined, langCtx.currentLangData(), displayedReading());
   });
 
   // Word Sync renders the word with the shared WordWithReading primitive and
@@ -810,14 +842,20 @@ export const WordSyncContent: Component = () => {
   // an active response must not silently change which question was asked.
   const [probe, setProbe] = createSignal<{ presentation: number; capabilities: CapabilityKey[]; focused: boolean }>();
   const testedAccesses = createMemo(() => probe()?.presentation === presentationCount() ? probe()!.capabilities : []);
-  createEffect(on(() => [currentProjection.projection(), currentProjection.loading(), translation.loading, presentationCount()] as const, ([projection, projectionLoading, loading, presentation]) => {
+  createEffect(on(() => [currentProjection.projection(), currentProjection.loading(), translation.loading, presentationCount(), store.ignoredWords[currentWord()?.storageKey ?? '']] as const, ([projection, projectionLoading, loading, presentation, ignored]) => {
     const w = currentWord();
+    if (w && ignored) {
+      setExcludedAtPresentation(count => count + 1);
+      setCurrentWord(null);
+      untrack(pickNext);
+      return;
+    }
     // Transient gate (F-N1): the single-surface hook resets its projection
     // to undefined while (re)materializing — an undefined value is only the
     // unmeasured shape once the hook has SETTLED (loading false). While it
     // loads the encounter waits instead of mis-admitting a measured word as
     // untracked.
-    if (!w || loading || projectionLoading
+    if (!w || loading || translation.state === 'errored' || projectionLoading
       || (probe()?.presentation === presentation && showAnswer())) return;
     // An explicit error/materialization failure is a real failure: never
     // admit on it (unchanged rule).
@@ -842,6 +880,7 @@ export const WordSyncContent: Component = () => {
       wordSyncPoolItems: [{ key: w.storageKey, word: w.word, language: settings.language, targets, scores: { novelty: 1 } }],
     });
     if (targets.length === 0 || decision?.action === 'DEFER' || (ast.ok && ast.ast && !evaluateAst<unknown>(ast.ast, record, filterResolvers()))) {
+      setExcludedAtPresentation(count => count + 1);
       setCurrentWord(null);
       untrack(pickNext);
       return;
@@ -910,24 +949,13 @@ export const WordSyncContent: Component = () => {
 
   return (
     <div class="word-sync">
-    {/* Real loading only (language data or learner projection still hydrating):
-        the shared skeleton owns that gap; once data is present the session
-        renders exactly as before, with the body handling its own empty state. */}
-    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && (!currentWord() || testedAccesses().length > 0)} fallback={
-      <Show when={projectionUnavailable()} fallback={<KnowledgeSkeleton variant="word-sync" />}>
-        <div class="word-sync-projection-error" role="alert">
-          <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
-          <Btn variant="primary" onClick={retryKnowledgeProjections}>{t('mlearn.Global.Retry')}</Btn>
-        </div>
-      </Show>
-    }>
       <div class="word-sync-header">
-        <span class="word-sync-counter">
+        <Show when={sessionQueue()}><span class="word-sync-counter">
           {t('mlearn.WordSync.Progress', {
             rated: String(ratedCount()),
             total: String(totalAvailable()),
           })}
-        </span>
+        </span></Show>
         <Btn
           variant="ghost"
           size="sm"
@@ -974,11 +1002,31 @@ export const WordSyncContent: Component = () => {
         </Show>
       </div>
 
+    {/* Real loading only (language data or learner projection still hydrating):
+        the shared skeleton owns that gap; once data is present the session
+        renders exactly as before, with the body handling its own empty state. */}
+    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && !projectionUnavailable() && (!currentWord() || testedAccesses().length > 0)} fallback={
+      <Show when={projectionUnavailable()} fallback={
+        <Show when={!filterValidation().ok} fallback={<KnowledgeSkeleton variant="word-sync" />}>
+          <p role="alert">{t('mlearn.WordSync.InvalidFilter')}</p>
+        </Show>
+      }>
+        <div class="word-sync-projection-error" role="alert">
+          <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
+          <Btn variant="primary" onClick={retryKnowledgeProjections}>{t('mlearn.Global.TryAgain')}</Btn>
+        </div>
+      </Show>
+    }>
+      <details class="word-sync-queue-details">
+        <summary>{t('mlearn.WordSync.QueueDetails')}</summary>
+        <p>{t('mlearn.WordSync.QueueExplanation')}</p>
+        <p>{t('mlearn.WordSync.QueueExclusions', { ignored: String(queueSummary().ignored), filtered: String(queueSummary().filtered), unavailable: String(queueSummary().noPrompt + excludedAtPresentation()) })}</p>
+      </details>
       <Show when={!finished()} fallback={
         <div class="word-sync-finished">
           <EmptyState
-            title={t('mlearn.WordSync.FinishedTitle')}
-            description={t('mlearn.WordSync.FinishedDescription', { count: String(ratedCount()) })}
+            title={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedTitle' : 'mlearn.WordSync.EmptyTitle')}
+            description={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedDescription' : 'mlearn.WordSync.EmptyDescription', { count: String(ratedCount()) })}
             variant="card"
           />
           <Btn
@@ -1087,7 +1135,7 @@ export const WordSyncContent: Component = () => {
         onConfirm={recheckAll}
         title={t('mlearn.WordSync.RestartConfirmTitle')}
         message={t('mlearn.WordSync.RestartConfirmMessage')}
-        variant="danger"
+        variant="warning"
         confirmText={t('mlearn.WordSync.StartOver')}
       />
     </Show>

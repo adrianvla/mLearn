@@ -9,7 +9,7 @@
  * forget/correct affordances (that is a later phase).
  */
 
-import { Component, For, Show, createMemo, createSignal, onMount } from 'solid-js';
+import { Component, For, Show, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { SkeletonRows } from '../../components/common';
@@ -108,25 +108,32 @@ const MemoryBrowserContent: Component = () => {
   // room's content under the new selection would show stale semantics, so
   // the body falls back to the skeleton until the fetch settles.
   const [roomLoading, setRoomLoading] = createSignal(false);
+  const [loadFailed, setLoadFailed] = createSignal<'world' | 'room' | null>(null);
+  let roomRequest = 0;
+  onCleanup(() => { roomRequest++; });
   const contentPending = () => isLoading() || roomLoading();
 
   const loadRoom = async (roomId: string): Promise<void> => {
+    const request = ++roomRequest;
+    setLoadFailed(null);
+    setEvents([]);
     setSelectedRoomId(roomId);
     setActiveTab(ROOM_TAB);
     setRoomLoading(true);
     try {
       const seaEvents = await getBridge().journal.readSeaProjection(roomId);
-      setEvents(seaEvents);
+      if (request === roomRequest) setEvents(seaEvents);
     } catch (err) {
       log.error('error', err);
-      setEvents([]);
+      if (request === roomRequest) setLoadFailed('room');
     } finally {
-      setRoomLoading(false);
+      if (request === roomRequest) setRoomLoading(false);
     }
   };
 
-  onMount(() => {
-    void (async () => {
+  const loadWorld = async () => {
+      setIsLoading(true);
+      setLoadFailed(null);
       try {
         const snapshot = await getBridge().world.getWorldState();
         const contexts = [...snapshot.rooms, { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
@@ -136,17 +143,19 @@ const MemoryBrowserContent: Component = () => {
         if (first) await loadRoom(first.id);
       } catch (err) {
         log.error('error', err);
+        setLoadFailed('world');
       } finally {
         setIsLoading(false);
       }
-    })();
-  });
+  };
+  onMount(() => { void loadWorld(); });
 
   return (
       <div class="memory-browser">
         <header class="memory-browser-header">
           <span class="memory-browser-title">{t('mlearn.MemoryBrowser.Title')}</span>
           <select
+            aria-label={t('mlearn.MemoryBrowser.Tabs.Room')}
             class="memory-browser-room-select"
             value={selectedRoomId()}
             disabled={rooms().length === 0}
@@ -158,6 +167,9 @@ const MemoryBrowserContent: Component = () => {
           </select>
         </header>
         <div class="memory-browser-body">
+          <Show when={!loadFailed()} fallback={
+            <div role="alert"><p>{t('mlearn.MemoryBrowser.LoadError')}</p><button type="button" class="memory-browser-retry" onClick={() => { if (loadFailed() === 'world') void loadWorld(); else void loadRoom(selectedRoomId()); }}>{t('mlearn.Knowledge.Retry')}</button></div>
+          }>
           <Show
             when={!contentPending()}
             fallback={<div class="memory-browser-loading" aria-busy="true"><SkeletonRows rows={5} /></div>}
@@ -171,6 +183,7 @@ const MemoryBrowserContent: Component = () => {
                   {(tab) => (
                     <button
                       type="button"
+                      aria-pressed={tab.id === activeTab()}
                       class={`memory-browser-tab${tab.id === activeTab() ? ' memory-browser-tab--active' : ''}`}
                       onClick={() => setActiveTab(tab.id)}
                     >
@@ -225,6 +238,7 @@ const MemoryBrowserContent: Component = () => {
                 </Show>
               </main>
             </Show>
+          </Show>
           </Show>
         </div>
       </div>

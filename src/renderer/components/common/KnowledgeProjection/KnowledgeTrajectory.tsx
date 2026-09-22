@@ -79,7 +79,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
     </div>
     <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.TrajectoryDescription')}</p>
     <Show when={!history.loading()} fallback={<SkeletonRows rows={3} />}>
-      <Show when={!history.error()} fallback={<div class="knowledge-drawer__degraded"><p>{t('mlearn.Knowledge.Projection.TrajectoryUnavailable')}</p><button class="knowledge-card__done" onClick={history.retry}>{t('mlearn.Global.Retry')}</button></div>}>
+      <Show when={!history.error()} fallback={<div class="knowledge-drawer__degraded"><p>{t('mlearn.Knowledge.Projection.TrajectoryUnavailable')}</p><button class="knowledge-card__done" onClick={history.retry}>{t('mlearn.Global.TryAgain')}</button></div>}>
       <Show when={times().length} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>
         <svg class="knowledge-trajectory__svg" viewBox={`0 0 ${width()} 228`} role="group" aria-label={t('mlearn.Knowledge.Projection.Tabs.Graph')}>
           <For each={STATES}>{(state) => <g>

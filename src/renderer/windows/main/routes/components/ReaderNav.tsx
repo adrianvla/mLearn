@@ -57,7 +57,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         <div class="reader-nav-drag-region" />
       </Show>
       <div class="nav-group">
-        <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar}>
+        <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar} aria-label={t('mlearn.Reader.Toolbar.ToggleContents')}>
           <Icon icon="sidebar" color={"currentColor"} class={""}/>
         </NavBtn>
         <NavBtn onClick={props.onGoHome} title={t('mlearn.Reader.Toolbar.BackToHome')}>
@@ -81,7 +81,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
             aria-haspopup="true"
             aria-expanded={themePopoverOpen()}
           >
-            あA
+            {t('mlearn.Reader.Themes.Button')}
           </NavBtn>
           <ReaderThemePopover
             open={themePopoverOpen}
@@ -95,6 +95,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
             { value: 'fit-height', label: t('mlearn.Reader.Toolbar.FitHeight') },
             { value: 'fit-width', label: t('mlearn.Reader.Toolbar.FitWidth') },
           ]}
+          aria-label={t('mlearn.Reader.Toolbar.PageFit')}
           value={props.fitMode()}
           onChange={(e) => props.onFitModeChange(e.currentTarget.value)}
         />
@@ -104,6 +105,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
             { value: 'double', label: t('mlearn.Reader.Toolbar.DoublePage') },
             { value: 'single', label: t('mlearn.Reader.Toolbar.SinglePage') },
           ]}
+          aria-label={t('mlearn.Reader.Toolbar.PageLayout')}
           value={props.pageMode()}
           onChange={(e) => props.onPageModeChange(e.currentTarget.value)}
         />
@@ -115,6 +117,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
                 { value: 'right-to-left', label: t('mlearn.Reader.Toolbar.SpreadRightToLeft') },
                 { value: 'left-to-right', label: t('mlearn.Reader.Toolbar.SpreadLeftToRight') },
               ]}
+              aria-label={t('mlearn.Reader.Toolbar.PageOrder')}
               value={props.spreadDirection()}
               onChange={(e) => props.onSpreadDirectionChange(e.currentTarget.value)}
             />
@@ -130,8 +133,8 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       </div>
       
       <div class="nav-group nav-arrows">
-        <NavBtn onClick={props.onPrevPage}><ChevronLeftIcon size={16} /></NavBtn>
-        <NavBtn onClick={props.onNextPage}><ChevronRightIcon size={16} /></NavBtn>
+        <NavBtn onClick={props.onPrevPage} aria-label={t('mlearn.Reader.Toolbar.PreviousPage')}><ChevronLeftIcon size={16} /></NavBtn>
+        <NavBtn onClick={props.onNextPage} aria-label={t('mlearn.Reader.Toolbar.NextPage')}><ChevronRightIcon size={16} /></NavBtn>
       </div>
 
       <div class="nav-group">

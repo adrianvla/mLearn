@@ -33,6 +33,7 @@ vi.mock('../../shared/bridges', () => ({
 
 vi.mock('../../shared/platform', () => ({
   isDesktop: vi.fn(),
+  getOS: vi.fn(() => 'mac'),
 }));
 
 const mockReadMediaFile = vi.fn();
@@ -59,8 +60,9 @@ describe('videoClipService', () => {
       files: { readMediaFile: mockReadMediaFile },
     } as unknown as ReturnType<typeof getBridge>);
 
-    const { isDesktop } = await import('../../shared/platform');
+    const { isDesktop, getOS } = await import('../../shared/platform');
     vi.mocked(isDesktop).mockReturnValue(true);
+    vi.mocked(getOS).mockReturnValue('mac');
   });
 
   describe('clipVideo - stream copy success path', () => {
@@ -158,6 +160,29 @@ describe('videoClipService', () => {
 
       expect(result).toBeNull();
     });
+  });
+
+  it('reads local media without a Node process global in the renderer', async () => {
+    const { fetchVideoData } = await import('./videoClipService');
+    mockReadMediaFile.mockResolvedValue(new Uint8Array([7, 8]).buffer);
+    let pending: ReturnType<typeof fetchVideoData>;
+    vi.stubGlobal('process', undefined);
+    try {
+      pending = fetchVideoData('local-media://localhost/Users/learner/My%20video.mp4');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    await expect(pending).resolves.toEqual(new Uint8Array([7, 8]));
+    expect(mockReadMediaFile).toHaveBeenCalledWith('/Users/learner/My video.mp4');
+  });
+
+  it('normalizes a Windows file URL through the renderer platform helper', async () => {
+    const { getOS } = await import('../../shared/platform');
+    vi.mocked(getOS).mockReturnValue('windows');
+    const { fetchVideoData } = await import('./videoClipService');
+    mockReadMediaFile.mockResolvedValue(new Uint8Array([1]).buffer);
+    await fetchVideoData('local-media://localhost/C:/Media/My%20video.mp4');
+    expect(mockReadMediaFile).toHaveBeenCalledWith('C:/Media/My video.mp4');
   });
 
   describe('clipVideo - local-media:// scheme', () => {

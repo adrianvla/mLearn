@@ -149,3 +149,11 @@ function getConversationErrorCode(error: unknown): string | undefined {
   const record = error as Record<string, unknown>;
   return typeof record.code === 'string' ? record.code : undefined;
 }
+/** Product-facing recovery category. Raw diagnostics belong in logs or Technical details. */
+export function conversationRecoveryKey(error: unknown): string {
+  const message = getConversationErrorMessage(error).toLowerCase();
+  if (/nobinaryfound|model.*(not found|not loaded|missing)|no model|llama.*binary/.test(message)) return 'mlearn.ConversationAgent.Recovery.Model';
+  if (isCloudSessionError(error)) return 'mlearn.ConversationAgent.Recovery.SignIn';
+  if (/network|fetch failed|econnrefused|unreachable|timeout|timed out/.test(message)) return 'mlearn.ConversationAgent.Recovery.Connection';
+  return 'mlearn.ConversationAgent.Recovery.Generic';
+}

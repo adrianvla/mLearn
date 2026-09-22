@@ -79,7 +79,7 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
       <Show when={props.currentEase !== undefined}><strong>{t('mlearn.Knowledge.Projection.EaseCurrent', { value: props.currentEase!.toFixed(2) })}</strong></Show>
     </div>
     <Show when={!history.loading()} fallback={<SkeletonRows rows={3} />}>
-      <Show when={!history.error()} fallback={<div class="knowledge-drawer__degraded"><p>{t('mlearn.Knowledge.Projection.TrajectoryUnavailable')}</p><button class="knowledge-card__done" onClick={history.retry}>{t('mlearn.Global.Retry')}</button></div>}>
+      <Show when={!history.error()} fallback={<div class="knowledge-drawer__degraded"><p>{t('mlearn.Knowledge.Projection.TrajectoryUnavailable')}</p><button class="knowledge-card__done" onClick={history.retry}>{t('mlearn.Global.TryAgain')}</button></div>}>
         <Show when={times().length} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>
           <svg class="knowledge-trajectory__svg knowledge-ease__svg" viewBox={`0 0 ${width()} 244`} role="group" aria-label={t('mlearn.Knowledge.Projection.EaseOverall')}>
             <For each={scale().ticks}>{(tick) => <g>

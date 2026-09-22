@@ -1,3 +1,6 @@
+import { FlashcardCreateModal } from '../../components/flashcard/FlashcardCreateModal';
+import { FlashcardInspectButton } from '../../components/flashcard/FlashcardInspectButton';
+import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGate';
 /**
  * Flashcards Window App Component
  * SRS flashcard review interface with Anki-like queue management
@@ -108,6 +111,7 @@ export const FlashcardsContent: Component = () => {
     generateExampleSentencesWithLLM,
     translateExampleSentence,
     isLoading,
+    isKnowledgeReady,
   } = useFlashcards();
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
@@ -266,7 +270,7 @@ export const FlashcardsContent: Component = () => {
       if (ttsJobs.length > 0 || llmJobs.length > 0) {
         setRepairJobs(ttsJobs);
         setLlmRepairJobs(llmJobs);
-        setShowRepairModal(true);
+        // Offer repair without interrupting a learner’s review session.
       }
     })();
   }));
@@ -444,11 +448,6 @@ export const FlashcardsContent: Component = () => {
     { value: 'due-desc', label: t('mlearn.Flashcards.Browse.SortDueDateDesc') },
   ]);
 
-  // Add card form state (simple mode)
-  const [newWord, setNewWord] = createSignal('');
-  const [newReading, setNewReading] = createSignal('');
-  const [newMeaning, setNewMeaning] = createSignal('');
-
   // Get flashcards from store (now it's a Record)
   const flashcards = createMemo(() => getAllCards());
 
@@ -604,22 +603,6 @@ export const FlashcardsContent: Component = () => {
       setShowDeleteConfirm(false);
       setSelectedCard(null);
     }
-  };
-
-  const handleAddCard = async () => {
-    if (!newWord().trim() || !newMeaning().trim()) return;
-
-    await addFlashcard({
-      type: 'word',
-      front: newWord().trim(),
-      back: newMeaning().trim(),
-      reading: newReading().trim() || undefined,
-    });
-
-    setNewWord('');
-    setNewReading('');
-    setNewMeaning('');
-    setShowAddModal(false);
   };
 
   const openEditModal = (card: Flashcard) => {
@@ -825,7 +808,7 @@ export const FlashcardsContent: Component = () => {
       id: 'review', 
       label: t('mlearn.Flashcards.UI.Tabs.Review'),
       icon: <EditIcon size={16} />,
-      badge: counts().total > 0 ? counts().total : undefined
+      badge: isKnowledgeReady() && counts().total > 0 ? counts().total : undefined
     },
     { 
       id: 'browse', 
@@ -841,7 +824,7 @@ export const FlashcardsContent: Component = () => {
       id: 'suggested', 
       label: t('mlearn.Flashcards.UI.Tabs.Suggested'),
       icon: <PlusIcon size={16} />,
-      badge: suggestedCount() > 0 ? suggestedCount() : undefined,
+      badge: isKnowledgeReady() && suggestedCount() > 0 ? suggestedCount() : undefined,
     },
     { 
       id: 'stats', 
@@ -909,6 +892,10 @@ export const FlashcardsContent: Component = () => {
 
         {/* Main Content */}
         <main class="flashcards-main">
+          <KnowledgeGate>
+          <Show when={repairJobs().length + llmRepairJobs().length > 0}>
+            <div class="flashcards-repair-notice"><Btn variant="ghost" onClick={() => setShowRepairModal(true)}>{t('mlearn.Flashcards.Repair.Title')}</Btn></div>
+          </Show>
           {/* Review Tab */}
           <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review">
           <Show when={activeTab() === 'review'}>
@@ -964,6 +951,8 @@ export const FlashcardsContent: Component = () => {
                         </span>
                       </Show>
                     </div>
+                    <details class="flashcards-advanced-filters">
+                      <summary>{t('mlearn.WordDbEditor.AdvancedFilters')}</summary>
                     <FilterBuilder
                       fields={filterFields().fields}
                       paletteItems={filterFields().paletteItems}
@@ -971,6 +960,7 @@ export const FlashcardsContent: Component = () => {
                       onChange={setFilterTokens}
                       evaluation={filterValidation()}
                     />
+                    </details>
                     <Show when={flashcards().length > 0}>
                       <div class="flashcards-browse-bulkbar">
                         <div class="flashcards-browse-bulkbar-left">
@@ -1062,6 +1052,7 @@ export const FlashcardsContent: Component = () => {
                                 </Show>
                               </div>
                               <div class="flashcard-actions">
+                                <FlashcardInspectButton language={languageForCard(card)} surface={card.content.front} />
                                 <Btn
                                   variant="ghost"
                                   size="xs"
@@ -1237,6 +1228,7 @@ export const FlashcardsContent: Component = () => {
             <FlashcardStats />
           </Show>
           </div>
+          </KnowledgeGate>
         </main>
       </div>
 
@@ -1256,42 +1248,7 @@ export const FlashcardsContent: Component = () => {
         <p>{t('mlearn.Flashcards.Modals.DeleteCard.Confirm')}</p>
       </Modal>
 
-      {/* Add card modal */}
-      <Modal
-        isOpen={showAddModal()}
-        onClose={() => setShowAddModal(false)}
-        title={t('mlearn.Flashcards.Modals.AddCard.Title')}
-        footer={
-          <>
-            <Btn onClick={() => setShowAddModal(false)}>{t('mlearn.Global.Cancel')}</Btn>
-            <Btn variant="primary" onClick={handleAddCard}>{t('mlearn.Flashcards.Modals.AddCard.Submit')}</Btn>
-          </>
-        }
-      >
-        <div class="flashcards-add-form">
-          <Input
-            label={t('mlearn.Flashcards.Modals.AddCard.WordLabel')}
-            value={newWord()}
-            onInput={(e) => setNewWord(e.currentTarget.value)}
-            placeholder={t('mlearn.Flashcards.Modals.AddCard.WordPlaceholder')}
-            fullWidth
-          />
-          <Input
-            label={t('mlearn.Flashcards.Modals.AddCard.ReadingLabel')}
-            value={newReading()}
-            onInput={(e) => setNewReading(e.currentTarget.value)}
-            placeholder={t('mlearn.Flashcards.Modals.AddCard.ReadingPlaceholder')}
-            fullWidth
-          />
-          <Input
-            label={t('mlearn.Flashcards.Modals.AddCard.MeaningLabel')}
-            value={newMeaning()}
-            onInput={(e) => setNewMeaning(e.currentTarget.value)}
-            placeholder={t('mlearn.Flashcards.Modals.AddCard.MeaningPlaceholder')}
-            fullWidth
-          />
-        </div>
-      </Modal>
+      <FlashcardCreateModal isOpen={showAddModal()} onClose={() => setShowAddModal(false)} onAdd={addFlashcard} />
 
       {/* Edit card modal - uses shared FlashcardEditModal */}
       <FlashcardEditModal

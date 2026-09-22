@@ -97,6 +97,14 @@ describe('computeWordLevelStats', () => {
     },
   };
 
+  it('does not count orphan legacy markers as extra vocabulary or learning history', () => {
+    const store = makeStore({ knownUntracked: { [lk('en', 'orphan')]: true } });
+    const result = computeWordLevelStats(store, makeFreq(), 'en', 1800, 1550, { 5: 'Beginner', 3: 'Intermediate', 1: 'Advanced' });
+    expect(result.outsideLevels.total).toBe(0);
+    expect(result.allEncountered.total).toBe(4);
+    expect(store.knownUntracked[lk('en', 'orphan')]).toBe(true);
+  });
+
   it('returns empty stats when no data', () => {
     const store = makeStore();
     const freq = makeFreq();

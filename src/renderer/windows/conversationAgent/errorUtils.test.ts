@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getConversationErrorMessage, isCloudSessionError } from './errorUtils';
+import { conversationRecoveryKey, getConversationErrorMessage, isCloudSessionError } from './errorUtils';
 
 describe('conversationAgent errorUtils', () => {
   it('extracts the message from native Error instances', () => {
@@ -41,4 +41,10 @@ describe('conversationAgent errorUtils', () => {
     expect(isCloudSessionError('401 unauthorized')).toBe(true);
     expect(isCloudSessionError(new Error('Something else failed'))).toBe(false);
   });
+});
+it('maps technical failures to actionable recovery without leaking diagnostic payloads', () => {
+  expect(conversationRecoveryKey(new Error('NoBinaryFoundError /private/runtime/lib'))).toBe('mlearn.ConversationAgent.Recovery.Model');
+  expect(conversationRecoveryKey(new Error('ECONNREFUSED 127.0.0.1:7752'))).toBe('mlearn.ConversationAgent.Recovery.Connection');
+  expect(conversationRecoveryKey({ status: 401 })).toBe('mlearn.ConversationAgent.Recovery.SignIn');
+  expect(conversationRecoveryKey({ id: 'private-id', payload: {} })).toBe('mlearn.ConversationAgent.Recovery.Generic');
 });

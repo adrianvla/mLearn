@@ -11,12 +11,13 @@
   flex-direction: column;
   gap: var(--spacing-3);
   min-height: 400px;
-  max-height: 60vh;
+  max-height: 65vh;
+  overflow-y: auto;
 }
 
 .ai-tutor-setup-modal__tab-content {
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 300px;
+  min-height: 300px;
   overflow-y: auto;
 }
 
@@ -31,3 +32,8 @@
   justify-content: flex-end;
   gap: var(--spacing-2);
 }
+
+.ai-tutor-setup-modal__intents { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+.ai-tutor-setup-modal__intents legend { font-weight: 600; margin-bottom: 12px; }
+.ai-tutor-setup-modal__intents label { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer; }
+.ai-tutor-setup-modal__intents label.is-selected { background: var(--bg-intense); border-color: var(--text-primary); }

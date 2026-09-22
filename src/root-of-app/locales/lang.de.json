@@ -331,7 +331,14 @@
         "known": "Bekannt"
       },
       "WordEaseLegendTitle": "Wortvertrautheit:",
-      "WordsTab": "Wörter"
+      "WordsTab": "Wörter",
+      "IntentTitle": "Was sollen wir üben?",
+      "IntentDescription": "Der Tutor nutzt dein Lernziel und deinen verfügbaren Lernstand. Du kannst ein Thema ergänzen oder bestimmtes Material auswählen.",
+      "IntentPlan": "Hilf mir, auf mein Lernziel hinzuarbeiten.",
+      "IntentConversation": "Übe mit mir ein Alltagsgespräch.",
+      "IntentTopic": "Hilf mir, ein selbst gewähltes Thema zu erkunden.",
+      "Advanced": "Bestimmtes Material auswählen",
+      "AdvancedDescription": "Optional: Wähle Wörter, Grammatik oder Medien für die Sitzung. Diese Auswahl verändert deinen erfassten Lernstand nicht."
     },
     "About": {
       "Description": "mLearn ist ein Werkzeug zum Sprachenlernen durch Immersion. Schauen Sie Videos, lesen Sie Manga und lernen Sie Vokabeln natürlich mit intelligenten Untertiteln und Spaced Repetition.",
@@ -893,7 +900,7 @@
         "CloseAria": "Unterhaltungsmenü schließen",
         "Details": "Unterhaltungsdetails",
         "Settings": "Einstellungen",
-        "MemoryBrowser": "Speicher-Browser"
+        "MemoryBrowser": "Erinnerungen"
       },
       "Call": {
         "StartAria": "Anruf starten"
@@ -965,6 +972,13 @@
         "UnmutePersonContact": "Person nicht mehr stummschalten",
         "MuteCalls": "Anrufe stummschalten",
         "AllowCalls": "Anrufe erlauben"
+      },
+      "Recovery": {
+        "Model": "Das KI-Modell ist nicht bereit. Wähle oder repariere das Modell in den KI-Einstellungen und versuche es erneut.",
+        "SignIn": "Melde dich in den KI-Einstellungen erneut an und versuche das Gespräch noch einmal.",
+        "Connection": "Der KI-Dienst ist nicht erreichbar. Prüfe die Verbindung und die KI-Einstellungen und versuche es erneut.",
+        "Generic": "Das Gespräch konnte nicht fortgesetzt werden. Versuche es erneut. Prüfe bei weiteren Fehlern die KI-Einstellungen.",
+        "Settings": "KI-Einstellungen öffnen"
       }
     },
     "ErrorModal": {
@@ -974,7 +988,7 @@
       "Messages": {
         "AnkiConnectionFailed": "Verbindung zu Anki fehlgeschlagen. Stellen Sie sicher, dass Anki mit AnkiConnect gestartet ist, oder deaktivieren Sie die Anki-Integration.",
         "AnkiNoValidCards": "Anki verbunden, aber keine gültigen Karten gefunden. Überprüfen Sie Ihr Deck und die Feldkonfiguration in den Einstellungen.",
-        "BackendStopped": "Der Backend-Server wurde unerwartet beendet. Starten Sie die Anwendung neu.",
+        "BackendStopped": "Deine Lernwerkzeuge konnten nicht gestartet werden. Versuche es erneut oder öffne die technischen Details zur Diagnose.",
         "FileNotFound": "Eine benötigte Datei wurde nicht gefunden. Installieren Sie die Anwendung neu.",
         "PermissionDenied": "Zugriff verweigert. Überprüfen Sie die Systemberechtigungen oder starten Sie die Anwendung als Administrator.",
         "PortInUse": "Eine andere Anwendung belegt den benötigten Port. Schließen Sie andere mLearn-Instanzen oder starten Sie den Computer neu."
@@ -1086,7 +1100,8 @@
           "Submit": "Karte hinzufügen",
           "Title": "Neue Lernkarte hinzufügen",
           "WordLabel": "Wort",
-          "WordPlaceholder": "Wort eingeben..."
+          "WordPlaceholder": "Wort eingeben...",
+          "Error": "Die Karte konnte nicht gespeichert werden. Dein Text ist noch da; versuche es erneut."
         },
         "DeleteCard": {
           "Confirm": "Möchten Sie diese Lernkarte wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
@@ -1327,7 +1342,7 @@
         "Adding": "Wird hinzugefügt...",
         "LoadingLanguageData": "Sprachdaten werden geladen...",
         "LoadingSettings": "Einstellungen werden geladen...",
-        "StartingBackend": "Backend wird gestartet..."
+        "StartingBackend": "Deine Lernwerkzeuge werden vorbereitet…"
       },
       "Success": "Erfolg",
       "Time": {
@@ -1398,7 +1413,7 @@
         },
         "WordDatabase": {
           "Description": "Wortschatz und Lernnachweise durchsuchen",
-          "Title": "Wortdatenbank",
+          "Title": "Wortschatz",
           "EmptyHint": "Nach einem Wort suchen",
           "NoMatches": "Keine Treffer",
           "LookupHint": "Drücken Sie Enter, um „{query}“ nachzuschlagen"
@@ -1416,8 +1431,8 @@
           "Title": "Wort-Sync"
         },
         "LevelStudy": {
-          "Description": "Word Sync, Zeichenraster und Stufenlernen an einem Ort",
-          "Title": "Stufenlernen"
+          "Description": "Lege Lehrplan, Lernziel und Lerntempo fest.",
+          "Title": "Lernplan"
         }
       },
       "Errors": {
@@ -1453,16 +1468,16 @@
       },
       "Components": {
         "ExplainAi": {
-          "Description": "Installiert das lokale LLM-Neuronale-Netz. Deaktivieren, um ~3 GB Abhängigkeiten zu überspringen.",
-          "Title": "mLearn Explain KI-Modul installieren"
+          "Description": "KI-Gespräche und Erklärungen auf diesem Gerät ausführen. Einen Cloud- oder selbst gehosteten Anbieter können Sie in den KI-Einstellungen einrichten.",
+          "Title": "Lokaler KI-Tutor"
         },
         "Reader": {
-          "Description": "Installiert OCR zum Lesen von Manga/Bildern. Deaktivieren, um ~2 GB Abhängigkeiten zu überspringen.",
-          "Title": "mLearn Reader-Modul installieren"
+          "Description": "Text in Bildern und gescannten Dokumenten lesen. Normale Textdokumente funktionieren ohne diese optionale Komponente.",
+          "Title": "Texterkennung"
         },
         "Voice": {
-          "Description": "Installiert Spracherkennung, Text-to-Speech und Stimmklonen. Deaktivieren, um ~4 GB Abhängigkeiten zu überspringen.",
-          "Title": "Sprach- und TTS-Modul installieren"
+          "Description": "Lokale Spracherkennung und gesprochene Antworten für Hör- und Sprechübungen hinzufügen.",
+          "Title": "Sprachübungen"
         }
       },
       "Instructions": {
@@ -1707,17 +1722,21 @@
         "Prefix": "Evidenzquelle: ",
         "None": "Keine"
       },
-      "Unmeasured": "Nicht gemessen"
+      "Unmeasured": "Nicht gemessen",
+      "LoadError": "Dein Lernstand konnte nicht geladen werden. Bitte versuche es erneut.",
+      "Retry": "Erneut versuchen",
+      "Unavailable": "Nicht verfügbar",
+      "UnavailableHint": "Details zum Lernstand sind für diese Sprache auf diesem Gerät nicht verfügbar."
     },
     "LevelStudy": {
-      "Title": "Stufenlernen",
+      "Title": "Lernplan",
       "Tabs": {
         "WordSync": "Wort-Sync",
         "CharacterGrid": "Zeichenraster",
-        "LevelStudy": "Stufenlernen"
+        "LevelStudy": "Lernplan"
       },
       "EmptyState": {
-        "Title": "Stufenlernen",
+        "Title": "Lernplan",
         "Description": "Lerne Wörter nach Stufe organisiert. Verfolge deinen Fortschritt und füge Wörter zu Lernkarten hinzu."
       },
       "Coverage": {
@@ -1725,9 +1744,9 @@
         "Assessed": "bewertet",
         "UpTo": "Wörter bis",
         "AllLevels": "Wörter aller Stufen",
-        "SetLevelHint": "Lege deine Lernstufe in den Einstellungen fest",
+        "SetLevelHint": "Lernziel",
         "Words": "Wörter",
-        "Complete": "Alle Stufenwörter werden verfolgt!",
+        "Complete": "Alle Wörter in diesem Bereich wurden eingeschätzt.",
         "Hint": "Klicke auf eine Stufe unten, um Wörter anzusehen und hinzuzufügen"
       },
       "Grammar": {
@@ -1750,8 +1769,8 @@
         "Correct": "Richtig!",
         "Incorrect": "Nicht ganz — die Antwort ist: {answer}",
         "Next": "Weiter",
-        "NoLocks": "Grammatikdurchgänge benötigen eine fensterübergreifende Sperre; dieser Browser unterstützt keine.",
-        "StorageUnavailable": "Der Speicher hat diesen Schreibvorgang abgelehnt (Kontingent oder privater Modus). Die Aktion wurde nicht erfasst; sie bleibt erneut versuchbar.",
+        "NoLocks": "Übungen können in diesem Browser nicht sicher gespeichert werden. Öffne mLearn in einem unterstützten Browser oder der Desktop-App.",
+        "StorageUnavailable": "Deine Antwort konnte nicht gespeichert werden. Prüfe den verfügbaren Speicherplatz und versuche es erneut.",
         "ModeLabel": "Antwortformat",
         "ModeMcq": "Auswählen",
         "ModeType": "Eingeben",
@@ -1781,8 +1800,8 @@
         "TotalWords": "{count} Wörter",
         "Known": "Bekannt",
         "Learning": "Lernend",
-        "Unknown": "Unbekannt",
-        "Untracked": "Nicht verfolgt",
+        "Unknown": "Übungsbedarf",
+        "Untracked": "Nicht eingeschätzt",
         "ClickToView": "Zum Anzeigen der Wörter klicken",
         "ViewWords": "Wörter ansehen",
         "BeyondExam": "Über die Prüfung hinaus"
@@ -1848,16 +1867,17 @@
         "EmptyPools": "Derzeit sind keine unerfassten Wörter für eine Stichprobe verfügbar.",
         "DateRequired": "Ein Prüfungs- oder Schulergebnis braucht das Datum des Erreichens.",
         "DateUnknown": "Datum unbekannt",
-        "NoLocks": "Einstufung hier nicht verfügbar: dieser Sitzung fehlt eine windowsübergreifende Sperre.",
-        "NoStorage": "Placement ist hier nicht verfügbar: Die Sitzung konnte nicht gespeichert werden (Speicher voll oder privater Modus)."
+        "NoLocks": "Übungen können in diesem Browser nicht sicher gespeichert werden. Öffne mLearn in einem unterstützten Browser oder der Desktop-App.",
+        "NoStorage": "Placement ist hier nicht verfügbar: Die Sitzung konnte nicht gespeichert werden (Speicher voll oder privater Modus).",
+        "LiveProgress": "Fortschritt: {count} Wörter. Die Einschätzung passt sich deinen Antworten an. Du kannst zum Lernplan zurückkehren und später fortfahren."
       },
       "Mock": {
-        "Title": "Checkpoints & Probeprüfungen",
-        "Subtitle": "Feste, deklarierte Blueprints aus dem installierten Sprachpaket. Ergebnisse zeigen Herkunft — niemals eine offizielle Punktzahl.",
-        "ProviderChip": "mlearn-abgeleitet",
+        "Title": "Lernstand prüfen",
+        "Subtitle": "Prüfe deinen Fortschritt mit zeitlich begrenzten Übungen. Die Ergebnisse sind keine offiziellen Prüfungsnoten.",
+        "ProviderChip": "Übungssatz",
         "Start": "Starten",
         "BlueprintMeta": "{sections} Abschnitte · {draw} Aufgaben · {seconds}s pro Aufgabe · ohne Hilfsmittel",
-        "FreshFirst": "Neue Aufgabenfamilien zuerst",
+        "FreshFirst": "Neue Fragengruppen zuerst",
         "Progress": "{index} von {total}",
         "TimeLeft": "{seconds}s übrig",
         "PausedNote": "Pausiert — die Aufgaben-Uhr steht; die Pause wird aufgezeichnet.",
@@ -1865,38 +1885,38 @@
         "Resume": "Fortsetzen",
         "Abandon": "Abbrechen",
         "PausePolicy": "Pausen werden aufgezeichnet und von der Aufgaben-Uhr ausgeschlossen; Timeout lässt die Aufgabe unbeantwortet.",
-        "NoItems": "Noch keine verwendbaren Aufgaben für diese Stufe — führe zuerst die unabhängige Validierung im Grammatikbereich aus.",
+        "NoItems": "Dieser Übungssatz ist noch nicht bereit. Wähle eine andere Stufe oder übe Grammatik.",
         "NoBlueprints": "Noch kein deklarierter Blueprint für dieses Paket.",
         "ResultsTitle": "Ergebnisse — {level}",
         "Abandoned": "abgebrochen",
         "Answered": "Beantwortet: {count}",
         "Correct": "Richtig: {count}",
         "TimedOut": "Unbeantwortet (Zeitüberschreitung): {count}",
-        "HeldOut": "Neue Familien: {count}",
-        "RehearsedBackfill": "Geübte Auffüllung: {count}",
+        "HeldOut": "Neue Fragengruppen: {count}",
+        "RehearsedBackfill": "Bereits geübte Gruppen: {count}",
         "BlueprintVersion": "Blueprint {version}",
         "ContentVersion": "Paket {version}",
         "Seed": "Seed {seed}",
         "ActiveTime": "Aktive Zeit {seconds}s",
         "PausedTime": "Pausiert {seconds}s · {count} Pausen",
         "SectionCol": "Abschnitt",
-        "DrawCol": "Deklariert",
+        "DrawCol": "Geplante Fragen",
         "AnsweredCol": "Beantwortet",
         "CorrectCol": "Richtig",
         "TimedOutCol": "Zeit überschritten",
         "Assembled": "{assembled}/{requested} zusammengestellt",
         "Constructions": "Konstruktionen",
-        "AvailabilityGap": "Einige Abschnitte konnten ihren deklarierten Umfang nicht zusammenstellen — fehlende Aufgaben werden gemeldet, nie ersetzt.",
+        "AvailabilityGap": "Einige Abschnitte enthalten weniger verfügbare Fragen. Nur die gezeigten Fragen zählen für dieses Ergebnis.",
         "MissedPatterns": "Fehlerhafte Konstruktionen",
         "NoMissed": "Unter den beantworteten Aufgaben nichts falsch.",
-        "Repair": "Diese üben (gleicher Politik-Ablauf)",
+        "Repair": "Nicht gekonntes Material üben",
         "Discuss": "Diese in einem Gespräch besprechen",
         "ResultsDisclaimer": "Eine richtige Auswahl ist ein erfolgreicher Versuch — kein Beweis voller Beherrschung. Ergebnisse sind diagnostisch, nie eine offizielle Punktzahl.",
-        "BackToBlueprints": "Zurück zu den Blueprints",
+        "BackToBlueprints": "Zurück zu den Übungssätzen",
         "Summaries": "Letzte Ergebnisse",
         "SummaryCounts": "{correct}/{answered} richtig · {timedOut} unbeantwortet",
-        "NoLocks": "Die Probeklausur benötigt eine fensterübergreifende Sperre; dieser Browser unterstützt sie nicht.",
-        "StorageUnavailable": "Der Speicher hat diesen Schreibvorgang abgelehnt (Kontingent oder privater Modus). Die Antwort wurde nicht erfasst; die Aufgabe bleibt erneut versuchbar."
+        "NoLocks": "Übungen können in diesem Browser nicht sicher gespeichert werden. Öffne mLearn in einem unterstützten Browser oder der Desktop-App.",
+        "StorageUnavailable": "Deine Antwort konnte nicht gespeichert werden. Prüfe den verfügbaren Speicherplatz und versuche es erneut."
       }
     },
     "Languages": {
@@ -1939,19 +1959,20 @@
     },
     "MemoryBrowser": {
       "Empty": "Noch keine Speichereinträge.",
-      "Title": "Speicher-Browser",
-      "Open": "Speicher-Browser öffnen",
-      "OpenInAgent": "Speicher-Browser",
+      "Title": "Erinnerungen",
+      "Open": "Erinnerungen öffnen",
+      "OpenInAgent": "Erinnerungen",
       "Sections": {
-        "Beliefs": "Überzeugungen",
-        "Episodes": "Episoden",
-        "OpenLoops": "Offene Schleifen",
+        "Beliefs": "Woran sie sich erinnern",
+        "Episodes": "Vergangene Erlebnisse",
+        "OpenLoops": "Offene Fragen und Pläne",
         "Relationships": "Beziehungen",
-        "RoomCulture": "Raumkultur"
+        "RoomCulture": "Gemeinsamer Kontext"
       },
       "Tabs": {
-        "Room": "Raum"
-      }
+        "Room": "Gemeinsame Ansicht"
+      },
+      "LoadError": "Erinnerungen konnten nicht geladen werden. Versuche es erneut."
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki-Lernkarten aus dem Cache geladen (Anki scheint offline zu sein)",
@@ -2082,7 +2103,13 @@
         "SinglePage": "Einzelseite",
         "SpreadLeftToRight": "Seiten L→R",
         "SpreadRightToLeft": "Seiten R→L",
-        "ToggleUnknownWordsSidebar": "Seitenleiste für unbekannte Wörter umschalten"
+        "ToggleUnknownWordsSidebar": "Seitenleiste für unbekannte Wörter umschalten",
+        "ToggleContents": "Inhalt ein-/ausblenden",
+        "PreviousPage": "Vorherige Seite",
+        "NextPage": "Nächste Seite",
+        "PageFit": "Seitenanpassung",
+        "PageLayout": "Seitenlayout",
+        "PageOrder": "Seitenreihenfolge"
       },
       "UI": {
         "Tips": {
@@ -2298,7 +2325,7 @@
         "LiveTranslator": "Live-Wortübersetzer",
         "Behaviour": "Verhalten",
         "WordKnowledge": "Wortkenntnisse",
-        "LanguageProficiency": "Lernsprachniveau",
+        "LanguageProficiency": "Lernplan",
         "SuggestedFlashcards": "Vorgeschlagene Lernkarten",
         "WordColors": "Wortfärbung"
       },
@@ -2838,7 +2865,8 @@
         "ColorKnownWords": {
           "Description": "Wenn deaktiviert, bleiben bereits bekannte Wörter ungefärbt",
           "Label": "Bekannte Wörter färben"
-        }
+        },
+        "TechnicalCalibration": "Kalibrierung für Wiederholungsplanung und Vertrautheit aus importierten Karten. Diese Schwellenwerte machen passives Sehen nicht zu bewerteten Kenntnissen."
       },
       "VideoPlayer": {
         "Title": "Videoplayer",
@@ -2929,20 +2957,20 @@
         "Statistics": "Statistiken",
         "VideoPlayer": "Videoplayer",
         "BrowserExtension": "Browser-Erweiterung",
-        "EventAudit": "Ereignis-Journal"
+        "EventAudit": "Entwicklerprotokoll"
       },
       "SearchPlaceholder": "Einstellungen durchsuchen...",
       "Behaviour": {
         "SessionIntensity": {
           "Label": "Sitzungsintensität",
-          "Description": "Bestimmt, welche Übungen empfohlen werden — sanft stützt sich auf Bekanntes, intensiv hält Padding niedrig. Nie werden Bewertungen oder Belege geändert.",
+          "Description": "Wähle ein angenehmes Tempo. Sanft enthält mehr vertraute Übungen; intensiv konzentriert sich stärker auf Inhalte mit Übungsbedarf. Dein Wissensstand bleibt unverändert.",
           "Gentle": "Sanft",
           "Steady": "Stetig",
           "Intensive": "Intensiv"
         },
         "ExamGoal": {
           "Label": "Prüfungsziel",
-          "Description": "Lege ein persönliches Prüfungsziel fest; nahe am Termin rücken Festigung und Reparatur in den Vordergrund.",
+          "Description": "Setze dir ein Prüfungsziel. Je näher der Termin rückt, desto stärker konzentrieren sich die Übungen auf Wiederholung und Bereiche mit Übungsbedarf.",
           "None": "Keine",
           "Exam": "Prüfung",
           "Target": {
@@ -2953,7 +2981,8 @@
           "Deadline": {
             "Label": "Prüfungsdatum",
             "Description": "In den letzten sechs Wochen gewichten die Empfehlungen Festigung am stärksten."
-          }
+          },
+          "OtherLanguage": "Dieses Prüfungsziel gehört zu einer anderen Lernsprache. Änderungen behalten diese Sprache bei. Wähle „Keines“, bevor du ein Ziel für die aktuelle Sprache festlegst."
         },
         "RatingKeyboardMode": {
           "Label": "Tastaturmodus zum Bewerten",
@@ -2971,9 +3000,9 @@
           "Description": "Wähle, wie die Niveaus dieser Häufigkeitsliste benannt werden."
         },
         "LearningLanguageLevel": {
-          "Label": "Lernsprachniveau",
-          "Description": "Wenn festgelegt, werden vorgeschlagene Lernkarten über diesem Niveau und Karten ohne Niveau nicht gespeichert. Betrifft auch die Word Sync-Schwierigkeit.",
-          "NoLimit": "Keine Begrenzung"
+          "Label": "Lernziel",
+          "Description": "Wähle, worauf du hinarbeiten möchtest. Dadurch wird nichts als bekannt markiert.",
+          "NoLimit": "Alle Stufen"
         },
         "AutoSuggestFlashcards": {
           "Label": "Lernkarten automatisch vorschlagen",
@@ -3026,9 +3055,9 @@
     },
     "Statistics": {
       "Actions": {
-        "EditWordDatabase": "Wortdatenbank bearbeiten",
+        "EditWordDatabase": "Wortschatz durchsuchen",
         "OpenAiAnalytics": "KI-Medienanalyse",
-        "OpenLevelStudy": "Stufenlernen öffnen",
+        "OpenLevelStudy": "Lernplan öffnen",
         "ViewCharacterGrid": "Zeichenraster anzeigen"
       },
       "CurrentlyLearning": "Aktuell lernend",
@@ -3132,7 +3161,9 @@
       "Legend": {
         "Learned": "Gelernt",
         "Learning": "Lernend",
-        "Viewed": "Gesehen"
+        "Viewed": "Gesehen",
+        "Unknown": "Weiter üben",
+        "Unmeasured": "Noch nicht geprüft"
       },
       "LevelColumn": "Stufe",
       "TimeWatched": "Geschaute Zeit",
@@ -3355,7 +3386,7 @@
         "Tooltip": "Wortüberschreibung bearbeiten"
       },
       "EmptyIgnoredState": "Für diese Sprache wurden keine ignorierten Wörter gefunden.",
-      "EmptyState": "Keine Wörter gefunden. Klicken Sie auf „Alle laden“, um die Wortdatenbank zu laden.",
+      "EmptyState": "Keine Wörter entsprechen deiner Suche oder deinen Filtern.",
       "Fields": {
         "PartOfSpeech": "Wortart",
         "PosPlaceholder": "n, v, adj usw."
@@ -3364,9 +3395,9 @@
         "Common": "Allgemein",
         "Unlisted": "Nicht gelistet"
       },
-      "Loading": "Wortdatenbank wird geladen...",
+      "Loading": "Wortschatz wird geladen…",
       "LoadingMore": "Weitere laden...",
-      "SearchHintDetailed": "Enter zum Suchen. Exakte Treffer werden bevorzugt. Klicken Sie zuerst auf „Alle laden“.",
+      "SearchHintDetailed": "Suche Wörter und sieh dir deinen Lernstand an.",
       "SearchPlaceholder": "Wörter suchen...",
       "Searching": "Suche...",
       "Trackers": {
@@ -3375,14 +3406,16 @@
         "Ignored": "Ignoriert",
         "Nothing": "Kein Tracker"
       },
-      "Title": "Wortdatenbank",
+      "Title": "Wortschatz",
       "AdvancedFilters": "Advanced Filters",
       "Integrations": {
         "Flashcard": "mLearn-Karte",
         "Anki": "Anki",
         "Ignored": "Von Wiederholungen ausgeschlossen",
         "AddFlashcard": "mLearn-Karte hinzufügen"
-      }
+      },
+      "LoadError": "Dein Wortschatz konnte nicht geladen werden. Versuche es erneut.",
+      "DictionaryUnavailable": "Das Wörterbuch ist nicht verfügbar. Die Liste enthält derzeit nur Wörter aus dem Lehrplan und gespeicherte Wörter."
     },
     "WordHover": {
       "AddToAnki": "Zu Anki hinzufügen",
@@ -3470,7 +3503,7 @@
         "NeverSeenForm": "Ich habe diese Form noch nie gesehen."
       },
       "FinishedTitle": "Fertig!",
-      "FinishedDescription": "Du hast {count} Wörter geprüft. Dein Wortwissen wurde aktualisiert.",
+      "FinishedDescription": "Gespeicherte Überprüfungen: {count}. Diese Antworten gehören jetzt zu deinem Lernverlauf.",
       "Progress": "{rated} / {total} Wörter",
       "AttributionPrompt": "Was war unbekannt?",
       "Unknown": "Unbekannt",
@@ -3481,7 +3514,7 @@
       "AdditionalInfoInAnswer": "Zusätzliche Informationen sind Teil der Antwort",
       "StartOver": "Neu starten",
       "RestartConfirmTitle": "Neu starten?",
-      "RestartConfirmMessage": "Dies löscht den Verlauf der zuletzt geprüften Wörter und setzt den Filter auf die Standardeinstellung zurück. Wörter, die Sie bereits geprüft haben, werden erneut angezeigt und der Fortschritt dieser Sitzung geht verloren. Dies kann nicht rückgängig gemacht werden.",
+      "RestartConfirmMessage": "Neue Sitzung mit den aktuellen Filtern starten? Deine Antworten bleiben gespeichert. Sitzungszähler und Rückgängig-Verlauf werden zurückgesetzt.",
       "Filter": "Filter",
       "FilterAll": "Alle",
       "FilterUnknownOnly": "Nur unbekannte",
@@ -3497,7 +3530,13 @@
         "Unknown": "Als unbekannt markiert",
         "Learning": "Als lernend markiert",
         "Known": "Als bekannt markiert"
-      }
+      },
+      "EmptyTitle": "Keine Wörter zum Überprüfen verfügbar",
+      "EmptyDescription": "Keine Aufgaben passen zu deinen Filtern und dem verfügbaren Übungsmaterial. Es wurden keine Antworten gespeichert. Passe den Filter an oder wähle eine andere Aktivität.",
+      "QueueDetails": "Warum diese Wörter?",
+      "QueueExplanation": "Die Auswahl verwendet deine aktuellen Filter und gespeicherten Kenntnisse. Ignorierte Wörter sind ausgeschlossen. Ein Wort muss mindestens eine hier prüfbare Fähigkeit haben, die noch nicht als bekannt bewertet wurde. Zuletzt gezeigte Wörter werden nicht ausgeschlossen.",
+      "QueueExclusions": "Ausgeschlossen — ignoriert: {ignored}; außerhalb der Filter: {filtered}; keine geeignete Aufgabe oder nicht mehr passend: {unavailable}.",
+      "InvalidFilter": "Der Filter ist unvollständig oder ungültig. Bearbeite ihn, um fortzufahren."
     },
     "Menu": {
       "About": "Über mLearn",
@@ -3531,7 +3570,7 @@
       },
       "ReviewFlashcards": "Karteikarten wiederholen",
       "Settings": "Einstellungen",
-      "LevelStudy": "Stufenlernen",
+      "LevelStudy": "Lernplan",
       "ShowLearningStatistics": "Lernstatistiken anzeigen",
       "ShowReading": "Leseannotationen anzeigen",
       "Statistics": "Statistiken",
@@ -3794,7 +3833,9 @@
         "TotalFound": "Gesamt:",
         "Unmeasured": "Unbekannt:"
       },
-      "Title": "Zeichenvertrautheit"
+      "Title": "Zeichenvertrautheit",
+      "LegendTitle": "Was die Farben bedeuten",
+      "InspectHint": "Wähle ein Zeichen, um deinen Wissensstand zu prüfen. Aus Wörtern abgeleitete Vertrautheit ist eine Vorhersage, keine direkte Bewertung."
     },
     "TellMlearn": {
       "Label": "mLearn mitteilen…",
@@ -3820,8 +3861,33 @@
         "Ranking": "Rangfolge",
         "Show": "Warum?",
         "Title": "Warum diese Karte",
-        "Weights": "Aktive Gewichtungen"
+        "Weights": "Aktive Gewichtungen",
+        "Reasons": {
+          "retention": "Wiederhole diese Karte, um deine Erinnerung zu festigen.",
+          "new-card": "Lerne eine neue Karte.",
+          "curriculum": "Übe Inhalte aus deinem Lernplan.",
+          "calibration": "Prüfe, was du bereits erkennst.",
+          "weak-target": "Übe etwas, das noch Aufmerksamkeit braucht.",
+          "probe": "Prüfe, was du bereits erkennst.",
+          "media": "Übe Inhalte aus deinen Texten oder Videos.",
+          "grammar": "Übe einen Grammatikpunkt aus deinem Lernplan.",
+          "bridge": "Verbinde diese Form mit verwandtem Wissen.",
+          "assignment": "Bearbeite eine zugewiesene Aufgabe.",
+          "defer": "Mach eine Pause oder wähle eine andere Aktivität."
+        }
       }
+    },
+    "LearningPlan": {
+      "Description": "Wähle deinen Lehrplan und dein Ziel und erweitere dein Wissen durch Übung. Dein Ziel steuert das Lernen; es misst nicht deine Fähigkeiten.",
+      "Activities": "Aktivität wählen",
+      "Assess": "Meinen Lernstand einschätzen",
+      "AssessDescription": "Du hast diese Sprache schon gelernt? Prüfe, was du erkennst, und finde einen passenden Einstieg.",
+      "WordSyncDescription": "Wiederhole Wörter, denen du begegnest, und entscheide, was du als Nächstes übst.",
+      "CharactersDescription": "Erkunde das Schriftsystem und übe einzelne Zeichen.",
+      "Progress": "Fortschritt im Lehrplan",
+      "Back": "Zurück zum Lernplan",
+      "SettingsHint": "Lehrplan, Lernziel, Lerntempo und Ziele verwaltest du im Lernplan.",
+      "Open": "Lernplan öffnen"
     }
   }
 }

@@ -3,7 +3,7 @@ vi.mock('../../context', async () => {
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   useLocalization: () => ({ t: (key: string, params?: Record<string, string>) => params?.rated !== undefined ? `${params.rated} / ${params.total}` : key }),
   useSettings: () => ({
-    settings: mockWordSyncState.settings,
+    settings: new Proxy(mockWordSyncState.settings, { get: (target, key) => key === 'language' && mockWordSyncState.scopeLanguage ? mockWordSyncState.scopeLanguage() : Reflect.get(target, key) }),
   }),
   useLanguage: () => ({
     currentLangData: () => mockWordSyncState.currentLangData,
@@ -99,6 +99,7 @@ const mockAppendRetractions = vi.fn();
 const mockRecomputeProjection = vi.fn(async () => {});
 const mockFetchTranslation = vi.hoisted(() => vi.fn(async (_word?: string): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
 const mockWordSyncState = vi.hoisted(() => ({
+  scopeLanguage: null as null | (() => string),
   settings: {
     language: 'ja',
     uiLanguage: 'en',
@@ -170,6 +171,7 @@ vi.mock('../../hooks/useKnowledgeProjection', () => ({
     });
     },
     loading: () => mockWordSyncState.encounterLoading?.() ?? false,
+    retry: mockRetryKnowledgeProjection,
     capabilities: () => mockWordSyncState.capabilities,
   }),
 }));
@@ -339,6 +341,7 @@ beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
     mockGetComprehensiveWordStatusWithSourceSync.mockClear();
+    mockWordSyncState.scopeLanguage = null;
     mockWordSyncState.settings.language = 'ja';
     mockWordSyncState.settings.use_anki = false;
     mockWordSyncState.levelNames = { 5: 'N5' };
@@ -446,6 +449,109 @@ beforeEach(() => {
     mockRecordAttempt.mockImplementation(() => ({ attemptId: 'attempt-sync-1' }));
   });
 
+  it('starts a clean session when the active language changes without replaying old undo state', async () => {
+    const [language, setLanguage] = createSignal('ja');
+    mockWordSyncState.scopeLanguage = language;
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    press(' '); await settle(); press('3'); await settle(); await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+    setLanguage('third-party');
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 1');
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+    press('z', { ctrlKey: true });
+    expect(mockAppendRetractions).not.toHaveBeenCalled();
+    press(' '); await settle(); press('3'); await settle();
+    expect(mockRecordAttempt.mock.calls.at(-1)?.[3]).toMatchObject({ language: 'third-party' });
+  });
+
+  it('honors an explicit ignore change during a session without recording a response', async () => {
+    const { hashWordSync } = await import('../../services/srsAlgorithm');
+    const [ignored, setIgnored] = createSignal(false);
+    Object.defineProperty(mockWordSyncState.ignoredWords, `ja:${hashWordSync('赤い')}`, { get: () => ignored() ? { word: '赤い', language: 'ja' } : undefined, enumerable: true });
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+    setIgnored(true);
+    await settle(); await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.EmptyTitle');
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+  });
+
+  it('keeps invalid filters editable instead of trapping the session behind loading', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    buttonByText('mlearn.WordSync.Filter').click();
+    mockCommonState.filterBuilderProps!.onChange([{ kind: 'operator', op: 'AND' }]);
+    await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.InvalidFilter');
+    expect(container.querySelector('.word-sync-filter-toggle')).not.toBeNull();
+    mockCommonState.filterBuilderProps!.onChange([]);
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+  });
+
+  it('offers retry for a failed current prompt query without counting it as processed', async () => {
+    mockWordSyncState.projection = { status: 'error', targets: [] } as unknown as KnowledgeProjection;
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+    buttonByText('mlearn.Global.TryAgain').click();
+    expect(mockRetryKnowledgeProjection).toHaveBeenCalledOnce();
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+  });
+
+  it('recovers a failed dictionary read for the current prompt without an empty completion', async () => {
+    mockFetchTranslation.mockRejectedValueOnce(new Error('dictionary unavailable'));
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
+    buttonByText('mlearn.Global.TryAgain').click();
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+  });
+
+  it('visits all 43 admitted candidates even when their level has no name entry', async () => {
+    mockWordSyncState.levelNames = { 5: 'Named level' };
+    mockWordSyncState.wordFrequency = Object.fromEntries(Array.from({ length: 43 }, (_, index) => [`word-${index}`, { reading: '', raw_level: 2, level: '' }]));
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 43');
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+  });
+
+  it('does not report success when all 43 scan candidates have no testable target at presentation', async () => {
+    mockWordSyncState.wordFrequency = Object.fromEntries(Array.from({ length: 43 }, (_, index) => [`word-${index}`, { reading: '', raw_level: 5, level: 'N5' }]));
+    mockWordSyncState.projection = { status: 'ready', surfaceKnown: true, targets: [], evidenceSourceCounts: {} } as unknown as KnowledgeProjection;
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await vi.waitFor(() => expect(container.querySelector('.word-sync-finished')).not.toBeNull());
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedDescription');
+    expect(container.textContent).toContain('mlearn.WordSync.EmptyTitle');
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 0');
+    expect(mockRecordAttempt).not.toHaveBeenCalled();
+  });
+
+  it('starts a package with vocabulary but no named levels instead of waiting forever', async () => {
+    mockWordSyncState.levelNames = {};
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await vi.waitFor(() => expect(container.querySelector('.word-sync-word')).not.toBeNull());
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+  });
+
   it('shows a retry action when the shared projection read fails instead of keeping the skeleton', async () => {
     mockWordSyncState.collectionReady = () => false;
     mockWordSyncState.collectionFailed = () => true;
@@ -455,7 +561,7 @@ beforeEach(() => {
     await settle();
 
     expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
-    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Global.Retry'));
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Global.TryAgain'));
     expect(retry).toBeDefined();
     retry!.click();
     expect(mockRetryKnowledgeProjection).toHaveBeenCalledTimes(1);
@@ -471,7 +577,7 @@ beforeEach(() => {
     await settle();
     await vi.waitFor(() => expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable'));
 
-    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Global.Retry'));
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Global.TryAgain'));
     expect(retry).toBeDefined();
     retry!.click();
     await vi.waitFor(() => expect(mockQueryLanguageKeys).toHaveBeenCalledTimes(2));
@@ -1654,8 +1760,8 @@ beforeEach(() => {
     await settle();
     await settle();
 
-    // Pool empty → the finished state renders instead of any word.
-    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+    // No questions were answered: this is empty, not successful completion.
+    expect(container.textContent).toContain('mlearn.WordSync.EmptyTitle');
     dispose();
     mockGetAccessStatus.mockReturnValue({ status: 'unknown', ease: 0, source: 'None', untracked: true });
     // Restore the shared mock's default shape (mockReturnValue persists across tests).
@@ -1931,7 +2037,7 @@ beforeEach(() => {
     dispose();
   });
 
-  it('restores the default word sync filter when starting over after confirmation', async () => {
+  it('retains the visible filter when starting a new session after confirmation', async () => {
     const { WordSyncContent } = await import('./App');
 
     const dispose = mountContent(WordSyncContent);
@@ -1950,6 +2056,8 @@ beforeEach(() => {
     await settle();
     await settle();
     expect(mockCommonState.filterBuilderProps?.tokens).toEqual([]);
+    mockCommonState.filterBuilderProps!.onChange([{ kind: 'operand', field: 'level', op: 'eq', value: '5' }]);
+    await settle(); await settle();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await settle();
@@ -1967,9 +2075,8 @@ beforeEach(() => {
     await settle();
     await settle();
 
-    // instanceIds are regenerated per preset build — compare token shapes only.
-    expect(filterTokenShapes(mockCommonState.filterBuilderProps?.tokens ?? [])).toEqual([]);
-    expect(mockCommonState.buildWordSyncPreset).toHaveBeenCalledTimes(2);
+    expect(filterTokenShapes(mockCommonState.filterBuilderProps?.tokens ?? [])).toEqual([{ kind: 'operand', field: 'level', op: 'eq', value: '5' }]);
+    expect(mockCommonState.buildWordSyncPreset).toHaveBeenCalledTimes(1);
 
     dispose();
   });

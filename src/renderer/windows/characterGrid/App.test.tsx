@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
 
 const getFreqLevelNamesMock = vi.fn((): Record<string, string> => ({}));
 const localizationMock = vi.fn((key: string, _params?: Record<string, number | string>) => key);
@@ -20,6 +20,10 @@ let flashcardStoreMock: {
 let wordFrequencyMock: Record<string, { raw_level?: number }> = {
   '日本語': { raw_level: 5 },
 };
+const [queryState, setQueryState] = createSignal<'ready' | 'pending' | 'failed'>('ready');
+const retryMock = vi.fn();
+const inspectMock = vi.fn();
+vi.mock('../../services/openKnowledgeInspector', () => ({ openKnowledgeInspector: inspectMock }));
 let languageMock = 'ja';
 
 vi.mock('../../context', () => ({
@@ -92,6 +96,9 @@ describe('CharacterGridContent', () => {
       '日本語': { raw_level: 5 },
     };
     languageMock = 'ja';
+    setQueryState('ready');
+    retryMock.mockReset();
+    inspectMock.mockReset();
     getFreqLevelNamesMock.mockReturnValue({});
     getComprehensiveWordStatusSyncMock.mockReturnValue('unknown');
     flashcardStoreMock = {
@@ -175,6 +182,36 @@ describe('CharacterGridContent', () => {
   afterEach(() => {
     vi.clearAllMocks();
     container.remove();
+  });
+
+  it('withholds character counts and empty claims until knowledge is ready and offers retry on failure', async () => {
+    setQueryState('pending');
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="skeleton-grid"]')).not.toBeNull());
+    expect(container.querySelector('.cg-stats')).toBeNull();
+    expect(container.querySelector('.cg-cell')).toBeNull();
+    expect(container.querySelector('.cg-empty-state')).toBeNull();
+    setQueryState('failed');
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"] button')).not.toBeNull());
+    expect(container.querySelector('.cg-stats')).toBeNull();
+    (container.querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    expect(retryMock).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('opens character knowledge from an accessible button without claiming predicted ability', async () => {
+    currentLangDataMock = { characterStudy: { scripts: ['Han'] } };
+    const { CharacterGridContent } = await import('./App');
+    const { surfaceEntityId } = await import('../../../shared/graph/load');
+    const { hashWordSync } = await import('../../services/srsAlgorithm');
+    const dispose = render(() => <CharacterGridContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('button.cg-cell')).not.toBeNull());
+    const cell = container.querySelector('button.cg-cell') as HTMLButtonElement;
+    const surface = cell.textContent!;
+    cell.click();
+    expect(inspectMock).toHaveBeenCalledWith({ language: 'ja', surface, target: { kind: 'surface', id: surfaceEntityId('ja', hashWordSync(surface)) } });
+    dispose();
   });
 
   it('uses neutral character-grid DOM naming', async () => {
@@ -735,7 +772,7 @@ describe('CharacterGridContent', () => {
 
 vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { projectionFixture } = await import('../../../../test/projectionFixture');
-  return { useKnowledgeProjections: (query: () => { surfaces: string[] } | undefined) => ({ loading: () => false,
+  return { useKnowledgeProjections: (query: () => { surfaces: string[] } | undefined) => ({ loading: () => queryState() === 'pending', ready: () => queryState() === 'ready', failed: () => queryState() === 'failed', retry: retryMock,
     projections: () => new Map((query()?.surfaces ?? []).map(word => {
       const status = getComprehensiveWordStatusSyncMock(word, languageMock);
       const projection = projectionFixture(status, status === 'unknown' ? 'unmeasured' : 'evidence');

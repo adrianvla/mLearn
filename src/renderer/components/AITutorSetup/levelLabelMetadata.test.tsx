@@ -2,8 +2,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
+
+const [grammarReady, setGrammarReady] = createSignal(true);
 import type { LanguageData } from '../../../shared/types';
+
+const inspectMock = vi.fn();
+vi.mock('../../services/openKnowledgeInspector', () => ({ openKnowledgeInspector: inspectMock }));
 
 const streamChatMock = vi.hoisted(() => vi.fn(() => ({ abort: vi.fn() })));
 
@@ -119,6 +124,7 @@ vi.mock('../../context/LanguageContext', () => ({
 
 vi.mock('../../context/FlashcardContext', () => ({
   useFlashcards: () => ({
+    isKnowledgeReady: grammarReady,
     getWordTrackingSync: () => ({ tracker: 'nothing' as const }),
     store: {
       wordKnowledge,
@@ -202,6 +208,7 @@ describe('AI tutor setup level labels', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     activeLanguageData = frequencyLanguage;
+    setGrammarReady(true);
     tutorSettings = {
       language: 'xx',
       colorScheme: 'quartz',
@@ -218,6 +225,22 @@ describe('AI tutor setup level labels', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('uses neutral selectable words and canonical Inspect instead of raw ease knowledge colors', async () => {
+    const { WordSelector } = await import('./WordSelector');
+    const selected = vi.fn();
+    const dispose = render(() => <WordSelector selected={[]} onSelectionChange={selected} customWords={[]} onCustomWordsChange={vi.fn()} />, container);
+    const cells = Array.from(container.querySelectorAll<HTMLButtonElement>('button.word-selector__cell'));
+    expect(cells.map(cell => cell.textContent)).toEqual(['alpha', 'beta', 'gamma']);
+    expect(cells.every(cell => !cell.getAttribute('style'))).toBe(true);
+    expect(container.querySelector('.word-selector__legend')).toBeNull();
+    cells[0].click();
+    expect(selected).toHaveBeenCalledOnce();
+    (container.querySelector('.word-selector__inspect') as HTMLButtonElement).click();
+    expect(selected).toHaveBeenCalledOnce();
+    expect(inspectMock).toHaveBeenCalledWith(expect.objectContaining({ language: 'xx', surface: 'alpha' }));
+    dispose();
   });
 
   it('uses frequency fallback label templates in the word level filter', async () => {
@@ -256,6 +279,22 @@ describe('AI tutor setup level labels', () => {
     expect(cardText).toContain('Pattern 2');
     expect(cardText).not.toContain('Fallback 1');
 
+    dispose();
+  });
+
+  it('keeps grammar selection available while withholding unsettled knowledge labels', async () => {
+    activeLanguageData = grammarLanguage;
+    setGrammarReady(false);
+    const { GrammarSelector } = await import('./GrammarSelector');
+    const dispose = render(() => <GrammarSelector selected={[]} onSelectionChange={vi.fn()} />, container);
+    expect(container.textContent).toContain('uses-alpha');
+    expect(container.querySelector('.grammar-selector__status')).toBeNull();
+    expect(container.textContent).not.toContain('failed 4/2529 seen');
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    setGrammarReady(true);
+    await Promise.resolve();
+    expect(container.querySelector('.grammar-selector__status')).not.toBeNull();
+    expect(container.textContent).toContain('failed 4/2529 seen');
     dispose();
   });
 

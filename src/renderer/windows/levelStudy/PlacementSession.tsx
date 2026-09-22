@@ -48,6 +48,8 @@ export interface PlacementSessionProps {
    * loading gate — and only the DOM hides; timing stops while hidden.
    */
   booting?: boolean;
+  /** First-class assessment entry point, without the embedded disclosure. */
+  focused?: boolean;
   /** Web Locks DI seam. Production resolves `globalThis.navigator.locks`
    *  (Chromium renderers); when absent (or explicitly `null`), placement is
    *  DISABLED with a localized fallback (G04) instead of running an
@@ -504,7 +506,7 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
   // (projection reload) stops the timer — off-screen time is not retrieval
   // time; re-expanding starts a fresh one. Idle/collapsed/summary time never
   // enters any activeLatencyMs.
-  createEffect(on(() => (expanded() && sessionLive() && !props.booting ? presentedWord() : null), (promptWord) => {
+  createEffect(on(() => ((props.focused || expanded()) && sessionLive() && !props.booting ? presentedWord() : null), (promptWord) => {
     stopTiming();
     if (promptWord !== null) {
       encounterTimer = createEncounterTimer();
@@ -760,6 +762,7 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
 
   return (
     <section class="placement-session" aria-label={t('mlearn.LevelStudy.Placement.Title')}>
+      <Show when={!props.focused} fallback={<h2>{t('mlearn.LevelStudy.Placement.Title')}</h2>}>
       <button
         type="button"
         class="placement-session__header"
@@ -769,7 +772,8 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
         <h3 class="placement-session__title">{t('mlearn.LevelStudy.Placement.Title')}</h3>
         <span class="placement-session__toggle">{expanded() ? '−' : '+'}</span>
       </button>
-      <Show when={expanded() && !props.booting}>
+      </Show>
+      <Show when={(props.focused || expanded()) && !props.booting}>
         <p class="placement-session__description">{t('mlearn.LevelStudy.Placement.Description')}</p>
 
         <div class="placement-session__background">
@@ -916,6 +920,7 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
             </Show>
             <Show when={sessionLive() && locksAvailable()}>
               <div class="placement-session__live">
+                <p class="placement-session__progress" role="status">{t('mlearn.LevelStudy.Placement.LiveProgress', { count: stored()?.draws.length ?? 0 })}</p>
                 <span class="placement-session__prompt" data-word={presentedWord() ?? ''}>
                   {t('mlearn.LevelStudy.Placement.Prompt', { word: presentedWord() ?? '' })}
                 </span>

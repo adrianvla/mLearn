@@ -41,7 +41,10 @@ export interface LearnerProjection {
   language?: string;
   failedWords?: string[];
   grammarPoints?: string[];
+  /** Measured ability, only when backed by assessment. */
   levelEstimate?: string;
+  /** Chosen curriculum goal; never an ability estimate. */
+  learningTarget?: string;
   /**
    * Epistemic provenance of each list. 'evidence' = direct user marks/claims
    * (failed markers, explicit tutor selections). 'prediction' = inferred

@@ -208,7 +208,7 @@ export const Dashboard: Component = () => {
     mediaStatsLoaded() && cardStats().total === 0 && dailyStatsData().totalDaysStudied === 0 && mediaTimeStats().totalImmersion === 0 && wordStats().allEncountered.total === 0
   );
 
-  // The existing Viewed display groups Unknown + Unmeasured; the data keeps them separate.
+  // Unmeasured curriculum entries are not encounters. Keep them distinct from measured gaps.
   const wordStats = createMemo(() =>
     computeWordLevelStats(
       store,
@@ -360,7 +360,8 @@ export const Dashboard: Component = () => {
           <div class="dashboard-stats-row analytics-summary">
             <StatCard label={t('mlearn.Statistics.Legend.Learned')} value={wordStats().allEncountered.known} />
             <StatCard label={t('mlearn.Statistics.Legend.Learning')} value={wordStats().allEncountered.learning} />
-            <StatCard label={t('mlearn.Statistics.Legend.Viewed')} value={wordStats().allEncountered.unknown + wordStats().allEncountered.untracked} />
+            <StatCard label={t('mlearn.Statistics.Legend.Unknown')} value={wordStats().allEncountered.unknown} />
+            <StatCard label={t('mlearn.Statistics.Legend.Unmeasured')} value={wordStats().allEncountered.untracked} />
           </div>
           <WordSearchPanel />
       {/* ─── Level Breakdown ─── */}
@@ -376,7 +377,8 @@ export const Dashboard: Component = () => {
                 <th>{t('mlearn.Statistics.LevelColumn')}</th>
                 <th>{t('mlearn.Statistics.Legend.Learned')}</th>
                 <th>{t('mlearn.Statistics.Legend.Learning')}</th>
-                <th>{t('mlearn.Statistics.Legend.Viewed')}</th>
+                <th>{t('mlearn.Statistics.Legend.Unknown')}</th>
+                <th>{t('mlearn.Statistics.Legend.Unmeasured')}</th>
                 <th class="level-num">{t('mlearn.Statistics.Dashboard.LevelTotal')}</th>
                 <th>{t('mlearn.Statistics.Dashboard.LevelCoverage')}</th>
               </tr>
@@ -388,14 +390,15 @@ export const Dashboard: Component = () => {
                     <td>{row.name}</td>
                     <td class="level-num">{row.known}</td>
                     <td class="level-num">{row.learning}</td>
-                    <td class="level-num">{row.unknown + row.untracked}</td>
+                    <td class="level-num">{row.unknown}</td>
+                    <td class="level-num">{row.untracked}</td>
                     <td class="level-num">{row.totalDictionaryWords}</td>
                     <td class="level-coverage-cell">
                       <div class="level-coverage-bar">
                         <Show when={row.totalDictionaryWords > 0}>
                           <div class="level-coverage-fill level-coverage-learned" style={{ width: `${(row.known / row.totalDictionaryWords) * 100}%` }} />
                           <div class="level-coverage-fill level-coverage-learning" style={{ width: `${(row.learning / row.totalDictionaryWords) * 100}%` }} />
-                          <div class="level-coverage-fill level-coverage-viewed" style={{ width: `${((row.unknown + row.untracked) / row.totalDictionaryWords) * 100}%` }} />
+                          <div class="level-coverage-fill level-coverage-viewed" style={{ width: `${(row.unknown / row.totalDictionaryWords) * 100}%` }} />
                         </Show>
                       </div>
                       <span class="level-coverage-pct">{row.knownPct}%</span>
@@ -414,7 +417,8 @@ export const Dashboard: Component = () => {
           <div class="dashboard-stats-row compact">
             <StatCard label={t('mlearn.Statistics.Legend.Learned')} value={outsideLevels().known} size="sm" color="success" />
             <StatCard label={t('mlearn.Statistics.Legend.Learning')} value={outsideLevels().learning} size="sm" color="warning" />
-            <StatCard label={t('mlearn.Statistics.Legend.Viewed')} value={outsideLevels().unknown + outsideLevels().untracked} size="sm" />
+            <StatCard label={t('mlearn.Statistics.Legend.Unknown')} value={outsideLevels().unknown} size="sm" />
+            <StatCard label={t('mlearn.Statistics.Legend.Unmeasured')} value={outsideLevels().untracked} size="sm" />
             <StatCard label={t('mlearn.Statistics.Dashboard.OutsideLevelsTotal')} value={outsideLevels().total} size="sm" />
           </div>
         </Panel>

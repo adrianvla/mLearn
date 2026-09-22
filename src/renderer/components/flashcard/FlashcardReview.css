@@ -45,8 +45,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: max-content;
+  width: 100%;
   max-width: 950px;
+  flex-wrap: wrap;
   padding: 0.5rem 1rem;
   background: var(--bg);
   backdrop-filter: var(--backdrop-filter);
@@ -62,6 +63,7 @@
 /* Header right side - bury/remove + undo */
 .flashcard-header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
 }

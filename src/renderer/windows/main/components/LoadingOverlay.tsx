@@ -110,8 +110,8 @@ export const LoadingOverlay: Component = () => {
     if (explicitError) return explicitError;
     if (server.status() !== 'error') return null;
     return {
-      message: server.error() || server.statusMessage() || t('mlearn.ErrorModal.Messages.BackendStopped'),
-      details: server.error() ? server.statusMessage() : undefined,
+      message: t('mlearn.ErrorModal.Messages.BackendStopped'),
+      details: [server.error(), server.statusMessage()].filter(Boolean).join('\n'),
     };
   });
 
@@ -181,7 +181,7 @@ export const LoadingOverlay: Component = () => {
 
   const message = createMemo(() => {
     if (!server.isConnected()) {
-      return server.statusMessage() || t('mlearn.Global.Status.StartingBackend');
+      return t(server.status() === 'installing' ? 'mlearn.Installer.Status.Installing' : 'mlearn.Global.Status.StartingBackend');
     }
     if (settings.isLoading()) {
       return t('mlearn.Global.Status.LoadingSettings');
@@ -207,8 +207,8 @@ export const LoadingOverlay: Component = () => {
         log.error('[LoadingOverlay] Critical error received:', errorMessage);
         
         // Parse error messages for known error types
-        let details: string | undefined;
-        let friendlyMessage = errorMessage;
+        let details: string | undefined = errorMessage;
+        let friendlyMessage = t('mlearn.ErrorModal.Messages.BackendStopped');
         
         if (errorMessage.includes('EADDRINUSE')) {
           friendlyMessage = t('mlearn.ErrorModal.Messages.PortInUse');
@@ -353,7 +353,7 @@ export const LoadingOverlay: Component = () => {
             <div class="language-data-update-modal__body">
               <p class="language-data-update-modal__message">{languageDataUpdateMessage()}</p>
               <Show when={languageDataUpdateError()}>
-                {(error) => <p class="language-data-update-modal__error">{error()}</p>}
+                {(error) => <details><summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary><p class="language-data-update-modal__error">{error()}</p></details>}
               </Show>
             </div>
           </Modal>

@@ -13,6 +13,7 @@ import { resolveParticipant } from '../../services/participantConstruction';
 import { Btn, FormField, HintText, ModalForm, Textarea } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import './NewConversationModal.css';
+import { conversationRecoveryKey } from './errorUtils';
 
 export interface NewConversationResult {
   roomId: string;
@@ -24,6 +25,7 @@ export interface NewConversationResult {
 
 interface NewConversationModalProps {
   world: WorldSnapshot | null;
+  initialIntent?: string;
   onCreated: (result: NewConversationResult) => void | Promise<void>;
   onClose: () => void;
 }
@@ -39,8 +41,8 @@ function participantInitial(participant: Participant): string {
 export const NewConversationModal: Component<NewConversationModalProps> = (props) => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
-  const saved = props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating' || item.status === 'failed');
-  const [intent, setIntent] = createSignal(saved?.request.intent ?? '');
+  const saved = props.initialIntent ? undefined : props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating' || item.status === 'failed');
+  const [intent, setIntent] = createSignal(props.initialIntent ?? saved?.request.intent ?? '');
   const [scope, setScope] = createSignal<'sandbox' | 'persistent'>(saved?.request.scope === 'persistent' ? 'persistent' : 'sandbox');
   const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set(saved?.request.participantIds ?? []));
   const [preview, setPreview] = createSignal<ScenarioCreation | null>(saved?.status === 'ready' ? saved : null);
@@ -185,22 +187,14 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
           <fieldset class="new-conversation-scope">
             <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}</legend>
             <div class="new-conversation-scope-options" role="radiogroup" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}>
-              <Btn
-                variant="ghost"
-                class={`new-conversation-scope-option ${scope() === 'sandbox' ? 'new-conversation-scope-option--active' : ''}`}
-                role="radio"
-                aria-checked={scope() === 'sandbox'}
-                onClick={() => setScope('sandbox')}
-                disabled={busy()}
-              >{t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')}</Btn>
-              <Btn
-                variant="ghost"
-                class={`new-conversation-scope-option ${scope() === 'persistent' ? 'new-conversation-scope-option--active' : ''}`}
-                role="radio"
-                aria-checked={scope() === 'persistent'}
-                onClick={() => setScope('persistent')}
-                disabled={busy()}
-              >{t('mlearn.ConversationAgent.NewConversation.ScopePersistent')}</Btn>
+              <label class="new-conversation-scope-option" classList={{ 'new-conversation-scope-option--active': scope() === 'sandbox' }}>
+                <input type="radio" name="conversation-scope" role="radio" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')} checked={scope() === 'sandbox'} onChange={() => setScope('sandbox')} disabled={busy()} />
+                {t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')}
+              </label>
+              <label class="new-conversation-scope-option" classList={{ 'new-conversation-scope-option--active': scope() === 'persistent' }}>
+                <input type="radio" name="conversation-scope" role="radio" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopePersistent')} checked={scope() === 'persistent'} onChange={() => setScope('persistent')} disabled={busy()} />
+                {t('mlearn.ConversationAgent.NewConversation.ScopePersistent')}
+              </label>
             </div>
             <Show when={scope() === 'persistent' && !settings.livingWorldEnabled}>
               <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
@@ -289,7 +283,11 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
           )}
         </Show>
         <Show when={error()}>
-          <div class="new-conversation-error">{error()}</div>
+          <div class="new-conversation-error" role="alert">
+            <p>{t(conversationRecoveryKey(error()))}</p>
+            <Btn variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings', context: { section: 'ai' } })}>{t('mlearn.ConversationAgent.Recovery.Settings')}</Btn>
+            <details><summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary><p>{error()}</p></details>
+          </div>
         </Show>
       </div>
     </ModalForm>

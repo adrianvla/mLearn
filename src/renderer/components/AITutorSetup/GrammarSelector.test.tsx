@@ -30,6 +30,7 @@ vi.mock('../../context/LanguageContext', () => ({
 }));
 vi.mock('../../context/FlashcardContext', () => ({
   useFlashcards: () => ({
+    isKnowledgeReady: () => true,
     getGrammarKnowledge: (pattern: string) => (
       pattern === 'seit + Dativ'
         ? { ease: 2.6, timesEncountered: 30, timesFailed: 0, firstSeen: 1, lastSeen: 2, hasActiveEvidence: true }

@@ -7,7 +7,7 @@ import { getWordFormCandidates } from '../../../utils/wordForms';
 import {
   type WordStatus,
 } from '../../subtitle/wordHoverHelpers';
-import { PillBtn } from '../Button';
+import { Btn, PillBtn } from '../Button';
 import { Tooltip } from '../Tooltip';
 import { AnkiModifyWarningModal } from '../../flashcard/AnkiModifyWarningModal';
 import { buildWordStatusSourceLabel, getWordStatusChangeAction } from './wordStatusPillLogic';
@@ -211,7 +211,12 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       {/* Unresolved ≠ Untracked: before the learner projection hydrates the
           pill shows a neutral loading placeholder — claiming Known or reading
           a status from a half-loaded store would present false semantics. */}
-      <KnowledgeGate variant="pill" ready={!projection.loading()}>
+      <Show when={!projection.projection() || projection.projection()?.status === 'ready'} fallback={
+        <Show when={projection.projection()?.status === 'error'} fallback={<span title={t('mlearn.Knowledge.UnavailableHint')}>{t('mlearn.Knowledge.Unavailable')}</span>}>
+        <Btn size="xs" variant="ghost" title={t('mlearn.Knowledge.LoadError')} onClick={event => { event.stopPropagation(); projection.retry(); }}>{t('mlearn.Knowledge.Retry')}</Btn>
+        </Show>
+      }>
+      <KnowledgeGate variant="pill" ready={projection.projection()?.status === 'ready'}>
         <Show when={!props.suppressKnowledgePopover} fallback={pill()}>
           <Tooltip
             interactive
@@ -232,6 +237,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
           >{pill()}</Tooltip>
         </Show>
       </KnowledgeGate>
+      </Show>
       <AnkiModifyWarningModal
         isOpen={showStatusSourceWarning()}
         title={t('mlearn.Knowledge.OverrideWarning.Title')}

@@ -1,3 +1,4 @@
+import { KnowledgeGate, KnowledgeSkeleton } from '../../components/common/KnowledgeGate/KnowledgeGate';
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createSignal, For, Show, untrack } from 'solid-js';
@@ -67,6 +68,8 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
 
   const projected = useKnowledgeProjections(() => ({ language: activeLanguage(), surfaces: Object.keys(resolveLevelStudyWordFrequency({}, activeLanguageData())) }));
 
+  const knowledgeReady = () => flashcards.isKnowledgeReady() && projected.ready();
+
   const buildWordsForLevelSnapshot = (): WordListItem[] => {
     const langData = activeLanguageData();
     const freq = resolveLevelStudyWordFrequency({}, langData);
@@ -95,7 +98,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     settings.easeThresholdLearning * 1000;
     flashcards.isLoading();
     projected.projections();
-    setWordsForLevel(projected.loading() ? [] : buildWordsForLevelSnapshot());
+    setWordsForLevel(knowledgeReady() ? buildWordsForLevelSnapshot() : []);
   });
 
   const selectedWords = createMemo(() => {
@@ -124,6 +127,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
   });
 
   const handleAddFlashcards = async () => {
+    if (!knowledgeReady()) return;
     const words = selectEncounterBatch({
       preset: 'CURRICULUM',
       nowMs: 0,
@@ -186,6 +190,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
       closeOnEscape
       closeOnOverlay
       footer={
+        <Show when={knowledgeReady()}>
         <div class="level-detail-footer">
           <div class="level-detail-footer-actions">
             <span class="level-detail-footer-count">
@@ -203,8 +208,16 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
             </Btn>
           </div>
         </div>
+        </Show>
       }
     >
+      <Show when={!projected.failed()} fallback={
+        <div role="alert">
+          <p>{t('mlearn.Knowledge.LoadError')}</p>
+          <Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn>
+        </div>
+      }>
+      <KnowledgeGate ready={projected.ready()} fallback={<KnowledgeSkeleton />}>
       <div class="level-detail-modal-content">
         <div class="level-detail-status-section">
           <div class="level-detail-status-pills">
@@ -284,6 +297,8 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
           </Show>
         </div>
       </div>
+      </KnowledgeGate>
+      </Show>
     </Modal>
   );
 };

@@ -12,17 +12,21 @@ import { assembleWordKnowledgeModel } from './wordKnowledgeModel';
 /** One lazily queried inspector per window, independent of source-page navigation. */
 export const KnowledgeInspectorHost: Component = () => {
   const { getComprehensiveWordStatusWithSourceSync, setWordClaim, setAccessClaim, clearAccessClaim } = useFlashcards();
-  const { projection } = useKnowledgeProjection(knowledgeInspection);
+  const { projection, retry } = useKnowledgeProjection(knowledgeInspection);
   const [events, setEvents] = createSignal<KnowledgeEvent[]>();
+  const [historyFailed, setHistoryFailed] = createSignal(false);
+  const [historyRetry, setHistoryRetry] = createSignal(0);
   createEffect(() => {
     const inspection = knowledgeInspection();
     eventsVersion();
+    historyRetry();
+    setHistoryFailed(false);
     setEvents(undefined);
     if (!inspection) return;
     let disposed = false;
     void getEvents([`${inspection.language}:${hashWordSync(inspection.surface)}`]).then(
       (value) => { if (!disposed) setEvents(value); },
-      () => { if (!disposed) setEvents([]); },
+      () => { if (!disposed) setHistoryFailed(true); },
     );
     onCleanup(() => { disposed = true; });
   });
@@ -40,6 +44,9 @@ export const KnowledgeInspectorHost: Component = () => {
     target={inspection().target}
     language={inspection().language}
     model={model()}
+    onRetryProjection={retry}
+    historyFailed={historyFailed()}
+    onRetryHistory={() => setHistoryRetry(value => value + 1)}
     policyTrace={inspection().policyTrace}
     policyBrief={inspection().policyBrief}
     onGraph={(entityId) => openGraphInspector({ entityId })}

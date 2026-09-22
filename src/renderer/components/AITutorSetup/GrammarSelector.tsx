@@ -4,7 +4,7 @@
  * Only rendered when the current language supports grammar data.
  */
 
-import { Component, createSignal, createMemo, For } from 'solid-js';
+import { Component, createSignal, createMemo, For, Show } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
 import { useLanguage, type GrammarEntry } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
@@ -14,6 +14,7 @@ import { compareGrammarLevelsForDisplay, getGrammarLevelLabel, getGrammarLevelVi
 import type { WordStatus } from '../../../shared/constants';
 import { effectiveStateFromEntry, effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 import { knowledgeStatusLabelKey } from '../common/WordStatusPillKnowledge/knowledgeSummary';
+import { KnowledgeSkeleton } from '../common/KnowledgeGate/KnowledgeGate';
 import './GrammarSelector.css';
 
 interface GrammarSelectorProps {
@@ -190,13 +191,15 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
                 showCheckmark
               >
                 <p class="grammar-selector__card-meaning">{gp.meaning}</p>
+                <Show when={flashcardCtx.isKnowledgeReady()} fallback={<KnowledgeSkeleton variant="pill" />}>
                 <HoverReveal
                   icon={<span class={`grammar-selector__status grammar-selector__status--${grammarStatus().untracked ? 'untracked' : grammarStatus().status}`}>{statusLabel()}</span>}
-                  label={knowledge() ? `${statusLabel()} · ${failureLabel()}` : statusLabel()}
-                  title={failureLabel()}
+                  label={knowledge() ? failureLabel() : ''}
+                  title={knowledge() ? failureLabel() : statusLabel()}
                   class="grammar-selector__card-meta"
                   onClick={(e) => e.stopPropagation()}
                 />
+                </Show>
               </SelectableCard>
             );
           }}

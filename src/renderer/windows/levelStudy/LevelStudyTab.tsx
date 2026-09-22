@@ -68,7 +68,7 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component = () => {
+export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () => void }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
@@ -112,11 +112,9 @@ export const LevelStudyTab: Component = () => {
   // candidate set is the JOURNAL keys (epistemic source of truth) unioned
   // with the materialized store keys (conservative superset that also
   // covers pre-journal legacy rows). Projections are requested only AFTER
-  // the journal snapshot settles; while it loads, no request is issued. If
-  // the snapshot query FAILS, the store-derived subset becomes the bound
-  // (safe error policy, F-N1) and the resource retries on the next
-  // eventsVersion change.
-  const [journalKeysResource] = createResource(
+  // the journal snapshot succeeds; pending or failed reads cannot establish
+  // authoritative coverage. Requests remain bounded to evidence keys.
+  const [journalKeysResource, { refetch: retryJournalKeys }] = createResource(
     // No `projected.loading` here: journal keys must settle BEFORE the
     // projection request is built (circular otherwise). eventsVersion makes
     // the snapshot refresh after new evidence is appended.
@@ -125,23 +123,14 @@ export const LevelStudyTab: Component = () => {
       : undefined),
     async (source: { language: string; version: number }) => new Set(await queryLanguageKeys(source.language)),
   );
-  // Settled = resolved OR errored: either way the store subset is the safe
-  // bound and the projection request may proceed (never all surfaces).
-  // 'errored' also permits the (store-subset) projection request so stats
-  // stay populated, but it does NOT count as healthy for placement pool
-  // selection: journal-only measured words must not look untracked.
-  const journalKeysSettled = createMemo(() => journalKeysResource.state === 'ready' || journalKeysResource.state === 'errored');
   const journalKeysHealthy = createMemo(() => journalKeysResource.state === 'ready');
   const measuredStorageKeys = createMemo(() => new Set(Object.keys(flashcards.store?.wordKnowledge ?? {})));
   const projectionSurfaces = createMemo(() => {
     const lang = resolvedLanguageData().language;
     if (!lang) return [];
     const freqKeys = Object.keys(frequency());
-    // After settlement a failed journal query falls back to the
-    // store-derived subset ONLY (never the full package — that is the F-N1
-    // fan-out) and never fabricates measured surfaces. While loading, the
-    // query gate withholds the request entirely. An errored resource
-    // throws on access: only a ready snapshot is read.
+    // Only read a successful snapshot. The query below waits for it;
+    // never substitute a partial cache for the evidence authority.
     const keys = new Set(journalKeysResource.state === 'ready' ? journalKeysResource() ?? [] : []);
     for (const key of measuredStorageKeys()) keys.add(key);
     if (keys.size === 0) return [];
@@ -159,11 +148,11 @@ export const LevelStudyTab: Component = () => {
     });
   });
 
-  const projected = useKnowledgeProjections(() => flashcards.isKnowledgeReady() && !language.isLoading() && journalKeysSettled()
+  const projected = useKnowledgeProjections(() => flashcards.isKnowledgeReady() && !language.isLoading() && journalKeysHealthy()
     ? { language: resolvedLanguageData().language, surfaces: projectionSurfaces() } : undefined);
 
   const stats = createMemo(() => {
-    if (flashcards.isLoading() || projected.loading()) return [];
+    if (flashcards.isLoading() || !journalKeysHealthy() || !projected.ready()) return [];
     const resolved = resolvedLanguageData();
     const langData = resolved.data;
     if (!langData) return [];
@@ -336,7 +325,7 @@ export const LevelStudyTab: Component = () => {
    *  after a placement rating bumped eventsVersion. PlacementSession stays
    *  mounted through these flips; this only hides its DOM and stops timing. */
   const placementBooting = createMemo(() => (
-    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || projected.loading() || !journalKeysHealthy()
+    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || !projected.ready() || !journalKeysHealthy()
   ));
 
   const recordPlacementAttempt = (word: string, _level: number, quality: AttemptQuality, timing: AttemptTiming | null) => {
@@ -361,7 +350,7 @@ export const LevelStudyTab: Component = () => {
 
   // Grammar curriculum coverage aggregates over the package's OWN grammar
   // scale (grammarLevels), from the capability-scoped journal.
-  const [grammarLog] = createResource(
+  const [grammarLogResource, { refetch: retryGrammarLog }] = createResource(
     () => (flashcards.isKnowledgeReady() && !language.isLoading() ? { language: resolvedLanguageData().language, version: eventsVersion() } : undefined),
     async (source) => {
       // Grammar rows are ledger-exact (source 'grammar' never aggregates), so
@@ -370,6 +359,8 @@ export const LevelStudyTab: Component = () => {
       return keys.length > 0 ? await getBridge().knowledgeEvents.queryKnowledgeEvents(keys) : {};
     },
   );
+  const grammarLog = () => grammarLogResource.state === 'ready' ? grammarLogResource() : undefined;
+  const requiresGrammar = () => Boolean(resolvedLanguageData().data?.grammar?.length);
   const grammarSummary = createMemo(() => {
     const data = resolvedLanguageData().data;
     const log = grammarLog();
@@ -400,11 +391,12 @@ export const LevelStudyTab: Component = () => {
     void flashcards.reconcileGrammarItems(lang, declaredItemStates(questionBankFromLanguageData(lang, data)));
   });
   const levelComplete = createMemo(() => (
-    coverageTotals().complete && (grammarSummary() === null || grammarSummary()!.complete)
+    coverageTotals().complete && (!requiresGrammar() || grammarSummary()?.complete === true)
   ));
 
   const openBehaviourSettings = () => {
-    getBridge().window.openWindow({ type: 'settings', context: { section: 'behaviour' } });
+    if (props.onEditPlan) props.onEditPlan();
+    else getBridge().window.openWindow({ type: 'level-study' });
   };
 
   // ─── Checkpoints & mocks (R13/R14) ──────────────
@@ -461,15 +453,24 @@ export const LevelStudyTab: Component = () => {
 
   return (
     <div class="level-study-tab">
+      <Show when={journalKeysResource.state === 'errored' || projected.failed()}>
+        <div role="alert">
+          <p>{t('mlearn.Knowledge.LoadError')}</p>
+          <Btn onClick={() => { if (journalKeysResource.state === 'errored') void retryJournalKeys(); else projected.retry(); }}>{t('mlearn.Knowledge.Retry')}</Btn>
+        </div>
+      </Show>
+      <div hidden={props.assessment === true}>
       {/* Level stats are derived from the learner projection and the
           installed frequency data: until both are authoritative, keep the
           tab's geometry with placeholders instead of a blank panel, zeroed
           coverage, or a false empty state. */}
-      <Show when={flashcards.isKnowledgeReady() && !language.isLoading() && !projected.loading()} fallback={
+      <Show when={flashcards.isKnowledgeReady() && !language.isLoading() && journalKeysHealthy() && projected.ready()} fallback={
+        <Show when={journalKeysResource.state !== 'errored' && !projected.failed()}>
         <div class="level-study-boot" aria-busy="true">
           <SkeletonCard lines={2} />
           <SkeletonRows rows={3} />
         </div>
+        </Show>
       }>
         <Show
         when={hasFrequencyData()}
@@ -496,7 +497,7 @@ export const LevelStudyTab: Component = () => {
               </Show>
             </span>
             <span>
-              {coverageTotals().tracked} / {coverageTotals().total} {t('mlearn.LevelStudy.Coverage.Words')}
+              {coverageTotals().tracked} / {coverageTotals().total} {t('mlearn.LevelStudy.Coverage.Words')} · {t('mlearn.LevelStudy.Coverage.Assessed')}
             </span>
           </div>
           <div class="level-card-bar level-study-coverage-progress">
@@ -569,6 +570,11 @@ export const LevelStudyTab: Component = () => {
         </div>
         </Show>
 
+        <Show when={requiresGrammar() && grammarLogResource.state !== 'ready'}>
+          <Show when={grammarLogResource.state === 'errored'} fallback={<SkeletonRows rows={3} />}>
+            <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Btn onClick={() => void retryGrammarLog()}>{t('mlearn.Knowledge.Retry')}</Btn></div>
+          </Show>
+        </Show>
         <Show when={grammarSummary() !== null && grammarSummary()!.total > 0 && grammarLog() !== undefined}>
           <GrammarCoverage
             language={resolvedLanguageData().language}
@@ -605,6 +611,9 @@ export const LevelStudyTab: Component = () => {
           />
       </Show>
       </Show>
+      </div>
+      <div hidden={!props.assessment}>
+      <Show when={props.assessment && placementBooting() && journalKeysResource.state !== 'errored' && !projected.failed()}><div aria-busy="true"><SkeletonRows rows={3} /></div></Show>
       {/* Mounted OUTSIDE the boot gate above: every placement rating appends
           knowledge events, bumps eventsVersion and flips the projections to
           loading — a gate here would unmount the live panel mid-session.
@@ -624,7 +633,8 @@ export const LevelStudyTab: Component = () => {
               pools={placementPools()}
               isWordAtLevel={(word, level) => frequency()[word]?.raw_level === level}
               background={placementBackground()}
-              booting={placementBooting()}
+              booting={placementBooting() || !props.assessment}
+              focused={props.assessment}
               isWordIgnored={(word) => flashcards.isWordIgnoredSync(word, placementLanguage())}
               onAddBackground={addBackground}
               onRemoveBackground={removeBackground}
@@ -636,6 +646,7 @@ export const LevelStudyTab: Component = () => {
           );
         }}
       </Show>
+      </div>
       <Show when={selectedLevel()}>
         {(level) => (
           <LevelDetailModal

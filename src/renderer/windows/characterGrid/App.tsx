@@ -21,6 +21,9 @@ import {
 } from '../../../shared/languageFeatures';
 import { PillLabel, LegendItem, BookIcon, AlertBanner, SkeletonGrid } from '../../components/common';
 import './characterGrid.css';
+import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { surfaceEntityId } from '../../../shared/graph/load';
+import { hashWordSync } from '../../services/srsAlgorithm';
 import { getLogger } from '../../../shared/utils/logger';
 import type { LanguageCharacterStudyConfig } from '../../../shared/types';
 
@@ -86,7 +89,7 @@ export const CharacterGridContent: Component = () => {
   // Character states derive from language metadata AND the learner
   // projection: the unsupported/empty banners and unmeasured cells are only
   // honest once both have settled.
-  const contentPending = () => isLoading() || languageLoading() || !flashcardCtx.isKnowledgeReady() || projected.loading();
+  const contentPending = () => isLoading() || languageLoading() || !flashcardCtx.isKnowledgeReady() || !projected.ready();
   const [characterData, setCharacterData] = createSignal<StudyCharacterData[]>([]);
   const [hoveredCharacter, setHoveredCharacter] = createSignal<StudyCharacterData | null>(null);
   const [hoveredLevel, setHoveredLevel] = createSignal<number | null>(null);
@@ -418,17 +421,22 @@ export const CharacterGridContent: Component = () => {
         <p class="cg-subtitle">
           {characterStudyText('description', 'mlearn.CharacterGrid.Description')}
         </p>
+        <p class="cg-subtitle">{t('mlearn.CharacterGrid.InspectHint')}</p>
       </div>
 
+      <Show when={projected.failed()}>
+        <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><button type="button" onClick={() => projected.retry()}>{t('mlearn.Knowledge.Retry')}</button></div>
+      </Show>
       <div class="cg-main">
         <div class="cg-grid">
           <Show when={!contentPending() && characterData().length > 0}>
             <For each={characterData()}>
               {(item) => (
-                <div
+                <button type="button"
                   class={`cg-cell ${isCharacterDimmed(item) ? 'dimmed' : ''} ${cellClassFor(item)}`}
                   style={{ background: getColorForCharacter(item) }}
-                  tabindex={0}
+                  onClick={() => openKnowledgeInspector({ language: settings.language, surface: item.character,
+                    target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(item.character)) } })}
                   aria-label={`${item.character} — ${stateLabel(item)}`}
                   data-state={displayStateOf(item)}
                   onMouseEnter={() => setHoveredCharacter(item)}
@@ -437,7 +445,7 @@ export const CharacterGridContent: Component = () => {
                   onBlur={() => setHoveredCharacter(null)}
                 >
                   <span class="study-character">{item.character}</span>
-                </div>
+                </button>
               )}
             </For>
           </Show>
@@ -461,7 +469,7 @@ export const CharacterGridContent: Component = () => {
           
           {/* Cell colors encode knowledge state: keep the grid's geometry with
               placeholders instead of rendering unmeasured cells as real. */}
-          <Show when={contentPending()}>
+          <Show when={contentPending() && !projected.failed()}>
             <div aria-busy="true">
               <SkeletonGrid cells={48} />
             </div>
@@ -470,6 +478,8 @@ export const CharacterGridContent: Component = () => {
 
         <div class="cg-sidebar">
           {/* Legend — direct states first (they outrank prediction), then prediction */}
+          <details class="cg-legend-details">
+            <summary>{t('mlearn.CharacterGrid.LegendTitle')}</summary>
           <div class="cg-legend">
             <LegendItem label={t('mlearn.CharacterGrid.Legend.Claimed')} color="var(--color-primary)" />
             <LegendItem label={t('mlearn.CharacterGrid.Legend.EvidencedKnown')} color="var(--color-success)" />
@@ -480,8 +490,10 @@ export const CharacterGridContent: Component = () => {
             <LegendItem label={t('mlearn.CharacterGrid.Legend.Unmeasured')} color="var(--character-grid-unknown-bg)" />
           </div>
 
+          </details>
+
           {/* Stats */}
-          <div class="cg-stats">
+          <Show when={!contentPending()}><div class="cg-stats">
             <div>· {t('mlearn.CharacterGrid.Stats.Evidenced')} <b>{stats().evidenced}</b> <span class="cg-stats-pct">({pct(stats().evidenced)}%)</span></div>
             <div>· {t('mlearn.CharacterGrid.Stats.Claimed')} <b>{stats().claimed}</b> <span class="cg-stats-pct">({pct(stats().claimed)}%)</span></div>
             <div>· {t('mlearn.CharacterGrid.Stats.Familiar')} <b>{stats().familiar}</b> <span class="cg-stats-pct">({pct(stats().familiar)}%)</span></div>
@@ -490,8 +502,10 @@ export const CharacterGridContent: Component = () => {
             <div>· {t('mlearn.CharacterGrid.Stats.TotalFound')} <b>{stats().total}</b></div>
           </div>
 
+          </Show>
+
           {/* Level Pills - dynamically loaded from language data */}
-          <Show when={supportsCharacterStudy() && sortedLevelKeys().length > 0}>
+          <Show when={!contentPending() && supportsCharacterStudy() && sortedLevelKeys().length > 0}>
             <div class="cg-levels">
               <p>{characterStudyText('byLevel', 'mlearn.CharacterGrid.CharactersByLevel')}</p>
               <Show when={showLevelDisclaimer()}>
@@ -529,14 +543,13 @@ export const CharacterGridContent: Component = () => {
       </div>
 
       {/* Tooltip */}
-      <Show when={hoveredCharacter()}>
+      <Show when={!contentPending() && hoveredCharacter()}>
         <div class="cg-tooltip">
           <div class="tooltip-title">
             {t('mlearn.CharacterGrid.Tooltip.WordsContaining', { char: hoveredCharacter()!.character })}
             <span class="tooltip-meta">
               {stateLabel(hoveredCharacter()!)}
-              ({t('mlearn.CharacterGrid.Tooltip.Score')} {Math.round(hoveredCharacter()!.score * 10) / 10},
-              {t('mlearn.CharacterGrid.Tooltip.KnownWords')}: {hoveredCharacter()!.knownCount}, {t('mlearn.CharacterGrid.Tooltip.LearningWords')}: {hoveredCharacter()!.learnCount})
+              · {t('mlearn.CharacterGrid.Tooltip.KnownWords')}: {hoveredCharacter()!.knownCount}, {t('mlearn.CharacterGrid.Tooltip.LearningWords')}: {hoveredCharacter()!.learnCount}
             </span>
           </div>
           <Show when={directNoteKey(hoveredCharacter()!)}>

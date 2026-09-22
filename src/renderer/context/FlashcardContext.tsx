@@ -299,7 +299,7 @@ interface FlashcardContextValue {
   isWordKnownByText: (word: string, language?: string) => boolean;
   isWordLearning: (wordHash: string) => boolean;
   isWordLearningByText: (word: string, language?: string) => boolean;
-  /** Comprehensive word status: checks ALL knowledge banks (knownUntracked, ignored, SRS, passive) */
+  /** Canonical lexical status with explicit exclusion policy kept separate. */
   getComprehensiveWordStatusSync: (word: string, language?: string) => WordStatus;
   /** Comprehensive word status with source attribution */
   getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => import('../../renderer/utils/comprehensiveKnowledge').ComprehensiveWordStatusResult;
@@ -720,8 +720,8 @@ function mergeKnowledgeMaps(local: FlashcardStore, incoming: FlashcardStore): vo
  *
  * 1. knownUntracked ("known words list" bank) → explicit claim:'known' on the
  *    word's knowledge entries + kind:'claim' journal events. The bank stops
- *    being an epistemic source; only unrecoverable orphan hashes remain (see
- *    isKnownClaimed) until storage migrations recover their word text.
+ *    being an epistemic source; unrecoverable orphan hashes remain as inert compatibility data until
+ *    their word text can be recovered. They do not govern live selection.
  * 2. Legacy materialized ease/graduated cards that predate the journal get one
  *    provenance-marked rollup event each, so the projection is rebuildable
  *    from evidence for pre-Tier-2 data.
@@ -2283,12 +2283,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   /**
-   * Known-word gate for creation/suggestion suppression. Claim-known first;
-   * knownUntracked is legacy residue (orphan hashes) kept only until storage
-   * migrations recover their word text — no new writes ever land there.
+   * Only the replayed explicit claim governs creation/suggestion suppression.
+   * Orphan legacy markers have no canonical claim and must not silently veto
+   * actions that Inspect correctly presents as unmeasured. Keep that stored
+   * compatibility data intact for the existing recovery path.
    */
   const isKnownClaimed = (lk: string): boolean =>
-    store.wordKnowledge[lk]?.claim === 'known' || store.knownUntracked[lk] === true;
+    store.wordKnowledge[lk]?.claim === 'known';
 
   /** Passive rows classify by the same anchors as the resolver; source stays passiveTracking so replay never marks lastStatusChange. */
   const passiveEaseToStatus = (ease: number): WordStatus =>
@@ -2650,10 +2651,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const lk = langKey(lang, wordHash);
         const existingCardIds = store.wordToCardMap[lk] ?? [];
 
-        // Preserve-existing-status mode: skip any word that is already tracked in any
-        // knowledge bank (knownUntracked, ignored, SRS, passive) so bulk add never
-        // overwrites learning data. New-state cards resolve to 'unknown' here and fall
-        // through to the existing-card check below.
+        // Preserve-existing-status mode respects canonical knowledge and explicit
+        // exclusion policy. Card ownership is checked separately below.
         if (
           options?.preserveExistingStatus &&
           (() => {

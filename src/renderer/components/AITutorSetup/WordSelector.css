@@ -93,6 +93,8 @@
 }
 
 .word-selector__cell {
+  background: var(--bg-nt-primary);
+  font-family: inherit;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -128,3 +130,7 @@
   text-overflow: ellipsis;
   text-align: center;
 }
+
+.word-selector__item { display: flex; flex-direction: column; gap: var(--spacing-1); }
+.word-selector__inspect { color: var(--text-secondary); background: transparent; border: 0; font: inherit; font-size: var(--font-size-xs); cursor: pointer; padding: var(--spacing-1); }
+.word-selector__cell:focus-visible, .word-selector__inspect:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }

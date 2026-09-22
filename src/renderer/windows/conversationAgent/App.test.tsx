@@ -63,6 +63,17 @@ const mockBridge = {
   },
   world: {
     getWorldState: vi.fn(async () => currentWorld),
+    prepareScenario: vi.fn(async (request: { operationId: string; intent?: string; participantIds: string[] }) => ({
+      operationId: request.operationId, status: 'ready', request, bindings: [],
+      scenario: { scene: { sharedFacts: ['Practice session'], socialConstraints: [] }, participants: [], relationships: [], adaptations: [] },
+    })),
+    activateScenario: vi.fn(async () => {
+      const request = mockBridge.world.prepareScenario.mock.calls.at(-1)![0];
+      const thread = { id: 'thread-tutor', roomId: 'room-a', state: 'active' as const, createdAt: 2, intent: request.intent };
+      currentWorld = { ...currentWorld, threads: [...currentWorld.threads, thread] };
+      return thread;
+    }),
+    cancelScenario: vi.fn(async () => {}),
     createPersistentRoom: vi.fn(async (input: { operationId: string; participantIds: string[] }) => ({ id: 'room-new', title: 'New room', participantIds: input.participantIds, createdByOperation: input.operationId, createdAt: Date.now() })),
     updateThread: vi.fn(async (thread: WorldSnapshot['threads'][number]) => thread),
     clearRoomUnread: vi.fn(async () => {}),
@@ -339,6 +350,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     // different test order.
     mockBridge.llm.llmCheckModel.mockReset().mockResolvedValue(readyModelStatus);
     mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'room-a', threadId: 'thread-a' }));
+    mockBridge.world.prepareScenario.mockClear();
+    mockBridge.world.activateScenario.mockClear();
     mockBridge.world.createPersistentRoom.mockClear();
     mockBridge.world.updateThread.mockClear();
     mockBridge.llm.llmStream.mockClear();
@@ -646,7 +659,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     })));
   });
 
-  it('merges legacy tutor selections into the compiled learner projection', async () => {
+  it('carries tutor purpose and selections into a newly created conversation', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
@@ -660,6 +673,15 @@ describe('conversationAgent window golden path (parity baseline)', () => {
         customInstructions: 'Practice cats',
       },
     });
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form textarea')).not.toBeNull());
+    const intent = (container.querySelector('.new-conversation-form textarea') as HTMLTextAreaElement).value;
+    expect(intent).toContain('Words selected for practice (not evidence of difficulty)');
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.world.prepareScenario).toHaveBeenCalled());
+    await vi.waitFor(() => expect((container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement)?.disabled).toBe(false));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea).toBeTruthy());
     textarea.value = 'hello';
@@ -721,6 +743,15 @@ describe('conversationAgent window golden path (parity baseline)', () => {
         customInstructions: 'Practice dogs',
       },
     });
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form textarea')).not.toBeNull());
+    const intent = (container.querySelector('.new-conversation-form textarea') as HTMLTextAreaElement).value;
+    expect(intent).toContain('Words selected for practice (not evidence of difficulty)');
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.world.prepareScenario).toHaveBeenCalled());
+    await vi.waitFor(() => expect((container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement)?.disabled).toBe(false));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea).toBeTruthy());
     textarea.value = 'hello';

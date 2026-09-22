@@ -791,7 +791,9 @@ describe('WelcomeApp', () => {
     await vi.waitFor(() => {
       expect(container.textContent).toContain('Connection problem');
       expect(container.textContent).toContain('retries and resumes automatically');
-      expect(container.textContent).toContain('getaddrinfo EAI_AGAIN downloads.mlearn.app');
+      const diagnostic = Array.from(container.querySelectorAll('details')).find(node => node.textContent?.includes('getaddrinfo EAI_AGAIN downloads.mlearn.app'));
+      expect(diagnostic).toBeDefined();
+      expect(diagnostic?.open).toBe(false);
     });
 
     dispose();

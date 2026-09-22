@@ -1,7 +1,7 @@
 .grammar-coverage {
-  margin-top: var(--space-4, 16px);
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  border: 1px solid var(--border);
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
 }
 
@@ -26,13 +26,13 @@
 .grammar-coverage__levels {
   display: flex;
   flex-direction: column;
-  margin-top: var(--space-2, 8px);
+  margin-top: 8px;
 }
 
 .grammar-coverage__level-row {
   display: flex;
   align-items: center;
-  gap: var(--space-3, 12px);
+  gap: 12px;
   width: 100%;
   padding: 6px 4px;
   border: none;
@@ -45,7 +45,7 @@
 }
 
 .grammar-coverage__level-row:hover {
-  background: var(--bg-hover, rgba(128, 128, 128, 0.08));
+  background: var(--bg-intense);
 }
 
 .grammar-coverage__level-name {
@@ -58,7 +58,7 @@
   flex: 1;
   height: 8px;
   border-radius: 4px;
-  background: var(--bg-tertiary, rgba(128, 128, 128, 0.15));
+  background: var(--bg-tertiary);
   overflow: hidden;
   display: flex;
 }
@@ -69,11 +69,11 @@
 }
 
 .grammar-coverage__bar-known {
-  background: var(--success, var(--status-known, #4caf50));
+  background: var(--color-success);
 }
 
 .grammar-coverage__bar-measured {
-  background: var(--warning, var(--status-learning, #ffb74d));
+  background: var(--color-warning);
 }
 
 .grammar-coverage__level-counts {
@@ -101,7 +101,7 @@
 }
 
 .grammar-coverage__construction:hover {
-  background: var(--bg-hover, rgba(128, 128, 128, 0.08));
+  background: var(--bg-intense);
 }
 
 .grammar-coverage__pattern {
@@ -120,31 +120,31 @@
   font-size: 0.72rem;
   padding: 1px 8px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color);
   color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .grammar-coverage__state--known {
-  color: var(--success, #4caf50);
-  border-color: var(--success, #4caf50);
+  color: var(--color-success);
+  border-color: var(--color-success);
 }
 
 .grammar-coverage__state--learning {
-  color: var(--warning, #ffb74d);
-  border-color: var(--warning, #ffb74d);
+  color: var(--color-warning);
+  border-color: var(--color-warning);
 }
 
 .grammar-coverage__state--unknown {
-  color: var(--error, #e57373);
-  border-color: var(--error, #e57373);
+  color: var(--color-error);
+  border-color: var(--color-error);
 }
 
 .grammar-coverage__probe {
   display: flex;
   gap: 4px;
   margin-left: auto;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.12s ease;
 }
 
@@ -154,12 +154,12 @@
 }
 
 .grammar-coverage__probe-btn {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color);
   background: none;
   color: inherit;
   font: inherit;
-  font-size: 0.72rem;
-  padding: 2px 8px;
+  font-size: 0.875rem;
+  padding: 8px 12px;
   border-radius: 6px;
   cursor: pointer;
 }
@@ -182,8 +182,8 @@
   background: none;
   color: inherit;
   border-radius: 999px;
-  padding: 2px 12px;
-  font-size: 0.8rem;
+  padding: 8px 14px;
+  font-size: 0.875rem;
   cursor: pointer;
 }
 
@@ -353,3 +353,7 @@
   padding: 4px 10px;
   font-size: 0.9rem;
 }
+
+.grammar-coverage__session { padding: 16px; margin: 12px 0; background: var(--surface-elevated); border-radius: 10px; }
+.grammar-coverage__session-prompt { flex-basis: 100%; font-size: 1rem; line-height: 1.6; }
+.grammar-coverage__construction { flex-wrap: wrap; }

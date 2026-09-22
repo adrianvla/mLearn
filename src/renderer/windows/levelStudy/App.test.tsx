@@ -18,6 +18,7 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
+  Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
   TabContainer: (props: {
     tabs: Array<{ id: string; label: string; icon?: JSX.Element }>;
     activeTab: string;
@@ -57,6 +58,8 @@ vi.mock('../characterGrid/App', () => ({
   CharacterGridContent: () => <div>Character Grid Content</div>,
 }));
 
+vi.mock('./LearningPlanSettings', () => ({ LearningPlanSettings: () => <div>Plan controls</div> }));
+
 vi.mock('./LevelStudyTab', () => ({
   LevelStudyTab: () => <div>Level Study Content</div>,
 }));
@@ -87,6 +90,20 @@ describe('LevelStudyContent', () => {
   afterEach(() => {
     vi.clearAllMocks();
     container.remove();
+  });
+
+  it('starts with the learning plan and launches practice with a route back', async () => {
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent />, container);
+    expect(container.textContent).toContain('Plan controls');
+    expect(container.textContent).not.toContain('Word Sync Content');
+    const practice = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Word Sync');
+    practice?.click();
+    expect(container.textContent).toContain('Word Sync Content');
+    const back = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('mlearn.LearningPlan.Back'));
+    back?.click();
+    expect(container.textContent).toContain('Plan controls');
+    dispose();
   });
 
   it('shows the character grid tab when language metadata enables character study scripts', async () => {

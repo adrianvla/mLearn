@@ -269,8 +269,11 @@ describe('WordDbEditorContent Anki tracking', () => {
 
 vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { projectionFixture } = await import('../../../../test/projectionFixture');
-  return { useKnowledgeProjections: (query: () => { surfaces: string[] }) => ({
+  return { useKnowledgeProjections: (query: () => { surfaces: string[] } | undefined) => ({
     loading: () => false,
-    projections: () => new Map(query().surfaces.map(word => [word, projectionFixture(word === '赤い' ? 'known' : 'unknown', word === '赤い' ? 'evidence' : 'unmeasured')])),
+    ready: () => true,
+    failed: () => false,
+    retry: vi.fn(),
+    projections: () => new Map((query()?.surfaces ?? []).map(word => [word, projectionFixture(word === '赤い' ? 'known' : 'unknown', word === '赤い' ? 'evidence' : 'unmeasured')])),
   }) };
 });

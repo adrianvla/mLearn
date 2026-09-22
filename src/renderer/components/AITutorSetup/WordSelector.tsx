@@ -1,23 +1,10 @@
-/**
- * WordSelector
- * Allows the user to search and select words they want to focus on during an AI tutor session.
- * Shows words from wordKnowledge in a color-coded grid, sorted by ease.
- *
- * Word ordering:
- *  1. Failed words from media (based on counted hover failures, excluding pure numbers)
- *  2. Tracked words the user has interacted with, sorted by ease ascending
- *
- * Extras:
- *  - Custom word entry (type + Enter to add anything not in the list)
- *  - LLM-powered vocabulary generation for a given topic
- */
+/** Manual tutor material selection. Sources supply words, never knowledge classifications. */
 
 import { Component, createSignal, createMemo, For, Show, onMount, onCleanup, batch } from 'solid-js';
 import { useLocalization, useSettings, useLowPowerGate } from '../../context';
 import { useLanguage } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
-import { isDarkColorScheme } from '../../../shared/constants';
 import { streamChat, isLLMReady } from '../../services/llmProvider';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, getLanguagePromptName, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
@@ -31,6 +18,9 @@ import type {
   LLMChatMessage,
 } from '../../../shared/types';
 import './WordSelector.css';
+import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { surfaceEntityId } from '../../../shared/graph/load';
+import { hashWordSync } from '../../services/srsAlgorithm';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.components.wordSelector");
@@ -46,19 +36,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
 
-  /**
-   * Get background color for a word cell based on ease value.
-   * Lower ease = more red/struggling, higher ease = more green/known.
-   */
-  const getWordCellColor = (ease: number, isDarkMode: boolean): string => {
-    // Unassessed words (generated/custom) get a neutral color
-    if (ease < 0) return isDarkMode ? 'rgba(160, 160, 160, 0.25)' : 'rgba(160, 160, 160, 0.18)';
-    if (ease < settings.easeThresholdUnknown) return isDarkMode ? 'rgba(255, 60, 89, 0.45)' : 'rgba(255, 60, 89, 0.25)';
-    if (ease < settings.easeThresholdLearning) return isDarkMode ? 'rgba(255, 141, 60, 0.45)' : 'rgba(255, 141, 60, 0.25)';
-    if (ease < settings.easeThresholdKnown) return isDarkMode ? 'rgba(255, 200, 60, 0.40)' : 'rgba(255, 200, 60, 0.25)';
-    if (ease < settings.easeThresholdMastered) return isDarkMode ? 'rgba(66, 214, 49, 0.35)' : 'rgba(66, 214, 49, 0.2)';
-    return isDarkMode ? 'rgba(66, 214, 49, 0.5)' : 'rgba(66, 214, 49, 0.3)';
-  };
   const { getFrequency, getFreqLevelNames, langData, currentLangData } = useLanguage();
   const flashcardCtx = useFlashcards();
   const { requestAccess } = useLowPowerGate();
@@ -84,7 +61,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   let abortGeneration: (() => void) | null = null;
   const [wordGridRef, setWordGridRef] = createSignal<HTMLDivElement | undefined>(undefined);
 
-  const isDark = () => isDarkColorScheme(settings.colorScheme);
 
   const languageDataFor = (language: string) => resolveWordSelectorLanguageData(
     language,
@@ -103,8 +79,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   onMount(() => {
     const bridge = getBridge();
     const cleanup = bridge.mediaStats.onMediaStatsList((stats) => {
-      const filtered = stats.filter(s => s.language === settings.language);
-      setMediaStats(filtered);
+      setMediaStats(stats);
     });
     bridge.mediaStats.listMediaStats();
     onCleanup(cleanup);
@@ -115,16 +90,17 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     if (abortGeneration) abortGeneration();
   });
 
-  // Extract all words from media stats, deduplicated, sorted by ease
+  // Media contributes candidate text only; its historical ease is not present knowledge.
   const mediaWords = createMemo((): PassiveWordKnowledge[] => {
     const wordMap = new Map<string, PassiveWordKnowledge>();
 
     for (const media of mediaStats()) {
+      if (media.language !== settings.language) continue;
       for (const entry of Object.values(media.wordsEncountered)) {
         if (!isValidWordForCurrentLanguage(entry.word)) continue;
-        // Keep the entry with the lowest ease if duplicated across media
+        // Deduplicate source text without ranking by historical ease.
         const existing = wordMap.get(entry.word);
-        if (!existing || entry.ease < existing.ease) {
+        if (!existing) {
           wordMap.set(entry.word, {
             word: entry.word,
             ease: entry.ease,
@@ -136,7 +112,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       }
     }
 
-    return Array.from(wordMap.values()).sort((a, b) => a.ease - b.ease);
+    return Array.from(wordMap.values());
   });
 
   // All tracked words from wordKnowledge for the current language
@@ -148,13 +124,12 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     for (const key of Object.keys(knowledge)) {
       const entry = knowledge[key];
       if (!entry) continue;
-      if (entry.language && entry.language !== lang) continue;
+      if ((entry.language ?? key.split(':')[0]) !== lang) continue;
       if (!isValidWordForLanguage(entry.word, lang)) continue;
       items.push(entry);
     }
 
-    // Sort by ease ascending (least known first)
-    return items.sort((a, b) => a.ease - b.ease);
+    return items;
   });
 
   // Words from flashcards for the current language
@@ -166,7 +141,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     for (const id of Object.keys(cards)) {
       const card = cards[id];
       if (!card) continue;
-      if (card.language && card.language !== lang) continue;
+      if (card.language !== lang) continue;
       const word = card.content.front || card.content.word;
       if (!word || !isValidWordForLanguage(word, lang)) continue;
       items.push({
@@ -182,7 +157,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     return items;
   });
 
-  // Combined word list: media + tracked + flashcards, deduplicated, sorted by ease (least known first)
+  // Combine source text for manual selection, with stable alphabetical ordering.
   const allWords = createMemo((): PassiveWordKnowledge[] => {
     const media = mediaWords();
     const wordMap = new Map<string, PassiveWordKnowledge>();
@@ -192,10 +167,10 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       wordMap.set(w.word, w);
     }
 
-    // Add tracked words (keep lowest ease if duplicated)
+    // Prefer a saved reading where available without interpreting source ease.
     for (const w of trackedWords()) {
       const existing = wordMap.get(w.word);
-      if (!existing || w.ease < existing.ease) {
+      if (!existing || (!existing.reading && w.reading)) {
         wordMap.set(w.word, w);
       }
     }
@@ -203,7 +178,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     // Add flashcard words
     for (const w of flashcardWords()) {
       const existing = wordMap.get(w.word);
-      if (!existing || w.ease < existing.ease) {
+      if (!existing || (!existing.reading && w.reading)) {
         wordMap.set(w.word, w);
       }
     }
@@ -222,9 +197,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       }
     }
 
-    // Sort by ease ascending (least known first)
-    return Array.from(wordMap.values())
-      .sort((a, b) => a.ease - b.ease);
+    return Array.from(wordMap.values()).sort((a, b) => a.word.localeCompare(b.word));
   });
 
   // Available frequency levels for filter pills
@@ -291,14 +264,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
 
     return [...selectedItems, ...unselectedItems];
   });
-
-  const legendItems = createMemo(() => ([
-    { key: 'unassessed', color: getWordCellColor(-1, isDark()) },
-    { key: 'hard', color: getWordCellColor(1.4, isDark()) },
-    { key: 'struggling', color: getWordCellColor(1.9, isDark()) },
-    { key: 'reviewing', color: getWordCellColor(2.4, isDark()) },
-    { key: 'known', color: getWordCellColor(3.2, isDark()) },
-  ]));
 
   const toggleWord = (w: PassiveWordKnowledge) => {
     const isSelected = selectedWords().has(w.word);
@@ -574,20 +539,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
           allLabel={t('mlearn.AITutorSetup.AllLevels')}
         />
 
-        <div class="word-selector__legend" role="group" aria-label={t('mlearn.AITutorSetup.WordEaseLegendTitle')}>
-          <span class="word-selector__legend-title">{t('mlearn.AITutorSetup.WordEaseLegendTitle')}</span>
-          <For each={legendItems()}>
-            {(item) => (
-              <div class="word-selector__legend-item">
-                <span class="word-selector__legend-swatch" style={{ background: item.color }} />
-                <span class="word-selector__legend-label">
-                  {t(`mlearn.AITutorSetup.WordEaseLegend.${item.key}`)}
-                </span>
-              </div>
-            )}
-          </For>
-        </div>
-
         {/*<Show when={props.selected.length > 0}>*/}
           <HintText>{t('mlearn.AITutorSetup.ItemsSelected', { count: String(props.selected.length) })}</HintText>
         {/*</Show>*/}
@@ -605,15 +556,15 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       >
         <For each={filteredWords()}>
           {(w) => (
-            <div
+            <div class="word-selector__item"><button type="button"
               class={`word-selector__cell ${selectedWords().has(w.word) ? 'selected' : ''}`}
-              style={{ background: getWordCellColor(w.ease, isDark()) }}
               onClick={() => toggleWord(w)}
               title={w.reading ? `${w.word} (${w.reading})` : w.word}
-              role="button"
-              tabIndex={0}
+              aria-pressed={selectedWords().has(w.word)}
             >
               <span class="word-selector__cell-text">{w.word}</span>
+            </button>
+            <button type="button" class="word-selector__inspect" onClick={() => openKnowledgeInspector({ language: settings.language, surface: w.word, target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(w.word)) } })}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
             </div>
           )}
         </For>

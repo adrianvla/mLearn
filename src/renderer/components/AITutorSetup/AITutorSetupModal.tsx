@@ -3,7 +3,7 @@
  * Modal for configuring an AI tutor session — grammar, words, media, and custom instructions.
  */
 
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal, Show, For } from 'solid-js';
 import { useLocalization } from '../../context';
 import { useLanguage } from '../../context/LanguageContext';
 import { Modal, Btn, Textarea, HintText, TabContainer } from '../common';
@@ -24,6 +24,8 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
   const { t } = useLocalization();
   const { supportsGrammar } = useLanguage();
 
+  const [intent, setIntent] = createSignal('IntentPlan');
+  const [advanced, setAdvanced] = createSignal(false);
   const [activeTab, setActiveTab] = createSignal('grammar');
   const [selectedGrammar, setSelectedGrammar] = createSignal<TutorGrammarSelection[]>([]);
   const [selectedWords, setSelectedWords] = createSignal<TutorWordSelection[]>([]);
@@ -50,10 +52,6 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
         id: 'media',
         label: t('mlearn.AITutorSetup.MediaTab'),
         badge: selectedMedia().length || undefined,
-      },
-      {
-        id: 'instructions',
-        label: t('mlearn.AITutorSetup.InstructionsTab'),
       }
     );
     return items;
@@ -70,7 +68,7 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
       selectedGrammar: selectedGrammar(),
       selectedWords: selectedWords(),
       selectedMedia: selectedMedia(),
-      customInstructions: customInstructions(),
+      customInstructions: [t(`mlearn.AITutorSetup.${intent()}`), customInstructions().trim()].filter(Boolean).join('\n\n'),
     };
     props.onStart(config);
     // Reset state after starting
@@ -80,6 +78,8 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
     setSelectedMedia([]);
     setCustomInstructions('');
     setActiveTab('grammar');
+    setIntent('IntentPlan');
+    setAdvanced(false);
   };
 
   const footer = (
@@ -103,6 +103,23 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
       footer={footer}
     >
       <div class="ai-tutor-setup-modal__body">
+        <p>{t('mlearn.AITutorSetup.IntentDescription')}</p>
+        <fieldset class="ai-tutor-setup-modal__intents">
+          <legend>{t('mlearn.AITutorSetup.IntentTitle')}</legend>
+          <For each={['IntentPlan', 'IntentConversation', 'IntentTopic']}>{key =>
+            <label classList={{ 'is-selected': intent() === key }}>
+              <input type="radio" name="tutor-purpose" checked={intent() === key} onChange={() => setIntent(key)} />
+              <span>{t(`mlearn.AITutorSetup.${key}`)}</span>
+            </label>
+          }</For>
+        </fieldset>
+        <div class="ai-tutor-setup-modal__instructions">
+          <label for="tutor-session-request">{t('mlearn.AITutorSetup.InstructionsLabel')}</label>
+          <Textarea id="tutor-session-request" value={customInstructions()} onInput={e => setCustomInstructions(e.currentTarget.value)} placeholder={t('mlearn.AITutorSetup.InstructionsPlaceholder')} rows={3} />
+        </div>
+        <Btn variant="ghost" aria-expanded={advanced()} onClick={() => setAdvanced(!advanced())}>{t('mlearn.AITutorSetup.Advanced')}</Btn>
+        <Show when={advanced()}>
+        <HintText>{t('mlearn.AITutorSetup.AdvancedDescription')}</HintText>
         <TabContainer
           tabs={tabs()}
           activeTab={effectiveTab()}
@@ -135,18 +152,9 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
             />
           </Show>
 
-          <Show when={effectiveTab() === 'instructions'}>
-            <div class="ai-tutor-setup-modal__instructions">
-              <HintText>{t('mlearn.AITutorSetup.InstructionsLabel')}</HintText>
-              <Textarea
-                value={customInstructions()}
-                onInput={(e) => setCustomInstructions(e.currentTarget.value)}
-                placeholder={t('mlearn.AITutorSetup.InstructionsPlaceholder')}
-                rows={6}
-              />
-            </div>
-          </Show>
+
         </div>
+        </Show>
       </div>
     </Modal>
   );

@@ -9,7 +9,7 @@
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { isDesktop } from '../../shared/platform';
+import { getOS, isDesktop } from '../../shared/platform';
 import { getBridge } from '../../shared/bridges';
 
 // Vite resolves these to hashed asset URLs at build time, and serves them
@@ -74,7 +74,7 @@ export async function fetchVideoData(videoUrl: string, maxBytes?: number): Promi
     }
     filePath = decodeURIComponent(filePath);
     log.info('[VideoClip] fetchVideoData: detected local-media scheme, raw path=', filePath);
-    if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
+    if (getOS() === 'windows' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
       filePath = filePath.slice(1);
       log.info('[VideoClip] fetchVideoData: Windows path corrected to=', filePath);
     }

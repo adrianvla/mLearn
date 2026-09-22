@@ -12,6 +12,8 @@ import { hashWordSync } from '../../services/srsAlgorithm';
 let languageDataMock: LanguageData | null = null;
 let settingsLanguageMock = 'ar';
 const addLevelStudyFlashcardsMock = vi.fn();
+const [queryFailed, setQueryFailed] = createSignal(false);
+const retryQuery = vi.fn(() => setQueryFailed(false));
 const [flashcardsLoading, setFlashcardsLoading] = createSignal(false);
 const storeMock = {
   flashcards: {} as Record<string, unknown>,
@@ -54,6 +56,7 @@ vi.mock('../../context', () => ({
       knownEaseThreshold: 3.5, learningThreshold: 1.5,
     }),
     isLoading: () => flashcardsLoading(),
+    isKnowledgeReady: () => !flashcardsLoading(),
     addLevelStudyFlashcards: addLevelStudyFlashcardsMock,
   }),
   useLanguage: () => ({
@@ -108,6 +111,8 @@ describe('LevelDetailModal', () => {
     settingsLanguageMock = 'ar';
     addLevelStudyFlashcardsMock.mockReset();
     setFlashcardsLoading(false);
+    setQueryFailed(false);
+    retryQuery.mockClear();
     storeMock.flashcards = {};
     storeMock.wordToCardMap = {};
     storeMock.wordKnowledge = {};
@@ -226,6 +231,21 @@ describe('LevelDetailModal', () => {
     dispose();
   });
 
+  it('shows retry instead of empty counts after a failed projection', async () => {
+    languageDataMock = makeLanguageData({ freq: [['surface', '', 1]] });
+    setQueryFailed(true);
+    const { LevelDetailModal } = await import('./LevelDetailModal');
+    const dispose = render(() => <LevelDetailModal level={1} levelName="Level 1"
+      language="pkg" languageData={languageDataMock} onClose={() => undefined} />, container);
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(container.querySelector('.level-detail-footer-count')).toBeNull();
+    expect(container.textContent).not.toContain('mlearn.LevelStudy.DetailModal.NoWords');
+    (container.querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    expect(retryQuery).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('surface');
+    dispose();
+  });
+
   it('rebuilds the word list when the flashcard store finishes loading', async () => {
     languageDataMock = makeLanguageData({
       name: 'Arabic',
@@ -248,7 +268,7 @@ describe('LevelDetailModal', () => {
     });
     const { LevelDetailModal } = await import('./LevelDetailModal');
 
-    // The store is still loading, so the snapshot resolves every word as untracked.
+    // Pending knowledge must not be presented as untracked words or zero selection.
     setFlashcardsLoading(true);
     const dispose = render(() => (
       <LevelDetailModal
@@ -259,7 +279,10 @@ describe('LevelDetailModal', () => {
         onClose={() => undefined}
       />
     ), container);
-    expect(container.textContent).toContain('بيت');
+    expect(container.textContent).not.toContain('بيت');
+    expect(container.querySelector('.level-detail-footer-count')).toBeNull();
+    expect(container.textContent).not.toContain('mlearn.LevelStudy.DetailModal.NoWords');
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
 
     // The store lands with the word explicitly rated known (ease 4 >= known threshold 3.5,
     // with active evidence — the Tier-2 honest-Known gate).
@@ -286,6 +309,9 @@ vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { projectionFixture } = await import('../../../../test/projectionFixture');
   return { useKnowledgeProjections: (query: () => { language: string; surfaces: string[] } | undefined) => ({
     loading: () => false,
+    ready: () => !queryFailed(),
+    failed: queryFailed,
+    retry: retryQuery,
     projections: () => new Map((query()?.surfaces ?? []).map(word => {
       const ctx = useFlashcards();
       const state = ctx.getComprehensiveWordStatusWithSourceSync?.(word, query()!.language);

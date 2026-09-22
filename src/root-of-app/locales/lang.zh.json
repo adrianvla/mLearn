@@ -331,7 +331,14 @@
         "known": "已掌握"
       },
       "WordEaseLegendTitle": "单词熟悉度：",
-      "WordsTab": "单词"
+      "WordsTab": "单词",
+      "IntentTitle": "想练习什么？",
+      "IntentDescription": "导师会根据学习目标和已有的学习记录指导练习。你可以添加话题或选择具体材料。",
+      "IntentPlan": "帮助我朝学习目标进步。",
+      "IntentConversation": "和我练习日常对话。",
+      "IntentTopic": "帮助我探索自己选择的话题。",
+      "Advanced": "选择具体材料",
+      "AdvancedDescription": "可选：选择单词、语法或媒体作为练习重点。这些选择不会改变已评估的知识状态。"
     },
     "About": {
       "Description": "mLearn 是一款通过沉浸式学习帮助您学习语言的工具。观看视频、阅读漫画，通过智能字幕和间隔重复自然地学习词汇。",
@@ -893,7 +900,7 @@
         "CloseAria": "关闭对话菜单",
         "Details": "对话详情",
         "Settings": "设置",
-        "MemoryBrowser": "记忆浏览器"
+        "MemoryBrowser": "记忆"
       },
       "Call": {
         "StartAria": "开始通话"
@@ -965,6 +972,13 @@
         "UnmutePersonContact": "取消此人静音",
         "MuteCalls": "将来电静音",
         "AllowCalls": "允许来电"
+      },
+      "Recovery": {
+        "Model": "AI模型尚未准备好。请在AI设置中选择或修复模型，然后重试。",
+        "SignIn": "请在AI设置中重新登录，然后重试此对话。",
+        "Connection": "无法连接AI服务。请检查网络和AI设置，然后重试。",
+        "Generic": "无法继续对话。请重试；如果问题持续，请检查AI设置。",
+        "Settings": "打开AI设置"
       }
     },
     "ErrorModal": {
@@ -974,7 +988,7 @@
       "Messages": {
         "AnkiConnectionFailed": "无法连接到 Anki。请确保 Anki 正在运行且已安装 AnkiConnect，或禁用 Anki 集成。",
         "AnkiNoValidCards": "已连接到 Anki，但未找到有效卡片。请在设置中检查您的牌组和字段配置。",
-        "BackendStopped": "后端服务器意外停止。请重新启动应用程序。",
+        "BackendStopped": "无法启动学习工具。请重试，或打开技术详情查看诊断信息。",
         "FileNotFound": "未找到所需文件。请尝试重新安装应用程序。",
         "PermissionDenied": "权限被拒绝。请检查系统权限或以管理员权限运行应用程序。",
         "PortInUse": "另一个应用程序正在使用所需端口。请关闭其他 mLearn 实例或重新启动计算机。"
@@ -1086,7 +1100,8 @@
           "Submit": "添加卡片",
           "Title": "添加新闪卡",
           "WordLabel": "单词",
-          "WordPlaceholder": "输入单词…"
+          "WordPlaceholder": "输入单词…",
+          "Error": "无法保存卡片。输入内容仍在，请重试。"
         },
         "DeleteCard": {
           "Confirm": "确定要删除此闪卡吗？此操作无法撤销。",
@@ -1327,7 +1342,7 @@
         "Adding": "添加中…",
         "LoadingLanguageData": "正在加载语言数据…",
         "LoadingSettings": "正在加载设置…",
-        "StartingBackend": "正在启动后端…"
+        "StartingBackend": "正在准备学习工具…"
       },
       "Success": "成功",
       "Time": {
@@ -1398,7 +1413,7 @@
         },
         "WordDatabase": {
           "Description": "浏览词汇和学习记录",
-          "Title": "单词数据库",
+          "Title": "词汇",
           "EmptyHint": "搜索单词",
           "NoMatches": "未找到匹配项",
           "LookupHint": "按 Enter 键查找「{query}」"
@@ -1416,8 +1431,8 @@
           "Title": "单词同步"
         },
         "LevelStudy": {
-          "Description": "单词同步、字符网格和等级学习集中在一处",
-          "Title": "等级学习"
+          "Description": "设置课程、学习目标和学习节奏。",
+          "Title": "学习计划"
         }
       },
       "Errors": {
@@ -1453,16 +1468,16 @@
       },
       "Components": {
         "ExplainAi": {
-          "Description": "安装本地 LLM 神经网络。取消勾选可跳过约 3 GB 的依赖项。",
-          "Title": "安装 mLearn 解释 AI 模块"
+          "Description": "在此设备上运行 AI 对话和讲解。您可以在 AI 设置中配置云端或自托管服务。",
+          "Title": "本地 AI 导师"
         },
         "Reader": {
-          "Description": "安装用于阅读漫画/图片的 OCR 功能。取消勾选可跳过约 2 GB 的依赖项。",
-          "Title": "安装 mLearn 阅读器模块"
+          "Description": "读取图片和扫描文档中的文字。普通文本文档无需此可选组件即可使用。",
+          "Title": "文字识别"
         },
         "Voice": {
-          "Description": "安装语音识别、文本转语音和语音克隆。取消勾选可跳过约 4 GB 的依赖项。",
-          "Title": "安装语音和 TTS 模块"
+          "Description": "添加本地语音识别和语音回复，用于听力和口语练习。",
+          "Title": "口语练习"
         }
       },
       "Instructions": {
@@ -1707,17 +1722,21 @@
         "Prefix": "证据来源：",
         "None": "无"
       },
-      "Unmeasured": "尚未评估"
+      "Unmeasured": "尚未评估",
+      "LoadError": "无法加载你的学习情况，请重试。",
+      "Retry": "重试",
+      "Unavailable": "暂不可用",
+      "UnavailableHint": "此设备暂不支持显示该语言的详细学习情况。"
     },
     "LevelStudy": {
-      "Title": "等级学习",
+      "Title": "学习计划",
       "Tabs": {
         "WordSync": "单词同步",
         "CharacterGrid": "字符网格",
-        "LevelStudy": "等级学习"
+        "LevelStudy": "学习计划"
       },
       "EmptyState": {
-        "Title": "等级学习",
+        "Title": "学习计划",
         "Description": "按等级学习单词。跟踪进度并添加到闪卡。"
       },
       "Coverage": {
@@ -1725,9 +1744,9 @@
         "Assessed": "已评估",
         "UpTo": "学习级别以内的单词",
         "AllLevels": "所有级别的单词",
-        "SetLevelHint": "在设置中设定学习级别",
+        "SetLevelHint": "学习目标",
         "Words": "个单词",
-        "Complete": "所有等级单词已追踪!",
+        "Complete": "此范围内的所有词汇均已评估。",
         "Hint": "点击下方等级查看并添加单词"
       },
       "Grammar": {
@@ -1750,8 +1769,8 @@
         "Correct": "正确！",
         "Incorrect": "不完全对 — 答案是：{answer}",
         "Next": "下一个",
-        "NoLocks": "语法练习需要跨窗口锁；此浏览器不支持。",
-        "StorageUnavailable": "存储拒绝了此次写入（配额或隐私模式）。该操作未被记录；可以重试。",
+        "NoLocks": "此浏览器无法安全保存练习。请在支持的浏览器或桌面应用中打开mLearn。",
+        "StorageUnavailable": "无法保存你的答案。请检查存储空间是否可用，然后重试。",
         "ModeLabel": "作答方式",
         "ModeMcq": "选择",
         "ModeType": "输入",
@@ -1781,8 +1800,8 @@
         "TotalWords": "{count} 个单词",
         "Known": "已掌握",
         "Learning": "学习中",
-        "Unknown": "未知",
-        "Untracked": "未追踪",
+        "Unknown": "需要练习",
+        "Untracked": "尚未评估",
         "ClickToView": "点击查看单词",
         "ViewWords": "查看单词",
         "BeyondExam": "超出考纲"
@@ -1848,16 +1867,17 @@
         "EmptyPools": "当前没有可供抽样的未测单词。",
         "DateRequired": "考试或学校成绩需要填写取得日期。",
         "DateUnknown": "日期未知",
-        "NoLocks": "此处置位不可用：此会话没有跨窗口锁。",
-        "NoStorage": "此处无法使用定级：会话无法保存（存储已满或隐私模式）。"
+        "NoLocks": "此浏览器无法安全保存练习。请在支持的浏览器或桌面应用中打开mLearn。",
+        "NoStorage": "此处无法使用定级：会话无法保存（存储已满或隐私模式）。",
+        "LiveProgress": "进度：{count}个词。评估会根据你的回答进行调整。你可以返回学习计划，稍后继续。"
       },
       "Mock": {
-        "Title": "检查点与模拟测试",
-        "Subtitle": "由已安装的语言包导出的固定声明式蓝图。结果显示出处 — 绝非官方分数。",
-        "ProviderChip": "mlearn派生",
+        "Title": "学习检查",
+        "Subtitle": "通过限时练习检查进度。这是学习活动，不是官方考试成绩。",
+        "ProviderChip": "练习组",
         "Start": "开始",
         "BlueprintMeta": "{sections} 个部分 · {draw} 题 · 每题 {seconds} 秒 · 闭卷",
-        "FreshFirst": "优先使用未见过的题目家族",
+        "FreshFirst": "优先使用新的题目组",
         "Progress": "第 {index}/{total} 题",
         "TimeLeft": "剩余 {seconds} 秒",
         "PausedNote": "已暂停 — 计时停止；暂停会被记录。",
@@ -1865,38 +1885,38 @@
         "Resume": "继续",
         "Abandon": "放弃",
         "PausePolicy": "暂停会被记录并从计时中排除；超时的题目保持未答。",
-        "NoItems": "该级别尚无可用的题目 — 请先在语法部分运行独立验证。",
+        "NoItems": "此练习组尚未准备好。请选择其他级别或进行语法练习。",
         "NoBlueprints": "该语言包还没有声明的蓝图。",
         "ResultsTitle": "结果 — {level}",
         "Abandoned": "已放弃",
         "Answered": "已答：{count}",
         "Correct": "正确：{count}",
         "TimedOut": "未答（超时）：{count}",
-        "HeldOut": "未见家族：{count}",
-        "RehearsedBackfill": "练习补足：{count}",
+        "HeldOut": "新题组：{count}",
+        "RehearsedBackfill": "已练习题组：{count}",
         "BlueprintVersion": "蓝图 {version}",
         "ContentVersion": "语言包 {version}",
         "Seed": "种子 {seed}",
         "ActiveTime": "有效用时 {seconds} 秒",
         "PausedTime": "暂停 {seconds} 秒 · {count} 次",
         "SectionCol": "部分",
-        "DrawCol": "声明题量",
+        "DrawCol": "计划题数",
         "AnsweredCol": "已答",
         "CorrectCol": "正确",
         "TimedOutCol": "超时",
         "Assembled": "已组成 {assembled}/{requested}",
         "Constructions": "句式",
-        "AvailabilityGap": "部分部分无法组成声明的题量 — 缺口如实报告，绝不替补。",
+        "AvailabilityGap": "部分章节的可用题目较少。结果仅计算实际显示的题目。",
         "MissedPatterns": "答错的句式",
         "NoMissed": "已答题目中没有错误。",
-        "Repair": "练习这些（同一策略流程）",
+        "Repair": "练习答错的内容",
         "Discuss": "在会话中聊聊这些",
         "ResultsDisclaimer": "一次正确选择只是一次成功的尝试，不代表完全掌握。结果仅用于诊断，绝非官方分数。",
-        "BackToBlueprints": "返回蓝图列表",
+        "BackToBlueprints": "返回练习组",
         "Summaries": "最近的结果",
         "SummaryCounts": "{correct}/{answered} 正确 · {timedOut} 未答",
-        "NoLocks": "模拟测验需要跨窗口锁；此浏览器不支持该功能。",
-        "StorageUnavailable": "存储拒绝了此次写入（配额或隐私模式）。该回答未被记录；此题仍可重试。"
+        "NoLocks": "此浏览器无法安全保存练习。请在支持的浏览器或桌面应用中打开mLearn。",
+        "StorageUnavailable": "无法保存你的答案。请检查存储空间是否可用，然后重试。"
       }
     },
     "Languages": {
@@ -1939,19 +1959,20 @@
     },
     "MemoryBrowser": {
       "Empty": "暂无记忆条目。",
-      "Title": "记忆浏览器",
-      "Open": "打开记忆浏览器",
-      "OpenInAgent": "记忆浏览器",
+      "Title": "记忆",
+      "Open": "打开记忆",
+      "OpenInAgent": "记忆",
       "Sections": {
-        "Beliefs": "信念",
-        "Episodes": "片段",
-        "OpenLoops": "未完成循环",
+        "Beliefs": "记住的内容",
+        "Episodes": "过去的经历",
+        "OpenLoops": "未解决的问题和计划",
         "Relationships": "关系",
-        "RoomCulture": "房间文化"
+        "RoomCulture": "共享背景"
       },
       "Tabs": {
-        "Room": "房间"
-      }
+        "Room": "共享视角"
+      },
+      "LoadError": "无法加载记忆，请重试。"
     },
     "Notifications": {
       "AnkiCacheLoaded": "从缓存加载了 Anki 闪卡（Anki 似乎离线）",
@@ -2082,7 +2103,13 @@
         "SinglePage": "单页",
         "SpreadLeftToRight": "页面 左→右",
         "SpreadRightToLeft": "页面 右→左",
-        "ToggleUnknownWordsSidebar": "切换未知单词侧边栏"
+        "ToggleUnknownWordsSidebar": "切换未知单词侧边栏",
+        "ToggleContents": "切换目录",
+        "PreviousPage": "上一页",
+        "NextPage": "下一页",
+        "PageFit": "页面适应方式",
+        "PageLayout": "页面布局",
+        "PageOrder": "页面顺序"
       },
       "UI": {
         "Tips": {
@@ -2298,7 +2325,7 @@
         "WordStatus": "单词状态",
         "Behaviour": "行为",
         "WordKnowledge": "单词知识",
-        "LanguageProficiency": "语言水平",
+        "LanguageProficiency": "学习计划",
         "SuggestedFlashcards": "推荐闪卡",
         "WordColors": "单词着色"
       },
@@ -2355,14 +2382,14 @@
       "Behaviour": {
         "SessionIntensity": {
           "Label": "学习强度",
-          "Description": "决定练习推荐的内容——轻松档侧重已掌握内容的巩固，强化档减少填充。不会影响你的评分或记录。",
+          "Description": "选择适合自己的节奏。轻松模式包含更多熟悉内容的练习；强化模式更注重需要巩固的内容。这不会改变你的知识评估。",
           "Gentle": "轻松",
           "Steady": "标准",
           "Intensive": "强化"
         },
         "ExamGoal": {
           "Label": "考试目标",
-          "Description": "设定个人考试目标；临近截止日期时，推荐会向巩固与修补倾斜。",
+          "Description": "设定个人考试目标。随着考试日期临近，练习会更加注重复习和需要加强的内容。",
           "None": "无",
           "Exam": "考试",
           "Target": {
@@ -2373,7 +2400,8 @@
           "Deadline": {
             "Label": "考试日期",
             "Description": "最后六周内，推荐会最看重巩固。"
-          }
+          },
+          "OtherLanguage": "此考试目标属于另一种学习语言。编辑不会更改所属语言。请先选择“无”，再为当前语言设定目标。"
         },
         "RatingKeyboardMode": {
           "Label": "评分键盘模式",
@@ -2391,9 +2419,9 @@
           "Description": "选择此词频表所使用的等级名称体系。"
         },
         "LearningLanguageLevel": {
-          "Label": "学习语言等级",
-          "Description": "设置后，高于此等级的推荐闪卡以及无等级的卡片将不会被保存。同时影响单词同步的难度。",
-          "NoLimit": "无限制"
+          "Label": "学习目标",
+          "Description": "选择你想达到的目标。这不会将内容标记为已掌握。",
+          "NoLimit": "所有级别"
         },
         "AutoSuggestFlashcards": {
           "Label": "自动推荐闪卡",
@@ -2890,7 +2918,8 @@
         "ColorKnownWords": {
           "Description": "禁用后，已经认识的单词将不着色",
           "Label": "为已知单词着色"
-        }
+        },
+        "TechnicalCalibration": "用于复习计划和导入卡片熟悉程度的校准。这些数值阈值不会将被动接触转换为已评估的知识。"
       },
       "About": {
         "Licenses": "许可协议",
@@ -2981,7 +3010,7 @@
         "Statistics": "统计",
         "VideoPlayer": "视频播放器",
         "BrowserExtension": "浏览器扩展",
-        "EventAudit": "事件日志"
+        "EventAudit": "开发者日志"
       },
       "SearchPlaceholder": "搜索设置..."
     },
@@ -3026,9 +3055,9 @@
     },
     "Statistics": {
       "Actions": {
-        "EditWordDatabase": "编辑单词数据库",
+        "EditWordDatabase": "浏览词汇",
         "OpenAiAnalytics": "AI 媒体分析",
-        "OpenLevelStudy": "打开等级学习",
+        "OpenLevelStudy": "打开学习计划",
         "ViewCharacterGrid": "查看字符网格"
       },
       "CurrentlyLearning": "正在学习",
@@ -3132,7 +3161,9 @@
       "Legend": {
         "Learned": "已学习",
         "Learning": "学习中",
-        "Viewed": "已查看"
+        "Viewed": "已查看",
+        "Unknown": "需要练习",
+        "Unmeasured": "尚未评估"
       },
       "LevelColumn": "等级",
       "TimeWatched": "观看时间",
@@ -3355,7 +3386,7 @@
         "Tooltip": "编辑单词覆盖"
       },
       "EmptyIgnoredState": "未找到此语言的已忽略单词。",
-      "EmptyState": "未找到单词。点击“加载全部”加载您的单词数据库。",
+      "EmptyState": "没有符合搜索条件或筛选条件的词汇。",
       "Fields": {
         "PartOfSpeech": "词性",
         "PosPlaceholder": "n、v、adj 等"
@@ -3364,9 +3395,9 @@
         "Common": "常用",
         "Unlisted": "未列出"
       },
-      "Loading": "正在加载单词数据库…",
+      "Loading": "正在加载词汇…",
       "LoadingMore": "正在加载更多…",
-      "SearchHintDetailed": "按回车搜索；精确匹配优先。请先点击加载全部。",
+      "SearchHintDetailed": "搜索单词并查看学习进度。",
       "SearchPlaceholder": "搜索单词…",
       "Searching": "正在搜索…",
       "Trackers": {
@@ -3375,14 +3406,16 @@
         "Ignored": "已忽略",
         "Nothing": "无跟踪器"
       },
-      "Title": "单词数据库",
+      "Title": "词汇",
       "AdvancedFilters": "Advanced Filters",
       "Integrations": {
         "Flashcard": "mLearn 卡片",
         "Anki": "Anki",
         "Ignored": "已排除复习",
         "AddFlashcard": "添加 mLearn 卡片"
-      }
+      },
+      "LoadError": "无法加载词汇，请重试。",
+      "DictionaryUnavailable": "词典暂不可用。当前列表仅包含课程和已保存的单词。"
     },
     "WordHover": {
       "AddToAnki": "添加到 Anki",
@@ -3470,7 +3503,7 @@
         "NeverSeenForm": "我从没见过这个写法。"
       },
       "FinishedTitle": "全部完成！",
-      "FinishedDescription": "您已检查 {count} 个单词。您的单词知识已更新。",
+      "FinishedDescription": "已记录的检查：{count}次。这些回答现已保存到学习历史中。",
       "Progress": "{rated} / {total} 个单词",
       "AttributionPrompt": "哪一部分不认识？",
       "Unknown": "未知",
@@ -3481,7 +3514,7 @@
       "AdditionalInfoInAnswer": "附加信息属于答案的一部分",
       "StartOver": "重新开始",
       "RestartConfirmTitle": "重新开始？",
-      "RestartConfirmMessage": "这将清除最近检查过的单词记录，并将筛选条件重置为默认值。已检查过的单词会再次显示，本次会话的进度将丢失。此操作无法撤销。",
+      "RestartConfirmMessage": "使用当前筛选条件开始新一轮学习吗？已记录的回答会保留。本轮计数和撤销历史将重置。",
       "Filter": "筛选",
       "FilterAll": "全部",
       "FilterUnknownOnly": "仅未知",
@@ -3497,7 +3530,13 @@
         "Unknown": "标记为未知",
         "Learning": "标记为学习中",
         "Known": "标记为已掌握"
-      }
+      },
+      "EmptyTitle": "没有可检查的词汇",
+      "EmptyDescription": "没有符合当前筛选条件和可用练习内容的题目。未记录任何回答。请调整筛选条件或选择其他学习活动。",
+      "QueueDetails": "为什么选择这些词？",
+      "QueueExplanation": "队列依据当前筛选条件和已记录的知识生成。已忽略的词会被排除。词汇必须至少有一项可在此检查且尚未被评估为已知的技能。最近显示过的词不会因此被排除。",
+      "QueueExclusions": "已排除 — 已忽略：{ignored}；不符合筛选条件：{filtered}；没有合适题目或不再符合条件：{unavailable}。",
+      "InvalidFilter": "筛选条件不完整或无效。请编辑后继续。"
     },
     "Menu": {
       "About": "关于 mLearn",
@@ -3531,7 +3570,7 @@
       },
       "ReviewFlashcards": "复习闪卡",
       "Settings": "设置",
-      "LevelStudy": "等级学习",
+      "LevelStudy": "学习计划",
       "ShowLearningStatistics": "显示学习统计",
       "ShowReading": "显示读音注释",
       "Statistics": "统计",
@@ -3794,7 +3833,9 @@
         "TotalFound": "已找到总数：",
         "Unmeasured": "未测量："
       },
-      "Title": "字符熟悉度概览"
+      "Title": "字符熟悉度概览",
+      "LegendTitle": "颜色的含义",
+      "InspectHint": "选择一个字符以查看你的知识详情。根据词汇推断的熟悉程度是预测，并非直接评估。"
     },
     "TellMlearn": {
       "Label": "告诉 mLearn…",
@@ -3820,8 +3861,33 @@
         "Ranking": "排序",
         "Show": "为什么？",
         "Title": "为何是这张卡",
-        "Weights": "生效权重"
+        "Weights": "生效权重",
+        "Reasons": {
+          "retention": "复习这张卡片，巩固记忆。",
+          "new-card": "开始学习一张新卡片。",
+          "curriculum": "练习课程中的内容。",
+          "calibration": "检查你已经能认出的内容。",
+          "weak-target": "练习还需要加强的内容。",
+          "probe": "检查你已经能认出的内容。",
+          "media": "练习阅读或视频中的内容。",
+          "grammar": "练习课程中的语法点。",
+          "bridge": "将这个形式与相关知识联系起来。",
+          "assignment": "完成指定的练习。",
+          "defer": "休息一下或选择其他活动。"
+        }
       }
+    },
+    "LearningPlan": {
+      "Description": "选择课程和目标，通过练习增长知识。目标用于指导学习，并不代表你的实际能力。",
+      "Activities": "选择活动",
+      "Assess": "评估当前水平",
+      "AssessDescription": "已经学过这门语言？检查你能认出的内容，选择合适的起点。",
+      "WordSyncDescription": "复习遇到的单词，决定接下来练习什么。",
+      "CharactersDescription": "探索书写系统，练习单个字符。",
+      "Progress": "课程进度",
+      "Back": "返回学习计划",
+      "SettingsHint": "课程、目标、学习节奏均在学习计划中管理。",
+      "Open": "打开学习计划"
     }
   }
 }

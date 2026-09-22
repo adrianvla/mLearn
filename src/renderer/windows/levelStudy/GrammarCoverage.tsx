@@ -1347,6 +1347,9 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                             flight; disabled while any pass is live so deliverability
                             cannot change under an active session (G01/G03). Cloud
                             providers are refused by the producer — honestly reported. */}
+                        <Show when={validationPendingByLevel().get(level) === true || validating() || validationStatus()}>
+                        <details class="grammar-coverage__technical">
+                          <summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary>
                         <Show when={validationPendingByLevel().get(level) === true || validating()}>
                           <button
                             type="button"
@@ -1377,6 +1380,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                   })}
                             </span>
                           )}
+                        </Show>
+                        </details>
                         </Show>
                       </>
                     }>

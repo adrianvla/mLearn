@@ -72,7 +72,8 @@ export function buildTrackedWordSet(store: FlashcardStore, language: string): Se
   }
   for (const lk of Object.keys(store.wordKnowledge)) if (lk.startsWith(prefix)) tracked.add(lk);
   for (const lk of Object.keys(store.wordCandidates)) if (lk.startsWith(prefix)) tracked.add(lk);
-  for (const lk of Object.keys(store.knownUntracked)) if (lk.startsWith(prefix)) tracked.add(lk);
+  // Orphan legacy markers have neither a recoverable word nor canonical evidence.
+  // The existing migration adds recoverable claims to wordKnowledge above.
   for (const lk of Object.keys(store.ignoredWords)) if (lk.startsWith(prefix)) tracked.add(lk);
   return tracked;
 }

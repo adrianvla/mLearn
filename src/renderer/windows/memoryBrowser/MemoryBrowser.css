@@ -155,3 +155,4 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+.memory-browser-retry { padding: 8px 16px; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); background: var(--bg-intense); cursor: pointer; }

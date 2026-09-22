@@ -331,7 +331,14 @@
         "known": "習得済み"
       },
       "WordEaseLegendTitle": "単語の習熟度:",
-      "WordsTab": "単語"
+      "WordsTab": "単語",
+      "IntentTitle": "何を練習しますか？",
+      "IntentDescription": "チューターは学習目標と記録された学習状況を参考に練習を進めます。話題を追加したり、教材を指定したりできます。",
+      "IntentPlan": "学習目標に向けて練習したい。",
+      "IntentConversation": "日常会話を練習したい。",
+      "IntentTopic": "自分で選んだ話題について学びたい。",
+      "Advanced": "教材を指定する",
+      "AdvancedDescription": "任意で単語、文法、メディアを選べます。選択しても評価済みの学習状況は変わりません。"
     },
     "About": {
       "Description": "mLearnは没入型学習で言語を学ぶツールです。動画を見たり、漫画を読んだり、インテリジェントな字幕と間隔反復で自然に語彙を学べます。",
@@ -893,7 +900,7 @@
         "CloseAria": "会話メニューを閉じる",
         "Details": "会話の詳細",
         "Settings": "設定",
-        "MemoryBrowser": "メモリブラウザ"
+        "MemoryBrowser": "記憶"
       },
       "Call": {
         "StartAria": "通話を開始"
@@ -965,6 +972,13 @@
         "UnmutePersonContact": "この人のミュートを解除",
         "MuteCalls": "通話をミュート",
         "AllowCalls": "通話を許可"
+      },
+      "Recovery": {
+        "Model": "AIモデルの準備ができていません。AI設定でモデルを選択または修復してから再試行してください。",
+        "SignIn": "AI設定で再度ログインしてから、この会話を再試行してください。",
+        "Connection": "AIサービスに接続できません。接続とAI設定を確認して再試行してください。",
+        "Generic": "会話を続行できませんでした。再試行し、問題が続く場合はAI設定を確認してください。",
+        "Settings": "AI設定を開く"
       }
     },
     "ErrorModal": {
@@ -974,7 +988,7 @@
       "Messages": {
         "AnkiConnectionFailed": "Ankiに接続できませんでした。AnkiConnectがインストールされた状態でAnkiが実行中であることを確認するか、Anki連携を無効にしてください。",
         "AnkiNoValidCards": "Ankiに接続しましたが、有効なカードが見つかりませんでした。設定でデッキとフィールドの構成を確認してください。",
-        "BackendStopped": "バックエンドサーバーが予期せず停止しました。アプリケーションを再起動してください。",
+        "BackendStopped": "学習ツールを起動できませんでした。再試行するか、技術的な詳細で診断情報を確認してください。",
         "FileNotFound": "必要なファイルが見つかりません。アプリケーションを再インストールしてください。",
         "PermissionDenied": "権限が拒否されました。システムの権限を確認するか、管理者権限でアプリケーションを実行してください。",
         "PortInUse": "別のアプリケーションが必要なポートを使用しています。他のmLearnインスタンスを閉じるか、コンピュータを再起動してください。"
@@ -1086,7 +1100,8 @@
           "Submit": "カードを追加",
           "Title": "新しいフラッシュカードを追加",
           "WordLabel": "単語",
-          "WordPlaceholder": "単語を入力..."
+          "WordPlaceholder": "単語を入力...",
+          "Error": "カードを保存できませんでした。入力内容は残っています。再試行してください。"
         },
         "DeleteCard": {
           "Confirm": "このフラッシュカードを削除してもよろしいですか？この操作は取り消せません。",
@@ -1327,7 +1342,7 @@
         "Adding": "追加中...",
         "LoadingLanguageData": "言語データを読み込み中...",
         "LoadingSettings": "設定を読み込み中...",
-        "StartingBackend": "バックエンドを起動中..."
+        "StartingBackend": "学習ツールを準備しています…"
       },
       "Success": "成功",
       "Time": {
@@ -1398,7 +1413,7 @@
         },
         "WordDatabase": {
           "Description": "語彙と学習記録を見る",
-          "Title": "単語データベース",
+          "Title": "語彙",
           "EmptyHint": "単語を検索",
           "NoMatches": "一致する単語がありません",
           "LookupHint": "Enterキーで「{query}」を調べる"
@@ -1416,8 +1431,8 @@
           "Title": "単語シンク"
         },
         "LevelStudy": {
-          "Description": "単語同期、文字グリッド、レベル学習をまとめて管理",
-          "Title": "レベル学習"
+          "Description": "カリキュラム、学習目標、学習ペースを設定します。",
+          "Title": "学習プラン"
         }
       },
       "Errors": {
@@ -1453,16 +1468,16 @@
       },
       "Components": {
         "ExplainAi": {
-          "Description": "ローカルLLMニューラルネットワークをインストールします。チェックを外すと約3 GBの依存関係をスキップします。",
-          "Title": "mLearn Explain AIモジュールをインストール"
+          "Description": "この端末でAI会話と解説を実行します。クラウドや自己ホスト型のサービスはAI設定で構成できます。",
+          "Title": "ローカルAIチューター"
         },
         "Reader": {
-          "Description": "漫画/画像を読むためのOCR機能をインストールします。チェックを外すと約2 GBの依存関係をスキップします。",
-          "Title": "mLearnリーダーモジュールをインストール"
+          "Description": "画像やスキャンした文書の文字を読み取ります。通常のテキスト文書には、この任意の機能は不要です。",
+          "Title": "文字認識"
         },
         "Voice": {
-          "Description": "音声認識、テキスト読み上げ、音声クローンをインストールします。チェックを外すと約4 GBの依存関係をスキップします。",
-          "Title": "音声・TTSモジュールをインストール"
+          "Description": "ローカルの音声認識と読み上げを追加し、聞く・話す練習を行います。",
+          "Title": "音声練習"
         }
       },
       "Instructions": {
@@ -1707,17 +1722,21 @@
         "Prefix": "証拠のソース: ",
         "None": "なし"
       },
-      "Unmeasured": "未評価"
+      "Unmeasured": "未評価",
+      "LoadError": "学習状況を読み込めませんでした。もう一度お試しください。",
+      "Retry": "再試行",
+      "Unavailable": "利用できません",
+      "UnavailableHint": "この端末では、この言語の学習状況の詳細を利用できません。"
     },
     "LevelStudy": {
-      "Title": "レベル学習",
+      "Title": "学習プラン",
       "Tabs": {
         "WordSync": "単語シンク",
         "CharacterGrid": "文字グリッド",
-        "LevelStudy": "レベル学習"
+        "LevelStudy": "学習プラン"
       },
       "EmptyState": {
-        "Title": "レベル学習",
+        "Title": "学習プラン",
         "Description": "レベル別に整理された単語を学習します。進捗を追跡し、単語をフラッシュカードに追加できます。"
       },
       "Coverage": {
@@ -1725,9 +1744,9 @@
         "Assessed": "評価済み",
         "UpTo": "学習レベルまでの単語",
         "AllLevels": "全レベルの単語",
-        "SetLevelHint": "設定で学習レベルを設定",
+        "SetLevelHint": "学習目標",
         "Words": "語",
-        "Complete": "すべてのレベル単語が追跡されています!",
+        "Complete": "この範囲のすべての単語を評価しました。",
         "Hint": "下のレベルをクリックして単語を表示・追加"
       },
       "Grammar": {
@@ -1750,8 +1769,8 @@
         "Correct": "正解！",
         "Incorrect": "惜しい — 答えは: {answer}",
         "Next": "次へ",
-        "NoLocks": "文法パスにはウィンドウ間ロックが必要です。このブラウザは対応していません。",
-        "StorageUnavailable": "ストレージがこの書き込みを拒否しました（容量制限またはプライベートモード）。操作は記録されていません。再試行できます。",
+        "NoLocks": "このブラウザーでは練習を安全に保存できません。対応ブラウザーまたはデスクトップアプリでmLearnを開いてください。",
+        "StorageUnavailable": "回答を保存できませんでした。保存領域が利用できるか確認してから、もう一度お試しください。",
         "ModeLabel": "回答形式",
         "ModeMcq": "選ぶ",
         "ModeType": "入力",
@@ -1781,8 +1800,8 @@
         "TotalWords": "{count}語",
         "Known": "既知",
         "Learning": "学習中",
-        "Unknown": "未知",
-        "Untracked": "未追跡",
+        "Unknown": "要練習",
+        "Untracked": "未評価",
         "ClickToView": "クリックして単語を表示",
         "ViewWords": "単語を表示",
         "BeyondExam": "試験範囲外"
@@ -1848,16 +1867,17 @@
         "EmptyPools": "現在、サンプルできる未測定の単語がありません。",
         "DateRequired": "試験・学校の結果には達成日が必要です。",
         "DateUnknown": "日付不明",
-        "NoLocks": "ここでは配置判定は利用できません：このセッションにはウィンドウ間ロックがありません。",
-        "NoStorage": "ここではプレースメントを利用できません：セッションを保存できませんでした（ストレージ満杯またはプライベートモード）。"
+        "NoLocks": "このブラウザーでは練習を安全に保存できません。対応ブラウザーまたはデスクトップアプリでmLearnを開いてください。",
+        "NoStorage": "ここではプレースメントを利用できません：セッションを保存できませんでした（ストレージ満杯またはプライベートモード）。",
+        "LiveProgress": "進捗：{count}語。回答に応じて評価が調整されます。学習プランに戻って、後で再開できます。"
       },
       "Mock": {
-        "Title": "チェックポイント & 模試",
-        "Subtitle": "インストール済み言語パッケージから導出された固定の宣言型ブループリント。結果は出所つきで表示され、公式スコアではありません。",
-        "ProviderChip": "mlearn派生",
+        "Title": "学習チェック",
+        "Subtitle": "時間制限のある練習で進捗を確認します。公式試験の点数ではありません。",
+        "ProviderChip": "練習セット",
         "Start": "開始",
         "BlueprintMeta": "{sections} セクション · {draw} 問 · 1問 {seconds}秒 · テスト条件",
-        "FreshFirst": "未学習の問題ファミリーを優先",
+        "FreshFirst": "新しい問題グループを優先",
         "Progress": "{total} 問中 {index} 問目",
         "TimeLeft": "残り {seconds} 秒",
         "PausedNote": "一時停止中 — 問題の時計は止まっています。停止は記録されます。",
@@ -1865,38 +1885,38 @@
         "Resume": "再開",
         "Abandon": "中断",
         "PausePolicy": "一時停止は記録され、問題の時計から除外されます。時間切れの問題は無回答のまま残ります。",
-        "NoItems": "このレベルには利用可能な問題がまだありません — 先に文法セクションの独立検証を実行してください。",
+        "NoItems": "この練習セットはまだ利用できません。別のレベルを選ぶか、文法を練習してください。",
         "NoBlueprints": "このパッケージには宣言されたブループリントがまだありません。",
         "ResultsTitle": "結果 — {level}",
         "Abandoned": "中断",
         "Answered": "回答済み: {count}",
         "Correct": "正解: {count}",
         "TimedOut": "無回答（時間切れ）: {count}",
-        "HeldOut": "未学習ファミリー: {count}",
-        "RehearsedBackfill": "学習済み補填: {count}",
+        "HeldOut": "新しい問題群：{count}",
+        "RehearsedBackfill": "練習済みの問題群：{count}",
         "BlueprintVersion": "ブループリント {version}",
         "ContentVersion": "パッケージ {version}",
         "Seed": "シード {seed}",
         "ActiveTime": "活動時間 {seconds}秒",
         "PausedTime": "一時停止 {seconds}秒 · {count} 回",
         "SectionCol": "セクション",
-        "DrawCol": "宣言出題数",
+        "DrawCol": "予定問題数",
         "AnsweredCol": "回答済み",
         "CorrectCol": "正解",
         "TimedOutCol": "時間切れ",
         "Assembled": "{assembled}/{requested} 問を構成",
         "Constructions": "文法項目",
-        "AvailabilityGap": "一部のセクションは宣言された出題数を構成できませんでした — 不足は報告され、決して補われません。",
+        "AvailabilityGap": "一部のセクションでは問題数が少なくなっています。表示された問題のみが結果に含まれます。",
         "MissedPatterns": "誤答した文法項目",
         "NoMissed": "回答済みの問題に誤答はありません。",
-        "Repair": "これらを練習（同じポリシーの歩行）",
+        "Repair": "間違えた内容を練習",
         "Discuss": "会話でこれらを使ってみる",
         "ResultsDisclaimer": "1つの正解は1回の成功した試行であり、完全な習得の証明ではありません。結果は診断用であり、公式スコアではありません。",
-        "BackToBlueprints": "ブループリント一覧へ戻る",
+        "BackToBlueprints": "練習セットに戻る",
         "Summaries": "最近の結果",
         "SummaryCounts": "{correct}/{answered} 正解 · {timedOut} 無回答",
-        "NoLocks": "模擬テストにはウィンドウ間ロックが必要です。このブラウザーではサポートされていません。",
-        "StorageUnavailable": "ストレージがこの書き込みを拒否しました（容量制限またはプライベートモード）。回答は記録されていません。問題は再回答できます。"
+        "NoLocks": "このブラウザーでは練習を安全に保存できません。対応ブラウザーまたはデスクトップアプリでmLearnを開いてください。",
+        "StorageUnavailable": "回答を保存できませんでした。保存領域が利用できるか確認してから、もう一度お試しください。"
       }
     },
     "Languages": {
@@ -1939,19 +1959,20 @@
     },
     "MemoryBrowser": {
       "Empty": "メモリエントリはまだありません。",
-      "Title": "メモリブラウザ",
-      "Open": "メモリブラウザを開く",
-      "OpenInAgent": "メモリブラウザ",
+      "Title": "記憶",
+      "Open": "記憶を開く",
+      "OpenInAgent": "記憶",
       "Sections": {
-        "Beliefs": "信念",
-        "Episodes": "エピソード",
-        "OpenLoops": "未解決ループ",
+        "Beliefs": "覚えていること",
+        "Episodes": "過去の経験",
+        "OpenLoops": "未解決の質問と計画",
         "Relationships": "関係",
-        "RoomCulture": "ルーム文化"
+        "RoomCulture": "共有されている背景"
       },
       "Tabs": {
-        "Room": "ルーム"
-      }
+        "Room": "共有の視点"
+      },
+      "LoadError": "記憶を読み込めませんでした。再試行してください。"
     },
     "Notifications": {
       "AnkiCacheLoaded": "Ankiフラッシュカードをキャッシュから読み込みました（Ankiはオフラインのようです）",
@@ -2082,7 +2103,13 @@
         "SinglePage": "単一ページ",
         "SpreadLeftToRight": "ページ 左→右",
         "SpreadRightToLeft": "ページ 右→左",
-        "ToggleUnknownWordsSidebar": "未習得単語サイドバーを切り替え"
+        "ToggleUnknownWordsSidebar": "未習得単語サイドバーを切り替え",
+        "ToggleContents": "目次の表示切替",
+        "PreviousPage": "前のページ",
+        "NextPage": "次のページ",
+        "PageFit": "ページの表示倍率",
+        "PageLayout": "ページ配置",
+        "PageOrder": "ページの順序"
       },
       "UI": {
         "Tips": {
@@ -2298,7 +2325,7 @@
         "LiveTranslator": "ライブ単語翻訳",
         "Behaviour": "動作設定",
         "WordKnowledge": "単語の知識",
-        "LanguageProficiency": "学習言語レベル",
+        "LanguageProficiency": "学習プラン",
         "SuggestedFlashcards": "提案フラッシュカード",
         "WordColors": "単語の色付け"
       },
@@ -2838,7 +2865,8 @@
         "ColorKnownWords": {
           "Description": "無効にすると、既知の単語には色が付きません",
           "Label": "既知の単語を着色"
-        }
+        },
+        "TechnicalCalibration": "復習スケジュールとインポートしたカードの習熟度を調整します。これらの数値を変えても、受動的な接触が評価済みの知識になるわけではありません。"
       },
       "VideoPlayer": {
         "Title": "動画プレーヤー",
@@ -2929,20 +2957,20 @@
         "Statistics": "統計",
         "VideoPlayer": "動画プレーヤー",
         "BrowserExtension": "ブラウザ拡張機能",
-        "EventAudit": "イベントジャーナル"
+        "EventAudit": "開発者向けログ"
       },
       "SearchPlaceholder": "設定を検索...",
       "Behaviour": {
         "SessionIntensity": {
           "Label": "セッション強度",
-          "Description": "練習で推奨する内容を調整します。弱めは既習項目の定着を優先し、強めは埋め合わせを減らします。評価や記録には影響しません。",
+          "Description": "無理のないペースを選びましょう。「ゆっくり」では慣れた内容の復習が多く、「集中的」では練習が必要な内容を重視します。知識の評価は変わりません。",
           "Gentle": "弱め",
           "Steady": "標準",
           "Intensive": "強め"
         },
         "ExamGoal": {
           "Label": "試験目標",
-          "Description": "個人的な試験目標を設定できます。試験日が近づくと、定着と補強が優先されます。",
+          "Description": "試験の目標を設定します。試験日が近づくと、復習や練習が必要な分野をより重視します。",
           "None": "なし",
           "Exam": "試験",
           "Target": {
@@ -2953,7 +2981,8 @@
           "Deadline": {
             "Label": "試験日",
             "Description": "直近6週間は定着を最も重視した推奨になります。"
-          }
+          },
+          "OtherLanguage": "この試験目標は別の学習言語に属しています。編集しても言語は変わりません。現在の言語の目標を設定するには、先に「なし」を選んでください。"
         },
         "RatingKeyboardMode": {
           "Label": "評価キーボードモード",
@@ -2971,9 +3000,9 @@
           "Description": "この頻度リストのレベル名の体系を選択します。"
         },
         "LearningLanguageLevel": {
-          "Label": "学習言語レベル",
-          "Description": "設定した場合、このレベルを超える提案フラッシュカードとレベルのないカードは保存されません。Word Syncの難易度にも影響します。",
-          "NoLimit": "制限なし"
+          "Label": "学習目標",
+          "Description": "目指すレベルを選びます。選んでも内容が習得済みになることはありません。",
+          "NoLimit": "すべてのレベル"
         },
         "AutoSuggestFlashcards": {
           "Label": "フラッシュカードを自動提案",
@@ -3026,9 +3055,9 @@
     },
     "Statistics": {
       "Actions": {
-        "EditWordDatabase": "単語データベースを編集",
+        "EditWordDatabase": "語彙を見る",
         "OpenAiAnalytics": "AIメディア分析",
-        "OpenLevelStudy": "レベル学習を開く",
+        "OpenLevelStudy": "学習プランを開く",
         "ViewCharacterGrid": "文字グリッドを表示"
       },
       "CurrentlyLearning": "学習中",
@@ -3132,7 +3161,9 @@
       "Legend": {
         "Learned": "習得済み",
         "Learning": "学習中",
-        "Viewed": "閲覧済み"
+        "Viewed": "閲覧済み",
+        "Unknown": "要練習",
+        "Unmeasured": "未評価"
       },
       "LevelColumn": "レベル",
       "TimeWatched": "視聴時間",
@@ -3355,7 +3386,7 @@
         "Tooltip": "単語の上書きを編集"
       },
       "EmptyIgnoredState": "この言語には無視した単語がありません。",
-      "EmptyState": "単語が見つかりません。「すべて読み込む」をクリックして単語データベースを読み込んでください。",
+      "EmptyState": "検索条件やフィルターに一致する語彙はありません。",
       "Fields": {
         "PartOfSpeech": "品詞",
         "PosPlaceholder": "n、v、adj など"
@@ -3364,9 +3395,9 @@
         "Common": "一般",
         "Unlisted": "未分類"
       },
-      "Loading": "単語データベースを読み込み中...",
+      "Loading": "語彙を読み込み中…",
       "LoadingMore": "さらに読み込み中...",
-      "SearchHintDetailed": "Enterで検索。完全一致が優先されます。先に「すべて読み込む」を押してください。",
+      "SearchHintDetailed": "単語を検索して学習状況を確認できます。",
       "SearchPlaceholder": "単語を検索...",
       "Searching": "検索中...",
       "Trackers": {
@@ -3375,14 +3406,16 @@
         "Ignored": "無視済み",
         "Nothing": "トラッカーなし"
       },
-      "Title": "単語データベース",
+      "Title": "語彙",
       "AdvancedFilters": "Advanced Filters",
       "Integrations": {
         "Flashcard": "mLearnカード",
         "Anki": "Anki",
         "Ignored": "復習から除外",
         "AddFlashcard": "mLearnカードを追加"
-      }
+      },
+      "LoadError": "語彙を読み込めませんでした。再試行してください。",
+      "DictionaryUnavailable": "辞書を利用できません。現在はカリキュラムと保存済みの単語のみ表示しています。"
     },
     "WordHover": {
       "AddToAnki": "Ankiに追加",
@@ -3470,7 +3503,7 @@
         "NeverSeenForm": "この形は見たことがありません。"
       },
       "FinishedTitle": "完了！",
-      "FinishedDescription": "{count}語を確認しました。単語知識が更新されました。",
+      "FinishedDescription": "記録した確認：{count}件。回答は学習履歴に保存されました。",
       "Progress": "{rated} / {total} 語",
       "AttributionPrompt": "何がわからなかったですか？",
       "Unknown": "未知",
@@ -3481,7 +3514,7 @@
       "AdditionalInfoInAnswer": "追加情報は回答の一部",
       "StartOver": "やり直す",
       "RestartConfirmTitle": "やり直しますか？",
-      "RestartConfirmMessage": "最近チェックした単語の履歴がクリアされ、フィルターがデフォルトにリセットされます。既にチェックした単語が再度表示され、このセッションの進捗は失われます。この操作は元に戻せません。",
+      "RestartConfirmMessage": "現在のフィルターで新しいセッションを始めますか？記録済みの回答は保持されます。セッションの件数と取り消し履歴はリセットされます。",
       "Filter": "フィルター",
       "FilterAll": "すべて",
       "FilterUnknownOnly": "未知のみ",
@@ -3497,7 +3530,13 @@
         "Unknown": "未知としてマーク",
         "Learning": "学習中としてマーク",
         "Known": "既知としてマーク"
-      }
+      },
+      "EmptyTitle": "確認できる単語がありません",
+      "EmptyDescription": "現在のフィルターと利用可能な練習内容に合う問題がありません。回答は記録されていません。フィルターを変更するか、別の学習を選んでください。",
+      "QueueDetails": "この単語が選ばれる理由",
+      "QueueExplanation": "現在のフィルターと記録済みの知識に基づいて選ばれます。無視した単語は除外されます。この学習で確認可能で、まだ既知と評価されていない技能が少なくとも一つ必要です。最近表示された履歴による除外はありません。",
+      "QueueExclusions": "除外 — 無視：{ignored}、フィルター対象外：{filtered}、適切な問題なし・対象外に変更：{unavailable}。",
+      "InvalidFilter": "フィルターが未完成または無効です。編集して続けてください。"
     },
     "Menu": {
       "About": "mLearnについて",
@@ -3531,7 +3570,7 @@
       },
       "ReviewFlashcards": "フラッシュカードを復習",
       "Settings": "設定",
-      "LevelStudy": "レベル学習",
+      "LevelStudy": "学習プラン",
       "ShowLearningStatistics": "学習統計を表示",
       "ShowReading": "読み注釈を表示",
       "Statistics": "統計",
@@ -3794,7 +3833,9 @@
         "TotalFound": "合計:",
         "Unmeasured": "未測定:"
       },
-      "Title": "文字の習得予測"
+      "Title": "文字の習得予測",
+      "LegendTitle": "色の意味",
+      "InspectHint": "文字を選ぶと知識の詳細を確認できます。単語から推測した習熟度は予測であり、直接の評価ではありません。"
     },
     "TellMlearn": {
       "Label": "mLearn に伝える…",
@@ -3820,8 +3861,33 @@
         "Ranking": "順位",
         "Show": "理由を見る",
         "Title": "このカードが選ばれた理由",
-        "Weights": "適用中の重み"
+        "Weights": "適用中の重み",
+        "Reasons": {
+          "retention": "このカードを復習して記憶を定着させましょう。",
+          "new-card": "新しいカードを学びましょう。",
+          "curriculum": "学習カリキュラムの内容を練習しましょう。",
+          "calibration": "すでに認識できる内容を確認しましょう。",
+          "weak-target": "もう少し練習が必要な内容に取り組みましょう。",
+          "probe": "すでに認識できる内容を確認しましょう。",
+          "media": "読書や動画の内容を練習しましょう。",
+          "grammar": "カリキュラムの文法項目を練習しましょう。",
+          "bridge": "この形を関連する知識と結び付けましょう。",
+          "assignment": "割り当てられた課題に取り組みましょう。",
+          "defer": "休憩するか、別の活動を選びましょう。"
+        }
       }
+    },
+    "LearningPlan": {
+      "Description": "カリキュラムと目標を選び、練習を通して知識を増やしましょう。目標は学習の指針であり、現在の能力の測定結果ではありません。",
+      "Activities": "学習方法を選ぶ",
+      "Assess": "現在のレベルを確認",
+      "AssessDescription": "この言語を学んだことがありますか？どのくらい認識できるか確認して、適切な開始点を選びましょう。",
+      "WordSyncDescription": "出会った単語を振り返り、次に練習する内容を選びます。",
+      "CharactersDescription": "文字体系を探索し、個々の文字を練習します。",
+      "Progress": "カリキュラムの進捗",
+      "Back": "学習プランに戻る",
+      "SettingsHint": "カリキュラム、目標、学習ペースは学習プランで管理します。",
+      "Open": "学習プランを開く"
     }
   }
 }

@@ -331,7 +331,14 @@
         "known": "Known"
       },
       "WordEaseLegendTitle": "Word familiarity:",
-      "WordsTab": "Words"
+      "WordsTab": "Words",
+      "IntentTitle": "What should we practise?",
+      "IntentDescription": "The tutor uses your learning target and available knowledge to guide practice. You can add a topic or choose specific material.",
+      "IntentPlan": "Help me work towards my learning target.",
+      "IntentConversation": "Practise an everyday conversation with me.",
+      "IntentTopic": "Help me explore a topic I choose.",
+      "Advanced": "Choose specific material",
+      "AdvancedDescription": "Optional: select words, grammar or media to focus the session. These selections do not change your assessed knowledge."
     },
     "About": {
       "Description": "mLearn is a language learning tool that helps you study through immersion. Watch videos, read manga, and learn vocabulary naturally with intelligent subtitles and spaced repetition.",
@@ -893,7 +900,7 @@
         "CloseAria": "Close conversation menu",
         "Details": "Conversation details",
         "Settings": "Settings",
-        "MemoryBrowser": "Memory Browser"
+        "MemoryBrowser": "Memories"
       },
       "Call": {
         "StartAria": "Start call"
@@ -965,6 +972,13 @@
         "UnmutePersonContact": "Unmute person",
         "MuteCalls": "Mute calls",
         "AllowCalls": "Allow calls"
+      },
+      "Recovery": {
+        "Model": "The AI model is not ready. Open AI settings to select or repair the model, then try again.",
+        "SignIn": "Sign in again in AI settings, then retry this conversation.",
+        "Connection": "Could not reach the AI service. Check your connection and AI settings, then try again.",
+        "Generic": "The conversation could not continue. Try again; if it keeps failing, check AI settings.",
+        "Settings": "Open AI settings"
       }
     },
     "ErrorModal": {
@@ -974,7 +988,7 @@
       "Messages": {
         "AnkiConnectionFailed": "Could not connect to Anki. Make sure Anki is running with AnkiConnect installed, or disable Anki integration.",
         "AnkiNoValidCards": "Connected to Anki but no valid cards were found. Check your deck and field configuration in settings.",
-        "BackendStopped": "The backend server stopped unexpectedly. Please restart the application.",
+        "BackendStopped": "Your learning tools could not start. Try again, or open Technical details for diagnostic information.",
         "FileNotFound": "A required file was not found. Please try reinstalling the application.",
         "PermissionDenied": "Permission denied. Please check your system permissions or run the application with elevated privileges.",
         "PortInUse": "Another application is using the required port. Please close other instances of mLearn or restart your computer."
@@ -1086,7 +1100,8 @@
           "Submit": "Add Card",
           "Title": "Add New Flashcard",
           "WordLabel": "Word",
-          "WordPlaceholder": "Enter word..."
+          "WordPlaceholder": "Enter word...",
+          "Error": "Could not save this card. Your text is still here; try again."
         },
         "DeleteCard": {
           "Confirm": "Are you sure you want to delete this flashcard? This action cannot be undone.",
@@ -1327,7 +1342,7 @@
         "Adding": "Adding...",
         "LoadingLanguageData": "Loading language data...",
         "LoadingSettings": "Loading settings...",
-        "StartingBackend": "Starting backend..."
+        "StartingBackend": "Preparing your learning tools…"
       },
       "Success": "Success",
       "Time": {
@@ -1398,7 +1413,7 @@
         },
         "WordDatabase": {
           "Description": "Browse your vocabulary and learning evidence",
-          "Title": "Word Database",
+          "Title": "Vocabulary",
           "EmptyHint": "Search for a word",
           "NoMatches": "No matches found",
           "LookupHint": "Press Enter to look up “{query}”"
@@ -1416,8 +1431,8 @@
           "Title": "Word Sync"
         },
         "LevelStudy": {
-          "Description": "Word Sync, Character Grid, and Level Study in one place",
-          "Title": "Level Study"
+          "Description": "Set your curriculum, learning target and study pace.",
+          "Title": "Learning Plan"
         }
       },
       "Errors": {
@@ -1453,16 +1468,16 @@
       },
       "Components": {
         "ExplainAi": {
-          "Description": "Installs a local LLM Neural Network. Skips ~3 GB of dependencies if left unchecked.",
-          "Title": "Install mLearn Explain AI Module"
+          "Description": "Run AI conversation and explanations on this device. You can configure a cloud or self-hosted provider in AI settings.",
+          "Title": "Local AI tutor"
         },
         "Reader": {
-          "Description": "Installs OCR capabilities for reading manga/images. Skips ~2 GB of dependencies if left unchecked.",
-          "Title": "Install mLearn Reader Module"
+          "Description": "Read text in images and scanned documents. Ordinary text documents work without this optional component.",
+          "Title": "Text recognition"
         },
         "Voice": {
-          "Description": "Installs speech recognition, text-to-speech, and voice cloning. Skips ~4 GB of dependencies if left unchecked.",
-          "Title": "Install Voice & TTS Module"
+          "Description": "Add local speech recognition and spoken responses for listening and speaking practice.",
+          "Title": "Voice practice"
         }
       },
       "Instructions": {
@@ -1707,17 +1722,21 @@
         "Prefix": "Evidence source: ",
         "None": "None"
       },
-      "Unmeasured": "Unmeasured"
+      "Unmeasured": "Unmeasured",
+      "LoadError": "We couldn’t load your knowledge. Please try again.",
+      "Retry": "Try again",
+      "Unavailable": "Unavailable",
+      "UnavailableHint": "Knowledge details are not available for this language on this device."
     },
     "LevelStudy": {
-      "Title": "Level Study",
+      "Title": "Learning Plan",
       "Tabs": {
         "WordSync": "Word Sync",
         "CharacterGrid": "Character Grid",
-        "LevelStudy": "Level Study"
+        "LevelStudy": "Learning Plan"
       },
       "EmptyState": {
-        "Title": "Level Study",
+        "Title": "Learning Plan",
         "Description": "Study words organized by level. Track your progress and add words to flashcards."
       },
       "Coverage": {
@@ -1725,9 +1744,9 @@
         "Assessed": "assessed",
         "UpTo": "Words up to",
         "AllLevels": "Words across all levels",
-        "SetLevelHint": "Set your learning level in Settings",
+        "SetLevelHint": "Learning target",
         "Words": "words",
-        "Complete": "All level words are tracked!",
+        "Complete": "All words in this range have been assessed.",
         "Hint": "Click a level below to view and add words"
       },
       "Grammar": {
@@ -1750,8 +1769,8 @@
         "Correct": "Correct!",
         "Incorrect": "Not quite — the answer is: {answer}",
         "Next": "Next",
-        "NoLocks": "Grammar passes need a cross-window lock; this browser does not support one.",
-        "StorageUnavailable": "Storage refused this write (quota or private mode). The action was not recorded; it stays retryable.",
+        "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app.",
+        "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again.",
         "ModeLabel": "Answer format",
         "ModeMcq": "Choose",
         "ModeType": "Type",
@@ -1781,8 +1800,8 @@
         "TotalWords": "{count} words",
         "Known": "Known",
         "Learning": "Learning",
-        "Unknown": "Unknown",
-        "Untracked": "Untracked",
+        "Unknown": "Needs practice",
+        "Untracked": "Not assessed",
         "ClickToView": "Click to view words",
         "ViewWords": "View words",
         "BeyondExam": "Beyond exam"
@@ -1848,16 +1867,17 @@
         "EmptyPools": "No unmeasured words are available to sample right now.",
         "DateRequired": "An exam or school result needs the date it was achieved.",
         "DateUnknown": "date unknown",
-        "NoLocks": "Placement is unavailable here: this session has no cross-window lock.",
-        "NoStorage": "Placement is unavailable here: the session could not be stored (storage full or private mode)."
+        "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app.",
+        "NoStorage": "Placement is unavailable here: the session could not be stored (storage full or private mode).",
+        "LiveProgress": "Progress: {count} words. The assessment adapts as you answer. You can return to your plan and resume later."
       },
       "Mock": {
-        "Title": "Checkpoints & mocks",
-        "Subtitle": "Fixed declared blueprints derived from the installed language package. Results show provenance — never an official score.",
-        "ProviderChip": "mlearn-derived",
+        "Title": "Practice checkpoints",
+        "Subtitle": "Check your progress with a timed practice set. These are learning activities, not official exam scores.",
+        "ProviderChip": "Practice set",
         "Start": "Start",
         "BlueprintMeta": "{sections} sections · {draw} items · {seconds}s per item · closed book",
-        "FreshFirst": "Held-out item families first",
+        "FreshFirst": "New question groups first",
         "Progress": "{index} of {total}",
         "TimeLeft": "{seconds}s left",
         "PausedNote": "Paused — the item clock is stopped; the pause is recorded.",
@@ -1865,38 +1885,38 @@
         "Resume": "Resume",
         "Abandon": "Abandon",
         "PausePolicy": "Pauses are recorded and excluded from the item clock; timeout leaves the item unanswered.",
-        "NoItems": "No deliverable items for this level yet — run the independent validation in the grammar section first.",
+        "NoItems": "This practice set is not ready yet. Choose another level or use grammar practice.",
         "NoBlueprints": "No declared blueprint for this package yet.",
         "ResultsTitle": "Results — {level}",
         "Abandoned": "abandoned",
         "Answered": "Answered: {count}",
         "Correct": "Correct: {count}",
         "TimedOut": "Unanswered (timed out): {count}",
-        "HeldOut": "Held-out families: {count}",
-        "RehearsedBackfill": "Rehearsed backfill: {count}",
+        "HeldOut": "New question groups: {count}",
+        "RehearsedBackfill": "Previously practised groups: {count}",
         "BlueprintVersion": "Blueprint {version}",
         "ContentVersion": "Package {version}",
         "Seed": "Seed {seed}",
         "ActiveTime": "Active time {seconds}s",
         "PausedTime": "Paused {seconds}s · {count} pauses",
         "SectionCol": "Section",
-        "DrawCol": "Declared draw",
+        "DrawCol": "Questions planned",
         "AnsweredCol": "Answered",
         "CorrectCol": "Correct",
         "TimedOutCol": "Timed out",
         "Assembled": "{assembled}/{requested} assembled",
         "Constructions": "Constructions",
-        "AvailabilityGap": "Some sections could not assemble their declared draw — missing items are reported, never substituted.",
+        "AvailabilityGap": "Some sections have fewer available questions. Only the questions shown count towards this result.",
         "MissedPatterns": "Missed constructions",
         "NoMissed": "Nothing missed among answered items.",
-        "Repair": "Practise these (same policy walk)",
+        "Repair": "Practise missed material",
         "Discuss": "Discuss these in conversation",
         "ResultsDisclaimer": "One correct selection is one successful attempt — not proof of full mastery. Results are diagnostic, never an official score.",
-        "BackToBlueprints": "Back to blueprints",
+        "BackToBlueprints": "Back to practice sets",
         "Summaries": "Recent results",
         "SummaryCounts": "{correct}/{answered} correct · {timedOut} unanswered",
-        "NoLocks": "Mock practice needs a cross-window lock; this browser does not support it.",
-        "StorageUnavailable": "Storage refused this write (quota or private mode). The answer was not recorded; the prompt stays retryable."
+        "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app.",
+        "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again."
       }
     },
     "Languages": {
@@ -1939,19 +1959,20 @@
     },
     "MemoryBrowser": {
       "Empty": "No memory entries yet.",
-      "Title": "Memory Browser",
-      "Open": "Open Memory Browser",
-      "OpenInAgent": "Memory Browser",
+      "Title": "Memories",
+      "Open": "Open memories",
+      "OpenInAgent": "Memories",
       "Sections": {
-        "Beliefs": "Beliefs",
-        "Episodes": "Episodes",
-        "OpenLoops": "Open Loops",
+        "Beliefs": "What they remember",
+        "Episodes": "Past experiences",
+        "OpenLoops": "Open questions and plans",
         "Relationships": "Relationships",
-        "RoomCulture": "Room Culture"
+        "RoomCulture": "Shared context"
       },
       "Tabs": {
-        "Room": "Room"
-      }
+        "Room": "Shared view"
+      },
+      "LoadError": "Could not load memories. Try again."
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki flashcards loaded from cache (Anki appears offline)",
@@ -2082,7 +2103,13 @@
         "SinglePage": "Single Page",
         "SpreadLeftToRight": "Pages L→R",
         "SpreadRightToLeft": "Pages R→L",
-        "ToggleUnknownWordsSidebar": "Toggle unknown words sidebar"
+        "ToggleUnknownWordsSidebar": "Toggle unknown words sidebar",
+        "ToggleContents": "Toggle contents",
+        "PreviousPage": "Previous page",
+        "NextPage": "Next page",
+        "PageFit": "Page fit",
+        "PageLayout": "Page layout",
+        "PageOrder": "Page order"
       },
       "UI": {
         "Tips": {
@@ -2298,7 +2325,7 @@
         "WordStatus": "Word Status",
         "Behaviour": "Behaviour",
         "WordKnowledge": "Word Knowledge",
-        "LanguageProficiency": "Language Proficiency",
+        "LanguageProficiency": "Learning Plan",
         "SuggestedFlashcards": "Suggested Flashcards",
         "WordColors": "Word Coloring"
       },
@@ -2355,14 +2382,14 @@
       "Behaviour": {
         "SessionIntensity": {
           "Label": "Session intensity",
-          "Description": "Changes which activities practice recommends — gentle leans on familiar consolidation, intensive keeps padding low. Never changes your evidence or ratings.",
+          "Description": "Choose a comfortable pace. Gentle includes more familiar practice; intensive focuses more on material that needs work. This does not change what you know.",
           "Gentle": "Gentle",
           "Steady": "Steady",
           "Intensive": "Intensive"
         },
         "ExamGoal": {
           "Label": "Exam goal",
-          "Description": "Set a personal exam goal; as the deadline nears, recommendations shift toward consolidation and repair.",
+          "Description": "Set a personal exam goal. As the date approaches, practice focuses more on review and areas that need work.",
           "None": "None",
           "Exam": "Exam",
           "Target": {
@@ -2373,7 +2400,8 @@
           "Deadline": {
             "Label": "Exam date",
             "Description": "Recommendations weight consolidation most in the last six weeks."
-          }
+          },
+          "OtherLanguage": "This exam goal belongs to another learning language. Edits here keep that language. Choose None to clear it before setting a goal for your current language."
         },
         "RatingKeyboardMode": {
           "Label": "Rating keyboard mode",
@@ -2391,9 +2419,9 @@
           "Description": "Choose how this frequency list's levels are named."
         },
         "LearningLanguageLevel": {
-          "Label": "Learning Language Level",
-          "Description": "When set, suggested flashcards above this level and cards without a level will not be saved. Also affects Word Sync difficulty.",
-          "NoLimit": "No limit"
+          "Label": "Learning target",
+          "Description": "Choose what you want to work towards. This does not mark material as known.",
+          "NoLimit": "All levels"
         },
         "AutoSuggestFlashcards": {
           "Label": "Auto-suggest Flashcards",
@@ -2890,7 +2918,8 @@
         "ColorKnownWords": {
           "Description": "When disabled, words you already know stay uncolored",
           "Label": "Color Known Words"
-        }
+        },
+        "TechnicalCalibration": "Calibration for review scheduling and imported card familiarity. These numeric thresholds do not turn passive exposure into assessed knowledge."
       },
       "About": {
         "Licenses": "Licenses",
@@ -2981,7 +3010,7 @@
         "Statistics": "Statistics",
         "VideoPlayer": "Video Player",
         "BrowserExtension": "Browser Extension",
-        "EventAudit": "Event journal"
+        "EventAudit": "Developer journal"
       },
       "SearchPlaceholder": "Search settings..."
     },
@@ -3026,9 +3055,9 @@
     },
     "Statistics": {
       "Actions": {
-        "EditWordDatabase": "Edit Word Database",
+        "EditWordDatabase": "Browse vocabulary",
         "OpenAiAnalytics": "AI Media Analytics",
-        "OpenLevelStudy": "Open Level Study",
+        "OpenLevelStudy": "Open Learning Plan",
         "ViewCharacterGrid": "View Character Grid"
       },
       "CurrentlyLearning": "Currently Learning",
@@ -3132,7 +3161,9 @@
       "Legend": {
         "Learned": "Learned",
         "Learning": "Learning",
-        "Viewed": "Viewed"
+        "Viewed": "Viewed",
+        "Unknown": "Needs practice",
+        "Unmeasured": "Not assessed"
       },
       "LevelColumn": "Level",
       "TimeWatched": "Time Watched",
@@ -3355,7 +3386,7 @@
         "Tooltip": "Edit word overrides"
       },
       "EmptyIgnoredState": "No ignored words found for this language.",
-      "EmptyState": "No words found. Click 'Load All' to load your word database.",
+      "EmptyState": "No vocabulary matches your search or filters.",
       "Fields": {
         "PartOfSpeech": "Part of Speech",
         "PosPlaceholder": "n, v, adj, etc."
@@ -3364,9 +3395,9 @@
         "Common": "Common",
         "Unlisted": "Unlisted"
       },
-      "Loading": "Loading word database...",
+      "Loading": "Loading vocabulary…",
       "LoadingMore": "Loading more...",
-      "SearchHintDetailed": "Enter to search; exact matches prioritized. Press Load All first.",
+      "SearchHintDetailed": "Search words and inspect your learning progress.",
       "SearchPlaceholder": "Search word...",
       "Searching": "Searching...",
       "Trackers": {
@@ -3375,14 +3406,16 @@
         "Ignored": "Ignored",
         "Nothing": "No tracker"
       },
-      "Title": "Word Database",
+      "Title": "Vocabulary",
       "AdvancedFilters": "Advanced Filters",
       "Integrations": {
         "Flashcard": "mLearn card",
         "Anki": "Anki",
         "Ignored": "Excluded from review",
         "AddFlashcard": "Add mLearn card"
-      }
+      },
+      "LoadError": "We couldn’t load your vocabulary. Try again.",
+      "DictionaryUnavailable": "The dictionary is unavailable. This list currently includes only curriculum and saved words."
     },
     "WordHover": {
       "AddToAnki": "Add to Anki",
@@ -3470,7 +3503,7 @@
         "NeverSeenForm": "I have never seen this form."
       },
       "FinishedTitle": "All done!",
-      "FinishedDescription": "You checked {count} words. Your word knowledge has been updated.",
+      "FinishedDescription": "Recorded checks: {count}. These responses are now part of your learning history.",
       "Progress": "{rated} / {total} words",
       "AttributionPrompt": "What didn't you know?",
       "Unknown": "Unknown",
@@ -3481,7 +3514,7 @@
       "AdditionalInfoInAnswer": "Additional information part of answer",
       "StartOver": "Start over",
       "RestartConfirmTitle": "Start over?",
-      "RestartConfirmMessage": "This clears the recent-word history and resets the filter to the default. Words you already checked will be shown again, and your progress in this session will be lost. This cannot be undone.",
+      "RestartConfirmMessage": "Start a new session with the current filters? Your recorded answers stay saved. The session counter and undo history will reset.",
       "Filter": "Filter",
       "FilterAll": "All",
       "FilterUnknownOnly": "Unknown only",
@@ -3497,7 +3530,13 @@
         "Unknown": "Marked as unknown",
         "Learning": "Marked as learning",
         "Known": "Marked as known"
-      }
+      },
+      "EmptyTitle": "No available words to check",
+      "EmptyDescription": "No prompts match your current filters and available practice material. No answers were recorded. Adjust the filter or choose another activity.",
+      "QueueDetails": "Why these words?",
+      "QueueExplanation": "The queue uses your current filters and recorded knowledge. Ignored words are excluded. A word needs at least one skill this activity can check that is not already assessed as known. Recent-word history does not exclude words.",
+      "QueueExclusions": "Excluded — ignored: {ignored}; outside filters: {filtered}; no suitable prompt or no longer eligible: {unavailable}.",
+      "InvalidFilter": "The filter is incomplete or invalid. Edit it to continue."
     },
     "Menu": {
       "About": "About mLearn",
@@ -3531,7 +3570,7 @@
       },
       "ReviewFlashcards": "Review Flashcards",
       "Settings": "Settings",
-      "LevelStudy": "Level Study",
+      "LevelStudy": "Learning Plan",
       "ShowLearningStatistics": "Show learning statistics",
       "ShowReading": "Show Reading Annotations",
       "Statistics": "Statistics",
@@ -3794,7 +3833,9 @@
         "TotalFound": "Total Found:",
         "Unmeasured": "Unmeasured:"
       },
-      "Title": "Character Familiarity Overview"
+      "Title": "Character Familiarity Overview",
+      "LegendTitle": "How to read the colors",
+      "InspectHint": "Select a character to inspect your knowledge. Familiarity inferred from words is a prediction, not a direct assessment."
     },
     "TellMlearn": {
       "Label": "Tell mLearn…",
@@ -3820,8 +3861,33 @@
         "Ranking": "Ranking",
         "Show": "Why?",
         "Title": "Why this card",
-        "Weights": "Weights in effect"
+        "Weights": "Weights in effect",
+        "Reasons": {
+          "retention": "Review this card to strengthen your memory.",
+          "new-card": "Start learning a new card.",
+          "curriculum": "Practise material from your curriculum.",
+          "calibration": "Check what you can already recognise.",
+          "weak-target": "Practise something that needs more attention.",
+          "probe": "Check what you can already recognise.",
+          "media": "Practise material from your reading or videos.",
+          "grammar": "Practise a grammar point from your curriculum.",
+          "bridge": "Connect this form with related knowledge.",
+          "assignment": "Work on an assigned activity.",
+          "defer": "Take a break or choose another activity."
+        }
       }
+    },
+    "LearningPlan": {
+      "Description": "Choose your curriculum and target, then build your knowledge through practice. Your target guides study; it is not a measurement of your ability.",
+      "Activities": "Choose an activity",
+      "Assess": "Assess my current level",
+      "AssessDescription": "Already studied this language? Check what you recognise and choose a suitable starting point.",
+      "WordSyncDescription": "Review words you encounter and decide what to practise next.",
+      "CharactersDescription": "Explore the writing system and practise individual characters.",
+      "Progress": "Curriculum progress",
+      "Back": "Back to Learning Plan",
+      "SettingsHint": "Your curriculum, target, study pace and goals are managed in Learning Plan.",
+      "Open": "Open Learning Plan"
     }
   }
 }

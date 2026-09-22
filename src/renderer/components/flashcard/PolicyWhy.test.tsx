@@ -81,7 +81,7 @@ const decision: PolicyDecision = {
       ratingMode: 'profile',
     },
     scaffolds: [],
-    why: 'due for review (3 days overdue)',
+    why: 'weighted pick over 225 eligible (seed 42): 29b0dc8f-af22-4690-b44a-46d67fa89591 won with score 0.281136' ,
   },
   trace,
 };
@@ -98,7 +98,7 @@ function mount(decision: PolicyDecision | null) {
 describe('PolicyWhy (R20 decision explanation surface)', () => {
   it('shows a learner-facing explanation without exposing the internal policy trace', async () => {
     const harness = mount(decision);
-    expect(harness.container.querySelector('[data-testid="policy-why-brief"]')?.textContent).toBe('due for review (3 days overdue)');
+    expect(harness.container.querySelector('[data-testid="policy-why-brief"]')?.textContent).toBe('mlearn.Review.Why.Reasons.retention');
     // Default UX is brief: no calculation math until the learner asks.
     expect(harness.container.querySelector('[data-testid="policy-why-details"]')).toBeNull();
 
@@ -107,7 +107,11 @@ describe('PolicyWhy (R20 decision explanation surface)', () => {
     const details = harness.container.querySelector('[data-testid="policy-why-details"]');
     expect(details).toBeTruthy();
     expect(details!.textContent).toContain('mlearn.Review.Why.Explanation');
-    expect(details!.textContent).toContain('due for review (3 days overdue)');
+    expect(details!.textContent).toContain('mlearn.Review.Why.Reasons.retention');
+    expect(harness.container.textContent).not.toContain('weighted pick');
+    expect(harness.container.textContent).not.toContain('29b0dc8f');
+    expect(harness.container.textContent).not.toContain('seed');
+    expect(harness.container.textContent).not.toContain('0.281136');
     expect(details!.textContent).not.toContain('policy-trace-v3');
     expect(details!.textContent).not.toContain('deadline-novelty-discount');
     expect(details!.textContent).not.toContain('retention-need');
@@ -122,7 +126,7 @@ describe('PolicyWhy (R20 decision explanation surface)', () => {
   it('shows the same explanation when the internal trace is unavailable', async () => {
     const noTrace: PolicyDecision = { ...decision, trace: undefined };
     const harness = mount(noTrace);
-    expect(harness.container.querySelector('[data-testid="policy-why-brief"]')?.textContent).toBe('due for review (3 days overdue)');
+    expect(harness.container.querySelector('[data-testid="policy-why-brief"]')?.textContent).toBe('mlearn.Review.Why.Reasons.retention');
     (harness.container.querySelector('[data-testid="policy-why-toggle"]') as HTMLButtonElement).click();
     await tick();
     expect(harness.container.querySelector('[data-testid="policy-why-details"]')?.textContent).toContain('mlearn.Review.Why.Explanation');

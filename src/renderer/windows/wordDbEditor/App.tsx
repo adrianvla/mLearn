@@ -15,6 +15,7 @@ import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
 import './WordDbEditorLayout.css';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
 import {
+  Btn,
   ModalLoadingOverlay,
   SkeletonRows,
   CollapsibleStickyHeader,
@@ -45,13 +46,28 @@ export const WordDbEditorContent: Component = () => {
   const [searchQuery, setSearchQuery] = createSignal('');
   const [entries, setEntries] = createSignal<WordEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = createSignal<WordEntry[]>([]);
-  const projected = useKnowledgeProjections(() => ({ language: settings.language, surfaces: entries().map(entry => entry.word) }));
   const [isLoading, setIsLoading] = createSignal(false);
   const [loadProgress, setLoadProgress] = createSignal(0);
+  const [loadFailed, setLoadFailed] = createSignal(false);
+  const [dictionaryUnavailable, setDictionaryUnavailable] = createSignal(false);
+  let loadGeneration = 0;
+  onCleanup(() => { loadGeneration++; });
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
   const [browseMode, setBrowseMode] = createSignal<WordDbBrowseMode>('all');
   const [sortKey, setSortKey] = createSignal<string>('word');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
+  const needsKnowledgeQuery = () => sortKey() === 'status' || filterTokens().some(token => token.kind === 'operand' && token.field === 'status');
+  const matchesSearch = (entry: WordEntry): boolean => {
+    const query = searchQuery().toLowerCase().trim();
+    return !query || entry.word.toLowerCase().includes(query) || entry.translation.toLowerCase().includes(query)
+      || entry.reading.toLowerCase().includes(query) || !!entry.alternateReadings?.some(reading => reading.toLowerCase().includes(query));
+  };
+  // Ordinary browsing projects only visible rows through WordStatusPill. A full
+  // status filter/sort is an explicit query, bounded by the learner's text search.
+  const projected = useKnowledgeProjections(() => needsKnowledgeQuery()
+    ? { language: settings.language, surfaces: (browseMode() === 'ignored' ? ignoredEntries() : entries()).filter(matchesSearch).map(entry => entry.word) }
+    : undefined);
+  const knowledgeQueryReady = () => !needsKnowledgeQuery() || projected.ready();
   const [isInitialized, setIsInitialized] = createSignal(false);
   // Track if we've already loaded words (prevent re-loading on every frequency change)
   const [hasLoadedWords, setHasLoadedWords] = createSignal(false);
@@ -141,41 +157,37 @@ export const WordDbEditorContent: Component = () => {
     setIsInitialized(true);
   });
 
-  createEffect(() => {
-    const wordFrequency = getWordFrequency();
-    const freqWords = Object.keys(wordFrequency);
-    const totalWords = freqWords.length;
-    const fcLoading = flashcardsLoading();
+  createEffect(on(() => settings.language, () => {
+    loadGeneration++;
+    setEntries([]);
+    setFilteredEntries([]);
+    setHasLoadedWords(false);
+    setIsLoading(false);
+    setLoadFailed(false);
+    setDictionaryUnavailable(false);
+  }));
 
-    if (!isInitialized() || fcLoading || hasLoadedWords() || isLoading()) return;
-    if (totalWords === 0) {
-      setEntries([]);
-      setFilteredEntries([]);
-      setHasLoadedWords(true);
-      return;
-    }
-    loadAllWords();
+  createEffect(() => {
+    getWordFrequency();
+    if (!isInitialized() || flashcardsLoading() || hasLoadedWords() || isLoading() || loadFailed()) return;
+    void loadAllWords();
   });
 
   const buildFilteredEntries = (sourceEntries: WordEntry[]): WordEntry[] => {
-    const query = searchQuery().toLowerCase().trim();
+    if (!knowledgeQueryReady()) return [];
     const ast = filterAst();
     const resolvers = filterResolvers();
-
-    return sourceEntries.filter((entry) => {
-      if (ast.ok && ast.ast && !evaluateAst(ast.ast, entry, resolvers)) {
-        return false;
-      }
-      if (!query) {
-        return true;
-      }
-      return (
-        entry.word.toLowerCase().includes(query) ||
-        entry.translation.toLowerCase().includes(query) ||
-        entry.reading.toLowerCase().includes(query) ||
-        entry.alternateReadings?.some((reading) => reading.toLowerCase().includes(query))
-      );
-    });
+    return sourceEntries.filter(entry => matchesSearch(entry) && (!ast.ok || !ast.ast || evaluateAst(ast.ast, entry, resolvers)))
+      .sort((a, b) => {
+        let comparison = 0;
+        switch (sortKey()) {
+          case 'word': comparison = a.word.localeCompare(b.word); break;
+          case 'translation': comparison = a.translation.localeCompare(b.translation); break;
+          case 'level': comparison = (a.level ?? -1) - (b.level ?? -1); break;
+          case 'status': comparison = knowledgeStatusToNumeric(a.word) - knowledgeStatusToNumeric(b.word); break;
+        }
+        return comparison * sortDir();
+      });
   };
 
   const knowledgeStatusToNumeric = (word: string): number => {
@@ -218,7 +230,7 @@ export const WordDbEditorContent: Component = () => {
       .sort((a, b) => (b.ignoredAt ?? 0) - (a.ignoredAt ?? 0) || a.word.localeCompare(b.word));
   });
 
-  createEffect(on([entries, ignoredEntries, filterTokens, browseMode, hasLoadedWords, projected.projections], () => {
+  createEffect(on([entries, ignoredEntries, filterTokens, browseMode, hasLoadedWords, projected.projections, knowledgeQueryReady, sortKey, sortDir], () => {
     if (browseMode() === 'all' && !hasLoadedWords()) {
       return;
     }
@@ -230,6 +242,10 @@ export const WordDbEditorContent: Component = () => {
   // headwords ∪ store-tracked words. Never frequency alone: a tracked word
   // outside the frequency file (or the dictionary) must still be browsable.
   const loadAllWords = async () => {
+    const generation = ++loadGeneration;
+    const language = settings.language;
+    setLoadFailed(false);
+    setDictionaryUnavailable(false);
     setIsLoading(true);
     setLoadProgress(0);
     setHasLoadedWords(true);
@@ -240,13 +256,6 @@ export const WordDbEditorContent: Component = () => {
       const wordFrequency = getWordFrequency();
       const freqWords = Object.entries(wordFrequency);
       const totalWords = freqWords.length;
-
-      if (totalWords === 0) {
-        log.warn('No word frequency data available');
-        setEntries([]);
-        setFilteredEntries([]);
-        return;
-      }
 
       for (let i = 0; i < totalWords; i++) {
         const [word, freqEntry] = freqWords[i];
@@ -277,7 +286,8 @@ export const WordDbEditorContent: Component = () => {
       // Dictionary universe: every headword the dictionary serves, beyond the
       // frequency file. Translations lazy-load when rows scroll into view.
       try {
-        const dictionaryPairs = await loadDictionaryUniverse(settings.language);
+        const dictionaryPairs = await loadDictionaryUniverse(language);
+        if (generation !== loadGeneration) return;
         const CHUNK = 5000;
         for (let i = 0; i < dictionaryPairs.length; i += 1) {
           const [word, reading] = dictionaryPairs[i];
@@ -294,23 +304,27 @@ export const WordDbEditorContent: Component = () => {
             alternateReadings: [],
           });
           if (i % CHUNK === 0) {
+            if (generation !== loadGeneration) return;
             setLoadProgress(90 + Math.floor((i / dictionaryPairs.length) * 8));
             // Yield so the loader keeps painting over the ~300k-entry merge.
             await new Promise((resolve) => setTimeout(resolve, 0));
           }
         }
       } catch (e) {
+        if (generation !== loadGeneration) return;
+        setDictionaryUnavailable(true);
         log.warn('Dictionary universe unavailable; browsing frequency + tracked words only:', e);
       }
       // Store-tracked words: tracked knowledge entries and card fronts that
       // exist in neither the frequency list nor the dictionary (custom words,
       // names) still get rows — their knowledge state is inspectable.
       const trackedWords = new Set<string>();
-      for (const entry of Object.values(flashcardStore?.wordKnowledge ?? {})) {
-        if (entry?.word) trackedWords.add(entry.word);
+      for (const [key, entry] of Object.entries(flashcardStore?.wordKnowledge ?? {})) {
+        const ownerLanguage = entry.language ?? key.split(':')[0];
+        if (entry.word && ownerLanguage === language) trackedWords.add(entry.word);
       }
       for (const card of Object.values(flashcardStore?.flashcards ?? {})) {
-        if (card?.content?.front) trackedWords.add(card.content.front);
+        if (card?.content?.front && card.language === language) trackedWords.add(card.content.front);
       }
       for (const word of trackedWords) {
         if (seen.has(word)) continue;
@@ -328,13 +342,15 @@ export const WordDbEditorContent: Component = () => {
         });
       }
 
+      if (generation !== loadGeneration) return;
       setEntries(wordEntries);
       setFilteredEntries(buildFilteredEntries(wordEntries));
       setLoadProgress(100);
     } catch (e) {
+      if (generation === loadGeneration) setLoadFailed(true);
       log.error('Failed to load words:', e);
     } finally {
-      setIsLoading(false);
+      if (generation === loadGeneration) setIsLoading(false);
     }
   };
 
@@ -361,26 +377,7 @@ export const WordDbEditorContent: Component = () => {
       setSortDir(1);
     }
 
-    const sorted = [...filteredEntries()].sort((a, b) => {
-      let comparison = 0;
-      switch (key) {
-        case 'word':
-          comparison = a.word.localeCompare(b.word);
-          break;
-        case 'translation':
-          comparison = a.translation.localeCompare(b.translation);
-          break;
-        case 'level':
-          comparison = (a.level ?? -1) - (b.level ?? -1);
-          break;
-        case 'status':
-          comparison = knowledgeStatusToNumeric(a.word) - knowledgeStatusToNumeric(b.word);
-          break;
-      }
-      return comparison * sortDir();
-    });
 
-    setFilteredEntries(sorted);
   };
 
   // Change word status
@@ -596,6 +593,12 @@ export const WordDbEditorContent: Component = () => {
 
   return (
       <div class="word-db-editor">
+        <Show when={loadFailed() || dictionaryUnavailable()}>
+          <div role="alert" class="word-db-load-error">
+            <p>{t(loadFailed() ? 'mlearn.WordDbEditor.LoadError' : 'mlearn.WordDbEditor.DictionaryUnavailable')}</p>
+            <Btn onClick={() => void loadAllWords()} disabled={isLoading()}>{t('mlearn.Knowledge.Retry')}</Btn>
+          </div>
+        </Show>
         {/* While initializing or waiting for word frequency data, keep the
             list's geometry with placeholder rows instead of a blank page —
             the window opens as a stable shell, never as an empty table. */}
@@ -632,15 +635,19 @@ export const WordDbEditorContent: Component = () => {
             />
           </CollapsibleStickyHeader>
 
+          <Show when={needsKnowledgeQuery() && projected.failed()}>
+            <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn></div>
+          </Show>
+          <Show when={!knowledgeQueryReady() && !projected.failed()}><div aria-busy="true"><SkeletonRows rows={9} /></div></Show>
           {/* Entries List */}
           <div class="entries-list" ref={setEntriesListRef}>
-            <Show when={!isLoading() && filteredEntries().length === 0 && (browseMode() === 'ignored' || hasLoadedWords())}>
+            <Show when={knowledgeQueryReady() && !loadFailed() && !dictionaryUnavailable() && !isLoading() && filteredEntries().length === 0 && (browseMode() === 'ignored' || hasLoadedWords())}>
               <div class="empty-state">
                 <p>{browseMode() === 'ignored' ? t('mlearn.WordDbEditor.EmptyIgnoredState') : t('mlearn.WordDbEditor.EmptyState')}</p>
               </div>
             </Show>
 
-            <Show when={filteredEntries().length > 0}>
+            <Show when={knowledgeQueryReady() && filteredEntries().length > 0}>
               <div style={{ position: 'relative', width: '100%', height: `${virtualizer().getTotalSize()}px` }}>
                 <For each={virtualizer().getVirtualItems()}>
                   {(item) => {

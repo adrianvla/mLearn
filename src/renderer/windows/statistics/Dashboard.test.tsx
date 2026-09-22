@@ -18,6 +18,8 @@ let summariesMock: Record<string, KeyHistorySummary> = {};
 let knowledgeEventsChanged: (() => void) | null = null;
 let flashcardsLoading = false;
 let knownWords = 0;
+let unknownWords = 0;
+let unmeasuredWords = 0;
 
 vi.mock('../../context', () => ({
   useFlashcards: () => ({ store: flashcardStoreMock, isKnowledgeReady: () => true, isLoading: () => flashcardsLoading }),
@@ -39,9 +41,9 @@ vi.mock('../../services/statsService', () => ({
 
 vi.mock('../../utils/wordLevelStats', () => ({
   computeWordLevelStats: () => ({
-    allEncountered: { known: knownWords, learning: 0, unknown: 0, total: knownWords },
+    allEncountered: { known: knownWords, learning: 0, unknown: unknownWords, untracked: unmeasuredWords, total: knownWords + unknownWords + unmeasuredWords },
     byLevel: [],
-    outsideLevels: { total: 0, known: 0, learning: 0, unknown: 0 },
+    outsideLevels: { total: 0, known: 0, learning: 0, unknown: 0, untracked: 0 },
   }),
 }));
 
@@ -117,6 +119,8 @@ describe('Dashboard', () => {
     summariesMock = {};
     flashcardsLoading = false;
     knownWords = 0;
+    unknownWords = 0;
+    unmeasuredWords = 0;
     // Exercise the production invalidation path: the knowledge log cache is
     // keyed by the events version, and swapping the mock without a bump must
     // look exactly like an external change to the log.
@@ -149,6 +153,22 @@ describe('Dashboard', () => {
     expect(container.querySelector('.dashboard-empty-state')).toBeNull();
     expect(container.textContent).toContain('mlearn.Statistics.Legend.Learned');
     expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.TotalCards');
+    dispose();
+  });
+
+  it('keeps unassessed curriculum entries separate from measured gaps instead of claiming they were viewed', async () => {
+    knownWords = 2;
+    unknownWords = 3;
+    unmeasuredWords = 8;
+    const { Dashboard } = await import('./Dashboard');
+    const dispose = render(() => <Dashboard />, container);
+    await vi.waitFor(() => expect(container.querySelector('.analytics-summary')).not.toBeNull());
+    const summary = container.querySelector('.analytics-summary')!;
+    const values = Array.from(summary.querySelectorAll('.mock-statcard')).map(card => card.textContent);
+    expect(values).toContain('mlearn.Statistics.Legend.Unknown3');
+    expect(values).toContain('mlearn.Statistics.Legend.Unmeasured8');
+    expect(summary.textContent).not.toContain('mlearn.Statistics.Legend.Viewed');
+    expect(summary.textContent).not.toContain('NaN');
     dispose();
   });
 

@@ -815,6 +815,8 @@ const WelcomeContent: Component = () => {
         </Show>
 
         <Show when={installationStarted() || installationCompleted()}>
+          <details class="welcome-window__advanced">
+            <summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary>
           <LogConsole
             logs={statusLogs()}
             title={overallStatus()}
@@ -823,6 +825,7 @@ const WelcomeContent: Component = () => {
             showTimestamps={false}
             height="150px"
           />
+          </details>
         </Show>
 
         <Show when={networkError()}>
@@ -832,14 +835,18 @@ const WelcomeContent: Component = () => {
               ? 'mlearn.Installer.Alerts.NetworkOfflineTitle'
               : 'mlearn.Installer.Alerts.NetworkError')}
             message={networkErrorOffline()
-              ? `${t('mlearn.Installer.Alerts.NetworkOfflineMessage')}\n${networkError()!}`
-              : networkError()!}
+              ? t('mlearn.Installer.Alerts.NetworkOfflineMessage')
+              : t('mlearn.Installer.Alerts.NetworkError')}
             closable
             onClose={() => {
               setNetworkError(null);
               setNetworkErrorOffline(false);
             }}
           />
+          <details class="welcome-window__advanced">
+            <summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary>
+            <pre>{networkError()}</pre>
+          </details>
         </Show>
 
         <Show when={restartCountdown() !== null}>

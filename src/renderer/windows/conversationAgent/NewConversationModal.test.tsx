@@ -109,6 +109,11 @@ describe('NewConversationModal', () => {
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   };
 
+  it('carries the tutor purpose into scenario setup without asking the learner to re-enter it', () => {
+    dispose = render(() => <NewConversationModal world={world()} initialIntent="Practise describing my work" onClose={vi.fn()} onCreated={vi.fn()} />, container);
+    expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('Practise describing my work');
+  });
+
   it('keeps selected people in an independent sandbox by exact id', async () => {
     const onCreated = vi.fn();
     dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
@@ -271,8 +276,8 @@ describe('persistent scope creation', () => {
   const startButton = (): HTMLButtonElement => container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"], button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement;
   const personButton = (name: string): HTMLButtonElement =>
     Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === `mlearn.ConversationAgent.NewConversation.ToggleParticipant-${name}`)!;
-  const scopeOption = (key: string): HTMLButtonElement =>
-    (Array.from(container.querySelectorAll('button[role="radio"]')) as HTMLButtonElement[]).find((button) => button.textContent === key)!;
+  const scopeOption = (key: string): HTMLInputElement =>
+    (Array.from(container.querySelectorAll('input[role="radio"]')) as HTMLInputElement[]).find((input) => input.getAttribute('aria-label') === key)!;
   const typeIntent = (text: string): void => {
     const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
     textarea.value = text;
@@ -329,8 +334,8 @@ describe('living world consent', () => {
   const startButton = (): HTMLButtonElement => container.querySelector('button[aria-label="mlearn.ConversationAgent.NewConversation.StartAria"], button[aria-label="mlearn.ConversationAgent.NewConversation.UseScenario"]') as HTMLButtonElement;
   const personButton = (name: string): HTMLButtonElement =>
     Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === `mlearn.ConversationAgent.NewConversation.ToggleParticipant-${name}`)!;
-  const scopeOption = (key: string): HTMLButtonElement =>
-    (Array.from(container.querySelectorAll('button[role="radio"]')) as HTMLButtonElement[]).find((button) => button.textContent === key)!;
+  const scopeOption = (key: string): HTMLInputElement =>
+    (Array.from(container.querySelectorAll('input[role="radio"]')) as HTMLInputElement[]).find((input) => input.getAttribute('aria-label') === key)!;
   const enableButton = (): HTMLButtonElement =>
     Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.LivingWorld.EnableAndContinue')!;
 

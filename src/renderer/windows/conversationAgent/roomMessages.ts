@@ -110,6 +110,7 @@ export function renderCompiledContext(
     const parts: string[] = [];
     const lp = ctx.learnerProjection;
     if (lp.language) parts.push(`Language: ${lp.language}`);
+    if (lp.learningTarget) parts.push(`Learning target (chosen goal, not assessed ability): ${lp.learningTarget}`);
     if (lp.levelEstimate) parts.push(`Level estimate: ${lp.levelEstimate}`);
     if (lp.failedWords && lp.failedWords.length > 0) {
       parts.push(lp.wordsBasis === 'prediction'

@@ -53,4 +53,16 @@ describe('useKnowledgeProjection', () => {
     root.dispose();
   });
 
+  it('preserves a failed query and retries the same canonical identity', async () => {
+    query.mockClear();
+    query.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(payload);
+    const root = createRoot(dispose => ({ dispose, state: useKnowledgeProjection(() => ({ language: 'pkg', surface: 'retry-word' })) }));
+    await vi.waitFor(() => expect(root.state.projection()?.status).toBe('error'));
+    root.state.retry();
+    await vi.waitFor(() => expect(root.state.projection()?.status).toBe('ready'));
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls[0]).toEqual(query.mock.calls[1]);
+    root.dispose();
+  });
+
 });

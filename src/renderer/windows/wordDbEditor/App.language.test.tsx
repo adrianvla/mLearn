@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
 import type { WordEntry } from './components';
 import type { Flashcard } from '../../../shared/types';
 
@@ -13,6 +13,9 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(() => ({
   timesSeen: 0,
 }));
 const renderedEntries: WordEntry[] = [];
+const [activeLanguage, setActiveLanguage] = createSignal('ja');
+let trackedStore: { wordKnowledge: Record<string, { word: string; language?: string }>; flashcards: Record<string, { language: string; content: { front: string } }> } = { wordKnowledge: {}, flashcards: {} };
+let projectionQuery: (() => { surfaces: string[] } | undefined) | undefined;
 const renderedEditDialogs: Array<{ word: string; initialData: unknown }> = [];
 const mockFetchAnkiWordsCache = vi.fn(() => Promise.resolve(new Set<string>()));
 const mockIsAnkiCacheFetched = vi.fn(() => true);
@@ -50,6 +53,7 @@ vi.mock('../../context', () => ({
     getWordVariants: (word: string) => [word],
   }),
   useFlashcards: () => ({
+    store: trackedStore,
     addFlashcard: vi.fn(),
     removeFlashcard: vi.fn(),
     getCardByWord: vi.fn(async () => null),
@@ -64,7 +68,7 @@ vi.mock('../../context', () => ({
   useLocalization: () => ({ t: (key: string) => key }),
   useSettings: () => ({
     settings: {
-      language: 'ja',
+      get language() { return activeLanguage(); },
       get use_anki() {
         return mockUseAnki;
       },
@@ -89,8 +93,8 @@ vi.mock('../../services/ankiWordsCache', () => ({
 }));
 
 vi.mock('./components', () => ({
-  SearchBar: () => <div />,
-  EntriesHeader: () => <div />,
+  SearchBar: (props: { searchQuery: () => string; setSearchQuery: (value: string) => void }) => <input aria-label="Search vocabulary" value={props.searchQuery()} onInput={event => props.setSearchQuery(event.currentTarget.value)} />,
+  EntriesHeader: (props: { onSort: (key: string) => void }) => <button onClick={() => props.onSort('status')}>Sort knowledge</button>,
   WordEntryRow: (props: { entry: WordEntry; onEdit?: (entry: WordEntry) => void }) => {
     renderedEntries.push(props.entry);
     return (
@@ -107,6 +111,7 @@ vi.mock('./components', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
+  Btn: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
   ModalLoadingOverlay: () => <div />,
   Spinner: () => <div />,
   SkeletonRows: (props: { rows?: number }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,
@@ -144,6 +149,8 @@ describe('WordDbEditorContent', () => {
     mockIsAnkiCacheFetched.mockReset();
     mockIsAnkiCacheFetched.mockReturnValue(true);
     mockUseAnki = false;
+    setActiveLanguage('ja');
+    trackedStore = { wordKnowledge: {}, flashcards: {} };
     mockWordFrequency = {
       '赤い': {
         reading: 'あかい',
@@ -157,6 +164,37 @@ describe('WordDbEditorContent', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('keeps saved vocabulary scoped to its owning language', async () => {
+    mockWordFrequency = {};
+    trackedStore = {
+      wordKnowledge: { 'other:key': { word: 'foreign knowledge', language: 'other' }, 'ja:key': { word: 'local knowledge' } },
+      flashcards: { other: { language: 'other', content: { front: 'foreign card' } } },
+    };
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await vi.waitFor(() => expect(container.textContent).toContain('local knowledge'));
+    expect(container.textContent).not.toContain('foreign');
+    dispose();
+  });
+
+  it('ignores a late dictionary response after changing languages', async () => {
+    mockWordFrequency = {};
+    const { loadDictionaryUniverse } = await import('../../services/dictionaryUniverse');
+    let resolveOld!: (rows: [string, string][]) => void;
+    vi.mocked(loadDictionaryUniverse).mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+    vi.mocked(loadDictionaryUniverse).mockResolvedValueOnce([['current language word', '']]);
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await vi.waitFor(() => expect(resolveOld).toBeDefined());
+    setActiveLanguage('third-party');
+    await vi.waitFor(() => expect(container.textContent).toContain('current language word'));
+    resolveOld([['stale language word', '']]);
+    await Promise.resolve();
+    expect(container.textContent).toContain('current language word');
+    expect(container.textContent).not.toContain('stale language word');
+    dispose();
   });
 
   it('scopes row flashcard lookups to the active language', async () => {
@@ -252,6 +290,47 @@ describe('WordDbEditorContent', () => {
     dispose();
   });
 
+  it('queries knowledge for status sorting only and bounds it to the text search', async () => {
+    const { loadDictionaryUniverse } = await import('../../services/dictionaryUniverse');
+    vi.mocked(loadDictionaryUniverse).mockResolvedValueOnce([['dictionary-only', '']]);
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('input[aria-label="Search vocabulary"]')).not.toBeNull());
+    expect(projectionQuery?.()).toBeUndefined();
+    const input = container.querySelector('input[aria-label="Search vocabulary"]') as HTMLInputElement;
+    input.value = 'dictionary';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Sort knowledge')?.click();
+    await vi.waitFor(() => expect(projectionQuery?.()?.surfaces).toEqual(['dictionary-only']));
+    dispose();
+  });
+
+  it('loads dictionary-only vocabulary even when the package has no frequency rows', async () => {
+    mockWordFrequency = {};
+    const { loadDictionaryUniverse } = await import('../../services/dictionaryUniverse');
+    vi.mocked(loadDictionaryUniverse).mockResolvedValueOnce([['dictionary-only', '']]);
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await vi.waitFor(() => expect(container.textContent).toContain('dictionary-only'));
+    expect(container.textContent).not.toContain('mlearn.WordDbEditor.EmptyState');
+    dispose();
+  });
+
+  it('labels a failed dictionary read as incomplete and retries without claiming empty vocabulary', async () => {
+    mockWordFrequency = {};
+    const { loadDictionaryUniverse } = await import('../../services/dictionaryUniverse');
+    vi.mocked(loadDictionaryUniverse).mockRejectedValueOnce(new Error('unavailable'));
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
+    expect(container.textContent).toContain('mlearn.WordDbEditor.DictionaryUnavailable');
+    expect(container.textContent).not.toContain('mlearn.WordDbEditor.EmptyState');
+    (container.querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).toBeNull());
+    expect(container.textContent).toContain('mlearn.WordDbEditor.EmptyState');
+    dispose();
+  });
+
   it('shows an empty database instead of loading forever when frequency data is unavailable', async () => {
     mockWordFrequency = {};
     const { WordDbEditorContent } = await import('./App');
@@ -268,8 +347,11 @@ describe('WordDbEditorContent', () => {
 
 vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { projectionFixture } = await import('../../../../test/projectionFixture');
-  return { useKnowledgeProjections: (query: () => { surfaces: string[] }) => ({
+  return { useKnowledgeProjections: (query: () => { surfaces: string[] } | undefined) => { projectionQuery = query; return ({
     loading: () => false,
-    projections: () => new Map(query().surfaces.map(word => [word, projectionFixture(word === '赤い' ? 'known' : 'unknown', word === '赤い' ? 'evidence' : 'unmeasured')])),
-  }) };
+    ready: () => true,
+    failed: () => false,
+    retry: vi.fn(),
+    projections: () => new Map((query()?.surfaces ?? []).map(word => [word, projectionFixture(word === '赤い' ? 'known' : 'unknown', word === '赤い' ? 'evidence' : 'unmeasured')])),
+  }); } };
 });

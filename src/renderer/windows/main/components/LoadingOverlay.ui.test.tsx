@@ -7,6 +7,9 @@ import type { LanguageDataInstallError } from '../../../../shared/types';
 
 const installLanguageDataMock = vi.fn();
 const openWindowMock = vi.fn();
+const [serverState, setServerState] = createSignal('connected');
+const [serverMessage, setServerMessage] = createSignal('');
+const [serverError, setServerError] = createSignal<string | null>(null);
 const [installing, setInstalling] = createSignal(false);
 const [installError, setInstallError] = createSignal<LanguageDataInstallError | null>(null);
 
@@ -21,11 +24,11 @@ const translations: Record<string, string> = {
 
 vi.mock('../../../context', () => ({
   useServer: () => ({
-    error: () => null,
-    isConnected: () => true,
+    error: serverError,
+    isConnected: () => serverState() === 'connected',
     restartBackend: vi.fn(),
-    status: () => 'connected',
-    statusMessage: () => '',
+    status: serverState,
+    statusMessage: serverMessage,
   }),
   useSettings: () => ({
     isLoading: () => false,
@@ -75,6 +78,9 @@ describe('LoadingOverlay language data update flow', () => {
     document.body.appendChild(container);
     installLanguageDataMock.mockReset();
     openWindowMock.mockReset();
+    setServerState('connected');
+    setServerMessage('');
+    setServerError(null);
     setInstalling(false);
     setInstallError(null);
   });
@@ -82,6 +88,17 @@ describe('LoadingOverlay language data update flow', () => {
   afterEach(() => {
     container.remove();
     document.body.replaceChildren();
+  });
+
+  it('does not turn installer diagnostic output into a learner-facing startup message', async () => {
+    setServerState('installing');
+    setServerMessage('ERROR: [notice] To update, run: /private/local/env/bin/python -m pip install --upgrade pip');
+    const { LoadingOverlay } = await import('./LoadingOverlay');
+    const dispose = render(() => <LoadingOverlay />, container);
+    expect(document.body.textContent).toContain('mlearn.Installer.Status.Installing');
+    expect(document.body.textContent).not.toContain('/private/local');
+    expect(document.body.textContent).not.toContain('pip install');
+    dispose();
   });
 
   it('updates the active language in place without opening the welcome window', async () => {

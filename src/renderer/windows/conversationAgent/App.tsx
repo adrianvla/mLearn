@@ -1,3 +1,4 @@
+import { tutorSessionIntent } from '../../services/tutorSessionIntent';
 /**
  * Conversation Agent Window App Component
  * AI-powered language tutor with tokenized chat, tool calling, and speech I/O
@@ -51,7 +52,7 @@ import type { TurnAffectOptions, TurnSocialState } from '../../../shared/socialS
 import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, StreamStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
-import { getConversationErrorMessage } from './errorUtils';
+import { conversationRecoveryKey } from './errorUtils';
 import { shouldHideAssistantBubble } from './messageState';
 import { createJournalThreadStore, eventsToDisplayMessages, buildLLMHistory } from './journalRuntime';
 import { runRoomTurn } from '../../../shared/roomOrchestrator';
@@ -59,7 +60,7 @@ import { compileContext, visibleThreadEventsFor, type CompiledContext, type Lear
 import { renderCompiledContext } from './roomMessages';
 import { createVoicePrefetch } from './voicePrefetch';
 import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type WorldSnapshot } from '../../../shared/world';
-import { shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
+import { getLearningLanguageLevelForLanguage, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -202,8 +203,8 @@ export const ConversationContent: Component = () => {
   };
 
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
-  const [tutorSelections, setTutorSelections] = createSignal<Pick<TutorSessionConfig, 'selectedGrammar' | 'selectedWords'>>({ selectedGrammar: [], selectedWords: [] });
   let translatedInstructions: string | null = null;
+  const [pendingTutorConfig, setPendingTutorConfig] = createSignal<TutorSessionConfig>();
   const [inputText, setInputText] = createSignal('');
   const [isStreaming, setIsStreaming] = createSignal(false);
   const [isCompactingContext] = createSignal(false);
@@ -345,40 +346,31 @@ export const ConversationContent: Component = () => {
     return getConversationDisplayLanguageName(settings.language, currentLangData(), t, settings.uiLanguage);
   };
   const promptLangName = () => getConversationPromptLanguageName(settings.language, currentLangData());
-  const youLabel = () => t('mlearn.Room.You') || 'You';
-  // Learner state as one implicit projection: media-scoped failures + level +
-  // (compat) legacy tutor selections, until the tutorConfig merge lands fully.
-  // Media failures reconcile against the canonical knowledge resolver: a word
-  // the journal settles (evidence-backed known or teaching-excluded) never
-  // reaches the tutor as a failure, however stale media ease ranks it.
-  // Explicit tutor selections bypass reconciliation — they are practice
-  // assignments, not failure inferences. Grammar mixes explicit selections
-  // with legacy ease-heuristic media stats, so its basis stays 'prediction'
-  // until grammar targets/projection land.
+  const youLabel = () => t('mlearn.Home.Cards.Room.You');
+  // Observed media hints stay separate from the learner-authored thread intent.
+  // Current canonical knowledge reconciles stale media suggestions. A chosen
+  // learning target directs practice; it must never become an ability estimate.
   const learnerProjection = (): LearnerProjection => {
     const media = mediaContext();
-    const tutor = tutorSelections();
-    const level = Number(settings.learningLanguageLevels?.[settings.language] ?? 0);
+    const level = getLearningLanguageLevelForLanguage(settings, settings.language);
     const notSettled = (word: string): boolean => !flashcardCtx.isWordSettledSync(word, settings.language);
     const mediaFailures = [...(media?.failedWords ?? [])]
       .sort((a, b) => a.ease - b.ease)
       .slice(0, 15)
       .map((w) => w.word)
       .filter(notSettled);
-    const selectedWords = (tutor?.selectedWords ?? []).map((w) => w.word);
     return {
       language: promptLangName(),
       wordsBasis: 'prediction',
       grammarBasis: 'prediction',
-      failedWords: [...new Set([...mediaFailures, ...selectedWords])],
+      failedWords: [...new Set(mediaFailures)],
       grammarPoints: [
         ...[...(media?.failedGrammar ?? [])].sort((a, b) => a.ease - b.ease).slice(0, 10).map((g) => g.pattern),
-        ...(tutor?.selectedGrammar ?? []).map((g) => g.pattern),
       ],
       // Exposure signal only (patterns repeatedly seen, never failed) — kept
       // out of grammarPoints so prediction never masquerades as failure.
       grammarExposure: media?.grammarExposure?.map((g) => g.pattern),
-      levelEstimate: level > 0 ? (getLevelName(level) ?? undefined) : undefined,
+      learningTarget: level !== null ? (getLevelName(level) ?? undefined) : undefined,
     };
   };
   const activeRoom = () => world()?.rooms.find((room) => room.id === selection()?.roomId) ?? (activeThread() ? sandboxContext(activeThread()!) : undefined) ?? null;
@@ -727,7 +719,6 @@ export const ConversationContent: Component = () => {
     const threadId = selectedSandbox?.id ?? requestedThread?.id ?? null;
     cancelVoiceScheduledNudge();
     setMediaContext(null);
-    setTutorSelections({ selectedGrammar: [], selectedWords: [] });
     translatedInstructions = null;
     pendingCheckerSocial = null;
     turnHeuristicSocial = null;
@@ -759,6 +750,11 @@ export const ConversationContent: Component = () => {
     const snapshot = await getBridge().world.getWorldState();
     setWorld(snapshot);
     await selectRoom(result.roomId, result.threadId ?? undefined);
+    const tutor = pendingTutorConfig();
+    if (tutor) {
+      translatedInstructions = tutor.customInstructions || null;
+      setPendingTutorConfig(undefined);
+    }
     setShowNewConversationModal(false);
     // Creation publishes setup context. The next actual exchange consumes it;
     // setup is not submitted to the turn engine as a synthetic user action.
@@ -903,11 +899,8 @@ export const ConversationContent: Component = () => {
         }
         if (isTutorSessionConfig(rawCtx.tutorConfig)) {
           const config = rawCtx.tutorConfig;
-          setTutorSelections({ selectedGrammar: config.selectedGrammar, selectedWords: config.selectedWords });
-          translatedInstructions = config.customInstructions || null;
-          if (config.customInstructions) {
-            await updateActiveThread((thread) => thread.title ? thread : { ...thread, title: config.customInstructions.slice(0, 50) });
-          }
+          setPendingTutorConfig(config);
+          setShowNewConversationModal(true);
         }
         if (typeof rawCtx.initialMessage === 'string' && rawCtx.initialMessage.trim()) {
           setInputText(rawCtx.initialMessage);
@@ -1121,10 +1114,11 @@ export const ConversationContent: Component = () => {
         if (!keepStreaming) clearAssistantStreamState();
       },
       onError: (error) => {
+        log.error('Conversation response failed', error);
         clearAssistantStreamState();
         const message = isCloudSessionCancelled(error) ? t('mlearn.CloudReLogin.SignInCanceled')
           : handleCloudSessionError(error, true) ? t('mlearn.CloudReLogin.SessionExpired')
-          : isCloudUnreachable(error) ? t('mlearn.AI.CloudUnreachable') : getConversationErrorMessage(error);
+          : isCloudUnreachable(error) ? t('mlearn.AI.CloudUnreachable') : t(conversationRecoveryKey(error));
         setLiveOverlay({ role: 'assistant', content: message, timestamp: Date.now(), isError: true });
       },
     };
@@ -1229,8 +1223,9 @@ export const ConversationContent: Component = () => {
           .catch(() => undefined);
       }
     } catch (error) {
+      log.error('Conversation turn failed', error);
       if (session === selectionSession) {
-        setLiveOverlay({ role: 'assistant', content: getConversationErrorMessage(error), timestamp: Date.now(), isError: true });
+        setLiveOverlay({ role: 'assistant', content: t(conversationRecoveryKey(error)), timestamp: Date.now(), isError: true });
       }
     } finally {
       if (session === selectionSession) {
@@ -1540,7 +1535,7 @@ export const ConversationContent: Component = () => {
             size="sm"
           />
           <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
-            <span class="ca-header-status">{server.statusMessage()}</span>
+            <span class="ca-header-status">{t('mlearn.Global.Status.StartingBackend')}</span>
           </Show>
         </Btn>
         <IconBtn
@@ -1900,11 +1895,12 @@ export const ConversationContent: Component = () => {
         </>
       </Show>
       <Show when={showNewConversationModal()}>
-        <NewConversationModal
+        <Show when={pendingTutorConfig() ?? 'manual'} keyed>{(_config) => <NewConversationModal
           world={world()}
-          onClose={() => setShowNewConversationModal(false)}
+          initialIntent={pendingTutorConfig() ? tutorSessionIntent(pendingTutorConfig()!) : undefined}
+          onClose={() => { setShowNewConversationModal(false); setPendingTutorConfig(undefined); }}
           onCreated={handleScenarioCreated}
-        />
+        />}</Show>
       </Show>
       <Show when={showIntegrationModal() && activeThread()?.sandbox}>
         <IntegrationModal

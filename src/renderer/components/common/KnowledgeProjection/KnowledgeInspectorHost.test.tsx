@@ -78,6 +78,19 @@ describe('shared canonical inspector host', () => {
     expect(mocks.projection).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps failed history distinct from an empty journal and can retry', async () => {
+    mocks.history.mockRejectedValueOnce(new Error('offline'));
+    dispose = render(() => <KnowledgeInspectorHost />, container);
+    openKnowledgeInspector({ language: 'pkg', surface: 'word', target: { kind: 'entry', id: 'pkg:word' } });
+    expect(drawer?.model.events).toBeUndefined();
+    await vi.waitFor(() => expect(drawer?.historyFailed).toBe(true));
+    expect(drawer?.model.events).toBeUndefined();
+    drawer?.onRetryHistory?.();
+    await vi.waitFor(() => expect(drawer?.model.events).toEqual([]));
+    expect(drawer?.historyFailed).toBe(false);
+    expect(mocks.history).toHaveBeenCalledTimes(2);
+  });
+
   it('ignores late history for a previous target when the inspected identity changes', async () => {
     const currentHistory: [] = [];
     mocks.history.mockResolvedValue(currentHistory);

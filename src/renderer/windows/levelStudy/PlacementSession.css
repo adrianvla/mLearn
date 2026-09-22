@@ -221,3 +221,10 @@
   cursor: pointer;
   color: inherit;
 }
+
+.learning-plan-page .placement-session { padding: 24px; }
+.learning-plan-page .placement-session__description { font-size: 1rem; line-height: 1.6; }
+.learning-plan-page .placement-session__live { padding: 24px 0; gap: 20px; }
+.learning-plan-page .placement-session__prompt { font-size: 2rem; }
+.learning-plan-page .placement-session button { min-height: 36px; color: var(--text-primary); font-size: 0.9rem; }
+.learning-plan-page .placement-session__record { flex-wrap: wrap; }

@@ -5,8 +5,8 @@ import './PolicyWhy.css';
 
 /**
  * R20 explanation surface for ONE policy decision (the pinned pick the
- * review is showing). Default UX is the brief contextual reason the decision
- * itself carries; the inline "Why?" adds a short learner-facing explanation.
+ * review is showing). The summary describes the selected activity in learner language; raw
+ * encounter reasons are technical traces and never rendered here.
  * Detailed policy traces remain available in the knowledge Inspector.
  *
  * G02 boundary: this view renders ONLY its props (the decision's selection
@@ -24,7 +24,7 @@ export const PolicyWhy: Component<{ decision: PolicyDecision | null | undefined 
         <div class="policy-why" data-testid="policy-why" data-action={decision.action ?? 'none'}>
           <div class="policy-why__summary">
             <span class="policy-why__title">{t('mlearn.Review.Why.Title')}</span>
-            <span class="policy-why__brief" data-testid="policy-why-brief">{decision.encounter.why}</span>
+            <span class="policy-why__brief" data-testid="policy-why-brief">{t(`mlearn.Review.Why.Reasons.${decision.action === 'DEFER' ? 'defer' : decision.candidate.origin}`)}</span>
             <button
               type="button"
               class="policy-why__toggle"
@@ -39,7 +39,7 @@ export const PolicyWhy: Component<{ decision: PolicyDecision | null | undefined 
           <Show when={expanded()}>
             <div class="policy-why__details" data-testid="policy-why-details">
               <p class="policy-why__explanation">{t('mlearn.Review.Why.Explanation')}</p>
-              <p class="policy-why__reason">{decision.encounter.why}</p>
+              <p class="policy-why__reason">{t(`mlearn.Review.Why.Reasons.${decision.action === 'DEFER' ? 'defer' : decision.candidate.origin}`)}</p>
             </div>
           </Show>
         </div>

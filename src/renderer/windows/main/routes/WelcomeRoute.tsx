@@ -9,13 +9,12 @@ import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../
 import type { Flashcard } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
+import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
 import {
   WelcomeFeatureCard,
   WelcomeVideoPreview,
   WelcomeReaderPreview,
   WelcomeFlashcardPreview,
-  WelcomeSettingsPreview,
   WelcomeStatsPreview,
   WelcomeLookupPreview,
   WelcomeLevelPreview,
@@ -93,10 +92,6 @@ export const WelcomeRoute: Component = () => {
     getBridge().window.openWindow({ type: 'settings' });
   };
 
-  const openSettingsSection = (section: string) => {
-    getBridge().window.openWindow({ type: 'settings', context: { section } });
-  };
-
   const openFlashcards = () => {
     getBridge().window.openWindow({ type: 'flashcards' });
   };
@@ -153,8 +148,7 @@ export const WelcomeRoute: Component = () => {
       getBridge().window.openWindow({
         type: 'conversation-agent',
         context: {
-          tutorConfig: DEFAULT_TUTOR_CONFIG,
-          initialMessage: draft,
+          tutorConfig: { ...DEFAULT_TUTOR_CONFIG, customInstructions: draft },
         } as unknown as Record<string, unknown>,
       });
       setTutorDraft('');
@@ -484,7 +478,7 @@ export const WelcomeRoute: Component = () => {
             </Show>
           </span>
           <button type="button" class="welcome-change-language" onClick={openSettings}>
-            {t('mlearn.Home.UI.ChangeLanguage')}
+            {t('mlearn.Home.Cards.Settings.Title')}
           </button>
         </div>
       </header>
@@ -495,6 +489,25 @@ export const WelcomeRoute: Component = () => {
         fallback={
           <section class="welcome-actions">
             <WelcomeFeatureCard
+          icon={<TargetIcon size={24} />}
+          title={t('mlearn.Home.Cards.LevelStudy.Title')}
+          description={t('mlearn.Home.Cards.LevelStudy.Description')}
+          onClick={openLevelStudy}
+          preview={
+            <WelcomeLevelPreview
+              pending={levelStudyPending()}
+              coverage={levelCoverage()}
+              active={levelChips().active}
+              chips={levelChips().chips}
+              titleLabel={t('mlearn.LevelStudy.Coverage.Title')}
+              assessedLabel={t('mlearn.LevelStudy.Coverage.Assessed')}
+              knownLabel={t('mlearn.LevelStudy.LevelCard.Known')}
+              emptyLabel={t('mlearn.Home.Cards.LevelStudy.Description')}
+              onOpen={openLevelStudy}
+            />
+          }
+        />
+        <WelcomeFeatureCard
               icon={<VideoIcon size={24} />}
               title={t('mlearn.Home.Cards.Video.Title')}
               description={t('mlearn.Home.Cards.Video.Description')}
@@ -532,7 +545,7 @@ export const WelcomeRoute: Component = () => {
           preview={
             <WelcomeFlashcardPreview
               card={currentCard()}
-              loading={flashcards.isLoading()}
+              loading={flashcards.isLoading() || !flashcards.isKnowledgeReady()}
               dueCount={flashcards.queueCounts().total}
               dueLabel={t('mlearn.Flashcards.Statistics.DueToday')}
               emptyLabel={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
@@ -541,24 +554,6 @@ export const WelcomeRoute: Component = () => {
               ratingButtons={ratingButtons()}
               onOpen={openFlashcards}
               onRate={rateCard}
-            />
-          }
-        />
-
-        <WelcomeFeatureCard
-          icon={<SettingsIcon size={24} />}
-          title={t('mlearn.Home.Cards.Settings.Title')}
-          description={t('mlearn.Home.Cards.Settings.Description')}
-          onClick={openSettings}
-          preview={
-            <WelcomeSettingsPreview
-              rows={[
-                { label: t('mlearn.Settings.Tabs.General'), section: 'general' },
-                { label: t('mlearn.Settings.Tabs.Appearance'), section: 'appearance' },
-                { label: t('mlearn.Settings.Tabs.AI'), section: 'ai' },
-                { label: t('mlearn.About.KeyboardShortcuts.Title'), section: 'about' },
-              ]}
-              onOpen={openSettingsSection}
             />
           }
         />
@@ -606,25 +601,6 @@ export const WelcomeRoute: Component = () => {
         />
 
         <WelcomeFeatureCard
-          icon={<TargetIcon size={24} />}
-          title={t('mlearn.Home.Cards.LevelStudy.Title')}
-          description={t('mlearn.Home.Cards.LevelStudy.Description')}
-          onClick={openLevelStudy}
-          preview={
-            <WelcomeLevelPreview
-              pending={levelStudyPending()}
-              coverage={levelCoverage()}
-              active={levelChips().active}
-              chips={levelChips().chips}
-              titleLabel={t('mlearn.LevelStudy.Coverage.Title')}
-              assessedLabel={t('mlearn.LevelStudy.Coverage.Assessed')}
-              knownLabel={t('mlearn.LevelStudy.LevelCard.Known')}
-              emptyLabel={t('mlearn.Home.Cards.LevelStudy.Description')}
-              onOpen={openLevelStudy}
-            />
-          }
-        />
-        <WelcomeFeatureCard
           icon={<BotIcon size={24} />}
           title={t('mlearn.Home.Cards.AITutor.Title')}
           description={isLLMReady(settings)
@@ -650,11 +626,18 @@ export const WelcomeRoute: Component = () => {
       >
         <section class="welcome-actions welcome-actions--simple">
           <ActionCard
+            icon={<TargetIcon size={24} />}
+            title={t('mlearn.Home.Cards.LevelStudy.Title')}
+            description={t('mlearn.Home.Cards.LevelStudy.Description')}
+            onClick={openLevelStudy}
+            primary
+          />
+
+          <ActionCard
             icon={<VideoIcon size={24} />}
             title={t('mlearn.Home.Cards.Video.Title')}
             description={t('mlearn.Home.Cards.Video.Description')}
             onClick={openVideoPlayer}
-            primary
           />
 
           <ActionCard
@@ -662,7 +645,6 @@ export const WelcomeRoute: Component = () => {
             title={t('mlearn.Home.Cards.Reader.Title')}
             description={t('mlearn.Home.Cards.Reader.Description')}
             onClick={openReader}
-            primary
           />
 
           <ActionCard
@@ -670,13 +652,6 @@ export const WelcomeRoute: Component = () => {
             title={t('mlearn.Home.Cards.Flashcards.Title')}
             description={t('mlearn.Home.Cards.Flashcards.Description')}
             onClick={openFlashcards}
-          />
-
-          <ActionCard
-            icon={<SettingsIcon size={24} />}
-            title={t('mlearn.Home.Cards.Settings.Title')}
-            description={t('mlearn.Home.Cards.Settings.Description')}
-            onClick={openSettings}
           />
 
           <ActionCard
@@ -694,13 +669,6 @@ export const WelcomeRoute: Component = () => {
           />
 
           <ActionCard
-            icon={<TargetIcon size={24} />}
-            title={t('mlearn.Home.Cards.LevelStudy.Title')}
-            description={t('mlearn.Home.Cards.LevelStudy.Description')}
-            onClick={openLevelStudy}
-          />
-
-          <ActionCard
             icon={<BotIcon size={24} />}
             title={t('mlearn.Home.Cards.AITutor.Title')}
             description={
@@ -709,7 +677,6 @@ export const WelcomeRoute: Component = () => {
                 : t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')
             }
             onClick={openAITutor}
-            primary
             class="welcome-ai-tutor-card"
           />
         </section>

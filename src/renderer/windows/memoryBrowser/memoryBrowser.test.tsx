@@ -135,6 +135,17 @@ describe('memory browser window', () => {
     container.remove();
   });
 
+  it('keeps a failed memory read distinct from no memories and retries', async () => {
+    mockBridge.journal.readSeaProjection.mockRejectedValueOnce(new Error('offline'));
+    const { MemoryBrowserApp } = await import('./App');
+    dispose = render(() => <MemoryBrowserApp />, container);
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
+    expect(container.textContent).not.toContain('mlearn.MemoryBrowser.Empty');
+    (container.querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).toBeNull());
+    expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledTimes(2);
+  });
+
   it('renders per-participant projections with perspective redaction and no editing affordances', async () => {
     const { MemoryBrowserApp } = await import('./App');
     dispose = render(() => <MemoryBrowserApp />, container);

@@ -331,7 +331,14 @@
         "known": "Connu"
       },
       "WordEaseLegendTitle": "Niveau de maîtrise :",
-      "WordsTab": "Mots"
+      "WordsTab": "Mots",
+      "IntentTitle": "Que souhaitez-vous pratiquer ?",
+      "IntentDescription": "Le tuteur utilise votre objectif et vos acquis disponibles pour guider la pratique. Vous pouvez ajouter un sujet ou choisir du contenu précis.",
+      "IntentPlan": "Aide-moi à progresser vers mon objectif.",
+      "IntentConversation": "Pratique une conversation quotidienne avec moi.",
+      "IntentTopic": "Aide-moi à explorer un sujet de mon choix.",
+      "Advanced": "Choisir du contenu précis",
+      "AdvancedDescription": "Facultatif : sélectionnez des mots, de la grammaire ou des médias. Ces choix ne modifient pas vos acquis évalués."
     },
     "About": {
       "Description": "mLearn est un outil pour apprendre les langues par immersion. Regardez des vidéos, lisez des mangas et apprenez le vocabulaire naturellement grâce aux sous-titres intelligents et à la répétition espacée.",
@@ -893,7 +900,7 @@
         "CloseAria": "Fermer le menu de conversation",
         "Details": "Détails de la conversation",
         "Settings": "Paramètres",
-        "MemoryBrowser": "Navigateur de mémoire"
+        "MemoryBrowser": "Souvenirs"
       },
       "Call": {
         "StartAria": "Démarrer l'appel"
@@ -965,6 +972,13 @@
         "UnmutePersonContact": "Réactiver la personne",
         "MuteCalls": "Couper les appels",
         "AllowCalls": "Autoriser les appels"
+      },
+      "Recovery": {
+        "Model": "Le modèle IA n’est pas prêt. Sélectionnez-le ou réparez-le dans les paramètres IA, puis réessayez.",
+        "SignIn": "Reconnectez-vous dans les paramètres IA, puis réessayez cette conversation.",
+        "Connection": "Le service IA est inaccessible. Vérifiez votre connexion et les paramètres IA, puis réessayez.",
+        "Generic": "La conversation n’a pas pu continuer. Réessayez ; si le problème persiste, vérifiez les paramètres IA.",
+        "Settings": "Ouvrir les paramètres IA"
       }
     },
     "ErrorModal": {
@@ -974,7 +988,7 @@
       "Messages": {
         "AnkiConnectionFailed": "Impossible de se connecter à Anki. Assurez-vous qu'Anki est en cours d'exécution avec AnkiConnect installé, ou désactivez l'intégration Anki.",
         "AnkiNoValidCards": "Connecté à Anki mais aucune carte valide trouvée. Vérifiez votre deck et la configuration des champs dans les paramètres.",
-        "BackendStopped": "Le serveur s'est arrêté de manière inattendue. Redémarrez l'application.",
+        "BackendStopped": "Vos outils d’apprentissage n’ont pas pu démarrer. Réessayez ou ouvrez les détails techniques pour consulter le diagnostic.",
         "FileNotFound": "Un fichier requis est introuvable. Réinstallez l'application.",
         "PermissionDenied": "Permission refusée. Vérifiez les permissions système ou lancez l'application en tant qu'administrateur.",
         "PortInUse": "Une autre application utilise le port requis. Fermez les autres instances de mLearn ou redémarrez votre ordinateur."
@@ -1086,7 +1100,8 @@
           "Submit": "Ajouter la carte",
           "Title": "Ajouter une nouvelle carte mémoire",
           "WordLabel": "Mot",
-          "WordPlaceholder": "Entrez un mot..."
+          "WordPlaceholder": "Entrez un mot...",
+          "Error": "Impossible d’enregistrer cette carte. Votre texte est conservé ; réessayez."
         },
         "DeleteCard": {
           "Confirm": "Êtes-vous sûr de vouloir supprimer cette carte mémoire ? Cette action est irréversible.",
@@ -1327,7 +1342,7 @@
         "Adding": "Ajout...",
         "LoadingLanguageData": "Chargement des données linguistiques...",
         "LoadingSettings": "Chargement des paramètres...",
-        "StartingBackend": "Démarrage du serveur..."
+        "StartingBackend": "Préparation de vos outils d’apprentissage…"
       },
       "Success": "Succès",
       "Time": {
@@ -1398,7 +1413,7 @@
         },
         "WordDatabase": {
           "Description": "Parcourir le vocabulaire et les observations d’apprentissage",
-          "Title": "Base de mots",
+          "Title": "Vocabulaire",
           "EmptyHint": "Rechercher un mot",
           "NoMatches": "Aucun résultat",
           "LookupHint": "Appuyez sur Entrée pour rechercher « {query} »"
@@ -1416,8 +1431,8 @@
           "Title": "Sync des mots"
         },
         "LevelStudy": {
-          "Description": "Word Sync, grille de caractères et étude par niveau au même endroit",
-          "Title": "Étude par niveau"
+          "Description": "Définissez votre programme, votre objectif et votre rythme.",
+          "Title": "Plan d’apprentissage"
         }
       },
       "Errors": {
@@ -1453,16 +1468,16 @@
       },
       "Components": {
         "ExplainAi": {
-          "Description": "Installe le réseau neuronal LLM local. Décochez pour ignorer ~3 Go de dépendances.",
-          "Title": "Installer le module mLearn Explain AI"
+          "Description": "Exécutez les conversations et explications IA sur cet appareil. Vous pouvez configurer un fournisseur cloud ou auto-hébergé dans les paramètres IA.",
+          "Title": "Tuteur IA local"
         },
         "Reader": {
-          "Description": "Installe l'OCR pour la lecture de mangas/images. Décochez pour ignorer ~2 Go de dépendances.",
-          "Title": "Installer le module lecteur mLearn"
+          "Description": "Lisez le texte des images et documents numérisés. Les documents texte ordinaires fonctionnent sans ce composant facultatif.",
+          "Title": "Reconnaissance de texte"
         },
         "Voice": {
-          "Description": "Installe la reconnaissance vocale, la synthèse vocale et le clonage de voix. Décochez pour ignorer ~4 Go de dépendances.",
-          "Title": "Installer le module voix et TTS"
+          "Description": "Ajoutez la reconnaissance vocale locale et les réponses parlées pour pratiquer l’écoute et l’expression orale.",
+          "Title": "Pratique orale"
         }
       },
       "Instructions": {
@@ -1707,17 +1722,21 @@
         "Prefix": "Source de preuve : ",
         "None": "Aucune"
       },
-      "Unmeasured": "Non évalué"
+      "Unmeasured": "Non évalué",
+      "LoadError": "Impossible de charger vos acquis. Veuillez réessayer.",
+      "Retry": "Réessayer",
+      "Unavailable": "Indisponible",
+      "UnavailableHint": "Les détails des acquis ne sont pas disponibles pour cette langue sur cet appareil."
     },
     "LevelStudy": {
-      "Title": "Étude par niveau",
+      "Title": "Plan d’apprentissage",
       "Tabs": {
         "WordSync": "Sync des mots",
         "CharacterGrid": "Grille de caractères",
-        "LevelStudy": "Étude par niveau"
+        "LevelStudy": "Plan d’apprentissage"
       },
       "EmptyState": {
-        "Title": "Étude par niveau",
+        "Title": "Plan d’apprentissage",
         "Description": "Étudiez des mots organisés par niveau. Suivez vos progrès et ajoutez des mots aux flashcards."
       },
       "Coverage": {
@@ -1725,9 +1744,9 @@
         "Assessed": "évalué",
         "UpTo": "Mots jusqu'à",
         "AllLevels": "Mots de tous les niveaux",
-        "SetLevelHint": "Définissez votre niveau d'apprentissage dans les paramètres",
+        "SetLevelHint": "Objectif d’apprentissage",
         "Words": "mots",
-        "Complete": "Tous les mots de niveau sont suivis!",
+        "Complete": "Tous les mots de cette plage ont été évalués.",
         "Hint": "Cliquez sur un niveau ci-dessous pour voir et ajouter des mots"
       },
       "Grammar": {
@@ -1750,8 +1769,8 @@
         "Correct": "Correct !",
         "Incorrect": "Pas tout à fait — la réponse est : {answer}",
         "Next": "Suivant",
-        "NoLocks": "Les parcours de grammaire nécessitent un verrou inter-fenêtres ; ce navigateur n'en propose pas.",
-        "StorageUnavailable": "Le stockage a refusé cette écriture (quota ou mode privé). L'action n'a pas été enregistrée ; elle reste réessayable.",
+        "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau.",
+        "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez.",
         "ModeLabel": "Format de réponse",
         "ModeMcq": "Choisir",
         "ModeType": "Écrire",
@@ -1781,8 +1800,8 @@
         "TotalWords": "{count} mots",
         "Known": "Connu",
         "Learning": "En apprentissage",
-        "Unknown": "Inconnu",
-        "Untracked": "Non suivi",
+        "Unknown": "À travailler",
+        "Untracked": "Non évalué",
         "ClickToView": "Cliquez pour afficher les mots",
         "ViewWords": "Voir les mots",
         "BeyondExam": "Au-delà de l'examen"
@@ -1848,16 +1867,17 @@
         "EmptyPools": "Aucun mot non mesuré n'est disponible pour l'échantillonnage pour le moment.",
         "DateRequired": "Un résultat d'examen ou scolaire nécessite la date d'obtention.",
         "DateUnknown": "date inconnue",
-        "NoLocks": "Placement indisponible ici : cette session n'a pas de verrou inter-fenêtres.",
-        "NoStorage": "Le placement n'est pas disponible ici : la session n'a pas pu être enregistrée (stockage plein ou mode privé)."
+        "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau.",
+        "NoStorage": "Le placement n'est pas disponible ici : la session n'a pas pu être enregistrée (stockage plein ou mode privé).",
+        "LiveProgress": "Progression : {count} mots. L’évaluation s’adapte à vos réponses. Vous pouvez revenir au plan et reprendre plus tard."
       },
       "Mock": {
-        "Title": "Points de contrôle et tests blancs",
-        "Subtitle": "Plans fixes déclarés dérivés du paquet de langue installé. Les résultats montrent la provenance — jamais un score officiel.",
-        "ProviderChip": "dérivé-mlearn",
+        "Title": "Bilans de pratique",
+        "Subtitle": "Vérifiez vos progrès avec une série chronométrée. Ces activités ne donnent pas de note officielle d’examen.",
+        "ProviderChip": "Série d’exercices",
         "Start": "Commencer",
         "BlueprintMeta": "{sections} sections · {draw} questions · {seconds}s par question · sans aide",
-        "FreshFirst": "Familles de questions inédites d’abord",
+        "FreshFirst": "Nouveaux groupes de questions en premier",
         "Progress": "{index} sur {total}",
         "TimeLeft": "{seconds}s restantes",
         "PausedNote": "En pause — le chronomètre est arrêté ; la pause est enregistrée.",
@@ -1865,38 +1885,38 @@
         "Resume": "Reprendre",
         "Abandon": "Abandonner",
         "PausePolicy": "Les pauses sont enregistrées et exclues du chronomètre ; le dépassement laisse la question sans réponse.",
-        "NoItems": "Aucune question exploitable pour ce niveau — lance d’abord la validation indépendante dans la section grammaire.",
+        "NoItems": "Cette série n’est pas encore prête. Choisissez un autre niveau ou pratiquez la grammaire.",
         "NoBlueprints": "Aucun plan déclaré pour ce paquet pour l’instant.",
         "ResultsTitle": "Résultats — {level}",
         "Abandoned": "abandonné",
         "Answered": "Répondu : {count}",
         "Correct": "Juste : {count}",
         "TimedOut": "Sans réponse (temps dépassé) : {count}",
-        "HeldOut": "Familles inédites : {count}",
-        "RehearsedBackfill": "Complément déjà travaillé : {count}",
+        "HeldOut": "Nouveaux groupes de questions : {count}",
+        "RehearsedBackfill": "Groupes déjà pratiqués : {count}",
         "BlueprintVersion": "Plan {version}",
         "ContentVersion": "Paquet {version}",
         "Seed": "Germe {seed}",
         "ActiveTime": "Temps actif {seconds}s",
         "PausedTime": "En pause {seconds}s · {count} pauses",
         "SectionCol": "Section",
-        "DrawCol": "Tirage déclaré",
+        "DrawCol": "Questions prévues",
         "AnsweredCol": "Répondu",
         "CorrectCol": "Juste",
         "TimedOutCol": "Temps dépassé",
         "Assembled": "{assembled}/{requested} assemblées",
         "Constructions": "Constructions",
-        "AvailabilityGap": "Certaines sections n’ont pas pu assembler leur tirage déclaré — les questions manquantes sont signalées, jamais remplacées.",
+        "AvailabilityGap": "Certaines sections proposent moins de questions. Seules les questions présentées comptent dans ce résultat.",
         "MissedPatterns": "Constructions manquées",
         "NoMissed": "Rien de manqué parmi les questions répondues.",
-        "Repair": "Exercer ces points (même parcours de politique)",
+        "Repair": "Travailler les erreurs",
         "Discuss": "Les discuter en conversation",
         "ResultsDisclaimer": "Une bonne sélection est une tentative réussie — pas la preuve d’une maîtrise complète. Les résultats sont diagnostiques, jamais un score officiel.",
-        "BackToBlueprints": "Retour aux plans",
+        "BackToBlueprints": "Retour aux séries",
         "Summaries": "Résultats récents",
         "SummaryCounts": "{correct}/{answered} justes · {timedOut} sans réponse",
-        "NoLocks": "L'examen blanc nécessite un verrou multi-fenêtres ; ce navigateur ne le prend pas en charge.",
-        "StorageUnavailable": "Le stockage a refusé cette écriture (quota ou mode privé). La réponse n'a pas été enregistrée ; la question reste réessayable."
+        "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau.",
+        "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez."
       }
     },
     "Languages": {
@@ -1939,19 +1959,20 @@
     },
     "MemoryBrowser": {
       "Empty": "Aucune entrée de mémoire pour l'instant.",
-      "Title": "Navigateur de mémoire",
-      "Open": "Ouvrir le navigateur de mémoire",
-      "OpenInAgent": "Navigateur de mémoire",
+      "Title": "Souvenirs",
+      "Open": "Ouvrir les souvenirs",
+      "OpenInAgent": "Souvenirs",
       "Sections": {
-        "Beliefs": "Croyances",
-        "Episodes": "Épisodes",
-        "OpenLoops": "Boucles ouvertes",
+        "Beliefs": "Ce dont ils se souviennent",
+        "Episodes": "Expériences passées",
+        "OpenLoops": "Questions et projets en cours",
         "Relationships": "Relations",
-        "RoomCulture": "Culture de la salle"
+        "RoomCulture": "Contexte partagé"
       },
       "Tabs": {
-        "Room": "Salle"
-      }
+        "Room": "Vue partagée"
+      },
+      "LoadError": "Impossible de charger les souvenirs. Réessayez."
     },
     "Notifications": {
       "AnkiCacheLoaded": "Cartes Anki chargées depuis le cache (Anki semble hors ligne)",
@@ -2082,7 +2103,13 @@
         "SinglePage": "Page simple",
         "SpreadLeftToRight": "Pages G→D",
         "SpreadRightToLeft": "Pages D→G",
-        "ToggleUnknownWordsSidebar": "Afficher ou masquer la barre des mots inconnus"
+        "ToggleUnknownWordsSidebar": "Afficher ou masquer la barre des mots inconnus",
+        "ToggleContents": "Afficher le contenu",
+        "PreviousPage": "Page précédente",
+        "NextPage": "Page suivante",
+        "PageFit": "Ajustement de la page",
+        "PageLayout": "Disposition des pages",
+        "PageOrder": "Ordre des pages"
       },
       "UI": {
         "Tips": {
@@ -2298,7 +2325,7 @@
         "LiveTranslator": "Traducteur de mots en direct",
         "Behaviour": "Comportement",
         "WordKnowledge": "Connaissance des mots",
-        "LanguageProficiency": "Niveau de langue d'apprentissage",
+        "LanguageProficiency": "Plan d’apprentissage",
         "SuggestedFlashcards": "Flashcards suggérées",
         "WordColors": "Coloration des mots"
       },
@@ -2838,7 +2865,8 @@
         "ColorKnownWords": {
           "Description": "Lorsque désactivé, les mots déjà connus restent non colorés",
           "Label": "Colorer les mots connus"
-        }
+        },
+        "TechnicalCalibration": "Réglages du calendrier de révision et de la familiarité issue des cartes importées. Ces seuils numériques ne transforment pas l’exposition passive en connaissances évaluées."
       },
       "VideoPlayer": {
         "Title": "Lecteur vidéo",
@@ -2929,20 +2957,20 @@
         "Statistics": "Statistiques",
         "VideoPlayer": "Lecteur vidéo",
         "BrowserExtension": "Extension navigateur",
-        "EventAudit": "Journal des événements"
+        "EventAudit": "Journal développeur"
       },
       "SearchPlaceholder": "Rechercher dans les paramètres...",
       "Behaviour": {
         "SessionIntensity": {
           "Label": "Intensité des sessions",
-          "Description": "Détermine les activités recommandées — douce s’appuie sur le déjà consolidé, intensive limite le remplissage. Ne modifie jamais vos évaluations.",
+          "Description": "Choisissez un rythme confortable. Le rythme doux inclut davantage de révisions familières ; le rythme intensif se concentre sur ce qui demande du travail. Votre niveau de connaissance ne change pas.",
           "Gentle": "Douce",
           "Steady": "Normale",
           "Intensive": "Intensive"
         },
         "ExamGoal": {
           "Label": "Objectif d’examen",
-          "Description": "Définissez un objectif d’examen personnel ; à l’approche de l’échéance, les recommandations privilégient la consolidation et la réparation.",
+          "Description": "Fixez un objectif d’examen. À l’approche de la date, les exercices privilégient les révisions et les points à travailler.",
           "None": "Aucun",
           "Exam": "Examen",
           "Target": {
@@ -2953,7 +2981,8 @@
           "Deadline": {
             "Label": "Date de l’examen",
             "Description": "Dans les six dernières semaines, les recommandations privilégient la consolidation."
-          }
+          },
+          "OtherLanguage": "Cet objectif d’examen concerne une autre langue. Les modifications conservent cette langue. Choisissez « Aucun » avant de définir un objectif pour la langue actuelle."
         },
         "RatingKeyboardMode": {
           "Label": "Mode clavier d’évaluation",
@@ -2971,9 +3000,9 @@
           "Description": "Choisissez comment nommer les niveaux de cette liste de fréquence."
         },
         "LearningLanguageLevel": {
-          "Label": "Niveau de langue d'apprentissage",
-          "Description": "Lorsqu'il est défini, les cartes suggérées au-dessus de ce niveau et les cartes sans niveau ne seront pas enregistrées. Affecte également la difficulté de Word Sync.",
-          "NoLimit": "Aucune limite"
+          "Label": "Objectif d’apprentissage",
+          "Description": "Choisissez ce que vous souhaitez atteindre. Cela ne marque aucun contenu comme acquis.",
+          "NoLimit": "Tous les niveaux"
         },
         "AutoSuggestFlashcards": {
           "Label": "Suggérer automatiquement les flashcards",
@@ -3026,9 +3055,9 @@
     },
     "Statistics": {
       "Actions": {
-        "EditWordDatabase": "Éditeur de base de mots",
+        "EditWordDatabase": "Parcourir le vocabulaire",
         "OpenAiAnalytics": "Analyse IA des médias",
-        "OpenLevelStudy": "Ouvrir l'étude par niveau",
+        "OpenLevelStudy": "Ouvrir le plan d’apprentissage",
         "ViewCharacterGrid": "Grille de caractères"
       },
       "CurrentlyLearning": "En cours d'apprentissage",
@@ -3132,7 +3161,9 @@
       "Legend": {
         "Learned": "Appris",
         "Learning": "En apprentissage",
-        "Viewed": "Vus"
+        "Viewed": "Vus",
+        "Unknown": "À travailler",
+        "Unmeasured": "Non évalué"
       },
       "LevelColumn": "Niveau",
       "TimeWatched": "Temps visionné",
@@ -3355,7 +3386,7 @@
         "Tooltip": "Modifier le remplacement du mot"
       },
       "EmptyIgnoredState": "Aucun mot ignoré n'a été trouvé pour cette langue.",
-      "EmptyState": "Aucun mot trouvé. Cliquez sur « Tout charger » pour charger la base de mots.",
+      "EmptyState": "Aucun mot ne correspond à votre recherche ou à vos filtres.",
       "Fields": {
         "PartOfSpeech": "Partie du discours",
         "PosPlaceholder": "n, v, adj, etc."
@@ -3364,9 +3395,9 @@
         "Common": "Courant",
         "Unlisted": "Non répertorié"
       },
-      "Loading": "Chargement de la base de mots...",
+      "Loading": "Chargement du vocabulaire…",
       "LoadingMore": "Chargement...",
-      "SearchHintDetailed": "Entrée pour chercher. Les correspondances exactes sont prioritaires. Appuyez d'abord sur « Tout charger ».",
+      "SearchHintDetailed": "Recherchez des mots et consultez vos acquis.",
       "SearchPlaceholder": "Rechercher des mots...",
       "Searching": "Recherche...",
       "Trackers": {
@@ -3375,14 +3406,16 @@
         "Ignored": "Ignoré",
         "Nothing": "Aucun tracker"
       },
-      "Title": "Base de mots",
+      "Title": "Vocabulaire",
       "AdvancedFilters": "Advanced Filters",
       "Integrations": {
         "Flashcard": "Carte mLearn",
         "Anki": "Anki",
         "Ignored": "Exclu des révisions",
         "AddFlashcard": "Ajouter une carte mLearn"
-      }
+      },
+      "LoadError": "Impossible de charger votre vocabulaire. Réessayez.",
+      "DictionaryUnavailable": "Le dictionnaire est indisponible. La liste contient uniquement les mots du programme et les mots enregistrés."
     },
     "WordHover": {
       "AddToAnki": "Ajouter à Anki",
@@ -3470,7 +3503,7 @@
         "NeverSeenForm": "Je n'ai jamais vu cette forme."
       },
       "FinishedTitle": "Terminé !",
-      "FinishedDescription": "Vous avez vérifié {count} mots. Votre connaissance des mots a été mise à jour.",
+      "FinishedDescription": "Vérifications enregistrées : {count}. Ces réponses font désormais partie de votre historique d’apprentissage.",
       "Progress": "{rated} / {total} mots",
       "AttributionPrompt": "Qu'est-ce qui était inconnu ?",
       "Unknown": "Inconnu",
@@ -3481,7 +3514,7 @@
       "AdditionalInfoInAnswer": "Les informations supplémentaires font partie de la réponse",
       "StartOver": "Recommencer",
       "RestartConfirmTitle": "Recommencer ?",
-      "RestartConfirmMessage": "Cela effacera l'historique des mots récents et réinitialisera le filtre par défaut. Les mots déjà vérifiés seront à nouveau affichés et la progression de cette session sera perdue. Cette action est irréversible.",
+      "RestartConfirmMessage": "Commencer une nouvelle séance avec les filtres actuels ? Vos réponses restent enregistrées. Le compteur et l’historique d’annulation seront réinitialisés.",
       "Filter": "Filtre",
       "FilterAll": "Tous",
       "FilterUnknownOnly": "Inconnus uniquement",
@@ -3497,7 +3530,13 @@
         "Unknown": "Marqué comme inconnu",
         "Learning": "Marqué comme en apprentissage",
         "Known": "Marqué comme connu"
-      }
+      },
+      "EmptyTitle": "Aucun mot disponible à vérifier",
+      "EmptyDescription": "Aucun exercice ne correspond aux filtres et au matériel disponibles. Aucune réponse n’a été enregistrée. Modifiez le filtre ou choisissez une autre activité.",
+      "QueueDetails": "Pourquoi ces mots ?",
+      "QueueExplanation": "La sélection utilise vos filtres et vos connaissances enregistrées. Les mots ignorés sont exclus. Un mot doit avoir au moins une compétence vérifiable ici qui n’est pas déjà évaluée comme connue. Les mots récemment présentés ne sont pas exclus.",
+      "QueueExclusions": "Exclus — ignorés : {ignored} ; hors filtres : {filtered} ; aucun exercice adapté ou devenu inadmissible : {unavailable}.",
+      "InvalidFilter": "Le filtre est incomplet ou invalide. Modifiez-le pour continuer."
     },
     "Menu": {
       "About": "À propos de mLearn",
@@ -3531,7 +3570,7 @@
       },
       "ReviewFlashcards": "Réviser les cartes",
       "Settings": "Paramètres",
-      "LevelStudy": "Étude par niveau",
+      "LevelStudy": "Plan d’apprentissage",
       "ShowLearningStatistics": "Afficher les statistiques d'apprentissage",
       "ShowReading": "Afficher les annotations de lecture",
       "Statistics": "Statistiques",
@@ -3794,7 +3833,9 @@
         "TotalFound": "Total :",
         "Unmeasured": "Non mesurés :"
       },
-      "Title": "Familiarité avec les caractères"
+      "Title": "Familiarité avec les caractères",
+      "LegendTitle": "Comprendre les couleurs",
+      "InspectHint": "Sélectionnez un caractère pour consulter vos connaissances. La familiarité déduite des mots est une prédiction, pas une évaluation directe."
     },
     "TellMlearn": {
       "Label": "Dire à mLearn…",
@@ -3820,8 +3861,33 @@
         "Ranking": "Classement",
         "Show": "Pourquoi ?",
         "Title": "Pourquoi cette carte",
-        "Weights": "Pondérations actives"
+        "Weights": "Pondérations actives",
+        "Reasons": {
+          "retention": "Révisez cette carte pour renforcer votre mémoire.",
+          "new-card": "Commencez une nouvelle carte.",
+          "curriculum": "Pratiquez le contenu de votre programme.",
+          "calibration": "Vérifiez ce que vous reconnaissez déjà.",
+          "weak-target": "Pratiquez un point qui demande plus de travail.",
+          "probe": "Vérifiez ce que vous reconnaissez déjà.",
+          "media": "Pratiquez le contenu de vos lectures ou vidéos.",
+          "grammar": "Pratiquez un point de grammaire de votre programme.",
+          "bridge": "Reliez cette forme à vos connaissances.",
+          "assignment": "Travaillez sur une activité assignée.",
+          "defer": "Faites une pause ou choisissez une autre activité."
+        }
       }
+    },
+    "LearningPlan": {
+      "Description": "Choisissez votre programme et votre objectif, puis progressez par la pratique. Votre objectif guide vos études ; il ne mesure pas vos capacités.",
+      "Activities": "Choisir une activité",
+      "Assess": "Évaluer mon niveau actuel",
+      "AssessDescription": "Vous avez déjà étudié cette langue ? Vérifiez ce que vous reconnaissez pour trouver un point de départ adapté.",
+      "WordSyncDescription": "Révisez les mots rencontrés et choisissez ceux à travailler ensuite.",
+      "CharactersDescription": "Explorez le système d’écriture et exercez-vous sur les caractères.",
+      "Progress": "Progression dans le programme",
+      "Back": "Retour au plan d’apprentissage",
+      "SettingsHint": "Votre programme, votre cible, votre rythme et vos objectifs se règlent dans le plan d’apprentissage.",
+      "Open": "Ouvrir le plan d’apprentissage"
     }
   }
 }

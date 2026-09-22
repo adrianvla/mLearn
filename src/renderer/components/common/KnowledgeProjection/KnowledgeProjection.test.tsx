@@ -139,7 +139,7 @@ async function renderDrawer(overrides: Partial<{
     querySelectorAll: (selector: string) => document.querySelectorAll(selector),
     get textContent() { return document.body.textContent ?? ''; },
   } as unknown as HTMLDivElement;
-  const model = assembleWordKnowledgeModel({ comprehensive, projection: overrides.projection ?? inspectorProjection, events: 'events' in overrides ? overrides.events : journal });
+  const model = assembleWordKnowledgeModel({ comprehensive, projection: 'projection' in overrides ? overrides.projection : inspectorProjection, events: 'events' in overrides ? overrides.events : journal });
   const dispose = render(() => (
     <KnowledgeProjectionDrawer
       model={model}
@@ -512,6 +512,21 @@ describe('KnowledgeProjectionDrawer history and prediction', () => {
     expect(host.querySelector('.knowledge-timeline')).not.toBeNull();
     expect(host.textContent).toContain('mlearn.Knowledge.History.Kind.Claim');
     expect(host.textContent).toContain('mlearn.Knowledge.History.Source.Anki');
+    dispose();
+  });
+
+  it('does not show a knowledge status or zero encounters before its projection arrives', async () => {
+    const { host, dispose } = await renderDrawer({ language: 'pkg', projection: undefined });
+    expect(host.querySelector('.knowledge-drawer__overall-status')).toBeNull();
+    expect(host.querySelector('.knowledge-overview__toolbar')).toBeNull();
+    expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
+    dispose();
+  });
+
+  it('does not announce empty history while the journal is pending', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'history', events: undefined });
+    expect(host.textContent).not.toContain('mlearn.Knowledge.History.Empty');
+    expect(host.querySelector('.knowledge-history [aria-busy="true"]')).not.toBeNull();
     dispose();
   });
 

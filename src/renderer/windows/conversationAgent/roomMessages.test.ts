@@ -109,6 +109,17 @@ describe('renderCompiledContext', () => {
     expect(out).toContain('## Situation interpretations (not established occurrences)');
     expect(out).not.toContain('## Situation developments');
   });
+  it('presents a chosen learning target without claiming assessed ability', () => {
+    const ctx: CompiledContext = {
+      persona: { text: 'x', facets: {} }, negativeKnowledge: [], relationships: [], memories: [],
+      openLoops: [], intentions: [], witnessedOccurrences: [], recentThreadEvents: [],
+      learnerProjection: { learningTarget: 'Package band zero' },
+    };
+    const out = renderCompiledContext(ctx, [p1], 'You');
+    expect(out).toContain('Learning target (chosen goal, not assessed ability): Package band zero');
+    expect(out).not.toContain('Level estimate:');
+  });
+
   it('renders the grammar exposure line with unmeasured phrasing when present', () => {
     const ctx: CompiledContext = {
       persona: { text: 'x', facets: {} },

@@ -813,7 +813,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('addFlashcard skips creation for knownUntracked words', async () => {
+  it('addFlashcard does not silently suppress an unmeasured word because of an orphan legacy marker', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('空');
@@ -824,7 +824,10 @@ describe('FlashcardProvider', () => {
 
     const id = await ctx.addFlashcard({ front: '空', back: 'sky' }, undefined, true);
 
-    expect(id).toBe('');
+    expect(id).not.toBe('');
+    expect(ctx.store.flashcards[id].content.front).toBe('空');
+    expect(ctx.store.knownUntracked[lk]).toBe(true);
+    expect(ctx.getComprehensiveWordStatusWithSourceSync('空').basis).toBe('unmeasured');
     dispose();
   });
 
@@ -2299,7 +2302,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('trackWordSeen skips knownUntracked words', async () => {
+  it('trackWordSeen records exposure despite an orphan legacy marker', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('既知');
@@ -2307,7 +2310,9 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore({ knownUntracked: { [lk]: true } }));
 
     ctx.trackWordSeen('既知');
-    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+    ctx.flushPendingWordSeen();
+    expect(ctx.store.wordKnowledge[lk]?.timesSeen).toBe(1);
+    expect(ctx.getComprehensiveWordStatusWithSourceSync('既知').basis).toBe('unmeasured');
     dispose();
   });
 

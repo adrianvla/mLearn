@@ -106,7 +106,9 @@ vi.mock('./components', () => {
     ),
     WelcomeVideoPreview: Preview,
     WelcomeReaderPreview: Preview,
-    WelcomeFlashcardPreview: Preview,
+    WelcomeFlashcardPreview: (props: { loading?: boolean }) => (
+      <div data-testid="flashcard-preview" data-loading={String(props.loading)} />
+    ),
     WelcomeSettingsPreview: Preview,
     WelcomeStatsPreview: Preview,
     WelcomeLookupPreview: Preview,
@@ -178,6 +180,7 @@ describe('WelcomeRoute localization', () => {
     // the dial must be pending, with no coverage value to render.
     expect(levelPreviewState.last).not.toBeNull();
     expect(levelPreviewState.last!.pending).toBe(true);
+    expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-loading')).toBe('true');
     expect(levelPreviewState.last!.coverage).toBeNull();
 
     // Projection settles: the dial leaves pending; with no language data in
@@ -185,6 +188,7 @@ describe('WelcomeRoute localization', () => {
     setKnowledgeReady(true);
     await Promise.resolve();
     expect(levelPreviewState.last!.pending).toBe(false);
+    expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-loading')).toBe('false');
     expect(levelPreviewState.last!.coverage).toBeNull();
 
     dispose();

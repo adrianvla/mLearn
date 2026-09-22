@@ -540,6 +540,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
   };
 
   return (
+    <Show when={blueprints().length > 0 || summaries().length > 0 || live() || results() !== null}>
     <section class="mock-exam" data-testid="mock-exam">
       <div class="mock-exam__header">
         <h3 class="mock-exam__title">{t('mlearn.LevelStudy.Mock.Title')}</h3>
@@ -700,7 +701,8 @@ export const MockExam: Component<MockExamProps> = (props) => {
               <span>{t('mlearn.LevelStudy.Mock.HeldOut', { count: String(summary.freshFamilyCount) })}</span>
               <span>{t('mlearn.LevelStudy.Mock.RehearsedBackfill', { count: String(summary.rehearsedFamilyCount) })}</span>
             </div>
-            <div class="mock-exam__provenance" data-testid="mock-results-provenance">
+            <details class="mock-exam__provenance" data-testid="mock-results-provenance">
+              <summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary>
               <span>{t('mlearn.LevelStudy.Mock.BlueprintVersion', { version: summary.blueprintVersion })}</span>
               <Show when={summary.contentVersion !== undefined}>
                 <span>{t('mlearn.LevelStudy.Mock.ContentVersion', { version: summary.contentVersion! })}</span>
@@ -708,7 +710,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
               <span>{t('mlearn.LevelStudy.Mock.Seed', { seed: String(summary.seed) })}</span>
               <span>{t('mlearn.LevelStudy.Mock.ActiveTime', { seconds: String(fmtSeconds(summary.activeMs)) })}</span>
               <span>{t('mlearn.LevelStudy.Mock.PausedTime', { seconds: String(fmtSeconds(summary.pausedMs)), count: String(summary.pauseCount) })}</span>
-            </div>
+            </details>
             <table class="mock-exam__sections" data-testid="mock-results-sections">
               <thead>
                 <tr>
@@ -867,6 +869,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
         </Show>
       </Show>
     </section>
+    </Show>
   );
 };
 

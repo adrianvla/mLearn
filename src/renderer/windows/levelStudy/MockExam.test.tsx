@@ -246,6 +246,13 @@ describe('MockExam surface (R13/R14)', () => {
     vi.useRealTimers();
   });
 
+  it('does not advertise an unfinished checkpoint when the package declares none', () => {
+    const harness = mount({ ...baseLanguageData(), grammar: [], grammarLevels: { names: {} } });
+    expect(harness.container.querySelector('[data-testid="mock-exam"]')).toBeNull();
+    harness.dispose();
+    harness.container.remove();
+  });
+
   it('declares blueprints with honest mlearn-derived labeling and no score language', async () => {
     const harness = mount();
     const blueprints = harness.container.querySelector('[data-testid="mock-blueprints"]');

@@ -230,6 +230,7 @@ describe('LevelStudyTab', () => {
   it('requests a one-time language data refresh when loaded metadata has no frequency rows', async () => {
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.querySelector('[data-testid="empty-state"]')).not.toBeNull();
     expect(refreshLanguageDataMock).toHaveBeenCalledOnce();
@@ -252,6 +253,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.querySelector('[data-testid="empty-state"]')).toBeNull();
     expect(container.textContent).toContain('Package N5');
@@ -272,6 +274,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.querySelector('[data-testid="empty-state"]')).toBeNull();
     const cards = container.querySelectorAll('[data-testid="level-card"]');
@@ -299,6 +302,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     const cards = container.querySelectorAll('[data-testid="level-card"]');
     expect(cards).toHaveLength(2);
@@ -328,6 +332,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.querySelector('[data-testid="empty-state"]')).toBeNull();
     expect(container.textContent).toContain('N5');
@@ -356,6 +361,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.querySelector('[data-testid="bulk-add-modal"]')).toBeNull();
     Array.from(container.querySelectorAll('button'))
@@ -392,6 +398,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.querySelector('[data-testid="placement-session"]')).not.toBeNull();
     expect(placementPropsMock).not.toBeNull();
@@ -421,6 +428,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(placementPropsMock).not.toBeNull();
     const words = (placementPropsMock?.pools as Array<{ words: string[] }>)[0]?.words ?? [];
@@ -453,6 +461,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(placementPropsMock).not.toBeNull();
     const pools = placementPropsMock?.pools as Array<{ level: number; label: string; words: string[] }>;
@@ -486,6 +495,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     // The journal-key snapshot settles asynchronously before the bounded
     // projection request is issued; poll rather than assuming tick counts.
@@ -516,6 +526,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     for (let i = 0; i < 100 && projectionQueryAccessor?.()?.surfaces === undefined; i += 1) await tick();
 
@@ -544,6 +555,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     for (let i = 0; i < 100 && projectionQueryAccessor?.()?.surfaces === undefined; i += 1) await tick();
 
@@ -571,6 +583,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.querySelector('[data-testid="placement-session"]')).not.toBeNull();
     expect(placementPropsMock).not.toBeNull();
@@ -579,7 +592,7 @@ describe('LevelStudyTab', () => {
     dispose();
   });
 
-  it('shows the coverage bar scoped to the user learning level as a pill linking to settings', async () => {
+  it('shows the coverage bar scoped to the user learning level as a pill linking to Learning Plan', async () => {
     learningLanguageLevelsMock = { ja: 5 };
     currentLangDataMock = {
       name: 'Japanese',
@@ -595,6 +608,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.textContent).toContain('mlearn.LevelStudy.Coverage.UpTo');
     const pill = container.querySelector('[data-testid="level-pill"]');
@@ -602,7 +616,7 @@ describe('LevelStudyTab', () => {
     expect(container.querySelector('.level-study-coverage-progress')).not.toBeNull();
 
     (pill as HTMLElement).click();
-    expect(openWindowMock).toHaveBeenCalledWith({ type: 'settings', context: { section: 'behaviour' } });
+    expect(openWindowMock).toHaveBeenCalledWith({ type: 'level-study' });
 
     dispose();
   });
@@ -622,13 +636,14 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
 
     expect(container.textContent).toContain('mlearn.LevelStudy.Coverage.AllLevels');
     const hint = container.querySelector('.level-study-set-level-link');
     expect(hint?.textContent).toBe('mlearn.LevelStudy.Coverage.SetLevelHint');
 
     (hint as HTMLElement).click();
-    expect(openWindowMock).toHaveBeenCalledWith({ type: 'settings', context: { section: 'behaviour' } });
+    expect(openWindowMock).toHaveBeenCalledWith({ type: 'level-study' });
 
     dispose();
   });
@@ -647,6 +662,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
     await waitFor(() => container.querySelector('[data-testid="mock-blueprints"]') !== null);
 
     await runMockThroughResults(container, goldIndexFor(currentLangDataMock as unknown as LanguageData), 3);
@@ -721,6 +737,7 @@ describe('LevelStudyTab', () => {
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
     await waitFor(() => container.querySelector('[data-testid="mock-blueprints"]') !== null);
 
     // A live self-assessment walk on level 3 (durable cursor) while the
@@ -958,6 +975,9 @@ vi.mock('../../hooks/useKnowledgeProjections', async () => {
     projectionQueryAccessor = query;
       return {
         loading: () => projectionLoading(),
+        ready: () => !projectionLoading(),
+        failed: () => false,
+        retry: vi.fn(),
         projections: () => new Map((query()?.surfaces ?? []).map(word => {
           const ctx = useFlashcards();
           const state = ctx.getComprehensiveWordStatusWithSourceSync?.(word, query()!.language);

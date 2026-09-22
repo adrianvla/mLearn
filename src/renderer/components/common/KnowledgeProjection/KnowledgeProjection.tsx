@@ -12,7 +12,8 @@ import type { RatedCapability } from '../../../utils/accessKnowledge';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { useOptionalGraph } from '../../../context/GraphContext';
 import { KnowledgeHistoryTimeline, type HistoryEvent } from '../KnowledgeHistoryTimeline';
-import { PillBtn } from '../Button';
+import { Btn, PillBtn } from '../Button';
+import { KnowledgeSkeleton } from '../KnowledgeGate/KnowledgeGate';
 import { TabContainer } from '../Tabs';
 import { SkeletonRows, SkeletonText } from '../Skeleton';
 import { PolicyTraceDetails } from '../PolicyTrace/PolicyTraceDetails';
@@ -87,6 +88,9 @@ export interface KnowledgeProjectionDrawerProps {
   onClose: () => void;
   /** Canonical aggregate: comprehensive status + projection + journal (see assembleWordKnowledgeModel). */
   model: WordKnowledgeModel;
+  onRetryProjection?: () => void;
+  historyFailed?: boolean;
+  onRetryHistory?: () => void;
   /** Inspected surface text. */
   surface: string;
   target?: KnowledgeInspection['target'];
@@ -542,6 +546,13 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     return lines;
   };
 
+  const projectionFallback = () => <Show when={model().projection !== undefined} fallback={<KnowledgeSkeleton />}>
+    <div role="status">
+      <p>{t(model().projection?.status === 'not-installed' ? 'mlearn.Knowledge.UnavailableHint' : 'mlearn.Knowledge.LoadError')}</p>
+      <Show when={model().projection?.status === 'error' && props.onRetryProjection}><Btn onClick={props.onRetryProjection}>{t('mlearn.Knowledge.Retry')}</Btn></Show>
+    </div>
+  </Show>;
+
   return <Modal
     isOpen={props.open}
     onClose={props.onClose}
@@ -555,10 +566,12 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
           <span class="knowledge-drawer__surface">{props.surface}</span>
           <Show when={reading()}><span class="knowledge-drawer__reading">{reading()}</span></Show>
         </div>
+        <Show when={model().projection?.status === 'ready'} fallback={model().projection === undefined ? <KnowledgeSkeleton variant="pill" /> : <span>{t('mlearn.Knowledge.Unavailable')}</span>}>
         <div class={`knowledge-drawer__overall knowledge-state--${overallTone()}`}>
           <span class="knowledge-drawer__overall-status">{t(overallLabelKey())}</span>
-          <span class="knowledge-drawer__overall-basis">{t(BASIS_LABEL_KEYS[overall().basis])}</span>
+          <Show when={!overallUntracked()}><span class="knowledge-drawer__overall-basis">{t(BASIS_LABEL_KEYS[overall().basis])}</span></Show>
         </div>
+        </Show>
         <Show when={model().excluded}>
           <span class="knowledge-drawer__excluded">{t('mlearn.Knowledge.Projection.Excluded')}</span>
         </Show>
@@ -574,6 +587,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       />
       <div role="tabpanel" id={`knowledge-inspector-panel-${tab()}`} aria-labelledby={`knowledge-inspector-tab-${tab()}`}>
         <Show when={tab() === 'overview'}>
+          <Show when={model().projection?.status === 'ready'} fallback={projectionFallback()}>
           <div class="knowledge-overview">
             <div class="knowledge-overview__toolbar">
               <span class="knowledge-card__why">{t('mlearn.WordHover.TimesSeen', { count: String(overall().timesSeen) })}</span>
@@ -623,6 +637,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
               </div>
             </Show>
           </div>
+          </Show>
         </Show>
 
         <Show when={tab() === 'relations'}>
@@ -714,11 +729,20 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         </Show>
 
         <Show when={tab() === 'graph'}>
+          <Show when={model().projection?.status === 'ready'} fallback={projectionFallback()}>
           <KnowledgeTrajectory surface={props.surface} language={props.language ?? settings.language} projection={model().projection} currentEase={model().overall.ease} />
+          </Show>
         </Show>
 
         <Show when={tab() === 'history'}>
           <div class="knowledge-history">
+            <Show when={!props.historyFailed} fallback={
+              <div role="alert">
+                <p>{t('mlearn.Knowledge.LoadError')}</p>
+                <Show when={props.onRetryHistory}><Btn onClick={props.onRetryHistory}>{t('mlearn.Knowledge.Retry')}</Btn></Show>
+              </div>
+            }>
+            <Show when={model().events !== undefined} fallback={<KnowledgeSkeleton />}>
             <Show when={journalEvents().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>
               <KnowledgeHistoryTimeline events={recentEvents()} />
               <Show when={archivalEvents().length > 0}>
@@ -727,6 +751,8 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
                   <KnowledgeHistoryTimeline events={archivalEvents()} />
                 </details>
               </Show>
+            </Show>
+            </Show>
             </Show>
             <Show when={retentionRows().length > 0}>
               <section class="knowledge-history__retention">
@@ -745,6 +771,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         </Show>
 
         <Show when={tab() === 'prediction'}>
+          <Show when={model().projection?.status === 'ready'} fallback={projectionFallback()}>
           <div class="knowledge-prediction">
             <p class="knowledge-prediction__caption">{t('mlearn.GraphInspector.PredictionFirewall')}</p>
             <Show when={predictedStates().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Prediction.None')}</p>}>
@@ -764,6 +791,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
               )}</For>
             </Show>
           </div>
+          </Show>
         </Show>
 
         {/* R20: the policy decision that selected this surface, auditable in
@@ -771,15 +799,15 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
             rendered verbatim (the shared PolicyTraceDetails). */}
         <Show when={props.policyTrace}>
           {(trace) => (
-            <div class="knowledge-drawer__policy-trace" data-testid="inspector-policy-trace">
-              <span class="knowledge-drawer__policy-title">{t('mlearn.Review.Why.Title')}</span>
+            <details class="knowledge-drawer__policy-trace" data-testid="inspector-policy-trace">
+              <summary class="knowledge-drawer__policy-title">{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary>
               <Show when={props.policyBrief}>
                 <span class="knowledge-drawer__policy-brief">{props.policyBrief}</span>
               </Show>
               <div class="knowledge-drawer__policy-details">
                 <PolicyTraceDetails trace={trace()} />
               </div>
-            </div>
+            </details>
           )}
         </Show>
       </div>
