@@ -718,6 +718,16 @@ describe('createConversationAgent', () => {
   });
 
   describe('canonical identity and modality', () => {
+    it.each([
+      { voice: true, tier: 'realtime' },
+      { voice: false, tier: 'standard' },
+    ] as const)('passes the $tier serving class from voice=$voice to the LLM bridge', ({ voice, tier }) => {
+      const agent = createConversationAgent(createMockDeps({ isVoiceMode: () => voice }));
+      agent.processMessage('Hello', [], createCallbacks().callbacks);
+      expect(mockBridge.llm.llmStream.mock.calls[0][2]).toBe(tier);
+      agent.abortStream();
+    });
+
     it.each([false, true])('uses the same world identity and scoped memory with voice=%s', (voice) => {
       const context = 'Person ID p1: Aria. Lived memory: promised a visit. Private thread note: practice a meeting.';
       const agent = createConversationAgent(createMockDeps({ isVoiceMode: () => voice, getWorldContext: () => context }));
