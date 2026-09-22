@@ -1,6 +1,9 @@
 import type { ConfigEnv, Plugin, UserConfig } from 'vite';
 import { describe, expect, it } from 'vitest';
-import viteConfig, { isSolidDevtoolsEnabled } from '../vite.config';
+import viteConfig, {
+  allowSolidDevtoolsExtensionScripts,
+  isSolidDevtoolsEnabled,
+} from '../vite.config';
 
 async function resolveConfig(command: ConfigEnv['command'], mode: string): Promise<UserConfig> {
   return (viteConfig as (env: ConfigEnv) => Promise<UserConfig>)({
@@ -32,5 +35,13 @@ describe('Solid Devtools Vite integration', () => {
     ]));
     expect(productionPlugins).not.toContain('solid-devtools');
     expect(productionPlugins).not.toContain('mlearn-solid-devtools-runtime');
+  });
+
+  it('allows the extension bridge only in development HTML', () => {
+    const html = "<meta http-equiv=\"Content-Security-Policy\" content=\"script-src 'self' 'wasm-unsafe-eval';\">";
+
+    expect(allowSolidDevtoolsExtensionScripts(html)).toContain(
+      "script-src 'self' 'wasm-unsafe-eval' chrome-extension:;",
+    );
   });
 });

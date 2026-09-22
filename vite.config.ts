@@ -5,9 +5,15 @@ import solidPlugin from 'vite-plugin-solid';
 import { PYTHON_BACKEND_PORT } from './src/shared/constants';
 
 const SOLID_DEVTOOLS_RUNTIME = "import 'solid-devtools';";
+const RENDERER_SCRIPT_SOURCE = "script-src 'self' 'wasm-unsafe-eval';";
+const DEVTOOLS_RENDERER_SCRIPT_SOURCE = "script-src 'self' 'wasm-unsafe-eval' chrome-extension:;";
 
 export function isSolidDevtoolsEnabled(command: string, mode: string): boolean {
   return command === 'serve' && mode !== 'capacitor';
+}
+
+export function allowSolidDevtoolsExtensionScripts(html: string): string {
+  return html.replace(RENDERER_SCRIPT_SOURCE, DEVTOOLS_RENDERER_SCRIPT_SOURCE);
 }
 
 function solidDevtoolsRuntimePlugin(): Plugin {
@@ -15,13 +21,16 @@ function solidDevtoolsRuntimePlugin(): Plugin {
     name: 'mlearn-solid-devtools-runtime',
     transformIndexHtml: {
       order: 'pre',
-      handler() {
-        return [{
-          tag: 'script',
-          attrs: { type: 'module' },
-          children: SOLID_DEVTOOLS_RUNTIME,
-          injectTo: 'head-prepend',
-        }];
+      handler(html) {
+        return {
+          html: allowSolidDevtoolsExtensionScripts(html),
+          tags: [{
+            tag: 'script',
+            attrs: { type: 'module' },
+            children: SOLID_DEVTOOLS_RUNTIME,
+            injectTo: 'head-prepend',
+          }],
+        };
       },
     },
   };
