@@ -60,15 +60,6 @@ export const ServerProvider: ParentComponent = (props) => {
     log.info('[ServerContext] Migrated localStorage → KV store');
   };
 
-  // Send KV store snapshot to main process so the web server
-  // can serve it to tethered clients via /settings.js
-  const sendKVStoreToMain = async () => {
-    if (!isElectronApp) return;
-    const bridge = getBridge();
-    const data = await bridge.kvStore.kvGetAll();
-    bridge.generic.sendLS(data);
-  };
-
   const setupListeners = () => {
     if (!isElectronApp) {
       // On mobile/web, there is no local Python server
@@ -87,8 +78,10 @@ export const ServerProvider: ParentComponent = (props) => {
       setError(null);
     };
 
-    // Migrate localStorage → KV store, then send KV data to main process
-    migrateLocalStorageToKVStore().then(() => sendKVStoreToMain());
+    // Move the current profile's localStorage into the canonical KV store.
+    migrateLocalStorageToKVStore().catch((migrationError) => {
+      log.error('[ServerContext] localStorage → KV store migration failed', migrationError);
+    });
 
     // Listen for server load
     ipcCleanups.push(bridge.server.onServerLoad((message) => {

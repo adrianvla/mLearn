@@ -15,15 +15,16 @@ voice = importlib.import_module("routes.voice")
 class VoiceSttEngineTests(unittest.TestCase):
     def test_stt_transcribe_options_mlx_strips_beam_size_and_vad_filter(self):
         """MLX engine must NOT receive beam_size or vad_filter (both unsupported, raise NotImplementedError)."""
-        options = voice._stt_transcribe_options(
-            "ja",
-            engine="mlx",
-            beam_size=5,
-            vad_filter=True,
-            condition_on_previous_text=False,
-            no_speech_threshold=0.6,
-            log_prob_threshold=-1.0,
-        )
+        with mock.patch.object(voice, "_stt_runtime", return_value={"whisperLanguage": "ja"}):
+            options = voice._stt_transcribe_options(
+                "ja",
+                engine="mlx",
+                beam_size=5,
+                vad_filter=True,
+                condition_on_previous_text=False,
+                no_speech_threshold=0.6,
+                log_prob_threshold=-1.0,
+            )
         self.assertNotIn("beam_size", options)
         self.assertNotIn("vad_filter", options)
         self.assertEqual(options["language"], "ja")

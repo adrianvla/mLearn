@@ -11,6 +11,7 @@ import { evidenceStatusFromEase, effectiveThresholds, type EffectiveThresholds }
 import { DEFAULT_ENABLED_DOMAINS, type CapabilityKey, type GraphDomain, type GraphEntity, type LearnableTarget } from '../../shared/graph/types';
 import type { RetentionPolicy } from '../../shared/srs/retentionScheduler';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
+import type { LanguageData } from '../../shared/types';
 
 const MAX_EVIDENCE = 20;
 
@@ -55,6 +56,7 @@ function targetExplanation(
   prediction?: TargetExplanation['prediction'],
   archives?: readonly KeyArchive[],
   thresholds: EffectiveThresholds = effectiveThresholds(),
+  languageData?: LanguageData | null,
 ): TargetExplanation {
   return assembleTargetExplanation(
     target.capability,
@@ -62,7 +64,7 @@ function targetExplanation(
     policy,
     now,
     prediction,
-    (event) => eventAppliesToTarget(graph, event, target, queriedSurfaceId),
+    (event) => eventAppliesToTarget(graph, event, target, queriedSurfaceId, languageData),
     archives,
     thresholds,
   );
@@ -84,6 +86,7 @@ function entryCapabilityState(
   now: number,
   archives?: readonly KeyArchive[],
   thresholds: EffectiveThresholds = effectiveThresholds(),
+  languageData?: LanguageData | null,
 ): { classification: KnowledgeProjectionClassification; basis: KnowledgeProjectionBasis } {
   const matched = assembleTargetExplanation(
     capability,
@@ -91,7 +94,7 @@ function entryCapabilityState(
     policy,
     now,
     undefined,
-    (event) => (realizedEntryIds(graph, queriedSurfaceId).length ? entryIds : [queriedSurfaceId]).some((entryId) => eventAppliesToTarget(graph, event, { entityId: entryId, capability }, queriedSurfaceId)),
+    (event) => (realizedEntryIds(graph, queriedSurfaceId).length ? entryIds : [queriedSurfaceId]).some((entryId) => eventAppliesToTarget(graph, event, { entityId: entryId, capability }, queriedSurfaceId, languageData)),
     archives,
     thresholds,
   );
@@ -118,7 +121,7 @@ export function buildKnowledgeProjection(
   now = Date.now(),
   enabledDomains: readonly GraphDomain[] = DEFAULT_ENABLED_DOMAINS,
   /** Graph-attested (primary) or strategy-derived (unseen) compound support. */
-  options?: { compound?: PredictionInput['compound']; archives?: readonly KeyArchive[]; thresholds?: EffectiveThresholds },
+  options?: { compound?: PredictionInput['compound']; archives?: readonly KeyArchive[]; thresholds?: EffectiveThresholds; languageData?: LanguageData | null },
 ): KnowledgeProjection {
   const thresholds = options?.thresholds ?? effectiveThresholds();
   const rows = toJournalRows(rawRows);
@@ -174,8 +177,8 @@ export function buildKnowledgeProjection(
   // Entry-level lexical state feeding PREDICTION ONLY (acceptance A/B/C):
   // a synchronized lexical object (sense/spoken known through any variant)
   // makes a missing written bridge cheap. Never written as knowledge.
-  const senseState = entryCapabilityState(graph, rows, entryIds, 'sense-recognition', surfaceId, policy, now, options?.archives, thresholds);
-  const spokenState = entryCapabilityState(graph, rows, entryIds, 'spoken-recognition', surfaceId, policy, now, options?.archives, thresholds);
+  const senseState = entryCapabilityState(graph, rows, entryIds, 'sense-recognition', surfaceId, policy, now, options?.archives, thresholds, options?.languageData);
+  const spokenState = entryCapabilityState(graph, rows, entryIds, 'spoken-recognition', surfaceId, policy, now, options?.archives, thresholds, options?.languageData);
   const entrySupport = entryIds.length > 0
     ? {
         entryId: entryIds.length === 1 ? entryIds[0] : undefined,
@@ -191,7 +194,7 @@ export function buildKnowledgeProjection(
     .map((relation) => relation.to);
   let charactersKnown = 0;
   for (const characterId of characterIds) {
-    const explanation = targetExplanation(graph, rows, { entityId: characterId, capability: 'character-recognition' }, surfaceId, policy, now, undefined, options?.archives, thresholds);
+    const explanation = targetExplanation(graph, rows, { entityId: characterId, capability: 'character-recognition' }, surfaceId, policy, now, undefined, options?.archives, thresholds, options?.languageData);
     if (classificationOf(explanation.state).classification === 'known') charactersKnown += 1;
   }
   const characterSupport = characterIds.length > 0
@@ -200,7 +203,7 @@ export function buildKnowledgeProjection(
 
   for (const target of targets) {
     const entity = graph.nodes.get(target.entityId)!;
-    const preliminary = targetExplanation(graph, rows, target, surfaceId, policy, now, undefined, options?.archives, thresholds);
+    const preliminary = targetExplanation(graph, rows, target, surfaceId, policy, now, undefined, options?.archives, thresholds, options?.languageData);
     let explanation = preliminary;
     const direct = preliminary.projection;
     if (!direct) {
@@ -218,14 +221,14 @@ export function buildKnowledgeProjection(
         explanation = targetExplanation(graph, rows, target, surfaceId, policy, now, {
           value: predicted.pSuccess,
           because: predicted.supportPath.map((path) => `${path.from} → ${path.to} (${path.via})`),
-        }, options?.archives, thresholds);
+        }, options?.archives, thresholds, options?.languageData);
       }
     }
     const { classification, basis } = classificationOf(explanation.state);
     const active = explanation.evidence;
     // Archived evidence contributes the same counters through its bucket
     // statistics, selected by the same address matcher as the exact rows.
-    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId));
+    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId, options?.languageData));
     const sourceCounts = active.reduce<Record<string, number>>((counts, event) => {
       counts[event.source] = (counts[event.source] ?? 0) + (event.timesSeenDelta ?? 1);
       return counts;
@@ -292,11 +295,11 @@ export function buildKnowledgeProjection(
     const entity = graph.nodes.get(target.entityId)
       ?? (target.entityId === surfaceId ? { id: surfaceId, kind: 'surface' as const } : undefined);
     if (!entity || !domainEnabled(entity)) continue;
-    const explanation = targetExplanation(graph, rows, target, surfaceId, policy, now, undefined, options?.archives, thresholds);
+    const explanation = targetExplanation(graph, rows, target, surfaceId, policy, now, undefined, options?.archives, thresholds, options?.languageData);
     const { classification, basis } = classificationOf(explanation.state);
     if (basis !== 'claim' && basis !== 'evidence') continue;
     const active = explanation.evidence;
-    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId));
+    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId, options?.languageData));
     const sourceCounts: Record<string, number> = { ...archivedStats.sourceSeen };
     for (const row of active) {
       sourceCounts[row.source] = (sourceCounts[row.source] ?? 0) + (row.timesSeenDelta ?? 1);
@@ -326,10 +329,10 @@ export function buildKnowledgeProjection(
   // wholly unknown when its sense or spoken access is known, even when the
   // written bridge was never measured.
   const surfaceRecognition = classificationOf(
-    targetExplanation(graph, rows, { entityId: surfaceId, capability: 'surface-recognition' }, surfaceId, policy, now, undefined, options?.archives, thresholds).state,
+    targetExplanation(graph, rows, { entityId: surfaceId, capability: 'surface-recognition' }, surfaceId, policy, now, undefined, options?.archives, thresholds, options?.languageData).state,
   );
   const surfaceReading = classificationOf(
-    targetExplanation(graph, rows, { entityId: surfaceId, capability: 'surface-reading' }, surfaceId, policy, now, undefined, options?.archives, thresholds).state,
+    targetExplanation(graph, rows, { entityId: surfaceId, capability: 'surface-reading' }, surfaceId, policy, now, undefined, options?.archives, thresholds, options?.languageData).state,
   );
   const missingBridges: CapabilityKey[] = [];
   if (surfaceRecognition.classification !== 'known') missingBridges.push('surface-recognition');

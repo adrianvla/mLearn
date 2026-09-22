@@ -103,9 +103,6 @@ const localizationBridge: LocalizationBridge = {
   installLanguageData: (language, dictionaryTargetLanguage, installOptions) => getIPC().installLanguageData(language, dictionaryTargetLanguage, installOptions),
   onLanguageDataInstalled: (cb) => getIPC().onLanguageDataInstalled(cb),
   onLanguageDataInstallError: (cb) => getIPC().onLanguageDataInstallError(cb),
-  installLanguage: (url) => getIPC().installLanguage(url),
-  onLanguageInstalled: (cb) => getIPC().onLanguageInstalled(cb),
-  onLanguageInstallError: (cb) => getIPC().onLanguageInstallError(cb),
 };
 
 const graphBridge: GraphBridge = {
@@ -128,7 +125,6 @@ const fileBridge: FileBridge = {
   selectBookFolder: () => getIPC().selectBookFolder(),
   selectPdfFile: () => getIPC().selectPdfFile(),
   selectBrowserFile: () => getIPC().selectBrowserFile(),
-  getLocalMediaUrl: (path) => getIPC().getLocalMediaUrl(path),
   getPathForFile: (file) => getIPC().getPathForFile(file),
   removeLegacyLanguageData: (paths) => getIPC().removeLegacyLanguageData(paths),
   writeToClipboard: (text) => getIPC().writeToClipboard(text),
@@ -347,17 +343,10 @@ const licenseBridge: LicenseBridge = {
 };
 
 const migrationBridge: MigrationBridge = {
-  getMigratedLocalStorage: () => getIPC().getMigratedLocalStorage(),
-  getMigratedItem: (key) => getIPC().getMigratedItem(key),
-  hasMigrationOccurred: () => getIPC().hasMigrationOccurred(),
-  triggerMigration: () => getIPC().triggerMigration(),
-  onLocalStorageMigrationComplete: (cb) => getIPC().onLocalStorageMigrationComplete(cb),
   onFlashcardMigrationComplete: (cb) => getIPC().onFlashcardMigrationComplete(cb),
-  getFlashcardMigrationInfo: () => getIPC().getFlashcardMigrationInfo(),
 };
 
 const genericBridge: GenericIPCBridge = {
-  sendLS: (data) => getIPC().sendLS(data),
   fetchUrl: (url) => getIPC().fetchUrl(url),
 };
 

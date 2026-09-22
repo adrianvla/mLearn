@@ -61,6 +61,8 @@ import type { WordStatus } from '../../../shared/constants';
 
 let absentProjectionWords = new Set<string>();
 const mockStreamChat = vi.hoisted(() => vi.fn());
+const mockRetryKnowledgeProjection = vi.hoisted(() => vi.fn());
+const mockQueryLanguageKeys = vi.hoisted(() => vi.fn());
 vi.mock('../../services/llmProvider', () => ({ streamChat: mockStreamChat }));
 vi.mock('../../services/knowledgeEvents', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../services/knowledgeEvents')>();
@@ -70,10 +72,7 @@ vi.mock('../../services/knowledgeEvents', async (importOriginal) => {
     // `queryLanguageKeys` → bridge): the fixture's measured words are the
     // store rows plus the per-word projection fixture, so the bounded
     // request covers exactly the surfaces that carry evidence.
-    queryLanguageKeys: vi.fn(async () => [
-      ...Object.keys(mockWordSyncState.wordKnowledge),
-      ...mockWordSyncState.projectionByWord.keys(),
-    ]),
+    queryLanguageKeys: mockQueryLanguageKeys,
   };
 });
 
@@ -123,6 +122,7 @@ const mockWordSyncState = vi.hoisted(() => ({
   collectionReady: (): boolean => true,
   projectionByWord: new Map<string, KnowledgeProjection>(),
   capabilities: ['sense-recognition', 'surface-reading', 'prosodic-pattern'],
+  collectionFailed: (): boolean => false,
   currentLangData: null as { textProcessing?: { readingAnnotation?: boolean }; prosody?: { type?: string } } | null,
   getCanonicalFormForLanguage: vi.fn((_language: string, word: string) => word),
   getWordVariantsForLanguage: vi.fn((_language: string, word: string) => [word]),
@@ -375,7 +375,14 @@ beforeEach(() => {
     mockAppendRetractions.mockClear();
     mockRecomputeProjection.mockClear();
     mockWordSyncState.projection = undefined;
-    mockWordSyncState.collectionReady = () => true;
+  mockWordSyncState.collectionReady = () => true;
+  mockWordSyncState.collectionFailed = () => false;
+  mockRetryKnowledgeProjection.mockClear();
+  mockQueryLanguageKeys.mockReset();
+  mockQueryLanguageKeys.mockImplementation(async () => [
+    ...Object.keys(mockWordSyncState.wordKnowledge),
+    ...mockWordSyncState.projectionByWord.keys(),
+  ]);
     mockWordSyncState.projectionByWord = new Map();
     mockGetAccessStatus.mockReset();
     mockGetAccessStatus.mockReturnValue({ status: 'unknown', ease: 0, source: 'None', untracked: true });
@@ -437,6 +444,39 @@ beforeEach(() => {
     writeFileSync('/private/tmp/word-sync-lifecycle-trace.json', JSON.stringify({ initialCounter, n4Counter, distinctRated: [...words], records }, null, 2));
     logger.setMinLevel('INFO'); logger.setLogSink(null);
     mockRecordAttempt.mockImplementation(() => ({ attemptId: 'attempt-sync-1' }));
+  });
+
+  it('shows a retry action when the shared projection read fails instead of keeping the skeleton', async () => {
+    mockWordSyncState.collectionReady = () => false;
+    mockWordSyncState.collectionFailed = () => true;
+    const { WordSyncContent } = await import('./App');
+
+    mountContent(WordSyncContent);
+    await settle();
+
+    expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Global.Retry'));
+    expect(retry).toBeDefined();
+    retry!.click();
+    expect(mockRetryKnowledgeProjection).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries a failed journal snapshot from the Word Sync error state', async () => {
+    mockQueryLanguageKeys
+      .mockRejectedValueOnce(new Error('temporary journal read failure'))
+      .mockResolvedValueOnce([]);
+    const { WordSyncContent } = await import('./App');
+
+    mountContent(WordSyncContent);
+    await settle();
+    await vi.waitFor(() => expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable'));
+
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Global.Retry'));
+    expect(retry).toBeDefined();
+    retry!.click();
+    await vi.waitFor(() => expect(mockQueryLanguageKeys).toHaveBeenCalledTimes(2));
+    await settle();
+    expect(container.textContent).not.toContain('mlearn.WordSync.ProjectionUnavailable');
   });
 
   it('waits for the accelerator, then keeps a fixed queue while rating invalidates its live reader', async () => {
@@ -1994,6 +2034,12 @@ vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { useKnowledgeProjection } = await import('../../hooks/useKnowledgeProjection');
   return { useKnowledgeProjections: (query: () => { language: string; surfaces: string[] } | undefined) => {
     const knowledge = useKnowledgeProjection(() => undefined);
-    return { ready: () => mockWordSyncState.collectionReady(), loading: () => !mockWordSyncState.collectionReady(), projections: () => new Map((query()?.surfaces ?? []).filter(word => !absentProjectionWords.has(word)).map(word => [word, mockWordSyncState.projectionByWord.get(word) ?? knowledge.projection()])) };
+    return {
+      ready: () => mockWordSyncState.collectionReady(),
+      loading: () => !mockWordSyncState.collectionReady(),
+      failed: () => mockWordSyncState.collectionFailed(),
+      retry: mockRetryKnowledgeProjection,
+      projections: () => new Map((query()?.surfaces ?? []).filter(word => !absentProjectionWords.has(word)).map(word => [word, mockWordSyncState.projectionByWord.get(word) ?? knowledge.projection()])),
+    };
   } };
 });

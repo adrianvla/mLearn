@@ -17,13 +17,39 @@ let store: Record<string, string> | null = null;
 
 // Write queue for serialising concurrent async writes
 let writeQueue: Promise<void> = Promise.resolve();
+let queuedWrites = 0;
 function enqueueWrite(fn: () => Promise<void>): Promise<void> {
-  writeQueue = writeQueue.then(fn, fn);
+  queuedWrites += 1;
+  writeQueue = writeQueue.then(fn, fn).finally(() => {
+    queuedWrites -= 1;
+  });
   return writeQueue;
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingWrite = false;
+let activeMutations = 0;
+let activeMutationsIdle: Promise<void> = Promise.resolve();
+let resolveActiveMutationsIdle: (() => void) | null = null;
+
+async function withStoreMutation(operation: () => Promise<void>): Promise<void> {
+  if (activeMutations === 0) {
+    activeMutationsIdle = new Promise<void>((resolve) => {
+      resolveActiveMutationsIdle = resolve;
+    });
+  }
+  activeMutations += 1;
+
+  try {
+    await operation();
+  } finally {
+    activeMutations -= 1;
+    if (activeMutations === 0) {
+      resolveActiveMutationsIdle?.();
+      resolveActiveMutationsIdle = null;
+    }
+  }
+}
 
 function getStorePath(): string {
   return path.join(getUserDataPath(), 'kv-store.json');
@@ -88,17 +114,52 @@ function schedulePersist(): void {
   }, 100);
 }
 
-function flushPending(): void {
-  if (pendingWrite && debounceTimer !== null) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
-    pendingWrite = false;
-    enqueueWrite(() => persistStore());
+function hasPendingWrites(): boolean {
+  return activeMutations > 0 || pendingWrite || debounceTimer !== null || queuedWrites > 0;
+}
+
+/** Flushes pending writes and waits until the write queue is idle. */
+export async function flushKVStore(): Promise<void> {
+  while (true) {
+    if (activeMutations > 0) {
+      await activeMutationsIdle;
+      continue;
+    }
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    if (pendingWrite) {
+      pendingWrite = false;
+      enqueueWrite(() => persistStore());
+    }
+
+    const queueAtStart = writeQueue;
+    await queueAtStart;
+    if (activeMutations === 0 && !pendingWrite && debounceTimer === null && queuedWrites === 0 && queueAtStart === writeQueue) {
+      return;
+    }
   }
 }
 
 export function setupKVStoreIPC(): void {
-  app.on('before-quit', () => flushPending());
+  let quitAfterFlush = false;
+  let flushInProgress = false;
+  app.on('before-quit', (event) => {
+    if (quitAfterFlush || !hasPendingWrites()) return;
+
+    event.preventDefault();
+    if (flushInProgress) return;
+
+    flushInProgress = true;
+    void flushKVStore().then(() => {
+      quitAfterFlush = true;
+      app.quit();
+    }).catch((error: unknown) => {
+      flushInProgress = false;
+      log.error('[kvStore] Failed to flush store before quit:', error);
+    });
+  });
 
   ipcMain.handle(IPC_CHANNELS.KV_GET, async (_event, key: string): Promise<string | null> => {
     const s = await loadStore();
@@ -106,15 +167,19 @@ export function setupKVStoreIPC(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.KV_SET, async (_event, key: string, value: string): Promise<void> => {
-    const s = await loadStore();
-    s[key] = value;
-    schedulePersist();
+    await withStoreMutation(async () => {
+      const s = await loadStore();
+      s[key] = value;
+      schedulePersist();
+    });
   });
 
   ipcMain.handle(IPC_CHANNELS.KV_REMOVE, async (_event, key: string): Promise<void> => {
-    const s = await loadStore();
-    delete s[key];
-    schedulePersist();
+    await withStoreMutation(async () => {
+      const s = await loadStore();
+      delete s[key];
+      schedulePersist();
+    });
   });
 
   ipcMain.handle(IPC_CHANNELS.KV_GET_ALL, async (): Promise<Record<string, string>> => {
@@ -122,10 +187,12 @@ export function setupKVStoreIPC(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.KV_SET_BATCH, async (_event, entries: Record<string, string>): Promise<void> => {
-    const s = await loadStore();
-    for (const [key, value] of Object.entries(entries)) {
-      s[key] = value;
-    }
-    schedulePersist();
+    await withStoreMutation(async () => {
+      const s = await loadStore();
+      for (const [key, value] of Object.entries(entries)) {
+        s[key] = value;
+      }
+      schedulePersist();
+    });
   });
 }

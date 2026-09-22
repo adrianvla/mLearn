@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { BUILTIN_MODELS } from '../../shared/builtinModels';
 
 const mockIpcHandlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
 const mockIpcListeners = new Map<string, ((...args: unknown[]) => void)[]>();
@@ -24,14 +25,17 @@ vi.mock('electron', () => ({
 
 const mockExistsSync = vi.fn();
 const mockMkdirSync = vi.fn();
+const mockUnlinkSync = vi.fn();
 
 vi.mock('fs', () => ({
   default: {
     existsSync: mockExistsSync,
     mkdirSync: mockMkdirSync,
+    unlinkSync: mockUnlinkSync,
   },
   existsSync: mockExistsSync,
   mkdirSync: mockMkdirSync,
+  unlinkSync: mockUnlinkSync,
 }));
 
 const mockDownloadFileWithProgress = vi.fn();
@@ -47,6 +51,7 @@ const mockSessionPrompt = vi.fn(async (text: string, opts: { onTextChunk?: (t: s
 });
 const mockSessionSetChatHistory = vi.fn();
 const mockSessionDispose = vi.fn();
+let mockSessionOptions: unknown;
 const mockContextGetSequence = vi.fn(() => ({}));
 const mockContextDispose = vi.fn();
 const mockModelCreateContext = vi.fn(async () => ({
@@ -67,7 +72,7 @@ class MockLlamaChatSession {
   prompt = mockSessionPrompt;
   setChatHistory = mockSessionSetChatHistory;
   dispose = mockSessionDispose;
-  constructor(_opts: unknown) {}
+  constructor(opts: unknown) { mockSessionOptions = opts; }
 }
 
 vi.mock('node-llama-cpp', () => ({
@@ -91,16 +96,22 @@ const OriginalFunction = globalThis.Function;
 let mod: typeof import('./builtinLLMService');
 
 beforeEach(async () => {
+  vi.useFakeTimers();
   vi.resetModules();
   mockIpcHandlers.clear();
   mockIpcListeners.clear();
   vi.clearAllMocks();
   mockExistsSync.mockReturnValue(true);
+  mockContextDispose.mockReset();
+  mockModelDispose.mockReset();
+  mockSessionDispose.mockReset();
+  mockSessionSetChatHistory.mockReset();
 
   mockPromptImpl = async (_text, opts) => {
     opts.onTextChunk('Hello!');
     return 'Hello!';
   };
+  mockSessionOptions = undefined;
 
   globalThis.Function = function (...args: string[]) {
     if (args.length === 1 && args[0] === 'return import("node-llama-cpp")') {
@@ -114,6 +125,11 @@ beforeEach(async () => {
   } as unknown as typeof Function;
 
   mod = await import('./builtinLLMService');
+});
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
 });
 
 import { afterAll } from 'vitest';
@@ -141,6 +157,47 @@ describe('setupBuiltinLLMIPC', () => {
 describe('LLM_CHECK_MODEL handler', () => {
   beforeEach(() => {
     mod.setupBuiltinLLMIPC();
+  });
+
+  it('reports the model ready only after resolving the runtime used by chat', async () => {
+    const handler = mockIpcHandlers.get('llm-check-model');
+    const status = await handler!(null) as {
+      downloaded: boolean;
+      runtimeAvailable: boolean;
+      ready: boolean;
+    };
+
+    expect(status).toMatchObject({ downloaded: true, runtimeAvailable: true, ready: true });
+
+    const sender = createMockSender();
+    await mod.builtinStreamChat(
+      sender as unknown as Electron.WebContents,
+      [{ role: 'user', content: 'hello' }],
+      [],
+    );
+
+    expect(mockGetLlama).toHaveBeenCalledOnce();
+  });
+
+  it('reports a downloaded model as not ready when the runtime binary is unavailable', async () => {
+    mockGetLlama.mockRejectedValueOnce(Object.assign(new Error('NoBinaryFoundError'), {
+      name: 'NoBinaryFoundError',
+    }));
+
+    const handler = mockIpcHandlers.get('llm-check-model');
+    const status = await handler!(null) as {
+      downloaded: boolean;
+      runtimeAvailable: boolean;
+      ready: boolean;
+      runtimeError?: string;
+    };
+
+    expect(status).toMatchObject({
+      downloaded: true,
+      runtimeAvailable: false,
+      ready: false,
+      runtimeError: 'NoBinaryFoundError',
+    });
   });
 
   it('returns downloaded:true when model file exists', async () => {
@@ -293,6 +350,15 @@ describe('builtinStreamChat', () => {
     );
     expect(contentCalls.length).toBeGreaterThan(0);
     expect(contentCalls[0][1].content).toBe('Hello!');
+  });
+
+  it('auto-disposes each context sequence so later requests can allocate one', async () => {
+    mockExistsSync.mockReturnValue(true);
+    const sender = createMockSender();
+    await mod.builtinStreamChat(sender as unknown as Electron.WebContents, [{ role: 'user', content: 'hello' }], []);
+
+    expect(mockSessionOptions).toEqual(expect.objectContaining({ autoDisposeSequence: true }));
+    expect(mockSessionDispose).toHaveBeenCalledOnce();
   });
 
   it('sends done:true chunk after response completes', async () => {
@@ -483,7 +549,6 @@ describe('builtinAbortStream', () => {
     let capturedController: AbortController | null = null;
     mockPromptImpl = async (_text, opts) => {
       capturedController = { abort: vi.fn(), signal: opts.signal } as unknown as AbortController;
-      await new Promise(resolve => setTimeout(resolve, 50));
       return '';
     };
 
@@ -495,5 +560,155 @@ describe('builtinAbortStream', () => {
     const senderMock = sender as unknown as SenderMock;
     const doneCall = senderMock.send.mock.calls.find(c => c[0] === 'llm-stream-chunk' && c[1]?.done === true);
     expect(doneCall).toBeDefined();
+  });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+describe('built-in model lifecycle', () => {
+  const messages = [{ role: 'user' as const, content: 'hello' }];
+  const modelA = BUILTIN_MODELS[0].modelFile;
+  const modelB = BUILTIN_MODELS[1].modelFile;
+
+  it('reports loaded status for the requested model and reloads after switching', async () => {
+    mod.setupBuiltinLLMIPC();
+    const sender = createMockSender() as unknown as Electron.WebContents;
+    await mod.builtinStreamChat(sender, messages, [], modelA);
+    const status = mockIpcHandlers.get('llm-check-model')!;
+    expect(await status(null, modelA)).toMatchObject({ loaded: true });
+    expect(await status(null, modelB)).toMatchObject({ loaded: false });
+
+    await mod.builtinStreamChat(sender, messages, [], modelB);
+    expect(mockLoadModel).toHaveBeenLastCalledWith(expect.objectContaining({ modelPath: expect.stringContaining(modelB) }));
+    expect(await status(null, modelA)).toMatchObject({ loaded: false });
+    expect(await status(null, modelB)).toMatchObject({ loaded: true });
+  });
+
+  it('waits for context and model disposal before loading a replacement', async () => {
+    const sender = createMockSender() as unknown as Electron.WebContents;
+    await mod.builtinStreamChat(sender, messages, [], modelA);
+    const contextDisposing = deferred<void>();
+    const contextDisposed = deferred<void>();
+    const modelDisposing = deferred<void>();
+    const modelDisposed = deferred<void>();
+    mockContextDispose.mockImplementationOnce(() => { contextDisposing.resolve(); return contextDisposed.promise; });
+    mockModelDispose.mockImplementationOnce(() => { modelDisposing.resolve(); return modelDisposed.promise; });
+    const next = mod.builtinStreamChat(sender, messages, [], modelB);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mockContextDispose).toHaveBeenCalledOnce();
+    await contextDisposing.promise;
+    expect(mockLoadModel).toHaveBeenCalledTimes(1);
+    expect(mockModelDispose).not.toHaveBeenCalled();
+    contextDisposed.resolve();
+    await modelDisposing.promise;
+    expect(mockLoadModel).toHaveBeenCalledTimes(1);
+    modelDisposed.resolve();
+    await next;
+    expect(mockLoadModel).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps an active prompt loaded beyond the idle period and unloads after completion', async () => {
+    const started = deferred<void>();
+    const finish = deferred<string>();
+    mockPromptImpl = () => { started.resolve(); return finish.promise; };
+    const pending = mod.builtinStreamChat(createMockSender() as unknown as Electron.WebContents, messages, []);
+    await started.promise;
+    await vi.advanceTimersByTimeAsync(11 * 60 * 1000);
+    expect(mockContextDispose).not.toHaveBeenCalled();
+    expect(mockModelDispose).not.toHaveBeenCalled();
+    finish.resolve('done');
+    await pending;
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    expect(mockModelDispose).toHaveBeenCalledOnce();
+  });
+
+  it('queues deletion until the active session and model are disposed', async () => {
+    mod.setupBuiltinLLMIPC();
+    const started = deferred<void>();
+    const finish = deferred<string>();
+    mockPromptImpl = () => { started.resolve(); return finish.promise; };
+    const pending = mod.builtinStreamChat(createMockSender() as unknown as Electron.WebContents, messages, [], modelA);
+    await started.promise;
+    const deleting = mockIpcHandlers.get('llm-delete-model')!(null, modelA);
+    expect(mockModelDispose).not.toHaveBeenCalled();
+    expect(mockUnlinkSync).not.toHaveBeenCalled();
+    finish.resolve('done');
+    await pending;
+    await deleting;
+    expect(mockSessionDispose.mock.invocationCallOrder[0]).toBeLessThan(mockModelDispose.mock.invocationCallOrder[0]);
+    expect(mockModelDispose.mock.invocationCallOrder[0]).toBeLessThan(mockUnlinkSync.mock.invocationCallOrder[0]);
+  });
+
+  it('aborts while loading without starting a prompt', async () => {
+    const started = deferred<void>();
+    const finish = deferred<Awaited<ReturnType<typeof mockLoadModel>>>();
+    mockLoadModel.mockImplementationOnce(() => { started.resolve(); return finish.promise; });
+    const sender = createMockSender();
+    const pending = mod.builtinStreamChat(sender as unknown as Electron.WebContents, messages, []);
+    await started.promise;
+    mod.builtinAbortStream();
+    finish.resolve({ createContext: mockModelCreateContext, dispose: mockModelDispose });
+    await pending;
+    expect(mockSessionPrompt).not.toHaveBeenCalled();
+    expect(sender.send).toHaveBeenCalledWith('llm-stream-chunk', { done: true, content: '' });
+  });
+
+  it('releases a session when reconstructing history fails', async () => {
+    mockSessionSetChatHistory.mockImplementationOnce(() => { throw new Error('invalid history'); });
+    const sender = createMockSender();
+    await mod.builtinStreamChat(sender as unknown as Electron.WebContents, [
+      { role: 'system', content: 'system' }, ...messages,
+    ], []).catch(() => undefined);
+    expect(mockSessionDispose).toHaveBeenCalledOnce();
+  });
+
+  it('waits for session disposal before starting the idle countdown', async () => {
+    const disposing = deferred<void>();
+    const disposed = deferred<void>();
+    mockSessionDispose.mockImplementationOnce(() => { disposing.resolve(); return disposed.promise; });
+    const pending = mod.builtinStreamChat(createMockSender() as unknown as Electron.WebContents, messages, []);
+    await disposing.promise;
+    await vi.advanceTimersByTimeAsync(11 * 60 * 1000);
+    expect(mockContextDispose).not.toHaveBeenCalled();
+    disposed.resolve();
+    await pending;
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    expect(mockModelDispose).toHaveBeenCalledOnce();
+  });
+
+  it('does not unload the selected model when deleting a different downloaded model', async () => {
+    mod.setupBuiltinLLMIPC();
+    await mod.builtinStreamChat(createMockSender() as unknown as Electron.WebContents, messages, [], modelA);
+    await mockIpcHandlers.get('llm-delete-model')!(null, modelB);
+    expect(mockModelDispose).not.toHaveBeenCalled();
+    expect(mockUnlinkSync).toHaveBeenCalledWith(expect.stringContaining(modelB));
+  });
+
+  it('suppresses late native content after cancellation', async () => {
+    const sender = createMockSender();
+    mockPromptImpl = async (_text, options) => {
+      mod.builtinAbortStream();
+      options.onTextChunk('late token');
+      return 'late result';
+    };
+    await mod.builtinStreamChat(sender as unknown as Electron.WebContents, messages, []);
+    expect(sender.send.mock.calls.filter((call) => call[1]?.content)).toEqual([]);
+    expect(sender.send).toHaveBeenCalledWith('llm-stream-chunk', { done: true, content: '' });
+  });
+
+  it('retries failed native disposal before allowing deletion of that model', async () => {
+    mod.setupBuiltinLLMIPC();
+    const sender = createMockSender() as unknown as Electron.WebContents;
+    await mod.builtinStreamChat(sender, messages, [], modelA);
+    mockModelDispose.mockRejectedValueOnce(new Error('dispose failed'));
+    await expect(mod.builtinStreamChat(sender, messages, [], modelB)).rejects.toThrow('dispose failed');
+    await mockIpcHandlers.get('llm-delete-model')!(null, modelA);
+    expect(mockModelDispose).toHaveBeenCalledTimes(2);
+    expect(mockUnlinkSync).toHaveBeenCalledOnce();
   });
 });

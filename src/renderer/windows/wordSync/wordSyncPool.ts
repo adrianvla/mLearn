@@ -1,5 +1,5 @@
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
-import type { CapabilityKind } from '../../../shared/graph/types';
+import type { CapabilityKey } from '../../../shared/graph/types';
 import { projectedWordStatus, unresolvedProjectionTargets } from '../../../shared/graph/targets';
 import type { KnowledgeBasis } from '../../../shared/knowledge/effectiveKnowledge';
 import { WORD_STATUS } from '../../../shared/constants';
@@ -25,7 +25,7 @@ export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning' | 'kno
  */
 export function wordSyncProbe(
   projection: KnowledgeProjection | undefined,
-  possible: readonly CapabilityKind[],
+  possible: readonly CapabilityKey[],
   surfaceEntityId?: string,
 ) {
   if (!projection) {

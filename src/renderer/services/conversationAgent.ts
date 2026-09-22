@@ -865,6 +865,7 @@ function streamConversationSummary(
   history: LLMChatMessage[],
   langName: string,
   tier: Settings['cloudLLMTierConversation'],
+  devMode: Settings['devMode'],
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const bridge = getBridge();
@@ -895,7 +896,9 @@ function streamConversationSummary(
       }
     });
 
-    log.info('[ConversationAgent:Compaction] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
+    if (devMode) {
+      log.info('[ConversationAgent:Compaction] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
+    }
 
     bridge.llm.llmStream([systemMsg, userMsg], [], tier);
   });
@@ -991,7 +994,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     hiddenStreamActive = true;
     let summary = '';
     try {
-      summary = await streamConversationSummary(historyToSummarize, deps.getLanguageName(), tier);
+      summary = await streamConversationSummary(historyToSummarize, deps.getLanguageName(), tier, settingsObj.devMode);
     } finally {
       hiddenStreamActive = false;
     }
@@ -1246,8 +1249,9 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       ...conversationHistory,
     ];
 
-    // Always log prompts for debugging
-    log.info('[ConversationAgent] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
+    if (settingsObj.devMode) {
+      log.info('[ConversationAgent] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
+    }
 
     let accumulated = '';
     const collectedToolCalls: ToolCall[] = [];

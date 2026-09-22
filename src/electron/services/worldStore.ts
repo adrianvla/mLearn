@@ -7,10 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getUserDataPath } from '../utils/platform';
-import { getLogger } from '../../shared/utils/logger';
 import type { AutonomyJobRecord, ContactRecord, IntegrationRecord, Participant, Room, Thread, ScenarioCreation, ReflectionRunRecord } from '../../shared/world';
-
-const log = getLogger('electron.world');
 
 export interface WorldState {
   rooms: Room[];
@@ -32,34 +29,34 @@ function worldFilePath(): string {
 }
 
 export async function loadWorld(): Promise<WorldState> {
+  let raw: string;
   try {
-    const filePath = worldFilePath();
-    try {
-      await fs.promises.access(filePath);
-    } catch {
-      return { rooms: [], threads: [], participants: [] };
-    }
-    const raw = await fs.promises.readFile(filePath, 'utf-8');
-    const parsed: unknown = JSON.parse(raw);
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      log.warn('[worldStore] world.json is not a plain object — using empty world');
-      return { rooms: [], threads: [], participants: [] };
-    }
-    const state = parsed as Partial<WorldState>;
-    return {
-      rooms: Array.isArray(state.rooms) ? state.rooms : [],
-      threads: Array.isArray(state.threads) ? state.threads : [],
-      participants: Array.isArray(state.participants) ? state.participants : [],
-      ...(Array.isArray(state.scenarioCreations) ? { scenarioCreations: state.scenarioCreations } : {}),
-      ...(Array.isArray(state.integrations) ? { integrations: state.integrations } : {}),
-      ...(Array.isArray(state.reflectionRuns) ? { reflectionRuns: state.reflectionRuns } : {}),
-      ...(Array.isArray(state.autonomyJobs) ? { autonomyJobs: state.autonomyJobs } : {}),
-      ...(Array.isArray(state.contacts) ? { contacts: state.contacts } : {}),
-    };
+    raw = await fs.promises.readFile(worldFilePath(), 'utf-8');
   } catch (error) {
-    log.warn('[worldStore] Failed to load world.json — using empty world:', error);
-    return { rooms: [], threads: [], participants: [] };
+    // Only absence denotes a fresh world. A failed read must abort mutations,
+    // otherwise they could replace existing user data with an empty world.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { rooms: [], threads: [], participants: [] };
+    }
+    throw error;
   }
+  const parsed: unknown = JSON.parse(raw);
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('[worldStore] world.json must contain an object');
+  }
+  const state = parsed as Partial<WorldState>;
+  for (const key of ['rooms', 'threads', 'participants'] as const) {
+    if (!Array.isArray(state[key])) {
+      throw new Error(`[worldStore] world.json ${key} must be an array`);
+    }
+  }
+  for (const key of ['scenarioCreations', 'integrations', 'reflectionRuns', 'autonomyJobs', 'contacts'] as const) {
+    if (Object.prototype.hasOwnProperty.call(state, key) && !Array.isArray(state[key])) {
+      throw new Error(`[worldStore] world.json ${key} must be an array when present`);
+    }
+  }
+  // Retain fields owned by packages or newer app versions during round trips.
+  return state as WorldState;
 }
 
 export async function saveWorld(state: WorldState): Promise<void> {

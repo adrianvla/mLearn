@@ -157,6 +157,7 @@ describe('setupLLMRouterIPC', () => {
     expect(mockBuiltinStreamChat.mock.calls[1]?.[1]).toEqual([{ role: 'user', content: 'Next user turn' }]);
     const foregroundSender = mockBuiltinStreamChat.mock.calls[1]?.[0];
     foregroundSender.send('llm-stream-chunk', { content: 'foreground', done: true });
+    await expect(foreground).resolves.toBe('foreground');
     expect(mockBuiltinStreamChat.mock.calls[2]?.[1]).toEqual([{ role: 'user', content: 'Autonomy' }]);
     const backgroundSender = mockBuiltinStreamChat.mock.calls[2]?.[0];
     backgroundSender.send('llm-stream-chunk', { content: 'background', done: true });
@@ -507,5 +508,96 @@ describe('LLM_STREAM_ABORT guard: only the owner may abort', () => {
 
     expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
     expect(other.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('provider cleanup ownership', () => {
+  it.each(['builtin', 'cloud', 'ollama'])('keeps %s ownership after a terminal chunk until provider cleanup settles', async (provider) => {
+    mockLoadSettings.mockReturnValue({ llmProvider: provider });
+    mod.setupLLMRouterIPC();
+    let finishCleanup!: () => void;
+    const cleanup = new Promise<void>(resolve => { finishCleanup = resolve; });
+    const stream = provider === 'builtin' ? mockBuiltinStreamChat : provider === 'cloud' ? mockCloudStreamChat : mockOllamaStreamChatUnified;
+    stream.mockReturnValue(cleanup);
+    const owner = createMockSender();
+    const next = { ...createMockSender(), id: 2 };
+    const start = mockIpcListeners.get('llm-stream')![0];
+    const active = start(createMockEvent(owner), [], []);
+    await start(createMockEvent(next), [], []);
+    owner.send('llm-stream-chunk', { done: true });
+    expect(stream).toHaveBeenCalledTimes(1);
+    finishCleanup();
+    await active;
+    expect(stream).toHaveBeenCalledTimes(2);
+  });
+
+  it('queues the same window’s next turn after terminal delivery while cleanup is pending', async () => {
+    mod.setupLLMRouterIPC();
+    let finishCleanup!: () => void;
+    mockBuiltinStreamChat.mockReturnValue(new Promise<void>(resolve => { finishCleanup = resolve; }));
+    const owner = createMockSender();
+    const delivered = owner.send;
+    const start = mockIpcListeners.get('llm-stream')![0];
+    const active = start(createMockEvent(owner), [], []);
+    owner.send('llm-stream-chunk', { done: true });
+    await start(createMockEvent(owner), [{ role: 'user', content: 'next turn' }], []);
+    expect(delivered).not.toHaveBeenCalledWith('llm-stream-chunk', expect.objectContaining({ error: 'STREAM_BUSY' }));
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+    finishCleanup();
+    await active;
+    expect(mockBuiltinStreamChat).toHaveBeenLastCalledWith(owner, [{ role: 'user', content: 'next turn' }], [], undefined);
+  });
+
+  it('cancels a queued next turn from the same window while its previous provider cleans up', async () => {
+    mod.setupLLMRouterIPC();
+    let finishCleanup!: () => void;
+    mockBuiltinStreamChat.mockReturnValue(new Promise<void>(resolve => { finishCleanup = resolve; }));
+    const owner = createMockSender();
+    const start = mockIpcListeners.get('llm-stream')![0];
+    const active = start(createMockEvent(owner), [], []);
+    owner.send('llm-stream-chunk', { done: true });
+    await start(createMockEvent(owner), [{ role: 'user', content: 'cancel this turn' }], []);
+    mockIpcListeners.get('llm-stream-abort')![0](createMockEvent(owner));
+    finishCleanup();
+    await active;
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for aborted built-in cleanup before starting another job', async () => {
+    let finishCleanup!: () => void;
+    const cleanup = new Promise<void>(resolve => { finishCleanup = resolve; });
+    mockBuiltinStreamChat.mockImplementationOnce(() => cleanup).mockImplementation(async (sender) => {
+      sender.send('llm-stream-chunk', { content: 'next', done: true });
+    });
+    const controller = new AbortController();
+    const first = mod.completeJob([], controller.signal).catch(error => error);
+    const second = mod.completeJob([], new AbortController().signal);
+    controller.abort();
+    expect((await first).message).toMatch(/cancel/i);
+    expect(mockBuiltinAbortStream).toHaveBeenCalledOnce();
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+    finishCleanup();
+    await expect(second).resolves.toBe('next');
+  });
+
+  it('aborts a destroyed owner and ignores its late chunks while cleanup is pending', async () => {
+    mod.setupLLMRouterIPC();
+    let finishCleanup!: () => void;
+    mockBuiltinStreamChat.mockReturnValue(new Promise<void>(resolve => { finishCleanup = resolve; }));
+    const owner = createMockSender();
+    const originalSend = owner.send;
+    const next = { ...createMockSender(), id: 2 };
+    const start = mockIpcListeners.get('llm-stream')![0];
+    const active = start(createMockEvent(owner), [], []);
+    await start(createMockEvent(next), [], []);
+    owner.isDestroyed.mockReturnValue(true);
+    owner.once.mock.calls[0][1]();
+    expect(mockBuiltinAbortStream).toHaveBeenCalledOnce();
+    owner.send('llm-stream-chunk', { content: 'late', done: true });
+    expect(originalSend).not.toHaveBeenCalled();
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(1);
+    finishCleanup();
+    await active;
+    expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(2);
   });
 });

@@ -11,11 +11,15 @@ export function useKnowledgeProjections(query: Accessor<{ language: string; surf
   const [projections, setProjections] = createSignal<ReadonlyMap<string, KnowledgeProjection>>(new Map());
   const [loading, setLoading] = createSignal(false);
   const [ready, setReady] = createSignal(false);
+  const [failed, setFailed] = createSignal(false);
+  const [retryVersion, setRetryVersion] = createSignal(0);
   createEffect(() => {
     const input = query();
     eventsVersion();
+    retryVersion();
     const thresholds = effectiveThresholds(settings);
     setReady(false);
+    setFailed(false);
     setProjections(new Map());
     if (!input) { setLoading(false); return; }
     let disposed = false;
@@ -35,8 +39,13 @@ export function useKnowledgeProjections(query: Accessor<{ language: string; surf
       }
     };
     void Promise.all(Array.from({ length: Math.min(8, surfaces.length) }, worker)).then(() => {
-      if (!disposed) batch(() => { setProjections(result); setLoading(false); setReady([...result.values()].every(projection => projection.status === 'ready')); });
+      if (!disposed) batch(() => {
+        setProjections(result);
+        setLoading(false);
+        setReady([...result.values()].every(projection => projection.status === 'ready'));
+        setFailed([...result.values()].some(projection => projection.status !== 'ready'));
+      });
     });
   });
-  return { projections, loading, ready };
+  return { projections, loading, ready, failed, retry: () => setRetryVersion((value) => value + 1) };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { COMPACT_RELATION_TYPES, decodeCompact, encodeCompact } from './compact';
-import { identityNeighbors, loadLinguisticGraph, surfaceEntityId } from './load';
+import { identityNeighbors, loadLinguisticGraph, relationsOf, surfaceEntityId } from './load';
+import { createCompactGraphView } from './compactView';
 import type { LinguisticGraphAsset } from './types';
 
 const asset: LinguisticGraphAsset = {
@@ -99,6 +100,45 @@ describe('CompactLingualGraph', () => {
     // Grammar applicability survives the wire: the reconstructed entity carries metadata.
     const rebuilt = { ...plain.nodes.get('ja:grammar:ている')! };
     expect(rebuilt.grammar?.formation).toBe('verb-te + いる');
+  });
+
+  it('round-trips package-declared capabilities and namespaced feature relations', () => {
+    const extended: LinguisticGraphAsset = {
+      ...asset,
+      entities: asset.entities.map((entity) => entity.id === 'ja:entry:hashi'
+        ? { ...entity, learnableCapabilities: ['x-acme::classifier'] }
+        : entity),
+      relations: [
+        ...asset.relations,
+        { from: 'ja:entry:hashi', to: 'ja:pron:hashi', type: 'x-acme::classifies-as' },
+      ],
+    };
+    const view = createCompactGraphView(decodeCompact(encodeCompact(extended)), 'ja');
+    expect(view.nodes.get('ja:entry:hashi')?.learnableCapabilities).toEqual(['x-acme::classifier']);
+    expect(relationsOf(view, 'ja:entry:hashi').some((relation) => relation.type === 'x-acme::classifies-as')).toBe(true);
+  });
+
+  it('preserves arbitrary structured package features through compact serialization', () => {
+    const feature = {
+      id: 'x-test::evidentiality',
+      values: ['reported', 'inferred'],
+      conditions: { speaker: { required: true }, source: ['direct', 'hearsay'] },
+    };
+    const extended: LinguisticGraphAsset = {
+      ...asset,
+      entities: asset.entities.map((entity) => entity.id === surfaceEntityId('ja', 'h-0')
+        ? { ...entity, features: { 'x-test::evidentiality': feature } }
+        : entity),
+    };
+    const serialized = JSON.parse(JSON.stringify(encodeCompact(extended)));
+    const compact = decodeCompact(serialized);
+    const view = createCompactGraphView(compact, 'ja');
+    const surface = surfaceEntityId('ja', 'h-0');
+    const dense = compact.denseOf.get(surface)!;
+
+    expect(compact.entityFeatures?.[dense]).toEqual({ 'x-test::evidentiality': feature });
+    expect(view.nodes.get(surface)?.features).toEqual({ 'x-test::evidentiality': feature });
+    expect(encodeCompact(asset).entities.featureStringIds).toBeUndefined();
   });
 
   it('round-trips namespaced extension kinds and relations without granting them categories', () => {

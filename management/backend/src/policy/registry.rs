@@ -372,7 +372,10 @@ mod tests {
         assert_eq!(serialized, expected);
         assert_eq!(serialized["schemaVersion"], json!(1));
         assert!(serialized["settings"].get("llmEnabled").is_some());
-        assert_eq!(serialized["settings"]["colorScheme"]["value"], json!("dark"));
+        assert_eq!(
+            serialized["settings"]["colorScheme"]["value"],
+            json!("dark-quartz")
+        );
         assert!(serialized["settings"]["flashcard_deck"]["value"].is_null());
     }
 }

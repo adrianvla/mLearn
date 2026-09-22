@@ -3,8 +3,8 @@
  * Routes LLM_STREAM and LLM_STREAM_ABORT to the correct provider (builtin, ollama, or cloud).
  *
  * Stream guard: exactly ONE active stream app-wide at any time. A second LLM_STREAM from the
- * same webContents is rejected with a STREAM_BUSY error chunk (programming error); requests
- * from other webContents are queued FIFO and started when the owner's stream completes.
+ * same webContents is rejected with a STREAM_BUSY error chunk while delivery is active;
+ * subsequent turns and requests from other webContents wait until provider cleanup completes.
  * Only the owning webContents may abort its stream.
  */
 
@@ -49,6 +49,12 @@ let activeProvider: Settings['llmProvider'] | null = null;
 let activeSender: Electron.WebContents | null = null;
 let activeOriginalSend: ((channel: string, ...args: unknown[]) => void) | null = null;
 let activeDestroyedListener: (() => void) | null = null;
+interface StreamLifecycle {
+  providerSettled: boolean;
+  terminal: boolean;
+  cancelled: boolean;
+}
+let activeLifecycle: StreamLifecycle | null = null;
 const queue: QueuedStreamRequest[] = [];
 
 function enqueueRequest(request: QueuedStreamRequest): void {
@@ -61,26 +67,39 @@ function enqueueRequest(request: QueuedStreamRequest): void {
   else queue.splice(firstBackground, 0, request);
 }
 
-// Providers differ in completion signalling (ollama is fire-and-forget, cloud/builtin awaited),
-// so the owner's `send` is wrapped for the stream duration: the terminal chunk (done: true,
-// including error chunks) is the uniform completion signal.
+// A terminal chunk completes delivery, but the provider still owns resources until
+// its promise settles (notably the built-in session's asynchronous disposal).
 function wrapSenderSend(sender: Electron.WebContents): void {
+  const lifecycle: StreamLifecycle = { providerSettled: false, terminal: false, cancelled: false };
+  activeLifecycle = lifecycle;
   const originalSend = sender.send.bind(sender);
   activeOriginalSend = originalSend;
   sender.send = (channel: string, ...args: unknown[]) => {
-    originalSend(channel, ...args);
+    if (sender.isDestroyed()) return;
     if (channel === IPC_CHANNELS.LLM_STREAM_CHUNK) {
+      if (lifecycle.cancelled || lifecycle.terminal) return;
       const chunk = args[0] as LLMStreamChunk | undefined;
-      if (chunk?.done && activeSender === sender) {
-        releaseStream();
-      }
+      if (chunk?.done) lifecycle.terminal = true;
+    }
+    try {
+      originalSend(channel, ...args);
+    } finally {
+      if (activeLifecycle === lifecycle) releaseStream();
     }
   };
-  activeDestroyedListener = () => releaseStream();
+  activeDestroyedListener = () => cancelActiveStream(sender.id);
   sender.once('destroyed', activeDestroyedListener);
 }
 
+function cancelActiveStream(senderId: number): void {
+  if (activeOwner !== senderId || !activeLifecycle || activeLifecycle.cancelled) return;
+  activeLifecycle.cancelled = true;
+  abortProvider(senderId);
+  releaseStream();
+}
+
 function releaseStream(): void {
+  if (!activeLifecycle?.providerSettled || (!activeLifecycle.terminal && !activeLifecycle.cancelled)) return;
   if (activeSender && activeDestroyedListener) {
     activeSender.removeListener('destroyed', activeDestroyedListener);
   }
@@ -92,6 +111,7 @@ function releaseStream(): void {
   activeSender = null;
   activeOwner = null;
   activeProvider = null;
+  activeLifecycle = null;
   drainQueue();
 }
 
@@ -160,11 +180,11 @@ async function dispatchStream(
   expectedRoute?: string,
   usageScope: 'foreground' | 'internal' = 'foreground',
 ): Promise<void> {
-  const settings = loadSettings();
-  const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
-  activeProvider = provider;
-
+  const lifecycle = activeLifecycle;
   try {
+    const settings = loadSettings();
+    const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
+    activeProvider = provider;
     if (expectedRoute !== undefined && expectedRoute !== routeKey(settings)) throw new Error('Inference settings changed while the job was queued');
     if (provider === 'cloud') {
       const adapter = getCloudAdapter();
@@ -177,7 +197,7 @@ async function dispatchStream(
         },
       }, tier === 'standard' || tier === 'realtime' ? tier : undefined, think, usageScope);
     } else if (provider === 'ollama') {
-      ollamaStreamChatUnified(sender, messages, tools || []);
+      await ollamaStreamChatUnified(sender, messages, tools || []);
     } else {
       await builtinStreamChat(sender, messages, tools || [], settings.builtinModel || undefined);
     }
@@ -188,6 +208,11 @@ async function dispatchStream(
       done: true,
     };
     sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, errorChunk);
+  } finally {
+    if (lifecycle && activeLifecycle === lifecycle) {
+      lifecycle.providerSettled = true;
+      releaseStream();
+    }
   }
 }
 
@@ -238,8 +263,7 @@ export function completeJob(
       finish(error);
       for (let i = queue.length - 1; i >= 0; i--) if (queue[i].sender.id === sender.id) queue.splice(i, 1);
       if (activeOwner === sender.id) {
-        abortProvider(sender.id);
-        if (activeOwner === sender.id) releaseStream();
+        cancelActiveStream(sender.id);
       }
     };
     const onAbort = (): void => cancel(new Error('Scenario generation cancelled'));
@@ -264,7 +288,7 @@ export function setupLLMRouterIPC(): void {
       activeSender = sender;
       wrapSenderSend(sender);
       await dispatchStream(sender, messages, tools, tier, think);
-    } else if (activeOwner === sender.id) {
+    } else if (activeOwner === sender.id && !activeLifecycle?.terminal && !activeLifecycle?.cancelled) {
       // Same webContents overlapping its own stream is a programming error: reject without
       // touching the provider and without routing through the wrapped send (a done:true chunk
       // through the wrapper would release the active stream).
@@ -279,17 +303,18 @@ export function setupLLMRouterIPC(): void {
   ipcMain.on(IPC_CHANNELS.LLM_STREAM_ABORT, (event: IpcMainEvent) => {
     const sender = event.sender;
 
-    if (activeOwner === sender.id) {
-      abortProvider(sender.id);
-      if (activeOwner === sender.id) releaseStream();
-    } else if (queue.some((req) => req.sender.id === sender.id)) {
-      // Non-owner with queued request: silently cancel it (it was never dispatched).
-      for (let i = queue.length - 1; i >= 0; i--) {
-        if (queue[i].sender.id === sender.id) {
-          queue.splice(i, 1);
-        }
+    let removedQueued = false;
+    // A new turn may queue behind this same window's terminal/aborted stream
+    // while that provider is disposing its resources.
+    for (let i = queue.length - 1; i >= 0; i--) {
+      if (queue[i].sender.id === sender.id) {
+        queue.splice(i, 1);
+        removedQueued = true;
       }
-    } else {
+    }
+    if (activeOwner === sender.id) {
+      cancelActiveStream(sender.id);
+    } else if (!removedQueued) {
       log.warn('[LLMRouter] Abort rejected: no active or queued stream for this webContents');
     }
   });
@@ -307,5 +332,7 @@ export function __resetStreamGuardForTests(): void {
   activeOriginalSend = null;
   activeSender = null;
   activeOwner = null;
+  activeProvider = null;
+  activeLifecycle = null;
   queue.length = 0;
 }

@@ -3,6 +3,7 @@ import json
 import shutil
 import sqlite3
 import sys
+from types import SimpleNamespace
 import zlib
 from pathlib import Path
 
@@ -127,3 +128,28 @@ def test_adapter_opencc_active_when_metadata_enables_pinyin_input_conversion(tmp
 
     assert adapter._pinyin_input_converter is not None
     assert adapter._pinyin_input_converter.convert("學習") == "学习"
+
+
+def test_adapter_converts_package_declared_script_directions(monkeypatch):
+    calls = []
+
+    class FakeOpenCC:
+        def __init__(self, conversion):
+            calls.append(conversion)
+
+        def convert(self, text):
+            return f"{calls[-1]}:{text}"
+
+    monkeypatch.setitem(sys.modules, "opencc", SimpleNamespace(OpenCC=FakeOpenCC))
+    adapter = _load_adapter("_mlearn_language_zh")
+
+    assert adapter.LANGUAGE_CONVERT("學習", "simplified") == "t2s:學習"
+    assert adapter.LANGUAGE_CONVERT("学习", "traditional") == "s2t:学习"
+    assert calls == ["t2s", "s2t"]
+
+
+def test_adapter_rejects_unknown_script_direction():
+    adapter = _load_adapter("_mlearn_language_zh")
+
+    with pytest.raises(ValueError, match="Unsupported conversion direction"):
+        adapter.LANGUAGE_CONVERT("word", "unknown")

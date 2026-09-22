@@ -11,6 +11,7 @@ import type {
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { createConversationAgent, type StreamCallbacks } from './conversationAgent';
 import type { LanguageFeatures } from '../context/LanguageContext';
+import { getRecentRecords } from '../../shared/utils/logger';
 
 const DEFAULT_LANGUAGE_FEATURES: LanguageFeatures = {
   supportsReadings: true,
@@ -177,6 +178,42 @@ describe('createConversationAgent', () => {
       expect(typeof agent.tokenize).toBe('function');
       expect(typeof agent.continueWithContext).toBe('function');
       expect(typeof agent.markInterrupted).toBe('function');
+    });
+  });
+
+  describe('prompt log privacy', () => {
+    it.each([false, true])('logs conversation content only with explicit developer mode (%s)', (devMode) => {
+      const before = new Set(getRecentRecords());
+      const agent = createConversationAgent(createMockDeps({
+        getSettings: () => devMode ? { ...DEFAULT_SETTINGS, devMode: true } : { ...DEFAULT_SETTINGS },
+        getWorldContext: () => 'private-persona-marker',
+      }));
+      agent.loadHistory([{ role: 'assistant', content: 'private-history-marker' }]);
+      agent.processMessage('private-user-marker', [], createCallbacks().callbacks);
+      const emitted = getRecentRecords().filter(record => !before.has(record)).map(record => record.msg).join('\n');
+      expect(emitted.includes('private-user-marker')).toBe(devMode);
+      expect(emitted.includes('private-history-marker')).toBe(devMode);
+      expect(emitted.includes('private-persona-marker')).toBe(devMode);
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+      agent.abortStream();
+    });
+
+    it.each([false, true])('logs compaction source content only with explicit developer mode (%s)', async (devMode) => {
+      const before = new Set(getRecentRecords());
+      const agent = createConversationAgent(createMockDeps({
+        getSettings: () => devMode ? { ...DEFAULT_SETTINGS, devMode: true } : { ...DEFAULT_SETTINGS },
+      }));
+      agent.loadHistory(Array.from({ length: 16 }, (_, index) => ({
+        role: index % 2 === 0 ? 'user' as const : 'assistant' as const,
+        content: `private-compaction-marker ${index}`,
+      })));
+      const pending = agent.summarizeHistory();
+      sendChunk('Private summary');
+      sendDone();
+      await expect(pending).resolves.toMatchObject({ status: 'compacted' });
+      const emitted = getRecentRecords().filter(record => !before.has(record)).map(record => record.msg).join('\n');
+      expect(emitted.includes('private-compaction-marker')).toBe(devMode);
+      expect(emitted).not.toContain('Private summary');
     });
   });
 

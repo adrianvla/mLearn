@@ -338,7 +338,8 @@ function shouldVerifyExistingChecksum(asset: LanguageDataAsset): boolean {
 function isLanguageMetadataAsset(asset: LanguageDataAsset): boolean {
   return asset.path.startsWith('languages/')
     && asset.path.endsWith('.json')
-    && !asset.path.endsWith('.freq.json');
+    && !asset.path.endsWith('.freq.json')
+    && !GRAPH_ASSET_PATH.test(asset.path);
 }
 
 function readInstalledLanguageMetadataVersion(asset: LanguageDataAsset, filePath: string): string | undefined {
@@ -515,8 +516,8 @@ function getMissingRequiredAssets(assets: LanguageDataAsset[], assetStatuses: Re
     .map((asset) => asset.id);
 }
 
-function hasOutdatedRequiredAssets(assets: LanguageDataAsset[], assetStatuses: ReturnType<typeof getAssetStatuses>): boolean {
-  return assets.some((asset, index) => asset.required !== false && assetStatuses[index]?.outdated);
+function hasOutdatedAssets(assetStatuses: ReturnType<typeof getAssetStatuses>): boolean {
+  return assetStatuses.some((status) => status.outdated);
 }
 
 function getInstalledBytes(assets: LanguageDataAsset[]): number {
@@ -542,7 +543,7 @@ export function getLanguageDataStatus(
     .filter((asset, index) => asset.required !== false && !assetStatuses[index]?.installed)
     .map((asset) => asset.id);
   const installKey = getInstallKey(language, dictionaryTargetLanguage);
-  const outdated = hasOutdatedRequiredAssets(assets, assetStatuses)
+  const outdated = hasOutdatedAssets(assetStatuses)
     || (missingAssets.length === 0 && !installReceiptVersionMatches(installKey, expectedVersion));
 
   return {
@@ -580,7 +581,7 @@ export function getLanguageDataCatalogStatus(
             const packAssets = pack.assets;
             const packAssetStatuses = getAssetStatuses(packAssets, pack.version);
             const missingRequiredAssets = getMissingRequiredAssets(packAssets, packAssetStatuses);
-            const outdated = hasOutdatedRequiredAssets(packAssets, packAssetStatuses)
+            const outdated = hasOutdatedAssets(packAssetStatuses)
               || (missingRequiredAssets.length === 0 && !installReceiptVersionMatches(getInstallKey(language, pack.targetLanguage), pack.version));
             return {
               targetLanguage: pack.targetLanguage,

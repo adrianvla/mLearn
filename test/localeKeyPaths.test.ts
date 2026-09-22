@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { KNOWLEDGE_ASPECT_LABEL_KEYS, KNOWLEDGE_ASPECTS } from '../src/shared/constants';
+import {
+  LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS,
+  LEGACY_KNOWLEDGE_ASPECTS,
+} from '../src/shared/constants';
 
 const LOCALES = ['en', 'ja', 'ru', 'zh', 'de', 'fr'] as const;
 
@@ -27,18 +30,18 @@ function hasKeyPath(root: Record<string, unknown>, dottedPath: string): boolean 
  * verified.
  */
 describe('locale key paths for knowledge constants', () => {
-  it('every KNOWLEDGE_ASPECT_LABEL_KEYS path exists in every locale', () => {
+  it('every legacy knowledge aspect label path exists in every locale', () => {
     for (const code of LOCALES) {
       const locale = localeObject(code);
-      for (const key of Object.values(KNOWLEDGE_ASPECT_LABEL_KEYS)) {
+      for (const key of Object.values(LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS)) {
         expect(hasKeyPath(locale, key), `${code}: missing ${key}`).toBe(true);
       }
     }
   });
 
-  it('every knowledge aspect has a label key', () => {
-    for (const aspect of KNOWLEDGE_ASPECTS) {
-      expect(KNOWLEDGE_ASPECT_LABEL_KEYS[aspect], `${aspect} lacks a locale label key`).toBeDefined();
+  it('every legacy knowledge aspect has a label key', () => {
+    for (const aspect of LEGACY_KNOWLEDGE_ASPECTS) {
+      expect(LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS[aspect], `${aspect} lacks a locale label key`).toBeDefined();
     }
   });
 });

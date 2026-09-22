@@ -58,7 +58,7 @@ async fn fresh_school_onboarding_calendar_and_sessions_survive_restart() {
     let child = request(&app,"POST","/api/groups",Some(root),json!({"parentId":school,"name":"Pilot class","slug":"pilot-class"}),StatusCode::CREATED).await;
     let child_id = child["id"].as_str().unwrap();
     let invitation_path = format!("/api/groups/{child_id}/provisioning/invitations");
-    let invite = request(&app,"POST",&invitation_path,Some(root),json!({"email":"teacher@pilot.test","identityType":"teacher","capabilities":["group.view","members.view","analytics.view"],"expiresAt":time::OffsetDateTime::now_utc().unix_timestamp()+3600}),StatusCode::CREATED).await;
+    let invite = request(&app,"POST",&invitation_path,Some(root),json!({"email":"teacher@pilot.test","identityType":"teacher","capabilities":["group.view","members.view","members.manage","permissions.delegate","analytics.view"],"expiresAt":time::OffsetDateTime::now_utc().unix_timestamp()+3600}),StatusCode::CREATED).await;
     let acceptance = json!({"token":invite["secret"],"email":"teacher@pilot.test","displayName":"Pilot teacher","password":"Pilot teacher password 123!"});
     request(&app,"POST","/api/provisioning/invitations/accept",None,acceptance.clone(),StatusCode::OK).await;
     request(&app,"POST","/api/provisioning/invitations/accept",None,acceptance,StatusCode::UNAUTHORIZED).await;
@@ -68,6 +68,18 @@ async fn fresh_school_onboarding_calendar_and_sessions_survive_restart() {
     request(&app,"GET",&format!("/api/users?groupId={child_id}"),Some(teacher),Value::Null,StatusCode::OK).await;
     request(&app,"GET",&format!("/api/users?groupId={school}"),Some(teacher),Value::Null,StatusCode::FORBIDDEN).await;
     request(&app,"GET","/api/config",Some(teacher),Value::Null,StatusCode::FORBIDDEN).await;
+
+    let learner_invite = request(&app,"POST",&format!("/api/groups/{child_id}/provisioning/invitations"),Some(teacher),json!({"email":"learner@pilot.test","identityType":"learner","capabilities":[],"expiresAt":time::OffsetDateTime::now_utc().unix_timestamp()+3600}),StatusCode::CREATED).await;
+    let learner_acceptance = json!({"token":learner_invite["secret"],"email":"learner@pilot.test","displayName":"Pilot learner","password":"Pilot learner password 123!"});
+    let learner_account = request(&app,"POST","/api/provisioning/invitations/accept",None,learner_acceptance,StatusCode::OK).await;
+    assert_eq!(learner_account["identityType"],"learner");
+    let learner_login = request(&app,"POST","/api/auth/login",None,json!({"email":"learner@pilot.test","password":"Pilot learner password 123!"}),StatusCode::OK).await;
+    let learner = learner_login["session"]["accessToken"].as_str().unwrap();
+    let eligible = request(&app,"GET","/api/groups/eligible",Some(learner),Value::Null,StatusCode::OK).await;
+    assert!(eligible["groups"].as_array().unwrap().iter().any(|group| group["id"] == child_id));
+    request(&app,"POST",&format!("/api/groups/{child_id}/activate"),Some(learner),Value::Null,StatusCode::NO_CONTENT).await;
+    let learners = request(&app,"GET",&format!("/api/users?groupId={child_id}"),Some(teacher),Value::Null,StatusCode::OK).await;
+    assert!(learners["users"].as_array().unwrap().iter().any(|user| user["email"] == "learner@pilot.test"));
     request(&app,"GET","/api/obsolete-operation",None,Value::Null,StatusCode::NOT_FOUND).await;
     drop(app);
     pool.close().await;
@@ -76,6 +88,7 @@ async fn fresh_school_onboarding_calendar_and_sessions_survive_restart() {
     let calendar = request(&app,"GET",&calendar_path,Some(root),Value::Null,StatusCode::OK).await;
     assert_eq!(calendar["current"]["timezone"],"Europe/Zurich");
     request(&app,"GET","/api/auth/me",Some(teacher),Value::Null,StatusCode::OK).await;
+    request(&app,"GET","/api/auth/me",Some(learner),Value::Null,StatusCode::OK).await;
     request(&app,"POST","/api/auth/logout",Some(teacher),Value::Null,StatusCode::NO_CONTENT).await;
     request(&app,"GET","/api/auth/me",Some(teacher),Value::Null,StatusCode::UNAUTHORIZED).await;
     drop(app);

@@ -126,10 +126,14 @@ async function flush(ticks = 5) {
 describe('useFlashcardTts', () => {
   beforeEach(async () => {
     setupAudioMock();
-    mockCurrentLanguageData = mockJapaneseLanguage;
-    mockStripReadingAnnotations.mockImplementation((text: string) =>
+    mockGetFlashcardTts.mockReset().mockResolvedValue(null);
+    mockGetFlashcardTtsMeta.mockReset().mockResolvedValue(null);
+    mockTtsSpeak.mockReset();
+    mockShowToast.mockReset();
+    mockStripReadingAnnotations.mockReset().mockImplementation((text: string) =>
       text.replace(/<rt[^>]*>.*?<\/rt>/gi, '').replace(/<\/?ruby>/gi, '').trim(),
     );
+    mockCurrentLanguageData = mockJapaneseLanguage;
     const platform = await import('../../shared/platform');
     vi.mocked(platform.isElectron).mockReturnValue(true);
   });

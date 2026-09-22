@@ -18,6 +18,8 @@ export interface GraphNode {
   label?: string;
   /** Package-authored description, when richer than the source label. */
   displayLabel?: string;
+  /** Package-declared learner accesses attached to this entity. */
+  learnableCapabilities?: CapabilityKey[];
 }
 
 export interface GraphRelatedNode extends GraphNode {

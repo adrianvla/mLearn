@@ -1,18 +1,13 @@
 import { Component, Show, createSignal } from 'solid-js';
 import { useLocalization } from '../../context';
-import { PolicyTraceDetails } from '../common';
 import type { PolicyDecision } from '../../learning/types';
 import './PolicyWhy.css';
 
 /**
  * R20 explanation surface for ONE policy decision (the pinned pick the
  * review is showing). Default UX is the brief contextual reason the decision
- * itself carries; the inline "Why?" opens the SINGLE expanded details view
- * with the actual calculation and source provenance — the emitted typed
- * trace, rendered verbatim by the shared PolicyTraceDetails (the same
- * rendering the knowledge Inspector drawer shows). This component never
- * recomputes or reinterprets: a decision without a trace says so honestly
- * instead of narrating.
+ * itself carries; the inline "Why?" adds a short learner-facing explanation.
+ * Detailed policy traces remain available in the knowledge Inspector.
  *
  * G02 boundary: this view renders ONLY its props (the decision's selection
  * fields); card answer content never enters a PolicyDecision, so nothing
@@ -43,28 +38,8 @@ export const PolicyWhy: Component<{ decision: PolicyDecision | null | undefined 
           </div>
           <Show when={expanded()}>
             <div class="policy-why__details" data-testid="policy-why-details">
-              <div class="policy-why__section">
-                <span class="policy-why__heading">{t('mlearn.Review.Why.Decision')}</span>
-                <span class="policy-why__kv">
-                  <span>{t('mlearn.Review.Why.Task')}</span>
-                  <span>{decision.trace?.inputs.task ?? decision.encounter.task.taskTemplateId}</span>
-                </span>
-                <span class="policy-why__kv">
-                  <span>action</span>
-                  <span>{decision.action}</span>
-                </span>
-                <span class="policy-why__kv">
-                  <span>trace</span>
-                  <span>{decision.trace?.version ?? '—'}</span>
-                </span>
-              </div>
-              <Show when={decision.trace} fallback={
-                <span class="policy-why__limits" data-testid="policy-why-no-trace">
-                  {t('mlearn.Review.Why.NoTrace')}
-                </span>
-              }>
-                {(trace) => <PolicyTraceDetails trace={trace()} />}
-              </Show>
+              <p class="policy-why__explanation">{t('mlearn.Review.Why.Explanation')}</p>
+              <p class="policy-why__reason">{decision.encounter.why}</p>
             </div>
           </Show>
         </div>

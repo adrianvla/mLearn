@@ -35,6 +35,8 @@ export const AITab: Component = () => {
   // Built-in model state
   const [modelStatus, setModelStatus] = createSignal<LLMModelStatus>({
     downloaded: false,
+    runtimeAvailable: false,
+    ready: false,
     downloading: false,
     progress: 0,
     downloadedBytes: 0,
@@ -60,6 +62,8 @@ export const AITab: Component = () => {
   const [downloadedModels, setDownloadedModels] = createSignal<Array<{ modelFile: string; sizeBytes: number }>>([]);
   const [deletingModel, setDeletingModel] = createSignal<string | null>(null);
   const [deleteConfirmMsg, setDeleteConfirmMsg] = createSignal<string | null>(null);
+
+  const isBuiltinModelReady = () => modelStatus().ready;
 
   const clearBuiltinStatusMessages = () => {
     setAutoselectMsg(null);
@@ -405,11 +409,17 @@ export const AITab: Component = () => {
                 </div>
               </Show>
 
-              <Show when={!modelStatus().downloading && modelStatus().downloaded}>
+              <Show when={!modelStatus().downloading && isBuiltinModelReady()}>
                 <span class="ai-status-ok">{t('mlearn.AI.ModelReady')}</span>
                 <Btn size="sm" onClick={handleDownloadModel}>
                   {t('mlearn.AI.Settings.BuiltinModel.Redownload')}
                 </Btn>
+              </Show>
+
+              <Show when={!modelStatus().downloading && modelStatus().downloaded && !isBuiltinModelReady()}>
+                <span class="ai-status-error">
+                  {modelStatus().runtimeError ?? 'Built-in runtime unavailable'}
+                </span>
               </Show>
 
               <Show when={!modelStatus().downloading && !modelStatus().downloaded}>

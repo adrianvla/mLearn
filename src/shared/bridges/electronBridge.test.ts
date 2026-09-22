@@ -32,9 +32,6 @@ function createMockIPC() {
     installLanguageData: vi.fn(),
     onLanguageDataInstalled: vi.fn(),
     onLanguageDataInstallError: vi.fn(),
-    installLanguage: vi.fn(),
-    onLanguageInstalled: vi.fn(),
-    onLanguageInstallError: vi.fn(),
     publishAppActivitySourceUpdate: vi.fn(),
     readDirectoryImages: vi.fn(),
     readPdfFile: vi.fn(),
@@ -43,7 +40,6 @@ function createMockIPC() {
     selectSubtitleFile: vi.fn(),
     selectBookFolder: vi.fn(),
     selectPdfFile: vi.fn(),
-    getLocalMediaUrl: vi.fn(),
     getPathForFile: vi.fn(),
     writeToClipboard: vi.fn(),
     changeTrafficLights: vi.fn(),
@@ -152,14 +148,7 @@ function createMockIPC() {
     removeLicense: vi.fn(),
     onLicenseGet: vi.fn(),
     onLicenseActivated: vi.fn(),
-    getMigratedLocalStorage: vi.fn(),
-    getMigratedItem: vi.fn(),
-    hasMigrationOccurred: vi.fn(),
-    triggerMigration: vi.fn(),
-    onLocalStorageMigrationComplete: vi.fn(),
     onFlashcardMigrationComplete: vi.fn(),
-    getFlashcardMigrationInfo: vi.fn(),
-    sendLS: vi.fn(),
     fetchUrl: vi.fn(),
     dataExport: vi.fn(),
     dataImport: vi.fn(),
@@ -457,25 +446,6 @@ describe('localizationBridge', () => {
     expect(mockIPC.onLanguageDataInstallError).toHaveBeenCalledWith(cb);
   });
 
-  it('installLanguage passes url to ipc.installLanguage', () => {
-    const bridge = createElectronBridge();
-    bridge.localization.installLanguage('https://example.com/lang.zip');
-    expect(mockIPC.installLanguage).toHaveBeenCalledWith('https://example.com/lang.zip');
-  });
-
-  it('onLanguageInstalled passes callback to ipc.onLanguageInstalled', () => {
-    const cb = vi.fn();
-    const bridge = createElectronBridge();
-    bridge.localization.onLanguageInstalled(cb);
-    expect(mockIPC.onLanguageInstalled).toHaveBeenCalledWith(cb);
-  });
-
-  it('onLanguageInstallError passes callback to ipc.onLanguageInstallError', () => {
-    const cb = vi.fn();
-    const bridge = createElectronBridge();
-    bridge.localization.onLanguageInstallError(cb);
-    expect(mockIPC.onLanguageInstallError).toHaveBeenCalledWith(cb);
-  });
 });
 
 describe('fileBridge', () => {
@@ -519,12 +489,6 @@ describe('fileBridge', () => {
     const bridge = createElectronBridge();
     bridge.files.selectPdfFile();
     expect(mockIPC.selectPdfFile).toHaveBeenCalledOnce();
-  });
-
-  it('getLocalMediaUrl passes path to ipc.getLocalMediaUrl', () => {
-    const bridge = createElectronBridge();
-    bridge.files.getLocalMediaUrl('/local/video.mp4');
-    expect(mockIPC.getLocalMediaUrl).toHaveBeenCalledWith('/local/video.mp4');
   });
 
   it('getPathForFile passes file to ipc.getPathForFile and returns result', () => {
@@ -1255,37 +1219,6 @@ describe('licenseBridge', () => {
 });
 
 describe('migrationBridge', () => {
-  it('getMigratedLocalStorage delegates to ipc.getMigratedLocalStorage', () => {
-    const bridge = createElectronBridge();
-    bridge.migration.getMigratedLocalStorage();
-    expect(mockIPC.getMigratedLocalStorage).toHaveBeenCalledOnce();
-  });
-
-  it('getMigratedItem passes key to ipc.getMigratedItem', () => {
-    const bridge = createElectronBridge();
-    bridge.migration.getMigratedItem('some-key');
-    expect(mockIPC.getMigratedItem).toHaveBeenCalledWith('some-key');
-  });
-
-  it('hasMigrationOccurred delegates to ipc.hasMigrationOccurred', () => {
-    const bridge = createElectronBridge();
-    bridge.migration.hasMigrationOccurred();
-    expect(mockIPC.hasMigrationOccurred).toHaveBeenCalledOnce();
-  });
-
-  it('triggerMigration delegates to ipc.triggerMigration', () => {
-    const bridge = createElectronBridge();
-    bridge.migration.triggerMigration();
-    expect(mockIPC.triggerMigration).toHaveBeenCalledOnce();
-  });
-
-  it('onLocalStorageMigrationComplete passes callback to ipc.onLocalStorageMigrationComplete', () => {
-    const cb = vi.fn();
-    const bridge = createElectronBridge();
-    bridge.migration.onLocalStorageMigrationComplete(cb);
-    expect(mockIPC.onLocalStorageMigrationComplete).toHaveBeenCalledWith(cb);
-  });
-
   it('onFlashcardMigrationComplete passes callback to ipc.onFlashcardMigrationComplete', () => {
     const cb = vi.fn();
     const bridge = createElectronBridge();
@@ -1293,20 +1226,9 @@ describe('migrationBridge', () => {
     expect(mockIPC.onFlashcardMigrationComplete).toHaveBeenCalledWith(cb);
   });
 
-  it('getFlashcardMigrationInfo delegates to ipc.getFlashcardMigrationInfo', () => {
-    const bridge = createElectronBridge();
-    bridge.migration.getFlashcardMigrationInfo();
-    expect(mockIPC.getFlashcardMigrationInfo).toHaveBeenCalledOnce();
-  });
 });
 
 describe('genericBridge', () => {
-  it('sendLS passes data to ipc.sendLS', () => {
-    const bridge = createElectronBridge();
-    bridge.generic.sendLS({ key: 'value' });
-    expect(mockIPC.sendLS).toHaveBeenCalledWith({ key: 'value' });
-  });
-
   it('fetchUrl passes url to ipc.fetchUrl and returns result', () => {
     mockIPC.fetchUrl.mockResolvedValue({ content: '<html/>' });
     const bridge = createElectronBridge();

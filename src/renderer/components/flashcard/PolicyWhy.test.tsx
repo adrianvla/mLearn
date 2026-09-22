@@ -96,7 +96,7 @@ function mount(decision: PolicyDecision | null) {
 }
 
 describe('PolicyWhy (R20 decision explanation surface)', () => {
-  it('shows the decision\'s own brief reason by default; the toggle reveals the emitted trace verbatim', async () => {
+  it('shows a learner-facing explanation without exposing the internal policy trace', async () => {
     const harness = mount(decision);
     expect(harness.container.querySelector('[data-testid="policy-why-brief"]')?.textContent).toBe('due for review (3 days overdue)');
     // Default UX is brief: no calculation math until the learner asks.
@@ -106,27 +106,12 @@ describe('PolicyWhy (R20 decision explanation surface)', () => {
     await tick();
     const details = harness.container.querySelector('[data-testid="policy-why-details"]');
     expect(details).toBeTruthy();
-    // Same computation, rendered verbatim: version, effective weights (with
-    // the rule's arithmetic), ranking (selected first) with per-dimension
-    // contributions, exclusions, and the honesty limits.
-    expect(details!.textContent).toContain('policy-trace-v3');
-    expect(details!.textContent).toContain('TEACH');
-    expect(details!.textContent).toContain('deadline-novelty-discount');
-    expect(details!.textContent).toContain('open horizon: no deadline weighting');
-    expect(details!.textContent).toContain('card-a');
-    expect(details!.textContent).toContain('retention');
-    // Trace/result agreement in the VIEW: the selected row renders first.
-    const rows = Array.from(details!.querySelectorAll('.policy-why__rank')) as HTMLElement[];
-    expect(rows[0].getAttribute('data-key')).toBe('card-a');
-    expect(rows[0].getAttribute('data-selected')).toBe('true');
-    // Exclusions and limits surface (bounded, with omitted counts).
-    expect(details!.textContent).toContain('card-c');
-    expect(details!.textContent).toContain('on probe cooldown');
-    expect(details!.textContent).toContain('+1');
-    expect(details!.textContent).toContain('Selection weights are heuristics, not validated probabilities.');
-    // The decision's carried metadata renders verbatim (scalar provenance).
-    expect(details!.textContent).toContain('dueDate');
-    expect(details!.textContent).toContain('999000');
+    expect(details!.textContent).toContain('mlearn.Review.Why.Explanation');
+    expect(details!.textContent).toContain('due for review (3 days overdue)');
+    expect(details!.textContent).not.toContain('policy-trace-v3');
+    expect(details!.textContent).not.toContain('deadline-novelty-discount');
+    expect(details!.textContent).not.toContain('retention-need');
+    expect(details!.textContent).not.toContain('dueDate');
 
     (harness.container.querySelector('[data-testid="policy-why-toggle"]') as HTMLButtonElement).click();
     await tick();
@@ -134,15 +119,14 @@ describe('PolicyWhy (R20 decision explanation surface)', () => {
     harness.remove();
   });
 
-  it('stays honest when no trace was emitted: the brief reason stands, the gap is named', async () => {
+  it('shows the same explanation when the internal trace is unavailable', async () => {
     const noTrace: PolicyDecision = { ...decision, trace: undefined };
     const harness = mount(noTrace);
     expect(harness.container.querySelector('[data-testid="policy-why-brief"]')?.textContent).toBe('due for review (3 days overdue)');
     (harness.container.querySelector('[data-testid="policy-why-toggle"]') as HTMLButtonElement).click();
     await tick();
-    expect(harness.container.querySelector('[data-testid="policy-why-no-trace"]')).toBeTruthy();
-    // No invented math: no ranking section can appear without a trace.
-    expect(harness.container.querySelector('.policy-why__rank')).toBeNull();
+    expect(harness.container.querySelector('[data-testid="policy-why-details"]')?.textContent).toContain('mlearn.Review.Why.Explanation');
+    expect(harness.container.querySelector('[data-testid="policy-why-no-trace"]')).toBeNull();
     harness.remove();
   });
 
@@ -152,24 +136,4 @@ describe('PolicyWhy (R20 decision explanation surface)', () => {
     harness.remove();
   });
 
-  it('renders carried metadata verbatim, including string provenance like curriculum patterns', async () => {
-    const withPatternMeta: PolicyDecision = {
-      ...decision,
-      trace: {
-        ...trace,
-        ranking: [
-          { ...trace.ranking[0], meta: { pattern: 'weil', category: 'reasons', contentVersion: '2026.09' } },
-          ...trace.ranking.slice(1),
-        ],
-      },
-    };
-    const harness = mount(withPatternMeta);
-    (harness.container.querySelector('[data-testid="policy-why-toggle"]') as HTMLButtonElement).click();
-    await tick();
-    const details = harness.container.querySelector('[data-testid="policy-why-details"]');
-    expect(details!.textContent).toContain('weil');
-    expect(details!.textContent).toContain('reasons');
-    expect(details!.textContent).toContain('2026.09');
-    harness.remove();
-  });
 });

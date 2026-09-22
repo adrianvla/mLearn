@@ -130,7 +130,6 @@ const RELATION_PHRASE_KEYS: Partial<Record<GraphRelationType, string>> = {
   'has-sense': 'SenseOf',
   'has-pronunciation': 'Pronunciation',
   'has-reading': 'Reading',
-  'has-gender': 'Gender',
   'has-pos': 'PartOfSpeech',
   'has-prosodic-pattern': 'ProsodicPattern',
   'has-character': 'Character',

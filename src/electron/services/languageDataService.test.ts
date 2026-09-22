@@ -67,7 +67,12 @@ function makeGraphAssetBytes(entities: Array<{ id: string; kindId: number }>): s
   });
 }
 
-async function makeGraphBundleLangData(tempRoot: string, version: string, graphBytes: string): Promise<LanguageDataMap> {
+async function makeGraphBundleLangData(
+  tempRoot: string,
+  version: string,
+  graphBytes: string,
+  required = true,
+): Promise<LanguageDataMap> {
   const archiveSourceDir = path.join(tempRoot, 'archive-source');
   const archivePath = path.join(tempRoot, 'zz.tar.gz');
   const manifest = {
@@ -80,7 +85,7 @@ async function makeGraphBundleLangData(tempRoot: string, version: string, graphB
         path: 'languages/zz.graph.json',
         sizeBytes: Buffer.byteLength(graphBytes),
         sha256: sha256(graphBytes),
-        required: true,
+        required,
       },
     ],
   };
@@ -1303,6 +1308,37 @@ describe('languageDataService', () => {
   describe('graph package identity guard (REQ56)', () => {
     const installedGraphPath = () => path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json');
 
+    it('verifies and repairs a graph even when its embedded package version matches', async () => {
+      const graph = JSON.parse(makeGraphAssetBytes([
+        { id: 'zz:surface:abc', kindId: GRAPH_KIND.SURFACE },
+      ])) as Record<string, unknown>;
+      graph.languageData = { version: 'bundle-v1' };
+      const graphV1 = JSON.stringify(graph);
+      const graphCorrupted = graphV1.replace(
+        '2026-01-01T00:00:00Z',
+        '2025-01-01T00:00:00Z',
+      );
+      fs.mkdirSync(path.dirname(installedGraphPath()), { recursive: true });
+      fs.writeFileSync(installedGraphPath(), graphCorrupted, 'utf-8');
+      const receiptPath = path.join(tempDir.tmpDir, 'language-data', '.install-receipts', 'zz.json');
+      fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
+      fs.writeFileSync(receiptPath, JSON.stringify({ version: 'bundle-v1' }), 'utf-8');
+
+      const langDataV1 = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v1', graphV1, false);
+      const statusBeforeRepair = mod.getLanguageDataStatus('zz', langDataV1);
+      expect(statusBeforeRepair.installed).toBe(false);
+      expect(statusBeforeRepair.outdated).toBe(true);
+      expect(statusBeforeRepair.missingAssets).toEqual([]);
+      expect(statusBeforeRepair.assets[0].validationIssue).toMatch(/^checksum-mismatch:/);
+
+      mockDownloadServesLatestArchive(tempDir.tmpDir);
+      const repairedStatus = await mod.ensureLanguageDataInstalled('zz', langDataV1);
+
+      expect(repairedStatus.installed).toBe(true);
+      expect(fs.readFileSync(installedGraphPath(), 'utf-8')).toBe(graphV1);
+      expect(mockDownloadFileWithProgress).toHaveBeenCalledTimes(1);
+    });
+
     it('installs a fresh graph package without a diff baseline', async () => {
       const graphV1 = makeGraphAssetBytes([{ id: 'zz:surface:abc', kindId: GRAPH_KIND.SURFACE }]);
       const langDataV1 = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v1', graphV1);
@@ -1360,4 +1396,3 @@ describe('languageDataService', () => {
     });
   });
 });
-

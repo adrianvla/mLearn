@@ -312,7 +312,7 @@ describe('worldIpc', () => {
   });
 
   it('rechecks consent after a persistent creation waits for the world queue', async () => {
-    seedWorld();
+    seedWorld([]);
     const { withWorldMutation } = await import('./worldStore');
     const gate = Promise.withResolvers<void>();
     const blocker = withWorldMutation(() => gate.promise);

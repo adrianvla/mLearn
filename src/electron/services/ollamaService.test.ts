@@ -667,3 +667,54 @@ describe('settings-based URL', () => {
     expect(opts.hostname).toBe('localhost');
   });
 });
+
+describe('unified stream cleanup contract', () => {
+  it('settles only after response cleanup and emits one terminal chunk', async () => {
+    const req = createMockRequest();
+    const res = createMockResponse();
+    let receive!: (response: MockResponse) => void;
+    mockHttpRequest.mockImplementation((_options, callback) => { receive = callback; return req; });
+    const sender = createMockSender();
+    const completed = mod.ollamaStreamChatUnified(sender, [], []);
+    expect(completed).toBeInstanceOf(Promise);
+    let settled = false;
+    void completed.then(() => { settled = true; });
+    receive(res);
+    res.emit('data', Buffer.from('{"done":true}\n'));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    res.emit('end');
+    req.emit('error', new Error('late socket error'));
+    await completed;
+    expect(settled).toBe(true);
+    expect(sender.send.mock.calls.filter(([, chunk]) => chunk.done)).toHaveLength(1);
+  });
+
+  it('settles an aborted request when its transport closes without a response', async () => {
+    const req = createMockRequest();
+    mockHttpRequest.mockReturnValue(req);
+    const sender = createMockSender();
+    const completed = mod.ollamaStreamChatUnified(sender, [], []);
+    expect(completed).toBeInstanceOf(Promise);
+    mod.ollamaAbortStream(sender.id);
+    req.emit('close');
+    await completed;
+    expect(req.destroyed).toBe(true);
+  });
+
+  it('reports premature response closure once and settles without sending to a destroyed owner', async () => {
+    const req = createMockRequest();
+    const res = createMockResponse();
+    let receive!: (response: MockResponse) => void;
+    mockHttpRequest.mockImplementation((_options, callback) => { receive = callback; return req; });
+    const sender = createMockSender();
+    const completed = mod.ollamaStreamChatUnified(sender, [], []);
+    expect(completed).toBeInstanceOf(Promise);
+    receive(res);
+    sender.isDestroyed.mockReturnValue(true);
+    res.emit('close');
+    req.emit('error', new Error('late socket error'));
+    await completed;
+    expect(sender.send).not.toHaveBeenCalled();
+  });
+});

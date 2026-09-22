@@ -14,11 +14,12 @@ import https from 'https';
 import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { ipcMain } from 'electron';
-import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS } from '../../shared/constants';
+import { ipcMain, session, webContents } from 'electron';
+import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS, WINDOW_TYPES } from '../../shared/constants';
 import { DEFAULT_SETTINGS, OverlayVideoScreenshot } from '../../shared/types';
-import { getAppPath, getResourcePath } from '../utils/platform';
+import { getAppPath, getResourcePath, isPackaged } from '../utils/platform';
 import { loadSettings, loadLangData, saveSettings } from './settings';
 import { getMainWindow, getOverlayWindow, launchOverlayWindow, updateOverlayGeometry } from './windowManager';
 import { loadFlashcards, saveFlashcards } from './flashcardStorage';
@@ -91,6 +92,111 @@ const corsHeaders: Record<string, string> = {
 
 // Generated once at process start; exported so mobile clients can receive it via QR code.
 export const SERVER_AUTH_TOKEN = crypto.randomBytes(32).toString('hex');
+
+function isExtensionRoute(pathname: string): boolean {
+  return pathname.startsWith('/api/overlay-') || pathname === '/api/active-url-changed'
+    || pathname === '/api/extension-auth-token' || pathname === '/api/command-poll';
+}
+
+function isAnkiRoute(pathname: string): boolean {
+  return pathname === '/api/fwd-to-anki' || pathname.startsWith('/api/anki/');
+}
+
+function isLocalExtensionRequest(req: http.IncomingMessage): boolean {
+  const address = req.socket.remoteAddress;
+  if (address !== '127.0.0.1' && address !== '::ffff:127.0.0.1' && address !== '::1') return false;
+  // Host is checked independently of the socket to reject DNS rebinding.
+  if (!/^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/i.test(req.headers.host ?? '')) return false;
+  const origin = req.headers.origin;
+  if (origin !== undefined) {
+    return /^(?:chrome-extension:\/\/[a-p]{32}|moz-extension:\/\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/i.test(origin);
+  }
+  // Native/background extension requests may omit Origin. Browser image and
+  // navigation requests must not use that exemption to consume command queues.
+  return req.headers['sec-fetch-mode'] !== 'no-cors' && req.headers['sec-fetch-mode'] !== 'navigate';
+}
+
+function hasServerAuth(req: http.IncomingMessage): boolean {
+  const supplied = req.headers['x-auth-token'];
+  if (typeof supplied !== 'string') return false;
+  const bytes = Buffer.from(supplied);
+  const expected = Buffer.from(SERVER_AUTH_TOKEN);
+  return bytes.length === expected.length && crypto.timingSafeEqual(bytes, expected);
+}
+
+function isApplicationFrameUrl(rawUrl: string): boolean {
+  const url = new URL(rawUrl);
+  const names = Object.values(WINDOW_TYPES);
+  if (!isPackaged && url.origin === 'http://localhost:3000') {
+    return names.some(name => url.pathname === `/src/html/${name}.html`);
+  }
+  if (url.protocol !== 'file:') return false;
+  const filePath = fileURLToPath(url);
+  return names.some(name => {
+    const filename = `${name}.html`;
+    const candidates = isPackaged
+      ? [path.join(getAppPath(), 'dist', 'src', 'html', filename), path.join(getAppPath(), 'dist', filename)]
+      : [path.resolve(__dirname, '..', '..', '..', 'src', 'html', filename)];
+    return candidates.some(candidate => path.resolve(candidate) === filePath);
+  });
+}
+
+let rendererAuthSession: Electron.Session | null = null;
+
+function installRendererNodeAuth(): void {
+  rendererAuthSession = session.defaultSession;
+  rendererAuthSession.webRequest.onBeforeSendHeaders({ urls: [
+    `http://127.0.0.1:${PROXY_SERVER_PORT}/*`,
+    `http://localhost:${PROXY_SERVER_PORT}/*`,
+    `http://[::1]:${PROXY_SERVER_PORT}/*`,
+  ] }, (details, callback) => {
+    const headers = { ...details.requestHeaders };
+    try {
+      const target = new URL(details.url);
+      const contents = details.webContents ?? (details.webContentsId === undefined ? undefined : webContents.fromId(details.webContentsId));
+      if (target.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname)
+        && target.port === String(PROXY_SERVER_PORT) && isAnkiRoute(target.pathname)
+        && details.resourceType === 'xhr' && contents && !contents.isDestroyed()
+        && details.frame && details.frame === contents.mainFrame
+        && details.frame.url === contents.getURL() && isApplicationFrameUrl(details.frame.url)) {
+        // Renderer JavaScript never receives this process-owned credential.
+        for (const key of Object.keys(headers)) {
+          if (key.toLowerCase() === 'x-auth-token') delete headers[key];
+        }
+        headers['X-Auth-Token'] = SERVER_AUTH_TOKEN;
+      }
+    } catch (error) {
+      log.warn('Could not authenticate renderer node request', error);
+    }
+    callback({ requestHeaders: headers });
+  });
+}
+
+function settingsWithoutCloudCredentials(settings: ReturnType<typeof loadSettings>) {
+  const { cloudAuthAccessToken: _access, cloudAuthToken: _legacy, cloudAuthRefreshToken: _refresh, ...safeSettings } = settings;
+  return safeSettings;
+}
+
+function overlayPresentationSettings(settings: ReturnType<typeof loadSettings>) {
+  // This unauthenticated extension surface must not expose arbitrary persisted
+  // settings: future credentials and account fields are private by default.
+  return {
+    language: settings.language,
+    languageVariants: settings.languageVariants,
+    dictionaryTargetLanguages: settings.dictionaryTargetLanguages,
+    uiType: settings.uiType,
+    colorScheme: settings.colorScheme,
+    customColors: settings.customColors,
+    subtitleTheme: settings.subtitleTheme,
+    subtitle_font_size: settings.subtitle_font_size,
+    subtitle_font_weight: settings.subtitle_font_weight,
+    subsOffsetTime: settings.subsOffsetTime,
+    showReadingAnnotations: settings.showReadingAnnotations,
+    showProsody: settings.showProsody,
+    enableWordColoring: settings.enableWordColoring,
+    colour_codes: settings.colour_codes,
+  };
+}
 
 // Allowlisted proxy domains — only these hostnames may be fetched via /?url=
 const ALLOWED_PROXY_DOMAINS = new Set([
@@ -269,11 +375,7 @@ function validateSubtitleTracks(data: unknown): data is { tracks: unknown[]; tex
 }
 
 function requireAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
-  const supplied = req.headers['x-auth-token'];
-  const ok = typeof supplied === 'string'
-    && supplied.length === SERVER_AUTH_TOKEN.length
-    && crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(SERVER_AUTH_TOKEN));
-  if (!ok) {
+  if (!hasServerAuth(req)) {
     res.writeHead(401, { ...corsHeaders, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Unauthorized' }));
     return false;
@@ -286,6 +388,20 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
   const urlObj = new URL(req.url || '/', `http://localhost:${PROXY_SERVER_PORT}`);
   const pathname = urlObj.pathname;
   const query = Object.fromEntries(urlObj.searchParams);
+
+  const extensionRoute = isExtensionRoute(pathname);
+  const ankiRoute = isAnkiRoute(pathname);
+  if (extensionRoute || ankiRoute) {
+    const localExtension = isLocalExtensionRequest(req);
+    // Anki preflights carry no credentials. Actual requests must authenticate;
+    // Electron adds its credential after Chromium constructs the preflight.
+    const authPreflight = ankiRoute && req.method === 'OPTIONS';
+    if (!localExtension && !(ankiRoute && (hasServerAuth(req) || authPreflight))) {
+      res.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ error: 'Forbidden' }));
+      return;
+    }
+  }
 
   // Handle OPTIONS (CORS preflight)
   if (req.method === 'OPTIONS') {
@@ -809,21 +925,23 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
 
   // API: Extension auth token (localhost only)
   if (pathname === '/api/extension-auth-token') {
-    const remoteAddress = req.socket.remoteAddress;
-    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
-    if (!isLocalhost) {
-      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+    if (req.method !== 'GET') {
+      sendJsonResponse(res, { error: 'Method not allowed' }, 405);
       return;
     }
     const settings = loadSettings();
     const accessToken = settings.cloudAuthAccessToken || settings.cloudAuthToken || '';
-    sendJsonResponse(res, { accessToken });
+    res.writeHead(200, {
+      'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Origin',
+      ...(req.headers.origin ? { 'Access-Control-Allow-Origin': req.headers.origin } : {}),
+    });
+    res.end(JSON.stringify({ accessToken }));
     return;
   }
 
   if (pathname === '/api/overlay-state') {
     const rawSettings = loadSettings();
-    const { cloudAuthAccessToken: _a, cloudAuthToken: _b, ...safeSettings } = rawSettings;
+    const safeSettings = overlayPresentationSettings(rawSettings);
     const currentLangData = loadLangData();
     sendJsonResponse(res, { status: 'ok', settings: safeSettings, langData: currentLangData });
     return;
@@ -848,7 +966,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     if (!requireAuth(req, res)) return;
     if (req.method === 'GET') {
       const rawSettings = loadSettings();
-      const { cloudAuthAccessToken: _a, cloudAuthToken: _b, ...safeSettings } = rawSettings;
+      const safeSettings = settingsWithoutCloudCredentials(rawSettings);
       sendJsonResponse(res, safeSettings);
       return;
     }
@@ -866,7 +984,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           // rebase. Requests without lastModified (legacy clients) still save.
           const persisted = loadSettings();
           if (typeof incoming.lastModified === 'number' && incoming.lastModified < persisted.lastModified) {
-            const { cloudAuthAccessToken: _sa, cloudAuthToken: _sb, ...safeSettings } = persisted;
+            const safeSettings = settingsWithoutCloudCredentials(persisted);
             sendJsonResponse(res, { status: 'stale', stale: true, settings: safeSettings });
             return;
           }
@@ -1019,8 +1137,13 @@ function handleWebSocketConnection(ws: WebSocket): void {
 export function startWebServer(): void {
   if (httpServer) return;
 
+  installRendererNodeAuth();
+
   httpServer = http.createServer(handleHttpRequest);
-  wss = new WebSocketServer({ server: httpServer });
+  wss = new WebSocketServer({
+    server: httpServer,
+    verifyClient: ({ req }: { req: http.IncomingMessage }) => hasServerAuth(req) || isLocalExtensionRequest(req),
+  });
 
   wss.on('connection', handleWebSocketConnection);
 
@@ -1082,6 +1205,10 @@ export function startWebServer(): void {
 
 // Stop web server
 export function stopWebServer(): void {
+  if (rendererAuthSession) {
+    rendererAuthSession.webRequest.onBeforeSendHeaders(null);
+    rendererAuthSession = null;
+  }
   if (wss) {
     wss.close();
     wss = null;

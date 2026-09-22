@@ -54,7 +54,7 @@ class TranslationResponse(BaseModel):
 
 @router.post("/tokenize", response_model=TokenizeResponse)
 def tokenize(req: TokenizeRequest):
-    log.info(f"requested tokenization:  {req.text[:100]}")
+    log.info("requested tokenization: characters=%d", len(req.text))
     mod = _resolve_module(req.language)
     if mod is None:
         return {"tokens": []}
@@ -64,7 +64,7 @@ def tokenize(req: TokenizeRequest):
 
 @router.post("/translate", response_model=TranslationResponse)
 def get_translation(req: TranslationRequest):
-    log.info(f"requested translation:  {req.word[:100]}")
+    log.info("requested translation: characters=%d", len(req.word))
     mod = _resolve_module(req.language)
     if mod is None:
         return {"data": []}

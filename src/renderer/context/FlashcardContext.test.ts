@@ -223,7 +223,6 @@ const mockLangData = vi.hoisted(() => ({
     name: 'Russian Aspects',
     settings: { fixed: {} },
     textProcessing: { readingAnnotation: { type: 'script-reading', annotationScripts: ['Cyrl'] } },
-    gender: { attributeKey: 'gender' },
   },
   ja2: {
     name: 'Japanese Aspects',
@@ -567,6 +566,87 @@ describe('FlashcardProvider', () => {
     mockAccumulateWordSeen.mockClear();
     mockFlushKnowledgeRollup.mockClear();
     setupMockImplementations();
+  });
+
+  describe('package-declared surface capability writes', () => {
+    const language = 'x-surface-test';
+    const capability = 'x-surface-test::unfamiliar-observation';
+    const word = 'vexa';
+    const primary = 'vex';
+    const variant = 'vexi';
+    const key = `${language}:${SRS.hashWordSync(word)}`;
+    const primaryKey = `${language}:${SRS.hashWordSync(primary)}`;
+    const variantKey = `${language}:${SRS.hashWordSync(variant)}`;
+
+    beforeEach(() => {
+      Object.assign(mockLangData, {
+        [language]: {
+          name: 'Synthetic scope package',
+          settings: { fixed: {} },
+          learning: { capabilities: { [capability]: { scope: 'surface' } } },
+        },
+      });
+      mockGetCanonicalForm.mockImplementation(() => primary);
+      mockGetWordVariants.mockImplementation(() => [word, variant]);
+      mockGetCanonicalFormForLanguage.mockImplementation(() => primary);
+      mockGetWordVariantsForLanguage.mockImplementation(() => [word, variant]);
+    });
+
+    afterEach(() => {
+      Reflect.deleteProperty(mockLangData, language);
+    });
+
+    it.each([false, true])('anchors rating state and journal to exactly the presented surface (active language: %s)', async (active) => {
+      if (active) mockSettings.language = language;
+      const { ctx, dispose } = await mountProvider();
+      try {
+        flashcardsCb(makeEmptyStore());
+        ctx.recordAttempt(word, capability, 'fluent', { language });
+        expect(ctx.store.wordKnowledge[key]?.access?.[capability]?.status).toBe('known');
+        expect(ctx.store.wordKnowledge[primaryKey]?.access?.[capability]).toBeUndefined();
+        expect(ctx.store.wordKnowledge[variantKey]?.access?.[capability]).toBeUndefined();
+        const journal = knowledgeJournal.allRows();
+        expect(Object.keys(journal)).toEqual([key]);
+        expect(journal[key]).toEqual([expect.objectContaining({
+          kind: 'rating', presentedSurface: word,
+          targetRef: { kind: 'surface', id: `${language}:surface:${SRS.hashWordSync(word)}`, capability },
+        })]);
+      } finally { dispose(); }
+    });
+
+    it('claims an unknown package capability only on the addressed surface', async () => {
+      const { ctx, dispose } = await mountProvider();
+      try {
+        flashcardsCb(makeEmptyStore());
+        ctx.setAccessClaim(word, capability, 'known', language);
+        expect(ctx.store.wordKnowledge[key]?.access?.[capability]?.claim).toBe('known');
+        expect(ctx.store.wordKnowledge[primaryKey]?.access?.[capability]).toBeUndefined();
+        expect(ctx.store.wordKnowledge[variantKey]?.access?.[capability]).toBeUndefined();
+        expect(Object.keys(knowledgeJournal.allRows())).toEqual([key]);
+      } finally { dispose(); }
+    });
+
+    it('clears only the addressed surface claim and preserves independent related-form claims', async () => {
+      const { ctx, dispose } = await mountProvider();
+      try {
+        flashcardsCb(makeEmptyStore());
+        ctx.setAccessClaim(word, capability, 'known', language);
+        ctx.setAccessClaim(variant, capability, 'learning', language);
+        ctx.clearAccessClaim(word, capability, language);
+        expect(ctx.store.wordKnowledge[key]?.access?.[capability]?.claim).toBeUndefined();
+        expect(ctx.store.wordKnowledge[variantKey]?.access?.[capability]?.claim).toBe('learning');
+        const journal = knowledgeJournal.allRows();
+        const clearingRows = Object.entries(journal).flatMap(([eventKey, events]) =>
+          events.filter(event => event.kind === 'claim' && event.toStatus === undefined)
+            .map(event => ({ key: eventKey, event })));
+        expect(clearingRows).toEqual([{ key, event: expect.objectContaining({
+          kind: 'claim', targetRef: { kind: 'surface', id: `${language}:surface:${SRS.hashWordSync(word)}`, capability },
+        }) }]);
+        await ctx.recomputeWordKnowledgeFromEvidence(word, language);
+        expect(ctx.store.wordKnowledge[key]?.access?.[capability]?.claim).toBeUndefined();
+        expect(ctx.store.wordKnowledge[variantKey]?.access?.[capability]?.claim).toBe('learning');
+      } finally { dispose(); }
+    });
   });
 
   // ─── Priority 1: useFlashcards outside provider ──────────────────
@@ -4939,6 +5019,13 @@ describe('recordAttempt quality semantics', () => {
 });
 
 describe('recordAttempt missed (attribution semantics)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    setupMockImplementations();
+    mockSettings.language = 'ja';
+  });
+
   it('failed prosodic-pattern records only the observed prosody failure', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
@@ -5024,14 +5111,20 @@ describe('recordAttempt missed (attribution semantics)', () => {
 });
 
 describe('recordAttempt missed with orthogonal accesses', () => {
-  it('failed prosodic-pattern leaves the orthogonal gender access untouched (no record, no inference)', async () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    setupMockImplementations();
+    mockSettings.language = 'ja';
+  });
+
+  it('failed prosodic-pattern leaves an orthogonal package access untouched', async () => {
     mockSettings.language = 'ru2x';
     mockLangData.ru2x = {
       name: 'Chain + Gender',
       settings: { fixed: {} },
       textProcessing: { readingAnnotation: { type: 'script-reading', annotationScripts: ['Cyrl'] } },
       prosody: { type: 'test-prosody' },
-      gender: { attributeKey: 'gender' },
     };
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -5044,23 +5137,23 @@ describe('recordAttempt missed with orthogonal accesses', () => {
     expect(entry?.access?.['prosodic-pattern']?.status).toBe('unknown');
     expect(entry?.access?.['surface-recognition']).toBeUndefined();
     expect(entry?.access?.['surface-reading']).toBeUndefined();
-    expect(entry?.access?.['gender']).toBeUndefined();
+    expect(entry?.access?.['x-ru::noun-class']).toBeUndefined();
     dispose();
     delete mockLangData.ru2x;
     mockSettings.language = 'ja';
   });
 
-  it('failed package capability leaves all other capabilities unmeasured', async () => {
+  it('unrecognized package capability is stored without affecting core capabilities', async () => {
     mockSettings.language = 'ru2';
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('школа', 'gender', 'missed', { language: 'ru2' });
+    ctx.recordAttempt('школа', 'x-ru::noun-class', 'missed', { language: 'ru2' });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ru2:${await SRS.hashWord('школа')}`;
     const entry = ctx.store.wordKnowledge[lk];
-    expect(entry?.access?.['gender']?.status).toBe('unknown');
+    expect(entry?.access?.['x-ru::noun-class']?.status).toBe('unknown');
     expect(entry?.access?.['surface-reading']).toBeUndefined();
     expect(entry?.access?.['prosodic-pattern']).toBeUndefined();
     expect(entry?.access?.['surface-recognition']).toBeUndefined();

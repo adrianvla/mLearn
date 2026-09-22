@@ -104,6 +104,7 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
   return {
     llmProvider: 'builtin',
     llmEnabled: true,
+    builtinModel: 'selected-model.gguf',
     cloudAuthStatus: 'signed-in',
     ...overrides,
   } as Settings;
@@ -390,10 +391,14 @@ describe('llmProvider', () => {
     });
 
     it('checks built-in model via bridge.llm.llmCheckModel', async () => {
-      mockBridge.llm.llmCheckModel.mockResolvedValue({ downloaded: true });
+      mockBridge.llm.llmCheckModel.mockResolvedValue({
+        downloaded: true,
+        runtimeAvailable: true,
+        ready: true,
+      });
       const { checkAvailability } = await import('./llmProvider');
       const result = await checkAvailability(makeSettings({ llmProvider: 'builtin' }));
-      expect(mockBridge.llm.llmCheckModel).toHaveBeenCalledOnce();
+      expect(mockBridge.llm.llmCheckModel).toHaveBeenCalledWith('selected-model.gguf');
       expect(result).toEqual({ available: true });
     });
 
@@ -402,6 +407,18 @@ describe('llmProvider', () => {
       const { checkAvailability } = await import('./llmProvider');
       const result = await checkAvailability(makeSettings({ llmProvider: 'builtin' }));
       expect(result).toEqual({ available: false, reason: 'model_not_downloaded' });
+    });
+
+    it('returns runtime_unavailable when the model exists but its binary cannot be resolved', async () => {
+      mockBridge.llm.llmCheckModel.mockResolvedValue({
+        downloaded: true,
+        runtimeAvailable: false,
+        ready: false,
+        runtimeError: 'NoBinaryFoundError',
+      });
+      const { checkAvailability } = await import('./llmProvider');
+      const result = await checkAvailability(makeSettings({ llmProvider: 'builtin' }));
+      expect(result).toEqual({ available: false, reason: 'runtime_unavailable' });
     });
 
     it('returns model_check_failed when llmCheckModel throws', async () => {

@@ -6,9 +6,9 @@ import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, DEFAULT_LA
 import { DEFAULT_CUSTOM_THEME_CSS } from './defaultCustomThemeCss';
 import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, UiType, ColorScheme, PassiveHoverFailAction, RatingKeyboardMode, WordKnowledgeSource, WordStatus } from './constants';
 
-export { KNOWLEDGE_ASPECTS } from './constants';
+export { LEGACY_KNOWLEDGE_ASPECTS } from './constants';
 export type { KnowledgeAspect } from './constants';
-import type { CapabilityKey, CapabilityKind } from './graph/types';
+import type { CapabilityKey } from './graph/types';
 export type { CapabilityKey, CapabilityKind } from './graph/types';
 import type { HistoricalBackgroundRecord } from './learningBackground';
 export type { HistoricalBackgroundRecord, HistoricalBackgroundKind } from './learningBackground';
@@ -1262,6 +1262,26 @@ export interface LanguageProsodyConfig {
   coloring?: LanguageColoredProsodyConfig;
 }
 
+/**
+ * Opaque learner access declared by a language package. Core uses only these
+ * routing hints; the capability id and value semantics remain package-owned.
+ */
+export interface LanguageCapabilityDeclaration {
+  /** User-facing label. Localized labels may be supplied by the package UI layer. */
+  label?: string;
+  /** Generic task identifiers that may measure this access. */
+  testableIn?: string[];
+  /** Where evidence is anchored for graph-relative routing. */
+  scope?: 'surface' | 'entity' | 'family';
+  /** Whether evidence can transfer across authoritative identity variants. */
+  shareAcrossIdentity?: boolean;
+}
+
+/** Package-owned learner access declarations. Unknown ids and values survive round trips. */
+export interface LanguageLearningConfig {
+  capabilities?: Record<string, LanguageCapabilityDeclaration>;
+}
+
 export interface LanguageProsodyOverlayConfig {
   /** Unit segmentation of the annotated reading: per code point, or per grapheme cluster (Intl.Segmenter). */
   unit: 'character' | 'grapheme';
@@ -1563,9 +1583,9 @@ export interface LanguageRuntimeConfig {
 }
 
 export interface LanguageVariantScriptConversion {
-  /** Engine registry key. Only 'opencc' supported in v1. */
-  engine: 'opencc';
-  /** Engine config, e.g. 't2s'. */
+  /** Package-selected converter implementation identifier. */
+  engine: string;
+  /** Opaque configuration passed to the package-selected converter. */
   config: string;
   /**
    * Packaged mapping-table asset (relative path inside the language package)
@@ -1619,8 +1639,8 @@ export interface LanguageData {
   textProcessing?: LanguageTextProcessingConfig;
   /** Optional prosody/accent behavior for this language. */
   prosody?: LanguageProsodyConfig;
-  /** Grammatical-gender lexical knowledge supported by this language's data. */
-  gender?: LanguageGenderConfig;
+  /** Open-ended learner accesses supplied by the installed language package. */
+  learning?: LanguageLearningConfig;
   /** Productive compound splitting supported by this language's lexical data. Declared strategy; absent = capability off. */
   compoundSplitting?: LanguageCompoundSplittingConfig;
   /** Character-level study/decomposition behavior. */
@@ -1637,26 +1657,20 @@ export interface LanguageData {
   languageData?: LanguageDataManifest;
 }
 
-export interface LanguageGenderConfig {
-  /** Key in dictionary entry `attributes` carrying the lexical gender value (e.g. OpenRussian 'gender'). */
-  attributeKey?: string;
-}
-
 /**
  * Accesses this language offers learner targets for — derived from package
  * metadata, never language-name conditionals. Spoken recognition appears
  * wherever a spoken representation exists (the same condition as lexeme
  * pronunciation: reading annotation or an active prosody model).
  */
-export function getAvailableAccesses(language?: LanguageData): CapabilityKind[] {
-  const accesses: CapabilityKind[] = ['sense-recognition'];
+export function getAvailableAccesses(language?: LanguageData): CapabilityKey[] {
+  const accesses: CapabilityKey[] = ['sense-recognition'];
   // An accent feature declared as reading-critical participates in reading knowledge.
   const accentInReading = language?.prosody?.knowledgeAspect === 'reading';
   const hasReadingAnnotation = !!language?.textProcessing?.readingAnnotation || accentInReading;
   const hasActiveProsody = !accentInReading && language?.prosody?.type && language.prosody.type !== 'none';
   if (hasReadingAnnotation) accesses.push('surface-reading');
   if (hasActiveProsody) accesses.push('prosodic-pattern');
-  if (language?.gender) accesses.push('gender');
   // Pronunciation (lexeme-scoped spoken form) exists where the language declares
   // any surface↔pronunciation feature; written-form recognition exists where
   // written surfaces carry a non-trivial form→lexeme mapping (script-reading
@@ -1665,6 +1679,9 @@ export function getAvailableAccesses(language?: LanguageData): CapabilityKind[] 
     accesses.push('spoken-recognition', 'pronunciation-production');
   }
   if (language?.textProcessing?.readingAnnotation) accesses.push('surface-recognition');
+  for (const capability of Object.keys(language?.learning?.capabilities ?? {})) {
+    if (!accesses.includes(capability)) accesses.push(capability);
+  }
   return accesses;
 }
 
@@ -2528,6 +2545,12 @@ export interface LLMStreamChunk {
 export interface LLMModelStatus {
   /** Whether the model file exists on disk */
   downloaded: boolean;
+  /** Whether the native built-in LLM runtime can be resolved */
+  runtimeAvailable: boolean;
+  /** Whether both the model file and built-in runtime are ready for inference */
+  ready: boolean;
+  /** Runtime initialization error when a downloaded model cannot be used */
+  runtimeError?: string;
   /** Whether a download is currently in progress */
   downloading: boolean;
   /** Download progress 0.0–1.0 */

@@ -1,6 +1,6 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import type { AttemptQuality, KnowledgeSource, WordStatus } from '../../../../shared/constants';
-import { KNOWLEDGE_ASPECT_LABEL_KEYS, KNOWLEDGE_SOURCE_DISPLAY_NAMES } from '../../../../shared/constants';
+import { LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS, KNOWLEDGE_SOURCE_DISPLAY_NAMES } from '../../../../shared/constants';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { EvidenceAspect, EvidenceSource, KnowledgeEvent, KnowledgeEventKind } from '../../../../shared/knowledgeEvents';
 import { eventCapability } from '../../../../shared/knowledgeEvents';
@@ -33,7 +33,11 @@ const QUALITY_LABEL_KEYS: Record<AttemptQuality, string> = {
 const GRAMMAR_ASPECT_LABEL_KEY = 'mlearn.Knowledge.Aspect.Grammar';
 
 const aspectLabelKey = (aspect: EvidenceAspect): string => (
-  aspect === 'grammar' ? GRAMMAR_ASPECT_LABEL_KEY : KNOWLEDGE_ASPECT_LABEL_KEYS[aspect]
+  aspect === 'grammar'
+    ? GRAMMAR_ASPECT_LABEL_KEY
+    : LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS[aspect as keyof typeof LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS]
+      ?? CAPABILITY_LABEL_KEYS[aspect]
+      ?? aspect
 );
 
 const sourceLabelKey = (source: EvidenceSource): string => (

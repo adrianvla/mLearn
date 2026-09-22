@@ -19,6 +19,13 @@ build_freedict = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(build_freedict)
 
 
+@pytest.fixture(autouse=True)
+def isolate_builder_outputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # FreeDictPack resolves outputs through this module-owned root. Tests must
+    # never replace the real package dictionaries with their tiny TEI fixtures.
+    monkeypatch.setattr(build_freedict, "ROOT_OF_APP_DIR", tmp_path / "root-of-app")
+
+
 def _tei(entries: str) -> str:
     return (
         '<TEI xmlns="http://www.tei-c.org/ns/1.0">'

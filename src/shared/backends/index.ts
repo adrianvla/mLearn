@@ -8,6 +8,7 @@
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 import type { BackendAdapter, BackendMode } from './types';
 import { HttpBackend } from './httpBackend';
+import { getNodeServerAuthToken } from '../nodeServerCredentials';
 
 export { CloudOCRAdapter } from './cloudOCRAdapter';
 export { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL };
@@ -104,6 +105,15 @@ export interface GetBackendOptions {
 
 let cached: BackendAdapter | null = null;
 let cachedKey = '';
+let cachedOptions: GetBackendOptions | null = null;
+
+function withNodeCredentials(opts: GetBackendOptions): GetBackendOptions {
+  return {
+    ...opts,
+    nodeAuthToken: opts.nodeAuthToken ?? (opts.mode === 'tethered'
+      ? getNodeServerAuthToken(resolveAnkiBaseUrl(opts.mode, opts.url)) : undefined),
+  };
+}
 
 function buildBackend(opts: GetBackendOptions): BackendAdapter {
   const mode = opts.mode || 'local';
@@ -135,12 +145,10 @@ function buildBackend(opts: GetBackendOptions): BackendAdapter {
  * silently recreating an unauthenticated local adapter.
  */
 export function getBackend(opts: GetBackendOptions = {}): BackendAdapter {
-  const hasExplicitConfig = Boolean(opts.mode || opts.url || opts.backendToken || opts.nodeAuthToken || opts.authToken);
-
-  if (!hasExplicitConfig) {
-    if (cached) return cached;
-    return buildBackend({});
-  }
+  const hasExplicitConfig = Object.values(opts).some(value => value !== undefined);
+  if (!hasExplicitConfig && !cachedOptions) return buildBackend({});
+  const requestedOptions = hasExplicitConfig ? opts : cachedOptions!;
+  opts = withNodeCredentials(requestedOptions);
 
   const key = JSON.stringify({
     mode: opts.mode || 'local',
@@ -152,6 +160,7 @@ export function getBackend(opts: GetBackendOptions = {}): BackendAdapter {
   if (cached && cachedKey === key) return cached;
 
   cached = buildBackend(opts);
+  cachedOptions = { ...requestedOptions };
   cachedKey = key;
   return cached;
 }
@@ -163,6 +172,8 @@ export function getBackend(opts: GetBackendOptions = {}): BackendAdapter {
  * Python process restarts and the token changes.
  */
 export function configureBackend(opts: GetBackendOptions = {}): BackendAdapter {
+  cachedOptions = { ...opts };
+  opts = withNodeCredentials(opts);
   cached = buildBackend(opts);
   cachedKey = JSON.stringify({
     mode: opts.mode || 'local',
@@ -179,4 +190,5 @@ export function configureBackend(opts: GetBackendOptions = {}): BackendAdapter {
 export function resetBackend(): void {
   cached = null;
   cachedKey = '';
+  cachedOptions = null;
 }

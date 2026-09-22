@@ -1,5 +1,5 @@
-import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type LanguageCompoundSplittingConfig, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguageProsodyOverlayConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAccesses } from './types';
-import type { CapabilityKind } from './graph/types';
+import { DEFAULT_SETTINGS, type FlashcardContent, type FlashcardProsody, type GrammarMatchConfig, type GrammarPoint, type GrammarTokenMatcher, type InstallOptions, type LanguageCapabilityDeclaration, type LanguageCompoundSplittingConfig, type LanguageData, type LanguageDataMap, type LanguageFontFamilyOption, type LanguageFrequencyRow, type LanguageLexemeNormalization, type LanguageOcrRuntimeConfig, type LanguageProsodyOverlayConfig, type LanguagePythonRequirementComponent, type LanguageReadingNormalizerStep, type LanguageTextNormalizerStep, type LanguageTokenizerRuntimeConfig, type Settings, type Token, type WordFrequencyEntry, type WordFrequencyMap, getAvailableAccesses } from './types';
+import type { CapabilityKey } from './graph/types';
 import { createProsodyRawPayloadForPosition } from './prosodyPayload';
 import { getReadingExtraCharacters, isTextOnlyInScripts, katakanaToHiragana } from './utils/textUtils';
 import { getResolvedScriptProfile, hasLettersInAnyScript, hasLettersInScript, scriptProfileUsesSegmentlessText, normalizeScriptCodes } from './languageScriptProfile';
@@ -814,6 +814,23 @@ export interface TestedAccessesInput {
   hasReadingData: boolean;
   /** Prosody/accentuation data exists for this item. */
   hasProsodyData: boolean;
+  /** Generic task identifier used by package-declared capabilities. */
+  taskType?: string;
+}
+
+/** Package declarations are intentionally opaque to core semantics. */
+export function getLanguageCapabilityDeclarations(
+  languageData?: LanguageData | null,
+): Readonly<Record<string, LanguageCapabilityDeclaration>> {
+  return languageData?.learning?.capabilities ?? {};
+}
+
+/** Resolve a package label for an opaque capability; core labels use locale keys. */
+export function getCapabilityLabel(
+  languageData: LanguageData | null | undefined,
+  capability: CapabilityKey,
+): string | undefined {
+  return languageData?.learning?.capabilities?.[capability]?.label;
 }
 
 /**
@@ -824,16 +841,20 @@ export interface TestedAccessesInput {
  * Callers intersect these task candidates with graph-attested capabilities.
  * Meaning is always tested by a word-presentation task;
  * spoken recognition is never tested by a written presentation (no audio cue
- * — claim-only until a spoken task exists); gender/pronunciation-production
- * have no testing interaction yet and are excluded until one exists.
+ * — claim-only until a spoken task exists); pronunciation-production has no
+ * testing interaction yet and is excluded until one exists.
  */
-export function getTestedAccesses(input: TestedAccessesInput): readonly CapabilityKind[] {
+export function getTestedAccesses(input: TestedAccessesInput): readonly CapabilityKey[] {
   const available = getAvailableAccesses(input.languageData ?? undefined);
   const surfaceSuppliesReading = isReadingScriptText(input.surface, input.languageData);
-  const accesses: CapabilityKind[] = ['sense-recognition'];
+  const accesses: CapabilityKey[] = ['sense-recognition'];
   if (available.includes('surface-reading') && input.hasReadingData && !surfaceSuppliesReading) accesses.push('surface-reading');
   if (available.includes('prosodic-pattern') && input.hasProsodyData) accesses.push('prosodic-pattern');
   if (input.surface.trim()) accesses.push('surface-recognition');
+  const taskType = input.taskType ?? 'word-sync';
+  for (const [capability, declaration] of Object.entries(input.languageData?.learning?.capabilities ?? {})) {
+    if (declaration.testableIn?.includes(taskType) && !accesses.includes(capability)) accesses.push(capability);
+  }
   return accesses;
 }
 

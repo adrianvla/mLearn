@@ -54,7 +54,6 @@
         "SenseOf": "Bedeutung",
         "Pronunciation": "Aussprache",
         "Reading": "Lesung",
-        "Gender": "Genus",
         "PartOfSpeech": "Wortart",
         "ProsodicPattern": "Prosodisches Muster",
         "Character": "Schriftzeichen",
@@ -1542,7 +1541,6 @@
         "surface-reading": "Lesung",
         "pronunciation-production": "Aussprache",
         "prosodic-pattern": "Prosodie",
-        "gender": "Genus",
         "character-reading": "Schriftzeichen",
         "morpheme-recognition": "Morphem",
         "grammar-recognition": "Grammatik",
@@ -1669,7 +1667,6 @@
         "Meaning": "Bedeutung",
         "Reading": "Lesung",
         "Prosody": "Prosodie",
-        "Gender": "Genus",
         "Pronunciation": "Aussprache",
         "Orthography": "Schriftform"
       },
@@ -3462,6 +3459,7 @@
       "WordCount": "{count} Wörter"
     },
     "WordSync": {
+      "ProjectionUnavailable": "Wissensdaten konnten nicht geladen werden. Versuche es erneut.",
       "Statement": {
         "Label": "Stattdessen beschreiben",
         "KnownSpoken": "Ich kenne dieses Wort, wenn ich es höre.",
@@ -3815,14 +3813,12 @@
     },
     "Review": {
       "Why": {
-        "Decision": "Entscheidung",
         "Excluded": "Ausgeschlossen",
+        "Explanation": "Die Wiederholungsliste wählt Karten anhand deines Lernplans und Lernfortschritts aus.",
         "Hide": "Details ausblenden",
         "Limits": "Grenzen",
-        "NoTrace": "Für diese Entscheidung wurde kein Berechnungspfad aufgezeichnet; nur der obige Grund ist verfügbar.",
         "Ranking": "Rangfolge",
         "Show": "Warum?",
-        "Task": "Aufgabe",
         "Title": "Warum diese Karte",
         "Weights": "Aktive Gewichtungen"
       }

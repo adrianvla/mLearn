@@ -68,8 +68,27 @@ interface PendingCloudSessionRecovery {
 
 const controllers: CloudSessionController[] = [];
 let refreshInFlight: Promise<string | null> | null = null;
+let refreshGeneration = -1;
+let sessionGeneration = 0;
+let observedSessionIdentity: string | null = null;
 let pendingSessionRecovery: PendingCloudSessionRecovery | null = null;
 const sessionRefreshListeners = new Set<() => void>();
+
+function sessionIdentity(settings: Settings): string {
+  return JSON.stringify([
+    settings.overrideCloudEndpointUrl, settings.cloudApiUrl,
+    settings.cloudAuthStatus, settings.cloudAuthUserId, settings.cloudAuthUserEmail,
+    resolveCloudAccessToken(settings), settings.cloudAuthRefreshToken,
+  ]);
+}
+
+function observeSession(settings: Settings): void {
+  const identity = sessionIdentity(settings);
+  if (identity !== observedSessionIdentity) {
+    observedSessionIdentity = identity;
+    sessionGeneration += 1;
+  }
+}
 
 function notifyCloudSessionRefresh(): void {
   for (const listener of [...sessionRefreshListeners]) {
@@ -228,12 +247,15 @@ export function isCloudSessionError(error: unknown): boolean {
 
 export function registerCloudSessionController(next: CloudSessionController): () => void {
   controllers.push(next);
+  sessionGeneration += 1;
+  observeSession(next.getSettings());
   if (pendingSessionRecovery) {
     next.openCloudReLoginModal();
   }
   return () => {
     const index = controllers.indexOf(next);
     if (index !== -1) {
+      if (getActiveController() === next) sessionGeneration += 1;
       controllers.splice(index, 1);
     }
   };
@@ -284,6 +306,7 @@ function requestGroupReadyCloudSessionRecovery(openModal: boolean): Promise<stri
 }
 
 export function syncCloudSessionState(settings: Settings): void {
+  observeSession(settings);
   const accessToken = resolveCloudAccessToken(settings);
 
   if (settings.cloudAuthStatus === 'signed-in' && accessToken) {
@@ -298,6 +321,7 @@ export function cancelCloudSessionRecovery(): void {
 }
 
 export function clearCloudSession(openModal: boolean = true): void {
+  sessionGeneration += 1;
   getActiveController()?.updateSettings(buildExpiredSessionPatch());
 
   if (openModal) {
@@ -319,6 +343,7 @@ export async function ensureCloudAccessToken(
 ): Promise<string | null> {
   const active = getActiveController();
   const initialSettings = active?.getSettings();
+  if (initialSettings) observeSession(initialSettings);
   const currentToken = initialSettings ? resolveCloudAccessToken(initialSettings) : null;
   const hasRefreshToken = !!initialSettings?.cloudAuthRefreshToken;
   const shouldOpenModal = options.interactive ?? options.openModalOnExpiry !== false;
@@ -359,32 +384,46 @@ export async function ensureCloudAccessToken(
     return requestGroupReadyCloudSessionRecovery(shouldOpenModal);
   }
 
-  if (refreshInFlight) {
+  if (refreshInFlight && refreshGeneration === sessionGeneration) {
     return refreshInFlight;
   }
 
   let currentRefreshPromise: Promise<string | null> | null = null;
+  let requestGeneration = sessionGeneration;
+  let expectedIdentity = sessionIdentity(active.getSettings());
+  const isCurrentSession = () => requestGeneration === sessionGeneration
+    && getActiveController() === active
+    && sessionIdentity(active.getSettings()) === expectedIdentity;
 
   const refreshPromise = (async (): Promise<string | null> => {
-    const latestSettings = active.getSettings();
+    const latestSettings = { ...active.getSettings() };
     const fallbackToken = resolveCloudAccessToken(latestSettings);
 
     try {
       const refreshed = await refreshCloudSession(latestSettings);
+      if (!isCurrentSession()) return null;
       const expiresAt = normalizeCloudAuthExpiresAt(refreshed.expiresAt, refreshed.accessToken);
 
-      active.updateSettings({
+      const patch: Partial<Settings> = {
         cloudAuthAccessToken: refreshed.accessToken,
         cloudAuthToken: '',
         cloudAuthRefreshToken: refreshed.refreshToken,
         cloudAuthExpiresAt: expiresAt,
         cloudAuthStatus: 'signed-in',
-      });
+      };
+      active.updateSettings(patch);
+      expectedIdentity = sessionIdentity({ ...latestSettings, ...patch });
+      if (getActiveController() !== active || sessionIdentity(active.getSettings()) !== expectedIdentity) return null;
+      observeSession(active.getSettings());
+      requestGeneration = sessionGeneration;
+      if (refreshInFlight === currentRefreshPromise) refreshGeneration = sessionGeneration;
 
       const readyToken = await requireActiveManagementGroup(refreshed.accessToken);
+      if (!isCurrentSession()) return null;
       notifyCloudSessionRefresh();
       return readyToken;
     } catch (error) {
+      if (!isCurrentSession()) return null;
       if (!options.forceRefresh && !isCloudSessionError(error) && fallbackToken && !isCloudAccessTokenExpiringSoon(latestSettings, 0)) {
         return requireActiveManagementGroup(fallbackToken);
       }
@@ -413,6 +452,7 @@ export async function ensureCloudAccessToken(
 
   currentRefreshPromise = refreshPromise;
   refreshInFlight = refreshPromise;
+  refreshGeneration = sessionGeneration;
   return refreshPromise;
 }
 

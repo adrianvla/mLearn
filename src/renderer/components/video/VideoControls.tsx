@@ -6,7 +6,6 @@
 import { Component, Show, createSignal, createMemo } from 'solid-js';
 import type { useVideo, useSubtitles } from '../../hooks';
 import { useSettings, useLocalization } from '../../context';
-import { useIPC } from '../../hooks';
 import { Panel, IconBtn, RangeInput, Select, ProgressBar, SubtitleIcon } from '../common';
 import type { SelectOption } from '../common/Select/Select';
 import './VideoControls.css';
@@ -117,7 +116,7 @@ const SPEED_OPTIONS: SelectOption[] = [
 export const VideoControls: Component<VideoControlsProps> = (props) => {
     const { settings, updateSettings } = useSettings();
     const { t } = useLocalization();
-    const { isTethered } = useIPC();
+    const isTethered = () => settings.backendMode === 'tethered';
 
     const [isHovered, setIsHovered] = createSignal(false);
     const [isDragging, setIsDragging] = createSignal(false);
@@ -339,7 +338,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         </Show>
 
                         {/* PiP — shown on Electron desktop or when Web PiP API is available */}
-                        <Show when={!isTethered || document.pictureInPictureEnabled}>
+                        <Show when={!isTethered() || document.pictureInPictureEnabled}>
                             <IconBtn
                                 variant="ghost"
                                 active={state.isPiP}

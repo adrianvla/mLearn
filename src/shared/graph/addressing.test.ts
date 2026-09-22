@@ -149,4 +149,22 @@ describe('graph-relative access addressing', () => {
     // Legacy flat events (no targetRef) keep capability-only caller scoping.
     expect(eventAppliesToTarget(graph, { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning' }, TARGET_SENSE, MYOJI)).toBe(true);
   });
+
+  it('routes package-declared opaque accesses by their declared scope', () => {
+    const graph = buildGraph();
+    const languageData = {
+      name: 'Test language',
+      learning: {
+        capabilities: {
+          'x-test::evidentiality': { scope: 'family' as const, shareAcrossIdentity: true },
+          'x-test::register': { scope: 'surface' as const },
+        },
+      },
+    };
+    const familyTarget: LearnableTarget = { entityId: MYOJI, capability: 'x-test::evidentiality' };
+    const surfaceTarget: LearnableTarget = { entityId: MYOJI, capability: 'x-test::register' };
+    expect(eventAppliesToTarget(graph, surfaceEvent('x-test::evidentiality', NAZI), familyTarget, MYOJI, languageData)).toBe(true);
+    expect(eventAppliesToTarget(graph, surfaceEvent('x-test::register', NAZI), surfaceTarget, MYOJI, languageData)).toBe(false);
+    expect(eventAppliesToTarget(graph, surfaceEvent('x-test::register', MYOJI), surfaceTarget, MYOJI, languageData)).toBe(true);
+  });
 });

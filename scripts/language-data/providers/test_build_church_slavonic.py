@@ -75,9 +75,10 @@ class BuildChurchSlavonicTest(unittest.TestCase):
             root = Path(temp_dir) / "root-of-app"
             builder = _load_builder(FREEDICT_SCRIPT, "build_freedict_spanish_test", root)
             setattr(builder, "FREQUENCY_LIMIT", 3)
+            setattr(builder, "FREQUENCY_MIN_ROWS", 3)
             source_path = Path(temp_dir) / "es_50k.txt"
             source_path.write_text("hola 50\nqué 40\ngracias 30\nhola 20\n", encoding="utf-8")
-            count = builder._write_frequency(source_path, builder.BUILD_CONFIGS["es"])
+            count = builder._write_frequency(source_path, builder.FREEDICT_PACKS["es-en"])
             self.assertEqual(count, 3)
             payload = json.loads((root / "languages" / "es.freq.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["freq"], [["hola", "hola"], ["qué", "qué"], ["gracias", "gracias"]])
@@ -94,7 +95,7 @@ class BuildChurchSlavonicTest(unittest.TestCase):
                 '</sense></entry></body></text></TEI>',
                 encoding="utf-8",
             )
-            config = builder.BUILD_CONFIGS["es"]
+            config = builder.FREEDICT_PACKS["es-en"]
             source_entries, inserted = builder._write_database(
                 source_path,
                 "test",

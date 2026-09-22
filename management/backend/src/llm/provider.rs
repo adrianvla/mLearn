@@ -44,6 +44,13 @@ impl ProviderError {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum GatewayUsageScope {
+    Foreground,
+    Internal,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct GatewayRequest {
     pub messages: Vec<GatewayMessage>,
@@ -53,6 +60,10 @@ pub(crate) struct GatewayRequest {
     pub model_tier: Option<String>,
     #[serde(default)]
     pub think: Option<bool>,
+    // Desktop usage provenance is accepted for wire compatibility only. Both
+    // scopes remain subject to the same school routing, quotas, and recording.
+    #[serde(default, rename = "usage_scope")]
+    pub _usage_scope: Option<GatewayUsageScope>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]

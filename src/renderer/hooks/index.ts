@@ -3,9 +3,6 @@
  * Export all custom hooks for the application
  */
 
-// IPC & System
-export { useIPC } from './useIPC';
-
 // Media
 export { useVideo, useVideoKeyboard } from './useVideo';
 export { useSubtitles } from './useSubtitles';

@@ -131,6 +131,38 @@ describe('pythonRuntimeRequirements', () => {
     );
   });
 
+  it('verifies language imports without reinstalling an already reconciled package group', async () => {
+    const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+    fs.mkdirSync(envBin, { recursive: true });
+    fs.writeFileSync(path.join(envBin, 'pip3'), '');
+    fs.writeFileSync(path.join(envBin, 'python3'), '');
+    mockSpawn.mockReturnValue(makeProcess(0));
+
+    const mod = await import('./pythonRuntimeRequirements');
+    await mod.verifyLanguagePythonRequirementsInstalled('aa', {
+      aa: {
+        name: 'Alpha',
+        runtime: {
+          python: {
+            packagesByComponent: { ocr: ['aa-ocr'] },
+            importChecksByComponent: { ocr: ['aa_ocr'] },
+          },
+        },
+      },
+    }, {
+      includeLLM: false,
+      includeOCR: true,
+      includeVoice: false,
+    });
+
+    expect(mockSpawn).toHaveBeenCalledTimes(1);
+    expect(mockSpawn).toHaveBeenCalledWith(
+      path.join(envBin, 'python3'),
+      expect.arrayContaining(['-c', expect.any(String), JSON.stringify(['aa_ocr'])]),
+      { cwd: path.join(tempDir.tmpDir, 'env') },
+    );
+  });
+
   it('rejects when selected language Python import checks fail', async () => {
     const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
     fs.mkdirSync(envBin, { recursive: true });

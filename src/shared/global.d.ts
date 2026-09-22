@@ -87,9 +87,6 @@ export interface MLearnIPC {
   installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => void;
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
   onLanguageDataInstallError: (callback: (payload: import('./types').LanguageDataInstallError) => void) => () => void;
-  installLanguage: (url: string) => void;
-  onLanguageInstalled: (callback: (lang: string) => void) => () => void;
-  onLanguageInstallError: (callback: (error: string) => void) => () => void;
 
   // Linguistic Graph
   getGraphMeta: (language: string) => Promise<GraphMeta>;
@@ -220,17 +217,7 @@ sendLogRecord: (record: unknown) => void;
   onLicenseGet: (callback: (type: string) => void) => () => void;
   onLicenseActivated: (callback: (success: boolean) => void) => () => void;
   
-  // Local Storage Sync
-  sendLS: (data: Record<string, unknown>) => void;
-  
-  // Migration APIs
-  getMigratedLocalStorage: () => Promise<Record<string, unknown> | null>;
-  getMigratedItem: (key: string) => Promise<unknown>;
-  hasMigrationOccurred: () => Promise<boolean>;
-  triggerMigration: () => Promise<{ success: boolean; migratedKeys: string[]; error?: string }>;
-  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => () => void;
   onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) => () => void;
-  getFlashcardMigrationInfo: () => void;
   
   // File Operations
   readDirectoryImages: (directoryPath: string) => Promise<{ files: Array<{ name: string; path: string; data: ArrayBuffer }> }>;
@@ -243,12 +230,6 @@ sendLogRecord: (record: unknown) => void;
   readMediaFile: (filePath: string) => Promise<ArrayBuffer | null>;
   readMediaFileChunk: (filePath: string, offset: number, length: number) => Promise<ArrayBuffer | null>;
   getFileSize: (filePath: string) => Promise<number | null>;
-  /**
-   * Convert a local file path to a local-media:// URL for secure media playback.
-   * Use this for video/audio files to bypass Electron's file:// restrictions.
-   */
-  getLocalMediaUrl: (filePath: string) => Promise<string | null>;
-
   /**
    * Get filesystem path for a File object.
    * Required for Electron v32+ where File.path was removed.

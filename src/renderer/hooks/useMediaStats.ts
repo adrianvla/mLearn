@@ -47,7 +47,8 @@ export function useMediaStats(options: UseMediaStatsOptions) {
   // Use a signal-like ref for session start that persists across setMedia calls
   // but we track it per-media to avoid rapid-switch corruption
   const sessionStartRef = { current: 0 };
-  const ipcCleanups: Array<() => void> = [];
+  let mediaStatsCleanup: (() => void) | undefined;
+  let loadGeneration = 0;
 
   // Save stats to disk
   const saveStats = async () => {
@@ -66,14 +67,15 @@ export function useMediaStats(options: UseMediaStatsOptions) {
 
   // Load existing stats from disk
   const loadStats = (hash: string) => {
+    const generation = ++loadGeneration;
+    mediaStatsCleanup?.();
     const bridge = getBridge();
-    bridge.mediaStats.getMediaStats(hash);
-    const cleanup = bridge.mediaStats.onMediaStats((loaded) => {
-      if (loaded && loaded.mediaHash === hash) {
+    mediaStatsCleanup = bridge.mediaStats.onMediaStats((loaded) => {
+      if (generation === loadGeneration && mediaHash() === hash && loaded?.mediaHash === hash) {
         setStats(loaded);
       }
     });
-    ipcCleanups.push(cleanup);
+    bridge.mediaStats.getMediaStats(hash);
   };
 
   // End the current session
@@ -253,9 +255,10 @@ export function useMediaStats(options: UseMediaStatsOptions) {
 
   onCleanup(() => {
     if (saveInterval) clearInterval(saveInterval);
+    loadGeneration += 1;
+    mediaStatsCleanup?.();
+    mediaStatsCleanup = undefined;
     endSession();
-    for (const cleanup of ipcCleanups) cleanup();
-    ipcCleanups.length = 0;
     window.removeEventListener('mlearn:word-seen', handleWordSeenEvent);
     window.removeEventListener('mlearn:word-hovered', handleWordHoveredEvent);
     window.removeEventListener('beforeunload', handleBeforeUnload);

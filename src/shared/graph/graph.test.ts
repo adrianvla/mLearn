@@ -128,9 +128,10 @@ describe('linguistic graph golden semantics', () => {
     for (const capability of ['surface-recognition', 'surface-reading'] as const) {
       expect(isIdentityShareableCapability(capability)).toBe(false);
     }
-    for (const capability of ['sense-recognition', 'gender', 'character-reading', 'grammar-comprehension', 'prosodic-pattern'] as const) {
+    for (const capability of ['sense-recognition', 'character-reading', 'grammar-comprehension', 'prosodic-pattern'] as const) {
       expect(isIdentityShareableCapability(capability)).toBe(true);
     }
+    expect(isIdentityShareableCapability('x-acme::classifier')).toBe(false);
     // And the fixture's identity pair keeps independent applicability.
     const graph = load();
     const taberu = graph.nodes.get(surfaceEntityId('ja', 't-0'))!;

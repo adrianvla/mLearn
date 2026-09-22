@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 
 const hash = 'a'.repeat(64);
@@ -43,6 +43,12 @@ import { GraphInspectorContent } from './App';
 const flush = () => new Promise<void>((resolve) => queueMicrotask(() => resolve()));
 
 describe('GraphInspectorContent', () => {
+  beforeEach(() => {
+    contextCallback = null;
+    getNeighborhoodMock.mockReset();
+    getNeighborhoodMock.mockResolvedValue(neighborhood);
+  });
+
   it('groups support separately and renders active evidence for target states', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

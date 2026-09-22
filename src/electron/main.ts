@@ -21,7 +21,6 @@ import { setupWindowIPC, createMainWindow, createWelcomeWindow, createDiagnostic
 import { initOverlaySiteState, registerOverlaySiteStateIPC } from './services/overlaySiteState';
 import { getExtensionDistDir } from './utils/platform';
 import { setupFileOperationsIPC } from './services/fileOperations';
-import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
 import { registerLocalMediaScheme, registerPluginUiScheme, setupLocalMediaProtocol, setupPluginUiProtocol } from './services/localMediaProtocol';
 import { setupMediaStatsIPC } from './services/mediaStatsStorage';
 import { setupKnowledgeEventsIPC } from './services/knowledgeEvents';
@@ -40,6 +39,8 @@ import { cancelAllAutonomy, reconcilePendingAutonomyRuntime } from './services/a
 import { activateContactFromDeepLink, cancelAllContacts } from './services/contactRuntime';
 import { setupWorldIPC, openRoomAt } from './services/worldIpc';
 import { runLegacyMigration } from './services/legacyMigration';
+import { reconcilePendingIntegrations } from './services/integration';
+import { handleStartupFailure } from './services/startupFailure';
 import { setupBrowserDetectionIPC } from './services/browserDetection';
 import { setupExtensionInstallerIPC } from './services/extensionInstaller';
 import { initPluginManager } from './services/pluginManager';
@@ -353,7 +354,6 @@ function setupAllIPC(): void {
   setupPluginUiProtocol();
   setupPythonBackendIPC();
   setupFileOperationsIPC();
-  setupMigrationIPC();
   setupMediaStatsIPC();
   setupKnowledgeEventsIPC();
   setupOllamaIPC();
@@ -427,16 +427,16 @@ async function initialize(): Promise<void> {
   setupFlashcardAudioProtocol();
   setupFlashcardVideoProtocol();
 
-  // Perform localStorage migration before creating windows
-  // This migrates data from the old app's file:// localStorage to file-based storage
-  await migrateLocalStorage();
-
   // One-time legacy conversational-state migration (agent configs/sessions/memories
   // → Room/Thread/Participant + journal). Idempotent; no-ops after the first run.
   const worldMigration = await runLegacyMigration();
   if (worldMigration.migrated) {
     log.info('Legacy conversation state migrated to world model', worldMigration);
   }
+
+  // Recover integration publications after migration and before other recovery
+  // or scheduler work. A failed read must reach the startup error boundary.
+  await reconcilePendingIntegrations();
 
   // Maintenance recovery (V08): finish interrupted reflection/evolution
   // publications from the durable ledger before any scheduler pass runs.
@@ -487,7 +487,7 @@ if (!gotSingleInstanceLock) {
       handleDeepLinkArgs(process.argv);
     }
 
-    void initialize();
+    void initialize().catch(handleStartupFailure);
 
     app.on('activate', () => {
       if (!focusExistingAppWindow()) {

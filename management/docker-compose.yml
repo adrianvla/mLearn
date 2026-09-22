@@ -3,8 +3,8 @@ name: ${MLEARN_COMPOSE_PROJECT:-mlearn}
 services:
   mlearn-management:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ..
+      dockerfile: management/backend/Dockerfile
     container_name: mlearn-management
     ports:
       - "127.0.0.1:${MLEARN_MANAGEMENT_PORT:-3000}:3000"

@@ -68,43 +68,49 @@ function streamFilePath(roomId: string, scope: EventScope): string {
 
 /**
  * Load a stream's tail to recover its head seq, caching it in memory.
- * Crash recovery: if a line fails JSON.parse (partial write), truncate the
- * file to the end of the last complete line and continue.
+ * Only an unterminated malformed final line can be an interrupted append.
+ * Corruption in committed lines fails closed, preserving the original file.
  * Must only be called from within the write queue.
  */
 async function loadStreamHead(key: string, filePath: string): Promise<StreamState> {
   const cached = streamHeads.get(key);
   if (cached?.loaded) return cached;
   const state: StreamState = { headSeq: 0, loaded: true };
-  streamHeads.set(key, state);
+  let raw: string;
   try {
-    await fs.promises.access(filePath);
-  } catch {
-    return state; // stream file does not exist yet
+    raw = await fs.promises.readFile(filePath, 'utf-8');
+  } catch (error) {
+    if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== 'ENOENT') throw error;
+    streamHeads.set(key, state);
+    return state;
   }
-  const raw = await fs.promises.readFile(filePath, 'utf-8');
   const lines = raw.split('\n');
   const complete: string[] = [];
   let partialTail = false;
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     if (line.length === 0) continue;
+    let event: JournalEvent;
     try {
-      JSON.parse(line);
-      complete.push(line);
+      event = JSON.parse(line) as JournalEvent;
     } catch {
+      if (index !== lines.length - 1) throw new Error('[journal] Corrupt committed record; history preserved');
       partialTail = true;
-      break; // partial tail — discard everything after the last complete line
+      break;
     }
+    if (!event || !Number.isSafeInteger(event.seq) || event.seq <= state.headSeq) {
+      throw new Error('[journal] Invalid record sequence; history preserved');
+    }
+    state.headSeq = event.seq;
+    complete.push(line);
   }
   if (partialTail) {
     const recovered = complete.length > 0 ? `${complete.join('\n')}\n` : '';
     await fs.promises.writeFile(filePath, recovered, 'utf-8');
     log.warn(`[journal] Discarded partial tail of ${filePath} (crash recovery)`);
+  } else if (raw.length > 0 && !raw.endsWith('\n')) {
+    await fs.promises.appendFile(filePath, '\n', 'utf-8');
   }
-  const last = complete[complete.length - 1];
-  if (last !== undefined) {
-    state.headSeq = (JSON.parse(last) as JournalEvent).seq;
-  }
+  streamHeads.set(key, state);
   return state;
 }
 
@@ -123,7 +129,7 @@ async function readStream(roomId: string, scope: EventScope): Promise<JournalEve
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') return [];
       log.error(`[journal] Failed to read stream ${filePath}:`, error);
-      return [];
+      throw error;
     }
   });
 }

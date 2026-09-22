@@ -109,7 +109,7 @@ export function bucketRepresentative(bucketKey: string): KnowledgeEvent | undefi
   if (capability === 'none') return undefined;
   if (address === 'legacy') {
     const aspect = (Object.entries(ASPECT_CAPABILITY) as Array<[string, string]>).find(([, value]) => value === capability)?.[0]
-      ?? (capability === 'grammar-recognition' ? 'grammar' : undefined);
+      ?? (capability === 'grammar-recognition' ? 'grammar' : capability);
     if (aspect === undefined) return undefined;
     return { t: 0, kind: 'status', source: 'anki', aspect: aspect as never };
   }

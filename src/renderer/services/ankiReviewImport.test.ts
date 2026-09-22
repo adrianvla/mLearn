@@ -51,6 +51,25 @@ const grammarCard: AnkiCardInfo = {
 };
 const grammarReview: AnkiReviewEntry = { id: 123, cid: 1, usn: 0, ease: 3, ivl: 1, lastIvl: 1, factor: 2500, time: 1, type: 1 };
 
+it('queries persisted grammar targets before reimporting the same reviews', async () => {
+  const persisted: KnowledgeEventLog = {};
+  mocks.queryAnkiReviewIdSets.mockImplementation(async (keys: string[]) => Object.fromEntries(
+    keys.map(key => [key, (persisted[key] ?? []).map(event => event.ankiReviewId)]),
+  ));
+  mocks.appendEvents.mockImplementation(async (batch: KnowledgeEventLog) => {
+    for (const [key, events] of Object.entries(batch)) persisted[key] = [...(persisted[key] ?? []), ...events];
+  });
+  const deps = {
+    statuses: [{ word: 'known pattern', cardId: 1 }],
+    grammar: [{ pattern: 'known pattern', meaning: 'x', level: 1 }],
+    fetchCards: async () => [grammarCard],
+    fetchReviews: async () => ({ '1': [grammarReview] }),
+  };
+  expect((await importHistory('example', deps)).imported).toBe(1);
+  expect((await importHistory('example', deps)).imported).toBe(0);
+  expect(Object.values(persisted).flat()).toHaveLength(1);
+});
+
 function grammarCardWithSides(question: string, answer: string): AnkiCardInfo {
   return {
     ...grammarCard,
@@ -163,7 +182,7 @@ function review(overrides: Partial<AnkiReviewEntry>): AnkiReviewEntry {
 
 beforeEach(() => {
   mocks.getAnkiWordStatuses.mockReset();
-  mocks.appendEvents.mockClear();
+  mocks.appendEvents.mockReset().mockResolvedValue(undefined);
   mocks.queryAnkiReviewIdSets.mockReset().mockResolvedValue({});
 });
 

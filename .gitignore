@@ -19,7 +19,6 @@ scripts/language-data/source/root-of-app/dictionaries/
 .worktrees/
 __pycache__
 scripts/scrapeGrammar.js
-package-lock.json
 website/.env.local
 website
 
@@ -41,6 +40,7 @@ docs/superpowers
 
 .playwright-mcp
 .superpowers
+.codegraph/
 .zcode
 /.omo/
 .cortexkit

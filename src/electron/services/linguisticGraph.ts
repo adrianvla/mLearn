@@ -110,7 +110,8 @@ export class LinguisticGraphService {
       }
       if (meanings.size) displayLabel = [labelId >= 0 ? graph.stringTable[labelId] : '', [...meanings].join('; ')].filter(Boolean).join(' — ');
     }
-    return { id, kind, ...(displayLabel ? { displayLabel } : {}), ...(domains[domainId] ? { domain: domains[domainId] } : {}), ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}) };
+    const learnableCapabilities = graph.entityLearnableCapabilities?.[dense];
+    return { id, kind, ...(displayLabel ? { displayLabel } : {}), ...(domains[domainId] ? { domain: domains[domainId] } : {}), ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}), ...(learnableCapabilities?.length ? { learnableCapabilities: [...learnableCapabilities] } : {}) };
   }
 
   private related(graph: RuntimeCompactGraph, id: string, relationTypes: readonly GraphRelationType[]): GraphRelatedNode[] {
@@ -202,20 +203,23 @@ export class LinguisticGraphService {
       const prefix = `${language}:surface:`;
       const hash = surfaceId.startsWith(prefix) ? surfaceId.slice(prefix.length) : undefined;
       if (!hash) return undefined;
-      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }, { loadSettings }] = await Promise.all([
+      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }, settingsModule] = await Promise.all([
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
         import('./settings'),
       ]);
       const store = await loadFlashcards();
-      const thresholds = requestedThresholds ?? effectiveThresholds(loadSettings());
+      const thresholds = requestedThresholds ?? effectiveThresholds(settingsModule.loadSettings());
       const plain = this.toLingualGraph(loaded);
       const keys = siblingJournalKeys(plain, surfaceId);
       // Rows carry stable journal seq; archives carry aggregated old evidence.
       const rowLog = getKnowledgeRows(keys);
       const rows = keys.flatMap((key) => rowLog[key] ?? []);
       const archives = getKnowledgeArchives(keys).map(({ archive }) => archive).filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
-      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { archives, thresholds });
+      const languageData = Object.prototype.hasOwnProperty.call(settingsModule, 'loadLangData')
+        ? settingsModule.loadLangData()[language]
+        : undefined;
+      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { archives, thresholds, languageData });
       return projection.targets
         .filter((target) => target.targetRef.id === surfaceId)
         .flatMap((target) => target.states.map(({ capability, classification, basis }) => ({ capability, classification, basis })));
@@ -234,13 +238,13 @@ export class LinguisticGraphService {
       if (!loaded) return { status: 'not-installed', targets: [] };
       const hash = crypto.createHash('sha256').update(surface).digest('hex');
       const surfaceId = `${language}:surface:${hash}`;
-      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }, { loadSettings }] = await Promise.all([
+      const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }, settingsModule] = await Promise.all([
         import('./flashcardStorage'),
         import('./knowledgeEvents'),
         import('./settings'),
       ]);
       const store = await loadFlashcards();
-      const thresholds = requestedThresholds ?? effectiveThresholds(loadSettings());
+      const thresholds = requestedThresholds ?? effectiveThresholds(settingsModule.loadSettings());
       const plain = this.toLingualGraph(loaded);
       // Graph-relative addressing: evidence recorded through an authoritative
       // variant surface resolves to the shared lexical object, so the
@@ -252,7 +256,10 @@ export class LinguisticGraphService {
         .map(({ archive }) => archive)
         .filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
       const compound = await this.compoundSupport(plain, language, surfaceId, thresholds);
-      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { compound, archives, thresholds });
+      const languageData = Object.prototype.hasOwnProperty.call(settingsModule, 'loadLangData')
+        ? settingsModule.loadLangData()[language]
+        : undefined;
+      const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { compound, archives, thresholds, languageData });
       return { ...projection, querySurface: surface, surfaceKnown: loaded.graph.has(surfaceId), compoundAnalysis: compound?.analysis ?? null };
     } catch {
       return { status: 'error', targets: [] };

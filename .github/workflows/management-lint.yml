@@ -5,6 +5,12 @@ on:
     paths:
       - 'management/backend/**'
       - 'management/frontend/**'
+      - 'management/docker-compose.yml'
+      - 'management/frontend/package-lock.json'
+      - 'management/backend/Cargo.lock'
+      - 'src/html/assets/icons/logo.png'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/management-lint.yml'
   push:
     branches:
@@ -13,6 +19,12 @@ on:
     paths:
       - 'management/backend/**'
       - 'management/frontend/**'
+      - 'management/docker-compose.yml'
+      - 'management/frontend/package-lock.json'
+      - 'management/backend/Cargo.lock'
+      - 'src/html/assets/icons/logo.png'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/management-lint.yml'
 
 permissions:
@@ -27,13 +39,23 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Build the embedded management console
+      - name: Install embedded management console dependencies
+        working-directory: management/frontend
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck and test the management console
         working-directory: management/frontend
         run: |
-          npm install --no-audit --no-fund
-          npm run build
-      - uses: dtolnay/rust-toolchain@stable
+          npm run typecheck
+          npm test
+      - name: Build the embedded management console
+        working-directory: management/frontend
+        run: npm run build
+      - uses: dtolnay/rust-toolchain@1.98.1
         with:
           components: clippy
       - name: Lint every management backend target
         run: npm run lint:management
+      - name: Test every management backend target
+        run: npm run test:management
+      - name: Build the deployable management image
+        run: docker build --tag mlearn-management-ci --file management/backend/Dockerfile .

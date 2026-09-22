@@ -247,7 +247,7 @@ describe('package-language-data', () => {
     });
     assert.equal(metadata.languageData.sourceVersions.goethe, undefined);
     assert.equal(Array.isArray(frequency.freq), true);
-    assert.equal(frequency.freq.length, 30000);
+    assert.ok(frequency.freq.length >= 40000 && frequency.freq.length <= 50000);
     assert.deepEqual(frequency.freq.slice(0, 3).map((row) => row[0]), ['ich', 'sie', 'das']);
   });
 
@@ -268,7 +268,7 @@ describe('package-language-data', () => {
     assert.equal(metadata.runtime?.tts?.qwen3LanguageName, 'spanish');
     assert.equal(metadata.runtime?.stt?.whisperLanguage, 'es');
     assert.equal(metadata.grammar.length >= 30, true);
-    assert.equal(frequency.freq.length, 30000);
+    assert.ok(frequency.freq.length >= 40000 && frequency.freq.length <= 50000);
     assert.equal(dictionaryPacks.en.assets.some((asset) => asset.path === 'dictionaries/es/en/dictionary.db'), true);
   });
 

@@ -4,6 +4,7 @@ import type { TempDir } from '../../../test/helpers/tempDir';
 
 const mockIpcHandlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
 const mockAppListeners = new Map<string, ((...args: unknown[]) => void)[]>();
+const mockAppQuit = vi.fn();
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -15,6 +16,7 @@ vi.mock('electron', () => ({
   },
   app: {
     getPath: vi.fn(() => '/tmp/test'),
+    quit: mockAppQuit,
     on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
       const existing = mockAppListeners.get(event) ?? [];
       existing.push(handler);
@@ -37,12 +39,14 @@ let mod: typeof import('./kvStore');
 beforeEach(async () => {
   tempDir = createTempDir();
   vi.resetModules();
+  mockAppQuit.mockReset();
   mockIpcHandlers.clear();
   mockAppListeners.clear();
   mod = await import('./kvStore');
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await mod.flushKVStore();
   tempDir.cleanup();
 });
 
@@ -239,13 +243,7 @@ describe('file persistence', () => {
     mod.setupKVStoreIPC();
     const setHandler = mockIpcHandlers.get('kv-set');
     await setHandler!(null, 'persistent', 'yes');
-
-    const listeners = mockAppListeners.get('before-quit') ?? [];
-    for (const listener of listeners) {
-      listener();
-    }
-
-    await new Promise(r => setTimeout(r, 50));
+    await mod.flushKVStore();
 
     const fs = await import('fs');
     const path = await import('path');
@@ -302,7 +300,7 @@ describe('file persistence', () => {
 });
 
 describe('before-quit flush', () => {
-  it('calls flushPending via before-quit app event', async () => {
+  it('flushes pending changes from the before-quit event', async () => {
     mod.setupKVStoreIPC();
     const setHandler = mockIpcHandlers.get('kv-set');
     await setHandler!(null, 'flush-test', 'value');
@@ -312,8 +310,101 @@ describe('before-quit flush', () => {
 
     expect(() => {
       for (const listener of listeners) {
-        listener();
+        listener({ preventDefault: vi.fn() });
       }
     }).not.toThrow();
+    await mod.flushKVStore();
+  });
+
+  it('keeps the app open until a pending store write finishes', async () => {
+    mod.setupKVStoreIPC();
+
+    const fs = await import('fs');
+    const path = await import('path');
+    const originalRename = fs.promises.rename.bind(fs.promises);
+
+    let startRename!: () => void;
+    let finishRename!: () => void;
+    let releaseRename!: () => void;
+    let finishQuit!: () => void;
+    const renameStarted = new Promise<void>((resolve) => { startRename = resolve; });
+    const renameFinished = new Promise<void>((resolve) => { finishRename = resolve; });
+    const renameGate = new Promise<void>((resolve) => { releaseRename = resolve; });
+    const quitInvoked = new Promise<void>((resolve) => { finishQuit = resolve; });
+
+    const renameSpy = vi.spyOn(fs.promises, 'rename').mockImplementation(async (oldPath, newPath) => {
+      startRename();
+      await renameGate;
+      await originalRename(oldPath, newPath);
+      finishRename();
+    });
+    mockAppQuit.mockImplementation(() => finishQuit());
+
+    await mockIpcHandlers.get('kv-set')!(null, 'quit-race', 'saved');
+    const beforeQuit = (mockAppListeners.get('before-quit') ?? []).at(-1)!;
+    const event = { preventDefault: vi.fn() };
+
+    try {
+      beforeQuit(event);
+      await renameStarted;
+      expect(event.preventDefault).toHaveBeenCalledOnce();
+      expect(mockAppQuit).not.toHaveBeenCalled();
+
+      releaseRename();
+      await renameFinished;
+      await quitInvoked;
+
+      const storePath = path.join(tempDir.tmpDir, 'kv-store.json');
+      expect(JSON.parse(fs.readFileSync(storePath, 'utf-8'))).toEqual({ 'quit-race': 'saved' });
+    } finally {
+      releaseRename();
+      await renameFinished;
+      renameSpy.mockRestore();
+    }
+  });
+
+  it('waits for an in-flight set handler before deciding the store is clean', async () => {
+    mod.setupKVStoreIPC();
+
+    const fs = await import('fs');
+    const path = await import('path');
+    const storePath = path.join(tempDir.tmpDir, 'kv-store.json');
+    fs.writeFileSync(storePath, JSON.stringify({ existing: 'kept' }), 'utf-8');
+
+    const originalAccess = fs.promises.access.bind(fs.promises);
+    let startLoad!: () => void;
+    let releaseLoad!: () => void;
+    let finishQuit!: () => void;
+    const loadStarted = new Promise<void>((resolve) => { startLoad = resolve; });
+    const loadGate = new Promise<void>((resolve) => { releaseLoad = resolve; });
+    const quitInvoked = new Promise<void>((resolve) => { finishQuit = resolve; });
+    const accessSpy = vi.spyOn(fs.promises, 'access').mockImplementation(async (accessPath, mode) => {
+      if (accessPath === storePath) {
+        startLoad();
+        await loadGate;
+      }
+      return originalAccess(accessPath, mode);
+    });
+    mockAppQuit.mockImplementation(() => finishQuit());
+
+    const setPromise = mockIpcHandlers.get('kv-set')!(null, 'in-flight', 'saved') as Promise<void>;
+    await loadStarted;
+    const beforeQuit = (mockAppListeners.get('before-quit') ?? []).at(-1)!;
+    const event = { preventDefault: vi.fn() };
+
+    try {
+      beforeQuit(event);
+      expect(event.preventDefault).toHaveBeenCalledOnce();
+      expect(mockAppQuit).not.toHaveBeenCalled();
+
+      releaseLoad();
+      await setPromise;
+      await quitInvoked;
+      expect(JSON.parse(fs.readFileSync(storePath, 'utf-8'))).toEqual({ existing: 'kept', 'in-flight': 'saved' });
+    } finally {
+      releaseLoad();
+      await setPromise;
+      accessSpy.mockRestore();
+    }
   });
 });

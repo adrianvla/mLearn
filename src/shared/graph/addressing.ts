@@ -1,7 +1,8 @@
 import { eventCapability, type KnowledgeEvent } from '../knowledgeEvents';
 import { relationsOf, type LingualGraph } from './load';
-import { isSurfaceScopedCapability } from './targets';
+import { isPackageFamilyCapability, isSurfaceScopedCapability } from './targets';
 import type { CapabilityKey, LearnableTarget } from './types';
+import type { LanguageData } from '../types';
 
 /**
  * Graph-relative access addressing.
@@ -15,8 +16,7 @@ import type { CapabilityKey, LearnableTarget } from './types';
  * Transfer rules (deliberately conservative):
  * - Surface-scoped accesses (surface-recognition, surface-reading) match ONLY
  *   the exact presented surface. Variants never share them.
- * - Lexical-identity accesses (sense, spoken, production, prosody, gender)
- *   transfer across surfaces that realize the SAME authoritative entry —
+ * - Lexical-identity accesses transfer across surfaces that realize the SAME authoritative entry —
  *   knowing 名字 by sound is knowing 苗字 by sound, because both realize one
  *   entry with one pronunciation.
  * - Shared pronunciation alone transfers NOTHING: 橋/箸/端 share はし but
@@ -41,7 +41,6 @@ export const ENTRY_LEVEL_CAPABILITIES: Record<string, true> = {
   'spoken-recognition': true,
   'pronunciation-production': true,
   'prosodic-pattern': true,
-  'gender': true,
 };
 
 /**
@@ -158,11 +157,13 @@ export function eventAppliesToTarget(
   event: KnowledgeEvent,
   target: LearnableTarget,
   queriedSurfaceId: string,
+  languageData?: LanguageData | null,
 ): boolean {
   if (!eventAppliesToCapability(event, target.capability)) return false;
   const ref = event.targetRef;
   if (!ref) return true; // legacy flat event: capability routing only, caller scoped the key
-  if (ENTRY_LEVEL_CAPABILITIES[target.capability]) {
+  const packageFamily = isPackageFamilyCapability(target.capability, languageData);
+  if (ENTRY_LEVEL_CAPABILITIES[target.capability] || packageFamily) {
     const context = lexicalContextEntryIds(graph, target.entityId);
     // No ontology entry means no transfer, but the exact authored surface
     // address still owns its evidence when a package drops that surface.
@@ -176,7 +177,7 @@ export function eventAppliesToTarget(
     // homograph → only the surface the learner was actually presented.
     return entries.length === 1 || ref.id === queriedSurfaceId;
   }
-  if (isSurfaceScopedCapability(target.capability)) {
+  if (isSurfaceScopedCapability(target.capability, languageData)) {
     return ref.kind === 'surface' && ref.id === target.entityId;
   }
   return ref.id === target.entityId;

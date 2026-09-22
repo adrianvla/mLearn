@@ -81,43 +81,12 @@ describe('getAvailableAccesses', () => {
     ]);
   });
 
-  it('enables gender when the language declares gender data', () => {
-    expect(getAvailableAccesses({
-      ...readingLanguage,
-      gender: { attributeKey: 'gender' },
-    })).toEqual([
-      'sense-recognition',
-      'surface-reading',
-      'gender',
-      'spoken-recognition',
-      'pronunciation-production',
-      'surface-recognition',
-    ]);
-  });
-
-  it('gender coexists with the full reading+prosody set', () => {
-    expect(getAvailableAccesses({
-      ...readingLanguage,
-      prosody: { type: 'japanese-pitch-accent' },
-      gender: { attributeKey: 'gender' },
-    })).toEqual([
-      'sense-recognition',
-      'surface-reading',
-      'prosodic-pattern',
-      'gender',
-      'spoken-recognition',
-      'pronunciation-production',
-      'surface-recognition',
-    ]);
-  });
-
-  it('real ru package: surface-reading + gender, no pitch access (stress belongs to reading)', async () => {
+  it('real ru package: surface-reading without a hardcoded feature access', async () => {
     const { readFileSync } = await import('fs');
     const ru = JSON.parse(readFileSync('scripts/language-data/source/root-of-app/languages/ru.json', 'utf-8'));
     expect(getAvailableAccesses(ru)).toEqual([
       'sense-recognition',
       'surface-reading',
-      'gender',
       'spoken-recognition',
       'pronunciation-production',
       'surface-recognition',

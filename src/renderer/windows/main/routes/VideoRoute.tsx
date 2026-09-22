@@ -43,7 +43,7 @@ import type { ConversationAgentContext } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
 import { opaqueActivityContentId } from '../../../services/activityHubRuntime';
-import { collectDroppedMediaFiles } from './videoDropUtils';
+import { collectDroppedMediaFiles, resolveSubtitleForVideoLoad, type ExternalSubtitle } from './videoDropUtils';
 import { detectMediaTracks, extractSubtitleTrack } from '../../../services/mediaTrackService';
 import { clipVideo } from '../../../services/videoClipService';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
@@ -134,7 +134,7 @@ export const VideoRoute: Component = () => {
   const [currentVideoName, setCurrentVideoName] = createSignal('');
   const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
-  const [, setCurrentSubtitlePath] = createSignal('');
+  const [externalSubtitle, setExternalSubtitle] = createSignal<ExternalSubtitle | null>(null);
   const showWordSidebar = () => settings.rightSidebarOpen ?? DEFAULT_SETTINGS.rightSidebarOpen;
   const setShowWordSidebar = (open: boolean) => updateSetting('rightSidebarOpen', open);
   const [detectedAudioTracks, setDetectedAudioTracks] = createSignal<Array<{ index: number; label: string; language: string | null }>>([]);
@@ -192,7 +192,7 @@ export const VideoRoute: Component = () => {
     setCurrentVideoDuration(null);
     setCurrentVideoPath('');
     setSubtitleContent('');
-    setCurrentSubtitlePath('');
+    setExternalSubtitle(null);
     setShowDropZone(false);
     setCurrentVideoName(name || getMediaNameFromPath(url, mediaNameParseOptions()));
   };
@@ -323,6 +323,8 @@ export const VideoRoute: Component = () => {
   const handleSelectDetectedSubtitleTrack = async (index: number | null) => {
     if (index === null) {
       setActiveDetectedSubtitleTrack(null);
+      setExternalSubtitle(null);
+      setSubtitleContent('');
       return;
     }
     const tracks = detectedSubtitleTracks();
@@ -331,13 +333,24 @@ export const VideoRoute: Component = () => {
     const src = videoSrc();
     if (!src) return;
     setActiveDetectedSubtitleTrack(index);
+    setExternalSubtitle(null);
     const result = await extractSubtitleTrack(src, track.index);
     if (result.success && result.content) {
       setSubtitleContent(result.content);
     }
   };
 
-  const loadVideo = async (path: string, name: string) => {
+  const setSubtitleForVideoLoad = (incoming?: ExternalSubtitle | null) => {
+    const selected = resolveSubtitleForVideoLoad(externalSubtitle(), Boolean(currentVideoName()), incoming);
+    setExternalSubtitle(selected);
+    setSubtitleContent(selected?.content ?? '');
+    return selected;
+  };
+
+  let videoLoadRevision = 0;
+  const loadVideo = async (path: string, name: string, incomingSubtitle?: ExternalSubtitle | null) => {
+    const loadRevision = ++videoLoadRevision;
+    const selectedSubtitle = setSubtitleForVideoLoad(incomingSubtitle);
     const url = toLocalMediaUrl(path);
     log.info('[VideoRoute] loadVideo: path=', path, 'url=', url);
     thumbnailCaptureBlockedKeys.delete(path);
@@ -346,8 +359,6 @@ export const VideoRoute: Component = () => {
     setCurrentVideoTime(0);
     setCurrentVideoDuration(null);
     setCurrentVideoPath(path);
-    setSubtitleContent('');
-    setCurrentSubtitlePath('');
     setShowDropZone(false);
     setCurrentVideoName(name);
     setDetectedAudioTracks([]);
@@ -356,6 +367,7 @@ export const VideoRoute: Component = () => {
 
     if (isElectronPlatform() && path) {
       const tracks = await detectMediaTracks(url);
+      if (loadRevision !== videoLoadRevision) return;
       if (tracks.audioTracks.length > 0 || tracks.subtitleTracks.length > 0) {
         setDetectedAudioTracks(
           tracks.audioTracks.map((t) => ({
@@ -371,7 +383,7 @@ export const VideoRoute: Component = () => {
         }));
         setDetectedSubtitleTracks(subtitleTrackInfos);
 
-        if (subtitleTrackInfos.length > 0) {
+        if (subtitleTrackInfos.length > 0 && !selectedSubtitle) {
           const fileSize = await getBridge().files.getFileSize(path);
           const maxSize = 512 * 1024 * 1024;
           if (fileSize != null && fileSize > maxSize) {
@@ -383,10 +395,10 @@ export const VideoRoute: Component = () => {
           } else {
             const firstTrack = tracks.subtitleTracks[0];
             const result = await extractSubtitleTrack(url, firstTrack.index);
-            if (result.success && result.content) {
+            if (loadRevision === videoLoadRevision && !externalSubtitle() && result.success && result.content) {
               setSubtitleContent(result.content);
               setActiveDetectedSubtitleTrack(0);
-            } else {
+            } else if (loadRevision === videoLoadRevision && !externalSubtitle()) {
               showToast({
                 message: t('mlearn.Video.SubtitleExtractionFailed'),
                 variant: 'warning',
@@ -768,23 +780,20 @@ export const VideoRoute: Component = () => {
       }
 
       const name = getMediaNameFromPath(pendingVideo, mediaNameParseOptions());
-      loadVideo(pendingVideo, name);
-      void saveVideoToRecentItems(pendingVideo, name);
-
-      if (!pendingSubtitle?.trim()) {
-        return;
-      }
-
+      let selectedSubtitle: ExternalSubtitle | null = null;
       try {
-        const buffer = await getBridge().files.readMediaFile(pendingSubtitle);
-        if (buffer) {
-          const content = new TextDecoder().decode(buffer);
-          setSubtitleContent(content);
-          setCurrentSubtitlePath(pendingSubtitle);
+        if (pendingSubtitle?.trim()) {
+          const buffer = await getBridge().files.readMediaFile(pendingSubtitle);
+          if (buffer) {
+            selectedSubtitle = { content: new TextDecoder().decode(buffer), filePath: pendingSubtitle };
+          }
         }
       } catch (error) {
         log.error('Failed to auto-load subtitles for saved video:', error);
       }
+
+      loadVideo(pendingVideo, name, selectedSubtitle);
+      void saveVideoToRecentItems(pendingVideo, name, selectedSubtitle?.filePath);
     };
 
     void loadPendingVideo();
@@ -1199,7 +1208,7 @@ export const VideoRoute: Component = () => {
     if (droppedMedia.video) {
       log.info('[VideoRoute] handleDrop: video filePath=', droppedMedia.video.filePath, 'fileName=', droppedMedia.video.fileName, 'displayName=', droppedMedia.video.displayName);
       if (droppedMedia.video.filePath) {
-        loadVideo(droppedMedia.video.filePath, droppedMedia.video.displayName);
+        loadVideo(droppedMedia.video.filePath, droppedMedia.video.displayName, droppedMedia.subtitle);
         await saveVideoToRecentItems(
           droppedMedia.video.filePath,
           droppedMedia.video.displayName,
@@ -1208,21 +1217,21 @@ export const VideoRoute: Component = () => {
       } else {
         const blobUrl = URL.createObjectURL(droppedMedia.video.file);
         log.info('[VideoRoute] handleDrop: using blobUrl=', blobUrl);
+        videoLoadRevision++;
+        setSubtitleForVideoLoad(droppedMedia.subtitle);
         setVideoSrc(blobUrl);
         setCurrentVideoTime(0);
         setCurrentVideoDuration(null);
         setCurrentVideoPath('');
-        setSubtitleContent('');
-        setCurrentSubtitlePath('');
         setShowDropZone(false);
         setCurrentVideoName(droppedMedia.video.displayName);
         thumbnailCaptureBlockedKeys.delete(droppedMedia.video.displayName);
       }
     }
 
-    if (droppedMedia.subtitle) {
+    if (droppedMedia.subtitle && !droppedMedia.video) {
+      setExternalSubtitle(droppedMedia.subtitle);
       setSubtitleContent(droppedMedia.subtitle.content);
-      setCurrentSubtitlePath(droppedMedia.subtitle.filePath);
 
       if (!droppedMedia.video && droppedMedia.subtitle.filePath) {
         await persistCurrentSubtitlePath(droppedMedia.subtitle.filePath);
@@ -1254,6 +1263,8 @@ export const VideoRoute: Component = () => {
     } else {
       // Blob URL — can play but can't reopen later
       const videoName = getMediaNameFromPath(path, mediaNameParseOptions());
+      videoLoadRevision++;
+      setSubtitleForVideoLoad();
       setVideoSrc(path);
       setCurrentVideoTime(0);
       setCurrentVideoDuration(null);
@@ -1275,8 +1286,9 @@ export const VideoRoute: Component = () => {
       if (!buffer) return;
 
       const content = new TextDecoder().decode(buffer);
+      const selected = { content, filePath: path };
+      setExternalSubtitle(selected);
       setSubtitleContent(content);
-      setCurrentSubtitlePath(path);
       await persistCurrentSubtitlePath(path);
     } else {
       // On non-Electron, selectSubtitleFile returns a blob URL — read as text
@@ -1287,8 +1299,9 @@ export const VideoRoute: Component = () => {
         const file = input.files?.[0];
         if (file) {
           const content = await file.text();
+          const selected = { content, filePath: '' };
+          setExternalSubtitle(selected);
           setSubtitleContent(content);
-          setCurrentSubtitlePath('');
         }
       };
       input.click();

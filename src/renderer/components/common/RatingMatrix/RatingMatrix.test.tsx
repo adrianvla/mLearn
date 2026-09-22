@@ -80,6 +80,18 @@ describe('RatingMatrix (canonical rating control)', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it('renders a package label for an opaque capability key', () => {
+    dispose = render(() => <RatingMatrix
+      capabilities={['x-test::evidentiality']}
+      capabilityLabels={{ 'x-test::evidentiality': 'Evidentiality' }}
+      keyboardMode="mnemonic"
+      armed
+      onSubmit={onSubmit}
+    />, container);
+    adjust();
+    expect(container.textContent).toContain('Evidentiality');
+  });
+
   it('requires an answer again after an access claim is undone', () => {
     const [claims, setClaims] = createSignal<Partial<Record<CapabilityKey, WordStatus>>>({
       'sense-recognition': 'learning', 'surface-reading': 'learning', 'prosodic-pattern': 'known',
@@ -265,7 +277,7 @@ describe('RatingMatrix (canonical rating control)', () => {
   });
 
   it('spatial rows beyond the table are click-only (hint dot, no key route)', () => {
-    renderMatrix('spatial', ['sense-recognition', 'surface-reading', 'gender' as CapabilityKey, 'spoken-recognition', 'trainer::evidentiality' as CapabilityKey]);
+    renderMatrix('spatial', ['sense-recognition', 'surface-reading', 'x-demo::spatial-frame' as CapabilityKey, 'spoken-recognition', 'trainer::evidentiality' as CapabilityKey]);
     adjust();
     const lastRow = rows()[5];
     expect(lastRow.querySelectorAll('.rating-matrix__cell')[0].textContent).toContain('·');

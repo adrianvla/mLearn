@@ -105,7 +105,7 @@ describe('knowledge event storage', () => {
 describe('knowledge event validation on append', () => {
   it('keeps retraction tombstones, aspects, claims, migration rows, and provenance', async () => {
     const tombstone = event(now, { kind: 'retraction', source: 'manual', retracts: 'attempt-1' });
-    const genderEvent = event(now + 1, { kind: 'status', aspect: 'gender', toStatus: 'learning' });
+    const packageAspectEvent = event(now + 1, { kind: 'status', aspect: 'x-acme::classifier', toStatus: 'learning' });
     const orthographyEvent = event(now + 2, { kind: 'rating', source: 'manual', aspect: 'orthography' });
     const claim = event(now + 3, { kind: 'claim', source: 'manual', toStatus: 'known' });
     const migration = event(now + 4, { kind: 'status', source: 'migration', toStatus: 'known', easeAfter: 1.8 });
@@ -118,12 +118,12 @@ describe('knowledge event validation on append', () => {
     });
 
     await mod.appendKnowledgeEvents({
-      'ru:one': [tombstone, genderEvent, orthographyEvent, claim, migration, scaffolded],
+      'ru:one': [tombstone, packageAspectEvent, orthographyEvent, claim, migration, scaffolded],
     });
 
     const kept = mod.getKnowledgeEvents(['ru:one'])['ru:one'];
     expect(kept).toContainEqual(tombstone);
-    expect(kept).toContainEqual(genderEvent);
+    expect(kept).toContainEqual(packageAspectEvent);
     expect(kept).toContainEqual(orthographyEvent);
     expect(kept).toContainEqual(claim);
     expect(kept).toContainEqual(migration);

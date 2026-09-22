@@ -114,6 +114,7 @@ pub(crate) struct ResolvedLlmRouteConfig {
     pub(crate) config_fingerprint: [u8; 32],
     pub(crate) requests_per_minute: u32,
     pub(crate) max_concurrent_streams: u16,
+    pub(crate) conversation_retention_days: u16,
     base_url: String,
 }
 
@@ -1113,6 +1114,7 @@ impl LlmConfigurationService {
             config_fingerprint,
             requests_per_minute: compiled.document.llm.requests_per_minute,
             max_concurrent_streams: compiled.document.llm.max_concurrent_streams,
+            conversation_retention_days: compiled.document.governance.conversation_retention_days,
             base_url,
         })
     }

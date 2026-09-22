@@ -21,7 +21,6 @@ from variants import VARIANT_OVERLAY_ALLOWLIST, _override_paths, apply_variant_o
 ROOT_OF_APP = Path(__file__).resolve().parent
 REPO_ROOT = ROOT_OF_APP.parents[1]
 ZH_METADATA_PATH = REPO_ROOT / "scripts" / "language-data" / "source" / "root-of-app" / "languages" / "zh.json"
-ZH_T2S_PATH = REPO_ROOT / "scripts" / "language-data" / "source" / "root-of-app" / "languages" / "zh.t2s.json"
 
 
 def test_apply_variant_overlay_replaces_allowlisted_whole_values():
@@ -123,82 +122,53 @@ async def _post_convert(payload: dict[str, object]) -> httpx.Response:
         return await client.post("/api/v1/convert", json=payload)
 
 
-@pytest.fixture(autouse=True)
-def _reset_convert_table_cache():
-    convert._reset_cache_for_tests()
-    yield
-    convert._reset_cache_for_tests()
+def test_convert_endpoint_delegates_opaque_operation_to_any_language_adapter(monkeypatch):
+    calls = []
 
+    class LanguageAdapter:
+        @staticmethod
+        def LANGUAGE_CONVERT(text, operation):
+            calls.append((text, operation))
+            return f"{operation}:{text}"
 
-def _configure_convert_table(monkeypatch, data_root: Path) -> None:
-    monkeypatch.setattr(config, "LANGUAGE_DATA_PATH", str(data_root))
-    monkeypatch.setattr(convert, "ROOT_OF_APP_DIR", data_root)
+    monkeypatch.setattr(config, "get_or_load_language", lambda language: LanguageAdapter if language == "x-kalaallisut" else None)
 
-
-def _block_opencc_import(monkeypatch) -> None:
-    original_import = convert.importlib.import_module
-
-    def fail_opencc(name, *args, **kwargs):
-        if name == "opencc":
-            raise ImportError("opencc unavailable")
-        return original_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(convert.importlib, "import_module", fail_opencc)
-
-
-def test_convert_endpoint_uses_packaged_table_before_opencc(tmp_path, monkeypatch):
-    data_root = tmp_path / "language-data"
-    languages_dir = data_root / "languages"
-    languages_dir.mkdir(parents=True)
-    shutil.copy(ZH_T2S_PATH, languages_dir / "zh.t2s.json")
-    _configure_convert_table(monkeypatch, data_root)
-    _block_opencc_import(monkeypatch)
-
-    response = asyncio.run(_post_convert({"language": "zh", "text": "學習", "to": "simplified"}))
+    response = asyncio.run(_post_convert({
+        "language": "x-kalaallisut",
+        "text": "ᐃᓄᒃᑎᑐᑦ",
+        "to": "package-defined-direction",
+    }))
 
     assert response.status_code == 200
-    assert response.json() == {"converted": "学习"}
+    assert response.json() == {"converted": "package-defined-direction:ᐃᓄᒃᑎᑐᑦ"}
+    assert calls == [("ᐃᓄᒃᑎᑐᑦ", "package-defined-direction")]
 
 
-def test_convert_endpoint_falls_back_to_opencc_when_table_is_missing(tmp_path, monkeypatch):
-    pytest.importorskip("opencc")
-    _configure_convert_table(monkeypatch, tmp_path / "language-data")
+def test_convert_endpoint_rejects_language_without_conversion_capability(monkeypatch):
+    monkeypatch.setattr(config, "get_or_load_language", lambda _language: object())
 
-    response = asyncio.run(_post_convert({"language": "zh", "text": "學習", "to": "simplified"}))
-
-    assert response.status_code == 200
-    assert response.json() == {"converted": "学习"}
-
-
-def test_convert_endpoint_returns_503_when_table_and_opencc_are_unavailable(tmp_path, monkeypatch):
-    _configure_convert_table(monkeypatch, tmp_path / "language-data")
-    _block_opencc_import(monkeypatch)
-
-    response = asyncio.run(_post_convert({"language": "zh", "text": "學習", "to": "simplified"}))
-
-    assert response.status_code == 503
-    assert response.json() == {"error": "OpenCC is unavailable"}
-
-
-def test_convert_endpoint_converts_simplified_to_traditional():
-    pytest.importorskip("opencc")
-
-    response = asyncio.run(_post_convert({"language": "zh", "text": "学习", "to": "traditional"}))
-
-    assert response.status_code == 200
-    assert response.json() == {"converted": "學習"}
-
-
-def test_convert_endpoint_returns_503_for_traditional_when_opencc_is_unavailable(monkeypatch):
-    _block_opencc_import(monkeypatch)
-
-    response = asyncio.run(_post_convert({"language": "zh", "text": "学习", "to": "traditional"}))
-
-    assert response.status_code == 503
-    assert response.json() == {"error": "OpenCC is unavailable"}
-
-
-def test_convert_endpoint_rejects_unknown_language():
-    response = asyncio.run(_post_convert({"language": "ja", "text": "学習", "to": "simplified"}))
+    response = asyncio.run(_post_convert({"language": "x-no-converter", "text": "word", "to": "rotate"}))
 
     assert response.status_code == 422
+    assert response.json()["detail"] == "Language package does not provide conversion"
+
+
+def test_convert_endpoint_reports_missing_package_dependency(monkeypatch):
+    def load_language(_language):
+        raise ImportError("optional language dependency unavailable")
+
+    monkeypatch.setattr(config, "get_or_load_language", load_language)
+
+    response = asyncio.run(_post_convert({"language": "x-converter", "text": "word", "to": "rotate"}))
+
+    assert response.status_code == 503
+    assert response.json() == {"error": "Language conversion dependency is unavailable"}
+
+
+def test_convert_endpoint_rejects_uninstalled_language(monkeypatch):
+    monkeypatch.setattr(config, "get_or_load_language", lambda _language: None)
+
+    response = asyncio.run(_post_convert({"language": "x-uninstalled", "text": "word", "to": "rotate"}))
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Language package is not installed"

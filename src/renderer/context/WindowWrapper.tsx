@@ -288,7 +288,7 @@ const GlobalInstallProgressModal: Component = () => {
 
 /**
  * BuiltinModelStatusListener - Keeps the shared builtinModelReady signal in sync
- * with whether the built-in LLM model is downloaded. Reads the selected model
+ * with whether the built-in LLM model and runtime are ready. Reads the selected model
  * reactively and refreshes on provider/model change and on download events.
  * Renders nothing. Only relevant when llmProvider is 'builtin'; for other
  * providers the signal value is unused by the readiness derivation.
@@ -310,7 +310,7 @@ const BuiltinModelStatusListener: Component = () => {
     let cancelled = false;
 
     void bridge.llm.llmCheckModel(modelFile).then((status) => {
-      if (!cancelled) setBuiltinModelReady(status.downloaded);
+      if (!cancelled) setBuiltinModelReady(status.ready);
     }).catch((e) => {
       log.error("[BuiltinModelStatusListener] model check failed", e);
     });
@@ -320,10 +320,10 @@ const BuiltinModelStatusListener: Component = () => {
 
   onMount(() => {
     const cleanupProgress = bridge.llm.onLLMDownloadProgress((status) => {
-      setBuiltinModelReady(status.downloaded);
+      setBuiltinModelReady(status.ready);
     });
     const cleanupStatus = bridge.llm.onLLMModelStatus((status) => {
-      setBuiltinModelReady(status.downloaded);
+      setBuiltinModelReady(status.ready);
     });
 
     onCleanup(() => {

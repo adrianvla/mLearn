@@ -1,4 +1,4 @@
-import type { KnowledgeAspect } from '../constants';
+import type { LegacyKnowledgeAspect } from '../constants';
 import type { GrammarMatchConfig } from '../types';
 
 /**
@@ -18,8 +18,8 @@ import type { GrammarMatchConfig } from '../types';
  * Core entity kinds are a fixed, strongly typed vocabulary. Third-party
  * packages extend the graph through NAMESPACED identifier kinds (`ns::local`,
  * e.g. `x-acme::classifier`) which the loader accepts and preserves; they are
- * displayable/referenceable but grant no learner capability unless a core
- * capability explicitly consumes them.
+ * displayable/referenceable by default. A package can opt an entity into
+ * learner access with opaque, package-declared capability identifiers.
  */
 export type CoreGraphEntityKind =
   | 'dictionary-entry'
@@ -65,6 +65,10 @@ export interface GraphEntity {
   label?: string;
   /** Entity-level opt-in making this node a learner target (e.g. morpheme-recognition). Default: structural only. */
   learnable?: boolean;
+  /** Package-declared learner access identifiers. Values remain opaque to core and survive compact graph round trips. */
+  learnableCapabilities?: CapabilityKey[];
+  /** Package-owned structured data keyed by stable feature ids; core preserves values without assigning linguistic meaning. */
+  features?: Record<string, unknown>;
   /** Present only on `analysis` entities: the asserted structural parse this node models. */
   analysis?: {
     /** Namespaced or core structural layer (e.g. 'morphological', 'lexical', 'x-acme::layer'). */
@@ -115,7 +119,6 @@ export type CoreGraphRelationType =
   | 'realizes'
   | 'has-sense'
   | 'has-pronunciation'
-  | 'has-gender'
   | 'has-pos'
   | 'has-prosodic-pattern'
   | 'has-character'
@@ -136,7 +139,7 @@ export type CoreGraphRelationType =
 export type GraphRelationType = CoreGraphRelationType | (string & {});
 
 export const CORE_GRAPH_RELATION_TYPES: readonly CoreGraphRelationType[] = [
-  'inflection-of', 'lemma-of', 'realizes', 'has-sense', 'has-pronunciation', 'has-gender', 'has-pos',
+  'inflection-of', 'lemma-of', 'realizes', 'has-sense', 'has-pronunciation', 'has-pos',
   'has-prosodic-pattern', 'has-character', 'has-reading', 'has-morpheme', 'orthographic-variant-of',
   'component-of', 'derived-from', 'semantically-related', 'morphologically-related', 'contrasts-with',
   'analyzes', 'analysis-member',
@@ -150,7 +153,6 @@ export const RELATION_CATEGORY: Record<CoreGraphRelationType, RelationCategory> 
   'realizes': 'property',
   'has-sense': 'property',
   'has-pronunciation': 'property',
-  'has-gender': 'property',
   'has-pos': 'property',
   'has-prosodic-pattern': 'property',
   'has-character': 'property',
@@ -201,8 +203,8 @@ export interface LinguisticGraphAsset {
 
 /**
  * Typed learner capabilities attached to graph entities. These replace
- * `wordHash + aspect` as the epistemic unit; the current user-facing aspects
- * map onto them via ASPECT_CAPABILITY.
+ * `wordHash + aspect` as the epistemic unit; a small legacy projection maps
+ * old journal values onto these current task capabilities.
  */
 export type CapabilityKind =
   | 'sense-recognition'
@@ -211,7 +213,6 @@ export type CapabilityKind =
   | 'surface-reading'
   | 'pronunciation-production'
   | 'prosodic-pattern'
-  | 'gender'
   | 'character-recognition'
   | 'character-reading'
   | 'grammar-recognition'
@@ -229,11 +230,10 @@ export interface LearnableTarget {
 }
 
 /** Current word-aspect vocabulary resolved to typed capabilities. */
-export const ASPECT_CAPABILITY: Record<KnowledgeAspect, CapabilityKind> = {
+export const ASPECT_CAPABILITY: Partial<Record<LegacyKnowledgeAspect, CapabilityKind>> = {
   meaning: 'sense-recognition',
   reading: 'surface-reading',
   prosody: 'prosodic-pattern',
-  gender: 'gender',
   pronunciation: 'pronunciation-production',
   orthography: 'surface-recognition',
 };

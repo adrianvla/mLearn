@@ -54,7 +54,6 @@
         "SenseOf": "значение",
         "Pronunciation": "произношение",
         "Reading": "чтение",
-        "Gender": "род",
         "PartOfSpeech": "часть речи",
         "ProsodicPattern": "просодия",
         "Character": "иероглиф",
@@ -1542,7 +1541,6 @@
         "surface-reading": "Чтение",
         "pronunciation-production": "Произношение",
         "prosodic-pattern": "Просодия",
-        "gender": "Род",
         "character-reading": "Знак",
         "morpheme-recognition": "Морфема",
         "grammar-recognition": "Грамматика",
@@ -1669,7 +1667,6 @@
         "Meaning": "Значение",
         "Reading": "Чтение",
         "Prosody": "Просодия",
-        "Gender": "Род",
         "Pronunciation": "Произношение",
         "Orthography": "Письменная форма"
       },
@@ -3462,6 +3459,7 @@
       "WordCount": "{count} слов"
     },
     "WordSync": {
+      "ProjectionUnavailable": "Не удалось загрузить данные знаний. Повторите попытку.",
       "Statement": {
         "Label": "Описать словами",
         "KnownSpoken": "Я знаю это слово на слух.",
@@ -3815,14 +3813,12 @@
     },
     "Review": {
       "Why": {
-        "Decision": "Решение",
         "Excluded": "Исключено",
+        "Explanation": "Очередь повторения выбирает карточки с учетом плана и прогресса обучения.",
         "Hide": "Скрыть подробности",
         "Limits": "Ограничения",
-        "NoTrace": "Для этого решения трасса вычисления не записана; доступна только причина выше.",
         "Ranking": "Ранжирование",
         "Show": "Почему?",
-        "Task": "Задача",
         "Title": "Почему эта карточка",
         "Weights": "Действующие веса"
       }

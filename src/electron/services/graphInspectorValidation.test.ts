@@ -45,6 +45,9 @@ function decodeToGraph(compact: CompactAssetJSON): LingualGraph {
       kind: graph.nodeKind(id)!,
       ...(domain ? { domain } : {}),
       ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}),
+      ...(graph.entityLearnableCapabilities?.[dense] !== undefined
+        ? { learnableCapabilities: [...graph.entityLearnableCapabilities[dense]!] }
+        : {}),
     };
   });
   const relations: GraphRelation[] = [];
@@ -151,7 +154,7 @@ describe('graph inspector validation (real assets)', () => {
     expect(relations.some((relation) => relation.type === 'has-character')).toBe(false);
   });
 
-  it.skipIf(!de)('a gendered German noun carries has-gender on its dictionary entry (via realizes)', () => {
+  it.skipIf(!de)('a German package feature stays attached to its dictionary entry (via realizes)', () => {
     const graph = de!;
     const surface = surfaceIdFor(graph, 'Haus') ? 'Haus' : surfaceIdFor(graph, 'Handschuh') ? 'Handschuh' : undefined;
     if (!surface) return;
@@ -160,7 +163,7 @@ describe('graph inspector validation (real assets)', () => {
       .filter((relation) => relation.type === 'realizes')
       .map((relation) => (relation.from === surfaceId ? relation.to : relation.from));
     const entryGendered = entryIds.some((entryId) =>
-      relationsOf(graph, entryId).some((relation) => relation.type === 'has-gender'),
+      relationsOf(graph, entryId).some((relation) => relation.type === 'de::has-gender'),
     );
     expect(entryGendered).toBe(true);
   });

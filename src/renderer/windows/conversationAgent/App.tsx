@@ -843,8 +843,8 @@ export const ConversationContent: Component = () => {
           const connected = await getBridge().llm.ollamaCheck();
           setIsConnected(connected ?? false);
         } else {
-          const status = await getBridge().llm.llmCheckModel();
-          setIsConnected(status?.downloaded ?? false);
+          const status = await getBridge().llm.llmCheckModel(settings.builtinModel);
+          setIsConnected(status?.ready ?? false);
         }
       } catch (e) {
         log.error("error", e);
@@ -860,9 +860,9 @@ export const ConversationContent: Component = () => {
   onMount(() => {
     const bridge = getBridge();
 
-    const cleanupStatus = bridge.llm.onLLMModelStatus((status: { downloaded: boolean }) => {
+    const cleanupStatus = bridge.llm.onLLMModelStatus((status: { downloaded: boolean; ready: boolean }) => {
       if (settings.llmProvider === 'builtin') {
-        setIsConnected(status.downloaded);
+        setIsConnected(status.ready);
       }
     });
 

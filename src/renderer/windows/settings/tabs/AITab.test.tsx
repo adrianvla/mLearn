@@ -388,6 +388,28 @@ describe('AITab', () => {
     dispose();
   });
 
+  it('does not show a downloaded model as ready when the runtime binary is missing', async () => {
+    mockLlmCheckModel.mockResolvedValue({
+      downloaded: true,
+      runtimeAvailable: false,
+      ready: false,
+      runtimeError: 'NoBinaryFoundError',
+      downloading: false,
+      progress: 1,
+      downloadedBytes: 100,
+      expectedBytes: 100,
+      loaded: false,
+    });
+
+    const { dispose } = await renderAITab();
+    await flushPromises();
+
+    expect(container.textContent).toContain('NoBinaryFoundError');
+    expect(container.textContent).not.toContain('Model ready');
+
+    dispose();
+  });
+
   it('shows sign in when cloud testing has no valid session', async () => {
     setSettingsStore?.({
       llmProvider: 'cloud',

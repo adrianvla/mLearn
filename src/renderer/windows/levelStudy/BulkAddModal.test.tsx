@@ -6,6 +6,7 @@ import type { JSX } from 'solid-js';
 import { WORD_STATUS } from '../../../shared/constants';
 import type { FilterToken } from '../../components/common/FilterBuilder/filterExpr';
 import type { LanguageData, WordFrequencyMap } from '../../../shared/types';
+import { clearDictionaryUniverseCache } from '../../services/dictionaryUniverse';
 
 const addLevelStudyFlashcardsMock = vi.fn();
 const showToastMock = vi.fn();
@@ -120,10 +121,13 @@ describe('BulkAddModal', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    clearDictionaryUniverseCache();
     container = document.createElement('div');
     document.body.appendChild(container);
     addLevelStudyFlashcardsMock.mockReset();
     addLevelStudyFlashcardsMock.mockResolvedValue({ created: 2, promoted: 0 });
+    enumerateDictionaryWordsMock.mockReset();
+    enumerateDictionaryWordsMock.mockResolvedValue([]);
     showToastMock.mockClear();
     onCloseMock.mockClear();
     const untracked = (word: string) => word !== '鳥';

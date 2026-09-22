@@ -117,9 +117,6 @@ export interface LocalizationBridge {
   installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => void;
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
   onLanguageDataInstallError: (callback: (payload: LanguageDataInstallError) => void) => () => void;
-  installLanguage: (url: string) => void;
-  onLanguageInstalled: (callback: (lang: string) => void) => () => void;
-  onLanguageInstallError: (callback: (error: string) => void) => () => void;
 }
 
 export interface GraphBridge {
@@ -142,7 +139,6 @@ export interface FileBridge {
   selectBookFolder: () => Promise<string | null>;
   selectPdfFile: () => Promise<string | null>;
   selectBrowserFile: () => Promise<string | null>;
-  getLocalMediaUrl: (filePath: string) => Promise<string | null>;
   getPathForFile: (file: File) => string;
   removeLegacyLanguageData: (paths: string[]) => Promise<void>;
   writeToClipboard: (text: string) => void;
@@ -375,17 +371,10 @@ export interface LicenseBridge {
 }
 
 export interface MigrationBridge {
-  getMigratedLocalStorage: () => Promise<Record<string, unknown> | null>;
-  getMigratedItem: (key: string) => Promise<unknown>;
-  hasMigrationOccurred: () => Promise<boolean>;
-  triggerMigration: () => Promise<{ success: boolean; migratedKeys: string[]; error?: string }>;
-  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => () => void;
   onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) => () => void;
-  getFlashcardMigrationInfo: () => void;
 }
 
 export interface GenericIPCBridge {
-  sendLS: (data: Record<string, unknown>) => void;
   fetchUrl: (url: string) => Promise<{ content: string; error?: string }>;
 }
 

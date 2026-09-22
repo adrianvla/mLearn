@@ -39,9 +39,6 @@ const mockBridge = {
     kvSetBatch: vi.fn(),
     kvGetAll: vi.fn(),
   },
-  generic: {
-    sendLS: vi.fn(),
-  },
 };
 
 function setupMockImplementations() {
@@ -121,6 +118,12 @@ describe('ServerContext - Electron mode', () => {
     vi.resetModules();
     vi.clearAllMocks();
     setupMockImplementations();
+    // `vi.doMock` registrations survive `resetModules()`. Reapply the default
+    // platform mock for every Electron case so the non-Electron case cannot
+    // affect it when tests run in a shuffled order.
+    vi.doMock('../../shared/platform', () => ({
+      isElectron: () => true,
+    }));
   });
 
   it('useServer throws when used outside ServerProvider', async () => {
@@ -328,13 +331,12 @@ describe('ServerContext - Non-Electron mode', () => {
     vi.resetModules();
     vi.clearAllMocks();
     setupMockImplementations();
-  });
-
-  it('non-Electron mode: immediately sets status to connected', async () => {
     vi.doMock('../../shared/platform', () => ({
       isElectron: () => false,
     }));
+  });
 
+  it('non-Electron mode: immediately sets status to connected', async () => {
     const { createRoot, createComponent } = await import('solid-js');
     const { ServerProvider, useServer } = await import('./ServerContext');
     let ctx!: ServerCtx;

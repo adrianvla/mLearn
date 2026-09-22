@@ -130,7 +130,7 @@ def _stt_language_hint(language: str | None) -> str | None:
         return None
     if isinstance(value, str) and value:
         return value
-    return requested_language
+    return None
 
 
 def _stt_transcribe_options(language: str | None, *, engine: str = "faster-whisper", **overrides) -> dict:
@@ -474,11 +474,7 @@ def _ensure_vad_loaded():
 
 
 def _ensure_stt_loaded():
-    """Load STT model (engine-aware). Returns {'model': ..., 'engine': str, 'model_id': str}.
-
-    Temporary migration note: existing call sites that expect a raw faster-whisper
-    model are intentionally updated in the follow-up T1.5 task.
-    """
+    """Load STT model (engine-aware) and return its canonical runtime record."""
     global _voice_stt_model, _voice_stt_engine, _voice_stt_downloading, _voice_stt_progress
     if _voice_stt_model is not None:
         return globals()["_voice_stt_model"]

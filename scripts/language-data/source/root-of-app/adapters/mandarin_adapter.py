@@ -66,3 +66,13 @@ def LANGUAGE_TRANSLATE(word: str):
     if _backend is None:
         raise RuntimeError("Mandarin adapter is not loaded")
     return _backend.LANGUAGE_TRANSLATE(word)
+
+
+def LANGUAGE_CONVERT(text: str, operation: str) -> str:
+    conversions = {"simplified": "t2s", "traditional": "s2t"}
+    conversion = conversions.get(operation)
+    if conversion is None:
+        raise ValueError(f"Unsupported conversion direction: {operation}")
+
+    from opencc import OpenCC
+    return OpenCC(conversion).convert(text)

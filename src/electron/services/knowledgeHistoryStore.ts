@@ -32,13 +32,12 @@ import {
 } from '../../shared/knowledge/historyArchive';
 import { getLogger } from '../../shared/utils/logger';
 import { isValidCapabilityId } from '../../shared/graph/access';
-import { KNOWLEDGE_ASPECTS, KNOWLEDGE_SOURCES } from '../../shared/constants';
+import { KNOWLEDGE_SOURCES } from '../../shared/constants';
 
 const log = getLogger('electron.knowledgeHistoryStore');
 
 // ─── Journal validation (port of the legacy normalizeLog guard) ───
 const VALID_KINDS = new Set(['status', 'review', 'rating', 'rollup', 'claim', 'retraction']);
-const VALID_ASPECTS = new Set<string>([...KNOWLEDGE_ASPECTS, 'grammar']);
 const VALID_SOURCES = new Set<string>([...KNOWLEDGE_SOURCES, 'manual', 'grammar', 'migration']);
 
 function isAttemptId(value: unknown): boolean {
@@ -58,7 +57,7 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   const schedulerOnly = event.kind === 'review' && isAttemptId(event.attemptId)
     && typeof event.schedulerCardId === 'string' && event.schedulerCardId.length > 0;
   if (!schedulerOnly && event.aspect === undefined && !isValidCapabilityId(event.targetRef?.capability)) return false;
-  if (event.aspect !== undefined && !VALID_ASPECTS.has(event.aspect)) return false;
+  if (event.aspect !== undefined && (typeof event.aspect !== 'string' || event.aspect.length === 0)) return false;
   if (event.attemptId !== undefined && !isAttemptId(event.attemptId)) return false;
   if (event.presentedSurface !== undefined && typeof event.presentedSurface !== 'string') return false;
   if (event.targetRef !== undefined) {

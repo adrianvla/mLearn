@@ -113,7 +113,6 @@ describe('flashcardStorage', () => {
   let saveFlashcards: (store: FlashcardStore) => Promise<void>;
   let getFlashcardEaseMap: () => Promise<Record<string, number>>;
   let setupFlashcardIPC: () => void;
-  let getMigrationInfo: () => { occurred: boolean; backupPath: null | string; fromVersion: null | number };
   let invalidateFlashcardsCache: () => void;
 
   beforeEach(async () => {
@@ -126,7 +125,6 @@ describe('flashcardStorage', () => {
     saveFlashcards = mod.saveFlashcards;
     getFlashcardEaseMap = mod.getFlashcardEaseMap;
     setupFlashcardIPC = mod.setupFlashcardIPC;
-    getMigrationInfo = mod.getMigrationInfo;
     invalidateFlashcardsCache = mod.invalidateFlashcardsCache;
   });
 
@@ -516,16 +514,6 @@ describe('flashcardStorage', () => {
     });
   });
 
-  describe('getMigrationInfo', () => {
-    it('returns default migration info when no migration occurred', () => {
-      const info = getMigrationInfo();
-
-      expect(info.occurred).toBe(false);
-      expect(info.backupPath).toBeNull();
-      expect(info.fromVersion).toBeNull();
-    });
-  });
-
   describe('migrations', () => {
     it('migrates v2 store to v5: converts single cardId string to array in wordToCardMap', async () => {
       const cardId = 'card-v2';
@@ -541,238 +529,6 @@ describe('flashcardStorage', () => {
       const store = await loadFlashcards();
 
       expect(store.version).toBe(3);
-    });
-
-    it('migrates v1 (array flashcards) store to v5', async () => {
-      const v1Store = {
-        flashcards: [
-          {
-            content: {
-              word: 'test',
-              translation: 'prueba',
-              pronunciation: 'test',
-            },
-            dueDate: Date.now(),
-            lastReviewed: Date.now() - 86400000,
-            ease: 2.0,
-            reviews: 3,
-          },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: {
-          flashcardsCreatedToday: 2,
-          lastFlashcardCreatedDate: Date.now(),
-        },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
-
-      const store = await loadFlashcards();
-
-      expect(store.version).toBe(3);
-      const cards = Object.values(store.flashcards);
-      expect(cards).toHaveLength(1);
-      expect(cards[0].content.front).toBe('test');
-      expect(cards[0].reviews).toBe(3);
-    });
-
-    it('assigns migrated v1 flashcards to the configured learning language', async () => {
-      fs.writeFileSync(path.join(tempDir.tmpDir, 'settings.json'), JSON.stringify({ language: 'de' }));
-      const v1Store = {
-        flashcards: [
-          {
-            content: {
-              word: 'hallo',
-              translation: 'hello',
-            },
-            dueDate: Date.now(),
-            lastReviewed: Date.now(),
-            ease: 2.5,
-            reviews: 0,
-          },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: { flashcardsCreatedToday: 0, lastFlashcardCreatedDate: Date.now() },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
-
-      const store = await loadFlashcards();
-      const [card] = Object.values(store.flashcards);
-
-      expect(card.language).toBe('de');
-      expect(store.meta.perLanguage.de).toBeDefined();
-      expect(store.meta.perLanguage.ja).toBeUndefined();
-    });
-
-    it('does not invent Japanese prosody when migrating v1 cards into a non-Japanese language', async () => {
-      fs.writeFileSync(path.join(tempDir.tmpDir, 'settings.json'), JSON.stringify({ language: 'de' }));
-      writeLanguageMetadata(tempDir.tmpDir, 'de', {
-        name: 'German',
-        prosody: { type: 'none' },
-      });
-      const v1Store = {
-        flashcards: [
-          {
-            content: {
-              word: 'hallo',
-              translation: 'hello',
-              pronunciation: 'hallo',
-              pitchAccent: 2,
-            },
-            dueDate: Date.now(),
-            lastReviewed: Date.now(),
-            ease: 2.5,
-            reviews: 0,
-          },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: { flashcardsCreatedToday: 0, lastFlashcardCreatedDate: Date.now() },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
-
-      const store = await loadFlashcards();
-      const [card] = Object.values(store.flashcards);
-
-      expect(card.language).toBe('de');
-      expect(card.content.prosody).toBeUndefined();
-    });
-
-    it('does not invent Japanese prosody when migrating v1 cards without a known language', async () => {
-      const v1Store = {
-        flashcards: [
-          {
-            content: {
-              word: 'legacy',
-              translation: 'legacy',
-              pronunciation: 'legacy',
-              pitchAccent: 2,
-            },
-            dueDate: Date.now(),
-            lastReviewed: Date.now(),
-            ease: 2.5,
-            reviews: 0,
-          },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: { flashcardsCreatedToday: 0, lastFlashcardCreatedDate: Date.now() },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
-
-      const store = await loadFlashcards();
-      const [card] = Object.values(store.flashcards);
-
-      expect(card.language).toBeUndefined();
-      expect(card.content.prosody).toBeUndefined();
-    });
-
-    it('assigns migrated v1 flashcards to the single installed language when settings are missing', async () => {
-      const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
-      fs.mkdirSync(languagesDir, { recursive: true });
-      fs.writeFileSync(path.join(languagesDir, 'ru.json'), '{}');
-      const v1Store = {
-        flashcards: [
-          {
-            content: {
-              word: 'привет',
-              translation: 'hello',
-            },
-            dueDate: Date.now(),
-            lastReviewed: Date.now(),
-            ease: 2.5,
-            reviews: 0,
-          },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: { flashcardsCreatedToday: 0, lastFlashcardCreatedDate: Date.now() },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
-
-      const store = await loadFlashcards();
-      const [card] = Object.values(store.flashcards);
-
-      expect(card.language).toBe('ru');
-      expect(store.meta.perLanguage.ru).toBeDefined();
-      expect(store.meta.perLanguage.ja).toBeUndefined();
-    });
-
-    it('v1 migration sets migrationInfo.occurred to true', async () => {
-      const v1Store = {
-        flashcards: [
-          {
-            content: { word: 'hello', translation: 'hola' },
-            dueDate: Date.now(),
-            lastReviewed: Date.now(),
-            ease: 2.5,
-            reviews: 0,
-          },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: { flashcardsCreatedToday: 0, lastFlashcardCreatedDate: Date.now() },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
-
-      await loadFlashcards();
-
-      const info = getMigrationInfo();
-      expect(info.occurred).toBe(true);
-      expect(info.fromVersion).toBe(1);
-      expect(info.backupPath).toBeTruthy();
-    });
-
-    it('v1 migration converts array translation to string back', async () => {
-      const v1Store = {
-        flashcards: [
-          {
-            content: {
-              word: 'palabra',
-              translation: ['word', 'term'],
-            },
-            dueDate: Date.now(),
-            lastReviewed: Date.now(),
-            ease: 2.5,
-            reviews: 0,
-          },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: { flashcardsCreatedToday: 0, lastFlashcardCreatedDate: Date.now() },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
-
-      const store = await loadFlashcards();
-
-      const cards = Object.values(store.flashcards);
-      expect(cards[0].content.back).toBe('word; term');
-    });
-
-    it('v1 migration skips cards with no word', async () => {
-      const v1Store = {
-        flashcards: [
-          { content: {}, dueDate: 0, lastReviewed: 0, ease: 2.5, reviews: 0 },
-          { content: { word: 'valid' }, dueDate: 0, lastReviewed: 0, ease: 2.5, reviews: 0 },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: { flashcardsCreatedToday: 0, lastFlashcardCreatedDate: 0 },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
-
-      const store = await loadFlashcards();
-
-      expect(Object.keys(store.flashcards)).toHaveLength(1);
     });
 
     it('v2 migration handles array cardIds in wordToCardMap', async () => {
@@ -796,14 +552,13 @@ describe('flashcardStorage', () => {
   });
 
   describe('setupFlashcardIPC', () => {
-    it('registers listeners for GET_FLASHCARDS, SAVE_FLASHCARDS, and GET_FLASHCARD_MIGRATION_INFO', async () => {
+    it('registers listeners for GET_FLASHCARDS and SAVE_FLASHCARDS', async () => {
       const { ipcMain } = await import('electron');
 
       setupFlashcardIPC();
 
       expect(vi.mocked(ipcMain.on)).toHaveBeenCalledWith('get-flashcards', expect.any(Function));
       expect(vi.mocked(ipcMain.on)).toHaveBeenCalledWith('save-flashcards', expect.any(Function));
-      expect(vi.mocked(ipcMain.on)).toHaveBeenCalledWith('get-flashcard-migration-info', expect.any(Function));
     });
 
     it('GET_FLASHCARDS handler replies with loaded flashcards', async () => {
@@ -849,16 +604,20 @@ describe('flashcardStorage', () => {
     });
 
     it('GET_FLASHCARDS handler also replies with migration info when migration occurred', async () => {
-      const v1Store = {
-        flashcards: [
-          { content: { word: 'hello', translation: 'hola' }, dueDate: 0, lastReviewed: 0, ease: 2.5, reviews: 0 },
-        ],
-        wordCandidates: {},
-        alreadyCreated: {},
-        knownUnTracked: {},
-        meta: { flashcardsCreatedToday: 0, lastFlashcardCreatedDate: 0 },
-      };
-      writeFlashcardsFile(tempDir.tmpDir, v1Store);
+      writeLanguageMetadata(tempDir.tmpDir, 'zh', {
+        name: 'Chinese',
+        legacyCodes: ['zh-Hans', 'zh-Hant'],
+        variants: {
+          'zh-Hans': { name: 'Simplified', overrides: {} },
+          'zh-Hant': { name: 'Traditional', overrides: {}, scriptConversion: { engine: 'opencc', config: 't2s', mappingAsset: 'languages/zh.t2s.json' } },
+        },
+      });
+      writeLanguageMetadata(tempDir.tmpDir, 'zh.t2s', { words: {}, chars: {} });
+      const legacyV2Store = makeStore({
+        flashcards: { 'card-zh': makeFlashcard('card-zh', { language: 'zh-Hans' }) },
+        version: 2,
+      });
+      writeFlashcardsFile(tempDir.tmpDir, legacyV2Store);
 
       await loadFlashcards();
 
@@ -868,7 +627,7 @@ describe('flashcardStorage', () => {
       const replyFn = vi.fn();
       await listeners![0]({ reply: replyFn });
 
-      expect(replyFn).toHaveBeenCalledWith('flashcard-migration-complete', expect.objectContaining({ occurred: true }));
+      expect(replyFn).toHaveBeenCalledWith('flashcard-migration-complete', expect.objectContaining({ occurred: true, fromVersion: 2 }));
     });
 
     it('SAVE_FLASHCARDS handler saves the provided store', async () => {
@@ -887,19 +646,6 @@ describe('flashcardStorage', () => {
       expect(saved.flashcards['card-ipc']).toBeDefined();
     });
 
-    it('GET_FLASHCARD_MIGRATION_INFO handler replies with current migration info', async () => {
-      setupFlashcardIPC();
-
-      const listeners = mockIpcListeners.get('get-flashcard-migration-info');
-      expect(listeners).toBeDefined();
-
-      const replyFn = vi.fn();
-      listeners![0]({ reply: replyFn });
-
-      expect(replyFn).toHaveBeenCalledWith('flashcard-migration-complete', expect.objectContaining({
-        occurred: expect.any(Boolean),
-      }));
-    });
   });
 
   describe('mutation-owned store cache', () => {

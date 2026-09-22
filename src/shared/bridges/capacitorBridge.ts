@@ -1,3 +1,4 @@
+import { getNodeServerAuthToken, getNodeServerUrl } from '../nodeServerCredentials';
 import { projectCapabilities } from '../knowledge/capabilityProjection';
 /**
  * Capacitor Bridge Implementation
@@ -59,7 +60,7 @@ import { replayKeyProjection } from '../utils/projectionReplay';
 import type { AppUpdateState } from '../appUpdate';
 import type { IntegrateThreadResult, IntegrationPreview, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
-import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
+import { PYTHON_BACKEND_PORT } from '../constants';
 import { isCapacitor } from '../platform';
 import { loadBundledLocaleStrings } from './bundledLanguageAssets';
 import { getLogger } from '../utils/logger';
@@ -352,11 +353,6 @@ function getBackendUrl(): string {
   // Read from stored settings or use default
   const stored = localStorage.getItem('mlearn-backend-url');
   return stored || `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
-}
-
-function getNodeServerUrl(): string {
-  const stored = localStorage.getItem('mlearn-node-server-url');
-  return stored || `http://127.0.0.1:${PROXY_SERVER_PORT}`;
 }
 
 // ============================================================================
@@ -782,18 +778,6 @@ const localizationBridge: LocalizationBridge = {
     return emitter.on('language-data-install-error', callback as Listener);
   },
 
-  installLanguage(_url: string) {
-    // Language installation not supported on mobile
-    emitter.emit('lang-install-error', 'Language installation is not supported on mobile');
-  },
-
-  onLanguageInstalled(callback) {
-    return emitter.on('lang-installed', callback as Listener);
-  },
-
-  onLanguageInstallError(callback) {
-    return emitter.on('lang-install-error', callback as Listener);
-  },
 };
 
 // ============================================================================
@@ -919,11 +903,6 @@ const fileBridge: FileBridge = {
       };
       input.click();
     });
-  },
-
-  async getLocalMediaUrl(filePath: string) {
-    // On mobile, blob URLs are the media URLs
-    return filePath;
   },
 
   getPathForFile(_file: File) {
@@ -1089,7 +1068,7 @@ const serverBridge: ServerBridge = {
     // server (authenticated via the node pairing token). Cache it so the
     // renderer can send it with direct Python calls.
     const nodeUrl = getNodeServerUrl();
-    const pairingToken = localStorage.getItem('mlearn-node-server-token');
+    const pairingToken = getNodeServerAuthToken(nodeUrl);
     if (!pairingToken) {
       emitter.emit('backend-token-changed', null);
       return;
@@ -1263,7 +1242,7 @@ const llmBridge: LLMBridge = {
     } else {
       // /forward/* requires the node pairing token; the desktop proxy injects
       // the Python bearer token itself.
-      const pairingToken = localStorage.getItem('mlearn-node-server-token');
+      const pairingToken = getNodeServerAuthToken(nodeUrl);
       if (pairingToken) headers['X-Auth-Token'] = pairingToken;
     }
 
@@ -1317,7 +1296,16 @@ const llmBridge: LLMBridge = {
   },
 
   async llmCheckModel(): Promise<LLMModelStatus> {
-    return { downloaded: false, downloading: false, progress: 0, downloadedBytes: 0, expectedBytes: 0, loaded: false };
+    return {
+      downloaded: false,
+      runtimeAvailable: false,
+      ready: false,
+      downloading: false,
+      progress: 0,
+      downloadedBytes: 0,
+      expectedBytes: 0,
+      loaded: false,
+    };
   },
 
   llmDownloadModel: noop,
@@ -1900,13 +1888,7 @@ const licenseBridge: LicenseBridge = {
 // ============================================================================
 
 const migrationBridge: MigrationBridge = {
-  async getMigratedLocalStorage() { return null; },
-  async getMigratedItem() { return null; },
-  async hasMigrationOccurred() { return false; },
-  async triggerMigration() { return { success: true, migratedKeys: [] }; },
-  onLocalStorageMigrationComplete: noopCleanup,
   onFlashcardMigrationComplete: noopCleanup,
-  getFlashcardMigrationInfo: noop,
 };
 
 // ============================================================================
@@ -1914,8 +1896,6 @@ const migrationBridge: MigrationBridge = {
 // ============================================================================
 
 const genericBridge: GenericIPCBridge = {
-  sendLS: noop,
-
   async fetchUrl(url: string) {
     try {
       const res = await fetch(url);

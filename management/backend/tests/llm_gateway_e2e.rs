@@ -117,6 +117,14 @@ async fn mock_ollama(
 }
 
 async fn setup(address: SocketAddr, provider_contacts: Arc<AtomicUsize>) -> Fixture {
+    setup_with_retention(address, provider_contacts, 30).await
+}
+
+async fn setup_with_retention(
+    address: SocketAddr,
+    provider_contacts: Arc<AtomicUsize>,
+    retention_days: u16,
+) -> Fixture {
     let db_path = std::env::temp_dir()
         .join(format!("mlearn-llm-e2e-{}.db", Uuid::now_v7()))
         .to_string_lossy()
@@ -235,7 +243,7 @@ async fn setup(address: SocketAddr, provider_contacts: Arc<AtomicUsize>) -> Fixt
     config.policy_signing_key_path = signing.clone();
     config.encryption_key_path = encryption.clone();
     config.encryption_key = None;
-    config.conversation_retention_days = 30;
+    config.conversation_retention_days = retention_days;
     let resolver_calls = Arc::new(AtomicUsize::new(0));
     let state = AppState::try_new(
         bollard::Docker::connect_with_http_defaults().unwrap(),
@@ -750,4 +758,79 @@ fn operational_redaction_preserves_safe_identifiers_and_removes_secret_material(
     assert_eq!(audit_metadata["apiKey"], "[REDACTED]");
     assert_eq!(audit_metadata["refreshToken"], "[REDACTED]");
     assert_eq!(audit_metadata["provider_id"], "provider-v1");
+}
+
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn desktop_usage_scopes_share_institutional_quota_and_conversation_visibility() {
+    for scope in ["foreground", "internal"] {
+        let (address, contacts) = mock_ollama(vec![(
+            200,
+            "{\"message\":{\"content\":\"Hello learner\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":4,\"eval_count\":2}\n",
+            Duration::ZERO,
+        )]).await;
+        let fixture = setup(address, contacts).await;
+        let mut request: Value = serde_json::from_str(include_str!(
+            "../../../test/fixtures/management-llm-request-v1.json"
+        )).unwrap();
+        request["usage_scope"] = Value::String(scope.into());
+        let send = |request: Value| {
+            let app = fixture.app.clone();
+            let token = fixture.learner_a.clone();
+            async move {
+                app.oneshot(Request::post("/api/llm/stream")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(request.to_string())).unwrap()).await.unwrap()
+            }
+        };
+        let response = send(request.clone()).await;
+        assert_eq!(response.status(), StatusCode::OK, "desktop scope {scope}");
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert!(String::from_utf8_lossy(&body).contains("Hello learner"));
+        assert!(String::from_utf8_lossy(&body).contains("data: [DONE]"));
+        assert_eq!(fixture.provider_contacts.load(Ordering::SeqCst), 1);
+        let (conversation_id,): (String,) = sqlx::query_as("SELECT conversation_id FROM llm_requests WHERE status='completed'")
+            .fetch_one(&fixture.pool).await.unwrap();
+        let (status, detail) = get_json(fixture.app.clone(), &fixture.root,
+            &format!("/api/conversations/{conversation_id}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(detail["messages"][0]["content"], "Hello");
+        let (sibling_status, _) = get_json(fixture.app.clone(), &fixture.teacher_b,
+            &format!("/api/conversations/{conversation_id}")).await;
+        assert_eq!(sibling_status, StatusCode::FORBIDDEN);
+        assert!(sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM usage_ledger")
+            .fetch_one(&fixture.pool).await.unwrap() > 0);
+        let denied = send(request.clone()).await;
+        assert_eq!(denied.status(), StatusCode::TOO_MANY_REQUESTS);
+        let denied: Value = serde_json::from_slice(&to_bytes(denied.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert_eq!(denied["error"], "quota_exceeded");
+        assert_eq!(fixture.provider_contacts.load(Ordering::SeqCst), 1);
+        request["usage_scope"] = Value::String("bypass".into());
+        assert_eq!(send(request).await.status(), StatusCode::BAD_REQUEST);
+    }
+}
+
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn gateway_persists_the_stricter_compiled_policy_or_deployment_retention() {
+    for (policy_days, deployment_days) in [(1_u16, 90_u16), (90, 1)] {
+        let (address, contacts) = mock_ollama(vec![(
+            200,
+            "{\"message\":{\"content\":\"retained response\"},\"done\":false}\n{\"done\":true,\"prompt_eval_count\":4,\"eval_count\":2}\n",
+            Duration::ZERO,
+        )]).await;
+        let fixture = setup_with_retention(address, contacts, deployment_days).await;
+        sqlx::query("INSERT INTO policy_versions(id,group_id,document_json,document_hash,compiled_hash,author_user_id,summary,parent_version_ids_json,created_at) SELECT 'retention-policy',group_id,json_set(document_json, '$.governance.conversationRetentionDays', ?),'retention-document','retention-compiled',author_user_id,'retention',parent_version_ids_json,2 FROM policy_versions WHERE id='policy'")
+            .bind(i64::from(policy_days)).execute(&fixture.pool).await.unwrap();
+        sqlx::query("UPDATE active_policies SET policy_version_id='retention-policy' WHERE group_id='school'")
+            .execute(&fixture.pool).await.unwrap();
+        let (status, _) = post_stream(fixture.app.clone(), &fixture.learner_a, "retention policy request").await;
+        assert_eq!(status, StatusCode::OK);
+        let (created_at, retained_until): (i64, i64) = sqlx::query_as(
+            "SELECT created_at,retained_until FROM conversations WHERE status='completed'")
+            .fetch_one(&fixture.pool).await.unwrap();
+        assert_eq!(retained_until - created_at, 86_400,
+            "policy={policy_days} days, deployment={deployment_days} days");
+    }
 }

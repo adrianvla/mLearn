@@ -132,3 +132,26 @@ export async function ensureLanguagePythonRequirementsInstalled(
   }
   await verifyImportChecks(pipCommand, importChecks, callbacks);
 }
+
+/** Verify a language package's imports after a pip group has already been
+ * reconciled by the backend installer. This prevents startup from running a
+ * second pip install for the same package list. */
+export async function verifyLanguagePythonRequirementsInstalled(
+  language: string,
+  langData: LanguageDataMap,
+  options: InstallOptions,
+  callbacks?: LanguagePythonRequirementInstallCallbacks,
+): Promise<void> {
+  const data = langData[language];
+  if (!data) return;
+
+  const importChecks = getLanguagePythonImportChecksForInstall({ [language]: data }, options);
+  if (importChecks.length === 0) return;
+
+  const [pipCommand] = getPipCommandCandidates();
+  if (!pipCommand) {
+    throw new Error(`Cannot verify Python requirements for ${language}; the local Python runtime is not installed.`);
+  }
+
+  await verifyImportChecks(pipCommand, importChecks, callbacks);
+}

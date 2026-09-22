@@ -7,7 +7,7 @@ import type { AccessStatusResult } from '../../utils/accessKnowledge';
 import type { CapabilityKey, LanguageData, Token } from '../../../shared/types';
 import type { ComprehensiveWordStatusResult } from '../../utils/comprehensiveKnowledge';
 
-const mockSettings: Record<string, unknown> = {
+const DEFAULT_MOCK_SETTINGS: Record<string, unknown> = {
   blur_words: false,
   blurKnownWords: false,
   showReadingAnnotations: true,
@@ -25,7 +25,10 @@ const mockSettings: Record<string, unknown> = {
   coloredProsodyEaseMixEnabled: false,
   coloredProsodyEaseMixTarget: 'white',
   coloredProsodySaturation: 100,
+  hideProsodyForKnownWords: false,
+  hideFrequencyStarsForKnownWords: false,
 };
+const mockSettings: Record<string, unknown> = { ...DEFAULT_MOCK_SETTINGS };
 
 const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(
   (): ComprehensiveWordStatusResult => ({
@@ -93,7 +96,16 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    mockGetComprehensiveWordStatusWithSourceSync.mockClear();
+    for (const key of Object.keys(mockSettings)) delete mockSettings[key];
+    Object.assign(mockSettings, DEFAULT_MOCK_SETTINGS);
+    mockGetComprehensiveWordStatusWithSourceSync.mockReset().mockReturnValue({
+      status: 'unknown',
+      basis: 'unmeasured',
+      evidenceStatus: 'unknown',
+      source: 'None',
+      timesSeen: 0,
+    });
+    mockGetAccessStatus.mockReset().mockReturnValue({ status: 'unknown', ease: 0, source: 'None', untracked: true });
     mockGetFrequency.mockReset();
     mockGetFrequency.mockReturnValue(null);
     mockGetFreqLevelNames.mockReset();

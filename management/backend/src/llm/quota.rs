@@ -1845,7 +1845,7 @@ async fn summary_in_transaction(
     for row in definition_rows {
         let calendar = calendar.as_ref().expect("definitions require a calendar");
         let definition = definition_from_row(row)?;
-        let interval = interval_for(definition.period, timestamp, &calendar)?;
+        let interval = interval_for(definition.period, timestamp, calendar)?;
         let item = ApplicableDefinition {
             definition,
             interval,

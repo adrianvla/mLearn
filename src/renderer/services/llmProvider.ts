@@ -388,11 +388,14 @@ export async function checkAvailability(settings: Settings): Promise<{ available
     }
   }
 
-  // Built-in: check if model is downloaded
+  // Built-in: require both the model file and the native runtime binary.
   try {
-    const status = await bridge.llm.llmCheckModel();
+    const status = await bridge.llm.llmCheckModel(settings.builtinModel);
     if (!status.downloaded) {
       return { available: false, reason: 'model_not_downloaded' };
+    }
+    if (!status.ready) {
+      return { available: false, reason: 'runtime_unavailable' };
     }
     return { available: true };
   } catch (e) {
@@ -407,7 +410,7 @@ export async function checkAvailability(settings: Settings): Promise<{ available
  * - cloud: ready when the user is signed in (bypasses llmEnabled — cloud
  *   doesn't require the local Python LLM component to be installed)
  * - ollama: ready when selected (runtime calls verify reachability)
- * - builtin: ready when the selected model is downloaded
+ * - builtin: ready when the selected model and native runtime are available
  * For ollama/builtin, requires llmEnabled (the local component install flag).
  */
 export function isLLMReady(settings: Settings): boolean {

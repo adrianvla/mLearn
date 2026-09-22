@@ -101,8 +101,10 @@ vi.mock('./languageDataService', () => ({
 }));
 
 const mockEnsureLanguagePythonRequirementsInstalled = vi.fn(async () => {});
+const mockVerifyLanguagePythonRequirementsInstalled = vi.fn(async () => {});
 vi.mock('./pythonRuntimeRequirements', () => ({
   ensureLanguagePythonRequirementsInstalled: mockEnsureLanguagePythonRequirementsInstalled,
+  verifyLanguagePythonRequirementsInstalled: mockVerifyLanguagePythonRequirementsInstalled,
 }));
 
 type MockReqCallbacks = Record<string, ((...args: unknown[]) => void)[]>;
@@ -1883,6 +1885,28 @@ describe('pythonBackend', () => {
     };
     const allComponents = { includeLLM: true, includeOCR: true, includeVoice: true };
     const coreOnly = { includeLLM: false, includeOCR: false, includeVoice: false };
+
+    it('keeps the shared NumPy pin compatible with Japanese OCR requirements', () => {
+      mockInstalledLanguageData = {
+        ja: {
+          name: 'Japanese',
+          runtime: { python: { packagesByComponent: { ocr: ['paddleocr>=2.7.3'] } } },
+        },
+      };
+
+      const groups = mod.buildPipInstallGroups(
+        { includeLLM: false, includeOCR: true, includeVoice: false },
+        undefined,
+        'darwin-arm64',
+      );
+      const core = groups.find((group) => group.name === 'core');
+      const language = groups.find((group) => group.name === 'language');
+
+      expect(core?.packages).toContain('numpy==2.3.5');
+      expect(core?.packages).not.toContain('numpy==2.4.2');
+      expect(language?.packages).toContain('paddleocr>=2.7.3');
+      expect(language?.packages.some((requirement) => requirement.startsWith('numpy'))).toBe(false);
+    });
 
     it('installs the mlx TTS/STT stack on Apple Silicon', () => {
       expect(mod.buildPipRequirementList(allComponents, syntheticConfig, 'darwin-arm64')).toEqual([

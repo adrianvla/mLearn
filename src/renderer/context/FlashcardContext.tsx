@@ -15,7 +15,6 @@ import { surfaceEntityId } from '../../shared/graph/load';
 import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
 import { evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
-import type { CapabilityKind } from '../../shared/graph/types';
 import { isAccessMeasurable } from '../../shared/knowledgeEvents';
 import type { KeyKnowledgeState } from '../../shared/knowledge/historyQueries';
 import type { WordStatus } from '../../shared/constants';
@@ -215,7 +214,7 @@ interface FlashcardContextValue {
     rating: SRS.Rating,
     cardId?: string,
     timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType; tested?: readonly CapabilityKind[] },
+    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType; tested?: readonly CapabilityKey[] },
   ) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
@@ -1528,7 +1527,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     rating: SRS.Rating,
     cardId?: string,
     timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType; tested?: readonly CapabilityKind[] },
+    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType; tested?: readonly CapabilityKey[] },
   ): boolean => {
     const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
     if (!card) return false;
@@ -3195,7 +3194,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     language = settings.language,
     entity?: { kind: string; id: string },
   ) => {
-    const forms = entity !== undefined || isSurfaceScopedCapability(capability)
+    const forms = entity !== undefined || isSurfaceScopedCapability(capability, languageDataFor(language))
       ? [word] : getWordFormsForLanguage(word, language);
     const now = Date.now();
     const aspect = legacyAspectFor(capability);
@@ -3230,7 +3229,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    */
   const clearAccessClaim = (word: string, capability: CapabilityKey, language = settings.language) => {
     const lang = language;
-    const forms = isSurfaceScopedCapability(capability) ? [word] : getWordFormsForLanguage(word, lang);
+    const forms = isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, lang);
     const now = Date.now();
     const aspect = legacyAspectFor(capability);
     const claimEvents: Record<string, KnowledgeEvent[]> = {};
@@ -3314,7 +3313,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }));
       saveFlashcards();
     } else {
-      const forms = isSurfaceScopedCapability(capability) ? [word] : getWordFormsForLanguage(word, language);
+      const forms = isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, language);
       setStore(produce((s) => {
         for (const form of forms) {
           const key = langKey(language, SRS.hashWordSync(form));
@@ -3334,7 +3333,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // replay/analytics consistent with the underlying writers' transition
     // events. Addressing: targetRef.capability is canonical; the legacy
     // aspect field stays written only where the mapping is lossless.
-    const storageWord = isSurfaceScopedCapability(capability) ? word : getPrimaryWordFormForLanguage(word, language);
+    const storageWord = isSurfaceScopedCapability(capability, languageDataFor(language)) ? word : getPrimaryWordFormForLanguage(word, language);
     const observationAspect = legacyAspectFor(capability);
     const observation: KnowledgeEvent = {
       t: Date.now(),

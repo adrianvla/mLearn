@@ -63,4 +63,22 @@ describe('canonical projection collections', () => {
     expect(root.state.ready()).toBe(true);
     root.dispose();
   });
+
+  it('exposes projection failures and can retry without waiting for a journal mutation', async () => {
+    query.mockRejectedValueOnce(new Error('temporary graph read failure')).mockResolvedValue(payload);
+    const root = createRoot(dispose => ({
+      dispose,
+      state: useKnowledgeProjections(() => ({ language: 'test', surfaces: ['a'] })),
+    }));
+
+    await vi.waitFor(() => expect(root.state.loading()).toBe(false));
+    expect(root.state.failed()).toBe(true);
+    expect(root.state.ready()).toBe(false);
+
+    root.state.retry();
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    expect(root.state.failed()).toBe(false);
+    expect(query).toHaveBeenCalledTimes(2);
+    root.dispose();
+  });
 });

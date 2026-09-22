@@ -619,22 +619,6 @@ describe('Localization Bridge', () => {
     expect(cb).toHaveBeenCalledWith({});
   });
 
-  it('installLanguage emits lang-install-error on mobile', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    const cb = vi.fn();
-    bridge.localization.onLanguageInstallError(cb);
-    bridge.localization.installLanguage('http://example.com/lang.zip');
-    expect(cb).toHaveBeenCalledWith(expect.stringContaining('not supported'));
-  });
-
-  it('onLanguageInstalled returns a cleanup function', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    const cleanup = bridge.localization.onLanguageInstalled(vi.fn());
-    expect(typeof cleanup).toBe('function');
-  });
-
   it('getLocalization tries server fetch when mlearn-node-server-url is set', async () => {
     localStorage.setItem('mlearn-node-server-url', 'http://localhost:7753');
     const mockFetch = vi.fn().mockResolvedValueOnce({
@@ -683,13 +667,6 @@ describe('File Bridge', () => {
     const bridge = createCapacitorBridge();
     const file = new File(['content'], 'test-video.mp4');
     expect(bridge.files.getPathForFile(file)).toBe('test-video.mp4');
-  });
-
-  it('getLocalMediaUrl returns the path as-is', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    const result = await bridge.files.getLocalMediaUrl('/some/path/video.mp4');
-    expect(result).toBe('/some/path/video.mp4');
   });
 
   it('readPdfFile returns empty ArrayBuffer', async () => {
@@ -1601,38 +1578,10 @@ describe('Migration Bridge', () => {
     vi.resetModules();
   });
 
-  it('getMigratedLocalStorage returns null', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    expect(await bridge.migration.getMigratedLocalStorage()).toBeNull();
-  });
-
-  it('getMigratedItem returns null', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    expect(await bridge.migration.getMigratedItem('any-key')).toBeNull();
-  });
-
-  it('hasMigrationOccurred returns false', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    expect(await bridge.migration.hasMigrationOccurred()).toBe(false);
-  });
-
-  it('triggerMigration returns success with empty migratedKeys', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    const result = await bridge.migration.triggerMigration();
-    expect(result.success).toBe(true);
-    expect(result.migratedKeys).toEqual([]);
-  });
-
   it('noopCleanup methods return functions', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
-    expect(typeof bridge.migration.onLocalStorageMigrationComplete(vi.fn())).toBe('function');
     expect(typeof bridge.migration.onFlashcardMigrationComplete(vi.fn())).toBe('function');
-    expect(() => bridge.migration.getFlashcardMigrationInfo()).not.toThrow();
   });
 });
 
@@ -1647,12 +1596,6 @@ describe('Generic IPC Bridge', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-  });
-
-  it('sendLS is a noop', async () => {
-    const { createCapacitorBridge } = await import('./capacitorBridge');
-    const bridge = createCapacitorBridge();
-    expect(() => bridge.generic.sendLS({ key: 'value' })).not.toThrow();
   });
 
   it('fetchUrl returns content on success', async () => {

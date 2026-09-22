@@ -54,7 +54,6 @@
         "SenseOf": "sens",
         "Pronunciation": "prononciation",
         "Reading": "lecture",
-        "Gender": "genre",
         "PartOfSpeech": "partie du discours",
         "ProsodicPattern": "motif prosodique",
         "Character": "caractère",
@@ -1542,7 +1541,6 @@
         "surface-reading": "Lecture",
         "pronunciation-production": "Prononciation",
         "prosodic-pattern": "Prosodie",
-        "gender": "Genre",
         "character-reading": "Caractère",
         "morpheme-recognition": "Morphème",
         "grammar-recognition": "Grammaire",
@@ -1669,7 +1667,6 @@
         "Meaning": "Sens",
         "Reading": "Lecture",
         "Prosody": "Prosodie",
-        "Gender": "Genre",
         "Pronunciation": "Prononciation",
         "Orthography": "Forme écrite"
       },
@@ -3462,6 +3459,7 @@
       "WordCount": "{count} mots"
     },
     "WordSync": {
+      "ProjectionUnavailable": "Les données de connaissances n’ont pas pu être chargées. Réessayez.",
       "Statement": {
         "Label": "Décrire autrement",
         "KnownSpoken": "Je connais ce mot quand je l'entends.",
@@ -3815,14 +3813,12 @@
     },
     "Review": {
       "Why": {
-        "Decision": "Décision",
         "Excluded": "Exclus",
+        "Explanation": "La file de révision choisit les cartes selon votre programme et votre progression.",
         "Hide": "Masquer les détails",
         "Limits": "Limites",
-        "NoTrace": "Aucune trace de calcul n'a été produite pour cette décision ; seule la raison ci-dessus est disponible.",
         "Ranking": "Classement",
         "Show": "Pourquoi ?",
-        "Task": "Tâche",
         "Title": "Pourquoi cette carte",
         "Weights": "Pondérations actives"
       }

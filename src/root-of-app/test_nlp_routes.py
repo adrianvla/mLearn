@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 
@@ -5,6 +6,43 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from generic_language import _dictionary_target_for_language
 from routes import nlp
+
+
+def test_tokenize_logs_counts_without_request_text(monkeypatch, caplog):
+    secret = "private learner conversation おはようございます。"
+
+    class Module:
+        def LANGUAGE_TOKENIZE(self, text):
+            return [{"word": text}]
+
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language: Module())
+    # The production logger owns its handlers instead of propagating to root.
+    monkeypatch.setattr(logging.getLogger("mlearn"), "propagate", True)
+    with caplog.at_level(logging.INFO, logger="mlearn.nlp"):
+        response = nlp.tokenize(nlp.TokenizeRequest(text=secret, language="xx"))
+
+    assert response == {"tokens": [{"word": secret}]}
+    assert caplog.records
+    assert secret not in caplog.text
+    assert f"characters={len(secret)}" in caplog.text
+
+
+def test_translate_logs_counts_without_request_word(monkeypatch, caplog):
+    secret = "private dictionary lookup"
+
+    class Module:
+        def LANGUAGE_TRANSLATE(self, word):
+            return {"data": [{"word": word}]}
+
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language: Module())
+    monkeypatch.setattr(logging.getLogger("mlearn"), "propagate", True)
+    with caplog.at_level(logging.INFO, logger="mlearn.nlp"):
+        response = nlp.get_translation(nlp.TranslationRequest(word=secret, language="xx"))
+
+    assert response == {"data": [{"word": secret}]}
+    assert caplog.records
+    assert secret not in caplog.text
+    assert f"characters={len(secret)}" in caplog.text
 
 
 def test_translate_route_applies_camel_case_dictionary_target(monkeypatch):

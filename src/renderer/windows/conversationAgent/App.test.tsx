@@ -9,7 +9,7 @@ import { render } from 'solid-js/web';
 import { Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
-import type { LLMStreamChunk } from '../../../shared/types';
+import type { LLMModelStatus, LLMStreamChunk } from '../../../shared/types';
 import type { JournalEvent, JournalEventDraft, WorldSnapshot } from '../../../shared/world';
 
 // ============================================================================
@@ -20,6 +20,16 @@ let streamCallback: (chunk: LLMStreamChunk) => void = () => {};
 let windowContextCallback: (context: unknown) => void = () => {};
 let openRoomCallback: (payload: import('../../../shared/world').OpenRoomEventPayload) => void = () => {};
 let journalEvents: JournalEvent[] = [];
+const readyModelStatus: LLMModelStatus = {
+  downloaded: true,
+  loaded: true,
+  runtimeAvailable: true,
+  ready: true,
+  downloading: false,
+  progress: 1,
+  downloadedBytes: 1,
+  expectedBytes: 1,
+};
 const worldFixture = {
   rooms: [{ id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 }],
   threads: [{ id: 'thread-a', roomId: 'room-a', state: 'active' as const, createdAt: 1 }],
@@ -41,7 +51,7 @@ const mockBridge = {
     }),
     llmStream: vi.fn(),
     llmStreamAbort: vi.fn(),
-    llmCheckModel: vi.fn(async () => ({ downloaded: true })),
+    llmCheckModel: vi.fn(async () => readyModelStatus),
     onLLMModelStatus: vi.fn(() => () => {}),
     ollamaCheck: vi.fn(async () => false),
   },
@@ -308,9 +318,10 @@ function chatText(container: HTMLElement): string {
 
 describe('conversationAgent window golden path (parity baseline)', () => {
   let container: HTMLDivElement;
-  let dispose: () => void;
+  let dispose: (() => void) | undefined;
 
   beforeEach(() => {
+    dispose = undefined;
     container = document.createElement('div');
     document.body.appendChild(container);
     streamCallback = () => {};
@@ -323,6 +334,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true }],
     };
     testSettings = { ...DEFAULT_SETTINGS, livingWorldEnabled: true };
+    // Sending is gated on the model's `ready` status. Keep the bridge fixture
+    // explicit so this suite never inherits a status implementation from a
+    // different test order.
+    mockBridge.llm.llmCheckModel.mockReset().mockResolvedValue(readyModelStatus);
     mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'room-a', threadId: 'thread-a' }));
     mockBridge.world.createPersistentRoom.mockClear();
     mockBridge.world.updateThread.mockClear();
@@ -333,6 +348,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   afterEach(() => {
     dispose?.();
+    dispose = undefined;
     container.remove();
   });
 

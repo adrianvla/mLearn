@@ -7,6 +7,7 @@ import { RatingMatrix } from '../../components/common/RatingMatrix';
 export interface WordSyncRatingProps {
   accesses: readonly CapabilityKey[];
   claims?: Readonly<Partial<Record<CapabilityKey, WordStatus>>>;
+  capabilityLabels?: Readonly<Partial<Record<CapabilityKey, string>>>;
   focusedProbe?: boolean;
   keyboardMode: RatingKeyboardMode;
   armed: boolean;
@@ -19,6 +20,7 @@ export const WordSyncRating: Component<WordSyncRatingProps> = (props) => (
   <RatingMatrix
     capabilities={props.accesses}
     claims={props.claims}
+    capabilityLabels={props.capabilityLabels}
     keyboardMode={props.keyboardMode}
     armed={props.armed}
     resetKey={props.resetKey}

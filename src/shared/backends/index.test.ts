@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getBackend, resetBackend, resolveCloudLoginUrl, resolveCloudApiUrl, requiresFirstPartyCloudLegalConsent } from './index';
+import { configureBackend, getBackend, resetBackend, resolveCloudLoginUrl, resolveCloudApiUrl, requiresFirstPartyCloudLegalConsent } from './index';
 import { HttpBackend } from './httpBackend';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 
@@ -189,5 +189,68 @@ describe('requiresFirstPartyCloudLegalConsent', () => {
       overrideCloudEndpointUrl: true,
       cloudApiUrl: 'https://cloud.example.com',
     })).toBe(false);
+  });
+});
+
+
+describe('paired tethered Anki credentials', () => {
+  const pairedNode = 'http://192.168.1.10:7753';
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify({ cards: [] }), { status: 200 }));
+  beforeEach(() => {
+    resetBackend();
+    localStorage.setItem('mlearn-node-server-url', pairedNode);
+    localStorage.setItem('mlearn-node-server-token', 'paired-token');
+    fetchMock.mockClear();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => {
+    localStorage.removeItem('mlearn-node-server-url');
+    localStorage.removeItem('mlearn-node-server-token');
+    resetBackend();
+    vi.unstubAllGlobals();
+  });
+
+  it('authenticates the real configured HttpBackend Anki request for the paired desktop', async () => {
+    configureBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752', backendToken: 'python-token' });
+    await getBackend().getCard({ word: 'word' });
+    expect(fetchMock).toHaveBeenCalledWith(`${pairedNode}/api/anki/card`, expect.objectContaining({
+      headers: { 'Content-Type': 'application/json', 'X-Auth-Token': 'paired-token' },
+    }));
+  });
+
+  it('refreshes and clears cached inferred credentials when pairing changes', async () => {
+    configureBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752' });
+    localStorage.setItem('mlearn-node-server-token', 'rotated-token');
+    await getBackend().getCard({ word: 'word' });
+    expect(fetchMock).toHaveBeenLastCalledWith(`${pairedNode}/api/anki/card`, expect.objectContaining({
+      headers: expect.objectContaining({ 'X-Auth-Token': 'rotated-token' }),
+    }));
+    localStorage.removeItem('mlearn-node-server-token');
+    await getBackend().getCard({ word: 'word' });
+    expect(fetchMock).toHaveBeenLastCalledWith(`${pairedNode}/api/anki/card`, expect.objectContaining({
+      headers: { 'Content-Type': 'application/json' },
+    }));
+  });
+
+  it('does not attach the saved pairing token to an unrelated tethered host', async () => {
+    configureBackend({ mode: 'tethered', url: 'https://unrelated.example:7752' });
+    await getBackend().getCard({ word: 'word' });
+    expect(fetchMock).toHaveBeenCalledWith('https://unrelated.example:7753/api/anki/card', expect.objectContaining({
+      headers: { 'Content-Type': 'application/json' },
+    }));
+  });
+
+  it('preserves an explicit token override and an explicit empty token', async () => {
+    configureBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752', nodeAuthToken: 'explicit-token' });
+    localStorage.setItem('mlearn-node-server-token', 'different-saved-token');
+    await getBackend().getCard({ word: 'word' });
+    expect(fetchMock).toHaveBeenLastCalledWith(`${pairedNode}/api/anki/card`, expect.objectContaining({
+      headers: expect.objectContaining({ 'X-Auth-Token': 'explicit-token' }),
+    }));
+    configureBackend({ mode: 'tethered', url: 'http://192.168.1.10:7752', nodeAuthToken: '' });
+    await getBackend().getCard({ word: 'word' });
+    expect(fetchMock).toHaveBeenLastCalledWith(`${pairedNode}/api/anki/card`, expect.objectContaining({
+      headers: { 'Content-Type': 'application/json' },
+    }));
   });
 });

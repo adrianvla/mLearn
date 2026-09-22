@@ -23,8 +23,12 @@ let llamaCppModule: typeof import('node-llama-cpp') | null = null;
 
 // State — use `any` for node-llama-cpp instance types since their constructors are private
 let llamaInstance: any = null;
+let llamaInstancePromise: Promise<any> | null = null;
+let llamaRuntimeError: string | undefined;
 let loadedModel: any = null;
 let modelContext: any = null;
+let loadedModelPath: string | null = null;
+let lifecycleTail: Promise<void> | null = null;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let currentAbortController: AbortController | null = null;
 let isDownloading = false;
@@ -57,14 +61,48 @@ async function importLlamaCpp(): Promise<typeof import('node-llama-cpp')> {
 }
 
 function getModelStatus(modelFile?: string): LLMModelStatus {
+  const downloaded = isModelDownloaded(modelFile);
+  const runtimeAvailable = llamaInstance !== null;
   return {
-    downloaded: isModelDownloaded(modelFile),
+    downloaded,
+    runtimeAvailable,
+    ready: downloaded && runtimeAvailable,
+    runtimeError: downloaded && !runtimeAvailable ? llamaRuntimeError : undefined,
     downloading: isDownloading,
     progress: downloadProgress,
     downloadedBytes,
     expectedBytes,
-    loaded: loadedModel !== null,
+    loaded: loadedModel !== null && modelContext !== null && loadedModelPath === getModelPath(modelFile),
   };
+}
+
+/** Resolve the built-in runtime once so readiness checks and chat use the same binary. */
+async function ensureLlamaRuntime(): Promise<any> {
+  if (llamaInstance) return llamaInstance;
+
+  const runtimePromise = llamaInstancePromise ??= importLlamaCpp().then((llamaCpp) => llamaCpp.getLlama());
+  try {
+    llamaInstance = await runtimePromise;
+    llamaRuntimeError = undefined;
+    return llamaInstance;
+  } catch (err) {
+    llamaRuntimeError = err instanceof Error ? err.message : String(err);
+    throw err;
+  } finally {
+    if (llamaInstancePromise === runtimePromise) llamaInstancePromise = null;
+  }
+}
+
+async function checkModelStatus(modelFile?: string): Promise<LLMModelStatus> {
+  if (isModelDownloaded(modelFile)) {
+    try {
+      await ensureLlamaRuntime();
+    } catch {
+      // Report the runtime failure in status so the UI can distinguish it from
+      // a model that has not been downloaded.
+    }
+  }
+  return getModelStatus(modelFile);
 }
 
 /**
@@ -105,62 +143,100 @@ async function downloadModel(
   }
 }
 
-function resetIdleTimer(): void {
+// Serialize native resource use with unload/delete so active sequences cannot be freed.
+function withModelLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+  const result = lifecycleTail ? lifecycleTail.then(operation) : operation();
+  const settled = result.then(() => undefined, () => undefined);
+  lifecycleTail = settled;
+  void settled.then(() => {
+    if (lifecycleTail === settled) lifecycleTail = null;
+  });
+  return result;
+}
+
+function clearIdleTimer(): void {
   if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = null;
+}
+
+function resetIdleTimer(): void {
+  clearIdleTimer();
+  if (!loadedModel) return;
   idleTimer = setTimeout(() => {
-    unloadModel();
+    void withModelLifecycle(unloadModel).catch((error) => log.error('Idle model unload failed', error));
   }, IDLE_UNLOAD_MS);
 }
 
-async function ensureModelLoaded(modelFile?: string): Promise<void> {
-  if (loadedModel && modelContext) {
-    resetIdleTimer();
-    return;
-  }
-
+async function ensureModelLoaded(modelFile: string | undefined, signal: AbortSignal): Promise<void> {
   const modelPath = getModelPath(modelFile);
+  signal.throwIfAborted();
+  if (loadedModel && modelContext && loadedModelPath === modelPath) return;
+
   if (!fs.existsSync(modelPath)) {
     throw new Error('Model not downloaded');
   }
-
-  const llamaCpp = await importLlamaCpp();
-
-  if (!llamaInstance) {
-    llamaInstance = await llamaCpp.getLlama();
+  await unloadModel();
+  const runtime = await ensureLlamaRuntime();
+  signal.throwIfAborted();
+  try {
+    loadedModel = await runtime.loadModel({ modelPath, loadSignal: signal });
+    loadedModelPath = modelPath;
+    signal.throwIfAborted();
+    modelContext = await loadedModel.createContext();
+    signal.throwIfAborted();
+  } catch (error) {
+    await unloadModel();
+    throw error;
   }
-
-  loadedModel = await llamaInstance.loadModel({ modelPath });
-  modelContext = await loadedModel.createContext();
-
-  resetIdleTimer();
 }
 
-function unloadModel(): void {
-  if (idleTimer) {
-    clearTimeout(idleTimer);
-    idleTimer = null;
-  }
-
+async function unloadModel(): Promise<void> {
+  clearIdleTimer();
   if (modelContext) {
-    modelContext.dispose();
+    await modelContext.dispose();
     modelContext = null;
   }
   if (loadedModel) {
-    loadedModel.dispose();
+    await loadedModel.dispose();
     loadedModel = null;
+  }
+  loadedModelPath = null;
+}
+
+async function streamChat(
+  messages: LLMChatMessage[],
+  tools: LLMToolDefinition[],
+  sender: Electron.WebContents,
+  modelFile?: string,
+): Promise<void> {
+  clearIdleTimer();
+  const controller = new AbortController();
+  currentAbortController = controller;
+  try {
+    await ensureModelLoaded(modelFile, controller.signal);
+    controller.signal.throwIfAborted();
+    await streamLoadedChat(messages, tools, sender, controller.signal);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, { done: true, content: '' });
+    } else {
+      throw error;
+    }
+  } finally {
+    currentAbortController = null;
+    resetIdleTimer();
   }
 }
 
 /**
  * Convert unified LLM types to node-llama-cpp format and stream a chat response
  */
-async function streamChat(
+async function streamLoadedChat(
   messages: LLMChatMessage[],
   tools: LLMToolDefinition[],
   sender: Electron.WebContents,
-  modelFile?: string
+  signal: AbortSignal,
 ): Promise<void> {
-  await ensureModelLoaded(modelFile);
 
   const llamaCpp = await importLlamaCpp();
 
@@ -172,9 +248,11 @@ async function streamChat(
   // history (sent by the renderer) is reconstructed properly.
   const session = new llamaCpp.LlamaChatSession({
     contextSequence: modelContext.getSequence(),
+    // Each request owns one context sequence. Releasing it is required before
+    // the next queued request can allocate another sequence from this context.
+    autoDisposeSequence: true,
   });
 
-  currentAbortController = new AbortController();
   const startTime = Date.now();
   let firstTokenTime = 0;
   let tokenCount = 0;
@@ -186,68 +264,69 @@ async function streamChat(
   // The last message should be the user prompt
   const lastUserMsg = conversationMessages[conversationMessages.length - 1];
   if (!lastUserMsg || lastUserMsg.role !== 'user') {
-    session.dispose?.();
+    await session.dispose?.();
     throw new Error('No user message found');
   }
 
-  // Build the chat history for node-llama-cpp from all messages except the last user message
-  const chatHistoryItems: { type: string; text?: string; response?: string[] }[] = [];
-  if (systemMessages.length > 0) {
-    chatHistoryItems.push({
-      type: 'system',
-      text: systemMessages.map(m => m.content).join('\n'),
-    });
-  }
-  for (const msg of conversationMessages.slice(0, -1)) {
-    if (msg.role === 'user') {
-      chatHistoryItems.push({ type: 'user', text: msg.content });
-    } else if (msg.role === 'assistant') {
-      chatHistoryItems.push({ type: 'model', response: [msg.content] });
-    }
-    // Tool messages are handled implicitly by node-llama-cpp's function calling
-  }
-
-  if (chatHistoryItems.length > 0) {
-    session.setChatHistory(chatHistoryItems as Parameters<typeof session.setChatHistory>[0]);
-  }
-
-  // Build function definitions for node-llama-cpp tool calling
-  const functions: Record<string, ReturnType<typeof llamaCpp.defineChatSessionFunction>> = {};
-
-  // Collected tool calls
-  const collectedToolCalls: LLMToolCall[] = [];
-  let toolCallIdCounter = 0;
-
-  for (const tool of tools) {
-    functions[tool.name] = llamaCpp.defineChatSessionFunction({
-      description: tool.description,
-      params: tool.parameters as Parameters<typeof llamaCpp.defineChatSessionFunction>[0]['params'],
-      handler: async (params) => {
-        const toolCall: LLMToolCall = {
-          id: `call_${Date.now()}_${toolCallIdCounter++}`,
-          name: tool.name,
-          arguments: (params ?? {}) as Record<string, unknown>,
-        };
-        collectedToolCalls.push(toolCall);
-
-        // Emit the tool call immediately
-        const chunk: LLMStreamChunk = {
-          toolCalls: [toolCall],
-        };
-        sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
-
-        // Return a simple acknowledgment — the tool is "executed" on the renderer side
-        return 'Tool executed successfully';
-      },
-    });
-  }
-
   try {
+    // Build the chat history for node-llama-cpp from all messages except the last user message
+    const chatHistoryItems: { type: string; text?: string; response?: string[] }[] = [];
+    if (systemMessages.length > 0) {
+      chatHistoryItems.push({
+        type: 'system',
+        text: systemMessages.map(m => m.content).join('\n'),
+      });
+    }
+    for (const msg of conversationMessages.slice(0, -1)) {
+      if (msg.role === 'user') {
+        chatHistoryItems.push({ type: 'user', text: msg.content });
+      } else if (msg.role === 'assistant') {
+        chatHistoryItems.push({ type: 'model', response: [msg.content] });
+      }
+      // Tool messages are handled implicitly by node-llama-cpp's function calling
+    }
+
+    if (chatHistoryItems.length > 0) {
+      session.setChatHistory(chatHistoryItems as Parameters<typeof session.setChatHistory>[0]);
+    }
+
+    // Build function definitions for node-llama-cpp tool calling
+    const functions: Record<string, ReturnType<typeof llamaCpp.defineChatSessionFunction>> = {};
+
+    // Collected tool calls
+    const collectedToolCalls: LLMToolCall[] = [];
+    let toolCallIdCounter = 0;
+
+    for (const tool of tools) {
+      functions[tool.name] = llamaCpp.defineChatSessionFunction({
+        description: tool.description,
+        params: tool.parameters as Parameters<typeof llamaCpp.defineChatSessionFunction>[0]['params'],
+        handler: async (params) => {
+          const toolCall: LLMToolCall = {
+            id: `call_${Date.now()}_${toolCallIdCounter++}`,
+            name: tool.name,
+            arguments: (params ?? {}) as Record<string, unknown>,
+          };
+          collectedToolCalls.push(toolCall);
+
+          // Emit the tool call immediately
+          const chunk: LLMStreamChunk = {
+            toolCalls: [toolCall],
+          };
+          sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
+
+          // Return a simple acknowledgment — the tool is "executed" on the renderer side
+          return 'Tool executed successfully';
+        },
+      });
+    }
+
     // Build prompt options
     const promptOptions: Parameters<typeof session.prompt>[1] = {
-      signal: currentAbortController.signal,
+      signal,
       functions: Object.keys(functions).length > 0 ? functions : undefined,
       onTextChunk: (text: string) => {
+        if (signal.aborted) return;
         if (!firstTokenTime) firstTokenTime = Date.now();
         tokenCount++;
 
@@ -261,6 +340,7 @@ async function streamChat(
     };
 
     const response = await session.prompt(lastUserMsg.content, promptOptions);
+    signal.throwIfAborted();
 
     if (tokenCount === 0 && response) {
       // node-llama-cpp may suppress onTextChunk for think-tag content;
@@ -283,7 +363,7 @@ async function streamChat(
     sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, doneChunk);
   } catch (err) {
     log.error('LLM stream error', err as Error);
-    if ((err as Error).name === 'AbortError' || currentAbortController?.signal.aborted) {
+    if ((err as Error).name === 'AbortError' || signal.aborted) {
       const abortChunk: LLMStreamChunk = { done: true, content: '' };
       sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, abortChunk);
     } else {
@@ -294,9 +374,7 @@ async function streamChat(
       sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, errorChunk);
     }
   } finally {
-    currentAbortController = null;
-    resetIdleTimer();
-    session.dispose?.();
+    await session.dispose?.();
   }
 }
 
@@ -306,7 +384,7 @@ async function streamChat(
 export function setupBuiltinLLMIPC(): void {
   // Check model status
   ipcMain.handle(IPC_CHANNELS.LLM_CHECK_MODEL, (_event, modelFile?: string) => {
-    return getModelStatus(modelFile);
+    return checkModelStatus(modelFile);
   });
 
   // Download model
@@ -320,7 +398,7 @@ export function setupBuiltinLLMIPC(): void {
         resolvedModelFile,
         event.sender
       );
-      event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, getModelStatus(resolvedModelFile));
+      event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, await checkModelStatus(resolvedModelFile));
     } catch (err) {
       log.error('Model download IPC handler failed', err as Error);
       const status: LLMModelStatus = {
@@ -333,7 +411,7 @@ export function setupBuiltinLLMIPC(): void {
 
   // Unload model
   ipcMain.on(IPC_CHANNELS.LLM_UNLOAD_MODEL, () => {
-    unloadModel();
+    return withModelLifecycle(unloadModel).catch((error) => log.error('Model unload failed', error));
   });
 
   // Get system memory info for autoselect
@@ -364,13 +442,11 @@ export function setupBuiltinLLMIPC(): void {
     if (!isWhitelisted) {
       throw new Error(`Model file not in registry: ${modelFile}`);
     }
-    const filePath = getModelPath(modelFile);
-    if (loadedModel !== null && fs.existsSync(filePath)) {
-      unloadModel();
-    }
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    return withModelLifecycle(async () => {
+      const filePath = getModelPath(modelFile);
+      if (loadedModelPath === filePath) await unloadModel();
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    });
   });
 }
 
@@ -383,7 +459,7 @@ export async function builtinStreamChat(
   tools: LLMToolDefinition[],
   modelFile?: string,
 ): Promise<void> {
-  await streamChat(messages, tools, sender, modelFile);
+  await withModelLifecycle(() => streamChat(messages, tools, sender, modelFile));
 }
 
 /**

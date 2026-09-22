@@ -423,7 +423,7 @@ function streamChatUnified(
   sender: Electron.WebContents,
   messages: LLMChatMessage[],
   tools: LLMToolDefinition[],
-): void {
+): Promise<void> {
   const settings = loadSettings();
   const baseUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
   const model = settings.ollamaModel || 'llama3.2';
@@ -456,9 +456,30 @@ function streamChatUnified(
     headers: { 'Content-Type': 'application/json' },
   };
 
+  let doneSent = false;
+  let completed = false;
+  let responseStarted = false;
+  let resolveCompletion!: () => void;
+  const completion = new Promise<void>(resolve => { resolveCompletion = resolve; });
+  const sendChunk = (chunk: LLMStreamChunk): void => {
+    if (doneSent) return;
+    if (chunk.done) doneSent = true;
+    if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
+  };
+  const complete = (chunk: LLMStreamChunk): void => {
+    if (completed) return;
+    completed = true;
+    if (activeStreamRequests.get(sender.id) === req) activeStreamRequests.delete(sender.id);
+    try {
+      sendChunk(chunk);
+    } finally {
+      resolveCompletion();
+    }
+  };
+
   const req = lib.request(options, (res) => {
+    responseStarted = true;
     let buffer = '';
-    let doneSent = false;
     // Track thinking state for models that still use thinking mode
     // (fallback if `think: false` is not supported by the Ollama version).
     // Thinking is wrapped in `<think>` regions as transport metadata, never
@@ -468,6 +489,7 @@ function streamChatUnified(
     let inThinking = false;
 
     res.on('data', (rawChunk: Buffer) => {
+      if (completed || doneSent) return;
       buffer += rawChunk.toString();
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
@@ -519,16 +541,13 @@ function streamChatUnified(
               inThinking = false;
             }
             chunk.done = true;
-            doneSent = true;
             if (parsed.eval_count != null) chunk.evalCount = parsed.eval_count;
             if (parsed.eval_duration != null) chunk.evalDuration = parsed.eval_duration;
             if (parsed.prompt_eval_duration != null) chunk.promptEvalDuration = parsed.prompt_eval_duration;
             if (parsed.total_duration != null) chunk.totalDuration = parsed.total_duration;
           }
 
-          if (!sender.isDestroyed()) {
-            sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
-          }
+          sendChunk(chunk);
         } catch (e) {
           log.error("error", e);
         }
@@ -536,7 +555,7 @@ function streamChatUnified(
     });
 
     res.on('end', () => {
-      activeStreamRequests.delete(sender.id);
+      if (completed) return;
       if (buffer.trim()) {
         try {
           const parsed = JSON.parse(buffer);
@@ -569,39 +588,32 @@ function streamChatUnified(
               })
             );
           }
-          if (!sender.isDestroyed()) {
-            sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
-          }
+          sendChunk(chunk);
         } catch (e) {
           log.error("error", e);
           if (!doneSent && !sender.isDestroyed()) {
-            sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, { done: true } as LLMStreamChunk);
+            sendChunk({ done: true });
           }
         }
       } else if (!doneSent && !sender.isDestroyed()) {
-        sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, { done: true } as LLMStreamChunk);
+        sendChunk({ done: true });
       }
+      complete({ done: true });
     });
 
     res.on('error', (err) => {
-      activeStreamRequests.delete(sender.id);
-      if (!sender.isDestroyed()) {
-        sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, {
-          error: err.message,
-          done: true,
-        } as LLMStreamChunk);
-      }
+      complete({ error: err.message, done: true });
+    });
+    res.on('close', () => {
+      complete({ error: 'Ollama response closed before completion', done: true });
     });
   });
 
   req.on('error', (err) => {
-    activeStreamRequests.delete(sender.id);
-    if (!sender.isDestroyed()) {
-      sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, {
-        error: err.message,
-        done: true,
-      } as LLMStreamChunk);
-    }
+    complete({ error: err.message, done: true });
+  });
+  req.on('close', () => {
+    if (!responseStarted) complete({ error: 'Ollama request closed before receiving a response', done: true });
   });
 
   // Track this request so it can be aborted; destroy any prior request first
@@ -610,6 +622,7 @@ function streamChatUnified(
   activeStreamRequests.set(sender.id, req);
   req.write(JSON.stringify(body));
   req.end();
+  return completion;
 }
 
 /**
@@ -679,8 +692,8 @@ export function ollamaStreamChatUnified(
   sender: Electron.WebContents,
   messages: LLMChatMessage[],
   tools: LLMToolDefinition[],
-): void {
-  streamChatUnified(sender, messages, tools);
+): Promise<void> {
+  return streamChatUnified(sender, messages, tools);
 }
 
 /**

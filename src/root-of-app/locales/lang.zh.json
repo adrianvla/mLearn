@@ -54,7 +54,6 @@
         "SenseOf": "释义",
         "Pronunciation": "发音",
         "Reading": "读音",
-        "Gender": "性",
         "PartOfSpeech": "词性",
         "ProsodicPattern": "韵律模式",
         "Character": "字",
@@ -1542,7 +1541,6 @@
         "surface-reading": "拼读",
         "pronunciation-production": "发音",
         "prosodic-pattern": "声调",
-        "gender": "性别",
         "character-reading": "汉字",
         "morpheme-recognition": "语素",
         "grammar-recognition": "语法",
@@ -1669,7 +1667,6 @@
         "Meaning": "词义",
         "Reading": "读音",
         "Prosody": "韵律",
-        "Gender": "性",
         "Pronunciation": "发音",
         "Orthography": "写法"
       },
@@ -3462,6 +3459,7 @@
       "WordCount": "{count} 个单词"
     },
     "WordSync": {
+      "ProjectionUnavailable": "无法加载知识数据。请重试。",
       "Statement": {
         "Label": "换个方式描述",
         "KnownSpoken": "听到这个单词我认识。",
@@ -3815,14 +3813,12 @@
     },
     "Review": {
       "Why": {
-        "Decision": "判定",
         "Excluded": "已排除",
+        "Explanation": "复习队列会根据学习计划和学习进度选择卡片。",
         "Hide": "收起详情",
         "Limits": "局限",
-        "NoTrace": "该判定没有记录计算轨迹；仅能显示上述原因。",
         "Ranking": "排序",
         "Show": "为什么？",
-        "Task": "任务",
         "Title": "为何是这张卡",
         "Weights": "生效权重"
       }

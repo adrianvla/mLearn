@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compoundSplitterConfig, languageSupportsCompoundSplitting } from './languageFeatures';
+import { compoundSplitterConfig, getCapabilityLabel, getTestedAccesses, languageSupportsCompoundSplitting } from './languageFeatures';
 import { getAvailableAccesses } from './types';
 import { attestedCompoundAnalysis } from './graph/morphology/attested';
 import { createCompoundLexicon, decomposeCompound } from './graph/morphology/compounds';
@@ -59,7 +59,7 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
 
   it('derives learnable targets from graph structure, never from language identity', () => {
     // Unfamiliar combination: character-reading and grammar data, plus a
-    // component-of composition edge, but no prosody or gender anywhere.
+    // component-of composition edge without requiring a core-only capability.
     const graph = loadLinguisticGraph({
       schemaVersion: 1 as const,
       language: UNKNOWN_CODE,
@@ -274,6 +274,31 @@ describe('package normalization, prosody, and categories through shared pipeline
     expect(isTranslatablePartOfSpeech('x-test-agnostic::noun-class-7', categorized)).toBe(true);
     expect(isTranslatablePartOfSpeech('noun', categorized)).toBe(false);
   });
+
+  it('exposes an opaque package capability to generic access discovery and rating tasks', () => {
+    const packageWithCapability: LanguageData = {
+      name: 'Test-Agnostic capability task',
+      learning: {
+        capabilities: {
+          'x-test-agnostic::evidentiality': {
+            label: 'Evidentiality',
+            testableIn: ['word-sync', 'srs-review'],
+            scope: 'surface',
+          },
+        },
+      },
+    };
+
+    expect(getAvailableAccesses(packageWithCapability)).toContain('x-test-agnostic::evidentiality');
+    expect(getTestedAccesses({
+      languageData: packageWithCapability,
+      surface: 'zorqmek',
+      hasReadingData: false,
+      hasProsodyData: false,
+      taskType: 'word-sync',
+    })).toContain('x-test-agnostic::evidentiality');
+    expect(getCapabilityLabel(packageWithCapability, 'x-test-agnostic::evidentiality')).toBe('Evidentiality');
+  });
 });
 
 describe('open-world graph semantics (PART H guards)', () => {
@@ -339,17 +364,14 @@ describe('open-world graph semantics (PART H guards)', () => {
     expect(applicableCapabilities(graph, graph.nodes.get(`${LANG}:morpheme:isk`)!)).toEqual([]);
   });
 
-  it('carries non-m/f/n grammatical categories without core assumptions', () => {
-    // Swahili-style noun class (1/3) — not m/f/n.
+  it('carries package-declared capabilities and arbitrary category values without core assumptions', () => {
     const graph = loadFixture(
       [
-        { id: `${LANG}:lexeme:kitabu`, kind: 'lexeme' as const, label: 'kitabu' },
+        { id: `${LANG}:lexeme:kitabu`, kind: 'lexeme' as const, label: 'kitabu', learnableCapabilities: ['x-swa::nominal-class'] },
         { id: `${LANG}:class:3`, kind: 'grammar-pattern' as const, label: 'class 3' },
       ],
-      [{ from: `${LANG}:lexeme:kitabu`, to: `${LANG}:class:3`, type: 'has-gender' }],
+      [{ from: `${LANG}:lexeme:kitabu`, to: `${LANG}:class:3`, type: 'x-swa::has-class' }],
     );
-    // The capability is granted structurally; the VALUE domain is package-owned.
-    expect(applicableCapabilities(graph, graph.nodes.get(`${LANG}:lexeme:kitabu`)!)).toEqual(['gender']);
+    expect(applicableCapabilities(graph, graph.nodes.get(`${LANG}:lexeme:kitabu`)!)).toEqual(['x-swa::nominal-class']);
   });
 });
-

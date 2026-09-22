@@ -76,6 +76,7 @@ import { scrollReaderToPageStart } from './readerNavigation';
 import { readerTextThemeClass } from './readerTextThemes';
 import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldClearStatus, resolveReaderOcrAutomationState } from './readerOcrAutomation';
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
+import { createReaderOcrState } from './readerOcrState';
 import { createGrammarEncounterRecorder, journalGrammarEncountersForTokenGroups } from '../../../../shared/grammar/encounters';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
@@ -405,18 +406,12 @@ export function warmReaderPageTranslations(
   );
 }
 
-// OCR results cache by page id
-const [ocrResults, setOcrResults] = createStore<Record<string, OcrResult>>({});
-
 // Queue system for OCR to ensure serial processing (1 at a time)
 // and allow cancellation of pending tasks by simply removing them from queue.
 interface OcrTask {
   page: PageImage;
   isCaching: boolean; // true if this is a background caching task, not visible
 }
-const [ocrQueue, setOcrQueue] = createSignal<OcrTask[]>([]);
-const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
-let lastOcrReadinessWarning = '';
 let epubBlobUrls: string[] = [];
 
 export const revokeEpubBlobUrls = () => {
@@ -539,6 +534,17 @@ const extractFolderName = (filePath: string): string => {
 };
 
 export const ReaderRoute: Component = () => {
+  const ocrState = createReaderOcrState();
+  const ocrResults = ocrState.results;
+  const [ocrQueue, setOcrQueue] = createSignal<OcrTask[]>([]);
+  const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
+  let lastOcrReadinessWarning = '';
+  let readerDisposed = false;
+  onCleanup(() => {
+    readerDisposed = true;
+    ocrState.reset();
+    setOcrQueue([]);
+  });
   const navigate = useNavigate();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { isProcessing: _ocrHookProcessing } = useOCR();
@@ -772,6 +778,28 @@ export const ReaderRoute: Component = () => {
   let readerMainRef: HTMLElement | undefined;
   const [imageRefs, setImageRefs] = createSignal<Record<string, HTMLImageElement>>({});
   const [ocrPageWords, setOcrPageWords] = createStore<Record<string, ReaderPageWordSource[]>>({});
+
+  const captureOcrRequest = (page: PageImage) => {
+    const request = ocrState.capture();
+    const language = settings.language;
+    const languageData = currentLangData();
+    return {
+      ...request,
+      isCurrent: () => !readerDisposed && request.isCurrent()
+        && language === settings.language && languageData === currentLangData()
+        && pages().includes(page),
+    };
+  };
+
+  createEffect(on(() => [settings.language, currentLangData(), settings.ocrProvider] as const, () => {
+    batch(() => {
+      ocrState.reset();
+      setOcrQueue([]);
+      setCroppedRegions({});
+      setOcrPageWords(reconcile({}));
+      setOcrCompletedIds(new Set<string>());
+    });
+  }));
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
 
@@ -1240,13 +1268,15 @@ export const ReaderRoute: Component = () => {
     const image = imageRefs()[page.id];
     if (!image || cropProcessingPageId()) return;
 
+    const request = captureOcrRequest(page);
     const crop = await createCropBlob(image, displayRect);
-    if (!crop) return;
+    if (!crop || !request.isCurrent()) return;
 
     setCropProcessingPageId(page.id);
     setOcrStatus(t('mlearn.Reader.Status.Recognizing'));
     try {
       await showSettingRequirementWarningsOnce();
+      if (!request.isCurrent()) return;
       const languageData = currentLangData();
       assertOcrLanguageDataReady(settings.language, languageData);
 
@@ -1272,10 +1302,11 @@ export const ReaderRoute: Component = () => {
         ));
       }
 
+      if (!request.isCurrent()) return;
       const pageResult = remapCropResultToPage(result, image, crop.naturalRect);
       const existing = ocrResults[page.id];
       const retainedBoxes = existing?.boxes.filter((box) => !boxIntersectsRect(box, crop.naturalRect)) ?? [];
-      setOcrResults(page.id, {
+      request.write(page.id, {
         ...pageResult,
         boxes: [...retainedBoxes, ...pageResult.boxes],
       });
@@ -1298,8 +1329,8 @@ export const ReaderRoute: Component = () => {
         next.add(page.id);
         return next;
       });
-      updateOverallStatus();
     } catch (error) {
+      if (!request.isCurrent()) return;
       const message = error instanceof Error ? error.message : String(error);
       if (isReaderOcrReadinessErrorMessage(message)) {
         stopOcrForReadinessError(message);
@@ -1308,6 +1339,7 @@ export const ReaderRoute: Component = () => {
       }
     } finally {
       setCropProcessingPageId(null);
+      if (!readerDisposed) updateOverallStatus();
     }
   };
 
@@ -1624,7 +1656,7 @@ export const ReaderRoute: Component = () => {
 
   // Serial Queue Processor
   const processQueue = async () => {
-    if (processingTask()) return; // Already working
+    if (readerDisposed || processingTask()) return; // Already working
 
     const automationState = currentOcrAutomationState();
     if (readerOcrShouldClearStatus(automationState)) {
@@ -1659,26 +1691,21 @@ export const ReaderRoute: Component = () => {
     setProcessingTask(task);
     updateOverallStatus();
 
+    const request = captureOcrRequest(task.page);
+    let result: OcrResult | null = null;
     try {
-      await performOcr(task.page);
+      result = await performOcr(task.page);
     } finally {
-      // Reset server OCR progress for next page
-      setServerOcrProgress(null);
-      setServerOcrMessage('');
-
-      // Track completed page (only count each page once)
-      const pageId = task.page.id;
-      if (!ocrCompletedIds().has(pageId)) {
-        setOcrCompletedIds(prev => {
-          const next = new Set(prev);
-          next.add(pageId);
-          return next;
-        });
+      if (request.isCurrent()) {
+        setServerOcrProgress(null);
+        setServerOcrMessage('');
+        const pageId = task.page.id;
+        if (result && !ocrCompletedIds().has(pageId)) {
+          setOcrCompletedIds(prev => new Set([...prev, pageId]));
+        }
       }
-
       setProcessingTask(null);
-      // Process next
-      processQueue();
+      if (!readerDisposed) void processQueue();
     }
   };
 
@@ -1707,6 +1734,7 @@ export const ReaderRoute: Component = () => {
 
   const performOcr = async (page: PageImage) => {
     if (page.kind !== 'image') return null;
+    const request = captureOcrRequest(page);
     // Reset server progress at start of each page
     setServerOcrProgress(null);
     setServerOcrMessage('');
@@ -1716,6 +1744,7 @@ export const ReaderRoute: Component = () => {
 
     try {
       await showSettingRequirementWarningsOnce();
+      if (!request.isCurrent()) return null;
 
       const languageData = currentLangData();
       const automationState = currentOcrAutomationState();
@@ -1739,6 +1768,7 @@ export const ReaderRoute: Component = () => {
         }
         imageBlob = await (await fetch(page.src)).blob();
       }
+      if (!request.isCurrent()) return null;
       assertOcrLanguageDataReady(settings.language, languageData);
 
       let result: OcrResult;
@@ -1772,7 +1802,8 @@ export const ReaderRoute: Component = () => {
         ));
       }
 
-      setOcrResults(page.id, result);
+      if (!request.isCurrent()) return null;
+      request.write(page.id, result);
       setCroppedRegions((prev) => {
         if (!prev[page.id]) return prev;
         const next = { ...prev };
@@ -1784,6 +1815,7 @@ export const ReaderRoute: Component = () => {
       }
       return result;
     } catch (error) {
+      if (!request.isCurrent()) return null;
       const message = error instanceof Error ? error.message : String(error);
       if (isReaderOcrReadinessErrorMessage(message)) {
         stopOcrForReadinessError(message);
@@ -1951,10 +1983,10 @@ export const ReaderRoute: Component = () => {
   ) => {
     // invariant: URLs are created fresh per load into a LOCAL array and handed to commitLoadedPages; the previous generation is revoked only as its replacement is adopted — no live page ever references a dead URL.
     adoptEpubBlobUrls(options.epubBlobUrls ?? []);
-    setOcrResults({});
-    setCroppedRegions({});
     const imagePageCount = newPages.filter((page) => page.kind === 'image').length;
     batch(() => {
+      ocrState.reset();
+      setCroppedRegions({});
       setTextSourcePages(options.textSourcePages ?? null);
       setCurrentPage(options.startPage);
       setPages(newPages);
@@ -2153,9 +2185,9 @@ export const ReaderRoute: Component = () => {
         blob: file,
       }));
 
-      setOcrResults({});
-      setCroppedRegions({});
       batch(() => {
+        ocrState.reset();
+        setCroppedRegions({});
         setTextSourcePages(null);
         setCurrentPage(startPage);
         setPages(newPages);
@@ -2537,13 +2569,11 @@ export const ReaderRoute: Component = () => {
       blob: file,
     }));
 
-    // Clear OCR cache when loading new book
-    setOcrResults({});
-    setCroppedRegions({});
-
     // Use batch to ensure currentPage and pages update atomically
     // This prevents the createEffect from running with stale currentPage
     batch(() => {
+      ocrState.reset();
+      setCroppedRegions({});
       setTextSourcePages(null);
       setCurrentPage(startPage);
       setPages(newPages);

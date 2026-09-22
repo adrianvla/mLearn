@@ -13,7 +13,7 @@ from typing import Any
 
 SCRIPT = Path(__file__).with_name("build-graph-assets.py")
 ENTITY_KINDS = {"dictionary-entry", "lexeme", "surface", "sense", "pronunciation", "character", "morpheme", "grammar-pattern"}
-RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-gender", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related", "analyzes", "analysis-member"}
+RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related", "analyzes", "analysis-member"}
 
 
 def _load_builder(root: Path):
@@ -235,6 +235,7 @@ class BuildGraphAssetsTest(unittest.TestCase):
 
             entities = graph.entities
             self.assertEqual(entities["ru:entry:t:0"]["label"], "молоко")
+            self.assertEqual(entities["ru:entry:t:0"]["learnableCapabilities"], ["ru::gender"])
             self.assertEqual(entities["ru:gender:n"]["kind"], "grammar-pattern")
             pronunciation = entities["ru:pron:молоко́"]
             self.assertEqual(pronunciation["kind"], "pronunciation")
@@ -242,7 +243,7 @@ class BuildGraphAssetsTest(unittest.TestCase):
             self.assertEqual(pronunciation["label"], "молоко́")
 
             relations = graph.relations
-            self.assertIn(("ru:entry:t:0", "ru:gender:n", "has-gender", "openrussian"), relations)
+            self.assertIn(("ru:entry:t:0", "ru:gender:n", "ru::has-gender", "openrussian"), relations)
             self.assertIn(("ru:entry:t:0", "ru:pron:молоко́", "has-reading", "openrussian"), relations)
             self.assertIn(("ru:surface:" + hashlib.sha256("молока".encode("utf-8")).hexdigest(),
                            "ru:surface:" + hashlib.sha256("молоко".encode("utf-8")).hexdigest(),

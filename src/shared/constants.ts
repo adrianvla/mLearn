@@ -75,9 +75,6 @@ export const IPC_CHANNELS = {
   INSTALL_LANGUAGE_DATA: 'install-language-data',
   LANGUAGE_DATA_INSTALLED: 'language-data-installed',
   LANGUAGE_DATA_INSTALL_ERROR: 'language-data-install-error',
-  INSTALL_LANG: 'install-lang',
-  LANG_INSTALLED: 'lang-installed',
-  LANG_INSTALL_ERROR: 'lang-install-error',
 
   // Linguistic graph
   GRAPH_GET_META: 'graph-get-meta',
@@ -115,12 +112,6 @@ export const IPC_CHANNELS = {
   KNOWLEDGE_LANGUAGE_KEYS: 'knowledge-language-keys',
   // Migration
   FLASHCARD_MIGRATION_COMPLETE: 'flashcard-migration-complete',
-  GET_FLASHCARD_MIGRATION_INFO: 'get-flashcard-migration-info',
-  LOCALSTORAGE_MIGRATION_COMPLETE: 'localstorage-migration-complete',
-  GET_MIGRATED_LOCALSTORAGE: 'get-migrated-localstorage',
-  GET_MIGRATED_ITEM: 'get-migrated-item',
-  HAS_MIGRATION_OCCURRED: 'has-migration-occurred',
-  TRIGGER_MIGRATION: 'trigger-migration',
   
   // Window management
   TRAFFIC_LIGHTS: 'traffic-lights',
@@ -243,9 +234,6 @@ export const IPC_CHANNELS = {
   SET_TITLEBAR_OVERLAY: 'set-titlebar-overlay',
   WINDOW_FULLSCREEN_CHANGED: 'window-fullscreen-changed',
   
-  // LocalStorage sync
-  SEND_LS: 'send-ls',
-  
   // File operations
   READ_DIRECTORY_IMAGES: 'read-directory-images',
   REMOVE_LEGACY_LANGUAGE_DATA: 'remove-legacy-language-data',
@@ -255,8 +243,6 @@ export const IPC_CHANNELS = {
   SELECT_BOOK_FOLDER: 'select-book-folder',
   SELECT_PDF_FILE: 'select-pdf-file',
   SELECT_BROWSER_FILE: 'select-browser-file',
-  GET_LOCAL_MEDIA_URL: 'get-local-media-url',
-
   // Media stats
   SAVE_MEDIA_STATS: 'save-media-stats',
   GET_MEDIA_STATS: 'get-media-stats',
@@ -515,8 +501,10 @@ export const ANKI_EASE = {
 export const WORD_STATUS_VALUES = ['unknown', 'learning', 'known'] as const;
 export type WordStatus = typeof WORD_STATUS_VALUES[number];
 
-export const KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody', 'gender', 'pronunciation', 'orthography'] as const;
-export type KnowledgeAspect = typeof KNOWLEDGE_ASPECTS[number];
+/** Legacy journal aspects remain strings so language packages can preserve arbitrary values. */
+export type KnowledgeAspect = string;
+export const LEGACY_KNOWLEDGE_ASPECTS = ['meaning', 'reading', 'prosody', 'pronunciation', 'orthography'] as const;
+export type LegacyKnowledgeAspect = typeof LEGACY_KNOWLEDGE_ASPECTS[number];
 
 // The legacy flat-aspect vocabulary. RETIRED as a learner model: the
 // epistemic unit is now the directed access (entity + CapabilityKind, see
@@ -525,14 +513,12 @@ export type KnowledgeAspect = typeof KNOWLEDGE_ASPECTS[number];
 // The old ASPECT_PREREQUISITES universal chain (meaning ← reading ← prosody)
 // is replaced by task-mediated access decomposition (demonstratesOf).
 
-// Locale keys for aspect display names — the single source for every surface
-// (pill rows, history tabs, attribution buttons/toasts). Record-typed so adding
-// an aspect forces its label here.
-export const KNOWLEDGE_ASPECT_LABEL_KEYS: Record<KnowledgeAspect, string> = {
+// Locale keys for legacy journal aspect labels. Unknown package-owned aspect
+// identifiers remain displayable through their package metadata or raw id.
+export const LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS: Record<LegacyKnowledgeAspect, string> = {
   meaning: 'mlearn.Knowledge.Aspect.Meaning',
   reading: 'mlearn.Knowledge.Aspect.Reading',
   prosody: 'mlearn.Knowledge.Aspect.Prosody',
-  gender: 'mlearn.Knowledge.Aspect.Gender',
   pronunciation: 'mlearn.Knowledge.Aspect.Pronunciation',
   orthography: 'mlearn.Knowledge.Aspect.Orthography',
 };

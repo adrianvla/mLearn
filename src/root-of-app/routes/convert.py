@@ -1,10 +1,7 @@
-"""Chinese script conversion backed by packaged language data when available."""
+"""Language-package conversion adapter endpoint."""
 
 import asyncio
-import importlib
-import json
-from pathlib import Path
-from typing import Literal
+import inspect
 
 import config  # pyright: ignore[reportImplicitRelativeImport]
 from fastapi import APIRouter, HTTPException
@@ -13,65 +10,46 @@ from pydantic import BaseModel, Field
 
 
 router = APIRouter(prefix="/api/v1/convert")
-ROOT_OF_APP_DIR = Path(config.ROOT_OF_APP_DIR)
-_TABLE_UNSET = object()
-_t2s_chars: dict[str, str] | None | object = _TABLE_UNSET
 
 
 class ConvertRequest(BaseModel):
-    language: str
+    language: str = Field(..., min_length=1, max_length=32)
     text: str = Field(..., max_length=50000)
-    to: Literal["simplified", "traditional"]
-
-
-def _t2s_table_path() -> Path:
-    data_root = Path(config.LANGUAGE_DATA_PATH) if config.LANGUAGE_DATA_PATH else ROOT_OF_APP_DIR
-    installed_path = data_root / "languages" / "zh.t2s.json"
-    return installed_path if installed_path.is_file() else ROOT_OF_APP_DIR / "languages" / "zh.t2s.json"
-
-
-def _load_t2s_chars() -> dict[str, str] | None:
-    global _t2s_chars
-    if _t2s_chars is _TABLE_UNSET:
-        try:
-            table = json.loads(_t2s_table_path().read_text(encoding="utf-8"))
-            chars = table.get("chars") if isinstance(table, dict) else None
-            _t2s_chars = chars if isinstance(chars, dict) else None
-        except (OSError, json.JSONDecodeError):
-            _t2s_chars = None
-    return _t2s_chars if isinstance(_t2s_chars, dict) else None
-
-
-def _convert_with_opencc(text: str, conversion_config: str) -> str:
-    opencc = importlib.import_module("opencc")
-    return opencc.OpenCC(conversion_config).convert(text)
-
-
-def _convert_to_simplified(text: str) -> str:
-    chars = _load_t2s_chars()
-    if chars is not None:
-        return "".join(chars.get(char, char) for char in text)
-    return _convert_with_opencc(text, "t2s")
-
-
-def _reset_cache_for_tests() -> None:
-    global _t2s_chars
-    _t2s_chars = _TABLE_UNSET
+    to: str = Field(..., min_length=1, max_length=128)
 
 
 @router.post("")
 async def convert_endpoint(request: ConvertRequest):
-    if request.language != "zh":
-        # Only zh currently ships scriptConversion metadata.
-        raise HTTPException(status_code=422, detail="Unsupported script conversion language")
     try:
-        if request.to == "simplified":
-            converted = await asyncio.get_running_loop().run_in_executor(None, _convert_to_simplified, request.text)
-        else:
-            # No packaged s2t table exists, so this direction requires OpenCC.
-            converted = await asyncio.get_running_loop().run_in_executor(None, _convert_with_opencc, request.text, "s2t")
+        language_module = config.get_or_load_language(request.language)
     except ImportError:
-        return JSONResponse(status_code=503, content={"error": "OpenCC is unavailable"})
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Language conversion dependency is unavailable"},
+        )
+
+    if language_module is None:
+        raise HTTPException(status_code=422, detail="Language package is not installed")
+
+    handler = getattr(language_module, "LANGUAGE_CONVERT", None)
+    if not callable(handler):
+        raise HTTPException(status_code=422, detail="Language package does not provide conversion")
+
+    try:
+        if inspect.iscoroutinefunction(handler):
+            converted = await handler(request.text, request.to)
+        else:
+            converted = await asyncio.to_thread(handler, request.text, request.to)
+    except ImportError:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Language conversion dependency is unavailable"},
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if not isinstance(converted, str):
+        raise HTTPException(status_code=500, detail="Language conversion returned an invalid result")
     return {"converted": converted}
 
 

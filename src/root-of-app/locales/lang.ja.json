@@ -54,7 +54,6 @@
         "SenseOf": "意味",
         "Pronunciation": "発音",
         "Reading": "読み",
-        "Gender": "性",
         "PartOfSpeech": "品詞",
         "ProsodicPattern": "アクセント",
         "Character": "字",
@@ -1542,7 +1541,6 @@
         "surface-reading": "読み",
         "pronunciation-production": "発音",
         "prosodic-pattern": "アクセント",
-        "gender": "性",
         "character-reading": "文字",
         "morpheme-recognition": "形態素",
         "grammar-recognition": "文法",
@@ -1669,7 +1667,6 @@
         "Meaning": "意味",
         "Reading": "読み",
         "Prosody": "プロソディ",
-        "Gender": "性別",
         "Pronunciation": "発音",
         "Orthography": "表記"
       },
@@ -3462,6 +3459,7 @@
       "WordCount": "{count} 語"
     },
     "WordSync": {
+      "ProjectionUnavailable": "学習データを読み込めませんでした。もう一度お試しください。",
       "Statement": {
         "Label": "言葉で伝える",
         "KnownSpoken": "聞いたら分かる言葉です。",
@@ -3815,14 +3813,12 @@
     },
     "Review": {
       "Why": {
-        "Decision": "判定",
         "Excluded": "除外",
+        "Explanation": "復習キューは、学習計画とこれまでの学習状況に基づいてカードを選びます。",
         "Hide": "詳細を隠す",
         "Limits": "限界",
-        "NoTrace": "この判定には計算経路の記録がありません。上の理由のみ表示できます。",
         "Ranking": "順位",
         "Show": "理由を見る",
-        "Task": "タスク",
         "Title": "このカードが選ばれた理由",
         "Weights": "適用中の重み"
       }

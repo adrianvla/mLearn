@@ -18,7 +18,7 @@ import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
-import type { CapabilityKind, Flashcard, FlashcardContent } from '../../../shared/types';
+import type { CapabilityKey, Flashcard, FlashcardContent } from '../../../shared/types';
 import { ASPECT_CAPABILITY } from '../../../shared/graph/types';
 import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
 import { surfaceEntityId } from '../../../shared/graph/load';
@@ -216,7 +216,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   });
 
   // Matrix rows: capabilities THIS card interaction tests (shared tested/supplied gate).
-  const testedAccesses = createMemo<readonly CapabilityKind[]>(() => {
+  const testedAccesses = createMemo<readonly CapabilityKey[]>(() => {
     const card = currentCard();
     if (!card) return ['sense-recognition'] as const;
     return getTestedAccesses({
@@ -224,6 +224,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       surface: card.content.front,
       hasReadingData: cardHasReadingData(card),
       hasProsodyData: cardHasProsodyData(card),
+      taskType: 'srs-review',
     }).filter(capability => knowledge.capabilities().includes(capability));
   });
 
@@ -255,7 +256,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const modeOptions = createMemo(() => (
     availableAspects().map((aspect) => ({
       value: aspect,
-      label: t(CAPABILITY_LABEL_KEYS[ASPECT_CAPABILITY[aspect]]),
+      label: t(CAPABILITY_LABEL_KEYS[ASPECT_CAPABILITY[aspect as keyof typeof ASPECT_CAPABILITY] ?? aspect] ?? aspect),
     }))
   ));
 
@@ -290,7 +291,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       }
       const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, timing?.wallLatencyMs ?? 0, {
         attemptId,
-        tested: observations.map((observation) => observation.capability as CapabilityKind),
+        tested: observations.map((observation) => observation.capability),
         ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
       });
       if (completed) setCardsAnswered((previous) => previous + 1);
@@ -742,6 +743,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             <div class="flashcard-rating-buttons">
               <RatingMatrix
                 capabilities={testedAccesses()}
+                capabilityLabels={Object.fromEntries(testedAccesses().map((capability) => {
+                  const label = (currentCard() ? languageDataForCard(currentCard()!) : undefined)?.learning?.capabilities?.[capability]?.label;
+                  return [capability, label];
+                }).filter((entry): entry is [string, string] => entry[1] !== undefined))}
                 keyboardMode={settings.ratingKeyboardMode}
                 armed={showAnswer() && !!currentCard() && !isComplete()}
                 resetKey={currentCard()?.id}

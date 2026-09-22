@@ -154,9 +154,6 @@
     {"pattern":"того и гляди","meaning":"imminent and often undesirable possibility","level":6,"match":{"type":"text","text":"того и гляди"}},
     {"pattern":"не преминуть + infinitive","meaning":"formal assurance that someone will certainly act","level":6,"match":{"type":"text","text":"не премин"}}
   ],
-  "gender": {
-    "attributeKey": "gender"
-  },
   "textProcessing": {
     "scriptProfile": {
       "acceptedScripts": ["Cyrl"],

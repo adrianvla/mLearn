@@ -3,7 +3,7 @@ import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledg
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { assembleTargetExplanation, type TargetState } from '../../../shared/graph/explanations';
 import type { KeyArchive } from '../../../shared/knowledge/historyArchive';
-import type { CapabilityKind } from '../../../shared/graph/types';
+import type { CapabilityKey } from '../../../shared/graph/types';
 import type { GraphNeighborhood } from '../../../shared/graph/ipc';
 import { getBridge } from '../../../shared/bridges';
 import { attemptActiveLatencyMs } from '../../../shared/knowledgeEvents';
@@ -31,7 +31,7 @@ export const GraphInspectorContent: Component = () => {
   const graph = useGraph();
   const [entityId, setEntityId] = createSignal<string>();
   const { neighborhood, pending, failed, loadingMore, loadMore, retry } = useGraphNeighborhood(graph, entityId);
-  const [selectedCapability, setSelectedCapability] = createSignal<CapabilityKind>();
+  const [selectedCapability, setSelectedCapability] = createSignal<CapabilityKey>();
   const [events, setEvents] = createSignal<import('../../../shared/graph/explanations').JournalRow[]>([]);
   const [archive, setArchive] = createSignal<KeyArchive | undefined>(undefined);
   const [details, setDetails] = createSignal(false);
@@ -117,12 +117,13 @@ export const GraphInspectorContent: Component = () => {
 
 export const GraphInspectorApp: Component = () => <WindowWrapper showDragRegion><GraphInspectorContent /></WindowWrapper>;
 
-function capabilitiesFor(neighborhood: GraphNeighborhood): CapabilityKind[] {
+function capabilitiesFor(neighborhood: GraphNeighborhood): CapabilityKey[] {
   if (neighborhood.center.kind !== 'surface') return [];
-  return ['surface-recognition',
+  return [...new Set(['surface-recognition',
     ...(neighborhood.relations.some((relation) => relation.relationType === 'has-pronunciation') ? ['surface-reading' as const, 'pronunciation-production' as const] : []),
     // Pitch/tone data is a property of the surface like pronunciation, so its
     // capability belongs in the inspector's selectable set alongside it.
     ...(neighborhood.relations.some((relation) => relation.relationType === 'has-prosodic-pattern') ? ['prosodic-pattern' as const] : []),
-  ];
+    ...(neighborhood.center.learnableCapabilities ?? []),
+  ])];
 }

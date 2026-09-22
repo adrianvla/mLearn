@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { GrammarSelector } from './GrammarSelector';
 
@@ -41,6 +41,9 @@ vi.mock('../../context/FlashcardContext', () => ({
 }));
 
 let dispose: (() => void) | undefined;
+beforeEach(() => {
+  state.settings = { language: 'de', easeThresholdLearning: 2.0, easeThresholdKnown: 3.0 };
+});
 afterEach(() => { dispose?.(); dispose = undefined; document.body.replaceChildren(); vi.clearAllMocks(); });
 
 function renderSelector(): HTMLElement {
@@ -81,6 +84,7 @@ describe('GrammarSelector classification parity', () => {
     // てしまう: 30 encounters materialize ease 1.6, but hasActiveEvidence is
     // false — exposure is familiarity, never Learning (REQ13; FINAL review
     // major #1). The configured thresholds must not rescue it either.
+    state.settings = { language: 'de', easeThresholdLearning: 1.55, easeThresholdKnown: 1.8 };
     const container = renderSelector();
     const badge = statusBadgeFor(container, 'てしまう');
     expect(badge?.className).toContain('grammar-selector__status--untracked');

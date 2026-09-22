@@ -99,7 +99,11 @@ def test_voice_transcribe_uses_request_language_for_stt_options(monkeypatch):
             return [SimpleNamespace(text="سلام")], SimpleNamespace(language="fa")
 
     monkeypatch.setattr(voice, "_validate_voice_sample_path", lambda _path: "/tmp/sample.wav")
-    monkeypatch.setattr(voice, "_ensure_stt_loaded", lambda: FakeSttModel())
+    monkeypatch.setattr(
+        voice,
+        "_ensure_stt_loaded",
+        lambda: {"model": FakeSttModel(), "engine": "faster-whisper", "model_id": "fixture"},
+    )
     monkeypatch.setattr(voice, "_voice_touch", lambda: None)
 
     def fake_stt_transcribe_options(language, **options):
@@ -116,6 +120,17 @@ def test_voice_transcribe_uses_request_language_for_stt_options(monkeypatch):
 
     assert captured_languages == ["farsi"]
     assert captured_options == [
-        ("/tmp/sample.wav", {"language": "fa", "beam_size": 5, "vad_filter": True})
+        (
+            "/tmp/sample.wav",
+            {
+                "language": "fa",
+                "engine": "faster-whisper",
+                "beam_size": 5,
+                "vad_filter": True,
+                "condition_on_previous_text": False,
+                "no_speech_threshold": 0.6,
+                "log_prob_threshold": -1.0,
+            },
+        )
     ]
     assert result == {"text": "سلام", "language": "fa"}

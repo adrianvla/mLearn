@@ -316,7 +316,7 @@ export function eventCapability(event: KnowledgeEvent): CapabilityKey | undefine
   if (event.targetRef?.capability !== undefined) return event.targetRef.capability;
   if (event.aspect === undefined) return undefined;
   if (event.aspect === 'grammar') return 'grammar-recognition';
-  return ASPECT_CAPABILITY[event.aspect];
+  return ASPECT_CAPABILITY[event.aspect as keyof typeof ASPECT_CAPABILITY] ?? event.aspect;
 }
 
 /** Keys are `${language}:${hash}` values shared with wordKnowledge. */

@@ -15,9 +15,23 @@ export interface DroppedSubtitleFile {
   filePath: string;
 }
 
+export type ExternalSubtitle = DroppedSubtitleFile;
+
 export interface DroppedMediaFiles {
   video: DroppedVideoFile | null;
   subtitle: DroppedSubtitleFile | null;
+}
+
+/** Keep a subtitle chosen before the first video, but do not carry one video's
+ * subtitle into a different video. An explicit subtitle arriving with the
+ * selected video always wins. */
+export function resolveSubtitleForVideoLoad(
+  selectedSubtitle: ExternalSubtitle | null,
+  hasActiveVideo: boolean,
+  incomingSubtitle?: ExternalSubtitle | null,
+): ExternalSubtitle | null {
+  if (incomingSubtitle) return incomingSubtitle;
+  return hasActiveVideo ? null : selectedSubtitle;
 }
 
 function getFileExtension(fileName: string): string {

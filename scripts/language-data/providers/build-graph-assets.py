@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import ssl
 import tarfile
@@ -28,7 +29,7 @@ LEGACY_SOURCE_FILES = {"nouns": 10, "verbs": 6, "adjectives": 4, "others": 4}
 FREEDICT_INDEX_URL = "https://freedict.org/freedict-database.json"
 TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 ENTITY_KINDS = {"dictionary-entry", "lexeme", "surface", "sense", "pronunciation", "character", "morpheme", "grammar-pattern", "analysis"}
-RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-gender", "has-pos", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related", "analyzes", "analysis-member"}
+RELATION_TYPES = {"inflection-of", "lemma-of", "realizes", "has-sense", "has-pronunciation", "has-pos", "has-prosodic-pattern", "has-character", "has-reading", "has-morpheme", "orthographic-variant-of", "component-of", "derived-from", "semantically-related", "morphologically-related", "analyzes", "analysis-member"}
 # Mirror of GraphDomain in src/shared/graph/types.ts: the runtime treats a
 # missing `domain` as 'common', and DEFAULT_ENABLED_DOMAINS (['common']) keeps
 # specialized domains out of ordinary learning/prediction.
@@ -90,7 +91,7 @@ class Graph:
         self.source_versions = source_versions
         self.entities: dict[str, dict[str, object]] = {}
         self.relations: dict[tuple[str, str, str, str], dict[str, str]] = {}
-    def entity(self, entity_id: str, kind: str, label: str = "", grammar: dict[str, object] | None = None, domain: str | None = None) -> str:
+    def entity(self, entity_id: str, kind: str, label: str = "", grammar: dict[str, object] | None = None, domain: str | None = None, learnable_capabilities: list[str] | None = None) -> str:
         assert kind in ENTITY_KINDS
         assert domain is None or domain in GRAPH_DOMAINS
         if entity_id not in self.entities:
@@ -101,6 +102,8 @@ class Graph:
                 entity["grammar"] = grammar
             if domain:
                 entity["domain"] = domain
+            if learnable_capabilities:
+                entity["learnableCapabilities"] = list(learnable_capabilities)
             self.entities[entity_id] = entity
         return entity_id
 
@@ -108,7 +111,7 @@ class Graph:
                  order: int | None = None, role: str | None = None,
                  confidence: float | None = None, transparency: float | None = None,
                  predictability: float | None = None) -> None:
-        assert relation_type in RELATION_TYPES
+        assert relation_type in RELATION_TYPES or bool(re.fullmatch(r"[a-z][a-z0-9-]*::[a-z][a-z0-9-]*", relation_type))
         # Qualifier-less relations keep the plain 4-tuple key; an asserted
         # position (order) disambiguates multiple member edges between the
         # same pair.
@@ -474,12 +477,16 @@ def add_russian_record(graph: Graph, local_id: str, bare: str, reading: str, gen
     lemma = unstressed(bare)
     if not lemma:
         return
-    entry = graph.entity(f"ru:entry:{local_id or lemma}", "dictionary-entry", lemma)
+    has_package_feature = gender in {"m", "f", "n"}
+    entry = graph.entity(
+        f"ru:entry:{local_id or lemma}", "dictionary-entry", lemma,
+        learnable_capabilities=["ru::gender"] if has_package_feature else None,
+    )
     lemma_surface = graph.entity(surface_id("ru", lemma), "surface", lemma)
     graph.relation(lemma_surface, entry, "realizes", "openrussian")
-    if gender in {"m", "f", "n"}:
+    if has_package_feature:
         gender_id = graph.entity(f"ru:gender:{gender}", "grammar-pattern", gender)
-        graph.relation(entry, gender_id, "has-gender", "openrussian")
+        graph.relation(entry, gender_id, "ru::has-gender", "openrussian")
     reading = stressed(reading or bare)
     if reading:
         pronunciation = graph.entity(f"ru:pron:{reading}", "pronunciation", reading)
@@ -555,14 +562,18 @@ def build_de() -> tuple[int, int, int] | None:
                     word = normalized("".join(orth.itertext()))
                     if word:
                         entry_words.append(word)
-                entry_id = graph.entity(f"de:entry:{entry_index}", "dictionary-entry", entry_words[0] if entry_words else "")
+                gender = normalized(entry.findtext("./tei:gramGrp/tei:gen", default="", namespaces=TEI_NS)).lower()[:1]
+                has_package_feature = gender in {"m", "f", "n"}
+                entry_id = graph.entity(
+                    f"de:entry:{entry_index}", "dictionary-entry", entry_words[0] if entry_words else "",
+                    learnable_capabilities=["de::gender"] if has_package_feature else None,
+                )
                 for word in entry_words:
                     surface = graph.entity(surface_id("de", word), "surface", word)
                     graph.relation(surface, entry_id, "realizes", "freedict")
-                gender = normalized(entry.findtext("./tei:gramGrp/tei:gen", default="", namespaces=TEI_NS)).lower()[:1]
-                if gender in {"m", "f", "n"}:
+                if has_package_feature:
                     gender_id = graph.entity(f"de:gender:{gender}", "grammar-pattern", gender)
-                    graph.relation(entry_id, gender_id, "has-gender", "freedict")
+                    graph.relation(entry_id, gender_id, "de::has-gender", "freedict")
                 for sense_index, sense in enumerate(entry.findall("./tei:sense", TEI_NS)[:3], start=1):
                     gloss = next((normalized("".join(node.itertext())) for node in sense.findall(".//tei:quote", TEI_NS) if normalized("".join(node.itertext()))), "")
                     if gloss:

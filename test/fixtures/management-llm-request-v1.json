@@ -1,0 +1,6 @@
+{
+  "messages": [{ "role": "user", "content": "Hello" }],
+  "model_tier": "standard",
+  "think": false,
+  "usage_scope": "foreground"
+}

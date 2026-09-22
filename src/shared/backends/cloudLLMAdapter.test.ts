@@ -1,3 +1,4 @@
+import managementRequestFixture from '../../../test/fixtures/management-llm-request-v1.json';
 import { CloudLLMAdapter } from './cloudLLMAdapter';
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk } from '../types';
 
@@ -89,6 +90,14 @@ describe('CloudLLMAdapter', () => {
         await adapter.streamChat(baseMessages, baseTools, cb);
         const init = mockFetch.mock.calls[0][1] as RequestInit;
         expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+      });
+
+      it.each(['foreground', 'internal'] as const)('matches the school gateway request fixture for %s work', async (scope) => {
+        const adapter = new CloudLLMAdapter('https://school.example', 'learner-token');
+        mockFetch.mockResolvedValue(createSSEResponse(['data: [DONE]']));
+        await adapter.streamChat(baseMessages, baseTools, makeCallbacks(), 'standard', false, scope);
+        const init = mockFetch.mock.calls[0][1] as RequestInit;
+        expect(JSON.parse(init.body as string)).toEqual({ ...managementRequestFixture, usage_scope: scope });
       });
 
       it('marks main-owned background work as internal without changing the foreground default', async () => {

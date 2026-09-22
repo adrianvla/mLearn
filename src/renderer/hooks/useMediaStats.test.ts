@@ -187,6 +187,51 @@ describe('useMediaStats', () => {
     });
   });
 
+  it('ignores a delayed response for the previous media when saving the current media', () => {
+    createRoot((dispose) => {
+      const hook = createHook();
+      hook.setMedia('first.mp4');
+      const firstHash = hook.mediaHash();
+      const firstResponse = onMediaStatsCallback!;
+      hook.setMedia('second.mp4');
+      const secondHash = hook.mediaHash();
+      firstResponse(makeStats({ mediaHash: firstHash, mediaName: 'first.mp4', totalTimeSpent: 999 }));
+      hook.saveStats();
+      expect(hook.stats().mediaName).toBe('second.mp4');
+      expect(mockSaveMediaStats).toHaveBeenLastCalledWith(secondHash, expect.objectContaining({
+        mediaHash: secondHash, mediaName: 'second.mp4', totalTimeSpent: 0,
+      }));
+      dispose();
+    });
+  });
+
+  it('rejects an old request after switching away and back to the same media', () => {
+    createRoot((dispose) => {
+      const hook = createHook();
+      hook.setMedia('first.mp4');
+      const firstHash = hook.mediaHash();
+      const staleResponse = onMediaStatsCallback!;
+      hook.setMedia('second.mp4');
+      hook.setMedia('first.mp4');
+      onMediaStatsCallback!(makeStats({ mediaHash: firstHash, mediaName: 'first.mp4', totalTimeSpent: 12 }));
+      staleResponse(makeStats({ mediaHash: firstHash, mediaName: 'first.mp4', totalTimeSpent: 3 }));
+      expect(hook.stats().totalTimeSpent).toBe(12);
+      dispose();
+    });
+  });
+
+  it('subscribes before requesting stats so immediate bridge responses are retained', () => {
+    mockGetMediaStats.mockImplementation((hash: string) => {
+      onMediaStatsCallback?.(makeStats({ mediaHash: hash, mediaName: 'first.mp4', totalTimeSpent: 18 }));
+    });
+    createRoot((dispose) => {
+      const hook = createHook();
+      hook.setMedia('first.mp4');
+      expect(hook.stats().totalTimeSpent).toBe(18);
+      dispose();
+    });
+  });
+
   it('recordWord adds new word entry', () => {
     createRoot((dispose) => {
       const hook = createHook();

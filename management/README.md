@@ -73,7 +73,7 @@ docker compose up -d mlearn-management
 ```bash
 cd management/backend
 cargo run    # serves http://127.0.0.1:3000
-cargo test   # run all tests
+cargo test --locked --all-targets   # run all tests
 ```
 
 Build frontend assets before the first backend run. Cargo tracks subsequent changes to the embedded asset directory.
@@ -82,7 +82,7 @@ Build frontend assets before the first backend run. Cargo tracks subsequent chan
 
 ```bash
 cd management/frontend
-npm install
+npm ci
 npm run dev    # Vite dev server on http://127.0.0.1:5173 (proxies /api to :3000)
 npm test       # run tests
 npm run build  # production build → dist/

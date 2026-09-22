@@ -30,7 +30,7 @@ import { getCurrentWindow, getMainWindow } from './windowManager';
 import { getLogger, type LogLevel } from '../../shared/utils/logger';
 import { getLanguagePythonRequirementsForInstall } from '../../shared/languageFeatures';
 import { getPythonExecutableCandidates } from './pythonRuntimePaths';
-import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
+import { verifyLanguagePythonRequirementsInstalled } from './pythonRuntimeRequirements';
 import { probeMirrorCatalog } from './catalogMirrors';
 import { downloadFileWithProgress, isNetworkError } from '../utils/downloadManager';
 
@@ -1485,15 +1485,16 @@ async function reconcileComponentPackages(): Promise<void> {
   // Signal completion so the install progress modal dismisses
   broadcastInstallEvent(IPC_CHANNELS.SUCCESSFUL_INSTALL, true);
 
-  // Also reconcile language-level requirements for the active language.
+  // Language requirements are already part of these pip groups. Verify their
+  // declared imports without running a second pip install for the same set.
   // On degraded platforms (darwin-x64) the stripped options keep language
   // ocr/llm/voice component packages from installing.
   const language = settings.language;
   if (language) {
     try {
-      await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), resolveEffectiveInstallOptions(options, installPlatform));
+      await verifyLanguagePythonRequirementsInstalled(language, loadLangData(), resolveEffectiveInstallOptions(options, installPlatform));
     } catch (e) {
-      log.warn(`Language requirement reconciliation failed for ${language}:`, e);
+      log.warn(`Language requirement verification failed for ${language}:`, e);
     }
   }
 }

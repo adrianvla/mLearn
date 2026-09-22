@@ -40,7 +40,7 @@ import { buildClaimPromptContext } from '../../services/learnerClaimsInterpreter
 import { CAPABILITY_LABEL_KEYS, isValidCapabilityId } from '../../../shared/graph/access';
 import type { WordStatus } from '../../../shared/constants';
 import { ATTEMPT_QUALITIES, type AttemptQuality } from '../../../shared/constants';
-import type { CapabilityKind } from '../../../shared/graph/types';
+import type { CapabilityKey } from '../../../shared/graph/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
@@ -244,7 +244,7 @@ export const WordSyncContent: Component = () => {
   // measured word must never look untracked and be re-taught) and the
   // resource retries on the next eventsVersion change — the LevelStudyTab
   // placement precedent for the same bound.
-  const [journalKeysResource] = createResource(
+  const [journalKeysResource, { refetch: refetchJournalKeys }] = createResource(
     // The journal key snapshot is language-scoped and independent of the
     // package metadata: it needs the learning language and knowledge
     // readiness only — a ready pool must never stay blocked on nullable
@@ -281,6 +281,13 @@ export const WordSyncContent: Component = () => {
   });
   const poolProjection = useKnowledgeProjections(() => isKnowledgeReady() && filterPresetInitialized() && poolPrepared() && !sessionQueue() && journalKeysHealthy()
     ? { language: settings.language, surfaces: projectionSurfaces() } : undefined);
+  const projectionUnavailable = createMemo(() => journalKeysResource.state === 'errored' || poolProjection.failed());
+  const retryKnowledgeProjections = () => {
+    if (journalKeysResource.state === 'errored') {
+      void Promise.resolve(refetchJournalKeys()).catch(() => {});
+    }
+    poolProjection.retry();
+  };
   let scanRevision = 0;
   onCleanup(() => { scanRevision++; });
   const [eligibleWords] = createResource(() => {
@@ -801,7 +808,7 @@ export const WordSyncContent: Component = () => {
   });
   // The encounter owns its tested set once admitted. Journal updates during
   // an active response must not silently change which question was asked.
-  const [probe, setProbe] = createSignal<{ presentation: number; capabilities: CapabilityKind[]; focused: boolean }>();
+  const [probe, setProbe] = createSignal<{ presentation: number; capabilities: CapabilityKey[]; focused: boolean }>();
   const testedAccesses = createMemo(() => probe()?.presentation === presentationCount() ? probe()!.capabilities : []);
   createEffect(on(() => [currentProjection.projection(), currentProjection.loading(), translation.loading, presentationCount()] as const, ([projection, projectionLoading, loading, presentation]) => {
     const w = currentWord();
@@ -843,7 +850,7 @@ export const WordSyncContent: Component = () => {
     wordTimer = createEncounterTimer();
     wordTimer.start();
     trace('card rendered', { word: w.word, presentation, targets: targets.length });
-    setProbe({ presentation: presentationCount(), capabilities: [...new Set(targets.map(target => target.capability))] as CapabilityKind[], focused: admitted.focused });
+    setProbe({ presentation: presentationCount(), capabilities: [...new Set(targets.map(target => target.capability))], focused: admitted.focused });
   }));
 
   const projectedAccess = (capability: string) => {
@@ -906,7 +913,14 @@ export const WordSyncContent: Component = () => {
     {/* Real loading only (language data or learner projection still hydrating):
         the shared skeleton owns that gap; once data is present the session
         renders exactly as before, with the body handling its own empty state. */}
-    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && (!currentWord() || testedAccesses().length > 0)} fallback={<KnowledgeSkeleton variant="word-sync" />}>
+    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && (!currentWord() || testedAccesses().length > 0)} fallback={
+      <Show when={projectionUnavailable()} fallback={<KnowledgeSkeleton variant="word-sync" />}>
+        <div class="word-sync-projection-error" role="alert">
+          <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
+          <Btn variant="primary" onClick={retryKnowledgeProjections}>{t('mlearn.Global.Retry')}</Btn>
+        </div>
+      </Show>
+    }>
       <div class="word-sync-header">
         <span class="word-sync-counter">
           {t('mlearn.WordSync.Progress', {
@@ -1031,6 +1045,10 @@ export const WordSyncContent: Component = () => {
         <div class="word-sync-actions">
           <WordSyncRating
             accesses={testedAccesses()}
+            capabilityLabels={Object.fromEntries(testedAccesses().map((capability) => {
+              const label = langCtx.currentLangData()?.learning?.capabilities?.[capability]?.label;
+              return [capability, label];
+            }).filter((entry): entry is [string, string] => entry[1] !== undefined))}
             focusedProbe={probe()?.focused}
             claims={Object.fromEntries(testedAccesses().map((capability) => [
               capability,

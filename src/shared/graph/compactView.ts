@@ -31,6 +31,8 @@ export function createCompactGraphView(graph: RuntimeCompactGraph, language: str
     const domain = COMPACT_DOMAINS[graph.entityDomainIds[dense]];
     const grammar = graph.entityGrammar?.[dense];
     const analysis = graph.entityAnalysis?.[dense];
+    const features = graph.entityFeatures?.[dense];
+    const learnableCapabilities = graph.entityLearnableCapabilities?.[dense];
     return {
       id: graph.persistentOf[dense],
       kind,
@@ -38,6 +40,8 @@ export function createCompactGraphView(graph: RuntimeCompactGraph, language: str
       ...(domain !== undefined ? { domain } : {}),
       ...(grammar !== undefined ? { grammar } : {}),
       ...(analysis !== undefined ? { analysis } : {}),
+      ...(features !== undefined ? { features } : {}),
+      ...(learnableCapabilities !== undefined ? { learnableCapabilities: [...learnableCapabilities] } : {}),
     };
   };
 

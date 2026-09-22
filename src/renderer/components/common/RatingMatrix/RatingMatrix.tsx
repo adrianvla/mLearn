@@ -50,6 +50,8 @@ export interface RatingMatrixProps {
   capabilities: readonly CapabilityKey[];
   /** Saved statements displayed using the same quality selections as manual ratings. */
   claims?: Readonly<Partial<Record<CapabilityKey, WordStatus>>>;
+  /** Package-resolved labels for opaque capability ids. */
+  capabilityLabels?: Readonly<Partial<Record<CapabilityKey, string>>>;
   /** Whole-word selection; specific capability statements take precedence. */
   wordClaim?: WordStatus | null;
   keyboardMode: RatingKeyboardMode;
@@ -127,6 +129,8 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     ...props.capabilities,
     ...Object.keys(props.claims ?? {}).filter((capability) => props.claims?.[capability] !== undefined),
   ])];
+  const capabilityLabel = (capability: CapabilityKey): string => props.capabilityLabels?.[capability]
+    ?? t(CAPABILITY_LABEL_KEYS[capability] ?? capability);
 
   const actionable = () => props.armed && !submitted() && props.capabilities.length > 0;
 
@@ -406,7 +410,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
             {(capability) => (
               <div class="rating-matrix__row">
                 <span class="rating-matrix__label">
-                  {t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}
+                  {capabilityLabel(capability)}
                 </span>
                 <For each={RATING_ACTIONS}>
                   {(action) => (
@@ -417,7 +421,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                       class="rating-matrix__cell"
                       classList={{ 'rating-matrix__cell--selected': isSelected(capability, action) }}
                       aria-pressed={isSelected(capability, action)}
-                      aria-label={`${t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}: ${t(ACTION_LABEL_KEYS[action])}`}
+                      aria-label={`${capabilityLabel(capability)}: ${t(ACTION_LABEL_KEYS[action])}`}
                       disabled={!actionable() || !props.capabilities.includes(capability)}
                       onClick={(e) => draftAccess(capability, action, e.altKey)}
                     >

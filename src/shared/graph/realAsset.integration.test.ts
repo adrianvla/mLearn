@@ -100,10 +100,11 @@ describe.skipIf(!hasAsset('ja'))('real ja graph asset — representative items (
 
 describe.skipIf(!hasAsset('de'))('real de graph asset', () => {
   const getGraph = realGraphFixture('de');
-  it('German nouns carry gender as a property relation (data-driven capability)', () => {
+  it('German package carries its own capability id and relation type', () => {
     const graph = getGraph();
-    const genderRels = [...graph.asset.relations].filter((r) => r.type === 'has-gender');
+    const genderRels = [...graph.asset.relations].filter((r) => r.type === 'de::has-gender');
     expect(genderRels.length).toBeGreaterThan(0);
+    expect([...graph.nodes.values()].some((entity) => entity.learnableCapabilities?.includes('de::gender'))).toBe(true);
   });
 });
 

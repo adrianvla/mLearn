@@ -723,4 +723,113 @@ describe('cloudSessionManager', () => {
     expect(observed).toHaveBeenCalledOnce();
     unsubscribe(); unsubscribeThrowing(); cleanup();
   });
+
+  it('does not resurrect a logged-out session when its refresh completes', async () => {
+    const manager = await import('./cloudSessionManager');
+    let finish!: (value: { accessToken: string; refreshToken: string }) => void;
+    mockRefreshCloudSession.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    let current = makeSettings({ cloudAuthStatus: 'signed-in', cloudAuthUserId: 'first', cloudAuthAccessToken: 'old', cloudAuthRefreshToken: 'refresh' });
+    const cleanup = manager.registerCloudSessionController({
+      getSettings: () => current,
+      updateSettings: patch => { current = { ...current, ...patch }; },
+      openCloudReLoginModal: vi.fn(),
+    });
+    const pending = manager.ensureCloudAccessToken({ forceRefresh: true, interactive: false });
+    current = makeSettings({ cloudAuthStatus: 'signed-out' });
+    manager.syncCloudSessionState(current);
+    finish({ accessToken: 'stale-refreshed', refreshToken: 'stale-refresh' });
+    await expect(pending).resolves.toBeNull();
+    expect(current.cloudAuthStatus).toBe('signed-out');
+    expect(current.cloudAuthAccessToken).not.toBe('stale-refreshed');
+    cleanup();
+  });
+
+  it('does not clear a new account after the previous refresh fails', async () => {
+    const manager = await import('./cloudSessionManager');
+    let fail!: (error: Error) => void;
+    mockRefreshCloudSession.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    let current = makeSettings({ cloudAuthStatus: 'signed-in', cloudAuthUserId: 'first', cloudAuthAccessToken: 'old', cloudAuthRefreshToken: 'refresh' });
+    const cleanup = manager.registerCloudSessionController({
+      getSettings: () => current,
+      updateSettings: patch => { current = { ...current, ...patch }; },
+      openCloudReLoginModal: vi.fn(),
+    });
+    const pending = manager.ensureCloudAccessToken({ forceRefresh: true, interactive: false });
+    current = makeSettings({ cloudAuthStatus: 'signed-in', cloudAuthUserId: 'second', cloudAuthAccessToken: 'new', cloudAuthRefreshToken: 'new-refresh' });
+    manager.syncCloudSessionState(current);
+    fail(new Error('401 invalid refresh token'));
+    await expect(pending).resolves.toBeNull();
+    expect(current).toMatchObject({ cloudAuthStatus: 'signed-in', cloudAuthUserId: 'second', cloudAuthAccessToken: 'new' });
+    cleanup();
+  });
+
+  it('starts a separate refresh for the new origin instead of returning the old origin token', async () => {
+    const manager = await import('./cloudSessionManager');
+    let finishOld!: (value: { accessToken: string; refreshToken: string }) => void;
+    mockRefreshCloudSession
+      .mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }))
+      .mockResolvedValueOnce({ accessToken: 'new-origin-token', refreshToken: 'new-origin-refresh' });
+    let current = makeSettings({ overrideCloudEndpointUrl: true, cloudApiUrl: 'https://first.example', cloudAuthStatus: 'signed-in', cloudAuthAccessToken: 'old', cloudAuthRefreshToken: 'refresh' });
+    const cleanup = manager.registerCloudSessionController({
+      getSettings: () => current,
+      updateSettings: patch => { current = { ...current, ...patch }; },
+      openCloudReLoginModal: vi.fn(),
+    });
+    const first = manager.ensureCloudAccessToken({ forceRefresh: true, interactive: false });
+    current = { ...current, cloudApiUrl: 'https://second.example' };
+    manager.syncCloudSessionState(current);
+    const second = manager.ensureCloudAccessToken({ forceRefresh: true, interactive: false });
+    finishOld({ accessToken: 'old-origin-token', refreshToken: 'old-origin-refresh' });
+    await expect(first).resolves.toBeNull();
+    await expect(second).resolves.toBe('new-origin-token');
+    expect(current.cloudAuthAccessToken).toBe('new-origin-token');
+    cleanup();
+  });
+
+  it('shares refresh only while the same session remains current', async () => {
+    const manager = await import('./cloudSessionManager');
+    let finish!: (value: { accessToken: string; refreshToken: string }) => void;
+    mockRefreshCloudSession.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    let current = makeSettings({ cloudAuthStatus: 'signed-in', cloudAuthAccessToken: 'old', cloudAuthRefreshToken: 'refresh' });
+    const cleanup = manager.registerCloudSessionController({
+      getSettings: () => current,
+      updateSettings: patch => {
+        current = { ...current, ...patch };
+        manager.syncCloudSessionState(current);
+      },
+      openCloudReLoginModal: vi.fn(),
+    });
+    const first = manager.ensureCloudAccessToken({ forceRefresh: true, interactive: false });
+    manager.syncCloudSessionState(current);
+    const second = manager.ensureCloudAccessToken({ forceRefresh: true, interactive: false });
+    finish({ accessToken: 'fresh', refreshToken: 'fresh-refresh' });
+    await expect(Promise.all([first, second])).resolves.toEqual(['fresh', 'fresh']);
+    expect(mockRefreshCloudSession).toHaveBeenCalledOnce();
+    cleanup();
+  });
+
+  it('does not return a refreshed token after logout during group readiness', async () => {
+    const manager = await import('./cloudSessionManager');
+    let groupStarted!: () => void;
+    const started = new Promise<void>((resolve) => { groupStarted = resolve; });
+    let finishGroup!: (value: { ready: boolean }) => void;
+    mockEnsureActiveGroup.mockImplementationOnce(() => {
+      groupStarted();
+      return new Promise((resolve) => { finishGroup = resolve; });
+    });
+    mockRefreshCloudSession.mockResolvedValueOnce({ accessToken: 'fresh', refreshToken: 'fresh-refresh' });
+    let current = makeSettings({ overrideCloudEndpointUrl: true, cloudApiUrl: 'https://school.example', cloudAuthStatus: 'signed-in', cloudAuthAccessToken: 'old', cloudAuthRefreshToken: 'refresh' });
+    const cleanup = manager.registerCloudSessionController({
+      getSettings: () => current,
+      updateSettings: patch => { current = { ...current, ...patch }; },
+      openCloudReLoginModal: vi.fn(),
+    });
+    const pending = manager.ensureCloudAccessToken({ forceRefresh: true, interactive: false });
+    await started;
+    current = makeSettings({ cloudAuthStatus: 'signed-out' });
+    manager.syncCloudSessionState(current);
+    finishGroup({ ready: true });
+    await expect(pending).resolves.toBeNull();
+    cleanup();
+  });
 });

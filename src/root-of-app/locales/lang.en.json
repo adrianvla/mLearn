@@ -54,7 +54,6 @@
         "SenseOf": "sense",
         "Pronunciation": "pronunciation",
         "Reading": "reading",
-        "Gender": "gender",
         "PartOfSpeech": "part of speech",
         "ProsodicPattern": "pitch pattern",
         "Character": "character",
@@ -1542,7 +1541,6 @@
         "surface-reading": "Reading",
         "pronunciation-production": "Pronunciation",
         "prosodic-pattern": "Prosody",
-        "gender": "Gender",
         "character-reading": "Character",
         "morpheme-recognition": "Morpheme",
         "grammar-recognition": "Grammar",
@@ -1669,7 +1667,6 @@
         "Meaning": "Meaning",
         "Reading": "Reading",
         "Prosody": "Prosody",
-        "Gender": "Gender",
         "Pronunciation": "Pronunciation",
         "Orthography": "Written form"
       },
@@ -3462,6 +3459,7 @@
       "WordCount": "{count} words"
     },
     "WordSync": {
+      "ProjectionUnavailable": "Knowledge data could not be loaded. Try again.",
       "Statement": {
         "Label": "Describe it instead",
         "KnownSpoken": "I know this word when I hear it.",
@@ -3815,14 +3813,12 @@
     },
     "Review": {
       "Why": {
-        "Decision": "Decision",
         "Excluded": "Excluded",
+        "Explanation": "The review queue chooses cards using your study plan and learning progress.",
         "Hide": "Hide details",
         "Limits": "Limits",
-        "NoTrace": "No calculation trace was emitted for this decision; only the reason above is available.",
         "Ranking": "Ranking",
         "Show": "Why?",
-        "Task": "Task",
         "Title": "Why this card",
         "Weights": "Weights in effect"
       }

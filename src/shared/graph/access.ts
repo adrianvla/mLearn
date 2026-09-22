@@ -1,4 +1,4 @@
-import type { KnowledgeAspect, WordKnowledgeSource, WordStatus } from '../constants';
+import { LEGACY_KNOWLEDGE_ASPECTS, type LegacyKnowledgeAspect, type WordKnowledgeSource, type WordStatus } from '../constants';
 import { ASPECT_CAPABILITY, type CapabilityKind } from './types';
 import type { PassiveWordKnowledge } from '../types';
 
@@ -36,7 +36,6 @@ export type AccessRetrieval =
   | 'meaning'               // a sense of the word
   | 'pronunciation'         // how it sounds
   | 'prosody'               // its accent/stress/tone pattern
-  | 'gender'                // its lexical gender value
   | 'character-identity'    // a character as a familiar graphemic unit
   | 'character-reading'     // a character's reading
   | 'morpheme-meaning'      // a morpheme's meaning
@@ -61,7 +60,6 @@ export const CAPABILITY_ACCESS: Record<CapabilityKind, AccessPath> = {
   'surface-reading': { cue: 'written-form', retrieval: 'pronunciation' },
   'pronunciation-production': { cue: 'lexical-item', retrieval: 'pronunciation' },
   'prosodic-pattern': { cue: 'lexical-item', retrieval: 'prosody' },
-  'gender': { cue: 'lexical-item', retrieval: 'gender' },
   'character-recognition': { cue: 'character', retrieval: 'character-identity' },
   'character-reading': { cue: 'character', retrieval: 'character-reading' },
   'morpheme-recognition': { cue: 'morpheme', retrieval: 'morpheme-meaning' },
@@ -85,17 +83,17 @@ export const LEXICAL_IDENTITY_CAPABILITIES: readonly CapabilityKind[] = [
 
 /**
  * Lossless legacy projection: aspect → capability for every pre-access
- * aspect. (The forward map lives in ASPECT_CAPABILITY.) Distinct aspects map
- * to distinct capabilities, so the inverse is total over KNOWLEDGE_ASPECTS.
+ * aspect. (The forward map lives in ASPECT_CAPABILITY.) Known legacy aspects
+ * map to their former core capabilities; unknown aspect ids remain opaque.
  * New evidence for capabilities without a legacy aspect (spoken-recognition,
  * character-reading, morpheme-recognition) has NO aspect value — the journal
  * `targetRef.capability` is then the only address.
  */
-export const CAPABILITY_ASPECT: Partial<Record<CapabilityKind, KnowledgeAspect>> = (() => {
-  const inverse: Partial<Record<CapabilityKind, KnowledgeAspect>> = {};
-  for (const aspect of ['meaning', 'reading', 'prosody', 'gender', 'pronunciation', 'orthography'] as const) {
+export const CAPABILITY_ASPECT: Partial<Record<CapabilityKind, LegacyKnowledgeAspect>> = (() => {
+  const inverse: Partial<Record<CapabilityKind, LegacyKnowledgeAspect>> = {};
+  for (const aspect of LEGACY_KNOWLEDGE_ASPECTS) {
     const capability = ASPECT_CAPABILITY[aspect];
-    inverse[capability] = aspect;
+    if (capability !== undefined) inverse[capability] = aspect;
   }
   return inverse;
 })();
@@ -117,7 +115,6 @@ const DEMONSTRATES_BY_CUE: Partial<Record<AccessCue, Partial<Record<CapabilityKi
     'surface-reading': ['surface-recognition'],
     'prosodic-pattern': ['surface-recognition', 'surface-reading'],
     'pronunciation-production': ['surface-recognition', 'surface-reading'],
-    'gender': ['surface-recognition'],
     'morpheme-recognition': ['surface-recognition'],
   },
   'spoken-form': {
@@ -151,7 +148,6 @@ export const CAPABILITY_MNEMONIC_KEYS: Record<CapabilityKind, string> = {
   'surface-reading': 'r',
   'pronunciation-production': 'v',
   'prosodic-pattern': 'p',
-  'gender': 'g',
   'character-recognition': 'k',
   'character-reading': 'c',
   'morpheme-recognition': 'z',

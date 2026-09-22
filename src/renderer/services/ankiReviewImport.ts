@@ -210,7 +210,6 @@ export async function importAnkiReviewHistory(
   // Idempotency keys come from the store's per-key registries (exact rows +
   // archive ankiReviewIds) — no whole-language journal read.
   const candidateWordKeys = [...byWord.keys()].map((word) => `${language}:${hashWordSync(word)}`);
-  const storedIdSets = await getBridge().knowledgeEvents.queryAnkiReviewIdSets(candidateWordKeys);
   const newEventsByKey: KnowledgeEventLog = {};
   let words = 0;
   let imported = 0;
@@ -224,6 +223,16 @@ export async function importAnkiReviewHistory(
       for (const card of await deps.fetchCards(allCardIds.slice(i, i + REVIEW_BATCH_SIZE))) cardsById.set(card.cardId, card);
     }
   }
+  // Grammar evidence is persisted under target keys, not the word's hash.
+  // Query those same addresses or every refresh imports the reviews again.
+  const candidateKeys = new Set(candidateWordKeys);
+  for (const card of cardsById.values()) {
+    for (const point of deps.grammar ?? []) {
+      if (!point.pattern || !cardContainsPattern(card, point.pattern)) continue;
+      candidateKeys.add(grammarEvidenceKey(language, point.pattern, capabilityForCard(card, point.pattern).capability));
+    }
+  }
+  const storedIdSets = await getBridge().knowledgeEvents.queryAnkiReviewIdSets([...candidateKeys]);
   const existingGrammarIds = new Map<string, Set<number>>();
   for (const [key, ids] of Object.entries(storedIdSets as Record<string, number[]>)) {
     if (!key.startsWith(`${language}:grammar:`)) continue;

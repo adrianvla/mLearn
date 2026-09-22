@@ -90,6 +90,33 @@ describe('buildKnowledgeProjection', () => {
     expect(new Set(surfaceCapabilities).size).toBe(surfaceCapabilities.length);
   });
 
+  it('projects a package-declared opaque capability without core registration', () => {
+    const capability = 'x-test::evidentiality';
+    const packageGraph = loadLinguisticGraph({
+      schemaVersion: 1,
+      language: 'x-test',
+      generatedAt: '',
+      sourceVersions: {},
+      entities: [{ id: 'x-test:surface:opaque', kind: 'surface', learnableCapabilities: [capability] }],
+      relations: [],
+    });
+    const result = buildKnowledgeProjection(packageGraph, 'x-test:surface:opaque', [{
+      t: 1,
+      kind: 'rating',
+      source: 'srs',
+      quality: 'fluent',
+      easeAfter: 2,
+      targetRef: { kind: 'surface', id: 'x-test:surface:opaque', capability },
+    }], policy, 10, undefined, {
+      languageData: {
+        name: 'Test language',
+        learning: { capabilities: { [capability]: { label: 'Evidentiality', scope: 'surface' } } },
+      },
+    });
+    expect(result.targets[0]?.applicableCapabilities).toContain(capability);
+    expect(result.targets[0]?.states.find((state) => state.capability === capability)).toEqual(expect.objectContaining({ capability, classification: 'known', basis: 'evidence' }));
+  });
+
 
   it('uses active evidence, groups provenance, derives retention, and round-trips JSON', () => {
     const result = buildKnowledgeProjection(graph, surfaceId, [

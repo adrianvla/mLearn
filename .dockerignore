@@ -1,0 +1,14 @@
+**
+!management
+!management/frontend
+!management/frontend/**
+!management/backend
+!management/backend/**
+!src
+!src/html
+!src/html/assets
+!src/html/assets/icons
+!src/html/assets/icons/logo.png
+management/frontend/node_modules
+management/frontend/dist
+management/backend/target

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from 'vitest';
-import { collectDroppedMediaFiles } from './videoDropUtils';
+import { collectDroppedMediaFiles, resolveSubtitleForVideoLoad, type ExternalSubtitle } from './videoDropUtils';
 
 describe('collectDroppedMediaFiles', () => {
   it('preserves subtitle data when a subtitle is dropped before the video', async () => {
@@ -75,5 +75,22 @@ describe('collectDroppedMediaFiles', () => {
     );
 
     expect(result.video?.displayName).toBe('Lesson S01E1');
+  });
+});
+
+describe('resolveSubtitleForVideoLoad', () => {
+  const earlierSelection: ExternalSubtitle = { content: 'selected earlier', filePath: '/subs/earlier.srt' };
+  const droppedTogether: ExternalSubtitle = { content: 'dropped with video', filePath: '/subs/together.vtt' };
+
+  it('keeps a subtitle selected before the first video', () => {
+    expect(resolveSubtitleForVideoLoad(earlierSelection, false)).toEqual(earlierSelection);
+  });
+
+  it('uses the subtitle dropped with the video when both arrive together', () => {
+    expect(resolveSubtitleForVideoLoad(earlierSelection, false, droppedTogether)).toEqual(droppedTogether);
+  });
+
+  it('clears a previous video subtitle when a different video is selected', () => {
+    expect(resolveSubtitleForVideoLoad(earlierSelection, true)).toBeNull();
   });
 });

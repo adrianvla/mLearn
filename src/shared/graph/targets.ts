@@ -1,47 +1,51 @@
 import type { KnowledgeProjection } from './ipc';
 import { relationsOf, type LingualGraph } from './load';
 import {
-  type CapabilityKind,
+  type CapabilityKey,
   type GraphEntity,
   type LearnableTarget,
   SURFACE_SCOPED_CAPABILITIES,
 } from './types';
+import type { LanguageData } from '../types';
 
 /**
  * Target applicability derives from the graph — never from global language
  * name conditionals. A capability exists for an entity only when the graph
  * actually carries the structure that would be learned.
  */
-export function applicableCapabilities(graph: LingualGraph, entity: GraphEntity): CapabilityKind[] {
+export function applicableCapabilities(graph: LingualGraph, entity: GraphEntity): CapabilityKey[] {
   const relationTypes = new Set(relationsOf(graph, entity.id).map((relation) => relation.type));
-  switch (entity.kind) {
-    case 'surface':
-      return dedupe([
-        'surface-recognition',
-        ...(relationTypes.has('has-pronunciation') ? ['surface-reading' as const, 'pronunciation-production' as const, 'spoken-recognition' as const] : []),
-        ...(relationTypes.has('has-prosodic-pattern') ? ['prosodic-pattern' as const] : []),
-      ]);
-    case 'sense':
-      return ['sense-recognition'];
-    case 'lexeme':
-      return relationTypes.has('has-gender') ? ['gender'] : [];
-    case 'character':
-      return relationTypes.has('has-reading') ? ['character-recognition', 'character-reading'] : ['character-recognition'];
-    case 'grammar-pattern':
-      return entity.grammar
-        ? ['grammar-recognition', 'grammar-comprehension', 'grammar-formation', 'grammar-production']
-        : [];
-    case 'dictionary-entry':
-    case 'pronunciation':
-    case 'analysis':
-      return [];
-    // Morphemes are explanatory structure unless the package/entity opts in.
-    case 'morpheme':
-      return entity.learnable === true ? ['morpheme-recognition'] : [];
-    default:
-      // Namespaced extension kinds are display/reference only: inert for learning.
-      return [];
-  }
+  const coreCapabilities: CapabilityKey[] = (() => {
+    switch (entity.kind) {
+      case 'surface':
+        return dedupe([
+          'surface-recognition',
+          ...(relationTypes.has('has-pronunciation') ? ['surface-reading' as const, 'pronunciation-production' as const, 'spoken-recognition' as const] : []),
+          ...(relationTypes.has('has-prosodic-pattern') ? ['prosodic-pattern' as const] : []),
+        ]);
+      case 'sense':
+        return ['sense-recognition'];
+      case 'lexeme':
+        return [];
+      case 'character':
+        return relationTypes.has('has-reading') ? ['character-recognition', 'character-reading'] : ['character-recognition'];
+      case 'grammar-pattern':
+        return entity.grammar
+          ? ['grammar-recognition', 'grammar-comprehension', 'grammar-formation', 'grammar-production']
+          : [];
+      case 'dictionary-entry':
+      case 'pronunciation':
+      case 'analysis':
+        return [];
+      // Morphemes are explanatory structure unless the package/entity opts in.
+      case 'morpheme':
+        return entity.learnable === true ? ['morpheme-recognition'] : [];
+      default:
+        // Package-declared capabilities above enable learning for extension entities.
+        return [];
+    }
+  })();
+  return dedupe([...coreCapabilities, ...(entity.learnableCapabilities ?? [])]);
 }
 
 export function learnableTargetsFor(graph: LingualGraph, entities: readonly GraphEntity[]): LearnableTarget[] {
@@ -55,23 +59,46 @@ export function learnableTargetsFor(graph: LingualGraph, entities: readonly Grap
 }
 
 /** Surface-scoped accesses resolve on the presented form's own hash only — family unification must never apply to them. */
-export function isSurfaceScopedCapability(capability: CapabilityKind | string): boolean {
-  return (SURFACE_SCOPED_CAPABILITIES as readonly string[]).includes(capability);
+export function isSurfaceScopedCapability(capability: CapabilityKey, languageData?: LanguageData | null): boolean {
+  return (SURFACE_SCOPED_CAPABILITIES as readonly string[]).includes(capability)
+    || languageData?.learning?.capabilities?.[capability]?.scope === 'surface';
 }
 
 /**
  * Firewall for identity edges: recognizing 食べた must never establish
  * 食べる's surface-recognition or surface-reading. Identity relations may
- * only unify LEXEME-level capabilities (sense recognition, gender); every
- * surface-scoped capability stays bound to the exact presented surface.
+ * only unify non-surface-scoped capabilities; every surface-scoped capability
+ * stays bound to the exact presented surface.
  * The projection layer MUST consult this before sharing any state across
  * identityNeighbors().
  */
-export function isIdentityShareableCapability(capability: CapabilityKind | string): boolean {
-  return !(SURFACE_SCOPED_CAPABILITIES as readonly string[]).includes(capability);
+export function isIdentityShareableCapability(capability: CapabilityKey, languageData?: LanguageData | null): boolean {
+  return KNOWN_IDENTITY_SHAREABLE_CAPABILITIES.has(capability)
+    || languageData?.learning?.capabilities?.[capability]?.shareAcrossIdentity === true
+    || languageData?.learning?.capabilities?.[capability]?.scope === 'family';
 }
 
-function dedupe(values: readonly CapabilityKind[]): CapabilityKind[] {
+/** Package-declared family accesses use graph identity transfer without adding a core capability id. */
+export function isPackageFamilyCapability(capability: CapabilityKey, languageData?: LanguageData | null): boolean {
+  const declaration = languageData?.learning?.capabilities?.[capability];
+  return declaration?.scope === 'family' || declaration?.shareAcrossIdentity === true;
+}
+
+const KNOWN_IDENTITY_SHAREABLE_CAPABILITIES = new Set<CapabilityKey>([
+  'sense-recognition',
+  'spoken-recognition',
+  'pronunciation-production',
+  'prosodic-pattern',
+  'character-recognition',
+  'character-reading',
+  'grammar-recognition',
+  'grammar-comprehension',
+  'grammar-formation',
+  'grammar-production',
+  'morpheme-recognition',
+]);
+
+function dedupe(values: readonly CapabilityKey[]): CapabilityKey[] {
   return [...new Set(values)];
 }
 

@@ -185,6 +185,47 @@ describe('journalService', () => {
     expect(events).toHaveLength(2);
   });
 
+  it('preserves complete history when corruption is followed by valid events', async () => {
+    await mod.appendEvent(roomId, seaDraft());
+    await mod.appendEvent(roomId, seaDraft());
+    const file = path.join(tempDir.tmpDir, 'journal', roomId, 'sea.ndjson');
+    const [first, second] = fs.readFileSync(file, 'utf8').trimEnd().split('\n');
+    const damaged = `${first}\n{broken}\n${second}\n`;
+    fs.writeFileSync(file, damaged);
+    vi.resetModules();
+    mod = await import('./journalService');
+
+    await expect(mod.readSeaProjection(roomId)).rejects.toThrow();
+    await expect(mod.appendEvent(roomId, seaDraft())).rejects.toThrow();
+    expect(fs.readFileSync(file, 'utf8')).toBe(damaged);
+  });
+
+  it('retries failed head recovery without restarting sequence numbers', async () => {
+    await mod.appendEvent(roomId, seaDraft());
+    await mod.appendEvent(roomId, seaDraft());
+    vi.resetModules();
+    mod = await import('./journalService');
+    const read = vi.spyOn(fs.promises, 'readFile');
+    read.mockRejectedValueOnce(Object.assign(new Error('temporarily unreadable'), { code: 'EIO' }));
+    await expect(mod.readPreparedMaintenanceEvents(roomId, { kind: 'sea' }, 'unused')).rejects.toThrow();
+    read.mockRestore();
+
+    const next = await mod.appendEvent(roomId, seaDraft());
+    expect(next.seq).toBe(3);
+    expect((await mod.readSeaProjection(roomId)).map(event => event.seq)).toEqual([1, 2, 3]);
+  });
+
+  it('separates a complete final record without a newline before appending', async () => {
+    await mod.appendEvent(roomId, seaDraft());
+    const file = path.join(tempDir.tmpDir, 'journal', roomId, 'sea.ndjson');
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').trimEnd());
+    vi.resetModules();
+    mod = await import('./journalService');
+
+    expect((await mod.appendEvent(roomId, seaDraft())).seq).toBe(2);
+    expect((await mod.readSeaProjection(roomId)).map(event => event.seq)).toEqual([1, 2]);
+  });
+
   it('rejects renderer attempts to claim autonomous occurrence authority', async () => {
     mod.setupJournalIPC();
     const append = ipcHandlers.get(IPC_CHANNELS.JOURNAL_APPEND)!;

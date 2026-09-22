@@ -50,11 +50,6 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, (_event, status) => callback(status)),
   onLanguageDataInstallError: (callback: (payload: LanguageDataInstallError) => void) =>
     ipcOn(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_ERROR, (_event, payload) => callback(payload)),
-  installLanguage: (url: string) => ipcRenderer.send(IPC_CHANNELS.INSTALL_LANG, url),
-  onLanguageInstalled: (callback: () => void) =>
-    ipcOn(IPC_CHANNELS.LANG_INSTALLED, () => callback()),
-  onLanguageInstallError: (callback: (error: string) => void) =>
-    ipcOn(IPC_CHANNELS.LANG_INSTALL_ERROR, (_event, error) => callback(error)),
 
   // ========== Linguistic Graph ==========
   getGraphMeta: (language: string): Promise<GraphMeta> =>
@@ -194,21 +189,6 @@ const mLearnIPC = {
   // ========== Migration ==========
   onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) =>
     ipcOn(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, (_event, info) => callback(info)),
-  getFlashcardMigrationInfo: () => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARD_MIGRATION_INFO),
-  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) =>
-    ipcOn(IPC_CHANNELS.LOCALSTORAGE_MIGRATION_COMPLETE, (_event, info) => callback(info)),
-  // Get all migrated localStorage data
-  getMigratedLocalStorage: (): Promise<Record<string, unknown> | null> =>
-    ipcRenderer.invoke(IPC_CHANNELS.GET_MIGRATED_LOCALSTORAGE),
-  // Get specific migrated item by key
-  getMigratedItem: (key: string): Promise<unknown> =>
-    ipcRenderer.invoke(IPC_CHANNELS.GET_MIGRATED_ITEM, key),
-  // Check if migration has occurred
-  hasMigrationOccurred: (): Promise<boolean> =>
-    ipcRenderer.invoke(IPC_CHANNELS.HAS_MIGRATION_OCCURRED),
-  // Trigger manual migration (useful for re-migration)
-  triggerMigration: (): Promise<{ success: boolean; migratedKeys: string[]; error?: string }> =>
-    ipcRenderer.invoke(IPC_CHANNELS.TRIGGER_MIGRATION),
 
   // ========== Window Management ==========
   changeTrafficLights: (visibility: boolean) => {
@@ -389,9 +369,6 @@ const mLearnIPC = {
   promptOutput: (text: string) => ipcRenderer.send(IPC_CHANNELS.PROMPT_OUTPUT, text),
   onOpenPrompt: (callback: (options: PromptOptions) => void) =>
     ipcOn(IPC_CHANNELS.OPEN_PROMPT, (_event, options) => callback(options)),
-
-  // ========== LocalStorage Sync ==========
-  sendLS: (data: Record<string, unknown>) => ipcRenderer.send(IPC_CHANNELS.SEND_LS, data),
 
   // ========== File Operations ==========
   readDirectoryImages: (directoryPath: string): Promise<{ files: Array<{ name: string; path: string; data: ArrayBuffer }> }> => 

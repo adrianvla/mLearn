@@ -330,11 +330,8 @@ export function setupWorldIPC(): void {
     previewIntegration(input)
   );
 
-  // Crash recovery: re-drive pending integration operations left by an
-  // interrupted publication. Fire-and-forget; failures settle their record.
-  // Maintenance (reflection/evolution) recovery runs in main.initialize()
-  // AFTER legacy migration so it never races or duplicates startup recovery.
-  void integration.reconcilePendingIntegrations();
+  // Integration and maintenance recovery run in main.initialize() after legacy
+  // migration, with failures handled by the startup error boundary.
 
   ipcMain.handle(
     IPC_CHANNELS.WORLD_TRIGGER_REFLECTION,

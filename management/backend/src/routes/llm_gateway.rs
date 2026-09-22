@@ -109,6 +109,10 @@ async fn prepare_stream(
             return Err(map_preflight_error(error));
         }
     };
+    // Use the same compiled snapshot whose hash the quota transaction verifies.
+    // A deployment cap may tighten, but never extend, school content retention.
+    let conversation_retention_days = state.config.conversation_retention_days
+        .min(route_config.conversation_retention_days);
     let normalized = request
         .validate(route_config.system_prompt.as_deref())
         .map_err(map_preflight_error)?;
@@ -202,7 +206,7 @@ async fn prepare_stream(
     let mut recorder = ConversationService::with_retention_days(
         state.db.clone(),
         state.secret_cipher.as_ref().clone(),
-        state.config.conversation_retention_days,
+        conversation_retention_days,
     )
     .begin(BeginConversation {
         reservation_id: &reservation_id,
