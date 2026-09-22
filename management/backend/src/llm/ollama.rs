@@ -258,6 +258,7 @@ mod tests {
             "model",
             NormalizedProviderRequest {
                 messages: vec![GatewayMessage {
+                    task: None,
                     role: "user".into(),
                     content: "hi".into(),
                     tool_calls: None,

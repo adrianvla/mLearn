@@ -3,15 +3,6 @@ use serde_json::Value;
 
 use super::model::PolicyDocument;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JsonKind {
-    Boolean,
-    Number,
-    String,
-    StringOrNull,
-    StringLiterals(&'static [&'static str]),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicySettingDescriptor {
@@ -20,171 +11,53 @@ pub struct PolicySettingDescriptor {
     pub allowed_values: Vec<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SettingContract {
+    kind: String,
+    #[serde(default)]
+    allowed_values: Vec<String>,
+}
+
+fn setting_contract() -> &'static std::collections::BTreeMap<String, SettingContract> {
+    static CONTRACT: std::sync::OnceLock<std::collections::BTreeMap<String, SettingContract>> =
+        std::sync::OnceLock::new();
+    CONTRACT.get_or_init(|| {
+        serde_json::from_str(include_str!("../../../../src/shared/policySettings.json"))
+            .expect("canonical policy settings contract must be valid")
+    })
+}
+
 pub fn policy_setting_registry() -> Vec<PolicySettingDescriptor> {
-    SETTING_REGISTRY
+    setting_contract()
         .iter()
-        .map(|(key, kind)| {
-            let (value_type, allowed_values) = match kind {
-                JsonKind::Boolean => ("boolean", Vec::new()),
-                JsonKind::Number => ("number", Vec::new()),
-                JsonKind::String => ("string", Vec::new()),
-                JsonKind::StringOrNull => ("stringOrNull", Vec::new()),
-                JsonKind::StringLiterals(values) => (
-                    "select",
-                    values.iter().map(|value| (*value).into()).collect(),
-                ),
-            };
-            PolicySettingDescriptor {
-                key: (*key).into(),
-                value_type: value_type.into(),
-                allowed_values,
-            }
+        .map(|(key, descriptor)| PolicySettingDescriptor {
+            key: key.clone(),
+            value_type: if descriptor.allowed_values.is_empty() {
+                descriptor.kind.clone()
+            } else {
+                "select".into()
+            },
+            allowed_values: descriptor.allowed_values.clone(),
         })
         .collect()
 }
 
-const SETTING_REGISTRY: &[(&str, JsonKind)] = &[
-    ("srsLearningThreshold", JsonKind::Number),
-    ("known_ease_threshold", JsonKind::Number),
-    ("ankiLearningThreshold", JsonKind::Number),
-    ("ankiKnownThreshold", JsonKind::Number),
-    ("blur_words", JsonKind::Boolean),
-    ("blur_known_subtitles", JsonKind::Boolean),
-    ("blur_amount", JsonKind::Number),
-    ("colour_known", JsonKind::String),
-    ("do_colour_known", JsonKind::Boolean),
-    ("do_colour_codes", JsonKind::Boolean),
-    (
-        "colorScheme",
-        JsonKind::StringLiterals(&[
-            "quartz",
-            "chalk",
-            "dark-quartz",
-            "slate",
-            "oled",
-            "light-high-contrast",
-            "dark-high-contrast",
-            "custom",
-        ]),
-    ),
-    ("uiType", JsonKind::StringLiterals(&["tactile", "glass", "flat"])),
-    ("language", JsonKind::String),
-    ("hover_known_get_from_dictionary", JsonKind::Boolean),
-    ("show_pos", JsonKind::Boolean),
-    ("showReadingAnnotations", JsonKind::Boolean),
-    ("hideReadingForKnownWords", JsonKind::Boolean),
-    ("showProsody", JsonKind::Boolean),
-    ("showDictionary", JsonKind::Boolean),
-    ("use_anki", JsonKind::Boolean),
-    ("flashcardSkipAnkiChoice", JsonKind::Boolean),
-    ("skipAnkiDuplicateWarning", JsonKind::Boolean),
-    ("skipStatusSourceWarning", JsonKind::Boolean),
-    ("skipAnkiModifyWarning", JsonKind::Boolean),
-    ("easeThresholdUnknown", JsonKind::Number),
-    ("easeThresholdLearning", JsonKind::Number),
-    ("easeThresholdKnown", JsonKind::Number),
-    ("easeThresholdMastered", JsonKind::Number),
-    ("manualStatusEaseBuffer", JsonKind::Number),
-    ("ankiDeckName", JsonKind::String),
-    ("enable_flashcard_creation", JsonKind::Boolean),
-    ("automaticFlashcardCreation", JsonKind::Boolean),
-    ("flashcard_deck", JsonKind::StringOrNull),
-    ("flashcards_add_picture", JsonKind::Boolean),
-    ("maxNewCardsPerDay", JsonKind::Number),
-    ("proportionOfLevelCards", JsonKind::Number),
-    ("wordSyncStaleLearningDays", JsonKind::Number),
-    ("createUnseenCards", JsonKind::Boolean),
-    ("flashcardLLMExamples", JsonKind::Boolean),
-    ("newDayHour", JsonKind::Number),
-    ("flashcardFlipAnimation", JsonKind::Boolean),
-    ("leechThreshold", JsonKind::Number),
-    (
-        "flashcardMediaType",
-        JsonKind::StringLiterals(&["image", "video"]),
-    ),
-    ("flashcardVideoMargin", JsonKind::Number),
-    ("autoSuggestFlashcards", JsonKind::Boolean),
-    ("autoSuggestUnknownWords", JsonKind::Boolean),
-    ("openAside", JsonKind::Boolean),
-    ("rightSidebarOpen", JsonKind::Boolean),
-    ("subsOffsetTime", JsonKind::Number),
-    ("immediateFetch", JsonKind::Boolean),
-    (
-        "subtitleTheme",
-        JsonKind::StringLiterals(&["marker", "background", "shadow"]),
-    ),
-    ("subtitle_font_size", JsonKind::Number),
-    ("subtitle_font_weight", JsonKind::Number),
-    ("showSubtitles", JsonKind::Boolean),
-    ("showTranslation", JsonKind::Boolean),
-    ("overlayAutoPosition", JsonKind::Boolean),
-    ("overlayTextMode", JsonKind::Boolean),
-    ("removeParentheses", JsonKind::Boolean),
-    ("removeSpeakerNames", JsonKind::Boolean),
-    ("showLiveTranslator", JsonKind::Boolean),
-    ("liveTranslatorIncludeKnown", JsonKind::Boolean),
-    ("blurKnownWords", JsonKind::Boolean),
-    ("llmEnabled", JsonKind::Boolean),
-    ("ocrEnabled", JsonKind::Boolean),
-    ("voiceEnabled", JsonKind::Boolean),
-    ("lowBatteryMode", JsonKind::Boolean),
-    ("ocr_crop_padding", JsonKind::Number),
-    ("ocrRamSaver", JsonKind::Boolean),
-    ("ocrTurboMode", JsonKind::Boolean),
-    ("ocrReadingAnnotationFiltering", JsonKind::Boolean),
-    ("ocrReadingAnnotationWidthRatio", JsonKind::Number),
-    (
-        "ocrReadingAnnotationNeighborWindowMultiplier",
-        JsonKind::Number,
-    ),
-    ("ocrReadingAnnotationNeighborLookahead", JsonKind::Number),
-    ("ocrProvider", JsonKind::StringLiterals(&["local", "cloud"])),
-    ("readerCropMode", JsonKind::Boolean),
-    ("readerDocumentOcr", JsonKind::Boolean),
-    (
-        "readerWordHoverTrigger",
-        JsonKind::StringLiterals(&["hover", "long-hover", "key-hover"]),
-    ),
-    ("readerWordHoverKey", JsonKind::String),
-    ("readerReadingAnnotationHider", JsonKind::Boolean),
-    ("readerCollatePages", JsonKind::Boolean),
-    (
-        "readerPageMode",
-        JsonKind::StringLiterals(&["single", "double"]),
-    ),
-    ("readerFirstPageSingle", JsonKind::Boolean),
-    (
-        "readerSpreadDirection",
-        JsonKind::StringLiterals(&["left-to-right", "right-to-left"]),
-    ),
-    (
-        "readerTextFontStyle",
-        JsonKind::StringLiterals(&["language", "sans", "serif", "mono"]),
-    ),
-    ("readerTextSize", JsonKind::Number),
-    ("readerTextLineHeight", JsonKind::Number),
-    ("readerTextWidth", JsonKind::Number),
-    ("readerTextMargin", JsonKind::Number),
-    ("readerMagnifierHotkey", JsonKind::String),
-    ("readerMagnifierZoom", JsonKind::Number),
-    ("readerMagnifierSize", JsonKind::Number),
-    ("passiveEaseEnabled", JsonKind::Boolean),
-];
-
 pub fn validate_setting_rule(key: &str, value: &Value) -> Result<(), String> {
-    let kind = SETTING_REGISTRY
-        .iter()
-        .find_map(|(registered_key, kind)| (*registered_key == key).then_some(*kind))
-        .ok_or_else(|| format!("setting `{key}` is not policy-addressable"))?;
-
-    let valid = match kind {
-        JsonKind::Boolean => value.is_boolean(),
-        JsonKind::Number => is_i_json_policy_number(value),
-        JsonKind::String => value.is_string(),
-        JsonKind::StringOrNull => value.is_string() || value.is_null(),
-        JsonKind::StringLiterals(allowed_values) => value
-            .as_str()
-            .is_some_and(|value| allowed_values.contains(&value)),
+    let descriptor = setting_contract().get(key).ok_or_else(|| {
+        format!(
+            "setting `{key}` is not policy-addressable; upgrade to a compatible policy contract"
+        )
+    })?;
+    let valid = match descriptor.kind.as_str() {
+        "boolean" => value.is_boolean(),
+        "number" => is_i_json_policy_number(value),
+        "string" => value.as_str().is_some_and(|v| {
+            descriptor.allowed_values.is_empty()
+                || descriptor.allowed_values.iter().any(|allowed| allowed == v)
+        }),
+        "stringOrNull" => value.is_string() || value.is_null(),
+        _ => false,
     };
     if valid {
         Ok(())
@@ -294,6 +167,62 @@ mod tests {
             "../../../../test/fixtures/management-policy-v1.json"
         ))
         .expect("fixture should deserialize")
+    }
+
+    #[test]
+    fn every_canonical_definition_is_consumed_by_rust() {
+        let canonical: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../src/shared/policySettings.json"))
+                .unwrap();
+        let registry = super::policy_setting_registry();
+        assert_eq!(registry.len(), canonical.as_object().unwrap().len());
+        for descriptor in registry {
+            let entry = &canonical[&descriptor.key];
+            let values = match entry["kind"].as_str().unwrap() {
+                "boolean" => vec![json!(true), json!(false)],
+                "number" => vec![json!(0), json!(0.5)],
+                "stringOrNull" => vec![json!(null), json!("deck")],
+                "string" => entry
+                    .get("allowedValues")
+                    .map(|v| v.as_array().unwrap().clone())
+                    .unwrap_or(vec![json!("text")]),
+                kind => panic!("unsupported canonical kind {kind}"),
+            };
+            for value in values {
+                assert!(
+                    validate_setting_rule(&descriptor.key, &value).is_ok(),
+                    "{}",
+                    descriptor.key
+                );
+            }
+            assert!(validate_setting_rule(&descriptor.key, &json!({})).is_err());
+        }
+    }
+
+    #[test]
+    fn obsolete_and_future_locked_keys_fail_closed() {
+        for key in [
+            "colour_known",
+            "do_colour_known",
+            "wordSyncStaleLearningDays",
+            "futureLockedSetting",
+        ] {
+            assert!(validate_setting_rule(key, &json!(true)).is_err());
+        }
+    }
+
+    #[test]
+    fn registry_accepts_current_desktop_settings() {
+        for key in [
+            "enableWordColoring",
+            "colorKnownWords",
+            "readingAnnotationMoreContrast",
+            "simplifyHomeScreen",
+            "readerSepiaEnabled",
+        ] {
+            assert!(validate_setting_rule(key, &json!(true)).is_ok(), "{key}");
+        }
+        assert!(validate_setting_rule("frequencyStarCollapse", &json!("auto")).is_ok());
     }
 
     #[test]

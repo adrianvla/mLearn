@@ -1,0 +1,160 @@
+{
+  "messages": [
+    {
+      "role": "task",
+      "content": "",
+      "task": {
+        "operation": "conversation",
+        "instruction": "Participate as the individual described below. Preserve their identity, relationships, and lived continuity in every interaction modality. Canonical source material is background; it must not overwrite this individual's lived memories.\n\n## Conversation\nRespond in English. Adapt to the supplied learner state without assuming that a curriculum level or a lookup is measured knowledge. Keep responses concise and let the participant's personality govern their speech.\n\nDo not quiz the learner on character readings; focus quizzes on vocabulary, usage, and grammar.\n\n## Tool Usage Guidelines\n- Use \"create_quiz\" when a good teaching moment arises. Vary between MCQ, text-input, and fill-in types. This tool MUST NOT be called when the user makes a mistake in their message.\n- When making multiple quizzes in one turn, call \"create_quiz\" multiple times in the exact order they should appear.\n- If you want to create a quiz, do NOT write in plain text the quiz, but USE the tool \"create_quiz\" accordingly.\n- Use \"fetch_url\" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic. The fetched content will be returned as machine-readable text.\n- Use \"search_wikipedia\" to search for general knowledge, cultural references, or background information that comes up in conversation.\n- Use \"get_conversation_context\" to retrieve the canonical conversation context, including its learner projection.\n- Use \"save_memory\" when the learner shares personal facts. These are notes for this conversation; durable continuity requires explicit user integration.\n\nA separate checker handles corrections. Focus on the conversation.\n\nMemory notes remain in the current conversation. Only an explicit user integration promotes them into persistent world continuity.",
+        "context": {
+          "world": "## Persona\nYou are Aria (aria).\nA patient neighbour who runs the bakery.\n\n## Memories\n- Promised to reserve bread for the learner.\n\n## Learner\nLanguage: en\nWords the learner marked as difficult: reservation\nGrammar seen repeatedly (unmeasured, exposure-ranked \u2014 practice candidates, not failures): polite requests\n\n## Current situation\nThe bakery opens tomorrow.\n\n## Situation constraints\nThe shop is busy.\n\n## Your goals in this situation\nPractise collecting a bread order."
+        }
+      }
+    },
+    {
+      "role": "task",
+      "content": "",
+      "task": {
+        "operation": "conversation-summary-context",
+        "instruction": "Use this summary of earlier conversation as context.",
+        "context": {
+          "summary": "The learner ordered bread."
+        }
+      }
+    },
+    {
+      "role": "user",
+      "content": "Can I collect it tomorrow?"
+    },
+    {
+      "role": "assistant",
+      "content": "Yes, after opening."
+    },
+    {
+      "role": "user",
+      "content": "Please remind me what we agreed."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "create_quiz",
+        "description": "Create a quiz question to test the learner on vocabulary or grammar from the conversation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "quiz_type": {
+              "type": "string",
+              "enum": [
+                "mcq",
+                "text-input",
+                "fill-in"
+              ],
+              "description": "Type of quiz: multiple choice, text-input, or fill-in-the-blank phrase"
+            },
+            "question": {
+              "type": "string",
+              "description": "The quiz question"
+            },
+            "text_with_blanks": {
+              "type": "string",
+              "description": "For fill-in quizzes only: phrase with [] placeholder(s), e.g., \"I am eating an []\""
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Answer options for MCQ (3-4 options, one correct)"
+            },
+            "correct_answer": {
+              "type": "string",
+              "description": "The correct answer"
+            },
+            "affected_pattern": {
+              "type": "string",
+              "description": "The grammar pattern being tested, if any"
+            }
+          },
+          "required": [
+            "quiz_type",
+            "question",
+            "correct_answer"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "fetch_url",
+        "description": "Fetch and retrieve content from a URL. Use this to look up grammar explanations or language resources online when the learner asks about a specific topic.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The URL to fetch content from"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_conversation_context",
+        "description": "Retrieve the current participant, memory, situation, and learner context.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "save_memory",
+        "description": "Save an important fact about the learner for future reference. Use for: study goals, preferences, skill observations, personal details they share. Do NOT save trivial things.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string",
+              "description": "The fact to remember (concise, one sentence)"
+            }
+          },
+          "required": [
+            "content"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_wikipedia",
+        "description": "Search Wikipedia for articles related to a query. Returns a list of article titles and snippets. Use this to look up facts, cultural references, or background information mentioned in the conversation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query to look up on Wikipedia"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    }
+  ],
+  "model_tier": "standard",
+  "usage_scope": "foreground"
+}

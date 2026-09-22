@@ -174,6 +174,13 @@ stable when editing display names; replacing a resource creates a deliberate new
 policy target. A request is rejected before provider contact when its active group
 has no allowed route, no governed hard quota, or insufficient remaining capacity.
 
+Managed desktop requests carry explicit application task/context envelopes, which
+management lowers to user-level provider content. Administrator prompt profiles
+remain the sole source of system messages. Policy settings are defined once in
+`src/shared/policySettings.json`, imported by TypeScript and embedded by Rust.
+See the [school-managed contract](../docs/architecture/school-managed-contract.md)
+for transport, version-skew, compatibility evidence, and boundary tests.
+
 Prices are append-only versions stored in integer **micros** per million tokens.
 For example, a currency unit is one million micros; no floating-point money is
 used. Every reconciled request retains its exact price-version ID. Never edit old

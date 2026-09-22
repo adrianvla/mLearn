@@ -1,3 +1,5 @@
+import { createCloudLLMRequest } from '../backends/cloudLLMAdapter';
+import { usesManagedLlm } from '../llmTask';
 import { getNodeServerAuthToken, getNodeServerUrl } from '../nodeServerCredentials';
 import { projectCapabilities } from '../knowledge/capabilityProjection';
 /**
@@ -1221,7 +1223,7 @@ const llmBridge: LLMBridge = {
     const { signal } = llmAbortController;
 
     // On mobile, stream via HTTP to tethered desktop or cloud endpoint
-    const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+    const settings: Settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('settings') || '{}') };
     const cloudToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
     const nodeUrl = getNodeServerUrl();
 
@@ -1246,10 +1248,19 @@ const llmBridge: LLMBridge = {
       if (pairingToken) headers['X-Auth-Token'] = pairingToken;
     }
 
+    let body: string;
+    try {
+      body = JSON.stringify(isCloudMode && usesManagedLlm(settings)
+        ? createCloudLLMRequest(messages, tools ?? [], tier, think, 'foreground', true)
+        : { messages: messages.map(({ applicationTask: _, ...message }) => message), tools, model_tier: tier, think });
+    } catch (error) {
+      emitter.emit('llm-stream-chunk', { done: true, error: String(error) });
+      return;
+    }
     fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ messages, tools, model_tier: tier, think }),
+      body,
       signal,
     })
       .then(async res => {

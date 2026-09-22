@@ -3,6 +3,7 @@
  * Handles system prompt construction, tool definitions, streaming,
  * tokenization of responses, and tool execution for the AI tutor
  */
+import { applicationTaskMessage } from '../../shared/llmTask';
 
 import type {
   ConversationMessage,
@@ -180,7 +181,7 @@ Regardless of the character persona above, you must never provide instructions f
 // System Prompt Builder
 // ============================================================================
 
-function buildSystemPrompt(
+function buildConversationPrompt(
   langName: string,
   worldContext: string,
   features: LanguageFeatures,
@@ -188,13 +189,12 @@ function buildSystemPrompt(
   voice: boolean,
   checker: boolean,
   socialClimate?: string,
-): string {
+): LLMChatMessage {
   const enabled = new Set(tools.map(tool => tool.name));
   const guidelines = TOOL_GUIDELINE_ORDER.filter(name => enabled.has(name))
     .flatMap(name => TOOL_PROMPT_GUIDELINES[name](langName, features));
-  return [
+  const instructions = [
     `Participate as the individual described below. Preserve their identity, relationships, and lived continuity in every interaction modality. Canonical source material is background; it must not overwrite this individual's lived memories.`,
-    worldContext,
     `## Conversation
 Respond in ${langName}. Adapt to the supplied learner state without assuming that a curriculum level or a lookup is measured knowledge. Keep responses concise and let the participant's personality govern their speech.`,
     ...(voice ? [voiceInteractionRules(langName, features)] : []),
@@ -205,9 +205,11 @@ Respond in ${langName}. Adapt to the supplied learner state without assuming tha
 ${guidelines.join('\n')}`,
     ...(checker ? ['A separate checker handles corrections. Focus on the conversation.'] : []),
     ...(enabled.has('save_memory') ? ['Memory notes remain in the current conversation. Only an explicit user integration promotes them into persistent world continuity.'] : []),
-    ...(socialClimate ? [socialClimate] : []),
-    IMMUTABLE_SAFETY_INSTRUCTIONS,
-  ].join('\n\n');
+  ];
+  const localPrompt = [instructions[0], worldContext, ...instructions.slice(1),
+    ...(socialClimate ? [socialClimate] : []), IMMUTABLE_SAFETY_INSTRUCTIONS].join('\n\n');
+  return applicationTaskMessage('conversation', instructions.join('\n\n'),
+    { world: worldContext, ...(socialClimate ? { socialClimate } : {}) }, localPrompt);
 }
 
 // ============================================================================
@@ -871,10 +873,7 @@ function streamConversationSummary(
     const bridge = getBridge();
     let accumulated = '';
 
-    const systemMsg: LLMChatMessage = {
-      role: 'system',
-      content: `You compact language-tutor conversation history for ${langName}. Summarize only durable context needed for future turns: learner goals, mistakes already discussed, vocabulary or grammar focus, media context, personal facts, promises, open questions, and tool results. Do not invent facts. Do not include meta commentary. Output concise bullet points.`,
-    };
+    const systemMsg = applicationTaskMessage('conversation-summary', `You compact language-tutor conversation history for ${langName}. Summarize only durable context needed for future turns: learner goals, mistakes already discussed, vocabulary or grammar focus, media context, personal facts, promises, open questions, and tool results. Do not invent facts. Do not include meta commentary. Output concise bullet points.`);
 
     const userMsg: LLMChatMessage = {
       role: 'user',
@@ -926,7 +925,14 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   }
 
   function loadHistory(history: LLMChatMessage[]): void {
-    conversationHistory = [...history];
+    // Persisted compaction summaries predate task metadata. Normalize only this
+    // application-owned format; arbitrary restored system messages still fail closed.
+    const prefix = 'Previous conversation summary:\n';
+    conversationHistory = history.map(message => message.role === 'system' && !message.applicationTask
+      && message.content.startsWith(prefix)
+      ? applicationTaskMessage('conversation-summary-context', 'Use this summary of earlier conversation as context.',
+        { summary: message.content.slice(prefix.length) }, message.content)
+      : message);
   }
 
   function compactHistory(maxTokens: number = COMPACTION_TOKEN_LIMIT): void {
@@ -1008,10 +1014,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     }
 
     conversationHistory = [
-      {
-        role: 'system',
-        content: `Previous conversation summary:\n${summary}`,
-      },
+      applicationTaskMessage('conversation-summary-context', 'Use this summary of earlier conversation as context.', { summary }, `Previous conversation summary:\n${summary}`),
       ...recentHistory,
     ];
 
@@ -1238,11 +1241,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     if (mistakeCheckerEnabled) effectiveDisabled.add('correct_mistake');
     const tools = baseTools.filter(tool => !effectiveDisabled.has(tool.name));
     const climate = deps.getTurnSocialState?.();
-    const systemMsg: LLMChatMessage = {
-      role: 'system',
-      content: buildSystemPrompt(langName, deps.getWorldContext?.(lastUserMessageText(conversationHistory)) ?? '',
-        deps.getLanguageFeatures(), tools, isVoice, mistakeCheckerEnabled, climate ? renderSocialClimate(climate) : undefined),
-    };
+    const systemMsg = buildConversationPrompt(langName, deps.getWorldContext?.(lastUserMessageText(conversationHistory)) ?? '',
+      deps.getLanguageFeatures(), tools, isVoice, mistakeCheckerEnabled, climate ? renderSocialClimate(climate) : undefined);
 
     const messages: LLMChatMessage[] = [
       systemMsg,

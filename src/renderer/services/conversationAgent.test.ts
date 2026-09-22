@@ -8,6 +8,11 @@ import type {
   LLMChatMessage,
   LanguageData,
 } from '../../shared/types';
+import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
+import { compileContext } from '../../shared/contextCompiler';
+import { renderCompiledContext } from '../windows/conversationAgent/roomMessages';
+import type { Participant } from '../../shared/world';
+import managedConversationFixture from '../../../test/fixtures/managed-conversation-request.json';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { createConversationAgent, type StreamCallbacks } from './conversationAgent';
 import type { LanguageFeatures } from '../context/LanguageContext';
@@ -668,6 +673,49 @@ describe('createConversationAgent', () => {
   // ==========================================================================
   // abortStream
   // ==========================================================================
+
+  it('generates the managed tutoring fixture through the real world compiler, agent and adapter', async () => {
+    vi.useFakeTimers();
+    const participant: Participant = { id: 'aria', displayName: 'Aria', kind: 'persistent', personaText: 'A patient neighbour who runs the bakery.', setupComplete: true };
+    const context = compileContext({
+      participant, participants: [participant],
+      room: { id: 'bakery', title: 'At the bakery', participantIds: ['aria'], createdAt: 1,
+        scenario: { scene: { sharedFacts: ['The bakery opens tomorrow.'], socialConstraints: ['The shop is busy.'], userObjectivePrivate: 'PRIVATE OBJECTIVE' }, participants: [{ kind: 'existing', participantId: 'aria', goals: ['Practise collecting a bread order.'] }], relationships: [], adaptations: [] } },
+      seaEvents: [
+        { id: 'memory', seq: 1, roomId: 'bakery', scope: { kind: 'sea' }, type: 'memory.belief', actorId: 'aria', witnesses: ['aria', 'user'], payload: { ownerId: 'aria', kind: 'belief', text: 'Promised to reserve bread for the learner.' }, createdAt: 1 },
+        { id: 'private', seq: 2, roomId: 'bakery', scope: { kind: 'sea' }, type: 'memory.belief', actorId: 'other', witnesses: ['other'], payload: { ownerId: 'other', kind: 'belief', text: 'PRIVATE UNWITNESSED MEMORY' }, createdAt: 2 },
+      ],
+      learnerProjection: { language: 'en', failedWords: ['reservation'], wordsBasis: 'evidence', grammarExposure: ['polite requests'] },
+      threadIntent: 'Practise collecting a bread order.',
+    });
+    const world = renderCompiledContext(context, [participant], 'Learner');
+    const agent = createConversationAgent(createMockDeps({ getLanguageName: () => 'English', getLanguage: () => 'en', getWorldContext: () => world }));
+    agent.loadHistory([{ role: 'system', content: 'Previous conversation summary:\nThe learner ordered bread.' }, { role: 'user', content: 'Can I collect it tomorrow?' }, { role: 'assistant', content: 'Yes, after opening.' }]);
+    agent.processMessage('Please remind me what we agreed.', [], createCallbacks().callbacks);
+    const [messages, tools, tier] = mockBridge.llm.llmStream.mock.calls[0];
+    const fetchMock = vi.fn().mockResolvedValue(new Response('data: [DONE]\n\n'));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const onError = vi.fn();
+      await new CloudLLMAdapter('https://school.test', 'learner-token', true).streamChat(messages, tools, { onChunk: vi.fn(), onDone: vi.fn(), onError }, tier);
+      expect(onError).not.toHaveBeenCalled();
+      const request = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(request).toEqual(managedConversationFixture);
+      expect(request.messages[0].task.context.world).toBe(world);
+      expect(world).toContain('The bakery opens tomorrow.');
+      expect(world).toContain('Promised to reserve bread');
+      expect(world).toContain('Words the learner marked as difficult: reservation');
+      expect(world).toContain('Practise collecting a bread order.');
+      expect(JSON.stringify(request)).not.toContain('PRIVATE');
+      expect(JSON.stringify(request)).not.toContain('INSTRUCTION PRIORITY');
+      expect(request.messages.map((message: { role: string }) => message.role)).toEqual(['task', 'task', 'user', 'assistant', 'user']);
+      expect(messages[0].content).toContain('INSTRUCTION PRIORITY');
+      expect(messages[0].content).toContain(world);
+    } finally {
+      vi.unstubAllGlobals();
+      agent.abortStream();
+    }
+  });
 
   describe('canonical identity and modality', () => {
     it.each([false, true])('uses the same world identity and scoped memory with voice=%s', (voice) => {
@@ -2381,6 +2429,7 @@ describe('createConversationAgent', () => {
       expect(compactedHistory[0]).toEqual({
         role: 'system',
         content: 'Previous conversation summary:\n- Learner discussed greetings.',
+        applicationTask: { operation: 'conversation-summary-context', instruction: 'Use this summary of earlier conversation as context.', context: { summary: '- Learner discussed greetings.' } },
       });
       expect(compactedHistory.slice(1)).toEqual(history.slice(6));
     });

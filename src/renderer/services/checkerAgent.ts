@@ -3,6 +3,7 @@
  * A separate LLM agent that scans user messages for unnaturalness
  * and corrects mistakes independently from the conversation agent.
  */
+import { applicationTaskMessage } from '../../shared/llmTask';
 
 import type {
   MistakeWidgetData,
@@ -308,10 +309,7 @@ export function createCheckerAgent(): CheckerAgentInstance {
       aborted = false;
       const bridge = getBridge();
 
-      const systemMsg: LLMChatMessage = {
-        role: 'system',
-        content: buildCheckerPrompt(langName, customInstructions, options),
-      };
+      const systemMsg = applicationTaskMessage('conversation-check', buildCheckerPrompt(langName, customInstructions, options));
 
       const userMsg: LLMChatMessage = {
         role: 'user',

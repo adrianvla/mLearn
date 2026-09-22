@@ -43,10 +43,12 @@ vi.mock('./builtinLLMService', () => ({
 
 const mockCloudStreamChat = vi.fn();
 const mockCloudAbort = vi.fn();
+const mockCloudConstructor = vi.fn();
 
 vi.mock('../../shared/backends/cloudLLMAdapter', () => {
   return {
     CloudLLMAdapter: class {
+      constructor(...args: unknown[]) { mockCloudConstructor(...args); }
       streamChat = mockCloudStreamChat;
       abort = mockCloudAbort;
     },
@@ -267,6 +269,16 @@ describe('LLM_STREAM routing to cloud', () => {
       undefined,
       'foreground',
     );
+  });
+
+  it('selects managed transport only for the configured school endpoint', async () => {
+    for (const managed of [false, true]) {
+      mockLoadSettings.mockReturnValue({ ...mockLoadSettings(), overrideCloudEndpointUrl: managed, cloudApiUrl: 'https://school.test' });
+      mockCloudStreamChat.mockImplementationOnce(async (_messages, _tools, callbacks) => callbacks.onDone());
+      await mod.cloudComplete([{ role: 'user', content: 'hi' }]);
+      expect(mockCloudConstructor.mock.calls.at(-1)?.[2]).toBe(managed);
+      expect(mockCloudStreamChat.mock.calls.at(-1)?.[5]).toBe('internal');
+    }
   });
 
   it('onChunk sends LLM_STREAM_CHUNK to sender', async () => {

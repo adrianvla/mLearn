@@ -1,168 +1,9 @@
-import { COLOR_SCHEMES, UI_TYPES } from './constants';
+import policySettings from './policySettings.json';
 import { DEFAULT_SETTINGS, type Settings } from './types';
 
-type SettingJsonKind =
-  | 'boolean'
-  | 'number'
-  | 'string'
-  | 'stringOrNull';
-type BaseSettingJsonKind<T> =
-  NonNullable<T> extends boolean
-    ? 'boolean'
-    : NonNullable<T> extends number
-      ? 'number'
-      : NonNullable<T> extends string
-        ? 'string'
-        : never;
-type SettingJsonKindFor<T> = null extends T
-  ? `${BaseSettingJsonKind<T>}OrNull`
-  : BaseSettingJsonKind<T>;
-type SettingDescriptorFor<T> =
-  NonNullable<T> extends string
-    ? string extends NonNullable<T>
-      ? SettingJsonKindFor<T>
-      : {
-          kind: SettingJsonKindFor<T>;
-          allowedValues: readonly NonNullable<T>[];
-        }
-    : SettingJsonKindFor<T>;
-type SettingRegistry = {
-  [K in keyof Settings]?: SettingDescriptorFor<Settings[K]>;
-};
-
-const settingRegistry = {
-  srsLearningThreshold: 'number',
-  known_ease_threshold: 'number',
-  ankiLearningThreshold: 'number',
-  ankiKnownThreshold: 'number',
-  blur_words: 'boolean',
-  blur_known_subtitles: 'boolean',
-  blur_amount: 'number',
-  enableWordColoring: 'boolean',
-  colorKnownWords: 'boolean',
-  do_colour_codes: 'boolean',
-  uiType: {
-    kind: 'string',
-    allowedValues: [...UI_TYPES],
-  },
-  colorScheme: {
-    kind: 'string',
-    allowedValues: [...COLOR_SCHEMES],
-  },
-  language: 'string',
-  frequencyStarCollapse: {
-    kind: 'string',
-    allowedValues: ['never', 'auto', 'always'],
-  },
-  frequencyStarMargin: 'number',
-  hideFrequencyStarsForKnownWords: 'boolean',
-  hover_known_get_from_dictionary: 'boolean',
-  show_pos: 'boolean',
-  showReadingAnnotations: 'boolean',
-  readingAnnotationMoreContrast: 'boolean',
-  readingAnnotationSizePercent: 'number',
-  hideReadingForKnownWords: 'boolean',
-  showProsody: 'boolean',
-  hideProsodyForKnownWords: 'boolean',
-  showDictionary: 'boolean',
-  simplifyHomeScreen: 'boolean',
-  use_anki: 'boolean',
-  flashcardSkipAnkiChoice: 'boolean',
-  skipAnkiDuplicateWarning: 'boolean',
-  skipStatusSourceWarning: 'boolean',
-  skipAnkiModifyWarning: 'boolean',
-  easeThresholdUnknown: 'number',
-  easeThresholdLearning: 'number',
-  easeThresholdKnown: 'number',
-  easeThresholdMastered: 'number',
-  manualStatusEaseBuffer: 'number',
-  ankiDeckName: 'string',
-  enable_flashcard_creation: 'boolean',
-  automaticFlashcardCreation: 'boolean',
-  flashcard_deck: 'stringOrNull',
-  flashcards_add_picture: 'boolean',
-  maxNewCardsPerDay: 'number',
-  proportionOfLevelCards: 'number',
-  createUnseenCards: 'boolean',
-  flashcardLLMExamples: 'boolean',
-  newDayHour: 'number',
-  flashcardFlipAnimation: 'boolean',
-  leechThreshold: 'number',
-  flashcardMediaType: {
-    kind: 'string',
-    allowedValues: ['image', 'video'],
-  },
-  flashcardVideoMargin: 'number',
-  autoSuggestFlashcards: 'boolean',
-  autoSuggestUnknownWords: 'boolean',
-  openAside: 'boolean',
-  rightSidebarOpen: 'boolean',
-  subsOffsetTime: 'number',
-  immediateFetch: 'boolean',
-  subtitleTheme: {
-    kind: 'string',
-    allowedValues: ['marker', 'background', 'shadow'],
-  },
-  subtitle_font_size: 'number',
-  subtitle_font_weight: 'number',
-  showSubtitles: 'boolean',
-  showTranslation: 'boolean',
-  overlayAutoPosition: 'boolean',
-  overlayTextMode: 'boolean',
-  removeParentheses: 'boolean',
-  removeSpeakerNames: 'boolean',
-  showLiveTranslator: 'boolean',
-  liveTranslatorIncludeKnown: 'boolean',
-  blurKnownWords: 'boolean',
-  llmEnabled: 'boolean',
-  ocrEnabled: 'boolean',
-  voiceEnabled: 'boolean',
-  lowBatteryMode: 'boolean',
-  ocr_crop_padding: 'number',
-  ocrRamSaver: 'boolean',
-  ocrTurboMode: 'boolean',
-  ocrReadingAnnotationFiltering: 'boolean',
-  ocrReadingAnnotationWidthRatio: 'number',
-  ocrReadingAnnotationNeighborWindowMultiplier: 'number',
-  ocrReadingAnnotationNeighborLookahead: 'number',
-  ocrProvider: {
-    kind: 'string',
-    allowedValues: ['local', 'cloud'],
-  },
-  readerCropMode: 'boolean',
-  readerDocumentOcr: 'boolean',
-  readerSepiaEnabled: 'boolean',
-  readerSharpenEnabled: 'boolean',
-  readerSharpenTextEnabled: 'boolean',
-  readerWordHoverTrigger: {
-    kind: 'string',
-    allowedValues: ['hover', 'long-hover', 'key-hover'],
-  },
-  readerWordHoverKey: 'string',
-  readerReadingAnnotationHider: 'boolean',
-  readerCollatePages: 'boolean',
-  readerPageMode: {
-    kind: 'string',
-    allowedValues: ['single', 'double'],
-  },
-  readerFirstPageSingle: 'boolean',
-  readerSpreadDirection: {
-    kind: 'string',
-    allowedValues: ['left-to-right', 'right-to-left'],
-  },
-  readerTextFontStyle: {
-    kind: 'string',
-    allowedValues: ['language', 'sans', 'serif', 'mono'],
-  },
-  readerTextSize: 'number',
-  readerTextLineHeight: 'number',
-  readerTextWidth: 'number',
-  readerTextMargin: 'number',
-  readerMagnifierHotkey: 'string',
-  readerMagnifierZoom: 'number',
-  readerMagnifierSize: 'number',
-  passiveEaseEnabled: 'boolean',
-} as const satisfies SettingRegistry;
+// The same checked-in contract is embedded by Rust. No generated copies.
+const settingRegistry = policySettings;
+type SettingDescriptor = { kind: string; allowedValues?: readonly string[] };
 
 export type PolicySettingKey = keyof typeof settingRegistry;
 
@@ -288,7 +129,7 @@ function validatePolicy(input: unknown): string | null {
   if (!isRecord(input.settings)) return 'settings must be an object';
   for (const [key, rule] of Object.entries(input.settings)) {
     if (!Object.prototype.hasOwnProperty.call(settingRegistry, key))
-      return `setting ${key} is not policy-addressable`;
+      return `setting ${key} is not policy-addressable; upgrade to a compatible policy contract`;
     if (
       !isExactRecord(rule, [
         'value',
@@ -401,15 +242,10 @@ function matchesSettingDescriptor(
   value: unknown,
   descriptor: (typeof settingRegistry)[PolicySettingKey],
 ): boolean {
-  if (typeof descriptor !== 'string') {
-    const allowedValues: readonly string[] = descriptor.allowedValues;
-    return typeof value === 'string' && allowedValues.includes(value);
-  }
-  const kind: SettingJsonKind = descriptor;
-  if (kind === 'stringOrNull')
-    return value === null || typeof value === 'string';
-  if (kind === 'number')
-    return isIJsonPolicyNumber(value);
+  const { kind, allowedValues } = descriptor as SettingDescriptor;
+  if (allowedValues) return typeof value === 'string' && allowedValues.includes(value);
+  if (kind === 'stringOrNull') return value === null || typeof value === 'string';
+  if (kind === 'number') return isIJsonPolicyNumber(value);
   return typeof value === kind;
 }
 
@@ -460,4 +296,6 @@ function isSafeIdentifier(value: unknown): value is string {
 for (const key of Object.keys(settingRegistry) as PolicySettingKey[]) {
   if (!Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key))
     throw new Error(`Policy setting ${key} has no default`);
+  if (!matchesSettingDescriptor(DEFAULT_SETTINGS[key], settingRegistry[key]))
+    throw new Error(`Policy setting ${key} disagrees with its application default`);
 }

@@ -9,6 +9,7 @@ RUN npm run build
 FROM rust:1.98.1-bookworm AS backend-builder
 WORKDIR /build
 COPY management/backend/ ./management/backend/
+COPY src/shared/policySettings.json ./src/shared/policySettings.json
 COPY --from=frontend-builder /build/management/frontend/dist ./management/frontend/dist
 RUN touch management/backend/src/main.rs && cargo build --locked --release --manifest-path management/backend/Cargo.toml
 
