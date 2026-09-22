@@ -8,7 +8,10 @@ import { buildKnowledgeProjection } from './knowledgeProjection';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn((channel, handler) => handlers.set(channel, handler)) } }));
-vi.mock('./settings', () => ({ loadSettings: vi.fn(() => ({ easeThresholdLearning: 1.7, easeThresholdKnown: 2.2 })) }));
+vi.mock('./settings', () => ({
+  loadSettings: vi.fn(() => ({ easeThresholdLearning: 1.7, easeThresholdKnown: 2.2 })),
+  loadLangData: vi.fn(() => ({ ja: { learning: { capabilities: {} } } })),
+}));
 vi.mock('./languageDataService', () => ({ getLanguageDataRoot: () => '/unused' }));
 
 vi.mock('./knowledgeProjection', () => ({ buildKnowledgeProjection: vi.fn(() => ({ status: 'ready', targets: [] })) }));
@@ -216,6 +219,18 @@ describe('LinguisticGraphService', () => {
     const entityId = `ja:surface:${crypto.createHash('sha256').update('猫').digest('hex')}`;
     await service.getNeighborhood('ja', { entityId, thresholds });
     expect(buildProjection.mock.calls.at(-1)?.[6]?.thresholds).toEqual(thresholds);
+  });
+
+  it('loads installed language metadata once per active graph rather than once per projection', async () => {
+    fs.writeFileSync(path.join(directory, 'languages', 'ja.graph.json'), JSON.stringify(compact('ja', '猫')));
+    const settings = await import('./settings');
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory);
+
+    await service.getKnowledgeProjection('ja', '猫');
+    await service.getKnowledgeProjection('ja', '猫');
+
+    expect(settings.loadLangData).toHaveBeenCalledTimes(1);
   });
 
   it('serves repeated projections from one cached compact view and rebuilds it after a reload', async () => {

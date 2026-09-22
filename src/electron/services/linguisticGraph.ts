@@ -16,6 +16,7 @@ import { effectiveStateFromEntry, effectiveThresholds, type EffectiveThresholds 
 import { siblingJournalKeys } from '../../shared/graph/addressing';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
+import type { LanguageData, LanguageDataMap } from '../../shared/types';
 
 const log = getLogger('electron.linguisticGraph');
 
@@ -31,6 +32,9 @@ type LoadedGraph = {
    * language stays loaded at a time.
    */
   plainGraph?: LingualGraph;
+  /** Package metadata is stable for the lifetime of a loaded graph asset. */
+  languageData?: LanguageData;
+  languageDataResolved?: boolean;
 };
 
 const notInstalledMeta = (): GraphMeta => ({ entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' });
@@ -217,7 +221,7 @@ export class LinguisticGraphService {
       const rows = keys.flatMap((key) => rowLog[key] ?? []);
       const archives = getKnowledgeArchives(keys).map(({ archive }) => archive).filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
       const languageData = Object.prototype.hasOwnProperty.call(settingsModule, 'loadLangData')
-        ? settingsModule.loadLangData()[language]
+        ? this.projectionLanguageData(loaded, settingsModule.loadLangData)
         : undefined;
       const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { archives, thresholds, languageData });
       return projection.targets
@@ -257,7 +261,7 @@ export class LinguisticGraphService {
         .filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
       const compound = await this.compoundSupport(plain, language, surfaceId, thresholds);
       const languageData = Object.prototype.hasOwnProperty.call(settingsModule, 'loadLangData')
-        ? settingsModule.loadLangData()[language]
+        ? this.projectionLanguageData(loaded, settingsModule.loadLangData)
         : undefined;
       const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { compound, archives, thresholds, languageData });
       return { ...projection, querySurface: surface, surfaceKnown: loaded.graph.has(surfaceId), compoundAnalysis: compound?.analysis ?? null };
@@ -306,6 +310,20 @@ export class LinguisticGraphService {
   private toLingualGraph(loaded: LoadedGraph): LingualGraph {
     if (!loaded.plainGraph) loaded.plainGraph = createCompactGraphView(loaded.graph, loaded.language);
     return loaded.plainGraph;
+  }
+
+  /**
+   * Projection construction needs package-declared capability metadata, but
+   * loading all installed metadata is synchronous filesystem work. Cache the
+   * selected package with its active graph so a collection request cannot
+   * repeatedly block the main process behind the same metadata scan.
+   */
+  private projectionLanguageData(loaded: LoadedGraph, loadLanguageData: () => LanguageDataMap): LanguageData | undefined {
+    if (!loaded.languageDataResolved) {
+      loaded.languageData = loadLanguageData()[loaded.language];
+      loaded.languageDataResolved = true;
+    }
+    return loaded.languageData;
   }
 }
 
