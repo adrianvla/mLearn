@@ -91,4 +91,14 @@ describe('GrammarSelector classification parity', () => {
     expect(badge?.className).toContain('grammar-selector__status--untracked');
     expect(container.querySelector('.grammar-selector__status--learning')).toBeNull();
   });
+
+  it('selects the grammar card when its status area is clicked', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const onSelectionChange = vi.fn();
+    dispose = render(() => <GrammarSelector selected={[]} onSelectionChange={onSelectionChange} />, container);
+    const status = container.querySelector('.grammar-selector__card-meta') as HTMLElement;
+    status.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onSelectionChange).toHaveBeenCalledOnce();
+  });
 });

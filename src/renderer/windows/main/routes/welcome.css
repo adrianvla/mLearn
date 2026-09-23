@@ -7,7 +7,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 2rem;
-  background: var(--bg-opaque);
+  background: var(--app-shell-bg);
   color: var(--text-primary);
   user-select: none;
   min-height: 0;
@@ -68,6 +68,14 @@ body.reduce-transparency .welcome-container {
   color: var(--text-secondary);
   font-size: 1.1rem;
   margin: 0;
+}
+
+.welcome-language-flag {
+  display: inline-block;
+  margin-inline-end: var(--spacing-2);
+  font-size: 1.15em;
+  line-height: 1;
+  vertical-align: -0.08em;
 }
 
 /* Quiet accent link for changing the language, with a middot separator */

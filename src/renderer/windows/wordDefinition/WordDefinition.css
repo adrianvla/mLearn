@@ -3,7 +3,7 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-opaque);
+  background: var(--app-shell-bg);
 }
 
 .word-definition__header {

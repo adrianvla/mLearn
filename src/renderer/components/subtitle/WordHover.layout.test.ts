@@ -11,13 +11,16 @@ function ruleFor(selector: string): string {
 }
 
 describe('WordHover compact action-strip layout', () => {
-  it('keeps the footer pills on one larger, naturally sized row', () => {
+  it('keeps a single panel width and a separate inspection toolbar', () => {
     const panelRule = ruleFor('.subtitle_hover');
     const pillsRule = ruleFor('.subtitle_hover .pills');
+    const contentRule = ruleFor('.subtitle_hover_content');
+    const toolbarRule = ruleFor('.word-hover-toolbar');
     const pillSizingRule = css.match(/\.subtitle_hover \.pills \.label-pill,\s*\.subtitle_hover \.pills \.btn-pill\s*\{([^}]*)\}/)?.[1];
 
-    expect(panelRule).toMatch(/width:\s*fit-content/);
-    expect(panelRule).toMatch(/max-width:\s*calc\(100vw - var\(--spacing-4\)\)/);
+    expect(panelRule).toMatch(/width:\s*min\(600px, calc\(100vw - var\(--spacing-4\)\)\)/);
+    expect(contentRule).not.toMatch(/max-width/);
+    expect(toolbarRule).toMatch(/justify-content:\s*flex-end/);
     expect(pillsRule).toMatch(/flex-wrap:\s*nowrap/);
     expect(pillsRule).toMatch(/width:\s*max-content/);
     expect(pillSizingRule).toMatch(/font-size:\s*0\.8em/);

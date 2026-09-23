@@ -10,7 +10,7 @@ import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
 import { threadContextId, type Participant, type WorldSnapshot, type ScenarioCreation } from '../../../shared/world';
 import { resolveParticipant } from '../../services/participantConstruction';
-import { Btn, FormField, HintText, ModalForm, Textarea } from '../../components/common';
+import { Btn, FormField, HintText, ModalForm, RadioChoice, Textarea } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import './NewConversationModal.css';
 import { conversationRecoveryKey } from './errorUtils';
@@ -187,14 +187,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
           <fieldset class="new-conversation-scope">
             <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}</legend>
             <div class="new-conversation-scope-options" role="radiogroup" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}>
-              <label class="new-conversation-scope-option" classList={{ 'new-conversation-scope-option--active': scope() === 'sandbox' }}>
-                <input type="radio" name="conversation-scope" role="radio" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')} checked={scope() === 'sandbox'} onChange={() => setScope('sandbox')} disabled={busy()} />
-                {t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')}
-              </label>
-              <label class="new-conversation-scope-option" classList={{ 'new-conversation-scope-option--active': scope() === 'persistent' }}>
-                <input type="radio" name="conversation-scope" role="radio" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopePersistent')} checked={scope() === 'persistent'} onChange={() => setScope('persistent')} disabled={busy()} />
-                {t('mlearn.ConversationAgent.NewConversation.ScopePersistent')}
-              </label>
+              <RadioChoice name="conversation-scope" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')} checked={scope() === 'sandbox'} onChange={() => setScope('sandbox')} disabled={busy()} />
+              <RadioChoice name="conversation-scope" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopePersistent')} checked={scope() === 'persistent'} onChange={() => setScope('persistent')} disabled={busy()} />
             </div>
             <Show when={scope() === 'persistent' && !settings.livingWorldEnabled}>
               <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
@@ -236,7 +230,9 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               </Show>
             </fieldset>
           </Show>
-          <FormField label={t('mlearn.ConversationAgent.NewConversation.IntentLabel')}>
+          <FormField label={t(props.initialIntent || saved?.request.intent
+            ? 'mlearn.ConversationAgent.NewConversation.PreparedGoalLabel'
+            : 'mlearn.ConversationAgent.NewConversation.IntentLabel')}>
             <Textarea
               value={intent()}
               onInput={(event) => setIntent(event.currentTarget.value)}

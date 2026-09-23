@@ -253,6 +253,23 @@ describe('useFlashcardTts', () => {
     dispose();
   });
 
+  it('only reports a retrieval audio cue after playback starts', async () => {
+    mockGetFlashcardTts.mockResolvedValueOnce('flashcard-audio://card1-word.ogg');
+    const onStarted = vi.fn();
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot((d) => {
+      hook = useFlashcardTts();
+      return d;
+    });
+
+    const playback = hook.playTts('card1', '食べる', 'ja', 'word', { onStarted });
+    await flush();
+    expect(onStarted).toHaveBeenCalledOnce();
+    audioInstances[0].onended!();
+    await playback;
+    dispose();
+  });
+
   it('playTts loads metadata in parallel with playback', async () => {
     const meta = { provider: 'kokoro', generatedAt: '2025-01-01', language: 'ja' };
     mockGetFlashcardTts.mockResolvedValueOnce('flashcard-audio://card1-word.ogg');
@@ -287,6 +304,21 @@ describe('useFlashcardTts', () => {
       expect.objectContaining({ variant: 'warning' }),
     );
     expect(hook.isPlaying()).toBe(false);
+    dispose();
+  });
+
+  it('keeps automatic playback quiet when saved audio is absent', async () => {
+    const onStarted = vi.fn();
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot((d) => {
+      hook = useFlashcardTts();
+      return d;
+    });
+
+    await hook.playTts('card1', '食べる', 'ja', 'word', { silentIfMissing: true, onStarted });
+    expect(mockShowToast).not.toHaveBeenCalled();
+    expect(onStarted).not.toHaveBeenCalled();
+    expect(hook.playingField()).toBeNull();
     dispose();
   });
 

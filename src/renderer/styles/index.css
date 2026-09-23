@@ -65,6 +65,7 @@
   --frequency-star-shadow: #110000;
 
   --bg-opaque: #f5f5f5;
+  --app-shell-bg: var(--bg-opaque);
   --transparent: #00000000;
 
   --bg: rgba(85, 85, 85, 0.22);

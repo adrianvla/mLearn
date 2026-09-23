@@ -83,7 +83,8 @@ function resolveInitialLanguageCode(preferredLanguage: string | undefined, avail
     return preferredLanguage;
   }
 
-  return availableLanguageCodes[0] ?? '';
+  // A catalog's ordering is not a learning preference. New profiles choose.
+  return '';
 }
 
 function resolveInitialUILanguageCode(preferredLanguage: string | undefined, availableLanguageCodes: readonly string[]): string {
@@ -270,6 +271,7 @@ const WelcomeContent: Component = () => {
     return getLocalizedLanguageName(target, null, t, target.toUpperCase(), selectedUILanguage());
   });
   const selectedDictionaryRoute = createMemo(() => {
+    if (!selectedLanguage()) return t('mlearn.Installer.Summary.NotAvailable');
     const source = selectedLanguageOption()?.name ?? selectedLanguage().toUpperCase();
     const target = selectedDictionaryTargetLabel();
     return `${source}\u2192${target}`;
@@ -726,7 +728,7 @@ const WelcomeContent: Component = () => {
               value={selectedLanguage()}
               placeholder={availableLanguages().length === 0
                 ? t('mlearn.Installer.SetupSentence.LoadingLanguages')
-                : undefined}
+                : t('mlearn.Installer.SetupSentence.ChooseLanguage')}
               onChange={(event) => {
                 if (getLanguageDataStatus(event.currentTarget.value)?.compatible === false) return;
                 setSelectedLanguage(event.currentTarget.value);
@@ -756,7 +758,7 @@ const WelcomeContent: Component = () => {
             <span>{t('mlearn.Installer.SetupSentence.AppLanguageSuffix')}</span>
           </div>
           <div class="welcome-window__summary">
-            <span>{t('mlearn.Installer.Summary.LearningLanguage', { language: selectedLanguageOption()?.name ?? selectedLanguage().toUpperCase() })}</span>
+            <span>{t('mlearn.Installer.Summary.LearningLanguage', { language: selectedLanguageOption()?.name ?? t('mlearn.Installer.Summary.NotAvailable') })}</span>
             <span>{t('mlearn.Installer.Summary.DisplayLanguage', { language: selectedUILanguageLabel() })}</span>
             <span>{t('mlearn.Installer.Summary.DictionaryLanguage', { language: selectedDictionaryRoute() })}</span>
           </div>

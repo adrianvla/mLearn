@@ -56,6 +56,11 @@ export const WordDbEditorContent: Component = () => {
   const [browseMode, setBrowseMode] = createSignal<WordDbBrowseMode>('all');
   const [sortKey, setSortKey] = createSignal<string>('word');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
+  const wordCollator = createMemo(() => {
+    const options = { usage: 'sort' as const, sensitivity: 'base' as const, numeric: true };
+    try { return new Intl.Collator(settings.language, options); }
+    catch { return new Intl.Collator(undefined, options); }
+  });
   const needsKnowledgeQuery = () => sortKey() === 'status' || filterTokens().some(token => token.kind === 'operand' && token.field === 'status');
   const matchesSearch = (entry: WordEntry): boolean => {
     const query = searchQuery().toLowerCase().trim();
@@ -177,11 +182,30 @@ export const WordDbEditorContent: Component = () => {
     if (!knowledgeQueryReady()) return [];
     const ast = filterAst();
     const resolvers = filterResolvers();
-    return sourceEntries.filter(entry => matchesSearch(entry) && (!ast.ok || !ast.ast || evaluateAst(ast.ast, entry, resolvers)))
-      .sort((a, b) => {
+    const filtered = sourceEntries.filter(entry => matchesSearch(entry) && (!ast.ok || !ast.ast || evaluateAst(ast.ast, entry, resolvers)));
+    // A package's dictionary can contain punctuation and empty headwords.
+    // Keep them searchable, but begin ordinary browsing with actual words.
+    if (sortKey() === 'word' && sortDir() === 1) {
+      const words: WordEntry[] = [];
+      const numbers: WordEntry[] = [];
+      const symbols: WordEntry[] = [];
+      const empty: WordEntry[] = [];
+      for (const entry of filtered) {
+        const headword = entry.word.trim();
+        const firstCharacter = Array.from(headword)[0];
+        if (!firstCharacter) empty.push(entry);
+        else if (/\p{L}/u.test(firstCharacter)
+          && (!/\p{Lm}/u.test(firstCharacter) || /[\p{Lu}\p{Ll}\p{Lt}\p{Lo}]/u.test(headword.slice(firstCharacter.length)))) words.push(entry);
+        else if (/\p{N}/u.test(firstCharacter)) numbers.push(entry);
+        else symbols.push(entry);
+      }
+      const byWord = (a: WordEntry, b: WordEntry) => wordCollator().compare(a.word, b.word);
+      return [...words.sort(byWord), ...numbers.sort(byWord), ...symbols.sort(byWord), ...empty];
+    }
+    return filtered.sort((a, b) => {
         let comparison = 0;
         switch (sortKey()) {
-          case 'word': comparison = a.word.localeCompare(b.word); break;
+          case 'word': comparison = wordCollator().compare(a.word, b.word); break;
           case 'translation': comparison = a.translation.localeCompare(b.translation); break;
           case 'level': comparison = (a.level ?? -1) - (b.level ?? -1); break;
           case 'status': comparison = knowledgeStatusToNumeric(a.word) - knowledgeStatusToNumeric(b.word); break;

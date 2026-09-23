@@ -11,7 +11,7 @@
  *  - voice-samples.json (manifest)
  */
 
-import { ipcMain, dialog, BrowserWindow } from 'electron';
+import { app, ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
@@ -20,8 +20,18 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 import { guardianForWrites } from './guardian';
+import { getCurrentLocaleData } from './localization';
 
 const log = getLogger('electron.dataExportImport');
+
+function recoveryText(key: string): string {
+  let value: unknown = getCurrentLocaleData().strings;
+  for (const part of ['mlearn', 'Settings', 'Data', 'Guardian', key]) {
+    if (!value || typeof value !== 'object') return key;
+    value = (value as Record<string, unknown>)[part];
+  }
+  return typeof value === 'string' ? value : key;
+}
 
 /** All user data items to include in a full export */
 const DATA_FILES = [
@@ -170,8 +180,42 @@ export function setupDataExportImportIPC(): void {
     const guardian = guardianForWrites();
     if (!guardian) return { state: 'unavailable', recoveryPoints: 0 };
     const status = guardian.status;
-    return { state: status.state, recoveryPoints: guardian.listRecoveryPoints().length,
+    return { state: status.state, recoveryPoints: guardian.listRecoveryPointSummaries().length,
       lastSnapshot: status.lastGoodSnapshot, reason: status.reason };
+  });
+  ipcMain.handle(IPC_CHANNELS.GUARDIAN_RECOVERY_POINTS, async (): Promise<import('../../shared/guardian').RecoveryPointSummary[]> => {
+    return guardianForWrites()?.listRecoveryPointSummaries() ?? [];
+  });
+  ipcMain.handle(IPC_CHANNELS.GUARDIAN_RESTORE, async (_event, id: unknown): Promise<{ success: boolean; error?: string }> => {
+    if (typeof id !== 'string') return { success: false, error: 'Invalid recovery point' };
+    const guardian = guardianForWrites();
+    if (!guardian || guardian.status.state !== 'ready') return { success: false, error: 'Data protection is unavailable' };
+    const point = guardian.listRecoveryPointSummaries().find((item) => item.id === id);
+    if (!point) return { success: false, error: 'Recovery point was not found' };
+    const locale = getCurrentLocaleData().locale;
+    const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(point.createdAt));
+    const answer = await dialog.showMessageBox({
+      type: 'warning', title: recoveryText('ConfirmTitle'),
+      message: recoveryText('ConfirmMessage').replace('{date}', date),
+      detail: recoveryText('ConfirmDetail'),
+      buttons: [recoveryText('Cancel'), recoveryText('ConfirmRestore')], defaultId: 0, cancelId: 0,
+    });
+    if (answer.response !== 1) return { success: false };
+    let queued = false;
+    try {
+      guardian.queueRestore(id);
+      queued = true;
+      app.relaunch();
+      app.quit();
+      return { success: true };
+    } catch (error) {
+      if (queued) {
+        try { guardian.cancelQueuedRestore(id); }
+        catch (cancelError) { log.error('[DataExportImport] Could not cancel the queued recovery:', cancelError); }
+      }
+      log.error('[DataExportImport] Recovery could not be scheduled:', error);
+      return { success: false, error: String(error) };
+    }
   });
   ipcMain.handle(IPC_CHANNELS.DATA_EXPORT, async () => {
     try {

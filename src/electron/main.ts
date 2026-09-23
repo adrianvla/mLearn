@@ -55,6 +55,7 @@ import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
 import { Guardian, activateGuardian } from './services/guardian';
 import { getUserDataPath } from './utils/platform';
+import { createWindowActivation } from './services/windowActivation';
 import { whenKnowledgeEventsReady } from './services/knowledgeEvents';
 import { initializeKikanRuntime, recordOperationalEvent, refreshKikanRuntime } from './services/kikanRuntime';
 
@@ -485,6 +486,9 @@ async function initialize(): Promise<void> {
 }
 
 // App lifecycle
+const windowActivation = createWindowActivation(focusExistingAppWindow, () => {
+  void createAppWindows().catch(handleStartupFailure);
+});
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   app.quit();
@@ -504,12 +508,10 @@ if (!gotSingleInstanceLock) {
       handleDeepLinkArgs(process.argv);
     }
 
-    void initialize().catch(handleStartupFailure);
+    void initialize().then(() => windowActivation.markReady()).catch(handleStartupFailure);
 
     app.on('activate', () => {
-      if (!focusExistingAppWindow()) {
-        void createAppWindows();
-      }
+      windowActivation.activate();
     });
   });
 }

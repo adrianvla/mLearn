@@ -195,9 +195,8 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
                 <HoverReveal
                   icon={<span class={`grammar-selector__status grammar-selector__status--${grammarStatus().untracked ? 'untracked' : grammarStatus().status}`}>{statusLabel()}</span>}
                   label={knowledge() ? failureLabel() : ''}
-                  title={knowledge() ? failureLabel() : statusLabel()}
+                  title={knowledge() ? failureLabel() : undefined}
                   class="grammar-selector__card-meta"
-                  onClick={(e) => e.stopPropagation()}
                 />
                 </Show>
               </SelectableCard>

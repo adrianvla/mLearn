@@ -29,9 +29,9 @@ let mockWordFrequency: Record<string, { reading: string; raw_level: number; leve
 };
 
 vi.mock('../../hooks/useVirtualizer', () => ({
-  createVirtualizer: () => ({
-    getVirtualItems: () => [{ index: 0, start: 0 }],
-    getTotalSize: () => 56,
+  createVirtualizer: (options: { count: number }) => ({
+    getVirtualItems: () => Array.from({ length: options.count }, (_, index) => ({ index, start: index * 56 })),
+    getTotalSize: () => options.count * 56,
     measureElement: vi.fn(),
     measure: vi.fn(),
   }),
@@ -176,6 +176,35 @@ describe('WordDbEditorContent', () => {
     const dispose = render(() => <WordDbEditorContent />, container);
     await vi.waitFor(() => expect(container.textContent).toContain('local knowledge'));
     expect(container.textContent).not.toContain('foreign');
+    dispose();
+  });
+
+  it('starts browsing with a word even when the package includes punctuation entries', async () => {
+    mockWordFrequency = {
+      '。': { reading: '', raw_level: 5, level: '5' },
+      '※印': { reading: '', raw_level: 5, level: '5' },
+      '々': { reading: '', raw_level: 5, level: '5' },
+      '０': { reading: '', raw_level: 5, level: '5' },
+      '学ぶ': { reading: 'まなぶ', raw_level: 5, level: '5' },
+    };
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+
+    await vi.waitFor(() => expect(renderedEntries.length).toBeGreaterThan(0));
+    expect(renderedEntries[0].word).toBe('学ぶ');
+    dispose();
+  });
+
+  it('uses the learning language collator and natural number order for word browsing', async () => {
+    mockWordFrequency = {
+      'word10': { reading: '', raw_level: 5, level: '5' },
+      'word2': { reading: '', raw_level: 5, level: '5' },
+    };
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+
+    await vi.waitFor(() => expect(container.querySelectorAll('[data-testid^="edit-"]').length).toBe(2));
+    expect(Array.from(container.querySelectorAll('[data-testid^="edit-"]'), element => element.textContent)).toEqual(['word2', 'word10']);
     dispose();
   });
 

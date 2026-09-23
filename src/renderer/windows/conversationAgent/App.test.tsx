@@ -215,6 +215,9 @@ vi.mock('../../components/common', () => ({
   ),
   HintText: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
   FormField: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
+  RadioChoice: (props: { name: string; label: string; checked: boolean; disabled?: boolean; onChange: () => void }) => (
+    <label><input type="radio" name={props.name} aria-label={props.label} checked={props.checked} disabled={props.disabled} onChange={props.onChange} />{props.label}</label>
+  ),
   VoiceSamplePicker: () => <span />,
   FloatingStatus: () => <span />,
   TabContainer: (props: { tabs?: Array<{ id: string; label: string }>; onTabChange?: (id: string) => void }) => (

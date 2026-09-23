@@ -1,7 +1,7 @@
 .flashcards-suggested {
   position: relative;
   height: 100%;
-  background: var(--bg-opaque);
+  background: var(--app-shell-bg);
 }
 
 
@@ -412,8 +412,21 @@
 .flashcards-suggested-loading {
   position: absolute;
   inset: 0;
-  padding: var(--spacing-6);
+  padding: calc(var(--flashcards-suggested-header-height, 0px) + var(--spacing-4) - 1px) var(--spacing-6) var(--spacing-4);
   overflow-y: auto;
+}
+
+.flashcards-suggested-loading-grid {
+  display: grid;
+  gap: var(--spacing-4);
+}
+
+.flashcards-suggested-loading-card {
+  padding: var(--spacing-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-sizing: border-box;
 }
 
 .flashcards-suggested-nomatch {

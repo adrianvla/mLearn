@@ -8,6 +8,7 @@ body.theme-dark-quartz,
 .theme-dark-quartz {
     /*--bg-opaque: #0a0a0a;*/
     --bg-opaque: #000;
+    --app-shell-bg: transparent;
     --bg-nt-primary: rgb(26,26,26);
     --bg-nt-secondary: rgb(38,38,38);
     --character-grid-unknown-bg: #616161;
@@ -45,6 +46,12 @@ body.theme-dark-quartz,
 
     --overlay-bg: rgba(0, 0, 0, 0.6);
     --overlay-bg-soft: rgba(0, 0, 0, 0.4);
+}
+
+/* The native under-window material needs a translucent renderer root to
+   remain visible; opaque reading and media canvases keep --bg-opaque. */
+body.theme-dark-quartz {
+    background: rgba(0, 0, 0, 0.38);
 }
 
 /* === Slate variables — Dark Quartz without translucency (the --bg pair is

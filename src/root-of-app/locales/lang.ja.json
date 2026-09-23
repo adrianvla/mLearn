@@ -852,6 +852,7 @@
         "StartAria": "会話を開始",
         "PeopleHint": "選んだ人は全員会話に参加し、返答できます。",
         "IntentLabel": "目標（任意）",
+        "PreparedGoalLabel": "練習のテーマ",
         "ToggleParticipant": "{name} を会話に加える",
         "ScopeLabel": "どこに保存しますか？",
         "ScopeTemporary": "一時的な練習",
@@ -1518,7 +1519,8 @@
         "AppLanguagePrefix": "mLearnの表示言語は",
         "AppLanguageSuffix": "です。",
         "DictionaryPrefix": "辞書の定義言語は",
-        "LoadingLanguages": "利用可能な言語を読み込んでいます…"
+        "LoadingLanguages": "利用可能な言語を読み込んでいます…",
+        "ChooseLanguage": "言語を選択"
       },
       "Advanced": {
         "Title": "詳細設定"
@@ -2102,8 +2104,8 @@
         "FitHeight": "高さに合わせる ↕",
         "FitWidth": "幅に合わせる ↔",
         "Home": "← ホーム",
-        "PageLayoutPaired": "1+2|3+4",
-        "PageLayoutSingle": "1|2+3",
+        "PageLayoutPaired": "先頭見開き",
+        "PageLayoutSingle": "先頭単独",
         "SinglePage": "単一ページ",
         "SpreadLeftToRight": "ページ 左→右",
         "SpreadRightToLeft": "ページ 右→左",
@@ -2197,7 +2199,18 @@
           "Label": "データ保護",
           "Description": "Guardian は起動時の変更前に学習データを検証し、復元ポイントを保存します。",
           "Ready": "保護中 · 復元ポイント {count} 件",
-          "Blocked": "復元が必要です"
+          "Blocked": "復元が必要です",
+          "View": "復元ポイントを表示",
+          "Restore": "復元",
+          "PointSummary": "カード {cards} 枚 · ルーム {rooms} 件 · 人物 {participants} 人",
+          "Empty": "読み取れる復元ポイントがありません。",
+          "LoadError": "復元ポイントを読み込めませんでした。もう一度お試しください。",
+          "RestoreError": "復元を開始できませんでした。再起動する前にデータ保護の状態を確認してください。",
+          "ConfirmTitle": "mLearn のデータを復元",
+          "ConfirmMessage": "{date} の復元ポイントを復元しますか？",
+          "ConfirmDetail": "mLearn が再起動します。現在のデータは別の復元フォルダーに保存されます。",
+          "Cancel": "キャンセル",
+          "ConfirmRestore": "復元して再起動"
         },
         "ExportAllData": {
           "Description": "すべての学習データ（フラッシュカード、メディア統計、音声、画像）をZIPアーカイブとしてエクスポート",

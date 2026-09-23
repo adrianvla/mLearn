@@ -358,6 +358,8 @@ sendLogRecord: (record: unknown) => void;
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
   dataImport: () => Promise<{ success: boolean; error?: string }>;
   getProtectionStatus: () => Promise<import('./guardian').ProtectionStatus>;
+  listRecoveryPoints: () => Promise<import('./guardian').RecoveryPointSummary[]>;
+  restoreRecoveryPoint: (id: string) => Promise<{ success: boolean; error?: string }>;
 
   // Browser Detection & Extension Installation
   detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>) => Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>>;

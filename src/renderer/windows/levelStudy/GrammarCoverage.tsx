@@ -1,5 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
+import { Btn } from '../../components/common';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import {
@@ -1400,15 +1401,15 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                     {t('mlearn.LevelStudy.Grammar.SessionPrompt', { pattern: presented })}
                                   </span>
                                   <span class="grammar-coverage__session-probe">
-                                    <button type="button" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'missed', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
+                                    <Btn size="sm" variant="danger" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'missed', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                                       {t('mlearn.Rating.Matrix.Missed')}
-                                    </button>
-                                    <button type="button" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'struggled', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
+                                    </Btn>
+                                    <Btn size="sm" variant="warning" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'struggled', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                                       {t('mlearn.Rating.Matrix.Struggled')}
-                                    </button>
-                                    <button type="button" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'fluent', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
+                                    </Btn>
+                                    <Btn size="sm" variant="success" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'fluent', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                                       {t('mlearn.Rating.Matrix.Fluent')}
-                                    </button>
+                                    </Btn>
                                     <button type="button" class="grammar-coverage__session-skip" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; skipSession(level, presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                                       {t('mlearn.LevelStudy.Grammar.SessionSkip')}
                                     </button>
@@ -1572,15 +1573,15 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                               row shows a meaning, the probe records that cue as
                               translation-scaffold provenance on the attempt. */}
                           <span class="grammar-coverage__probe">
-                            <button type="button" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'missed', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            <Btn size="sm" variant="danger" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'missed', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Missed')}
-                            </button>
-                            <button type="button" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'struggled', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            </Btn>
+                            <Btn size="sm" variant="warning" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'struggled', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Struggled')}
-                            </button>
-                            <button type="button" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'fluent', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            </Btn>
+                            <Btn size="sm" variant="success" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'fluent', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Fluent')}
-                            </button>
+                            </Btn>
                           </span>
                         </li>
                       )}

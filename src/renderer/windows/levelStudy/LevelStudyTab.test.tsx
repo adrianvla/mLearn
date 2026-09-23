@@ -150,8 +150,8 @@ vi.mock('../../components/common', () => ({
     </div>
   ),
   TargetIcon: (props: { size?: number }) => <span data-testid="target-icon">{props.size}</span>,
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
-    <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; class?: string }) => (
+    <button type="button" class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   PillBtn: (props: { label?: string; onClick?: () => void }) => (
     <button type="button" data-testid="level-pill" onClick={props.onClick}>{props.label}</button>

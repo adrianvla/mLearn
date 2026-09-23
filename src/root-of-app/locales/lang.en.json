@@ -852,6 +852,7 @@
         "StartAria": "Start conversation",
         "PeopleHint": "Everyone you pick joins the conversation and can respond.",
         "IntentLabel": "Goal (optional)",
+        "PreparedGoalLabel": "Practice focus",
         "ToggleParticipant": "Include {name} in the conversation",
         "ScopeLabel": "Where should this live?",
         "ScopeTemporary": "Temporary practice",
@@ -1518,7 +1519,8 @@
         "AppLanguagePrefix": "with mLearn in",
         "AppLanguageSuffix": ".",
         "DictionaryPrefix": "Dictionary definitions should be in",
-        "LoadingLanguages": "Loading available languages…"
+        "LoadingLanguages": "Loading available languages…",
+        "ChooseLanguage": "Choose a language"
       },
       "Advanced": {
         "Title": "Advanced"
@@ -2102,8 +2104,8 @@
         "FitHeight": "Fit Height ↕",
         "FitWidth": "Fit Width ↔",
         "Home": "← Home",
-        "PageLayoutPaired": "1+2|3+4",
-        "PageLayoutSingle": "1|2+3",
+        "PageLayoutPaired": "First paired",
+        "PageLayoutSingle": "First solo",
         "SinglePage": "Single Page",
         "SpreadLeftToRight": "Pages L→R",
         "SpreadRightToLeft": "Pages R→L",
@@ -2197,7 +2199,18 @@
           "Label": "Data protection",
           "Description": "Guardian checks learning data and keeps recovery points before startup changes.",
           "Ready": "Protected · {count} recovery points",
-          "Blocked": "Recovery required"
+          "Blocked": "Recovery required",
+          "View": "View recovery points",
+          "Restore": "Restore",
+          "PointSummary": "{cards} cards · {rooms} rooms · {participants} people",
+          "Empty": "No readable recovery points are available.",
+          "LoadError": "Could not load recovery points. Try again.",
+          "RestoreError": "Could not start recovery. Check data protection before restarting.",
+          "ConfirmTitle": "Restore mLearn data",
+          "ConfirmMessage": "Restore the recovery point from {date}?",
+          "ConfirmDetail": "mLearn will restart. Your current data will be kept in a separate recovery folder.",
+          "Cancel": "Cancel",
+          "ConfirmRestore": "Restore and restart"
         },
         "ExportAllData": {
           "Description": "Export all learning data (flashcards, media stats, audio, images) as a ZIP archive",

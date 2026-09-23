@@ -161,6 +161,35 @@ export async function runLegacyMigration(): Promise<MigrationSummary> {
       agents.push({ ...single, id: singleAgentId });
     }
   }
+  const readableName = (agent: AgentConfig, index: number): string => {
+    const supplied = agent.agentName?.trim();
+    if (supplied && supplied !== agent.id) return supplied;
+    const character = agent.roleplayName?.trim();
+    if (character && character !== agent.id) return character;
+    return agents.length > 1 ? `Conversation partner ${index + 1}` : 'Conversation partner';
+  };
+  // Older migrations stored an internal id as the visible name when the
+  // original config had no name. Repair only those exact fallbacks.
+  let repairedNames = false;
+  agents.forEach((agent, index) => {
+    const participant = world.participants.find((item) => item.id === agent.id);
+    if (!participant) return;
+    const name = readableName(agent, index);
+    if (!participant.displayName.trim() || participant.displayName === agent.id) {
+      participant.displayName = name;
+      repairedNames = true;
+    }
+    if (participant.personaText === agent.id) {
+      participant.personaText = buildPersonaText(agent) || name;
+      repairedNames = true;
+    }
+    const room = world.rooms.find((item) => item.id === roomIdForAgent(agent.id));
+    if (room && (!room.title.trim() || room.title === agent.id)) {
+      room.title = name;
+      repairedNames = true;
+    }
+  });
+  if (repairedNames) await saveWorld(world);
   if (store[MIGRATION_MARKER_KEY] === MIGRATION_MARKER_VALUE
     && agents.every(agent => world.participants.some(participant => participant.id === agent.id))) {
     return { migrated: false, rooms: 0, threads: 0, participants: 0, memoryEvents: 0, messageEvents: 0 };
@@ -190,12 +219,13 @@ export async function runLegacyMigration(): Promise<MigrationSummary> {
   let messageEvents = 0;
 
   // Participants + Rooms from agent configs.
-  for (const agent of agents) {
+  for (const [index, agent] of agents.entries()) {
+    const name = readableName(agent, index);
     const participant: Participant = {
       id: agent.id,
-      displayName: agent.agentName || agent.id,
+      displayName: name,
       kind: 'persistent',
-      personaText: buildPersonaText(agent) || agent.agentName || agent.id,
+      personaText: buildPersonaText(agent) || name,
       ...(agent.voiceSampleId !== undefined ? { voiceSampleId: agent.voiceSampleId } : {}),
       ...(agent.profilePhoto !== undefined ? { profilePhoto: agent.profilePhoto } : {}),
       setupComplete: agent.setupComplete,

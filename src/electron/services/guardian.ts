@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { backup, DatabaseSync } from 'node:sqlite';
 import AdmZip from 'adm-zip';
 import { StringDecoder } from 'node:string_decoder';
+import type { RecoveryPointSummary } from '../../shared/guardian';
 
 const SCHEMA = 1;
 const MAX_SNAPSHOTS = 8;
@@ -381,6 +382,9 @@ export class Guardian {
 
   /** Capture the latest verified session state after writers have stopped. */
   async checkpoint(): Promise<void> {
+    // A selected recovery point must remain available until the next preflight
+    // installs it. The outgoing live profile is preserved by restore quarantine.
+    if (fs.existsSync(path.join(this.dir, 'restore-transaction.json'))) return;
     this.verify();
     if (this.ledger!.snapshotStamp === sourceStamp(this.root)) return;
     this.ledger = { ...this.ledger!, generation: this.ledger!.generation + 1 };
@@ -579,6 +583,39 @@ export class Guardian {
   listRecoveryPoints(): string[] {
     if (!fs.existsSync(this.dir)) return [];
     return fs.readdirSync(this.dir).filter((entry) => /^snapshot-\d{8}$/.test(entry)).sort().reverse();
+  }
+
+  listRecoveryPointSummaries(): RecoveryPointSummary[] {
+    return this.listRecoveryPoints().flatMap((id) => {
+      try {
+        const location = path.join(this.dir, id);
+        const manifest = readJson(path.join(location, 'manifest.json')) as SnapshotManifest | undefined;
+        if (!manifest || manifest.schema !== SCHEMA) return [];
+        return [{ id, createdAt: fs.statSync(location).mtimeMs,
+          cards: manifest.metrics.cards.length, rooms: manifest.metrics.rooms.length,
+          participants: manifest.metrics.participants.length }];
+      } catch {
+        // One damaged snapshot must not hide the others in Settings.
+        return [];
+      }
+    });
+  }
+
+  /** Validate before scheduling restoration at startup, before writers open files. */
+  queueRestore(snapshotName: string): void {
+    this.requireReady();
+    if (!this.listRecoveryPoints().includes(snapshotName)) throw new Error('Unknown recovery snapshot');
+    this.validateSnapshot(snapshotName);
+    if (fs.existsSync(path.join(this.dir, 'restore-transaction.json'))) throw new Error('Recovery is already scheduled');
+    writeAtomic(path.join(this.dir, 'restore-transaction.json'), {
+      snapshotName, quarantine: `quarantine-${Date.now()}`,
+    });
+  }
+
+  cancelQueuedRestore(snapshotName: string): void {
+    const transactionPath = path.join(this.dir, 'restore-transaction.json');
+    const transaction = readJson(transactionPath) as { snapshotName?: string } | undefined;
+    if (transaction?.snapshotName === snapshotName) fs.rmSync(transactionPath);
   }
 
   newestVerifiedRecoveryPoint(): string | undefined {

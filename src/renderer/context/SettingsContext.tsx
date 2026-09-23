@@ -521,7 +521,6 @@ export const SettingsProvider: ParentComponent = (props) => {
     pendingLoadedSettings = null;
     pendingSettingsSnapshot = null;
 
-    if (import.meta.env.DEV) setSettings('devMode', true);
     getBackend({
       mode: reconciledSettings.backendMode,
       url: resolveBackendUrl(reconciledSettings),

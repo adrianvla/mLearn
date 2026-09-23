@@ -109,6 +109,22 @@ afterEach(() => {
 });
 
 describe('runLegacyMigration', () => {
+  it('replaces an unnamed legacy agent id with a readable participant and room name', async () => {
+    fs.writeFileSync(kvStorePath(), JSON.stringify({ 'agent-configs': JSON.stringify([{ ...AGENT, agentName: '', roleplayName: '' }]) }));
+    await mod.runLegacyMigration();
+    const migrated = await worldMod.loadWorld();
+    expect(migrated.participants[0].displayName).toBe('Conversation partner');
+    expect(migrated.rooms[0].title).toBe('Conversation partner');
+
+    // Profiles migrated by older versions already contain the raw id.
+    migrated.participants[0].displayName = 'agent_123';
+    migrated.rooms[0].title = 'agent_123';
+    await worldMod.saveWorld(migrated);
+    await mod.runLegacyMigration();
+    const repaired = await worldMod.loadWorld();
+    expect(repaired.participants[0].displayName).toBe('Conversation partner');
+    expect(repaired.rooms[0].title).toBe('Conversation partner');
+  });
   it('migrates legacy kv data into participant, room, threads and Sea memory events', async () => {
     seedKvStore();
 

@@ -852,6 +852,7 @@
         "StartAria": "Démarrer la conversation",
         "PeopleHint": "Toutes les personnes choisies participent à la conversation et peuvent répondre.",
         "IntentLabel": "Objectif (facultatif)",
+        "PreparedGoalLabel": "Objectif de pratique",
         "ToggleParticipant": "Inclure {name} dans la conversation",
         "ScopeLabel": "Où cela doit-il vivre ?",
         "ScopeTemporary": "Pratique temporaire",
@@ -1518,7 +1519,8 @@
         "AppLanguagePrefix": "avec mLearn en",
         "AppLanguageSuffix": ".",
         "DictionaryPrefix": "Les définitions du dictionnaire doivent être en",
-        "LoadingLanguages": "Chargement des langues disponibles…"
+        "LoadingLanguages": "Chargement des langues disponibles…",
+        "ChooseLanguage": "Choisir une langue"
       },
       "Advanced": {
         "Title": "Avancé"
@@ -2102,8 +2104,8 @@
         "FitHeight": "Ajuster à la hauteur ↕",
         "FitWidth": "Ajuster à la largeur ↔",
         "Home": "← Accueil",
-        "PageLayoutPaired": "1+2|3+4",
-        "PageLayoutSingle": "1|2+3",
+        "PageLayoutPaired": "1re jumelée",
+        "PageLayoutSingle": "1re seule",
         "SinglePage": "Page simple",
         "SpreadLeftToRight": "Pages G→D",
         "SpreadRightToLeft": "Pages D→G",
@@ -2197,7 +2199,18 @@
           "Label": "Protection des données",
           "Description": "Guardian vérifie les données d'apprentissage et conserve des points de restauration avant les changements au démarrage.",
           "Ready": "Protégé · {count} points de restauration",
-          "Blocked": "Restauration requise"
+          "Blocked": "Restauration requise",
+          "View": "Voir les points de restauration",
+          "Restore": "Restaurer",
+          "PointSummary": "{cards} cartes · {rooms} salons · {participants} personnes",
+          "Empty": "Aucun point de restauration lisible n'est disponible.",
+          "LoadError": "Impossible de charger les points de restauration. Réessayez.",
+          "RestoreError": "Impossible de lancer la restauration. Vérifiez la protection des données avant de redémarrer.",
+          "ConfirmTitle": "Restaurer les données mLearn",
+          "ConfirmMessage": "Restaurer le point du {date} ?",
+          "ConfirmDetail": "mLearn redémarrera. Vos données actuelles seront conservées dans un dossier de récupération séparé.",
+          "Cancel": "Annuler",
+          "ConfirmRestore": "Restaurer et redémarrer"
         },
         "ExportAllData": {
           "Description": "Exporter toutes les données d'apprentissage (cartes, statistiques, audio, images) en archive ZIP",

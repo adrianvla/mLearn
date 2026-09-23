@@ -18,6 +18,7 @@ let setMockCard: (card: Flashcard | null) => void = () => {};
 let mockLangMap: Record<string, LanguageData> = {};
 let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
+let mockTtsAvailable = true;
 const mockAnswerCard = vi.fn(() => false);
 const mockSetAccessStatus = vi.fn();
 const mockRecordAttempt = vi.fn((..._callArgs: unknown[]) => ({ attemptId: 'attempt-1' }));
@@ -112,7 +113,9 @@ vi.mock('../../context', () => ({
 
 vi.mock('../../hooks/useFlashcardTts', () => ({
   useFlashcardTts: () => ({
-    playTts: vi.fn(),
+    playTts: vi.fn((_id: string, _text: string, _language: string, _field: string, options?: { onStarted?: () => void }) => {
+      if (mockTtsAvailable) options?.onStarted?.();
+    }),
     isGenerating: () => false,
     stop: vi.fn(),
     metadata: () => null,
@@ -281,6 +284,7 @@ describe('FlashcardReview review modes', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     vi.clearAllMocks();
+    mockTtsAvailable = true;
     mockSettings = {
       ...DEFAULT_SETTINGS,
       language: 'ja',
@@ -391,6 +395,18 @@ describe('FlashcardReview review modes', () => {
     dispose();
   });
 
+  it('starts a different card at the top of the review scroll region', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-container')!;
+    scrollRegion.scrollTop = 240;
+
+    setMockCard(makeCard({ id: 'card-2', content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } }));
+    await flushEffects();
+
+    expect(scrollRegion.scrollTop).toBe(0);
+    dispose();
+  });
+
   it('reveals the reading annotation on the back face in reading mode without leaking it on the front', () => {
     const dispose = render(() => (
       <FlashcardReview reviewMode="reading" />
@@ -417,6 +433,7 @@ describe('FlashcardReview failure attribution', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     vi.clearAllMocks();
+    mockTtsAvailable = true;
     mockSettings = {
       ...DEFAULT_SETTINGS,
       language: 'ja',
@@ -450,6 +467,19 @@ describe('FlashcardReview failure attribution', () => {
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'missed', expect.objectContaining({ taskType: 'srs-review' }));
     expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({ taskType: 'srs-review' }));
     expect(mockAnswerCard).toHaveBeenCalledWith('again', expect.any(String), expect.any(Number), expect.objectContaining({ tested: ['sense-recognition', 'surface-reading'] }));
+    dispose();
+  });
+
+  it('resets scroll when the same learning card is queued again after rating', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-container')!;
+    clickShowAnswer(container);
+    scrollRegion.scrollTop = 240;
+
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+
+    expect(scrollRegion.scrollTop).toBe(0);
+    expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
     dispose();
   });
 
@@ -501,6 +531,19 @@ describe('FlashcardReview failure attribution', () => {
       taskType: 'srs-review',
       scaffolds: { audio: true },
     }));
+    dispose();
+  });
+
+  it('does not attribute an audio cue when automatic playback has no recording', () => {
+    mockTtsAvailable = false;
+    mockSettings.flashcardAutoTts = true;
+    const dispose = render(() => <FlashcardReview reviewMode="reading" />, container);
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
+    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
+    expect(mockRecordAttempt.mock.calls[0][3]).not.toHaveProperty('scaffolds');
+    expect(mockRecordAttempt.mock.calls[1][3]).not.toHaveProperty('scaffolds');
     dispose();
   });
 });

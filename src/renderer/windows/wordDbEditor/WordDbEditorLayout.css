@@ -6,7 +6,7 @@
 .word-db-editor {
   position: relative;
   height: 100vh;
-  background: var(--bg-opaque);
+  background: var(--app-shell-bg);
   color: var(--text-primary);
   overflow: hidden;
 }
@@ -61,12 +61,19 @@ body.reduce-transparency .word-db-editor{
   text-align: center;
 }
 
-.word-db-editor .col.integrations,
-.word-db-editor .col.knowledge {
+.word-db-editor .col.integrations {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
+}
+
+.word-db-editor .col.knowledge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--spacing-1);
 }
 
 @container (max-width: 849px) {

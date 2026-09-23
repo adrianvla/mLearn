@@ -19,7 +19,7 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   opacity:0;
 }
 
-/* Compact dictionary popover whose action strip determines its natural width. */
+/* One width boundary keeps the scroll track at the panel's visual edge. */
 .subtitle_hover {
   position: relative;
   background: var(--bg);
@@ -42,9 +42,9 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   box-sizing: border-box;
   text-shadow: none !important;
   -webkit-text-stroke: unset !important;
-  width: fit-content;
+  width: min(600px, calc(100vw - var(--spacing-4)));
   min-width: min(280px, calc(100vw - var(--spacing-4)));
-  max-width: calc(100vw - var(--spacing-4));
+  max-width: min(600px, calc(100vw - var(--spacing-4)));
 }
 
 
@@ -95,6 +95,16 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   align-items: center;
 }
 
+.word-hover-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border-color);
+  flex: 0 0 auto;
+}
+
 /* Content area - scrollable, takes remaining space above footer */
 .subtitle_hover_content {
   padding: var(--spacing-4);
@@ -103,7 +113,6 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   overflow-y: auto;
   flex: 1;
   min-height: 0; /* Allow shrinking for scroll */
-  max-width: 600px;
   overflow-wrap: anywhere;
 }
 .subtitle_hover_content a{
@@ -350,3 +359,4 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 
 .subtitle_hover .word-hover-inspect { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--font-size-xs); padding: var(--spacing-1); white-space: nowrap; cursor: pointer; }
 .subtitle_hover .word-hover-inspect:hover { color: var(--text-primary); text-decoration: underline; }
+.subtitle_hover .word-hover-inspect:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; border-radius: var(--radius-sm); }

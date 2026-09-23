@@ -12,6 +12,7 @@ export {
 } from './Input';
 export { ContentEditable, type ContentEditableProps } from './ContentEditable';
 export { ToggleSwitch, type ToggleSwitchProps } from './ToggleSwitch';
+export { RadioChoice, type RadioChoiceProps } from './RadioChoice';
 export { ColorInput, type ColorInputProps } from './ColorInput';
 export { FormField, type FormFieldProps } from './FormField';
 export { DropZone, type DropZoneProps } from './DropZone';

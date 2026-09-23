@@ -81,3 +81,12 @@
 .word-db-editor .col.integrations > * {
   max-width: 100%;
 }
+
+/* Keep learner state distinct from the two navigation actions. The actions
+   stay together when the editor narrows instead of wrapping one at a time. */
+.word-db-editor .col.knowledge .knowledge-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  white-space: nowrap;
+}

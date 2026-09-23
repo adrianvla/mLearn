@@ -716,6 +716,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         onMouseLeave={() => { if (!isInternalModalOpen() && !isAddingFlashcard()) props.onMouseLeave?.(); }}
       >
         <div class="subtitle_hover_relative">
+          <div class="word-hover-toolbar">
+            <button type="button" class="word-hover-inspect" onClick={() => openKnowledgeInspector({
+              language: settings.language, surface: actualWord(),
+              target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(actualWord())) },
+            })}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
+          </div>
            <div class="subtitle_hover_content" ref={contentRef}>
             {/* Loading state: keep the hover panel's shape while the lookup
                 resolves instead of flashing a text label. */}
@@ -839,10 +845,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 onAdd={handleAddToSRS}
               />
               <LLMPill />
-              <button type="button" class="word-hover-inspect" onClick={() => openKnowledgeInspector({
-                language: settings.language, surface: actualWord(),
-                target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(actualWord())) },
-              })}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
              </div>
           </div>
         </div>

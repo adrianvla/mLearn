@@ -35,8 +35,6 @@
 
 .ai-tutor-setup-modal__intents { border: 0; padding: 0; margin: 0; display: grid; gap: var(--spacing-2); }
 .ai-tutor-setup-modal__intents legend { font-weight: 600; margin-bottom: var(--spacing-2); }
-.ai-tutor-setup-modal__intents label { display: flex; align-items: center; gap: var(--spacing-3); padding: var(--spacing-2) var(--spacing-3); border: 1px solid var(--border-color); border-radius: var(--radius-md); cursor: pointer; min-height: var(--size-lg); box-sizing: border-box; }
-.ai-tutor-setup-modal__intents label.is-selected { background: var(--bg-intense); border-color: var(--text-primary); }
 @media (max-width: 640px) {
-  .ai-tutor-setup-modal__intents label { padding: var(--spacing-3); }
+  .ai-tutor-setup-modal__intents .radio-choice { padding: var(--spacing-3); }
 }

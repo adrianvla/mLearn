@@ -12,6 +12,7 @@ body.theme-quartz,
     --color-info: #1769a5;
 
     --bg-opaque: #f3f5f7;
+    --app-shell-bg: transparent;
     --bg-nt-primary: #ffffff;
     --bg-nt-secondary: #e7ebef;
     --character-grid-unknown-bg: #7b838d;

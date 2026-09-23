@@ -529,6 +529,10 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.DATA_IMPORT),
   getProtectionStatus: (): Promise<import('../shared/guardian').ProtectionStatus> =>
     ipcRenderer.invoke(IPC_CHANNELS.GUARDIAN_STATUS),
+  listRecoveryPoints: (): Promise<import('../shared/guardian').RecoveryPointSummary[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GUARDIAN_RECOVERY_POINTS),
+  restoreRecoveryPoint: (id: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GUARDIAN_RESTORE, id),
 
   // ========== Browser Detection ==========
   detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>): Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>> =>

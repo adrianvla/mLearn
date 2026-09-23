@@ -42,6 +42,9 @@ vi.mock('../../components/common', () => ({
   Textarea: (props: { value?: string; onInput?: (event: InputEvent) => void; placeholder?: string; rows?: number }) => (
     <textarea value={props.value} placeholder={props.placeholder} rows={props.rows} onInput={(event) => props.onInput?.(event)} />
   ),
+  RadioChoice: (props: { name: string; label: string; checked: boolean; disabled?: boolean; onChange: () => void }) => (
+    <label><input type="radio" role="radio" name={props.name} aria-label={props.label} checked={props.checked} disabled={props.disabled} onChange={props.onChange} />{props.label}</label>
+  ),
   Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; 'aria-pressed'?: boolean; 'aria-checked'?: boolean; role?: 'radio'; class?: string }) => (
     <button type="button" role={props.role} aria-label={props['aria-label']} aria-pressed={props['aria-pressed']} aria-checked={props['aria-checked']} class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
@@ -112,6 +115,8 @@ describe('NewConversationModal', () => {
   it('carries the tutor purpose into scenario setup without asking the learner to re-enter it', () => {
     dispose = render(() => <NewConversationModal world={world()} initialIntent="Practise describing my work" onClose={vi.fn()} onCreated={vi.fn()} />, container);
     expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('Practise describing my work');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.PreparedGoalLabel');
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.IntentLabel');
   });
 
   it('keeps selected people in an independent sandbox by exact id', async () => {

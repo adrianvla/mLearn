@@ -27,6 +27,13 @@ export interface TtsMetadata {
   language: string;
 }
 
+export interface TtsPlaybackOptions {
+  /** Automatic playback should not interrupt review when a recording is absent. */
+  silentIfMissing?: boolean;
+  /** Called only after audio playback starts, for retrieval cue attribution. */
+  onStarted?: () => void;
+}
+
 export function useFlashcardTts() {
   const { t } = useLocalization();
   const { langData, currentLangData } = useLanguage();
@@ -56,7 +63,7 @@ export function useFlashcardTts() {
   };
 
   /** Play an audio URL. Resolves when playback finishes. */
-  const playUrl = (url: string, myGenId: number): Promise<void> => {
+  const playUrl = (url: string, myGenId: number, onStarted?: () => void): Promise<void> => {
     return new Promise((resolve, reject) => {
       if (myGenId !== generationId) { resolve(); return; }
 
@@ -88,7 +95,9 @@ export function useFlashcardTts() {
         reject(new Error('Audio playback failed'));
       };
 
-      audio.play().catch(reject);
+      audio.play().then(() => {
+        if (myGenId === generationId && currentAudio === audio) onStarted?.();
+      }).catch(reject);
     });
   };
 
@@ -104,13 +113,14 @@ export function useFlashcardTts() {
     text: string,
     language: string,
     field: 'word' | 'example',
+    options?: TtsPlaybackOptions,
   ) => {
     // Always stop previous audio — never skip because something is playing
     stop();
+    if (!text || text === '-') return;
+
     // Set the field we're about to play so the UI can highlight the correct button
     setState((s) => ({ ...s, playingField: field }));
-
-    if (!text || text === '-') return;
 
     const languageData = resolveTtsLanguageData(language, {
       installedLanguageData: langData,
@@ -118,7 +128,10 @@ export function useFlashcardTts() {
       activeLanguageData: currentLangData(),
     });
     const cleanText = stripReadingAnnotations(text, languageData);
-    if (!cleanText.trim()) return;
+    if (!cleanText.trim()) {
+      setState({ isPlaying: false, isGenerating: false, playingField: null });
+      return;
+    }
 
     const myGenId = generationId;
     const bridge = getBridge();
@@ -136,7 +149,7 @@ export function useFlashcardTts() {
               if (m && myGenId === generationId) setMetadata(m);
             });
             // Append cache-buster to avoid stale audio after regeneration
-            await playUrl(existingUrl + '?t=' + Date.now(), myGenId);
+            await playUrl(existingUrl + '?t=' + Date.now(), myGenId, options?.onStarted);
             return;
           } catch (e) {
             log.error("error", e);
@@ -149,7 +162,7 @@ export function useFlashcardTts() {
           const fieldLabel = field === 'word'
             ? t('mlearn.Flashcards.PostCreate.WordTts')
             : t('mlearn.Flashcards.PostCreate.ExampleTts');
-          showToast({ message: t('mlearn.CardEditor.TtsMissing', { field: fieldLabel }), variant: 'warning' });
+          if (!options?.silentIfMissing) showToast({ message: t('mlearn.CardEditor.TtsMissing', { field: fieldLabel }), variant: 'warning' });
           setState({ isPlaying: false, isGenerating: false, playingField: null });
         }
         return;
@@ -162,6 +175,7 @@ export function useFlashcardTts() {
           speechSynthesisLang: ttsRuntime?.webSpeechLang,
           speechSynthesisVoice: ttsRuntime?.webSpeechVoice,
         });
+        options?.onStarted?.();
         // System TTS is fire-and-forget; update state optimistically
         setState({ isPlaying: false, isGenerating: false, playingField: null });
       }

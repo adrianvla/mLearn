@@ -1,5 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization } from '../../context';
+import { Btn } from '../../components/common';
 import {
   DiagnosticSession,
   type DiagnosticQuality,
@@ -950,15 +951,15 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                   {t('mlearn.LevelStudy.Placement.Prompt', { word: presentedWord() ?? '' })}
                 </span>
                 <span class="placement-session__probe">
-                  <button type="button" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('missed', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
+                  <Btn size="sm" variant="danger" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('missed', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                     {t('mlearn.Rating.Matrix.Missed')}
-                  </button>
-                  <button type="button" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('struggled', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
+                  </Btn>
+                  <Btn size="sm" variant="warning" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('struggled', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                     {t('mlearn.Rating.Matrix.Struggled')}
-                  </button>
-                  <button type="button" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('fluent', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
+                  </Btn>
+                  <Btn size="sm" variant="success" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('fluent', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                     {t('mlearn.Rating.Matrix.Fluent')}
-                  </button>
+                  </Btn>
                   <button type="button" class="placement-session__skip" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; skip(presentedWord() ?? ''); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                     {t('mlearn.LevelStudy.Placement.Skip')}
                   </button>

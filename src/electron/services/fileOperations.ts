@@ -6,8 +6,10 @@
 import { ipcMain, dialog, BrowserWindow, app } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'node:crypto';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getLogger } from '../../shared/utils/logger';
+import { getUserDataPath } from '../utils/platform';
 
 const log = getLogger('electron.fileOperations');
 
@@ -22,13 +24,61 @@ const LEGACY_LANGUAGE_ARTIFACTS = new Set([
   'dictionaries/zh-Hant',
 ]);
 
-function validatePath(inputPath: string): string {
-  const resolved = path.resolve(inputPath);
-  const homeDir = app.getPath('home');
-  if (!resolved.startsWith(homeDir)) {
-    throw new Error('Path outside allowed directory');
+type ReaderPathKind = 'folders' | 'documents';
+type ReaderPathGrants = Record<ReaderPathKind, string[]>;
+
+function readerGrantsPath(): string {
+  return path.join(getUserDataPath(), 'reader-path-grants.json');
+}
+
+async function readReaderGrants(): Promise<ReaderPathGrants> {
+  try {
+    const stored: unknown = JSON.parse(await fs.readFile(readerGrantsPath(), 'utf8'));
+    if (!stored || typeof stored !== 'object') return { folders: [], documents: [] };
+    const grants = stored as Record<string, unknown>;
+    return {
+      folders: Array.isArray(grants.folders) ? grants.folders.filter((entry): entry is string => typeof entry === 'string') : [],
+      documents: Array.isArray(grants.documents) ? grants.documents.filter((entry): entry is string => typeof entry === 'string') : [],
+    };
+  } catch {
+    return { folders: [], documents: [] };
   }
-  return resolved;
+}
+
+function insideDirectory(directory: string, candidate: string): boolean {
+  const relative = path.relative(directory, candidate);
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+async function validatePath(inputPath: string, kind: ReaderPathKind): Promise<string> {
+  const resolved = await fs.realpath(inputPath);
+  const homeDir = await fs.realpath(app.getPath('home'));
+  if (insideDirectory(homeDir, resolved)) return resolved;
+  const grants = await readReaderGrants();
+  if (grants[kind].includes(resolved)) return resolved;
+  throw new Error('Path outside allowed directory');
+}
+
+let readerGrantWrite: Promise<void> = Promise.resolve();
+
+function grantReaderPath(inputPath: string, kind: ReaderPathKind): Promise<void> {
+  const write = readerGrantWrite.then(async () => {
+    const resolved = await fs.realpath(inputPath);
+    const grants = await readReaderGrants();
+    if (grants[kind].includes(resolved)) return;
+    grants[kind].push(resolved);
+    const target = readerGrantsPath();
+    const temporary = `${target}.${randomUUID()}.tmp`;
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    try {
+      await fs.writeFile(temporary, JSON.stringify(grants));
+      await fs.rename(temporary, target);
+    } finally {
+      await fs.rm(temporary, { force: true });
+    }
+  });
+  readerGrantWrite = write.catch(() => {});
+  return write;
 }
 
 /**
@@ -47,7 +97,7 @@ export function setupFileOperationsIPC(): void {
   // Read all image files from a directory
   ipcMain.handle(IPC_CHANNELS.READ_DIRECTORY_IMAGES, async (_event, directoryPath: string) => {
     try {
-      const validatedPath = validatePath(directoryPath);
+      const validatedPath = await validatePath(directoryPath, 'folders');
       const entries = await fs.readdir(validatedPath, { withFileTypes: true });
       
       const imageFiles = entries
@@ -61,7 +111,7 @@ export function setupFileOperationsIPC(): void {
           return {
             name: entry.name,
             path: filePath,
-            data: data.buffer,
+            data: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength),
           };
         })
       );
@@ -76,9 +126,9 @@ export function setupFileOperationsIPC(): void {
   // Read a PDF file
   ipcMain.handle(IPC_CHANNELS.READ_PDF_FILE, async (_event, filePath: string) => {
     try {
-      const validatedPath = validatePath(filePath);
+      const validatedPath = await validatePath(filePath, 'documents');
       const data = await fs.readFile(validatedPath);
-      return { data: data.buffer };
+      return { data: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) };
     } catch (error) {
       log.error('[FileOps] Failed to read PDF file:', error);
       throw error;
@@ -120,7 +170,9 @@ export function setupFileOperationsIPC(): void {
       ...(focusedWindow ? { browserWindow: focusedWindow } : {}),
       properties: ['openDirectory'],
     } as Electron.OpenDialogOptions);
-    return result.canceled ? null : result.filePaths[0] ?? null;
+    const selected = result.canceled ? null : result.filePaths[0] ?? null;
+    if (selected) await grantReaderPath(selected, 'folders');
+    return selected;
   });
 
   // Select a reader document file
@@ -134,7 +186,9 @@ export function setupFileOperationsIPC(): void {
         { name: 'All Files', extensions: ['*'] },
       ],
     } as Electron.OpenDialogOptions);
-    return result.canceled ? null : result.filePaths[0] ?? null;
+    const selected = result.canceled ? null : result.filePaths[0] ?? null;
+    if (selected) await grantReaderPath(selected, 'documents');
+    return selected;
   });
 
   ipcMain.handle(IPC_CHANNELS.SELECT_BROWSER_FILE, async () => {

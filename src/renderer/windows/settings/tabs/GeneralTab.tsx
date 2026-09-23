@@ -2,7 +2,7 @@
  * General Settings Tab
  */
 
-import { Component, createMemo, createSignal, onMount, Show } from 'solid-js';
+import { Component, For, createMemo, createSignal, onMount, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon, Textarea } from '../../../components/common';
 import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type LanguageDataMap, type Settings } from '../../../../shared/types';
@@ -13,7 +13,7 @@ import { canonicalLanguage } from '../../../../shared/languageVariants';
 import '../SettingsForm.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { isElectron } from '../../../../shared/platform';
-import type { ProtectionStatus } from '../../../../shared/guardian';
+import type { ProtectionStatus, RecoveryPointSummary } from '../../../../shared/guardian';
 import { LanguageVariantGate } from '../../../components/common';
 import { getBilingualLanguageName, getNativeLanguageName } from '../../../utils/languageDisplayName';
 
@@ -85,6 +85,25 @@ export const GeneralTab: Component = () => {
   const [dataExporting, setDataExporting] = createSignal(false);
   const [dataImporting, setDataImporting] = createSignal(false);
   const [protectionStatus, setProtectionStatus] = createSignal<ProtectionStatus | null>(null);
+  const [recoveryPoints, setRecoveryPoints] = createSignal<RecoveryPointSummary[] | null>(null);
+  const [recoveryBusy, setRecoveryBusy] = createSignal(false);
+  const [recoveryError, setRecoveryError] = createSignal<'LoadError' | 'RestoreError' | null>(null);
+  const showRecoveryPoints = async () => {
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try { setRecoveryPoints(await getBridge().data.listRecoveryPoints()); }
+    catch (error) { log.warn('Failed to list recovery points', error); setRecoveryError('LoadError'); }
+    finally { setRecoveryBusy(false); }
+  };
+  const restoreRecoveryPoint = async (id: string) => {
+    setRecoveryBusy(true);
+    setRecoveryError(null);
+    try {
+      const result = await getBridge().data.restoreRecoveryPoint(id);
+      if (result.error) { log.warn('Failed to prepare recovery point', result.error); setRecoveryError('RestoreError'); }
+    } catch (error) { log.warn('Failed to prepare recovery point', error); setRecoveryError('RestoreError'); }
+    finally { setRecoveryBusy(false); }
+  };
   onMount(() => {
     if (isElectron()) void getBridge().data.getProtectionStatus().then(setProtectionStatus).catch((error) => {
       log.warn('Failed to read Guardian status', error);
@@ -446,19 +465,15 @@ export const GeneralTab: Component = () => {
 
         <SettingRow
           label={t('mlearn.Settings.Performance.DevMode.Label')}
-          description={import.meta.env.DEV
-            ? t('mlearn.Settings.Performance.DevMode.AutoEnabled')
-            : t('mlearn.Settings.Performance.DevMode.Description')
-          }
+          description={t('mlearn.Settings.Performance.DevMode.Description')}
         >
           <ToggleSwitch
-            checked={import.meta.env.DEV || settings.devMode}
+            checked={settings.devMode}
             onChange={(checked) => updateSettings({ devMode: checked })}
-            disabled={import.meta.env.DEV}
           />
         </SettingRow>
 
-        {(settings.devMode || import.meta.env.DEV) && (
+        {settings.devMode && (
           <SettingRow
             label="Diagnostics"
             description="Run a comprehensive test of all features and integrations."
@@ -530,7 +545,31 @@ export const GeneralTab: Component = () => {
               <span>{protectionStatus()?.state === 'ready'
                 ? t('mlearn.Settings.Data.Guardian.Ready', { count: protectionStatus()?.recoveryPoints ?? 0 })
                 : t('mlearn.Settings.Data.Guardian.Blocked')}</span>
+              <Show when={protectionStatus()?.state === 'ready' && (protectionStatus()?.recoveryPoints ?? 0) > 0}>
+                <Btn size="sm" variant="secondary" onClick={() => { void showRecoveryPoints(); }} disabled={recoveryBusy()}>
+                  {t('mlearn.Settings.Data.Guardian.View')}
+                </Btn>
+              </Show>
             </SettingRow>
+            <Show when={recoveryPoints()}>
+              {(points) => <div class="setting-recovery-points" aria-label={t('mlearn.Settings.Data.Guardian.View')}>
+                <Show when={points().length === 0}><p>{t('mlearn.Settings.Data.Guardian.Empty')}</p></Show>
+                <For each={points()}>
+                  {(point) => <div class="setting-recovery-point">
+                    <div>
+                      <strong>{new Intl.DateTimeFormat(settings.uiLanguage, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(point.createdAt))}</strong>
+                      <span>{t('mlearn.Settings.Data.Guardian.PointSummary', {
+                        cards: point.cards, rooms: point.rooms, participants: point.participants,
+                      })}</span>
+                    </div>
+                    <Btn size="sm" variant="danger" onClick={() => { void restoreRecoveryPoint(point.id); }} disabled={recoveryBusy()}>
+                      {t('mlearn.Settings.Data.Guardian.Restore')}
+                    </Btn>
+                  </div>}
+                </For>
+              </div>}
+            </Show>
+            <Show when={recoveryError()}>{(error) => <p class="setting-error" role="alert">{t(`mlearn.Settings.Data.Guardian.${error()}`)}</p>}</Show>
           </Show>
           <SettingRow
             label={t('mlearn.Settings.Data.ExportAllData.Label')}

@@ -4,3 +4,11 @@ export interface ProtectionStatus {
   lastSnapshot?: string;
   reason?: string;
 }
+
+export interface RecoveryPointSummary {
+  id: string;
+  createdAt: number;
+  cards: number;
+  rooms: number;
+  participants: number;
+}

@@ -85,6 +85,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [showEditModal, setShowEditModal] = createSignal(false);
   const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
+  let reviewScrollContainer: HTMLDivElement | undefined;
+  const resetReviewScroll = () => {
+    if (reviewScrollContainer) reviewScrollContainer.scrollTop = 0;
+  };
 
   // Active-engagement timing per card: blur/hidden pauses are excluded from
   // the recorded latency; the shared timer is the single implementation all
@@ -124,8 +128,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example') => {
     const card = store.flashcards[cardId] ?? currentCard();
-    if (field === 'word' && !showAnswer()) setWordAudioPreReveal(true);
-    playTts(cardId, text, card ? languageForCard(card) : settings.language, field);
+    playTts(cardId, text, card ? languageForCard(card) : settings.language, field, {
+      onStarted: () => { if (field === 'word' && currentCard()?.id === cardId && !showAnswer()) setWordAudioPreReveal(true); },
+    });
   };
 
   // Current card
@@ -299,6 +304,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // The answer changed the pool: end the encounter so the next read
     // re-selects instead of replaying the just-rated pick through the pin.
     decisionPin.advance();
+    // A learning card can be selected again immediately with the same id.
+    // Its next prompt must start above the sticky controls even in that case.
+    resetReviewScroll();
   };
 
   // Counts
@@ -391,6 +399,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     () => currentCard()?.id,
     () => {
       setShowAnswer(false);
+      resetReviewScroll();
     }
   ));
 
@@ -402,8 +411,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if (!cardId || !settings.flashcardAutoTts || settings.flashcardMuteAudio) return;
       const card = currentCard();
       if (!card) return;
-      if (!showAnswer()) setWordAudioPreReveal(true);
-      playTts(card.id, card.content.front, languageForCard(card), 'word');
+      playTts(card.id, card.content.front, languageForCard(card), 'word', {
+        silentIfMissing: true,
+        onStarted: () => { if (currentCard()?.id === card.id && !showAnswer()) setWordAudioPreReveal(true); },
+      });
     }
   ));
 
@@ -417,7 +428,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if (!card?.content.example || card.content.example === '-') return;
       if (card.content.videoUrl || card.content.skipExampleTts) return;
       // Play example immediately — playTts stops any previous audio first
-      playTts(card.id, card.content.example!, languageForCard(card), 'example');
+      playTts(card.id, card.content.example!, languageForCard(card), 'example', { silentIfMissing: true });
     }
   ));
 
@@ -429,6 +440,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setShowAnswer(false);
     // The undo restored prior pool state: re-select afresh (R20 pin repair).
     decisionPin.advance();
+    resetReviewScroll();
   };
 
   const handleBury = () => {
@@ -441,6 +453,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     });
     // The bury changed the pool: re-select afresh (R20 pin repair).
     decisionPin.advance();
+    resetReviewScroll();
   };
 
   const handleRemove = async () => {
@@ -451,6 +464,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     await removeFlashcard(card.id, true);
     // The removal changed the pool: re-select afresh (R20 pin repair).
     decisionPin.advance();
+    resetReviewScroll();
   };
 
   const handleFlip = () => {
@@ -520,6 +534,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setShowAnswer(false);
     setIsComplete(false);
     setCardsAnswered(0);
+    resetReviewScroll();
   };
 
   // Rating buttons config with time estimates
@@ -547,7 +562,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   return (
-      <div class="flashcard-review-container" style={props.style}>
+      <div class="flashcard-review-container" style={props.style} ref={reviewScrollContainer}>
         {/* Session progress bar */}
         <Show when={sessionTotal() > 0}>
           <div class="flashcard-session-progress">

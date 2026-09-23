@@ -253,6 +253,14 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
+  it('keeps developer tools off when the saved preference is off in a development build', async () => {
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ devMode: false }));
+
+    expect(ctx.settings.devMode).toBe(false);
+    dispose();
+  });
+
   it('migrates missing active-group settings to their declared defaults', async () => {
     const { ctx, dispose } = await mountProvider();
     const legacy: Partial<Settings> = makeSettings();

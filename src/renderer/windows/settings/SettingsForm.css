@@ -82,6 +82,33 @@
   color: var(--color-error);
 }
 
+.setting-recovery-points {
+  display: grid;
+  gap: var(--spacing-2);
+  margin-block: var(--spacing-2) var(--spacing-4);
+}
+
+.setting-recovery-point {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.setting-recovery-point > div {
+  display: grid;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.setting-recovery-point span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
 /* Range input */
 .setting-range {
   width: 120px;

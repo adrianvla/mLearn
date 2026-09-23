@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: flex-start;
   padding: var(--spacing-8);
-  background: var(--bg-opaque);
+  background: var(--app-shell-bg);
   overflow: auto;
 }
 

@@ -4,7 +4,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-opaque);
+  background: var(--app-shell-bg);
 }
 
 .level-study-header {

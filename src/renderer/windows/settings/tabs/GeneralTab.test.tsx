@@ -10,6 +10,9 @@ const restartBackendMock = vi.fn();
 const onSettingsSavedMock = vi.fn();
 const settingsSavedCleanupMock = vi.fn();
 const installLanguageDataMock = vi.fn();
+const getProtectionStatusMock = vi.fn();
+const listRecoveryPointsMock = vi.fn();
+const restoreRecoveryPointMock = vi.fn();
 
 interface MockLanguageDataCatalogStatus {
   language: string;
@@ -89,9 +92,14 @@ vi.mock('../../../../shared/bridges', () => ({
     data: {
       dataExport: vi.fn().mockResolvedValue({ success: true }),
       dataImport: vi.fn().mockResolvedValue({ success: true }),
+      getProtectionStatus: getProtectionStatusMock,
+      listRecoveryPoints: listRecoveryPointsMock,
+      restoreRecoveryPoint: restoreRecoveryPointMock,
     },
   }),
 }));
+
+vi.mock('../../../../shared/platform', () => ({ isElectron: () => true }));
 
 vi.mock('../../../../shared/bridges/bundledLanguageAssets', () => ({
   getBundledLocaleCodes: () => ['en', 'ja', 'de', 'fr', 'ru'],
@@ -124,6 +132,9 @@ describe('GeneralTab', () => {
     restartBackendMock.mockReset();
     onSettingsSavedMock.mockReset();
     installLanguageDataMock.mockReset();
+    getProtectionStatusMock.mockReset().mockResolvedValue({ state: 'ready', recoveryPoints: 1 });
+    listRecoveryPointsMock.mockReset().mockResolvedValue([{ id: 'snapshot-00000001', createdAt: 1_700_000_000_000, cards: 12, rooms: 2, participants: 3 }]);
+    restoreRecoveryPointMock.mockReset().mockResolvedValue({ success: false });
     settingsSavedCleanupMock.mockReset();
     testSettings.language = 'ja';
     testSettings.dictionaryTargetLanguages = {};
@@ -155,6 +166,43 @@ describe('GeneralTab', () => {
   afterEach(() => {
     container.remove();
     vi.unstubAllGlobals();
+  });
+
+  it('keeps diagnostics out of ordinary settings when developer mode is off', async () => {
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+
+    expect(container.textContent).not.toContain('Run Diagnostics');
+    dispose();
+  });
+
+  it('shows recovery point metadata and routes restore through the data bridge', async () => {
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+    await Promise.resolve();
+    const view = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Settings.Data.Guardian.View');
+    expect(view).toBeDefined();
+    view!.click();
+    await Promise.resolve();
+    expect(listRecoveryPointsMock).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('mlearn.Settings.Data.Guardian.PointSummary');
+    const restore = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Settings.Data.Guardian.Restore');
+    restore!.click();
+    expect(restoreRecoveryPointMock).toHaveBeenCalledWith('snapshot-00000001');
+    dispose();
+  });
+
+  it('shows a localized recovery error without exposing internal exception text', async () => {
+    listRecoveryPointsMock.mockRejectedValueOnce(new Error('/private/learner-data/guardian'));
+    const { GeneralTab } = await import('./GeneralTab');
+    const dispose = render(() => <GeneralTab />, container);
+    await Promise.resolve();
+    const view = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Settings.Data.Guardian.View');
+    view!.click();
+    await Promise.resolve();
+    expect(container.textContent).toContain('mlearn.Settings.Data.Guardian.LoadError');
+    expect(container.textContent).not.toContain('/private/learner-data');
+    dispose();
   });
 
   it('saves learning language through the settings context', async () => {

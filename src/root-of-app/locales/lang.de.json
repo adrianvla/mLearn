@@ -852,6 +852,7 @@
         "StartAria": "Unterhaltung starten",
         "PeopleHint": "Alle ausgewählten Personen nehmen an der Unterhaltung teil und können antworten.",
         "IntentLabel": "Ziel (optional)",
+        "PreparedGoalLabel": "Übungsschwerpunkt",
         "ToggleParticipant": "{name} in die Unterhaltung aufnehmen",
         "ScopeLabel": "Wo soll dies bestehen?",
         "ScopeTemporary": "Temporäre Übung",
@@ -1518,7 +1519,8 @@
         "AppLanguagePrefix": "mit mLearn auf",
         "AppLanguageSuffix": ".",
         "DictionaryPrefix": "Wörterbuchdefinitionen sollen sein auf",
-        "LoadingLanguages": "Verfügbare Sprachen werden geladen…"
+        "LoadingLanguages": "Verfügbare Sprachen werden geladen…",
+        "ChooseLanguage": "Sprache auswählen"
       },
       "Advanced": {
         "Title": "Erweitert"
@@ -2102,8 +2104,8 @@
         "FitHeight": "An Höhe anpassen ↕",
         "FitWidth": "An Breite anpassen ↔",
         "Home": "← Start",
-        "PageLayoutPaired": "1+2|3+4",
-        "PageLayoutSingle": "1|2+3",
+        "PageLayoutPaired": "Erste im Paar",
+        "PageLayoutSingle": "Erste einzeln",
         "SinglePage": "Einzelseite",
         "SpreadLeftToRight": "Seiten L→R",
         "SpreadRightToLeft": "Seiten R→L",
@@ -2197,7 +2199,18 @@
           "Label": "Datenschutz",
           "Description": "Guardian prüft Lerndaten und bewahrt Wiederherstellungspunkte vor Änderungen beim Start auf.",
           "Ready": "Geschützt · {count} Wiederherstellungspunkte",
-          "Blocked": "Wiederherstellung erforderlich"
+          "Blocked": "Wiederherstellung erforderlich",
+          "View": "Wiederherstellungspunkte anzeigen",
+          "Restore": "Wiederherstellen",
+          "PointSummary": "{cards} Karten · {rooms} Räume · {participants} Personen",
+          "Empty": "Keine lesbaren Wiederherstellungspunkte verfügbar.",
+          "LoadError": "Wiederherstellungspunkte konnten nicht geladen werden. Bitte erneut versuchen.",
+          "RestoreError": "Die Wiederherstellung konnte nicht gestartet werden. Prüfen Sie den Datenschutz vor dem nächsten Neustart.",
+          "ConfirmTitle": "mLearn-Daten wiederherstellen",
+          "ConfirmMessage": "Wiederherstellungspunkt vom {date} wiederherstellen?",
+          "ConfirmDetail": "mLearn wird neu gestartet. Ihre aktuellen Daten bleiben in einem separaten Wiederherstellungsordner erhalten.",
+          "Cancel": "Abbrechen",
+          "ConfirmRestore": "Wiederherstellen und neu starten"
         },
         "ExportAllData": {
           "Description": "Alle Lerndaten (Lernkarten, Medienstatistiken, Audio, Bilder) als ZIP-Archiv exportieren",

@@ -382,6 +382,8 @@ export interface DataBridge {
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
   dataImport: () => Promise<{ success: boolean; error?: string }>;
   getProtectionStatus: () => Promise<import('../guardian').ProtectionStatus>;
+  listRecoveryPoints: () => Promise<import('../guardian').RecoveryPointSummary[]>;
+  restoreRecoveryPoint: (id: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 export interface BrowserInfo {

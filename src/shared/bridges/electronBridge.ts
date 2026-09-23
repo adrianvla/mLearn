@@ -356,6 +356,8 @@ const dataBridge: DataBridge = {
   dataExport: () => getIPC().dataExport(),
   dataImport: () => getIPC().dataImport(),
   getProtectionStatus: () => getIPC().getProtectionStatus(),
+  listRecoveryPoints: () => getIPC().listRecoveryPoints(),
+  restoreRecoveryPoint: (id) => getIPC().restoreRecoveryPoint(id),
 };
 
 const kvStoreBridge: KVStoreBridge = {

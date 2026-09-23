@@ -1,8 +1,8 @@
-import { KnowledgeGate, KnowledgeSkeleton } from '../../components/common/KnowledgeGate/KnowledgeGate';
+import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGate';
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createSignal, For, Show, untrack } from 'solid-js';
-import { Modal, Btn, PillBtn } from '../../components/common';
+import { Modal, Btn, PillBtn, SkeletonLine, SkeletonPill, SkeletonRows } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
@@ -217,7 +217,17 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
           <Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn>
         </div>
       }>
-      <KnowledgeGate ready={projected.ready()} fallback={<KnowledgeSkeleton />}>
+      <KnowledgeGate ready={projected.ready()} fallback={
+        <div class="level-detail-modal-content" aria-busy="true">
+          <div class="level-detail-status-section">
+            <div class="level-detail-status-pills">
+              <SkeletonPill /><SkeletonPill /><SkeletonPill />
+            </div>
+            <SkeletonLine size="sm" width="45%" />
+          </div>
+          <div class="level-detail-word-list"><SkeletonRows rows={8} rowHeight="40px" /></div>
+        </div>
+      }>
       <div class="level-detail-modal-content">
         <div class="level-detail-status-section">
           <div class="level-detail-status-pills">

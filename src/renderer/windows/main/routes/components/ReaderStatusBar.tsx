@@ -201,7 +201,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 : t('mlearn.Reader.StatusBar.ReadingAnnotationDetectionOff')}
             </button>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && showOcrControls() && props.debugOcr && props.onToggleDebugOcr}>
+          <Show when={settings.devMode && showOcrControls() && props.debugOcr && props.onToggleDebugOcr}>
             <button
               class="statusbar-toggle"
               classList={{ 'active': props.debugOcr!() }}
@@ -213,7 +213,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 : t('mlearn.Reader.StatusBar.DebugOverlayOff')}
             </button>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && showOcrControls() && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
+          <Show when={settings.devMode && showOcrControls() && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
             <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.DetectionScaleTitle')}>
               <span class="ocr-detection-scale-label">
                 {t('mlearn.Reader.StatusBar.DetectionScaleLabel', { value: String(props.ocrDetectionScale!()) })}
@@ -228,7 +228,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
               />
             </div>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && showOcrControls() && props.debugOcr?.() && props.zoneDeltaThreshold && props.onZoneDeltaThresholdChange}>
+          <Show when={settings.devMode && showOcrControls() && props.debugOcr?.() && props.zoneDeltaThreshold && props.onZoneDeltaThresholdChange}>
             <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.ZoneDeltaTitle')}>
               <span class="ocr-detection-scale-label">
                 {t('mlearn.Reader.StatusBar.ZoneDeltaLabel', { value: props.zoneDeltaThreshold!().toFixed(0) })}

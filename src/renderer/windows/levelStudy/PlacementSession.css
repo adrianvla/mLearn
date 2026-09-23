@@ -172,7 +172,6 @@
   gap: 8px;
 }
 
-.placement-session__rate,
 .placement-session__skip {
   padding: 6px 12px;
   border-radius: 8px;
@@ -181,7 +180,6 @@
   cursor: pointer;
 }
 
-.placement-session__rate:disabled,
 .placement-session__skip:disabled {
   cursor: default;
   opacity: 0.6;

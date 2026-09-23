@@ -200,7 +200,7 @@ vi.mock('../../components/common', () => ({
   ProgressBar: () => <div>progress</div>,
   Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement> & { options?: Array<{ value: string; label: string }>; placeholder?: string }) => (
     <select {...props}>
-      {props.placeholder ? <option value="" disabled>{props.placeholder}</option> : null}
+      {props.placeholder ? <option value="" disabled selected={props.value === ''}>{props.placeholder}</option> : null}
       {props.options?.map((option) => <option value={option.value}>{option.label}</option>)}
     </select>
   ),
@@ -216,7 +216,7 @@ describe('WelcomeApp', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    testSettings = { language: 'fr', llmEnabled: true, ocrEnabled: true, voiceEnabled: true };
+    testSettings = { language: 'ja', llmEnabled: true, ocrEnabled: true, voiceEnabled: true };
     testLanguages = {
       ja: { name: 'Japanese', name_translated: '日本語' },
       de: { name: 'German', name_translated: 'Deutsch' },
@@ -266,6 +266,18 @@ describe('WelcomeApp', () => {
       expect(container.textContent).not.toContain('Coming soon');
     });
 
+    dispose();
+  });
+
+  it('asks a new learner to choose a language instead of selecting the first catalog entry', async () => {
+    testSettings.language = '';
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+    settingsHandler?.(testSettings);
+    const languageSelect = container.querySelector('select') as HTMLSelectElement;
+    expect(languageSelect.value).toBe('');
+    expect(languageSelect.options[0]?.textContent).toBe('mlearn.Installer.SetupSentence.ChooseLanguage');
+    expect(Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Start Installation'))?.disabled).toBe(true);
     dispose();
   });
 

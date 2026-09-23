@@ -41,6 +41,9 @@ vi.mock('../../components/common', () => ({
       {props.badge !== undefined && props.badge !== null ? ` (${props.badge})` : ''}
     </button>
   ),
+  SkeletonPill: () => <span class="skeleton-pill" />,
+  SkeletonLine: () => <span class="skeleton-line" />,
+  SkeletonRows: (props: { rows?: number }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,
 }));
 
 vi.mock('../../context', () => ({

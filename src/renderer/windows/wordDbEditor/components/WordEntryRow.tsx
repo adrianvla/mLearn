@@ -452,8 +452,10 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           word={props.entry.word}
           onStatusChange={(status) => props.onStatusChange(props.entry, status)}
         />
-        <Btn variant="ghost" size="sm" onClick={() => openKnowledgeInspector({ language: settings.language, surface: props.entry.word, target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(props.entry.word)) } })}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
-        <Btn variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Btn>
+        <div class="knowledge-actions">
+          <Btn variant="ghost" size="sm" onClick={() => openKnowledgeInspector({ language: settings.language, surface: props.entry.word, target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(props.entry.word)) } })}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Btn>
+        </div>
       </div>
       <div class="col integrations">
         <Show when={isInAnki()}>

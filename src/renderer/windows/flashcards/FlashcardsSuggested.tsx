@@ -39,7 +39,7 @@ import {
   type ExprNode,
   type ValidationError,
   ImageIcon,
-  SkeletonRows,
+  SkeletonCard,
 } from '../../components/common';
 import { WordStatusPill } from '../../components/common/Smart';
 import { FlashcardWordTitle } from '../../components/flashcard';
@@ -604,7 +604,11 @@ export const FlashcardsSuggested: Component = () => {
           hold the grid's geometry with placeholder rows. */}
       <Show when={!garbageCollecting()} fallback={
         <div class="flashcards-suggested-loading" aria-busy="true">
-          <SkeletonRows rows={6} />
+          <div class="flashcards-suggested-loading-grid" style={{ 'grid-template-columns': `repeat(${columns()}, minmax(0, 1fr))` }}>
+            <For each={Array.from({ length: columns() * 2 })}>
+              {() => <div class="flashcards-suggested-loading-card" style={{ height: `${cardHeight()}px` }}><SkeletonCard lines={2} /></div>}
+            </For>
+          </div>
         </div>
       }>
       <Show when={suggestions().length > 0} fallback={

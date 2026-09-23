@@ -156,18 +156,7 @@
 }
 
 .grammar-coverage__probe-btn {
-  border: 1px solid var(--border-color);
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: 0.875rem;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-}
-
-.grammar-coverage__probe-btn:hover {
-  background: var(--bg-intense);
+  min-width: 0;
 }
 
 /* Policy-selected practice session (TeachingPolicy -> probe control). */
@@ -209,11 +198,6 @@
 }
 
 /* Per-row probes pause while a live pass runs on their level (no double evidence). */
-.grammar-coverage__probe-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-  pointer-events: none;
-}
 
 /* Session rating buttons are always visible (unlike row probe on-hover). */
 .grammar-coverage__session-probe {

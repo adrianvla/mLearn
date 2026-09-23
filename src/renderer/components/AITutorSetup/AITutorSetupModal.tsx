@@ -6,7 +6,7 @@
 import { Component, createSignal, Show, For } from 'solid-js';
 import { useLocalization } from '../../context';
 import { useLanguage } from '../../context/LanguageContext';
-import { Modal, Btn, Textarea, HintText, TabContainer } from '../common';
+import { Modal, Btn, Textarea, HintText, TabContainer, RadioChoice } from '../common';
 import type { TabItem } from '../common/Tabs/TabContainer';
 import type { TutorSessionConfig, TutorGrammarSelection, TutorWordSelection, TutorMediaSelection } from '../../../shared/types';
 import { GrammarSelector } from './GrammarSelector';
@@ -134,10 +134,7 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
         <fieldset class="ai-tutor-setup-modal__intents">
           <legend>{t('mlearn.AITutorSetup.IntentTitle')}</legend>
           <For each={['IntentPlan', 'IntentConversation', 'IntentTopic']}>{key =>
-            <label classList={{ 'is-selected': intent() === key }}>
-              <input type="radio" name="tutor-purpose" checked={intent() === key} onChange={() => setIntent(key)} />
-              <span>{t(`mlearn.AITutorSetup.${key}`)}</span>
-            </label>
+            <RadioChoice name="tutor-purpose" label={t(`mlearn.AITutorSetup.${key}`)} checked={intent() === key} onChange={() => setIntent(key)} />
           }</For>
         </fieldset>
         <div class="ai-tutor-setup-modal__instructions">

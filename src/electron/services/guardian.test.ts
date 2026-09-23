@@ -59,6 +59,40 @@ describe('Guardian direct integrity boundary', () => {
     expect(guardian.listRecoveryPoints()).toHaveLength(2);
   });
 
+  it('restores a selected verified point only at next preflight and quarantines current data', async () => {
+    writeProfile(['a']);
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const original = guardian.listRecoveryPoints()[0];
+    const store = JSON.parse(fs.readFileSync(file('flashcards.json'), 'utf8'));
+    store.flashcards.b = card('b');
+    guardian.checkFlashcardWrite(store);
+    fs.writeFileSync(file('flashcards.json'), JSON.stringify(store));
+    guardian.recordFlashcardWrite(store);
+    await guardian.checkpoint();
+
+    guardian.queueRestore(original);
+    await guardian.checkpoint();
+    expect(inspectGuardianData(temp.tmpDir).cards).toEqual(['a', 'b']);
+    await new Guardian(temp.tmpDir).preflight();
+    expect(inspectGuardianData(temp.tmpDir).cards).toEqual(['a']);
+    const quarantine = fs.readdirSync(file('guardian')).find((name) => name.startsWith('quarantine-'));
+    expect(quarantine).toBeDefined();
+    expect(inspectGuardianData(file(`guardian/${quarantine}`)).cards).toEqual(['a', 'b']);
+  });
+
+  it('can cancel a queued restore if relaunch cannot be scheduled', async () => {
+    writeProfile(['a']);
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const original = guardian.listRecoveryPoints()[0];
+    guardian.queueRestore(original);
+    guardian.cancelQueuedRestore(original);
+    expect(fs.existsSync(file('guardian/restore-transaction.json'))).toBe(false);
+    await new Guardian(temp.tmpDir).preflight();
+    expect(inspectGuardianData(temp.tmpDir).cards).toEqual(['a']);
+  });
+
   it('blocks an unannounced card loss and allows a declared single-card deletion', async () => {
     writeProfile(['a', 'b']);
     const guardian = new Guardian(temp.tmpDir);

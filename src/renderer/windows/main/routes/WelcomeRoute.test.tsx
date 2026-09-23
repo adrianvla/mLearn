@@ -9,6 +9,7 @@ const localization = vi.hoisted(() => ({
 }));
 
 const [knowledgeReady, setKnowledgeReady] = createSignal(true);
+const [languageFlag, setLanguageFlag] = createSignal<string | undefined>();
 const levelPreviewState = vi.hoisted(() => ({
   // Holds the live Solid props proxy: assertions read current values.
   last: null as null | { pending?: boolean; coverage: { pct: number } | null },
@@ -32,7 +33,7 @@ vi.mock('../../../context', () => ({
   }),
   useLocalization: () => ({ t: (key: string) => localization.translate(key) }),
   useLanguage: () => ({
-    currentLangData: () => null,
+    currentLangData: () => languageFlag() ? { name: 'Japanese', flagEmoji: languageFlag() } : null,
     supportedLanguages: () => [],
     langData: {},
     isLoading: () => false,
@@ -130,6 +131,7 @@ describe('WelcomeRoute localization', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     setKnowledgeReady(true);
+    setLanguageFlag(undefined);
     levelPreviewState.last = null;
   });
 
@@ -151,6 +153,13 @@ describe('WelcomeRoute localization', () => {
     expect(container.textContent).toContain('after:mlearn.Home.UI.LearningLanguage');
     expect(container.textContent).not.toContain('before:mlearn.Home.Cards.Video.Title');
 
+    dispose();
+  });
+
+  it('shows the package-declared language flag in the home header', () => {
+    setLanguageFlag('\u{1F1EF}\u{1F1F5}');
+    const dispose = render(() => <WelcomeRoute />, container);
+    expect(container.querySelector('.welcome-language-flag')?.textContent).toBe('\u{1F1EF}\u{1F1F5}');
     dispose();
   });
 

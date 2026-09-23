@@ -852,6 +852,7 @@
         "StartAria": "开始对话",
         "PeopleHint": "所选的每个人都会加入对话并可以回应。",
         "IntentLabel": "目标（可选）",
+        "PreparedGoalLabel": "练习重点",
         "ToggleParticipant": "将 {name} 加入对话",
         "ScopeLabel": "保存在哪里？",
         "ScopeTemporary": "临时练习",
@@ -1518,7 +1519,8 @@
         "AppLanguagePrefix": "并使用 mLearn 的显示语言",
         "AppLanguageSuffix": "。",
         "DictionaryPrefix": "词典释义语言为",
-        "LoadingLanguages": "正在加载可用语言…"
+        "LoadingLanguages": "正在加载可用语言…",
+        "ChooseLanguage": "选择语言"
       },
       "Advanced": {
         "Title": "高级设置"
@@ -2102,8 +2104,8 @@
         "FitHeight": "适应高度 ↕",
         "FitWidth": "适应宽度 ↔",
         "Home": "← 首页",
-        "PageLayoutPaired": "1+2|3+4",
-        "PageLayoutSingle": "1|2+3",
+        "PageLayoutPaired": "首页双页",
+        "PageLayoutSingle": "首页单页",
         "SinglePage": "单页",
         "SpreadLeftToRight": "页面 左→右",
         "SpreadRightToLeft": "页面 右→左",
@@ -2197,7 +2199,18 @@
           "Label": "数据保护",
           "Description": "Guardian 在启动更改前检查学习数据并保留恢复点。",
           "Ready": "已保护 · {count} 个恢复点",
-          "Blocked": "需要恢复"
+          "Blocked": "需要恢复",
+          "View": "查看恢复点",
+          "Restore": "恢复",
+          "PointSummary": "{cards} 张卡片 · {rooms} 个房间 · {participants} 人",
+          "Empty": "没有可读取的恢复点。",
+          "LoadError": "无法加载恢复点，请重试。",
+          "RestoreError": "无法开始恢复。重新启动前请检查数据保护状态。",
+          "ConfirmTitle": "恢复 mLearn 数据",
+          "ConfirmMessage": "要恢复 {date} 的恢复点吗？",
+          "ConfirmDetail": "mLearn 将重新启动。当前数据会保存在单独的恢复文件夹中。",
+          "Cancel": "取消",
+          "ConfirmRestore": "恢复并重新启动"
         },
         "ExportAllData": {
           "Description": "将所有学习数据（闪卡、媒体统计、音频、图片）导出为 ZIP 存档",

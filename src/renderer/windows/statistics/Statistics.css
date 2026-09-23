@@ -7,5 +7,5 @@
   height: 100%;
   overflow-y: auto;
   padding: var(--spacing-4);
-  background: var(--bg-opaque);
+  background: var(--app-shell-bg);
 }

@@ -55,6 +55,7 @@ import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
+import { isLLMReady } from '../../services/llmProvider';
 import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider } from '../../../shared/types';
 import type { KnowledgeAspect } from '../../../shared/constants';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
@@ -249,7 +250,7 @@ export const FlashcardsContent: Component = () => {
         const cardLanguageData = languageDataForCard(card);
         const front = card.content.front;
         const cleanFront = front ? stripHtmlForTts(front, false, cardLanguageData) : '';
-        if (cleanFront && cleanFront !== '-') {
+        if (settings.flashcardAutoGenerateAudio && cleanFront && cleanFront !== '-') {
           const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
           if (!existing) {
             ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanFront, field: 'word', language: cardLanguage });
@@ -258,11 +259,13 @@ export const FlashcardsContent: Component = () => {
         const example = card.content.example;
         const cleanExample = example ? stripHtmlForTts(example, false, cardLanguageData) : '';
         if (cleanExample && cleanExample !== '-') {
-          const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
-          if (!existing) {
-            ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example', language: cardLanguage });
+          if (settings.flashcardAutoGenerateAudio && !card.content.skipExampleTts && !card.content.videoUrl) {
+            const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
+            if (!existing) {
+              ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example', language: cardLanguage });
+            }
           }
-          if (!card.content.exampleMeaning || card.content.exampleMeaning.trim() === '') {
+          if (isLLMReady(settings) && (!card.content.exampleMeaning || card.content.exampleMeaning.trim() === '')) {
             llmJobs.push({ cardId: card.id, cardFront: front, exampleText: cleanExample, language: cardLanguage });
           }
         }
@@ -897,7 +900,7 @@ export const FlashcardsContent: Component = () => {
             <div class="flashcards-repair-notice"><Btn variant="ghost" onClick={() => setShowRepairModal(true)}>{t('mlearn.Flashcards.Repair.Title')}</Btn></div>
           </Show>
           {/* Review Tab */}
-          <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review">
+          <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review" hidden={activeTab() !== 'review'}>
           <Show when={activeTab() === 'review'}>
             <Show
               when={counts().total > 0}
@@ -920,7 +923,7 @@ export const FlashcardsContent: Component = () => {
           </div>
 
           {/* Browse Tab */}
-          <div role="tabpanel" id="flashcards-tabs-panel-browse" aria-labelledby="flashcards-tabs-tab-browse">
+          <div role="tabpanel" id="flashcards-tabs-panel-browse" aria-labelledby="flashcards-tabs-tab-browse" hidden={activeTab() !== 'browse'}>
           <Show when={activeTab() === 'browse'}>
             {(() => {
               let browseRef: HTMLDivElement | undefined;
@@ -1087,7 +1090,7 @@ export const FlashcardsContent: Component = () => {
           </div>
 
           {/* Generate Tab */}
-          <div role="tabpanel" id="flashcards-tabs-panel-generate" aria-labelledby="flashcards-tabs-tab-generate">
+          <div role="tabpanel" id="flashcards-tabs-panel-generate" aria-labelledby="flashcards-tabs-tab-generate" hidden={activeTab() !== 'generate'}>
           <Show when={activeTab() === 'generate'}>
             <div class="flashcards-generate">
               <h2 class="flashcards-generate-title">{t('mlearn.Flashcards.UI.Tabs.Generate')}</h2>
@@ -1216,14 +1219,14 @@ export const FlashcardsContent: Component = () => {
           </div>
 
           {/* Suggested Tab */}
-          <div role="tabpanel" id="flashcards-tabs-panel-suggested" aria-labelledby="flashcards-tabs-tab-suggested">
+          <div role="tabpanel" id="flashcards-tabs-panel-suggested" aria-labelledby="flashcards-tabs-tab-suggested" hidden={activeTab() !== 'suggested'}>
           <Show when={activeTab() === 'suggested'}>
             <FlashcardsSuggested />
           </Show>
           </div>
 
           {/* Stats Tab */}
-          <div role="tabpanel" id="flashcards-tabs-panel-stats" aria-labelledby="flashcards-tabs-tab-stats">
+          <div role="tabpanel" id="flashcards-tabs-panel-stats" aria-labelledby="flashcards-tabs-tab-stats" hidden={activeTab() !== 'stats'}>
           <Show when={activeTab() === 'stats'}>
             <FlashcardStats />
           </Show>
