@@ -9,7 +9,6 @@ import { FlashcardDisplay } from './FlashcardDisplay';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { useDecisionPin } from '../../hooks/useDecisionPin';
-import { PolicyWhy } from './PolicyWhy';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import { Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
@@ -719,12 +718,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               </Badge>
             </div>
           </Show>
-          {/* R20: the pinned decision's own explanation — the brief reason by
-              default, the emitted typed trace behind the inline "Why?".
-              Rendered from the SAME decision object that produced the card:
-              no recomputation, no post-hoc narrative. */}
-          <PolicyWhy decision={currentDecision()} />
-
           {/* Show card - non-keyed to avoid remount delay between cards */}
           <Show when={currentCard()}>
             {(card) => (

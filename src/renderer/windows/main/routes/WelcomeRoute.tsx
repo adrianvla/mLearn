@@ -284,13 +284,6 @@ export const WelcomeRoute: Component = () => {
       ? fallback
       : flashcards.store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
   });
-  // Meaning-row matrix semantics: the widget's card front supplies the reading
-  // (rendered beneath it), so only Meaning is tested here.
-  const ratingButtons = createMemo(() => [
-    { quality: 'missed' as const, label: t('mlearn.Rating.Matrix.Missed') },
-    { quality: 'struggled' as const, label: t('mlearn.Rating.Matrix.Struggled') },
-    { quality: 'fluent' as const, label: t('mlearn.Rating.Matrix.Fluent') },
-  ]);
   // Active-engagement timing per welcome card (shared encounter
   // instrumentation): blur/hidden pauses never count as retrieval latency.
   let welcomeTimer: EncounterTimer | null = null;
@@ -310,7 +303,7 @@ export const WelcomeRoute: Component = () => {
       welcomeTimer.start();
     },
   ));
-  const rateCard = (quality: AttemptQuality) => {
+  const rateCard = (quality: AttemptQuality, easy?: boolean) => {
     const card = currentCard();
     if (!card) return;
     const language = card.language || settings.language;
@@ -324,7 +317,7 @@ export const WelcomeRoute: Component = () => {
       ...(timing ? { timing } : {}),
       scaffolds: { reading: true },
     });
-    flashcards.answerCard(qualityToSrsRating(quality), card.id, timing?.wallLatencyMs, {
+    flashcards.answerCard(qualityToSrsRating(quality, easy), card.id, timing?.wallLatencyMs, {
       attemptId,
       taskType: 'welcome-review',
       tested: ['sense-recognition'],
@@ -548,10 +541,12 @@ export const WelcomeRoute: Component = () => {
               loading={flashcards.isLoading() || !flashcards.isKnowledgeReady()}
               dueCount={flashcards.queueCounts().total}
               dueLabel={t('mlearn.Flashcards.Statistics.DueToday')}
-              emptyLabel={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
+              emptyLabel={t(Object.keys(flashcards.store.flashcards).length > 0
+                ? 'mlearn.Flashcards.EmptyState.NoCardsDueTitle'
+                : 'mlearn.Flashcards.EmptyState.NoCardsTitle')}
               loadingLabel={t('mlearn.Global.Loading')}
               openLabel={t('mlearn.Global.Continue')}
-              ratingButtons={ratingButtons()}
+              keyboardMode={settings.ratingKeyboardMode}
               onOpen={openFlashcards}
               onRate={rateCard}
             />

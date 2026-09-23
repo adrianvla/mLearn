@@ -123,6 +123,11 @@ body.reduce-transparency .welcome-container {
   height: 100%;
 }
 
+/* The flashcard preview needs its full rating matrix when Adjust is open. */
+.welcome-actions:has(.wfv-flashcard-ratings) {
+  grid-auto-rows: minmax(240px, auto);
+}
+
 /* Simplified home screen: same grid layout as the feature cards, but the plain
    buttons keep their natural content height instead of the 240px card rows */
 .welcome-actions--simple {

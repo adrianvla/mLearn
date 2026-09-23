@@ -1,6 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
-import { useLocalization } from '../../context';
-import { Btn } from '../../components/common';
+import { useLocalization, useSettings } from '../../context';
+import { RatingMatrix } from '../../components/common';
 import {
   DiagnosticSession,
   type DiagnosticQuality,
@@ -244,6 +244,7 @@ export const nextBackgroundId = (): string => {
  */
 export const PlacementSession: Component<PlacementSessionProps> = (props) => {
   const { t } = useLocalization();
+  const { settings } = useSettings();
   const [expanded, setExpanded] = createSignal(false);
   const [formOpen, setFormOpen] = createSignal(false);
   const [formKind, setFormKind] = createSignal<HistoricalBackgroundKind>('exam');
@@ -524,6 +525,7 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
    *  disabled with an honest message instead of a session that cannot keep
    *  its cursor (G01/G04). */
   const [storageUnavailable, setStorageUnavailable] = createSignal(false);
+  const [ratingRetryKey, setRatingRetryKey] = createSignal(0);
   let submissionLockTimer: number | undefined;
   onCleanup(() => clearTimeout(submissionLockTimer));
 
@@ -582,6 +584,7 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
         // Mid-session durable-write failure: refuse THIS submission (no
         // evidence without a cursor), say so, and leave the prompt retryable.
         setStorageUnavailable(true);
+        setRatingRetryKey((key) => key + 1);
         return;
       }
       setStorageUnavailable(false);
@@ -951,15 +954,16 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                   {t('mlearn.LevelStudy.Placement.Prompt', { word: presentedWord() ?? '' })}
                 </span>
                 <span class="placement-session__probe">
-                  <Btn size="sm" variant="danger" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('missed', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
-                    {t('mlearn.Rating.Matrix.Missed')}
-                  </Btn>
-                  <Btn size="sm" variant="warning" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('struggled', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
-                    {t('mlearn.Rating.Matrix.Struggled')}
-                  </Btn>
-                  <Btn size="sm" variant="success" class="placement-session__rate" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rate('fluent', presentedWord() ?? undefined); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
-                    {t('mlearn.Rating.Matrix.Fluent')}
-                  </Btn>
+                  <RatingMatrix
+                    capabilities={['surface-recognition']}
+                    keyboardMode={settings.ratingKeyboardMode}
+                    armed={!submissionsLocked()}
+                    resetKey={`${stored()?.sessionId ?? ''}:${stored()?.draws.length ?? 0}:${presentedWord() ?? ''}:${ratingRetryKey()}`}
+                    onSubmit={(observations) => {
+                      const observation = observations.find((entry) => entry.capability === 'surface-recognition');
+                      if (observation) rate(observation.quality, presentedWord() ?? undefined);
+                    }}
+                  />
                   <button type="button" class="placement-session__skip" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; skip(presentedWord() ?? ''); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                     {t('mlearn.LevelStudy.Placement.Skip')}
                   </button>

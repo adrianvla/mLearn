@@ -113,6 +113,11 @@ export const Tooltip: Component<TooltipProps> = (props) => {
     }
   };
 
+  const handleFocusOut = (event: FocusEvent) => {
+    if (props.interactive && event.relatedTarget instanceof Node && contentRef?.contains(event.relatedTarget)) return;
+    hide();
+  };
+
   onCleanup(hide);
 
   // Pin transitions only: a controlled `pinned` value must open on true and
@@ -151,7 +156,7 @@ export const Tooltip: Component<TooltipProps> = (props) => {
         onMouseEnter={show}
         onMouseLeave={scheduleHide}
         onFocusIn={show}
-        onFocusOut={hide}
+        onFocusOut={handleFocusOut}
       >
         {props.children}
       </span>

@@ -8,9 +8,9 @@ import { Component, createEffect, createSignal, For, Show } from 'solid-js';
 import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
 import type { LevelStats } from '../../../../utils/wordLevelStats';
-import { SkeletonLine, SkeletonPill } from '../../../../components/common';
+import { RatingMatrix, SkeletonLine, SkeletonPill } from '../../../../components/common';
 import type { RecentWordRow, WeekStatDay } from '../welcomeSelectors';
-import type { AttemptQuality } from '../../../../../shared/constants';
+import type { AttemptQuality, RatingKeyboardMode } from '../../../../../shared/constants';
 import './WelcomeFeaturePreviews.css';
 
 export interface WelcomeMediaPreviewProps {
@@ -91,11 +91,6 @@ export const WelcomeReaderPreview: Component<WelcomeMediaPreviewProps> = (props)
   );
 };
 
-export interface WelcomeFlashcardRating {
-  quality: AttemptQuality;
-  label: string;
-}
-
 export interface WelcomeFlashcardPreviewProps {
   card: Flashcard | null;
   loading: boolean;
@@ -104,14 +99,15 @@ export interface WelcomeFlashcardPreviewProps {
   emptyLabel: string;
   loadingLabel: string;
   openLabel: string;
-  ratingButtons: WelcomeFlashcardRating[];
+  keyboardMode: RatingKeyboardMode;
   onOpen: () => void;
-  onRate: (quality: AttemptQuality) => void;
+  onRate: (quality: AttemptQuality, easy?: boolean) => void;
 }
 
 /** Compact reviewer: click flips the real due card, then rate it to advance; empty/loading keeps a deck shell. */
 export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = (props) => {
   const [flipped, setFlipped] = createSignal(false);
+  const [attemptSequence, setAttemptSequence] = createSignal(0);
 
   // Start each new card on its front (front-facing rating moves the session on).
   createEffect(() => {
@@ -166,20 +162,22 @@ export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = 
       >
         {cardShell(props.loadingLabel)}
       </Show>
-      <Show when={props.card && flipped() && props.ratingButtons.length > 0}>
+      <Show when={props.card && flipped() && !props.loading}>
         <fieldset class="wfv-flashcard-ratings">
           <legend class="wfv-flashcard-ratings-legend">{props.dueLabel}</legend>
-          <For each={props.ratingButtons}>
-            {(btn) => (
-              <button
-                type="button"
-                class={`wfv-tactile wfv-flashcard-rating wfv-flashcard-rating-${btn.quality}`}
-                onClick={() => props.onRate(btn.quality)}
-              >
-                <span class="wfv-flashcard-rating-label">{btn.label}</span>
-              </button>
-            )}
-          </For>
+          <RatingMatrix
+            capabilities={['sense-recognition']}
+            keyboardMode={props.keyboardMode}
+            armed
+            resetKey={`${props.card?.id ?? ''}:${attemptSequence()}`}
+            onSubmit={(observations, options) => {
+              const observation = observations.find((entry) => entry.capability === 'sense-recognition');
+              if (!observation) return;
+              setFlipped(false);
+              setAttemptSequence((count) => count + 1);
+              props.onRate(observation.quality, options?.easy);
+            }}
+          />
         </fieldset>
       </Show>
       {/* Footer swaps with the ratings fieldset while flipped: the 240px card

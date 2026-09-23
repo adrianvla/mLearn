@@ -200,4 +200,14 @@ describe('Tooltip', () => {
     expect(document.body.querySelector('.tooltip-content')).toBeNull();
     dispose();
   });
+
+  it('keeps interactive content open when focus moves from its trigger into the portal', async () => {
+    const { dispose } = await renderTooltip({ interactive: true, pinned: false });
+    const trigger = container.querySelector('.tooltip-trigger')!;
+    trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    const content = document.body.querySelector('.tooltip-content')!;
+    trigger.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: content.firstElementChild }));
+    expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
+    dispose();
+  });
 });

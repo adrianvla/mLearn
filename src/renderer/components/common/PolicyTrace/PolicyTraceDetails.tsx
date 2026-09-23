@@ -25,9 +25,8 @@ const scalarMeta = (meta: Record<string, unknown> | undefined): Array<[string, s
  * (with each rule's exact arithmetic and reason), the ranking (selected
  * first) with per-dimension contributions and carried provenance, bounded
  * exclusions, and the honesty limits. Renders the trace VERBATIM — it never
- * recomputes, reinterprets, or narrates. Used by the inline review
- * explanation (PolicyWhy) and the knowledge Inspector drawer, so both
- * surfaces show the SAME calculation.
+ * recomputes, reinterprets, or narrates. The knowledge Inspector uses this
+ * for card-specific review decisions.
  */
 export const PolicyTraceDetails: Component<{ trace: PolicyTrace }> = (props) => {
   const { t } = useLocalization();

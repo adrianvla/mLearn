@@ -1,6 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { Btn } from '../../components/common';
+import { Btn, RatingMatrix } from '../../components/common';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import {
@@ -364,7 +364,6 @@ const questionItemCache = new QuestionBankCache();
 export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const [expandedLevel, setExpandedLevel] = createSignal<number | null>(null);
 
   // Web Locks DI seam (PlacementSession/MockExam convention). happy-dom/Node
   // report `navigator.locks` as null (not undefined) — the typed view treats
@@ -385,6 +384,9 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   /** The pass this window started with (marker feedback seeds the initial
    *  presentation below). */
   const initialPass = session();
+  // Projection refreshes remount this section after a probe. Restore the
+  // visible level with its durable cursor so the next prompt stays in view.
+  const [expandedLevel, setExpandedLevel] = createSignal<number | null>(initialPass?.level ?? null);
   /** A durable write failed (quota/private storage): the refused action is
    *  surfaced with an honest note and stays retryable — never a probe
    *  without a durable cursor (PlacementSession contract, G01/G04). Cleared
@@ -628,6 +630,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
    *  the rating that advanced the prompt, regardless of elapsed time, so
    *  they are rejected outright at the control. */
   const [submissionsLocked, setSubmissionsLocked] = createSignal(false);
+  const [ratingRetryKey, setRatingRetryKey] = createSignal(0);
   let submissionLockTimer: number | undefined;
   onCleanup(() => clearTimeout(submissionLockTimer));
 
@@ -742,6 +745,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       };
       if (!persistSessionOnly(rateLanguage, reserved)) {
         setStorageUnavailable(true);
+        setRatingRetryKey((key) => key + 1);
         return;
       }
       if (props.language === rateLanguage) setSession(reserved);
@@ -1401,15 +1405,16 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                     {t('mlearn.LevelStudy.Grammar.SessionPrompt', { pattern: presented })}
                                   </span>
                                   <span class="grammar-coverage__session-probe">
-                                    <Btn size="sm" variant="danger" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'missed', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
-                                      {t('mlearn.Rating.Matrix.Missed')}
-                                    </Btn>
-                                    <Btn size="sm" variant="warning" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'struggled', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
-                                      {t('mlearn.Rating.Matrix.Struggled')}
-                                    </Btn>
-                                    <Btn size="sm" variant="success" class="grammar-coverage__probe-btn" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; rateSession(level, 'fluent', presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
-                                      {t('mlearn.Rating.Matrix.Fluent')}
-                                    </Btn>
+                                    <RatingMatrix
+                                      capabilities={['grammar-recognition']}
+                                      keyboardMode={settings.ratingKeyboardMode}
+                                      armed={!submissionsLocked()}
+                                      resetKey={`${props.language}:${level}:${session()?.index ?? 0}:${presented}:${ratingRetryKey()}`}
+                                      onSubmit={(observations) => {
+                                        const observation = observations.find((entry) => entry.capability === 'grammar-recognition');
+                                        if (observation) rateSession(level, observation.quality, presented);
+                                      }}
+                                    />
                                     <button type="button" class="grammar-coverage__session-skip" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; skipSession(level, presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                                       {t('mlearn.LevelStudy.Grammar.SessionSkip')}
                                     </button>

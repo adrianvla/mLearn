@@ -128,6 +128,10 @@
   order: 3;
 }
 
+.word-sync-inspect {
+  align-self: flex-end;
+}
+
 .word-sync .tell-mlearn__toggle { border: 1px solid var(--border-color); background: var(--panel-bg); padding: var(--spacing-2) var(--spacing-3); }
 
 .word-sync-attribution-prompt {

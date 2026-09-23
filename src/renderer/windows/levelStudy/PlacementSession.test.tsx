@@ -10,6 +10,7 @@ import type { AttemptTiming } from '../../../shared/encounterTiming';
 import type { HistoricalBackgroundRecord } from '../../../shared/learningBackground';
 
 vi.mock('../../context', () => ({
+  useSettings: () => ({ settings: { ratingKeyboardMode: 'mnemonic' } }),
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string | number>) => {
       if (!params) return key;
@@ -114,7 +115,7 @@ function mount(overrides?: {
   };
   const promptWord = () => container.querySelector('.placement-session__prompt')?.getAttribute('data-word');
   const clickRate = async (index: number) => {
-    const buttons = Array.from(container.querySelectorAll('.placement-session__rate')) as HTMLElement[];
+    const buttons = Array.from(container.querySelectorAll('.placement-session__probe .rating-matrix__quality')) as HTMLElement[];
     buttons[index]!.click();
     await beat();
   };
@@ -151,6 +152,22 @@ describe('nextBackgroundId (background record identity)', () => {
 describe('PlacementSession (R09 returning-learner placement)', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  it('rates the sampled surface through the shared matrix with digits and Adjust', async () => {
+    const harness = mount();
+    await harness.expand();
+    await harness.start();
+    expect(harness.container.querySelector('.rating-matrix')).not.toBeNull();
+    const first = harness.promptWord();
+    (harness.container.querySelector('.rating-matrix__adjust') as HTMLButtonElement).click();
+    expect(harness.container.textContent).toContain('mlearn.Knowledge.Capability.surface-recognition');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4' }));
+    await beat();
+    expect(harness.rateCalls[0]).toMatchObject({ word: first, quality: 'fluent' });
+    expect(harness.promptWord()).not.toBe(first);
+    harness.dispose();
   });
 
   it('never starts by itself: Start is the only entry into the probe', async () => {
@@ -833,7 +850,7 @@ describe('PlacementSession (R09 returning-learner placement)', () => {
     await harness.start();
     // The Advanced band secures first (3 fluent long words); continue until
     // the session completes (no more rate buttons).
-    for (let i = 0; i < 8 && harness.container.querySelector('.placement-session__rate'); i += 1) {
+    for (let i = 0; i < 8 && harness.container.querySelector('.rating-matrix__quality'); i += 1) {
       await harness.clickRate(2);
     }
     // The dominant bucket is the long-word class (range 8-99), shown on the
@@ -899,6 +916,8 @@ describe('PlacementSession (R09 returning-learner placement)', () => {
     expect(harness.promptWord()).toBe('x1');
     const persisted = JSON.parse(localStorage.getItem('mlearn-placement:ja')!);
     expect(persisted.draws).toEqual([]); // cursor never moved
+    await harness.clickRate(2); // a second failed write must remain retryable too
+    expect(harness.rateCalls).toHaveLength(0);
     setItem.mockRestore();
     // Storage healthy again: the same prompt is rateable exactly once.
     await harness.clickRate(2);

@@ -4731,7 +4731,7 @@ describe('recordAttempt quality semantics', () => {
       // Rate the presented pattern (written-form only; no meaning cue in the pass).
       const presented = block().querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
       expect(presented).toBeTruthy();
-      (block().querySelector('.grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)') as HTMLElement).click();
+      (block().querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLElement).click();
 
       // The provider mutation must settle (materialization) before teardown.
       await vi.waitFor(() => expect(ctx.getGrammarKnowledge(presented as string, language)).toBeDefined());
@@ -4822,7 +4822,7 @@ describe('recordAttempt quality semantics', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     const presented = container.querySelector(`[data-level="${level}"] .grammar-coverage__session-prompt`)?.getAttribute('data-pattern');
     expect(presented).toBeTruthy();
-    (container.querySelector(`[data-level="${level}"] .grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)`) as HTMLElement).click();
+    (container.querySelector(`[data-level="${level}"] .grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)`) as HTMLElement).click();
     await vi.waitFor(() => expect(ctx.getGrammarKnowledge(presented as string, 'zh')).toBeDefined());
 
     for (let guard = 0; guard < 120; guard += 1) {

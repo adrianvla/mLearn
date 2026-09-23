@@ -39,6 +39,7 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
         ...(attemptId ? { attemptId } : {}),
       });
     }
+    setShowRate(false);
   };
   const inspect = () => {
     openKnowledgeInspector({ language: language(), surface: props.word, target: { kind: 'surface', id: surfaceEntityId(language(), hashWordSync(props.word)) } });
