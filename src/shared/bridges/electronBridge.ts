@@ -143,6 +143,7 @@ const windowBridge: WindowBridge = {
   openExternalUrl: (url) => getIPC().openExternalUrl(url),
   openWindow: (payload) => getIPC().openWindow(payload),
   closeWindow: () => getIPC().closeWindow(),
+  reportStartupState: (state) => getIPC().reportStartupState(state),
   minimizeWindow: () => getIPC().minimizeWindow(),
   maximizeWindow: () => getIPC().maximizeWindow(),
   restoreWindow: () => getIPC().restoreWindow(),

@@ -414,7 +414,7 @@ export class Guardian {
   }
 
   /** Call before any IPC registration, migration, or service mutation. */
-  async preflight(): Promise<void> {
+  async preflight(onProgress?: (stage: 'inspection-complete' | 'snapshot-complete') => void): Promise<void> {
     const preflightStart = startupTime();
     fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
     if (fs.existsSync(path.join(this.dir, 'restore-transaction.json'))) {
@@ -435,6 +435,7 @@ export class Guardian {
     }
     const problems = previous ? loss(previous.metrics, current, previous.pendingJournalErases) : [];
     if (problems.length) return this.block(`Unexplained learner data loss: ${problems.join('; ')}`, previous);
+    onProgress?.('inspection-complete');
     const latestSnapshotGeneration = this.listRecoveryPoints().reduce((max, name) => Math.max(max, Number(name.slice('snapshot-'.length))), 0);
     this.ledger = {
       schema: SCHEMA, generation: Math.max(previous?.generation ?? 0, latestSnapshotGeneration) + 1,
@@ -451,6 +452,7 @@ export class Guardian {
       await this.snapshot();
       startupMark('Guardian recovery snapshot complete', snapshotStart);
     }
+    onProgress?.('snapshot-complete');
     writeAtomic(path.join(this.dir, 'ledger.json'), this.ledger);
     const importStart = startupTime();
     this.applyQueuedImport();

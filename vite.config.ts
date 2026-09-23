@@ -102,6 +102,7 @@ export default defineConfig(async ({ command, mode }) => {
       }
     : {
         main: resolve(__dirname, 'src/html/main.html'),
+        splash: resolve(__dirname, 'src/html/splash.html'),
         welcome: resolve(__dirname, 'src/html/welcome.html'),
         flashcards: resolve(__dirname, 'src/html/flashcards.html'),
         settings: resolve(__dirname, 'src/html/settings.html'),

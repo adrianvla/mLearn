@@ -170,23 +170,7 @@ export function resolveImageUrl(imageUrl: string): string | null {
   return pathToFileURL(filePath).href;
 }
 
-/**
- * Register the `flashcard-image://` protocol scheme as privileged.
- * Must be called BEFORE app.whenReady().
- */
-export function registerFlashcardImageScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: SCHEME,
-      privileges: {
-        standard: false,
-        secure: true,
-        supportFetchAPI: true,
-        bypassCSP: true,
-      },
-    },
-  ]);
-}
+export { registerFlashcardImageScheme } from '../startupSchemes';
 
 /**
  * Set up the protocol handler that maps `flashcard-image://` to files

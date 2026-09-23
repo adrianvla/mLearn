@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <title>Starting mLearn</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body { background: #11191d; color: #f2f5f3; font: 13px system-ui, sans-serif; overflow: hidden; }
+    main { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 22px; }
+    img { width: 88px; height: 88px; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+    h1 { margin: 14px 0 18px; font-size: 29px; font-weight: 600; letter-spacing: .02em; }
+    #status { width: 90%; margin: 0; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; color: #aebbb9; font-size: 12px; }
+    #track { position: fixed; left: 0; right: 0; bottom: 0; height: 5px; background: #26363a; }
+    #progress { width: 0; height: 100%; background: #57c3b2; transition: width 180ms ease-out; }
+  </style>
+</head>
+<body>
+  <main>
+    <img src="../../build/icons/128x128.png" alt="">
+    <h1>mLearn</h1>
+    <p id="status" role="status" aria-live="polite">Starting mLearn</p>
+  </main>
+  <div id="track" role="progressbar" aria-label="Startup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div>
+  <script>
+    window.updateStartup = ({ status, progress }) => {
+      document.getElementById('status').textContent = status;
+      document.getElementById('progress').style.width = `${progress}%`;
+      document.getElementById('track').setAttribute('aria-valuenow', String(progress));
+    };
+  </script>
+</body>
+</html>

@@ -39,6 +39,7 @@ const createdWindows: MockWindow[] = [];
 const capturedWindowOptions: unknown[] = [];
 
 type CapturedWindowOptions = {
+  show?: boolean;
   frame?: unknown;
   titleBarOverlay?: unknown;
   titleBarStyle?: unknown;
@@ -315,6 +316,12 @@ describe('windowManager', () => {
   });
 
   describe('createMainWindow', () => {
+    it('can prepare the main window without showing it during startup', async () => {
+      const { createMainWindow } = await import('./windowManager');
+      createMainWindow({ show: false });
+      expect(lastWindowOptions().show).toBe(false);
+    });
+
     it('creates a BrowserWindow and returns it', async () => {
       const { createMainWindow } = await import('./windowManager');
       const win = createMainWindow();

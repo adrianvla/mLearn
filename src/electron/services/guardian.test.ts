@@ -28,6 +28,17 @@ beforeEach(() => { temp = createTempDir('mlearn-guardian-'); });
 afterEach(() => { temp.cleanup(); });
 
 describe('Guardian direct integrity boundary', () => {
+  it('reports inspection before the recovery snapshot is available', async () => {
+    writeProfile(['a']);
+    const stages: string[] = [];
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight((stage) => {
+      stages.push(stage);
+      expect(guardian.listRecoveryPoints().length).toBe(stage === 'inspection-complete' ? 0 : 1);
+    });
+    expect(stages).toEqual(['inspection-complete', 'snapshot-complete']);
+  });
+
   it('captures canonical data before mutation and preserves the last good point after corruption', async () => {
     writeProfile(['a', 'b']);
     const guardian = new Guardian(temp.tmpDir);

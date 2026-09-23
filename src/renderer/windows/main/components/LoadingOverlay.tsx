@@ -6,7 +6,6 @@
 
 import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
-import { LoadingOverlay as BaseLoadingOverlay } from '../../../components/common/Modal/LoadingOverlay';
 import { ErrorModal } from '../../../components/common/Modal/ErrorModal';
 import { Modal } from '../../../components/common/Modal/Modal';
 import { Btn } from '../../../components/common/Button/Button';
@@ -175,32 +174,6 @@ export const LoadingOverlay: Component = () => {
     return languageSetupMessage();
   });
 
-  const isLoading = createMemo(
-    () => !server.isConnected() || settings.isLoading() || language.isLoading()
-  );
-
-  const message = createMemo(() => {
-    if (!server.isConnected()) {
-      return t(server.status() === 'installing' ? 'mlearn.Installer.Status.Installing' : 'mlearn.Global.Status.StartingBackend');
-    }
-    if (settings.isLoading()) {
-      return t('mlearn.Global.Status.LoadingSettings');
-    }
-    if (language.isLoading()) {
-      return t('mlearn.Global.Status.LoadingLanguageData');
-    }
-    return t('mlearn.Global.Ready');
-  });
-
-  const progress = createMemo(() => {
-    const steps = 3;
-    const done =
-      (server.isConnected() ? 1 : 0) +
-      (!settings.isLoading() ? 1 : 0) +
-      (!language.isLoading() ? 1 : 0);
-    return Math.round((done / steps) * 100);
-  });
-
   // Listen for critical errors from the server
   onMount(() => {
     const handleCriticalError = (errorMessage: string) => {
@@ -360,17 +333,6 @@ export const LoadingOverlay: Component = () => {
         </Show>
       </Show>
 
-      {/* Loading overlay - shown during initialization when no error */}
-      <Show when={!displayedError()}>
-        <BaseLoadingOverlay
-          isOpen={isLoading()}
-          title={t('mlearn.Global.AppName')}
-          message={message()}
-          progress={progress()}
-          showProgress={true}
-          showPercent={true}
-        />
-      </Show>
     </>
   );
 };

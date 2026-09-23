@@ -52,24 +52,7 @@ export function deleteFlashcardVideo(cardId: string): void {
   }
 }
 
-/**
- * Register the flashcard-video:// protocol scheme as privileged.
- * Must be called BEFORE app.whenReady().
- */
-export function registerFlashcardVideoScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: SCHEME,
-      privileges: {
-        standard: false,
-        secure: true,
-        stream: true,
-        supportFetchAPI: true,
-        bypassCSP: true,
-      },
-    },
-  ]);
-}
+export { registerFlashcardVideoScheme } from '../startupSchemes';
 
 /**
  * Set up the protocol handler that maps flashcard-video:// to files

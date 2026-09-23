@@ -314,7 +314,7 @@ function openSettingsWindow(section?: string): BrowserWindow {
 }
 
 // Create the main window
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow(options: { show?: boolean } = {}): BrowserWindow {
   if (welcomeWindow && !welcomeWindow.isDestroyed()) {
     const closingWelcomeWindow = welcomeWindow;
     welcomeWindow = null;
@@ -333,6 +333,7 @@ export function createMainWindow(): BrowserWindow {
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: 1200,
     height: 700,
+    show: options.show ?? true,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -397,7 +398,7 @@ export function createMainWindow(): BrowserWindow {
 }
 
 // Create welcome/installer window
-export function createWelcomeWindow(): BrowserWindow {
+export function createWelcomeWindow(options: { show?: boolean } = {}): BrowserWindow {
   if (welcomeWindow && !welcomeWindow.isDestroyed()) {
     focusWindow(welcomeWindow);
     return welcomeWindow;
@@ -407,6 +408,7 @@ export function createWelcomeWindow(): BrowserWindow {
   welcomeWindow = new BrowserWindow({
     width: 800,
     height: 900,
+    show: options.show ?? true,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,

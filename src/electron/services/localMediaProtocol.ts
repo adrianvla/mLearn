@@ -55,44 +55,7 @@ function getMimeType(filePath: string): string {
   return MIME_TYPES[ext] || 'application/octet-stream';
 }
 
-/**
- * Register the `local-media://` protocol scheme as privileged.
- * Must be called BEFORE app.whenReady().
- */
-export function registerLocalMediaScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: SCHEME,
-      privileges: {
-        // `standard: true` is required for reliable HTTP Range request handling
-        // by Chromium when the scheme also declares `stream: true`. With
-        // `standard: false`, packaged builds intermittently drop the Range
-        // header, causing video seek to snap to position 0 or fail to play.
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        stream: true,
-        corsEnabled: true,
-        bypassCSP: false,
-      },
-    },
-  ]);
-}
-
-export function registerPluginUiScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: PLUGIN_UI_SCHEME,
-      privileges: {
-        standard: false,
-        secure: true,
-        supportFetchAPI: true,
-        stream: false,
-        bypassCSP: false,
-      },
-    },
-  ]);
-}
+export { registerLocalMediaScheme, registerPluginUiScheme } from '../startupSchemes';
 
 /**
  * Set up the protocol handler that maps `local-media://` to the local filesystem.

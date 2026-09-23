@@ -927,6 +927,7 @@ const fileBridge: FileBridge = {
 const windowContextCallbacks = new Set<(context: Record<string, unknown> | null) => void>();
 
 const windowBridge: WindowBridge = {
+  reportStartupState: noop,
   changeTrafficLights: noop,
   resizeWindow: noop,
   makePiP: noop,

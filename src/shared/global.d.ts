@@ -371,6 +371,7 @@ sendLogRecord: (record: unknown) => void;
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
+  reportStartupState: (state: 'language' | 'library' | 'backend' | 'ready') => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   restoreWindow: () => void;

@@ -447,24 +447,7 @@ async function batchGenerateFlashcardTts(
   return results;
 }
 
-/**
- * Register the `flashcard-audio://` protocol scheme as privileged.
- * Must be called BEFORE app.whenReady().
- */
-export function registerFlashcardAudioScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: SCHEME,
-      privileges: {
-        standard: false,
-        secure: true,
-        supportFetchAPI: true,
-        stream: true,
-        bypassCSP: true,
-      },
-    },
-  ]);
-}
+export { registerFlashcardAudioScheme } from '../startupSchemes';
 
 /**
  * Set up the protocol handler that maps `flashcard-audio://` to files

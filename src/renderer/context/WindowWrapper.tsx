@@ -344,7 +344,7 @@ const BuiltinModelStatusListener: Component = () => {
  */
 const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
-export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean }> = (props) => {
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean; showWindowLoadingScreen?: boolean }> = (props) => {
   const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();
   const needsTitleBar = props.showTitleBar && isElectron();
   const windowControlsInsets = getWindowControlsInsets({
@@ -367,7 +367,9 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
           <SettingsProvider>
             <GraphProvider>
             <ActivityRuntimeBridge />
-            <WindowLoadingScreen transparent={props.transparent} />
+            <Show when={props.showWindowLoadingScreen !== false}>
+              <WindowLoadingScreen transparent={props.transparent} />
+            </Show>
             <GlobalEulaModal />
             <GlobalRuntimeRestartModal />
             <GlobalInstallProgressModal />

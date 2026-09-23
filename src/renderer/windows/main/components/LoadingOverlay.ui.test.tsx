@@ -90,12 +90,13 @@ describe('LoadingOverlay language data update flow', () => {
     document.body.replaceChildren();
   });
 
-  it('does not turn installer diagnostic output into a learner-facing startup message', async () => {
+  it('leaves startup progress to the splash without exposing installer diagnostics', async () => {
     setServerState('installing');
     setServerMessage('ERROR: [notice] To update, run: /private/local/env/bin/python -m pip install --upgrade pip');
     const { LoadingOverlay } = await import('./LoadingOverlay');
     const dispose = render(() => <LoadingOverlay />, container);
-    expect(document.body.textContent).toContain('mlearn.Installer.Status.Installing');
+    expect(document.body.querySelector('[role="progressbar"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('mlearn.Installer.Status.Installing');
     expect(document.body.textContent).not.toContain('/private/local');
     expect(document.body.textContent).not.toContain('pip install');
     dispose();

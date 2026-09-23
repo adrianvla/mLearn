@@ -155,6 +155,7 @@ export interface WindowBridge {
   openExternalUrl: (url: string) => Promise<boolean>;
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
+  reportStartupState: (state: 'language' | 'library' | 'backend' | 'ready') => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   restoreWindow: () => void;

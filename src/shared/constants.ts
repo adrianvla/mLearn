@@ -131,6 +131,7 @@ export const IPC_CHANNELS = {
   RESTART_APP_FORCE: 'restart-app-force',
   RESTART_BACKEND: 'restart-backend',
   COMPLETE_INITIAL_SETUP: 'complete-initial-setup',
+  STARTUP_RENDERER_READY: 'startup-renderer-ready',
   GET_VERSION: 'get-version',
   VERSION: 'version',
   UPDATE_STATE_GET: 'update-state-get',
