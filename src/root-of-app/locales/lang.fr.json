@@ -2193,6 +2193,12 @@
         "ResetAll": "Réinitialiser toutes les couleurs"
       },
       "Data": {
+        "Guardian": {
+          "Label": "Protection des données",
+          "Description": "Guardian vérifie les données d'apprentissage et conserve des points de restauration avant les changements au démarrage.",
+          "Ready": "Protégé · {count} points de restauration",
+          "Blocked": "Restauration requise"
+        },
         "ExportAllData": {
           "Description": "Exporter toutes les données d'apprentissage (cartes, statistiques, audio, images) en archive ZIP",
           "Label": "Exporter toutes les données"
@@ -2205,7 +2211,7 @@
           "Confirm": "Toutes vos données actuelles (cartes, statistiques, audio, images) seront écrasées. L'application redémarrera après l'importation. Continuer ?",
           "Description": "Importer toutes les données d'apprentissage depuis une archive ZIP. Les données existantes seront écrasées.",
           "Label": "Importer toutes les données",
-          "Success": "Données importées avec succès. L'application va maintenant redémarrer."
+          "Success": "Importation préparée. L'application va redémarrer pour la valider et l'appliquer."
         },
         "ImportSettings": {
           "Description": "Importer les paramètres depuis un fichier JSON",
@@ -2396,6 +2402,10 @@
         "LowBatteryMode": {
           "Description": "Demander confirmation avant d'exécuter les réseaux neuronaux locaux (LLM, TTS, OCR)",
           "Label": "Mode économie d'énergie"
+        },
+        "OperationalTelemetry": {
+          "Description": "Partager des statistiques anonymes sur la santé et les plantages de l'application. Le contenu d'apprentissage et les données du compte ne sont jamais envoyés.",
+          "Label": "Partager les diagnostics techniques"
         }
       },
       "Plugins": {

@@ -1949,6 +1949,7 @@ const diagnosticsBridge: DiagnosticsBridge = {
 };
 
 const dataBridge: DataBridge = {
+  getProtectionStatus: async () => ({ state: 'unavailable', recoveryPoints: 0 }),
   async dataExport() {
     try {
       const [settingsRaw, flashcardStore, mediaStatsRaw] = await Promise.all([

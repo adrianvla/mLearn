@@ -11,6 +11,7 @@ import {
   type LogSink,
 } from '../../shared/utils/logger';
 import { getUserDataPath } from '../utils/platform';
+import { recordOperationalEvent } from './kikanRuntime';
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const BACKUP_COUNT = 5;
@@ -165,6 +166,7 @@ export function setupLoggingService(): void {
   const log = getLogger('electron.lifecycle');
 
   process.on('uncaughtException', (err) => {
+    recordOperationalEvent('process_crash', err);
     const body = err.stack || `${err.name}: ${err.message}`;
     writeCrashRecord(`UNCAUGHT EXCEPTION: ${err.name}: ${err.message}`, body);
     getLogger('electron.crash').fatal(`uncaughtException: ${err.message}`, err);
@@ -172,12 +174,14 @@ export function setupLoggingService(): void {
 
   process.on('unhandledRejection', (reason) => {
     const err = reason instanceof Error ? reason : new Error(String(reason));
+    recordOperationalEvent('process_crash', err);
     const body = err.stack || `${err.name}: ${err.message}`;
     writeCrashRecord(`UNHANDLED REJECTION: ${err.name}: ${err.message}`, body);
     getLogger('electron.crash').error(`unhandledRejection: ${err.message}`, err);
   });
 
   app.on('render-process-gone', (_event, _wc, details) => {
+    recordOperationalEvent('process_crash');
     writeCrashRecord(
       `RENDERER GONE: reason=${details.reason} exitCode=${details.exitCode}`,
       JSON.stringify(details, null, 2),
@@ -188,6 +192,7 @@ export function setupLoggingService(): void {
   });
 
   app.on('child-process-gone', (_event, details) => {
+    recordOperationalEvent('process_crash');
     writeCrashRecord(
       `CHILD PROCESS GONE: type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`,
       JSON.stringify(details, null, 2),

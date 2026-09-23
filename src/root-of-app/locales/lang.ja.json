@@ -2193,6 +2193,12 @@
         "ResetAll": "すべての色をリセット"
       },
       "Data": {
+        "Guardian": {
+          "Label": "データ保護",
+          "Description": "Guardian は起動時の変更前に学習データを検証し、復元ポイントを保存します。",
+          "Ready": "保護中 · 復元ポイント {count} 件",
+          "Blocked": "復元が必要です"
+        },
         "ExportAllData": {
           "Description": "すべての学習データ（フラッシュカード、メディア統計、音声、画像）をZIPアーカイブとしてエクスポート",
           "Label": "すべてのデータをエクスポート"
@@ -2396,6 +2402,10 @@
         "LowBatteryMode": {
           "Description": "ローカルニューラルネットワーク（LLM、TTS、OCR）の実行前に確認する",
           "Label": "省電力モード"
+        },
+        "OperationalTelemetry": {
+          "Description": "アプリの動作状況とクラッシュ件数を匿名で共有します。学習内容やアカウント情報は送信されません。",
+          "Label": "動作診断を共有"
         }
       },
       "Plugins": {

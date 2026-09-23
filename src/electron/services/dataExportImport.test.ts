@@ -2,6 +2,10 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import path from 'path';
 import fs from 'fs';
+import { DatabaseSync } from 'node:sqlite';
+
+const queueImportArchive = vi.hoisted(() => vi.fn());
+vi.mock('./guardian', () => ({ guardianForWrites: () => ({ queueImportArchive }) }));
 
 const mockIpcHandlers = new Map<string, Function>();
 
@@ -95,6 +99,7 @@ describe('dataExportImport', () => {
     admZipState.instances = [];
 
     mockIpcHandlers.clear();
+    queueImportArchive.mockReset();
     vi.resetModules();
 
     const mod = await import('./dataExportImport');
@@ -171,6 +176,25 @@ describe('dataExportImport', () => {
       expect(addedPaths.some(p => p.endsWith('flashcards.json'))).toBe(true);
     });
 
+    it('includes canonical world, journal, and committed SQLite history', async () => {
+      const outputZip = path.join(tempDir.tmpDir, 'complete.zip');
+      const { dialog } = await import('electron');
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: outputZip });
+      fs.writeFileSync(path.join(tempDir.tmpDir, 'world.json'), '{"rooms":[],"threads":[],"participants":[]}');
+      fs.mkdirSync(path.join(tempDir.tmpDir, 'journal'));
+      fs.writeFileSync(path.join(tempDir.tmpDir, 'journal', 'room.ndjson'), '{"event":"saved"}\n');
+      const db = new DatabaseSync(path.join(tempDir.tmpDir, 'knowledge-history.sqlite3'));
+      db.exec('CREATE TABLE evidence (id TEXT PRIMARY KEY)');
+      db.close();
+
+      const result = await mockIpcHandlers.get('data-export')!({});
+      expect(result.success).toBe(true);
+      const files = admZipState.instances.at(-1)!.getAddedFiles();
+      expect(files.some(({ localPath }) => localPath.endsWith('world.json'))).toBe(true);
+      expect(files.some(({ localPath, zipPath }) => localPath.endsWith('room.ndjson') && zipPath === 'journal/')).toBe(true);
+      expect(files.some(({ localPath }) => localPath.endsWith('knowledge-history.sqlite3'))).toBe(true);
+    });
+
     it('returns success false with error when zip write throws', async () => {
       const { dialog } = await import('electron');
       vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: '/unwritable/definitely-no-such-dir/out.zip' });
@@ -198,7 +222,7 @@ describe('dataExportImport', () => {
       expect(result.success).toBe(false);
     });
 
-    it('returns success true and extracts known files from a valid zip', async () => {
+    it('queues a valid archive for Guardian to apply before the next startup', async () => {
       const zipPath = path.join(tempDir.tmpDir, 'import.zip');
       fs.writeFileSync(zipPath, Buffer.from('placeholder'));
 
@@ -214,9 +238,8 @@ describe('dataExportImport', () => {
       const result = await handler!({});
 
       expect(result.success).toBe(true);
-      const extracted = path.join(tempDir.tmpDir, 'settings.json');
-      expect(fs.existsSync(extracted)).toBe(true);
-      expect(fs.readFileSync(extracted).toString()).toBe('{"lang":"ja"}');
+      expect(queueImportArchive).toHaveBeenCalledWith(zipPath);
+      expect(fs.existsSync(path.join(tempDir.tmpDir, 'settings.json'))).toBe(false);
     });
 
     it('returns success false with error when archive lacks settings.json and flashcards.json', async () => {
@@ -237,7 +260,7 @@ describe('dataExportImport', () => {
       expect(result.error).toMatch(/Invalid backup/);
     });
 
-    it('skips entries with path traversal attempts', async () => {
+    it('rejects entries with path traversal attempts', async () => {
       const zipPath = path.join(tempDir.tmpDir, 'traversal.zip');
       fs.writeFileSync(zipPath, Buffer.from('placeholder'));
 
@@ -252,7 +275,8 @@ describe('dataExportImport', () => {
       const handler = mockIpcHandlers.get('data-import');
       const result = await handler!({});
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      expect(queueImportArchive).not.toHaveBeenCalled();
       const evilPath = path.join(path.dirname(tempDir.tmpDir), 'evil.sh');
       expect(fs.existsSync(evilPath)).toBe(false);
     });
@@ -273,10 +297,11 @@ describe('dataExportImport', () => {
       const result = await handler!({});
 
       expect(result.success).toBe(true);
+      expect(queueImportArchive).toHaveBeenCalledWith(zipPath);
       expect(fs.existsSync(path.join(tempDir.tmpDir, 'malicious.exe'))).toBe(false);
     });
 
-    it('extracts files in known sub-directories', async () => {
+    it('queues files in known sub-directories', async () => {
       const zipPath = path.join(tempDir.tmpDir, 'subdir-import.zip');
       fs.writeFileSync(zipPath, Buffer.from('placeholder'));
 
@@ -294,11 +319,11 @@ describe('dataExportImport', () => {
 
       expect(result.success).toBe(true);
       const audioPath = path.join(tempDir.tmpDir, 'flashcard-audio', 'card1-word.ogg');
-      expect(fs.existsSync(audioPath)).toBe(true);
-      expect(fs.readFileSync(audioPath).equals(audioData)).toBe(true);
+      expect(fs.existsSync(audioPath)).toBe(false);
+      expect(queueImportArchive).toHaveBeenCalledWith(zipPath);
     });
 
-    it('creates target directories when they do not exist', async () => {
+    it('defers directory creation until the next launch', async () => {
       const zipPath = path.join(tempDir.tmpDir, 'mkdir-import.zip');
       fs.writeFileSync(zipPath, Buffer.from('placeholder'));
 
@@ -314,7 +339,8 @@ describe('dataExportImport', () => {
       const handler = mockIpcHandlers.get('data-import');
       await handler!({});
 
-      expect(fs.existsSync(path.join(tempDir.tmpDir, 'flashcard-images'))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir.tmpDir, 'flashcard-images'))).toBe(false);
+      expect(queueImportArchive).toHaveBeenCalledWith(zipPath);
     });
   });
 });

@@ -2,7 +2,7 @@
  * General Settings Tab
  */
 
-import { Component, createMemo, createSignal, Show } from 'solid-js';
+import { Component, createMemo, createSignal, onMount, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon, Textarea } from '../../../components/common';
 import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type LanguageDataMap, type Settings } from '../../../../shared/types';
@@ -12,6 +12,8 @@ import { getBundledLocaleCodes } from '../../../../shared/bridges/bundledLanguag
 import { canonicalLanguage } from '../../../../shared/languageVariants';
 import '../SettingsForm.css';
 import { getLogger } from '../../../../shared/utils/logger';
+import { isElectron } from '../../../../shared/platform';
+import type { ProtectionStatus } from '../../../../shared/guardian';
 import { LanguageVariantGate } from '../../../components/common';
 import { getBilingualLanguageName, getNativeLanguageName } from '../../../utils/languageDisplayName';
 
@@ -82,6 +84,12 @@ export const GeneralTab: Component = () => {
   const [dataImportError, setDataImportError] = createSignal<string | null>(null);
   const [dataExporting, setDataExporting] = createSignal(false);
   const [dataImporting, setDataImporting] = createSignal(false);
+  const [protectionStatus, setProtectionStatus] = createSignal<ProtectionStatus | null>(null);
+  onMount(() => {
+    if (isElectron()) void getBridge().data.getProtectionStatus().then(setProtectionStatus).catch((error) => {
+      log.warn('Failed to read Guardian status', error);
+    });
+  });
   const uiTypeOptions = createMemo(() => [
     { value: 'tactile', label: t('mlearn.Settings.Appearance.UiType.Tactile') },
     { value: 'glass', label: t('mlearn.Settings.Appearance.UiType.Glass') },
@@ -471,6 +479,15 @@ export const GeneralTab: Component = () => {
             onChange={(checked) => updateSettings({ lowBatteryMode: checked })}
           />
         </SettingRow>
+        <SettingRow
+          label={t('mlearn.Settings.Performance.OperationalTelemetry.Label')}
+          description={t('mlearn.Settings.Performance.OperationalTelemetry.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.operationalTelemetryEnabled ?? DEFAULT_SETTINGS.operationalTelemetryEnabled}
+            onChange={(checked) => updateSettings({ operationalTelemetryEnabled: checked })}
+          />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.Settings')}>
@@ -505,6 +522,16 @@ export const GeneralTab: Component = () => {
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.Data')}>
+          <Show when={isElectron() && protectionStatus()}>
+            <SettingRow
+              label={t('mlearn.Settings.Data.Guardian.Label')}
+              description={t('mlearn.Settings.Data.Guardian.Description')}
+            >
+              <span>{protectionStatus()?.state === 'ready'
+                ? t('mlearn.Settings.Data.Guardian.Ready', { count: protectionStatus()?.recoveryPoints ?? 0 })
+                : t('mlearn.Settings.Data.Guardian.Blocked')}</span>
+            </SettingRow>
+          </Show>
           <SettingRow
             label={t('mlearn.Settings.Data.ExportAllData.Label')}
             description={t('mlearn.Settings.Data.ExportAllData.Description')}

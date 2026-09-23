@@ -444,6 +444,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   let broadcastChannel: BroadcastChannel | null = null;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  const pendingCardRemovals = new Set<string>();
+  let pendingReviewReset = false;
   const SAVE_DEBOUNCE_MS = 300;
   const ipcCleanups: Array<() => void> = [];
 
@@ -911,7 +913,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const serializedStore: FlashcardStore = unwrap(store) as FlashcardStore;
 
     if (isElectron()) {
-      getBridge().flashcards.saveFlashcards(serializedStore);
+      getBridge().flashcards.saveFlashcards(serializedStore, [...pendingCardRemovals], pendingReviewReset);
+      pendingCardRemovals.clear();
+      pendingReviewReset = false;
     } else {
       getBridge().kvStore.kvSet('mlearn-flashcards', JSON.stringify(serializedStore));
     }
@@ -984,12 +988,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       s.grammarKnowledge = {};
       s.dailyStats = {};
     }));
+    pendingReviewReset = true;
     refreshQueue();
     saveFlashcards();
   };
 
   // Nuke all flashcards — factory reset, wipes everything
   const nukeAllFlashcards = () => {
+    for (const id of Object.keys(store.flashcards)) pendingCardRemovals.add(id);
+    pendingReviewReset = true;
     setStore(reconcile(getDefaultStore()));
     setQueue({ newQueue: [], scheduledQueue: [] });
     setUndoStack([]);
@@ -1340,6 +1347,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const removeFlashcard = async (id: string, neverShowAgain: boolean = true): Promise<boolean> => {
     const card = store.flashcards[id];
     if (!card) return false;
+    pendingCardRemovals.add(id);
 
     const word = card.content.front;
     const lang = card.language || settings.language;

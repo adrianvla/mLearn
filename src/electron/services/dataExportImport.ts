@@ -3,8 +3,7 @@
  * Handles exporting and importing all user data as a .zip archive
  *
  * Exported data includes:
- *  - settings.json
- *  - flashcards.json
+ *  - canonical settings, flashcards, world, journals, and knowledge history
  *  - flashcard-images/ (directory)
  *  - flashcard-audio/ (directory with .ogg + .meta.json)
  *  - media-stats/ (directory of per-media JSON files)
@@ -16,9 +15,11 @@ import { ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
+import { backup, DatabaseSync } from 'node:sqlite';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
+import { guardianForWrites } from './guardian';
 
 const log = getLogger('electron.dataExportImport');
 
@@ -26,6 +27,10 @@ const log = getLogger('electron.dataExportImport');
 const DATA_FILES = [
   'settings.json',
   'flashcards.json',
+  'world.json',
+  'kv-store.json',
+  'knowledge-events.json',
+  'knowledge-events.json.migrated',
   'voice-samples.json',
 ] as const;
 
@@ -34,7 +39,10 @@ const DATA_DIRECTORIES = [
   'flashcard-audio',
   'media-stats',
   'voice-samples',
+  'journal',
+  'flashcard-video',
 ] as const;
+const KNOWLEDGE_DB = 'knowledge-history.sqlite3';
 
 /**
  * Add all files from a directory recursively to the zip under a given prefix
@@ -74,21 +82,27 @@ async function exportAllData(): Promise<string | null> {
   const userDataPath = getUserDataPath();
   const zip = new AdmZip();
 
-  // Add individual data files
-  for (const file of DATA_FILES) {
-    const filePath = path.join(userDataPath, file);
-    if (fs.existsSync(filePath)) {
-      zip.addLocalFile(filePath);
+  const tempDir = fs.mkdtempSync(path.join(userDataPath, 'export-'));
+  try {
+    // SQLite's backup API includes committed WAL data in a standalone image.
+    const dbFile = path.join(userDataPath, KNOWLEDGE_DB);
+    if (fs.existsSync(dbFile)) {
+      const db = new DatabaseSync(dbFile, { readOnly: true });
+      try { await backup(db, path.join(tempDir, KNOWLEDGE_DB)); }
+      finally { db.close(); }
+      zip.addLocalFile(path.join(tempDir, KNOWLEDGE_DB));
     }
-  }
 
-  // Add data directories
-  for (const dir of DATA_DIRECTORIES) {
-    const dirPath = path.join(userDataPath, dir);
-    addDirectoryToZip(zip, dirPath, dir);
-  }
+    for (const file of DATA_FILES) {
+      const filePath = path.join(userDataPath, file);
+      if (fs.existsSync(filePath)) zip.addLocalFile(filePath);
+    }
+    for (const dir of DATA_DIRECTORIES) {
+      addDirectoryToZip(zip, path.join(userDataPath, dir), dir);
+    }
 
-  zip.writeZip(result.filePath);
+    zip.writeZip(result.filePath);
+  } finally { fs.rmSync(tempDir, { recursive: true, force: true }); }
   return result.filePath;
 }
 
@@ -109,33 +123,28 @@ async function importAllData(): Promise<boolean> {
   if (result.canceled || !result.filePaths.length) return false;
 
   const zipPath = result.filePaths[0];
-  const userDataPath = getUserDataPath();
-
   const zip = new AdmZip(zipPath);
   const entries = zip.getEntries();
 
-  // Validate: must contain at least settings.json or flashcards.json
+  // Validate: the archive must contain at least one supported data file.
   const entryNames = entries.map(e => e.entryName);
-  const hasSettings = entryNames.includes('settings.json');
-  const hasFlashcards = entryNames.includes('flashcards.json');
-
-  if (!hasSettings && !hasFlashcards) {
-    throw new Error('Invalid backup: archive must contain settings.json or flashcards.json');
+  if (!entryNames.some((name) => (DATA_FILES as readonly string[]).includes(name) || name === KNOWLEDGE_DB)) {
+    throw new Error('Invalid backup: archive contains no supported data files');
   }
 
-  // Extract all entries
+  // Validate names before queueing. The archive is applied by Guardian on the
+  // next launch, before services open files or migrations mutate the profile.
   for (const entry of entries) {
     const entryName = entry.entryName;
 
     // Security: prevent path traversal
     const normalized = path.normalize(entryName);
     if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
-      log.warn(`[DataImport] Skipping suspicious entry: ${entryName}`);
-      continue;
+      throw new Error(`Unsafe import path: ${entryName}`);
     }
 
     // Only allow known files and directory prefixes
-    const isKnownFile = (DATA_FILES as readonly string[]).includes(entryName);
+    const isKnownFile = (DATA_FILES as readonly string[]).includes(entryName) || entryName === KNOWLEDGE_DB;
     const isInKnownDir = (DATA_DIRECTORIES as readonly string[]).some(
       dir => entryName.startsWith(dir + '/')
     );
@@ -145,21 +154,11 @@ async function importAllData(): Promise<boolean> {
       continue;
     }
 
-    if (entry.isDirectory) {
-      const dirPath = path.join(userDataPath, entryName);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-      }
-    } else {
-      const targetPath = path.join(userDataPath, entryName);
-      const targetDir = path.dirname(targetPath);
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-      }
-      fs.writeFileSync(targetPath, entry.getData());
-    }
+    if ((entry.header?.size ?? entry.getData().length) > 512 * 1024 * 1024) throw new Error('Import entry is too large');
   }
-
+  const guardian = guardianForWrites();
+  if (!guardian) throw new Error('Guardian is not ready to import data');
+  guardian.queueImportArchive(zipPath);
   return true;
 }
 
@@ -167,6 +166,13 @@ async function importAllData(): Promise<boolean> {
  * Setup IPC handlers for data export/import
  */
 export function setupDataExportImportIPC(): void {
+  ipcMain.handle(IPC_CHANNELS.GUARDIAN_STATUS, async (): Promise<import('../../shared/guardian').ProtectionStatus> => {
+    const guardian = guardianForWrites();
+    if (!guardian) return { state: 'unavailable', recoveryPoints: 0 };
+    const status = guardian.status;
+    return { state: status.state, recoveryPoints: guardian.listRecoveryPoints().length,
+      lastSnapshot: status.lastGoodSnapshot, reason: status.reason };
+  });
   ipcMain.handle(IPC_CHANNELS.DATA_EXPORT, async () => {
     try {
       const filePath = await exportAllData();

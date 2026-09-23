@@ -40,24 +40,16 @@ registerDiagnosticSuite({
       name: 'flashcards-read-write',
       timeoutMs: 5_000,
       async fn() {
-        const flashcardsPath = testPath('flashcards.json');
-        const backupPath = testPath('flashcards.json.diag_backup');
-        let original: string | null = null;
-        if (fs.existsSync(flashcardsPath)) {
-          original = fs.readFileSync(flashcardsPath, 'utf-8');
-          fs.writeFileSync(backupPath, original);
-        }
+        // Test the filesystem in a disposable location. A diagnostic must
+        // never overwrite canonical learner data, even briefly.
+        const flashcardsPath = testPath(`${TEST_PREFIX}flashcards.json`);
         const testData = { __diag_test: true, timestamp: Date.now() };
-        fs.writeFileSync(flashcardsPath, JSON.stringify(testData));
-        const reloaded = JSON.parse(fs.readFileSync(flashcardsPath, 'utf-8'));
-        if (reloaded.__diag_test !== true) {
-          throw new Error('Flashcards round-trip failed');
-        }
-        if (original !== null) {
-          fs.writeFileSync(flashcardsPath, original);
-          fs.unlinkSync(backupPath);
-        } else {
-          fs.unlinkSync(flashcardsPath);
+        try {
+          fs.writeFileSync(flashcardsPath, JSON.stringify(testData));
+          const reloaded = JSON.parse(fs.readFileSync(flashcardsPath, 'utf-8'));
+          if (reloaded.__diag_test !== true) throw new Error('Flashcards round-trip failed');
+        } finally {
+          fs.rmSync(flashcardsPath, { force: true });
         }
       },
     },

@@ -2193,6 +2193,12 @@
         "ResetAll": "Reset All Colors"
       },
       "Data": {
+        "Guardian": {
+          "Label": "Data protection",
+          "Description": "Guardian checks learning data and keeps recovery points before startup changes.",
+          "Ready": "Protected · {count} recovery points",
+          "Blocked": "Recovery required"
+        },
         "ExportAllData": {
           "Description": "Export all learning data (flashcards, media stats, audio, images) as a ZIP archive",
           "Label": "Export All Data"
@@ -2205,7 +2211,7 @@
           "Confirm": "This will overwrite all your current data (flashcards, media stats, audio, images). The app will restart after import. Continue?",
           "Description": "Import all learning data from a ZIP archive. This will overwrite existing data.",
           "Label": "Import All Data",
-          "Success": "Data imported successfully. The app will now restart to apply changes."
+          "Success": "Import prepared. The app will restart to validate and apply it."
         },
         "ImportSettings": {
           "Description": "Import settings from a JSON file",
@@ -2449,6 +2455,10 @@
         "LowBatteryMode": {
           "Description": "Prompt before running local neural networks (LLM, TTS, OCR) to conserve resources",
           "Label": "Low Battery Mode"
+        },
+        "OperationalTelemetry": {
+          "Description": "Share anonymous app health and crash counts. Learning content and account details are never sent.",
+          "Label": "Share operational diagnostics"
         }
       },
       "Plugins": {

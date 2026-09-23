@@ -23,6 +23,7 @@ import { compareSemanticVersions } from '../../shared/semanticVersion';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 import { loadSettings } from './settings';
+import { recordOperationalEvent, runtimeAllows, runtimeAutoDownload, runtimeUpdatePolicy } from './kikanRuntime';
 
 const UPDATE_METADATA_TIMEOUT_MS = 10_000;
 
@@ -246,6 +247,7 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
   private activeOperation: AppUpdateOperation | null = null;
   private initialized = false;
   private disposed = false;
+  private activeRuntimeFeedUrl: string | undefined;
 
   private readonly onChecking = (): void => {
     this.activeOperation = 'check';
@@ -253,12 +255,22 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
   };
 
   private readonly onUpdateAvailable = (info: UpdateInfo): void => {
+    const policy = runtimeUpdatePolicy();
+    if (policy.targetVersion && info.version !== policy.targetVersion) {
+      this.dependencies.logger.warn('Update does not match signed target version', { offered: info.version, target: policy.targetVersion });
+      this.latestUpdate = undefined;
+      this.transition({ status: 'up-to-date' });
+      return;
+    }
     this.latestUpdate = detailsFromNativeInfo(info);
-    const autoDownload = this.dependencies.updater.autoDownload;
+    const autoDownload = policy.targetVersion
+      ? runtimeAutoDownload(this.dependencies.getAutoDownload())
+      : this.dependencies.updater.autoDownload;
     this.activeOperation = autoDownload ? 'download' : null;
     this.transition({ status: 'available', update: this.latestUpdate });
     this.dependencies.logger.info('Update available', { version: info.version, autoDownload });
-    if (autoDownload) this.beginDownloadFlight();
+    if (autoDownload && policy.targetVersion) void this.downloadUpdate();
+    else if (autoDownload) this.beginDownloadFlight();
   };
 
   private readonly onUpdateNotAvailable = (info: UpdateInfo): void => {
@@ -319,7 +331,7 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
       this.initialized = true;
       this.broadcast(this.state);
     }
-    if (options.autoCheck === false) return this.state;
+    if (options.autoCheck === false || !runtimeUpdatePolicy().autoCheck) return this.state;
     return this.checkForUpdates();
   }
 
@@ -328,6 +340,7 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
   }
 
   checkForUpdates(autoDownload?: boolean): Promise<AppUpdateState> {
+    if (!runtimeAllows('automatic-updates')) return Promise.resolve(this.state);
     if (this.checkFlight) return this.checkFlight;
     if (
       this.disposed
@@ -349,6 +362,11 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
   }
 
   downloadUpdate(): Promise<AppUpdateState> {
+    const runtimePolicy = runtimeUpdatePolicy();
+    if (!runtimeAllows('automatic-updates')
+      || (runtimePolicy.targetVersion && this.latestUpdate?.version !== runtimePolicy.targetVersion)) {
+      return Promise.resolve(this.fail('download', 'download-not-available'));
+    }
     if (this.downloadFlight) return this.downloadFlight.promise;
     if (this.disposed || this.state.status === 'downloaded' || this.state.status === 'installing') {
       return Promise.resolve(this.state);
@@ -383,6 +401,11 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
   }
 
   installUpdate(): AppUpdateState {
+    const runtimePolicy = runtimeUpdatePolicy();
+    if (!runtimeAllows('automatic-updates')
+      || (runtimePolicy.targetVersion && this.latestUpdate?.version !== runtimePolicy.targetVersion)) {
+      return this.fail('install', 'install-not-ready');
+    }
     if (this.disposed || this.state.status === 'installing') return this.state;
     const retryingFailedInstall = this.state.status === 'error'
       && this.state.operation === 'install'
@@ -426,7 +449,17 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
 
   private refreshAutoDownload(preferredValue?: boolean): void {
     try {
-      this.dependencies.updater.autoDownload = preferredValue ?? this.dependencies.getAutoDownload();
+      const policy = runtimeUpdatePolicy();
+      if (policy.feedUrl && policy.feedUrl !== this.activeRuntimeFeedUrl) {
+        this.dependencies.updater.setFeedURL({ provider: 'generic', url: policy.feedUrl });
+        this.activeRuntimeFeedUrl = policy.feedUrl;
+      } else if (!policy.feedUrl && this.activeRuntimeFeedUrl) {
+        this.dependencies.updater.setFeedURL({ provider: 'github', owner: 'adrianvla', repo: 'mLearn' });
+        this.activeRuntimeFeedUrl = undefined;
+      }
+      this.dependencies.updater.autoDownload = policy.targetVersion
+        ? false : runtimeAutoDownload(preferredValue ?? this.dependencies.getAutoDownload());
+      this.dependencies.updater.allowDowngrade = policy.allowDowngrade;
     } catch (error) {
       this.dependencies.updater.autoDownload = DEFAULT_SETTINGS.automaticallyDownloadUpdates;
       this.dependencies.logger.error('Failed to read automatic update download setting', error);
@@ -544,6 +577,7 @@ class AppUpdaterServiceImpl implements AppUpdaterService {
   }
 
   private fail(operation: AppUpdateOperation, errorCode: AppUpdateErrorCode): AppUpdateState {
+    if (errorCode.endsWith('-failed')) recordOperationalEvent('update_failed');
     this.activeOperation = null;
     this.transition({
       status: 'error',

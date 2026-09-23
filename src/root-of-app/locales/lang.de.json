@@ -2193,6 +2193,12 @@
         "ResetAll": "Alle Farben zurücksetzen"
       },
       "Data": {
+        "Guardian": {
+          "Label": "Datenschutz",
+          "Description": "Guardian prüft Lerndaten und bewahrt Wiederherstellungspunkte vor Änderungen beim Start auf.",
+          "Ready": "Geschützt · {count} Wiederherstellungspunkte",
+          "Blocked": "Wiederherstellung erforderlich"
+        },
         "ExportAllData": {
           "Description": "Alle Lerndaten (Lernkarten, Medienstatistiken, Audio, Bilder) als ZIP-Archiv exportieren",
           "Label": "Alle Daten exportieren"
@@ -2396,6 +2402,10 @@
         "LowBatteryMode": {
           "Description": "Vor dem Ausführen lokaler neuronaler Netze (LLM, TTS, OCR) nachfragen",
           "Label": "Energiesparmodus"
+        },
+        "OperationalTelemetry": {
+          "Description": "Anonyme Angaben zu App-Zustand und Abstürzen teilen. Lerninhalte und Kontodaten werden nie gesendet.",
+          "Label": "Technische Diagnosen teilen"
         }
       },
       "Plugins": {

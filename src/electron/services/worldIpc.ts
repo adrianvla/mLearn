@@ -223,7 +223,7 @@ export async function deleteThread(roomId: string, threadId: string): Promise<vo
     const fresh = await loadWorld();
     await saveWorld({ ...fresh, threads: fresh.threads.filter((item) => item.id !== threadId),
       reflectionRuns: fresh.reflectionRuns?.filter(run => run.threadId !== threadId),
-      ...(fresh.scenarioCreations ? { scenarioCreations: fresh.scenarioCreations.filter(item => item.threadId !== threadId) } : {}) });
+      ...(fresh.scenarioCreations ? { scenarioCreations: fresh.scenarioCreations.filter(item => item.threadId !== threadId) } : {}) }, { threads: [threadId] });
     await eraseThread(roomId, threadId);
   });
 }
@@ -478,7 +478,7 @@ export async function deleteParticipant(participantId: string): Promise<void> {
     for (const room of world.rooms) {
       room.participantIds = room.participantIds.filter((id) => id !== participantId);
     }
-    await saveWorld(world);
+    await saveWorld(world, { participants: [participantId] });
   });
 }
 

@@ -53,10 +53,17 @@ import { IPC_CHANNELS } from '../shared/constants';
 import type { OpenRoomEventPayload } from '../shared/world';
 import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
+import { Guardian, activateGuardian } from './services/guardian';
+import { getUserDataPath } from './utils/platform';
+import { whenKnowledgeEventsReady } from './services/knowledgeEvents';
+import { initializeKikanRuntime, recordOperationalEvent, refreshKikanRuntime } from './services/kikanRuntime';
 
 const log = getLogger('electron.main');
 let appWindowCreationPromise: Promise<void> | null = null;
 let appUpdaterService: AppUpdaterService | null = null;
+let guardianForShutdown: Guardian | undefined;
+let shutdownCheckpointStarted = false;
+let shutdownCheckpointFinished = false;
 
 interface AuthDeepLinkPayload {
   code: string | null;
@@ -417,9 +424,13 @@ async function createAppWindows(): Promise<void> {
 // Main initialization
 async function initialize(): Promise<void> {
   await raiseFileDescriptorLimits();
+  const guardian = new Guardian(getUserDataPath());
+  await guardian.preflight();
+  activateGuardian(guardian);
   installPerfIpcCounters();
 
   setupAllIPC();
+  await whenKnowledgeEventsReady();
   await initPluginManager();
 
   // Set up custom protocols for serving local files to renderer
@@ -443,6 +454,10 @@ async function initialize(): Promise<void> {
   // publications from the durable ledger before any scheduler pass runs.
   await reconcilePendingMaintenance();
   await reconcilePendingAutonomyRuntime();
+  guardian.verify();
+  guardianForShutdown = guardian;
+  initializeKikanRuntime(Math.max(guardian.status.metrics?.flashcardSchema ?? 0, guardian.status.metrics?.knowledgeSchema ?? 0));
+  recordOperationalEvent('app_start');
 
   await installSolidDevtools({ isPackaged: app.isPackaged });
 
@@ -465,9 +480,8 @@ async function initialize(): Promise<void> {
     }
   }
 
-  void appUpdaterService?.initialize({ autoCheck: app.isPackaged }).catch((error) => {
-    log.error('Automatic update initialization failed', error);
-  });
+  void refreshKikanRuntime().then(() => appUpdaterService?.initialize({ autoCheck: app.isPackaged }))
+    .catch((error) => log.error('Automatic update initialization failed', error));
 }
 
 // App lifecycle
@@ -511,6 +525,19 @@ app.on('before-quit', () => {
   cancelAllAutonomy();
   cancelAllContacts();
   terminatePythonBackend();
+});
+
+app.on('will-quit', (event) => {
+  if (!guardianForShutdown || shutdownCheckpointFinished) return;
+  event.preventDefault();
+  if (shutdownCheckpointStarted) return;
+  shutdownCheckpointStarted = true;
+  void guardianForShutdown.checkpoint().catch((error) => {
+    log.error('Guardian could not checkpoint shutdown state; earlier recovery points remain available', error);
+  }).finally(() => {
+    shutdownCheckpointFinished = true;
+    app.quit();
+  });
 });
 
 app.on('quit', () => {

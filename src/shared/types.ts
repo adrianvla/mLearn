@@ -161,6 +161,8 @@ export interface Settings {
   /** Hide the frequency stars row under words already known. */
   hideFrequencyStarsForKnownWords: boolean;
   automaticallyDownloadUpdates: boolean;
+  /** Explicit opt-in for content-free runtime diagnostics. */
+  operationalTelemetryEnabled: boolean;
   /** Surface/structure stylesheet: body.theme-{uiType} (tactile | glass | flat). */
   uiType: UiType;
   /** Palette: body.theme-{colorScheme} (Dark Quartz, Quartz, Slate, Chalk, …). */
@@ -611,6 +613,7 @@ export const DEFAULT_SETTINGS: Settings = {
   frequencyStarMargin: 8,
   hideFrequencyStarsForKnownWords: false,
   automaticallyDownloadUpdates: true,
+  operationalTelemetryEnabled: false,
   uiType: 'tactile',
   colorScheme: 'quartz',
   customColors: {},  // Empty = no custom color overrides

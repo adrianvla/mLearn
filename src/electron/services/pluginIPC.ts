@@ -24,6 +24,7 @@ import {
 } from './pluginManager';
 import { createPluginBusStore } from './pluginBus';
 import { installPlugin, selectAndInstallPlugin, uninstallPlugin } from './pluginInstaller';
+import { runtimeAllows } from './kikanRuntime';
 import { openManagedChildWindow } from './windowManager';
 import { getLogger } from '../../shared/utils/logger';
 import { loadSettings } from './settings';
@@ -296,6 +297,7 @@ export function setupPluginIPC(): void {
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_FROM_PATH, async (_event, sourcePath: string): Promise<PluginInstallResult> => {
+    if (!runtimeAllows('plugin-install')) throw new Error('Plugin installation is temporarily unavailable');
     const result = await installPlugin(sourcePath);
     broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_RESULT, result);
     broadcastPluginList();
@@ -303,6 +305,7 @@ export function setupPluginIPC(): void {
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_SELECT_AND_INSTALL, async (): Promise<PluginInstallResult> => {
+    if (!runtimeAllows('plugin-install')) throw new Error('Plugin installation is temporarily unavailable');
     const result = await selectAndInstallPlugin();
     broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_RESULT, result);
     broadcastPluginList();

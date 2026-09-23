@@ -2193,6 +2193,12 @@
         "ResetAll": "重置所有颜色"
       },
       "Data": {
+        "Guardian": {
+          "Label": "数据保护",
+          "Description": "Guardian 在启动更改前检查学习数据并保留恢复点。",
+          "Ready": "已保护 · {count} 个恢复点",
+          "Blocked": "需要恢复"
+        },
         "ExportAllData": {
           "Description": "将所有学习数据（闪卡、媒体统计、音频、图片）导出为 ZIP 存档",
           "Label": "导出所有数据"
@@ -2449,6 +2455,10 @@
         "LowBatteryMode": {
           "Description": "在运行本地神经网络（LLM、TTS、OCR）前提示以节省资源",
           "Label": "低电量模式"
+        },
+        "OperationalTelemetry": {
+          "Description": "匿名分享应用运行和崩溃统计。学习内容及账户信息不会发送。",
+          "Label": "分享运行诊断数据"
         }
       },
       "Plugins": {

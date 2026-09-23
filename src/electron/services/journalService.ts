@@ -29,6 +29,7 @@ import { requireLivingWorld } from '../../shared/livingWorld';
 import { loadWorld } from './worldStore';
 import { loadSettings } from './settings';
 import type { DeletionPayload, EventScope, JournalEvent, JournalEventDraft } from '../../shared/world';
+import { guardianForWrites } from './guardian';
 
 const log = getLogger('electron.journal');
 
@@ -146,6 +147,7 @@ async function appendEventUnlocked(roomId: string, draft: JournalEventDraft): Pr
   };
   await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
   await fs.promises.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf-8');
+  guardianForWrites()?.recordJournalAppend(filePath, seq);
   state.headSeq = seq;
   return event;
 }
@@ -313,7 +315,9 @@ export async function eraseThread(roomId: string, threadId: string): Promise<{ d
         .split('\n')
         .filter((line) => line.length > 0)
         .map((line) => JSON.parse(line) as JournalEvent);
+      guardianForWrites()?.beginJournalErase(filePath);
       await fs.promises.unlink(filePath);
+      guardianForWrites()?.finishJournalErase(filePath);
     } catch (error: unknown) {
       if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
     }

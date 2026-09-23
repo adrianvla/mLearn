@@ -22,7 +22,7 @@ export interface MLearnIPC {
   
   // Flashcards
   getFlashcards: (knownRev?: number) => void;
-  saveFlashcards: (flashcards: FlashcardStore) => void;
+  saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean) => void;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
@@ -357,6 +357,7 @@ sendLogRecord: (record: unknown) => void;
   // Data Export/Import
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
   dataImport: () => Promise<{ success: boolean; error?: string }>;
+  getProtectionStatus: () => Promise<import('./guardian').ProtectionStatus>;
 
   // Browser Detection & Extension Installation
   detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>) => Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>>;

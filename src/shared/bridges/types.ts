@@ -67,7 +67,7 @@ export interface SettingsBridge {
 
 export interface FlashcardBridge {
   getFlashcards: (knownRev?: number) => void;
-  saveFlashcards: (flashcards: FlashcardStore) => void;
+  saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean) => void;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
@@ -381,6 +381,7 @@ export interface GenericIPCBridge {
 export interface DataBridge {
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
   dataImport: () => Promise<{ success: boolean; error?: string }>;
+  getProtectionStatus: () => Promise<import('../guardian').ProtectionStatus>;
 }
 
 export interface BrowserInfo {

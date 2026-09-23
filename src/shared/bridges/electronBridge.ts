@@ -53,7 +53,9 @@ const settingsBridge: SettingsBridge = {
 
 const flashcardBridge: FlashcardBridge = {
   getFlashcards: (knownRev?: number) => getIPC().getFlashcards(knownRev),
-  saveFlashcards: (fc) => getIPC().saveFlashcards(fc),
+  saveFlashcards: (fc, removedCardIds, resetReviewProgress) => removedCardIds === undefined && resetReviewProgress === undefined
+    ? getIPC().saveFlashcards(fc)
+    : getIPC().saveFlashcards(fc, removedCardIds, resetReviewProgress),
   onFlashcards: (cb) => getIPC().onFlashcards(cb),
   onNewDayFlashcards: (cb) => getIPC().onNewDayFlashcards(cb),
   onFlashcardConnectOpen: (cb) => getIPC().onFlashcardConnectOpen(cb),
@@ -353,6 +355,7 @@ const genericBridge: GenericIPCBridge = {
 const dataBridge: DataBridge = {
   dataExport: () => getIPC().dataExport(),
   dataImport: () => getIPC().dataImport(),
+  getProtectionStatus: () => getIPC().getProtectionStatus(),
 };
 
 const kvStoreBridge: KVStoreBridge = {

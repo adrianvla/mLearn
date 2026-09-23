@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type { AppUpdater, ProgressInfo, UpdateCheckResult, UpdateDownloadedEvent, UpdateInfo } from 'electron-updater';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPC_CHANNELS, UPDATE_URL } from '../../shared/constants';
+import * as runtimeControl from './kikanRuntime';
 import {
   createAppUpdaterService,
   detectAppUpdateSupport,
@@ -50,6 +51,8 @@ vi.mock('electron-updater', () => ({
 class FakeUpdater extends EventEmitter {
   autoDownload = true;
   autoInstallOnAppQuit = false;
+  allowDowngrade = false;
+  readonly setFeedURL = vi.fn();
   readonly checkForUpdatesMock = vi.fn<() => Promise<UpdateCheckResult | null>>();
   readonly downloadUpdateMock = vi.fn<() => Promise<string[]>>();
   readonly quitAndInstallMock = vi.fn<(isSilent?: boolean, isForceRunAfter?: boolean) => void>();
@@ -148,6 +151,25 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const service of activeServices.splice(0)) service.dispose();
+  vi.restoreAllMocks();
+});
+
+describe('signed release rollback integration', () => {
+  it('selects the immutable feed and retries an interrupted download before install', async () => {
+    vi.spyOn(runtimeControl, 'runtimeUpdatePolicy').mockReturnValue({ autoCheck: true,
+      targetVersion: '2.5.0', allowDowngrade: true,
+      feedUrl: 'https://runtime.example/rollbacks/2.5.0/' });
+    const service = makeService();
+    await service.checkForUpdates();
+    expect(updater.setFeedURL).toHaveBeenCalledWith({ provider: 'generic', url: 'https://runtime.example/rollbacks/2.5.0/' });
+    expect(updater.allowDowngrade).toBe(true);
+    updater.emit('update-available', makeUpdateInfo('2.5.0'));
+    updater.downloadUpdateMock.mockRejectedValueOnce(new Error('interrupted download'));
+    expect(await service.downloadUpdate()).toMatchObject({ status: 'error', operation: 'download' });
+    expect(await service.downloadUpdate()).toMatchObject({ status: 'downloaded', availableVersion: '2.5.0' });
+    expect(service.installUpdate().status).toBe('installing');
+    expect(updater.quitAndInstallMock).toHaveBeenCalledOnce();
+  });
 });
 
 describe('detectAppUpdateSupport', () => {

@@ -10,6 +10,7 @@ import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
+import { guardianForWrites } from './guardian';
 
 const log = getLogger('electron.kvStore');
 
@@ -84,6 +85,8 @@ async function loadStore(): Promise<Record<string, string>> {
 
 async function persistStore(): Promise<void> {
   try {
+    const guardian = guardianForWrites();
+    guardian?.checkKvWrite(store);
     const storePath = getStorePath();
     const tmpPath = `${storePath}.tmp`;
     const dir = path.dirname(storePath);
@@ -95,8 +98,10 @@ async function persistStore(): Promise<void> {
     }
     await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));
     await fs.promises.rename(tmpPath, storePath);
+    guardian?.recordKvWrite(store);
   } catch (error) {
     log.error('[kvStore] Failed to persist store:', error);
+    throw error;
   }
 }
 

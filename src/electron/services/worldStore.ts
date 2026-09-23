@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { getUserDataPath } from '../utils/platform';
 import type { AutonomyJobRecord, ContactRecord, IntegrationRecord, Participant, Room, Thread, ScenarioCreation, ReflectionRunRecord } from '../../shared/world';
+import { guardianForWrites } from './guardian';
 
 export interface WorldState {
   rooms: Room[];
@@ -59,12 +60,15 @@ export async function loadWorld(): Promise<WorldState> {
   return state as WorldState;
 }
 
-export async function saveWorld(state: WorldState): Promise<void> {
+export async function saveWorld(state: WorldState, removed?: { threads?: readonly string[]; participants?: readonly string[] }): Promise<void> {
+  const guardian = guardianForWrites();
+  guardian?.checkWorldWrite(state, removed);
   const filePath = worldFilePath();
   const tmpPath = `${filePath}.tmp`;
   await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
   await fs.promises.writeFile(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
   await fs.promises.rename(tmpPath, filePath);
+  guardian?.recordWorldWrite(state);
 }
 
 // Serialize complete read-modify-write operations, including scheduler updates.

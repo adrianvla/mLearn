@@ -21,6 +21,7 @@ import { builtinStreamChat, builtinAbortStream } from './builtinLLMService';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 import { DEFAULT_CLOUD_API_URL } from '../../shared/constants';
 import { getLogger } from '../../shared/utils/logger';
+import { runtimeAllows } from './kikanRuntime';
 
 const log = getLogger('electron.llmRouter');
 
@@ -154,6 +155,7 @@ function getCloudAdapter(): CloudLLMAdapter {
  * stream's abort depends on.
  */
 export function cloudComplete(messages: LLMChatMessage[]): Promise<string> {
+  if (!runtimeAllows('cloud-llm')) return Promise.reject(new Error('Cloud LLM is temporarily unavailable'));
   const adapter = cloudAdapterFromSettings(loadSettings());
   return new Promise<string>((resolve, reject) => {
     let text = '';
@@ -189,6 +191,7 @@ async function dispatchStream(
     activeProvider = provider;
     if (expectedRoute !== undefined && expectedRoute !== routeKey(settings)) throw new Error('Inference settings changed while the job was queued');
     if (provider === 'cloud') {
+      if (!runtimeAllows('cloud-llm')) throw new Error('Cloud LLM is temporarily unavailable');
       const adapter = getCloudAdapter();
       await adapter.streamChat(messages, tools || [], {
         onChunk: (chunk) => sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk),

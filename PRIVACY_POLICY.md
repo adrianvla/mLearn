@@ -1,6 +1,6 @@
 # mLearn Privacy Policy
 
-**Version 1.3 — Effective Date: 2026-07-07**
+**Version 1.4 — Effective Date: 2026-09-23**
 
 **Contact:** adrian@kikan.net  
 **Operator:** Adrian Vlasov, Vaud, Switzerland
@@ -54,7 +54,15 @@ net exists for edge cases, then purged by garbage collection.
 - Flashcard text and metadata (synced via Cloudflare Durable Objects)
 - Application settings
 
-### 2.6 What We Do NOT Collect
+### 2.6 Optional Operational Diagnostics
+Operational diagnostics are off by default. If you turn them on in Settings,
+mLearn may send an event name, app version, platform, and a short fingerprint
+derived from the error type. It does not send learning content, account details,
+raw error messages, stack traces, or an installation identifier. The receiver
+stores only daily aggregate counts by event, platform, and fingerprint for up
+to 30 days. Diagnostics delivery is optional and never required to use the app.
+
+### 2.7 What We Do NOT Collect
 - The content of AI conversations (no chat logs)
 - Voice cloning samples (processed locally and discarded)
 - OCR images after processing (deleted immediately)
@@ -88,6 +96,7 @@ We do NOT:
 | TTS audio | **Deleted immediately after download** | Yes |
 | Watch Together rooms | Active session / 30 days after close | Yes |
 | Waitlist emails | Deleted on notification / 1-day safety net | Yes |
+| Optional operational diagnostic aggregates | Up to 30 days | Yes |
 | Auth codes/tokens | 5–15 minutes | Yes (Worker GC cron) |
 
 ---

@@ -292,6 +292,11 @@ export class KnowledgeHistoryStore {
     return row?.value !== undefined ? Number(row.value) : 0;
   }
 
+  get sequenceCounter(): number {
+    const row = this.db.prepare("SELECT value FROM meta WHERE key = 'seqCounter'").get() as { value?: string } | undefined;
+    return Number(row?.value ?? 0);
+  }
+
   markSchemaVersion(version: number): void {
     this.db
       .prepare("INSERT INTO meta (key, value) VALUES ('schemaVersion', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")

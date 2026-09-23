@@ -4,9 +4,10 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import type { KeyHistorySummary, KeyKnowledgeState, KnowledgeArchiveEnvelope } from '../../shared/knowledge/historyQueries';
-import { KNOWLEDGE_STORE_SCHEMA_VERSION, KnowledgeHistoryStore, STORE_FILE_NAME } from './knowledgeHistoryStore';
+import { KNOWLEDGE_STORE_SCHEMA_VERSION, KnowledgeHistoryStore, STORE_FILE_NAME, isKnowledgeEvent } from './knowledgeHistoryStore';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
+import { guardianForWrites } from './guardian';
 
 const log = getLogger('electron.knowledgeEvents');
 const LEGACY_FILE_NAME = 'knowledge-events.json';
@@ -125,11 +126,7 @@ function ensureSchemaCurrent(active: KnowledgeHistoryStore, now: number): void {
 
 export function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog> {
   const load = (async () => {
-    try {
-      openAndMigrate(now);
-    } catch (error) {
-      log.error('Failed to open/migrate knowledge history store:', error);
-    }
+    openAndMigrate(now);
     return {};
   })();
   readyPromise = load.then(() => undefined);
@@ -146,6 +143,7 @@ export async function saveKnowledgeEvents(): Promise<void> {
   return enqueueWrite(async () => {
     try {
       active.compact(Date.now(), COMPACTION_BUDGET_PER_SAVE);
+      guardianForWrites()?.recordKnowledgeSequence(active.sequenceCounter);
     } catch (error) {
       log.error('Failed to compact knowledge history:', error);
     }
@@ -155,7 +153,11 @@ export async function saveKnowledgeEvents(): Promise<void> {
 export async function appendKnowledgeEvents(eventsByKey: KnowledgeEventLog): Promise<void> {
   const hasAny = Object.values(eventsByKey).some((events) => events.length > 0);
   if (!hasAny) return;
-  ensureStore().appendEvents(eventsByKey);
+  const active = ensureStore();
+  active.appendEvents(eventsByKey);
+  const appended = Object.values(eventsByKey).reduce((count, events) => count + events.filter(isKnowledgeEvent).length, 0);
+  guardianForWrites()?.recordKnowledgeSequence(active.sequenceCounter, appended,
+    Object.entries(eventsByKey).filter(([, events]) => events.some(isKnowledgeEvent)).map(([key]) => key));
   scheduleSave();
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);

@@ -73,7 +73,7 @@ const mLearnIPC = {
 
   // ========== Flashcards ==========
   getFlashcards: (knownRev?: number) => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARDS, knownRev),
-  saveFlashcards: (flashcards: FlashcardStore) => ipcRenderer.send(IPC_CHANNELS.SAVE_FLASHCARDS, flashcards),
+  saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean) => ipcRenderer.send(IPC_CHANNELS.SAVE_FLASHCARDS, flashcards, removedCardIds, resetReviewProgress),
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) =>
     ipcOn(IPC_CHANNELS.FLASHCARDS_LOADED, (_event, flashcards) => callback(flashcards)),
   onNewDayFlashcards: (callback: () => void) =>
@@ -527,6 +527,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.DATA_EXPORT),
   dataImport: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC_CHANNELS.DATA_IMPORT),
+  getProtectionStatus: (): Promise<import('../shared/guardian').ProtectionStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GUARDIAN_STATUS),
 
   // ========== Browser Detection ==========
   detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>): Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>> =>

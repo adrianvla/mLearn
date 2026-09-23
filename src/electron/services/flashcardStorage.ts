@@ -17,6 +17,7 @@ import { getUserDataPath } from '../utils/platform';
 import { extractBase64Images } from './flashcardImageStorage';
 import { loadLangData, loadSettings } from './settings';
 import { getLogger } from '../../shared/utils/logger';
+import { guardianForWrites } from './guardian';
 
 const log = getLogger('electron.flashcardStorage');
 
@@ -802,17 +803,14 @@ async function loadFlashcardsFromDisk(filePath: string): Promise<FlashcardStore>
   return { ...DEFAULT_FLASHCARD_STORE };
 }
 
-export async function saveFlashcards(store: FlashcardStore): Promise<void> {
+export async function saveFlashcards(store: FlashcardStore, removedCardIds: readonly string[] = [], resetReviewProgress = false): Promise<void> {
   return enqueueWrite(async () => {
+    const guardian = guardianForWrites();
+    guardian?.checkFlashcardWrite(store, removedCardIds, resetReviewProgress);
     // Monotonic store revision: every persisted write invalidates older
     // client snapshots so the sync server can reject them with HTTP 409.
     store.rev = (store.rev ?? 0) + 1;
     extractBase64Images(store);
-    // Mutation-owned cache: the in-memory store becomes this object even if
-    // the disk write fails — renderer state stays authoritative and the next
-    // mutation retries persistence.
-    cachedStore = store;
-    cachedStorePath = getFlashcardsPath();
     try {
       const filePath = getFlashcardsPath();
       const tmpPath = `${filePath}.tmp`;
@@ -825,8 +823,12 @@ export async function saveFlashcards(store: FlashcardStore): Promise<void> {
       }
       await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));
       await fs.promises.rename(tmpPath, filePath);
+      guardian?.recordFlashcardWrite(store);
+      cachedStore = store;
+      cachedStorePath = filePath;
     } catch (error) {
       log.error('Failed to save flashcards:', error);
+      throw error;
     }
   });
 }
@@ -858,8 +860,8 @@ export function setupFlashcardIPC(): void {
     }
   });
 
-  ipcMain.on(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore) => {
-    void saveFlashcards(store);
+  ipcMain.on(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean) => {
+    void saveFlashcards(store, removedCardIds, resetReviewProgress).catch((error) => log.error('Blocked flashcard write', error));
   });
 
 }
