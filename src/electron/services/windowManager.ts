@@ -14,6 +14,7 @@ import { getCurrentLocaleData } from './localization';
 import { queueCommand } from './webServer';
 import { hasTray } from './trayManager';
 import { getLogger } from '../../shared/utils/logger';
+import { startupMark, startupTime } from '../startupTiming';
 
 // Title-bar menu strip height — keep in sync with WindowsMenuBar.css --titlebar-height
 const TITLEBAR_MENU_HEIGHT = 40;
@@ -60,6 +61,7 @@ function focusWindow(window: BrowserWindow): void {
 }
 
 function loadWindowHtml(window: BrowserWindow, type: WindowType): void {
+  startupMark(`renderer load requested type=${type} id=${window.id}`);
   const isDev = process.env.NODE_ENV === 'development';
 
   if (!isDev) {
@@ -352,7 +354,9 @@ export function createMainWindow(): BrowserWindow {
     };
   }
 
+  const constructionStart = startupTime();
   mainWindow = new BrowserWindow(windowOptions);
+  startupMark(`BrowserWindow constructor complete type=main id=${mainWindow.id}`, constructionStart);
   currentWindow = mainWindow;
 
   if (isWindows) {
@@ -399,6 +403,7 @@ export function createWelcomeWindow(): BrowserWindow {
     return welcomeWindow;
   }
 
+  const constructionStart = startupTime();
   welcomeWindow = new BrowserWindow({
     width: 800,
     height: 900,
@@ -411,6 +416,7 @@ export function createWelcomeWindow(): BrowserWindow {
     autoHideMenuBar: !isMac,
     ...(isMac ? getMacWindowSurfaceOptions() : { backgroundColor: '#000000', frame: true }),
   });
+  startupMark(`BrowserWindow constructor complete type=welcome id=${welcomeWindow.id}`, constructionStart);
 
   currentWindow = welcomeWindow;
 

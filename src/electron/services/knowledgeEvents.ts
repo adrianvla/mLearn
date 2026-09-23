@@ -8,6 +8,7 @@ import { KNOWLEDGE_STORE_SCHEMA_VERSION, KnowledgeHistoryStore, STORE_FILE_NAME,
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 import { guardianForWrites } from './guardian';
+import { startupMark, startupTime } from '../startupTiming';
 
 const log = getLogger('electron.knowledgeEvents');
 const LEGACY_FILE_NAME = 'knowledge-events.json';
@@ -30,7 +31,9 @@ function getLegacyPath(): string {
 
 function ensureStore(): KnowledgeHistoryStore {
   if (!store) {
+    const started = startupTime();
     store = KnowledgeHistoryStore.open(getStorePath());
+    startupMark('knowledge DB open and schema initialization complete', started);
   }
   return store;
 }
@@ -61,9 +64,11 @@ export function whenKnowledgeEventsReady(): Promise<void> {
  * retries next boot — the legacy file stays untouched and authoritative.
  */
 function openAndMigrate(now = Date.now()): void {
+  const started = startupTime();
   const active = ensureStore();
   if (!active.migrationPending) {
     ensureSchemaCurrent(active, now);
+    startupMark('knowledge DB migrations complete (existing store)', started);
     return;
   }
   const legacyPath = getLegacyPath();
@@ -71,6 +76,7 @@ function openAndMigrate(now = Date.now()): void {
     // No legacy journal: fresh install (or already-migrated profile).
     active.markMigrationDone();
     ensureSchemaCurrent(active, now);
+    startupMark('knowledge DB migrations complete (no legacy journal)', started);
     return;
   }
   const raw = fs.readFileSync(legacyPath, 'utf-8');
@@ -78,6 +84,7 @@ function openAndMigrate(now = Date.now()): void {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     active.markMigrationDone();
     ensureSchemaCurrent(active, now);
+    startupMark('knowledge DB migrations complete (empty legacy journal)', started);
     return;
   }
   const result = active.importLegacyLog(parsed as KnowledgeEventLog, now);
@@ -89,6 +96,7 @@ function openAndMigrate(now = Date.now()): void {
   fs.renameSync(legacyPath, `${legacyPath}.migrated`);
   log.info(`[knowledgeEvents] migrated journal: ${result.keys} keys, ${result.events} events`);
   ensureSchemaCurrent(active, now);
+  startupMark('knowledge DB migrations complete (legacy import)', started);
 }
 
 /**

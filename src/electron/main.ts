@@ -58,6 +58,7 @@ import { getUserDataPath } from './utils/platform';
 import { createWindowActivation } from './services/windowActivation';
 import { whenKnowledgeEventsReady } from './services/knowledgeEvents';
 import { initializeKikanRuntime, recordOperationalEvent, refreshKikanRuntime } from './services/kikanRuntime';
+import { startupMark, startupTime, startupTimingEnabled } from './startupTiming';
 
 const log = getLogger('electron.main');
 let appWindowCreationPromise: Promise<void> | null = null;
@@ -349,22 +350,43 @@ function setupAllIPC(): void {
   if (ipcInitialized) return;
   ipcInitialized = true;
 
+  let phase = startupTime();
   setupBaseIPC();
   setupLoggingService();
   setupSettingsIPC();
   setupLocalizationIPC();
+  startupMark('IPC base, logging, settings, localization registered', phase);
+  phase = startupTime();
   setupFlashcardIPC();
   setupFlashcardImageIPC();
   setupFlashcardTtsIPC();
   setupFlashcardVideoIPC();
+  startupMark('IPC flashcard services registered', phase);
+  const platformServicesStart = startupTime();
+  phase = platformServicesStart;
   setupWindowIPC();
+  startupMark('IPC window manager registered', phase);
+  phase = startupTime();
   registerOverlaySiteStateIPC();
   initOverlaySiteState();
+  startupMark('IPC overlay state registered', phase);
+  phase = startupTime();
   setupPluginUiProtocol();
+  startupMark('IPC plugin UI protocol registered', phase);
+  phase = startupTime();
   setupPythonBackendIPC();
+  startupMark('IPC Python backend registered', phase);
+  phase = startupTime();
   setupFileOperationsIPC();
+  startupMark('IPC file operations registered', phase);
+  phase = startupTime();
   setupMediaStatsIPC();
+  startupMark('IPC media stats registered', phase);
+  startupMark('IPC window, platform, media services registered', platformServicesStart);
+  phase = startupTime();
   setupKnowledgeEventsIPC();
+  startupMark('IPC knowledge DB service registered', phase);
+  phase = startupTime();
   setupOllamaIPC();
   setupBuiltinLLMIPC();
   setupLLMRouterIPC();
@@ -375,6 +397,8 @@ function setupAllIPC(): void {
   setupLinguisticGraphIPC();
   setupJournalIPC();
   setupWorldIPC();
+  startupMark('IPC world and language services registered', phase);
+  phase = startupTime();
   setupBrowserDetectionIPC();
   setupExtensionInstallerIPC();
   setupPluginIPC();
@@ -382,6 +406,7 @@ function setupAllIPC(): void {
   setupKillHandlers();
   appUpdaterService = createAppUpdaterService();
   setupAppUpdaterIpc(appUpdaterService);
+  startupMark('IPC remaining services registered', phase);
 }
 
 // Create windows and start services
@@ -392,19 +417,24 @@ async function createAppWindows(): Promise<void> {
   }
 
   appWindowCreationPromise = (async () => {
+  const windowStart = startupTime();
   // Check for diagnostics mode
   const isDiagnosticsMode = process.argv.includes('--diagnostics');
   if (isDiagnosticsMode) {
     createDiagnosticsWindow();
+    startupMark('diagnostics window creation returned', windowStart);
     startWebServer();
     return;
   }
 
   if (hasExistingProfile()) {
+    startupMark('existing profile check complete', windowStart);
     createMainWindow();
   } else {
+    startupMark('existing profile check complete', windowStart);
     createWelcomeWindow();
   }
+  startupMark('first window creation returned', windowStart);
 
   await findPython();
 
@@ -424,15 +454,26 @@ async function createAppWindows(): Promise<void> {
 
 // Main initialization
 async function initialize(): Promise<void> {
+  const initializationStart = startupTime();
+  let phase = startupTime();
   await raiseFileDescriptorLimits();
+  startupMark('file descriptor setup complete', phase);
   const guardian = new Guardian(getUserDataPath());
+  phase = startupTime();
   await guardian.preflight();
+  startupMark('Guardian preflight complete', phase);
   activateGuardian(guardian);
   installPerfIpcCounters();
 
+  phase = startupTime();
   setupAllIPC();
+  startupMark('IPC setup complete', phase);
+  phase = startupTime();
   await whenKnowledgeEventsReady();
+  startupMark('knowledge DB ready', phase);
+  phase = startupTime();
   await initPluginManager();
+  startupMark('plugin manager ready', phase);
 
   // Set up custom protocols for serving local files to renderer
   setupLocalMediaProtocol();
@@ -442,28 +483,42 @@ async function initialize(): Promise<void> {
 
   // One-time legacy conversational-state migration (agent configs/sessions/memories
   // → Room/Thread/Participant + journal). Idempotent; no-ops after the first run.
+  phase = startupTime();
   const worldMigration = await runLegacyMigration();
+  startupMark('legacy world migration complete', phase);
   if (worldMigration.migrated) {
     log.info('Legacy conversation state migrated to world model', worldMigration);
   }
 
   // Recover integration publications after migration and before other recovery
   // or scheduler work. A failed read must reach the startup error boundary.
+  phase = startupTime();
   await reconcilePendingIntegrations();
+  startupMark('integration recovery complete', phase);
 
   // Maintenance recovery (V08): finish interrupted reflection/evolution
   // publications from the durable ledger before any scheduler pass runs.
+  phase = startupTime();
   await reconcilePendingMaintenance();
+  startupMark('maintenance recovery complete', phase);
+  phase = startupTime();
   await reconcilePendingAutonomyRuntime();
+  startupMark('autonomy recovery complete', phase);
+  phase = startupTime();
   guardian.verify();
+  startupMark('Guardian post-migration verification complete', phase);
   guardianForShutdown = guardian;
   initializeKikanRuntime(Math.max(guardian.status.metrics?.flashcardSchema ?? 0, guardian.status.metrics?.knowledgeSchema ?? 0));
   recordOperationalEvent('app_start');
 
+  phase = startupTime();
   await installSolidDevtools({ isPackaged: app.isPackaged });
+  startupMark('devtools installation complete', phase);
 
   // Create windows and start services
+  phase = startupTime();
   await createAppWindows();
+  startupMark('window and service startup complete', phase);
 
   startScheduler();
 
@@ -483,6 +538,7 @@ async function initialize(): Promise<void> {
 
   void refreshKikanRuntime().then(() => appUpdaterService?.initialize({ autoCheck: app.isPackaged }))
     .catch((error) => log.error('Automatic update initialization failed', error));
+  startupMark('initialization complete', initializationStart);
 }
 
 // App lifecycle
@@ -490,9 +546,20 @@ const windowActivation = createWindowActivation(focusExistingAppWindow, () => {
   void createAppWindows().catch(handleStartupFailure);
 });
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
+startupMark(`main module startup; single-instance lock=${gotSingleInstanceLock}`);
 if (!gotSingleInstanceLock) {
   app.quit();
 } else {
+  if (startupTimingEnabled) {
+    app.on('browser-window-created', (_event, window) => {
+      startupMark(`BrowserWindow created id=${window.id}`);
+      window.webContents.on('did-start-loading', () => startupMark(`renderer load started id=${window.id}`));
+      window.webContents.on('did-finish-load', () => startupMark(`renderer load finished id=${window.id}`));
+      window.webContents.on('did-fail-load', (_loadEvent, code, description) => startupMark(`renderer load failed id=${window.id} code=${code} ${description}`));
+      window.on('ready-to-show', () => startupMark(`ready-to-show id=${window.id}`));
+      window.on('show', () => startupMark(`show id=${window.id}`));
+    });
+  }
   app.on('second-instance', (_event, commandLine) => {
     handleDeepLinkArgs(commandLine);
     focusExistingAppWindow();
@@ -504,6 +571,7 @@ if (!gotSingleInstanceLock) {
   });
 
   app.whenReady().then(() => {
+    startupMark('app.whenReady resolved');
     if (process.platform !== 'darwin') {
       handleDeepLinkArgs(process.argv);
     }

@@ -6,6 +6,7 @@ import { backup, DatabaseSync } from 'node:sqlite';
 import AdmZip from 'adm-zip';
 import { StringDecoder } from 'node:string_decoder';
 import type { RecoveryPointSummary } from '../../shared/guardian';
+import { startupDuration, startupMark, startupTime } from '../startupTiming';
 
 const SCHEMA = 1;
 const MAX_SNAPSHOTS = 8;
@@ -126,43 +127,103 @@ function readJson(file: string): unknown | undefined {
 }
 
 function fileHashes(root: string): Record<string, string> {
+  const started = startupTime();
+  let enumeration = 0n;
+  let reading = 0n;
+  let digesting = 0n;
+  let allocating = 0n;
+  let opening = 0n;
+  let closing = 0n;
+  let finalizing = 0n;
+  let files = 0;
+  let bytesRead = 0;
+  const byTopLevel = new Map<string, bigint>();
   const hashes: Record<string, string> = {};
   const visit = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const enumStart = startupTime();
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    enumeration += startupTime() - enumStart;
+    for (const entry of entries) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) visit(full);
       else if (entry.isSymbolicLink()) throw new Error('Recovery data contains a symbolic link');
       else if (entry.isFile() && entry.name !== 'manifest.json') {
+        const fileStart = startupTime();
         const hash = createHash('sha256');
+        const openStart = startupTime();
         const fd = fs.openSync(full, 'r');
+        opening += startupTime() - openStart;
+        const allocationStart = startupTime();
         const chunk = Buffer.allocUnsafe(1024 * 1024);
+        allocating += startupTime() - allocationStart;
         try {
           let bytes: number;
-          while ((bytes = fs.readSync(fd, chunk, 0, chunk.length, null)) > 0) hash.update(chunk.subarray(0, bytes));
-        } finally { fs.closeSync(fd); }
-        hashes[path.relative(root, full)] = hash.digest('hex');
+          while (true) {
+            const readStart = startupTime();
+            bytes = fs.readSync(fd, chunk, 0, chunk.length, null);
+            reading += startupTime() - readStart;
+            if (bytes === 0) break;
+            bytesRead += bytes;
+            const digestStart = startupTime();
+            hash.update(chunk.subarray(0, bytes));
+            digesting += startupTime() - digestStart;
+          }
+        } finally {
+          const closeStart = startupTime();
+          fs.closeSync(fd);
+          closing += startupTime() - closeStart;
+        }
+        files += 1;
+        const digestStart = startupTime();
+        const relative = path.relative(root, full);
+        hashes[relative] = hash.digest('hex');
+        finalizing += startupTime() - digestStart;
+        const category = relative.split(path.sep)[0];
+        byTopLevel.set(category, (byTopLevel.get(category) ?? 0n) + startupTime() - fileStart);
       }
     }
   };
   visit(root);
-  return Object.fromEntries(Object.entries(hashes).sort(([a], [b]) => a.localeCompare(b)));
+  const ordered = Object.fromEntries(Object.entries(hashes).sort(([a], [b]) => a.localeCompare(b)));
+  startupMark(`Guardian hash walk complete files=${files} bytes=${bytesRead}`, started);
+  startupDuration('Guardian hash walk readdir', enumeration);
+  startupDuration('Guardian hash walk file reads', reading);
+  startupDuration('Guardian hash walk SHA-256 updates', digesting);
+  startupDuration('Guardian hash walk opens', opening);
+  startupDuration('Guardian hash walk closes', closing);
+  startupDuration('Guardian hash walk buffers', allocating);
+  startupDuration('Guardian hash walk digest finalization and paths', finalizing);
+  for (const [category, duration] of byTopLevel) startupDuration(`Guardian hash walk category ${category}`, duration);
+  return ordered;
 }
 
 function sourceStamp(root: string): string {
+  const started = startupTime();
+  let enumeration = 0n;
+  let stats = 0n;
   const rows: string[] = [];
   const visit = (relative: string): void => {
     const full = path.join(root, relative);
     if (!fs.existsSync(full)) return;
+    const statStart = startupTime();
     const stat = fs.lstatSync(full);
+    stats += startupTime() - statStart;
     if (stat.isSymbolicLink()) throw new Error('Learner data contains a symbolic link');
     if (stat.isDirectory()) {
-      for (const name of fs.readdirSync(full).sort()) visit(path.join(relative, name));
+      const enumStart = startupTime();
+      const names = fs.readdirSync(full).sort();
+      enumeration += startupTime() - enumStart;
+      for (const name of names) visit(path.join(relative, name));
     } else if (stat.isFile()) {
       rows.push(`${relative}:${stat.size}:${stat.mtimeMs}`);
     }
   };
   for (const item of [...DATA_FILES, ...DATA_DIRS, DB_FILE, `${DB_FILE}-wal`]) visit(item);
-  return createHash('sha256').update(rows.join('\n')).digest('hex');
+  const stamp = createHash('sha256').update(rows.join('\n')).digest('hex');
+  startupMark(`Guardian source stamp complete files=${rows.length}`, started);
+  startupDuration('Guardian source stamp readdir and sorting', enumeration);
+  startupDuration('Guardian source stamp lstat', stats);
+  return stamp;
 }
 
 function sqliteSchemaVersion(file: string): number {
@@ -228,10 +289,13 @@ function journalCounts(root: string): Record<string, number> {
 
 /** Reads persisted data only; it never trusts renderer projections or health APIs. */
 export function inspectGuardianData(root: string): GuardianMetrics {
+  let phase = startupTime();
   const flashcards = readJson(path.join(root, 'flashcards.json'));
   const world = readJson(path.join(root, 'world.json'));
   const kv = readJson(path.join(root, 'kv-store.json'));
   const legacyJournal = legacyKnowledge(root);
+  startupMark('Guardian inspection JSON read and parse complete', phase);
+  phase = startupTime();
   const cardStore = flashcards === undefined ? undefined : object(flashcards, 'flashcards.json');
   const worldStore = world === undefined ? undefined : object(world, 'world.json');
   const metrics: GuardianMetrics = {
@@ -253,12 +317,18 @@ export function inspectGuardianData(root: string): GuardianMetrics {
     legacyKnowledgeEvents: legacyJournal.events,
     legacyEvidence: legacyEvidence(kv),
   };
+  startupMark('Guardian inspection evidence enumeration complete', phase);
   const dbPath = path.join(root, DB_FILE);
   if (fs.existsSync(dbPath)) {
+    phase = startupTime();
     const db = new DatabaseSync(dbPath, { readOnly: true });
+    startupMark('Guardian inspection SQLite open complete', phase);
     try {
+      phase = startupTime();
       const check = db.prepare('PRAGMA quick_check').get() as Record<string, unknown> | undefined;
+      startupMark('Guardian inspection SQLite quick_check complete', phase);
       if (Object.values(check ?? {})[0] !== 'ok') throw new Error('knowledge history SQLite integrity check failed');
+      phase = startupTime();
       const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>;
       const names = new Set(tables.map((table) => table.name));
       if (names.has('meta')) {
@@ -279,6 +349,7 @@ export function inspectGuardianData(root: string): GuardianMetrics {
         metrics.knowledgeEvidenceCount = exact.n + archived.n;
       }
       if (!Number.isSafeInteger(metrics.knowledgeSequence) || metrics.knowledgeSequence < 0) throw new Error('invalid knowledge sequence');
+      startupMark('Guardian inspection SQLite evidence queries complete', phase);
     } finally { db.close(); }
   }
   if (!Number.isSafeInteger(metrics.flashcardSchema) || metrics.flashcardSchema < 0
@@ -319,8 +390,15 @@ function loss(before: GuardianMetrics, after: GuardianMetrics, pendingJournalEra
 function writeAtomic(file: string, value: unknown): void {
   const tmp = `${file}.tmp`;
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2), { mode: 0o600 });
+  let phase = startupTime();
+  const encoded = JSON.stringify(value, null, 2);
+  startupMark(`Guardian ${path.basename(file)} serialized`, phase);
+  phase = startupTime();
+  fs.writeFileSync(tmp, encoded, { mode: 0o600 });
+  startupMark(`Guardian ${path.basename(file)} temp file written`, phase);
+  phase = startupTime();
   fs.renameSync(tmp, file);
+  startupMark(`Guardian ${path.basename(file)} temp file renamed`, phase);
 }
 
 export class Guardian {
@@ -337,6 +415,7 @@ export class Guardian {
 
   /** Call before any IPC registration, migration, or service mutation. */
   async preflight(): Promise<void> {
+    const preflightStart = startupTime();
     fs.mkdirSync(this.dir, { recursive: true, mode: 0o700 });
     if (fs.existsSync(path.join(this.dir, 'restore-transaction.json'))) {
       this.finishRestore();
@@ -347,8 +426,10 @@ export class Guardian {
       throw new Error(`Guardian needs recovery: ${previous.reason ?? 'unsupported or blocked ledger'}`);
     }
     let current: GuardianMetrics;
+    const inspectStart = startupTime();
     try { current = inspectGuardianData(this.root); }
     catch (error) { return this.block(`Canonical data failed validation: ${String(error)}`, previous); }
+    startupMark('Guardian canonical data inspection complete', inspectStart);
     if (current.flashcardSchema > 3 || current.knowledgeSchema > 2) {
       return this.block('Current app cannot read this learner data schema; install a compatible release', previous);
     }
@@ -362,11 +443,19 @@ export class Guardian {
     };
     // The snapshot is a consistent startup point: the single-instance lock is
     // held and normal writers have not yet been registered.
-    if (!previous?.lastGoodSnapshot || previous.snapshotStamp !== sourceStamp(this.root)) {
+    const stampStart = startupTime();
+    const snapshotNeeded = !previous?.lastGoodSnapshot || previous.snapshotStamp !== sourceStamp(this.root);
+    startupMark(`Guardian snapshot decision needed=${snapshotNeeded}`, stampStart);
+    if (snapshotNeeded) {
+      const snapshotStart = startupTime();
       await this.snapshot();
+      startupMark('Guardian recovery snapshot complete', snapshotStart);
     }
     writeAtomic(path.join(this.dir, 'ledger.json'), this.ledger);
+    const importStart = startupTime();
     this.applyQueuedImport();
+    startupMark('Guardian queued import check complete', importStart);
+    startupMark('Guardian preflight complete', preflightStart);
   }
 
   /** Re-read canonical stores after migrations; never adopt a damaged state. */
@@ -513,32 +602,63 @@ export class Guardian {
   }
 
   private async snapshot(): Promise<void> {
+    const snapshotStart = startupTime();
     const name = `snapshot-${String(this.ledger!.generation).padStart(8, '0')}`;
     const staging = path.join(this.dir, `${name}.staging`);
     const destination = path.join(this.dir, name);
+    let phase = startupTime();
     fs.rmSync(staging, { recursive: true, force: true });
     fs.mkdirSync(staging, { recursive: true, mode: 0o700 });
+    startupMark('Guardian snapshot staging prepared', phase);
     try {
       for (const file of DATA_FILES) {
         const source = path.join(this.root, file);
-        if (fs.existsSync(source)) fs.copyFileSync(source, path.join(staging, file));
+        if (fs.existsSync(source)) {
+          phase = startupTime();
+          fs.copyFileSync(source, path.join(staging, file));
+          startupMark(`Guardian snapshot regular file copied ${file}`, phase);
+        }
       }
       for (const dir of DATA_DIRS) {
         const source = path.join(this.root, dir);
-        if (fs.existsSync(source)) fs.cpSync(source, path.join(staging, dir), { recursive: true });
+        if (fs.existsSync(source)) {
+          phase = startupTime();
+          fs.cpSync(source, path.join(staging, dir), { recursive: true });
+          startupMark(`Guardian snapshot directory copied ${dir}`, phase);
+        }
       }
+      let permissionEnumeration = 0n;
+      let permissionChanges = 0n;
+      let permissionFiles = 0;
+      let permissionDirs = 0;
       const secure = (dir: string): void => {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const enumStart = startupTime();
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        permissionEnumeration += startupTime() - enumStart;
+        for (const entry of entries) {
           const full = path.join(dir, entry.name);
-          if (entry.isDirectory()) { fs.chmodSync(full, 0o700); secure(full); }
-          else if (entry.isFile()) fs.chmodSync(full, 0o600);
+          if (entry.isDirectory()) {
+            const chmodStart = startupTime();
+            fs.chmodSync(full, 0o700);
+            permissionChanges += startupTime() - chmodStart;
+            permissionDirs += 1;
+            secure(full);
+          } else if (entry.isFile()) {
+            const chmodStart = startupTime();
+            fs.chmodSync(full, 0o600);
+            permissionChanges += startupTime() - chmodStart;
+            permissionFiles += 1;
+          }
         }
       };
       const dbPath = path.join(this.root, DB_FILE);
       if (fs.existsSync(dbPath)) {
+        phase = startupTime();
         const db = new DatabaseSync(dbPath, { readOnly: true });
         try {
           const mode = db.prepare('PRAGMA journal_mode').get() as Record<string, unknown>;
+          startupMark(`Guardian snapshot SQLite source open and mode=${String(Object.values(mode)[0])}`, phase);
+          phase = startupTime();
           if (Object.values(mode)[0] === 'delete') {
             // No live writer exists before IPC setup; the rollback-journal
             // database can be copied without SQLite's WAL backup machinery.
@@ -546,34 +666,56 @@ export class Guardian {
           } else {
             await backup(db, path.join(staging, DB_FILE));
           }
+          startupMark('Guardian snapshot SQLite image copied', phase);
         }
         finally { db.close(); }
         // A recovery image is self-contained; it must not inherit a WAL mode
         // that depends on sidecar files from the live profile.
+        phase = startupTime();
         const image = new DatabaseSync(path.join(staging, DB_FILE));
         try { image.exec('PRAGMA journal_mode=DELETE'); }
         finally { image.close(); }
+        startupMark('Guardian snapshot SQLite image normalized', phase);
       }
+      phase = startupTime();
       secure(staging);
+      startupMark(`Guardian snapshot permissions applied files=${permissionFiles} dirs=${permissionDirs}`, phase);
+      startupDuration('Guardian snapshot permission walk readdir', permissionEnumeration);
+      startupDuration('Guardian snapshot chmod calls', permissionChanges);
+      phase = startupTime();
       const checked = inspectGuardianData(staging);
+      startupMark('Guardian snapshot data inspection complete', phase);
+      phase = startupTime();
       if (loss(this.ledger!.metrics, checked).length || loss(checked, this.ledger!.metrics).length) {
         throw new Error('recovery snapshot differs from source');
       }
+      startupMark('Guardian snapshot evidence comparison complete', phase);
       const cardStore = readJson(path.join(staging, 'flashcards.json')) as Record<string, unknown> | undefined;
+      phase = startupTime();
       const manifest: SnapshotManifest = {
         schema: SCHEMA, metrics: checked, hashes: fileHashes(staging),
         flashcardVersion: Number(cardStore?.version ?? 0),
         knowledgeSchemaVersion: sqliteSchemaVersion(path.join(staging, DB_FILE)),
       };
+      startupMark('Guardian snapshot hashing and manifest fields complete', phase);
+      phase = startupTime();
       writeAtomic(path.join(staging, 'manifest.json'), manifest);
+      startupMark('Guardian snapshot manifest write and rename complete', phase);
+      phase = startupTime();
       if (fs.existsSync(destination)) throw new Error('Recovery snapshot generation already exists');
       fs.renameSync(staging, destination);
+      startupMark('Guardian snapshot staging published by rename', phase);
       this.ledger!.lastGoodSnapshot = name;
+      phase = startupTime();
       this.ledger!.snapshotStamp = sourceStamp(this.root);
+      startupMark('Guardian snapshot final source stamp complete', phase);
+      phase = startupTime();
       const snapshots = fs.readdirSync(this.dir).filter((entry) => /^snapshot-\d{8}$/.test(entry)).sort();
       for (const old of snapshots.slice(0, Math.max(0, snapshots.length - MAX_SNAPSHOTS))) {
         fs.rmSync(path.join(this.dir, old), { recursive: true, force: true });
       }
+      startupMark('Guardian snapshot old generations pruned', phase);
+      startupMark('Guardian snapshot total', snapshotStart);
     } catch (error) {
       fs.rmSync(staging, { recursive: true, force: true });
       throw error;
