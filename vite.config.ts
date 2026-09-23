@@ -1,6 +1,6 @@
 import { defineConfig, Plugin } from 'vite';
 import { resolve } from 'path';
-import { renameSync, existsSync, unlinkSync, cpSync } from 'fs';
+import { renameSync, existsSync, unlinkSync, cpSync, readFileSync } from 'fs';
 import solidPlugin from 'vite-plugin-solid';
 import { PYTHON_BACKEND_PORT } from './src/shared/constants';
 
@@ -21,7 +21,8 @@ function solidDevtoolsRuntimePlugin(): Plugin {
     name: 'mlearn-solid-devtools-runtime',
     transformIndexHtml: {
       order: 'pre',
-      handler(html) {
+      handler(html, context) {
+        if (context.path.endsWith('/splash.html')) return html;
         return {
           html: allowSolidDevtoolsExtensionScripts(html),
           tags: [{
@@ -32,6 +33,20 @@ function solidDevtoolsRuntimePlugin(): Plugin {
           }],
         };
       },
+    },
+  };
+}
+
+function splashVersionPlugin(development: boolean): Plugin {
+  const version = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')).version as string;
+  if (!/^[0-9A-Za-z.+-]+$/.test(version)) throw new Error('Invalid mLearn version for splash HTML');
+  return {
+    name: 'mlearn-splash-version',
+    transformIndexHtml(html) {
+      return html
+        .replaceAll('__MLEARN_VERSION__', version)
+        .replaceAll('__MLEARN_DEVELOPMENT__', String(development))
+        .replace('__MLEARN_DEVELOPMENT_LINE__', development ? '<p class="prism-development">Development mode</p>' : '');
     },
   };
 }
@@ -125,6 +140,7 @@ export default defineConfig(async ({ command, mode }) => {
   return {
     plugins: [
       ...(devtoolsPlugin ? [devtoolsPlugin, solidDevtoolsRuntimePlugin()] : []),
+      splashVersionPlugin(command === 'serve'),
       solidPlugin(),
       ...(isCapacitor ? [capacitorHtmlPlugin()] : []),
     ],
@@ -174,6 +190,7 @@ export default defineConfig(async ({ command, mode }) => {
         external: isCapacitor ? ['electron'] : [],
         output: {
           manualChunks: appManualChunks,
+          onlyExplicitManualChunks: true,
         },
       },
     },

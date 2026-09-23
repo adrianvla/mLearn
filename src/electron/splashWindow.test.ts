@@ -7,11 +7,12 @@ const mocks = vi.hoisted(() => ({ windows: [] as Array<{
   show: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   loadFile: ReturnType<typeof vi.fn>;
+  loadURL: ReturnType<typeof vi.fn>;
   webContents: { executeJavaScript: ReturnType<typeof vi.fn> };
 }>, }));
 
 vi.mock('electron', () => ({
-  app: { isPackaged: false },
+  app: { isPackaged: false, getAppPath: () => '/Applications/mLearn.app/Contents/Resources/app.asar' },
   BrowserWindow: class extends EventEmitter {
     options: Record<string, unknown>;
     show = vi.fn();
@@ -19,6 +20,10 @@ vi.mock('electron', () => ({
     isDestroyed = vi.fn(() => false);
     webContents = { executeJavaScript: vi.fn(() => Promise.resolve()) };
     loadFile = vi.fn(() => {
+      queueMicrotask(() => this.emit('ready-to-show'));
+      return Promise.resolve();
+    });
+    loadURL = vi.fn(() => {
       queueMicrotask(() => this.emit('ready-to-show'));
       return Promise.resolve();
     });
@@ -44,8 +49,21 @@ describe('startup splash', () => {
     expect(window.options.webPreferences).toEqual({
       contextIsolation: true, nodeIntegration: false, sandbox: true,
     });
-    expect(window.loadFile.mock.calls[0][0]).toBe(path.resolve('src/html/splash.html'));
+    expect(window.loadURL.mock.calls[0][0]).toBe('http://localhost:3000/src/html/splash.html');
+    expect(window.loadFile).not.toHaveBeenCalled();
     expect(window.show).toHaveBeenCalledOnce();
+  });
+
+  it('loads the Vite emitted splash page from the packaged app', async () => {
+    const { app } = await import('electron');
+    Object.assign(app, { isPackaged: true });
+    const splash = await import('./splashWindow');
+    await splash.createSplashWindow();
+    expect(mocks.windows[0].loadFile).toHaveBeenCalledWith(path.join(
+      '/Applications/mLearn.app/Contents/Resources/app.asar', 'dist/src/html/splash.html',
+    ));
+    expect(mocks.windows[0].loadURL).not.toHaveBeenCalled();
+    Object.assign(app, { isPackaged: false });
   });
 
   it('uses weighted phase milestones and replays the latest update after loading', async () => {

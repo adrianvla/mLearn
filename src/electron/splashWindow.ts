@@ -24,10 +24,7 @@ export function getSplashWindow(): BrowserWindow | null {
 }
 
 function htmlPath(): string {
-  const root = app.isPackaged
-    ? path.join(app.getAppPath(), 'dist')
-    : path.join(__dirname, '..', '..', 'src', 'html');
-  return app.isPackaged ? path.join(root, 'src', 'html', 'splash.html') : path.join(root, 'splash.html');
+  return path.join(app.getAppPath(), 'dist', 'src', 'html', 'splash.html');
 }
 
 function paint(): void {
@@ -52,7 +49,7 @@ export function createSplashWindow(): Promise<void> {
     frame: false,
     resizable: false,
     maximizable: false,
-    backgroundColor: '#11191d',
+    backgroundColor: '#070e1c',
     show: false,
     center: true,
     autoHideMenuBar: true,
@@ -70,7 +67,10 @@ export function createSplashWindow(): Promise<void> {
       if (!window.isDestroyed()) window.show();
       resolve();
     });
-    void window.loadFile(htmlPath()).then(() => {
+    const load = app.isPackaged
+      ? window.loadFile(htmlPath())
+      : window.loadURL('http://localhost:3000/src/html/splash.html');
+    void load.then(() => {
       loaded = true;
       paint();
     }).catch(reject);

@@ -3,33 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:3000; img-src data:">
   <title>Starting mLearn</title>
-  <style>
-    * { box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; margin: 0; }
-    body { background: #11191d; color: #f2f5f3; font: 13px system-ui, sans-serif; overflow: hidden; }
-    main { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 22px; }
-    img { width: 88px; height: 88px; object-fit: contain; user-select: none; -webkit-user-drag: none; }
-    h1 { margin: 14px 0 18px; font-size: 29px; font-weight: 600; letter-spacing: .02em; }
-    #status { width: 90%; margin: 0; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; color: #aebbb9; font-size: 12px; }
-    #track { position: fixed; left: 0; right: 0; bottom: 0; height: 5px; background: #26363a; }
-    #progress { width: 0; height: 100%; background: #57c3b2; transition: width 180ms ease-out; }
-  </style>
-</head>
-<body>
-  <main>
-    <img src="../../build/icons/128x128.png" alt="">
-    <h1>mLearn</h1>
-    <p id="status" role="status" aria-live="polite">Starting mLearn</p>
-  </main>
-  <div id="track" role="progressbar" aria-label="Startup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress"></div></div>
+  <style>html,body,#splash-host{margin:0;width:100%;height:100%;overflow:hidden;background:#070e1c}</style>
+  <link rel="stylesheet" href="../splash/style.css">
   <script>
-    window.updateStartup = ({ status, progress }) => {
-      document.getElementById('status').textContent = status;
-      document.getElementById('progress').style.width = `${progress}%`;
-      document.getElementById('track').setAttribute('aria-valuenow', String(progress));
+    window.__mlearnStartup = { status: 'Starting mLearn', progress: 0 };
+    window.updateStartup = function(value) {
+      if (!value) return;
+      const state = window.__mlearnStartup;
+      if (typeof value.status === 'string') state.status = value.status;
+      if (Number.isFinite(value.progress)) state.progress = Math.max(state.progress, Math.min(100, Math.max(0, value.progress)));
+      const fallback = document.getElementById('bootstrap-fallback');
+      if (!fallback) return;
+      fallback.querySelector('.prism-status').textContent = state.status;
+      fallback.querySelector('.prism-progress').style.transform = `scaleX(${state.progress / 100})`;
+      fallback.querySelector('.prism-track').setAttribute('aria-valuenow', String(state.progress));
     };
   </script>
+</head>
+<body>
+  <div id="splash-host">
+    <section id="bootstrap-fallback" class="prism-splash" aria-label="mLearn startup" data-development="__MLEARN_DEVELOPMENT__">
+      <div class="prism-fallback"><div class="prism-fallback-panel"></div><svg class="prism-fallback-logo" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="735 788 385 222" fill="white">
+<path d="M748,1002L741,875L754,842L775,842L776,864L782,864C782,864 788.186,841.476 817,841C849.567,840.462 856,866 856,866L862.474,866C862.474,866 869.279,842.064 903,842C936.721,841.936 944,867 944,867L953,905L950,1005L927,1005L922,965L923,902C923,902 916.654,890.612 898,891C866.346,891.658 862.474,912 862.474,912L861,1004L838,1004L837,911C837,911 828.858,889.095 802,890C785.132,890.569 779,899 779,899L780,963L770,1002L748,1002Z"/>
+<path d="M992,1005L981,964L989,793L1014,793L1028,820L1020,948L1092,949L1114,989L1113,1007L992,1005Z"/>
+</svg></div>
+      <h1 class="prism-name">mLearn</h1>
+      <p class="prism-version" data-version="__MLEARN_VERSION__">v__MLEARN_VERSION__</p>
+      __MLEARN_DEVELOPMENT_LINE__
+      <footer class="prism-footer">
+        <p class="prism-status" role="status" aria-live="polite">Starting mLearn</p>
+        <div class="prism-track" role="progressbar" aria-label="Startup progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="prism-progress"></div></div>
+      </footer>
+    </section>
+  </div>
+  <script type="module" src="../splash/entry.js"></script>
 </body>
 </html>
