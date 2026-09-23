@@ -125,6 +125,29 @@ describe('procedural startup splash', () => {
     splash.destroy();
   });
 
+  it('advances scene time while visible and stops submitting frames when hidden', async () => {
+    const { mountSplash } = await import('../src/splash/controller.js');
+    const host = document.createElement('div');
+    document.body.append(host);
+    const renderer = { backend: 'vgpu', resize: vi.fn(), render: vi.fn(), destroy: vi.fn() };
+    const splash = mountSplash(host, {}, async () => renderer);
+    await advanceBoot();
+    expect(await splash.ready).toBe(true);
+    for (const now of [100, 133, 166]) {
+      const callbacks = frames.splice(0);
+      callbacks.forEach(callback => callback(now));
+    }
+    expect(renderer.render.mock.lastCall?.[0].time).toBeGreaterThan(0);
+    const renderCount = renderer.render.mock.calls.length;
+    const sceneTime = splash.diagnostics.time;
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    frames.splice(0).forEach(callback => callback(200));
+    expect(renderer.render).toHaveBeenCalledTimes(renderCount);
+    expect(splash.diagnostics.time).toBe(sceneTime);
+    splash.destroy();
+  });
+
   it('releases a GPU renderer that resolves after the splash is closed', async () => {
     const { mountSplash } = await import('../src/splash/controller.js');
     const host = document.createElement('div');

@@ -24,7 +24,10 @@ export async function createVgpuRenderer(canvas, options, logoBytes) {
       { bytesPerRow: LOGO_SIZE[0]*2 }, [...LOGO_SIZE,1]);
     const linear = sampler(gpu, { minFilter: 'linear', magFilter: 'linear' });
     const initial = { resolution: [1,1], time: 0, progress: 0, pointer: [0,0], seed: options.seed, exposure: options.exposure };
-    const scene = effect(gpu, sceneSource, { label: 'prism-studio', set: { params: initial, logo, linear } });
+    const lighting = [0, Math.sin(1.2), 1, 1+0.10*Math.sin(1.3)];
+    const scene = effect(gpu, sceneSource, { label: 'prism-studio', set: {
+      params: { ...initial, lighting }, logo, linear,
+    } });
     const dust = draw(gpu, {
       shader: dustSource, label: 'prism-instanced-dust', vertices: 6, instances: options.particles,
       depth: false,
@@ -80,7 +83,12 @@ export async function createVgpuRenderer(canvas, options, logoBytes) {
         pending = { ...values, pointer: [...values.pointer] };
         return false;
       }
-      scene.set({ params: { time: values.time, pointer: values.pointer } });
+      const time = values.time;
+      lighting[0]=Math.sin(time*0.47);
+      lighting[1]=Math.sin(time*0.39+1.2);
+      lighting[2]=1+0.14*Math.sin(time*0.70);
+      lighting[3]=1+0.10*Math.sin(time*0.53+1.3);
+      scene.set({ params: { time, pointer: values.pointer, lighting } });
       dust.set({ params: { time: values.time, pointer: values.pointer } });
       if(values.progress!==lastProgress){
         lastProgress=values.progress;

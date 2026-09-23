@@ -7,12 +7,12 @@ fn rnd(n: f32) -> f32 { return fract(sin(n*127.1+params.seed*3.1)*43758.5453); }
   let id: f32 = f32(ii)+1.0;
   let depth: f32 = rnd(id*4.7);
   let phase: f32 = rnd(id*2.3)*6.283185;
-  let x: f32 = fract(rnd(id*1.9)+sin(params.time*0.08+phase)*0.022+params.time*0.0014+params.pointer.x*depth*0.016);
-  let y: f32 = fract(rnd(id*8.1)-params.time*(0.002+depth*0.0015)+cos(params.time*0.05+phase)*0.016+params.pointer.y*depth*0.010);
+  let x: f32 = fract(rnd(id*1.9)+sin(params.time*0.18+phase)*0.028+params.time*0.0025+params.pointer.x*depth*0.016);
+  let y: f32 = fract(rnd(id*8.1)-params.time*(0.0035+depth*0.002)+cos(params.time*0.12+phase)*0.018+params.pointer.y*depth*0.010);
   let radius: f32 = 0.00065+pow(depth,10.0)*0.010;
   let uv: vec2f = vec2f(x,y)+corners[vi]*vec2f(radius*params.resolution.y/params.resolution.x,radius);
   let illumination: f32 = exp(-pow((y-x*0.8-0.03)/0.25,2.0));
-  let pulse: f32 = 0.60+0.40*(sin(params.time*0.28+phase)*sin(params.time*0.28+phase));
+  let pulse: f32 = 0.60+0.40*(sin(params.time*0.45+phase)*sin(params.time*0.45+phase));
   var out: DustOut;
   out.position=vec4f(uv.x*2.0-1.0,1.0-uv.y*2.0,0.0,1.0);
   out.local=corners[vi];

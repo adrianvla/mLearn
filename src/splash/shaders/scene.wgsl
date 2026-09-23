@@ -7,6 +7,7 @@ struct Params {
   pointer: vec2f,
   seed: f32,
   exposure: f32,
+  lighting: vec4f,
 }
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var logo: texture_2d<f32>;
@@ -25,6 +26,11 @@ fn box2(p: vec2f, b: vec2f) -> f32 {
   return length(max(q,vec2f(0.0)))+min(max(q.x,q.y),0.0);
 }
 fn gaussian(p: vec2f, scale: vec2f) -> f32 { return exp(-dot(p/scale,p/scale)); }
+// The two studio lights move on different slow cycles, so the scene never flashes in unison.
+fn warmDrift() -> f32 { return params.lighting.x; }
+fn coolDrift() -> f32 { return params.lighting.y; }
+fn warmLight() -> f32 { return params.lighting.z; }
+fn coolLight() -> f32 { return params.lighting.w; }
 
 // The atlas contains the exact two path outlines from the pinned mLearn dev commit.
 // Both source axes use 0.009 world units per SVG unit. No aspect-ratio distortion.
@@ -71,33 +77,38 @@ fn traceLogo(ro: vec3f, rd: vec3f, limit: f32) -> f32 {
 fn environment(r: vec3f) -> vec3f {
   var c: vec3f = vec3f(0.006,0.009,0.019);
   // Analytic HDR softboxes: narrow in angle, extended along the other axis.
-  c=c+vec3f(3.1,2.0,1.25)*exp(-sq((r.x+0.77)/0.22)-sq((r.z-0.36)/0.70));
-  c=c+vec3f(1.3,1.8,3.0)*exp(-sq((r.x-0.76)/0.18)-sq((r.z-0.32)/0.65));
+  c=c+vec3f(3.1,2.0,1.25)*warmLight()*exp(-sq((r.x+0.77-warmDrift()*0.075)/0.22)-sq((r.z-0.36)/0.70));
+  c=c+vec3f(1.3,1.8,3.0)*coolLight()*exp(-sq((r.x-0.76-coolDrift()*0.055)/0.18)-sq((r.z-0.32)/0.65));
   c=c+vec3f(2.3,2.5,2.8)*exp(-sq((r.y-0.68)/0.18)-sq(r.x/0.85));
-  c=c+vec3f(1.8,1.9,2.1)*exp(-sq((r.x+0.19+sin(params.time*0.07)*0.015)/0.075)-sq((r.y+0.12)/0.65)-sq((r.z-0.95)/0.30));
+  c=c+vec3f(1.8,1.9,2.1)*exp(-sq((r.x+0.19+warmDrift()*0.065)/0.075)-sq((r.y+0.12)/0.65)-sq((r.z-0.95)/0.30));
   return c;
 }
 fn air(uv: vec2f) -> vec3f {
-  let source: vec2f = vec2f(-0.13,-0.12);
+  let source: vec2f = vec2f(-0.13+warmDrift()*0.025,-0.12+warmDrift()*0.018);
   let p: vec2f = uv-source;
-  let drift: f32 = sin(params.time*0.095)*0.018+params.pointer.x*0.012;
+  let drift: f32 = warmDrift()*0.055+params.pointer.x*0.012;
   let ray1: f32 = exp(-sq((p.y-p.x*(0.64+drift))/0.074));
   let ray2: f32 = exp(-sq((p.y-p.x*(1.10+drift))/0.046));
   let ray3: f32 = exp(-sq((p.y-p.x*(1.68+drift))/0.085));
-  let mist: f32 = 0.83+0.17*noise2(uv*5.0+vec2f(params.time*0.015,0.0));
-  let rays: f32 = (ray1*0.052+ray2*0.065+ray3*0.025)*exp(-p.x*1.8)*mist;
-  return vec3f(1.0,0.61,0.34)*rays;
+  let mist: f32 = 0.83+0.17*noise2(uv*5.0+vec2f(params.time*0.04,0.0));
+  let rays: f32 = (ray1*0.052+ray2*0.090+ray3*0.025)*exp(-p.x*1.8)*warmLight();
+  // Broad sheets of light make the slow movement legible between short startup phases.
+  let warmSheet: f32 = exp(-sq((p.y-p.x*(1.23+drift))/0.17))*exp(-max(p.x,0.0)*1.1);
+  let coolP: vec2f = vec2f(1.18-uv.x,uv.y+0.07);
+  let coolSheet: f32 = exp(-sq((coolP.y-coolP.x*(1.70+coolDrift()*0.12))/0.13))*exp(-max(coolP.x,0.0)*1.0);
+  return vec3f(1.0,0.61,0.34)*(rays+warmSheet*0.24*warmLight())*mist
+    +vec3f(0.24,0.48,1.0)*coolSheet*0.11*coolLight()*mist;
 }
 fn background(uv: vec2f) -> vec3f {
   var c: vec3f = mix(vec3f(0.003,0.006,0.015),vec3f(0.001,0.002,0.006),uv.y);
-  c=c+vec3f(3.0,2.25,1.70)*gaussian(uv-vec2f(-0.08,-0.10),vec2f(0.18,0.25));
-  c=c+vec3f(0.010,0.022,0.052)*gaussian(uv-vec2f(0.85,0.14),vec2f(0.34,0.42));
+  c=c+vec3f(1.4,1.05,0.80)*warmLight()*gaussian(uv-vec2f(-0.08+warmDrift()*0.045,-0.10+warmDrift()*0.025),vec2f(0.18,0.25));
+  c=c+vec3f(0.010,0.022,0.052)*coolLight()*gaussian(uv-vec2f(0.85+coolDrift()*0.035,0.14),vec2f(0.34,0.42));
   // A defocused dark glass shape on the right gives depth without a large image asset.
   let p: vec2f = vec2f(uv.x+(uv.y-0.35)*0.34-0.99,uv.y-0.35);
   let rect: f32 = box2(p,vec2f(0.175,0.257));
   let plate: f32 = 1.0-smoothstep(-0.025,0.040,rect);
   let edge: f32 = exp(-sq(rect/0.020));
-  c=c*(1.0-plate*0.35)+vec3f(0.031,0.054,0.105)*edge*0.36;
+  c=c*(1.0-plate*0.35)+vec3f(0.031,0.054,0.105)*edge*0.55*coolLight();
   return c+air(uv);
 }
 fn glass(p: vec3f, n: vec3f, v: vec3f) -> vec3f {
@@ -120,7 +131,7 @@ fn glass(p: vec3f, n: vec3f, v: vec3f) -> vec3f {
   let scatter: f32 = 1.0-exp(-thickness*2.25);
   let inset: f32 = max(0.0,-logo2(p.xy));
   let rim: f32 = exp(-inset*22.0);
-  let cloud: f32 = 0.82+0.18*noise2(p.xy*4.2+vec2f(2.0,1.0));
+  let cloud: f32 = 0.82+0.18*noise2(p.xy*4.2+vec2f(2.0+params.time*0.035,1.0));
   var c: vec3f = vec3f(0.016,0.025,0.047)*(1.0-scatter);
   c=c+vec3f(0.42,0.50,0.64)*scatter*cloud;
   c=c+environment(r)*(0.085+frontF*0.65);
@@ -129,7 +140,9 @@ fn glass(p: vec3f, n: vec3f, v: vec3f) -> vec3f {
   // Broad backlighting is captured by the frosted volume rather than a diffuse plastic lobe.
   let warm: f32 = exp(-(p.x+1.70)*1.5)*(0.19+rim*0.85);
   let cool: f32 = exp(-(1.72-p.x)*1.5)*(0.10+rim*0.50);
-  c=c+vec3f(1.90,1.16,0.67)*warm+vec3f(0.55,0.84,1.55)*cool;
+  c=c+vec3f(1.90,1.16,0.67)*warm*warmLight()+vec3f(0.55,0.84,1.55)*cool*coolLight();
+  let softSweep: f32 = exp(-sq((p.x+0.20-warmDrift()*0.65)/0.90));
+  c=c*(0.72+0.28*softSweep);
   let spectrum: vec3f = vec3f(0.5)+0.5*cos(vec3f(0.0,2.1,4.2)+vec3f(n.x*5.0+n.y*7.0+p.y*1.4));
   c=c+spectrum*rim*(frontF+rearF)*0.08;
   c=c+vec3f(2.4,1.8,1.2)*gaussian(p.xy-vec2f(-1.50,0.04),vec2f(0.20,0.095));
@@ -148,16 +161,16 @@ fn ground(ro: vec3f, rd: vec3f, p: vec3f) -> vec3f {
     let d: f32 = logo2(vec2f(q.x+1.56,q.y));
     let mask: f32 = 1.0-smoothstep(-blur,blur,d);
     let reflected: vec3f = mix(vec3f(1.1,0.73,0.48),vec3f(0.56,0.76,1.2),clamp((q.x+3.10)/3.4,0.0,1.0));
-    c=c+reflected*mask*fresnel*1.10*exp(-max(p.z,0.0)*0.38);
+    c=c+reflected*mask*fresnel*1.45*exp(-max(p.z,0.0)*0.30);
   }
-  c=c+vec3f(1.45,0.72,0.34)*gaussian(vec2f(p.x+3.1,p.z-0.3),vec2f(0.50,1.4))*0.21;
-  c=c+vec3f(0.30,0.52,1.0)*gaussian(vec2f(p.x-1.0,p.z-0.0),vec2f(0.75,2.8))*0.20;
+  c=c+vec3f(1.45,0.72,0.34)*gaussian(vec2f(p.x+3.1-warmDrift()*0.40,p.z-0.3),vec2f(0.50,1.4))*0.24*warmLight();
+  c=c+vec3f(0.30,0.52,1.0)*gaussian(vec2f(p.x-1.0-coolDrift()*0.28,p.z-0.0),vec2f(0.75,2.8))*0.20*coolLight();
   let contact: f32 = exp(-sq(p.z/0.23))*exp(-sq((p.x+1.55)/2.1));
   c=c*(1.0-0.28*contact);
   // Caustic suggestion: a few low-energy spectral streaks near the floor, not extra rays.
   let streak: f32 = p.x*0.23-p.z*0.085-0.47+sin(p.z*0.3+params.time*0.05)*0.035;
   let spectrum: vec3f = vec3f(exp(-sq((streak-0.019)/0.015)),exp(-sq(streak/0.015)),exp(-sq((streak+0.019)/0.015)));
-  c=c+spectrum*gaussian(p.xz-vec2f(2.5,1.4),vec2f(1.2,0.75))*0.08;
+  c=c+spectrum*gaussian(p.xz-vec2f(2.5,1.4),vec2f(1.2,0.75))*0.06;
   return c*(0.94+rough*0.12);
 }
 fn scene(uv: vec2f) -> vec3f {
@@ -187,13 +200,13 @@ fn scene(uv: vec2f) -> vec3f {
   if (tp>0.0 && tp<nearest && d<0.006) {
     nearest=tp;
     c=vec3f(0.004,0.007,0.013);
-    c=c+vec3f(0.065,0.041,0.030)*gaussian(panel.xy-vec2f(-3.25,3.3),vec2f(0.80,1.35));
+    c=c+vec3f(0.035,0.024,0.018)*warmLight()*gaussian(panel.xy-vec2f(-3.25+warmDrift()*0.10,3.3),vec2f(0.80,1.35));
     c=c+vec3f(0.010,0.017,0.033)*gaussian(panel.xy-vec2f(-0.1,3.6),vec2f(1.4,1.3));
     let rim: f32 = exp(-sq(d/0.008));
     let warm: f32 = gaussian(panel.xy-vec2f(-3.33,3.52),vec2f(0.55,0.85));
     let cold: f32 = gaussian(panel.xy-vec2f(0.23,3.52),vec2f(0.55,1.0));
-    c=c+(vec3f(0.008,0.014,0.026)+vec3f(1.5,0.95,0.65)*warm+vec3f(0.42,0.67,1.25)*cold)*rim;
-    c=c+vec3f(5.0,3.5,2.0)*gaussian(panel.xy-vec2f(-3.32,3.51),vec2f(0.027,0.032));
+    c=c+(vec3f(0.008,0.014,0.026)+vec3f(1.5,0.95,0.65)*warm*warmLight()+vec3f(0.42,0.67,1.25)*cold*coolLight())*rim;
+    c=c+vec3f(5.0,3.5,2.0)*warmLight()*gaussian(panel.xy-vec2f(-3.32,3.51),vec2f(0.027,0.032));
     let bar: f32 = box2(panel.xy-vec2f(-1.55,3.15),vec2f(1.24,0.075));
     if (bar<0.0) {
       c=vec3f(0.28,0.33,0.43)+vec3f(0.12,0.10,0.08)*clamp((-panel.x)/3.0,0.0,1.0);
@@ -208,7 +221,7 @@ fn scene(uv: vec2f) -> vec3f {
     c=glass(lp,logoNormal(lp),-rd);
   }
   // Very light atmospheric veil also in front of the objects; never obscures the mark.
-  c=c+air(uv)*0.32;
+  c=c+air(uv)*0.22;
   let flare: f32 = gaussian(uv-vec2f(0.058,0.667),vec2f(0.085,0.0015));
   c=c+vec3f(0.0)*flare;
   return max(c,vec3f(0.0));
