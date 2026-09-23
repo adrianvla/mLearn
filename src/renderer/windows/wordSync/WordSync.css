@@ -23,13 +23,21 @@
 .word-sync-header {
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: var(--spacing-3);
+  order: 1;
+  width: 100%;
 }
 
 .word-sync-filter-toggle {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
+
+.word-sync-queue-details { order: 4; width: min(100%, 36rem); color: var(--text-secondary); font-size: var(--font-size-sm); }
+.word-sync-queue-details summary { cursor: pointer; width: fit-content; margin: 0 auto; }
+.word-sync-queue-details p { line-height: var(--line-height-normal); margin: var(--spacing-2) 0 0; }
+.word-sync-queue-details summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
 .word-sync-filter-popover {
   width: min(30rem, calc(100vw - var(--spacing-8)));
@@ -67,6 +75,11 @@
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-8) var(--spacing-10);
+  order: 2;
+  width: min(100%, 36rem);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--panel-bg);
 }
 
 .word-sync-word {
@@ -90,8 +103,7 @@
 }
 
 .word-sync-translation-toggle {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
 }
 
 .word-sync-answer-options {
@@ -113,7 +125,10 @@
   width: min(100%, 36rem);
   min-width: 0;
   gap: var(--spacing-4);
+  order: 3;
 }
+
+.word-sync .tell-mlearn__toggle { border: 1px solid var(--border-color); background: var(--panel-bg); padding: var(--spacing-2) var(--spacing-3); }
 
 .word-sync-attribution-prompt {
   font-size: var(--font-size-sm);
@@ -145,11 +160,17 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-4);
-  flex: 1;
-  width: 100%;
-  padding: var(--spacing-8);
+  order: 2;
+  width: min(100%, 36rem);
+  padding: var(--spacing-6);
   box-sizing: border-box;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
 }
+
+.word-sync-finished .empty-state { padding: var(--spacing-4); }
+.word-sync-finished .empty-state-description { max-width: 38ch; }
 
 .word-sync-recheck-btn {
   margin-top: var(--spacing-2);

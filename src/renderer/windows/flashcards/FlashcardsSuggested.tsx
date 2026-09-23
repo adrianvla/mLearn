@@ -520,13 +520,16 @@ export const FlashcardsSuggested: Component = () => {
             />
           </div>
 
-          <FilterBuilder
-            fields={filterFields().fields}
-            paletteItems={filterFields().paletteItems}
-            tokens={filterTokens()}
-            onChange={setFilterTokens}
-            evaluation={filterValidation()}
-          />
+          <details class="flashcards-suggested-advanced-filters">
+            <summary>{t('mlearn.WordDbEditor.AdvancedFilters')}</summary>
+            <FilterBuilder
+              fields={filterFields().fields}
+              paletteItems={filterFields().paletteItems}
+              tokens={filterTokens()}
+              onChange={setFilterTokens}
+              evaluation={filterValidation()}
+            />
+          </details>
 
           <div class="flashcards-suggested-bulkbar">
             <div class="flashcards-suggested-bulkbar-left">

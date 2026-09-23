@@ -42,7 +42,7 @@
 
 /* Header */
 .cg-header {
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-3);
 }
 
 .cg-header h1 {
@@ -54,19 +54,23 @@
 .cg-subtitle {
   font-size: 0.85rem;
   color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+  margin: 0;
 }
 
 /* Main Layout */
 .cg-main {
   display: flex;
-  gap: 1.5rem;
+  gap: var(--spacing-4);
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 /* Grid */
 .cg-grid {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -134,9 +138,11 @@
 /* Sidebar */
 .cg-sidebar {
   width: 250px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: var(--spacing-2);
+  overflow-y: auto;
 }
 
 /* Legend */
@@ -171,11 +177,26 @@
 /* Stats */
 .cg-stats {
   font-size: 0.85rem;
-  line-height: 1.8;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
 }
 
-.cg-stats b {
-  color: var(--color-primary);
+.cg-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--spacing-2);
+}
+
+.cg-stat strong {
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.cg-stat-total {
+  padding-top: var(--spacing-1);
+  border-top: 1px solid var(--border-color);
 }
 
 .cg-stats-pct {
@@ -184,13 +205,13 @@
 
 /* Levels */
 .cg-levels {
-  margin-top: auto;
+  margin-top: 0;
 }
 
 .cg-levels p {
   font-size: 0.85rem;
   color: var(--text-secondary);
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--spacing-2);
 }
 
 .cg-disclaimer {
@@ -198,10 +219,44 @@
   margin: 0 0 0.75rem;
 }
 
+.cg-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+}
+
+.cg-error p {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .cg-main {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .cg-sidebar {
+    order: -1;
+    width: 100%;
+    flex: none;
+    overflow: visible;
+  }
+
+  .cg-grid {
+    flex: none;
+    overflow: visible;
+  }
+}
+
 .level-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--spacing-1);
 }
 
 /* Tooltip */
@@ -344,4 +399,5 @@
 }
 
 .cg-cell:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-.cg-legend-details summary { cursor: pointer; margin-bottom: 0.75rem; }
+.cg-legend-details summary { cursor: pointer; }
+.cg-legend-details[open] summary { margin-bottom: var(--spacing-2); }

@@ -1328,6 +1328,9 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                         <button type="button" class="grammar-coverage__session-btn" disabled={sessionLive()} onClick={() => startSession(level)}>
                           {t('mlearn.LevelStudy.Grammar.Practise')}
                         </button>
+                        <Show when={sessionLive()}>
+                          <span class="grammar-coverage__session-done">{t('mlearn.LevelStudy.Grammar.FinishCurrentPass')}</span>
+                        </Show>
                         {/* Availability honesty (G04): the contrast pass exists only where the
                             package declares deliverable items — nothing is invented for levels
                             without them, and the regular Practise walk stays available. */}
@@ -1549,6 +1552,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                   {/* While the pass is live the construction list is hidden: its
                       meanings would cue the active task (written-form only). */}
                   <Show when={!sessionActiveFor(level)}>
+                  <details class="grammar-coverage__review">
+                    <summary>{t('mlearn.LevelStudy.Grammar.ReviewPoints', { count: String((constructionsByLevel().get(level) ?? []).length) })}</summary>
                   <ul class="grammar-coverage__constructions">
                     <For each={constructionsByLevel().get(level) ?? []}>
                       {(row) => (
@@ -1581,6 +1586,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                       )}
                     </For>
                   </ul>
+                  </details>
                   </Show>
                 </Show>
               </div>

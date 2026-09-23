@@ -1479,28 +1479,28 @@ export const ConversationContent: Component = () => {
           </Btn>
         }
       >
-        <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-4)' }}>
-          <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-warning)', 'font-weight': 500 }}>
+        <div class="ca-disclaimer">
+          <p class="ca-disclaimer__warning">
             {t('mlearn.ConversationAgent.Banner.AIWarning')}
           </p>
-          <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-secondary)' }}>
+          <p>
             {t('mlearn.ConversationAgent.Banner.LocalPrivacyNotice')}
           </p>
-          <p style={{ margin: '0', 'font-size': '0.9375rem', 'line-height': '1.6', color: 'var(--text-secondary)' }}>
-            {t('mlearn.ConversationAgent.Banner.SafetyNotice', { status: settings.agentSafetyChecker ? 'ON' : 'OFF' })}
-            {' '}
-            <Btn variant="ghost" class="ca-inline-link" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>
-              [{t('mlearn.ConversationAgent.Banner.SettingsLink')}]
-            </Btn>
-            {' '}
-            <Btn variant="ghost" class="ca-inline-link" onClick={() => getBridge().window.openWindow({ type: 'memory-browser' })}>
-              [{t('mlearn.MemoryBrowser.OpenInAgent')}]
-            </Btn>
+          <p>
+            {t('mlearn.ConversationAgent.Banner.SafetyNotice', { status: t(settings.agentSafetyChecker ? 'mlearn.ConversationAgent.Banner.StatusOn' : 'mlearn.ConversationAgent.Banner.StatusOff') })}
             <Show when={settings.agentSafetyChecker}>
               {' '}
               {t('mlearn.ConversationAgent.Banner.TerminationNotice')}
             </Show>
           </p>
+          <div class="ca-disclaimer__links">
+            <Btn variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>
+              {t('mlearn.ConversationAgent.Banner.SettingsLink')}
+            </Btn>
+            <Btn variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'memory-browser' })}>
+              {t('mlearn.MemoryBrowser.OpenInAgent')}
+            </Btn>
+          </div>
         </div>
       </Modal>
       <div class="ca-header">
@@ -1894,7 +1894,7 @@ export const ConversationContent: Component = () => {
         </aside>
         </>
       </Show>
-      <Show when={showNewConversationModal()}>
+      <Show when={showNewConversationModal() && !(settings.llmProvider === 'cloud' ? showSplash() : showDisclaimer())}>
         <Show when={pendingTutorConfig() ?? 'manual'} keyed>{(_config) => <NewConversationModal
           world={world()}
           initialIntent={pendingTutorConfig() ? tutorSessionIntent(pendingTutorConfig()!) : undefined}

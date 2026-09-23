@@ -2859,6 +2859,7 @@ export const ReaderRoute: Component = () => {
 
         {/* Navigation Bar */}
         <ReaderNav
+            hasPages={hasPages}
             bookTitle={bookTitle}
             progressString={progressString}
             fitMode={fitMode}
@@ -2898,7 +2899,7 @@ export const ReaderRoute: Component = () => {
             onNextPage={nextPage}
         />
 
-        <Show when={showSidebar() || showWordSidebar()}>
+        <Show when={hasPages() && (showSidebar() || showWordSidebar())}>
           <button
             type="button"
             class="reader-sidebar-backdrop"
@@ -2911,7 +2912,7 @@ export const ReaderRoute: Component = () => {
         </Show>
 
         {/* Sidebar */}
-        <Show when={showSidebar()}>
+        <Show when={hasPages() && showSidebar()}>
           <ReaderSidebar
               pages={pages}
               activePageIndices={visiblePageIndices}
@@ -2922,7 +2923,7 @@ export const ReaderRoute: Component = () => {
 
         {/* Main Content */}
         <main
-          class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}${visiblePagesAreText() ? ` ${readerTextThemeClass(settings.readerTextTheme)}` : ''}`}
+          class={`reader-main ${hasPages() && showSidebar() ? 'with-sidebar' : ''} ${hasPages() && showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}${visiblePagesAreText() ? ` ${readerTextThemeClass(settings.readerTextTheme)}` : ''}`}
           style={visiblePagesAreText() ? readerTextStyle() : undefined}
           ref={readerMainRef}
         >
@@ -3130,7 +3131,7 @@ export const ReaderRoute: Component = () => {
           </Show>
         </main>
 
-        <Show when={showWordSidebar()}>
+        <Show when={hasPages() && showWordSidebar()}>
           <ReaderUnknownWordsSidebar
               words={visibleUnknownWords}
               addingWordKeys={addingSidebarWords}

@@ -84,7 +84,9 @@
   transition: background var(--transition-fast);
   border-radius: 2px;
   padding: 0 1px;
-  color: var(--pos-punctuation);
+  /* SubtitleWord can apply package POS colors inline; those colors lose
+     contrast against the chat bubble surface. Keep conversation text readable. */
+  color: var(--text-primary) !important;
 }
 
 .chat-token:hover {

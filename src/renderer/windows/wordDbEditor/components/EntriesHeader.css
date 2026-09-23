@@ -6,7 +6,7 @@
 .entries-header {
   display: flex;
   padding: var(--spacing-3) var(--spacing-4);
-  background: var(--border-color);
+  background: var(--bg-nt-secondary);
   border-bottom: 1px solid var(--border-color);
   font-weight: 600;
   font-size: 0.85rem;

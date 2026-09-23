@@ -761,8 +761,8 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
   });
 
   return (
-    <section class="placement-session" aria-label={t('mlearn.LevelStudy.Placement.Title')}>
-      <Show when={!props.focused} fallback={<h2>{t('mlearn.LevelStudy.Placement.Title')}</h2>}>
+    <section class="placement-session" classList={{ 'placement-session--focused': !!props.focused, 'placement-session--live': sessionLive() }} aria-label={t('mlearn.LevelStudy.Placement.Title')}>
+      <Show when={!props.focused}>
       <button
         type="button"
         class="placement-session__header"
@@ -774,10 +774,9 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
       </button>
       </Show>
       <Show when={(props.focused || expanded()) && !props.booting}>
-        <p class="placement-session__description">{t('mlearn.LevelStudy.Placement.Description')}</p>
-
-        <div class="placement-session__background">
-          <h4>{t('mlearn.LevelStudy.Placement.BackgroundTitle')}</h4>
+        <details class="placement-session__background">
+          <summary>{t('mlearn.LevelStudy.Placement.BackgroundTitle')}</summary>
+          <p class="placement-session__description">{t('mlearn.LevelStudy.Placement.Description')}</p>
           <Show when={props.background.length === 0}>
             <p class="placement-session__empty">{t('mlearn.LevelStudy.Placement.BackgroundEmpty')}</p>
           </Show>
@@ -818,6 +817,8 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
           </ul>
           <Show when={!formOpen()} fallback={
             <div class="placement-session__form">
+              <label class="placement-session__field">
+                <span>{t('mlearn.LevelStudy.Placement.KindLabel')}</span>
               <select
                 class="placement-session__form-kind"
                 value={formKind()}
@@ -828,6 +829,9 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                   {(kind) => <option value={kind}>{t(`mlearn.LevelStudy.Placement.Kind.${kind}`)}</option>}
                 </For>
               </select>
+              </label>
+              <label class="placement-session__field">
+                <span>{t('mlearn.LevelStudy.Placement.ResultLabel')}</span>
               <input
                 type="text"
                 class="placement-session__form-label"
@@ -836,6 +840,9 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                 value={formLabel()}
                 onInput={(event) => setFormLabel(event.currentTarget.value)}
               />
+              </label>
+              <label class="placement-session__field">
+                <span>{t('mlearn.LevelStudy.Placement.LevelLabel')}</span>
               <input
                 type="text"
                 class="placement-session__form-level"
@@ -844,6 +851,9 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                 value={formLevel()}
                 onInput={(event) => setFormLevel(event.currentTarget.value)}
               />
+              </label>
+              <label class="placement-session__field">
+                <span>{t('mlearn.LevelStudy.Placement.DateLabel')}</span>
               <input
                 type="date"
                 class="placement-session__form-date"
@@ -851,6 +861,9 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                 value={formDate()}
                 onInput={(event) => setFormDate(event.currentTarget.value)}
               />
+              </label>
+              <label class="placement-session__field placement-session__field--wide">
+                <span>{t('mlearn.LevelStudy.Placement.NoteLabel')}</span>
               <input
                 type="text"
                 class="placement-session__form-note"
@@ -859,6 +872,9 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                 value={formNote()}
                 onInput={(event) => setFormNote(event.currentTarget.value)}
               />
+              </label>
+              <label class="placement-session__field placement-session__field--wide">
+                <span>{t('mlearn.LevelStudy.Placement.SkillsLabel')}</span>
               <input
                 type="text"
                 class="placement-session__form-skills"
@@ -867,6 +883,9 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                 value={formSkills()}
                 onInput={(event) => setFormSkills(event.currentTarget.value)}
               />
+              </label>
+              <label class="placement-session__field">
+                <span>{t('mlearn.LevelStudy.Placement.ScoreOverallLabel')}</span>
               <input
                 type="text"
                 class="placement-session__form-score"
@@ -875,8 +894,11 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                 value={formScoreOverall()}
                 onInput={(event) => setFormScoreOverall(event.currentTarget.value)}
               />
+              </label>
               <For each={parsedFormSkills()}>
                 {(skill) => (
+                  <label class="placement-session__field">
+                    <span>{t('mlearn.LevelStudy.Placement.ScoreSkillLabel', { skill })}</span>
                   <input
                     type="text"
                     class="placement-session__form-skill-score"
@@ -885,21 +907,24 @@ export const PlacementSession: Component<PlacementSessionProps> = (props) => {
                     value={formSkillScores()[skill] ?? ''}
                     onInput={(event) => setFormSkillScores((scores) => ({ ...scores, [skill]: event.currentTarget.value }))}
                   />
+                  </label>
                 )}
               </For>
               <Show when={dateRequired() && formDate().trim() === ''}>
                 <span class="placement-session__date-required">{t('mlearn.LevelStudy.Placement.DateRequired')}</span>
               </Show>
-              <button type="button" class="placement-session__form-save" disabled={!canSaveRecord()} onClick={submitBackground}>
-                {t('mlearn.LevelStudy.Placement.SaveRecord')}
-              </button>
+              <div class="placement-session__form-actions">
+                <button type="button" class="placement-session__form-save" disabled={!canSaveRecord()} onClick={submitBackground}>
+                  {t('mlearn.LevelStudy.Placement.SaveRecord')}
+                </button>
+              </div>
             </div>
           }>
             <button type="button" class="placement-session__add" onClick={() => setFormOpen(true)}>
               {t('mlearn.LevelStudy.Placement.AddRecord')}
             </button>
           </Show>
-        </div>
+        </details>
 
         <Show when={placementResult() !== null} fallback={
           <>

@@ -673,6 +673,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
         customInstructions: 'Practice cats',
       },
     });
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form textarea')).not.toBeNull());
     const intent = (container.querySelector('.new-conversation-form textarea') as HTMLTextAreaElement).value;
     expect(intent).toContain('Words selected for practice (not evidence of difficulty)');
@@ -743,6 +745,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
         customInstructions: 'Practice dogs',
       },
     });
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form textarea')).not.toBeNull());
     const intent = (container.querySelector('.new-conversation-form textarea') as HTMLTextAreaElement).value;
     expect(intent).toContain('Words selected for practice (not evidence of difficulty)');
@@ -796,6 +800,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('opens the NewConversationModal from the room sidebar', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')).toBe(true));
@@ -821,6 +826,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     };
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
 
     await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Empty.NewConversation')).toBe(true));
     Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Empty.NewConversation')!.click();

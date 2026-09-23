@@ -593,9 +593,11 @@
         "ContinueButton": "Continue to Chat"
       },
       "Banner": {
-        "AIWarning": "⚠️ AI-generated responses may be inaccurate or inappropriate. This agent is not a human and cannot provide professional advice.",
-        "LocalPrivacyNotice": "Runs entirely on your device — your messages never leave this machine.",
-        "SafetyNotice": "🛡️ Safety screening is {status}.",
+        "AIWarning": "AI responses can be wrong or unsuitable. This is not a person or professional advice.",
+        "LocalPrivacyNotice": "This tutor runs on your device. Your messages stay here.",
+        "SafetyNotice": "Safety screening is {status}.",
+        "StatusOn": "on",
+        "StatusOff": "off",
         "SettingsLink": "Settings",
         "TerminationNotice": "If harmful content is detected, the chat will be terminated."
       },
@@ -1761,6 +1763,8 @@
         },
         "SeenOnly": "seen {count}×",
         "Practise": "Practise",
+        "ReviewPoints": "Review grammar points ({count})",
+        "FinishCurrentPass": "Finish your current practice before starting another.",
         "SessionPrompt": "How well do you know “{pattern}”?",
         "SessionDone": "Pass complete — {count} constructions reviewed.",
         "SessionSkip": "Skip",
@@ -2131,8 +2135,8 @@
           "Footer": "Drop something in to begin — this welcome screen will make room for your story.",
           "OpenFolder": "Open Image Folder",
           "OpenPdf": "Open PDF/EPUB",
-          "Title": "Settle in, Reader",
-          "TitleDescription": "Drag and drop an image folder, PDF, or EPUB anywhere in this window."
+          "Title": "Open a book",
+          "TitleDescription": "Import a PDF, EPUB, or image folder to start reading."
         }
       }
     },
@@ -2382,14 +2386,14 @@
       "Behaviour": {
         "SessionIntensity": {
           "Label": "Session intensity",
-          "Description": "Choose a comfortable pace. Gentle includes more familiar practice; intensive focuses more on material that needs work. This does not change what you know.",
+          "Description": "Gentle revisits familiar material; intensive focuses on what needs work. Knowledge records stay unchanged.",
           "Gentle": "Gentle",
           "Steady": "Steady",
           "Intensive": "Intensive"
         },
         "ExamGoal": {
           "Label": "Exam goal",
-          "Description": "Set a personal exam goal. As the date approaches, practice focuses more on review and areas that need work.",
+          "Description": "Optional. As the date approaches, practice prioritizes review.",
           "None": "None",
           "Exam": "Exam",
           "Target": {
@@ -2420,7 +2424,7 @@
         },
         "LearningLanguageLevel": {
           "Label": "Learning target",
-          "Description": "Choose what you want to work towards. This does not mark material as known.",
+          "Description": "A study target; no material is marked as known.",
           "NoLimit": "All levels"
         },
         "AutoSuggestFlashcards": {
@@ -3516,6 +3520,7 @@
       "RestartConfirmTitle": "Start over?",
       "RestartConfirmMessage": "Start a new session with the current filters? Your recorded answers stay saved. The session counter and undo history will reset.",
       "Filter": "Filter",
+      "ChangeFilters": "Change filters",
       "FilterAll": "All",
       "FilterUnknownOnly": "Unknown only",
       "FilterUnknownLearning": "Unknown & learning",
@@ -3782,7 +3787,7 @@
         "Title": "Character levels are estimated",
         "Description": "Characters here are inferred from the words assigned to each level, then extracted from those words. That makes this grid approximate: some levels include words whose characters are not themselves required."
       },
-      "Description": "Familiarity predicted from known/learning words: familiar (green), emerging (orange), unmeasured (gray). Solid colors = direct reading evidence; blue = your explicit claim. Hover for details.",
+      "Description": "Colors distinguish reading evidence, your claims, and familiarity predicted from words. Predictions do not measure reading ability.",
       "EmptyState": {
         "Description": "Characters will appear here as you encounter them in videos and texts.",
         "Hint": "Start watching or reading content to begin tracking!",
@@ -3830,7 +3835,7 @@
         "Claimed": "Claimed:",
         "Familiar": "Familiar:",
         "Emerging": "Emerging:",
-        "TotalFound": "Total Found:",
+        "TotalFound": "Total characters:",
         "Unmeasured": "Unmeasured:"
       },
       "Title": "Character Familiarity Overview",
@@ -3878,7 +3883,7 @@
       }
     },
     "LearningPlan": {
-      "Description": "Choose your curriculum and target, then build your knowledge through practice. Your target guides study; it is not a measurement of your ability.",
+      "Description": "Set your curriculum, target and pace, then choose an activity. Your target does not measure your ability.",
       "Activities": "Choose an activity",
       "Assess": "Assess my current level",
       "AssessDescription": "Already studied this language? Check what you recognise and choose a suitable starting point.",

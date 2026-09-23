@@ -197,7 +197,7 @@ export const CustomizationTab: Component = () => {
   return (
     <TabContent
       header={{
-        title: t('mlearn.Settings.Groups.SubtitleAppearance'),
+        title: t('mlearn.Settings.Groups.Appearance'),
         description: t('mlearn.Settings.UI.Description'),
         icon: <Icon icon="palette" color="currentColor" class="" />,
       }}

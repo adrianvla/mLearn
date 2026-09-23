@@ -3,7 +3,7 @@
  * Unified status bar styling based on ReaderStatusBar design
  */
 
-.statusbar {
+.statusbar.panel {
   --statusbar-font-size: var(--font-size-sm);
   display: flex;
   justify-content: space-between;
@@ -11,7 +11,8 @@
   padding: var(--spacing-2) var(--spacing-4);
   height: 30px;
   border-top: 1px solid var(--border-color);
-  background: var(--bg);
+  background: var(--bg-nt-secondary);
+  backdrop-filter: none;
   font-size: var(--statusbar-font-size);
   user-select: none;
   gap: var(--spacing-4);

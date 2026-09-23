@@ -586,16 +586,18 @@
       },
       "AgeVerification": {
         "Title": "KI-Sprachlehrer — EULA",
-        "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
+        "AIWarning": "Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
         "SafetyNotice": "🛡️ Sicherheitsprüfung ist ON (verbraucht zusätzliche Rechenleistung pro Nachricht). Bei Erkennung schädlicher Inhalte wird der Chat sofort beendet. Einstellungen → KI-Sicherheit zum Deaktivieren.",
         "AgeVerificationText": "Sie haben einen Cloud-LLM-Anbieter aktiviert. Cloud-KI-Dienste leiten Ihre Unterhaltungen über entfernte Server, sodass Ihre Nachrichten nicht vollständig auf Ihrem eigenen Gerät verarbeitet werden. Aufgrund von Datenschutz- und Haftungsrahmen für gehostete Cloud-KI-Dienste müssen Sie 18 Jahre oder älter sein, um den gehosteten Cloud-KI-Sprachlehrer zu nutzen.",
         "Certification": "Indem Sie fortfahren, bestätigen Sie, dass Sie 18 Jahre oder älter sind und die EULA akzeptieren.",
         "ContinueButton": "Weiter zum Chat"
       },
       "Banner": {
-        "AIWarning": "⚠️ Von der KI generierte Antworten können ungenau oder unangemessen sein. Dieser Agent ist kein Mensch und kann keine professionelle Beratung leisten.",
-        "LocalPrivacyNotice": "Läuft vollständig auf Ihrem Gerät — Ihre Nachrichten verlassen nie Ihren Rechner.",
-        "SafetyNotice": "🛡️ Sicherheitsprüfung ist {status}.",
+        "AIWarning": "KI-Antworten können falsch oder unangemessen sein. Dies ist kein Mensch und keine professionelle Beratung.",
+        "LocalPrivacyNotice": "Dieser Tutor läuft auf Ihrem Gerät. Ihre Nachrichten bleiben dort.",
+        "SafetyNotice": "Die Sicherheitsprüfung ist {status}.",
+        "StatusOn": "aktiv",
+        "StatusOff": "aus",
         "SettingsLink": "Einstellungen",
         "TerminationNotice": "Bei Erkennung schädlicher Inhalte wird der Chat beendet."
       },
@@ -1761,6 +1763,8 @@
         },
         "SeenOnly": "{count}× gesehen",
         "Practise": "Üben",
+        "ReviewPoints": "Grammatikpunkte ansehen ({count})",
+        "FinishCurrentPass": "Beenden Sie zuerst die laufende Übung.",
         "SessionPrompt": "Wie gut kennst du „{pattern}“?",
         "SessionDone": "Durchgang abgeschlossen — {count} Konstruktionen wiederholt.",
         "SessionSkip": "Überspringen",
@@ -2131,8 +2135,8 @@
           "Footer": "Legen Sie etwas ab, um zu beginnen — dieser Willkommensbildschirm wird Ihrer Geschichte Platz machen.",
           "OpenFolder": "Bilderordner öffnen",
           "OpenPdf": "PDF/EPUB öffnen",
-          "Title": "Willkommen im Reader",
-          "TitleDescription": "Ziehen Sie einen Bilderordner, eine PDF- oder EPUB-Datei in dieses Fenster."
+          "Title": "Buch öffnen",
+          "TitleDescription": "Importieren Sie eine PDF-, EPUB-Datei oder einen Bilderordner."
         }
       }
     },
@@ -2963,14 +2967,14 @@
       "Behaviour": {
         "SessionIntensity": {
           "Label": "Sitzungsintensität",
-          "Description": "Wähle ein angenehmes Tempo. Sanft enthält mehr vertraute Übungen; intensiv konzentriert sich stärker auf Inhalte mit Übungsbedarf. Dein Wissensstand bleibt unverändert.",
+          "Description": "Sanft wiederholt Vertrautes; intensiv übt Inhalte mit Übungsbedarf. Dein Wissensstand bleibt unverändert.",
           "Gentle": "Sanft",
           "Steady": "Stetig",
           "Intensive": "Intensiv"
         },
         "ExamGoal": {
           "Label": "Prüfungsziel",
-          "Description": "Setze dir ein Prüfungsziel. Je näher der Termin rückt, desto stärker konzentrieren sich die Übungen auf Wiederholung und Bereiche mit Übungsbedarf.",
+          "Description": "Optional. Je näher der Termin rückt, desto mehr Wiederholung ist vorgesehen.",
           "None": "Keine",
           "Exam": "Prüfung",
           "Target": {
@@ -3001,7 +3005,7 @@
         },
         "LearningLanguageLevel": {
           "Label": "Lernziel",
-          "Description": "Wähle, worauf du hinarbeiten möchtest. Dadurch wird nichts als bekannt markiert.",
+          "Description": "Ein Lernziel; Inhalte werden dadurch nicht als bekannt markiert.",
           "NoLimit": "Alle Stufen"
         },
         "AutoSuggestFlashcards": {
@@ -3516,6 +3520,7 @@
       "RestartConfirmTitle": "Neu starten?",
       "RestartConfirmMessage": "Neue Sitzung mit den aktuellen Filtern starten? Deine Antworten bleiben gespeichert. Sitzungszähler und Rückgängig-Verlauf werden zurückgesetzt.",
       "Filter": "Filter",
+      "ChangeFilters": "Filter ändern",
       "FilterAll": "Alle",
       "FilterUnknownOnly": "Nur unbekannte",
       "FilterUnknownLearning": "Unbekannte & Lernende",
@@ -3782,7 +3787,7 @@
         "Title": "Zeichenstufen sind nur geschätzt",
         "Description": "Die hier gezeigten Zeichen werden aus den Wörtern abgeleitet, die einer Stufe zugeordnet sind, und dann aus diesen Wörtern extrahiert. Daher ist das Raster nur näherungsweise: Manche Stufen enthalten Wörter, deren Zeichen selbst nicht zwingend verlangt werden."
       },
-      "Description": "Vertrautheit aus bekannten/lernenden Wörtern vorhergesagt: vertraut (grün), im Entstehen (orange), unbekannt (grau). Volle Farben = direkte Lese-Evidenz; blau = eigene Angabe. Hovern für Details.",
+      "Description": "Farben unterscheiden Lese-Evidenz, eigene Angaben und aus Wörtern vorhergesagte Vertrautheit. Vorhersagen messen die Lesefähigkeit nicht.",
       "EmptyState": {
         "Description": "Zeichen aus Videos oder Texten erscheinen hier.",
         "Hint": "Beginnen Sie mit dem Schauen oder Lesen von Inhalten, um die Verfolgung zu starten!",
@@ -3878,7 +3883,7 @@
       }
     },
     "LearningPlan": {
-      "Description": "Wähle deinen Lehrplan und dein Ziel und erweitere dein Wissen durch Übung. Dein Ziel steuert das Lernen; es misst nicht deine Fähigkeiten.",
+      "Description": "Lege Lehrplan, Ziel und Tempo fest und wähle eine Aktivität. Dein Ziel misst nicht deine Fähigkeiten.",
       "Activities": "Aktivität wählen",
       "Assess": "Meinen Lernstand einschätzen",
       "AssessDescription": "Du hast diese Sprache schon gelernt? Prüfe, was du erkennst, und finde einen passenden Einstieg.",

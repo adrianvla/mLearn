@@ -431,6 +431,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const level3Practise = level3.querySelector('.grammar-coverage__session-btn') as HTMLButtonElement;
     expect(level3Practise).toBeTruthy();
     expect(level3Practise.disabled).toBe(true); // no silent replan while a pass is live
+    expect(level3.textContent).toContain('mlearn.LevelStudy.Grammar.FinishCurrentPass');
 
     // Single-expansion collapsed level 2; reopening shows the pass intact.
     await expand(container, 2);

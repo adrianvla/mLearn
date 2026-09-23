@@ -41,6 +41,17 @@
   font-size: 0.9rem;
 }
 
+.placement-session__background summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  padding: var(--spacing-3) 0;
+}
+
+.placement-session__background summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.placement-session__background[open] { padding-bottom: var(--spacing-3); }
+
 .placement-session__empty {
   margin: 4px 0;
   color: var(--text-secondary);
@@ -85,30 +96,29 @@
 }
 
 .placement-session__form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-4);
 }
 
+.placement-session__field { display: flex; flex-direction: column; gap: var(--spacing-1); min-width: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
+.placement-session__field--wide { grid-column: 1 / -1; }
 .placement-session__form input,
 .placement-session__form select {
-  font-size: 0.85rem;
-  padding: 4px 6px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: var(--size-lg);
+  padding: 0 var(--spacing-3);
+  background: var(--bg-nt-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-sm);
 }
-
-.placement-session__form-label {
-  flex: 1 1 160px;
-}
-
-.placement-session__form-level {
-  flex: 0 1 110px;
-}
-
-.placement-session__form-score,
-.placement-session__form-skill-score {
-  flex: 0 1 110px;
-}
+.placement-session__form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
 
 .placement-session__add,
 .placement-session__form-save,
@@ -123,7 +133,7 @@
 }
 
 .placement-session__date-required {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   color: var(--text-secondary);
   font-size: 0.8rem;
 }
@@ -222,9 +232,18 @@
   color: inherit;
 }
 
-.learning-plan-page .placement-session { padding: 24px; }
-.learning-plan-page .placement-session__description { font-size: 1rem; line-height: 1.6; }
-.learning-plan-page .placement-session__live { padding: 24px 0; gap: 20px; }
+.learning-plan-page .placement-session { padding: var(--spacing-6); }
+.learning-plan-page .placement-session--focused { display: flex; flex-direction: column; gap: var(--spacing-3); margin-top: 0; }
+.learning-plan-page .placement-session--focused .placement-session__background { order: 10; border-top: 1px solid var(--border-color); margin-top: var(--spacing-3); }
+.learning-plan-page .placement-session__description { font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
+.learning-plan-page .placement-session__live { padding: var(--spacing-6) 0; gap: var(--spacing-5); }
+.learning-plan-page .placement-session__progress { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
 .learning-plan-page .placement-session__prompt { font-size: 2rem; }
 .learning-plan-page .placement-session button { min-height: 36px; color: var(--text-primary); font-size: 0.9rem; }
 .learning-plan-page .placement-session__record { flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .learning-plan-page .placement-session { padding: var(--spacing-4); }
+  .learning-plan-page .placement-session__prompt { font-size: var(--font-size-xl); }
+  .placement-session__form { grid-template-columns: minmax(0, 1fr); }
+  .placement-session__field--wide, .placement-session__form-actions, .placement-session__date-required { grid-column: 1; }
+}

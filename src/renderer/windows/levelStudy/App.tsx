@@ -41,13 +41,16 @@ export const LevelStudyContent: Component = () => {
           <div class="learning-plan-page">
             <Show when={destination() === 'plan'}>
               <p class="learning-plan-intro">{t('mlearn.LearningPlan.Description')}</p>
-              <section class="learning-plan-activities" aria-label={t('mlearn.LearningPlan.Activities')}>
-                <div><h2>{t('mlearn.LearningPlan.Assess')}</h2><p>{t('mlearn.LearningPlan.AssessDescription')}</p><Btn variant="primary" onClick={() => setDestination('assessment')}>{t('mlearn.LearningPlan.Assess')}</Btn></div>
-                <div><h2>{t('mlearn.LevelStudy.Tabs.WordSync')}</h2><p>{t('mlearn.LearningPlan.WordSyncDescription')}</p><Btn onClick={() => setDestination('word-sync')}>{t('mlearn.LevelStudy.Tabs.WordSync')}</Btn></div>
-                <Show when={showCharacterGrid()}><div><h2>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</h2><p>{t('mlearn.LearningPlan.CharactersDescription')}</p><Btn onClick={() => setDestination('character-grid')}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Btn></div></Show>
-              </section>
               <div ref={planControls}><LearningPlanSettings /></div>
-              <h2>{t('mlearn.LearningPlan.Progress')}</h2>
+              <section class="learning-plan-activity-section" aria-label={t('mlearn.LearningPlan.Activities')}>
+                <h2>{t('mlearn.LearningPlan.Activities')}</h2>
+                <div class="learning-plan-activities">
+                  <div><h3>{t('mlearn.LearningPlan.Assess')}</h3><p>{t('mlearn.LearningPlan.AssessDescription')}</p><Btn variant="primary" onClick={() => setDestination('assessment')}>{t('mlearn.LearningPlan.Assess')}</Btn></div>
+                  <div><h3>{t('mlearn.LevelStudy.Tabs.WordSync')}</h3><p>{t('mlearn.LearningPlan.WordSyncDescription')}</p><Btn onClick={() => setDestination('word-sync')}>{t('mlearn.LevelStudy.Tabs.WordSync')}</Btn></div>
+                  <Show when={showCharacterGrid()}><div><h3>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</h3><p>{t('mlearn.LearningPlan.CharactersDescription')}</p><Btn onClick={() => setDestination('character-grid')}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Btn></div></Show>
+                </div>
+              </section>
+              <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
             <LevelStudyTab assessment={destination() === 'assessment'} onEditPlan={editPlan} />
           </div>

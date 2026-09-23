@@ -457,7 +457,7 @@ export const ComponentsTab: Component = () => {
                           <Show when={info().installed !== null}>
                             {' · '}
                             {info().installed
-                              ? t('mlearn.ComponentsTab.Status.Installed')
+                              ? t('mlearn.ComponentsTab.Status.installed')
                               : t('mlearn.ComponentsTab.Status.NotInstalled')}
                           </Show>
                           <Show when={removingComponent() === group.key}>

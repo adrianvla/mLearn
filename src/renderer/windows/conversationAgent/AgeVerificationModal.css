@@ -48,12 +48,12 @@
 }
 
 .avm-warning {
-  color: var(--text-warning, #d97706);
+  color: var(--color-warning);
   font-weight: 500;
 }
 
 .avm-safety {
-  color: var(--text-info, #0284c7);
+  color: var(--color-info);
   font-weight: 500;
 }
 

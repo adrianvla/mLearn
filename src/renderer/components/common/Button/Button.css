@@ -125,13 +125,13 @@
 
 /* Default color variants */
 .btn-default.btn-primary {
-  background: rgba(74, 144, 217, 0.3);
-  border-color: rgba(74, 144, 217, 0.4);
-  color: rgba(74, 144, 217, 1);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--bg-nt-primary));
+  border-color: var(--color-primary);
+  color: var(--text-primary);
 }
 
 .btn-default.btn-primary:hover:not(:disabled) {
-  background: rgba(74, 144, 217, 0.4);
+  background: color-mix(in srgb, var(--color-primary) 20%, var(--bg-nt-primary));
 }
 
 .btn-default.btn-secondary {

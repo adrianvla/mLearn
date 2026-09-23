@@ -4,6 +4,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: var(--bg-opaque);
 }
 
 .level-study-header {
@@ -59,7 +60,7 @@
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  background: var(--surface-elevated);
+  background: var(--panel-bg);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
 }
@@ -404,12 +405,28 @@
 }
 
 .level-study-header > .btn { align-self: flex-start; -webkit-app-region: no-drag; margin: 8px 0; }
-.learning-plan-page { height: 100%; overflow: auto; padding: 24px; }
+.learning-plan-page { height: 100%; overflow: auto; padding: var(--spacing-6); box-sizing: border-box; }
 .learning-plan-page > .level-study-tab { height: auto; overflow: visible; padding: 0; }
-.learning-plan-intro { color: var(--text-secondary); margin: 0 0 24px; line-height: 1.6; }
-.learning-plan-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 24px; }
-.learning-plan-activities > div { padding: 20px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-elevated); display: flex; flex-direction: column; align-items: flex-start; }
-.learning-plan-activities h2 { font-size: 17px; margin: 0; }
-.learning-plan-activities p { color: var(--text-secondary); line-height: 1.5; flex: 1; }
-.learning-plan-settings { margin-bottom: 24px; }
+.learning-plan-intro { color: var(--text-secondary); max-width: 48rem; margin: 0 0 var(--spacing-6); line-height: var(--line-height-normal); }
+.learning-plan-activity-section { margin-bottom: var(--spacing-8); }
+.learning-plan-activity-section > h2, .learning-plan-progress-heading { margin: 0 0 var(--spacing-4); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+.learning-plan-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--spacing-4); }
+.learning-plan-activities > div { padding: var(--spacing-5); border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--panel-bg); display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.learning-plan-activities h3 { font-size: var(--font-size-base); margin: 0; }
+.learning-plan-activities p { color: var(--text-secondary); line-height: var(--line-height-normal); font-size: var(--font-size-sm); flex: 1; margin: var(--spacing-2) 0 var(--spacing-4); }
+.learning-plan-activities .btn { white-space: normal; text-align: center; }
+.learning-plan-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-4); margin-bottom: var(--spacing-8); }
+.learning-plan-settings .setting-group { margin: 0; padding: var(--spacing-5); border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--panel-bg); }
+.learning-plan-settings .setting-group:not(:last-child) { margin: 0; padding: var(--spacing-5); border-bottom: 1px solid var(--border-color); }
+.learning-plan-settings .setting-group-title { font-size: var(--font-size-base); }
+.learning-plan-settings .setting-group-title::before { display: none; }
+.learning-plan-settings .setting-row { align-items: flex-start; flex-direction: column; gap: var(--spacing-2); }
+.learning-plan-settings .setting-control, .learning-plan-settings .setting-select { width: 100%; }
 .learning-plan-page .placement-session { width: 100%; max-width: 850px; margin: 0 auto; }
+@media (max-width: 950px) {
+  .learning-plan-settings { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .learning-plan-page { padding: var(--spacing-4); }
+  .learning-plan-activities { grid-template-columns: minmax(0, 1fr); }
+}

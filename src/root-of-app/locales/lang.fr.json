@@ -586,16 +586,18 @@
       },
       "AgeVerification": {
         "Title": "Agent de conversation IA — CLUF",
-        "AIWarning": "⚠️ Les réponses générées par l'IA peuvent être inexactes ou inappropriées. Cet agent n'est pas un humain et ne peut fournir de conseils professionnels.",
+        "AIWarning": "Les réponses générées par l'IA peuvent être inexactes ou inappropriées. Cet agent n'est pas un humain et ne peut fournir de conseils professionnels.",
         "SafetyNotice": "🛡️ Le filtrage de sécurité est ON (utilise de la puissance de calcul supplémentaire par message). Si du contenu nuisible est détecté, le chat sera immédiatement terminé. Paramètres → Sécurité IA pour désactiver.",
         "AgeVerificationText": "Vous avez activé un fournisseur LLM cloud. Les services d'IA cloud acheminent vos conversations via des serveurs distants, ce qui signifie que vos messages ne sont pas entièrement traités sur votre propre machine. En raison des cadres de protection des données et de responsabilité pour les services d'IA cloud hébergés, vous devez avoir 18 ans ou plus pour utiliser le tuteur IA cloud hébergé.",
         "Certification": "En continuant, vous certifiez que vous avez 18 ans ou plus et acceptez le CLUF.",
         "ContinueButton": "Continuer vers le chat"
       },
       "Banner": {
-        "AIWarning": "⚠️ Les réponses générées par l'IA peuvent être inexactes ou inappropriées. Cet agent n'est pas un humain et ne peut fournir de conseils professionnels.",
-        "LocalPrivacyNotice": "S'exécute entièrement sur votre appareil — vos messages ne quittent jamais votre machine.",
-        "SafetyNotice": "🛡️ Le filtrage de sécurité est {status}.",
+        "AIWarning": "Les réponses de l’IA peuvent être erronées ou inadaptées. Ce n’est ni une personne ni un conseil professionnel.",
+        "LocalPrivacyNotice": "Ce tuteur fonctionne sur votre appareil. Vos messages y restent.",
+        "SafetyNotice": "Le filtrage de sécurité est {status}.",
+        "StatusOn": "activé",
+        "StatusOff": "désactivé",
         "SettingsLink": "Paramètres",
         "TerminationNotice": "Si du contenu nuisible est détecté, le chat sera terminé."
       },
@@ -1761,6 +1763,8 @@
         },
         "SeenOnly": "vue {count}×",
         "Practise": "S’entraîner",
+        "ReviewPoints": "Voir les points de grammaire ({count})",
+        "FinishCurrentPass": "Terminez l’exercice en cours avant d’en commencer un autre.",
         "SessionPrompt": "Connais-tu bien « {pattern} » ?",
         "SessionDone": "Passage terminé — {count} constructions revues.",
         "SessionSkip": "Passer",
@@ -2131,8 +2135,8 @@
           "Footer": "Déposez quelque chose pour commencer — cet écran d'accueil laissera place à votre histoire.",
           "OpenFolder": "Ouvrir un dossier d'images",
           "OpenPdf": "Ouvrir PDF/EPUB",
-          "Title": "Bienvenue dans le Lecteur",
-          "TitleDescription": "Glissez-déposez un dossier d'images, un PDF ou un EPUB dans cette fenêtre."
+          "Title": "Ouvrir un livre",
+          "TitleDescription": "Importez un PDF, un EPUB ou un dossier d’images pour commencer."
         }
       }
     },
@@ -2963,14 +2967,14 @@
       "Behaviour": {
         "SessionIntensity": {
           "Label": "Intensité des sessions",
-          "Description": "Choisissez un rythme confortable. Le rythme doux inclut davantage de révisions familières ; le rythme intensif se concentre sur ce qui demande du travail. Votre niveau de connaissance ne change pas.",
+          "Description": "Doux reprend le contenu familier ; intensif cible les points à travailler. Vos acquis restent inchangés.",
           "Gentle": "Douce",
           "Steady": "Normale",
           "Intensive": "Intensive"
         },
         "ExamGoal": {
           "Label": "Objectif d’examen",
-          "Description": "Fixez un objectif d’examen. À l’approche de la date, les exercices privilégient les révisions et les points à travailler.",
+          "Description": "Facultatif. À l’approche de la date, les révisions deviennent prioritaires.",
           "None": "Aucun",
           "Exam": "Examen",
           "Target": {
@@ -3001,7 +3005,7 @@
         },
         "LearningLanguageLevel": {
           "Label": "Objectif d’apprentissage",
-          "Description": "Choisissez ce que vous souhaitez atteindre. Cela ne marque aucun contenu comme acquis.",
+          "Description": "Un objectif d’étude ; aucun contenu n’est marqué comme acquis.",
           "NoLimit": "Tous les niveaux"
         },
         "AutoSuggestFlashcards": {
@@ -3516,6 +3520,7 @@
       "RestartConfirmTitle": "Recommencer ?",
       "RestartConfirmMessage": "Commencer une nouvelle séance avec les filtres actuels ? Vos réponses restent enregistrées. Le compteur et l’historique d’annulation seront réinitialisés.",
       "Filter": "Filtre",
+      "ChangeFilters": "Modifier les filtres",
       "FilterAll": "Tous",
       "FilterUnknownOnly": "Inconnus uniquement",
       "FilterUnknownLearning": "Inconnus et en apprentissage",
@@ -3782,7 +3787,7 @@
         "Title": "Les niveaux des caractères sont estimés",
         "Description": "Les caractères affichés ici sont déduits à partir des mots associés à chaque niveau, puis extraits de ces mots. Cette grille reste donc approximative : certains niveaux contiennent des mots dont les caractères eux-mêmes ne sont pas forcément requis."
       },
-      "Description": "Familiarité prédite à partir des mots connus/en apprentissage : familier (vert), émergent (orange), non mesuré (gris). Couleurs pleines = évidence directe de lecture ; bleu = votre déclaration. Survolez pour les détails.",
+      "Description": "Les couleurs distinguent les preuves de lecture, vos déclarations et la familiarité déduite des mots. Une prédiction ne mesure pas votre capacité de lecture.",
       "EmptyState": {
         "Description": "Les caractères rencontrés dans les vidéos ou le texte apparaîtront ici.",
         "Hint": "Commencez à visionner ou lire du contenu pour débuter le suivi !",
@@ -3878,7 +3883,7 @@
       }
     },
     "LearningPlan": {
-      "Description": "Choisissez votre programme et votre objectif, puis progressez par la pratique. Votre objectif guide vos études ; il ne mesure pas vos capacités.",
+      "Description": "Définissez votre programme, votre objectif et votre rythme, puis choisissez une activité. L’objectif ne mesure pas vos acquis.",
       "Activities": "Choisir une activité",
       "Assess": "Évaluer mon niveau actuel",
       "AssessDescription": "Vous avez déjà étudié cette langue ? Vérifiez ce que vous reconnaissez pour trouver un point de départ adapté.",

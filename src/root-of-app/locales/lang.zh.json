@@ -586,16 +586,18 @@
       },
       "AgeVerification": {
         "Title": "AI对话代理 — 最终用户许可协议",
-        "AIWarning": "⚠️ AI生成的回复可能不准确或不适当。该代理不是人类，无法提供专业建议。",
+        "AIWarning": "AI生成的回复可能不准确或不适当。该代理不是人类，无法提供专业建议。",
         "SafetyNotice": "🛡️ 安全筛查已开启（每条消息使用额外计算资源）。如果检测到有害内容，聊天将立即终止。设置 → AI安全以禁用。",
         "AgeVerificationText": "您已启用云LLM提供商。云AI服务通过远程服务器路由您的对话，这意味着您的消息并非完全在您自己的设备上处理。由于托管云AI服务的数据保护和责任框架，您必须年满18岁才能使用托管云AI辅导老师。",
         "Certification": "继续即表示您证明您已年满18岁并接受最终用户许可协议。",
         "ContinueButton": "继续聊天"
       },
       "Banner": {
-        "AIWarning": "⚠️ AI生成的回复可能不准确或不适当。该代理不是人类，无法提供专业建议。",
-        "LocalPrivacyNotice": "完全在您的设备上运行 — 您的消息绝不会离开这台设备。",
-        "SafetyNotice": "🛡️ 安全筛查已{status}。",
+        "AIWarning": "AI 回复可能有误或不合适。这不是人工或专业建议。",
+        "LocalPrivacyNotice": "此导师在你的设备上运行，消息保留在本机。",
+        "SafetyNotice": "安全筛查已{status}。",
+        "StatusOn": "开启",
+        "StatusOff": "关闭",
         "SettingsLink": "设置",
         "TerminationNotice": "如果检测到有害内容，聊天将被终止。"
       },
@@ -1761,6 +1763,8 @@
         },
         "SeenOnly": "见过 {count} 次",
         "Practise": "练习",
+        "ReviewPoints": "查看语法点（{count}）",
+        "FinishCurrentPass": "请先完成当前练习，再开始另一项。",
         "SessionPrompt": "你对“{pattern}”掌握得如何？",
         "SessionDone": "本轮完成 — 共复习了 {count} 个句型。",
         "SessionSkip": "跳过",
@@ -2131,8 +2135,8 @@
           "Footer": "放入文件开始 — 此欢迎页面将为您的故事让路。",
           "OpenFolder": "打开图片文件夹",
           "OpenPdf": "打开 PDF/EPUB",
-          "Title": "欢迎来到阅读器",
-          "TitleDescription": "拖放图片文件夹、PDF 或 EPUB 到窗口中的任意位置。"
+          "Title": "打开图书",
+          "TitleDescription": "导入 PDF、EPUB 或图片文件夹，开始阅读。"
         }
       }
     },
@@ -2382,14 +2386,14 @@
       "Behaviour": {
         "SessionIntensity": {
           "Label": "学习强度",
-          "Description": "选择适合自己的节奏。轻松模式包含更多熟悉内容的练习；强化模式更注重需要巩固的内容。这不会改变你的知识评估。",
+          "Description": "轻松模式复习熟悉内容；强化模式侧重需要巩固的内容。知识评估不会改变。",
           "Gentle": "轻松",
           "Steady": "标准",
           "Intensive": "强化"
         },
         "ExamGoal": {
           "Label": "考试目标",
-          "Description": "设定个人考试目标。随着考试日期临近，练习会更加注重复习和需要加强的内容。",
+          "Description": "可选。随着考试日期临近，练习会更注重复习。",
           "None": "无",
           "Exam": "考试",
           "Target": {
@@ -2420,7 +2424,7 @@
         },
         "LearningLanguageLevel": {
           "Label": "学习目标",
-          "Description": "选择你想达到的目标。这不会将内容标记为已掌握。",
+          "Description": "这是学习目标，不会将内容标记为已掌握。",
           "NoLimit": "所有级别"
         },
         "AutoSuggestFlashcards": {
@@ -3516,6 +3520,7 @@
       "RestartConfirmTitle": "重新开始？",
       "RestartConfirmMessage": "使用当前筛选条件开始新一轮学习吗？已记录的回答会保留。本轮计数和撤销历史将重置。",
       "Filter": "筛选",
+      "ChangeFilters": "调整筛选条件",
       "FilterAll": "全部",
       "FilterUnknownOnly": "仅未知",
       "FilterUnknownLearning": "未知与学习中",
@@ -3782,7 +3787,7 @@
         "Title": "字符等级为估算值",
         "Description": "此处字符是根据分配给每个等级的单词推断出来的，然后从这些单词中提取。这意味着此网格是近似值：某些等级包含的单词中的字符本身并不需要在该等级掌握。"
       },
-      "Description": "由已知/学习中的单词推测的熟悉度：熟悉（绿色）、初步掌握（橙色）；未测量（灰色）。纯色 = 直接阅读证据；蓝色 = 您的声明。悬停查看详情。",
+      "Description": "颜色区分直接阅读证据、您的自述，以及根据单词推测的熟悉度。推测结果不代表阅读能力测量。",
       "EmptyState": {
         "Description": "当您在视频和文本中遇到字符时，它们将出现在这里。",
         "Hint": "开始观看或阅读内容以开始追踪！",
@@ -3830,7 +3835,7 @@
         "Claimed": "已声明：",
         "Familiar": "熟悉：",
         "Emerging": "初步掌握：",
-        "TotalFound": "已找到总数：",
+        "TotalFound": "字符总数：",
         "Unmeasured": "未测量："
       },
       "Title": "字符熟悉度概览",
@@ -3878,7 +3883,7 @@
       }
     },
     "LearningPlan": {
-      "Description": "选择课程和目标，通过练习增长知识。目标用于指导学习，并不代表你的实际能力。",
+      "Description": "设定课程、目标和节奏，再选择练习。目标不代表当前能力。",
       "Activities": "选择活动",
       "Assess": "评估当前水平",
       "AssessDescription": "已经学过这门语言？检查你能认出的内容，选择合适的起点。",

@@ -388,12 +388,12 @@ export const Dashboard: Component = () => {
                 {(row) => (
                   <tr>
                     <td>{row.name}</td>
-                    <td class="level-num">{row.known}</td>
-                    <td class="level-num">{row.learning}</td>
-                    <td class="level-num">{row.unknown}</td>
-                    <td class="level-num">{row.untracked}</td>
-                    <td class="level-num">{row.totalDictionaryWords}</td>
-                    <td class="level-coverage-cell">
+                    <td class="level-num" data-label={t('mlearn.Statistics.Legend.Learned')}>{row.known}</td>
+                    <td class="level-num" data-label={t('mlearn.Statistics.Legend.Learning')}>{row.learning}</td>
+                    <td class="level-num" data-label={t('mlearn.Statistics.Legend.Unknown')}>{row.unknown}</td>
+                    <td class="level-num" data-label={t('mlearn.Statistics.Legend.Unmeasured')}>{row.untracked}</td>
+                    <td class="level-num" data-label={t('mlearn.Statistics.Dashboard.LevelTotal')}>{row.totalDictionaryWords}</td>
+                    <td class="level-coverage-cell" data-label={t('mlearn.Statistics.Dashboard.LevelCoverage')}>
                       <div class="level-coverage-bar">
                         <Show when={row.totalDictionaryWords > 0}>
                           <div class="level-coverage-fill level-coverage-learned" style={{ width: `${(row.known / row.totalDictionaryWords) * 100}%` }} />

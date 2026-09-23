@@ -41,7 +41,6 @@ export const LanguageVariantGate: Component = () => {
                   [language()]: variantId,
                 })}
               >
-                <Show when={variant.flagEmoji}><span aria-hidden="true">{variant.flagEmoji} </span></Show>
                 {variant.name_translated ?? variant.name}
               </Btn>
             )}

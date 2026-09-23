@@ -957,8 +957,9 @@ export const WordSyncContent: Component = () => {
           })}
         </span></Show>
         <Btn
-          variant="ghost"
+          variant="default"
           size="sm"
+          ref={(element) => { filterTriggerRef = element; }}
           onClick={(e) => {
             filterTriggerRef = e.currentTarget;
             setFilterOpen((open) => !open);
@@ -1027,16 +1028,17 @@ export const WordSyncContent: Component = () => {
           <EmptyState
             title={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedTitle' : 'mlearn.WordSync.EmptyTitle')}
             description={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedDescription' : 'mlearn.WordSync.EmptyDescription', { count: String(ratedCount()) })}
-            variant="card"
+            variant="minimal"
           />
-          <Btn
-            variant="secondary"
-            size="md"
-            onClick={() => setConfirmRecheckOpen(true)}
-            class="word-sync-recheck-btn"
-          >
-            {t('mlearn.WordSync.StartOver')}
-          </Btn>
+          <Show when={ratedCount() > 0} fallback={
+            <Btn variant="primary" size="md" onClick={() => setFilterOpen(true)} class="word-sync-recheck-btn">
+              {t('mlearn.WordSync.ChangeFilters')}
+            </Btn>
+          }>
+            <Btn variant="secondary" size="md" onClick={() => setConfirmRecheckOpen(true)} class="word-sync-recheck-btn">
+              {t('mlearn.WordSync.StartOver')}
+            </Btn>
+          </Show>
         </div>
       }>
         <Show when={currentWord()}>
@@ -1064,8 +1066,8 @@ export const WordSyncContent: Component = () => {
               </Show>
               <div class="word-sync-answer-options">
                 <Btn
-                  variant="ghost"
-                  size="sm"
+                  variant="default"
+                  size="md"
                   onClick={() => {
                     if (!showAnswer()) {
                       reveal();

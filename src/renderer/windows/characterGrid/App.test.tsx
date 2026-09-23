@@ -53,6 +53,7 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
+  Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button type="button" onClick={props.onClick}>{props.children}</button>,
   SkeletonGrid: (props: { cells?: number }) => <div data-testid="skeleton-grid" data-cells={props.cells} />,
   PillLabel: (props: {
     children?: JSX.Element;

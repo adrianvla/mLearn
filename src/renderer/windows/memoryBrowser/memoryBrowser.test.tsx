@@ -173,4 +173,13 @@ describe('memory browser window', () => {
     // Read-only surface: no inputs, textareas, or contenteditable anywhere.
     expect(container.querySelector('input, textarea, [contenteditable]')).toBeNull();
   });
+
+  it('shows one empty state and omits empty categories', async () => {
+    mockBridge.journal.readSeaProjection.mockResolvedValueOnce([]);
+    const { MemoryBrowserApp } = await import('./App');
+    dispose = render(() => <MemoryBrowserApp />, container);
+    await vi.waitFor(() => expect(container.querySelector('.memory-browser-empty')).not.toBeNull());
+    expect(container.querySelectorAll('.memory-browser-empty')).toHaveLength(1);
+    expect(container.querySelectorAll('.memory-browser-section')).toHaveLength(0);
+  });
 });

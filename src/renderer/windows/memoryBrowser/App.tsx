@@ -12,7 +12,7 @@
 import { Component, For, Show, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { SkeletonRows } from '../../components/common';
+import { EmptyState, SkeletonRows } from '../../components/common';
 import { getLogger } from '../../../shared/utils/logger';
 import { projectionForCaller, type RoomMemoryProjection } from '@shared/memoryProjection';
 import { WORLD_CONTINUITY_ID, USER_ACTOR, type JournalEvent, type Participant, type Room } from '@shared/world';
@@ -26,22 +26,16 @@ const ROOM_TAB = '__room__';
 interface MemorySectionProps {
   title: string;
   entries: Array<{ text: string; createdAt?: number }>;
-  emptyLabel: string;
 }
 
 const MemorySection: Component<MemorySectionProps> = (props) => (
   <section class="memory-browser-section">
     <h2 class="memory-browser-section-title">{props.title}</h2>
-    <Show
-      when={props.entries.length > 0}
-      fallback={<p class="memory-browser-section-empty">{props.emptyLabel}</p>}
-    >
-      <ul class="memory-browser-list">
-        <For each={props.entries}>
-          {(entry) => <li class="memory-browser-item">{entry.text}</li>}
-        </For>
-      </ul>
-    </Show>
+    <ul class="memory-browser-list">
+      <For each={props.entries}>
+        {(entry) => <li class="memory-browser-item">{entry.text}</li>}
+      </For>
+    </ul>
   </section>
 );
 
@@ -102,6 +96,23 @@ const MemoryBrowserContent: Component = () => {
     }
     const cutoff = callerCutoff(tab, evts);
     return projectionForCaller(evts, tab, cutoff);
+  });
+
+  const visibleSections = createMemo(() => {
+    const view = projection();
+    if (!view) return [];
+    const sections = activeTab() === ROOM_TAB
+      ? [
+          { title: t('mlearn.MemoryBrowser.Sections.RoomCulture'), entries: view.roomCulture },
+          { title: t('mlearn.MemoryBrowser.Sections.Relationships'), entries: view.relationships },
+        ]
+      : [
+          { title: t('mlearn.MemoryBrowser.Sections.Beliefs'), entries: view.beliefs },
+          { title: t('mlearn.MemoryBrowser.Sections.OpenLoops'), entries: view.openLoops },
+          { title: t('mlearn.MemoryBrowser.Sections.Episodes'), entries: view.episodes },
+          { title: t('mlearn.MemoryBrowser.Sections.Relationships'), entries: view.relationships },
+        ];
+    return sections.filter((section) => section.entries.length > 0);
   });
 
   // Room switches fetch a new journal projection: holding the previous
@@ -168,7 +179,7 @@ const MemoryBrowserContent: Component = () => {
         </header>
         <div class="memory-browser-body">
           <Show when={!loadFailed()} fallback={
-            <div role="alert"><p>{t('mlearn.MemoryBrowser.LoadError')}</p><button type="button" class="memory-browser-retry" onClick={() => { if (loadFailed() === 'world') void loadWorld(); else void loadRoom(selectedRoomId()); }}>{t('mlearn.Knowledge.Retry')}</button></div>
+            <div class="memory-browser-error" role="alert"><p>{t('mlearn.MemoryBrowser.LoadError')}</p><button type="button" class="memory-browser-retry" onClick={() => { if (loadFailed() === 'world') void loadWorld(); else void loadRoom(selectedRoomId()); }}>{t('mlearn.Knowledge.Retry')}</button></div>
           }>
           <Show
             when={!contentPending()}
@@ -193,48 +204,8 @@ const MemoryBrowserContent: Component = () => {
                 </For>
               </nav>
               <main class="memory-browser-content">
-                <Show
-                  when={projection()}
-                  fallback={<div class="memory-browser-empty">{t('mlearn.MemoryBrowser.Empty')}</div>}
-                >
-                  {(proj) => (
-                    <>
-                      <Show when={activeTab() === ROOM_TAB}>
-                        <MemorySection
-                          title={t('mlearn.MemoryBrowser.Sections.RoomCulture')}
-                          entries={proj().roomCulture}
-                          emptyLabel={t('mlearn.MemoryBrowser.Empty')}
-                        />
-                        <MemorySection
-                          title={t('mlearn.MemoryBrowser.Sections.Relationships')}
-                          entries={proj().relationships}
-                          emptyLabel={t('mlearn.MemoryBrowser.Empty')}
-                        />
-                      </Show>
-                      <Show when={activeTab() !== ROOM_TAB}>
-                        <MemorySection
-                          title={t('mlearn.MemoryBrowser.Sections.Beliefs')}
-                          entries={proj().beliefs}
-                          emptyLabel={t('mlearn.MemoryBrowser.Empty')}
-                        />
-                        <MemorySection
-                          title={t('mlearn.MemoryBrowser.Sections.OpenLoops')}
-                          entries={proj().openLoops}
-                          emptyLabel={t('mlearn.MemoryBrowser.Empty')}
-                        />
-                        <MemorySection
-                          title={t('mlearn.MemoryBrowser.Sections.Episodes')}
-                          entries={proj().episodes}
-                          emptyLabel={t('mlearn.MemoryBrowser.Empty')}
-                        />
-                        <MemorySection
-                          title={t('mlearn.MemoryBrowser.Sections.Relationships')}
-                          entries={proj().relationships}
-                          emptyLabel={t('mlearn.MemoryBrowser.Empty')}
-                        />
-                      </Show>
-                    </>
-                  )}
+                <Show when={visibleSections().length > 0} fallback={<EmptyState title={t('mlearn.MemoryBrowser.Empty')} variant="minimal" class="memory-browser-empty" />}>
+                  <For each={visibleSections()}>{(section) => <MemorySection title={section.title} entries={section.entries} />}</For>
                 </Show>
               </main>
             </Show>

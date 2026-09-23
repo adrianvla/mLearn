@@ -24,13 +24,15 @@ describe('tutor purpose workflow', () => {
     const dispose = render(() => <AITutorSetupModal isOpen onClose={() => undefined} onStart={start} />, host);
     expect(host.querySelector('input[type="radio"]:checked')).not.toBeNull();
     expect(host.textContent).not.toContain('Grammar selector');
-    const advanced = Array.from(host.querySelectorAll('button')).find(button => button.textContent === 'mlearn.AITutorSetup.Advanced');
-    advanced?.click();
-    expect(host.textContent).toContain('Grammar selector');
-    advanced?.click();
     const input = host.querySelector('textarea')!;
     input.value = 'Help me describe my work.';
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    const advanced = Array.from(host.querySelectorAll('button')).find(button => button.textContent === 'mlearn.AITutorSetup.Advanced');
+    advanced?.click();
+    expect(host.textContent).toContain('Grammar selector');
+    expect(host.querySelector('textarea')).toBeNull();
+    Array.from(host.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.Back')?.click();
+    expect(host.querySelector('textarea')?.value).toBe('Help me describe my work.');
     Array.from(host.querySelectorAll('button')).find(button => button.textContent === 'mlearn.AITutorSetup.StartSession')?.click();
     expect(start).toHaveBeenCalledWith(expect.objectContaining({
       customInstructions: expect.stringContaining('Help me describe my work.'),

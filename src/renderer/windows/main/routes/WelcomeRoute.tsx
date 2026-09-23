@@ -473,9 +473,6 @@ export const WelcomeRoute: Component = () => {
         <div class="welcome-subtitle">
           <span>
             {t('mlearn.Home.UI.LearningLanguage', { language: getLanguageName() })}
-            <Show when={language.currentLangData()?.flagEmoji}>
-              {(flagEmoji) => <> {flagEmoji()}</>}
-            </Show>
           </span>
           <button type="button" class="welcome-change-language" onClick={openSettings}>
             {t('mlearn.Home.Cards.Settings.Title')}

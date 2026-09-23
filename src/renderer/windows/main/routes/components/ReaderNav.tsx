@@ -12,6 +12,7 @@ import Icon from "@renderer/components/common/Icons/Icon";
 import { ReaderThemePopover } from './ReaderThemePopover';
 
 interface ReaderNavProps {
+  hasPages: Accessor<boolean>;
   bookTitle: Accessor<string>;
   progressString: Accessor<string>;
   fitMode: Accessor<string>;
@@ -57,13 +58,16 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         <div class="reader-nav-drag-region" />
       </Show>
       <div class="nav-group">
-        <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar} aria-label={t('mlearn.Reader.Toolbar.ToggleContents')}>
-          <Icon icon="sidebar" color={"currentColor"} class={""}/>
-        </NavBtn>
+        <Show when={props.hasPages()}>
+          <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar} aria-label={t('mlearn.Reader.Toolbar.ToggleContents')}>
+            <Icon icon="sidebar" color={"currentColor"} class={""}/>
+          </NavBtn>
+        </Show>
         <NavBtn onClick={props.onGoHome} title={t('mlearn.Reader.Toolbar.BackToHome')}>
           {t('mlearn.Reader.Toolbar.Home')}
         </NavBtn>
       </div>
+      <Show when={props.hasPages()}>
         <div class="nav-group">
             <Tag class="book-title-nav label-secondary" headless size={"sm"}>{props.bookTitle()}</Tag>
         </div>
@@ -142,6 +146,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
           <Icon icon="sidebar" color={"currentColor"} class={"reader-nav-icon-mirrored"} />
         </NavBtn>
       </div>
+      </Show>
     </nav>
   );
 };

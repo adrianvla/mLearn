@@ -6,7 +6,7 @@
 .word-db-editor {
   position: relative;
   height: 100vh;
-  background: var(--transparent);
+  background: var(--bg-opaque);
   color: var(--text-primary);
   overflow: hidden;
 }

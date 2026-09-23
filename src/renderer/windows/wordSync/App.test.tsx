@@ -1762,6 +1762,11 @@ beforeEach(() => {
 
     // No questions were answered: this is empty, not successful completion.
     expect(container.textContent).toContain('mlearn.WordSync.EmptyTitle');
+    expect(container.textContent).toContain('mlearn.WordSync.ChangeFilters');
+    expect(container.textContent).not.toContain('mlearn.WordSync.StartOver');
+    container.querySelector<HTMLButtonElement>('.word-sync-recheck-btn')?.click();
+    await settle();
+    expect(mockCommonState.filterBuilderProps).not.toBeNull();
     dispose();
     mockGetAccessStatus.mockReturnValue({ status: 'unknown', ease: 0, source: 'None', untracked: true });
     // Restore the shared mock's default shape (mockReturnValue persists across tests).

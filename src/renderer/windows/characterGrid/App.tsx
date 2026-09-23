@@ -19,7 +19,7 @@ import {
   selectHarderFrequencyLevel,
   shouldShowCharacterStudyLevelDisclaimer,
 } from '../../../shared/languageFeatures';
-import { PillLabel, LegendItem, BookIcon, AlertBanner, SkeletonGrid } from '../../components/common';
+import { PillLabel, LegendItem, BookIcon, AlertBanner, SkeletonGrid, Btn } from '../../components/common';
 import './characterGrid.css';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceEntityId } from '../../../shared/graph/load';
@@ -421,11 +421,13 @@ export const CharacterGridContent: Component = () => {
         <p class="cg-subtitle">
           {characterStudyText('description', 'mlearn.CharacterGrid.Description')}
         </p>
-        <p class="cg-subtitle">{t('mlearn.CharacterGrid.InspectHint')}</p>
       </div>
 
       <Show when={projected.failed()}>
-        <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><button type="button" onClick={() => projected.retry()}>{t('mlearn.Knowledge.Retry')}</button></div>
+        <div role="alert" class="cg-error">
+          <p>{t('mlearn.Knowledge.LoadError')}</p>
+          <Btn onClick={() => projected.retry()}>{t('mlearn.Knowledge.Retry')}</Btn>
+        </div>
       </Show>
       <div class="cg-main">
         <div class="cg-grid">
@@ -494,12 +496,12 @@ export const CharacterGridContent: Component = () => {
 
           {/* Stats */}
           <Show when={!contentPending()}><div class="cg-stats">
-            <div>· {t('mlearn.CharacterGrid.Stats.Evidenced')} <b>{stats().evidenced}</b> <span class="cg-stats-pct">({pct(stats().evidenced)}%)</span></div>
-            <div>· {t('mlearn.CharacterGrid.Stats.Claimed')} <b>{stats().claimed}</b> <span class="cg-stats-pct">({pct(stats().claimed)}%)</span></div>
-            <div>· {t('mlearn.CharacterGrid.Stats.Familiar')} <b>{stats().familiar}</b> <span class="cg-stats-pct">({pct(stats().familiar)}%)</span></div>
-            <div>· {t('mlearn.CharacterGrid.Stats.Emerging')} <b>{stats().emerging}</b> <span class="cg-stats-pct">({pct(stats().emerging)}%)</span></div>
-            <div>· {t('mlearn.CharacterGrid.Stats.Unmeasured')} <b>{stats().unmeasured}</b> <span class="cg-stats-pct">({pct(stats().unmeasured)}%)</span></div>
-            <div>· {t('mlearn.CharacterGrid.Stats.TotalFound')} <b>{stats().total}</b></div>
+            <div class="cg-stat"><span>{t('mlearn.CharacterGrid.Stats.Evidenced')}</span><strong>{stats().evidenced} <span class="cg-stats-pct">({pct(stats().evidenced)}%)</span></strong></div>
+            <div class="cg-stat"><span>{t('mlearn.CharacterGrid.Stats.Claimed')}</span><strong>{stats().claimed} <span class="cg-stats-pct">({pct(stats().claimed)}%)</span></strong></div>
+            <div class="cg-stat"><span>{t('mlearn.CharacterGrid.Stats.Familiar')}</span><strong>{stats().familiar} <span class="cg-stats-pct">({pct(stats().familiar)}%)</span></strong></div>
+            <div class="cg-stat"><span>{t('mlearn.CharacterGrid.Stats.Emerging')}</span><strong>{stats().emerging} <span class="cg-stats-pct">({pct(stats().emerging)}%)</span></strong></div>
+            <div class="cg-stat"><span>{t('mlearn.CharacterGrid.Stats.Unmeasured')}</span><strong>{stats().unmeasured} <span class="cg-stats-pct">({pct(stats().unmeasured)}%)</span></strong></div>
+            <div class="cg-stat cg-stat-total"><span>{t('mlearn.CharacterGrid.Stats.TotalFound')}</span><strong>{stats().total}</strong></div>
           </div>
 
           </Show>
