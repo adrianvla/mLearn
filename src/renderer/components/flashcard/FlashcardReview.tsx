@@ -20,9 +20,8 @@ import { showToast } from '../common/Feedback/Toast';
 import type { CapabilityKey, Flashcard, FlashcardContent } from '../../../shared/types';
 import { ASPECT_CAPABILITY } from '../../../shared/graph/types';
 import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
-import { surfaceEntityId } from '../../../shared/graph/load';
-import { hashWordSync } from '../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { qualityToSrsRating } from '../../../shared/constants';
 import { nextAttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
@@ -770,12 +769,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 // selection (brief reason + emitted trace) where the
                 // knowledge lives. No recomputation anywhere.
                 const decision = currentDecision();
-                openKnowledgeInspector({
+                openKnowledgeInspector(surfaceKnowledgeInspection(
                   language,
                   surface,
-                  target: { kind: 'surface', id: surfaceEntityId(language, hashWordSync(surface)) },
-                  ...(decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : {}),
-                });
+                  decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : undefined,
+                ));
               }}>
                 {t('mlearn.Knowledge.Popup.Inspect')}
               </Button>

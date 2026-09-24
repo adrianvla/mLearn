@@ -36,8 +36,8 @@ import { prosodyVisible } from '../../../../shared/prosodySettings';
 import './WordEntryRow.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
-import { surfaceEntityId } from '../../../../shared/graph/load';
 import { openKnowledgeInspector } from '../../../services/openKnowledgeInspector';
+import { surfaceKnowledgeInspection } from '../../../services/surfaceKnowledgeInspection';
 import { openGraphInspector } from '../../../services/openGraphInspector';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 
@@ -453,7 +453,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           onStatusChange={(status) => props.onStatusChange(props.entry, status)}
         />
         <div class="knowledge-actions">
-          <Btn variant="ghost" size="sm" onClick={() => openKnowledgeInspector({ language: settings.language, surface: props.entry.word, target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(props.entry.word)) } })}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word))}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
           <Btn variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Btn>
         </div>
       </div>

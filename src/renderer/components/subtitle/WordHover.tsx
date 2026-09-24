@@ -16,8 +16,7 @@ import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
 import { ProsodyOverlay } from '../language-specific';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
-import { surfaceEntityId } from '../../../shared/graph/load';
-import { hashWordSync } from '../../services/srsAlgorithm';
+import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
@@ -717,10 +716,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       >
         <div class="subtitle_hover_relative">
           <div class="word-hover-toolbar">
-            <button type="button" class="word-hover-inspect" onClick={() => openKnowledgeInspector({
-              language: settings.language, surface: actualWord(),
-              target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(actualWord())) },
-            })}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
+            <button type="button" class="word-hover-inspect" onClick={() => openKnowledgeInspector(
+              surfaceKnowledgeInspection(settings.language, actualWord()),
+            )}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
           </div>
            <div class="subtitle_hover_content" ref={contentRef}>
             {/* Loading state: keep the hover panel's shape while the lookup
