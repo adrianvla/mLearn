@@ -5,8 +5,7 @@ import { Btn, CloseIcon, CollapsibleStickyHeader, IconBtn, PillBtn, PillLabel, S
 import { WordWithReading } from '../language-specific';
 import { ResourcePill } from '../common/Smart';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
-import { surfaceEntityId } from '../../../shared/graph/load';
-import { hashWordSync } from '../../services/srsAlgorithm';
+import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getCachedTranslation, useTranslation } from '../../hooks/useTranslation';
 import {
@@ -227,8 +226,7 @@ const UnknownWordRow: Component<{
           label={t('mlearn.Knowledge.Popup.Inspect')}
           onClick={() => {
             const surface = props.entry.token.surface ?? props.entry.token.word;
-            openKnowledgeInspector({ language: settings.language, surface,
-              target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(surface)) } });
+            openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface));
           }}
         />
         <PillBtn

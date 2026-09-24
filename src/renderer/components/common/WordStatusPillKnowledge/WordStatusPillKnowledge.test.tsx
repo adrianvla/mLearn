@@ -56,4 +56,16 @@ describe('knowledge hover', () => {
     expect(recordAttempt).toHaveBeenCalledWith('犬', 'surface-recognition', 'missed', expect.objectContaining({ language: 'ja' }));
     expect(recordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'missed', expect.objectContaining({ language: 'ja' }));
   });
+
+  it('returns to the summary after an attempt so Rate can start another attempt', () => {
+    const container = document.createElement('div'); document.body.append(container);
+    dispose = render(() => <WordStatusPillKnowledge word="犬" language="ja" />, container);
+    const rateButton = Array.from(container.querySelectorAll('button')).find(item => item.textContent === 'mlearn.Knowledge.Popup.Rate')!;
+    rateButton.click();
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    expect(recordAttempt).toHaveBeenCalled();
+    expect(container.querySelector('.rating-matrix')).toBeNull();
+    rateButton.click();
+    expect(container.querySelector('.rating-matrix__quality')).not.toBeNull();
+  });
 });

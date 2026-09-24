@@ -17,6 +17,10 @@ import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
 import type { LevelStats } from '../../../../utils/wordLevelStats';
 
+vi.mock('../../../../context', () => ({
+  useLocalization: () => ({ t: (key: string) => key === 'mlearn.Rating.Matrix.Missed' ? 'Missed' : key }),
+}));
+
 const makeCard = (front: string, back: string, reading?: string): Flashcard => ({
   id: 'card-1',
   content: { type: 'word', front, back, reading },
@@ -197,7 +201,7 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="None"
           loadingLabel="Loading"
           openLabel="Open"
-          ratingButtons={[]}
+          keyboardMode="mnemonic"
           onOpen={() => {}}
           onRate={() => {}}
         />
@@ -235,7 +239,7 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="None"
           loadingLabel="Loading"
           openLabel="Open"
-          ratingButtons={[]}
+          keyboardMode="mnemonic"
           onOpen={() => {}}
           onRate={() => {}}
         />
@@ -262,7 +266,7 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="No cards"
           loadingLabel="Loading"
           openLabel="Open"
-          ratingButtons={[]}
+          keyboardMode="mnemonic"
           onOpen={() => {}}
           onRate={() => {}}
         />
@@ -289,10 +293,7 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="None"
           loadingLabel="Loading"
           openLabel="Open"
-          ratingButtons={[
-            { quality: 'missed', label: 'Missed' },
-            { quality: 'fluent', label: 'Fluent' },
-          ]}
+          keyboardMode="mnemonic"
           onOpen={() => {}}
           onRate={onRate}
         />
@@ -300,20 +301,44 @@ describe('WelcomeFlashcardPreview', () => {
       container,
     );
 
-    const missed = container.querySelector('.wfv-flashcard-rating-missed');
+    const missed = container.querySelector('.rating-matrix__quality');
     expect(missed).toBeNull();
 
     const stage = container.querySelector('button.wfv-flashcard-stage');
     stage?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    const missedAfterFlip = container.querySelector('.wfv-flashcard-rating-missed');
-    const fluentAfterFlip = container.querySelector('.wfv-flashcard-rating-fluent');
+    const missedAfterFlip = container.querySelectorAll('.rating-matrix__quality')[0];
+    const fluentAfterFlip = container.querySelectorAll('.rating-matrix__quality')[2];
     expect(missedAfterFlip?.textContent).toContain('Missed');
     expect(fluentAfterFlip).not.toBeNull();
 
     missedAfterFlip?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onRate).toHaveBeenCalledWith('missed');
+    expect(onRate).toHaveBeenCalledWith('missed', undefined);
 
+    dispose();
+  });
+
+  it('uses the shared rating keys and Adjust row for the revealed meaning probe', () => {
+    const onRate = vi.fn();
+    const dispose = render(() => <WelcomeFlashcardPreview
+      card={makeCard('front', 'back', 'reading')}
+      loading={false}
+      dueCount={1}
+      dueLabel="Due"
+      emptyLabel="None"
+      loadingLabel="Loading"
+      openLabel="Open"
+      keyboardMode="mnemonic"
+      onOpen={() => {}}
+      onRate={onRate}
+    />, container);
+    (container.querySelector('.wfv-flashcard-stage') as HTMLButtonElement).click();
+    expect(container.querySelector('.rating-matrix')).not.toBeNull();
+    (container.querySelector('.rating-matrix__adjust') as HTMLButtonElement).click();
+    expect(container.textContent).toContain('mlearn.Knowledge.Capability.sense-recognition');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4' }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4' }));
+    expect(onRate).toHaveBeenCalledWith('fluent', true);
     dispose();
   });
 
@@ -328,7 +353,7 @@ describe('WelcomeFlashcardPreview', () => {
           emptyLabel="None"
           loadingLabel="Loading"
           openLabel="Open"
-          ratingButtons={[{ quality: 'fluent', label: 'Fluent' }]}
+          keyboardMode="mnemonic"
           onOpen={() => {}}
           onRate={() => {}}
         />
@@ -367,7 +392,7 @@ describe('WelcomeFlashcardPreview', () => {
               emptyLabel="None"
               loadingLabel="Loading"
               openLabel="Open"
-              ratingButtons={[]}
+              keyboardMode="mnemonic"
               onOpen={() => {}}
               onRate={() => {}}
             />

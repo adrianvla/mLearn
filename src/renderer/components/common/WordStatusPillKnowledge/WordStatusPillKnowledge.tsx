@@ -1,9 +1,8 @@
 import { projectedWordStatus } from '../../../../shared/graph/targets';
 import { Show, createMemo, createSignal, type Component } from 'solid-js';
 import { useFlashcards, useLocalization, useSettings } from '../../../context';
-import { surfaceEntityId } from '../../../../shared/graph/load';
-import { hashWordSync } from '../../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../../services/openKnowledgeInspector';
+import { surfaceKnowledgeInspection } from '../../../services/surfaceKnowledgeInspection';
 import { nextAttemptId } from '../../../../shared/knowledgeEvents';
 import { useKnowledgeProjection } from '../../../hooks/useKnowledgeProjection';
 import { Btn } from '../Button';
@@ -39,9 +38,10 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
         ...(attemptId ? { attemptId } : {}),
       });
     }
+    setShowRate(false);
   };
   const inspect = () => {
-    openKnowledgeInspector({ language: language(), surface: props.word, target: { kind: 'surface', id: surfaceEntityId(language(), hashWordSync(props.word)) } });
+    openKnowledgeInspector(surfaceKnowledgeInspection(language(), props.word));
     props.onClose?.();
   };
   return <div class={`word-status-knowledge${props.pinned !== false ? ' word-status-knowledge--pinned' : ''}`}>

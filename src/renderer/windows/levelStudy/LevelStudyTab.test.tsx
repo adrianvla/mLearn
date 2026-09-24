@@ -120,6 +120,7 @@ vi.mock('../../context', () => ({
       learningLanguageLevels: learningLanguageLevelsMock,
       get uiLanguage() { return settingsUiLanguage; },
       llmProvider: 'builtin',
+      ratingKeyboardMode: 'mnemonic',
       builtinModel: 'fixture-local-model',
       ollamaModel: '',
       ...(learningBackgroundRecordsMock === undefined ? {} : { learningBackground: { records: learningBackgroundRecordsMock } }),
@@ -140,6 +141,16 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
+  RatingMatrix: (props: { armed: boolean; capabilities: readonly string[]; onSubmit: (observations: readonly { capability: string; quality: 'missed' | 'struggled' | 'fluent' }[], options?: { easy?: boolean }) => void }) => (
+    <div class="rating-matrix">
+      {(['missed', 'struggled', 'fluent', 'easy'] as const).map((action) => (
+        <button type="button" class="rating-matrix__quality" disabled={!props.armed} onClick={() => props.onSubmit(
+          props.capabilities.map((capability) => ({ capability, quality: action === 'easy' ? 'fluent' : action })),
+          action === 'easy' ? { easy: true } : undefined,
+        )}>{action}</button>
+      ))}
+    </div>
+  ),
   ProgressBar: (props: { value: number }) => <div data-testid="progress">{props.value}</div>,
   SkeletonCard: (props: { lines?: number }) => <div data-testid="skeleton-card" data-lines={props.lines} />,
   SkeletonRows: (props: { rows?: number }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,
@@ -754,7 +765,7 @@ describe('LevelStudyTab', () => {
     practiseBtn!.click();
     await tick();
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
-    const walkProbe = () => levelBlock(container, 3).querySelector('.grammar-coverage__session-probe .grammar-coverage__probe-btn:nth-child(3)') as HTMLButtonElement;
+    const walkProbe = () => levelBlock(container, 3).querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement;
     walkProbe().click();
     await beat();
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt[data-pattern]') !== null);
@@ -776,10 +787,7 @@ describe('LevelStudyTab', () => {
     expect(container.querySelector('.level-study-boot')).not.toBeNull();
     setProjectionLoading(false);
     await tick();
-    // expandedLevel is component-local: the remounted coverage collapses its
-    // rows, so re-expand level 3 before asserting the resumed walk.
-    (container.querySelector('.grammar-coverage__level-row[data-level="3"]') as HTMLElement).click();
-    await tick();
+    // The remounted coverage restores the active level with its durable cursor.
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
     expect(levelBlock(container, 3).querySelector('.grammar-contrast')).toBeNull();
 

@@ -1,8 +1,7 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { useFlashcards, useLocalization, useSettings } from '../../../context';
-import { surfaceEntityId } from '../../../../shared/graph/load';
-import { hashWordSync } from '../../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../../services/openKnowledgeInspector';
+import { surfaceKnowledgeInspection } from '../../../services/surfaceKnowledgeInspection';
 import { Input } from '../../../components/common';
 import './WordSearchPanel.css';
 
@@ -34,7 +33,7 @@ export const WordSearchPanel: Component = () => {
     return encounteredWords().filter((word) => word.toLowerCase().includes(needle)).slice(0, MAX_MATCHES);
   });
 
-  const inspect = (surface: string) => openKnowledgeInspector({ language: settings.language, surface, target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(surface)) } });
+  const inspect = (surface: string) => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface));
 
   return (
     <section class="word-search-panel">

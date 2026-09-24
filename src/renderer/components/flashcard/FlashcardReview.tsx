@@ -9,7 +9,6 @@ import { FlashcardDisplay } from './FlashcardDisplay';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { useDecisionPin } from '../../hooks/useDecisionPin';
-import { PolicyWhy } from './PolicyWhy';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import { Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
@@ -21,9 +20,8 @@ import { showToast } from '../common/Feedback/Toast';
 import type { CapabilityKey, Flashcard, FlashcardContent } from '../../../shared/types';
 import { ASPECT_CAPABILITY } from '../../../shared/graph/types';
 import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
-import { surfaceEntityId } from '../../../shared/graph/load';
-import { hashWordSync } from '../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { qualityToSrsRating } from '../../../shared/constants';
 import { nextAttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
@@ -719,12 +717,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               </Badge>
             </div>
           </Show>
-          {/* R20: the pinned decision's own explanation — the brief reason by
-              default, the emitted typed trace behind the inline "Why?".
-              Rendered from the SAME decision object that produced the card:
-              no recomputation, no post-hoc narrative. */}
-          <PolicyWhy decision={currentDecision()} />
-
           {/* Show card - non-keyed to avoid remount delay between cards */}
           <Show when={currentCard()}>
             {(card) => (
@@ -777,12 +769,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 // selection (brief reason + emitted trace) where the
                 // knowledge lives. No recomputation anywhere.
                 const decision = currentDecision();
-                openKnowledgeInspector({
+                openKnowledgeInspector(surfaceKnowledgeInspection(
                   language,
                   surface,
-                  target: { kind: 'surface', id: surfaceEntityId(language, hashWordSync(surface)) },
-                  ...(decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : {}),
-                });
+                  decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : undefined,
+                ));
               }}>
                 {t('mlearn.Knowledge.Popup.Inspect')}
               </Button>

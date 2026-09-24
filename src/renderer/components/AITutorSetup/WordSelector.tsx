@@ -19,8 +19,7 @@ import type {
 } from '../../../shared/types';
 import './WordSelector.css';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
-import { surfaceEntityId } from '../../../shared/graph/load';
-import { hashWordSync } from '../../services/srsAlgorithm';
+import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.components.wordSelector");
@@ -564,7 +563,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
             >
               <span class="word-selector__cell-text">{w.word}</span>
             </button>
-            <button type="button" class="word-selector__inspect" onClick={() => openKnowledgeInspector({ language: settings.language, surface: w.word, target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(w.word)) } })}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
+            <button type="button" class="word-selector__inspect" onClick={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, w.word))}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
             </div>
           )}
         </For>

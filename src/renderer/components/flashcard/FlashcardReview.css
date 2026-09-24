@@ -229,35 +229,6 @@
   color: var(--text-secondary);
 }
 
-/* Rating button */
-.flashcard-rating-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.75rem 1.25rem;
-  min-width: 70px;
-  box-shadow: var(--shadow-special);
-}
-
-.flashcard-rating-btn:hover {
-  transform: translateY(-2px);
-}
-
-.flashcard-rating-btn:active {
-  transform: translateY(0);
-}
-
-.flashcard-rating-label {
-  font-weight: 600;
-}
-
-.flashcard-rating-time {
-  font-size: var(--font-size-xs);
-  opacity: 0.7;
-  margin-left:var(--spacing-1);
-}
-
 /* Action buttons container - positioned in header area */
 .flashcard-action-buttons {
   display: flex;

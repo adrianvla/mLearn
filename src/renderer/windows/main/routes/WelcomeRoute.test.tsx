@@ -14,6 +14,9 @@ const levelPreviewState = vi.hoisted(() => ({
   // Holds the live Solid props proxy: assertions read current values.
   last: null as null | { pending?: boolean; coverage: { pct: number } | null },
 }));
+const flashcardFixture = vi.hoisted(() => ({
+  store: { flashcards: {} as Record<string, { id: string }>, dailyStats: {} },
+}));
 
 const settingsState = vi.hoisted(() => ({
   settings: {
@@ -41,7 +44,7 @@ vi.mock('../../../context', () => ({
     getCanonicalFormForLanguage: (_language: string, word: string) => word,
   }),
   useFlashcards: () => ({
-    store: { flashcards: {}, dailyStats: {} },
+    store: flashcardFixture.store,
     isKnowledgeReady: () => knowledgeReady(),
     isLoading: () => false,
     queue: () => ({ newQueue: [], scheduledQueue: [] }),
@@ -107,8 +110,8 @@ vi.mock('./components', () => {
     ),
     WelcomeVideoPreview: Preview,
     WelcomeReaderPreview: Preview,
-    WelcomeFlashcardPreview: (props: { loading?: boolean }) => (
-      <div data-testid="flashcard-preview" data-loading={String(props.loading)} />
+    WelcomeFlashcardPreview: (props: { loading?: boolean; emptyLabel: string }) => (
+      <div data-testid="flashcard-preview" data-loading={String(props.loading)} data-empty-label={props.emptyLabel} />
     ),
     WelcomeSettingsPreview: Preview,
     WelcomeStatsPreview: Preview,
@@ -133,6 +136,8 @@ describe('WelcomeRoute localization', () => {
     setKnowledgeReady(true);
     setLanguageFlag(undefined);
     levelPreviewState.last = null;
+    flashcardFixture.store.flashcards = {};
+    localization.translate = (key) => key;
   });
 
   afterEach(() => {
@@ -160,6 +165,13 @@ describe('WelcomeRoute localization', () => {
     setLanguageFlag('\u{1F1EF}\u{1F1F5}');
     const dispose = render(() => <WelcomeRoute />, container);
     expect(container.querySelector('.welcome-language-flag')?.textContent).toBe('\u{1F1EF}\u{1F1F5}');
+    dispose();
+  });
+
+  it('labels an empty due queue as caught up when the learner already has cards', () => {
+    flashcardFixture.store.flashcards = { existing: { id: 'existing' } };
+    const dispose = render(() => <WelcomeRoute />, container);
+    expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-empty-label')).toBe('mlearn.Flashcards.EmptyState.NoCardsDueTitle');
     dispose();
   });
 

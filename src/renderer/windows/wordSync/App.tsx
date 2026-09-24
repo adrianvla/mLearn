@@ -44,6 +44,8 @@ import type { CapabilityKey } from '../../../shared/graph/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
+import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
 import { KnowledgeSkeleton } from '../../components/common';
@@ -1111,6 +1113,12 @@ export const WordSyncContent: Component = () => {
                 || (currentProjection.projection() === undefined && !currentProjection.loading()))}
             onSubmit={handleSubmitProfile}
           />
+          <Show when={currentWord()}>
+            {(word) => <Btn variant="ghost" size="sm" class="word-sync-inspect" onClick={() => {
+              const surface = word().word;
+              openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface));
+            }}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>}
+          </Show>
           <Show when={currentWord()}>
             <TellMlearn
               resetKey={`${settings.language}:${currentWord()?.word ?? ''}:${presentationCount()}`}

@@ -22,8 +22,7 @@ import {
 import { PillLabel, LegendItem, BookIcon, AlertBanner, SkeletonGrid, Btn } from '../../components/common';
 import './characterGrid.css';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
-import { surfaceEntityId } from '../../../shared/graph/load';
-import { hashWordSync } from '../../services/srsAlgorithm';
+import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getLogger } from '../../../shared/utils/logger';
 import type { LanguageCharacterStudyConfig } from '../../../shared/types';
 
@@ -437,8 +436,7 @@ export const CharacterGridContent: Component = () => {
                 <button type="button"
                   class={`cg-cell ${isCharacterDimmed(item) ? 'dimmed' : ''} ${cellClassFor(item)}`}
                   style={{ background: getColorForCharacter(item) }}
-                  onClick={() => openKnowledgeInspector({ language: settings.language, surface: item.character,
-                    target: { kind: 'surface', id: surfaceEntityId(settings.language, hashWordSync(item.character)) } })}
+                  onClick={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, item.character))}
                   aria-label={`${item.character} — ${stateLabel(item)}`}
                   data-state={displayStateOf(item)}
                   onMouseEnter={() => setHoveredCharacter(item)}

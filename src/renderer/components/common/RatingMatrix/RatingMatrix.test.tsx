@@ -67,6 +67,16 @@ describe('RatingMatrix (canonical rating control)', () => {
     container.remove();
   });
 
+  it('ignores trailing double-clicks and held keys when a rating button has focus', () => {
+    renderMatrix('mnemonic', ['surface-recognition']);
+    const fluent = container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2];
+    fluent.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    fluent.focus();
+    fluent.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: '3', repeat: true }));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('completes the remaining clicked row without turning selected claims into observations', () => {
     const [claims, setClaims] = createSignal<Partial<Record<CapabilityKey, WordStatus>>>({});
     dispose = render(() => <RatingMatrix capabilities={CAPABILITIES} keyboardMode="mnemonic" armed

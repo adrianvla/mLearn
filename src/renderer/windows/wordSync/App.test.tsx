@@ -58,6 +58,7 @@ import type { LLMStreamCallbacks } from '../../services/llmProvider';
 import type { AccessStatusResult } from '../../utils/accessKnowledge';
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
 import type { WordStatus } from '../../../shared/constants';
+import { closeKnowledgeInspector, knowledgeInspection } from '../../services/openKnowledgeInspector';
 
 let absentProjectionWords = new Set<string>();
 const mockStreamChat = vi.hoisted(() => vi.fn());
@@ -306,6 +307,14 @@ vi.mock('../../../shared/languageScriptProfile', () => ({
 async function settle() { for (let i = 0; i < 8; i++) await Promise.resolve(); }
 
 describe('WordSyncContent', () => {
+  it('opens the current word in the shared knowledge Inspector', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    expect(knowledgeInspection()).toMatchObject({ language: 'ja', surface: '赤い', target: { kind: 'surface' } });
+    closeKnowledgeInspector();
+  });
   let container: HTMLDivElement;
 
   // Digits record one selected observed outcome after reveal.

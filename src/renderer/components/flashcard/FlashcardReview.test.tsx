@@ -470,6 +470,15 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
+  it('keeps selection details in Inspect without a generic inline Why panel', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    expect(container.querySelector('[data-testid="policy-why"]')).toBeNull();
+    clickShowAnswer(container);
+    expect(container.querySelector('[data-testid="policy-why"]')).toBeNull();
+    expect(container.querySelector('.flashcard-rating-inspect')).not.toBeNull();
+    dispose();
+  });
+
   it('resets scroll when the same learning card is queued again after rating', () => {
     const dispose = render(() => <FlashcardReview />, container);
     const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-container')!;
