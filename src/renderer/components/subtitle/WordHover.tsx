@@ -5,10 +5,9 @@
  */
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onCleanup, onMount } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, type TranslationEntry, type WordFrequencyMap } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, type WordFrequencyMap } from '../../../shared/types';
 import { isDarkColorScheme } from '../../../shared/constants';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
-import { useOptionalGraph } from '../../context/GraphContext';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
@@ -21,6 +20,7 @@ import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
+  resolveWordHoverContent,
   resolveProsodyForHover,
   type WordHoverTranslationData,
 } from './wordHoverHelpers';
@@ -29,8 +29,7 @@ import { getBridge } from '../../../shared/bridges';
 import { showToast } from '../common/Feedback/Toast';
 import { getTokenLookupWord, getTokenWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
-import { extractReadingValue } from '../../utils/translationCacheParsers';
-import { compoundSplitterConfig, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
+import { compoundSplitterConfig, getContentFontFamily, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 import type { LanguageCompoundSplittingConfig } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
@@ -154,13 +153,14 @@ export interface WordHoverProps {
   videoSrc?: string;
   lastScreenshot?: string;
   grammarOccurrences?: readonly GrammarOccurrence[];
+  /** Resolved font of the hovered text, when the owning surface has one. */
+  headwordFontFamily?: string;
 }
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
-  const { meta: graphMeta, getTargetsForSurfaces } = useOptionalGraph();
   const { addFlashcard, getCardByWordSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
-  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants, getWordFrequency } = useLanguage();
+  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
@@ -171,7 +171,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const [, setPositionLocked] = createSignal(false);
   // Track if we have a cached explanation (for pill indicator)
   const [hasCachedExplanation, setHasCachedExplanation] = createSignal(false);
-  const [graphLookup, setGraphLookup] = createSignal<GraphWordLookup | null | undefined>(undefined);
   let hoverRef: HTMLDivElement | undefined;
   let contentRef: HTMLDivElement | undefined;
 
@@ -185,24 +184,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     word: props.word || props.token.word,
   }, tokenizerCapabilities()) || displayWord());
   const isShown = createMemo(() => props.visible !== false);
-
-  createEffect(() => {
-    const word = actualWord();
-    // Synchronous reset: the signal must never hold the previous word's
-    // lookup while the new one is in flight (the old projection guarded this
-    // via querySurface; the lookup carries no word marker). undefined =
-    // pending, null = graph answered and the surface is absent.
-    setGraphLookup(word && graphMeta().ready ? undefined : null);
-    if (!word || !graphMeta().ready) {
-      return;
-    }
-    let disposed = false;
-    void getTargetsForSurfaces([{ surface: word }]).then(([result]) => {
-      if (!disposed) setGraphLookup(result?.lookup ?? null);
-    });
-    onCleanup(() => { disposed = true; });
-  });
-
 
   
   // REACTIVE: Get flashcard for the word (if tracked)
@@ -221,14 +202,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     language: settings.language,
   }));
 
-  // REQ42 + graph-first: the resolution is tri-state — while the lookup is in
-  // flight nothing is guessed; graph-attested structure is primary; a
-  // graph-known surface without structure is never guessed; only surfaces
-  // absent from the graph fall back to the productive splitter.
-  const compoundAnalysis = createMemo(() => {
-    const resolution = resolveCompoundDisplay(graphLookup(), actualWord(), currentLangData(), getWordFrequency());
-    return resolution.kind === 'pending' || resolution.kind === 'none' ? null : resolution.analysis;
-  });
   // Generate the UUID used for example extraction when the hovered word changes.
   createEffect(() => {
     const word = actualWord();
@@ -526,19 +499,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
   };
 
-  // Translation entries
-  const translationEntries = createMemo<TranslationEntry[]>(() => {
-    const data = props.translationData?.data || [];
-    const entries: TranslationEntry[] = [];
-    for (const item of data) {
-      if (!item || typeof item !== 'object') continue;
-      const entry = item as TranslationEntry;
-      if (entry.definitions) entries.push(entry);
-    }
-    return entries;
-  });
-
-  const entryReading = (entry: unknown) => extractReadingValue(entry, currentLangData()) ?? '';
+  const hoverContent = createMemo(() => resolveWordHoverContent(
+    props.token.reading,
+    props.translationData,
+    props.dictionaryEntries,
+    currentLangData(),
+  ));
 
   const hoverProsody = createMemo(() => {
     return resolveProsodyForHover({
@@ -721,79 +687,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             )}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
 
           </div>
-           <div class="subtitle_hover_content" ref={contentRef}>
-            {/* Loading state: keep the hover panel's shape while the lookup
-                resolves instead of flashing a text label. */}
-            <Show when={props.isLoading}>
-              <div class="hover_loading" aria-busy="true">
-                <SkeletonText lines={2} />
-              </div>
+          <div class="subtitle_hover_content" ref={contentRef}>
+            <div class="word-hover-headword" style={{ 'font-family': props.headwordFontFamily?.trim() || getContentFontFamily(currentLangData()) }}>{displayWord()}</div>
+            <Show when={!props.isLoading && hoverContent().shortDefinitionHtml}>
+              <SafeHtml tag="div" class="word-hover-short-definition" html={hoverContent().shortDefinitionHtml} />
             </Show>
-
-            {/* Translation content */}
-            <Show when={!props.isLoading}>
-              <Show when={translationEntries().length > 0}>
-                <For each={translationEntries()}>
-                  {(entry, index) => (
-                    <>
-                      <Show when={index() > 0}>
-                        <hr />
-                      </Show>
-                      <SafeHtml tag="div" class="hover_translation" html={Array.isArray(entry.definitions) ? entry.definitions.join('; ') : String(entry.definitions) || ''} />
-                      <Show when={entryReading(entry)}>
-                        {(reading) => <div class="hover_reading">{reading()}</div>}
-                      </Show>
-                    </>
-                  )}
-                </For>
-              </Show>
-              <Show when={translationEntries().length === 0 && props.dictionaryEntries && props.dictionaryEntries.length > 0}>
-                <For each={props.dictionaryEntries}>
-                  {(entry, index) => (
-                    <>
-                      <Show when={index() > 0}>
-                        <hr />
-                      </Show>
-                      <SafeHtml tag="div" class="hover_translation" html={entry.meanings ? entry.meanings.join('; ') : ''} />
-                      <Show when={entryReading(entry)}>
-                        {(reading) => <div class="hover_reading">{reading()}</div>}
-                      </Show>
-                    </>
-                  )}
-                </For>
-              </Show>
-
-              <Show when={translationEntries().length === 0 && (!props.dictionaryEntries || props.dictionaryEntries.length === 0)}>
-                <div class="hover_translation">{t('mlearn.WordHover.NoTranslation')}</div>
-              </Show>
-              <Show when={graphMeta().status === 'ready' && graphLookup()}>
-                <Show when={graphLookup()!.senses.length > 0 || graphLookup()!.pronunciations.length > 0}>
-                  <hr />
-                  <For each={graphLookup()!.senses.slice(0, 3)}>
-                    {(sense) => <div class="hover_translation">{sense.label}</div>}
-                  </For>
-                  <For each={graphLookup()!.pronunciations.slice(0, 2)}>
-                    {(pronunciation) => <div class="hover_reading">{pronunciation.label}</div>}
-                  </For>
-                </Show>
-              </Show>
-
-              {/* REQ42: German compound decomposition tree */}
-              <Show when={compoundAnalysis()}>
-                {(analysis) => (
-                  <>
-                    <hr />
-                    <CompoundDecomposition analysis={analysis()} t={t} />
-                  </>
-                )}
-              </Show>
-
-            </Show>
-          </div>
-
-          {/* Footer with pills */}
-          <div class="footer">
-            <div class="pills">
+            <div class="word-hover-meta">
               <Show when={hoverProsody()?.renderer === 'inline-overlay' ? hoverProsody() : null}>
                 {(prosody) => (
                   <ProsodyOverlay
@@ -817,7 +716,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   </PillLabel>
                 )}
               </Show>
-              {/* Level pill - reactive via Show + createMemo */}
+              <Show when={!hoverProsody() && hoverContent().reading}>
+                <PillLabel variant="gray" class="word-hover-reading-pill">{hoverContent().reading}</PillLabel>
+              </Show>
               <Show when={levelPillData()}>
                 {(data) => (
                   <PillLabel level={data().level} visualLevel={data().visualLevel}>{data().name}</PillLabel>
@@ -827,6 +728,39 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <For each={grammarOccurrences()}>
                 {(occurrence) => <PillLabel variant="blue">{occurrence.realizedForm}</PillLabel>}
               </For>
+            </div>
+            {/* Loading state: keep the hover panel's shape while the lookup
+                resolves instead of flashing a text label. */}
+            <Show when={props.isLoading}>
+              <div class="hover_loading" aria-busy="true">
+                <SkeletonText lines={2} />
+              </div>
+            </Show>
+
+            {/* Keep the full dictionary entry below the compact gloss and metadata. */}
+            <Show when={!props.isLoading}>
+              <Show when={hoverContent().dictionaryHtml.length > 0}>
+                <div class="word-hover-dictionary">
+                  <Show when={hoverContent().shortDefinitionHtml}><hr /></Show>
+                  <For each={hoverContent().dictionaryHtml}>
+                    {(html, index) => (
+                      <>
+                        <Show when={index() > 0}><hr /></Show>
+                        <SafeHtml tag="div" class="hover_translation" html={html} />
+                      </>
+                    )}
+                  </For>
+                </div>
+              </Show>
+              <Show when={!hoverContent().shortDefinitionHtml && hoverContent().dictionaryHtml.length === 0}>
+                <div class="hover_translation">{t('mlearn.WordHover.NoTranslation')}</div>
+              </Show>
+            </Show>
+          </div>
+
+          {/* Quick actions */}
+          <div class="footer">
+            <div class="pills">
               <WordStatusPill
                 word={actualWord()}
                 language={settings.language}

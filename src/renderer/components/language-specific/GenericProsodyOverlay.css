@@ -1,3 +1,8 @@
+.generic-prosody-inline-text {
+  position: relative;
+  display: inline-block;
+}
+
 .generic-prosody-markbar {
   position: absolute;
   border-color: var(--accent-primary);

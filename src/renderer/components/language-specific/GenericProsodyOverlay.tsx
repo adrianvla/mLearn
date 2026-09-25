@@ -4,6 +4,7 @@ import { getLanguageProsodyOverlayConfig } from '../../../shared/languageFeature
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import { useSettings } from '../../context';
 import type { LanguageProsodyOverlayConfig } from '../../../shared/types';
+import { PillLabel } from '../common/Label';
 import './GenericProsodyOverlay.css';
 
 /**
@@ -53,21 +54,24 @@ const GenericDeclarativeOverlay: Component<ProsodyOverlayProps> = (props) => {
     };
   };
 
-  return (
-    <span
-      class={`prosody-overlay-wrapper ${props.mode === 'overlay' ? '' : 'generic-prosody-inline'} ${props.class || ''}`.trim()}
-      style={props.style}
-    >
-      {props.children}
-      <Show when={enabled()}>
-        <span
-          class={`generic-prosody-markbar generic-prosody-markbar--${config()!.mark}`}
-          style={markStyle()}
-          aria-hidden="true"
-        />
-      </Show>
-    </span>
+  const mark = () => (
+    <Show when={enabled()}>
+      <span
+        class={`generic-prosody-markbar generic-prosody-markbar--${config()!.mark}`}
+        style={markStyle()}
+        aria-hidden="true"
+      />
+    </Show>
   );
+
+  return props.mode === 'pill'
+    ? <PillLabel variant="gray" class={props.class}>
+        <span class="generic-prosody-inline-text">{source()}{mark()}</span>
+      </PillLabel>
+    : <span class={`prosody-overlay-wrapper ${props.mode === 'overlay' ? '' : 'generic-prosody-inline'} ${props.class || ''}`.trim()} style={props.style}>
+        {props.children}
+        {mark()}
+      </span>;
 };
 
 export default GenericDeclarativeOverlay;

@@ -476,6 +476,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             dictionaryEntries={dictionaryEntries()}
             translationData={translationData() || undefined}
             isLoading={isLoadingDict()}
+            headwordFontFamily={subtitleStyle()['font-family']}
             contextPhrase={props.originalText || tokensToPlainText(props.tokens, currentLangData())}
             onClose={hideHover}
             visible={isVisible()}

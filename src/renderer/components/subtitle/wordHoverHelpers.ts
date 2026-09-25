@@ -30,6 +30,34 @@ export interface WordHoverTranslationData {
   data?: unknown[];
 }
 
+/** Keep the compact gloss separate from the package's detailed dictionary
+ * entries. Later entries can contain rich HTML or additional senses. */
+export function resolveWordHoverContent(
+  tokenReading: string | undefined,
+  translationData: WordHoverTranslationData | undefined,
+  dictionaryEntries: DictionaryEntry[] | undefined,
+  languageData?: LanguageData | null,
+): { reading: string; shortDefinitionHtml: string; dictionaryHtml: string[] } {
+  const definitions = (translationData?.data ?? [])
+    .map((item) => extractDefinitionValues(item, languageData, { stripHtml: false }).join('; '))
+    .filter(Boolean);
+  const [shortDefinitionHtml = '', ...detailedDefinitions] = definitions;
+  const distinctDetails = [...new Set(detailedDefinitions.filter((definition) => definition !== shortDefinitionHtml))];
+  const dictionaryHtml = distinctDetails.length > 0
+    ? distinctDetails
+    : (dictionaryEntries ?? [])
+      .map((entry) => entry.meanings?.join('; ') ?? '')
+      .filter((definition) => definition && definition !== shortDefinitionHtml);
+  return {
+    reading: tokenReading?.trim()
+      || extractReadingValue(translationData?.data, languageData)
+      || extractReadingValue(dictionaryEntries, languageData)
+      || '',
+    shortDefinitionHtml,
+    dictionaryHtml,
+  };
+}
+
 export interface BuildWordHoverFlashcardContentParams {
   token: Token;
   word: string;

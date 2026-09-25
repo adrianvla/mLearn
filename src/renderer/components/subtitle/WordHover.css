@@ -120,7 +120,27 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   color: var(--text-primary);
 }
 
-/* Dictionary metadata and quick actions share one compact horizontal strip. */
+.word-hover-headword {
+  padding-right: var(--spacing-12);
+  margin-bottom: var(--spacing-1);
+  font-size:var(--font-size-3xl);
+}
+
+.word-hover-short-definition {
+  margin-bottom: var(--spacing-3);
+  overflow-wrap: anywhere;
+}
+
+.word-hover-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+
+/* Quick actions retain their horizontally scrolling, single-row layout. */
 .subtitle_hover .footer {
   width:100%;
   display: flex;
@@ -156,6 +176,7 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 
 /* Pill sizing inside hover - matches old project styling */
 /* Both label-pill and btn-pill should have identical sizing */
+.subtitle_hover .word-hover-meta .label-pill,
 .subtitle_hover .pills .label-pill,
 .subtitle_hover .pills .btn-pill {
   font-size: 0.8em;
@@ -171,6 +192,18 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-font-smoothing: subpixel-antialiased;
+}
+
+.subtitle_hover .word-hover-meta .label-pill {
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.subtitle_hover .word-hover-meta .label-content {
+  min-width: 0;
 }
 
 /* Icon styling inside pills - matches old project */
@@ -219,25 +252,15 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   font-variant-numeric: tabular-nums;
 }
 
-/* Reading and translation order */
 .hover_translation {
-  order: 1;
+  overflow-wrap: anywhere;
 }
 
-.hover_reading {
-  order: 2;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-
-/* German compound decomposition tree (REQ42) — ordered after readings */
+/* German compound decomposition tree (REQ42) */
 .hover-compound {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  order: 3;
 }
 
 .hover-compound__label,

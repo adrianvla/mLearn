@@ -3186,6 +3186,7 @@ export const ReaderRoute: Component = () => {
               dictionaryEntries={ocrDictionaryEntries()}
               translationData={ocrTranslationData() || undefined}
               isOCR={true}
+              headwordFontFamily={readerTextFontFamily()} /*this is tech debt but idc*/
               contextPhrase={ocrContextPhrase()}
               ocrImageElement={(() => {
                 // Find the correct page image based on anchor position

@@ -6,6 +6,7 @@ import {
   getEaseFromWordStatus,
   getAnkiEaseForStatus,
   extractReadingFromEntries,
+  resolveWordHoverContent,
   resolveProsodyForHover,
   buildWordHoverFlashcardContent,
 } from './wordHoverHelpers';
@@ -57,6 +58,45 @@ const toneLanguage: LanguageData = {
   settings: { fixed: {} },
   prosody: { type: 'tone-contour', positionLabel: 'Tone position' },
 };
+
+describe('compact word hover content', () => {
+  it('keeps the compact gloss and detailed dictionary HTML as separate content', () => {
+    expect(resolveWordHoverContent(undefined, {
+      data: [
+        { reading: 'rēding', definitions: 'law' },
+        { reading: 'rēding', definitions: '<h3>law</h3><ol><li>law</li></ol>' },
+      ],
+    }, undefined)).toEqual({
+      reading: 'rēding',
+      shortDefinitionHtml: 'law',
+      dictionaryHtml: ['<h3>law</h3><ol><li>law</li></ol>'],
+    });
+  });
+
+  it('reads package-declared fields and preserves distinct dictionary meanings', () => {
+    expect(resolveWordHoverContent(undefined, {
+      data: [{ pinyin: { value: 'xīnyì' }, definitions: ['first meaning', 'second meaning'] }],
+    }, undefined, pinyinLanguage)).toEqual({ reading: 'xīnyì', shortDefinitionHtml: 'first meaning; second meaning', dictionaryHtml: [] });
+    expect(resolveWordHoverContent(undefined, {
+      data: [{ pinyin: { value: 'xīnyì' }, glosses: { english: ['package meaning'] } }],
+    }, undefined, pinyinLanguage)).toEqual({ reading: 'xīnyì', shortDefinitionHtml: 'package meaning', dictionaryHtml: [] });
+    expect(resolveWordHoverContent(undefined, undefined, [
+      { word: 'x', reading: 'xīnyì', meanings: ['first meaning'] },
+      { word: 'x', reading: 'xīnyì', meanings: ['second meaning'] },
+    ])).toEqual({ reading: 'xīnyì', shortDefinitionHtml: '', dictionaryHtml: ['first meaning', 'second meaning'] });
+  });
+
+  it('uses dictionary lookup details when the translation has only a short gloss', () => {
+    expect(resolveWordHoverContent(undefined, { data: [{ definitions: 'law' }] }, [
+      { word: 'x', reading: 'reading', meanings: ['law', 'a rule for everyone'] },
+    ])).toEqual({ reading: 'reading', shortDefinitionHtml: 'law', dictionaryHtml: ['law; a rule for everyone'] });
+  });
+
+  it('prefers the hovered token reading and handles missing pronunciation', () => {
+    expect(resolveWordHoverContent('spoken form', { data: [{ reading: 'dictionary form', definitions: 'meaning' }] }, undefined).reading).toBe('spoken form');
+    expect(resolveWordHoverContent(undefined, { data: [{ definitions: 'meaning' }] }, undefined).reading).toBe('');
+  });
+});
 
 describe('getAnkiWordKnowledgeStatus', () => {
   it('returns null when there are no matching Anki cards', () => {

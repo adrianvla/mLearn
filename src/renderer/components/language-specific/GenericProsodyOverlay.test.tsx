@@ -47,6 +47,23 @@ function mountOverlay(jsx: () => import("solid-js").JSX.Element) {
 }
 
 describe('generic declarative prosody overlay (E2 synthetic fixture)', () => {
+  it('shows a readable pill for a package-declared prosody model', () => {
+    const mounted = mountOverlay(() => (
+      <ProsodyOverlay
+        word="katana"
+        reading="katana"
+        prosodyType="x-synthetic::tone-length"
+        prosodyPosition={2}
+        languageData={syntheticPackage}
+        mode="pill"
+      />
+    ));
+    const pill = mounted.container.querySelector('.label-pill');
+    expect(pill?.textContent).toBe('katana');
+    expect(pill?.querySelector('.generic-prosody-markbar')).not.toBeNull();
+    mounted.cleanup();
+  });
+
   it('marks the payload unit over preserved children for a novel package type', () => {
     const mounted = mountOverlay(() => (
       <ProsodyOverlay

@@ -16,13 +16,18 @@ describe('WordHover compact action-strip layout', () => {
     const pillsRule = ruleFor('.subtitle_hover .pills');
     const contentRule = ruleFor('.subtitle_hover_content');
     const toolbarRule = ruleFor('.word-hover-toolbar');
-    const pillSizingRule = css.match(/\.subtitle_hover \.pills \.label-pill,\s*\.subtitle_hover \.pills \.btn-pill\s*\{([^}]*)\}/)?.[1];
+    const pillSizingRule = css.match(/\.subtitle_hover \.word-hover-meta \.label-pill,\s*\.subtitle_hover \.pills \.label-pill,\s*\.subtitle_hover \.pills \.btn-pill\s*\{([^}]*)\}/)?.[1];
+    const metaRule = ruleFor('.word-hover-meta');
+    const metaPillRule = ruleFor('.subtitle_hover .word-hover-meta .label-pill');
 
     expect(panelRule).toMatch(/width:\s*min\(600px, calc\(100vw - var\(--spacing-4\)\)\)/);
     expect(contentRule).not.toMatch(/max-width/);
     expect(toolbarRule).toMatch(/justify-content:\s*flex-end/);
     expect(pillsRule).toMatch(/flex-wrap:\s*nowrap/);
     expect(pillsRule).toMatch(/width:\s*max-content/);
+    expect(metaRule).toMatch(/flex-wrap:\s*wrap/);
+    expect(metaPillRule).toMatch(/max-width:\s*100%/);
+    expect(metaPillRule).toMatch(/overflow-wrap:\s*anywhere/);
     expect(pillSizingRule).toMatch(/font-size:\s*0\.8em/);
     expect(pillSizingRule).toMatch(/padding:\s*5px 10px/);
     expect(pillSizingRule).toMatch(/height:\s*var\(--size-md\)/);
