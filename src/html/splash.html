@@ -16,6 +16,7 @@
       if (Number.isFinite(value.progress)) state.progress = Math.max(state.progress, Math.min(100, Math.max(0, value.progress)));
       const fallback = document.getElementById('bootstrap-fallback');
       if (!fallback) return;
+      fallback.style.setProperty('--prism-illumination', String(Math.min(1, state.progress / 75)));
       fallback.querySelector('.prism-status').textContent = state.status;
       fallback.querySelector('.prism-progress').style.transform = `scaleX(${state.progress / 100})`;
       fallback.querySelector('.prism-track').setAttribute('aria-valuenow', String(state.progress));

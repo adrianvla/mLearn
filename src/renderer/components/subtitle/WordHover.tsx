@@ -719,6 +719,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             <button type="button" class="word-hover-inspect" onClick={() => openKnowledgeInspector(
               surfaceKnowledgeInspection(settings.language, actualWord()),
             )}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
+
           </div>
            <div class="subtitle_hover_content" ref={contentRef}>
             {/* Loading state: keep the hover panel's shape while the lookup
@@ -746,7 +747,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   )}
                 </For>
               </Show>
-
               <Show when={translationEntries().length === 0 && props.dictionaryEntries && props.dictionaryEntries.length > 0}>
                 <For each={props.dictionaryEntries}>
                   {(entry, index) => (

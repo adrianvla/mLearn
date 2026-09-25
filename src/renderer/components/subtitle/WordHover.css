@@ -99,10 +99,11 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   display: flex;
   justify-content: flex-end;
   width: 100%;
+  top:0;
   padding: var(--spacing-2) var(--spacing-3);
   box-sizing: border-box;
-  border-bottom: 1px solid var(--border-color);
   flex: 0 0 auto;
+  position:absolute;;
 }
 
 /* Content area - scrollable, takes remaining space above footer */
@@ -136,6 +137,9 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
+}
+.subtitle_hover .footer::-webkit-scrollbar {
+  display: none;
 }
 
 

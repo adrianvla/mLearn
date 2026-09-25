@@ -21,6 +21,9 @@ export function mountSplash(host, settings = {}, rendererFactory) {
   const canvas=root.querySelector('canvas'),status=root.querySelector('.prism-status'),track=root.querySelector('.prism-track'),bar=root.querySelector('.prism-progress');
   let renderer=null, destroyed=false, failed=false, paused=settings.autoplay===false, bootFrame=0, bootTimer=0, raf=0;
   let time=0,lastTick=0,lastDraw=-Infinity,progress=0;
+  // The light reaches its existing full look before the final startup handoff.
+  const lightTarget = () => Math.min(1,progress/75);
+  let illumination=Math.min(1,progressValue(settings.initialProgress??0)/75);
   let lastError=null,backend='static',renderCount=0;
   const pointer=[0,0],pointerTarget=[0,0];
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -41,7 +44,7 @@ export function mountSplash(host, settings = {}, rendererFactory) {
   }
   function paint() {
     if(!renderer || destroyed || document.hidden)return;
-    try{const submitted=renderer.render({time,progress,pointer: reduced?[0,0]:pointer});if(submitted===false)return;
+    try{const submitted=renderer.render({time,progress,illumination,pointer: reduced?[0,0]:pointer});if(submitted===false)return;
       renderCount++;root.dataset.rendered='true';
       if(!settled){settle(true);try{settings.onReady?.();}catch{}}}
     catch(error){fail(error);}
@@ -50,6 +53,8 @@ export function mountSplash(host, settings = {}, rendererFactory) {
     raf=0;if(!canAnimate())return;
     const delta=lastTick?Math.max(0,(now-lastTick)/1000):0;lastTick=now;
     time=advanceClock(time,delta,false);
+    illumination=smoothPointer(illumination,lightTarget(),delta);
+    if(lightTarget()-illumination<0.001)illumination=lightTarget();
     pointer[0]=smoothPointer(pointer[0],pointerTarget[0],delta);
     pointer[1]=smoothPointer(pointer[1],pointerTarget[1],delta);
     if(now-lastDraw >= 1000/options.fps-.8){lastDraw=now;paint();}
@@ -89,6 +94,8 @@ export function mountSplash(host, settings = {}, rendererFactory) {
   function updateStartup(value={}) {
     if(destroyed)return;
     progress=progressValue(value?.progress,progress);
+    root.style.setProperty('--prism-illumination',String(lightTarget()));
+    if(!canAnimate())illumination=lightTarget();
     if(typeof value?.status==='string')status.textContent=value.status;
     bar.style.transform=`scaleX(${progress/100})`;track.setAttribute('aria-valuenow',String(progress));
     if(!canAnimate())paint();

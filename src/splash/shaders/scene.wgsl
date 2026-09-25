@@ -4,6 +4,7 @@ struct Params {
   resolution: vec2f,
   time: f32,
   progress: f32,
+  illumination: f32,
   pointer: vec2f,
   seed: f32,
   exposure: f32,
@@ -29,8 +30,12 @@ fn gaussian(p: vec2f, scale: vec2f) -> f32 { return exp(-dot(p/scale,p/scale)); 
 // The two studio lights move on different slow cycles, so the scene never flashes in unison.
 fn warmDrift() -> f32 { return params.lighting.x; }
 fn coolDrift() -> f32 { return params.lighting.y; }
-fn warmLight() -> f32 { return params.lighting.z; }
-fn coolLight() -> f32 { return params.lighting.w; }
+fn lightReveal() -> f32 {
+  let t: f32 = clamp(params.illumination,0.0,1.0);
+  return t*t*(3.0-2.0*t);
+}
+fn warmLight() -> f32 { return mix(0.16,params.lighting.z,lightReveal()); }
+fn coolLight() -> f32 { return mix(0.65,params.lighting.w,lightReveal()); }
 
 // The atlas contains the exact two path outlines from the pinned mLearn dev commit.
 // Both source axes use 0.009 world units per SVG unit. No aspect-ratio distortion.
@@ -91,12 +96,12 @@ fn air(uv: vec2f) -> vec3f {
   let ray2: f32 = exp(-sq((p.y-p.x*(1.10+drift))/0.046));
   let ray3: f32 = exp(-sq((p.y-p.x*(1.68+drift))/0.085));
   let mist: f32 = 0.83+0.17*noise2(uv*5.0+vec2f(params.time*0.04,0.0));
-  let rays: f32 = (ray1*0.052+ray2*0.090+ray3*0.025)*exp(-p.x*1.8)*warmLight();
+  let rays: f32 = (ray1*0.052+ray2*0.090+ray3*0.025)*exp(-p.x*1.8)*warmLight()*lightReveal();
   // Broad sheets of light make the slow movement legible between short startup phases.
   let warmSheet: f32 = exp(-sq((p.y-p.x*(1.23+drift))/0.17))*exp(-max(p.x,0.0)*1.1);
   let coolP: vec2f = vec2f(1.18-uv.x,uv.y+0.07);
   let coolSheet: f32 = exp(-sq((coolP.y-coolP.x*(1.70+coolDrift()*0.12))/0.13))*exp(-max(coolP.x,0.0)*1.0);
-  return vec3f(1.0,0.61,0.34)*(rays+warmSheet*0.24*warmLight())*mist
+  return vec3f(1.0,0.61,0.34)*(rays+warmSheet*0.24*warmLight()*lightReveal())*mist
     +vec3f(0.24,0.48,1.0)*coolSheet*0.11*coolLight()*mist;
 }
 fn background(uv: vec2f) -> vec3f {

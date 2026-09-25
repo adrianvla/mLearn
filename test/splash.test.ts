@@ -122,6 +122,8 @@ describe('procedural startup splash', () => {
     expect(splash.diagnostics.reducedMotion).toBe(true);
     expect(splash.diagnostics.time).toBe(0);
     expect(renderer.render).toHaveBeenCalledOnce();
+    splash.updateStartup({ progress: 75 });
+    expect(renderer.render.mock.lastCall?.[0].illumination).toBe(1);
     splash.destroy();
   });
 
@@ -145,6 +147,33 @@ describe('procedural startup splash', () => {
     frames.splice(0).forEach(callback => callback(200));
     expect(renderer.render).toHaveBeenCalledTimes(renderCount);
     expect(splash.diagnostics.time).toBe(sceneTime);
+    splash.destroy();
+  });
+
+  it('builds the splash light smoothly as startup progresses', async () => {
+    const { mountSplash } = await import('../src/splash/controller.js');
+    const host = document.createElement('div');
+    document.body.append(host);
+    const renderer = { backend: 'vgpu', resize: vi.fn(), render: vi.fn(), destroy: vi.fn() };
+    const splash = mountSplash(host, {}, async () => renderer);
+    await advanceBoot();
+    expect(await splash.ready).toBe(true);
+    expect(renderer.render.mock.lastCall?.[0].illumination).toBe(0);
+
+    splash.updateStartup({ progress: 75 });
+    expect((host.querySelector('.prism-splash') as HTMLElement).style.getPropertyValue('--prism-illumination')).toBe('1');
+    for (const now of [100, 133, 166]) {
+      const callbacks = frames.splice(0);
+      callbacks.forEach(callback => callback(now));
+    }
+    const partialLight = renderer.render.mock.lastCall?.[0].illumination as number;
+    expect(partialLight).toBeGreaterThan(0);
+    expect(partialLight).toBeLessThan(1);
+    for (let now = 199; now < 1700; now += 33) {
+      const callbacks = frames.splice(0);
+      callbacks.forEach(callback => callback(now));
+    }
+    expect(renderer.render.mock.lastCall?.[0].illumination).toBe(1);
     splash.destroy();
   });
 

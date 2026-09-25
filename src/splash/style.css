@@ -1,9 +1,10 @@
 
-.prism-splash{position:relative;isolation:isolate;container-type:inline-size;width:100%;height:100%;overflow:hidden;background:#070e1c;color:#f4f6fc;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;user-select:none;-webkit-user-select:none}
+.prism-splash{--prism-illumination:0;position:relative;isolation:isolate;container-type:inline-size;width:100%;height:100%;overflow:hidden;background:#070e1c;color:#f4f6fc;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;user-select:none;-webkit-user-select:none}
 .prism-splash *, .prism-splash *::before,.prism-splash *::after{box-sizing:border-box}
 .prism-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;opacity:0;transition:opacity .5s ease;pointer-events:none}
 .prism-splash[data-rendered="true"] .prism-canvas{opacity:1}
-.prism-fallback{position:absolute;inset:0;overflow:hidden;background:radial-gradient(ellipse at -7% -8%,#f3d7b0 0,rgba(166,114,75,.35) 15%,transparent 37%),radial-gradient(ellipse at 80% 80%,#203558 0,transparent 34%),linear-gradient(160deg,#0c182b,#080e19 62%,#0d1729);transition:opacity .5s ease}
+.prism-fallback{position:absolute;inset:0;overflow:hidden;background:radial-gradient(ellipse at 80% 80%,#203558 0,transparent 34%),linear-gradient(160deg,#0c182b,#080e19 62%,#0d1729);transition:opacity .5s ease}
+.prism-fallback::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at -7% -8%,#f3d7b0 0,rgba(166,114,75,.35) 15%,transparent 37%);opacity:var(--prism-illumination);transition:opacity .7s ease-out}
 .prism-splash[data-rendered="true"] .prism-fallback{opacity:0}
 .prism-fallback-panel{position:absolute;left:16.5%;top:13.5%;width:33.1%;height:56.8%;border:1px solid rgba(186,201,228,.22);background:linear-gradient(150deg,rgba(139,105,79,.24),rgba(0,0,0,.52) 42%);transform:perspective(800px) rotateY(-2deg)}
 .prism-fallback-panel::before{content:"";position:absolute;left:15%;top:8%;width:70%;height:4%;background:linear-gradient(100deg,#d4d3d5,#969da9);box-shadow:0 0 8px #8faac025}
@@ -17,4 +18,4 @@
 .prism-progress{width:100%;height:100%;border-radius:0;background:linear-gradient(90deg,#e5bb92,#bdd9ff);transform:scaleX(0);transform-origin:left;transition:transform .35s ease-out}
 .prism-drag{position:absolute;inset:0 0 auto;height:18px;-webkit-app-region:drag}
 .prism-splash[data-status="hidden"] .prism-status,.prism-splash[data-status="hidden"] .prism-track{display:none}
-@media(prefers-reduced-motion:reduce){.prism-splash *{transition:none!important}}
+@media(prefers-reduced-motion:reduce){.prism-splash *, .prism-splash *::before{transition:none!important}}
