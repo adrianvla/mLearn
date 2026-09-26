@@ -208,6 +208,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     (flipped) => {
       if (!displayVideoUrl()) return;
       if (flipped) {
+        pauseVideo(frontVideoRef);
         playVideo(backVideoRef);
       } else {
         pauseVideo(backVideoRef);

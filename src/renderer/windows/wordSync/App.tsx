@@ -67,6 +67,7 @@ import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter } from '../../learning/engine';
+import { studySessionState } from '../../learning/studySession';
 import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import './WordSync.css';
@@ -824,6 +825,13 @@ export const WordSyncContent: Component = () => {
   });
 
   const totalAvailable = createMemo(() => Math.max(0, [...(sessionQueue()?.values() ?? [])].reduce((total, group) => total + group.length, 0) - excludedAtPresentation()));
+  const sessionPresentation = createMemo(() => studySessionState({
+    ready: !!sessionQueue(),
+    index: ratedCount(),
+    total: totalAvailable(),
+    revealed: showAnswer(),
+    write: ratingWrite()?.phase ?? null,
+  }));
   createEffect(on(() => eligibleWords.state === 'ready' ? eligibleWords() : undefined, result => {
     if (!result || sessionQueue() || result.pool !== wordPool() || result.tokens !== filterTokens()
       || result.revision !== scanRevision || !isKnowledgeReady() || !poolProjection.ready()) return;
@@ -977,8 +985,8 @@ export const WordSyncContent: Component = () => {
       <div class="word-sync-header">
         <Show when={sessionQueue()}><span class="word-sync-counter">
           {t('mlearn.WordSync.Progress', {
-            rated: String(ratedCount()),
-            total: String(totalAvailable()),
+            rated: String(sessionPresentation().completed),
+            total: String(sessionPresentation().total),
           })}
         </span></Show>
         <Btn
@@ -1152,7 +1160,7 @@ export const WordSyncContent: Component = () => {
             ]))}
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
-            armed={showAnswer() && translation.state === 'ready' && !!translationText() && !!currentWord() && !finished() && ratingWrite() === null
+            armed={sessionPresentation().canRate && translation.state === 'ready' && !!translationText() && !!currentWord() && !finished()
               && (currentProjection.projection()?.status === 'ready'
                 || (currentProjection.projection() === undefined && !currentProjection.loading()))}
             onSubmit={handleSubmitProfile}

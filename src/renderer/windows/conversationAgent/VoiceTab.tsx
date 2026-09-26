@@ -4,7 +4,7 @@
  * plays back TTS audio via Web Audio API with sentence-level interruption tracking.
  */
 
-import { Component, Show, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
+import { Component, Show, batch, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
@@ -42,15 +42,15 @@ const IDLE_SILENCE_NUDGE_MS = 9000;
 const IDLE_SILENCE_NUDGE_COOLDOWN_MS = 25000;
 
 /**
- * Loads the mic-capture AudioWorklet module. Dev (Vite HTTP) serves
- * /audio-processor.js directly. Electron production (file://) cannot resolve
- * a worklet module URL, so we fetch the source and addModule() a blob URL.
+ * Resolve the public asset relative to the HTML entry, including packaged
+ * file:// pages. Use a blob when Chromium cannot load the file as a worklet.
  */
-async function loadAudioWorkletModule(ctx: AudioContext): Promise<void> {
+export async function loadAudioWorkletModule(ctx: AudioContext, pageUrl = window.location.href): Promise<void> {
+  const moduleUrl = new URL('../../audio-processor.js', pageUrl).href;
   try {
-    await ctx.audioWorklet.addModule('/audio-processor.js');
+    await ctx.audioWorklet.addModule(moduleUrl);
   } catch {
-    const response = await fetch('/audio-processor.js');
+    const response = await fetch(moduleUrl);
     const source = await response.text();
     const blob = new Blob([source], { type: 'text/javascript' });
     const url = URL.createObjectURL(blob);
@@ -163,7 +163,9 @@ export interface VoiceTabProps {
   /** Called when user interrupts TTS — provides the text spoken so far and remaining text */
   onInterrupted?: (spokenText: string, interruptedAt: string) => void;
   /** Called when voice call starts or stops */
-  onCallStateChange?: (active: boolean, reason?: 'completed' | 'failed' | 'cleanup') => void;
+  onCallStateChange?: (active: boolean, reason?: 'completed' | 'failed' | 'cleanup', error?: string) => void;
+  /** Present the existing call state in the window header without owning it. */
+  onStatusChange?: (status: string) => void;
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onTokenLeave?: () => void;
   triggerMode?: WordHoverTriggerMode;
@@ -823,12 +825,18 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     cleanups.push(bridge.voice.onVoiceSessionError((data) => {
       keyboardPttHeld = false;
       setPttActive(false);
-      setIsInitializing(false);
-      setIsCallActive(false);
-      props.onCallStateChange?.(false, 'failed');
+      batch(() => {
+        setIsCallActive(false);
+        setIsInitializing(false);
+      });
       setCallState('idle');
       setSessionStatus(null);
+      clearNoTranscriptRecovery();
+      clearIdleSilenceTimer();
+      clearScheduledNudgeTimer();
+      stopTTSPlayback();
       stopAudioCapture();
+      getBridge().voice.voiceStopSession();
 
       const err = data.error.toLowerCase();
       if (err.includes('403') || err.includes('4003') || err.includes('unauthorized')) {
@@ -837,6 +845,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         setInitError(data.error);
       }
       addDebugEvent('Error', data.error, 'error');
+      // The parent may unmount this overlay on failure; preserve its explanation there.
+      props.onCallStateChange?.(false, 'failed', initError());
     }));
 
     onCleanup(() => {
@@ -1060,6 +1070,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       updateVisualizer();
       setMicError('');
     } catch (err) {
+      stopAudioCapture();
       log.error('Microphone access error:', err);
       setMicError(t('mlearn.ConversationAgent.Voice.MicPermission'));
     }
@@ -1382,6 +1393,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     keyboardPttHeld = false;
     setPttActive(false);
     setIsCallActive(false);
+    if (reason === 'completed' && props.isStreaming) props.onAbort();
     props.onCallStateChange?.(false, reason);
     setIsInitializing(false);
     setSessionStatus(null);
@@ -1581,6 +1593,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       default: return '';
     }
   };
+
+  createEffect(() => props.onStatusChange?.(
+    isChecking() ? t('mlearn.ConversationAgent.Voice.CheckingModels')
+      : isInitializing() ? sessionStatus()?.message || t('mlearn.ConversationAgent.Voice.CheckingModels')
+      : statusText(),
+  ));
 
   const agentName = () => props.agentName?.trim() ?? '';
   const hasProfilePhoto = () => Boolean(props.profilePhoto);

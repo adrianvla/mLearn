@@ -462,10 +462,24 @@ async function createLanguageBundle(options, language, metadata) {
   const { coreAssets: splitCoreAssets, packs } = splitDictionaryPacks(options, language, metadata);
   const coreAssets = splitCoreAssets;
   const version = metadata.languageData?.version ?? `${language}-v1`;
-  const dictionaryPacks = {};
+  const installedMetadataPath = options.reuseInstalledMetadataDir
+    ? path.join(options.reuseInstalledMetadataDir, `${language}.json`)
+    : null;
+  const reusedMetadata = installedMetadataPath ? readJson(installedMetadataPath) : metadata;
+  const dictionaryPacks = options.reuseDictionaryPacks
+    ? { ...(reusedMetadata.languageData?.dictionaryPacks ?? {}) }
+    : {};
   const dictionaryBundles = [];
 
-  for (const [targetLanguage, pack] of Object.entries(packs).sort(([left], [right]) => left.localeCompare(right))) {
+  if (options.reuseDictionaryPacks) {
+    for (const [targetLanguage, pack] of Object.entries(packs)) {
+      if (!dictionaryPacks[targetLanguage]?.bundle?.sha256) {
+        throw new Error(`Cannot reuse ${language}:${targetLanguage} without an existing verified dictionary bundle`);
+      }
+    }
+  }
+
+  for (const [targetLanguage, pack] of (options.reuseDictionaryPacks ? [] : Object.entries(packs).sort(([left], [right]) => left.localeCompare(right)))) {
     const relativePath = dictionaryBundleBaseRelativePath(language, targetLanguage, pack.version);
     const archive = await createArchive({
       ...options,
@@ -545,6 +559,9 @@ export async function createLanguageDataRelease(options = {}) {
     assetBaseUrl: process.env.LANGUAGE_ASSET_BASE_URL || DEFAULT_ASSET_BASE_URL,
     overridesDir: process.env.MLEARN_LANGUAGE_DATA_OVERRIDES_DIR || DEFAULT_OVERRIDES_DIR,
     generatedAt: new Date().toISOString(),
+    languages: process.env.MLEARN_LANGUAGE_DATA_LANGUAGES?.split(',').map((language) => language.trim()).filter(Boolean),
+    reuseDictionaryPacks: process.env.MLEARN_REUSE_DICTIONARY_PACKS === '1',
+    reuseInstalledMetadataDir: process.env.MLEARN_REUSE_INSTALLED_METADATA_DIR,
     ...options,
   };
   const languagesDir = path.join(releaseOptions.sourceRoot, 'languages');
@@ -560,6 +577,7 @@ export async function createLanguageDataRelease(options = {}) {
     if (!fileName.endsWith('.json')) continue;
     if (fileName.endsWith('.freq.json') || fileName.endsWith('.t2s.json') || fileName.endsWith('.graph.json')) continue;
     const language = path.basename(fileName, '.json');
+    if (releaseOptions.languages && !releaseOptions.languages.includes(language)) continue;
     const metadata = applyLanguageMetadataOverride(
       releaseOptions,
       language,

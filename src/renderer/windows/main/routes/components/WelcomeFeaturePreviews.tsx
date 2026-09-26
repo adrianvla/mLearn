@@ -385,7 +385,7 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
   const knownPct = (level: LevelStats) => (
     level.total > 0 && level.known === level.total
       ? 100
-      : Math.min(Math.round(level.knownPct), 99)
+      : Math.min(level.knownPct, 99)
   );
 
   const remainingChips = () => props.chips.filter(

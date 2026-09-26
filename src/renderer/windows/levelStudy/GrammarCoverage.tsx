@@ -26,6 +26,7 @@ import type { CurriculumComponentSummary } from '../../../shared/curriculum';
 import { nextAttemptId, type AttemptId, type AttemptScaffolds, type KnowledgeEvent, type KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { PlacementLocks } from './PlacementSession';
 import { loadQuestionValidationRecords, questionValidationRecordKey, validateQuestionItemsWithLLM } from '../../learning/questionValidation';
+import { studySessionState } from '../../learning/studySession';
 import './GrammarCoverage.css';
 
 export interface GrammarCoverageProps {
@@ -106,6 +107,10 @@ interface StoredPass {
    *  Binds a stored pass to the exact multiset it was planned under,
    *  so a resume cannot silently adopt a changed or truncated denominator (G01/R16). */
   denominator: string;
+  /** The learner has completed retrieval and asked to see the package answer.
+   * Persisted before arming self-assessment so close/reopen cannot silently
+   * return an answered presentation to the unassisted question phase. */
+  revealed?: { index: number; pattern: string };
   /**
    * Durable answered marker for the CURRENT step (G01 cross-window). Written
    * at answer time BEFORE the evidence write, so a second window presenting
@@ -277,6 +282,11 @@ function loadStoredPass(
         // entry that must never resume (G01).
         && parsed.index < parsed.queue.length
         && validStoredAnswer(parsed.answered, parsed.index, parsed.queue[parsed.index], parsed.kind, bank)
+        && (parsed.revealed === undefined || (
+          parsed.kind !== 'contrast'
+          && parsed.revealed.index === parsed.index
+          && parsed.revealed.pattern === parsed.queue[parsed.index]
+        ))
         && validStoredPending(parsed, parsed.queue[parsed.index], bank);
       return valid ? parsed : null;
     } catch {
@@ -519,7 +529,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       return;
     }
     const finalized: StoredPass = pending.answered === undefined
-      ? { ...current, index: current.index + 1, pending: undefined }
+      ? { ...current, index: current.index + 1, pending: undefined, revealed: undefined }
       : { ...current, answered: pending.answered, pending: undefined };
     if (!persistSessionOnly(language, finalized)) {
       if (props.language === language) setSession(current);
@@ -650,6 +660,17 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     const active = session();
     return active !== null && active.index < active.queue.length;
   };
+  const sessionPresentation = createMemo(() => {
+    const active = session();
+    return studySessionState({
+      ready: active !== null,
+      index: active?.index ?? 0,
+      total: active?.queue.length ?? 0,
+      revealed: active?.kind === 'contrast' ? contrastAnswer() !== null : active?.revealed !== undefined,
+      write: active?.pending ? (storageUnavailable() ? 'failed' : 'pending') : null,
+      answered: active?.kind === 'contrast' && contrastAnswer() !== null,
+    });
+  });
 
   /** Presentation-beat submission lock (G01): after one rating, the session
    *  controls stay disabled for a short beat so a rapid second click cannot
@@ -748,10 +769,35 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
    *  replays from rating an unseen construction. The timer is the sanctioned
    *  race-condition exception; it is cleared on dispose and when a new pass
    *  starts. */
+  const revealSession = (level: number, presented: string) => {
+    const active = session();
+    if (!active || active.level !== level || active.kind === 'contrast'
+      || active.queue[active.index] !== presented || active.revealed !== undefined) return;
+    const language = props.language;
+    inGrammarLock(language, () => {
+      if (props.language !== language || !verifyOrAdopt(active)) return;
+      if (!applySession({ ...active, revealed: { index: active.index, pattern: presented } })) {
+        setStorageUnavailable(true);
+        return;
+      }
+      setStorageUnavailable(false);
+    });
+  };
+
+  const retrySessionWrite = () => {
+    const captured = session();
+    if (!captured?.pending) return;
+    const language = props.language;
+    inGrammarLock(language, async () => {
+      if (props.language !== language || !verifyOrAdopt(captured)) return;
+      await settlePending(language, captured);
+    });
+  };
+
   const rateSession = (level: number, quality: AttemptQuality, presented: string | undefined) => {
     if (submissionsLocked()) return;
     const active = session();
-    if (!active || active.level !== level) return;
+    if (!active || active.level !== level || !sessionPresentation().canRate) return;
     const pattern = active.queue[active.index];
     if (pattern === undefined || presented !== pattern) return;
     setSubmissionsLocked(true);
@@ -772,7 +818,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       }
       const reserved: StoredPass = {
         ...current,
-        pending: { index: current.index, pattern, attemptId: nextAttemptId(), quality },
+        pending: { index: current.index, pattern, attemptId: nextAttemptId(), quality, attempt: { taskType: 'grammar-self-assess' } },
       };
       if (!persistSessionOnly(rateLanguage, reserved)) {
         setStorageUnavailable(true);
@@ -798,7 +844,9 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       if (props.language !== skipLanguage) return;
       if (!verifyOrAdopt(active)) return;
       const current = session()!;
-      if (!applySession({ ...current, index: current.index + 1 })) {
+      // The journal owns this cursor until its reserved attempt is acknowledged.
+      if (current.pending !== undefined) return;
+      if (!applySession({ ...current, index: current.index + 1, revealed: undefined })) {
         setStorageUnavailable(true);
         return;
       }
@@ -1252,6 +1300,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
    *  marker stand — Next retries) instead of a mute unanswered question. */
   const advanceContrast = (level: number) => {
     if (submissionsLocked()) return;
+    if (!sessionPresentation().canAdvance) return;
     const active = session();
     if (!active || active.level !== level || active.kind !== 'contrast') return;
     const advanceLanguage = props.language;
@@ -1280,6 +1329,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       if (props.language !== skipLanguage) return;
       if (!verifyOrAdopt(active)) return;
       const current = session()!;
+      // The journal owns this cursor until its reserved attempt is acknowledged.
+      if (current.pending !== undefined) return;
       if (!applySession({ ...current, index: current.index + 1, answered: undefined })) {
         setStorageUnavailable(true);
         return;
@@ -1338,7 +1389,15 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                   </span>
                 </button>
                 <Show when={open()}>
-                  <div class="grammar-coverage__session" data-level={level}>
+                  <div class="grammar-coverage__session" data-level={level} data-phase={sessionActiveFor(level) ? sessionPresentation().phase : undefined}>
+                    <Show when={sessionActiveFor(level)}>
+                      <div class="grammar-coverage__session-progress" role="status" aria-live="polite">
+                        {t('mlearn.LevelStudy.Grammar.SessionProgress', {
+                          current: String(sessionPresentation().current),
+                          total: String(sessionPresentation().total),
+                        })}
+                      </div>
+                    </Show>
                     {/* A refused durable write is surfaced, never silent:
                         the refused action stays retryable and the next
                         attempt re-tries the write (G01/G04). */}
@@ -1346,6 +1405,14 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                       <span class="grammar-coverage__session-done" data-testid="grammar-storage-unavailable">
                         {t('mlearn.LevelStudy.Grammar.StorageUnavailable')}
                       </span>
+                      <Show when={session()?.pending !== undefined}>
+                        <button type="button" class="grammar-coverage__session-btn" data-testid="grammar-session-retry" onClick={retrySessionWrite}>
+                          {t('mlearn.Knowledge.Retry')}
+                        </button>
+                      </Show>
+                    </Show>
+                    <Show when={sessionActiveFor(level) && session()?.pending !== undefined && !storageUnavailable()}>
+                      <span role="status">{t('mlearn.LevelStudy.Grammar.SavingAnswer')}</span>
                     </Show>
                     <Show when={sessionActiveFor(level)} fallback={
                       <>
@@ -1429,7 +1496,9 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                     }>
                       <Show when={session()?.kind === 'contrast' && sessionFor(level)?.pattern !== null} fallback={
                         <>
-                          {/* Task declares written-form only: no meaning cue inside the active pass. */}
+                          {/* The written pattern is the retrieval cue. The package
+                              answer is shown only after the learner requests it;
+                              the later self-rating describes pre-reveal recall. */}
                           <Show when={sessionFor(level)?.pattern} keyed>
                             {(keyed) => {
                               const presented = typeof keyed === 'function' ? (keyed as unknown as () => string)() : (keyed as unknown as string);
@@ -1438,18 +1507,30 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                   <span class="grammar-coverage__session-prompt" data-pattern={presented}>
                                     {t('mlearn.LevelStudy.Grammar.SessionPrompt', { pattern: presented })}
                                   </span>
+                                  <Show when={session()?.revealed?.pattern === presented} fallback={
+                                    <button type="button" class="grammar-coverage__session-btn grammar-coverage__reveal" disabled={session()?.pending !== undefined || submissionsLocked()} onClick={() => revealSession(level, presented)}>
+                                      {t(constructionsByLevel().get(level)?.some((row) => row.pattern === presented && row.meaning !== undefined)
+                                        ? 'mlearn.LevelStudy.Grammar.RevealAnswer'
+                                        : 'mlearn.LevelStudy.Grammar.ContinueToRating')}
+                                    </button>
+                                  }>
+                                    <span class="grammar-coverage__answer" data-testid="grammar-session-answer">
+                                      {constructionsByLevel().get(level)?.find((row) => row.pattern === presented)?.meaning
+                                        ?? t('mlearn.LevelStudy.Grammar.AnswerUnavailable')}
+                                    </span>
+                                  </Show>
                                   <span class="grammar-coverage__session-probe">
                                     <RatingMatrix
                                       capabilities={['grammar-recognition']}
                                       keyboardMode={settings.ratingKeyboardMode}
-                                      armed={!submissionsLocked()}
+                                      armed={sessionPresentation().canRate && !submissionsLocked()}
                                       resetKey={`${props.language}:${level}:${session()?.index ?? 0}:${presented}:${ratingRetryKey()}`}
                                       onSubmit={(observations) => {
                                         const observation = observations.find((entry) => entry.capability === 'grammar-recognition');
                                         if (observation) rateSession(level, observation.quality, presented);
                                       }}
                                     />
-                                    <button type="button" class="grammar-coverage__session-skip" disabled={submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; skipSession(level, presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
+                                    <button type="button" class="grammar-coverage__session-skip" disabled={session()?.pending !== undefined || submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; skipSession(level, presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                                       {t('mlearn.LevelStudy.Grammar.SessionSkip')}
                                     </button>
                                   </span>
@@ -1575,7 +1656,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                   <button
                                     type="button"
                                     class="grammar-coverage__session-skip"
-                                    disabled={submissionsLocked()}
+                                    disabled={session()?.pending !== undefined || submissionsLocked()}
                                     onClick={(click) => { if (click.detail > 1) return; skipContrast(level); }}
                                     onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}
                                   >

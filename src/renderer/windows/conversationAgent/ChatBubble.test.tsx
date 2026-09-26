@@ -134,6 +134,14 @@ describe('ChatBubble hover triggers', () => {
     };
   }
 
+  it('shows the journal speaker for a participant message without hover', async () => {
+    const { ChatBubble } = await import('./ChatBubble');
+    const message = { role: 'assistant' as const, content: 'Hello', timestamp: 0, displayName: 'Kai' };
+    const dispose = render(() => <ChatBubble message={message} />, container);
+    expect(container.querySelector('.chat-bubble-speaker')?.textContent).toBe('Kai');
+    dispose();
+  });
+
   it('waits for long-hover and does not expose a native title tooltip', async () => {
     vi.useFakeTimers();
     const onTokenHover = vi.fn();

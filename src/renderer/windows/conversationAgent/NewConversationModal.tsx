@@ -6,7 +6,7 @@
  * before atomic activation.
  */
 
-import { Component, For, Show, createMemo, createSignal } from 'solid-js';
+import { Component, For, Show, createMemo, createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
 import { threadContextId, type Participant, type WorldSnapshot, type ScenarioCreation } from '../../../shared/world';
 import { resolveParticipant } from '../../services/participantConstruction';
@@ -53,6 +53,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   let creationKey: string | undefined = saved ? JSON.stringify({ ids: saved.request.participantIds, intent: saved.request.intent?.trim() ?? '' }) : undefined;
   let creationOperationId: string | undefined = saved?.operationId;
   let generation = 0;
+  let stopConsentWait: (() => void) | undefined;
+  onCleanup(() => stopConsentWait?.());
   const persistentParticipants = createMemo(() => (props.world?.participants ?? []).filter((participant) => participant.kind === 'persistent'));
 
   const isSelected = (participant: Participant): boolean => selectedIds().has(participant.id);
@@ -69,6 +71,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   };
 
   const close = async (): Promise<void> => {
+    stopConsentWait?.();
     generation++;
     try {
       if (creationOperationId) await getBridge().world.cancelScenario(creationOperationId);
@@ -151,8 +154,21 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   const enableLivingWorldAndStart = async (): Promise<void> => {
     if (busy()) return;
     setError(null);
+    setBusy(true);
+    const bridge = getBridge().settings;
+    const stopSaved = bridge.onSettingsSaved(() => bridge.getSettings());
+    const stopSettings = bridge.onSettings((persisted) => {
+      if (!persisted.livingWorldEnabled) return;
+      stopConsentWait?.();
+      setBusy(false);
+      void handleStart();
+    });
+    stopConsentWait = () => {
+      stopSaved();
+      stopSettings();
+      stopConsentWait = undefined;
+    };
     updateSettings({ livingWorldEnabled: true });
-    await handleStart();
   };
 
   return (

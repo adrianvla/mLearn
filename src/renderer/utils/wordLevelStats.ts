@@ -149,7 +149,7 @@ export function getWordLevelStatus(state: Pick<ComprehensiveWordStatusResult, 's
   return state.basis === 'unmeasured' ? 'untracked' : state.status;
 }
 
-function roundPct(count: number, total: number): number {
+export function roundPct(count: number, total: number): number {
   return total > 0 ? Math.round((count / total) * 1000) / 10 : 0;
 }
 
@@ -350,7 +350,7 @@ export function computeWordLevelStats(
       learning: b.learning,
       unknown: b.unknown,
       untracked: b.untracked,
-      knownPct: b.total > 0 ? Math.round((b.known / b.total) * 100) : 0,
+      knownPct: roundPct(b.known, b.total),
     };
   });
 

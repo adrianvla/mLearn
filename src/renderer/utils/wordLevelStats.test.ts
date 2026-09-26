@@ -9,9 +9,14 @@ import {
   getWordLevelStatus,
   resolveLevelStudyWordFrequency,
   summarizeLevelCoverage,
+  roundPct,
 } from './wordLevelStats';
 import { hashWordSync } from '../services/srsAlgorithm';
 import type { FlashcardStore, LanguageData, WordFrequencyMap } from '../../shared/types';
+
+it('formats the shared 559/639 knowledge count as 87.5 percent', () => {
+  expect(roundPct(559, 639)).toBe(87.5);
+});
 
 function lk(language: string, word: string): string {
   return language + ':' + hashWordSync(word);

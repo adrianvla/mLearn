@@ -5,6 +5,25 @@ import { render } from 'solid-js/web';
 
 const cleanup = () => undefined;
 
+it('loads the packaged microphone worklet from dist before using a blob fallback', async () => {
+  const { loadAudioWorkletModule } = await import('./VoiceTab');
+  const addModule = vi.fn().mockRejectedValueOnce(new Error('file worklet blocked')).mockResolvedValue(undefined);
+  const fetchModule = vi.fn().mockResolvedValue({ text: async () => 'registerProcessor("audio-processor", class {});' });
+  vi.stubGlobal('fetch', fetchModule);
+  const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:worklet');
+  const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  await loadAudioWorkletModule({ audioWorklet: { addModule } } as unknown as AudioContext,
+    'file:///QA/mLearn.app/Contents/Resources/app.asar/dist/src/html/conversation-agent.html');
+  const packagedUrl = 'file:///QA/mLearn.app/Contents/Resources/app.asar/dist/audio-processor.js';
+  expect(addModule).toHaveBeenNthCalledWith(1, packagedUrl);
+  expect(fetchModule).toHaveBeenCalledWith(packagedUrl);
+  expect(addModule).toHaveBeenNthCalledWith(2, 'blob:worklet');
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:worklet');
+  createObjectURL.mockRestore();
+  revokeObjectURL.mockRestore();
+  vi.unstubAllGlobals();
+}, 20000);
+
 const CPU_WARNING_TEXT = 'Realtime voice may lag because speech is running on the CPU. Voice quality is unaffected.';
 
 const translations: Record<string, string> = {
@@ -42,6 +61,7 @@ type TestModelStatus = VoiceDeviceStatus & {
 let modelProgressHandler: ((status: TestModelStatus) => void) | undefined;
 let ttsStatusHandler: ((status: TestTtsStatus) => void) | undefined;
 let sessionReadyHandler: (() => void) | undefined;
+let sessionErrorHandler: ((data: { error: string }) => void) | undefined;
 
 const testSettings = {
   ttsProvider: 'kokoro' as const,
@@ -92,7 +112,7 @@ vi.mock('../../../shared/bridges', () => ({
         return cleanup;
       }),
       onVoiceSessionStatus: vi.fn(() => cleanup),
-      onVoiceSessionError: vi.fn(() => cleanup),
+      onVoiceSessionError: vi.fn((callback: typeof sessionErrorHandler) => { sessionErrorHandler = callback; return cleanup; }),
       voiceSendTtsState: vi.fn(),
       voiceStartSession: vi.fn(),
       voiceStopSession: vi.fn(),
@@ -132,12 +152,62 @@ describe('VoiceTab CPU warning banner', () => {
     modelProgressHandler = undefined;
     ttsStatusHandler = undefined;
     sessionReadyHandler = undefined;
+    sessionErrorHandler = undefined;
     testSettings.voiceMode = 'vad';
     mockVoiceFlush.mockClear();
   });
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('passes a session failure to the parent before it can remove the error banner', async () => {
+    const { VoiceTab } = await import('./VoiceTab');
+    const onCallStateChange = vi.fn();
+    const dispose = render(() => <VoiceTab messages={[]} isStreaming={false} onSendMessage={vi.fn()}
+      onAbort={vi.fn()} isConnected language="ja" onRequestGreeting={vi.fn()} onCallStateChange={onCallStateChange} />, container);
+    await vi.waitFor(() => expect(sessionErrorHandler).toBeDefined());
+    sessionErrorHandler!({ error: 'No module named kokoro' });
+    expect(onCallStateChange).toHaveBeenCalledWith(false, 'failed', 'No module named kokoro');
+    dispose();
+  }, 20000);
+
+  it('does not acquire a microphone or request a greeting when initialization fails', async () => {
+    const getUserMedia = vi.fn();
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: {
+      enumerateDevices: vi.fn(async () => []), getUserMedia,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    } });
+    const { VoiceTab } = await import('./VoiceTab');
+    const greeting = vi.fn();
+    const dispose = render(() => <VoiceTab autoStartCall messages={[]} isStreaming={false} onSendMessage={vi.fn()}
+      onAbort={vi.fn()} isConnected language="ja" onRequestGreeting={greeting} />, container);
+    await vi.waitFor(() => expect(sessionErrorHandler).toBeDefined());
+    sessionErrorHandler!({ error: 'No module named kokoro' });
+    expect(greeting).not.toHaveBeenCalled();
+    expect(getUserMedia).not.toHaveBeenCalled();
+    dispose();
+  }, 20000);
+
+  it('aborts the active response when the user ends the call', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: {
+      enumerateDevices: vi.fn(async () => []),
+      getUserMedia: vi.fn(async () => { throw new DOMException('Denied', 'NotAllowedError'); }),
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    } });
+    const { VoiceTab } = await import('./VoiceTab');
+    const onAbort = vi.fn();
+    const onCallStateChange = vi.fn();
+    const dispose = render(() => <VoiceTab autoStartCall messages={[]} isStreaming
+      onSendMessage={vi.fn()} onAbort={onAbort} isConnected language="ja"
+      onRequestGreeting={vi.fn()} onCallStateChange={onCallStateChange} />, container);
+    await vi.waitFor(() => expect(onCallStateChange).toHaveBeenCalledWith(true));
+    sessionReadyHandler?.();
+    const end = container.querySelector<HTMLButtonElement>('button[aria-label="End call"], button[title="End call"]');
+    expect(end).toBeDefined();
+    end!.click();
+    expect(onAbort).toHaveBeenCalledTimes(1);
+    dispose();
   });
 
   it('hides the CPU warning while voice statuses carry no compute hints', async () => {
@@ -181,6 +251,33 @@ describe('VoiceTab CPU warning banner', () => {
     });
 
     dispose();
+  });
+
+  it('releases acquired tracks and context when worklet initialization fails', async () => {
+    const stop = vi.fn();
+    const close = vi.fn();
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: {
+      enumerateDevices: vi.fn(async () => []),
+      getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop }] })),
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    } });
+    vi.stubGlobal('AudioContext', class {
+      close = close;
+      audioWorklet = { addModule: vi.fn().mockRejectedValue(new Error('worklet unavailable')) };
+    });
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('asset unavailable')));
+    const { VoiceTab } = await import('./VoiceTab');
+    const onCallStateChange = vi.fn();
+    const dispose = render(() => <VoiceTab autoStartCall messages={[]} isStreaming={false}
+      onSendMessage={vi.fn()} onAbort={vi.fn()} isConnected language="ja"
+      onRequestGreeting={vi.fn()} onCallStateChange={onCallStateChange} />, container);
+    await vi.waitFor(() => expect(onCallStateChange).toHaveBeenCalledWith(true));
+    sessionReadyHandler?.();
+    await vi.waitFor(() => expect(container.textContent).toContain('Microphone access was denied'));
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+    dispose();
+    vi.unstubAllGlobals();
   });
 
   it('shows a recoverable error when microphone permission is denied after explicit call start', async () => {

@@ -191,15 +191,27 @@ describe('flashcardVideoStorage', () => {
       );
     });
 
-    it('serves Chromium-standardized stored URLs with their trailing slash and Range header', async () => {
+    it.each([
+      ['bytes=0-3', 206, 'bytes 0-3/10', '0123'],
+      ['bytes=5-', 206, 'bytes 5-9/10', '56789'],
+      ['bytes=-3', 206, 'bytes 7-9/10', '789'],
+      ['bytes=8-99', 206, 'bytes 8-9/10', '89'],
+      ['bytes=10-', 416, 'bytes */10', ''],
+      ['bytes=5-2', 416, 'bytes */10', ''],
+    ])('serves real stored bytes for %s with truthful range metadata', async (range, status, contentRange, body) => {
       const { protocol, net } = await import('electron');
-      vi.mocked(net.fetch).mockResolvedValue(new Response('clip', { status: 206 }));
+      // Electron file fetch returns partial bytes with status 200 and no range metadata.
+      vi.mocked(net.fetch).mockResolvedValue(new Response('0123', { status: 200 }));
       setupFlashcardVideoProtocol();
-      saveFlashcardVideo('card-standard', Buffer.from('video'));
-      const request = new Request('flashcard-video://card-standard.mp4/', { headers: { Range: 'bytes=0-3' } });
-      const response = await vi.mocked(protocol.handle).mock.calls[0][1](request);
-      expect(response.status).toBe(206);
-      expect(net.fetch).toHaveBeenCalledWith(expect.stringContaining('card-standard.mp4'), { headers: request.headers });
+      saveFlashcardVideo('card-standard', Buffer.from('0123456789'));
+      const response = await vi.mocked(protocol.handle).mock.calls[0][1](
+        new Request('flashcard-video://card-standard.mp4/', { headers: { Range: range } }),
+      );
+      expect(response.status).toBe(status);
+      expect(response.headers.get('Content-Range')).toBe(contentRange);
+      expect(response.headers.get('Accept-Ranges')).toBe('bytes');
+      expect(await response.text()).toBe(body);
+      if (status === 206) expect(response.headers.get('Content-Length')).toBe(String(body.length));
     });
 
     it('protocol handler strips query string from filename', async () => {

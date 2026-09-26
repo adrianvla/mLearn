@@ -1441,9 +1441,34 @@ def _iter_qwen3_torch_tts_chunks(req: TTSRequest, language: str):
 
 
 
+def _iter_kokoro_tts_chunks(req: TTSRequest, language: str):
+    """Adapt the installed Kokoro pipeline to the shared PCM stream contract."""
+    pipeline = _ensure_tts_loaded(language)
+    _voice_touch()
+    lang_code = _kokoro_lang_code(language)
+    if not lang_code:
+        raise RuntimeError(f"Kokoro TTS is not configured for language '{language}'")
+    selected_voice = _kokoro_voice(language, lang_code)
+    sentences = _split_into_sentences(req.text, language) or [req.text]
+    chunk_index = 0
+    for sentence in sentences:
+        for _graphemes, _phonemes, audio in pipeline(
+            sentence, voice=selected_voice, speed=req.speed
+        ):
+            yield {
+                "audio": audio,
+                "sampleRate": 24000,
+                "chunkIndex": chunk_index,
+                "isFinal": False,
+            }
+            chunk_index += 1
+    if chunk_index == 0:
+        raise RuntimeError("No audio generated")
+
+
 @router.websocket("/voice/tts/stream")
 async def voice_tts_stream_ws(websocket: WebSocket):
-    """Stream local Qwen3-TTS float32 PCM chunks to Electron."""
+    """Stream local provider float32 PCM chunks to Electron."""
     await websocket.accept()
     cancel = threading.Event()
     try:
@@ -1465,10 +1490,10 @@ async def voice_tts_stream_ws(websocket: WebSocket):
             })
             return
         engine = _resolve_tts_engine(requested_language, provider)
-        if engine not in ("qwen3", "qwen3-torch"):
+        if engine not in ("qwen3", "qwen3-torch", "kokoro"):
             await websocket.send_json({
                 "type": "error",
-                "message": f"Streaming TTS requires qwen3; got '{engine}'",
+                "message": f"Streaming TTS is not supported for engine '{engine}'",
             })
             return
 
@@ -1482,6 +1507,8 @@ async def voice_tts_stream_ws(websocket: WebSocket):
         model_loaded = (
             _qwen3_torch_model if engine == "qwen3-torch" else _qwen3_tts_model
         ) is not None
+        if engine == "kokoro":
+            model_loaded = _kokoro_lang_code(requested_language) in _voice_tts_pipelines
         await websocket.send_json({
             "type": "status",
             "generating": True,
@@ -1494,11 +1521,12 @@ async def voice_tts_stream_ws(websocket: WebSocket):
         def _worker():
             try:
                 sample_offset = 0
-                chunks = (
-                    _iter_qwen3_torch_tts_chunks(req, requested_language)
-                    if engine == "qwen3-torch"
-                    else _iter_qwen3_tts_chunks(req, requested_language, stream=True)
-                )
+                if engine == "kokoro":
+                    chunks = _iter_kokoro_tts_chunks(req, requested_language)
+                elif engine == "qwen3-torch":
+                    chunks = _iter_qwen3_torch_tts_chunks(req, requested_language)
+                else:
+                    chunks = _iter_qwen3_tts_chunks(req, requested_language, stream=True)
                 for chunk in chunks:
                     if cancel.is_set():
                         break

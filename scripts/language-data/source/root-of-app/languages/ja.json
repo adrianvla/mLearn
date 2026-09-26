@@ -28,10 +28,11 @@
   },
   "fixed_settings": {},
   "languageData": {
-    "version": "ja-package-2026.09.19-r2",
+    "version": "ja-package-2026.09.26-frequency-r1",
     "sourceVersions": {
       "dictionary": "jitendex-2024.10.07.0",
-      "pitchAccent": "pitch1"
+      "pitchAccent": "pitch1",
+      "mediaFrequency": "jkindrix-subtitles-28ae0f545aee"
     },
     "assets": [
       {
@@ -39,6 +40,16 @@
         "path": "languages/ja.freq.json",
         "sizeBytes": 1209652,
         "sha256": "21521374ae4fd56f1a3d700181defe469c502b8e510c5150313c2896193db822",
+        "required": true
+      },
+      {
+        "id": "frequency-media",
+        "path": "languages/ja.media.freq.json",
+        "required": true
+      },
+      {
+        "id": "frequency-media-notice",
+        "path": "licenses/ja-media-frequency-README.md",
         "required": true
       },
       {
@@ -1393,6 +1404,42 @@
       "recognitionEngine": "mangaocr",
       "rapidLangType": "JAPAN",
       "paddleLang": "japan"
+    }
+  },
+  "defaultFrequencyProvider": "jlpt",
+  "frequencyProviders": {
+    "jlpt": {
+      "name": "JLPT vocabulary",
+      "assetId": "frequency",
+      "frequencyLevels": {
+        "difficulty": "lower-is-harder",
+        "displayOrder": "descending",
+        "rowLevelIndex": 2,
+        "names": {
+          "1": "JLPT N1",
+          "2": "JLPT N2",
+          "3": "JLPT N3",
+          "4": "JLPT N4",
+          "5": "JLPT N5"
+        }
+      }
+    },
+    "media-frequency": {
+      "name": "Japanese media frequency",
+      "assetId": "frequency-media",
+      "sourceUrl": "https://github.com/jkindrix/japanese-language-data/blob/28ae0f545aee9d9bc3547ce4bd7725b55e9b00f1/data/enrichment/frequency-subtitles.json",
+      "frequencyLevels": {
+        "difficulty": "higher-is-harder",
+        "displayOrder": "ascending",
+        "rowLevelIndex": 2,
+        "names": {
+          "1": "Core 1,000",
+          "2": "Common 3,000",
+          "3": "Frequent 5,000",
+          "4": "Extended 8,000",
+          "5": "Beyond 8,000"
+        }
+      }
     }
   },
   "frequencyLevels": {

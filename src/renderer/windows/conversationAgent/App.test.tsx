@@ -20,6 +20,7 @@ let streamCallback: (chunk: LLMStreamChunk) => void = () => {};
 let windowContextCallback: (context: unknown) => void = () => {};
 let openRoomCallback: (payload: import('../../../shared/world').OpenRoomEventPayload) => void = () => {};
 let journalEvents: JournalEvent[] = [];
+let voiceTabMounts = 0;
 const readyModelStatus: LLMModelStatus = {
   downloaded: true,
   loaded: true,
@@ -301,14 +302,21 @@ vi.mock('../../components/subtitle/ExplainerPopup', () => ({
 }));
 
 vi.mock('./VoiceTab', () => ({
-  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string }) => (
+  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string) => void }) => {
+    voiceTabMounts++;
+    return (
     <div
       data-testid="voice-tab"
       data-auto-start={String(props.autoStartCall)}
       data-agent-name={props.agentName}
       data-voice-sample={props.defaultVoiceSampleId}
-    />
-  ),
+    ><button onClick={() => props.onCallStateChange?.(false, 'failed', "No module named kokoro")}>Simulate voice failure</button>
+      <button onClick={() => props.onStatusChange?.('Listening…')}>Simulate listening</button>
+      <button onClick={() => props.onAbort?.()}>Abort call response</button>
+      <button onClick={() => { props.onCallStateChange?.(true); props.onCallStateChange?.(false, 'completed'); }}>Complete call</button>
+    </div>
+    );
+  },
 }));
 
 vi.mock('./ThreadInfoPanel', () => ({
@@ -344,6 +352,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     windowContextCallback = () => {};
     openRoomCallback = () => {};
     journalEvents = [];
+    voiceTabMounts = 0;
     currentWorld = {
       rooms: [{ id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 }],
       threads: [{ id: 'thread-a', roomId: 'room-a', state: 'active', createdAt: 1 }],
@@ -895,6 +904,18 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
   });
 
+  it('preserves the backend error after a failed call unmounts its voice overlay', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const button = () => container.querySelector('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]') as HTMLButtonElement;
+    await vi.waitFor(() => expect(button()?.disabled).toBe(false));
+    button().click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')).not.toBeNull());
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Simulate voice failure')!.click();
+    expect(container.querySelector('[data-testid="voice-tab"]')).toBeNull();
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('No module named kokoro');
+  });
+
   it('mounts VoiceTab with autoStartCall from the call button', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
@@ -903,5 +924,46 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(callButton.disabled).toBe(false));
     callButton.click();
     await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-auto-start')).toBe('true'));
+  });
+
+  it('prioritizes call identity and state and moves provider details into the menu', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const callButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(callButton()?.disabled).toBe(false));
+    callButton()!.click();
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Simulate listening')!.click();
+    const header = container.querySelector('.ca-header')!;
+    expect(header.querySelector('.ca-header-title')?.textContent).toBe('Tutor');
+    expect(header.querySelector('[role="status"]')?.textContent).toBe('Listening…');
+    expect(header.querySelector('.ca-connection-info')).toBeNull();
+    expect(callButton()).toBeNull();
+    (header.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(document.querySelector('.ca-overflow-menu .ca-connection-info')).not.toBeNull());
+  });
+
+  it('cancels a call response without opening new-conversation setup', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const callButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(callButton()?.disabled).toBe(false));
+    callButton()!.click();
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Abort call response')!.click();
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
+  });
+
+  it('dismisses the call summary without transiently remounting an auto-start call', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const callButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(callButton()?.disabled).toBe(false));
+    callButton()!.click();
+    expect(voiceTabMounts).toBe(1);
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Complete call')!.click();
+    const dismiss = container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Voice.Aftermath.Title"]');
+    expect(dismiss).not.toBeNull();
+    dismiss!.click();
+    expect(voiceTabMounts).toBe(1);
+    expect(container.querySelector('.ca-voice-overlay')).toBeNull();
   });
 });

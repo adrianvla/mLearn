@@ -290,6 +290,40 @@ def test_voice_tts_stream_websocket_emits_qwen3_audio_chunks(monkeypatch):
     assert done == {"type": "done"}
 
 
+def test_voice_tts_stream_websocket_uses_kokoro_metadata_voice(monkeypatch):
+    monkeypatch.setattr(voice, "_resolve_tts_engine", lambda _language, _provider=None: "kokoro")
+    monkeypatch.setattr(voice, "_kokoro_lang_code", lambda language: "x" if language == "zz" else None)
+    monkeypatch.setattr(voice, "_kokoro_voice", lambda language, code: "package_voice" if (language, code) == ("zz", "x") else None)
+    monkeypatch.setattr(voice, "_split_into_sentences", lambda text, language: [text])
+    calls = []
+
+    def pipeline(text, voice, speed):
+        calls.append((text, voice, speed))
+        yield text, "", [0.0, 0.25]
+        yield text, "", [-0.25]
+
+    monkeypatch.setattr(voice, "_ensure_tts_loaded", lambda language: pipeline)
+    app = FastAPI()
+    app.include_router(voice.router)
+    with TestClient(app).websocket_connect("/voice/tts/stream") as websocket:
+        websocket.send_json({"text": "Hello.", "language": "zz", "provider": "kokoro", "speed": 1.2})
+        assert websocket.receive_json()["type"] == "status"
+        samples = []
+        offsets = []
+        while True:
+            message = websocket.receive_json()
+            if message["type"] == "done":
+                break
+            assert message["type"] == "audio"
+            assert message["sampleRate"] == 24000
+            assert message["encoding"] == "f32le"
+            offsets.append(message["sampleOffset"])
+            samples.extend(voice.np.frombuffer(websocket.receive_bytes(), dtype="<f4").tolist())
+    assert calls == [("Hello.", "package_voice", 1.2)]
+    assert samples == [0.0, 0.25, -0.25]
+    assert offsets == [0, 2]
+
+
 def test_voice_tts_stream_websocket_rejects_cloud_provider():
     app = FastAPI()
     app.include_router(voice.router)

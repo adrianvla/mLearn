@@ -178,6 +178,21 @@
   padding: 4px 4px 8px;
 }
 
+.grammar-coverage__session-progress {
+  flex-basis: 100%;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.grammar-coverage__answer {
+  flex-basis: 100%;
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  line-height: 1.6;
+}
+
 .grammar-coverage__session-btn {
   border: 1px solid var(--border-color);
   background: none;

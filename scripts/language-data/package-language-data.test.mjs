@@ -356,6 +356,27 @@ describe('package-language-data', () => {
     assert.equal(rows.every((row) => Number.isInteger(row[2]) && row[2] >= 1 && row[2] <= 5), true);
   });
 
+  it('keeps Japanese subtitle frequency independent from JLPT with source ranks', () => {
+    const root = path.join(process.cwd(), 'scripts/language-data/source/root-of-app');
+    const metadata = readJson(path.join(root, 'languages/ja.json'));
+    const media = readJson(path.join(root, 'languages/ja.media.freq.json')).freq;
+    const jlpt = readJson(path.join(root, 'languages/ja.freq.json')).freq;
+    assert.equal(metadata.defaultFrequencyProvider, 'jlpt');
+    assert.equal(metadata.frequencyProviders.jlpt.assetId, 'frequency');
+    assert.equal(metadata.frequencyProviders['media-frequency'].assetId, 'frequency-media');
+    assert.equal(metadata.frequencyProviders['media-frequency'].frequencyLevels.rowLevelIndex, 2);
+    assert.equal(media.length, 8598);
+    assert.deepEqual(media.slice(0, 3), [
+      ['あなた', 'あなた', 1, 1, 61249],
+      ['彼女', 'かのじょ', 1, 2, 32871],
+      ['お前', 'おまえ', 1, 3, 31447],
+    ]);
+    assert.equal(media.every((row, index) => row[3] === index + 1), true);
+    assert.equal(media.some((row) => row[0] === 'あなた'), true);
+    assert.equal(jlpt.some((row) => row[0] === 'あなた'), false);
+    assert.equal(metadata.languageData.assets.some((asset) => asset.id === 'frequency-media-notice'), true);
+  });
+
   it('declares complete Russian and Chinese learning capabilities with package-owned prosody', () => {
     const languagesDir = path.join(
       process.cwd(),

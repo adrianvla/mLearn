@@ -52,6 +52,7 @@ export const LearningPlanSettings: Component = () => {
     const provider = selectedFrequencyProvider();
     const levelSystems = provider?.levelSystems ?? {};
     const candidates = [
+      (settings.frequencyLevelSystemsByProvider ?? DEFAULT_SETTINGS.frequencyLevelSystemsByProvider)[settings.language]?.[selectedFrequencyProviderId()],
       settings.frequencyLevelSystemSelections[settings.language],
       languageData?.activeFrequencyLevelSystem,
       provider?.defaultLevelSystem,
@@ -77,8 +78,16 @@ export const LearningPlanSettings: Component = () => {
                 onChange={(e) => {
                   const providerId = e.currentTarget.value;
                   const provider = frequencyProviders()[providerId];
+                  if (!provider) return;
                   const nextLevelSystems = { ...settings.frequencyLevelSystemSelections };
-                  const defaultLevelSystem = provider?.defaultLevelSystem;
+                  const storedSystems = settings.frequencyLevelSystemsByProvider ?? DEFAULT_SETTINGS.frequencyLevelSystemsByProvider;
+                  const currentProviderId = selectedFrequencyProviderId();
+                  const providerTargets = settings.frequencyProviderTargets ?? DEFAULT_SETTINGS.frequencyProviderTargets;
+                  const nextTargets = {
+                    ...(providerTargets[settings.language] ?? {}),
+                    [currentProviderId]: selectedLearningLanguageLevel(),
+                  };
+                  const defaultLevelSystem = storedSystems[settings.language]?.[providerId] ?? provider.defaultLevelSystem;
                   if (defaultLevelSystem) {
                     nextLevelSystems[settings.language] = defaultLevelSystem;
                   } else {
@@ -90,9 +99,13 @@ export const LearningPlanSettings: Component = () => {
                       [settings.language]: providerId,
                     },
                     frequencyLevelSystemSelections: nextLevelSystems,
+                    frequencyProviderTargets: {
+                      ...providerTargets,
+                      [settings.language]: nextTargets,
+                    },
                     learningLanguageLevels: {
                       ...settings.learningLanguageLevels,
-                      [settings.language]: null,
+                      [settings.language]: nextTargets[providerId] ?? null,
                     },
                   });
                 }}
@@ -114,14 +127,23 @@ export const LearningPlanSettings: Component = () => {
                 class="setting-select"
                 value={selectedFrequencyLevelSystemId()}
                 onChange={(e) => {
+                  const providerId = selectedFrequencyProviderId();
+                  const byProvider = settings.frequencyLevelSystemsByProvider ?? DEFAULT_SETTINGS.frequencyLevelSystemsByProvider;
                   updateSettings({
                     frequencyLevelSystemSelections: {
                       ...settings.frequencyLevelSystemSelections,
                       [settings.language]: e.currentTarget.value,
                     },
+                    frequencyLevelSystemsByProvider: {
+                      ...byProvider,
+                      [settings.language]: {
+                        ...(byProvider[settings.language] ?? {}),
+                        [providerId]: e.currentTarget.value,
+                      },
+                    },
                     learningLanguageLevels: {
                       ...settings.learningLanguageLevels,
-                      [settings.language]: null,
+                      [settings.language]: (settings.frequencyProviderTargets ?? DEFAULT_SETTINGS.frequencyProviderTargets)[settings.language]?.[providerId] ?? selectedLearningLanguageLevel(),
                     },
                   });
                 }}
@@ -150,6 +172,15 @@ export const LearningPlanSettings: Component = () => {
                     ...(settings.learningLanguageLevels ?? {}),
                     [settings.language]: level,
                   },
+                  ...(selectedFrequencyProviderId() ? {
+                    frequencyProviderTargets: {
+                      ...(settings.frequencyProviderTargets ?? DEFAULT_SETTINGS.frequencyProviderTargets),
+                      [settings.language]: {
+                        ...((settings.frequencyProviderTargets ?? DEFAULT_SETTINGS.frequencyProviderTargets)[settings.language] ?? {}),
+                        [selectedFrequencyProviderId()]: level,
+                      },
+                    },
+                  } : {}),
                 });
               }}
             >

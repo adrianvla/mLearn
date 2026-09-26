@@ -50,7 +50,7 @@
     "build:language:de": "npm run build:dict:de-en && npm run build:dict:de-ru && npm run build:dict:de-fr && npm run build:dict:de-ja",
     "build:language:es": "npm run build:dict:es-en && npm run build:dict:es-ru && npm run build:dict:es-de && npm run build:dict:es-fr",
     "build:language:cu": "python3 scripts/language-data/providers/build-church-slavonic.py",
-    "build:language:ja": "npm run build:dict:ja-en && npm run build:dict:ja-jmdict",
+    "build:language:ja": "python3 scripts/language-data/providers/build-japanese-subtitle-frequency.py && npm run build:dict:ja-en && npm run build:dict:ja-jmdict",
     "build:language:ru": "python3 scripts/language-data/providers/build-openrussian-ru.py && python3 scripts/language-data/providers/build-smartool-ru.py && npm run build:dict:ru-fr",
     "build:language:zh": "python3 scripts/language-data/providers/build-cc-cedict-zh-en.py && npm run build:dict:zh-ru",
     "build:dictionaries": "npm run build:language:de && npm run build:language:es && npm run build:language:cu && npm run build:language:ja && npm run build:language:ru && npm run build:language:zh",

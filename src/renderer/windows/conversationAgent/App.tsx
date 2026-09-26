@@ -4,7 +4,7 @@ import { tutorSessionIntent } from '../../services/tutorSessionIntent';
  * AI-powered language tutor with tokenized chat, tool calling, and speech I/O
  */
 
-import { For, Component, Show, Index, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { For, Component, Show, Index, batch, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
@@ -266,7 +266,7 @@ export const ConversationContent: Component = () => {
   // the inline confirm routes the user to consent instead of selecting.
   const [livingWorldPrompt, setLivingWorldPrompt] = createSignal<{ roomId: string; threadId?: string } | null>(null);
   const journal = createJournalThreadStore();
-  const [liveOverlay, setLiveOverlay] = createSignal<ConversationMessage | null>(null);
+  const [liveOverlay, setLiveOverlay] = createSignal<(ConversationMessage & { displayName?: string }) | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
   /** Event ids whose tokenization has been launched in this selection session; reset on thread switch. */
   const tokenizedMessageIds = new Set<string>();
@@ -291,6 +291,10 @@ export const ConversationContent: Component = () => {
   const [voiceContactParticipantId, setVoiceContactParticipantId] = createSignal<string | null>(null);
   const [incomingCall, setIncomingCall] = createSignal<{ contactId: string; callId: string; participantId?: string } | null>(null);
   const [contactIngressError, setContactIngressError] = createSignal<string | null>(null);
+  const [voiceHeaderStatus, setVoiceHeaderStatus] = createSignal('');
+  const callSurfaceOpen = () => Boolean(voiceOverlayRequested() || isVoiceCallActive() || voiceAftermath());
+  const callIdentity = () => (voiceContactParticipantId() ? activeVoiceParticipant()?.displayName : rosterParticipants().map(person => person.displayName).join(', '))
+    || activeRoom()?.title || t('mlearn.ConversationAgent.Title');
   const [contactEventId, setContactEventId] = createSignal<string | null>(null);
   let voiceScheduledNudgeId = 0;
   const [voiceScheduledNudge, setVoiceScheduledNudge] = createSignal<{ id: number; seconds: number; prompt?: string } | null>(null);
@@ -1208,6 +1212,7 @@ export const ConversationContent: Component = () => {
           const participant = rosterParticipants().find((candidate) => candidate.id === participantId);
           if (!participant) return { text: '' };
           if (session !== selectionSession) throw new Error('Conversation selection changed');
+          setLiveOverlay((overlay) => overlay ? { ...overlay, displayName: participant.displayName } : overlay);
           const runtimeAgent = getParticipantAgent(participant, context);
           runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(
             visibleThreadEventsFor(participant, journal.threadEvents(), activeThread()?.sandbox ? [] : journal.seaEvents()), participant.id, rosterParticipants())));
@@ -1329,6 +1334,12 @@ export const ConversationContent: Component = () => {
     }
 
     await sendTextMessage(text);
+  };
+
+  const abortCallResponse = () => {
+    for (const runtime of participantAgents.values()) runtime.abortStream();
+    setLiveOverlay(null);
+    clearAssistantStreamState();
   };
 
   const handleAbort = () => {
@@ -1468,8 +1479,28 @@ export const ConversationContent: Component = () => {
     return shouldHideAssistantBubble(messages(), index, isStreaming(), streamingMessageIndex());
   };
 
+  const ConnectionInfo = () => (
+    <Btn
+          variant="ghost"
+          class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
+          onClick={handleConnectionStatusClick}
+          aria-disabled={!canOpenCloudSignIn()}
+          aria-label={canOpenCloudSignIn() ? t('mlearn.Connection.SignIn') : undefined}
+        >
+          <Tag class="ca-provider-label" headless size="sm">{providerLabel()}</Tag>
+          <ConnectionStatus
+            status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'}
+            showLabel={isCheckingConnection() || !isConnected()}
+            size="sm"
+          />
+          <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
+            <span class="ca-header-status">{t('mlearn.Global.Status.StartingBackend')}</span>
+          </Show>
+        </Btn>
+  );
+
   return (
-    <div class="conversation-agent">
+    <div class="conversation-agent" classList={{ 'has-call-surface': callSurfaceOpen() }}>
       <Show when={integrationRecoveryError()}><p class="integration-error" role="alert">{integrationRecoveryError()}</p></Show>
       <For each={world()?.integrations?.filter(record => record.status !== 'committed')}>
         {(record) => <div class="integration-error" role="status">
@@ -1540,15 +1571,18 @@ export const ConversationContent: Component = () => {
         </div>
       </Modal>
       <div class="ca-header">
-        <IconBtn
+        <Show when={!callSurfaceOpen()}><IconBtn
           variant="ghost"
           icon="sidebar"
           onClick={() => setSidebarVisible((visible) => !visible)}
           aria-label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
-        />
+        /></Show>
         <div class="ca-header-identity">
-          <span class="ca-header-title">{activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
-          <Show when={activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined)} keyed>
+          <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
+          <Show when={callSurfaceOpen()}>
+            <span class="ca-call-header-state" role="status" aria-live="polite">{voiceAftermath() ? t('mlearn.ConversationAgent.Voice.Aftermath.Title') : voiceHeaderStatus() || t('mlearn.ConversationAgent.Voice.CheckingModels')}</span>
+          </Show>
+          <Show when={!callSurfaceOpen() && (activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined))} keyed>
             {(media) => (
               <Btn variant="ghost" class="ca-media-chip" onClick={openDetails}>
                 {media.mediaName}
@@ -1557,30 +1591,14 @@ export const ConversationContent: Component = () => {
           </Show>
         </div>
         <div class="ca-header-spacer" />
-        <Btn
-          variant="ghost"
-          class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
-          onClick={handleConnectionStatusClick}
-          aria-disabled={!canOpenCloudSignIn()}
-          aria-label={canOpenCloudSignIn() ? t('mlearn.Connection.SignIn') : undefined}
-        >
-          <Tag class="ca-provider-label" headless size="sm">{providerLabel()}</Tag>
-          <ConnectionStatus
-            status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'}
-            showLabel={isCheckingConnection() || !isConnected()}
-            size="sm"
-          />
-          <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
-            <span class="ca-header-status">{t('mlearn.Global.Status.StartingBackend')}</span>
-          </Show>
-        </Btn>
-        <IconBtn
+        <Show when={!callSurfaceOpen()}><ConnectionInfo /></Show>
+        <Show when={!callSurfaceOpen()}><IconBtn
           variant="ghost"
           icon={<PhoneIcon />}
           disabled={rosterParticipants().length === 0}
-          onClick={() => setVoiceOverlayRequested(true)}
+          onClick={() => { setContactIngressError(null); setVoiceOverlayRequested(true); }}
           aria-label={t('mlearn.ConversationAgent.Call.StartAria')}
-        />
+        /></Show>
         <div class="ca-overflow-anchor">
           <IconBtn
             ref={(el: HTMLButtonElement) => { overflowAnchorRef = el; }}
@@ -1595,6 +1613,7 @@ export const ConversationContent: Component = () => {
             label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
             class="ca-overflow-menu"
           >
+            <Show when={callSurfaceOpen()}><div class="ca-provider-details"><ConnectionInfo /></div></Show>
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { setShowNewConversationModal(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Btn>
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Btn>
             <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Btn>
@@ -1811,12 +1830,14 @@ export const ConversationContent: Component = () => {
               onRequestGreeting={handleRequestGreeting}
               onIdleSilence={handleVoiceIdleSilence}
               scheduledNudge={voiceScheduledNudge()}
-              onAbort={handleAbort}
+              onAbort={abortCallResponse}
+              onStatusChange={setVoiceHeaderStatus}
               onSpeechEnd={(ts) => { lastVadSpeechEndTs = ts; }}
-              agentName={activeVoiceParticipant()?.displayName}
-              profilePhoto={activeVoiceParticipant()?.profilePhoto}
+              agentName={callIdentity()}
+              profilePhoto={voiceContactParticipantId() || rosterParticipants().length === 1 ? activeVoiceParticipant()?.profilePhoto : undefined}
               defaultVoiceSampleId={activeVoiceParticipant()?.voiceSampleId}
-              onCallStateChange={(active, reason) => {
+              onCallStateChange={(active, reason, error) => {
+                if (reason === 'failed' && error) setContactIngressError(error);
                 setIsVoiceCallActive(active);
                 if (!active) cancelVoiceScheduledNudge();
                 if (active) {
@@ -1860,7 +1881,7 @@ export const ConversationContent: Component = () => {
           {(aftermath) => (
             <VoiceAftermath
               aftermath={aftermath()}
-              onDismiss={() => { setVoiceAftermath(null); setVoiceOverlayRequested(false); setVoiceContactParticipantId(null); }}
+              onDismiss={() => batch(() => { setVoiceAftermath(null); setVoiceOverlayRequested(false); setVoiceContactParticipantId(null); })}
             />
           )}
           </Show>

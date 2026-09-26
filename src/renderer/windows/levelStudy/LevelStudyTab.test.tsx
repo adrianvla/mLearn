@@ -766,6 +766,7 @@ describe('LevelStudyTab', () => {
     await tick();
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
     const walkProbe = () => levelBlock(container, 3).querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement;
+    (levelBlock(container, 3).querySelector('.grammar-coverage__reveal') as HTMLButtonElement).click();
     walkProbe().click();
     await beat();
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt[data-pattern]') !== null);
@@ -794,9 +795,11 @@ describe('LevelStudyTab', () => {
     // Completing the resumed walk starts the queued repair as the
     // item-backed contrast pass for the missed level — the request
     // survived the refresh because the owner held it.
+    (levelBlock(container, 3).querySelector('.grammar-coverage__reveal') as HTMLButtonElement).click();
     walkProbe().click();
     await beat();
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
+    (levelBlock(container, 3).querySelector('.grammar-coverage__reveal') as HTMLButtonElement).click();
     walkProbe().click();
     await beat();
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-contrast') !== null);

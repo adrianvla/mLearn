@@ -151,12 +151,18 @@ async function startPass(container: HTMLElement, level: number) {
   await tick();
 }
 
+function revealCurrent(container: HTMLElement, level: number) {
+  const reveal = levelBlock(container, level).querySelector<HTMLButtonElement>('.grammar-coverage__reveal');
+  reveal?.click();
+}
+
 describe('GrammarCoverage policy-selected practice session', () => {
   // Durable-pass storage is cleared at the shared boundary: tests that dispose
   // mid-pass would otherwise leak `mlearn-grammar-pass:ja` into later mounts
   // and restore unexpectedly.
   beforeEach(() => {
     localStorage.clear();
+    settingsUiLanguage = 'en';
     // Passes serialize their durable mutations with the Web Locks API;
     // happy-dom reports navigator.locks as null, which DISABLES the pass
     // surfaces (G04). These tests drive the serialized paths (including
@@ -193,6 +199,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       expect(['のに', 'ば']).toContain(pattern);
       seen.add(pattern as string);
       expect(probeBtns().length).toBeGreaterThanOrEqual(3);
+      revealCurrent(container, 2);
       (probeBtns()[2] as HTMLElement).click(); // fluent
       await beat();
     }
@@ -208,6 +215,77 @@ describe('GrammarCoverage policy-selected practice session', () => {
     container.remove();
   });
 
+  it('resumes a revealed question and advances only after an acknowledged rating without remounting the session', async () => {
+    const onProbe = vi.fn().mockResolvedValue('attempt-1');
+    const first = mount(onProbe);
+    await startPass(first.container, 2);
+    const firstPrompt = levelBlock(first.container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+    expect(levelBlock(first.container, 2).querySelector<HTMLButtonElement>('.rating-matrix__quality:nth-child(3)')?.disabled).toBe(true);
+    expect(levelBlock(first.container, 2).textContent).toContain('mlearn.LevelStudy.Grammar.SessionProgress');
+    revealCurrent(first.container, 2);
+    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!).revealed).toMatchObject({ index: 0, pattern: firstPrompt });
+    first.dispose();
+    first.container.remove();
+
+    const second = mount(onProbe);
+    const sessionNode = levelBlock(second.container, 2).querySelector('.grammar-coverage__session');
+    expect(second.container.querySelector('[data-testid="grammar-session-answer"]')).toBeTruthy();
+    (second.container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+    await beat();
+    expect(onProbe).toHaveBeenCalledTimes(1);
+    expect((onProbe.mock.calls[0] as unknown[])[4]).toMatchObject({ taskType: 'grammar-self-assess', attemptId: expect.any(String) });
+    expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session')).toBe(sessionNode);
+    expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern')).not.toBe(firstPrompt);
+    expect(second.container.querySelector('[aria-busy="true"]')).toBeNull();
+    second.dispose();
+    second.container.remove();
+  });
+
+  it('retries a failed acknowledged write using the reserved attempt identity', async () => {
+    const attemptIds: string[] = [];
+    const onProbe = vi.fn((_pattern: string, _quality: AttemptQuality, _level: number, _scaffolds?: AttemptScaffolds, attempt?: unknown) => {
+      const attemptId = (attempt as { attemptId: string }).attemptId;
+      attemptIds.push(attemptId);
+      return attemptIds.length === 1 ? Promise.reject(new Error('controlled write failure')) : Promise.resolve(attemptId);
+    });
+    const { container, dispose } = mount(onProbe);
+    await startPass(container, 2);
+    revealCurrent(container, 2);
+    (container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+    await tick();
+    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!).pending?.attemptId).toBe(attemptIds[0]);
+    expect(container.querySelector('[data-phase="save-failed"]')).toBeTruthy();
+    (container.querySelector('[data-testid="grammar-session-retry"]') as HTMLButtonElement).click();
+    await tick();
+    expect(attemptIds).toEqual([attemptIds[0], attemptIds[0]]);
+    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!).index).toBe(1);
+    dispose();
+    container.remove();
+  });
+
+  it('refuses Skip while a failed journal write owns the current cursor', async () => {
+    const onProbe = vi.fn().mockRejectedValue(new Error('journal unavailable'));
+    const first = mount(onProbe);
+    await startPass(first.container, 2);
+    revealCurrent(first.container, 2);
+    (first.container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+    await beat();
+    const reserved = localStorage.getItem('mlearn-grammar-pass:ja');
+    const skip = first.container.querySelector('.grammar-coverage__session-skip') as HTMLButtonElement;
+    skip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await beat();
+    expect(localStorage.getItem('mlearn-grammar-pass:ja')).toBe(reserved);
+    expect(skip.disabled).toBe(true);
+    first.dispose();
+    first.container.remove();
+    const second = mount(onProbe);
+    await beat();
+    expect(second.container.querySelector('[data-phase="save-failed"]')).toBeTruthy();
+    expect(localStorage.getItem('mlearn-grammar-pass:ja')).toBe(reserved);
+    second.dispose();
+    second.container.remove();
+  });
+
   it('uses the shared knowledge matrix for the live construction probe', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);
@@ -215,6 +293,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     const live = levelBlock(container, 2).querySelector('.grammar-coverage__session-probe') as HTMLElement;
     expect(live.querySelector('.rating-matrix')).not.toBeNull();
+    revealCurrent(container, 2);
     (live.querySelector('.rating-matrix__adjust') as HTMLButtonElement).click();
     expect(live.textContent).toContain('mlearn.Knowledge.Capability.grammar-recognition');
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '4', bubbles: true }));
@@ -233,6 +312,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await startPass(container, 2);
     const prompt = levelBlock(container, 2).querySelector('[data-pattern]')?.getAttribute('data-pattern');
     const fluent = () => levelBlock(container, 2).querySelector<HTMLButtonElement>('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)')!;
+    revealCurrent(container, 2);
     const setItem = vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
       throw new DOMException('quota exceeded', 'QuotaExceededError');
     });
@@ -265,6 +345,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       const fluent = levelBlock(container, 2).querySelector(
         '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
       ) as HTMLButtonElement;
+      revealCurrent(container, 2);
       fluent.click();
       await beat();
     }
@@ -300,6 +381,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       const fluent = levelBlock(second.container, 2).querySelector(
         '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
       ) as HTMLButtonElement;
+      revealCurrent(second.container, 2);
       fluent.click();
       await beat();
     }
@@ -338,6 +420,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const firstFluent = levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
+    revealCurrent(container, 2);
     firstFluent.click();
     firstFluent.click(); // same tick double-fire / stale handler
     await tick();
@@ -354,12 +437,13 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const nextFluent = levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
-    expect(nextFluent.disabled).toBe(false);
+    expect(nextFluent.disabled).toBe(true);
     nextFluent.dispatchEvent(new MouseEvent('click', { detail: 2, bubbles: true }));
     await tick();
     expect(onProbe).toHaveBeenCalledTimes(1);
 
     // A genuinely fresh activation (detail <= 1) rates the next prompt once.
+    revealCurrent(container, 2);
     nextFluent.click();
     await tick();
     expect(onProbe).toHaveBeenCalledTimes(2);
@@ -377,6 +461,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const fluent = levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
+    revealCurrent(container, 2);
     fluent.click();
     await beat();
 
@@ -385,6 +470,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const second = levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
+    revealCurrent(container, 2);
     // Holding Enter/Space auto-repeats keydown; the control must cancel the
     // default activation so the held key cannot rate the following prompt.
     second.focus();
@@ -395,6 +481,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(prevent).toHaveBeenCalled();
     expect(onProbe).toHaveBeenCalledTimes(1);
 
+    revealCurrent(container, 2);
     second.click();
     await tick();
     expect(onProbe).toHaveBeenCalledTimes(2);
@@ -410,8 +497,10 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const fluent = () => levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
+    revealCurrent(container, 2);
     (fluent()).click();
     await beat();
+    revealCurrent(container, 2);
     (fluent()).click();
     await beat();
     expect(container.querySelector('.grammar-coverage__session-done')).toBeTruthy();
@@ -420,6 +509,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const practise = levelBlock(container, 2).querySelector('.grammar-coverage__session-btn') as HTMLButtonElement;
     practise.click();
     await tick();
+    revealCurrent(container, 2);
     (fluent()).click();
     await tick();
     expect(onProbe).toHaveBeenCalledTimes(3);
@@ -532,13 +622,16 @@ describe('GrammarCoverage policy-selected practice session', () => {
     container.remove();
   });
 
-  it('session (cue-free) probes record no scaffold while meaning leaks none', async () => {
+  it('session ratings describe pre-reveal recall and retain unassisted provenance', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2); // level 2 pass running
     // No meaning cue is rendered anywhere while the pass is live.
     expect(container.querySelectorAll('.grammar-coverage__meaning').length).toBe(0);
+    expect(container.querySelector('[data-testid="grammar-session-answer"]')).toBeNull();
     const fluent = container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLElement;
+    revealCurrent(container, 2);
+    expect(container.querySelector('[data-testid="grammar-session-answer"]')).toBeTruthy();
     fluent.click();
     await tick();
     expect(onProbe).toHaveBeenCalledTimes(1);
@@ -581,8 +674,10 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const fluent = () => levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
+    revealCurrent(container, 2);
     (fluent()).click();
     await beat();
+    revealCurrent(container, 2);
     (fluent()).click();
     await beat();
 
@@ -726,6 +821,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await startPass(first.container, 2);
     const firstPresented = first.container.querySelector('[data-level="2"] [data-pattern]')?.getAttribute('data-pattern');
     expect(firstPresented).toBeTruthy();
+    revealCurrent(first.container, 2);
     (first.container.querySelector('[data-level="2"] .grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(1);
@@ -740,8 +836,9 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const resumedPattern = second.container.querySelector('[data-level="2"] [data-pattern]')?.getAttribute('data-pattern');
     expect(resumedPattern).toBeTruthy();
     expect(resumedPattern).not.toBe(firstPresented);
-    expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session-btn')).toBeNull();
+    expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session-btn:not(.grammar-coverage__reveal)')).toBeNull();
 
+    revealCurrent(second.container, 2);
     (second.container.querySelector('[data-level="2"] .grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(2);
@@ -841,6 +938,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     // The rating handler synchronously persists a stable pending attempt at
     // the presented cursor before invoking the journal writer.
+    revealCurrent(container, 2);
     const setItem = vi.spyOn(localStorage, 'setItem');
     (levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
@@ -855,6 +953,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     // Completing the walk removes the stored entry (index past the end).
     await beat();
+    revealCurrent(container, 2);
     (levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLElement).click();
@@ -1342,8 +1441,10 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     const fluent = () => levelBlock(first.container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
+    revealCurrent(first.container, 2);
     fluent().click();
     await beat();
+    revealCurrent(first.container, 2);
     fluent().click();
     await beat();
     expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:ja')).toBeNull();
@@ -1941,6 +2042,11 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     expect(currentItem(container, 2).itemId).toBe(presented.itemId);
     expect(levelBlock(container, 2).querySelector('.grammar-contrast__feedback')).toBeNull();
     expect(container.querySelector('[data-testid="grammar-storage-unavailable"]')).toBeTruthy();
+    const skip = levelBlock(container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement;
+    skip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await beat();
+    expect(JSON.parse(localStorage.getItem('mlearn-grammar-contrast-pass:ja')!)).toEqual(reserved);
+    expect(skip.disabled).toBe(true);
 
     answer();
     await beat();
@@ -1956,6 +2062,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     const interrupted = vi.fn(() => new Promise<void>(() => {}));
     const first = mount(interrupted);
     await startPass(first.container, 2);
+    revealCurrent(first.container, 2);
     (levelBlock(first.container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement).click();
@@ -1981,6 +2088,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     const interrupted = vi.fn(() => new Promise<void>(() => {}));
     const first = mount(interrupted);
     await startPass(first.container, 3);
+    revealCurrent(first.container, 3);
     (levelBlock(first.container, 3).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement).click();

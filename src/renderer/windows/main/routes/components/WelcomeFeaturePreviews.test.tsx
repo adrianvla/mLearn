@@ -845,6 +845,23 @@ describe('WelcomeLevelPreview', () => {
     dispose();
   });
 
+  it('shows the same one-decimal known percentage as the plan for matching counts', () => {
+    const level = { ...makeLevel(4, 87.5), known: 559, total: 639 };
+    const dispose = render(
+      () => <WelcomeLevelPreview
+        coverage={{ total: 639, tracked: 559, pct: 87.5 }}
+        active={level}
+        chips={[level]}
+        titleLabel="Coverage"
+        emptyLabel="No data"
+        onOpen={() => {}}
+      />,
+      container,
+    );
+    expect(container.querySelector('.wfv-level-chip-pct')?.textContent).toBe('87.5%');
+    dispose();
+  });
+
   it('marks the dial percentage as assessed coverage and labels chip tooltips as Known', () => {
     const dispose = render(
       () => (

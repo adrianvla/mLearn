@@ -130,12 +130,12 @@ async function downloadModel(
         downloadedBytes = progress.downloadedBytes;
         expectedBytes = progress.expectedBytes;
         downloadProgress = progress.progress;
-        sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, getModelStatus(modelFile));
+        if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, getModelStatus(modelFile));
       }
     );
     isDownloading = false;
     downloadProgress = 1;
-    sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, getModelStatus(modelFile));
+    if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, getModelStatus(modelFile));
   } catch (err) {
     log.error('Model download failed', err as Error);
     isDownloading = false;
@@ -398,14 +398,15 @@ export function setupBuiltinLLMIPC(): void {
         resolvedModelFile,
         event.sender
       );
-      event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, await checkModelStatus(resolvedModelFile));
+      const status = await checkModelStatus(resolvedModelFile);
+      if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, status);
     } catch (err) {
       log.error('Model download IPC handler failed', err as Error);
       const status: LLMModelStatus = {
         ...getModelStatus(resolvedModelFile),
         error: (err as Error).message,
       };
-      event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, status);
+      if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, status);
     }
   });
 

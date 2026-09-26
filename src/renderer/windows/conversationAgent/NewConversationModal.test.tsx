@@ -7,6 +7,9 @@ import { createStore } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type Settings } from '../../../shared/types';
 import type { WorldSnapshot } from '../../../shared/world';
 
+let settingsSavedHandler: (() => void) | undefined;
+let persistedSettingsHandler: ((settings: Settings) => void) | undefined;
+const getSettingsMock = vi.fn();
 const createSandbox = vi.fn();
 const prepareScenario = vi.fn();
 const activateScenario = vi.fn();
@@ -18,7 +21,11 @@ const createPersistentRoom = vi.fn();
 const updateThread = vi.fn(async (thread) => thread);
 
 vi.mock('../../../shared/bridges', () => ({
-  getBridge: () => ({ world: { prepareScenario, activateScenario, cancelScenario, createSandbox, createParticipant, createRoom, applyMembership, createPersistentRoom, updateThread } }),
+  getBridge: () => ({ settings: {
+    onSettingsSaved: (callback: () => void) => { settingsSavedHandler = callback; return () => { settingsSavedHandler = undefined; }; },
+    onSettings: (callback: (settings: Settings) => void) => { persistedSettingsHandler = callback; return () => { persistedSettingsHandler = undefined; }; },
+    getSettings: getSettingsMock,
+  }, world: { prepareScenario, activateScenario, cancelScenario, createSandbox, createParticipant, createRoom, applyMembership, createPersistentRoom, updateThread } }),
 }));
 
 // Reactive settings store mirrors SettingsContext so consent flips re-render.
@@ -367,6 +374,10 @@ describe('living world consent', () => {
     enableButton().click();
 
     expect(updateSettingsMock).toHaveBeenCalledWith({ livingWorldEnabled: true });
+    expect(createPersistentRoom).not.toHaveBeenCalled();
+    settingsSavedHandler!();
+    expect(getSettingsMock).toHaveBeenCalled();
+    persistedSettingsHandler!({ ...DEFAULT_SETTINGS, livingWorldEnabled: true });
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-9', threadId: null }));
     expect(createPersistentRoom).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent' });
     expect(createSandbox).not.toHaveBeenCalled();

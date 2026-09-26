@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
 import type { Flashcard, LanguageData } from '../../../shared/types';
 import { FlashcardDisplay } from './FlashcardDisplay';
 
@@ -152,6 +152,27 @@ describe('FlashcardDisplay', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('pauses the hidden front video on reveal and the back video on return or unmount', async () => {
+    const [revealed, setRevealed] = createSignal(false);
+    const card = makeCard();
+    card.content.videoUrl = 'https://example.com/clip.mp4';
+    const dispose = render(() => <FlashcardDisplay flashcard={card} showAnswer={revealed()} />, container);
+    const [front, back] = Array.from(container.querySelectorAll('video'));
+    await front.play();
+    expect(front.paused).toBe(false);
+    setRevealed(true);
+    await Promise.resolve();
+    expect(front.paused).toBe(true);
+    expect(back.paused).toBe(false);
+    setRevealed(false);
+    await Promise.resolve();
+    expect(back.paused).toBe(true);
+    await front.play();
+    dispose();
+    expect(front.paused).toBe(true);
+    expect(back.paused).toBe(true);
   });
 
   it('uses saved card language metadata for level labels and Anki duplicate lookup', () => {

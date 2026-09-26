@@ -278,6 +278,10 @@ export interface Settings {
   learningLanguageLevels: Record<string, number | null>;
   frequencyProviderSelections: Record<string, string>;
   frequencyLevelSystemSelections: Record<string, string>;
+  /** Per-language, per-provider target ceilings; the active value is also mirrored in learningLanguageLevels. */
+  frequencyProviderTargets: Record<string, Record<string, number | null>>;
+  /** Preserve each provider's package-declared level-system choice when switching providers. */
+  frequencyLevelSystemsByProvider: Record<string, Record<string, string>>;
   /**
    * Dated historical background records (R09): old exam/school/self-assessment
    * results, stored as background for placement. Never knowledge claims.
@@ -703,6 +707,8 @@ export const DEFAULT_SETTINGS: Settings = {
   learningLanguageLevels: {},
   frequencyProviderSelections: {},
   frequencyLevelSystemSelections: {},
+  frequencyProviderTargets: {},
+  frequencyLevelSystemsByProvider: {},
   learningBackground: { records: [] },
   sessionIntensity: 'steady',
   examGoal: { kind: 'none' },

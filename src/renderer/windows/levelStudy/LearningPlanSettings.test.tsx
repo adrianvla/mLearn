@@ -14,6 +14,8 @@ const testSettings = {
   learningLanguageLevels: {} as Record<string, number | null>,
   frequencyProviderSelections: {} as Record<string, string>,
   frequencyLevelSystemSelections: {} as Record<string, string>,
+  frequencyProviderTargets: {} as Record<string, Record<string, number | null>>,
+  frequencyLevelSystemsByProvider: {} as Record<string, Record<string, string>>,
   autoSuggestFlashcards: true,
   autoSuggestUnknownWords: true,
   use_anki: false,
@@ -100,6 +102,8 @@ describe('LearningPlanSettings', () => {
     testSettings.learningLanguageLevels = {};
     testSettings.frequencyProviderSelections = {};
     testSettings.frequencyLevelSystemSelections = {};
+    testSettings.frequencyProviderTargets = {};
+    testSettings.frequencyLevelSystemsByProvider = {};
     testLanguageData = {
       name: 'Example Language',
       settings: { fixed: {} },
@@ -170,10 +174,11 @@ describe('LearningPlanSettings', () => {
     dispose();
   });
 
-  it('offers provider and level-system selectors and resets an incompatible proficiency ceiling', async () => {
+  it('offers provider and level-system selectors and retains each provider target', async () => {
     testSettings.frequencyProviderSelections = { xx: 'smartool' };
     testSettings.frequencyLevelSystemSelections = { xx: 'cefr' };
     testSettings.learningLanguageLevels = { xx: 3 };
+    testSettings.frequencyProviderTargets = { xx: { smartool: 3, openrussian: 1 } };
     testLanguageData = {
       ...testLanguageData,
       activeFrequencyProvider: 'smartool',
@@ -220,7 +225,8 @@ describe('LearningPlanSettings', () => {
     levelSystemSelect!.dispatchEvent(new Event('change', { bubbles: true }));
     expect(updateSettingsMock).toHaveBeenCalledWith({
       frequencyLevelSystemSelections: { xx: 'trki' },
-      learningLanguageLevels: { xx: null },
+      frequencyLevelSystemsByProvider: { xx: { smartool: 'trki' } },
+      learningLanguageLevels: { xx: 3 },
     });
 
     updateSettingsMock.mockReset();
@@ -229,7 +235,8 @@ describe('LearningPlanSettings', () => {
     expect(updateSettingsMock).toHaveBeenCalledWith({
       frequencyProviderSelections: { xx: 'openrussian' },
       frequencyLevelSystemSelections: {},
-      learningLanguageLevels: { xx: null },
+      frequencyProviderTargets: { xx: { smartool: 3, openrussian: 1 } },
+      learningLanguageLevels: { xx: 1 },
     });
 
     dispose();

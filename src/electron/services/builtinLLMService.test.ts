@@ -251,6 +251,22 @@ describe('LLM_DOWNLOAD_MODEL handler', () => {
     expect(sender.send).toHaveBeenCalledWith('llm-model-status', expect.any(Object));
   });
 
+  it('finishes the download when its Settings window closes during progress', async () => {
+    const sender = createMockSender();
+    let completed = false;
+    sender.send.mockImplementation(() => { throw new Error('Object has been destroyed'); });
+    mockDownloadFileWithProgress.mockImplementation(async (_url, _dest, onProgress) => {
+      sender.isDestroyed.mockReturnValue(true);
+      onProgress({ downloadedBytes: 500, expectedBytes: 1000, progress: 0.5 });
+      completed = true;
+    });
+    const listener = mockIpcListeners.get('llm-download-model')![0];
+    await expect(listener({ sender })).resolves.toBeUndefined();
+    expect(completed).toBe(true);
+    const status = await mockIpcHandlers.get('llm-check-model')!(null) as { downloading: boolean; downloaded: boolean };
+    expect(status).toMatchObject({ downloading: false, downloaded: true });
+  });
+
   it('calls downloadFileWithProgress with custom url and file', async () => {
     mockDownloadFileWithProgress.mockResolvedValue(undefined);
     const sender = createMockSender();
