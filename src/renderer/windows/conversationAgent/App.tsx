@@ -59,7 +59,7 @@ import { runRoomTurn } from '../../../shared/roomOrchestrator';
 import { compileContext, visibleThreadEventsFor, type CompiledContext, type LearnerProjection } from '../../../shared/contextCompiler';
 import { renderCompiledContext } from './roomMessages';
 import { createVoicePrefetch } from './voicePrefetch';
-import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type WorldSnapshot } from '../../../shared/world';
+import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot } from '../../../shared/world';
 import { getLearningLanguageLevelForLanguage, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -67,6 +67,15 @@ import { getLogger } from '../../../shared/utils/logger';
 const log = getLogger("renderer.conversationAgent.app");
 const HISTORY_WINDOW = 40;
 const SELECTION_KEY = 'conversation-selection';
+
+const mediaRefFromContext = (context: ConversationAgentContext): ThreadMediaRef => ({
+  mediaHash: context.mediaHash,
+  mediaName: context.mediaName,
+  mediaType: context.mediaType,
+  assessedLevelName: context.assessedLevelName || undefined,
+  subtitleHistory: context.subtitleHistory,
+  characterContext: context.characterContext,
+});
 
 type EventMessage = ConversationMessage & { eventId: string };
 
@@ -396,7 +405,7 @@ export const ConversationContent: Component = () => {
       if (!participant) throw new Error('Conversation participant is unavailable');
       return compileContext({ room: activeRoom() ?? undefined, thread: activeThread() ?? undefined, participant, participants: rosterParticipants(),
         seaEvents: journal.seaEvents(), threadEvents: journal.threadEvents(),
-        learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef,
+        learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined),
         threadIntent: activeThread()?.intent, turn: { text: turnText } });
     },
     () => {
@@ -550,7 +559,7 @@ export const ConversationContent: Component = () => {
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
         learnerProjection: learnerProjection(),
-        threadMedia: activeThread()?.mediaRef, threadIntent: activeThread()?.intent,
+        threadMedia: activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined), threadIntent: activeThread()?.intent,
         ...(turnText ? { turn: { text: turnText } } : {}),
       }),
       rosterParticipants(),
@@ -700,8 +709,17 @@ export const ConversationContent: Component = () => {
     }
   });
 
+  const draftBySelection = new Map<string, string>();
+  const scrollBySelection = new Map<string, number>();
+  const selectionKey = (roomId: string, threadId: string | null) => `${roomId}:${threadId ?? ''}`;
   const selectRoom = async (roomId: string, requestedThreadId?: string): Promise<void> => {
     const mySession = ++selectionSession;
+    const previous = selection();
+    if (previous) {
+      const key = selectionKey(previous.roomId, previous.threadId);
+      draftBySelection.set(key, inputText());
+      if (messagesRef) scrollBySelection.set(key, messagesRef.scrollTop);
+    }
     const snapshot = await getBridge().world.getWorldState();
     if (mySession !== selectionSession) return;
     setWorld(snapshot);
@@ -735,8 +753,17 @@ export const ConversationContent: Component = () => {
     tokenizationFailures.clear();
     participantAgents.clear();
     setSelection({ roomId, threadId });
+    const key = selectionKey(roomId, threadId);
+    // The first selection can finish while a learner has already begun typing
+    // in the visible composer. Do not erase that draft on initial hydration.
+    if (previous || !inputText()) setInputText(draftBySelection.get(key) ?? '');
     await journal.select({ roomId, threadId, continuityRoomIds: selectedSandbox ? Object.keys(selectedSandbox.sandbox!.baselineHeads) : snapshot.rooms.map(item => item.id), baselineHeads: selectedSandbox?.sandbox?.baselineHeads });
     if (mySession !== selectionSession) return;
+    requestAnimationFrame(() => {
+      if (mySession === selectionSession && messagesRef && scrollBySelection.has(key)) {
+        messagesRef.scrollTop = scrollBySelection.get(key)!;
+      }
+    });
     await getBridge().kvStore.kvSet(SELECTION_KEY, JSON.stringify({ roomId, threadId }));
     if (!selectedSandbox) await getBridge().world.clearRoomUnread(roomId);
     setWorld((current) => current ? { ...current, rooms: current.rooms.map((item) => item.id === roomId ? { ...item, unreadCount: 0 } : item) } : current);
@@ -747,9 +774,21 @@ export const ConversationContent: Component = () => {
   // legacy Room-linked createThread entry is gone. Existing room-linked
   // threads (including legacy-migrated ones) remain listed and selectable.
   const handleScenarioCreated = async (result: { roomId: string; threadId: string | null; intent?: string }): Promise<void> => {
+    const launchMedia = mediaContext();
     const snapshot = await getBridge().world.getWorldState();
     setWorld(snapshot);
     await selectRoom(result.roomId, result.threadId ?? undefined);
+    if (launchMedia) {
+      setMediaContext(launchMedia);
+      const thread = activeThread();
+      if (result.threadId && thread?.id === result.threadId) {
+        const updatedThread = await getBridge().world.updateThread({ ...thread, mediaRef: mediaRefFromContext(launchMedia) });
+        setWorld((current) => current ? {
+          ...current,
+          threads: current.threads.map((item) => item.id === updatedThread.id ? updatedThread : item),
+        } : current);
+      }
+    }
     const tutor = pendingTutorConfig();
     if (tutor) {
       translatedInstructions = tutor.customInstructions || null;
@@ -885,17 +924,14 @@ export const ConversationContent: Component = () => {
         if (rawCtx.initialTab === 'stats') setShowDetailsDrawer(true);
         if (isConversationAgentContext(rawCtx)) {
           setMediaContext(rawCtx);
-          await updateActiveThread((thread) => ({
-            ...thread,
-            mediaRef: {
-              mediaHash: rawCtx.mediaHash,
-              mediaName: rawCtx.mediaName,
-              mediaType: rawCtx.mediaType,
-              assessedLevelName: rawCtx.assessedLevelName || undefined,
-              subtitleHistory: rawCtx.subtitleHistory,
-              characterContext: rawCtx.characterContext,
-            },
-          }));
+          // A media-only launch must not relabel the previously selected
+          // conversation. Attach context only when the caller names a thread;
+          // otherwise let the learner create a distinct conversation.
+          if (typeof rawCtx.threadId === 'string' && activeThread()?.id === rawCtx.threadId) {
+            await updateActiveThread((thread) => ({ ...thread, mediaRef: mediaRefFromContext(rawCtx) }));
+          } else {
+            setShowNewConversationModal(true);
+          }
         }
         if (isTutorSessionConfig(rawCtx.tutorConfig)) {
           const config = rawCtx.tutorConfig;
@@ -1167,7 +1203,7 @@ export const ConversationContent: Component = () => {
         participants: rosterParticipants(),
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
-        compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, thread: activeThread() ?? undefined, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef, threadIntent: activeThread()?.intent, turn: { text } }),
+        compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, thread: activeThread() ?? undefined, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined), threadIntent: activeThread()?.intent, turn: { text } }),
         runAgentTurn: async (participantId, context) => {
           const participant = rosterParticipants().find((candidate) => candidate.id === participantId);
           if (!participant) return { text: '' };
@@ -1512,7 +1548,7 @@ export const ConversationContent: Component = () => {
         />
         <div class="ca-header-identity">
           <span class="ca-header-title">{activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
-          <Show when={activeThread()?.mediaRef} keyed>
+          <Show when={activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined)} keyed>
             {(media) => (
               <Btn variant="ghost" class="ca-media-chip" onClick={openDetails}>
                 {media.mediaName}
@@ -1898,7 +1934,8 @@ export const ConversationContent: Component = () => {
         <Show when={pendingTutorConfig() ?? 'manual'} keyed>{(_config) => <NewConversationModal
           world={world()}
           initialIntent={pendingTutorConfig() ? tutorSessionIntent(pendingTutorConfig()!) : undefined}
-          onClose={() => { setShowNewConversationModal(false); setPendingTutorConfig(undefined); }}
+          mediaName={mediaContext()?.mediaName}
+          onClose={() => { setShowNewConversationModal(false); setPendingTutorConfig(undefined); setMediaContext(null); }}
           onCreated={handleScenarioCreated}
         />}</Show>
       </Show>

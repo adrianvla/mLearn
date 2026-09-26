@@ -26,6 +26,7 @@ export interface NewConversationResult {
 interface NewConversationModalProps {
   world: WorldSnapshot | null;
   initialIntent?: string;
+  mediaName?: string;
   onCreated: (result: NewConversationResult) => void | Promise<void>;
   onClose: () => void;
 }
@@ -183,6 +184,9 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       }
     >
       <div class="new-conversation-form">
+        <Show when={props.mediaName}>
+          <p class="new-conversation-media-context">{t('mlearn.ConversationAgent.NewConversation.MediaContext', { media: props.mediaName! })}</p>
+        </Show>
         <Show when={!preview()}>
           <fieldset class="new-conversation-scope">
             <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}</legend>

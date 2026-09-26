@@ -30,6 +30,8 @@ interface ReaderNavProps {
   onSpreadDirectionChange: (direction: string) => void;
   onToggleFirstPageSingle: () => void;
   onToggleOcrOverlay: () => void;
+  onOpenFolder: () => void;
+  onOpenPdf: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
 }
@@ -68,7 +70,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         </NavBtn>
       </div>
       <Show when={props.hasPages()}>
-        <div class="nav-group">
+        <div class="nav-group reader-nav-title">
             <Tag class="book-title-nav label-secondary" headless size={"sm"}>{props.bookTitle()}</Tag>
         </div>
       
@@ -76,7 +78,15 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         <Tag class="progress label-secondary" headless size={"sm"}>{props.progressString()}</Tag>
       </div>
       
-      <div class="nav-group">
+      <details class="nav-group reader-nav-options">
+        <summary aria-label={t('mlearn.Reader.Toolbar.ViewOptions')}>{t('mlearn.Reader.Toolbar.ViewOptions')}</summary>
+        <div class="reader-nav-options-panel">
+        <NavBtn onClick={props.onOpenFolder}>
+          {t('mlearn.Reader.UI.WelcomeSplash.OpenFolder')}
+        </NavBtn>
+        <NavBtn onClick={props.onOpenPdf}>
+          {t('mlearn.Reader.UI.WelcomeSplash.OpenPdf')}
+        </NavBtn>
         <Show when={props.showTextTheme}>
           <NavBtn
             onClick={handleThemeTriggerClick}
@@ -134,8 +144,9 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
             </NavBtn>
           </>
         )}
-      </div>
-      
+        </div>
+      </details>
+
       <div class="nav-group nav-arrows">
         <NavBtn onClick={props.onPrevPage} aria-label={t('mlearn.Reader.Toolbar.PreviousPage')}><ChevronLeftIcon size={16} /></NavBtn>
         <NavBtn onClick={props.onNextPage} aria-label={t('mlearn.Reader.Toolbar.NextPage')}><ChevronRightIcon size={16} /></NavBtn>

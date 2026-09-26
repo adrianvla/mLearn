@@ -33,6 +33,10 @@ interface BulkAddModalProps {
   languageData: LanguageData | null;
   frequency: WordFrequencyMap;
   levelNames: Record<string, string>;
+  /** Frequency surfaces with evidence, after the parent journal snapshot. */
+  evidenceSurfaces: readonly string[];
+  /** Journal and materialized keys used for graph-linked evidence selection. */
+  evidenceKeys: ReadonlySet<string>;
   targetLevel?: number | null;
   onClose: () => void;
 }
@@ -82,8 +86,6 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
     (language) => loadDictionaryUniverse(language),
   );
 
-  const projected = useKnowledgeProjections(() => ({ language: props.language, surfaces: [...Object.keys(props.frequency), ...(dictionaryWords() ?? []).map(entry => entry[0])] }));
-
   const filterSetup = createMemo(() => (
     buildLevelStudyBulkAddFields(props.levelNames, t, props.languageData)
   ));
@@ -100,6 +102,22 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
     if (tokens().length === 0) return null;
     return filterValidation().ok ? parseTokens(tokens()) : null;
   });
+  const dictionaryCanMatch = createMemo(() => {
+    const ast = filterAst();
+    return tokens().length === 0 || Boolean(ast && dictScanCanMatch(ast, resolvers()));
+  });
+
+  const dictionaryCandidates = createMemo(() => {
+    const pairs = dictionaryWords.state === 'errored' ? undefined : dictionaryWords();
+    if (!pairs || !dictionaryCanMatch()) return [];
+    const inFrequency = new Set(Object.keys(props.frequency));
+    return pairs.map(([word]) => word).filter((word) => !inFrequency.has(word));
+  });
+  const projected = useKnowledgeProjections(() => ({
+    language: props.language,
+    surfaces: [...props.evidenceSurfaces, ...dictionaryCandidates()],
+    evidenceKeys: [...props.evidenceKeys],
+  }));
 
   const toFilterStatus = (word: string): string => {
     const resolved = projectedWordStatus(projected.projections().get(word));
@@ -133,7 +151,7 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
 
   createEffect(() => {
     void freqWords();
-    const pairs = dictionaryWords();
+    const pairs = dictionaryWords.state === 'errored' ? undefined : dictionaryWords();
     const ast = filterAst();
     if (!pairs || pairs.length === 0 || (tokens().length > 0 && !ast)) {
       setDictWords([]);
@@ -142,10 +160,17 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
       return;
     }
 
-    if (ast && !dictScanCanMatch(ast, resolvers())) {
+    if (!dictionaryCanMatch()) {
       setDictWords([]);
       setDictCount(0);
       setDictBuilding(false);
+      return;
+    }
+
+    if (projected.loading()) {
+      setDictWords([]);
+      setDictCount(0);
+      setDictBuilding(true);
       return;
     }
 
@@ -182,8 +207,11 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
   });
 
   const totalCount = (): number => freqWords().length + dictCount();
+  const dictionaryPending = (): boolean => dictionaryCanMatch() && (dictionaryWords.loading || dictBuilding());
+  const dictionaryFailed = (): boolean => dictionaryCanMatch() && Boolean(dictionaryWords.error);
 
   const handleConfirm = async () => {
+    if (dictionaryPending() || dictionaryFailed() || !filterValidation().ok) return;
     const words = [...freqWords(), ...dictWords()];
     if (words.length === 0 || isAdding()) return;
     setIsAdding(true);
@@ -253,8 +281,12 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
                 </div>
               )}
             </Show>
-            <span class="bulk-add-count">
-              {t('mlearn.LevelStudy.BulkAdd.MatchingCount', { count: String(totalCount()) })}
+            <span class="bulk-add-count" role={dictionaryFailed() ? 'alert' : undefined}>
+              {dictionaryFailed()
+                ? t('mlearn.LevelStudy.BulkAdd.DictionaryError')
+                : dictionaryPending()
+                  ? t('mlearn.LevelStudy.BulkAdd.Counting')
+                  : t('mlearn.LevelStudy.BulkAdd.MatchingCount', { count: String(totalCount()) })}
             </span>
             <Btn size="sm" variant="secondary" onClick={props.onClose}>
               {t('mlearn.LevelStudy.BulkAdd.Cancel')}
@@ -263,7 +295,7 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
               size="sm"
               variant="primary"
               onClick={handleConfirm}
-              disabled={isAdding() || dictBuilding() || totalCount() === 0 || !filterValidation().ok}
+              disabled={isAdding() || dictionaryPending() || dictionaryFailed() || totalCount() === 0 || !filterValidation().ok}
             >
               {isAdding()
                 ? t('mlearn.LevelStudy.BulkAdd.Adding')

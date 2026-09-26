@@ -3,14 +3,22 @@ import { getBridge } from '../../shared/bridges';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 
 const [eventsVersion, setEventsVersion] = createSignal(0);
+const [wordEventsVersion, setWordEventsVersion] = createSignal(0);
 const queryCache = new Map<string, KnowledgeEventLog>();
 
 let channel: BroadcastChannel | null | undefined;
 let bridgeListenerRegistered = false;
 
-function bumpVersion(): void {
+function bumpVersion(keys?: readonly string[]): void {
   queryCache.clear();
   setEventsVersion((version) => version + 1);
+  // Grammar evidence has its own package-declared curriculum view. A grammar
+  // rating cannot change lexical projections, so do not invalidate thousands
+  // of word projections for that append. Missing change details remain a
+  // conservative full invalidation for older bridge senders.
+  if (keys === undefined || keys.some((key) => !/^[^:]+:grammar:/.test(key))) {
+    setWordEventsVersion((version) => version + 1);
+  }
 }
 
 // Lazy: module import must stay side-effect free (renderer AGENTS.md); tests also mock only partial bridges.
@@ -19,7 +27,7 @@ function ensureInitialized(): void {
     channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('mlearn-knowledge-events');
     if (channel) {
       // happy-dom's BroadcastChannel stub has no addEventListener; onmessage works everywhere.
-      channel.onmessage = bumpVersion;
+      channel.onmessage = (event) => bumpVersion(Array.isArray(event.data) ? event.data as string[] : undefined);
     }
   }
   if (!bridgeListenerRegistered) {
@@ -28,7 +36,7 @@ function ensureInitialized(): void {
   }
 }
 
-export { eventsVersion };
+export { eventsVersion, wordEventsVersion };
 
 /** Keys must be precomputed `${language}:${hash}` form keys; all supplied forms are merged. */
 export async function getEvents(keys: readonly string[]): Promise<KnowledgeEvent[]> {
@@ -71,8 +79,9 @@ export async function queryLanguageKeys(language: string, prefix?: string): Prom
 export async function appendEventsAcknowledged(eventsByKey: KnowledgeEventLog): Promise<boolean> {
   ensureInitialized();
   if (!await getBridge().knowledgeEvents.appendKnowledgeEvents(eventsByKey)) return false;
-  bumpVersion();
-  channel?.postMessage(null);
+  const changedKeys = Object.entries(eventsByKey).filter(([, events]) => events.length > 0).map(([key]) => key);
+  bumpVersion(changedKeys);
+  channel?.postMessage(changedKeys);
   return true;
 }
 

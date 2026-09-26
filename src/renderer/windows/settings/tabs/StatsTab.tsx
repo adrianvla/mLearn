@@ -1,3 +1,4 @@
+import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedProjections';
 /**
  * Stats Settings Tab
  * Displays learning statistics: stat cards, word distribution bar, level breakdown table
@@ -6,7 +7,7 @@
 import { Component, createMemo, createSignal, onMount, Show, For } from 'solid-js';
 import type { ComprehensiveWordStats } from '../../../utils/wordLevelStats';
 import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../../context';
-import { TabContent, StatCard, Btn } from '../../../components/common';
+import { TabContent, StatCard, Btn, KnowledgeGate, KnowledgeSkeleton } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import {
   getTimeWatchedFormatted,
@@ -17,11 +18,17 @@ import './StatsTab.css';
 
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
-  const { store, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
-  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage } = useLanguage();
+  const { store, isLoading, isKnowledgeReady } = useFlashcards();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, isLoading: languageLoading } = useLanguage();
   const { t } = useLocalization();
 
   const [timeWatched, setTimeWatched] = createSignal('0h 0m');
+
+  const projected = useEvidenceLinkedProjections(() => !isLoading() && isKnowledgeReady() && !languageLoading() ? {
+    language: settings.language,
+    surfaces: [...new Set([...Object.keys(getWordFrequency()), ...Object.entries(store.wordKnowledge).filter(([key]) => key.startsWith(settings.language + ':')).map(([, entry]) => entry.word).filter((word): word is string => !!word)])],
+    materializedKeys: Object.keys(store.wordKnowledge),
+  } : undefined);
 
   // The existing Viewed display groups Unknown + Unmeasured; the data keeps them separate.
   const wordStats = createMemo<ComprehensiveWordStats>(() =>
@@ -33,8 +40,8 @@ export const StatsTab: Component = () => {
       settings.easeThresholdLearning * 1000,
       getFreqLevelNames(),
       currentLangData(),
-      getCanonicalFormForLanguage,
-      getComprehensiveWordStatusWithSourceSync,
+      undefined,
+      projected.resolveState,
     ),
   );
 
@@ -57,6 +64,8 @@ export const StatsTab: Component = () => {
       }}
       padding="lg"
     >
+      <Show when={projected.failed()}><div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn></div></Show>
+      <KnowledgeGate ready={projected.ready()} fallback={<KnowledgeSkeleton variant="lines" />}>
       <div class="stats-grid">
         <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} size="md" />
         <StatCard label={t('mlearn.Statistics.WordsEncountered')} value={wordStats().allEncountered.total} size="md" />
@@ -137,6 +146,7 @@ export const StatsTab: Component = () => {
           {t('mlearn.Statistics.Actions.OpenAiAnalytics')}
         </Btn>
       </div>
+      </KnowledgeGate>
     </TabContent>
   );
 };

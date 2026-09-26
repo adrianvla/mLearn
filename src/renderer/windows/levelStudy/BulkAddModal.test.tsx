@@ -14,6 +14,7 @@ const getComprehensiveWordStatusSyncMock = vi.fn();
 const hasWordSyncMock = vi.fn();
 const onCloseMock = vi.fn();
 const enumerateDictionaryWordsMock = vi.fn();
+let capturedProjectionQuery: (() => { language: string; surfaces: readonly string[]; evidenceKeys?: readonly string[] } | undefined) | undefined;
 
 vi.mock('../../context', () => ({
   useLocalization: () => ({
@@ -141,17 +142,21 @@ describe('BulkAddModal', () => {
     container.remove();
   });
 
-  async function renderModal() {
+  async function renderModal(evidenceKeys: ReadonlySet<string> = new Set(['ja:bird']), waitForDictionary = true) {
     const { BulkAddModal } = await import('./BulkAddModal');
-    return render(() => (
+    const dispose = render(() => (
       <BulkAddModal
         language="ja"
         languageData={LANG_DATA}
         frequency={FREQUENCY}
         levelNames={{ '5': 'N5' }}
+        evidenceSurfaces={['鳥']}
+        evidenceKeys={evidenceKeys}
         onClose={onCloseMock}
       />
     ), container);
+    if (waitForDictionary) await new Promise((resolve) => setTimeout(resolve, 0));
+    return dispose;
   }
 
   it('defaults to the untracked|unknown|learning filter and adds matching words keeping their existing status', async () => {
@@ -170,6 +175,67 @@ describe('BulkAddModal', () => {
     );
     expect(showToastMock).toHaveBeenCalled();
     expect(onCloseMock).toHaveBeenCalled();
+
+    dispose();
+  });
+
+  it('passes dictionary candidates and evidence keys to graph selection', async () => {
+    enumerateDictionaryWordsMock.mockResolvedValue([['鮫', 'さめ'], ['鰯', 'いわし']]);
+    const dispose = await renderModal();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(capturedProjectionQuery?.()?.surfaces).toEqual(['鳥', '鮫', '鰯']);
+    expect(capturedProjectionQuery?.()?.evidenceKeys).toEqual(['ja:bird']);
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[4]');
+
+    dispose();
+  });
+
+  it('projects an evidenced dictionary-only word when the beyond-level filter admits it', async () => {
+    enumerateDictionaryWordsMock.mockResolvedValue([['鮫', 'さめ'], ['鰯', 'いわし']]);
+    getComprehensiveWordStatusSyncMock.mockImplementation((word: string) =>
+      word === '鳥' || word === '鮫' ? 'known' : 'unknown');
+    const dispose = await renderModal(new Set(['ja:bird', 'ja:shark']));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    (container.querySelector('[data-testid="filter-beyond"]') as HTMLElement).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(capturedProjectionQuery?.()?.surfaces).toEqual(['鳥', '鮫', '鰯']);
+    expect(capturedProjectionQuery?.()?.evidenceKeys).toEqual(['ja:bird', 'ja:shark']);
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[2]');
+
+    dispose();
+  });
+
+  it('does not offer a partial bulk action while dictionary-only matches are loading', async () => {
+    let finishDictionary: ((pairs: [string, string][]) => void) | undefined;
+    enumerateDictionaryWordsMock.mockReturnValue(new Promise((resolve) => {
+      finishDictionary = resolve;
+    }));
+    const dispose = await renderModal(new Set(['ja:bird']), false);
+
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.Counting');
+    expect(findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.disabled).toBe(true);
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    expect(addLevelStudyFlashcardsMock).not.toHaveBeenCalled();
+
+    finishDictionary?.([['鮫', 'さめ']]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[3]');
+    expect(findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.disabled).toBe(false);
+
+    dispose();
+  });
+
+  it('reports dictionary load failure and keeps a partial bulk action disabled', async () => {
+    enumerateDictionaryWordsMock.mockRejectedValue(new Error('dictionary unavailable'));
+    const dispose = await renderModal();
+
+    expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.DictionaryError');
+    expect(findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.disabled).toBe(true);
+    findButton(container, 'mlearn.LevelStudy.DetailModal.AddFlashcards')?.click();
+    expect(addLevelStudyFlashcardsMock).not.toHaveBeenCalled();
 
     dispose();
   });
@@ -299,9 +365,12 @@ describe('BulkAddModal', () => {
         languageData={LANG_DATA}
         frequency={beyondFrequency}
         levelNames={{ '5': 'N5' }}
+        evidenceSurfaces={['鳥']}
+        evidenceKeys={new Set(['ja:bird'])}
         onClose={onCloseMock}
       />
     ), container);
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(container.textContent).toContain('mlearn.LevelStudy.BulkAdd.MatchingCount[3]');
 
@@ -331,9 +400,12 @@ describe('BulkAddModal', () => {
         languageData={LANG_DATA}
         frequency={beyondFrequency}
         levelNames={{ '5': 'N5' }}
+        evidenceSurfaces={['鳥']}
+        evidenceKeys={new Set(['ja:bird'])}
         onClose={onCloseMock}
       />
     ), container);
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     (container.querySelector('[data-testid="filter-beyond"]') as HTMLElement).click();
 
@@ -382,12 +454,16 @@ describe('BulkAddModal', () => {
 vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { useFlashcards } = await import('../../context');
   const { projectionFixture } = await import('../../../../test/projectionFixture');
-  return { useKnowledgeProjections: (query: () => { language: string; surfaces: string[] } | undefined) => ({
+  return { useKnowledgeProjections: (query: () => { language: string; surfaces: readonly string[]; evidenceKeys?: readonly string[] } | undefined) => {
+    capturedProjectionQuery = query;
+    return ({
     loading: () => false,
+    ready: () => true,
     projections: () => new Map((query()?.surfaces ?? []).map(word => {
       const ctx = useFlashcards();
       const state = ctx.getComprehensiveWordStatusWithSourceSync?.(word, query()!.language);
       return [word, projectionFixture(state?.status ?? ctx.getComprehensiveWordStatusSync?.(word) ?? 'unknown', state?.basis ?? 'unmeasured')];
     })),
-  }) };
+    });
+  } };
 });

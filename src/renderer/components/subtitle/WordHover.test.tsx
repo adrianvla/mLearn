@@ -2,9 +2,22 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { render } from 'solid-js/web';
-import { CompoundDecomposition, compoundAnalysisFor, resolveCompoundDisplay } from './WordHover';
+import { CompoundDecomposition, compoundAnalysisFor, grammarOccurrencesForToken, resolveCompoundDisplay } from './WordHover';
 import type { GraphWordLookup } from '../../../shared/graph/ipc';
 import type { LanguageData, WordFrequencyEntry, WordFrequencyMap } from '../../../shared/types';
+import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
+
+it('keeps only grammar attached to the hovered token without merging distinct patterns', () => {
+  const occurrence = (patternId: string, tokenIndex: number): GrammarOccurrence => ({
+    patternId, targetRef: { kind: 'grammar-pattern', id: patternId, capability: 'grammar-recognition' },
+    sentenceSpan: { start: tokenIndex, end: tokenIndex + 1 },
+    tokenEvidence: [{ tokenIndex }], realizedForm: '分から', confidence: 0.9,
+    provenance: 'morphological',
+  });
+  const all = [occurrence('pattern-a', 0), occurrence('pattern-b', 0), occurrence('ない', 1)];
+  expect(grammarOccurrencesForToken(all, 0).map((item) => item.patternId)).toEqual(['pattern-a', 'pattern-b']);
+  expect(grammarOccurrencesForToken(all, 1).map((item) => item.patternId)).toEqual(['ない']);
+});
 
 const entry: WordFrequencyEntry = { reading: '', level: '1', raw_level: 1 };
 

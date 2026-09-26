@@ -9,11 +9,12 @@ import { relationCategory, type GraphRelationType } from '../../shared/graph/typ
 import type { LingualGraph } from '../../shared/graph/load';
 import { createCompactGraphView } from '../../shared/graph/compactView';
 import { buildKnowledgeProjection } from './knowledgeProjection';
+import { scopeSiblingArchive, scopeSiblingEvent } from './siblingKnowledgeHistory';
 import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
 import type { CompoundPart } from '../../shared/graph/morphology/compounds';
 import type { PredictionInput } from '../../shared/prediction/supportPredictor';
 import { effectiveStateFromEntry, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
-import { siblingJournalKeys } from '../../shared/graph/addressing';
+import { realizedEntryIds, siblingJournalKeys, surfacesRealizingEntry } from '../../shared/graph/addressing';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 import type { LanguageData, LanguageDataMap } from '../../shared/types';
@@ -218,8 +219,8 @@ export class LinguisticGraphService {
       const keys = siblingJournalKeys(plain, surfaceId);
       // Rows carry stable journal seq; archives carry aggregated old evidence.
       const rowLog = getKnowledgeRows(keys);
-      const rows = keys.flatMap((key) => rowLog[key] ?? []);
-      const archives = getKnowledgeArchives(keys).map(({ archive }) => archive).filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
+      const rows = keys.flatMap((key) => (rowLog[key] ?? []).map(row => ({ ...row, event: scopeSiblingEvent(row.event, key, keys[0]) })));
+      const archives = getKnowledgeArchives(keys).map(({ key, archive }) => archive ? scopeSiblingArchive(archive, key, keys[0]) : undefined).filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
       const languageData = Object.prototype.hasOwnProperty.call(settingsModule, 'loadLangData')
         ? this.projectionLanguageData(loaded, settingsModule.loadLangData)
         : undefined;
@@ -234,6 +235,34 @@ export class LinguisticGraphService {
 
   async getTargetsForSurfaces(language: string, inputs: GraphLookupInput[]): Promise<GraphSurfaceTargets[]> {
     return Promise.all(inputs.slice(0, 100).map(async (input) => ({ input, lookup: await this.lookupWord(language, input) })));
+  }
+
+  /**
+   * Return the candidate surfaces that can consult an evidence key through
+   * the graph's authoritative `realizes` relation. This is a conservative
+   * superset: a sibling row can still be rejected by address/capability
+   * matching inside buildKnowledgeProjection. Filtering by each word's own
+   * hash alone loses valid variant evidence (and changes learner counts).
+   */
+  async getEvidenceLinkedSurfaces(language: string, surfaces: readonly string[], evidenceKeys: readonly string[]): Promise<string[]> {
+    const loaded = await this.ensure(language);
+    if (!loaded) return [...new Set(surfaces)]; // preserve the not-installed projection failure
+    const graph = this.toLingualGraph(loaded);
+    const addressed = new Set<string>();
+    const prefix = `${language}:`;
+    for (const key of evidenceKeys) {
+      if (!key.startsWith(prefix)) continue;
+      const hash = key.slice(prefix.length);
+      if (!/^[a-f0-9]{64}$/.test(hash)) continue;
+      const surfaceId = `${language}:surface:${hash}`;
+      addressed.add(surfaceId);
+      if (!graph.nodes.has(surfaceId)) continue;
+      for (const entryId of realizedEntryIds(graph, surfaceId)) {
+        for (const siblingId of surfacesRealizingEntry(graph, entryId)) addressed.add(siblingId);
+      }
+    }
+    return [...new Set(surfaces)].filter((surface) =>
+      addressed.has(`${language}:surface:${crypto.createHash('sha256').update(surface).digest('hex')}`));
   }
 
   async getKnowledgeProjection(language: string, surface: string, requestedThresholds?: EffectiveThresholds): Promise<KnowledgeProjection> {
@@ -255,9 +284,9 @@ export class LinguisticGraphService {
       // projection consults sibling journal keys (never copies state).
       const keys = siblingJournalKeys(plain, surfaceId);
       const rowLog = getKnowledgeRows(keys);
-      const rows = keys.flatMap((key) => rowLog[key] ?? []);
+      const rows = keys.flatMap((key) => (rowLog[key] ?? []).map(row => ({ ...row, event: scopeSiblingEvent(row.event, key, keys[0]) })));
       const archives = getKnowledgeArchives(keys)
-        .map(({ archive }) => archive)
+        .map(({ key, archive }) => archive ? scopeSiblingArchive(archive, key, keys[0]) : undefined)
         .filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
       const compound = await this.compoundSupport(plain, language, surfaceId, thresholds);
       const languageData = Object.prototype.hasOwnProperty.call(settingsModule, 'loadLangData')
@@ -334,5 +363,6 @@ export function setupLinguisticGraphIPC(): void {
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_RELATED, (_event, language: string, entityId: string, relationTypes: GraphRelationType[]) => service.getRelated(language, entityId, relationTypes));
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, (_event, language: string, inputs: GraphLookupInput[]) => service.getTargetsForSurfaces(language, inputs));
   ipcMain.handle(IPC_CHANNELS.GRAPH_GET_NEIGHBORHOOD, (_event, language: string, query: GraphNeighborhoodQuery) => service.getNeighborhood(language, query));
+  ipcMain.handle(IPC_CHANNELS.GRAPH_GET_EVIDENCE_LINKED_SURFACES, (_event, language: string, surfaces: string[], keys: string[]) => service.getEvidenceLinkedSurfaces(language, surfaces, keys));
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, (_event, language: string, surface: string, thresholds?: EffectiveThresholds) => service.getKnowledgeProjection(language, surface, thresholds));
 }

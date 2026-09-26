@@ -167,8 +167,9 @@ export async function appendKnowledgeEvents(eventsByKey: KnowledgeEventLog): Pro
   guardianForWrites()?.recordKnowledgeSequence(active.sequenceCounter, appended,
     Object.entries(eventsByKey).filter(([, events]) => events.some(isKnowledgeEvent)).map(([key]) => key));
   scheduleSave();
+  const changedKeys = Object.entries(eventsByKey).filter(([, events]) => events.some(isKnowledgeEvent)).map(([key]) => key);
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);
+    if (!win.isDestroyed()) win.webContents.send(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, changedKeys);
   }
 }
 

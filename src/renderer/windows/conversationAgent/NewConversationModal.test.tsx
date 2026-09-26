@@ -35,6 +35,8 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
+  PlusIcon: () => <span aria-hidden="true" />,
+  SearchIcon: () => <span aria-hidden="true" />,
   ModalForm: (props: { children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
     <div><span>{props.title}</span>{props.children}{props.footer}</div>
   ),

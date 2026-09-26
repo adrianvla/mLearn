@@ -82,6 +82,12 @@
   background: var(--panel-bg);
 }
 
+.word-sync-card--pending {
+  min-height: 18rem;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
 .word-sync-word {
   font-size: var(--font-size-5xl);
   font-weight: 700;
@@ -126,6 +132,19 @@
   min-width: 0;
   gap: var(--spacing-4);
   order: 3;
+}
+
+.word-sync-rating-write {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.word-sync-rating-write--failed {
+  color: var(--color-error);
 }
 
 .word-sync-inspect {

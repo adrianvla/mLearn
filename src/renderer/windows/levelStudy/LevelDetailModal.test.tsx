@@ -11,6 +11,7 @@ import { hashWordSync } from '../../services/srsAlgorithm';
 
 let languageDataMock: LanguageData | null = null;
 let settingsLanguageMock = 'ar';
+let capturedProjectionQuery: (() => { language: string; surfaces: readonly string[] } | undefined) | undefined;
 const addLevelStudyFlashcardsMock = vi.fn();
 const [queryFailed, setQueryFailed] = createSignal(false);
 const retryQuery = vi.fn(() => setQueryFailed(false));
@@ -156,6 +157,7 @@ describe('LevelDetailModal', () => {
         levelName="Level 1"
         language="ar"
         languageData={languageDataMock}
+        evidenceSurfaces={['بيت']}
         onClose={() => undefined}
       />
     ), container);
@@ -188,6 +190,7 @@ describe('LevelDetailModal', () => {
         levelName="Level 1"
         language="de"
         languageData={languageDataMock}
+        evidenceSurfaces={['Haus']}
         onClose={() => undefined}
       />
     ), container);
@@ -196,6 +199,47 @@ describe('LevelDetailModal', () => {
     expect(container.querySelector('ruby')).toBeNull();
     expect(container.querySelector('.level-detail-word-reading')?.textContent).toBe('haʊs');
     expect(container.textContent).toContain('Haus');
+
+    dispose();
+  });
+
+  it('does not repeat the word when a package supplies an identical reading', async () => {
+    settingsLanguageMock = 'de';
+    languageDataMock = makeLanguageData({
+      name: 'German',
+      freq: [['abendessen', 'abendessen', 1]],
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+        readingAnnotation: { type: 'none' },
+      },
+    });
+    const { LevelDetailModal } = await import('./LevelDetailModal');
+    const dispose = render(() => (
+      <LevelDetailModal level={1} levelName="Level 1" language="de"
+        languageData={languageDataMock} evidenceSurfaces={['abendessen']} onClose={() => undefined} />
+    ), container);
+
+    expect(container.querySelector('.level-detail-word-text')?.textContent).toBe('abendessen');
+    expect(container.querySelector('.level-detail-word-reading')).toBeNull();
+
+    dispose();
+  });
+
+  it('requests projections only for evidence-bearing surfaces supplied by Learning Plan', async () => {
+    settingsLanguageMock = 'de';
+    languageDataMock = makeLanguageData({
+      name: 'German',
+      freq: [['abendessen', 'abendessen', 1], ['abends', 'abends', 1]],
+    });
+    const { LevelDetailModal } = await import('./LevelDetailModal');
+    const dispose = render(() => (
+      <LevelDetailModal level={1} levelName="Level 1" language="de"
+        languageData={languageDataMock} evidenceSurfaces={['abendessen']}
+        onClose={() => undefined} />
+    ), container);
+
+    expect(capturedProjectionQuery?.()?.surfaces).toEqual(['abendessen']);
+    expect(container.textContent).toContain('abends');
 
     dispose();
   });
@@ -223,6 +267,7 @@ describe('LevelDetailModal', () => {
         levelName="Beyond exam"
         language="de"
         languageData={languageDataMock}
+        evidenceSurfaces={['Baum', 'Vogel']}
         onClose={() => undefined}
       />
     ), container);
@@ -239,7 +284,7 @@ describe('LevelDetailModal', () => {
     setQueryFailed(true);
     const { LevelDetailModal } = await import('./LevelDetailModal');
     const dispose = render(() => <LevelDetailModal level={1} levelName="Level 1"
-      language="pkg" languageData={languageDataMock} onClose={() => undefined} />, container);
+      language="pkg" languageData={languageDataMock} evidenceSurfaces={['surface']} onClose={() => undefined} />, container);
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
     expect(container.querySelector('.level-detail-footer-count')).toBeNull();
     expect(container.textContent).not.toContain('mlearn.LevelStudy.DetailModal.NoWords');
@@ -279,6 +324,7 @@ describe('LevelDetailModal', () => {
         levelName="Level 1"
         language="ar"
         languageData={languageDataMock}
+        evidenceSurfaces={['بيت']}
         onClose={() => undefined}
       />
     ), container);
@@ -310,7 +356,9 @@ describe('LevelDetailModal', () => {
 vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { useFlashcards } = await import('../../context');
   const { projectionFixture } = await import('../../../../test/projectionFixture');
-  return { useKnowledgeProjections: (query: () => { language: string; surfaces: string[] } | undefined) => ({
+  return { useKnowledgeProjections: (query: () => { language: string; surfaces: readonly string[] } | undefined) => {
+    capturedProjectionQuery = query;
+    return ({
     loading: () => false,
     ready: () => !queryFailed(),
     failed: queryFailed,
@@ -320,5 +368,6 @@ vi.mock('../../hooks/useKnowledgeProjections', async () => {
       const state = ctx.getComprehensiveWordStatusWithSourceSync?.(word, query()!.language);
       return [word, projectionFixture(state?.status ?? ctx.getComprehensiveWordStatusSync?.(word) ?? 'unknown', state?.basis ?? 'unmeasured')];
     })),
-  }) };
+    });
+  } };
 });

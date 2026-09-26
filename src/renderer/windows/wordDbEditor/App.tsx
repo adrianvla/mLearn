@@ -6,7 +6,7 @@ import { projectedWordStatus } from '../../../shared/graph/targets';
  * Ported from adjustWordsByLevel in stats.js
  */
 
-import { Component, createSignal, For, Show, onMount, createEffect, createMemo, on, onCleanup } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, createEffect, createMemo, createResource, on, onCleanup } from 'solid-js';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
 import type { WordStatus } from '../../../shared/constants';
@@ -34,6 +34,9 @@ import { getWordFormCandidates } from '../../utils/wordForms';
 import { isAnkiCacheFetched, refreshAnkiWordsCache, findAnkiWordMatchInCache } from '../../services/ankiWordsCache';
 import { wordStatusToNumeric } from '../../components/subtitle/wordHoverHelpers';
 import { getLogger } from '../../../shared/utils/logger';
+import { getLearningLanguageLevelForLanguage } from '../../../shared/languageFeatures';
+import { sortByStudyScope } from './studyOrder';
+import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
 
 const log = getLogger("renderer.wordDbEditor.app");
 
@@ -54,7 +57,7 @@ export const WordDbEditorContent: Component = () => {
   onCleanup(() => { loadGeneration++; });
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
   const [browseMode, setBrowseMode] = createSignal<WordDbBrowseMode>('all');
-  const [sortKey, setSortKey] = createSignal<string>('word');
+  const [sortKey, setSortKey] = createSignal<string>('study');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
   const wordCollator = createMemo(() => {
     const options = { usage: 'sort' as const, sensitivity: 'base' as const, numeric: true };
@@ -67,12 +70,21 @@ export const WordDbEditorContent: Component = () => {
     return !query || entry.word.toLowerCase().includes(query) || entry.translation.toLowerCase().includes(query)
       || entry.reading.toLowerCase().includes(query) || !!entry.alternateReadings?.some(reading => reading.toLowerCase().includes(query));
   };
-  // Ordinary browsing projects only visible rows through WordStatusPill. A full
-  // status filter/sort is an explicit query, bounded by the learner's text search.
-  const projected = useKnowledgeProjections(() => needsKnowledgeQuery()
-    ? { language: settings.language, surfaces: (browseMode() === 'ignored' ? ignoredEntries() : entries()).filter(matchesSearch).map(entry => entry.word) }
+  const [journalKeys, { refetch: retryJournalKeys }] = createResource(
+    () => needsKnowledgeQuery() ? { language: settings.language, version: wordEventsVersion() } : undefined,
+    async (source: { language: string; version: number }) => await queryLanguageKeys(source.language),
+  );
+  const evidenceKeys = createMemo(() => {
+    const keys = new Set(journalKeys.state === 'ready' ? journalKeys() ?? [] : []);
+    for (const key of Object.keys(flashcardStore?.wordKnowledge ?? {})) keys.add(key);
+    return [...keys];
+  });
+  // Ordinary browsing projects only visible rows through WordStatusPill.
+  // An explicit status query selects graph-linked evidence before fan-out.
+  const projected = useKnowledgeProjections(() => needsKnowledgeQuery() && journalKeys.state === 'ready'
+    ? { language: settings.language, surfaces: (browseMode() === 'ignored' ? ignoredEntries() : entries()).filter(matchesSearch).map(entry => entry.word), evidenceKeys: evidenceKeys() }
     : undefined);
-  const knowledgeQueryReady = () => !needsKnowledgeQuery() || projected.ready();
+  const knowledgeQueryReady = () => !needsKnowledgeQuery() || (journalKeys.state === 'ready' && projected.ready());
   const [isInitialized, setIsInitialized] = createSignal(false);
   // Track if we've already loaded words (prevent re-loading on every frequency change)
   const [hasLoadedWords, setHasLoadedWords] = createSignal(false);
@@ -183,6 +195,24 @@ export const WordDbEditorContent: Component = () => {
     const ast = filterAst();
     const resolvers = filterResolvers();
     const filtered = sourceEntries.filter(entry => matchesSearch(entry) && (!ast.ok || !ast.ast || evaluateAst(ast.ast, entry, resolvers)));
+    const wordCategory = (entry: WordEntry): number => {
+      const headword = entry.word.trim();
+      const firstCharacter = Array.from(headword)[0];
+      if (!firstCharacter) return 3;
+      if (/\p{L}/u.test(firstCharacter)
+        && (!/\p{Lm}/u.test(firstCharacter) || /[\p{Lu}\p{Ll}\p{Lt}\p{Lo}]/u.test(headword.slice(firstCharacter.length)))) return 0;
+      return /\p{N}/u.test(firstCharacter) ? 1 : 2;
+    };
+    const compareWords = (left: WordEntry, right: WordEntry): number =>
+      wordCategory(left) - wordCategory(right) || wordCollator().compare(left.word, right.word);
+    if (sortKey() === 'study' && browseMode() === 'all') {
+      return sortByStudyScope(
+        filtered,
+        getLearningLanguageLevelForLanguage(settings, settings.language),
+        currentLangData(),
+        compareWords,
+      );
+    }
     // A package's dictionary can contain punctuation and empty headwords.
     // Keep them searchable, but begin ordinary browsing with actual words.
     if (sortKey() === 'word' && sortDir() === 1) {
@@ -649,6 +679,8 @@ export const WordDbEditorContent: Component = () => {
                 filterFields={filterContext().fields}
                 filterPaletteItems={filterContext().paletteItems}
                 filterEvaluation={filterValidation()}
+                studyOrderSelected={sortKey() === 'study'}
+                onStudyOrder={() => { setSortKey('study'); setSortDir(1); }}
             />
 
             {/* Table Header */}
@@ -659,10 +691,10 @@ export const WordDbEditorContent: Component = () => {
             />
           </CollapsibleStickyHeader>
 
-          <Show when={needsKnowledgeQuery() && projected.failed()}>
-            <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn></div>
+          <Show when={needsKnowledgeQuery() && (journalKeys.state === 'errored' || projected.failed())}>
+            <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Btn onClick={() => { if (journalKeys.state === 'errored') void retryJournalKeys(); else projected.retry(); }}>{t('mlearn.Knowledge.Retry')}</Btn></div>
           </Show>
-          <Show when={!knowledgeQueryReady() && !projected.failed()}><div aria-busy="true"><SkeletonRows rows={9} /></div></Show>
+          <Show when={!knowledgeQueryReady() && journalKeys.state !== 'errored' && !projected.failed()}><div aria-busy="true"><SkeletonRows rows={9} /></div></Show>
           {/* Entries List */}
           <div class="entries-list" ref={setEntriesListRef}>
             <Show when={knowledgeQueryReady() && !loadFailed() && !dictionaryUnavailable() && !isLoading() && filteredEntries().length === 0 && (browseMode() === 'ignored' || hasLoadedWords())}>

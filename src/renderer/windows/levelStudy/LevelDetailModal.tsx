@@ -25,6 +25,8 @@ interface LevelDetailModalProps {
   levelName: string;
   language: string;
   languageData: LanguageData | null;
+  /** Evidence-bearing frequency surfaces resolved by the parent after its journal snapshot. */
+  evidenceSurfaces: readonly string[];
   onClose: () => void;
 }
 
@@ -66,7 +68,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     canRenderProsodyOverlay() ? {} : null
   );
 
-  const projected = useKnowledgeProjections(() => ({ language: activeLanguage(), surfaces: Object.keys(resolveLevelStudyWordFrequency({}, activeLanguageData())) }));
+  const projected = useKnowledgeProjections(() => ({ language: activeLanguage(), surfaces: props.evidenceSurfaces }));
 
   const knowledgeReady = () => flashcards.isKnowledgeReady() && projected.ready();
 
@@ -82,7 +84,8 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
           if (isDisplayableFrequencyLevel(entry.raw_level, levelNames, langData)) continue;
         } else if (entry.raw_level !== props.level) continue;
         const status = getWordLevelStatus(projectedWordStatus(projected.projections().get(word)));
-        result.push({ word, reading: entry.reading || '', status });
+        const reading = entry.reading?.normalize('NFC').trim() ?? '';
+        result.push({ word, reading: reading === word.normalize('NFC').trim() ? '' : reading, status });
       }
       return result.sort((a, b) => a.word.localeCompare(b.word));
     });

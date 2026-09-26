@@ -5,6 +5,7 @@
    otherwise keep resolving against Quartz's translucent --bg. */
 body.theme-chalk,
 .theme-chalk {
+    --app-shell-bg: var(--bg-opaque);
     --bg: var(--bg-nt-primary);
     --bg-intense: var(--bg-nt-secondary);
     --panel-bg: var(--bg);

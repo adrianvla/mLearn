@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import type { TranslationResponse } from '../../../shared/types';
 import type { LanguageColoredProsodyConfig, LanguageData } from '../../../shared/types';
@@ -244,6 +244,32 @@ describe('UnknownWordsSidebar', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('hides a zero count during an incomplete or blocked scan and restores it when settled', async () => {
+    const [hideEmptyCount, setHideEmptyCount] = createSignal(true);
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+    const dispose = render(() => (
+      <UnknownWordsSidebar
+        words={() => []}
+        addingWordKeys={() => new Set<string>()}
+        isAddingAll={() => false}
+        onAddWord={() => undefined}
+        onIgnoreWord={() => undefined}
+        sortOptions={() => [{ value: 'word', label: 'Word' }]}
+        defaultSort="word"
+        emptyMessage="Sign in to continue"
+        hideEmptyCount={hideEmptyCount()}
+        onAddAllClick={() => undefined}
+      />
+    ), container);
+
+    expect(container.textContent).toContain('Sign in to continue');
+    expect(container.querySelector('.unknown-words-sidebar-count')).toBeNull();
+    setHideEmptyCount(false);
+    expect(container.querySelector('.unknown-words-sidebar-count')?.textContent).toContain('0 words');
+
+    dispose();
   });
 
   it('filters the list by failed words and scopes add-all to the active category', async () => {

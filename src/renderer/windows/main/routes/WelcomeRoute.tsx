@@ -1,3 +1,4 @@
+import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedProjections';
 /**
  * Welcome Route
  * Start menu showing options to watch videos, open reader, or continue recent content
@@ -385,12 +386,17 @@ export const WelcomeRoute: Component = () => {
       levelNames: getLevelStudyLevelNames(langData, freq),
     };
   });
+  const curriculumProjection = useEvidenceLinkedProjections(() => !flashcards.isLoading() && flashcards.isKnowledgeReady() && !language.isLoading() && levelStudySource() ? {
+    language: settings.language,
+    surfaces: Object.keys(levelStudySource()!.freq),
+    materializedKeys: Object.keys(flashcards.store.wordKnowledge),
+  } : undefined);
   // The coverage dial must never render intermediate percentages: the store
   // arriving, the legacy knowledge migrations settling, and the language
   // data landing each change the numbers. Until all three are authoritative,
   // levelStudy is pending (skeleton), not empty (0%).
   const levelStudyPending = createMemo(() => (
-    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading()
+    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || !curriculumProjection.ready()
   ));
   const levelStudy = createMemo(() => {
     if (levelStudyPending()) return null;
@@ -404,8 +410,8 @@ export const WelcomeRoute: Component = () => {
       settings.easeThresholdLearning * 1000,
       source.levelNames,
       source.langData,
-      language.getCanonicalFormForLanguage,
-      flashcards.getComprehensiveWordStatusWithSourceSync,
+      undefined,
+      curriculumProjection.resolveState,
     );
     if (stats.length === 0) return null;
     return { levels: stats };
@@ -487,6 +493,7 @@ export const WelcomeRoute: Component = () => {
           description={t('mlearn.Home.Cards.LevelStudy.Description')}
           onClick={openLevelStudy}
           preview={
+            <Show when={!curriculumProjection.failed()} fallback={<div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <button type="button" onClick={(event) => { event.stopPropagation(); curriculumProjection.retry(); }}>{t('mlearn.Knowledge.Retry')}</button></div>}>
             <WelcomeLevelPreview
               pending={levelStudyPending()}
               coverage={levelCoverage()}
@@ -498,6 +505,7 @@ export const WelcomeRoute: Component = () => {
               emptyLabel={t('mlearn.Home.Cards.LevelStudy.Description')}
               onOpen={openLevelStudy}
             />
+            </Show>
           }
         />
         <WelcomeFeatureCard

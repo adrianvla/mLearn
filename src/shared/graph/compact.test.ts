@@ -227,6 +227,8 @@ describe('CompactLingualGraph', () => {
       encoded.relations.targets.slice(encoded.relations.offsets[dense], encoded.relations.offsets[dense + 1]);
     expect(row(1)).toEqual([2]);
     expect(row(2)).toEqual([1]);
+    expect(encoded.relations.directions?.slice(encoded.relations.offsets[1], encoded.relations.offsets[2])).toEqual([3]);
+    expect(encoded.relations.directions?.slice(encoded.relations.offsets[2], encoded.relations.offsets[3])).toEqual([3]);
     const compact = decodeCompact(encoded);
     expect(compact.neighborsByCategory(h0, 'support')).toEqual([h1]);
     expect(compact.neighborsByCategory(h1, 'support')).toEqual([h0]);

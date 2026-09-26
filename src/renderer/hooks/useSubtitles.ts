@@ -220,6 +220,7 @@ export function useSubtitles() {
   const [currentIndex, setCurrentIndex] = createSignal(-1);
   const [tokens, setTokens] = createSignal<Token[]>([]);
   const [isTokenizing, setIsTokenizing] = createSignal(false);
+  const [observationReady, setObservationReady] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
 
   // Generation counter to prevent race conditions during rapid seeking
@@ -262,6 +263,7 @@ export function useSubtitles() {
     setCurrentIndex(-1);
     setTokens([]);
     setIsTokenizing(false);
+    setObservationReady(false);
     tokenizationGen++;
   };
 
@@ -313,9 +315,11 @@ export function useSubtitles() {
     const result = getCurrentSubtitle(time);
 
     if (!result) {
+      if (currentIndex() !== -1) tokenizationGen++;
       setCurrentIndex(-1);
       setTokens([]);
       setIsTokenizing(false);
+      setObservationReady(false);
       return;
     }
 
@@ -325,6 +329,7 @@ export function useSubtitles() {
     perfCount('subtitles.cueChange');
     setCurrentIndex(idx);
     setIsTokenizing(true);
+    setObservationReady(false);
     setError(null);
 
     const myGen = ++tokenizationGen;
@@ -397,6 +402,7 @@ export function useSubtitles() {
       clearTimeout(safetyTimeout);
       if (myGen === tokenizationGen) {
         setIsTokenizing(false);
+        setObservationReady(true);
       }
     }
   };
@@ -414,6 +420,7 @@ export function useSubtitles() {
     setCurrentIndex(-1);
     setTokens([]);
     setIsTokenizing(false);
+    setObservationReady(false);
     setError(null);
     tokenizationGen++;
   };
@@ -424,6 +431,7 @@ export function useSubtitles() {
     currentIndex,
     tokens,
     isTokenizing,
+    observationReady,
     error,
     loadSubtitles,
     loadSubtitleFile,

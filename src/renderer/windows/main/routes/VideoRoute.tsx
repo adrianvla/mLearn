@@ -829,6 +829,7 @@ export const VideoRoute: Component = () => {
       const video = getCurrentVideoElement();
       if (!video) return;
       bridge.overlay.sendOverlayVideoState({
+        observationOwner: 'main',
         currentTime: video.currentTime,
         isPlaying: !video.paused,
         duration: video.duration && isFinite(video.duration) ? video.duration : 0,
@@ -847,6 +848,7 @@ export const VideoRoute: Component = () => {
       const video = getCurrentVideoElement();
       if (!video) return;
       bridge.overlay.sendOverlayVideoState({
+        observationOwner: 'main',
         currentTime: video.currentTime,
         isPlaying: !video.paused,
         duration: video.duration && isFinite(video.duration) ? video.duration : 0,
@@ -907,6 +909,7 @@ export const VideoRoute: Component = () => {
         }
         captureThumbnailIfReady();
         bridge.overlay.sendOverlayVideoState({
+          observationOwner: 'main',
           currentTime: video.currentTime,
           isPlaying: !video.paused,
           duration: video.duration && isFinite(video.duration) ? video.duration : 0,
@@ -1366,7 +1369,10 @@ export const VideoRoute: Component = () => {
       characterContext: buildCharacterContext(subtitles.subtitles().map((sub) => sub.text), {
         languageData: langCtx.currentLangData(),
       }) ?? undefined,
-      subtitleHistory: subtitles.subtitles().slice(-50).map((sub) => sub.text),
+      subtitleHistory: subtitles.subtitles()
+        .filter((sub) => sub.start <= currentVideoTime())
+        .slice(-50)
+        .map((sub) => sub.text),
     };
 
     getBridge().window.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
@@ -1393,13 +1399,15 @@ export const VideoRoute: Component = () => {
           {t('mlearn.Video.UI.GoHome')}
         </NavBtn>
 
-        <NavBtn
-          class="conversation-agent-button"
-          onClick={openConversationAgent}
-          title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
-        >
-          {t('mlearn.Video.UI.OpenConversationAgent')}
-        </NavBtn>
+        <Show when={!showDropZone()}>
+          <NavBtn
+            class="conversation-agent-button"
+            onClick={openConversationAgent}
+            title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
+          >
+            {t('mlearn.Video.UI.OpenConversationAgent')}
+          </NavBtn>
+        </Show>
 
         <Show when={watchTogether.isRoomMode()}>
           <NavBtn
@@ -1457,6 +1465,7 @@ export const VideoRoute: Component = () => {
             onTimeUpdate={(time) => setCurrentVideoTime(time)}
             showWordSidebar={showWordSidebar()}
             onToggleWordSidebar={() => setShowWordSidebar(!showWordSidebar())}
+            onOpenSubtitles={() => void handleSelectSubtitle()}
             detectedAudioTracks={detectedAudioTracks()}
             detectedSubtitleTracks={detectedSubtitleTracks()}
             activeDetectedSubtitleTrack={activeDetectedSubtitleTrack()}

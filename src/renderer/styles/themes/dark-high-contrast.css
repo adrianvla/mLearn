@@ -4,6 +4,7 @@ body.theme-dark-high-contrast,
 .theme-dark-high-contrast {
     /*--bg-opaque: #0a0a0a;*/
     --bg-opaque: #000;
+    --app-shell-bg: var(--bg-opaque);
     --bg-nt-primary: rgb(26,26,26);
     --bg-nt-secondary: rgb(38,38,38);
     --character-grid-unknown-bg: #616161;

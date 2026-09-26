@@ -13,6 +13,7 @@ interface ResolveReaderOcrAutomationStateOptions {
   ocrEnabled: boolean;
   languageDataLoading: boolean;
   readinessError: string | null;
+  authRecoveryCancelled?: { message: string };
 }
 
 export function resolveReaderOcrAutomationState(
@@ -28,6 +29,10 @@ export function resolveReaderOcrAutomationState(
 
   if (options.readinessError) {
     return { kind: 'blocked', message: options.readinessError };
+  }
+
+  if (options.authRecoveryCancelled) {
+    return { kind: 'blocked', message: options.authRecoveryCancelled.message };
   }
 
   return { kind: 'ready' };

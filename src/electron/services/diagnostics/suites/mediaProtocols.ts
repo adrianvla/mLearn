@@ -69,21 +69,20 @@ registerDiagnosticSuite({
       name: 'flashcard-audio-protocol',
       timeoutMs: 10_000,
       async fn() {
-        const audioDir = path.join(getUserDataPath(), 'flashcard-tts');
+        const audioDir = path.join(getUserDataPath(), 'flashcard-audio');
         if (!fs.existsSync(audioDir)) {
           fs.mkdirSync(audioDir, { recursive: true });
         }
-        const testFile = path.join(audioDir, '__diag_test.mp3');
-        // Write a larger dummy MP3-like buffer to avoid ERR_UNEXPECTED on tiny files
+        const testFile = path.join(audioDir, '__diag_test.ogg');
+        // Write a larger Ogg-like buffer to avoid ERR_UNEXPECTED on tiny files.
         const dummyAudio = Buffer.concat([
-          Buffer.from([0xff, 0xfb]),
+          Buffer.from('OggS'),
           Buffer.alloc(256, 0xaa),
         ]);
         fs.writeFileSync(testFile, dummyAudio);
-        const url = `flashcard-audio://__diag_test.mp3`;
+        const url = `flashcard-audio://__diag_test.ogg`;
         try {
           const { status, body } = await fetchProtocol(url);
-          fs.unlinkSync(testFile);
           if (status !== 200) {
             throw new Error(`flashcard-audio:// returned status ${status}`);
           }
@@ -91,7 +90,6 @@ registerDiagnosticSuite({
             throw new Error('flashcard-audio:// returned empty body');
           }
         } catch (err) {
-          fs.unlinkSync(testFile);
           const msg = err instanceof Error ? err.message : String(err);
           // Some Electron builds throw ERR_UNEXPECTED for file:// via net.fetch in protocol handlers
           // If the file was written and the protocol is registered, treat as pass
@@ -99,6 +97,8 @@ registerDiagnosticSuite({
             return;
           }
           throw err;
+        } finally {
+          fs.rmSync(testFile, { force: true });
         }
       },
     },

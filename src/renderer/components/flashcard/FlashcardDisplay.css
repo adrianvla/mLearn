@@ -188,8 +188,17 @@
   font-size: var(--font-size-2xl);
   text-align: center;
   line-height: 1.6;
+  line-break: strict;
+  word-break: normal;
   color: var(--text-primary);
   height: max-content;
+}
+
+/* Stored examples wrap every token in a span. Keeping punctuation as a
+ * separate inline block permits a comma or full stop to start a line. */
+.flashcard-example .subtitle_word {
+  display: inline;
+  white-space: normal;
 }
 
 /* Regenerate example button - hidden until hover */

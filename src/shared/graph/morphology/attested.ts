@@ -39,6 +39,9 @@ function partsFromGraph(graph: LingualGraph, compoundId: string, depth: number):
  * stays grounded in graph identity rather than a parallel model.
  */
 export function attestedCompoundAnalysis(graph: LingualGraph, surfaceId: string): CompoundAnalysis | null {
+  // Legacy compact assets kept symmetric adjacency but discarded assertion
+  // direction. Their component-of edges cannot establish parent versus part.
+  if (graph.relationDirectionKnown === false) return null;
   const compound = graph.nodes.get(surfaceId);
   if (!compound || compound.kind !== 'surface' || !compound.label) return null;
   const parts = partsFromGraph(graph, surfaceId, 1);
@@ -72,6 +75,7 @@ export function attestedCompoundAnalysis(graph: LingualGraph, surfaceId: string)
  * analysis entity and survives the plain and compact wire forms.
  */
 export function graphAnalysesFor(graph: LingualGraph, surfaceId: string): CompoundAnalysis[] {
+  if (graph.relationDirectionKnown === false) return [];
   const surface = graph.nodes.get(surfaceId);
   if (!surface?.label) return [];
   const analyses: CompoundAnalysis[] = [];

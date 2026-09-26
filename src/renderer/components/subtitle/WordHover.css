@@ -126,6 +126,12 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   font-size:var(--font-size-3xl);
 }
 
+.word-hover-encountered-form {
+  margin-bottom: var(--spacing-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
 .word-hover-short-definition {
   margin-bottom: var(--spacing-3);
   overflow-wrap: anywhere;

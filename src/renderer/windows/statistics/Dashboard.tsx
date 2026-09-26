@@ -1,3 +1,4 @@
+import { useEvidenceLinkedProjections } from '../../hooks/useEvidenceLinkedProjections';
 /**
  * Statistics Dashboard
  * Separate learner knowledge, review scheduling, and activity analytics.
@@ -5,7 +6,7 @@
 
 import { Component, createMemo, createResource, createSignal, For, onMount, onCleanup, Show } from 'solid-js';
 import { useFlashcards, useSettings, useLanguage, useLocalization } from '../../context';
-import { StatCard, Panel, BookIcon, KnowledgeGate, KnowledgeSkeleton, SkeletonCard, SkeletonStatGrid } from '../../components/common';
+import { StatCard, Panel, Btn, BookIcon, KnowledgeGate, KnowledgeSkeleton, SkeletonCard, SkeletonStatGrid } from '../../components/common';
 import { BarChart, Heatmap, LineChart } from './charts';
 import type { BarChartDataPoint } from './charts';
 import { WordSearchPanel } from './components/WordSearchPanel';
@@ -53,9 +54,9 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 }
 
 export const Dashboard: Component = () => {
-  const { store, isLoading, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
+  const { store, isLoading, isKnowledgeReady } = useFlashcards();
   const { settings } = useSettings();
-  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage, getWordVariantsForLanguage } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage, getWordVariantsForLanguage, isLoading: languageLoading } = useLanguage();
   const { t } = useLocalization();
 
   initTimeWatched(settings);
@@ -208,6 +209,12 @@ export const Dashboard: Component = () => {
     mediaStatsLoaded() && cardStats().total === 0 && dailyStatsData().totalDaysStudied === 0 && mediaTimeStats().totalImmersion === 0 && wordStats().allEncountered.total === 0
   );
 
+  const projected = useEvidenceLinkedProjections(() => !isLoading() && isKnowledgeReady() && !languageLoading() ? {
+    language: settings.language,
+    surfaces: [...new Set([...Object.keys(getWordFrequency()), ...Object.entries(store.wordKnowledge).filter(([key]) => key.startsWith(settings.language + ':')).map(([, entry]) => entry.word).filter((word): word is string => !!word)])],
+    materializedKeys: Object.keys(store.wordKnowledge),
+  } : undefined);
+
   // Unmeasured curriculum entries are not encounters. Keep them distinct from measured gaps.
   const wordStats = createMemo(() =>
     computeWordLevelStats(
@@ -218,8 +225,8 @@ export const Dashboard: Component = () => {
       settings.easeThresholdLearning * 1000,
       getFreqLevelNames(),
       currentLangData(),
-      getCanonicalFormForLanguage,
-      getComprehensiveWordStatusWithSourceSync,
+      undefined,
+      projected.resolveState,
     ),
   );
 
@@ -356,7 +363,8 @@ export const Dashboard: Component = () => {
       </header>
       <p class="analytics-caption">{t(`mlearn.Statistics.Sections.${section()}Description`)}</p>
       <Show when={section() === 'knowledge'}>
-        <KnowledgeGate fallback={<KnowledgeSkeleton variant="lines" />}>
+        <Show when={projected.failed()}><div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn></div></Show>
+        <KnowledgeGate ready={projected.ready()} fallback={<KnowledgeSkeleton variant="lines" />}>
           <div class="dashboard-stats-row analytics-summary">
             <StatCard label={t('mlearn.Statistics.Legend.Learned')} value={wordStats().allEncountered.known} />
             <StatCard label={t('mlearn.Statistics.Legend.Learning')} value={wordStats().allEncountered.learning} />
@@ -367,7 +375,7 @@ export const Dashboard: Component = () => {
       {/* ─── Level Breakdown ─── */}
       {/* Knowledge panels stay skeletons until the learner projection has
           hydrated — zeros during load are false percentages, not real ones. */}
-      <KnowledgeGate fallback={<Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel"><KnowledgeSkeleton variant="lines" /></Panel>}>
+      <KnowledgeGate ready={projected.ready()} fallback={<Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel"><KnowledgeSkeleton variant="lines" /></Panel>}>
       <Show when={getLanguageFeatures().supportsFrequencyLevels && levelBreakdown().length > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
           <h2 class="dashboard-section-title">{t('mlearn.Statistics.WordsByLevel')}</h2>

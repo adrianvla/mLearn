@@ -32,6 +32,8 @@ export interface OverlayVideoState {
   url?: string;
   title?: string;
   videoSrc?: string;
+  /** An internal player owns learning observations; the overlay only displays them. */
+  observationOwner?: 'main';
 }
 
 export interface OverlayVideoScreenshot {

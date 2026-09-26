@@ -1,6 +1,6 @@
 import { Component, Show, createEffect, createSignal, createMemo } from 'solid-js';
 import { WindowWrapper, useLanguage, useLocalization } from '../../context';
-import { Btn, TargetIcon } from '../../components/common';
+import { Btn, NavBtn, ArrowLeftIcon, TargetIcon } from '../../components/common';
 import { WordSyncContent } from '../wordSync/App';
 import { CharacterGridContent } from '../characterGrid/App';
 import { LevelStudyTab } from './LevelStudyTab';
@@ -33,7 +33,9 @@ export const LevelStudyContent: Component = () => {
       <header class="level-study-header">
         <div class="level-study-header-title"><TargetIcon size={20} /><span>{title()}</span></div>
         <Show when={destination() !== 'plan'}>
-          <Btn variant="ghost" onClick={() => setDestination('plan')}>{t('mlearn.LearningPlan.Back')}</Btn>
+          <NavBtn onClick={() => setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
+            {t('mlearn.LearningPlan.Back')}
+          </NavBtn>
         </Show>
       </header>
       <div class="level-study-content">

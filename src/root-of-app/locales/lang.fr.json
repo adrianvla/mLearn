@@ -825,7 +825,9 @@
         "TemporaryPractice": "Entraînement temporaire",
         "Title": "Conversations",
         "NewConversation": "Nouvelle conversation",
-        "UntitledThread": "Fil sans titre"
+        "UntitledThread": "Fil sans titre",
+        "Started": "Commencé le {date}",
+        "NoMatches": "Aucune conversation correspondante"
       },
       "LivingWorld": {
         "ConsentTitle": "Activer Living World ?",
@@ -834,6 +836,7 @@
         "NotNow": "Pas maintenant"
       },
       "NewConversation": {
+        "MediaContext": "Cette conversation utilisera le contexte de : {media}",
         "ChangeScenario": "Modifier la préparation",
         "UseScenario": "Utiliser cette situation",
         "GeneratedNotice": "Cette situation fictive est générée, sans recherche canonique. Vérifiez-la avant de commencer.",
@@ -1152,6 +1155,7 @@
         "ToastTitle": "Réparation de l'audio des cartes…"
       },
       "Review": {
+        "CardActions": "Actions de la carte",
         "Again": "Encore",
         "Bury": "Enterrer",
         "Complete": "Révision terminée !",
@@ -1179,7 +1183,8 @@
         "StealthMode": "Mode furtif",
         "MuteAudio": "Couper le son",
         "Modes": {
-          "Label": "Focus",
+          "Label": "Vue de la réponse",
+          "Help": "La vue de la réponse change les indices révélés. La note couvre toutes les compétences évaluées ; utilisez Ajuster pour les noter séparément.",
           "Meaning": "Sens",
           "Reading": "Lecture",
           "Prosody": "Prosodie"
@@ -1777,6 +1782,7 @@
         "Next": "Suivant",
         "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau.",
         "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez.",
+        "SavingAnswer": "Enregistrement de la réponse…",
         "ModeLabel": "Format de réponse",
         "ModeMcq": "Choisir",
         "ModeType": "Écrire",
@@ -1797,6 +1803,8 @@
         "Title": "Ajouter des flashcards en masse",
         "Hint": "Choisissez les mots à ajouter avec le filtre. Les mots correspondants deviendront des flashcards avec le statut sélectionné.",
         "MatchingCount": "{count} mots correspondent",
+        "Counting": "Comptage des mots correspondants…",
+        "DictionaryError": "Impossible de charger les mots du dictionnaire. Fermez et réessayez.",
         "Cancel": "Annuler",
         "Adding": "Ajout...",
         "AddingProgress": "Ajout {current}/{total}...",
@@ -2063,6 +2071,7 @@
         "Recognizing": "Reconnaissance..."
       },
       "StatusBar": {
+        "MoreTools": "Autres outils",
         "DebugOverlayOff": "Débogage : Désactivé",
         "DebugOverlayOn": "Débogage : Activé",
         "DebugOverlayTitle": "Basculer la couche de débogage pour visualiser le texte OCR et la détection des annotations de lecture",
@@ -2097,6 +2106,7 @@
         "ZoneDeltaTitle": "Distance maximale en pixels entre les bords des boîtes pour le regroupement en zones"
       },
       "Toolbar": {
+        "ViewOptions": "Options d’affichage",
         "BackToHome": "Retour à l'accueil",
         "DoublePage": "Double page",
         "FirstPagePairedTooltip": "Première page appariée",
@@ -2137,6 +2147,7 @@
           "Footer": "Déposez quelque chose pour commencer — cet écran d'accueil laissera place à votre histoire.",
           "OpenFolder": "Ouvrir un dossier d'images",
           "OpenPdf": "Ouvrir PDF/EPUB",
+          "OpenFailed": "Impossible d’ouvrir ce livre. Le fichier ou dossier a peut-être été déplacé ou est indisponible. Sélectionnez-le à nouveau ci-dessous.",
           "Title": "Ouvrir un livre",
           "TitleDescription": "Importez un PDF, un EPUB ou un dossier d’images pour commencer."
         }
@@ -3001,9 +3012,9 @@
           "None": "Aucun",
           "Exam": "Examen",
           "Target": {
-            "Label": "Cible",
-            "Description": "Ce que vous visez (pour votre référence)",
-            "Placeholder": "p. ex. JLPT N1, Goethe B1"
+            "Label": "Note personnelle (facultative)",
+            "Description": "Nomme votre objectif à titre indicatif ; seule la date de l’examen influe sur la priorité des révisions.",
+            "Placeholder": "p. ex. nom du cours ou de l’examen"
           },
           "Deadline": {
             "Label": "Date de l’examen",
@@ -3370,6 +3381,8 @@
         "Unignore": "Ne plus ignorer"
       },
       "AllLevels": "Tous les niveaux",
+      "StudyOrder": "Ordre d’étude",
+      "StudyOrderHint": "Affiche d’abord le niveau choisi, puis les niveaux voisins ; les mots sans niveau restent accessibles par recherche.",
       "Anki": {
         "AlreadyInAnki": "Déjà dans Anki",
         "EmptyField": "(vide)",
@@ -3445,6 +3458,7 @@
       "DictionaryUnavailable": "Le dictionnaire est indisponible. La liste contient uniquement les mots du programme et les mots enregistrés."
     },
     "WordHover": {
+      "InText": "Dans le texte : {form}",
       "AddToAnki": "Ajouter à Anki",
       "AddToBuiltInSrs": "Cliquer pour ajouter au SRS intégré",
       "Alerts": {
@@ -3520,6 +3534,9 @@
     },
     "WordSync": {
       "ProjectionUnavailable": "Les données de connaissances n’ont pas pu être chargées. Réessayez.",
+      "SavingRating": "Enregistrement de l’évaluation…",
+      "AnswerUnavailable": "Aucune réponse disponible pour ce mot. Réessayez la recherche ou choisissez un autre filtre. Aucune évaluation enregistrée.",
+      "SaveFailed": "Cette évaluation n’a pas pu être enregistrée. Le mot reste affiché ; réessayez.",
       "Statement": {
         "Label": "Décrire autrement",
         "KnownSpoken": "Je connais ce mot quand je l'entends.",
@@ -3586,6 +3603,8 @@
       "ForceRecreateFlashcards": "Forcer la recréation des cartes pour aujourd'hui",
       "Go": "Aller",
       "Help": "Aide",
+      "RunDiagnostics": "Lancer les diagnostics",
+      "ReportBug": "Signaler un bug",
       "HideReading": "Masquer les annotations de lecture",
       "OpenDevTools": "Ouvrir les DevTools",
       "OpenLiveWordTranslator": "Ouvrir le traducteur de mots en direct",
@@ -3732,15 +3751,15 @@
       "RunAllTests": "Run All Tests",
       "RunAgain": "Run Again",
       "Running": "Running…",
-      "ExportJson": "Export JSON",
+      "ExportJson": "Exporter un JSON expurgé",
       "ErrorTitle": "Diagnostics failed",
       "ReportSavedTo": "Report saved to:",
       "FilterAll": "All",
       "FilterPass": "Pass",
       "FilterFail": "Fail",
       "FilterSkip": "Skip",
-      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
-      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
+      "EmptyTitle": "Vérifier les services et fonctions installés.",
+      "EmptyDescription": "Les tests utilisent le serveur local et les fournisseurs configurés. Un échec ne signifie pas que toute l’application est indisponible."
     },
     "Eula": {
       "Title": "Contrat de Licence Utilisateur Final",

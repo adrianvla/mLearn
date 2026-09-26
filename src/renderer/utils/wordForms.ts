@@ -44,6 +44,18 @@ export function getTokenLookupWord(
 
 }
 
+/** Present the package's lexical lookup identity alongside the form in the text. */
+export function getTokenDisplayForms(
+  token: WordFormSource,
+  tokenizerCapabilities?: TokenMorphologyCapabilities,
+): { headword: string; encounteredForm?: string } {
+  const surface = token.surface?.trim() || token.word?.trim() || '';
+  const headword = getTokenLookupWord(token, tokenizerCapabilities);
+  return surface && surface !== headword
+    ? { headword, encounteredForm: surface }
+    : { headword };
+}
+
 export function getTokenWordFormCandidates(
   token: WordFormSource,
   getCanonicalForm: (word: string) => string,

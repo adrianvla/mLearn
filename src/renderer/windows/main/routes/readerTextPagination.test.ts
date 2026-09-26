@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { Token } from '../../../../shared/types';
+import { createGrammarEncounterRecorder } from '../../../../shared/grammar/encounters';
+import type { GrammarOccurrence } from '../../../../shared/grammar/occurrences';
 import {
   applyReadingSpansToTokens,
   auditTextPageCapacity,
   estimateTextPageCapacityFromMeasurements,
   estimateVerticalCharsPerLine,
+  locateSourceTokenOffsets,
+  readerTextBlockEncounterId,
+  readerTextTokenEncounterId,
   paginateTextSources,
   resetTextPageCapacityEpoch,
   shrinkTextPageCapacity,
@@ -41,16 +46,53 @@ describe('reader text pagination characterization', () => {
       {
         id: 'text-page-0-one.xhtml', kind: 'text', name: 'one.xhtml', title: 'Book',
         text: 'One', previewText: 'One', index: 0, textStart: 0, textEnd: 3,
+        sourceChunks: [{ sourceIndex: 0, blockStart: 2, sourceStart: 2 }],
       },
       {
         id: 'text-page-1-one.xhtml', kind: 'text', name: 'one.xhtml', title: 'Book',
         text: 'Two', previewText: 'Two', index: 1, textStart: 5, textEnd: 8,
+        sourceChunks: [{ sourceIndex: 0, blockStart: 7, sourceStart: 7 }],
       },
       {
         id: 'text-page-2-two.xhtml', kind: 'text', name: 'two.xhtml', title: 'Two title',
         text: 'Three', previewText: 'Three', index: 2, textStart: 14, textEnd: 19,
+        sourceChunks: [{ sourceIndex: 1, blockStart: 0, sourceStart: 0 }],
       },
     ]);
+  });
+
+  it('keeps source paragraph anchors when changing text page capacity', () => {
+    const source = [{ name: 'chapter.xhtml', title: '', text: 'alpha beta gamma\n\nsecond paragraph' }];
+    const wide = paginateTextSources(source, 'Book', 100);
+    const narrow = paginateTextSources(source, 'Book', 10);
+    const wideFirst = wide[0].sourceChunks?.[0];
+    const narrowFirst = narrow[0].sourceChunks?.[0];
+    expect(wideFirst).toMatchObject({ sourceIndex: 0, blockStart: 0, sourceStart: 0 });
+    expect(narrowFirst).toMatchObject({ sourceIndex: 0, blockStart: 0, sourceStart: 0 });
+    expect(narrow.some((page) => page.sourceChunks?.some((chunk) => chunk.blockStart === 0 && chunk.sourceStart > 0))).toBe(true);
+
+    const narrowTail = narrow.flatMap((page) => page.sourceChunks ?? []).find((chunk) => chunk.blockStart === 0 && chunk.sourceStart > 0)!;
+    expect(readerTextBlockEncounterId('visit-1', wideFirst!)).toBe(readerTextBlockEncounterId('visit-1', narrowTail));
+    expect(readerTextTokenEncounterId('visit-1', wideFirst!, 11)).toBe(readerTextTokenEncounterId('visit-1', narrowTail, 0));
+    expect(readerTextBlockEncounterId('visit-2', narrowTail)).not.toBe(readerTextBlockEncounterId('visit-1', wideFirst!));
+
+    const recorder = createGrammarEncounterRecorder('reader', { exclusive: false });
+    const occurrence: GrammarOccurrence = {
+      patternId: 'package:unknown-pattern',
+      targetRef: { kind: 'grammar-pattern', id: 'package:unknown-pattern', capability: 'grammar-recognition' },
+      sentenceSpan: { start: 0, end: 1 }, tokenEvidence: [], realizedForm: 'alpha', confidence: 1,
+      provenance: 'literal',
+    };
+    expect(recorder.record(readerTextBlockEncounterId('visit-1', wideFirst!), [occurrence])).toHaveLength(1);
+    expect(recorder.record(readerTextBlockEncounterId('visit-1', narrowTail), [occurrence])).toHaveLength(0);
+    expect(recorder.record(readerTextBlockEncounterId('visit-2', narrowTail), [occurrence])).toHaveLength(1);
+  });
+
+  it('addresses repeated surface tokens by their source text offsets', () => {
+    const tokens = ['word', 'and', 'word'].map((word) => ({ word, actual_word: word, type: 'unknown' }));
+    expect(locateSourceTokenOffsets('word and word', tokens)).toEqual([0, 5, 9]);
+    // The second token keeps its absolute source address after a page split.
+    expect(9 + locateSourceTokenOffsets('word', tokens.slice(2))[0]).toBe(9);
   });
 
   it('delegates empty sources to the current extracted-text fallback', () => {
@@ -75,6 +117,18 @@ describe('reader text pagination characterization', () => {
     expect(second).toMatchObject({ kind: 'image', src: 'blob:test', blob });
     expect(first.blob).toBe(blob);
     expect(second.blob).toBe(blob);
+  });
+
+  it('keeps an image page identity when preceding text repaginates', () => {
+    const sources = [
+      { name: 'chapter.xhtml', title: '', text: 'a'.repeat(400) },
+      { kind: 'image' as const, name: 'plate.jpg', title: '', text: '', src: 'blob:plate' },
+    ];
+    const wide = paginateTextSources(sources, 'Book', 500).find((page) => page.kind === 'image');
+    const narrow = paginateTextSources(sources, 'Book', 120).find((page) => page.kind === 'image');
+    expect(wide?.index).not.toBe(narrow?.index);
+    expect(wide?.id).toBe('image-page-1-plate.jpg');
+    expect(narrow?.id).toBe(wide?.id);
   });
 });
 

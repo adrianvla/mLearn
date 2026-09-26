@@ -191,6 +191,17 @@ describe('flashcardVideoStorage', () => {
       );
     });
 
+    it('serves Chromium-standardized stored URLs with their trailing slash and Range header', async () => {
+      const { protocol, net } = await import('electron');
+      vi.mocked(net.fetch).mockResolvedValue(new Response('clip', { status: 206 }));
+      setupFlashcardVideoProtocol();
+      saveFlashcardVideo('card-standard', Buffer.from('video'));
+      const request = new Request('flashcard-video://card-standard.mp4/', { headers: { Range: 'bytes=0-3' } });
+      const response = await vi.mocked(protocol.handle).mock.calls[0][1](request);
+      expect(response.status).toBe(206);
+      expect(net.fetch).toHaveBeenCalledWith(expect.stringContaining('card-standard.mp4'), { headers: request.headers });
+    });
+
     it('protocol handler strips query string from filename', async () => {
       const { protocol, net } = await import('electron');
       vi.mocked(net.fetch).mockResolvedValue(new Response(''));

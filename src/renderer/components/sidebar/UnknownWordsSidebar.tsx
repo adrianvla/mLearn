@@ -57,6 +57,7 @@ export interface UnknownWordsSidebarProps {
   sortOptions: Accessor<SortOption[]>;
   defaultSort: string;
   emptyMessage: string;
+  hideEmptyCount?: boolean;
   class?: string;
   onClose?: () => void;
   onAddAllClick: (addableEntries: SidebarWordEntry[], dictionaryFoundAddable: SidebarWordEntry[]) => void;
@@ -409,9 +410,11 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
           <div class="unknown-words-sidebar-title-row">
             <div class="unknown-words-sidebar-title-col">
               <h2 class="unknown-words-sidebar-title">{t('mlearn.Sidebar.UnknownWords')}</h2>
-              <div class="unknown-words-sidebar-count">
-                {t('mlearn.Sidebar.WordCount', { count: visibleWords().length })}
-              </div>
+              <Show when={!props.hideEmptyCount || visibleWords().length > 0}>
+                <div class="unknown-words-sidebar-count">
+                  {t('mlearn.Sidebar.WordCount', { count: visibleWords().length })}
+                </div>
+              </Show>
             </div>
             <div class="unknown-words-sidebar-title-actions">
               <Select

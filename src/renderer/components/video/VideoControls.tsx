@@ -92,6 +92,8 @@ export interface VideoControlsProps {
     onToggleWordSidebar?: () => void;
     /** Whether the user has provided external subtitles */
     hasExternalSubtitles?: boolean;
+    /** Add or replace a subtitle file while media is already open. */
+    onOpenSubtitles?: () => void;
     /** Audio tracks detected via ffmpeg */
     detectedAudioTracks?: DetectedTrack[];
     /** Subtitle tracks detected via ffmpeg */
@@ -223,6 +225,17 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                             onChange={(e) => props.video.setPlaybackRate(parseFloat(e.currentTarget.value))}
                             aria-label={t('mlearn.Video.Controls.PlaybackSpeed')}
                         />
+
+                        <Show when={props.onOpenSubtitles}>
+                            <IconBtn
+                                variant="ghost"
+                                onClick={props.onOpenSubtitles}
+                                aria-label={t('mlearn.Video.UI.OpenSubtitles')}
+                                title={t('mlearn.Video.UI.OpenSubtitles')}
+                            >
+                                <SubtitleIcon />
+                            </IconBtn>
+                        </Show>
 
                         <Show when={state.textTracks.length > 0 || props.detectedSubtitleTracks?.length || props.hasExternalSubtitles}>
                             <Show when={state.textTracks.length === 0 && !props.detectedSubtitleTracks?.length && props.hasExternalSubtitles}>

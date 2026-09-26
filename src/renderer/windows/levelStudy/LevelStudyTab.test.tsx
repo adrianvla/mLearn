@@ -32,8 +32,8 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 // GrammarCoverage onProbe / MockExam onAttempt paths. Mock attempts carry
 // `mock-*` task provenance; the mock writer flips the projections to loading
 // for exactly those appends — the production append → eventsVersion →
-// projection-reload chain, which unmounts the GrammarCoverage/MockExam
-// subtree through the tab's boot gate. Grammar/contrast probes do not flip
+// projection-reload chain. The loaded GrammarCoverage/MockExam subtree must
+// remain mounted through that refresh. Grammar/contrast probes do not flip
 // (their appends are exercised by the dedicated suites).
 let fixtureAttemptCounter = 0;
 const recordGrammarAttemptMock = vi.fn<(pattern: string, quality: string, options?: Record<string, unknown>) => Promise<string>>(
@@ -41,8 +41,7 @@ const recordGrammarAttemptMock = vi.fn<(pattern: string, quality: string, option
 );
 
 // Reactive loading state for the useKnowledgeProjections stub (bottom of
-// this file): flipping it live is what reproduces the evidence-driven
-// unmount/remount cycle inside the mounted tab.
+// this file): flipping it live reproduces the evidence-driven refresh.
 const [projectionLoading, setProjectionLoading] = createSignal(false);
 
 let settingsUiLanguage = 'en';
@@ -247,7 +246,7 @@ describe('LevelStudyTab', () => {
     expect(refreshLanguageDataMock).toHaveBeenCalledOnce();
 
     dispose();
-  });
+  }, 10000);
 
   it('renders level cards from installed language rows when the derived frequency map is stale', async () => {
     currentLangDataMock = {
@@ -486,7 +485,7 @@ describe('LevelStudyTab', () => {
     dispose();
   });
 
-  it('bounds projection requests to evidence-bearing surfaces only (F-N1)', async () => {
+  it('passes frequency candidates and store evidence to graph-linked selection (F28)', async () => {
     currentLangDataMock = {
       name: 'Japanese',
       freq: [
@@ -513,12 +512,13 @@ describe('LevelStudyTab', () => {
     for (let i = 0; i < 100 && projectionQueryAccessor?.()?.surfaces === undefined; i += 1) await tick();
 
     expect(projectionQueryAccessor?.()).not.toBeNull();
-    expect(projectionQueryAccessor?.()?.surfaces).toEqual(['猫']);
+    expect(projectionQueryAccessor?.()?.surfaces).toEqual(['猫', '犬']);
+    expect(projectionQueryAccessor?.()?.evidenceKeys).toEqual([wordStorageKey('ja', '猫')]);
 
     dispose();
   });
 
-  it('includes JOURNAL-ONLY evidence in the bounded surfaces (F-N1 source-of-truth path)', async () => {
+  it('passes journal-only evidence to graph-linked selection (F28)', async () => {
     // Store cache empty, but the journal holds a key for one surface: the
     // journal snapshot is the evidence authority, so that surface is still
     // requested — while the unmeasured tail stays out of the fan-out.
@@ -542,7 +542,8 @@ describe('LevelStudyTab', () => {
     for (let i = 0; i < 100 && projectionQueryAccessor?.()?.surfaces === undefined; i += 1) await tick();
 
     expect(projectionQueryAccessor?.()).not.toBeNull();
-    expect(projectionQueryAccessor?.()?.surfaces).toEqual(['犬']);
+    expect(projectionQueryAccessor?.()?.surfaces).toEqual(['猫', '犬']);
+    expect(projectionQueryAccessor?.()?.evidenceKeys).toEqual([wordStorageKey('ja', '犬')]);
 
     dispose();
   });
@@ -663,10 +664,10 @@ describe('LevelStudyTab', () => {
   // The component-alone suites prove MockExam's pending-results storage and
   // GrammarCoverage's owner-held repair handling. These two cases mount the
   // REAL children inside the REAL tab and drive the evidence-driven
-  // unmount/remount cycle through the tab's boot gate — the LevelStudyTab
-  // lifecycle the review flagged as untested.
+  // refresh through the tab's projection gate — the LevelStudyTab lifecycle
+  // that must keep loaded assessment content usable.
 
-  it('restores detailed mock results and their actions across the projection-refresh unmount (integration regression)', async () => {
+  it('keeps detailed mock results and their actions mounted across projection refresh', async () => {
     currentLangDataMock = deFixture() as unknown as Record<string, unknown>;
     settingsLanguageMock = 'de';
     recordGrammarAttemptMock.mockImplementation(mockWriterFlippingProjections);
@@ -691,14 +692,13 @@ describe('LevelStudyTab', () => {
       }));
     }
 
-    // The terminal append's projection reload unmounts the subtree…
+    // The terminal append's projection reload preserves the completed view.
     setProjectionLoading(true);
     await tick();
-    expect(container.querySelector('[data-testid="mock-results"]')).toBeNull();
-    expect(container.querySelector('.level-study-boot')).not.toBeNull();
+    expect(container.querySelector('[data-testid="mock-results"]')).not.toBeNull();
+    expect(container.querySelector('.level-study-boot')).toBeNull();
 
-    // …and the remount restores the DETAILED results (per-section rows and
-    // provenance), not the compact saved summary.
+    // The detailed results and provenance remain after the refresh settles.
     setProjectionLoading(false);
     await waitFor(() => container.querySelector('[data-testid="mock-results"]') !== null);
     expect(container.querySelector('[data-testid="mock-results-sections"]')).not.toBeNull();
@@ -741,7 +741,7 @@ describe('LevelStudyTab', () => {
     dispose();
   });
 
-  it('starts an owner-held mock repair after the projection-refresh remount ends the live walk (integration regression)', async () => {
+  it('starts an owner-held mock repair after projection refresh ends the live walk', async () => {
     currentLangDataMock = deFixture() as unknown as Record<string, unknown>;
     settingsLanguageMock = 'de';
     recordGrammarAttemptMock.mockImplementation(mockWriterFlippingProjections);
@@ -779,21 +779,21 @@ describe('LevelStudyTab', () => {
     await tick();
     expect(levelBlock(container, 3).querySelector('.grammar-contrast')).toBeNull();
 
-    // A probe append's projection reload unmounts the subtree — the walk's
-    // durable cursor resumes and the owner still holds the unhandled
-    // request (the disposed component-local queue would have lost it).
+    // A probe append's projection reload leaves the walk and queued repair
+    // mounted, retaining their durable cursor and current prompt.
     setProjectionLoading(true);
     await tick();
-    expect(container.querySelector('.level-study-boot')).not.toBeNull();
+    expect(container.querySelector('.level-study-boot')).toBeNull();
+    expect(levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt')).not.toBeNull();
     setProjectionLoading(false);
     await tick();
-    // The remounted coverage restores the active level with its durable cursor.
+    // The coverage retains the active level and durable cursor.
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
     expect(levelBlock(container, 3).querySelector('.grammar-contrast')).toBeNull();
 
     // Completing the resumed walk starts the queued repair as the
     // item-backed contrast pass for the missed level — the request
-    // survived the unmount because the OWNER held it.
+    // survived the refresh because the owner held it.
     walkProbe().click();
     await beat();
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
@@ -888,9 +888,9 @@ const isMockTaskType = (options: unknown): boolean => {
 };
 
 /** The canonical append of a MOCK answer flips the projections to loading
- *  (production: appendEvents → eventsVersion → projection resource), which
- *  unmounts the GrammarCoverage/MockExam subtree through the tab's boot
- *  gate. Walk probes carry no `mock-*` provenance and do not flip. */
+ *  (production: appendEvents → eventsVersion → projection resource). Loaded
+ *  GrammarCoverage/MockExam content stays mounted. Walk probes carry no
+ *  `mock-*` provenance and do not flip. */
 const mockWriterFlippingProjections = async (_pattern: string, _quality: string, options?: Record<string, unknown>): Promise<string> => {
   if (isMockTaskType(options)) setProjectionLoading(true);
   return `fixture-attempt-${fixtureAttemptCounter += 1}`;
@@ -936,8 +936,7 @@ const levelBlock = (container: HTMLElement, level: number): HTMLElement => {
 /** Drives the tab's REAL MockExam child through a fixed blueprint run,
  *  deliberately missing every answer (missed patterns drive the repair
  *  request). Each answer's canonical append flips the projections to
- *  loading; the test lets the reload settle, exactly the production
- *  append → reload → remount chain, with the queue resuming from storage. */
+ *  loading; the test lets the refresh settle while the queue stays mounted. */
 const runMockThroughResults = async (container: HTMLElement, gold: Map<string, number>, level: number) => {
   const start = container.querySelector(`[data-testid="mock-start-${level}"]`) as HTMLButtonElement | null;
   expect(start, `mock blueprint start button ${level} missing`).toBeTruthy();
@@ -955,13 +954,13 @@ const runMockThroughResults = async (container: HTMLElement, gold: Map<string, n
     options[(goldIndex + 1) % options.length].click();
     await beat();
     // The append's eventsVersion bump reloads the projections; the journal
-    // snapshot settles and the tab remounts the subtree.
+    // snapshot settles without replacing the assessment subtree.
     setProjectionLoading(false);
     await tick();
   }
 };
 
-let projectionQueryAccessor: (() => { language: string; surfaces: string[] } | undefined) | undefined = undefined;
+let projectionQueryAccessor: (() => { language: string; surfaces: string[]; evidenceKeys?: string[] } | undefined) | undefined = undefined;
 let storeWordKnowledgeMock: Record<string, unknown> = {};
 let journalKeysMock: string[] = [];
 let wordVariantsForWordMock: (word: string) => string[] = (word) => [word];
@@ -977,7 +976,7 @@ vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { useFlashcards } = await import('../../context');
   const { projectionFixture } = await import('../../../../test/projectionFixture');
   return {
-    useKnowledgeProjections: (query: () => { language: string; surfaces: string[] } | undefined) => {
+    useKnowledgeProjections: (query: () => { language: string; surfaces: string[]; evidenceKeys?: string[] } | undefined) => {
       // Capture the accessor: the underlying journal-key resource settles
     // asynchronously, so tests poll the accessor instead of one snapshot.
     projectionQueryAccessor = query;

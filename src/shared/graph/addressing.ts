@@ -93,9 +93,12 @@ export function realizedEntryIds(graph: LingualGraph, surfaceId: string): string
 
 /** Surface ids realizing an entry — the authoritative variant family. */
 export function surfacesRealizingEntry(graph: LingualGraph, entryId: string): string[] {
-  return relationsOf(graph, entryId, { direction: 'in' })
+  return [...new Set(relationsOf(graph, entryId)
     .filter((relation) => relation.type === 'realizes')
-    .map((relation) => relation.from);
+    .flatMap((relation): string[] => {
+      const candidate = relation.from === entryId ? relation.to : relation.to === entryId ? relation.from : undefined;
+      return candidate !== undefined && graph.nodes.get(candidate)?.kind === 'surface' ? [candidate] : [];
+    }))];
 }
 
 /**

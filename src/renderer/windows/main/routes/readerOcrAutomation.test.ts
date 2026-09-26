@@ -72,6 +72,24 @@ describe('reader OCR automation state', () => {
     expect(readerOcrShouldClearStatus(state)).toBe(false);
   });
 
+  it('blocks queued OCR after cancelled cloud recovery until authentication resumes', () => {
+    const cancelled = resolveReaderOcrAutomationState({
+      ocrEnabled: true,
+      languageDataLoading: false,
+      readinessError: null,
+      authRecoveryCancelled: { message: 'Sign in again to continue.' },
+    });
+    expect(cancelled).toEqual({ kind: 'blocked', message: 'Sign in again to continue.' });
+    expect(readerOcrCanQueue(cancelled)).toBe(false);
+
+    const resumed = resolveReaderOcrAutomationState({
+      ocrEnabled: true,
+      languageDataLoading: false,
+      readinessError: null,
+    });
+    expect(readerOcrCanQueue(resumed)).toBe(true);
+  });
+
   it('identifies readiness errors as queue blockers instead of OCR engine failures', () => {
     expect(isReaderOcrReadinessErrorMessage('Language data is required before running OCR for ja')).toBe(true);
     expect(isReaderOcrReadinessErrorMessage('OCR runtime language data is required for ja')).toBe(true);

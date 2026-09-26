@@ -3,7 +3,7 @@
  * Handles creation and management of all application windows
  */
 
-import { BrowserWindow, app, ipcMain, Menu, dialog, screen, nativeTheme } from 'electron';
+import { BrowserWindow, app, ipcMain, Menu, dialog, screen, nativeTheme, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
@@ -742,6 +742,7 @@ function getMacWindowSurfaceOptions(): Partial<Electron.BrowserWindowConstructor
     },
 
     // Native material underneath our web scene.
+    transparent: true,
     vibrancy: 'under-window',
     visualEffectState: 'followWindow',
   };
@@ -970,6 +971,15 @@ function setupAppMenu(): void {
         {
           label: getLocalizedString('mlearn.Menu.About'),
           click: () => openSettingsWindow('about'),
+        },
+        {
+          label: getLocalizedString('mlearn.Menu.RunDiagnostics'),
+          click: () => createDiagnosticsWindow(),
+        },
+        { type: 'separator' },
+        {
+          label: getLocalizedString('mlearn.Menu.ReportBug'),
+          click: () => { void shell.openExternal('https://github.com/adrianvla/mLearn/issues/new'); },
         },
       ],
     },

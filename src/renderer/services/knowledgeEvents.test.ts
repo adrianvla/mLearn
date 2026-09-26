@@ -69,6 +69,17 @@ describe('knowledgeEvents renderer service', () => {
     expect(onKnowledgeEventsChanged).toHaveBeenCalled();
   });
 
+  it('keeps lexical projections stable for grammar-only appends and invalidates them for word evidence', async () => {
+    const svc = await importService();
+    const initialWordVersion = svc.wordEventsVersion();
+    const initialAllVersion = svc.eventsVersion();
+    await svc.appendEvents({ 'ja:grammar:example:grammar-recognition': [{ t: 1, kind: 'rating', source: 'grammar', quality: 'fluent' }] });
+    expect(svc.eventsVersion()).toBeGreaterThan(initialAllVersion);
+    expect(svc.wordEventsVersion()).toBe(initialWordVersion);
+    await svc.appendEvents({ 'ja:word-hash': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
+    expect(svc.wordEventsVersion()).toBeGreaterThan(initialWordVersion);
+  });
+
   it('reports a refused durable append without publishing an events-version change', async () => {
     appendKnowledgeEvents.mockResolvedValue(false);
     const svc = await importService();

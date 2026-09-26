@@ -292,21 +292,24 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   // Tokenize filtered boxes and build token map
   createEffect(() => {
     const boxes = filteredBoxes();
+    let active = true;
+    onCleanup(() => { active = false; });
     if (!boxes || boxes.length === 0) {
       setTokenMap(new Map());
       return;
     }
     const next = new Map<number, Token[]>();
-    const toFetch: { text: string; idx: number }[] = [];
+    const toFetch: { text: string; idx: number; cacheKey: string }[] = [];
 
     // Reuse cached tokens synchronously to avoid flash of untokenized text
     boxes.forEach((box, idx) => {
       if (!box?.text || !box.text.trim()) return;
-      const cached = ocrTokenCache.get(ocrTokenCacheKey(box.text));
+      const cacheKey = ocrTokenCacheKey(box.text);
+      const cached = ocrTokenCache.get(cacheKey);
       if (cached) {
         next.set(idx, cached);
       } else {
-        toFetch.push({ text: box.text, idx });
+        toFetch.push({ text: box.text, idx, cacheKey });
       }
     });
 
@@ -314,10 +317,11 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     setTokenMap(next);
 
     // Only tokenize texts we haven't seen before
-    toFetch.forEach(({ text, idx }) => {
+    toFetch.forEach(({ text, idx, cacheKey }) => {
       tokenize(text)
         .then(async (tokens) => {
-          ocrTokenCache.set(ocrTokenCacheKey(text), tokens as Token[]);
+          if (!active) return;
+          ocrTokenCache.set(cacheKey, tokens as Token[]);
           setTokenMap((prev) => {
             const updated = new Map(prev);
             updated.set(idx, tokens as Token[]);

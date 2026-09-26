@@ -1,4 +1,4 @@
-import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
+import { useEvidenceLinkedProjections } from '../../hooks/useEvidenceLinkedProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createSignal, For, Show } from 'solid-js';
 import { useLocalization, useFlashcards, useLanguage, useSettings } from '../../context';
@@ -12,7 +12,7 @@ import { summarizeGrammarCurriculum } from '../../utils/curriculumCoverage';
 import { declaredItemStates, questionBankFromLanguageData } from '../../learning/questionBank';
 import { languageDataWithStoredQuestionValidations } from '../../learning/questionValidation';
 import type { MockJournalPayload } from '../../learning/mockExam';
-import type { AttemptId } from '../../../shared/knowledgeEvents';
+import type { AttemptId, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import { isLLMReady } from '../../services/llmProvider';
 import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 import { eventsVersion, queryLanguageKeys } from '../../services/knowledgeEvents';
@@ -23,10 +23,8 @@ import {
   getLevelStudyFrequency,
   getLevelStudyLevelNames,
   getWordLevelStatus,
-  wordStorageKey,
 } from '../../utils/wordLevelStats';
 import { EmptyState, TargetIcon, Btn, PillBtn, SkeletonCard, SkeletonRows } from '../../components/common';
-import { getWordFormCandidates } from '../../../shared/utils/wordForms';
 import type { LevelStats } from '../../utils/wordLevelStats';
 import {
   getFrequencyLevelLabel,
@@ -73,8 +71,6 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
   const flashcards = useFlashcards();
   const language = useLanguage();
   const { settings, updateSettings } = useSettings();
-  const getCanonicalFormForLanguage = language.getCanonicalFormForLanguage;
-  const getWordVariantsForLanguage = language.getWordVariantsForLanguage;
   const [selectedLevel, setSelectedLevel] = createSignal<LevelStats | null>(null);
   const [showBulkAdd, setShowBulkAdd] = createSignal(false);
   // Question-validation record store (R12) is non-reactive localStorage: this
@@ -105,60 +101,25 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
     return langData ? getLevelStudyLevelNames(langData, frequency()) : {};
   });
 
-  // F-N1 bound: request projections ONLY for evidence-bearing surfaces. A
-  // word without stored state is unmeasured by definition — its projection
-  // is empty and materializing it wastes an IPC round-trip per word per
-  // reload (49k+ on the German package → the archived renderer OOM). The
-  // candidate set is the JOURNAL keys (epistemic source of truth) unioned
-  // with the materialized store keys (conservative superset that also
-  // covers pre-journal legacy rows). Projections are requested only AFTER
-  // the journal snapshot succeeds; pending or failed reads cannot establish
-  // authoritative coverage. Requests remain bounded to evidence keys.
-  const [journalKeysResource, { refetch: retryJournalKeys }] = createResource(
-    // No `projected.loading` here: journal keys must settle BEFORE the
-    // projection request is built (circular otherwise). eventsVersion makes
-    // the snapshot refresh after new evidence is appended.
-    () => (flashcards.isKnowledgeReady() && !language.isLoading()
-      ? { language: resolvedLanguageData().language || '', version: eventsVersion() }
-      : undefined),
-    async (source: { language: string; version: number }) => new Set(await queryLanguageKeys(source.language)),
-  );
-  const journalKeysHealthy = createMemo(() => journalKeysResource.state === 'ready');
-  const measuredStorageKeys = createMemo(() => new Set(Object.keys(flashcards.store?.wordKnowledge ?? {})));
-  const projectionSurfaces = createMemo(() => {
-    const lang = resolvedLanguageData().language;
-    if (!lang) return [];
-    const freqKeys = Object.keys(frequency());
-    // Only read a successful snapshot. The query below waits for it;
-    // never substitute a partial cache for the evidence authority.
-    const keys = new Set(journalKeysResource.state === 'ready' ? journalKeysResource() ?? [] : []);
-    for (const key of measuredStorageKeys()) keys.add(key);
-    if (keys.size === 0) return [];
-    const canonicalize = (language: string, word: string) => getCanonicalFormForLanguage(language, word);
-    // Match the writer-side identity exactly: journal keys are derived from
-    // getWordFormCandidates(...)[0] (canonical, script-converted, or a
-    // package-declared variant), so test every candidate form, not just the
-    // raw surface and its canonical form.
-    return freqKeys.filter((word) => {
-      const candidates = getWordFormCandidates(word, (w) => canonicalize(lang, w), (w) => getWordVariantsForLanguage(lang, w), { language: lang, languageData: resolvedLanguageData().data });
-      // The writer persists one hash per candidate form WITHOUT a second
-      // canonicalization (FlashcardContext getWordFormsForLanguage →
-      // langKey(hash(form))), so test each candidate's raw storage key.
-      return candidates.some((c) => keys.has(wordStorageKey(lang, c)));
-    });
-  });
+  const projected = useEvidenceLinkedProjections(() => flashcards.isKnowledgeReady() && !language.isLoading() ? {
+    language: resolvedLanguageData().language,
+    surfaces: Object.keys(frequency()),
+    materializedKeys: Object.keys(flashcards.store?.wordKnowledge ?? {}),
+  } : undefined);
+  const evidenceKeys = createMemo(() => new Set(projected.evidenceKeys()));
+  const projectionSurfaces = createMemo(() => [...projected.projections().keys()]);
 
-  const projected = useKnowledgeProjections(() => flashcards.isKnowledgeReady() && !language.isLoading() && journalKeysHealthy()
-    ? { language: resolvedLanguageData().language, surfaces: projectionSurfaces() } : undefined);
-
+  let settledStats: { language: string; value: LevelStats[] } | null = null;
   const stats = createMemo(() => {
-    if (flashcards.isLoading() || !journalKeysHealthy() || !projected.ready()) return [];
     const resolved = resolvedLanguageData();
+    if (flashcards.isLoading() || !projected.ready()) {
+      return settledStats?.language === resolved.language ? settledStats.value : [];
+    }
     const langData = resolved.data;
     if (!langData) return [];
     const freq = frequency();
     if (!freq || Object.keys(freq).length === 0) return [];
-    return computeLevelStats(
+    const value = computeLevelStats(
       flashcards.store,
       freq,
       resolved.language,
@@ -174,11 +135,16 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
         return projection ? projectedWordStatus(projection) : { status: 'unknown' as const, basis: 'unmeasured' as const };
       },
     );
+    settledStats = { language: resolved.language, value };
+    return value;
   });
 
+  let settledBeyond: { language: string; value: LevelStats | null } | null = null;
   const beyondCard = createMemo<LevelStats | null>(() => {
-    if (flashcards.isLoading() || projected.loading()) return null;
     const resolved = resolvedLanguageData();
+    if (flashcards.isLoading() || projected.loading()) {
+      return settledBeyond?.language === resolved.language ? settledBeyond.value : null;
+    }
     const langData = resolved.data;
     if (!langData) return null;
     const freq = frequency();
@@ -197,7 +163,9 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
         return projection ? projectedWordStatus(projection) : { status: 'unknown' as const, basis: 'unmeasured' as const };
       },
     );
-    return beyond != null ? { ...beyond, name: t('mlearn.LevelStudy.LevelCard.BeyondExam') } : null;
+    const value = beyond != null ? { ...beyond, name: t('mlearn.LevelStudy.LevelCard.BeyondExam') } : null;
+    settledBeyond = { language: resolved.language, value };
+    return value;
   });
 
   const userLevel = createMemo(() => (
@@ -325,7 +293,7 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
    *  after a placement rating bumped eventsVersion. PlacementSession stays
    *  mounted through these flips; this only hides its DOM and stops timing. */
   const placementBooting = createMemo(() => (
-    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || !projected.ready() || !journalKeysHealthy()
+    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || !projected.ready()
   ));
 
   const recordPlacementAttempt = (word: string, _level: number, quality: AttemptQuality, timing: AttemptTiming | null) => {
@@ -359,7 +327,16 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
       return keys.length > 0 ? await getBridge().knowledgeEvents.queryKnowledgeEvents(keys) : {};
     },
   );
-  const grammarLog = () => grammarLogResource.state === 'ready' ? grammarLogResource() : undefined;
+  let settledGrammarLog: { language: string; value: KnowledgeEventLog } | null = null;
+  const grammarLog = createMemo(() => {
+    const currentLanguage = resolvedLanguageData().language;
+    const value = grammarLogResource();
+    if (grammarLogResource.state === 'ready' && value !== undefined) {
+      settledGrammarLog = { language: currentLanguage, value };
+      return value;
+    }
+    return settledGrammarLog?.language === currentLanguage ? settledGrammarLog.value : undefined;
+  });
   const requiresGrammar = () => Boolean(resolvedLanguageData().data?.grammar?.length);
   const grammarSummary = createMemo(() => {
     const data = resolvedLanguageData().data;
@@ -453,10 +430,10 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
 
   return (
     <div class="level-study-tab">
-      <Show when={journalKeysResource.state === 'errored' || projected.failed()}>
+      <Show when={projected.failed()}>
         <div role="alert">
           <p>{t('mlearn.Knowledge.LoadError')}</p>
-          <Btn onClick={() => { if (journalKeysResource.state === 'errored') void retryJournalKeys(); else projected.retry(); }}>{t('mlearn.Knowledge.Retry')}</Btn>
+          <Btn onClick={() => { projected.retry(); }}>{t('mlearn.Knowledge.Retry')}</Btn>
         </div>
       </Show>
       <div hidden={props.assessment === true}>
@@ -464,8 +441,8 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
           installed frequency data: until both are authoritative, keep the
           tab's geometry with placeholders instead of a blank panel, zeroed
           coverage, or a false empty state. */}
-      <Show when={flashcards.isKnowledgeReady() && !language.isLoading() && journalKeysHealthy() && projected.ready()} fallback={
-        <Show when={journalKeysResource.state !== 'errored' && !projected.failed()}>
+      <Show when={flashcards.isKnowledgeReady() && !language.isLoading() && ((projected.ready()) || stats().length > 0)} fallback={
+        <Show when={!projected.failed()}>
         <div class="level-study-boot" aria-busy="true">
           <SkeletonCard lines={2} />
           <SkeletonRows rows={3} />
@@ -570,7 +547,7 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
         </div>
         </Show>
 
-        <Show when={requiresGrammar() && grammarLogResource.state !== 'ready'}>
+        <Show when={requiresGrammar() && grammarLog() === undefined}>
           <Show when={grammarLogResource.state === 'errored'} fallback={<SkeletonRows rows={3} />}>
             <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Btn onClick={() => void retryGrammarLog()}>{t('mlearn.Knowledge.Retry')}</Btn></div>
           </Show>
@@ -613,7 +590,7 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
       </Show>
       </div>
       <div hidden={!props.assessment}>
-      <Show when={props.assessment && placementBooting() && journalKeysResource.state !== 'errored' && !projected.failed()}><div aria-busy="true"><SkeletonRows rows={3} /></div></Show>
+      <Show when={props.assessment && placementBooting() && !projected.failed()}><div aria-busy="true"><SkeletonRows rows={3} /></div></Show>
       {/* Mounted OUTSIDE the boot gate above: every placement rating appends
           knowledge events, bumps eventsVersion and flips the projections to
           loading — a gate here would unmount the live panel mid-session.
@@ -654,6 +631,7 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
             levelName={level().name}
             language={resolvedLanguageData().language}
             languageData={resolvedLanguageData().data}
+            evidenceSurfaces={projectionSurfaces()}
             onClose={() => setSelectedLevel(null)}
           />
         )}
@@ -664,6 +642,8 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
           languageData={resolvedLanguageData().data}
           frequency={frequency()}
           levelNames={levelNames()}
+          evidenceSurfaces={projectionSurfaces()}
+          evidenceKeys={evidenceKeys()}
           targetLevel={userLevel()}
           onClose={() => setShowBulkAdd(false)}
         />

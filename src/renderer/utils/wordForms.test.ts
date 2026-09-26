@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTokenLookupWord, getTokenWordFormCandidates, getWordFormCandidates } from './wordForms';
+import { getTokenDisplayForms, getTokenLookupWord, getTokenWordFormCandidates, getWordFormCandidates } from './wordForms';
 
 describe('getWordFormCandidates', () => {
   it('leads with the canonical form, then the raw word, then remaining variants', () => {
@@ -95,6 +95,22 @@ describe('getWordFormCandidates', () => {
 });
 
 describe('getTokenWordFormCandidates', () => {
+  it('keeps package-provided lemmas distinct from encountered forms across scripts', () => {
+    for (const [surface, lemma] of [
+      ['分から', '分かる'],
+      ['понимаю', 'понимать'],
+      ['verstehe', 'verstehen'],
+    ]) {
+      expect(getTokenDisplayForms(
+        { word: surface, surface, actual_word: lemma },
+        { providesLemmas: true },
+      )).toEqual({ headword: lemma, encounteredForm: surface });
+    }
+    expect(getTokenDisplayForms(
+      { word: 'ない', surface: 'ない', actual_word: 'ない' },
+      { providesLemmas: true },
+    )).toEqual({ headword: 'ない' });
+  });
   it('uses tokenizer lemmas for lookup when tokenizer metadata says they are reliable', () => {
     expect(
       getTokenLookupWord(

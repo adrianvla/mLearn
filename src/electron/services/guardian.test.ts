@@ -54,6 +54,43 @@ describe('Guardian direct integrity boundary', () => {
     await expect(new Guardian(temp.tmpDir).preflight()).rejects.toThrow('Canonical data failed validation');
   });
 
+  it('opens a populated ledger written before legacy knowledge metrics were tracked', async () => {
+    writeProfile(['a']);
+    fs.writeFileSync(file('knowledge-events.json'), JSON.stringify({
+      'test:word': [{ kind: 'review', t: 1 }],
+    }));
+    await new Guardian(temp.tmpDir).preflight();
+    const ledgerPath = file('guardian/ledger.json');
+    const olderLedger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+    delete olderLedger.metrics.legacyKnowledgeKeys;
+    delete olderLedger.metrics.legacyKnowledgeEvents;
+    fs.writeFileSync(ledgerPath, JSON.stringify(olderLedger));
+
+    const reopened = new Guardian(temp.tmpDir);
+    await expect(reopened.preflight()).resolves.toBeUndefined();
+    expect(reopened.status.metrics?.legacyKnowledgeKeys).toEqual(['test:word']);
+    expect(reopened.status.metrics?.legacyKnowledgeEvents).toBe(1);
+    fs.rmSync(file('knowledge-events.json'));
+    await expect(new Guardian(temp.tmpDir).preflight()).rejects.toThrow('legacy knowledge events decreased');
+  });
+
+  it('verifies a recovery snapshot whose manifest predates legacy knowledge metrics', async () => {
+    writeProfile(['a']);
+    fs.writeFileSync(file('knowledge-events.json'), JSON.stringify({
+      'test:word': [{ kind: 'review', t: 1 }],
+    }));
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const snapshot = guardian.listRecoveryPoints()[0];
+    const manifestPath = file(`guardian/${snapshot}/manifest.json`);
+    const oldManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    delete oldManifest.metrics.legacyKnowledgeKeys;
+    delete oldManifest.metrics.legacyKnowledgeEvents;
+    fs.writeFileSync(manifestPath, JSON.stringify(oldManifest));
+
+    expect(guardian.newestVerifiedRecoveryPoint()).toBe(snapshot);
+  });
+
   it('checkpoints newly accumulated evidence on shutdown without rotating on an unchanged state', async () => {
     writeProfile(['a']);
     const guardian = new Guardian(temp.tmpDir);

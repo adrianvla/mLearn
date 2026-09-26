@@ -45,7 +45,7 @@ let sessionReadyHandler: (() => void) | undefined;
 
 const testSettings = {
   ttsProvider: 'kokoro' as const,
-  voiceMode: 'vad' as const,
+  voiceMode: 'vad' as 'vad' | 'push-to-talk',
   voiceTtsSpeed: 1.0,
   voiceSilenceThreshold: 0.8,
 };
@@ -57,6 +57,7 @@ const readyModels: TestModelStatus = {
   downloading: false,
   progress: 1,
 };
+const mockVoiceFlush = vi.fn();
 
 vi.mock('../../context', () => ({
   useSettings: () => ({ settings: testSettings, updateSettings: vi.fn() }),
@@ -96,7 +97,7 @@ vi.mock('../../../shared/bridges', () => ({
       voiceStartSession: vi.fn(),
       voiceStopSession: vi.fn(),
       voiceTtsStop: vi.fn(),
-      voiceFlush: vi.fn(),
+      voiceFlush: mockVoiceFlush,
     },
   }),
 }));
@@ -131,6 +132,8 @@ describe('VoiceTab CPU warning banner', () => {
     modelProgressHandler = undefined;
     ttsStatusHandler = undefined;
     sessionReadyHandler = undefined;
+    testSettings.voiceMode = 'vad';
+    mockVoiceFlush.mockClear();
   });
 
   afterEach(() => {
@@ -208,6 +211,39 @@ describe('VoiceTab CPU warning banner', () => {
     await vi.waitFor(() => expect(container.textContent).toContain('Microphone access was denied'));
     expect(mediaDevices.getUserMedia).toHaveBeenCalledTimes(1);
     expect(onCallStateChange).not.toHaveBeenCalledWith(false, expect.anything());
+    dispose();
+  });
+
+  it('releases keyboard PTT after focus moves into text and when the window blurs', async () => {
+    testSettings.voiceMode = 'push-to-talk';
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: {
+      enumerateDevices: vi.fn(async () => []),
+      getUserMedia: vi.fn(async () => { throw new DOMException('Denied', 'NotAllowedError'); }),
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    } });
+    const { VoiceTab } = await import('./VoiceTab');
+    const dispose = render(() => (
+      <VoiceTab autoStartCall messages={[]} isStreaming={false} onSendMessage={vi.fn()}
+        onAbort={vi.fn()} isConnected language="ja" onRequestGreeting={vi.fn()} />
+    ), container);
+    await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined());
+    sessionReadyHandler?.();
+    await vi.waitFor(() => expect(container.querySelector('.voice-ptt-btn, .voice-call-ptt')).not.toBeNull());
+    const isPressed = () => !!container.querySelector('.voice-ptt-btn.active, .voice-call-ptt.active');
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
+    expect(isPressed()).toBe(true);
+    const input = document.createElement('input');
+    container.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space', key: ' ', bubbles: true }));
+    expect(isPressed()).toBe(false);
+    expect(mockVoiceFlush).toHaveBeenCalledTimes(1);
+    input.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
+    expect(isPressed()).toBe(false);
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true }));
+    expect(isPressed()).toBe(true);
+    window.dispatchEvent(new Event('blur'));
+    expect(isPressed()).toBe(false);
+    expect(mockVoiceFlush).toHaveBeenCalledTimes(2);
     dispose();
   });
 });

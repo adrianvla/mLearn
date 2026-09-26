@@ -142,6 +142,32 @@ describe('SubtitleContainer', () => {
     { word: 'world', surface: 'world', actual_word: 'world', type: 'noun', partOfSpeech: 'noun' },
   ];
 
+  it('records only eligible cue encounters and accepts a repeated line at a new cue', () => {
+    const [cue, setCue] = createSignal('video:pass1:cue1');
+    const [eligible, setEligible] = createSignal(false);
+    const dispose = render(() => (
+      <SubtitleContainer
+        tokens={mockTokens}
+        originalText="hello world"
+        isLoading={false}
+        encounterId={cue()}
+        passiveObservationEligible={eligible()}
+      />
+    ), container);
+    expect(mockTrackWordSeen).not.toHaveBeenCalled();
+
+    setEligible(true);
+    expect(mockTrackWordSeen).toHaveBeenCalledTimes(2);
+    expect(mockTrackWordSeen.mock.calls[0][4]).toContain('video:pass1:cue1');
+    setEligible(false);
+    setEligible(true);
+    expect(mockTrackWordSeen).toHaveBeenCalledTimes(2);
+
+    setCue('video:pass1:cue2');
+    expect(mockTrackWordSeen).toHaveBeenCalledTimes(4);
+    dispose();
+  });
+
   it('renders subtitle text with subtitle theme class', () => {
     const dispose = render(
       () => (
@@ -624,6 +650,29 @@ describe('SubtitleContainer', () => {
       origin: 'subtitle:literal',
     });
 
+    dispose();
+  });
+
+  it('journals grammar only for an eligible cue visit and ignores UI reactivity', async () => {
+    mockSupportsGrammar.mockReturnValue(true);
+    mockLanguageData = grammarLanguageData;
+    const [eligible, setEligible] = createSignal(false);
+    const [encounterId, setEncounterId] = createSignal('visit-1:cue-1');
+    const [tokens, setTokens] = createSignal<Token[]>(mockTokens);
+    const dispose = render(() => <SubtitleContainer tokens={tokens()} originalText="hello world"
+      isLoading={false} encounterId={encounterId()} passiveObservationEligible={eligible()} />, container);
+    await Promise.resolve();
+    expect(mockTrackGrammarEncountered).not.toHaveBeenCalled();
+    setEligible(true);
+    await vi.waitFor(() => expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(1));
+    expect(mockTrackGrammarEncountered).toHaveBeenLastCalledWith('hello world', expect.objectContaining({ encounterId: 'visit-1:cue-1' }));
+    setTokens([...mockTokens]);
+    setEligible(false);
+    setEligible(true);
+    await Promise.resolve();
+    expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(1);
+    setEncounterId('visit-2:cue-1');
+    await vi.waitFor(() => expect(mockTrackGrammarEncountered).toHaveBeenCalledTimes(2));
     dispose();
   });
 

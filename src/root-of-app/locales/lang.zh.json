@@ -825,7 +825,9 @@
         "TemporaryPractice": "临时练习",
         "Title": "对话",
         "NewConversation": "新对话",
-        "UntitledThread": "未命名话题"
+        "UntitledThread": "未命名话题",
+        "Started": "开始于 {date}",
+        "NoMatches": "没有匹配的对话"
       },
       "LivingWorld": {
         "ConsentTitle": "启用 Living World？",
@@ -834,6 +836,7 @@
         "NotNow": "暂不"
       },
       "NewConversation": {
+        "MediaContext": "此对话将使用以下媒体的上下文：{media}",
         "ChangeScenario": "修改设置",
         "UseScenario": "使用此情境",
         "GeneratedNotice": "这是生成的虚构练习情境，并非经过考证的原作设定。请在开始前确认。",
@@ -1152,6 +1155,7 @@
         "ToastTitle": "正在修复闪卡音频…"
       },
       "Review": {
+        "CardActions": "卡片操作",
         "Again": "重来",
         "Bury": "暂缓",
         "Complete": "复习完成！",
@@ -1179,7 +1183,8 @@
         "StealthMode": "隐身模式",
         "MuteAudio": "静音",
         "Modes": {
-          "Label": "侧重点",
+          "Label": "答案视图",
+          "Help": "答案视图会改变显示的提示。评分适用于所有测试的能力；使用“调整”分别评分。",
           "Meaning": "词义",
           "Reading": "读音",
           "Prosody": "韵律"
@@ -1777,6 +1782,7 @@
         "Next": "下一个",
         "NoLocks": "此浏览器无法安全保存练习。请在支持的浏览器或桌面应用中打开mLearn。",
         "StorageUnavailable": "无法保存你的答案。请检查存储空间是否可用，然后重试。",
+        "SavingAnswer": "正在保存回答…",
         "ModeLabel": "作答方式",
         "ModeMcq": "选择",
         "ModeType": "输入",
@@ -1797,6 +1803,8 @@
         "Title": "批量添加闪卡",
         "Hint": "使用筛选器选择要添加的单词。匹配的单词将以所选状态成为闪卡。",
         "MatchingCount": "匹配 {count} 个单词",
+        "Counting": "正在统计匹配的单词…",
+        "DictionaryError": "无法加载词典词条。请关闭后重试。",
         "Cancel": "取消",
         "Adding": "添加中...",
         "AddingProgress": "添加中 {current}/{total}...",
@@ -2063,6 +2071,7 @@
         "Recognizing": "正在识别…"
       },
       "StatusBar": {
+        "MoreTools": "更多工具",
         "DebugOverlayOff": "调试：关闭",
         "DebugOverlayOn": "调试：开启",
         "DebugOverlayTitle": "切换调试叠加层以可视化 OCR 文本和读音标注检测",
@@ -2097,6 +2106,7 @@
         "ZoneDeltaTitle": "用于区域聚类的框边距最大像素距离"
       },
       "Toolbar": {
+        "ViewOptions": "视图选项",
         "BackToHome": "返回首页",
         "DoublePage": "双页",
         "FirstPagePairedTooltip": "首页为配对页",
@@ -2137,6 +2147,7 @@
           "Footer": "放入文件开始 — 此欢迎页面将为您的故事让路。",
           "OpenFolder": "打开图片文件夹",
           "OpenPdf": "打开 PDF/EPUB",
+          "OpenFailed": "无法打开这本书。文件或文件夹可能已被移动或暂时不可用。请在下方重新选择。",
           "Title": "打开图书",
           "TitleDescription": "导入 PDF、EPUB 或图片文件夹，开始阅读。"
         }
@@ -2416,9 +2427,9 @@
           "None": "无",
           "Exam": "考试",
           "Target": {
-            "Label": "目标",
-            "Description": "备考目标（仅作记录）",
-            "Placeholder": "例如 JLPT N1、Goethe B1"
+            "Label": "个人备注（可选）",
+            "Description": "仅用于记录目标名称；只有考试日期会影响练习优先级。",
+            "Placeholder": "例如课程或考试名称"
           },
           "Deadline": {
             "Label": "考试日期",
@@ -3370,6 +3381,8 @@
         "Unignore": "取消忽略"
       },
       "AllLevels": "所有等级",
+      "StudyOrder": "学习顺序",
+      "StudyOrderHint": "先显示所选学习级别，再显示相邻级别；仍可搜索没有级别的词。",
       "Anki": {
         "AlreadyInAnki": "已在 Anki 中",
         "EmptyField": "（空）",
@@ -3445,6 +3458,7 @@
       "DictionaryUnavailable": "词典暂不可用。当前列表仅包含课程和已保存的单词。"
     },
     "WordHover": {
+      "InText": "原文中：{form}",
       "AddToAnki": "添加到 Anki",
       "AddToBuiltInSrs": "点击添加到内置 SRS",
       "Alerts": {
@@ -3520,6 +3534,9 @@
     },
     "WordSync": {
       "ProjectionUnavailable": "无法加载知识数据。请重试。",
+      "SavingRating": "正在保存评分…",
+      "AnswerUnavailable": "此词暂无答案。请重试词典查询或选择其他筛选条件。尚未记录评分。",
+      "SaveFailed": "无法保存这次评分。当前词语仍会显示，请重试。",
       "Statement": {
         "Label": "换个方式描述",
         "KnownSpoken": "听到这个单词我认识。",
@@ -3586,6 +3603,8 @@
       "ForceRecreateFlashcards": "强制重新创建今日新闪卡",
       "Go": "转到",
       "Help": "帮助",
+      "RunDiagnostics": "运行诊断",
+      "ReportBug": "报告错误",
       "HideReading": "隐藏读音注释",
       "OpenDevTools": "打开开发者工具",
       "OpenLiveWordTranslator": "打开实时单词翻译",
@@ -3732,15 +3751,15 @@
       "RunAllTests": "运行所有测试",
       "RunAgain": "重新运行",
       "Running": "运行中…",
-      "ExportJson": "导出 JSON",
+      "ExportJson": "导出已删减敏感信息的 JSON",
       "ErrorTitle": "诊断失败",
       "ReportSavedTo": "报告已保存至：",
       "FilterAll": "全部",
       "FilterPass": "通过",
       "FilterFail": "失败",
       "FilterSkip": "跳过",
-      "EmptyTitle": "点击“运行所有测试”以验证 mLearn 中的所有功能。",
-      "EmptyDescription": "这将测试 Python 后端、LLM 提供商、云连接、词典、OCR、语音、存储、媒体协议等 — 全部使用真实服务。"
+      "EmptyTitle": "检查已安装的服务和功能。",
+      "EmptyDescription": "测试使用本地后端和已配置的服务提供商。某项检查失败并不代表整个应用不可用。"
     },
     "Eula": {
       "Title": "End User License Agreement",

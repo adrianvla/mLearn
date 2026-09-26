@@ -825,7 +825,9 @@
         "TemporaryPractice": "Временная практика",
         "Title": "Диалоги",
         "NewConversation": "Новый диалог",
-        "UntitledThread": "Ветка без названия"
+        "UntitledThread": "Ветка без названия",
+        "Started": "Начато: {date}",
+        "NoMatches": "Подходящих бесед нет"
       },
       "LivingWorld": {
         "ConsentTitle": "Включить Living World?",
@@ -834,6 +836,7 @@
         "NotNow": "Не сейчас"
       },
       "NewConversation": {
+        "MediaContext": "Контекст для этой беседы: {media}",
         "ChangeScenario": "Изменить подготовку",
         "UseScenario": "Использовать ситуацию",
         "GeneratedNotice": "Это сгенерированная вымышленная ситуация, а не изученный канон. Проверьте её перед началом.",
@@ -1152,6 +1155,7 @@
         "ToastTitle": "Восстановление аудио карточек…"
       },
       "Review": {
+        "CardActions": "Действия с карточкой",
         "Again": "Снова",
         "Bury": "Отложить",
         "Complete": "Повторение завершено!",
@@ -1179,7 +1183,8 @@
         "StealthMode": "Скрытый режим",
         "MuteAudio": "Без звука",
         "Modes": {
-          "Label": "Фокус",
+          "Label": "Вид ответа",
+          "Help": "Вид ответа меняет показанные подсказки. Оценка относится ко всем проверяемым навыкам; используйте «Настроить» для отдельных оценок.",
           "Meaning": "Значение",
           "Reading": "Чтение",
           "Prosody": "Просодия"
@@ -1777,6 +1782,7 @@
         "Next": "Далее",
         "NoLocks": "В этом браузере нельзя безопасно сохранить практику. Откройте mLearn в поддерживаемом браузере или настольном приложении.",
         "StorageUnavailable": "Не удалось сохранить ответ. Проверьте доступность хранилища и повторите попытку.",
+        "SavingAnswer": "Сохранение ответа…",
         "ModeLabel": "Формат ответа",
         "ModeMcq": "Выбрать",
         "ModeType": "Ввести",
@@ -1797,6 +1803,8 @@
         "Title": "Массовое добавление карточек",
         "Hint": "Выберите слова для добавления с помощью фильтра. Подходящие слова станут карточками с выбранным статусом.",
         "MatchingCount": "Подходит слов: {count}",
+        "Counting": "Подсчёт подходящих слов…",
+        "DictionaryError": "Не удалось загрузить слова словаря. Закройте окно и попробуйте снова.",
         "Cancel": "Отмена",
         "Adding": "Добавление...",
         "AddingProgress": "Добавление {current}/{total}...",
@@ -2063,6 +2071,7 @@
         "Recognizing": "Распознавание..."
       },
       "StatusBar": {
+        "MoreTools": "Другие инструменты",
         "DebugOverlayOff": "Отладка: Выкл",
         "DebugOverlayOn": "Отладка: Вкл",
         "DebugOverlayTitle": "Переключить отладочное наложение для визуализации OCR-текста и обнаружения фуриганы",
@@ -2097,6 +2106,7 @@
         "ZoneDeltaTitle": "Макс. расстояние в пикселях между краями боксов для кластеризации зон"
       },
       "Toolbar": {
+        "ViewOptions": "Настройки просмотра",
         "BackToHome": "Вернуться на главную",
         "DoublePage": "Разворот",
         "FirstPagePairedTooltip": "Первая страница парная",
@@ -2137,6 +2147,7 @@
           "Footer": "Перетащите что-нибудь, чтобы начать — этот экран приветствия уступит место вашей истории.",
           "OpenFolder": "Открыть папку с изображениями",
           "OpenPdf": "Открыть PDF/EPUB",
+          "OpenFailed": "Не удалось открыть книгу. Возможно, файл или папка были перемещены или недоступны. Выберите их снова ниже.",
           "Title": "Открыть книгу",
           "TitleDescription": "Импортируйте PDF, EPUB или папку с изображениями, чтобы начать чтение."
         }
@@ -3001,9 +3012,9 @@
           "None": "Нет",
           "Exam": "Экзамен",
           "Target": {
-            "Label": "Цель",
-            "Description": "К чему готовитесь (для себя)",
-            "Placeholder": "напр. JLPT N1, Goethe B1"
+            "Label": "Личная заметка (необязательно)",
+            "Description": "Название цели для справки; на приоритет занятий влияет только дата экзамена.",
+            "Placeholder": "например, название курса или экзамена"
           },
           "Deadline": {
             "Label": "Дата экзамена",
@@ -3370,6 +3381,8 @@
         "Unignore": "Перестать игнорировать"
       },
       "AllLevels": "Все уровни",
+      "StudyOrder": "Порядок изучения",
+      "StudyOrderHint": "Сначала показывает выбранный учебный уровень, затем соседние; слова без уровня остаются доступными через поиск.",
       "Anki": {
         "AlreadyInAnki": "Уже в Anki",
         "EmptyField": "(пусто)",
@@ -3445,6 +3458,7 @@
       "DictionaryUnavailable": "Словарь недоступен. Сейчас показаны только слова из программы и сохранённые слова."
     },
     "WordHover": {
+      "InText": "В тексте: {form}",
       "AddToAnki": "Добавить в Anki",
       "AddToBuiltInSrs": "Нажмите, чтобы добавить во встроенный SRS",
       "Alerts": {
@@ -3520,6 +3534,9 @@
     },
     "WordSync": {
       "ProjectionUnavailable": "Не удалось загрузить данные знаний. Повторите попытку.",
+      "SavingRating": "Сохранение оценки…",
+      "AnswerUnavailable": "Для этого слова нет ответа. Повторите поиск в словаре или выберите другой фильтр. Оценка не записана.",
+      "SaveFailed": "Не удалось сохранить оценку. Слово остаётся на экране; повторите попытку.",
       "Statement": {
         "Label": "Описать словами",
         "KnownSpoken": "Я знаю это слово на слух.",
@@ -3586,6 +3603,8 @@
       "ForceRecreateFlashcards": "Принудительно создать новые карточки на сегодня",
       "Go": "Перейти",
       "Help": "Справка",
+      "RunDiagnostics": "Запустить диагностику",
+      "ReportBug": "Сообщить об ошибке",
       "HideReading": "Скрыть аннотации чтения",
       "OpenDevTools": "Открыть DevTools",
       "OpenLiveWordTranslator": "Открыть переводчик слов",
@@ -3732,15 +3751,15 @@
       "RunAllTests": "Run All Tests",
       "RunAgain": "Run Again",
       "Running": "Running…",
-      "ExportJson": "Export JSON",
+      "ExportJson": "Экспорт JSON без личных данных",
       "ErrorTitle": "Diagnostics failed",
       "ReportSavedTo": "Report saved to:",
       "FilterAll": "All",
       "FilterPass": "Pass",
       "FilterFail": "Fail",
       "FilterSkip": "Skip",
-      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
-      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
+      "EmptyTitle": "Проверить установленные службы и функции.",
+      "EmptyDescription": "Проверки используют локальный сервер и настроенных поставщиков. Ошибка проверки не означает, что всё приложение недоступно."
     },
     "Eula": {
       "Title": "End User License Agreement",

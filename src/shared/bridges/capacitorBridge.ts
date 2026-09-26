@@ -1592,7 +1592,7 @@ const mediaStatsBridge: MediaStatsBridge = {
  * consolidated, never silently dropped.
  */
 const KNOWLEDGE_EVENTS_PREFIX = 'mlearn-knowledge-events';
-const knowledgeEventsChangeListeners = new Set<() => void>();
+const knowledgeEventsChangeListeners = new Set<(keys?: string[]) => void>();
 const knowledgeEventWriteQueues = new Map<string, Promise<void>>();
 
 function knowledgeEventsStorageKey(language: string): string {
@@ -1632,10 +1632,10 @@ async function updateKnowledgeEventsForLanguage(
   await task;
 }
 
-function notifyKnowledgeEventsChanged(): void {
+function notifyKnowledgeEventsChanged(keys: string[]): void {
   for (const listener of [...knowledgeEventsChangeListeners]) {
     try {
-      listener();
+      listener(keys);
     } catch (e) {
       log.error('[CapacitorBridge] knowledge events change listener failed:', e);
     }
@@ -1665,7 +1665,7 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
         return applyKnowledgeEventRetention(consolidateKnowledgeEvents(existing));
       });
     }
-    notifyKnowledgeEventsChanged();
+    notifyKnowledgeEventsChanged(Object.keys(eventsByKey).filter((key) => eventsByKey[key]?.length));
     return true;
   },
 
@@ -1697,7 +1697,7 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
     return events?.length ? { [key]: events } : {};
   },
 
-  onKnowledgeEventsChanged(callback: () => void) {
+  onKnowledgeEventsChanged(callback: (keys?: string[]) => void) {
     knowledgeEventsChangeListeners.add(callback);
     return () => {
       knowledgeEventsChangeListeners.delete(callback);
@@ -2169,6 +2169,9 @@ const graphBridge: GraphBridge = {
   },
   async getGraphNeighborhood() {
     return null;
+  },
+  async getEvidenceLinkedSurfaces(_language, surfaces) {
+    return surfaces;
   },
   async getKnowledgeProjection() {
     return { status: 'unavailable', targets: [] };

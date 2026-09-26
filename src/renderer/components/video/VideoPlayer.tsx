@@ -3,7 +3,7 @@
  * Main video player with controls and subtitle overlay
  */
 
-import { Component, JSX, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, JSX, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { useVideo, useVideoKeyboard, useCursorVisibility } from '../../hooks';
 import type { useSubtitles } from '../../hooks';
 import { useVideoTouch } from '../../hooks/useVideoTouch';
@@ -49,6 +49,7 @@ export interface VideoPlayerProps {
   showWordSidebar?: boolean;
   /** Toggle word sidebar visibility */
   onToggleWordSidebar?: () => void;
+  onOpenSubtitles?: () => void;
   /** Audio tracks detected via ffmpeg (for formats Chromium doesn't expose) */
   detectedAudioTracks?: DetectedTrack[];
   /** Subtitle tracks detected via ffmpeg (for formats Chromium doesn't expose) */
@@ -79,6 +80,24 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
 
   let videoRef: HTMLVideoElement | undefined;
   let containerRef: HTMLDivElement | undefined;
+  const playbackVisitId = crypto.randomUUID();
+  const [playbackPass, setPlaybackPass] = createSignal(0);
+  const [documentActive, setDocumentActive] = createSignal(
+    document.visibilityState === 'visible' && document.hasFocus(),
+  );
+  const updateDocumentActive = () => setDocumentActive(
+    document.visibilityState === 'visible' && document.hasFocus(),
+  );
+  onMount(() => {
+    document.addEventListener('visibilitychange', updateDocumentActive);
+    window.addEventListener('focus', updateDocumentActive);
+    window.addEventListener('blur', updateDocumentActive);
+    onCleanup(() => {
+      document.removeEventListener('visibilitychange', updateDocumentActive);
+      window.removeEventListener('focus', updateDocumentActive);
+      window.removeEventListener('blur', updateDocumentActive);
+    });
+  });
 
   // Compute video fit class
   const videoFitClass = createMemo(() => {
@@ -109,8 +128,19 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
         });
       };
       videoRef.addEventListener('loadedmetadata', handleLoadedMetadata);
+      let timeBeforeSeek = 0;
+      const handleSeeking = () => { timeBeforeSeek = video.state.currentTime; };
+      const handleSeeked = () => {
+        if (videoRef && videoRef.currentTime < timeBeforeSeek - 0.25) {
+          setPlaybackPass((pass) => pass + 1);
+        }
+      };
+      videoRef.addEventListener('seeking', handleSeeking);
+      videoRef.addEventListener('seeked', handleSeeked);
       onCleanup(() => {
         videoRef?.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        videoRef?.removeEventListener('seeking', handleSeeking);
+        videoRef?.removeEventListener('seeked', handleSeeked);
       });
     }
   });
@@ -163,6 +193,8 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             ref={videoRef}
             class={`video-element ${videoFitClass()}`}
             crossorigin="anonymous"
+            tabIndex={0}
+            onPointerDown={() => videoRef?.focus()}
             autoplay={props.autoplay}
             onEnded={props.onEnded}
         />
@@ -178,6 +210,10 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             subtitleStart={subtitles.currentSubtitle()?.start}
             subtitleEnd={subtitles.currentSubtitle()?.end}
             videoSrc={props.src}
+            encounterId={subtitles.currentSubtitle()
+              ? `${playbackVisitId}:${playbackPass()}:${props.src ?? ''}:${subtitles.currentSubtitle()!.start}:${subtitles.currentSubtitle()!.end}`
+              : undefined}
+            passiveObservationEligible={video.state.isPlaying && documentActive() && subtitles.observationReady()}
         />
 
         {/* Live word translator (inside player for fullscreen support) */}
@@ -191,6 +227,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             isControlsVisible={controlsVisible()}
             showWordSidebar={props.showWordSidebar}
             onToggleWordSidebar={props.onToggleWordSidebar}
+            onOpenSubtitles={props.onOpenSubtitles}
             hasExternalSubtitles={Boolean(props.subtitleContent)}
             detectedAudioTracks={props.detectedAudioTracks}
             detectedSubtitleTracks={props.detectedSubtitleTracks}

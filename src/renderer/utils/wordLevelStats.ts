@@ -117,11 +117,11 @@ function buildStateSets(
     hashWordSync, langKey, language, wordKnowledge: store.wordKnowledge, ignoredWords: store.ignoredWords,
     knownEaseThreshold: knownThreshold / 1000, learningThreshold: learningThreshold / 1000,
   }));
-  for (const key of resolveState ? [] : buildTrackedWordSet(store, language)) {
+  for (const key of buildTrackedWordSet(store, language)) {
     const word = store.wordKnowledge[key]?.word;
-    add(key, word && resolveState ? resolve(word, language) : getEffectiveWordStateForKeys([key], store.wordKnowledge, {
-      known: knownThreshold / 1000, learning: learningThreshold / 1000,
-    }));
+    add(key, resolveState
+      ? (word ? resolve(word, language) : { status: 'unknown', basis: 'unmeasured' })
+      : getEffectiveWordStateForKeys([key], store.wordKnowledge, { known: knownThreshold / 1000, learning: learningThreshold / 1000 }));
   }
   for (const word of Object.keys(wordFrequency)) add(wordKey(language, word, canonicalizeWord), resolve(word, language));
   return { known, learning, measured };

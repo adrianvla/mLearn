@@ -113,6 +113,13 @@ export function useVideo(options: UseVideoOptions = {}) {
   const detachVideo = () => {
     if (!videoRef) return;
 
+    // Release the media element itself, not just our listeners. A paused but
+    // still sourced hidden player can remain the system media-key target.
+    videoRef.pause();
+    videoRef.removeAttribute('src');
+    videoRef.load();
+    setState('isPlaying', false);
+
     videoRef.removeEventListener('timeupdate', handleTimeUpdate);
     videoRef.removeEventListener('durationchange', handleDurationChange);
     videoRef.removeEventListener('play', handlePlay);
@@ -395,7 +402,7 @@ export function useVideo(options: UseVideoOptions = {}) {
 
   const loadVideo = (src: string) => {
     // Revoke previous object URL if any
-    if (objectUrlRef) {
+    if (objectUrlRef && objectUrlRef !== src) {
       URL.revokeObjectURL(objectUrlRef);
       objectUrlRef = null;
     }
@@ -414,8 +421,8 @@ export function useVideo(options: UseVideoOptions = {}) {
 
   const loadVideoFile = (file: File) => {
     const url = URL.createObjectURL(file);
-    objectUrlRef = url;
     loadVideo(url);
+    objectUrlRef = url;
   };
 
   // Formatted time helpers
@@ -492,17 +499,16 @@ export function useVideo(options: UseVideoOptions = {}) {
 }
 
 // Keyboard shortcuts hook
-export function useVideoKeyboard(video: ReturnType<typeof useVideo>, _options: { getScope?: () => HTMLElement | null } = {}) {
+export function useVideoKeyboard(video: ReturnType<typeof useVideo>, options: { getScope?: () => HTMLElement | null } = {}) {
   const handleKeyDown = (e: KeyboardEvent) => {
-    // Skip if focused on an interactive text element
-    const target = e.target as HTMLElement;
-    if (
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLTextAreaElement ||
-      target.isContentEditable
-    ) {
-      return;
-    }
+    if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || e.repeat) return;
+    const target = e.target instanceof HTMLElement
+      ? e.target
+      : document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+    const scope = options.getScope?.();
+    if (options.getScope && (!scope || !scope.contains(target))) return;
+    // Let focused controls, text inputs and IME editors own their keys.
+    if (target.closest('input, textarea, select, button, [role="button"], [contenteditable]')) return;
 
     switch (e.code) {
       case 'Space':

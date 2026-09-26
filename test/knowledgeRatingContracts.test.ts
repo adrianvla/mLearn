@@ -41,7 +41,7 @@ describe('knowledge rating composition contract', () => {
 
   it.each([
     ['src/renderer/components/flashcard/FlashcardReview.tsx', 'recordAttempt'],
-    ['src/renderer/windows/wordSync/App.tsx', 'recordAttempt'],
+    ['src/renderer/windows/wordSync/App.tsx', 'recordAttemptsAcknowledged'],
     ['src/renderer/windows/levelStudy/LevelStudyTab.tsx', 'flashcards.recordAttempt'],
     ['src/renderer/windows/levelStudy/LevelStudyTab.tsx', 'flashcards.recordGrammarAttemptAcknowledged'],
     ['src/renderer/windows/main/routes/WelcomeRoute.tsx', 'flashcards.recordAttempt'],

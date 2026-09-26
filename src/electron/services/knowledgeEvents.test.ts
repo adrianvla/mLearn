@@ -156,8 +156,8 @@ describe('knowledge event IPC readiness and broadcast', () => {
 
     await mod.appendKnowledgeEvents({ 'ja:one': [event(now, { kind: 'status', toStatus: 'learning' })] });
 
-    expect(sendFirst).toHaveBeenCalledWith(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);
-    expect(sendSecond).toHaveBeenCalledWith(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED);
+    expect(sendFirst).toHaveBeenCalledWith(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, ['ja:one']);
+    expect(sendSecond).toHaveBeenCalledWith(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, ['ja:one']);
   });
 
   it('migrates a legacy journal at first open and serves it to a query', async () => {

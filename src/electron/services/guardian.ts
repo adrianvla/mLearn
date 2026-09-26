@@ -425,6 +425,17 @@ export class Guardian {
       this.ledger = previous;
       throw new Error(`Guardian needs recovery: ${previous.reason ?? 'unsupported or blocked ledger'}`);
     }
+    // Older schema-1 ledgers did not record these two legacy-journal metrics.
+    // Start tracking them from the current inspected data without weakening
+    // the checks for any metric that the ledger actually recorded.
+    if (previous?.metrics && (previous.metrics.legacyKnowledgeKeys === undefined
+      || previous.metrics.legacyKnowledgeEvents === undefined)) {
+      previous.metrics = {
+        ...previous.metrics,
+        legacyKnowledgeKeys: previous.metrics.legacyKnowledgeKeys ?? [],
+        legacyKnowledgeEvents: previous.metrics.legacyKnowledgeEvents ?? 0,
+      };
+    }
     let current: GuardianMetrics;
     const inspectStart = startupTime();
     try { current = inspectGuardianData(this.root); }
@@ -847,7 +858,15 @@ export class Guardian {
     }
     if (JSON.stringify(fileHashes(source)) !== JSON.stringify(manifest.hashes)) throw new Error('Recovery snapshot checksum mismatch');
     const checked = inspectGuardianData(source);
-    if (loss(manifest.metrics, checked).length || loss(checked, manifest.metrics).length) {
+    // Schema-1 manifests created before these two metrics were recorded still
+    // have verified file hashes. Compare every recorded metric, and use the
+    // inspected snapshot values only for fields the old manifest did not track.
+    const recorded = {
+      ...manifest.metrics,
+      legacyKnowledgeKeys: manifest.metrics.legacyKnowledgeKeys ?? checked.legacyKnowledgeKeys,
+      legacyKnowledgeEvents: manifest.metrics.legacyKnowledgeEvents ?? checked.legacyKnowledgeEvents,
+    };
+    if (loss(recorded, checked).length || loss(checked, recorded).length) {
       throw new Error('Recovery snapshot semantic metrics mismatch');
     }
     return manifest;

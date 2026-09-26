@@ -10,13 +10,9 @@ import type { LingualGraph } from './load';
  * footprint and was the electron-main OOM anchor when projections queued
  * (Word DB scroll, hover storms).
  *
- * Orientation note: the compact CSR stores every relation in both directions
- * without a direction bit, so each edge copy reconstructed from node N's
- * slice is emitted as from=N (outgoing) and to=N (incoming). This is exactly
- * the reconstruction the previous plain-object replica produced (including
- * its symmetric copies), so consumers observe identical behavior at a
- * fraction of the memory: only the edges of touched nodes become objects,
- * and they are cached per node id for the life of the view.
+ * The CSR stores symmetric adjacency for neighbor searches. New assets also
+ * retain authored direction per edge; legacy assets lack it, so their view
+ * keeps the old symmetric reconstruction for non-directional consumers.
  */
 export function createCompactGraphView(graph: RuntimeCompactGraph, language: string): LingualGraph {
   const nodeCount = graph.persistentOf.length;
@@ -75,8 +71,9 @@ export function createCompactGraphView(graph: RuntimeCompactGraph, language: str
         ...(order !== undefined ? { order } : {}),
         ...(role !== undefined ? { role } : {}),
       };
-      out.push({ from: self, to: other, type, ...qualifiers });
-      inc.push({ from: other, to: self, type, ...qualifiers });
+      const direction = graph.relationDirections?.[edge] ?? 3;
+      if (direction & 1) out.push({ from: self, to: other, type, ...qualifiers });
+      if (direction & 2) inc.push({ from: other, to: self, type, ...qualifiers });
     }
     const built = { out, in: inc };
     edgeCache.set(dense, built);
@@ -166,5 +163,6 @@ export function createCompactGraphView(graph: RuntimeCompactGraph, language: str
     // only read. (RuntimeCompactGraph marks it readonly; LingualGraph predates that.)
     denseOf: graph.denseOf,
     persistentOf: graph.persistentOf as string[],
+    relationDirectionKnown: graph.relationDirections !== undefined,
   };
 }

@@ -20,6 +20,38 @@ export interface ReaderPaginatedPage extends ReaderSourcePage {
   index: number;
   textStart?: number;
   textEnd?: number;
+  /** Immutable source offsets for each rendered text block; page indexes change during reflow. */
+  sourceChunks?: ReaderTextSourceChunk[];
+}
+
+export interface ReaderTextSourceChunk {
+  sourceIndex: number;
+  /** Start of the unsplit paragraph in the imported source text. */
+  blockStart: number;
+  /** Start of this possibly split chunk in the imported source text. */
+  sourceStart: number;
+}
+
+/** Match displayed tokens to their text offsets without assuming a language's word boundaries. */
+export function locateSourceTokenOffsets(text: string, tokens: readonly Token[]): number[] {
+  let cursor = 0;
+  return tokens.map((token) => {
+    const surface = token.surface ?? token.word;
+    const found = surface ? text.indexOf(surface, cursor) : -1;
+    const start = found >= 0 ? found : cursor;
+    cursor = Math.min(text.length, start + surface.length);
+    return start;
+  });
+}
+
+/** The imported paragraph stays the same when a layout change moves it to a new page. */
+export function readerTextBlockEncounterId(passageId: string, chunk: ReaderTextSourceChunk): string {
+  return `${passageId}:block:${chunk.sourceIndex}:${chunk.blockStart}`;
+}
+
+/** A token's source character position survives changes to page and chunk boundaries. */
+export function readerTextTokenEncounterId(passageId: string, chunk: ReaderTextSourceChunk, tokenStart: number): string {
+  return `${passageId}:source:${chunk.sourceIndex}:${chunk.sourceStart + tokenStart}`;
 }
 
 export const MIN_TEXT_PAGE_CAPACITY = 120;
@@ -120,13 +152,14 @@ export function paginateTextSources(
   const pages: ReaderPaginatedPage[] = [];
   let globalOffset = 0;
 
-  for (const source of sources) {
+  for (const [sourceIndex, source] of sources.entries()) {
     if (source.kind === 'image') {
-      pages.push({ ...source, id: `image-page-${pages.length}-${source.name}`, kind: 'image', index: pages.length });
+      // The image is the same source item even when preceding text repaginates.
+      pages.push({ ...source, id: `image-page-${sourceIndex}-${source.name}`, kind: 'image', index: pages.length });
       continue;
     }
     const blocks = source.text.split(/\n{2,}/u).map((part) => part.trim()).filter(Boolean);
-    let currentChunks: Array<{ text: string; sourceStart: number }> = [];
+    let currentChunks: Array<{ text: string; sourceIndex: number; blockStart: number; sourceStart: number }> = [];
     let currentLength = 0;
     let currentStart = globalOffset;
     let sourceOffset = 0;
@@ -147,6 +180,9 @@ export function paginateTextSources(
         index,
         textStart: currentStart,
         textEnd: currentStart + text.length,
+        sourceChunks: currentChunks.map(({ sourceIndex: chunkSourceIndex, blockStart, sourceStart }) => ({
+          sourceIndex: chunkSourceIndex, blockStart, sourceStart,
+        })),
         ...(readingSpans.length > 0 ? { readingSpans } : {}),
       });
       currentChunks = [];
@@ -174,7 +210,7 @@ export function paginateTextSources(
           currentStart = globalOffset + sourceOffset;
         }
         if (currentChunks.length === 0) currentStart = globalOffset + sourceOffset;
-        currentChunks.push({ text: chunk, sourceStart });
+        currentChunks.push({ text: chunk, sourceIndex, blockStart, sourceStart });
         currentLength += separatorLength + chunk.length;
         sourceOffset += chunk.length + 2;
       }

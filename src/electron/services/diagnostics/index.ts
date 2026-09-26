@@ -10,6 +10,7 @@ import { getLogger } from '../../../shared/utils/logger';
 import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import { diagnosticsExport } from '../../../shared/diagnostics/exportReport';
 
 // Import all test suites to register them
 import './suites/backendHealth';
@@ -54,9 +55,11 @@ export function setupDiagnosticsIPC(): void {
     return getCurrentDiagnosticsReport();
   });
 
-  ipcMain.handle(DIAGNOSTICS_IPC.SAVE_REPORT, async (_event, reportJson: string) => {
+  ipcMain.handle(DIAGNOSTICS_IPC.SAVE_REPORT, async () => {
+    const report = getCurrentDiagnosticsReport();
+    if (!report) throw new Error('Run diagnostics before exporting a report');
     const downloadsPath = path.join(app.getPath('downloads'), `mlearn-diagnostics-${Date.now()}.json`);
-    fs.writeFileSync(downloadsPath, reportJson, 'utf-8');
+    fs.writeFileSync(downloadsPath, diagnosticsExport(report), 'utf-8');
     return downloadsPath;
   });
 }

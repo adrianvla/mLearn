@@ -26,8 +26,8 @@
 
 .ocr-box:hover,
 .ocr-box.hovered {
-  background-color: var(--ocr-overlay-box-bg);
-  color: var(--ocr-overlay-box-text);
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .ocr-box.sidebar-highlighted {
@@ -54,6 +54,12 @@
   position: relative;
   white-space: nowrap;
   overflow: visible;
+  /* Keep token elements in the hit-test tree without repainting raster text. */
+  opacity: 0;
+}
+
+.ocr-box.debug-text .ocr-text {
+  opacity: 1;
 }
 
 /* Vertical text - no wrap, proper reading order */
@@ -87,10 +93,6 @@
   /* Subtle highlight on hover */
   border-radius: 2px;
   transition: background-color 0.1s ease;
-}
-
-.ocr-word:hover {
-  background-color: rgba(100, 180, 255, 0.3);
 }
 
 /* Debug mode - text boxes (normal OCR text) */

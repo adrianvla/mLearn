@@ -91,6 +91,23 @@ describe('useVideo', () => {
   });
 
   describe('detachVideo', () => {
+    it('pauses and unloads the departed player so it cannot resume as stale media', () => {
+      createRoot((dispose) => {
+        const video = useVideo();
+        const el = createMockVideoElement();
+        video.attachVideo(el);
+        video.loadVideo('local-media://movie');
+        el.dispatchEvent(new Event('play'));
+        video.detachVideo();
+
+        expect(el.pause).toHaveBeenCalled();
+        expect(el.hasAttribute('src')).toBe(false);
+        expect(el.load).toHaveBeenCalledTimes(2);
+        expect(video.state.isPlaying).toBe(false);
+        dispose();
+      });
+    });
+
     it('removes event listeners from video element', () => {
       createRoot((dispose) => {
         const video = useVideo();
@@ -660,6 +677,7 @@ describe('useVideo', () => {
     it('loadVideoFile creates an object URL and loads the video', () => {
       const mockUrl = 'blob:mock-url-123';
       const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue(mockUrl);
+      const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL');
 
       createRoot((dispose) => {
         const video = useVideo();
@@ -669,11 +687,14 @@ describe('useVideo', () => {
 
         expect(createObjectURLSpy).toHaveBeenCalledWith(file);
         expect(video.videoSrc()).toBe(mockUrl);
+        expect(revokeObjectURLSpy).not.toHaveBeenCalled();
 
         dispose();
+        expect(revokeObjectURLSpy).toHaveBeenCalledWith(mockUrl);
       });
 
       createObjectURLSpy.mockRestore();
+      revokeObjectURLSpy.mockRestore();
     });
   });
 
@@ -1018,7 +1039,7 @@ describe('useVideoKeyboard', () => {
     });
   });
 
-  it('works globally even when getScope is provided but focus is outside', () => {
+  it('ignores shortcuts outside the supplied player scope', () => {
     let video: ReturnType<typeof useVideo>;
     let dispose: () => void;
 
@@ -1036,13 +1057,34 @@ describe('useVideoKeyboard', () => {
 
     const toggleSpy = vi.spyOn(video!, 'togglePlay');
 
-    // Dispatch from document.body (outside scope) — should still work
+    // A detached call window or another surface must not operate stale media.
     document.body.dispatchEvent(
       new KeyboardEvent('keydown', { code: 'Space', bubbles: true })
     );
 
-    expect(toggleSpy).toHaveBeenCalled();
+    expect(toggleSpy).not.toHaveBeenCalled();
     dispose!();
+  });
+
+  it('handles Space inside the player scope but ignores IME composition', () => {
+    createRoot((dispose) => {
+      const video = useVideo();
+      const el = createMockVideoElement();
+      video.attachVideo(el);
+      const scope = document.createElement('div');
+      const playerSurface = document.createElement('div');
+      playerSurface.tabIndex = 0;
+      scope.appendChild(playerSurface);
+      document.body.appendChild(scope);
+      useVideoKeyboard(video, { getScope: () => scope });
+      const toggleSpy = vi.spyOn(video, 'togglePlay');
+
+      playerSurface.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true, isComposing: true }));
+      expect(toggleSpy).not.toHaveBeenCalled();
+      playerSurface.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
+      expect(toggleSpy).toHaveBeenCalledOnce();
+      dispose();
+    });
   });
 
   it('ignores keydown when focused on contenteditable element', () => {

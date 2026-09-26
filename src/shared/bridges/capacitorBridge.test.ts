@@ -1874,6 +1874,7 @@ describe('knowledgeEvents bridge (Capacitor journal)', () => {
     const off = bridge.knowledgeEvents.onKnowledgeEventsChanged(changed);
     await bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:abc': [event(1)] });
     expect(changed).toHaveBeenCalledTimes(1);
+    expect(changed).toHaveBeenCalledWith(['ja:abc']);
     off();
     await bridge.knowledgeEvents.appendKnowledgeEvents({ 'ja:abc': [event(2)] });
     expect(changed).toHaveBeenCalledTimes(1);

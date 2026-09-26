@@ -401,7 +401,7 @@ type FlashcardCtx = {
   restoreWordSyncRating: (previousSeenAt: Record<string, number | undefined>, language?: string) => void;
   getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => { status: 'unknown' | 'learning' | 'known'; basis: 'claim' | 'evidence' | 'unmeasured'; claim?: 'unknown' | 'learning' | 'known'; evidenceStatus: 'unknown' | 'learning' | 'known'; source: string; timesSeen: number; matchedWord?: string; ease?: number };
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
-  trackGrammarEncountered: (pattern: string, levelOrOpts?: number | { confidence?: number; span?: { start: number; end: number }; origin?: string }, language?: string) => void;
+  trackGrammarEncountered: (pattern: string, levelOrOpts?: number | { confidence?: number; span?: { start: number; end: number }; origin?: string; encounterId?: string }, language?: string) => void;
   setWordClaim: (word: string, claim: 'unknown' | 'learning' | 'known' | null, language?: string) => void;
   isKnowledgeReady: () => boolean;
   getAccessStatus: (word: string, capability: CapabilityKind, language?: string) => AccessStatusResult;
@@ -2233,6 +2233,28 @@ describe('FlashcardProvider', () => {
     ctx.flushPendingWordSeen();
     expect(ctx.store.wordKnowledge[lk].timesSeen).toBe(2);
     expect(ctx.store.wordKnowledge[lk].ease).toBeCloseTo(SRS.MIN_EASE + 0.1, 2);
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('counts a logical visible encounter once across UI churn and counts a new encounter', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockSettings.passiveEaseEnabled = true;
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('分かる')}`;
+
+    ctx.trackWordSeen('分かる', undefined, 0.05, 'ja', 'reader:book:page:visit1:box1:word1');
+    vi.setSystemTime(2_000);
+    ctx.trackWordSeen('分かる', undefined, 0.05, 'ja', 'reader:book:page:visit1:box1:word1');
+    ctx.flushPendingWordSeen();
+    expect(ctx.store.wordKnowledge[lk]?.timesSeen).toBe(1);
+
+    ctx.trackWordSeen('分かる', undefined, 0.05, 'ja', 'reader:book:page:visit2:box1:word1');
+    ctx.flushPendingWordSeen();
+    expect(ctx.store.wordKnowledge[lk]?.timesSeen).toBe(2);
     dispose();
     vi.useRealTimers();
   });
@@ -4654,6 +4676,35 @@ describe('FlashcardProvider', () => {
 });
 
 describe('recordAttempt quality semantics', () => {
+  it('acknowledges a profile batch before changing local knowledge and retries the same attempt', async () => {
+    const SRS = await import('../services/srsAlgorithm');
+    const key = `ja2:${await SRS.hashWord('学校')}`;
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+    mockAppendEvents.mockRejectedValueOnce(new Error('journal unavailable'));
+    const observations = [
+      { capability: 'sense-recognition', quality: 'fluent' },
+      { capability: 'surface-reading', quality: 'missed' },
+    ] as const;
+
+    await expect(ctx.recordAttemptsAcknowledged('学校', observations, {
+      language: 'ja2', attemptId: 'word-sync-retry-1', origin: 'word-sync',
+    })).rejects.toThrow('journal unavailable');
+    expect(ctx.store.wordKnowledge[key]).toBeUndefined();
+
+    await expect(ctx.recordAttemptsAcknowledged('学校', observations, {
+      language: 'ja2', attemptId: 'word-sync-retry-1', origin: 'word-sync',
+    })).resolves.toEqual({ attemptId: 'word-sync-retry-1' });
+    expect(mockAppendEvents).toHaveBeenCalledTimes(2);
+    const accepted = mockAppendEvents.mock.calls[1][0] as Record<string, KnowledgeEvent[]>;
+    expect(accepted[key]).toHaveLength(2);
+    expect(accepted[key].map((event) => event.targetRef?.capability)).toEqual(['sense-recognition', 'surface-reading']);
+    expect(accepted[key].every((event) => event.attemptId === 'word-sync-retry-1')).toBe(true);
+    expect(ctx.store.wordKnowledge[key]?.access?.['surface-reading']?.status).toBe('unknown');
+    dispose();
+  });
+
   it('struggled sense-recognition MAY demote known: learning-region target', async () => {
     mockSettings.language = 'ja2';
     const SRS = await import('../services/srsAlgorithm');
@@ -5533,6 +5584,17 @@ describe('trackGrammarEncountered encounter opts (REQ39)', () => {
     vi.resetModules();
     vi.clearAllMocks();
     setupMockImplementations();
+  });
+  it('counts a grammar pattern once per domain encounter across remount-like calls', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+    ctx.trackGrammarEncountered('unknown-package-pattern', { encounterId: 'reader:book:page:visit-1' });
+    ctx.trackGrammarEncountered('unknown-package-pattern', { encounterId: 'reader:book:page:visit-1' });
+    ctx.trackGrammarEncountered('unknown-package-pattern', { encounterId: 'reader:book:page:visit-2' });
+    expect(mockAppendEvents).toHaveBeenCalledTimes(2);
+    await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
+    dispose();
   });
   it('carries confidence/span/origin onto the rollup event and keeps legacy positional calls', async () => {
     const { ctx, dispose } = await mountProvider();

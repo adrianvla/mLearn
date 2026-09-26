@@ -139,6 +139,7 @@ registerDiagnosticSuite({
               headers: {
                 'Content-Type': 'application/json',
                 'Content-Length': Buffer.byteLength(payload),
+                ...(getQuitToken() ? { Authorization: `Bearer ${getQuitToken()}` } : {}),
               },
               timeout: 60_000,
             },

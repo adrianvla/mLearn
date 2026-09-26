@@ -30,6 +30,7 @@ const translations: Record<string, string> = {
   'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOn': 'Reading annotations: On',
   'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOff': 'Reading annotations: Off',
   'mlearn.Reader.StatusBar.Ready': 'Ready',
+  'mlearn.Reader.StatusBar.MoreTools': 'More tools',
 };
 
 vi.mock('../../../../context', () => ({
@@ -97,6 +98,8 @@ describe('ReaderStatusBar reading annotation controls', () => {
 
     expect(container.textContent).toContain('Reading annotations: On');
     expect(container.textContent).not.toContain('Furigana');
+    expect(container.querySelector('details.reader-status-tools > summary')?.textContent).toBe('More tools');
+    expect(container.querySelector('details.reader-status-tools .statusbar-toggle')?.textContent).toBe('Crop: Off');
 
     dispose();
   });

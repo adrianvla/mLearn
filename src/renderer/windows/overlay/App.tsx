@@ -116,6 +116,10 @@ export const App: Component = () => {
   });
 
   const [videoState, setVideoState] = createSignal<OverlayVideoState | null>(null);
+  const overlayPlaybackVisit = crypto.randomUUID();
+  const [overlayPlaybackPass, setOverlayPlaybackPass] = createSignal(0);
+  let lastObservedVideoUrl = '';
+  let lastObservedVideoTime = 0;
   const [lastVideoUrl, setLastVideoUrl] = createSignal('');
   const [subtitleContent, setSubtitleContent] = createSignal('');
   const [lastSyncAt, setLastSyncAt] = createSignal<number>(0);
@@ -186,6 +190,14 @@ export const App: Component = () => {
 
     cleanups.push(
       bridge.overlay.onOverlayVideoState((state: OverlayVideoState) => {
+        const observationUrl = state.videoSrc ?? state.url ?? '';
+        if (observationUrl !== lastObservedVideoUrl) {
+          lastObservedVideoUrl = observationUrl;
+          setOverlayPlaybackPass((pass) => pass + 1);
+        } else if (state.currentTime < lastObservedVideoTime - 0.5) {
+          setOverlayPlaybackPass((pass) => pass + 1);
+        }
+        lastObservedVideoTime = state.currentTime;
         setVideoState(state);
         setLastSyncAt(Date.now());
         setIsConnected(true);
@@ -1084,6 +1096,13 @@ export const App: Component = () => {
                 subtitleStart={subtitles.currentSubtitle()?.start}
                 subtitleEnd={subtitles.currentSubtitle()?.end}
                 videoSrc={videoState()?.videoSrc || videoState()?.url}
+                encounterId={subtitles.currentSubtitle()
+                  ? `${overlayPlaybackVisit}:${overlayPlaybackPass()}:${videoState()?.videoSrc ?? videoState()?.url ?? ''}:${subtitles.currentSubtitle()!.start}:${subtitles.currentSubtitle()!.end}`
+                  : undefined}
+                passiveObservationEligible={videoState()?.isPlaying === true
+                  && videoState()?.observationOwner !== 'main'
+                  && document.visibilityState === 'visible'
+                  && subtitles.observationReady()}
                 lastScreenshot={lastScreenshot() || undefined}
                 remoteHtml={watchTogether.remoteSubtitle()?.html || null}
                 remoteSize={watchTogether.remoteSubtitle()?.size ?? null}

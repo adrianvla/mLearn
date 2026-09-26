@@ -330,6 +330,15 @@ describe('computeWordLevelStats', () => {
     expect(result.byLevel[0].learning).toBe(0);
   });
 
+  it('uses authoritative projected state for encountered words outside the curriculum', () => {
+    const store = makeStore({ wordKnowledge: {
+      [lk('en', 'outside')]: { word: 'outside', ease: 0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1 },
+    } });
+    const result = computeWordLevelStats(store, {}, 'en', 1800, 1550, {}, undefined, undefined,
+      word => word === 'outside' ? { status: 'known', basis: 'evidence' } : { status: 'unknown', basis: 'unmeasured' });
+    expect(result.outsideLevels).toEqual({ known: 1, learning: 0, unknown: 0, untracked: 0, total: 1 });
+  });
+
   it('counts outside levels for tracked words not in frequency list', () => {
     const store = makeStore({
       wordKnowledge: {

@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { describe, expect, it } from 'vitest';
 import { decodeCompact, encodeCompact } from './compact';
 import { createCompactGraphView } from './compactView';
+import { attestedCompoundAnalysis } from './morphology/attested';
+import { surfacesRealizingEntry } from './addressing';
 import { identityNeighbors, loadLinguisticGraph, relationsOf, entitiesInDomains, surfaceEntityId, type LingualGraph } from './load';
 import type { GraphEntity, GraphRelation, LinguisticGraphAsset } from './types';
 
@@ -46,7 +48,10 @@ function buildAll(): { plain: LingualGraph; view: LingualGraph } {
 }
 
 const canonical = (relations: GraphRelation[]): string[] =>
-  relations.map((relation) => JSON.stringify(relation)).sort();
+  relations.map((relation) => JSON.stringify({
+    ...relation,
+    ...(relation.confidence !== undefined ? { confidence: Math.fround(relation.confidence) } : {}),
+  })).sort();
 
 describe('compact graph view parity with the plain graph', () => {
   const surface = surfaceEntityId('ja', hash('猫'));
@@ -62,34 +67,15 @@ describe('compact graph view parity with the plain graph', () => {
     expect(view.nodes.size).toBe(plain.nodes.size);
   });
 
-  it('serves the symmetric-CSR relation stream the projection pipeline was built on', () => {
-    // The compact CSR stores every relation in both directions without a
-    // direction bit, so the reconstruction (the same one the previous
-    // plain-object replica performed) yields, per authored edge A→B:
-    // A→B twice (true copies) and B→A twice (symmetric copies). Direction
-    // -sensitive consumers (attested compound parts via in-scans, entry
-    // resolution via from/to normalization) are built on this contract.
-    const { view } = buildAll();
-    const served: GraphRelation[] = [];
+  it('retains authored relation direction while serving symmetric neighbor lookup', () => {
+    const { plain, view } = buildAll();
     for (const entity of asset.entities) {
-      served.push(...relationsOf(view, entity.id, { direction: 'out' }));
-      served.push(...relationsOf(view, entity.id, { direction: 'in' }));
+      expect(canonical(relationsOf(view, entity.id, { direction: 'out' })))
+        .toEqual(canonical(relationsOf(plain, entity.id, { direction: 'out' })));
+      expect(canonical(relationsOf(view, entity.id, { direction: 'in' })))
+        .toEqual(canonical(relationsOf(plain, entity.id, { direction: 'in' })));
     }
-    const expected: Array<Record<string, unknown>> = [];
-    for (const relation of asset.relations) {
-      const base = { type: relation.type };
-      const qualifiers = {
-        ...(relation.confidence !== undefined ? { confidence: Math.fround(relation.confidence) } : {}),
-        ...(relation.provenance !== undefined ? { provenance: relation.provenance } : {}),
-        ...(relation.order !== undefined ? { order: relation.order } : {}),
-        ...(relation.role !== undefined ? { role: relation.role } : {}),
-      };
-      expected.push({ from: relation.from, to: relation.to, ...base, ...qualifiers });
-      expected.push({ from: relation.from, to: relation.to, ...base, ...qualifiers });
-      expected.push({ from: relation.to, to: relation.from, ...base, ...qualifiers });
-      expected.push({ from: relation.to, to: relation.from, ...base, ...qualifiers });
-    }
-    expect(canonical(served)).toEqual(canonical(expected as GraphRelation[]));
+    expect(relationsOf(view, surface, { direction: 'in' }).some((relation) => relation.type === 'component-of')).toBe(false);
   });
 
   it('preserves per-edge qualifiers (confidence, provenance, order, role) per node slice', () => {
@@ -126,5 +112,39 @@ describe('compact graph view parity with the plain graph', () => {
     expect([...view.denseOf.entries()]).toEqual([...plain.denseOf.entries()]);
     expect([...view.persistentOf]).toEqual([...plain.persistentOf]);
     expect(view.nodes.values().next().value).toEqual(plain.nodes.values().next().value);
+  });
+
+  it('finds sibling surfaces from an authored entry-to-surface realizes edge', () => {
+    const { plain, view } = buildAll();
+    const entryId = 'ja:dictionary-entry:neko';
+    expect(surfacesRealizingEntry(plain, entryId)).toEqual([surface]);
+    expect(surfacesRealizingEntry(view, entryId)).toEqual([surface]);
+  });
+
+  it('does not infer compound structure from a legacy asset with no authored directions', () => {
+    const compoundAsset: LinguisticGraphAsset = {
+      schemaVersion: 1,
+      language: 'xx',
+      generatedAt: '2026-01-01',
+      sourceVersions: {},
+      entities: [
+        { id: 'xx:surface:a', kind: 'surface', label: 'a' },
+        { id: 'xx:surface:b', kind: 'surface', label: 'b' },
+        { id: 'xx:surface:ab', kind: 'surface', label: 'ab' },
+      ],
+      relations: [
+        { from: 'xx:surface:a', to: 'xx:surface:ab', type: 'component-of' },
+        { from: 'xx:surface:b', to: 'xx:surface:ab', type: 'component-of' },
+      ],
+    };
+    const encoded = encodeCompact(compoundAsset);
+    const current = createCompactGraphView(decodeCompact(encoded), 'xx');
+    expect(attestedCompoundAnalysis(current, 'xx:surface:ab')?.parts.map((part) => part.lemma)).toEqual(['a', 'b']);
+
+    const legacy = createCompactGraphView(decodeCompact({
+      ...encoded,
+      relations: { ...encoded.relations, directions: undefined },
+    }), 'xx');
+    expect(attestedCompoundAnalysis(legacy, 'xx:surface:ab')).toBeNull();
   });
 });

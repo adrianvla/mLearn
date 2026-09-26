@@ -136,15 +136,17 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
           </select>
         </div>
 
-        {/* OCR Toggle Labels */}
-        <div class="statusbar-toggles">
-          <button
-            class="statusbar-toggle"
-            onClick={props.onOpenConversationAgent}
-            title={t('mlearn.Reader.StatusBar.OpenConversationAgentTitle')}
-          >
-            {t('mlearn.Reader.StatusBar.OpenConversationAgent')}
-          </button>
+        <button
+          class="statusbar-toggle reader-tutor-action"
+          onClick={props.onOpenConversationAgent}
+          title={t('mlearn.Reader.StatusBar.OpenConversationAgentTitle')}
+        >
+          {t('mlearn.Reader.StatusBar.OpenConversationAgent')}
+        </button>
+
+        <details class="reader-status-tools">
+          <summary aria-label={t('mlearn.Reader.StatusBar.MoreTools')}>{t('mlearn.Reader.StatusBar.MoreTools')}</summary>
+          <div class="reader-status-tools-panel statusbar-toggles">
           <Show when={showOcrControls()}>
             <div class="crop-mode-controls">
               <button
@@ -243,11 +245,11 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
               />
             </div>
           </Show>
-        </div>
-
-        <span class="statusbar-hint">
-          {t('mlearn.Reader.StatusBar.MagnifierHint', {key: formatKeybindDisplay(settings.readerMagnifierHotkey ?? DEFAULT_SETTINGS.readerMagnifierHotkey!, t)})}
-        </span>
+            <span class="statusbar-hint">
+              {t('mlearn.Reader.StatusBar.MagnifierHint', {key: formatKeybindDisplay(settings.readerMagnifierHotkey ?? DEFAULT_SETTINGS.readerMagnifierHotkey!, t)})}
+            </span>
+          </div>
+        </details>
 
         <Show when={isLowPowerActive()}>
           <button type="button" class="statusbar-toggle active" tabIndex={-1} title={t('mlearn.LowPowerGate.StatusBarTooltip')}>

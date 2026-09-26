@@ -192,6 +192,8 @@ vi.mock('../../hooks', () => ({
 // ============================================================================
 
 vi.mock('../../components/common', () => ({
+  PlusIcon: () => <span aria-hidden="true" />,
+  SearchIcon: () => <span aria-hidden="true" />,
   Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; variant?: string; size?: string; class?: string; 'aria-label'?: string; 'aria-disabled'?: boolean }) => (
     <button type="button" class={props.class} aria-label={props['aria-label']} aria-disabled={props['aria-disabled']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
@@ -662,6 +664,22 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     })));
   });
 
+  it('starts a distinct conversation for a media-only launch', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    windowContextCallback({
+      mediaHash: 'video-2', mediaName: 'Episode Two', mediaType: 'video',
+      assessedLevel: null, assessedLevelName: 'N3', language: 'ja',
+      failedWords: [], failedGrammar: [],
+      wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+    });
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
+    expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+  });
+
   it('carries tutor purpose and selections into a newly created conversation', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
@@ -798,6 +816,47 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')).toBe(true));
     expect(container.querySelector('.room-sidebar-new-conversation')).not.toBeNull();
+  });
+
+  it('keeps drafts scoped to their conversation while browsing searchable history', async () => {
+    currentWorld = {
+      rooms: [
+        { id: 'room-a', title: 'Tutor', participantIds: ['agent-a'], createdAt: 1 },
+        { id: 'room-b', title: 'Tutor', participantIds: ['agent-b'], createdAt: 2 },
+      ],
+      threads: [
+        { id: 'thread-a', roomId: 'room-a', title: 'Book practice', state: 'active', createdAt: 1 },
+        { id: 'thread-b', roomId: 'room-b', title: 'Video practice', state: 'active', createdAt: 2 },
+      ],
+      participants: [
+        { id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: '', setupComplete: true },
+        { id: 'agent-b', displayName: 'Tutor', kind: 'persistent', personaText: '', setupComplete: true },
+      ],
+    };
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-a', 'thread-a'));
+    await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
+    const input = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    input.value = 'draft for book';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelectorAll('.room-sidebar-room').length).toBe(2));
+    expect(container.querySelector('.room-sidebar-list')?.textContent).toContain('Book practice');
+    expect(container.querySelector('.room-sidebar-list')?.textContent).toContain('Video practice');
+    (container.querySelectorAll('.room-sidebar-room')[0] as HTMLButtonElement).click();
+    await vi.waitFor(() => expect((container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement).value).toBe(''));
+    await vi.waitFor(() => expect(container.querySelector('.room-sidebar-search input')).toBeNull());
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('.room-sidebar-search input')).not.toBeNull());
+    const search = container.querySelector('.room-sidebar-search input') as HTMLInputElement;
+    search.value = 'Book practice';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(container.querySelectorAll('.room-sidebar-room').length).toBe(1);
+    (container.querySelector('.room-sidebar-room') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect((container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement).value).toBe('draft for book'));
   });
 
   it('opens the NewConversationModal from the room sidebar', async () => {

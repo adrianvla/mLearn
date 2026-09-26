@@ -4,6 +4,15 @@
 
 import http from 'http';
 import https from 'https';
+import { PYTHON_BACKEND_PORT } from '../../../shared/constants';
+import { getQuitToken } from '../pythonBackend';
+
+export function backendAuthHeaders(url: string, token: string | null): Record<string, string> {
+  const target = new URL(url);
+  return token && target.hostname === '127.0.0.1' && target.port === String(PYTHON_BACKEND_PORT)
+    ? { Authorization: `Bearer ${token}` }
+    : {};
+}
 
 export function skipTest(reason: string): never {
   const err = new Error(`SKIP: ${reason}`);
@@ -13,7 +22,7 @@ export function skipTest(reason: string): never {
 export function httpGet(url: string, timeoutMs = 10_000): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https:') ? https : http;
-    const req = client.get(url, { timeout: timeoutMs }, (res) => {
+    const req = client.get(url, { timeout: timeoutMs, headers: backendAuthHeaders(url, getQuitToken()) }, (res) => {
       let body = '';
       res.on('data', (chunk) => { body += chunk; });
       res.on('end', () => {
@@ -43,6 +52,7 @@ export function httpPost(
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData),
+          ...backendAuthHeaders(url, getQuitToken()),
         },
         timeout: timeoutMs,
       },
@@ -79,6 +89,7 @@ export function httpPostMultipart(
         headers: {
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
           'Content-Length': body.length,
+          ...backendAuthHeaders(url, getQuitToken()),
         },
         timeout: timeoutMs,
       },

@@ -13,6 +13,8 @@ export interface ReaderUnknownWordEntry extends SidebarWordEntry {
 
 interface ReaderUnknownWordsSidebarProps {
   words: () => ReaderUnknownWordEntry[];
+  isProcessing?: () => boolean;
+  blockedMessage?: () => string | null;
   addingWordKeys: () => Set<string>;
   isAddingAll: () => boolean;
   failedWordSet: () => ReadonlySet<string>;
@@ -50,7 +52,11 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
         onWordLeave={props.onWordLeave}
         sortOptions={sortOptions}
         defaultSort="ocr"
-        emptyMessage={t('mlearn.Reader.Sidebar.UnknownWordsEmpty')}
+        emptyMessage={props.blockedMessage?.()
+          ?? (props.isProcessing?.()
+            ? t('mlearn.Reader.Status.Recognizing')
+            : t('mlearn.Reader.Sidebar.UnknownWordsEmpty'))}
+        hideEmptyCount={Boolean(props.blockedMessage?.() || props.isProcessing?.())}
         class="reader-unknown-words-sidebar"
         onClose={props.onClose}
         onAddAllClick={(addable, dictAddable) => {

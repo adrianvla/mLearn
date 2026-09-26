@@ -1,5 +1,5 @@
 import { getWrittenComprehensionStatus } from '../../../utils/writtenComprehension';
-import { withCloudAuth } from '../../../services/cloudSessionManager';
+import { CloudSessionCancelledError, hasSignedInCloudSession, withCloudAuth } from '../../../services/cloudSessionManager';
 /**
  * Reader Route
  * Manga/Image OCR reader integrated into main window via router
@@ -65,11 +65,15 @@ import {
 import {
   auditTextPageCapacity,
   estimateTextPageCapacityFromMeasurements,
+  locateSourceTokenOffsets,
+  readerTextBlockEncounterId,
+  readerTextTokenEncounterId,
   resetTextPageCapacityEpoch,
   paginateTextSources,
   applyReadingSpansToTokens,
   sliceReadingSpansForRange,
   type ReaderSourcePage,
+  type ReaderTextSourceChunk,
   type TextPageCapacityEpoch,
 } from './readerTextPagination';
 import { scrollReaderToPageStart } from './readerNavigation';
@@ -78,6 +82,7 @@ import { isReaderOcrReadinessErrorMessage, readerOcrCanQueue, readerOcrShouldCle
 import { getReaderPassiveTrackingWord } from './readerWordTracking';
 import { createReaderOcrState } from './readerOcrState';
 import { createGrammarEncounterRecorder, journalGrammarEncountersForTokenGroups } from '../../../../shared/grammar/encounters';
+import { createReaderPageVisits } from './readerPageVisits';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { getColoredProsodyConfig, coloredProsodyNeedsDictionaryLookup } from '../../../utils/coloredProsody';
@@ -109,6 +114,7 @@ interface PageImage {
   textStart?: number;
   textEnd?: number;
   readingSpans?: EpubReadingSpan[];
+  sourceChunks?: ReaderTextSourceChunk[];
 }
 
 type FitMode = 'fit-height' | 'fit-width';
@@ -122,6 +128,8 @@ interface ReaderPageWordSource {
   pageId: string;
   box?: OcrBox;
   boxIndex: number;
+  sourcePosition?: ReaderTextSourceChunk & { tokenStart: number };
+  pageContentId?: string;
 }
 
 interface ReaderCompatibleOcrBox {
@@ -150,6 +158,8 @@ interface ReaderPageTokenData {
   box?: OcrBox;
   tokens: Token[];
   contextPhrase: string;
+  sourceChunk?: ReaderTextSourceChunk;
+  pageContentId?: string;
 }
 
 interface ReaderTextPageProps {
@@ -222,10 +232,7 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const [tokenParagraphs, setTokenParagraphs] = createSignal<Token[][]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
   const { settings } = useSettings();
-  const { currentLangData, getLanguageFeatures, supportsGrammar } = useLanguage();
-  const flashcardCtx = useFlashcards();
-  // REQ39: one encounter per pattern per reader page display.
-  const grammarEncounterRecorder = createGrammarEncounterRecorder('reader');
+  const { currentLangData, getLanguageFeatures } = useLanguage();
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const text = () => props.page.text ?? '';
@@ -285,6 +292,10 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
           setTokenParagraphs(nextTokenParagraphs);
           props.onTokenDataChange?.(nextTokenParagraphs.map((tokens, boxIndex) => ({
             boxIndex, tokens, contextPhrase: paragraphs[boxIndex].block,
+            pageContentId: hashWordSync(props.page.text ?? ''),
+            ...(props.page.sourceChunks?.[boxIndex + (headingText() ? 1 : 0)]
+              ? { sourceChunk: props.page.sourceChunks[boxIndex + (headingText() ? 1 : 0)] }
+              : {}),
           })));
           setTokenizeFailed(false);
           reportInFlightDone();
@@ -295,20 +306,6 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
             dictionaryTargetLanguage: dictionaryTargetLanguage(),
             tokenizerCapabilities: tokenizerCapabilities(),
           });
-          // REQ39: journal grammar occurrences for reader text as factual-exposure encounters.
-          if (supportsGrammar()) {
-            const languageData = currentLangData();
-            const grammar = languageData?.grammar;
-            if (grammar?.length) {
-              queueMicrotask(() => {
-                journalGrammarEncountersForTokenGroups(flashcardCtx, grammarEncounterRecorder, props.page.id, nextTokenParagraphs, {
-                  language: settings.language,
-                  grammar,
-                  languageData,
-                });
-              });
-            }
-          }
         }
       })
       .catch(() => {
@@ -538,6 +535,7 @@ export const ReaderRoute: Component = () => {
   const ocrResults = ocrState.results;
   const [ocrQueue, setOcrQueue] = createSignal<OcrTask[]>([]);
   const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
+  const [cloudOcrAuthCancelled, setCloudOcrAuthCancelled] = createSignal(false);
   let lastOcrReadinessWarning = '';
   let readerDisposed = false;
   onCleanup(() => {
@@ -554,6 +552,11 @@ export const ReaderRoute: Component = () => {
   const langCtx = useLanguage();
   const { detectGrammarInText, supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
   const ocrEnabled = () => settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled;
+  createEffect(() => {
+    if (settings.ocrProvider !== 'cloud' || hasSignedInCloudSession(settings)) {
+      setCloudOcrAuthCancelled(false);
+    }
+  });
   const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
@@ -658,6 +661,7 @@ export const ReaderRoute: Component = () => {
   const setShowWordSidebar = (open: boolean) => updateSettings({ rightSidebarOpen: open });
   const [bookTitle, setBookTitle] = createSignal('');
   const [ocrStatus, setOcrStatus] = createSignal('');
+  const [bookLoadError, setBookLoadError] = createSignal<'open-failed' | 'no-images' | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isProcessingOcr, _setIsProcessingOcr] = createSignal(false);
   const [isDragging, setIsDragging] = createSignal(false);
@@ -778,6 +782,7 @@ export const ReaderRoute: Component = () => {
   let readerMainRef: HTMLElement | undefined;
   const [imageRefs, setImageRefs] = createSignal<Record<string, HTMLImageElement>>({});
   const [ocrPageWords, setOcrPageWords] = createStore<Record<string, ReaderPageWordSource[]>>({});
+  const [pageTokenGroups, setPageTokenGroups] = createStore<Record<string, ReaderPageTokenData[]>>({});
 
   const captureOcrRequest = (page: PageImage) => {
     const request = ocrState.capture();
@@ -797,6 +802,7 @@ export const ReaderRoute: Component = () => {
       setOcrQueue([]);
       setCroppedRegions({});
       setOcrPageWords(reconcile({}));
+      setPageTokenGroups(reconcile({}));
       setOcrCompletedIds(new Set<string>());
     });
   }));
@@ -916,6 +922,70 @@ export const ReaderRoute: Component = () => {
     return visiblePageIndices()
       .map((pageIndex) => allPages[pageIndex])
       .filter((page): page is PageImage => page !== undefined);
+  });
+  // A page enters a new encounter only when it becomes visible in this reading
+  // session. Token refreshes, resizing, hover and focus changes keep the visit.
+  const readingSessionId = crypto.randomUUID();
+  // Explicit page navigation starts a new reading visit. Repagination, sidebar
+  // width and font measurements must keep the current visit.
+  const [readingVisit, setReadingVisit] = createSignal(0);
+  const grammarEncounterRecorder = createGrammarEncounterRecorder('reader', { exclusive: false });
+  const activePageVisits = createReaderPageVisits(
+    () => currentBookId() ?? currentBookPath(),
+    () => visiblePages().map((page) => page.id),
+  );
+  createEffect(() => {
+    if (!flashcardCtx.isKnowledgeReady() || !isWindowVisible() || !isWindowFocused()) return;
+    const book = currentBookId() ?? currentBookPath();
+    for (const page of visiblePages()) {
+      const visit = activePageVisits().get(`${book}\0${page.id}`);
+      if (page.kind === 'image' && visit === undefined) continue;
+      const passageId = page.kind === 'text'
+        ? `reader:${readingSessionId}:${book}:${readingVisit()}`
+        : `reader:${readingSessionId}:${visit}:${page.id}`;
+      const pageContentId = page.kind === 'text' ? hashWordSync(page.text ?? '') : undefined;
+      const occurrencesByBoxAndWord = new Map<string, number>();
+      for (const entry of ocrPageWords[page.id] ?? []) {
+        if (pageContentId !== undefined && entry.pageContentId !== pageContentId) continue;
+        const word = getReaderPassiveTrackingWord(entry.token, tokenizerCapabilities());
+        if (!word) continue;
+        const position = `${entry.boxIndex}\0${word}`;
+        const occurrence = (occurrencesByBoxAndWord.get(position) ?? 0) + 1;
+        occurrencesByBoxAndWord.set(position, occurrence);
+        const source = entry.sourcePosition;
+        const encounterId = page.kind === 'text' && source && source.sourceStart >= 0
+          ? readerTextTokenEncounterId(passageId, source, source.tokenStart)
+          : `${passageId}:${entry.boxIndex}:${word}:${occurrence}`;
+        flashcardCtx.trackWordSeen(
+          word, entry.token.reading, undefined, settings.language,
+          encounterId,
+        );
+      }
+      if (supportsGrammar()) {
+        const languageData = currentLangData();
+        const grammar = languageData?.grammar;
+        const groups = (pageTokenGroups[page.id] ?? []).filter((group) =>
+          pageContentId === undefined || group.pageContentId === pageContentId);
+        if (grammar?.length && groups.length) {
+          if (page.kind === 'image') {
+            journalGrammarEncountersForTokenGroups(flashcardCtx, grammarEncounterRecorder, passageId,
+              groups.map((group) => group.tokens), {
+                language: settings.language, grammar, languageData,
+              }, passageId);
+          } else {
+            for (const group of groups) {
+              const source = group.sourceChunk;
+              const encounterId = source && source.blockStart >= 0
+                ? readerTextBlockEncounterId(passageId, source)
+                : `${passageId}:box:${group.boxIndex}`;
+              journalGrammarEncountersForTokenGroups(flashcardCtx, grammarEncounterRecorder, encounterId, [group.tokens], {
+                language: settings.language, grammar, languageData,
+              }, encounterId);
+            }
+          }
+        }
+      }
+    }
   });
   const visiblePagesAreText = () => visiblePages().some((page) => page.kind === 'text');
   const readerHasImagePages = () => pages().some((page) => page.kind === 'image');
@@ -1066,18 +1136,17 @@ export const ReaderRoute: Component = () => {
 
   createEffect(on(currentBookId, () => {
     setOcrPageWords(reconcile({}));
+    setPageTokenGroups(reconcile({}));
     setAddingSidebarWords(new Set<string>());
     setIsAddingAllSidebarWords(false);
   }));
 
-  // REQ39: OCR pages are displayed concurrently — per-page encounter state, reset per fresh OCR pass.
-  const ocrGrammarEncounterRecorder = createGrammarEncounterRecorder('reader-ocr', { exclusive: false });
-
-  const handlePageTokenData = (pageId: string, entries: ReaderPageTokenData[], source: 'ocr' | 'text' = 'ocr') => {
+  const handlePageTokenData = (pageId: string, entries: ReaderPageTokenData[]) => {
     const nextEntries: ReaderPageWordSource[] = [];
 
     for (const entry of entries) {
-      for (const token of entry.tokens) {
+      const tokenOffsets = entry.sourceChunk ? locateSourceTokenOffsets(entry.contextPhrase, entry.tokens) : [];
+      for (const [tokenIndex, token] of entry.tokens.entries()) {
         const word = getTokenLookupWord(token, tokenizerCapabilities());
         if (!word || !isTokenTranslatable(token)) {
           continue;
@@ -1091,29 +1160,14 @@ export const ReaderRoute: Component = () => {
           pageId,
           box: entry.box,
           boxIndex: entry.boxIndex,
+          ...(entry.sourceChunk ? { sourcePosition: { ...entry.sourceChunk, tokenStart: tokenOffsets[tokenIndex] } } : {}),
+          ...(entry.pageContentId ? { pageContentId: entry.pageContentId } : {}),
         });
       }
     }
 
     setOcrPageWords(pageId, nextEntries);
-
-    // REQ39: journal grammar occurrences for OCR'd page text as factual-exposure encounters.
-    // Dedupe is per page with reset on a fresh (empty) token pass, so incremental box fills
-    // and overlay re-renders cannot flood the journal.
-    if (source === 'ocr' && supportsGrammar()) {
-      const languageData = currentLangData();
-      const grammar = languageData?.grammar;
-      if (!grammar?.length) return;
-      if (entries.length === 0) {
-        ocrGrammarEncounterRecorder.reset(pageId);
-        return;
-      }
-      journalGrammarEncountersForTokenGroups(flashcardCtx, ocrGrammarEncounterRecorder, pageId, entries.map((entry) => entry.tokens), {
-        language: settings.language,
-        grammar,
-        languageData,
-      });
-    }
+    setPageTokenGroups(pageId, entries);
   };
 
   const getAnchorRectForWord = (entry: ReaderPageWordSource): DOMRect | null => {
@@ -1331,6 +1385,10 @@ export const ReaderRoute: Component = () => {
       });
     } catch (error) {
       if (!request.isCurrent()) return;
+      if (error instanceof CloudSessionCancelledError) {
+        setCloudOcrAuthCancelled(true);
+        return;
+      }
       const message = error instanceof Error ? error.message : String(error);
       if (isReaderOcrReadinessErrorMessage(message)) {
         stopOcrForReadinessError(message);
@@ -1386,7 +1444,9 @@ export const ReaderRoute: Component = () => {
 
     for (const page of visiblePages()) {
       const pageWords = ocrPageWords[page.id] || [];
+      const pageContentId = page.kind === 'text' ? hashWordSync(page.text ?? '') : undefined;
       for (const entry of pageWords) {
+        if (pageContentId !== undefined && entry.pageContentId !== pageContentId) continue;
         if (deduped.has(entry.word)) {
           continue;
         }
@@ -1408,6 +1468,14 @@ export const ReaderRoute: Component = () => {
     }
 
     return Array.from(deduped.values());
+  });
+
+  const visiblePagesStillProcessing = () => visiblePages().some(page => {
+    if (page.kind === 'text') return isTokenizingTextPages();
+    return !ocrResults[page.id] && (
+      processingTask()?.page.id === page.id ||
+      ocrQueue().some(task => task.page.id === page.id)
+    );
   });
 
   const capturedSuggestionWords = new Set<string>();
@@ -1573,6 +1641,9 @@ export const ReaderRoute: Component = () => {
     ocrEnabled: Boolean(ocrEnabled()) && !cropMode(),
     languageDataLoading: langCtx.isLoading(),
     readinessError: currentOcrReadinessError(),
+    authRecoveryCancelled: settings.ocrProvider === 'cloud' && cloudOcrAuthCancelled()
+      ? { message: t('mlearn.CloudReLogin.SessionExpired') }
+      : undefined,
   });
 
   const stopOcrForReadinessError = (readinessError: string): void => {
@@ -1816,6 +1887,10 @@ export const ReaderRoute: Component = () => {
       return result;
     } catch (error) {
       if (!request.isCurrent()) return null;
+      if (error instanceof CloudSessionCancelledError) {
+        setCloudOcrAuthCancelled(true);
+        return null;
+      }
       const message = error instanceof Error ? error.message : String(error);
       if (isReaderOcrReadinessErrorMessage(message)) {
         stopOcrForReadinessError(message);
@@ -2080,6 +2155,7 @@ export const ReaderRoute: Component = () => {
   // Load book from filesystem path (for recent items)
   const loadBookFromPath = async (bookPath: string, documentOcrOverride?: boolean) => {
     const loadT0 = performance.now();
+    setBookLoadError(null);
     setOcrStatus(t('mlearn.Reader.Status.Loading'));
 
     try {
@@ -2106,6 +2182,8 @@ export const ReaderRoute: Component = () => {
         const result = await getBridge().files.readDirectoryImages(bookPath);
 
         if (result.files.length === 0) {
+          void clearActiveBookPath();
+          setBookLoadError('no-images');
           setOcrStatus(t('mlearn.Reader.Status.NoImagesFound'));
           return;
         }
@@ -2143,6 +2221,7 @@ export const ReaderRoute: Component = () => {
     } catch (error) {
       log.error('[Reader] Failed to load from path:', error);
       void clearActiveBookPath();
+      setBookLoadError('open-failed');
       setOcrStatus(t('mlearn.Reader.Status.FailedToLoad'));
     }
   };
@@ -2631,7 +2710,10 @@ export const ReaderRoute: Component = () => {
     }
 
     const pageChanged = newPage !== currentPage();
-    setCurrentPage(newPage);
+    batch(() => {
+      if (pageChanged) setReadingVisit((visit) => visit + 1);
+      setCurrentPage(newPage);
+    });
     if (pageChanged) scrollReaderToPageStart(readerMainRef);
 
     // Persist per-book page position
@@ -2713,9 +2795,6 @@ export const ReaderRoute: Component = () => {
     // Use actual_word (dictionary form) for translation lookup, fallback to surface
     const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
     const displayWord = token.surface ?? token.word;
-
-    // Track word encounter for passive knowledge
-    flashcardCtx.trackWordSeen(getReaderPassiveTrackingWord(token, tokenizerCapabilities()), token.reading, undefined, settings.language);
 
     // Store context phrase for LLM explain and flashcard example
     setOcrContextPhrase(contextPhrase);
@@ -2891,10 +2970,15 @@ export const ReaderRoute: Component = () => {
                 // Going TO even starts (firstSingle=false): round UP (curr + 1)
                 const snapped = newFirstSingle ? curr - 1 : curr + 1;
                 const total = pages().length;
-                setCurrentPage(Math.max(0, Math.min(snapped, total - 1)));
+                batch(() => {
+                  setReadingVisit((visit) => visit + 1);
+                  setCurrentPage(Math.max(0, Math.min(snapped, total - 1)));
+                });
               }
             }}
             onToggleOcrOverlay={toggleOcrOverlay}
+            onOpenFolder={handleOpenFolder}
+            onOpenPdf={handleOpenBookFile}
             onPrevPage={prevPage}
             onNextPage={nextPage}
         />
@@ -2929,7 +3013,7 @@ export const ReaderRoute: Component = () => {
         >
           <Show
               when={pages().length > 0}
-              fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenBookFile} />}
+              fallback={<ReaderWelcomeCard isDragging={isDragging} loadError={bookLoadError()} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenBookFile} />}
           >
             <div
               class={`page-container ${pageMode()} spread-${readerSpreadDirection() === 'right-to-left' ? 'rtl' : 'ltr'}${(collatePages() && pageMode() === 'double') ? ' collate' : ''}${readerBookVertical() && visiblePagesAreText() ? ' vertical-text' : ''}`}
@@ -3118,7 +3202,7 @@ export const ReaderRoute: Component = () => {
                             onWordHover={handleOcrWordHover}
                             onWordLeave={handleOcrWordLeave}
                             vertical={readerBookVertical()}
-                            onTokenDataChange={(entries) => handlePageTokenData(page.id, entries, 'text')}
+                            onTokenDataChange={(entries) => handlePageTokenData(page.id, entries)}
                             onTokenized={scheduleTextPageOverflowAudit}
                             onTokenizeStateChange={handleTokenizeStateChange}
                           />
@@ -3134,6 +3218,11 @@ export const ReaderRoute: Component = () => {
         <Show when={hasPages() && showWordSidebar()}>
           <ReaderUnknownWordsSidebar
               words={visibleUnknownWords}
+              isProcessing={visiblePagesStillProcessing}
+              blockedMessage={() => {
+                const state = currentOcrAutomationState();
+                return state.kind === 'blocked' ? state.message : null;
+              }}
               addingWordKeys={addingSidebarWords}
               isAddingAll={isAddingAllSidebarWords}
               failedWordSet={failedSidebarWordSet}

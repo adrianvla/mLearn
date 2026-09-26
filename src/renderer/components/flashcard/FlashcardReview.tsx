@@ -593,7 +593,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
           <div class="flashcard-header-actions">
             <Show when={availableAspects().length > 1}>
-              <label class="flashcard-mode-select" for="flashcard-review-mode">
+              <label class="flashcard-mode-select" for="flashcard-review-mode" title={t('mlearn.Flashcards.Review.Modes.Help')}>
                 <span class="flashcard-mode-select__label">{t('mlearn.Flashcards.Review.Modes.Label')}</span>
                 <Select
                   id="flashcard-review-mode"
@@ -607,18 +607,26 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             <ToggleSwitch
               checked={settings.flashcardStealthMode}
               onChange={(checked) => updateSetting('flashcardStealthMode', checked)}
+              label={t('mlearn.Flashcards.Review.StealthMode')}
               title={t('mlearn.Flashcards.Review.StealthMode')}
               thumbIcon={<StealthIcon size={12} />}
             />
             <ToggleSwitch
               checked={settings.flashcardMuteAudio}
               onChange={(checked) => updateSetting('flashcardMuteAudio', checked)}
+              label={t('mlearn.Flashcards.Review.MuteAudio')}
               title={t('mlearn.Flashcards.Review.MuteAudio')}
               thumbIcon={<VolumeOffIcon size={12} />}
             />
-            {/* Bury/Remove in header to prevent misclicks */}
+            <Show when={canUndo()}>
+              <Button buttonType="default" variant="ghost" size="xs" onClick={handleUndo} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+                {t('mlearn.Flashcards.Review.Undo')}
+              </Button>
+            </Show>
             <Show when={!isComplete() && currentCard()}>
-              <div class="flashcard-action-buttons">
+              <details class="flashcard-secondary-actions">
+                <summary>{t('mlearn.Flashcards.Review.CardActions')}</summary>
+                <div class="flashcard-action-buttons">
                 <Button
                     buttonType="default"
                     variant="ghost"
@@ -639,16 +647,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 >
                   <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Remove')}</span>
                 </Button>
-              </div>
-            </Show>
-            <Show when={canUndo()}
-            >
-              <Button buttonType="default" variant="ghost" size="xs" onClick={handleUndo} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
-                {t('mlearn.Flashcards.Review.Undo')}
-              </Button>
-            </Show>
-            <Show when={!isComplete() && currentCard()}>
-              <Button
+                <Button
                 buttonType="default"
                 variant="ghost"
                 size="xs"
@@ -657,11 +656,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 title={t('mlearn.Flashcards.Modals.EditCard.EditButton')}
                 icon={<EditIcon size={14} />}
               >
-                {/*<span class="flashcard-action-label">{t('mlearn.Flashcards.Modals.EditCard.EditButton')}</span>*/}
+                <span class="flashcard-action-label">{t('mlearn.Flashcards.Modals.EditCard.EditButton')}</span>
               </Button>
-            </Show>
-            <Show when={isElectron() && !isComplete() && currentCard()}>
-              <Button
+                <Show when={isElectron()}>
+                  <Button
                 buttonType="default"
                 variant="ghost"
                 size="xs"
@@ -671,9 +669,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 icon={<MicrophoneIcon size={14} />}
               >
                 <span class="flashcard-action-label">{t('mlearn.CardEditor.Regenerate.Title')}</span>
-              </Button>
+                  </Button>
+                </Show>
+                </div>
+              </details>
             </Show>
           </div>
+          <Show when={availableAspects().length > 1}>
+            <p class="flashcard-review-scope">{t('mlearn.Flashcards.Review.Modes.Help')}</p>
+          </Show>
         </div>
 
         {/* Card or completion screen */}

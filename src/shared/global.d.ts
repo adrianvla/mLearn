@@ -33,7 +33,7 @@ export interface MLearnIPC {
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
   getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
-  onKnowledgeEventsChanged: (callback: () => void) => () => void;
+  onKnowledgeEventsChanged: (callback: (keys?: string[]) => void) => () => void;
   getKnowledgeStates: (keys: string[]) => Promise<Record<string, import('./knowledge/historyQueries').KeyKnowledgeState>>;
   getKnowledgeRows: (keys: string[]) => Promise<Record<string, Array<{ event: KnowledgeEvent; seq: number }>>>;
   getKnowledgeArchive: (key: string) => Promise<import('./knowledge/historyQueries').KnowledgeArchiveEnvelope>;
@@ -94,6 +94,7 @@ export interface MLearnIPC {
   getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
   getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
   getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery) => Promise<GraphNeighborhood | null>;
+  getEvidenceLinkedSurfaces: (language: string, surfaces: string[], keys: string[]) => Promise<string[]>;
   getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds) => Promise<KnowledgeProjection>;
   
   // Localization

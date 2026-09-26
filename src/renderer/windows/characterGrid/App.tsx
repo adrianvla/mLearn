@@ -7,7 +7,7 @@ import { projectionStateForCapability } from '../../components/common/WordStatus
  * prediction/evidence-aware status colors.
  */
 
-import { Component, createSignal, For, Show, onMount, createMemo, createEffect } from 'solid-js';
+import { Component, createSignal, For, Show, createMemo, createEffect, createResource } from 'solid-js';
 import { WindowWrapper, useLanguage, useLocalization, useSettings, useFlashcards } from '../../context';
 import { WORD_STATUS, type WordStatus } from '../../../shared/constants';
 import {
@@ -25,6 +25,7 @@ import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getLogger } from '../../../shared/utils/logger';
 import type { LanguageCharacterStudyConfig } from '../../../shared/types';
+import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
 
 const log = getLogger("renderer.characterGrid.app");
 
@@ -76,24 +77,41 @@ export const CharacterGridContent: Component = () => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const flashcardCtx = useFlashcards();
-  const projected = useKnowledgeProjections(() => flashcardCtx.isKnowledgeReady() && !languageLoading() ? {
+  const studyScripts = createMemo(() => getCharacterStudyScripts(currentLangData()));
+  const supportsCharacterStudy = createMemo(() => studyScripts().length > 0);
+  const [journalKeysResource, { refetch: retryJournalKeys }] = createResource(
+    () => flashcardCtx.isKnowledgeReady() && !languageLoading() && supportsCharacterStudy()
+      ? { language: settings.language, version: wordEventsVersion() }
+      : undefined,
+    async (source: { language: string; version: number }) => new Set(await queryLanguageKeys(source.language)),
+  );
+  const journalKeysHealthy = () => journalKeysResource.state === 'ready';
+  const projected = useKnowledgeProjections(() => flashcardCtx.isKnowledgeReady() && !languageLoading()
+    && supportsCharacterStudy() && journalKeysHealthy() ? {
     language: settings.language,
     surfaces: [...new Set([
       ...Object.keys(getWordFrequency()),
-      ...Object.keys(getWordFrequency()).flatMap(word => extractUniqueStudyCharacters(word, getCharacterStudyScripts(currentLangData()))),
+      ...Object.keys(getWordFrequency()).flatMap(word => extractUniqueStudyCharacters(word, studyScripts())),
       ...Object.values(flashcardCtx.store.wordKnowledge).filter(entry => entry?.language === settings.language).map(entry => entry.word),
       ...Object.values(flashcardCtx.store.flashcards).filter(card => card.language === settings.language).map(card => card.content.front || card.content.word || ''),
     ].filter(Boolean))],
+    evidenceKeys: [...new Set([
+      ...(journalKeysResource() ?? []),
+      ...Object.keys(flashcardCtx.store.wordKnowledge ?? {}),
+    ])],
   } : undefined);
   // Character states derive from language metadata AND the learner
   // projection: the unsupported/empty banners and unmeasured cells are only
   // honest once both have settled.
-  const contentPending = () => isLoading() || languageLoading() || !flashcardCtx.isKnowledgeReady() || !projected.ready();
+  const contentPending = () => isLoading() || languageLoading() || !flashcardCtx.isKnowledgeReady()
+    || (supportsCharacterStudy() && (!journalKeysHealthy() || !projected.ready()));
   const [characterData, setCharacterData] = createSignal<StudyCharacterData[]>([]);
+  const [characterDataLanguage, setCharacterDataLanguage] = createSignal<string | null>(null);
   const [hoveredCharacter, setHoveredCharacter] = createSignal<StudyCharacterData | null>(null);
   const [hoveredLevel, setHoveredLevel] = createSignal<number | null>(null);
   const [pinnedLevel, setPinnedLevel] = createSignal<number | null>(null);
   const [isLoading, setIsLoading] = createSignal(true);
+  const [buildFailed, setBuildFailed] = createSignal(false);
   const [levelCharacters, setLevelCharacters] = createSignal<Record<number, Set<string>>>({});
 
   // Get dynamic level names from language data
@@ -115,8 +133,6 @@ export const CharacterGridContent: Component = () => {
     return keys.sort((a, b) => order === 'ascending' ? a - b : b - a);
   });
 
-  const studyScripts = createMemo(() => getCharacterStudyScripts(currentLangData()));
-  const supportsCharacterStudy = createMemo(() => studyScripts().length > 0);
   const showLevelDisclaimer = createMemo(() => shouldShowCharacterStudyLevelDisclaimer(currentLangData()));
   const characterStudyLabels = createMemo(() => currentLangData()?.characterStudy?.labels ?? {});
   const characterStudyText = (
@@ -145,6 +161,7 @@ export const CharacterGridContent: Component = () => {
 
   const buildCharacterStats = async () => {
     setIsLoading(true);
+    setBuildFailed(false);
 
     try {
       if (!supportsCharacterStudy()) {
@@ -327,9 +344,11 @@ export const CharacterGridContent: Component = () => {
       });
 
       setCharacterData(sorted);
+      setCharacterDataLanguage(lang);
       setLevelCharacters(levels);
     } catch (e) {
       log.error('Failed to build character stats:', e);
+      setBuildFailed(true);
     } finally {
       setIsLoading(false);
     }
@@ -401,15 +420,15 @@ export const CharacterGridContent: Component = () => {
     return !charactersInLevel.has(item.character);
   };
 
-  onMount(() => {
-    buildCharacterStats();
-  });
+  const hasCurrentGrid = () => characterDataLanguage() === settings.language
+    && supportsCharacterStudy() && characterData().length > 0;
 
-  // Rebuild when language data changes
+  // A partial journal snapshot must not present missing projections as
+  // unmeasured character knowledge. Keep an already-settled grid during refresh.
   createEffect(() => {
     projected.projections();
-    if (currentLangData()) {
-      buildCharacterStats();
+    if (currentLangData() && (!supportsCharacterStudy() || (journalKeysHealthy() && projected.ready()))) {
+      void buildCharacterStats();
     }
   });
 
@@ -422,15 +441,24 @@ export const CharacterGridContent: Component = () => {
         </p>
       </div>
 
-      <Show when={projected.failed()}>
+      <Show when={journalKeysResource.state === 'errored' || projected.failed()}>
         <div role="alert" class="cg-error">
           <p>{t('mlearn.Knowledge.LoadError')}</p>
-          <Btn onClick={() => projected.retry()}>{t('mlearn.Knowledge.Retry')}</Btn>
+          <Btn onClick={() => {
+            if (journalKeysResource.state === 'errored') void Promise.resolve(retryJournalKeys()).catch(() => {});
+            else projected.retry();
+          }}>{t('mlearn.Knowledge.Retry')}</Btn>
+        </div>
+      </Show>
+      <Show when={buildFailed()}>
+        <div role="alert" class="cg-error">
+          <p>{t('mlearn.Knowledge.LoadError')}</p>
+          <Btn onClick={() => void buildCharacterStats()}>{t('mlearn.Knowledge.Retry')}</Btn>
         </div>
       </Show>
       <div class="cg-main">
-        <div class="cg-grid">
-          <Show when={!contentPending() && characterData().length > 0}>
+        <div class="cg-grid" aria-busy={contentPending()}>
+          <Show when={hasCurrentGrid()}>
             <For each={characterData()}>
               {(item) => (
                 <button type="button"
@@ -450,7 +478,7 @@ export const CharacterGridContent: Component = () => {
             </For>
           </Show>
           
-          <Show when={!contentPending() && supportsCharacterStudy() && characterData().length === 0}>
+          <Show when={!contentPending() && !buildFailed() && supportsCharacterStudy() && characterData().length === 0}>
             <div class="cg-empty-state">
               <div class="empty-icon"><BookIcon size={40} /></div>
               <h2>{characterStudyText('emptyTitle', 'mlearn.CharacterGrid.EmptyState.Title')}</h2>
@@ -459,7 +487,7 @@ export const CharacterGridContent: Component = () => {
             </div>
           </Show>
 
-          <Show when={!contentPending() && !supportsCharacterStudy()}>
+          <Show when={!contentPending() && !buildFailed() && !supportsCharacterStudy()}>
             <div class="cg-empty-state">
               <div class="empty-icon"><BookIcon size={40} /></div>
               <h2>{characterStudyText('unsupportedTitle', 'mlearn.CharacterGrid.Unsupported.Title')}</h2>
@@ -469,8 +497,8 @@ export const CharacterGridContent: Component = () => {
           
           {/* Cell colors encode knowledge state: keep the grid's geometry with
               placeholders instead of rendering unmeasured cells as real. */}
-          <Show when={contentPending() && !projected.failed()}>
-            <div aria-busy="true">
+          <Show when={contentPending() && !hasCurrentGrid() && journalKeysResource.state !== 'errored' && !projected.failed()}>
+            <div class="cg-grid-placeholder" aria-busy="true">
               <SkeletonGrid cells={48} />
             </div>
           </Show>

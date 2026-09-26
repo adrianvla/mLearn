@@ -825,7 +825,9 @@
         "TemporaryPractice": "Temporary practice",
         "Title": "Conversations",
         "NewConversation": "New conversation",
-        "UntitledThread": "Untitled thread"
+        "UntitledThread": "Untitled thread",
+        "Started": "Started {date}",
+        "NoMatches": "No matching conversations"
       },
       "LivingWorld": {
         "ConsentTitle": "Enable Living World?",
@@ -834,6 +836,7 @@
         "NotNow": "Not now"
       },
       "NewConversation": {
+        "MediaContext": "This conversation will use context from: {media}",
         "ChangeScenario": "Review another setup",
         "UseScenario": "Use this situation",
         "GeneratedNotice": "This is a generated fictional practice situation, not researched canon. Review it before starting.",
@@ -1152,6 +1155,7 @@
         "ToastTitle": "Repairing flashcard audio…"
       },
       "Review": {
+        "CardActions": "Card actions",
         "Again": "Again",
         "Bury": "Bury",
         "Complete": "Review Complete!",
@@ -1179,7 +1183,8 @@
         "StealthMode": "Stealth Mode",
         "MuteAudio": "Mute Audio",
         "Modes": {
-          "Label": "Focus",
+          "Label": "Answer view",
+          "Help": "Answer view changes the revealed cues. Ratings cover every tested skill; use Adjust to rate them separately.",
           "Meaning": "Meaning",
           "Reading": "Reading",
           "Prosody": "Prosody"
@@ -1777,6 +1782,7 @@
         "Next": "Next",
         "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app.",
         "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again.",
+        "SavingAnswer": "Saving answer…",
         "ModeLabel": "Answer format",
         "ModeMcq": "Choose",
         "ModeType": "Type",
@@ -1797,6 +1803,8 @@
         "Title": "Bulk Add Flashcards",
         "Hint": "Choose which words to add with the filter. Matching words become flashcards with the selected status.",
         "MatchingCount": "{count} words match",
+        "Counting": "Counting matching words…",
+        "DictionaryError": "Dictionary words could not be loaded. Close and try again.",
         "Cancel": "Cancel",
         "Adding": "Adding...",
         "AddingProgress": "Adding {current}/{total}...",
@@ -2063,6 +2071,7 @@
         "Recognizing": "Recognizing..."
       },
       "StatusBar": {
+        "MoreTools": "More tools",
         "DebugOverlayOff": "Debug: Off",
         "DebugOverlayOn": "Debug: On",
         "DebugOverlayTitle": "Toggle debug overlay to visualize OCR text and reading annotation detection",
@@ -2097,6 +2106,7 @@
         "ZoneDeltaTitle": "Max pixel distance between box edges for zone clustering"
       },
       "Toolbar": {
+        "ViewOptions": "View options",
         "BackToHome": "Back to Home",
         "DoublePage": "Double Page",
         "FirstPagePairedTooltip": "First page is paired",
@@ -2137,6 +2147,7 @@
           "Footer": "Drop something in to begin — this welcome screen will make room for your story.",
           "OpenFolder": "Open Image Folder",
           "OpenPdf": "Open PDF/EPUB",
+          "OpenFailed": "This book could not be opened. Its file or folder may have moved or be unavailable. Choose it again below.",
           "Title": "Open a book",
           "TitleDescription": "Import a PDF, EPUB, or image folder to start reading."
         }
@@ -2416,9 +2427,9 @@
           "None": "None",
           "Exam": "Exam",
           "Target": {
-            "Label": "Target",
-            "Description": "What you are working toward (for your own reference)",
-            "Placeholder": "e.g. JLPT N1, Goethe B1"
+            "Label": "Personal note (optional)",
+            "Description": "Names your goal for reference; only the exam date affects practice priority.",
+            "Placeholder": "e.g. a course or exam name"
           },
           "Deadline": {
             "Label": "Exam date",
@@ -3370,6 +3381,8 @@
         "Unignore": "Unignore"
       },
       "AllLevels": "All Levels",
+      "StudyOrder": "Study order",
+      "StudyOrderHint": "Shows the selected curriculum level first, then nearby levels; words without a level remain searchable.",
       "Anki": {
         "AlreadyInAnki": "Already in Anki",
         "EmptyField": "(empty)",
@@ -3445,6 +3458,7 @@
       "DictionaryUnavailable": "The dictionary is unavailable. This list currently includes only curriculum and saved words."
     },
     "WordHover": {
+      "InText": "In text: {form}",
       "AddToAnki": "Add to Anki",
       "AddToBuiltInSrs": "Click to add to built-in SRS",
       "Alerts": {
@@ -3520,6 +3534,9 @@
     },
     "WordSync": {
       "ProjectionUnavailable": "Knowledge data could not be loaded. Try again.",
+      "SavingRating": "Saving rating…",
+      "AnswerUnavailable": "No answer is available for this word. Retry the dictionary lookup or choose another filter. No rating has been recorded.",
+      "SaveFailed": "This rating could not be saved. The word is still here; try again.",
       "Statement": {
         "Label": "Describe it instead",
         "KnownSpoken": "I know this word when I hear it.",
@@ -3586,6 +3603,8 @@
       "ForceRecreateFlashcards": "Force recreate new flashcards for today",
       "Go": "Go",
       "Help": "Help",
+      "RunDiagnostics": "Run Diagnostics",
+      "ReportBug": "Report a Bug",
       "HideReading": "Hide Reading Annotations",
       "OpenDevTools": "Open DevTools",
       "OpenLiveWordTranslator": "Open Live Word Translator",
@@ -3732,15 +3751,15 @@
       "RunAllTests": "Run All Tests",
       "RunAgain": "Run Again",
       "Running": "Running…",
-      "ExportJson": "Export JSON",
+      "ExportJson": "Export redacted JSON",
       "ErrorTitle": "Diagnostics failed",
       "ReportSavedTo": "Report saved to:",
       "FilterAll": "All",
       "FilterPass": "Pass",
       "FilterFail": "Fail",
       "FilterSkip": "Skip",
-      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
-      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
+      "EmptyTitle": "Run checks on installed services and features.",
+      "EmptyDescription": "Tests use the local backend and any configured providers. A failed check does not mean the entire app is unavailable."
     },
     "Eula": {
       "Title": "End User License Agreement",

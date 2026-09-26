@@ -392,6 +392,36 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
    *  without a durable cursor (PlacementSession contract, G01/G04). Cleared
    *  by the next successful durable write. */
   const [storageUnavailable, setStorageUnavailable] = createSignal(false);
+  // Review rows use the same acknowledged journal writer as the live pass.
+  // A refused append must keep its attempt identity for an idempotent retry,
+  // rather than appearing to have recorded a rating or rejecting unhandled.
+  const [reviewProbe, setReviewProbe] = createSignal<{
+    language: string;
+    level: number;
+    pattern: string;
+    quality: AttemptQuality;
+    scaffolds?: AttemptScaffolds;
+    attemptId: AttemptId;
+    state: 'pending' | 'failed';
+  } | null>(null);
+  const submitReviewProbe = async (
+    pattern: string,
+    quality: AttemptQuality,
+    level: number,
+    scaffolds?: AttemptScaffolds,
+    retry?: NonNullable<ReturnType<typeof reviewProbe>>,
+  ): Promise<void> => {
+    const active = reviewProbe();
+    if (active !== null && (active.state !== 'failed' || retry === undefined || active !== retry)) return;
+    const attempt = retry ?? { language: props.language, level, pattern, quality, scaffolds, attemptId: nextAttemptId(), state: 'pending' as const };
+    setReviewProbe({ ...attempt, state: 'pending' });
+    try {
+      await props.onProbe(pattern, quality, level, attempt.scaffolds, { attemptId: attempt.attemptId });
+      if (reviewProbe()?.attemptId === attempt.attemptId) setReviewProbe(null);
+    } catch {
+      if (reviewProbe()?.attemptId === attempt.attemptId) setReviewProbe({ ...attempt, state: 'failed' });
+    }
+  };
 
   // Package item bank (G03): assembled/deliverable items are cached off the
   // rating path; the rating path only reads resolved items from the cache.
@@ -436,6 +466,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     setSession(loaded);
     adoptPresentation(loaded);
   }, { defer: true }));
+  createEffect(on(() => props.language, () => setReviewProbe(null), { defer: true }));
 
   /** Serializes every durable pass mutation across windows (G01): start,
    *  rating, answered markers, mode switches, Next and skip each re-verify
@@ -1271,12 +1302,15 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         </span>
       </div>
       <div class="grammar-coverage__levels">
-        <For each={props.summary.buckets.filter((bucket) => bucket.total > 0)}>
-          {(bucket) => {
-            const level = bucket.level as number;
-            const measured = bucket.total - bucket.unmeasured;
-            const measuredPct = bucket.total > 0 ? (measured / bucket.total) * 100 : 0;
-            const knownPct = bucket.total > 0 ? (bucket.known / bucket.total) * 100 : 0;
+        <For each={props.summary.buckets.filter((bucket) => bucket.total > 0).map((bucket) => bucket.level as number)}>
+          {(level) => {
+            // Summary buckets are recreated on every journal projection. Keep
+            // each level's DOM (including an open review list) keyed by its
+            // stable package level while reading the current bucket values.
+            const bucket = createMemo(() => props.summary.buckets.find((entry) => entry.level === level)!);
+            const measured = () => bucket().total - bucket().unmeasured;
+            const measuredPct = () => bucket().total > 0 ? (measured() / bucket().total) * 100 : 0;
+            const knownPct = () => bucket().total > 0 ? (bucket().known / bucket().total) * 100 : 0;
             const open = () => expandedLevel() === level;
             return (
               <div class="grammar-coverage__level" data-level={level}>
@@ -1288,18 +1322,18 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                   aria-expanded={open()}
                 >
                   <span class="grammar-coverage__level-name">{grammarLevelName(level, props.languageData)}</span>
-                  <span class="grammar-coverage__level-bar" role="img" aria-label={`${measured}/${bucket.total}`}>
-                    <span class="grammar-coverage__bar-known" style={{ width: `${knownPct}%` }} />
+                  <span class="grammar-coverage__level-bar" role="img" aria-label={`${measured()}/${bucket().total}`}>
+                    <span class="grammar-coverage__bar-known" style={{ width: `${knownPct()}%` }} />
                     <span
                       class="grammar-coverage__bar-measured"
-                      style={{ width: `${Math.max(0, measuredPct - knownPct)}%` }}
+                      style={{ width: `${Math.max(0, measuredPct() - knownPct())}%` }}
                     />
                   </span>
                   <span class="grammar-coverage__level-counts">
                     {t('mlearn.LevelStudy.Grammar.BucketCounts', {
-                      measured,
-                      total: bucket.total,
-                      unmeasured: bucket.unmeasured,
+                      measured: measured(),
+                      total: bucket().total,
+                      unmeasured: bucket().unmeasured,
                     })}
                   </span>
                 </button>
@@ -1563,7 +1597,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                   <ul class="grammar-coverage__constructions">
                     <For each={constructionsByLevel().get(level) ?? []}>
                       {(row) => (
-                        <li class="grammar-coverage__construction">
+                        <li class="grammar-coverage__construction" aria-busy={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
                           <span class="grammar-coverage__pattern">{row.pattern}</span>
                           <Show when={row.meaning}>
                             <span class="grammar-coverage__meaning">{row.meaning}</span>
@@ -1578,16 +1612,28 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                               row shows a meaning, the probe records that cue as
                               translation-scaffold provenance on the attempt. */}
                           <span class="grammar-coverage__probe">
-                            <Btn size="sm" variant="danger" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'missed', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            <Btn size="sm" variant="danger" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'missed', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Missed')}
                             </Btn>
-                            <Btn size="sm" variant="warning" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'struggled', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            <Btn size="sm" variant="warning" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'struggled', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Struggled')}
                             </Btn>
-                            <Btn size="sm" variant="success" class="grammar-coverage__probe-btn" onClick={() => props.onProbe(row.pattern, 'fluent', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            <Btn size="sm" variant="success" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'fluent', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Fluent')}
                             </Btn>
                           </span>
+                          <Show when={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
+                            <span class="grammar-coverage__review-error" role="status">{t('mlearn.LevelStudy.Grammar.SavingAnswer')}</span>
+                          </Show>
+                          <Show when={reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
+                            <span class="grammar-coverage__review-error" role="alert">
+                              {t('mlearn.LevelStudy.Grammar.StorageUnavailable')}
+                              <Btn size="sm" data-testid="grammar-row-retry" onClick={() => {
+                                const failed = reviewProbe();
+                                if (failed?.state === 'failed' && failed.language === props.language) void submitReviewProbe(failed.pattern, failed.quality, failed.level, failed.scaffolds, failed);
+                              }}>{t('mlearn.Knowledge.Retry')}</Btn>
+                            </span>
+                          </Show>
                         </li>
                       )}
                     </For>

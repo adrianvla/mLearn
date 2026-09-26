@@ -125,6 +125,7 @@ export interface GraphBridge {
   getGraphRelated: (language: string, entityId: string, relationTypes: GraphRelationType[]) => Promise<GraphRelatedNode[]>;
   getGraphTargetsForSurfaces: (language: string, inputs: GraphLookupInput[]) => Promise<GraphSurfaceTargets[]>;
   getGraphNeighborhood: (language: string, query: import('../graph/ipc').GraphNeighborhoodQuery) => Promise<import('../graph/ipc').GraphNeighborhood | null>;
+  getEvidenceLinkedSurfaces: (language: string, surfaces: string[], keys: string[]) => Promise<string[]>;
   getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds) => Promise<import('../graph/ipc').KnowledgeProjection>;
 }
 
@@ -301,7 +302,7 @@ export interface KnowledgeEventsBridge {
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
   getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
-  onKnowledgeEventsChanged: (callback: () => void) => () => void;
+  onKnowledgeEventsChanged: (callback: (keys?: string[]) => void) => () => void;
   /** Derived per-key learner states (checkpoint folds) — the projection read path. */
   getKnowledgeStates: (keys: string[]) => Promise<Record<string, import('../knowledge/historyQueries').KeyKnowledgeState>>;
   /** Exact rows with stable journal seq — required for archive-aware replay. */

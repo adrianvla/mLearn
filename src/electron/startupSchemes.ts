@@ -58,7 +58,8 @@ export function registerFlashcardVideoScheme(): void {
   protocol.registerSchemesAsPrivileged([{
     scheme: 'flashcard-video',
     privileges: {
-      standard: false,
+      standard: true,
+      corsEnabled: true,
       secure: true,
       stream: true,
       supportFetchAPI: true,

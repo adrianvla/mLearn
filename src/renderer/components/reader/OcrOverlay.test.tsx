@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
 import { OcrOverlay, type OcrResult } from './OcrOverlay';
 
 const mocks = vi.hoisted(() => ({
@@ -105,6 +106,30 @@ describe('OcrOverlay', () => {
     expect(mocks.getAccessStatus).toHaveBeenCalledWith('new crop', 'sense-recognition', 'test');
     word?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     expect(onWordHover).toHaveBeenCalledOnce();
+
+    dispose();
+  });
+
+  it('does not publish tokens from a previous page after the page changes', async () => {
+    const pending = new Map<string, (tokens: Array<{ word: string; surface: string; type: string }>) => void>();
+    mocks.tokenize.mockImplementation((text: string) => new Promise((resolve) => pending.set(text, resolve)));
+    const makeResult = (text: string): OcrResult => ({
+      boxes: [{ box: [[100, 100], [250, 100], [250, 200], [100, 200]], text }],
+      sent_size: { width: 1000, height: 1000 },
+    });
+    const [result, setResult] = createSignal(makeResult('first page'));
+    const onTokenDataChange = vi.fn();
+    const dispose = render(() => (
+      <OcrOverlay result={result()} imageElement={image} onTokenDataChange={onTokenDataChange} />
+    ), container);
+
+    setResult(makeResult('second page'));
+    pending.get('first page')?.([{ word: 'first', surface: 'first', type: 'word' }]);
+    await Promise.resolve();
+    expect(onTokenDataChange.mock.lastCall?.[0]).toEqual([]);
+    pending.get('second page')?.([{ word: 'second', surface: 'second', type: 'word' }]);
+    await Promise.resolve();
+    expect(onTokenDataChange.mock.lastCall?.[0][0].tokens[0].word).toBe('second');
 
     dispose();
   });

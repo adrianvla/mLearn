@@ -10,7 +10,7 @@ import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry
 import { httpGet, httpPostMultipart, skipTest } from '../utils';
 import { getAppPath, getResourcePath } from '../../../utils/platform';
 import { loadSettings } from '../../settings';
-import { buildOcrMultipartBody } from '../ocrRequestUtils';
+import { buildOcrMultipartBody, isOcrBoxesResponse } from '../ocrRequestUtils';
 
 function findTestImage(): string | null {
   const candidates = [
@@ -76,7 +76,7 @@ registerDiagnosticSuite({
           throw new Error(`Local OCR returned status ${result.status}`);
         }
         const data = JSON.parse(result.body);
-        if (!Array.isArray(data) && !data.results) {
+        if (!isOcrBoxesResponse(data)) {
           throw new Error('Local OCR returned unexpected format');
         }
       },

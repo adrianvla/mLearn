@@ -527,7 +527,31 @@ describe('resolveProsodyForHover for metadata-defined prosody', () => {
   });
 });
 
+describe('reading identity in the lookup headline', () => {
+  it('keeps surface and canonical pronunciations attached to their respective words', () => {
+    const data = { data: [{ reading: 'lemma-sound', definitions: ['meaning'] }] };
+    expect(resolveWordHoverContent('surface-sound', data, undefined, undefined, { word: 'lemma', surface: 'inflected' }).reading).toBe('lemma-sound');
+    expect(resolveWordHoverContent('surface-sound', data, undefined, undefined, { word: 'inflected', surface: 'inflected' }).reading).toBe('surface-sound');
+  });
+});
+
 describe('buildWordHoverFlashcardContent', () => {
+  it.each([
+    ['分かる', '分から', 'わから', 'わかる', 'わかる'],
+    ['分から', '分から', 'わから', 'dictionary-other-reading', 'わから'],
+    ['lemma', 'inflected', 'surface-sound', '', undefined],
+    ['same', 'same', 'contextual-sound', 'dictionary-sound', 'contextual-sound'],
+  ])('binds the reading to the card word %s, not a different surface %s', async (word, surface, reading, dictionaryReading, expected) => {
+    const result = await buildWordHoverFlashcardContent({
+      token: { word: surface, actual_word: word, type: '', reading }, word,
+      translationData: { data: [{ word, reading: dictionaryReading, definitions: ['definition'] }] },
+      wordStatus: 'unknown', colourCodes: {}, tokenize: async () => [],
+    });
+    expect(result.content.word).toBe(word);
+    expect(result.content.reading).toBe(expected);
+    expect(result.content.pronunciation).toBe(expected);
+  });
+
   it('does not fabricate reading fields when no distinct reading exists', async () => {
     const result = await buildWordHoverFlashcardContent({
       token: { word: 'Haus', actual_word: 'Haus', type: 'NOUN' },

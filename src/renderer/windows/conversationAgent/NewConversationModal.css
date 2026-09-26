@@ -6,6 +6,16 @@
   min-width: 0;
 }
 
+.new-conversation-media-context {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-inline-start: 3px solid var(--color-primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
 .new-conversation-actions {
   flex-wrap: wrap;
   display: flex;

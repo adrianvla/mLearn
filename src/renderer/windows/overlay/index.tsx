@@ -18,6 +18,10 @@ if (!root) {
   throw new Error('Root element not found');
 }
 
+// Vite shares CSS across window entries. Scope the overlay's transparent root
+// to this document so other windows retain their theme background.
+document.documentElement.classList.add('overlay-window-root');
+
 const WrappedApp = () => (
   <WindowWrapper showDragRegion={false} transparent>
     <App />

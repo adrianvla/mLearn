@@ -37,6 +37,7 @@ export function resolveWordHoverContent(
   translationData: WordHoverTranslationData | undefined,
   dictionaryEntries: DictionaryEntry[] | undefined,
   languageData?: LanguageData | null,
+  identity?: { word: string; surface: string },
 ): { reading: string; shortDefinitionHtml: string; dictionaryHtml: string[] } {
   const definitions = (translationData?.data ?? [])
     .map((item) => extractDefinitionValues(item, languageData, { stripHtml: false }).join('; '))
@@ -49,7 +50,7 @@ export function resolveWordHoverContent(
       .map((entry) => entry.meanings?.join('; ') ?? '')
       .filter((definition) => definition && definition !== shortDefinitionHtml);
   return {
-    reading: tokenReading?.trim()
+    reading: ((!identity || identity.word === identity.surface) ? tokenReading?.trim() : '')
       || extractReadingValue(translationData?.data, languageData)
       || extractReadingValue(dictionaryEntries, languageData)
       || '',
@@ -489,8 +490,13 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
     translationArr = [params.entry.meanings.join('; ')];
   }
 
-  const firstEntry = translationItems?.[0] as TranslationEntry | undefined;
-  const rawReading = normalizeDictionaryReading(params.token.reading || extractReadingValue(firstEntry, params.languageData) || '', params.languageData);
+  // Token readings describe the encountered surface, not its dictionary form.
+  // Keep contextual readings for a surface card, but never transplant them
+  // onto a different canonical word (including when dictionary data is absent).
+  const rawReading = normalizeDictionaryReading(resolveWordHoverContent(
+    params.token.reading, params.translationData, params.entry ? [params.entry] : undefined,
+    params.languageData, { word, surface: params.token.surface || params.token.word },
+  ).reading, params.languageData);
   const reading = rawReading && rawReading !== word ? rawReading : '';
   const prosody = extractProsodyFromTranslationData(params.translationData, params.languageData, reading);
   const cardId = generateUUID();

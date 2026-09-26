@@ -35,20 +35,9 @@
 }
 
 
-body.hide-cursor .video-controls {
-  opacity: 0;
-  pointer-events: none;
-}
-
-
 .video-controls.hidden {
   opacity: 0;
   pointer-events: none;
-}
-
-.video-controls.visible {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 /*!* Progress bar *!*/

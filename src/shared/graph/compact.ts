@@ -68,6 +68,8 @@ export interface CompactAssetJSON {
     offsets: number[];
     targets: number[];
     typeIds: number[];
+    /** Per-row edge orientation: 1 = authored outward, 2 = authored inward, 3 = both. Absent in legacy symmetric assets. */
+    directions?: number[];
     confidence?: number[];
     transparency?: number[];
     predictability?: number[];
@@ -102,6 +104,8 @@ export interface CompactLingualGraph {
   readonly relationTargets: Uint32Array;
   /** Relation type ids; values >= COMPACT_RELATION_TYPES.length index extensionRelationTypeStrings. */
   readonly relationTypeIds: Uint16Array;
+  /** Absent for legacy assets whose authored relation orientation was not serialized. */
+  readonly relationDirections?: Uint8Array;
   readonly relationConfidence?: Float32Array;
   readonly relationTransparency?: Float32Array;
   readonly relationPredictability?: Float32Array;
@@ -137,7 +141,7 @@ function validateCompact(compact: CompactAssetJSON): void {
     throw new GraphLoadError(`Unsupported compact graph schemaVersion ${compact.schemaVersion} (expected ${GRAPH_SCHEMA_VERSION})`);
   }
   const { kindIds, domainIds, labelStringIds, grammarStringIds, extensionKindStrings, learnableCapabilityStringIds, featureStringIds } = compact.entities;
-  const { offsets, targets, typeIds, extensionTypeStrings, roleStringIds, orders } = compact.relations;
+  const { offsets, targets, typeIds, directions, extensionTypeStrings, roleStringIds, orders } = compact.relations;
   const extensionKindCount = extensionKindStrings?.length ?? 0;
   const extensionTypeCount = extensionTypeStrings?.length ?? 0;
   const kindIdValid = (id: number): boolean =>
@@ -146,6 +150,8 @@ function validateCompact(compact: CompactAssetJSON): void {
     id < COMPACT_RELATION_TYPES.length ? COMPACT_RELATION_TYPES[id] !== undefined : id - COMPACT_RELATION_TYPES.length < extensionTypeCount;
   if (kindIds.length !== domainIds.length || kindIds.length !== labelStringIds.length || offsets.length !== kindIds.length + 1
     || targets.length !== typeIds.length || offsets[offsets.length - 1] !== targets.length
+    || (directions !== undefined && (directions.length !== targets.length
+      || directions.some((direction) => !Number.isInteger(direction) || direction < 1 || direction > 3)))
     || compact.meta.surfaceHashStringIds.length !== compact.meta.surfaceLocalIds.length
     || offsets.some((offset, index) => !Number.isInteger(offset) || offset < 0 || (index > 0 && offset < offsets[index - 1]))
     || kindIds.some((id) => !kindIdValid(id))
@@ -262,11 +268,11 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     }
     return id;
   };
-  type CompactEdge = { target: number; type: number; confidence?: number; transparency?: number; predictability?: number; provenance?: number; order?: number; role?: number };
+  type CompactEdge = { target: number; type: number; direction: number; confidence?: number; transparency?: number; predictability?: number; provenance?: number; order?: number; role?: number };
   const edgeKey = (target: number, edge: CompactEdge): string =>
     `${target}|${edge.type}|${edge.confidence ?? ''}|${edge.transparency ?? ''}|${edge.predictability ?? ''}|${edge.provenance ?? ''}|${edge.order ?? ''}|${edge.role ?? ''}`;
   const adjacency = Array.from({ length: kindIds.length }, () => [] as CompactEdge[]);
-  const rowKeys = Array.from({ length: kindIds.length }, () => new Set<string>());
+  const rowEdges = Array.from({ length: kindIds.length }, () => new Map<string, CompactEdge>());
   for (const relation of asset.relations) {
     const from = entityIds.get(relation.from);
     const to = entityIds.get(relation.to);
@@ -276,6 +282,7 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     const encoded: CompactEdge = {
       target: to,
       type,
+      direction: 1,
       confidence: relation.confidence,
       transparency: relation.transparency,
       predictability: relation.predictability,
@@ -285,24 +292,28 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     };
     const forwardKey = edgeKey(to, encoded);
     const reverseKey = edgeKey(from, encoded);
-    // Each directed adjacency entry appears once per row. An explicitly
-    // authored reverse relation (symmetric `semantically-related` pairs) or a
-    // repeated identical relation must not double the CSR entry — the mirror
-    // write already covers the reverse row, and duplicated rows decode to
-    // duplicate neighbors. Relations differing in ANY qualifier (e.g. ordered
-    // `has-character` members of the same pair) keep distinct entries.
-    if (rowKeys[from].has(forwardKey) && rowKeys[to].has(reverseKey)) continue;
-    adjacency[from].push(encoded);
-    rowKeys[from].add(forwardKey);
-    if (!rowKeys[to].has(reverseKey)) {
-      adjacency[to].push({ ...encoded, target: from });
-      rowKeys[to].add(reverseKey);
+    // Keep the symmetric CSR for neighbor searches, but record which side was
+    // actually authored. A reverse assertion can share a row entry without
+    // losing its direction; duplicate assertions still collapse.
+    const forward = rowEdges[from].get(forwardKey);
+    if (forward) forward.direction |= 1;
+    else {
+      adjacency[from].push(encoded);
+      rowEdges[from].set(forwardKey, encoded);
+    }
+    const reverse = rowEdges[to].get(reverseKey);
+    if (reverse) reverse.direction |= 2;
+    else {
+      const mirrored = { ...encoded, target: from, direction: 2 };
+      adjacency[to].push(mirrored);
+      rowEdges[to].set(reverseKey, mirrored);
     }
   }
 
   const offsets = [0];
   const targets: number[] = [];
   const typeIds: number[] = [];
+  const directions: number[] = [];
   const confidence: number[] = [];
   const transparency: number[] = [];
   const predictability: number[] = [];
@@ -319,6 +330,7 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
     for (const edge of edges) {
       targets.push(edge.target);
       typeIds.push(edge.type);
+      directions.push(edge.direction);
       confidence.push(edge.confidence ?? -1);
       transparency.push(edge.transparency ?? -1);
       predictability.push(edge.predictability ?? -1);
@@ -349,7 +361,7 @@ export function encodeCompact(asset: LinguisticGraphAsset): CompactAssetJSON {
       ...(extensionKindStrings.length > 0 ? { extensionKindStrings } : {}),
     },
     relations: {
-      offsets, targets, typeIds,
+      offsets, targets, typeIds, directions,
       ...(hasConfidence ? { confidence } : {}),
       ...(hasTransparency ? { transparency } : {}),
       ...(hasPredictability ? { predictability } : {}),
@@ -371,6 +383,7 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
   const relationOffsets = Uint32Array.from(compact.relations.offsets);
   const relationTargets = Uint32Array.from(compact.relations.targets);
   const relationTypeIds = Uint16Array.from(compact.relations.typeIds);
+  const relationDirections = compact.relations.directions === undefined ? undefined : Uint8Array.from(compact.relations.directions);
   const extensionEntityKindStrings = compact.entities.extensionKindStrings;
   const extensionRelationTypeStrings = compact.relations.extensionTypeStrings;
   const relationRoles = compact.relations.roleStringIds === undefined
@@ -411,6 +424,7 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
     relationOffsets,
     relationTargets,
     relationTypeIds,
+    relationDirections,
     relationConfidence,
     relationTransparency,
     relationPredictability,

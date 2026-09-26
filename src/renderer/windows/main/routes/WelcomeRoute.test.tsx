@@ -215,3 +215,5 @@ describe('WelcomeRoute localization', () => {
     dispose();
   });
 });
+
+vi.mock('../../../hooks/useEvidenceLinkedProjections', () => ({ useEvidenceLinkedProjections: () => ({ ready: () => true, failed: () => false, retry: vi.fn(), resolveState: () => ({ status: 'unknown', basis: 'unmeasured' }) }) }));

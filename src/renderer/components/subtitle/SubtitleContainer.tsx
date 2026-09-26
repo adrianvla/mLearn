@@ -43,6 +43,10 @@ export interface SubtitleContainerProps {
   /** Video source URL (for video clip flashcards) */
   videoSrc?: string;
   lastScreenshot?: string;
+  /** Stable identity of the current media cue within a playback visit. */
+  encounterId?: string;
+  /** Whether this surface is the visible, active owner of passive exposure. */
+  passiveObservationEligible?: boolean;
 }
 
 export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
@@ -81,6 +85,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
   let hoverRequestId = 0;
   let lastSubtitleKey = '';
+  let lastObservedSubtitleKey = '';
   let lastLiveTranslatorKey = '';
   
   // Handle opening the explainer popup
@@ -288,27 +293,55 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   createEffect(() => {
     const tokens = props.tokens;
     const languageData = currentLangData();
-    if (!supportsGrammar() || !languageData?.grammar?.length || tokens.length === 0) {
+    if (!supportsGrammar() || !languageData?.grammar?.length || tokens.length === 0 || props.isLoading) {
       setGrammarOccurrences([]);
       return;
     }
     const grammar = languageData.grammar;
+    const language = settings.language;
+    const eligible = shouldShow() && props.passiveObservationEligible !== false && flashcardCtx.isKnowledgeReady();
+    const encounterId = props.encounterId;
+    let active = true;
+    onCleanup(() => { active = false; });
     queueMicrotask(() => {
+      if (!active) return;
       const detected = detectGrammarOccurrences({
-        language: settings.language,
+        language,
         grammar,
         tokens,
         languageData,
       });
       setGrammarOccurrences(detected);
-      if (detected.length === 0) return;
+      if (!eligible || detected.length === 0) return;
       const subtitleKey = tokens.map((token) => token.surface ?? token.word).join('|');
-      journalGrammarEncounters(flashcardCtx, grammarEncounterRecorder, subtitleKey, detected);
+      journalGrammarEncounters(flashcardCtx, grammarEncounterRecorder, encounterId ?? subtitleKey, detected, encounterId);
     });
   });
 
-  // Pre-fetch translations for all translatable words when subtitle appears
-  // This populates the translation cache for reading annotations and faster hover
+  // Record an eligible cue independently of translation prefetch. A media cue
+  // identity survives token refresh and UI state changes, while a new visit can
+  // record the same text again through a new identity.
+  createEffect(() => {
+    if (!shouldShow() || props.isLoading || props.passiveObservationEligible === false
+      || !flashcardCtx.isKnowledgeReady()) return;
+    const tokens = props.tokens || [];
+    if (!tokens.length) return;
+    const subtitleKey = tokens.map((t) => t.surface ?? t.word).join('|');
+    const observationKey = props.encounterId ?? subtitleKey;
+    if (observationKey === lastObservedSubtitleKey) return;
+    lastObservedSubtitleKey = observationKey;
+    tokens.forEach((token, index) => {
+      if (!isTokenTranslatable(token)) return;
+      const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
+      if (!lookupWord) return;
+      flashcardCtx.trackWordSeen(
+        lookupWord, token.reading, PASSIVE_SUBTITLE_EASE_BUMP, settings.language,
+        props.encounterId ? `${props.encounterId}:${index}` : undefined,
+      );
+    });
+  });
+
+  // Pre-fetch translations for all translatable words when subtitle appears.
   createEffect(() => {
     if (!shouldShow()) return;
     const tokens = props.tokens || [];
@@ -318,17 +351,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (subtitleKey === lastSubtitleKey) return; // Already processed
     
     lastSubtitleKey = subtitleKey;
-
-    // Track word seen for passive knowledge + populate Token.isKnown
-    for (const token of tokens) {
-      if (!isTokenTranslatable(token)) continue;
-      
-      const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
-      if (!lookupWord) continue;
-
-      // Passive word tracking
-      flashcardCtx.trackWordSeen(lookupWord, token.reading, PASSIVE_SUBTITLE_EASE_BUMP, settings.language);
-    }
 
     // Pre-fetch translations for all translatable words
     // This runs in the background and populates the cache
@@ -488,6 +510,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             videoSrc={props.videoSrc}
             lastScreenshot={props.lastScreenshot}
             grammarOccurrences={grammarOccurrences()}
+            tokenIndex={props.tokens.indexOf(data.token)}
           />
         ) : null}
       </Show>

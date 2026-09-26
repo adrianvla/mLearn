@@ -21,6 +21,8 @@ export interface LingualGraph {
   /** dense runtime id ↔ persistent id */
   denseOf: Map<string, number>;
   persistentOf: string[];
+  /** False when a compact asset omitted authored edge directions. */
+  relationDirectionKnown?: boolean;
 }
 
 export class GraphLoadError extends Error {}

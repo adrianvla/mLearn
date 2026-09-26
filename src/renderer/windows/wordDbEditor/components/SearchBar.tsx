@@ -34,6 +34,8 @@ export interface SearchBarProps {
   filterFields: FieldConfig<unknown>[];
   filterPaletteItems: PaletteItem[];
   filterEvaluation: ValidationResult;
+  studyOrderSelected: boolean;
+  onStudyOrder: () => void;
 }
 
 export const SearchBar: Component<SearchBarProps> = (props) => {
@@ -60,6 +62,14 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         <option value="all">{t('mlearn.WordDbEditor.BrowseMode.AllWords')}</option>
         <option value="ignored">{t('mlearn.WordDbEditor.BrowseMode.IgnoredWords')}</option>
       </Select>
+
+      <Btn
+        onClick={props.onStudyOrder}
+        variant={props.studyOrderSelected ? 'primary' : 'secondary'}
+        title={t('mlearn.WordDbEditor.StudyOrderHint')}
+      >
+        {t('mlearn.WordDbEditor.StudyOrder')}
+      </Btn>
 
       <button
         type="button"

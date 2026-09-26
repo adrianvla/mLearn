@@ -113,6 +113,7 @@ const graphBridge: GraphBridge = {
   getGraphRelated: (language, entityId, relationTypes) => getIPC().getGraphRelated(language, entityId, relationTypes),
   getGraphTargetsForSurfaces: (language, inputs) => getIPC().getGraphTargetsForSurfaces(language, inputs),
   getGraphNeighborhood: (language, query) => getIPC().getGraphNeighborhood(language, query),
+  getEvidenceLinkedSurfaces: (language, surfaces, keys) => getIPC().getEvidenceLinkedSurfaces(language, surfaces, keys),
   getKnowledgeProjection: (language, surface, thresholds) => getIPC().getKnowledgeProjection(language, surface, thresholds),
 };
 

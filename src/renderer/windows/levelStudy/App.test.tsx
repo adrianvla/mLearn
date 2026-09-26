@@ -19,6 +19,8 @@ vi.mock('../../context', () => ({
 
 vi.mock('../../components/common', () => ({
   Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  NavBtn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  ArrowLeftIcon: () => <span />,
   TabContainer: (props: {
     tabs: Array<{ id: string; label: string; icon?: JSX.Element }>;
     activeTab: string;

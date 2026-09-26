@@ -230,10 +230,18 @@ body.reduce-transparency .reader-route .panel{
 .reader-main.text-reader .page-container.vertical-text .reader-text-page {
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  line-height: max(2, var(--reader-text-line-height));
+  overflow-wrap: normal;
+  line-break: strict;
   height: 100%;
   max-height: 100%;
   width: 100%;
 }
+
+/* An inline nowrap span also suppresses breaks between adjacent token spans
+   in vertical flow. Atomic inline blocks keep each base/ruby pair together
+   while leaving a break opportunity between lexical tokens. */
+.page-container.vertical-text .reader-text-page .ocr-word { display: inline-block; }
 
 .reader-main.text-reader .page-container.double.vertical-text .reader-text-page { width: 100%; }
 

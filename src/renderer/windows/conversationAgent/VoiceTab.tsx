@@ -821,6 +821,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // Voice session error
     cleanups.push(bridge.voice.onVoiceSessionError((data) => {
+      keyboardPttHeld = false;
+      setPttActive(false);
       setIsInitializing(false);
       setIsCallActive(false);
       props.onCallStateChange?.(false, 'failed');
@@ -1377,6 +1379,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const stopCall = (reason: 'completed' | 'cleanup' = 'completed') => {
     if (!isCallActive() && !isInitializing()) return;
 
+    keyboardPttHeld = false;
+    setPttActive(false);
     setIsCallActive(false);
     props.onCallStateChange?.(false, reason);
     setIsInitializing(false);
@@ -1506,11 +1510,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const isEditableKeyTarget = (target: EventTarget | null): boolean => {
     if (!(target instanceof HTMLElement)) return false;
-    if (target.isContentEditable) return true;
-    return target instanceof HTMLInputElement
-      || target instanceof HTMLTextAreaElement
-      || target instanceof HTMLSelectElement;
+    return target.isContentEditable
+      || !!target.closest('input, textarea, select, button, a[href], summary, [role="button"], [role="menuitem"]');
   };
+  let keyboardPttHeld = false;
 
   const canUseKeyboardPtt = () => (
     isCallActive()
@@ -1528,27 +1531,36 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   };
 
   const handlePttKeyDown = (event: KeyboardEvent) => {
-    if (event.code !== 'Space' || event.repeat || isEditableKeyTarget(event.target)) return;
+    if (event.code !== 'Space' || event.repeat || event.isComposing || event.keyCode === 229
+      || event.defaultPrevented || isEditableKeyTarget(event.target)) return;
     if (!canUseKeyboardPtt()) return;
     event.preventDefault();
+    keyboardPttHeld = true;
     handlePttDown();
   };
 
   const handlePttKeyUp = (event: KeyboardEvent) => {
-    if (event.code !== 'Space' || isEditableKeyTarget(event.target)) return;
-    if (!canUseKeyboardPtt() && !pttActive()) return;
+    if (event.code !== 'Space' || !keyboardPttHeld) return;
     event.preventDefault();
+    keyboardPttHeld = false;
+    handlePttUp();
+  };
+  const releaseKeyboardPttOnBlur = () => {
+    if (!keyboardPttHeld) return;
+    keyboardPttHeld = false;
     handlePttUp();
   };
 
   onMount(() => {
     window.addEventListener('keydown', handlePttKeyDown);
     window.addEventListener('keyup', handlePttKeyUp);
+    window.addEventListener('blur', releaseKeyboardPttOnBlur);
   });
 
   onCleanup(() => {
     window.removeEventListener('keydown', handlePttKeyDown);
     window.removeEventListener('keyup', handlePttKeyUp);
+    window.removeEventListener('blur', releaseKeyboardPttOnBlur);
   });
 
   // ============================================================================
@@ -1593,17 +1605,17 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // Generate bar heights for visualizer
   const barCount = 12;
-  const callWaveBarCount = 30;
+  const callWaveBarCount = 16;
   const getBarHeight = (index: number) => {
-    // Reading tick() ensures this re-evaluates on every animation frame,
-    // even when audioLevel stays constant (e.g. during TTS speaking state).
     void tick();
-    if (!isCallActive() || callState() === 'idle') return 4;
-    const level = audioLevel();
-    // Create wave-like pattern using index offset
-    const phase = (index / barCount) * Math.PI * 2 + Date.now() / 300;
-    const wave = (Math.sin(phase) + 1) / 2;
-    return Math.max(4, (level * 40 + wave * 12) * (callState() === 'speaking' ? 1.5 : 1));
+    if (!isCallActive() || callState() !== 'listening') return 4;
+    const envelope = 0.45 + 0.55 * Math.sin(Math.PI * (index + 1) / (barCount + 1));
+    return 4 + audioLevel() * 42 * envelope;
+  };
+  const getCallBarHeight = (index: number) => {
+    if (!isCallActive() || callState() !== 'listening') return 4;
+    const envelope = 0.4 + 0.6 * Math.sin(Math.PI * (index + 1) / (callWaveBarCount + 1));
+    return 4 + audioLevel() * 32 * envelope;
   };
 
   // ============================================================================
@@ -1728,12 +1740,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                     </Show>
                   </div>
 
-                  <Show when={agentName() && !isCallActive()}>
+                  <Show when={agentName()}>
                     <div class="voice-call-agent-name">{agentName()}</div>
                   </Show>
 
                   <Show when={!isInitializing() && !ttsModelLoading()}>
-                    <div class={`voice-call-state ${isCallActive() ? 'active' : ''}`}>
+                    <div class={`voice-call-state ${isCallActive() ? 'active' : ''}`} role="status">
                       {isCallActive() ? statusText() : ''}
                     </div>
                   </Show>
@@ -1742,7 +1754,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 <div class="voice-call-bottom">
                   <div class={`voice-call-waveform voice-call-waveform--${callViewState()}`} aria-hidden="true">
                     {Array.from({ length: callWaveBarCount }).map((_, i) => (
-                      <span class={`voice-call-waveform-bar voice-call-waveform-bar--${i % 10}`} />
+                      <span class="voice-call-waveform-bar" style={{ height: `${getCallBarHeight(i)}px` }} />
                     ))}
                   </div>
 

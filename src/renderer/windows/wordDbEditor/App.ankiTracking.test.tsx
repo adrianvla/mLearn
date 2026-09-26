@@ -160,6 +160,11 @@ vi.mock('../../utils/wordForms', () => ({
   getWordFormCandidates: (word: string) => [word],
 }));
 
+vi.mock('../../services/knowledgeEvents', () => ({
+  queryLanguageKeys: vi.fn(async () => []),
+  wordEventsVersion: () => 0,
+}));
+
 vi.mock('../../hooks/useTranslation', () => ({
   cacheVersion: () => 0,
   getCachedTranslation: () => null,
@@ -235,7 +240,7 @@ describe('WordDbEditorContent Anki tracking', () => {
     mockSearchBarProps.current?.setFilterTokens?.([
       { instanceId: 'test-status-known', kind: 'operand', field: 'status', op: 'eq', value: String(WORD_STATUS.KNOWN) },
     ]);
-    await flush();
+    await vi.waitFor(() => expect(Object.keys(integrationCellTexts())).toEqual(['赤い']));
 
     const texts = integrationCellTexts();
     expect(Object.keys(texts)).toEqual(['赤い']);

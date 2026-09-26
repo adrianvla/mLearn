@@ -447,6 +447,91 @@ describe('GrammarCoverage policy-selected practice session', () => {
     container.remove();
   });
 
+  it('keeps a failed review-row probe visible and retries the same attempt', async () => {
+    const onProbe = vi.fn()
+      .mockRejectedValueOnce(new Error('journal unavailable'))
+      .mockResolvedValue('committed');
+    const { container, dispose } = mount(onProbe);
+    await expand(container, 2);
+    const row = container.querySelector('[data-level="2"] .grammar-coverage__construction') as HTMLElement;
+    const buttons = row.querySelectorAll<HTMLButtonElement>('.grammar-coverage__probe-btn');
+    buttons[2].click();
+    await tick();
+
+    expect(row.querySelector('[role="alert"]')).not.toBeNull();
+    expect(Array.from(buttons).every((button) => button.disabled)).toBe(true);
+    const retry = row.querySelector<HTMLButtonElement>('[data-testid="grammar-row-retry"]');
+    expect(retry).not.toBeNull();
+    retry!.click();
+    await tick();
+
+    expect(onProbe).toHaveBeenCalledTimes(2);
+    expect(onProbe.mock.calls[0].slice(0, 4)).toEqual(onProbe.mock.calls[1].slice(0, 4));
+    expect(onProbe.mock.calls[0][4]?.attemptId).toBe(onProbe.mock.calls[1][4]?.attemptId);
+    expect(row.querySelector('[role="alert"]')).toBeNull();
+    expect(Array.from(buttons).every((button) => !button.disabled)).toBe(true);
+    dispose();
+    container.remove();
+  });
+
+  it('shows a pending review-row write and refuses a second rating until it settles', async () => {
+    let resolveWrite!: (value: string) => void;
+    const pending = new Promise<string>((resolve) => { resolveWrite = resolve; });
+    const onProbe = vi.fn(() => pending);
+    const { container, dispose } = mount(onProbe);
+    await expand(container, 2);
+    const row = container.querySelector('[data-level="2"] .grammar-coverage__construction') as HTMLElement;
+    const buttons = row.querySelectorAll<HTMLButtonElement>('.grammar-coverage__probe-btn');
+    buttons[2].click();
+    expect(row.getAttribute('aria-busy')).toBe('true');
+    expect(row.querySelector('[role="status"]')?.textContent).toContain('SavingAnswer');
+    buttons[1].click();
+    expect(onProbe).toHaveBeenCalledTimes(1);
+
+    resolveWrite('committed');
+    await tick();
+    expect(row.getAttribute('aria-busy')).toBe('false');
+    expect(row.querySelector('[role="status"]')).toBeNull();
+    expect(Array.from(buttons).every((button) => !button.disabled)).toBe(true);
+    dispose();
+    container.remove();
+  });
+
+  it('keeps an open review list mounted when journal projections update its level counts', async () => {
+    const [liveSummary, setLiveSummary] = createSignal(summary);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const dispose = render(() => (
+      <GrammarCoverage
+        language="ja"
+        languageData={languageData}
+        eventLog={{} as KnowledgeEventLog}
+        summary={liveSummary()}
+        onProbe={async () => 'fixture-grammar-attempt'}
+        locks={passThroughLocks}
+      />
+    ), container);
+    await expand(container, 2);
+    const details = levelBlock(container, 2).querySelector<HTMLDetailsElement>('.grammar-coverage__review')!;
+    details.open = true;
+
+    setLiveSummary({
+      ...summary,
+      known: 1,
+      unmeasured: 2,
+      buckets: summary.buckets.map((bucket) => bucket.level === 2
+        ? { ...bucket, known: 1, unmeasured: 1 }
+        : { ...bucket }),
+    });
+    await tick();
+
+    expect(levelBlock(container, 2).querySelector('.grammar-coverage__review')).toBe(details);
+    expect(details.open).toBe(true);
+    expect(levelBlock(container, 2).querySelector('.grammar-coverage__level-bar')?.getAttribute('aria-label')).toBe('1/2');
+    dispose();
+    container.remove();
+  });
+
   it('session (cue-free) probes record no scaffold while meaning leaks none', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);

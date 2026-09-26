@@ -94,6 +94,7 @@
 
 .grammar-coverage__construction {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: var(--spacing-2);
@@ -157,6 +158,15 @@
 
 .grammar-coverage__probe-btn {
   min-width: 0;
+}
+
+.grammar-coverage__review-error {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--color-error);
+  font-size: 0.78rem;
 }
 
 /* Policy-selected practice session (TeachingPolicy -> probe control). */

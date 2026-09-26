@@ -4,13 +4,14 @@ import { useKnowledgeProjections } from './useKnowledgeProjections';
 import type { KnowledgeProjection } from '../../shared/graph/ipc';
 
 const query = vi.hoisted(() => vi.fn());
+const linked = vi.hoisted(() => vi.fn());
 const [version, setVersion] = createSignal(0);
 vi.mock('../context/SettingsContext', () => ({ useSettings: () => ({ settings: { easeThresholdLearning: 1.55, easeThresholdKnown: 1.8 } }) }));
-vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: { getKnowledgeProjection: query } }) }));
-vi.mock('../services/knowledgeEvents', () => ({ eventsVersion: () => version() }));
+vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: { getKnowledgeProjection: query, getEvidenceLinkedSurfaces: linked } }) }));
+vi.mock('../services/knowledgeEvents', () => ({ wordEventsVersion: () => version() }));
 const payload: KnowledgeProjection = { status: 'ready', targets: [{ targetRef: { kind: 'surface', id: 'test:surface' }, applicableCapabilities: ['test:future-capability'], states: [] }] };
 
-beforeEach(() => { query.mockReset(); setVersion(0); });
+beforeEach(() => { query.mockReset(); linked.mockReset(); setVersion(0); });
 
 describe('canonical projection collections', () => {
   it('distinguishes an inactive reader from a ready empty result', async () => {
@@ -33,6 +34,26 @@ describe('canonical projection collections', () => {
     expect(query).toHaveBeenCalledWith('test', 'a', { learning: 1.55, known: 1.8 });
     expect(root.state.projections().get('a')).toBe(payload);
     expect(root.state.projections().get('b')).toBe(payload);
+    root.dispose();
+  });
+
+  it('waits for graph-relative evidence selection before projecting candidates', async () => {
+    let finishSelection!: (surfaces: string[]) => void;
+    linked.mockImplementationOnce(() => new Promise(resolve => { finishSelection = resolve; }));
+    query.mockResolvedValue(payload);
+    const root = createRoot(dispose => ({
+      dispose,
+      state: useKnowledgeProjections(() => ({ language: 'test', surfaces: ['form A', 'form B', 'unmeasured'], evidenceKeys: ['test:hash'] })),
+    }));
+    await vi.waitFor(() => expect(linked).toHaveBeenCalledWith('test', ['form A', 'form B', 'unmeasured'], ['test:hash']));
+    expect(root.state.loading()).toBe(true);
+    expect(query).not.toHaveBeenCalled();
+
+    finishSelection(['form B']);
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith('test', 'form B', { learning: 1.55, known: 1.8 });
+    expect([...root.state.projections().keys()]).toEqual(['form B']);
     root.dispose();
   });
 

@@ -33,6 +33,15 @@
   margin-bottom: var(--spacing-4);
 }
 
+.reader-welcome-load-error {
+  padding: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  color: var(--text-primary);
+  background: var(--bg-danger);
+  border: 1px solid var(--border-danger);
+  border-radius: var(--radius-md);
+}
+
 .reader-welcome-dropzone {
   padding: var(--spacing-6);
   border: 2px dashed var(--border-color);

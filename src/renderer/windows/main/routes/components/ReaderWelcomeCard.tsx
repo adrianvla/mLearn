@@ -3,13 +3,14 @@
  * Displayed when no book is loaded
  */
 
-import { Component, Accessor } from 'solid-js';
+import { Component, Accessor, Show } from 'solid-js';
 import { useLocalization } from '../../../../context';
 import { Btn } from '../../../../components/common';
 import './ReaderWelcomeCard.css';
 
 interface ReaderWelcomeCardProps {
   isDragging: Accessor<boolean>;
+  loadError?: 'open-failed' | 'no-images' | null;
   onOpenFolder?: () => void;
   onOpenPdf?: () => void;
 }
@@ -24,6 +25,13 @@ export const ReaderWelcomeCard: Component<ReaderWelcomeCardProps> = (props) => {
           <p class="reader-welcome-intro">
             {t('mlearn.Reader.UI.WelcomeSplash.TitleDescription')}
           </p>
+          <Show when={props.loadError}>
+            <p class="reader-welcome-load-error" role="alert">
+              {props.loadError === 'no-images'
+                ? t('mlearn.Reader.Status.NoImagesFound')
+                : t('mlearn.Reader.UI.WelcomeSplash.OpenFailed')}
+            </p>
+          </Show>
           <div class={`reader-welcome-dropzone ${props.isDragging() ? 'dragging' : ''}`}>
             {t('mlearn.Reader.UI.WelcomeSplash.DropZone')}
           </div>

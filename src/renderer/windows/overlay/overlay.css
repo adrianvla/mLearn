@@ -1,5 +1,5 @@
-html,
-body {
+.overlay-window-root,
+.overlay-window-root body {
   background-color: transparent !important;
 }
 

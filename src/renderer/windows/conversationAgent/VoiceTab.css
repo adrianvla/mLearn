@@ -52,11 +52,9 @@
   grid-template-rows: 1fr auto;
   min-height: 0;
   flex: 1;
-  padding: var(--spacing-6);
+  padding: var(--spacing-4);
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 26%, var(--bg), transparent 46%),
-    linear-gradient(180deg, var(--bg-opaque), var(--bg));
+  background: var(--bg);
 }
 
 .voice-call-advanced-button,
@@ -79,7 +77,7 @@
   position: absolute;
   top: var(--spacing-4);
   right: var(--spacing-4);
-  opacity: 0.45;
+  opacity: 1;
   z-index: 2;
 }
 
@@ -100,15 +98,15 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-4);
-  padding: var(--spacing-6) var(--spacing-2);
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-2);
 }
 
 .voice-call-avatar-shell {
   position: relative;
   display: grid;
   place-items: center;
-  width: clamp(136px, 24vw, 220px);
+  width: clamp(72px, 12vw, 112px);
   aspect-ratio: 1;
   border-radius: var(--radius-full);
   background: var(--bg-tertiary);
@@ -181,7 +179,7 @@
 
 .voice-call-agent-name {
   color: var(--text);
-  font-size: clamp(var(--font-size-xl), 3vw, 2.75rem);
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0;
   text-align: center;
@@ -204,7 +202,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-5);
+  gap: var(--spacing-3);
   padding-bottom: var(--spacing-2);
 }
 
@@ -212,42 +210,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  width: min(580px, 88vw);
-  height: 74px;
-  padding: 0 var(--spacing-5);
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  box-shadow: var(--shadow-special);
-  border:1px solid var(--border-color);
+  gap: 4px;
+  width: min(220px, 60vw);
+  height: 34px;
+  padding: 0 var(--spacing-2);
 }
 
 .voice-call-waveform-bar {
-  width: 5px;
-  height: 18px;
+  width: 4px;
+  height: 4px;
   border-radius: var(--radius-full);
   background: var(--text-tertiary);
-  opacity: 0.42;
-  transform-origin: center;
+  opacity: 0.7;
   transition:
     background var(--transition-fast),
     opacity var(--transition-fast),
     transform var(--transition-fast);
 }
 
-.voice-call-waveform--listening .voice-call-waveform-bar,
-.voice-call-waveform--processing .voice-call-waveform-bar,
-.voice-call-waveform--speaking .voice-call-waveform-bar,
-.voice-call-waveform--loading .voice-call-waveform-bar {
-  opacity: 1;
-  animation-name: voice-call-wave;
-  animation-duration: 980ms;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-}
-
-.voice-call-waveform--listening .voice-call-waveform-bar,
-.voice-call-waveform--processing .voice-call-waveform-bar {
+.voice-call-waveform--listening .voice-call-waveform-bar {
   background: var(--color-primary);
 }
 
@@ -255,20 +236,6 @@
   background: var(--color-success);
 }
 
-.voice-call-waveform--loading .voice-call-waveform-bar {
-  background: var(--text-secondary);
-}
-
-.voice-call-waveform-bar--0 { animation-delay: 0ms; }
-.voice-call-waveform-bar--1 { animation-delay: 70ms; }
-.voice-call-waveform-bar--2 { animation-delay: 140ms; }
-.voice-call-waveform-bar--3 { animation-delay: 210ms; }
-.voice-call-waveform-bar--4 { animation-delay: 280ms; }
-.voice-call-waveform-bar--5 { animation-delay: 350ms; }
-.voice-call-waveform-bar--6 { animation-delay: 420ms; }
-.voice-call-waveform-bar--7 { animation-delay: 490ms; }
-.voice-call-waveform-bar--8 { animation-delay: 560ms; }
-.voice-call-waveform-bar--9 { animation-delay: 630ms; }
 
 .voice-call-control-strip {
   display: flex;
@@ -321,16 +288,6 @@
 .voice-call-view-button {
   align-self: flex-end;
   margin: calc(-1 * var(--spacing-4)) 0 0;
-}
-
-@keyframes voice-call-wave {
-  0%,
-  100% {
-    transform: scaleY(0.42);
-  }
-  50% {
-    transform: scaleY(2.3);
-  }
 }
 
 @keyframes voice-call-blob-breathe {

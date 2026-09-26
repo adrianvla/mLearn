@@ -808,6 +808,46 @@ Speaker: Hello world
     });
   });
 
+  it('defers cue observation after the display fallback until tokenization settles', async () => {
+    const { useLanguage } = await import('../context');
+    vi.mocked(useLanguage).mockReturnValueOnce({
+      currentLangData: () => ({
+        name: 'English',
+        colour_codes: {},
+        settings: { fixed: {} },
+        textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+        runtime: { nlp: { tokenizer: { type: 'unicode-word' } } },
+      }),
+    } as never);
+    vi.useFakeTimers();
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      let resolveTokenize!: (tokens: unknown[]) => void;
+      mockTokenize.mockReturnValue(new Promise((resolve) => { resolveTokenize = resolve; }));
+
+      await createRoot(async (dispose) => {
+        const hook = useSubtitles();
+        hook.loadSubtitles(SRT_CONTENT, 'srt');
+        const pendingCue = hook.updateTime(2.0);
+        expect(hook.observationReady()).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(hook.isTokenizing()).toBe(false);
+        expect(hook.tokens().length).toBeGreaterThan(0);
+        expect(hook.observationReady()).toBe(false);
+
+        resolveTokenize([{ word: 'Hello world', actual_word: 'Hello world', type: 'noun', surface: 'Hello world' }]);
+        await pendingCue;
+        expect(hook.observationReady()).toBe(true);
+        expect(hook.tokens().map((token) => token.word)).toEqual(['Hello world']);
+        dispose();
+      });
+    } finally {
+      warning.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('updateTime clears tokens when moving to gap between subtitles', async () => {
     const fakeTokens = [
       { word: 'Hello', actual_word: 'Hello', type: 'noun', surface: 'Hello' },
@@ -823,6 +863,26 @@ Speaker: Hello world
       await hook.updateTime(4.0);
       expect(hook.tokens()).toEqual([]);
       expect(hook.currentIndex()).toBe(-1);
+      dispose();
+    });
+  });
+
+  it('keeps a subtitle gap empty when the previous cue tokenizes late', async () => {
+    let resolveTokenize!: (tokens: unknown[]) => void;
+    mockTokenize.mockReturnValue(new Promise((resolve) => { resolveTokenize = resolve; }));
+
+    await createRoot(async (dispose) => {
+      const hook = useSubtitles();
+      hook.loadSubtitles(SRT_CONTENT, 'srt');
+      const pendingCue = hook.updateTime(2.0);
+
+      await hook.updateTime(4.0);
+      resolveTokenize([{ word: 'Hello', actual_word: 'Hello', type: 'noun', surface: 'Hello' }]);
+      await pendingCue;
+
+      expect(hook.currentSubtitle()).toBeNull();
+      expect(hook.tokens()).toEqual([]);
+      expect(hook.isTokenizing()).toBe(false);
       dispose();
     });
   });

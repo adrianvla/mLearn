@@ -825,7 +825,9 @@
         "TemporaryPractice": "Temporäres Üben",
         "Title": "Unterhaltungen",
         "NewConversation": "Neue Unterhaltung",
-        "UntitledThread": "Unbenannter Thread"
+        "UntitledThread": "Unbenannter Thread",
+        "Started": "Begonnen: {date}",
+        "NoMatches": "Keine passenden Unterhaltungen"
       },
       "LivingWorld": {
         "ConsentTitle": "Living World aktivieren?",
@@ -834,6 +836,7 @@
         "NotNow": "Nicht jetzt"
       },
       "NewConversation": {
+        "MediaContext": "Dieses Gespräch bezieht sich auf: {media}",
         "ChangeScenario": "Aufbau ändern",
         "UseScenario": "Diese Situation verwenden",
         "GeneratedNotice": "Dies ist eine generierte fiktive Übungssituation, kein recherchierter Kanon. Prüfe sie vor dem Start.",
@@ -1152,6 +1155,7 @@
         "ToastTitle": "Lernkarten-Audio wird repariert…"
       },
       "Review": {
+        "CardActions": "Kartenaktionen",
         "Again": "Nochmal",
         "Bury": "Vergraben",
         "Complete": "Wiederholung abgeschlossen!",
@@ -1179,7 +1183,8 @@
         "StealthMode": "Tarnmodus",
         "MuteAudio": "Audio stummschalten",
         "Modes": {
-          "Label": "Fokus",
+          "Label": "Antwortansicht",
+          "Help": "Die Antwortansicht ändert die eingeblendeten Hinweise. Bewertungen gelten für alle geprüften Fähigkeiten; mit Anpassen kannst du sie einzeln bewerten.",
           "Meaning": "Bedeutung",
           "Reading": "Lesung",
           "Prosody": "Prosodie"
@@ -1777,6 +1782,7 @@
         "Next": "Weiter",
         "NoLocks": "Übungen können in diesem Browser nicht sicher gespeichert werden. Öffne mLearn in einem unterstützten Browser oder der Desktop-App.",
         "StorageUnavailable": "Deine Antwort konnte nicht gespeichert werden. Prüfe den verfügbaren Speicherplatz und versuche es erneut.",
+        "SavingAnswer": "Antwort wird gespeichert…",
         "ModeLabel": "Antwortformat",
         "ModeMcq": "Auswählen",
         "ModeType": "Eingeben",
@@ -1797,6 +1803,8 @@
         "Title": "Mehrere Karteikarten hinzufügen",
         "Hint": "Wähle mit dem Filter, welche Wörter hinzugefügt werden. Passende Wörter werden Karteikarten mit dem gewählten Status.",
         "MatchingCount": "{count} Wörter passen",
+        "Counting": "Passende Wörter werden gezählt…",
+        "DictionaryError": "Wörterbuchwörter konnten nicht geladen werden. Schließen und erneut versuchen.",
         "Cancel": "Abbrechen",
         "Adding": "Hinzufügen...",
         "AddingProgress": "Hinzufügen {current}/{total}...",
@@ -2063,6 +2071,7 @@
         "Recognizing": "Erkennung..."
       },
       "StatusBar": {
+        "MoreTools": "Weitere Werkzeuge",
         "DebugOverlayOff": "Debug: Aus",
         "DebugOverlayOn": "Debug: Ein",
         "DebugOverlayTitle": "Debug-Overlay für OCR-Text und Lesungserkennung umschalten",
@@ -2097,6 +2106,7 @@
         "ZoneDeltaTitle": "Maximaler Pixelabstand zwischen Boxkanten für Zonen-Clustering"
       },
       "Toolbar": {
+        "ViewOptions": "Ansichtsoptionen",
         "BackToHome": "Zur Startseite",
         "DoublePage": "Doppelseite",
         "FirstPagePairedTooltip": "Erste Seite gepaart",
@@ -2137,6 +2147,7 @@
           "Footer": "Legen Sie etwas ab, um zu beginnen — dieser Willkommensbildschirm wird Ihrer Geschichte Platz machen.",
           "OpenFolder": "Bilderordner öffnen",
           "OpenPdf": "PDF/EPUB öffnen",
+          "OpenFailed": "Dieses Buch konnte nicht geöffnet werden. Die Datei oder der Ordner wurde möglicherweise verschoben oder ist nicht verfügbar. Wähle es unten erneut aus.",
           "Title": "Buch öffnen",
           "TitleDescription": "Importieren Sie eine PDF-, EPUB-Datei oder einen Bilderordner."
         }
@@ -3001,9 +3012,9 @@
           "None": "Keine",
           "Exam": "Prüfung",
           "Target": {
-            "Label": "Ziel",
-            "Description": "Worauf du hinarbeitest (zur eigenen Orientierung)",
-            "Placeholder": "z. B. JLPT N1, Goethe B1"
+            "Label": "Persönliche Notiz (optional)",
+            "Description": "Bezeichnet dein Ziel zur Orientierung; nur das Prüfungsdatum beeinflusst die Priorität beim Üben.",
+            "Placeholder": "z. B. Kurs- oder Prüfungsname"
           },
           "Deadline": {
             "Label": "Prüfungsdatum",
@@ -3370,6 +3381,8 @@
         "Unignore": "Nicht mehr ignorieren"
       },
       "AllLevels": "Alle Stufen",
+      "StudyOrder": "Lernreihenfolge",
+      "StudyOrderHint": "Zeigt zuerst die gewählte Lernstufe und dann benachbarte Stufen; Wörter ohne Stufe bleiben durchsuchbar.",
       "Anki": {
         "AlreadyInAnki": "Bereits in Anki",
         "EmptyField": "(leer)",
@@ -3445,6 +3458,7 @@
       "DictionaryUnavailable": "Das Wörterbuch ist nicht verfügbar. Die Liste enthält derzeit nur Wörter aus dem Lehrplan und gespeicherte Wörter."
     },
     "WordHover": {
+      "InText": "Im Text: {form}",
       "AddToAnki": "Zu Anki hinzufügen",
       "AddToBuiltInSrs": "Klicken, um zum eingebauten SRS hinzuzufügen",
       "Alerts": {
@@ -3520,6 +3534,9 @@
     },
     "WordSync": {
       "ProjectionUnavailable": "Wissensdaten konnten nicht geladen werden. Versuche es erneut.",
+      "SavingRating": "Bewertung wird gespeichert…",
+      "AnswerUnavailable": "Für dieses Wort ist keine Antwort verfügbar. Wiederhole die Wörterbuchsuche oder wähle einen anderen Filter. Es wurde keine Bewertung gespeichert.",
+      "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Das Wort bleibt hier; versuche es erneut.",
       "Statement": {
         "Label": "Stattdessen beschreiben",
         "KnownSpoken": "Ich kenne dieses Wort, wenn ich es höre.",
@@ -3586,6 +3603,8 @@
       "ForceRecreateFlashcards": "Karteikarten für heute neu erstellen",
       "Go": "Gehe zu",
       "Help": "Hilfe",
+      "RunDiagnostics": "Diagnose ausführen",
+      "ReportBug": "Fehler melden",
       "HideReading": "Leseannotationen ausblenden",
       "OpenDevTools": "DevTools öffnen",
       "OpenLiveWordTranslator": "Live-Wort-Übersetzer öffnen",
@@ -3732,15 +3751,15 @@
       "RunAllTests": "Run All Tests",
       "RunAgain": "Run Again",
       "Running": "Running…",
-      "ExportJson": "Export JSON",
+      "ExportJson": "Bereinigtes JSON exportieren",
       "ErrorTitle": "Diagnostics failed",
       "ReportSavedTo": "Report saved to:",
       "FilterAll": "All",
       "FilterPass": "Pass",
       "FilterFail": "Fail",
       "FilterSkip": "Skip",
-      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
-      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
+      "EmptyTitle": "Installierte Dienste und Funktionen prüfen.",
+      "EmptyDescription": "Die Tests verwenden das lokale Backend und konfigurierte Anbieter. Ein fehlgeschlagener Test bedeutet nicht, dass die gesamte App nicht verfügbar ist."
     },
     "Eula": {
       "Title": "Endbenutzer-Lizenzvereinbarung",

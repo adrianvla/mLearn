@@ -23,7 +23,12 @@ let wordFrequencyMock: Record<string, { raw_level?: number }> = {
 const [queryState, setQueryState] = createSignal<'ready' | 'pending' | 'failed'>('ready');
 const retryMock = vi.fn();
 const inspectMock = vi.fn();
+const queryLanguageKeysMock = vi.fn();
 vi.mock('../../services/openKnowledgeInspector', () => ({ openKnowledgeInspector: inspectMock }));
+vi.mock('../../services/knowledgeEvents', () => ({
+  queryLanguageKeys: queryLanguageKeysMock,
+  wordEventsVersion: () => 0,
+}));
 let languageMock = 'ja';
 
 vi.mock('../../context', () => ({
@@ -107,6 +112,8 @@ describe('CharacterGridContent', () => {
       flashcards: {},
       ignoredWords: {},
     };
+    queryLanguageKeysMock.mockReset();
+    queryLanguageKeysMock.mockResolvedValue([]);
 
     localizationMock.mockImplementation((key: string, params?: Record<string, number | string>) => {
       switch (key) {
@@ -186,6 +193,7 @@ describe('CharacterGridContent', () => {
   });
 
   it('withholds character counts and empty claims until knowledge is ready and offers retry on failure', async () => {
+    currentLangDataMock = { characterStudy: { scripts: ['Han'] } };
     setQueryState('pending');
     const { CharacterGridContent } = await import('./App');
     const dispose = render(() => <CharacterGridContent />, container);
@@ -198,6 +206,31 @@ describe('CharacterGridContent', () => {
     expect(container.querySelector('.cg-stats')).toBeNull();
     (container.querySelector('[role="alert"] button') as HTMLButtonElement).click();
     expect(retryMock).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('keeps the same-language grid visible during a projection refresh', async () => {
+    currentLangDataMock = { characterStudy: { scripts: ['Han'] } };
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.cg-cell')).not.toBeNull());
+    setQueryState('pending');
+    await vi.waitFor(() => expect(container.querySelector('.cg-grid')?.getAttribute('aria-busy')).toBe('true'));
+    expect(container.querySelector('.cg-cell')).not.toBeNull();
+    expect(container.querySelector('[data-testid="skeleton-grid"]')).toBeNull();
+    dispose();
+  });
+
+  it('keeps inferred familiarity from a word without a direct journal key', async () => {
+    currentLangDataMock = { characterStudy: { scripts: ['Han'] } };
+    wordFrequencyMock = {
+      '猫': { raw_level: 5 },
+    };
+    getComprehensiveWordStatusSyncMock.mockImplementation((word: string) => word === '猫' ? 'known' : 'unknown');
+
+    const { CharacterGridContent } = await import('./App');
+    const dispose = render(() => <CharacterGridContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.cg-cell-colored')?.getAttribute('data-state')).toBe('familiar'));
     dispose();
   });
 

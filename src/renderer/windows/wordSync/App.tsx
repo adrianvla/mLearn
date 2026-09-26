@@ -50,6 +50,7 @@ import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../s
 import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
 import { KnowledgeSkeleton } from '../../components/common';
 import { fetchTranslation } from '../../hooks/useTranslation';
+import { extractDefinitionValues } from '../../utils/translationCacheParsers';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
@@ -66,9 +67,7 @@ import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter } from '../../learning/engine';
-import { getWordFormCandidates } from '../../../shared/utils/wordForms';
-import { wordStorageKey } from '../../utils/wordLevelStats';
-import { eventsVersion, queryLanguageKeys } from '../../services/knowledgeEvents';
+import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import './WordSync.css';
 
@@ -79,6 +78,17 @@ interface PoolEntry {
   levelName: string;
   storageKey: string;
   weight: number;
+}
+
+interface RatingWrite {
+  word: PoolEntry;
+  language: string;
+  presentation: number;
+  attemptId: AttemptId;
+  observations: readonly ProfileObservation[];
+  timing: AttemptTiming | null;
+  scaffolds: AttemptScaffolds;
+  phase: 'pending' | 'failed';
 }
 
 interface WordSyncUndoEntry {
@@ -108,7 +118,7 @@ export const WordSyncContent: Component = () => {
     setAccessClaim,
     setWordClaim,
     clearAccessClaim,
-    recordAttempt,
+    recordAttemptsAcknowledged,
     isKnowledgeReady,
   } = useFlashcards();
 
@@ -131,6 +141,7 @@ export const WordSyncContent: Component = () => {
   };
   const [samplingLevel, setSamplingLevel] = createSignal<number>(0);
   const [ratedCount, setRatedCount] = createSignal(0);
+  const [ratingWrite, setRatingWrite] = createSignal<RatingWrite | null>(null);
   const [lastRating, setLastRating] = createSignal<AttemptQuality | null>(null);
   const [finished, setFinished] = createSignal(false);
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>([]);
@@ -180,9 +191,7 @@ export const WordSyncContent: Component = () => {
 
   const translationText = createMemo(() => {
     const t = translation.state === 'ready' ? translation() : undefined;
-    if (!t?.data?.[0]) return '';
-    const defs = t.data[0].definitions;
-    return Array.isArray(defs) ? defs.join('; ') : defs;
+    return extractDefinitionValues(t?.data?.slice(0, 2), langCtx.currentLangData()).join('; ').trim();
   });
 
   // ─── Pool of eligible words grouped by level ────────
@@ -254,37 +263,31 @@ export const WordSyncContent: Component = () => {
     // readiness only — a ready pool must never stay blocked on nullable
     // metadata.
     () => (isKnowledgeReady() && !sessionQueue()
-      ? { language: settings.language, version: eventsVersion() }
+      ? { language: settings.language, version: wordEventsVersion() }
       : undefined),
     async (source: { language: string; version: number }) => new Set(await queryLanguageKeys(source.language)),
   );
   const journalKeysHealthy = createMemo(() => journalKeysResource.state === 'ready');
   const measuredStorageKeys = createMemo(() => new Set(Object.keys(store.wordKnowledge ?? {})));
+  const evidenceKeys = createMemo(() => {
+    const keys = new Set(journalKeysResource.state === 'ready' ? journalKeysResource() ?? [] : []);
+    for (const key of measuredStorageKeys()) keys.add(key);
+    return keys;
+  });
   const projectionSurfaces = createMemo(() => {
     if (!poolPrepared() || !filterPresetInitialized() || sessionQueue()) return [];
     const filter = filterAst();
     if (!filter.ok) return [];
-    // An errored resource throws on access: only a ready snapshot is read.
-    const keys = new Set(journalKeysResource.state === 'ready' ? journalKeysResource() ?? [] : []);
-    for (const key of measuredStorageKeys()) keys.add(key);
-    if (keys.size === 0) return [];
-    const lang = settings.language;
-    const languageData = langCtx.currentLangData();
-    const canonicalize = (word: string) => langCtx.getCanonicalFormForLanguage(lang, word);
-    const variants = (word: string) => langCtx.getWordVariantsForLanguage(lang, word);
-    // Match the writer-side identity exactly (LevelStudyTab convention):
-    // journal keys are derived from getWordFormCandidates(...), so test
-    // every candidate form's storage key, not just the canonical one.
+    // Filter by package-declared level before asking the graph which pool
+    // surfaces share evidence with a realized entry.
     return [...wordPool().values()].flat().filter(entry => {
       const coarse = !filter.ast || ['untracked', '0', '1', '2'].some(status =>
         evaluateAst<unknown>(filter.ast!, { status, level: entry.level }, filterResolvers()));
-      if (!coarse) return false;
-      const candidates = getWordFormCandidates(entry.word, canonicalize, variants, { language: lang, languageData });
-      return candidates.some((candidate) => keys.has(wordStorageKey(lang, candidate)));
+      return coarse;
     }).map(entry => entry.word);
   });
   const poolProjection = useKnowledgeProjections(() => isKnowledgeReady() && filterPresetInitialized() && poolPrepared() && !sessionQueue() && journalKeysHealthy()
-    ? { language: settings.language, surfaces: projectionSurfaces() } : undefined);
+    ? { language: settings.language, surfaces: projectionSurfaces(), evidenceKeys: [...evidenceKeys()] } : undefined);
   const projectionUnavailable = () => translation.state === 'errored' || journalKeysResource.state === 'errored' || eligibleWords.state === 'errored' || poolProjection.failed() || currentProjection.projection()?.status === 'error' || currentProjection.projection()?.status === 'not-installed';
   const retryKnowledgeProjections = () => {
     if (translation.state === 'errored') void Promise.resolve(refetchTranslation()).catch(() => {});
@@ -475,7 +478,70 @@ export const WordSyncContent: Component = () => {
 
   // One logical attempt and one reactive update: row writes must not repeatedly
   // rebuild knowledge consumers before the next word can render.
-  const handleSubmitProfile = (observations: readonly ProfileObservation[], opts?: RateOptions) => batch(() => {
+  const commitProfileRating = async (write: RatingWrite): Promise<void> => {
+    setRatingWrite({ ...write, phase: 'pending' });
+    try {
+      await recordAttemptsAcknowledged(write.word.word, write.observations, {
+        language: write.language,
+        attemptId: write.attemptId,
+        origin: 'word-sync',
+        ...(write.timing ? { timing: write.timing } : {}),
+        scaffolds: write.scaffolds,
+      });
+    } catch {
+      if (ratingWrite()?.attemptId === write.attemptId) setRatingWrite({ ...write, phase: 'failed' });
+      return;
+    }
+    if (ratingWrite()?.attemptId !== write.attemptId) return;
+    setRatingWrite(null);
+    // A language/filter/store change may have retired this presentation while
+    // the append was in flight. Its evidence is durable, but it must not move
+    // the newly selected session or assign its count to a different word.
+    if (settings.language !== write.language || presentationCount() !== write.presentation
+      || currentWord()?.word !== write.word.word) return;
+    batch(() => {
+      setUndoStack((prev) => {
+        const next = [
+          ...prev,
+          {
+            word: write.word,
+            language: write.language,
+            attemptIds: [write.attemptId],
+            previousRatedCount: ratedCount(),
+            previousExcludedAtPresentation: excludedAtPresentation(),
+            previousLastRating: lastRating(),
+            previousSamplingLevel: samplingLevel(),
+            previousLevelCursors: new Map(levelCursors),
+          },
+        ];
+        if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
+        return next;
+      });
+      trace('rating write', { word: write.word.word });
+      setRatedCount((c) => c + 1);
+
+      // Sample outward from the worst measured aspect, not the Easy scheduler
+      // preference. No direction or count changes before the journal accepts.
+      let worstQuality: AttemptQuality = 'fluent';
+      for (const observation of write.observations) {
+        if (ATTEMPT_QUALITIES.indexOf(observation.quality) < ATTEMPT_QUALITIES.indexOf(worstQuality)) {
+          worstQuality = observation.quality;
+        }
+      }
+      setLastRating(worstQuality);
+      const levels = sortedLevels();
+      const idx = levels.indexOf(samplingLevel());
+      if (worstQuality === 'missed') {
+        if (idx > 0) setSamplingLevel(levels[idx - 1]);
+      } else if (worstQuality === 'fluent') {
+        if (idx < levels.length - 1) setSamplingLevel(levels[idx + 1]);
+      }
+      setCurrentWord(null);
+      pickNext();
+    });
+  };
+
+  const handleSubmitProfile = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     const w = currentWord();
     // Same admission rule as the encounter: a ready projection rates
     // normally; a genuinely ABSENT one is the unmeasured shape (rated
@@ -483,69 +549,22 @@ export const WordSyncContent: Component = () => {
     // projection refuses (the encounter re-presents once it settles).
     const projection = currentProjection.projection();
     const unmeasured = projection === undefined && !currentProjection.loading();
-    if (!w || (projection?.status !== 'ready' && !unmeasured) || observations.length === 0
+    if (!w || !showAnswer() || !translationText() || translation.state !== 'ready' || ratingWrite() !== null || (projection?.status !== 'ready' && !unmeasured) || observations.length === 0
       || observations.some((observation) => !testedAccesses().some((capability) => capability === observation.capability))) return;
     // opts.easy is scheduler-only and Word Sync has no scheduler — the
     // recorded evidence (fluent) is identical either way, so it is ignored.
     void opts;
-    const attemptId = nextAttemptId();
-    const timing = stopWordTiming();
-    for (const observation of observations) {
-      recordAttempt(w.word, observation.capability, observation.quality, {
-        language: settings.language,
-        method: observation.method,
-        attemptId,
-        origin: 'word-sync',
-        ...(timing ? { timing } : {}),
-        scaffolds: promptScaffolds(),
-      });
-    }
-
-    setUndoStack((prev) => {
-      const next = [
-        ...prev,
-        {
-          word: w,
-          language: settings.language,
-          attemptIds: [attemptId],
-          previousRatedCount: ratedCount(),
-          previousExcludedAtPresentation: excludedAtPresentation(),
-          previousLastRating: lastRating(),
-          previousSamplingLevel: samplingLevel(),
-          previousLevelCursors: new Map(levelCursors),
-        },
-      ];
-      if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-      return next;
+    void commitProfileRating({
+      word: w,
+      language: settings.language,
+      presentation: presentationCount(),
+      attemptId: nextAttemptId(),
+      observations: observations.map((observation) => ({ ...observation })),
+      timing: stopWordTiming(),
+      scaffolds: promptScaffolds(),
+      phase: 'pending',
     });
-
-
-    trace('rating write', { word: w.word });
-    setRatedCount((c) => c + 1);
-
-    // The attempt's sampling direction follows its WORST aspect (the per-aspect
-    // path used the single rated quality): missed < struggled < fluent on the
-    // evidence ladder; easy is a scheduler preference on fluent, not a level.
-    let worstQuality: AttemptQuality = 'fluent';
-    for (const observation of observations) {
-      if (ATTEMPT_QUALITIES.indexOf(observation.quality) < ATTEMPT_QUALITIES.indexOf(worstQuality)) {
-        worstQuality = observation.quality;
-      }
-    }
-    setLastRating(worstQuality);
-
-    const levels = sortedLevels();
-    const idx = levels.indexOf(samplingLevel());
-    if (worstQuality === 'missed') {
-      if (idx > 0) setSamplingLevel(levels[idx - 1]);
-    } else if (worstQuality === 'fluent') {
-      if (idx < levels.length - 1) setSamplingLevel(levels[idx + 1]);
-    }
-    // worst: struggled — the sampling level stays put.
-
-    setCurrentWord(null);
-    pickNext();
-  });
+  };
 
   // ─── "Tell mLearn…" — natural-language claim escape hatch ──────────
   // Statements become typed CLAIM ops; nothing here fabricates evidence,
@@ -642,6 +661,7 @@ export const WordSyncContent: Component = () => {
 
   function recheckAll() {
     stopWordTiming();
+    setRatingWrite(null);
     setSessionQueue(undefined);
     setCurrentWord(null);
     setExcludedAtPresentation(0);
@@ -659,6 +679,7 @@ export const WordSyncContent: Component = () => {
   }
 
   function undoLastWordSyncRating() {
+    if (ratingWrite() !== null) return;
     const stack = undoStack();
     const undoEntry = stack[stack.length - 1];
     if (!undoEntry) return;
@@ -724,6 +745,7 @@ export const WordSyncContent: Component = () => {
   // revalidate the current prompt; a different scope starts a new session.
   createEffect(on(() => [settings.language, langCtx.getWordFrequency(), langCtx.currentLangData(), getLearningLanguageLevelForLanguage(settings, settings.language)] as const, () => batch(() => {
     stopWordTiming();
+    setRatingWrite(null);
     setSessionQueue(undefined);
     setPoolPrepared(false);
     setInitialized(false);
@@ -750,6 +772,7 @@ export const WordSyncContent: Component = () => {
         // of it (rated set without count, undo without snapshots) would mix
         // inconsistent state.
         trace('projection not ready');
+        setRatingWrite(null);
         setSessionQueue(undefined);
         setPoolPrepared(false);
         setInitialized(false);
@@ -961,6 +984,7 @@ export const WordSyncContent: Component = () => {
         <Btn
           variant="default"
           size="sm"
+          disabled={ratingWrite() !== null}
           ref={(element) => { filterTriggerRef = element; }}
           onClick={(e) => {
             filterTriggerRef = e.currentTarget;
@@ -985,6 +1009,7 @@ export const WordSyncContent: Component = () => {
             paletteItems={filterContext().paletteItems}
             tokens={filterTokens()}
             onChange={(tokens) => batch(() => {
+              setRatingWrite(null);
               setSessionQueue(undefined);
               setCurrentWord(null);
               setRatedCount(0);
@@ -1005,10 +1030,8 @@ export const WordSyncContent: Component = () => {
         </Show>
       </div>
 
-    {/* Real loading only (language data or learner projection still hydrating):
-        the shared skeleton owns that gap; once data is present the session
-        renders exactly as before, with the body handling its own empty state. */}
-    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && !projectionUnavailable() && (!currentWord() || testedAccesses().length > 0)} fallback={
+    {/* Keep the session shell mounted while the next prompt materializes. */}
+    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && !projectionUnavailable()} fallback={
       <Show when={projectionUnavailable()} fallback={
         <Show when={!filterValidation().ok} fallback={<KnowledgeSkeleton variant="word-sync" />}>
           <p role="alert">{t('mlearn.WordSync.InvalidFilter')}</p>
@@ -1043,6 +1066,9 @@ export const WordSyncContent: Component = () => {
           </Show>
         </div>
       }>
+        <Show when={testedAccesses().length > 0} fallback={
+          <div class="word-sync-card word-sync-card--pending" role="status" aria-live="polite">{t('mlearn.Global.Loading')}</div>
+        }>
         <Show when={currentWord()}>
           {(w) => (
             <div class="word-sync-card">
@@ -1065,6 +1091,12 @@ export const WordSyncContent: Component = () => {
               </div>
               <Show when={showAnswer() && showTranslation() && translationText()}>
                 <div class="word-sync-translation">{translationText()}</div>
+              </Show>
+              <Show when={showAnswer() && translation.state === 'ready' && !translationText()}>
+                <div role="alert">
+                  <p>{t('mlearn.WordSync.AnswerUnavailable')}</p>
+                  <Btn onClick={() => refetchTranslation()}>{t('mlearn.Global.TryAgain')}</Btn>
+                </div>
               </Show>
               <div class="word-sync-answer-options">
                 <Btn
@@ -1095,6 +1127,18 @@ export const WordSyncContent: Component = () => {
           )}
         </Show>
         <div class="word-sync-actions">
+          <Show when={ratingWrite()?.phase === 'pending'}>
+            <div class="word-sync-rating-write" role="status" aria-live="polite">{t('mlearn.WordSync.SavingRating')}</div>
+          </Show>
+          <Show when={ratingWrite()?.phase === 'failed'}>
+            <div class="word-sync-rating-write word-sync-rating-write--failed" role="alert">
+              <span>{t('mlearn.WordSync.SaveFailed')}</span>
+              <Btn variant="primary" size="sm" onClick={() => {
+                const failed = ratingWrite();
+                if (failed?.phase === 'failed') void commitProfileRating(failed);
+              }}>{t('mlearn.Global.TryAgain')}</Btn>
+            </div>
+          </Show>
           <WordSyncRating
             accesses={testedAccesses()}
             capabilityLabels={Object.fromEntries(testedAccesses().map((capability) => {
@@ -1108,7 +1152,7 @@ export const WordSyncContent: Component = () => {
             ]))}
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
-            armed={showAnswer() && !!currentWord() && !finished()
+            armed={showAnswer() && translation.state === 'ready' && !!translationText() && !!currentWord() && !finished() && ratingWrite() === null
               && (currentProjection.projection()?.status === 'ready'
                 || (currentProjection.projection() === undefined && !currentProjection.loading()))}
             onSubmit={handleSubmitProfile}
@@ -1135,6 +1179,8 @@ export const WordSyncContent: Component = () => {
             />
           </Show>
         </div>
+
+        </Show>
 
 
       </Show>

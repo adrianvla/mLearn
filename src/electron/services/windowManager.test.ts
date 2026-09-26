@@ -221,6 +221,8 @@ vi.mock('./localization', () => ({
       mlearn: {
         Menu: {
           About: 'About mLearn',
+          RunDiagnostics: 'Run Diagnostics',
+          ReportBug: 'Report a Bug',
           BrowserExtension: {
             Title: 'Browser Extension',
             InstallExtension: 'Install Extension...',
@@ -512,6 +514,7 @@ describe('windowManager', () => {
       expect(opts.titleBarOverlay).toBe(true);
       expect(opts.trafficLightPosition).toEqual({ x: 10, y: 10 });
       expect(opts.vibrancy).toBe('under-window');
+      expect(opts.transparent).toBe(true);
       expect(opts.visualEffectState).toBe('followWindow');
       expect(opts.titleBarStyle).toBe('hidden');
       expect('backgroundColor' in opts).toBe(false);
@@ -533,6 +536,7 @@ describe('windowManager', () => {
       expect(opts.titleBarOverlay).toBe(true);
       expect(opts.trafficLightPosition).toEqual({ x: 10, y: 10 });
       expect(opts.vibrancy).toBe('under-window');
+      expect(opts.transparent).toBe(true);
       expect(opts.visualEffectState).toBe('followWindow');
       expect(opts.titleBarStyle).toBe('hidden');
       expect('backgroundColor' in opts).toBe(false);
@@ -1310,6 +1314,24 @@ describe('windowManager', () => {
   });
 
   describe('setupAppMenu via createMainWindow', () => {
+    it('makes diagnostics and the public bug tracker reachable from Help', async () => {
+      const { createMainWindow } = await import('./windowManager');
+      createMainWindow();
+      const { Menu, shell } = await import('electron');
+      const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0] as Array<{
+        label?: string;
+        submenu?: Array<{ label?: string; click?: () => void }>;
+      }>;
+      const help = template.find(item => item.label === 'Help');
+      expect(help?.submenu?.map(item => item.label).filter(Boolean)).toEqual([
+        'About mLearn', 'Run Diagnostics', 'Report a Bug',
+      ]);
+      help?.submenu?.find(item => item.label === 'Run Diagnostics')?.click?.();
+      expect(lastWindowOptions()).toMatchObject({ width: 900, height: 700 });
+      help?.submenu?.find(item => item.label === 'Report a Bug')?.click?.();
+      expect(shell.openExternal).toHaveBeenCalledWith('https://github.com/adrianvla/mLearn/issues/new');
+    });
+
     it('calls Menu.buildFromTemplate and Menu.setApplicationMenu', async () => {
       const { createMainWindow } = await import('./windowManager');
       createMainWindow();

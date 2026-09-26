@@ -9,6 +9,76 @@
   left: 0;
   right: 0;
   z-index: 100;
+  min-width: 0;
+  gap: var(--spacing-2);
+}
+
+.reader-status > .statusbar-text,
+.reader-status .hover-trigger-section,
+.reader-status .reader-tutor-action,
+.reader-status .reader-status-tools {
+  flex: 0 0 auto;
+}
+
+.reader-status .ocr-section {
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.reader-status .ocr-section .statusbar-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-status-tools {
+  position: relative;
+}
+
+.reader-status-tools > summary {
+  list-style: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  padding: 1px var(--spacing-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.reader-status-tools > summary::-webkit-details-marker {
+  display: none;
+}
+
+.reader-status-tools > summary:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.reader-status .reader-status-tools-panel {
+  position: absolute;
+  bottom: calc(100% + var(--spacing-2));
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-2);
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-opaque);
+  box-shadow: var(--shadow-lg);
+}
+
+.reader-status .reader-status-tools-panel .statusbar-toggle {
+  text-align: left;
+}
+
+.reader-status .reader-status-tools-panel .statusbar-hint {
+  white-space: normal;
 }
 
 .reader-status .ocr-section {

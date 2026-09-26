@@ -62,6 +62,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_TARGETS_FOR_SURFACES, language, inputs),
   getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery): Promise<GraphNeighborhood | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_NEIGHBORHOOD, language, query),
+  getEvidenceLinkedSurfaces: (language: string, surfaces: string[], keys: string[]): Promise<string[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_EVIDENCE_LINKED_SURFACES, language, surfaces, keys),
   getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds): Promise<KnowledgeProjection> =>
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, language, surface, thresholds),
 
@@ -92,8 +94,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY_LANGUAGE, language),
   getKnowledgeEvents: (key: string): Promise<KnowledgeEventLog> =>
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, key),
-  onKnowledgeEventsChanged: (callback: () => void) =>
-    ipcOn(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, () => callback()),
+  onKnowledgeEventsChanged: (callback: (keys?: string[]) => void) =>
+    ipcOn(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, (_event, keys: string[] | undefined) => callback(keys)),
   getKnowledgeStates: (keys: string[]): Promise<Record<string, import('../shared/knowledge/historyQueries').KeyKnowledgeState>> =>
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_STATES_QUERY, keys),
   getKnowledgeRows: (keys: string[]): Promise<Record<string, Array<{ event: KnowledgeEvent; seq: number }>>> =>

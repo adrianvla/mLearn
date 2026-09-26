@@ -12,6 +12,7 @@ export interface GrammarEncounterOptions {
   confidence?: number;
   span?: { start: number; end: number };
   origin?: string;
+  encounterId?: string;
 }
 
 /** Structural contract of FlashcardContext.trackGrammarEncountered. */
@@ -116,6 +117,7 @@ export function journalGrammarEncounters(
   recorder: GrammarEncounterRecorder,
   surfaceKey: string,
   occurrences: readonly GrammarOccurrence[],
+  encounterId?: string,
 ): GrammarEncounter[] {
   const encounters = recorder.record(surfaceKey, occurrences);
   for (const encounter of encounters) {
@@ -123,6 +125,7 @@ export function journalGrammarEncounters(
       confidence: encounter.confidence,
       span: encounter.span,
       origin: encounter.origin,
+      ...(encounterId ? { encounterId } : {}),
     });
   }
   return encounters;
@@ -139,7 +142,8 @@ export function journalGrammarEncountersForTokenGroups(
     grammar: readonly GrammarPoint[];
     languageData?: LanguageData | null;
   },
+  encounterId?: string,
 ): GrammarEncounter[] {
   const occurrences = tokenGroups.flatMap((tokens) => detectGrammarOccurrences({ ...params, tokens }));
-  return journalGrammarEncounters(tracker, recorder, surfaceKey, occurrences);
+  return journalGrammarEncounters(tracker, recorder, surfaceKey, occurrences, encounterId);
 }

@@ -27,7 +27,7 @@ import {
 import { clipVideo } from '../../services/videoClipService';
 import { getBridge } from '../../../shared/bridges';
 import { showToast } from '../common/Feedback/Toast';
-import { getTokenLookupWord, getTokenWordFormCandidates } from '../../utils/wordForms';
+import { getTokenDisplayForms, getTokenWordFormCandidates } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { compoundSplitterConfig, getContentFontFamily, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 import type { LanguageCompoundSplittingConfig } from '../../../shared/types';
@@ -41,6 +41,13 @@ import type { GraphWordLookup } from '../../../shared/graph/ipc';
 const log = getLogger("renderer.components.wordHover");
 
 export type { WordStatus } from './wordHoverHelpers';
+
+export function grammarOccurrencesForToken(
+  occurrences: readonly GrammarOccurrence[], tokenIndex?: number,
+): readonly GrammarOccurrence[] {
+  return tokenIndex === undefined ? occurrences
+    : occurrences.filter((occurrence) => occurrence.tokenEvidence.some((evidence) => evidence.tokenIndex === tokenIndex));
+}
 
 // Icon names for the Icon component - enables proper SVG coloring
 const ICON_BOT = 'bot';
@@ -153,6 +160,8 @@ export interface WordHoverProps {
   videoSrc?: string;
   lastScreenshot?: string;
   grammarOccurrences?: readonly GrammarOccurrence[];
+  /** Index of the hovered token in the analyzed line. */
+  tokenIndex?: number;
   /** Resolved font of the hovered text, when the owning surface has one. */
   headwordFontFamily?: string;
 }
@@ -178,11 +187,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const displayWord = createMemo(() => props.word || props.token.surface || props.token.word);
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   
-  // Track the actual word being displayed for reactive updates
-  const actualWord = createMemo(() => getTokenLookupWord({
+  // Keep lexical identity and the encountered surface distinct across actions and presentation.
+  const displayForms = createMemo(() => getTokenDisplayForms({
     ...props.token,
     word: props.word || props.token.word,
-  }, tokenizerCapabilities()) || displayWord());
+  }, tokenizerCapabilities()));
+  const actualWord = createMemo(() => displayForms().headword || displayWord());
   const isShown = createMemo(() => props.visible !== false);
 
   
@@ -504,12 +514,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     props.translationData,
     props.dictionaryEntries,
     currentLangData(),
+    { word: actualWord(), surface: props.token.surface || props.token.word },
   ));
 
   const hoverProsody = createMemo(() => {
     return resolveProsodyForHover({
       word: actualWord(),
-      reading: props.token.reading,
+      reading: hoverContent().reading,
       translationData: props.translationData,
       showProsody: prosodyVisible(settings),
       getCanonicalForm,
@@ -592,7 +603,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   // Flashcard pill - computed values for reactivity
   const hasFlashcard = createMemo(() => currentFlashcard() !== null);
-  const grammarOccurrences = createMemo(() => props.grammarOccurrences ?? []);
+  const grammarOccurrences = createMemo(() => grammarOccurrencesForToken(props.grammarOccurrences ?? [], props.tokenIndex));
+  const grammarMeaning = (patternId: string) => {
+    const point = currentLangData()?.grammar?.find((entry) => entry.pattern === patternId);
+    return point?.meanings?.[settings.uiLanguage] ?? point?.meaning ?? patternId;
+  };
 
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = createSignal(false);
@@ -688,7 +703,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
           </div>
           <div class="subtitle_hover_content" ref={contentRef}>
-            <div class="word-hover-headword" style={{ 'font-family': props.headwordFontFamily?.trim() || getContentFontFamily(currentLangData()) }}>{displayWord()}</div>
+            <div class="word-hover-headword" style={{ 'font-family': props.headwordFontFamily?.trim() || getContentFontFamily(currentLangData()) }}>{actualWord()}</div>
+            <Show when={displayForms().encounteredForm}>
+              {(form) => <div class="word-hover-encountered-form">{t('mlearn.WordHover.InText', { form: form() })}</div>}
+            </Show>
             <Show when={!props.isLoading && hoverContent().shortDefinitionHtml}>
               <SafeHtml tag="div" class="word-hover-short-definition" html={hoverContent().shortDefinitionHtml} />
             </Show>
@@ -726,7 +744,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               </Show>
               <POSPill />
               <For each={grammarOccurrences()}>
-                {(occurrence) => <PillLabel variant="blue">{occurrence.realizedForm}</PillLabel>}
+                {(occurrence) => <span title={grammarMeaning(occurrence.patternId)}><PillLabel variant="blue">{occurrence.patternId}</PillLabel></span>}
               </For>
             </div>
             {/* Loading state: keep the hover panel's shape while the lookup

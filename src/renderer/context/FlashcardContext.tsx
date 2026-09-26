@@ -5,7 +5,7 @@
  * Supports multiple flashcards per word with O(1) word statistics lookup
  */
 
-import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
+import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, batch } from 'solid-js';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData } from '../../shared/types';
@@ -182,6 +182,19 @@ export interface CaptureSuggestionParams {
 export type LevelStudyTargetStatus = 'new' | 'learning' | 'known' | 'mastered';
 
 // Context interface
+type AttemptOptions = {
+  language?: string;
+  method?: 'recall' | 'inference';
+  timing?: AttemptTiming;
+  attemptId?: AttemptId;
+  origin?: string;
+  taskType?: AttemptTaskType;
+  scaffolds?: AttemptScaffolds;
+  sourceVersions?: EventSourceVersions;
+};
+
+type AttemptObservation = { capability: CapabilityKey; quality: AttemptQuality; method?: 'recall' | 'inference' };
+
 interface FlashcardContextValue {
   // Store access
   store: FlashcardStore;
@@ -288,7 +301,7 @@ interface FlashcardContextValue {
   ) => Promise<{ created: number; promoted: number; skipped: number }>;
 
   // Passive word knowledge tracking
-  trackWordSeen: (word: string, reading?: string, easeBump?: number, language?: string) => void;
+  trackWordSeen: (word: string, reading?: string, easeBump?: number, language?: string, encounterId?: string) => void;
   /** Applies coalesced passive-seen observations to the store immediately. */
   flushPendingWordSeen: () => void;
   cancelWordHover: (word: string, language?: string) => void;
@@ -328,8 +341,14 @@ interface FlashcardContextValue {
     word: string,
     capability: CapabilityKey,
     quality: AttemptQuality,
-    options?: { language?: string; method?: 'recall' | 'inference'; timing?: AttemptTiming; attemptId?: AttemptId; origin?: string; taskType?: AttemptTaskType; scaffolds?: AttemptScaffolds },
+    options?: AttemptOptions,
   ) => { attemptId: AttemptId };
+  /** The same canonical word-attempt writer, with one acknowledged journal batch for a profile rating. */
+  recordAttemptsAcknowledged: (
+    word: string,
+    observations: readonly AttemptObservation[],
+    options?: Omit<AttemptOptions, 'method'>,
+  ) => Promise<{ attemptId: AttemptId }>;
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
 
@@ -2871,6 +2890,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     language: string;
   }
   const pendingSeen = new Map<string, PendingSeenEntry>();
+  // Caller-supplied media/page identities survive component remounts within this
+  // learner session. A new playback/page visit uses a new identity.
+  const recordedSeenEncounters = new Set<string>();
   const PENDING_SEEN_FLUSH_BOUND = 50;
 
   const flushPendingSeen = (): void => {
@@ -2906,7 +2928,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   // Track that a word was seen (displayed on screen)
-  const trackWordSeen = (word: string, reading?: string, easeBump = 0.01, language = settings.language) => {
+  const trackWordSeen = (word: string, reading?: string, easeBump = 0.01, language = settings.language, encounterId?: string) => {
     perfCount('knowledge.trackWordSeen.calls');
     if (!settings.passiveEaseEnabled) return;
     // Use the language's primary word form so inflections and alternate spellings track together.
@@ -2915,6 +2937,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const lang = language;
     const lk = langKey(lang, wordHash);
     if (isKnownClaimed(lk)) return;
+    const encounterKey = encounterId ? `${lk}\0${encounterId}` : undefined;
+    if (encounterKey && recordedSeenEncounters.has(encounterKey)) return;
     const now = Date.now();
 
     const existing = store.wordKnowledge[lk];
@@ -2932,9 +2956,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       pendingSeen.set(lk, entry);
     }
     const referenceSeen = entry.lastSeen;
-    const shouldCount = referenceSeen === undefined || now - referenceSeen >= WORD_SEEN_COUNT_THROTTLE_MS;
+    const shouldCount = encounterKey !== undefined
+      || referenceSeen === undefined || now - referenceSeen >= WORD_SEEN_COUNT_THROTTLE_MS;
 
     if (shouldCount) {
+      if (encounterKey) recordedSeenEncounters.add(encounterKey);
       entry.timesSeenDelta += 1;
       // Ease bump rides the same throttle as timesSeen: without this, subtitle
       // line flapping / window remounts farm ease unboundedly (the throttle
@@ -3265,28 +3291,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         .catch((e) => log.warn('access claim clear recompute failed:', e));
     }
   };
-  /** Records the observed outcome for exactly one measured capability. */
-  const recordAttempt = (
+  /** Prepare one canonical observation without changing the local projection. */
+  const prepareAttempt = (
     word: string,
     capability: CapabilityKey,
     quality: AttemptQuality,
-    options?: {
-      language?: string;
-      method?: 'recall' | 'inference';
-      /** Active-engagement timing provenance (see shared/encounterTiming). */
-      timing?: AttemptTiming;
-      /** Shared logical-attempt id for multi-observation submits (profile mode). Absent = new attempt. */
-      attemptId?: AttemptId;
-      /** Presenting channel (e.g. 'word-sync') — replay derives policy markers from it. */
-      origin?: string;
-      /** What task produced the attempt (REQ3/REQ52) — provenance only, written when known. */
-      taskType?: AttemptTaskType;
-      /** Scaffolds visible during the attempt — written when the caller knows them. */
-      scaffolds?: AttemptScaffolds;
-      /** Reference-data versions at observation time — written when meaningfully available. */
-      sourceVersions?: EventSourceVersions;
-    },
-  ): { attemptId: AttemptId } => {
+    options?: AttemptOptions,
+  ): { attemptId: AttemptId; event?: { key: string; value: KnowledgeEvent }; applyMaterialized?: () => void } => {
     const language = options?.language ?? settings.language;
     const attemptId = options?.attemptId ?? nextAttemptId();
     // Scaffold-aware evidence invariant: when the caller reports the actual
@@ -3304,36 +3315,30 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       : quality === 'missed' ? settings.easeThresholdUnknown : settings.easeThresholdLearning) + settings.manualStatusEaseBuffer;
     const ease = quality === 'fluent' ? Math.max(before.ease, anchor) : anchor;
     const now = Date.now();
-    if (capability === 'sense-recognition') {
-      setStore(produce((s) => {
-        for (const form of getWordFormsForLanguage(word, language)) {
-          const key = langKey(language, SRS.hashWordSync(form));
-          const entry = s.wordKnowledge[key] ?? (s.wordKnowledge[key] = {
-            word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
-          });
-          if (entry.ease !== ease) entry.lastStatusChange = now;
-          entry.ease = ease;
-          entry.lastSeen = now;
-          entry.hasActiveEvidence = true;
-          entry.lastEvidenceSource = 'manual';
-        }
-      }));
-      saveFlashcards();
-    } else {
-      const forms = isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, language);
+    const forms = capability === 'sense-recognition'
+      ? getWordFormsForLanguage(word, language)
+      : isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, language);
+    const applyMaterialized = () => {
       setStore(produce((s) => {
         for (const form of forms) {
           const key = langKey(language, SRS.hashWordSync(form));
           const entry = s.wordKnowledge[key] ?? (s.wordKnowledge[key] = {
             word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
           });
-          entry.access = { ...entry.access, [capability]: {
-            ...entry.access?.[capability], status, ease, source: 'Manual', lastStatusChange: now, updatedAt: now,
-          } };
+          if (capability === 'sense-recognition') {
+            if (entry.ease !== ease) entry.lastStatusChange = now;
+            entry.ease = ease;
+            entry.lastSeen = now;
+            entry.hasActiveEvidence = true;
+            entry.lastEvidenceSource = 'manual';
+          } else {
+            entry.access = { ...entry.access, [capability]: {
+              ...entry.access?.[capability], status, ease, source: 'Manual', lastStatusChange: now, updatedAt: now,
+            } };
+          }
         }
       }));
-      saveFlashcards();
-    }
+    };
 
     // One observation event per attempt — quality/method/latency provenance
     // for future calibration. fromStatus/toStatus/easeAfter keep
@@ -3343,7 +3348,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const storageWord = isSurfaceScopedCapability(capability, languageDataFor(language)) ? word : getPrimaryWordFormForLanguage(word, language);
     const observationAspect = legacyAspectFor(capability);
     const observation: KnowledgeEvent = {
-      t: Date.now(),
+      t: now,
       kind: 'rating',
       source: 'manual',
       ...(observationAspect !== undefined ? { aspect: observationAspect } : {}),
@@ -3372,9 +3377,42 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       toStatus: status,
       easeAfter: ease,
     };
-    appendEvents({
-      [langKey(language, SRS.hashWordSync(storageWord))]: [observation],
-    }).catch((e) => log.warn('knowledge event append failed:', e));
+    return { attemptId, event: { key: langKey(language, SRS.hashWordSync(storageWord)), value: observation }, applyMaterialized };
+  };
+
+  /** Existing synchronous caller contract, backed by the same observation preparation. */
+  const recordAttempt = (word: string, capability: CapabilityKey, quality: AttemptQuality, options?: AttemptOptions): { attemptId: AttemptId } => {
+    const prepared = prepareAttempt(word, capability, quality, options);
+    if (prepared.event) {
+      prepared.applyMaterialized?.();
+      saveFlashcards();
+      appendEvents({ [prepared.event.key]: [prepared.event.value] })
+        .catch((e) => log.warn('knowledge event append failed:', e));
+    }
+    return { attemptId: prepared.attemptId };
+  };
+
+  /** One journal batch for a profile response; local knowledge changes only after acknowledgement. */
+  const recordAttemptsAcknowledged = async (
+    word: string,
+    observations: readonly AttemptObservation[],
+    options?: Omit<AttemptOptions, 'method'>,
+  ): Promise<{ attemptId: AttemptId }> => {
+    const attemptId = options?.attemptId ?? nextAttemptId();
+    const prepared = observations.map(({ capability, quality, method }) =>
+      prepareAttempt(word, capability, quality, { ...options, method, attemptId }));
+    const eventsByKey: KnowledgeEventLog = {};
+    for (const entry of prepared) {
+      if (!entry.event) continue;
+      (eventsByKey[entry.event.key] ??= []).push(entry.event.value);
+    }
+    if (Object.keys(eventsByKey).length > 0 && !await appendEventsIdempotentAcknowledged(eventsByKey)) {
+      throw new Error('word attempt journal append was refused');
+    }
+    batch(() => {
+      for (const entry of prepared) entry.applyMaterialized?.();
+      if (Object.keys(eventsByKey).length > 0) saveFlashcards();
+    });
     return { attemptId };
   };
   /**
@@ -3585,6 +3623,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * `(pattern, level?, language?)`. Provenance (confidence/span/origin) rides
    * on the appended rollup event; encounters never touch ratings or claims.
    */
+  const seenGrammarEncounterIds = new Set<string>();
   const trackGrammarEncountered = (
     pattern: string,
     levelOrOpts: number | GrammarEncounterOptions = 0,
@@ -3592,6 +3631,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   ) => {
     const opts = typeof levelOrOpts === 'object' ? levelOrOpts : undefined;
     const level = typeof levelOrOpts === 'number' ? levelOrOpts : 0;
+    const encounterKey = opts?.encounterId ? `${language}\0${pattern}\0${opts.encounterId}` : undefined;
+    if (encounterKey && seenGrammarEncounterIds.has(encounterKey)) return;
+    if (encounterKey) seenGrammarEncounterIds.add(encounterKey);
     appendEvents({
       [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(language, pattern, {
         t: Date.now(),
@@ -3604,7 +3646,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       })],
     })
       .then(() => queueGrammarMaterialize(language, [{ pattern, level }]))
-      .catch((e) => log.warn('grammar evidence append failed:', e));
+      .catch((e) => {
+        if (encounterKey) seenGrammarEncounterIds.delete(encounterKey);
+        log.warn('grammar evidence append failed:', e);
+      });
   };
 
   // Track that user struggled with a grammar pattern. Same single-writer path:
@@ -4424,6 +4469,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     recomputeWordKnowledgeFromEvidence,
     setWordClaim,
     recordAttempt,
+    recordAttemptsAcknowledged,
     trackGrammarEncountered,
     trackGrammarFailed,
     recordGrammarAttempt,
