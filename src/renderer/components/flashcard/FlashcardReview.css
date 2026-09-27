@@ -46,7 +46,7 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  max-width: 950px;
+  max-width: 800px;
   flex-wrap: wrap;
   padding: 0.5rem 1rem;
   background: var(--bg);
@@ -224,7 +224,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  width: min(100%, 36rem);
+  width: 100%;
   min-width: 0;
 }
 

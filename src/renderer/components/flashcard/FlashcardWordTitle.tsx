@@ -15,7 +15,6 @@ import {
   getReadingAnnotationScripts,
 } from '../../../shared/languageFeatures';
 import type { FlashcardContent } from '../../../shared/types';
-import type { KnowledgeAspect } from '../../../shared/constants';
 import {
   canRenderStoredProsodyWithoutMetadata,
   getProsodyOverlayRenderer,
@@ -30,8 +29,6 @@ export interface FlashcardWordTitleProps {
   content: FlashcardContent;
   /** Language code saved on the flashcard/suggestion. Used instead of the active language when available. */
   language?: string;
-  /** Session-local review focus mode; 'reading' force-reveals the reading annotation on the answer face. */
-  reviewMode?: KnowledgeAspect;
 }
 
 export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) => {
@@ -133,7 +130,6 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     return !!r && r !== props.content.front;
   });
   const shouldForceStoredReading = createMemo(() => {
-    if (props.reviewMode === 'reading') return true;
     if (!hasDistinctReading()) return false;
     if (hasStoredProsodyOverlay()) return true;
     return getReadingAnnotationScripts(languageData()).length > 0;

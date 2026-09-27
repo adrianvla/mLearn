@@ -1152,6 +1152,27 @@ export const WordSyncContent: Component = () => {
             {levelLabel()}
           </PillLabel>
         </Show>
+        <Show when={currentWord()}>
+          {(word) => <Btn variant="default" size="sm" class="word-sync-inspect" onClick={() => {
+            const surface = word().word;
+            openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface));
+          }}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>}
+        </Show>
+        <Show when={currentWord()}>
+          <TellMlearn
+              resetKey={`${settings.language}:${currentWord()?.word ?? ''}:${presentationCount()}`}
+              label={t('mlearn.TellMlearn.Label')}
+              placeholder={t('mlearn.TellMlearn.Placeholder')}
+              sendLabel={t('mlearn.TellMlearn.Send')}
+              undoLabel={t('mlearn.TellMlearn.Undo')}
+              updatedLabel={t('mlearn.TellMlearn.Updated')}
+              noChangeLabel={t('mlearn.TellMlearn.NoChange')}
+              errorLabel={t('mlearn.TellMlearn.Error')}
+              buildContext={currentClaimContext}
+              onApply={applyLearnerClaims}
+              translate={t}
+          />
+        </Show>
       </div>
 
     {/* Keep the session shell mounted while the next prompt materializes. */}
@@ -1288,27 +1309,6 @@ export const WordSyncContent: Component = () => {
                 || (currentProjection.projection() === undefined && !currentProjection.loading()))}
             onSubmit={handleSubmitProfile}
           />
-          <Show when={currentWord()}>
-            {(word) => <Btn variant="ghost" size="sm" class="word-sync-inspect" onClick={() => {
-              const surface = word().word;
-              openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface));
-            }}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>}
-          </Show>
-          <Show when={currentWord()}>
-            <TellMlearn
-              resetKey={`${settings.language}:${currentWord()?.word ?? ''}:${presentationCount()}`}
-              label={t('mlearn.TellMlearn.Label')}
-              placeholder={t('mlearn.TellMlearn.Placeholder')}
-              sendLabel={t('mlearn.TellMlearn.Send')}
-              undoLabel={t('mlearn.TellMlearn.Undo')}
-              updatedLabel={t('mlearn.TellMlearn.Updated')}
-              noChangeLabel={t('mlearn.TellMlearn.NoChange')}
-              errorLabel={t('mlearn.TellMlearn.Error')}
-              buildContext={currentClaimContext}
-              onApply={applyLearnerClaims}
-              translate={t}
-            />
-          </Show>
         </div>
 
         </Show>

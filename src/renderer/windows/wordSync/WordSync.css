@@ -29,6 +29,9 @@
   order: 1;
   width: 100%;
 }
+.word-sync-header button{
+  height:100%;
+}
 
 .word-sync-filter-toggle {
   font-size: var(--font-size-sm);

@@ -12,7 +12,6 @@
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on, onCleanup } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
-import type { KnowledgeAspect } from '../../../shared/constants';
 import { Panel, PillLabel, IconBtn, HoverReveal, AnkiIcon, SafeHtml } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardWordTitle } from './FlashcardWordTitle';
@@ -35,8 +34,6 @@ export interface FlashcardDisplayProps {
   ttsMetadata?: TtsMetadata | null;
   onRegenerateExample?: (cardId: string) => void;
   regeneratingExample?: boolean;
-  /** Session-local review focus mode; the back face reveals the focused aspect. */
-  reviewMode?: KnowledgeAspect;
   style?: JSX.CSSProperties;
 }
 
@@ -352,7 +349,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <div class="flashcard-word-header">
-            <FlashcardWordTitle content={content()} language={props.flashcard.language} reviewMode={props.reviewMode} />
+            <FlashcardWordTitle content={content()} language={props.flashcard.language}/>
             <Show when={props.onPlayTts}>
               <IconBtn
                 icon="volume"

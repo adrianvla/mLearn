@@ -9,6 +9,7 @@ import { streamChat } from '../../../services/llmProvider';
 import { Button } from '../Button/Button';
 import { Textarea } from '../Input/Input';
 import './TellMlearn.css';
+import { Popover } from '../Popover/Popover';
 
 /**
  * "Tell mLearn…" — a single-shot natural-language correction field, NOT a
@@ -55,6 +56,9 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
 
   let requestVersion = 0;
   let activeRequest: { abort: () => void } | undefined;
+
+  let popupTriggerRef: HTMLButtonElement | undefined;
+
   const cancelRequest = () => {
     requestVersion += 1;
     activeRequest?.abort();
@@ -67,6 +71,7 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
     setFailed(false);
     setSummaryKeys(null);
     setUndoStack([]);
+    setExpanded(false);
   }));
   onCleanup(cancelRequest);
 
@@ -119,19 +124,24 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
 
   return (
     <div class="tell-mlearn">
-      <Show
-        when={expanded()}
-        fallback={
-          <Button
-            buttonType="default"
-            variant="ghost"
-            size="sm"
-            class="tell-mlearn__toggle"
-            onClick={() => setExpanded(true)}
-          >
-            {props.label}
-          </Button>
-        }
+      <Button
+        buttonType="default"
+        variant="ghost"
+        size="sm"
+        ref={(element) => { popupTriggerRef = element; }}
+        class="tell-mlearn__toggle"
+        aria-haspopup="dialog"
+        aria-expanded={expanded()}
+        onClick={() => setExpanded((open) => !open)}
+      >
+        {props.label}
+      </Button>
+      <Popover
+        open={expanded}
+        anchor={() => popupTriggerRef}
+        onClose={() => setExpanded(false)}
+        label={props.label}
+        class="tell-mlearn__popover"
       >
         <div class="tell-mlearn__composer">
           <Textarea
@@ -195,7 +205,7 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
             </Show>
           </div>
         </Show>
-      </Show>
+      </Popover>
     </div>
   );
 };

@@ -61,7 +61,7 @@
   gap: 8px;
   padding: 16px;
   background: var(--panel-bg);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
 }
 
@@ -106,6 +106,7 @@
 .level-study-bulk-add {
   display: flex;
   justify-content: center;
+  margin: var(--spacing-4);
 }
 
 .bulk-add-modal-hint {
@@ -210,11 +211,17 @@
 .level-card-bar-untracked {
   background: var(--border-color);
 }
-
+.level-card-card div:has(> .level-card-card-legend){
+  max-width:100%;
+  width:100%;
+  overflow: hidden;
+}
 .level-card-card-legend {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 12px;
+  gap: var(--spacing-2) var(--spacing-1);
+  max-width:100%;
+  width:100%;
 }
 
 .level-card-legend-item {
@@ -222,6 +229,8 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
+  width: 100%;
+  overflow: hidden;
 }
 
 .level-card-legend-dot {
@@ -233,8 +242,21 @@
 
 .level-card-legend-label {
   color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: clip;
+  overflow: hidden;
+  position:relative;
 }
-
+.level-card-legend-label:after, .level-card-legend-pct:after{
+  content: '';
+  position:absolute;
+  top:0;
+  right:0;
+  bottom:0;
+  width:var(--spacing-10);
+  background:linear-gradient(to right, #00000000 0%, #00000000 80%, var(--bg-nt-secondary) 100%);
+  pointer-events:none;
+}
 .level-card-legend-count {
   font-weight: 600;
   color: var(--text-primary);
@@ -242,6 +264,9 @@
 
 .level-card-legend-pct {
   color: var(--text-tertiary);
+  text-overflow: clip;
+  overflow: hidden;
+  position:relative;
 }
 
 .level-card-card-action {

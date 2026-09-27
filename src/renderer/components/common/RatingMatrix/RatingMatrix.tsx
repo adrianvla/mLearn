@@ -378,7 +378,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
         </For>
         <Button
           buttonType="default"
-          variant="ghost"
+          variant="default"
           size="sm"
           class="rating-matrix__adjust"
           disabled={!actionable()}

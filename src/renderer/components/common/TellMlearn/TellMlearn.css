@@ -1,5 +1,4 @@
 .tell-mlearn {
-  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -38,4 +37,12 @@
 
 .tell-mlearn__error {
   opacity: 0.8;
+}
+.tell-mlearn__popover {
+  width: min(22rem, calc(100vw - 1rem));
+  padding: var(--spacing-3);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
 }

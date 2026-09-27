@@ -11,15 +11,16 @@ import { policyContextFromSettings } from '../../learning/policyContext';
 import { useDecisionPin } from '../../hooks/useDecisionPin';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
-import { Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
+import {
+  Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
+  EyeIcon
+} from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
 import type { CapabilityKey, Flashcard, FlashcardContent } from '../../../shared/types';
-import { ASPECT_CAPABILITY } from '../../../shared/graph/types';
-import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
@@ -243,11 +244,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return aspects;
   });
 
-  const effectiveMode = createMemo<KnowledgeAspect>(() => {
-    const mode = props.reviewMode ?? 'meaning';
-    return availableAspects().includes(mode) ? mode : 'meaning';
-  });
-
   createEffect(() => {
     if (knowledge.loading()) return;
     const mode = props.reviewMode ?? 'meaning';
@@ -255,13 +251,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       props.onReviewModeChange?.('meaning');
     }
   });
-
-  const modeOptions = createMemo(() => (
-    availableAspects().map((aspect) => ({
-      value: aspect,
-      label: t(CAPABILITY_LABEL_KEYS[ASPECT_CAPABILITY[aspect as keyof typeof ASPECT_CAPABILITY] ?? aspect] ?? aspect),
-    }))
-  ));
 
   // Explicit whole-word / matrix submissions rate every tested capability —
   // revealed cues change the evidence condition, not the rating surface.
@@ -592,18 +581,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </div>
 
           <div class="flashcard-header-actions">
-            <Show when={availableAspects().length > 1}>
-              <label class="flashcard-mode-select" for="flashcard-review-mode" title={t('mlearn.Flashcards.Review.Modes.Help')}>
-                <span class="flashcard-mode-select__label">{t('mlearn.Flashcards.Review.Modes.Label')}</span>
-                <Select
-                  id="flashcard-review-mode"
-                  options={modeOptions()}
-                  value={effectiveMode()}
-                  onChange={(e) => props.onReviewModeChange?.(e.currentTarget.value as KnowledgeAspect)}
-                  class="flashcard-mode-select__control"
-                />
-              </label>
-            </Show>
             <ToggleSwitch
               checked={settings.flashcardStealthMode}
               onChange={(checked) => updateSetting('flashcardStealthMode', checked)}
@@ -647,6 +624,24 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 >
                   <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Remove')}</span>
                 </Button>
+                <Button buttonType="default" variant="ghost" size="xs" class="flashcard-action-btn" icon={<EyeIcon size={14} />} onClick={() => {
+                  const card = currentCard();
+                  if (!card) return;
+                  const language = languageForCard(card);
+                  const surface = card.content.front;
+                  // R20: the SAME pinned decision that selected this card rides
+                  // into the existing Inspector drawer — the learner audits the
+                  // selection (brief reason + emitted trace) where the
+                  // knowledge lives. No recomputation anywhere.
+                  const decision = currentDecision();
+                  openKnowledgeInspector(surfaceKnowledgeInspection(
+                      language,
+                      surface,
+                      decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : undefined,
+                  ));
+                }}>
+                  {t('mlearn.Knowledge.Popup.Inspect')}
+                </Button>
                 <Button
                 buttonType="default"
                 variant="ghost"
@@ -675,9 +670,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               </details>
             </Show>
           </div>
-          <Show when={availableAspects().length > 1}>
-            <p class="flashcard-review-scope">{t('mlearn.Flashcards.Review.Modes.Help')}</p>
-          </Show>
         </div>
 
         {/* Card or completion screen */}
@@ -734,7 +726,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   ttsMetadata={ttsMetadata()}
                   onRegenerateExample={handleRegenerateExample}
                   regeneratingExample={regeneratingExample()}
-                  reviewMode={effectiveMode()}
               />
             )}
           </Show>
@@ -763,24 +754,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 resetKey={currentCard()?.id}
                 onSubmit={handleBulkRate}
               />
-              <Button buttonType="default" variant="ghost" size="xs" class="flashcard-rating-inspect" onClick={() => {
-                const card = currentCard();
-                if (!card) return;
-                const language = languageForCard(card);
-                const surface = card.content.front;
-                // R20: the SAME pinned decision that selected this card rides
-                // into the existing Inspector drawer — the learner audits the
-                // selection (brief reason + emitted trace) where the
-                // knowledge lives. No recomputation anywhere.
-                const decision = currentDecision();
-                openKnowledgeInspector(surfaceKnowledgeInspection(
-                  language,
-                  surface,
-                  decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : undefined,
-                ));
-              }}>
-                {t('mlearn.Knowledge.Popup.Inspect')}
-              </Button>
             </div>
           </Show>
         </div>

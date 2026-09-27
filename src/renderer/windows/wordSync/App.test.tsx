@@ -339,7 +339,12 @@ describe('WordSyncContent', () => {
   // The mocked t() renders locale keys verbatim, so controls are located by
   // their label key rather than implementation classes.
   const buttonByText = (text: string): HTMLButtonElement => {
-    const el = Array.from(container.querySelectorAll('button')).find((b) => (b.textContent ?? '').includes(text));
+    // TellMlearn's composer (Send/Undo) lives in a Popover Portal on
+    // document.body; every other control stays inside the container.
+    const scope = Array.from(container.querySelectorAll('button')).concat(
+      Array.from(document.body.querySelectorAll('.popover-panel button')),
+    );
+    const el = scope.find((b) => (b.textContent ?? '').includes(text));
     if (!el) throw new Error(`button not found: ${text}`);
     return el;
   };
@@ -435,6 +440,7 @@ beforeEach(() => {
   afterEach(() => {
     while (disposals.length) disposals.pop()!();
     container.remove();
+    document.body.querySelectorAll('.popover-panel').forEach((el) => el.remove());
   });
 
   it('resumes its durable cursor when filter presentation IDs change on remount', async () => {
@@ -1206,7 +1212,7 @@ beforeEach(() => {
     press(' '); await settle();
     buttonByText('mlearn.Rating.Compact.Adjust').click();
     buttonByText('mlearn.TellMlearn.Label').click();
-    const input = container.querySelector<HTMLTextAreaElement>('.tell-mlearn__input')!;
+    const input = document.body.querySelector<HTMLTextAreaElement>('.tell-mlearn__input')!;
     input.value = "I know すいとう so it's kinda struggled, then I know the prosody, then I actually like the kanji kinda suggested me it but I couldn't have guessed without the reading side by side. When it opened I was like aahhh";
     input.dispatchEvent(new Event('input', { bubbles: true }));
     buttonByText('mlearn.TellMlearn.Send').click();
@@ -1247,7 +1253,7 @@ beforeEach(() => {
     await settle();
     buttonByText('mlearn.Rating.Compact.Adjust').click();
     buttonByText('mlearn.TellMlearn.Label').click();
-    const input = container.querySelector<HTMLTextAreaElement>('.tell-mlearn__input')!;
+    const input = document.body.querySelector<HTMLTextAreaElement>('.tell-mlearn__input')!;
     input.value = "I can infer the meaning form the kanji, but I didn't get the reading. Kanji -> meaning works, but not kanji -> reading. But reading -> meaning also works";
     input.dispatchEvent(new Event('input', { bubbles: true }));
     buttonByText('mlearn.TellMlearn.Send').click();
@@ -1264,7 +1270,7 @@ beforeEach(() => {
     expect(mockSetAccessClaim).toHaveBeenCalledWith('赤い', 'surface-reading', 'unknown', 'ja');
     expect(mockSetWordClaim).not.toHaveBeenCalled();
     expect(mockRecordAttempt).not.toHaveBeenCalled();
-    const summary = container.querySelector('.tell-mlearn__summary')!.textContent;
+    const summary = document.body.querySelector('.tell-mlearn__summary')!.textContent;
     expect(summary).toContain('mlearn.Knowledge.Capability.sense-recognition');
     expect(summary).toContain('mlearn.Knowledge.Capability.surface-reading');
     const selected = () => Array.from(container.querySelectorAll('.rating-matrix__cell[aria-pressed="true"]'))

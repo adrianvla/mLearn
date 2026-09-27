@@ -61,6 +61,7 @@ describe('TellMlearn', () => {
 
   afterEach(() => {
     container.remove();
+    document.body.querySelectorAll('.popover-panel').forEach((el) => el.remove());
   });
 
   const renderField = () =>
@@ -82,13 +83,14 @@ describe('TellMlearn', () => {
       container,
     );
 
+  // The composer lives in a Popover Portal on document.body; the toggle stays mounted in place.
   const sendStatement = async (statement: string, emit: (cbs: StreamCallbacks) => void) => {
     container.querySelector<HTMLButtonElement>('.tell-mlearn__toggle')!.click();
     await Promise.resolve();
-    const input = container.querySelector<HTMLTextAreaElement>('.tell-mlearn__input')!;
+    const input = document.body.querySelector<HTMLTextAreaElement>('.tell-mlearn__input')!;
     input.value = statement;
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    container.querySelector<HTMLButtonElement>('.tell-mlearn__actions button')!.click();
+    document.body.querySelector<HTMLButtonElement>('.tell-mlearn__actions button')!.click();
     expect(streamImpl).toHaveBeenCalledTimes(1);
     const callbacks = streamImpl.mock.calls[0][2] as StreamCallbacks;
     emit(callbacks);
@@ -107,14 +109,32 @@ describe('TellMlearn', () => {
     expect(abort).toHaveBeenCalledOnce();
     callbacks.onDone('', [{ id: 'old', name: 'set_word_claim', arguments: { status: 'known' } }]);
     expect(onApply).not.toHaveBeenCalled();
-    expect(container.querySelector('.tell-mlearn__summary')).toBeNull();
+    expect(document.body.querySelector('.tell-mlearn__summary')).toBeNull();
+    dispose();
+  });
+
+  it('keeps the toggle mounted while the composer opens in an anchored popover', async () => {
+    const dispose = renderField();
+    expect(document.body.querySelector('.popover-panel')).toBeNull();
+    const toggle = container.querySelector<HTMLButtonElement>('.tell-mlearn__toggle')!;
+    toggle.click();
+    await Promise.resolve();
+    expect(container.querySelector('.tell-mlearn__toggle')).not.toBeNull();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const panelEl = document.body.querySelector('.popover-panel')!;
+    expect(panelEl.classList.contains('tell-mlearn__popover')).toBe(true);
+    expect(panelEl.querySelector('.tell-mlearn__input')).not.toBeNull();
+    expect(container.querySelector('.tell-mlearn__input')).toBeNull();
+    toggle.click();
+    await Promise.resolve();
+    expect(document.body.querySelector('.popover-panel')).toBeNull();
     dispose();
   });
 
   it('uses the shared textarea with an accessible name and no native resize control', () => {
     const dispose = renderField();
     container.querySelector<HTMLButtonElement>('.tell-mlearn__toggle')?.click();
-    const input = container.querySelector<HTMLTextAreaElement>('.tell-mlearn__input');
+    const input = document.body.querySelector<HTMLTextAreaElement>('.tell-mlearn__input');
     expect(input?.getAttribute('aria-label')).toBe('Tell mLearn…');
     expect(input?.style.resize).toBe('none');
     dispose();
@@ -130,8 +150,8 @@ describe('TellMlearn', () => {
     });
     await Promise.resolve();
     expect(onApply).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain('Updated:');
-    expect(container.textContent).toContain('Listening: known');
+    expect(document.body.textContent).toContain('Updated:');
+    expect(document.body.textContent).toContain('Listening: known');
     dispose();
   });
 
@@ -143,7 +163,7 @@ describe('TellMlearn', () => {
     });
     await Promise.resolve();
     expect(onApply).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('Nothing to change');
+    expect(document.body.textContent).toContain('Nothing to change');
     dispose();
   });
 
@@ -176,7 +196,7 @@ describe('TellMlearn', () => {
       { id: '1', name: 'set_access_claim', arguments: { capability: 'surface-reading', status: 'known', basis: 'cue-only' } },
     ]));
     expect(onApply).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('Nothing to change');
+    expect(document.body.textContent).toContain('Nothing to change');
     dispose();
   });
 
@@ -188,10 +208,10 @@ describe('TellMlearn', () => {
       cbs.onDone('', [{ id: '1', name: 'clear_access_claim', arguments: { capability: 'surface-reading' } }]);
     });
     await Promise.resolve();
-    const undoButton = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Undo')!;
+    const undoButton = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent === 'Undo')!;
     undoButton.click();
     expect(undoSpy).toHaveBeenCalledTimes(1);
-    expect(container.textContent).not.toContain('Updated:');
+    expect(document.body.textContent).not.toContain('Updated:');
     dispose();
   });
 
@@ -200,7 +220,7 @@ describe('TellMlearn', () => {
     await sendStatement('hello', (cbs) => cbs.onError(new Error('offline')));
     await Promise.resolve();
     expect(onApply).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('Could not process that');
+    expect(document.body.textContent).toContain('Could not process that');
     dispose();
   });
 });
