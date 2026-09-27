@@ -178,7 +178,7 @@ const PhoneIcon: Component = () => (
 );
 
 export const ConversationContent: Component = () => {
-  const { settings, updateSettings, openCloudReLoginModal } = useSettings();
+  const { settings, updateSettings, openCloudReLoginModal, isLoading } = useSettings();
   const server = useServer();
   const {
     currentLangData,
@@ -850,6 +850,10 @@ export const ConversationContent: Component = () => {
 
   // Check LLM availability reactively when provider/config changes
   createEffect(() => {
+    if (isLoading()) {
+      setIsCheckingConnection(true);
+      return;
+    }
     // Track reactive dependencies so the effect re-runs on change
     const provider = settings.llmProvider;
     void settings.ollamaUrl;

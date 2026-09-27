@@ -121,7 +121,7 @@ export const VideoRoute: Component = () => {
   const tokenizerCapabilities = createMemo(() => langCtx.getLanguageFeatures().tokenizerCapabilities);
 
   const watchTogether = useWatchTogether({
-    getVideo: () => document.querySelector('video'),
+    getVideo: () => getCurrentVideoElement(),
     getVideoSrc: () => videoSrc(),
     getVideoTitle: () => currentVideoName(),
   });
@@ -183,7 +183,8 @@ export const VideoRoute: Component = () => {
   // Media stats for this video session
   const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
 
-  const getCurrentVideoElement = (): HTMLVideoElement | null => document.querySelector('video');
+  let ownedVideoElement: HTMLVideoElement | null = null;
+  const getCurrentVideoElement = (): HTMLVideoElement | null => ownedVideoElement;
   const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || '', langCtx.currentLangData()));
 
   const loadSharedVideo = (url: string, name: string) => {
@@ -872,7 +873,7 @@ export const VideoRoute: Component = () => {
     // Attach watch-together listeners to the video element once it exists.
     // Uses a short poll because the <video> may not be in the DOM yet.
     const attachWatchTogetherListeners = () => {
-      const video = document.querySelector('video');
+      const video = getCurrentVideoElement();
       if (!video) return;
 
       let isAnticipatingPlay = false;
@@ -939,7 +940,7 @@ export const VideoRoute: Component = () => {
 
     // Capture an initial thumbnail as soon as the video has enough data
     const attachInitialThumbnailCapture = () => {
-      const video = document.querySelector('video');
+      const video = getCurrentVideoElement();
       if (!video) return;
       const onVideoReadyForThumbnail = async () => {
         const captured = await captureThumbnailIfMissing();
@@ -964,7 +965,7 @@ export const VideoRoute: Component = () => {
 
     // Seek to the saved playback position when the video metadata is available
     const attachVideoResumption = () => {
-      const video = document.querySelector('video');
+      const video = getCurrentVideoElement();
       if (!video) return;
 
       const syncVideoDuration = () => {
@@ -1004,14 +1005,14 @@ export const VideoRoute: Component = () => {
     // The video element may appear later (ShowDropZone toggle), so use a
     // MutationObserver to detect when it's added.
     const observer = new MutationObserver(() => {
-      if (document.querySelector('video')) {
+      if (getCurrentVideoElement()) {
         attachWatchTogetherListeners();
         attachInitialThumbnailCapture();
         attachVideoResumption();
         observer.disconnect();
       }
     });
-    if (document.querySelector('video')) {
+    if (getCurrentVideoElement()) {
       attachWatchTogetherListeners();
       attachInitialThumbnailCapture();
       attachVideoResumption();
@@ -1056,7 +1057,7 @@ export const VideoRoute: Component = () => {
   });
   
   const captureThumbnailIfReady = () => {
-    const videoEl = document.querySelector('video');
+    const videoEl = getCurrentVideoElement();
     const name = currentVideoName();
     const path = currentVideoPath();
     const captureKey = path || name;
@@ -1108,7 +1109,7 @@ export const VideoRoute: Component = () => {
   };
 
   const captureThumbnailOnPause = async () => {
-    const videoEl = document.querySelector('video');
+    const videoEl = getCurrentVideoElement();
     const name = currentVideoName();
     const path = currentVideoPath();
     if (!videoEl || !name || videoEl.readyState < 2 || videoEl.currentTime < getThumbnailCaptureMinTime(videoEl) || isNearVideoEnd(videoEl)) {
@@ -1120,7 +1121,7 @@ export const VideoRoute: Component = () => {
   };
 
   const captureThumbnailIfMissing = async (): Promise<boolean> => {
-    const videoEl = document.querySelector('video');
+    const videoEl = getCurrentVideoElement();
     const name = currentVideoName();
     const path = currentVideoPath();
     if (!videoEl || !name || videoEl.readyState < 2 || await hasRecentThumbnail(path, name)) {
@@ -1133,7 +1134,7 @@ export const VideoRoute: Component = () => {
   };
 
   const updateVideoProgress = async () => {
-    const videoEl = document.querySelector('video');
+    const videoEl = getCurrentVideoElement();
     const name = currentVideoName();
     const path = currentVideoPath();
     if (videoEl && name && videoEl.duration && isFinite(videoEl.duration)) {
@@ -1149,7 +1150,7 @@ export const VideoRoute: Component = () => {
   };
 
   const savePlaybackTime = async () => {
-    const videoEl = document.querySelector('video');
+    const videoEl = getCurrentVideoElement();
     const name = currentVideoName();
     const path = currentVideoPath();
     if (videoEl && name && isFinite(videoEl.currentTime) && videoEl.currentTime > 5) {
@@ -1455,6 +1456,7 @@ export const VideoRoute: Component = () => {
         <div class="video-player-container">
           <VideoPlayer
             src={videoSrc()}
+            onMediaElement={(element) => { ownedVideoElement = element; }}
             subtitleContent={subtitleContent()}
             remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}
             remoteSubtitleSize={watchTogether.remoteSubtitle()?.size ?? null}

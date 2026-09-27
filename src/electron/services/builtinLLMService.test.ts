@@ -26,16 +26,19 @@ vi.mock('electron', () => ({
 const mockExistsSync = vi.fn();
 const mockMkdirSync = vi.fn();
 const mockUnlinkSync = vi.fn();
+const mockStatSync = vi.fn(() => ({ size: 6_975_879_296 }));
 
 vi.mock('fs', () => ({
   default: {
     existsSync: mockExistsSync,
     mkdirSync: mockMkdirSync,
     unlinkSync: mockUnlinkSync,
+    statSync: mockStatSync,
   },
   existsSync: mockExistsSync,
   mkdirSync: mockMkdirSync,
   unlinkSync: mockUnlinkSync,
+  statSync: mockStatSync,
 }));
 
 const mockDownloadFileWithProgress = vi.fn();
@@ -52,10 +55,12 @@ const mockSessionPrompt = vi.fn(async (text: string, opts: { onTextChunk?: (t: s
 const mockSessionSetChatHistory = vi.fn();
 const mockSessionDispose = vi.fn();
 let mockSessionOptions: unknown;
-const mockContextGetSequence = vi.fn(() => ({}));
+const mockSequenceDispose = vi.fn(async () => {});
+const mockContextGetSequence = vi.fn(() => ({ dispose: mockSequenceDispose }));
 const mockContextDispose = vi.fn();
 const mockModelCreateContext = vi.fn(async () => ({
   getSequence: mockContextGetSequence,
+  sequencesLeft: 1,
   dispose: mockContextDispose,
 }));
 const mockModelDispose = vi.fn();
@@ -72,7 +77,11 @@ class MockLlamaChatSession {
   prompt = mockSessionPrompt;
   setChatHistory = mockSessionSetChatHistory;
   dispose = mockSessionDispose;
-  constructor(opts: unknown) { mockSessionOptions = opts; }
+  sequence: { dispose: typeof mockSequenceDispose };
+  constructor(opts: { contextSequence: { dispose: typeof mockSequenceDispose } }) {
+    mockSessionOptions = opts;
+    this.sequence = opts.contextSequence;
+  }
 }
 
 vi.mock('node-llama-cpp', () => ({
@@ -105,7 +114,8 @@ beforeEach(async () => {
   mockContextDispose.mockReset();
   mockModelDispose.mockReset();
   mockLoadModel.mockReset().mockImplementation(async () => ({ createContext: mockModelCreateContext, dispose: mockModelDispose }));
-  mockModelCreateContext.mockReset().mockImplementation(async () => ({ getSequence: mockContextGetSequence, dispose: mockContextDispose }));
+  mockModelCreateContext.mockReset().mockImplementation(async () => ({ getSequence: mockContextGetSequence, sequencesLeft: 1, dispose: mockContextDispose }));
+  mockSequenceDispose.mockReset().mockResolvedValue(undefined);
   mockSessionDispose.mockReset();
   mockSessionSetChatHistory.mockReset();
 
@@ -241,6 +251,13 @@ describe('LLM_CHECK_MODEL handler', () => {
     expect(status.loaded).toBe(true);
   });
 
+  it('uses an interactive context instead of the model maximum on a 16 GB machine', async () => {
+    const handler = mockIpcHandlers.get('llm-check-model');
+    expect(handler).toBeDefined();
+    await handler!(null, BUILTIN_MODELS[2].modelFile);
+    expect(mockModelCreateContext).toHaveBeenCalledWith({ contextSize: 8192 });
+  });
+
   it('returns status for specific modelFile argument', async () => {
     mockExistsSync.mockImplementation((p: string) => p.includes('custom-model.gguf'));
     const handler = mockIpcHandlers.get('llm-check-model');
@@ -373,6 +390,13 @@ describe('LLM_UNLOAD_MODEL handler', () => {
 });
 
 describe('builtinStreamChat', () => {
+  it('bounds hidden reasoning so scenario output retains generation budget', async () => {
+    await mod.builtinStreamChat(createMockSender() as unknown as Electron.WebContents, [{ role: 'user', content: 'scene' }], []);
+    expect(mockSessionPrompt.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      budgets: { thoughtTokens: 128 },
+    }));
+  });
+
   it('sends LLM_STREAM_CHUNK with content tokens', async () => {
     mockExistsSync.mockReturnValue(true);
     const sender = createMockSender();
@@ -389,12 +413,20 @@ describe('builtinStreamChat', () => {
     expect(contentCalls[0][1].content).toBe('Hello!');
   });
 
-  it('auto-disposes each context sequence so later requests can allocate one', async () => {
+  it('awaits sequence reclamation before a later request can allocate one', async () => {
     mockExistsSync.mockReturnValue(true);
     const sender = createMockSender();
-    await mod.builtinStreamChat(sender as unknown as Electron.WebContents, [{ role: 'user', content: 'hello' }], []);
-
-    expect(mockSessionOptions).toEqual(expect.objectContaining({ autoDisposeSequence: true }));
+    const disposal = deferred<void>();
+    mockSequenceDispose.mockReturnValueOnce(disposal.promise);
+    const first = mod.builtinStreamChat(sender as unknown as Electron.WebContents, [{ role: 'user', content: 'hello' }], []);
+    await vi.waitFor(() => expect(mockSequenceDispose).toHaveBeenCalledOnce());
+    let settled = false;
+    void first.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    disposal.resolve();
+    await first;
+    expect(mockSessionOptions).toEqual(expect.objectContaining({ autoDisposeSequence: false }));
     expect(mockSessionDispose).toHaveBeenCalledOnce();
   });
 

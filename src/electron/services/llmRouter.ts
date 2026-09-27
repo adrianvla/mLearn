@@ -188,6 +188,7 @@ async function dispatchStream(
   try {
     const settings = loadSettings();
     const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
+    log.info('Tutor inference dispatch', { ownerId: sender.id, provider, queued: expectedRoute !== undefined, modelFile: provider === 'builtin' ? settings.builtinModel : undefined, messageCount: messages.length, messageCharacters: messages.reduce((sum, message) => sum + message.content.length, 0) });
     activeProvider = provider;
     if (expectedRoute !== undefined && expectedRoute !== routeKey(settings)) throw new Error('Inference settings changed while the job was queued');
     if (provider === 'cloud') {
@@ -245,17 +246,26 @@ export function completeJob(
   priority: 'foreground' | 'background' = 'foreground',
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    const queuedAt = performance.now();
     let settled = false;
     let text = '';
+    let firstContentAt = 0;
     const sender = Object.assign(new EventEmitter(), {
       id: nextJobOwner--,
       isDestroyed: () => settled,
       send: (_channel: string, chunk: LLMStreamChunk) => {
         if (settled) return;
         if (chunk.error) { cancel(new Error(chunk.error)); return; }
+        if (!firstContentAt && chunk.content) {
+          firstContentAt = performance.now();
+          log.info('Tutor job stage', { ownerId: sender.id, stage: 'first-content', elapsedMs: Math.round(firstContentAt - queuedAt) });
+        }
         text += chunk.content ?? '';
         if (text.length > maxOutputCharacters) { cancel(new Error('Model output exceeded the scenario budget')); return; }
-        if (chunk.done) finish();
+        if (chunk.done) {
+          log.info('Tutor job stage', { ownerId: sender.id, stage: 'generation-done', elapsedMs: Math.round(performance.now() - queuedAt), firstContentMs: firstContentAt ? Math.round(firstContentAt - queuedAt) : null, outputCharacters: text.length, outputTokens: chunk.evalCount ?? null });
+          finish();
+        }
       },
     }) as unknown as Electron.WebContents;
     const finish = (error?: Error): void => {
@@ -265,6 +275,7 @@ export function completeJob(
       if (error) reject(error); else resolve(text);
     };
     const cancel = (error: Error): void => {
+      log.info('Tutor job stage', { ownerId: sender.id, stage: 'cancelled-or-failed', elapsedMs: Math.round(performance.now() - queuedAt), errorName: error.name });
       finish(error);
       for (let i = queue.length - 1; i >= 0; i--) if (queue[i].sender.id === sender.id) queue.splice(i, 1);
       if (activeOwner === sender.id) {
@@ -275,6 +286,7 @@ export function completeJob(
     if (signal.aborted) { onAbort(); return; }
     signal.addEventListener('abort', onAbort, { once: true });
     enqueueRequest({ sender, messages, tools: [], expectedRoute: routeKey(loadSettings()), priority });
+    log.info('Tutor job stage', { ownerId: sender.id, stage: 'queued', queueDepth: queue.length, maxOutputCharacters });
     if (activeOwner === null) drainQueue();
   });
 }

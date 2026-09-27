@@ -14,6 +14,9 @@ import { Btn, FormField, HintText, ModalForm, RadioChoice, Textarea } from '../.
 import { useLocalization, useSettings } from '../../context';
 import './NewConversationModal.css';
 import { conversationRecoveryKey } from './errorUtils';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger('renderer.tutor.start');
 
 export interface NewConversationResult {
   roomId: string;
@@ -112,6 +115,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     const ids = [...selectedIds()];
     const text = intent().trim();
     if (busy() || (!preview() && ids.length === 0 && !text)) return;
+    const startedAt = performance.now();
+    log.info('Tutor Start', { stage: 'action', selectedCount: ids.length, intentCharacters: text.length, resumingPreview: Boolean(preview()) });
     setBusy(true);
     setError(null);
     try {
@@ -143,8 +148,10 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
 
       await startWithSelection([]);
     } catch (err) {
+      log.info('Tutor Start', { stage: 'failed', elapsedMs: Math.round(performance.now() - startedAt), errorName: err instanceof Error ? err.name : 'unknown' });
       setError(err instanceof Error ? err.message : t('mlearn.ConversationAgent.NewConversation.Failed'));
     } finally {
+      log.info('Tutor Start', { stage: 'ui-publication', elapsedMs: Math.round(performance.now() - startedAt), previewReady: Boolean(preview()) });
       setBusy(false);
     }
   };

@@ -303,10 +303,16 @@ const GlobalInstallProgressModal: Component = () => {
  * providers the signal value is unused by the readiness derivation.
  */
 const BuiltinModelStatusListener: Component = () => {
-  const { settings } = useSettings();
+  const { settings, isLoading } = useSettings();
   const bridge = getBridge();
 
   createEffect(() => {
+    // The store initially contains defaults. Checking it before the saved
+    // selection arrives can load an entirely different multi-GB model.
+    if (isLoading()) {
+      setBuiltinModelReady(false);
+      return;
+    }
     // Reactive deps: re-run when provider or selected model changes
     const provider = settings.llmProvider;
     const modelFile = settings.builtinModel;

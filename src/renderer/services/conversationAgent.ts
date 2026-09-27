@@ -911,9 +911,15 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   let conversationHistory: LLMChatMessage[] = [];
   let aborted = false;
   let streamCleanup: (() => void) | null = null;
+  let streamTimeout: ReturnType<typeof setTimeout> | null = null;
   let hiddenStreamActive = false;
   /** Monotonically increasing counter to correlate stream chunks with the request that produced them */
   let streamRequestId = 0;
+
+  function clearStreamTimeout(): void {
+    if (streamTimeout !== null) clearTimeout(streamTimeout);
+    streamTimeout = null;
+  }
 
   function clearHistory(): void {
     conversationHistory = [];
@@ -1050,6 +1056,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
   function abortStream(): void {
     aborted = true;
+    clearStreamTimeout();
     streamCleanup?.();
     streamCleanup = null;
     getBridge().llm.llmStreamAbort();
@@ -1215,6 +1222,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const hadActiveStream = streamCleanup !== null;
 
     // Abort any in-flight LLM stream (e.g. from generateTopicPlan) before starting a new one
+    clearStreamTimeout();
     streamCleanup?.();
     streamCleanup = null;
     if (hadActiveStream) {
@@ -1261,6 +1269,31 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     // When we preemptively aborted an active stream, its abort response will arrive
     // on our new listener before the real stream produces any content. Absorb it.
     let skipStaleAbort = hadActiveStream;
+    // A local model may evaluate a longer prompt and generate hidden thought
+    // tokens before its first visible chunk. Once content arrives, only
+    // continued silence should count as a lost stream.
+    const responseTimeoutMs = (settingsObj.llmProvider || DEFAULT_SETTINGS.llmProvider) === 'builtin' ? 180_000 : 90_000;
+    const armStreamTimeout = (): void => {
+      clearStreamTimeout();
+      streamTimeout = setTimeout(() => {
+        streamTimeout = null;
+        if (streamCleanup && !aborted && myRequestId === streamRequestId) {
+          streamCleanup();
+          streamCleanup = null;
+          bridge.llm.llmStreamAbort();
+          if (accumulated) {
+            accumulated = parseToolCallsFromContent(sanitizeModelSpeech(accumulated)).cleanedContent;
+            conversationHistory.push({ role: 'assistant', content: accumulated });
+            const finalVisibleContent = contentPrefix + accumulated;
+            finalizeResponse(finalVisibleContent, language, langName, widgets, callbacks).catch(() => {
+              callbacks.onDone(finalVisibleContent, undefined, widgets.length > 0 ? widgets : undefined);
+            });
+          } else {
+            callbacks.onError('Response timed out');
+          }
+        }
+      }, responseTimeoutMs);
+    };
 
     streamCleanup = bridge.llm.onLLMStreamChunk(async (chunk: LLMStreamChunk) => {
       if (aborted || myRequestId !== streamRequestId) return;
@@ -1279,6 +1312,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       }
 
       if (chunk.error) {
+        clearStreamTimeout();
         streamCleanup?.();
         streamCleanup = null;
         callbacks.onError(chunk.error);
@@ -1286,6 +1320,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       }
 
       if (chunk.content) {
+        armStreamTimeout();
         if (!firstTokenTime) firstTokenTime = Date.now();
         accumulated += chunk.content;
         callbacks.onChunk(contentPrefix + parseToolCallsFromContent(sanitizeModelSpeech(accumulated, true), true).cleanedContent);
@@ -1298,6 +1333,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       }
 
       if (chunk.done) {
+        clearStreamTimeout();
         streamCleanup?.();
         streamCleanup = null;
 
@@ -1395,25 +1431,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       }
     });
 
+    armStreamTimeout();
     bridge.llm.llmStream(messages, tools, tier);
-
-    // Timeout after 90 seconds
-    setTimeout(() => {
-      if (streamCleanup && !aborted && myRequestId === streamRequestId) {
-        streamCleanup();
-        streamCleanup = null;
-        if (accumulated) {
-          accumulated = parseToolCallsFromContent(sanitizeModelSpeech(accumulated)).cleanedContent;
-          conversationHistory.push({ role: 'assistant', content: accumulated });
-          const finalVisibleContent = contentPrefix + accumulated;
-          finalizeResponse(finalVisibleContent, language, langName, widgets, callbacks).catch(() => {
-            callbacks.onDone(finalVisibleContent, undefined, widgets.length > 0 ? widgets : undefined);
-          });
-        } else {
-          callbacks.onError('Response timed out');
-        }
-      }
-    }, 90_000);
   }
 
   function processMessage(

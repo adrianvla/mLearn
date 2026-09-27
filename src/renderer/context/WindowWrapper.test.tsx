@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
+import { getBridge } from '../../shared/bridges';
 
 const testSettings = {
   language: 'de',
@@ -10,6 +11,8 @@ const testSettings = {
   frequencyLevelSystemSelections: { de: 'cefr' },
   cloudAuthStatus: 'signed-out',
   cloudAuthActiveGroupId: '',
+  llmProvider: 'cloud',
+  builtinModel: 'selected.gguf',
 };
 let settingsLoading = false;
 
@@ -129,6 +132,7 @@ describe('WindowWrapper', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     settingsLoading = false;
+    testSettings.llmProvider = 'cloud';
     languageProviderMock.mockClear();
     activeGroupGateMock.mockClear();
     pluginAdapterMock.mockClear();
@@ -159,6 +163,19 @@ describe('WindowWrapper', () => {
     expect(languageProviderMock).not.toHaveBeenCalled();
 
     dispose();
+  });
+
+  it('does not load the default built-in model before saved settings arrive', async () => {
+    settingsLoading = true;
+    testSettings.llmProvider = 'builtin';
+    const checkModel = vi.spyOn(getBridge().llm, 'llmCheckModel').mockResolvedValue({ ready: true } as never);
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper>content</WindowWrapper>, container);
+
+    expect(checkModel).not.toHaveBeenCalled();
+
+    dispose();
+    checkModel.mockRestore();
   });
 
   it('mounts the active group gate once for every window entry', async () => {

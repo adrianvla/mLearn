@@ -118,6 +118,7 @@ const mockOllamaCheck = vi.fn<() => Promise<boolean>>();
 const mockOllamaListModels = vi.fn<() => Promise<string[]>>();
 const mockAutoselectBuiltinModel = vi.fn<(memoryInfo: unknown) => (typeof builtinModels)[number]>((_) => builtinModels[1]);
 const mockResolveCloudApiUrl = vi.fn<(settings: unknown) => string>((_) => 'https://cloud.example.com');
+let settingsLoading = false;
 const mockCloudCheckAvailability = vi.fn<() => Promise<boolean>>();
 const mockEnsureCloudAccessToken = vi.fn<() => Promise<string | null>>();
 const mockHandleCloudSessionError = vi.fn<(error: unknown, openModal?: boolean) => boolean>();
@@ -125,6 +126,7 @@ const mockHandleCloudSessionError = vi.fn<(error: unknown, openModal?: boolean) 
 vi.mock('../../../context', () => ({
   useSettings: () => ({
     settings: settingsStore,
+    isLoading: () => settingsLoading,
     updateSettings: mockUpdateSettings,
   }),
   useLocalization: () => ({
@@ -243,6 +245,7 @@ describe('AITab', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    settingsLoading = false;
     container = document.createElement('div');
     document.body.appendChild(container);
 
@@ -320,6 +323,17 @@ describe('AITab', () => {
     await flushPromises();
     return { dispose };
   }
+
+  it('waits for saved settings before selecting or loading a model', async () => {
+    settingsLoading = true;
+    setSettingsStore?.({ builtinModelAutoselected: false });
+    const { dispose } = await renderAITab();
+
+    expect(mockAutoselectBuiltinModel).not.toHaveBeenCalled();
+    expect(mockLlmCheckModel).not.toHaveBeenCalled();
+
+    dispose();
+  });
 
   it('keeps the Ollama success state visible until the server URL changes', async () => {
     setSettingsStore?.({ llmProvider: 'ollama' });
