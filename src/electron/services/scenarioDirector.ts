@@ -14,9 +14,11 @@ import { loadSettings } from './settings';
 import { loadWorld, saveWorld, withWorldMutation, type WorldState } from './worldStore';
 import { appendEvent, readSeaProjection } from './journalService';
 import { completeJob } from './llmRouter';
+import { getLogger } from '../../shared/utils/logger';
 import { withMaintenancePass, settleMaintenanceRunUnlocked, readMaintenancePreparation, maintenanceSourcesValid, settleMaintenanceRun, stageMaintenanceRun, maintenanceMarkers, maintenanceWindow, prepareMaintenanceRun, maintenanceDraftMatchesRow, maintenanceFailureCount, appendMaintenanceMarker, readContextStream, requestedMaintenanceRetry, maintenanceRetryWindow, MAX_MAINTENANCE_ATTEMPTS, MaintenanceConflictError, type ReflectionContext } from './dreamerService';
 
 const inFlight = new Map<string, { hash: string; controller: AbortController; promise: Promise<ScenarioCreation> }>();
+const log = getLogger('electron.scenarioDirector');
 
 function operationKey(id: string): string { return `${getUserDataPath()}:${id}`; }
 function requestHash(request: CreateCastInput): string {
@@ -35,10 +37,12 @@ Omit irrelevant relationship/knowledge entries rather than inventing an incident
 
 /** Prepare only; no Room, Participant or active Thread is published by inference. */
 export function prepareScenario(input: CreateCastInput): Promise<ScenarioCreation> {
+  const startedAt = performance.now();
   const request = structuredClone(input);
   request.intent = request.intent?.trim();
   request.scope = request.scope === 'persistent' ? 'persistent' : undefined;
   request.participantIds = [...new Set(request.participantIds)];
+  log.info('Tutor stage', { operationId: request.operationId, stage: 'request-constructed', elapsedMs: Math.round(performance.now() - startedAt), intentCharacters: request.intent?.length ?? 0, participantCount: request.participantIds.length, scope: request.scope ?? 'sandbox' });
   if (!request.operationId?.trim() || !request.intent || request.intent.length > SCENARIO_LIMITS.intent || request.participantIds.length > SCENARIO_LIMITS.cast) {
     return Promise.reject(new Error('Provide a bounded situation request and selected cast'));
   }
@@ -58,6 +62,8 @@ export function prepareScenario(input: CreateCastInput): Promise<ScenarioCreatio
 }
 
 async function generate(request: CreateCastInput, hash: string, signal: AbortSignal): Promise<ScenarioCreation> {
+  const startedAt = performance.now();
+  const trace = (stage: string, extra: Record<string, unknown> = {}) => log.info('Tutor stage', { operationId: request.operationId, stage, elapsedMs: Math.round(performance.now() - startedAt), ...extra });
   const profile = getUserDataPath();
   if (!getInferencePolicy(loadSettings()).isPermitted('scenario-direction', { userInitiated: true })) throw new Error('Scenario generation is disabled by execution policy');
   const stage = await withWorldMutation(async () => {
@@ -78,15 +84,20 @@ async function generate(request: CreateCastInput, hash: string, signal: AbortSig
     await saveWorld({ ...world, scenarioCreations: [...(world.scenarioCreations ?? []).filter(item => item.operationId !== request.operationId), created] });
     return created;
   });
+  trace('world-staged');
   if (stage.status !== 'generating') return stage;
   try {
     if (signal.aborted) throw new Error('Scenario generation cancelled');
     if (request.scope === 'persistent') requireLivingWorld(loadSettings());
-    const raw = await completeJob([applicationTaskMessage('scenario-direction', prompt()), { role: 'user', content: JSON.stringify({
+    const messages = [applicationTaskMessage('scenario-direction', prompt()), { role: 'user' as const, content: JSON.stringify({
       selectedPeople: stage.bindings.map(binding => ({ id: binding.baseline.id, name: binding.baseline.displayName })), intent: request.intent,
-    }) }], signal, SCENARIO_LIMITS.outputCharacters);
+    }) }];
+    trace('director-request-built', { messageCharacters: messages.reduce((sum, message) => sum + message.content.length, 0), outputCharacterLimit: SCENARIO_LIMITS.outputCharacters });
+    const raw = await completeJob(messages, signal, SCENARIO_LIMITS.outputCharacters);
+    trace('generation-complete', { outputCharacters: raw.length });
     const scenario = parseScenarioProposal(raw, request.participantIds, request.intent!);
-    return await withWorldMutation(async () => {
+    trace('parsed-and-validated', { generatedParticipants: scenario.participants.length });
+    const published = await withWorldMutation(async () => {
       if (profile !== getUserDataPath() || signal.aborted) throw new Error('Scenario generation cancelled');
       if (request.scope === 'persistent') requireLivingWorld(loadSettings());
       const world = await loadWorld();
@@ -96,7 +107,10 @@ async function generate(request: CreateCastInput, hash: string, signal: AbortSig
       await saveWorld(world);
       return current;
     });
+    trace('world-persisted');
+    return published;
   } catch (error) {
+    trace('failed-or-cancelled', { cancelled: signal.aborted, errorName: error instanceof Error ? error.name : 'unknown' });
     await withWorldMutation(async () => {
       if (profile !== getUserDataPath()) return;
       const world = await loadWorld();

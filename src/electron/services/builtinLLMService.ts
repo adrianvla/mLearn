@@ -17,6 +17,10 @@ const log = getLogger('electron.builtinLLMService');
 
 const MODEL_DIR_NAME = 'models';
 const IDLE_UNLOAD_MS = 10 * 60 * 1000; // 10 minutes
+// The model's advertised maximum can exceed 200k tokens and reserves an
+// impractical KV cache on a 16 GB unified-memory machine. Chat requests need
+// a bounded interactive window; the session can shift older history as needed.
+const INTERACTIVE_CONTEXT_TOKENS = 8192;
 
 // Dynamic imports for node-llama-cpp (ESM module in CJS context)
 let llamaCppModule: typeof import('node-llama-cpp') | null = null;
@@ -35,6 +39,59 @@ let isDownloading = false;
 let downloadProgress = 0;
 let downloadedBytes = 0;
 let expectedBytes = 0;
+let rawControlModelPath: string | null = null;
+
+function tokenUsage(sequence: any, before?: { usedInputTokens: number; usedOutputTokens: number }): { inputTokens: number | null; outputTokens: number | null } {
+  const meter = sequence?.tokenMeter;
+  if (!meter?.getState) return { inputTokens: null, outputTokens: null };
+  const after = meter.getState();
+  return {
+    inputTokens: after.usedInputTokens - (before?.usedInputTokens ?? 0),
+    outputTokens: after.usedOutputTokens - (before?.usedOutputTokens ?? 0),
+  };
+}
+
+async function releaseChatSession(session: any, sequence: any, context: any): Promise<void> {
+  try {
+    await session.dispose?.({ disposeSequence: false });
+  } finally {
+    await sequence.dispose?.();
+    // node-llama-cpp's sequence dispose starts asynchronous ID reclamation.
+    // A subsequent getSequence() can otherwise throw "No sequences left".
+    const deadline = Date.now() + 10_000;
+    while (context.sequencesLeft === 0) {
+      if (Date.now() >= deadline) throw new Error('Model context sequence was not reclaimed');
+      await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    }
+  }
+}
+
+async function runRawControl(): Promise<void> {
+  if (!modelContext || !loadedModel) return;
+  const llamaCpp = await importLlamaCpp();
+  for (const pass of ['cold', 'warm'] as const) {
+    const sequence = modelContext.getSequence();
+    const before = sequence.tokenMeter?.getState?.();
+    const session = new llamaCpp.LlamaChatSession({ contextSequence: sequence, autoDisposeSequence: false });
+    const startedAt = performance.now();
+    let firstTokenAt = 0;
+    let outputTokens = 0;
+    try {
+      await session.prompt('Count from 1 to 20, separated by spaces.', {
+        maxTokens: 64,
+        onToken: (tokens) => {
+          if (!firstTokenAt) firstTokenAt = performance.now();
+          outputTokens += tokens.length;
+        },
+      });
+      const elapsedMs = performance.now() - startedAt;
+      const measured = tokenUsage(sequence, before);
+      log.info('Tutor raw control', { pass, modelFile: path.basename(loadedModelPath ?? ''), contextSize: modelContext.contextSize, inputTokens: measured.inputTokens, outputTokens: measured.outputTokens ?? outputTokens, firstTokenMs: firstTokenAt ? Math.round(firstTokenAt - startedAt) : null, totalMs: Math.round(elapsedMs), generationTokensPerSecond: firstTokenAt && elapsedMs > firstTokenAt - startedAt ? Number(((measured.outputTokens ?? outputTokens) / ((elapsedMs - (firstTokenAt - startedAt)) / 1000)).toFixed(2)) : null, processRssBytes: process.memoryUsage().rss });
+    } finally {
+      await releaseChatSession(session, sequence, modelContext);
+    }
+  }
+}
 
 function getModelsDir(): string {
   return path.join(app.getPath('userData'), MODEL_DIR_NAME);
@@ -99,9 +156,14 @@ async function checkModelStatus(modelFile?: string): Promise<LLMModelStatus> {
     try {
       await withModelLifecycle(async () => {
         await ensureModelLoaded(modelFile, new AbortController().signal);
+        if (process.env.MLEARN_TUTOR_RAW_CONTROL === '1' && rawControlModelPath !== loadedModelPath) {
+          rawControlModelPath = loadedModelPath;
+          await runRawControl();
+        }
         resetIdleTimer();
       });
-    } catch {
+    } catch (error) {
+      log.error('Tutor readiness or raw-control check failed', error as Error);
       // The status carries the startup failure for this selected model.
     }
   }
@@ -172,8 +234,12 @@ function resetIdleTimer(): void {
 
 async function ensureModelLoaded(modelFile: string | undefined, signal: AbortSignal): Promise<void> {
   const modelPath = getModelPath(modelFile);
+  const startedAt = performance.now();
   signal.throwIfAborted();
-  if (loadedModel && modelContext && loadedModelPath === modelPath) return;
+  if (loadedModel && modelContext && loadedModelPath === modelPath) {
+    log.info('Tutor model readiness', { stage: 'already-loaded', modelFile: path.basename(modelPath), contextSize: modelContext.contextSize, processRssBytes: process.memoryUsage().rss });
+    return;
+  }
 
   if (!fs.existsSync(modelPath)) {
     throw new Error('Model not downloaded');
@@ -183,9 +249,11 @@ async function ensureModelLoaded(modelFile: string | undefined, signal: AbortSig
   signal.throwIfAborted();
   try {
     loadedModel = await runtime.loadModel({ modelPath, loadSignal: signal });
+    log.info('Tutor model readiness', { stage: 'model-loaded', modelFile: path.basename(modelPath), elapsedMs: Math.round(performance.now() - startedAt), modelFileBytes: fs.statSync(modelPath).size, processRssBytes: process.memoryUsage().rss });
     loadedModelPath = modelPath;
     signal.throwIfAborted();
-    modelContext = await loadedModel.createContext();
+    modelContext = await loadedModel.createContext({ contextSize: INTERACTIVE_CONTEXT_TOKENS });
+    log.info('Tutor model readiness', { stage: 'context-ready', modelFile: path.basename(modelPath), elapsedMs: Math.round(performance.now() - startedAt), contextSize: modelContext.contextSize, processRssBytes: process.memoryUsage().rss });
     signal.throwIfAborted();
     llamaRuntimeError = undefined;
   } catch (error) {
@@ -257,12 +325,16 @@ async function streamLoadedChat(
     contextSequence: modelContext.getSequence(),
     // Each request owns one context sequence. Releasing it is required before
     // the next queued request can allocate another sequence from this context.
-    autoDisposeSequence: true,
+    autoDisposeSequence: false,
   });
 
   const startTime = Date.now();
   let firstTokenTime = 0;
   let tokenCount = 0;
+  let segmentedTokens = 0;
+  let thoughtTokens = 0;
+  const sequence = session.sequence;
+  const tokenMeterBefore = sequence?.tokenMeter?.getState?.();
 
   // Separate system messages from conversation messages
   const systemMessages = messages.filter(m => m.role === 'system');
@@ -271,7 +343,7 @@ async function streamLoadedChat(
   // The last message should be the user prompt
   const lastUserMsg = conversationMessages[conversationMessages.length - 1];
   if (!lastUserMsg || lastUserMsg.role !== 'user') {
-    await session.dispose?.();
+    await releaseChatSession(session, sequence, modelContext);
     throw new Error('No user message found');
   }
 
@@ -332,10 +404,30 @@ async function streamLoadedChat(
     const promptOptions: Parameters<typeof session.prompt>[1] = {
       signal,
       functions: Object.keys(functions).length > 0 ? functions : undefined,
+      onResponseChunk: (chunk) => {
+        if (signal.aborted || chunk.tokens.length === 0) return;
+        const previousCount = segmentedTokens;
+        segmentedTokens += chunk.tokens.length;
+        if (chunk.type === 'segment' && chunk.segmentType === 'thought') thoughtTokens += chunk.tokens.length;
+        if (Math.floor(previousCount / 64) !== Math.floor(segmentedTokens / 64)) {
+          log.info('Tutor model generation', { stage: 'segmented-progress', totalTokens: segmentedTokens, thoughtTokens, visibleTokens: tokenCount, elapsedMs: Date.now() - startTime, processRssBytes: process.memoryUsage().rss });
+        }
+      },
+      onToken: (tokens) => {
+        if (signal.aborted) return;
+        if (!firstTokenTime) {
+          firstTokenTime = Date.now();
+          log.info('Tutor model generation', { stage: 'first-token', firstTokenMs: firstTokenTime - startTime, inputTokens: tokenUsage(sequence, tokenMeterBefore).inputTokens, contextSize: modelContext?.contextSize, processRssBytes: process.memoryUsage().rss });
+        }
+        const previousCount = tokenCount;
+        tokenCount += tokens.length;
+        if (Math.floor(previousCount / 64) !== Math.floor(tokenCount / 64)) {
+          log.info('Tutor model generation', { stage: 'progress', outputTokens: tokenCount, elapsedMs: Date.now() - startTime, processRssBytes: process.memoryUsage().rss });
+        }
+      },
       onTextChunk: (text: string) => {
         if (signal.aborted) return;
         if (!firstTokenTime) firstTokenTime = Date.now();
-        tokenCount++;
 
         const chunk: LLMStreamChunk = {
           content: text,
@@ -343,6 +435,7 @@ async function streamLoadedChat(
         sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
       },
       maxTokens: 2048,
+      budgets: { thoughtTokens: 128 },
       temperature: 0.3,
     };
 
@@ -358,12 +451,14 @@ async function streamLoadedChat(
 
     const totalTime = Date.now() - startTime;
     const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
+    const usage = tokenUsage(sequence, tokenMeterBefore);
+    log.info('Tutor model generation', { stage: 'complete', modelFile: path.basename(loadedModelPath ?? ''), inputTokens: usage.inputTokens, outputTokens: usage.outputTokens ?? tokenCount, segmentedTokens, thoughtTokens, maxTokens: promptOptions.maxTokens, contextSize: modelContext.contextSize, firstTokenMs: ttft || null, totalMs: totalTime, promptTokensPerSecond: usage.inputTokens && ttft ? Number((usage.inputTokens / (ttft / 1000)).toFixed(2)) : null, generationTokensPerSecond: firstTokenTime && totalTime > ttft ? Number(((usage.outputTokens ?? tokenCount) / ((totalTime - ttft) / 1000)).toFixed(2)) : null, processRssBytes: process.memoryUsage().rss });
 
     // Emit final done chunk (tool calls already emitted individually — don't re-include)
     const doneChunk: LLMStreamChunk = {
       content: '',
       done: true,
-      evalCount: tokenCount,
+      evalCount: usage.outputTokens ?? tokenCount,
       totalDuration: totalTime * 1_000_000, // convert to nanoseconds
       promptEvalDuration: ttft * 1_000_000,
     };
@@ -381,7 +476,7 @@ async function streamLoadedChat(
       sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, errorChunk);
     }
   } finally {
-    await session.dispose?.();
+    await releaseChatSession(session, sequence, modelContext);
   }
 }
 

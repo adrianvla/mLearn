@@ -62,6 +62,31 @@ it('reports final owned playback position before releasing the departing media e
   container.remove();
 });
 
+it('pauses its own element when the document is hidden and reports that element to the route', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const onMediaElement = vi.fn();
+  const dispose = render(() => <VideoPlayer subtitles={{
+    tokens: () => [], isTokenizing: () => false, observationReady: () => false,
+    currentSubtitle: () => null, updateTime: async () => {},
+  } as never} onMediaElement={onMediaElement} />, container);
+  const owned = container.querySelector('video')!;
+  const other = document.createElement('video');
+  document.body.prepend(other);
+  owned.pause = vi.fn();
+  other.pause = vi.fn();
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(onMediaElement).toHaveBeenCalledWith(owned);
+  expect(owned.pause).toHaveBeenCalledOnce();
+  expect(other.pause).not.toHaveBeenCalled();
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  dispose();
+  expect(onMediaElement).toHaveBeenLastCalledWith(null);
+  other.remove();
+  container.remove();
+});
+
 it('shows the media surface only after a decoded frame is available', () => {
   const container = document.createElement('div');
   document.body.appendChild(container);

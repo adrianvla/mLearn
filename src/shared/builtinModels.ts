@@ -39,7 +39,7 @@ export const BUILTIN_MODELS: BuiltinModelConfig[] = [
     modelRepo: 'google/gemma-4-12B-it-qat-q4_0-gguf',
     estimatedMemoryGbMin: 8.5,
     estimatedMemoryGbMax: 10.5,
-    targetMemoryGb: 16,
+    targetMemoryGb: 20,
     fileSizeGb: 6.98,
   },
   {

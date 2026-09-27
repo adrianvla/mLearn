@@ -11,10 +11,14 @@ import { useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { isElectron } from '../../../shared/platform';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
+import { getLogger } from '../../../shared/utils/logger';
 import { SubtitleContainer } from '../subtitle/SubtitleContainer';
 import { LiveWordTranslator } from '../subtitle/LiveWordTranslator';
 import { VideoControls } from './VideoControls';
 import './VideoPlayer.css';
+
+const log = getLogger('renderer.video.player');
+let nextPlayerId = 0;
 
 export interface DetectedTrack {
   index: number;
@@ -41,6 +45,8 @@ export interface VideoPlayerProps {
   onTimeUpdate?: (time: number) => void;
   /** Final position while this player still owns its media element. */
   onBeforeDetach?: (snapshot: { currentTime: number; duration: number }) => void;
+  /** Identifies the element that owns playback for the containing route. */
+  onMediaElement?: (element: HTMLVideoElement | null) => void;
   /** Callback when video ends */
   onEnded?: () => void;
   /** Options forwarded to the native context menu */
@@ -81,25 +87,37 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   });
 
   let videoRef: HTMLVideoElement | undefined;
+  const playerId = ++nextPlayerId;
+  const pauseOwnedVideo = (reason: string) => {
+    if (!videoRef) return;
+    const currentTime = videoRef.currentTime;
+    const wasPaused = videoRef.paused;
+    videoRef.pause();
+    log.info('Playback ownership released', { playerId, reason, currentTime, wasPaused, paused: videoRef.paused, connected: videoRef.isConnected });
+  };
   let containerRef: HTMLDivElement | undefined;
   const playbackVisitId = crypto.randomUUID();
   const [playbackPass, setPlaybackPass] = createSignal(0);
   const [documentActive, setDocumentActive] = createSignal(
     document.visibilityState === 'visible' && document.hasFocus(),
   );
-  const updateDocumentActive = () => setDocumentActive(
-    document.visibilityState === 'visible' && document.hasFocus(),
-  );
+  const updateDocumentActive = () => {
+    setDocumentActive(document.visibilityState === 'visible' && document.hasFocus());
+    if (document.visibilityState === 'hidden') pauseOwnedVideo('document-hidden');
+  };
   onMount(() => {
     document.addEventListener('visibilitychange', updateDocumentActive);
+    window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('focus', updateDocumentActive);
     window.addEventListener('blur', updateDocumentActive);
     onCleanup(() => {
       document.removeEventListener('visibilitychange', updateDocumentActive);
+      window.removeEventListener('pagehide', handlePageHide);
       window.removeEventListener('focus', updateDocumentActive);
       window.removeEventListener('blur', updateDocumentActive);
     });
   });
+  const handlePageHide = () => pauseOwnedVideo('pagehide');
 
   // Compute video fit class
   const videoFitClass = createMemo(() => {
@@ -111,6 +129,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   onMount(() => {
     if (videoRef) {
       video.attachVideo(videoRef);
+      props.onMediaElement?.(videoRef);
       const handleLoadedMetadata = () => {
         if (!isElectron()) return;
         const width = videoRef?.videoWidth || 0;
@@ -149,9 +168,10 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
 
   onCleanup(() => {
     if (videoRef) {
-      videoRef.pause();
+      pauseOwnedVideo('teardown');
       props.onBeforeDetach?.({ currentTime: videoRef.currentTime, duration: videoRef.duration });
     }
+    props.onMediaElement?.(null);
     video.detachVideo();
   });
 

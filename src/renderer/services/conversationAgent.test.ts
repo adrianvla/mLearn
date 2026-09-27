@@ -2149,11 +2149,13 @@ describe('createConversationAgent', () => {
   // Timeout handling
   // ==========================================================================
 
-  describe('timeout (90 seconds)', () => {
-    it('calls onError with timeout message when no content arrives within 90s', async () => {
+  describe('response watchdog', () => {
+    it('calls onError when a cloud response remains silent for 90s', async () => {
       vi.useFakeTimers();
 
-      const agent = createConversationAgent(createMockDeps());
+      const agent = createConversationAgent(createMockDeps({
+        getSettings: () => ({ ...DEFAULT_SETTINGS, llmProvider: 'cloud' }),
+      }));
       const { callbacks, onError } = createCallbacks();
 
       agent.processMessage('hello', [], callbacks);
@@ -2161,6 +2163,7 @@ describe('createConversationAgent', () => {
       vi.advanceTimersByTime(90_000);
 
       expect(onError).toHaveBeenCalledWith('Response timed out');
+      expect(mockBridge.llm.llmStreamAbort).toHaveBeenCalled();
 
       vi.useRealTimers();
     });
@@ -2170,7 +2173,9 @@ describe('createConversationAgent', () => {
 
       mockBackend.tokenize.mockResolvedValue([]);
 
-      const agent = createConversationAgent(createMockDeps());
+      const agent = createConversationAgent(createMockDeps({
+        getSettings: () => ({ ...DEFAULT_SETTINGS, llmProvider: 'cloud' }),
+      }));
       const { callbacks, onDone } = createCallbacks();
 
       agent.processMessage('hello', [], callbacks);
@@ -2186,6 +2191,43 @@ describe('createConversationAgent', () => {
         undefined,
       );
 
+      vi.useRealTimers();
+    });
+
+    it('allows a built-in response to begin after 90s and completes it', async () => {
+      vi.useFakeTimers();
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks, onError, onDone } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+      vi.advanceTimersByTime(100_000);
+      expect(onError).not.toHaveBeenCalled();
+      sendChunk('Hello');
+      sendDone();
+      await vi.runAllTimersAsync();
+
+      expect(onDone).toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('resets the watchdog while response chunks continue arriving', async () => {
+      vi.useFakeTimers();
+      mockBackend.tokenize.mockResolvedValue([]);
+      const agent = createConversationAgent(createMockDeps({
+        getSettings: () => ({ ...DEFAULT_SETTINGS, llmProvider: 'cloud' }),
+      }));
+      const { callbacks, onDone, onError } = createCallbacks();
+
+      agent.processMessage('hello', [], callbacks);
+      vi.advanceTimersByTime(80_000);
+      sendChunk('Partial response');
+      vi.advanceTimersByTime(80_000);
+      expect(onDone).not.toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
+      sendDone();
+      await vi.runAllTimersAsync();
+      expect(onDone).toHaveBeenCalled();
       vi.useRealTimers();
     });
   });

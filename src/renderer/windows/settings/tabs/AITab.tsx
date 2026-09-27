@@ -29,7 +29,7 @@ import { getLogger } from '../../../../shared/utils/logger';
 const log = getLogger("renderer.settings.ai");
 
 export const AITab: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, isLoading } = useSettings();
   const { t } = useLocalization();
 
   // Built-in model state
@@ -76,7 +76,7 @@ export const AITab: Component = () => {
 
   // Check model status on mount
   createEffect(() => {
-    checkModelStatus();
+    if (!isLoading()) void checkModelStatus();
   });
 
   createEffect(() => {
@@ -115,6 +115,7 @@ export const AITab: Component = () => {
 
   // First-launch autoselect
   createEffect(() => {
+    if (isLoading()) return;
     if (settings.llmProvider === 'builtin' && !settings.builtinModelAutoselected) {
       void runAutoselect();
     }
@@ -122,6 +123,7 @@ export const AITab: Component = () => {
 
   // Re-check model status whenever the selected model changes
   createEffect(() => {
+    if (isLoading()) return;
     const modelFile = settings.builtinModel;
     if (settings.llmProvider === 'builtin' && modelFile) {
       void checkModelStatus(modelFile);

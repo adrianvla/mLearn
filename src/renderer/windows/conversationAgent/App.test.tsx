@@ -125,6 +125,7 @@ vi.mock('../../../shared/backends', () => ({
 // ============================================================================
 
 let testSettings: typeof DEFAULT_SETTINGS;
+let settingsLoading = false;
 
 // Words the canonical knowledge resolver reports settled (evidence-known or
 // excluded); mutated per test to drive learner-projection reconciliation.
@@ -133,6 +134,7 @@ vi.mock('../../context', () => ({
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   useSettings: () => ({
     settings: testSettings,
+    isLoading: () => settingsLoading,
     updateSettings: vi.fn(),
     openCloudReLoginModal: vi.fn(),
   }),
@@ -359,6 +361,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true }],
     };
     testSettings = { ...DEFAULT_SETTINGS, livingWorldEnabled: true };
+    settingsLoading = false;
     // Sending is gated on the model's `ready` status. Keep the bridge fixture
     // explicit so this suite never inherits a status implementation from a
     // different test order.
@@ -377,6 +380,15 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose?.();
     dispose = undefined;
     container.remove();
+  });
+
+  it('waits for saved settings before checking the built-in model', async () => {
+    settingsLoading = true;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await Promise.resolve();
+
+    expect(mockBridge.llm.llmCheckModel).not.toHaveBeenCalled();
   });
 
   it('boots rooms and renders journal messages for the selected room', async () => {
