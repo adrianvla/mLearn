@@ -123,7 +123,8 @@ const updateRecentItems = async (mutate: (items: RecentItem[]) => RecentItem[] |
  */
 export async function saveToRecentItems(
   item: Omit<RecentItem, 'lastWatched'>,
-  thumbnail?: string
+  thumbnail?: string,
+  preserveExistingProgress = false,
 ): Promise<void> {
   try {
     // Warn if saving without path - these items won't be openable
@@ -137,6 +138,7 @@ export async function saveToRecentItems(
       // Create new item
       const newItem: RecentItem = {
         ...item,
+        progress: preserveExistingProgress ? existing?.progress ?? item.progress : item.progress,
         playbackTime: existing?.playbackTime,
         subtitlePath: item.subtitlePath ?? existing?.subtitlePath,
         thumbnail: thumbnail || item.thumbnail || existing?.thumbnail,

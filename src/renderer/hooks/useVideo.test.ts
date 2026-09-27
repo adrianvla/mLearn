@@ -102,7 +102,7 @@ describe('useVideo', () => {
 
         expect(el.pause).toHaveBeenCalled();
         expect(el.hasAttribute('src')).toBe(false);
-        expect(el.load).toHaveBeenCalledTimes(2);
+        expect(el.load).toHaveBeenCalledTimes(1);
         expect(video.state.isPlaying).toBe(false);
         dispose();
       });
@@ -657,7 +657,8 @@ describe('useVideo', () => {
         expect(video.videoSrc()).toBe('video.mp4');
         expect(video.state.isLoaded).toBe(false);
         expect(video.state.currentTime).toBe(0);
-        expect(el.load).toHaveBeenCalled();
+        expect(el.src).toContain('video.mp4');
+        expect(el.load).not.toHaveBeenCalled();
         dispose();
       });
     });

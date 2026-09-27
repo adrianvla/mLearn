@@ -1145,7 +1145,7 @@
         "DescriptionWithLLM": "{llmCount} flashcard(s) are missing example translations, and {ttsCount} audio file(s) are missing. Would you like to repair them?",
         "DescriptionLLMOnly": "{count} flashcard(s) are missing example translations. Would you like to generate them now?",
         "Done": "Repaired {count} flashcard audio files",
-        "DoneWithErrors": "Repaired {total} audio files ({failed} failed)",
+        "DoneWithErrors": "Repaired {count} audio files ({failed} failed)",
         "LLMToastTitle": "Generating missing example translations…",
         "LLMDone": "Generated translations for {count} flashcard(s)",
         "LLMDoneWithErrors": "Generated translations for {count} flashcard(s), {failed} failed",

@@ -61,6 +61,7 @@ import type { KnowledgeAspect } from '../../../shared/constants';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
 import { getSuggestedFlashcardBadgeCount } from './flashcardsSuggestedCount';
+import { runTtsRepairJobs } from './repairTtsJobs';
 import { buildBulkExampleUpdates, getCardsNeedingBulkExamples } from '../../utils/flashcardBulkExamples';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
@@ -285,6 +286,10 @@ export const FlashcardsContent: Component = () => {
     const ttsJobs = repairJobs();
     const llmJobs = llmRepairJobs();
     if (ttsJobs.length === 0 && llmJobs.length === 0) return;
+    if (ttsJobs.length > 0 && settings.flashcardTtsProvider === 'cloud' && settings.cloudAuthStatus !== 'signed-in') {
+      showToast({ message: t('mlearn.CardEditor.NoCloudAuth'), variant: 'warning', duration: 6000 });
+      return;
+    }
     setShowRepairModal(false);
     setRepairRunning(true);
 
@@ -339,8 +344,6 @@ export const FlashcardsContent: Component = () => {
       const provider = settings.flashcardTtsProvider;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
       const cloudApiUrl = resolveCloudApiUrl(settings);
-      const total = ttsJobs.length;
-      let succeeded = 0;
 
       const toastId = showToast({
         variant: 'info',
@@ -360,15 +363,10 @@ export const FlashcardsContent: Component = () => {
         }
       }
 
-      let pending = [...ttsJobs];
-      let processed = 0;
-
-      for (let attempt = 0; attempt < MAX_REPAIR_RETRIES && pending.length > 0; attempt++) {
-        const failedThisRound: TtsRepairJob[] = [];
-
-        for (const job of pending) {
-          try {
-            const result = provider === 'cloud'
+      let result;
+      try {
+        result = await runTtsRepairJobs(ttsJobs, async (job) => {
+          return Boolean(provider === 'cloud'
               ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(
                 job.cardId,
                 job.text,
@@ -388,40 +386,32 @@ export const FlashcardsContent: Component = () => {
                 voiceSampleId,
                 undefined,
                 cloudApiUrl,
-              );
-            if (result) {
-              succeeded++;
-            } else {
-              failedThisRound.push(job);
-            }
-          } catch (e) {
-            if (handleCloudOperationFallback(e)) {
-              setRepairRunning(false);
-              removeToast(toastId);
-              return;
-            }
-            log.error("error", e);
-            failedThisRound.push(job);
-          }
-          processed++;
-          const pct = Math.min(100, Math.round((processed / total) * 100));
+              ));
+        }, (completed, total) => {
+          const pct = Math.round((completed / total) * 100);
           updateToast(toastId, {
             content: (
               <ProgressBar value={pct} size="sm" variant="primary" showPercent percentPosition="below" />
             ),
           });
-        }
-
-        pending = failedThisRound;
+        }, MAX_REPAIR_RETRIES, (error) => {
+          if (isCloudSessionCancelled(error) || isCloudUnreachable(error)) return true;
+          log.error('Flashcard audio repair attempt failed', error);
+          return false;
+        });
+      } catch (error) {
+        handleCloudOperationFallback(error);
+        removeToast(toastId);
+        setRepairRunning(false);
+        return;
       }
 
       removeToast(toastId);
 
-      const failed = pending.length;
-      if (failed > 0) {
-        showToast({ variant: 'warning', title: t('mlearn.Flashcards.Repair.DoneWithErrors', { total, failed }), duration: 5000 });
+      if (result.failed > 0) {
+        showToast({ variant: 'warning', title: t('mlearn.Flashcards.Repair.DoneWithErrors', { count: result.succeeded, failed: result.failed }), duration: 5000 });
       } else {
-        showToast({ variant: 'success', title: t('mlearn.Flashcards.Repair.Done', { count: succeeded }), duration: 4000 });
+        showToast({ variant: 'success', title: t('mlearn.Flashcards.Repair.Done', { count: result.succeeded }), duration: 4000 });
       }
     }
 
@@ -1287,6 +1277,9 @@ export const FlashcardsContent: Component = () => {
               ? t('mlearn.Flashcards.Repair.DescriptionLLMOnly', { count: llmRepairJobs().length })
               : t('mlearn.Flashcards.Repair.Description', { count: repairJobs().length })}
         </p>
+        <Show when={repairJobs().length > 0 && settings.flashcardTtsProvider === 'cloud' && settings.cloudAuthStatus !== 'signed-in'}>
+          <p role="alert">{t('mlearn.CardEditor.NoCloudAuth')}</p>
+        </Show>
       </Modal>
     </div>
   );

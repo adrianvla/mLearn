@@ -187,7 +187,6 @@ export const VideoRoute: Component = () => {
   const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || '', langCtx.currentLangData()));
 
   const loadSharedVideo = (url: string, name: string) => {
-    setVideoSrc(url);
     setCurrentVideoTime(0);
     setCurrentVideoDuration(null);
     setCurrentVideoPath('');
@@ -355,12 +354,12 @@ export const VideoRoute: Component = () => {
     log.info('[VideoRoute] loadVideo: path=', path, 'url=', url);
     thumbnailCaptureBlockedKeys.delete(path);
     thumbnailCaptureBlockedKeys.delete(name);
-    setVideoSrc(url);
     setCurrentVideoTime(0);
     setCurrentVideoDuration(null);
     setCurrentVideoPath(path);
     setShowDropZone(false);
     setCurrentVideoName(name);
+    setVideoSrc(url);
     setDetectedAudioTracks([]);
     setDetectedSubtitleTracks([]);
     setActiveDetectedSubtitleTrack(null);
@@ -417,7 +416,7 @@ export const VideoRoute: Component = () => {
       path,
       subtitlePath: subtitlePath || undefined,
       progress: 0,
-    });
+    }, undefined, true);
   };
 
   const hasRecentThumbnail = async (path: string, name: string): Promise<boolean> => {
@@ -1311,7 +1310,12 @@ export const VideoRoute: Component = () => {
     }
   };
 
-  const goHome = () => {
+  const goHome = async () => {
+    // Navigation must end ownership immediately, before router teardown.
+    getCurrentVideoElement()?.pause();
+    // Home reads recent items on entry. Publish the stopped position first so
+    // its progress and the later Continue locator describe the same frame.
+    await updateVideoProgress();
     navigate('/');
   };
 
@@ -1463,6 +1467,19 @@ export const VideoRoute: Component = () => {
             }}
             onContextMenuOpen={setContextMenuPosition}
             onTimeUpdate={(time) => setCurrentVideoTime(time)}
+            onBeforeDetach={({ currentTime, duration }) => {
+              const path = currentVideoPath();
+              const name = currentVideoName();
+              if (!name || !Number.isFinite(currentTime)) return;
+              const progress = getRecentProgressPercent(currentTime, duration);
+              if (path) {
+                void updateRecentItemProgressByPath(path, progress);
+                void updateRecentItemPlaybackTimeByPath(path, currentTime);
+              } else {
+                void updateRecentItemProgress(name, progress);
+                void updateRecentItemPlaybackTime(name, currentTime);
+              }
+            }}
             showWordSidebar={showWordSidebar()}
             onToggleWordSidebar={() => setShowWordSidebar(!showWordSidebar())}
             onOpenSubtitles={() => void handleSelectSubtitle()}

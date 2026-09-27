@@ -1145,7 +1145,7 @@
         "DescriptionWithLLM": "{llmCount} Lernkarte(n) fehlen Beispielübersetzungen und {ttsCount} Audiodateien fehlen. Möchten Sie diese reparieren?",
         "DescriptionLLMOnly": "{count} Lernkarte(n) fehlen Beispielübersetzungen. Möchten Sie diese jetzt generieren?",
         "Done": "{count} Lernkarten-Audiodateien repariert",
-        "DoneWithErrors": "{total} Audiodateien repariert ({failed} fehlgeschlagen)",
+        "DoneWithErrors": "{count} Audiodateien repariert ({failed} fehlgeschlagen)",
         "LLMToastTitle": "Fehlende Beispielübersetzungen werden generiert…",
         "LLMDone": "Übersetzungen für {count} Lernkarte(n) generiert",
         "LLMDoneWithErrors": "Übersetzungen für {count} Lernkarte(n) generiert, {failed} fehlgeschlagen",

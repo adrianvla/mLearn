@@ -104,6 +104,8 @@ beforeEach(async () => {
   mockExistsSync.mockReturnValue(true);
   mockContextDispose.mockReset();
   mockModelDispose.mockReset();
+  mockLoadModel.mockReset().mockImplementation(async () => ({ createContext: mockModelCreateContext, dispose: mockModelDispose }));
+  mockModelCreateContext.mockReset().mockImplementation(async () => ({ getSequence: mockContextGetSequence, dispose: mockContextDispose }));
   mockSessionDispose.mockReset();
   mockSessionSetChatHistory.mockReset();
 
@@ -200,6 +202,24 @@ describe('LLM_CHECK_MODEL handler', () => {
     });
   });
 
+  it('does not report ready when the selected model cannot be loaded', async () => {
+    mockLoadModel.mockRejectedValueOnce(new Error('selected GGUF cannot start'));
+    const status = await mockIpcHandlers.get('llm-check-model')!(null, BUILTIN_MODELS[2].modelFile) as {
+      downloaded: boolean; runtimeAvailable: boolean; ready: boolean; runtimeError?: string;
+    };
+    expect(status).toMatchObject({ downloaded: true, runtimeAvailable: true, ready: false,
+      runtimeError: 'selected GGUF cannot start' });
+  });
+
+  it('does not report ready and disposes a partially loaded model when context creation fails', async () => {
+    mockModelCreateContext.mockRejectedValueOnce(new Error('context unavailable'));
+    const status = await mockIpcHandlers.get('llm-check-model')!(null, BUILTIN_MODELS[2].modelFile) as {
+      ready: boolean; runtimeError?: string; loaded: boolean;
+    };
+    expect(status).toMatchObject({ ready: false, loaded: false, runtimeError: 'context unavailable' });
+    expect(mockModelDispose).toHaveBeenCalledOnce();
+  });
+
   it('returns downloaded:true when model file exists', async () => {
     mockExistsSync.mockReturnValue(true);
     const handler = mockIpcHandlers.get('llm-check-model');
@@ -214,11 +234,11 @@ describe('LLM_CHECK_MODEL handler', () => {
     expect((status as { downloaded: boolean }).downloaded).toBe(false);
   });
 
-  it('returns downloading:false and loaded:false by default', async () => {
+  it('loads the downloaded model before reporting it ready', async () => {
     const handler = mockIpcHandlers.get('llm-check-model');
     const status = await handler!(null) as { downloading: boolean; loaded: boolean };
     expect(status.downloading).toBe(false);
-    expect(status.loaded).toBe(false);
+    expect(status.loaded).toBe(true);
   });
 
   it('returns status for specific modelFile argument', async () => {
@@ -334,7 +354,7 @@ describe('LLM_UNLOAD_MODEL handler', () => {
     expect(() => listeners[0]({})).not.toThrow();
   });
 
-  it('sets loaded:false after unloading a loaded model', async () => {
+  it('rechecks startup after unloading a loaded model', async () => {
     mockExistsSync.mockReturnValue(true);
     const sender = createMockSender() as unknown as Electron.WebContents;
     await mod.builtinStreamChat(sender, [{ role: 'user', content: 'hi' }], []);
@@ -347,7 +367,8 @@ describe('LLM_UNLOAD_MODEL handler', () => {
     listeners[0]({});
 
     const afterUnload = await checkHandler!(null) as { loaded: boolean };
-    expect(afterUnload.loaded).toBe(false);
+    expect(afterUnload.loaded).toBe(true);
+    expect(mockLoadModel).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -590,18 +611,18 @@ describe('built-in model lifecycle', () => {
   const modelA = BUILTIN_MODELS[0].modelFile;
   const modelB = BUILTIN_MODELS[1].modelFile;
 
-  it('reports loaded status for the requested model and reloads after switching', async () => {
+  it('checks each selected model through the same load path as chat', async () => {
     mod.setupBuiltinLLMIPC();
     const sender = createMockSender() as unknown as Electron.WebContents;
     await mod.builtinStreamChat(sender, messages, [], modelA);
     const status = mockIpcHandlers.get('llm-check-model')!;
     expect(await status(null, modelA)).toMatchObject({ loaded: true });
-    expect(await status(null, modelB)).toMatchObject({ loaded: false });
+    expect(await status(null, modelB)).toMatchObject({ loaded: true, ready: true });
 
     await mod.builtinStreamChat(sender, messages, [], modelB);
     expect(mockLoadModel).toHaveBeenLastCalledWith(expect.objectContaining({ modelPath: expect.stringContaining(modelB) }));
-    expect(await status(null, modelA)).toMatchObject({ loaded: false });
-    expect(await status(null, modelB)).toMatchObject({ loaded: true });
+    expect(await status(null, modelA)).toMatchObject({ loaded: true, ready: true });
+    expect(await status(null, modelB)).toMatchObject({ loaded: true, ready: true });
   });
 
   it('waits for context and model disposal before loading a replacement', async () => {

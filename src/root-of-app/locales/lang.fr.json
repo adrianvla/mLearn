@@ -1145,7 +1145,7 @@
         "DescriptionWithLLM": "{llmCount} carte(s) manquent de traductions d'exemples et {ttsCount} fichier(s) audio manquent. Voulez-vous les réparer ?",
         "DescriptionLLMOnly": "{count} carte(s) manquent de traductions d'exemples. Voulez-vous les générer maintenant ?",
         "Done": "{count} fichiers audio de cartes réparés",
-        "DoneWithErrors": "{total} fichiers audio réparés ({failed} échoués)",
+        "DoneWithErrors": "{count} fichiers audio réparés ({failed} échoués)",
         "LLMToastTitle": "Génération des traductions d'exemples manquantes…",
         "LLMDone": "Traductions générées pour {count} carte(s)",
         "LLMDoneWithErrors": "Traductions générées pour {count} carte(s), {failed} échoué(s)",

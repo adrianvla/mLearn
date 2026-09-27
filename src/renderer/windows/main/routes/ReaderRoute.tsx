@@ -83,6 +83,7 @@ import { getReaderPassiveTrackingWord } from './readerWordTracking';
 import { createReaderOcrState } from './readerOcrState';
 import { createGrammarEncounterRecorder, journalGrammarEncountersForTokenGroups } from '../../../../shared/grammar/encounters';
 import { createReaderPageVisits } from './readerPageVisits';
+import { locationForPage, pageForLocation, parseSavedReaderLocation, progressForLocation, type ReaderSourceLocation } from './readerResume';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
 import { getColoredProsodyConfig, coloredProsodyNeedsDictionaryLookup } from '../../../utils/coloredProsody';
@@ -441,7 +442,7 @@ export async function prepareEpubReaderLoad(
   content: EpubContent,
   title: string,
   capacity: number,
-  loadSavedPage: () => Promise<number | null>,
+  loadSavedPage: () => Promise<ReaderSourceLocation | number | null>,
 ) {
   const newBlobUrls: string[] = [];
   try {
@@ -456,11 +457,12 @@ export async function prepareEpubReaderLoad(
     const pages = paginateTextSources(sources, title, capacity);
     const declaredCover = sources.find((source) => source.kind === 'image' && source.name === content.coverImage?.zipPath);
     const coverBlob = declaredCover?.blob ?? sources.find((source) => source.kind === 'image')?.blob;
-    const savedPageIndex = await loadSavedPage();
-    const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pages.length
-      ? savedPageIndex
-      : 0;
-    return { sources, pages, coverBlob, newBlobUrls, startPage };
+    const saved = await loadSavedPage();
+    const startPage = typeof saved === 'number'
+      ? (saved >= 0 && saved < pages.length ? saved : 0)
+      : saved ? pageForLocation(pages, saved) : 0;
+    const startLocation = typeof saved === 'object' && saved !== null ? saved : locationForPage(pages, startPage);
+    return { sources, pages, coverBlob, newBlobUrls, startPage, startLocation, resumed: saved !== null };
   } catch (error) {
     for (const url of newBlobUrls) URL.revokeObjectURL(url);
     throw error;
@@ -472,12 +474,22 @@ const loadSavedPageIndex = async (bookId: string | null): Promise<number | null>
   try {
     const raw = await getBridge().kvStore.kvGet(makeStorageKey(bookId));
     if (raw === null) return null;
-    const val = parseInt(raw, 10);
-    return Number.isFinite(val) ? val : null;
+    const val = parseSavedReaderLocation(raw);
+    return typeof val === 'number' ? val : null;
   } catch (err) {
     log.warn('[Reader] Failed to read saved page index', err);
     return null;
   }
+};
+
+const loadSavedReaderLocation = async (bookId: string | null): Promise<ReaderSourceLocation | number | null> => {
+  if (!bookId) return null;
+  try { return parseSavedReaderLocation(await getBridge().kvStore.kvGet(makeStorageKey(bookId))); }
+  catch (error) { log.warn('[Reader] Failed to read saved source location', error); return null; }
+};
+
+const persistSourceLocation = (bookId: string | null, location: ReaderSourceLocation | null): void => {
+  if (bookId && location) void getBridge().kvStore.kvSet(makeStorageKey(bookId), JSON.stringify(location));
 };
 
 const persistPageIndex = (bookId: string | null, pageIndex: number, totalPages: number) => {
@@ -583,6 +595,7 @@ export const ReaderRoute: Component = () => {
   const [textSourcePages, setTextSourcePages] = createSignal<ReaderSourcePage[] | null>(null);
   const [textPageCapacity, setTextPageCapacity] = createSignal(460);
   const [currentPage, setCurrentPage] = createSignal(0);
+  const [sourceLocation, setSourceLocation] = createSignal<ReaderSourceLocation | null>(null);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [currentBookId, setCurrentBookId] = createSignal<string | null>(null);
@@ -929,13 +942,16 @@ export const ReaderRoute: Component = () => {
   // Explicit page navigation starts a new reading visit. Repagination, sidebar
   // width and font measurements must keep the current visit.
   const [readingVisit, setReadingVisit] = createSignal(0);
+  // Restoring an EPUB only positions the viewport. A reopened page does not
+  // create a new exposure until the learner explicitly advances or seeks.
+  const [resumedWithoutReading, setResumedWithoutReading] = createSignal(false);
   const grammarEncounterRecorder = createGrammarEncounterRecorder('reader', { exclusive: false });
   const activePageVisits = createReaderPageVisits(
     () => currentBookId() ?? currentBookPath(),
     () => visiblePages().map((page) => page.id),
   );
   createEffect(() => {
-    if (!flashcardCtx.isKnowledgeReady() || !isWindowVisible() || !isWindowFocused()) return;
+    if (resumedWithoutReading() || !flashcardCtx.isKnowledgeReady() || !isWindowVisible() || !isWindowFocused()) return;
     const book = currentBookId() ?? currentBookPath();
     for (const page of visiblePages()) {
       const visit = activePageVisits().get(`${book}\0${page.id}`);
@@ -1096,20 +1112,14 @@ export const ReaderRoute: Component = () => {
     if (!sources) return;
     const capacity = textPageCapacity();
     const title = bookTitle();
-    const previousPages = untrack(pages);
     const previousCurrentPage = untrack(currentPage);
-    const activeTextOffset = previousPages[previousCurrentPage]?.textStart ?? 0;
+    const location = untrack(sourceLocation);
     const nextPages = paginateTextSources(sources, title, capacity);
-    const nextCurrentPage = nextPages.findIndex((page) => (
-      page.textStart !== undefined
-      && page.textEnd !== undefined
-      && activeTextOffset >= page.textStart
-      && activeTextOffset < page.textEnd
-    ));
+    const nextCurrentPage = location ? pageForLocation(nextPages, location) : Math.min(previousCurrentPage, nextPages.length - 1);
 
     batch(() => {
       setPages(nextPages);
-      setCurrentPage(nextCurrentPage >= 0 ? nextCurrentPage : Math.min(previousCurrentPage, nextPages.length - 1));
+      setCurrentPage(nextCurrentPage);
     });
   });
 
@@ -2048,6 +2058,8 @@ export const ReaderRoute: Component = () => {
       path: string;
       format: 'images' | 'pdf' | 'epub';
       startPage: number;
+      sourceLocation?: ReaderSourceLocation | null;
+      resumed?: boolean;
       coverBlob?: Blob;
       file?: File | null;
       textSourcePages?: ReaderSourcePage[] | null;
@@ -2064,6 +2076,8 @@ export const ReaderRoute: Component = () => {
       setCroppedRegions({});
       setTextSourcePages(options.textSourcePages ?? null);
       setCurrentPage(options.startPage);
+      setSourceLocation(options.sourceLocation ?? null);
+      setResumedWithoutReading(options.format === 'epub' && options.resumed === true);
       setPages(newPages);
       setOcrBatchTotal(imagePageCount);
       setOcrCompletedIds(new Set<string>());
@@ -2131,13 +2145,15 @@ export const ReaderRoute: Component = () => {
     const title = bookId || t('mlearn.Reader.Status.EpubDocument');
     const content = await epubToContentPages(file);
     perfCount('reader.loadEpub.parse.ms', performance.now() - epubT0);
-    const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedPageIndex(bookId));
+    const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedReaderLocation(bookId));
     commitLoadedPages(prepared.pages, {
       bookId,
       title,
       path,
       format: 'epub',
       startPage: prepared.startPage,
+      sourceLocation: prepared.startLocation,
+      resumed: prepared.resumed,
       file,
       textSourcePages: prepared.sources,
       progressionDirection: content.progressionDirection,
@@ -2147,6 +2163,7 @@ export const ReaderRoute: Component = () => {
     if (path) {
       void persistActiveBookPath(path);
     }
+    persistSourceLocation(bookId, prepared.startLocation);
     saveToRecent(title, 'book', prepared.startPage, path, prepared.coverBlob);
     setOcrStatus(t('mlearn.Reader.Status.Ready'));
     perfCount('reader.loadEpub.ms.total', performance.now() - epubT0);
@@ -2543,11 +2560,14 @@ export const ReaderRoute: Component = () => {
     const title = bookTitle();
     const currentPages = pages();
     const page = currentPage();
+    const location = sourceLocation();
+    const sources = textSourcePages();
+    const progress = location && sources ? progressForLocation(sources, location) : getRecentProgressPercent(page + 1, currentPages.length);
     const path = currentBookPath();
     if (title && currentPages.length > 0 && currentPages[0]?.blob) {
       captureBlobThumbnail(currentPages[0].blob!).then((thumbnail) => {
         if (thumbnail) {
-          void saveToRecentItems({ type: 'book', name: title, path, progress: getRecentProgressPercent(page + 1, currentPages.length) }, thumbnail);
+          void saveToRecentItems({ type: 'book', name: title, path, progress }, thumbnail);
         }
       });
     }
@@ -2672,18 +2692,22 @@ export const ReaderRoute: Component = () => {
 
   const saveToRecent = async (name: string, type: 'video' | 'book', progress: number = 0, path: string = '', coverBlob?: Blob) => {
     try {
+      const location = sourceLocation();
+      const sources = textSourcePages();
+      const savedProgress = type === 'book' && location && sources
+        ? progressForLocation(sources, location)
+        : getRecentProgressPercent(progress + 1, pages().length);
       // Capture thumbnail from the first page if available
       let thumbnail: string | undefined;
       if (coverBlob) {
         thumbnail = await captureBlobThumbnail(coverBlob);
       }
 
-      const totalPages = pages().length;
       await saveToRecentItems({
         type,
         name,
         path,
-        progress: type === 'book' ? getRecentProgressPercent(progress + 1, totalPages) : progress,
+        progress: type === 'book' ? savedProgress : progress,
       }, thumbnail);
     } catch (e) {
       log.error('Failed to save recent:', e);
@@ -2711,14 +2735,23 @@ export const ReaderRoute: Component = () => {
 
     const pageChanged = newPage !== currentPage();
     batch(() => {
-      if (pageChanged) setReadingVisit((visit) => visit + 1);
+      if (pageChanged) {
+        setReadingVisit((visit) => visit + 1);
+        setResumedWithoutReading(false);
+      }
       setCurrentPage(newPage);
     });
     if (pageChanged) scrollReaderToPageStart(readerMainRef);
 
     // Persist per-book page position
     const bookId = currentBookId();
-    persistPageIndex(bookId, newPage, total);
+    if (currentBookFormat() === 'epub') {
+      const location = locationForPage(pages(), newPage);
+      setSourceLocation(location);
+      persistSourceLocation(bookId, location);
+    } else {
+      persistPageIndex(bookId, newPage, total);
+    }
 
     // Update recent items with current progress but keep the first-page thumbnail
     saveToRecent(bookTitle(), 'book', newPage, currentBookPath());
@@ -2971,7 +3004,6 @@ export const ReaderRoute: Component = () => {
                 const snapped = newFirstSingle ? curr - 1 : curr + 1;
                 const total = pages().length;
                 batch(() => {
-                  setReadingVisit((visit) => visit + 1);
                   setCurrentPage(Math.max(0, Math.min(snapped, total - 1)));
                 });
               }

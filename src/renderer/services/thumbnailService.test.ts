@@ -375,6 +375,21 @@ describe('thumbnailService', () => {
       expect(saved[0].progress).toBe(0.7);
     });
 
+    it('preserves the latest queued progress when reopening a video', async () => {
+      let stored = JSON.stringify([
+        { type: 'video' as const, name: 'movie.mp4', path: '/movie.mp4', progress: 10, lastWatched: 1 },
+      ]);
+      mockKvGet.mockImplementation(async () => stored);
+      mockKvSet.mockImplementation(async (_key: string, value: string) => { stored = value; });
+
+      await Promise.all([
+        updateRecentItemProgressByPath('/movie.mp4', 35),
+        saveToRecentItems({ type: 'video', name: 'movie.mp4', path: '/movie.mp4', progress: 0 }, undefined, true),
+      ]);
+
+      expect((JSON.parse(stored) as RecentItem[])[0].progress).toBe(35);
+    });
+
     it('preserves the existing thumbnail when none is provided', async () => {
       mockKvGet.mockResolvedValue(JSON.stringify([
         { type: 'video', name: 'vid.mp4', path: '/vid.mp4', progress: 0, lastWatched: 1, thumbnail: 'data:old' },

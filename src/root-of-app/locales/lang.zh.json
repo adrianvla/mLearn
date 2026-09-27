@@ -1145,7 +1145,7 @@
         "DescriptionWithLLM": "{llmCount} 张闪卡缺少例句翻译，{ttsCount} 个音频文件缺失。是否修复？",
         "DescriptionLLMOnly": "{count} 张闪卡缺少例句翻译。是否立即生成？",
         "Done": "已修复 {count} 个闪卡音频文件",
-        "DoneWithErrors": "已修复 {total} 个音频文件（{failed} 个失败）",
+        "DoneWithErrors": "已修复 {count} 个音频文件（{failed} 个失败）",
         "LLMToastTitle": "正在生成缺失的例句翻译…",
         "LLMDone": "为 {count} 张闪卡生成了翻译",
         "LLMDoneWithErrors": "为 {count} 张闪卡生成了翻译，{failed} 个失败",

@@ -17,6 +17,12 @@
   height: 100%;
 }
 
+/* Keep the native media surface hidden until it has a decoded first frame.
+   Chromium can briefly show its own error overlay during source selection. */
+.video-element-loading {
+  visibility: hidden;
+}
+
 /* Video fit variants */
 .video-fit-contain {
   object-fit: contain;

@@ -128,6 +128,16 @@ describe('NewConversationModal', () => {
     expect(container.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.IntentLabel');
   });
 
+  it('does not carry an old failed model error into a fresh conversation', () => {
+    const failedWorld = { ...world(), scenarioCreations: [{
+      operationId: 'old-failure', requestHash: 'old', request: { operationId: 'old-failure', participantIds: [], intent: 'old goal' },
+      status: 'failed', origin: 'generated', createdAt: 1, bindings: [], baselineHeads: {}, error: 'NoBinaryFoundError',
+    }] } as WorldSnapshot;
+    dispose = render(() => <NewConversationModal world={failedWorld} onClose={vi.fn()} onCreated={vi.fn()} />, container);
+    expect(container.textContent).not.toContain('NoBinaryFoundError');
+    expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('');
+  });
+
   it('keeps selected people in an independent sandbox by exact id', async () => {
     const onCreated = vi.fn();
     dispose = render(() => <NewConversationModal world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);

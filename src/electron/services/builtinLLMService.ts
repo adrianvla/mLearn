@@ -63,16 +63,17 @@ async function importLlamaCpp(): Promise<typeof import('node-llama-cpp')> {
 function getModelStatus(modelFile?: string): LLMModelStatus {
   const downloaded = isModelDownloaded(modelFile);
   const runtimeAvailable = llamaInstance !== null;
+  const loaded = loadedModel !== null && modelContext !== null && loadedModelPath === getModelPath(modelFile);
   return {
     downloaded,
     runtimeAvailable,
-    ready: downloaded && runtimeAvailable,
-    runtimeError: downloaded && !runtimeAvailable ? llamaRuntimeError : undefined,
+    ready: downloaded && runtimeAvailable && loaded,
+    runtimeError: downloaded && !loaded ? llamaRuntimeError : undefined,
     downloading: isDownloading,
     progress: downloadProgress,
     downloadedBytes,
     expectedBytes,
-    loaded: loadedModel !== null && modelContext !== null && loadedModelPath === getModelPath(modelFile),
+    loaded,
   };
 }
 
@@ -96,10 +97,12 @@ async function ensureLlamaRuntime(): Promise<any> {
 async function checkModelStatus(modelFile?: string): Promise<LLMModelStatus> {
   if (isModelDownloaded(modelFile)) {
     try {
-      await ensureLlamaRuntime();
+      await withModelLifecycle(async () => {
+        await ensureModelLoaded(modelFile, new AbortController().signal);
+        resetIdleTimer();
+      });
     } catch {
-      // Report the runtime failure in status so the UI can distinguish it from
-      // a model that has not been downloaded.
+      // The status carries the startup failure for this selected model.
     }
   }
   return getModelStatus(modelFile);
@@ -184,23 +187,27 @@ async function ensureModelLoaded(modelFile: string | undefined, signal: AbortSig
     signal.throwIfAborted();
     modelContext = await loadedModel.createContext();
     signal.throwIfAborted();
+    llamaRuntimeError = undefined;
   } catch (error) {
-    await unloadModel();
+    llamaRuntimeError = error instanceof Error ? error.message : String(error);
+    try { await unloadModel(); } catch (cleanupError) { log.error('Model startup cleanup failed', cleanupError as Error); }
     throw error;
   }
 }
 
 async function unloadModel(): Promise<void> {
   clearIdleTimer();
+  let failure: unknown;
   if (modelContext) {
-    await modelContext.dispose();
-    modelContext = null;
+    try { await modelContext.dispose(); modelContext = null; }
+    catch (error) { failure = error; }
   }
   if (loadedModel) {
-    await loadedModel.dispose();
-    loadedModel = null;
+    try { await loadedModel.dispose(); loadedModel = null; }
+    catch (error) { failure ??= error; }
   }
-  loadedModelPath = null;
+  if (!modelContext && !loadedModel) loadedModelPath = null;
+  if (failure) throw failure;
 }
 
 async function streamChat(

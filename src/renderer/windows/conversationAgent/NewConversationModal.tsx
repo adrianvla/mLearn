@@ -42,7 +42,7 @@ function participantInitial(participant: Participant): string {
 export const NewConversationModal: Component<NewConversationModalProps> = (props) => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
-  const saved = props.initialIntent ? undefined : props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating' || item.status === 'failed');
+  const saved = props.initialIntent ? undefined : props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating');
   const [intent, setIntent] = createSignal(props.initialIntent ?? saved?.request.intent ?? '');
   const [scope, setScope] = createSignal<'sandbox' | 'persistent'>(saved?.request.scope === 'persistent' ? 'persistent' : 'sandbox');
   const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set(saved?.request.participantIds ?? []));

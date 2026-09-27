@@ -39,6 +39,8 @@ export interface VideoPlayerProps {
   autoplay?: boolean;
   /** Callback when video time updates */
   onTimeUpdate?: (time: number) => void;
+  /** Final position while this player still owns its media element. */
+  onBeforeDetach?: (snapshot: { currentTime: number; duration: number }) => void;
   /** Callback when video ends */
   onEnded?: () => void;
   /** Options forwarded to the native context menu */
@@ -146,6 +148,10 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   });
 
   onCleanup(() => {
+    if (videoRef) {
+      videoRef.pause();
+      props.onBeforeDetach?.({ currentTime: videoRef.currentTime, duration: videoRef.duration });
+    }
     video.detachVideo();
   });
 
@@ -192,6 +198,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
         <video
             ref={videoRef}
             class={`video-element ${videoFitClass()}`}
+            classList={{ 'video-element-loading': !video.state.isLoaded }}
             crossorigin="anonymous"
             tabIndex={0}
             onPointerDown={() => videoRef?.focus()}

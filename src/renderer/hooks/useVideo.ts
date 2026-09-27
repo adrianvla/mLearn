@@ -113,13 +113,6 @@ export function useVideo(options: UseVideoOptions = {}) {
   const detachVideo = () => {
     if (!videoRef) return;
 
-    // Release the media element itself, not just our listeners. A paused but
-    // still sourced hidden player can remain the system media-key target.
-    videoRef.pause();
-    videoRef.removeAttribute('src');
-    videoRef.load();
-    setState('isPlaying', false);
-
     videoRef.removeEventListener('timeupdate', handleTimeUpdate);
     videoRef.removeEventListener('durationchange', handleDurationChange);
     videoRef.removeEventListener('play', handlePlay);
@@ -150,6 +143,13 @@ export function useVideo(options: UseVideoOptions = {}) {
       videoRef.textTracks.removeEventListener('addtrack', handleAddTrack);
       videoRef.textTracks.removeEventListener('removetrack', handleRemoveTrack);
     }
+
+    // Release after removing listeners so unload events cannot report a false
+    // playback error or update a departed player's state.
+    videoRef.pause();
+    videoRef.removeAttribute('src');
+    videoRef.load();
+    setState('isPlaying', false);
 
     videoRef = null;
   };
@@ -412,8 +412,10 @@ export function useVideo(options: UseVideoOptions = {}) {
     setState({ isLoaded: false, currentTime: 0, duration: 0, isBuffering: false, audioTracks: [], textTracks: [] });
 
     if (videoRef) {
+      // Assigning src already starts the media resource selection algorithm.
+      // Calling load() again aborts that first load and can briefly surface a
+      // native "Unable to play media" overlay during Continue.
       videoRef.src = src;
-      videoRef.load();
     } else {
       log.warn('useVideo.loadVideo: videoRef is null, cannot set src');
     }

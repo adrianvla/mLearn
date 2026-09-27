@@ -94,6 +94,18 @@ describe('ReaderRoute EPUB flow wiring', () => {
     expect(prepared.pages.filter((page) => page.kind === 'text').map((page) => page.text)).toEqual(['one', 'two']);
   });
 
+  it('restores the same source locator when the EPUB is prepared at a new capacity', async () => {
+    const content = await epubToContentPages(makeEpub('ltr', false));
+    const first = await prepareEpubReaderLoad(content, 'Flow Book', 100, async () => null);
+    expect(first.resumed).toBe(false);
+    const location = first.startLocation;
+    expect(location).not.toBeNull();
+    const second = await prepareEpubReaderLoad(content, 'Flow Book', 160, async () => location);
+    expect(second.resumed).toBe(true);
+    expect(second.startLocation).toEqual(location);
+    expect(second.pages[second.startPage].kind).toBe(first.pages[first.startPage].kind);
+  });
+
   it('revokes newly created EPUB URLs when saved-page loading rejects before adoption', async () => {
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:failed-flow-image');
     const revokeUrl = vi.spyOn(URL, 'revokeObjectURL');
