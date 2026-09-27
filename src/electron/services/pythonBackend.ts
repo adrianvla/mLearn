@@ -1018,13 +1018,29 @@ async function verifyPythonInstallation(options: InstallOptions): Promise<boolea
   const script = imports.map(mod => `try:\n    import ${mod}\nexcept Exception as e:\n    print(f"FAIL:${mod}:{e}")`).join('\n');
 
   return new Promise((resolve) => {
-    const verifyProcess = spawn(pythonPath, ['-c', script], { cwd: envPath });
-    let output = '';
-    verifyProcess.stdout.on('data', (data) => { output += data.toString(); });
-    verifyProcess.stderr.on('data', (data) => { output += data.toString(); });
-    verifyProcess.on('close', (code) => {
-      if (code !== 0 || output.includes('FAIL:')) {
-        log.error('Installation verification failed:', output);
+    const args = ['-c', script];
+    const childEnv = { ...process.env };
+    const environment = Object.fromEntries(Object.entries(childEnv).map(([key, value]) => [
+      key,
+      /KEY|TOKEN|SECRET|PASS|AUTH|CRED|COOKIE|SESSION|CERT|URL|PRIVATE/i.test(key) ? '[redacted]' : value,
+    ]));
+    log.info('Installation verifier starting', { command: pythonPath, args, cwd: envPath, environment });
+    const verifyProcess = spawn(pythonPath, args, { cwd: envPath, env: childEnv });
+    let stdout = '';
+    let stderr = '';
+    let spawnError: string | null = null;
+    verifyProcess.stdout.on('data', (data) => { stdout += data.toString(); });
+    verifyProcess.stderr.on('data', (data) => { stderr += data.toString(); });
+    verifyProcess.on('error', (error) => { spawnError = error.message; });
+    verifyProcess.on('close', (code, signal) => {
+      log.info('Installation verifier finished', {
+        command: pythonPath, args, cwd: envPath, environment,
+        exitCode: code, signal, exitReason: describeExitReason(code, signal), stdout, stderr, spawnError,
+        terminationPath: spawnError ? 'spawn-error' : signal ? 'signal' : 'exit',
+        timeoutMs: null, timedOut: false,
+      });
+      if (spawnError || code !== 0 || stdout.includes('FAIL:') || stderr.includes('FAIL:')) {
+        log.error('Installation verification failed', { exitCode: code, signal, stdout, stderr, spawnError });
         resolve(false);
       } else {
         resolve(true);
@@ -1064,7 +1080,15 @@ async function copyRecursive(src: string, dest: string): Promise<void> {
     if (stat.isDirectory()) {
       await copyRecursive(srcPath, destPath);
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      // Replacing a signed Mach-O in place can leave a verifier launch using
+      // the previous vnode's signature cache. Rename a fully copied inode.
+      const stagedPath = `${destPath}.install-${crypto.randomUUID()}`;
+      try {
+        fs.copyFileSync(srcPath, stagedPath);
+        fs.renameSync(stagedPath, destPath);
+      } finally {
+        if (fs.existsSync(stagedPath)) fs.unlinkSync(stagedPath);
+      }
     }
   }
 }
@@ -1919,6 +1943,7 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
     sendStatusUpdate('Download complete, extracting...');
 
     try {
+      fs.rmSync(extractPath, { recursive: true, force: true });
       fs.mkdirSync(extractPath, { recursive: true });
       await extractFile(downloadPath, extractPath);
       selectedPythonExecutablePath = getUserDataPythonExecutablePath();
@@ -1928,7 +1953,8 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
         writeRuntimeReceipt(catalogEntry, catalogVersion);
         installInProgress = false;
         pythonSuccessInstall = true;
-        await pythonFound();
+        if (await pythonFound()) broadcastInstallEvent(IPC_CHANNELS.SUCCESSFUL_INSTALL, true);
+        else handleInstallerFailure('Python backend failed to start after installation');
         return;
       }
 
@@ -1955,12 +1981,10 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
         writeRuntimeReceipt(catalogEntry, catalogVersion);
         setInstalledPythonVersion(app.getVersion());
         sendStatusUpdate('Installation complete');
-        await pythonFound();
+        if (await pythonFound()) broadcastInstallEvent(IPC_CHANNELS.SUCCESSFUL_INSTALL, true);
+        else handleInstallerFailure('Python backend failed to start after verification');
       } else {
-        log.error('Installation verification failed');
-        waitingForInstallChoice = true;
-        sendStatusUpdate('ERROR: Installation verification failed');
-        getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+        handleInstallerFailure('Installation verification failed');
       }
     } catch (error) {
       log.error('Extraction/installation failed:', error);

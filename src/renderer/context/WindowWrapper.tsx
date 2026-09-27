@@ -249,36 +249,45 @@ const GlobalEulaModal: Component = () => {
  * Suppressed on the welcome window which has its own install UI.
  */
 const GlobalInstallProgressModal: Component = () => {
-  const { isInstalling, installMessage, installProgress, installError } = useInstallProgress();
+  const { isInstalling, installMessage, installProgress, installError, hasFailed, retry, dismiss } = useInstallProgress();
+  const { t } = useLocalization();
   const isSetupWindow = () => (
     typeof window !== 'undefined' && window.location.pathname.endsWith('/welcome.html')
   );
 
   return (
-    <Show when={isInstalling() && !isSetupWindow()}>
+    <Show when={(isInstalling() || hasFailed()) && !isSetupWindow()}>
       <Modal
         isOpen={true}
-        onClose={() => {}}
-        title="Installing components…"
+        onClose={dismiss}
+        title={hasFailed() ? t('mlearn.Installer.Status.ErrorOccurred') : t('mlearn.Installer.Status.InstallingPackages')}
         size="sm"
-        closeOnEscape={false}
-        closeOnOverlay={false}
-        showCloseButton={false}
+        closeOnEscape={hasFailed()}
+        closeOnOverlay={hasFailed()}
+        showCloseButton={hasFailed()}
         headerDraggable
       >
         <div class="install-progress-modal-body">
           <p class="install-progress-message">{installMessage()}</p>
-          <ProgressBar
-            value={installProgress()}
-            indeterminate={installProgress() < 0}
-            variant="primary"
-            size="md"
-            rounded
-            animated
-            showPercent={installProgress() >= 0}
-          />
+          <Show when={isInstalling()}>
+            <ProgressBar
+              value={installProgress()}
+              indeterminate={installProgress() < 0}
+              variant="primary"
+              size="md"
+              rounded
+              animated
+              showPercent={installProgress() >= 0}
+            />
+          </Show>
           <Show when={installError()}>
             <p class="install-progress-error">{installError()}</p>
+          </Show>
+          <Show when={hasFailed()}>
+            <div class="install-progress-actions">
+              <Btn variant="primary" onClick={retry}>{t('mlearn.Global.TryAgain')}</Btn>
+              <Btn variant="secondary" onClick={dismiss}>{t('mlearn.Global.Close')}</Btn>
+            </div>
           </Show>
         </div>
       </Modal>

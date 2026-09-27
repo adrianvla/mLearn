@@ -8,12 +8,16 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import { isElectron } from '../../shared/platform';
+import type { InstallOptions } from '../../shared/types';
 
 interface InstallProgressContextValue {
   isInstalling: () => boolean;
   installMessage: () => string;
   installProgress: () => number; // 0–100, or -1 for indeterminate
   installError: () => string | null;
+  hasFailed: () => boolean;
+  retry: () => void;
+  dismiss: () => void;
 }
 
 const InstallProgressContext = createContext<InstallProgressContextValue>();
@@ -25,6 +29,8 @@ export const InstallProgressProvider: ParentComponent = (props) => {
   const [installMessage, setInstallMessage] = createSignal(DEFAULT_MESSAGE);
   const [installProgress, setInstallProgress] = createSignal(-1);
   const [installError, setInstallError] = createSignal<string | null>(null);
+  const [hasFailed, setHasFailed] = createSignal(false);
+  let lastOptions: InstallOptions | null = null;
   const ipcCleanups: Array<() => void> = [];
 
   const isElectronApp = isElectron();
@@ -34,8 +40,10 @@ export const InstallProgressProvider: ParentComponent = (props) => {
 
     const bridge = getBridge();
 
-    ipcCleanups.push(bridge.installer.onInstallStarted(() => {
+    ipcCleanups.push(bridge.installer.onInstallStarted((options) => {
+      lastOptions = options;
       setIsInstalling(true);
+      setHasFailed(false);
       setInstallError(null);
       setInstallProgress(-1);
       setInstallMessage(DEFAULT_MESSAGE);
@@ -46,6 +54,7 @@ export const InstallProgressProvider: ParentComponent = (props) => {
       // status updates are regular runtime logs, not install progress.
       if (!isInstalling()) return;
       setInstallMessage(message);
+      if (message.startsWith('ERROR:')) setInstallError(message.slice(6).trim());
 
       // Map common milestone substrings to progress percentages
       const lower = message.toLowerCase();
@@ -81,12 +90,15 @@ export const InstallProgressProvider: ParentComponent = (props) => {
 
     ipcCleanups.push(bridge.installer.onPythonSuccess(() => {
       setIsInstalling(false);
+      setHasFailed(false);
+      setInstallError(null);
       setInstallProgress(-1);
       setInstallMessage(DEFAULT_MESSAGE);
     }));
 
     ipcCleanups.push(bridge.installer.onInstallerAwaitingChoice(() => {
       setIsInstalling(false);
+      setHasFailed(installError() !== null);
     }));
 
     ipcCleanups.push(bridge.installer.onInstallerNetworkError((payload: { message: string; detail?: string | null }) => {
@@ -98,8 +110,24 @@ export const InstallProgressProvider: ParentComponent = (props) => {
     ipcCleanups.forEach((cleanup) => cleanup());
   });
 
+  const retry = () => {
+    if (!lastOptions || isInstalling()) return;
+    setHasFailed(false);
+    setInstallError(null);
+    setInstallProgress(-1);
+    setIsInstalling(true);
+    try {
+      getBridge().installer.startInstall(lastOptions);
+    } catch (error) {
+      setIsInstalling(false);
+      setHasFailed(true);
+      setInstallError(error instanceof Error ? error.message : String(error));
+    }
+  };
+  const dismiss = () => setHasFailed(false);
+
   return (
-    <InstallProgressContext.Provider value={{ isInstalling, installMessage, installProgress, installError }}>
+    <InstallProgressContext.Provider value={{ isInstalling, installMessage, installProgress, installError, hasFailed, retry, dismiss }}>
       {props.children}
     </InstallProgressContext.Provider>
   );

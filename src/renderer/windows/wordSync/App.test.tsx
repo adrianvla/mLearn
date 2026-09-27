@@ -318,7 +318,7 @@ vi.mock('../../../shared/languageScriptProfile', () => ({
 }));
 
 // Resolve the projection and dictionary promises before interacting with a probe.
-async function settle() { for (let i = 0; i < 8; i++) await Promise.resolve(); }
+async function settle() { for (let i = 0; i < 24; i++) await Promise.resolve(); }
 
 describe('WordSyncContent', () => {
   it('opens the current word in the shared knowledge Inspector', async () => {
@@ -361,6 +361,18 @@ describe('WordSyncContent', () => {
   };
 
 beforeEach(() => {
+    let lockChain = Promise.resolve();
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: async <T,>(_name: string, callback: () => T | Promise<T>): Promise<T> => {
+          const job = lockChain.then(callback);
+          lockChain = job.then(() => undefined, () => undefined);
+          return job;
+        },
+      },
+    });
+    window.localStorage.removeItem('mlearn-study-word-sync:ja');
     container = document.createElement('div');
     document.body.appendChild(container);
     mockGetComprehensiveWordStatusWithSourceSync.mockClear();
@@ -423,6 +435,72 @@ beforeEach(() => {
   afterEach(() => {
     while (disposals.length) disposals.pop()!();
     container.remove();
+  });
+
+  it('resumes its durable cursor when filter presentation IDs change on remount', async () => {
+    mockWordSyncState.wordFrequency = Object.fromEntries(['赤い', '青い', '白い'].map((word) => [word, {
+      reading: word, raw_level: 5, level: 'N5',
+    }]));
+    mockCommonState.defaultPreset = [{ instanceId: 'first-mount', kind: 'operand', field: 'status', op: 'eq', value: 'untracked' }];
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 3');
+    press(' '); await settle();
+    press('3'); await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 3');
+    const nextWord = container.querySelector('.word-sync-word')?.textContent;
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null');
+    expect(saved?.rated).toBe(1);
+    expect(saved.queue.every((item: Record<string, unknown>) => Object.keys(item).join() === 'id')).toBe(true);
+
+    disposals.pop()!();
+    mockWordSyncState.projectionByWord.set(saved.queue[0].id, {
+      status: 'ready',
+      targets: [{
+        targetRef: { kind: 'surface', id: 'rated-surface' },
+        applicableCapabilities: mockWordSyncState.capabilities,
+        states: mockWordSyncState.capabilities.map((capability) => ({
+          capability, classification: 'known', basis: 'evidence', evidence: [], evidenceSourceCounts: { manual: 1 },
+        })),
+      }],
+    } as KnowledgeProjection);
+    mockCommonState.defaultPreset = [{ instanceId: 'second-mount', kind: 'operand', field: 'status', op: 'eq', value: 'untracked' }];
+    mountContent(WordSyncContent);
+    await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 3');
+    expect(container.querySelector('.word-sync-word')?.textContent).toBe(nextWord);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null').id).toBe(saved.id);
+  });
+
+  it('offers retry when the initial session cannot be persisted', async () => {
+    const setItem = localStorage.setItem.bind(localStorage);
+    let refuse = true;
+    const setItemSpy = vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === 'mlearn-study-word-sync:ja' && refuse) throw new DOMException('quota exceeded', 'QuotaExceededError');
+      setItem(key, value);
+    });
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.SaveFailed');
+    expect(container.querySelector('.word-sync-word')).toBeNull();
+
+    refuse = false;
+    buttonByText('mlearn.Global.TryAgain').click();
+    await settle();
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).not.toBeNull();
+    setItemSpy.mockRestore();
+  });
+
+  it('starts a single-window session when the host has no Web Locks API', async () => {
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: null });
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).not.toBeNull();
   });
 
   it.skipIf(!process.env.MLEARN_PROJECTION_FIXTURE)('replays saved projections through cold startup, level changes and rapid session ratings', async () => {

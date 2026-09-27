@@ -9,6 +9,10 @@ const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
 const uninstallComponentsMock = vi.fn();
 const installLanguageDataMock = vi.fn();
+let installStarted: (() => void) | null = null;
+let installStatus: ((status: string) => void) | null = null;
+let installAwaiting: (() => void) | null = null;
+let installSuccess: (() => void) | null = null;
 let languageDataInstallErrorMock: { language: string; dictionaryTargetLanguage?: string; error: string } | null = null;
 let managedSettingKey: string | null = null;
 
@@ -185,6 +189,12 @@ vi.mock('../../../../shared/bridges', () => ({
       uninstallComponents: uninstallComponentsMock,
       onComponentsState: vi.fn(() => () => {}),
       onComponentsUninstalled: vi.fn(() => () => {}),
+      onInstallStarted: (callback: () => void) => { installStarted = callback; return () => { installStarted = null; }; },
+      onInstallerAwaitingChoice: (callback: () => void) => { installAwaiting = callback; return () => { installAwaiting = null; }; },
+      onPythonSuccess: (callback: () => void) => { installSuccess = callback; return () => { installSuccess = null; }; },
+    },
+    server: {
+      onServerStatusUpdate: (callback: (status: string) => void) => { installStatus = callback; return () => { installStatus = null; }; },
     },
   }),
 }));
@@ -217,6 +227,10 @@ describe('ComponentsTab', () => {
     document.body.appendChild(container);
     updateSettingsMock.mockReset();
     startInstallMock.mockReset();
+    installStarted = null;
+    installStatus = null;
+    installAwaiting = null;
+    installSuccess = null;
     installLanguageDataMock.mockReset();
     languageDataInstallErrorMock = null;
     managedSettingKey = null;
@@ -509,6 +523,30 @@ describe('ComponentsTab', () => {
       includeVoice: false,
     });
 
+    dispose();
+  });
+
+  it('offers runtime repair again after verifier failure and clears the error on success', async () => {
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+    const repair = () => Array.from(container.querySelectorAll('button'))
+      .find((candidate) => ['Repair runtime components', 'Installing...'].includes(candidate.textContent ?? '')) as HTMLButtonElement;
+
+    repair().click();
+    expect(startInstallMock).toHaveBeenCalledTimes(1);
+    expect(repair().disabled).toBe(true);
+
+    installStarted?.();
+    installStatus?.('ERROR: Installation verification failed');
+    installAwaiting?.();
+    expect(container.textContent).toContain('Installation verification failed');
+    expect(repair().disabled).toBe(false);
+
+    repair().click();
+    expect(startInstallMock).toHaveBeenCalledTimes(2);
+    installSuccess?.();
+    expect(container.textContent).not.toContain('Installation verification failed');
+    expect(repair().disabled).toBe(false);
     dispose();
   });
 

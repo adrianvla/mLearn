@@ -164,10 +164,27 @@ export const ComponentsTab: Component = () => {
     const bridge = getBridge();
     const cleanup = bridge.installer.onComponentsState(setComponentsState);
     const cleanupUninstalled = bridge.installer.onComponentsUninstalled(handleComponentsUninstalled);
+    const cleanupStarted = bridge.installer.onInstallStarted(() => {
+      setRuntimeInstalling(true);
+      setRuntimeInstallError(null);
+    });
+    const cleanupStatus = bridge.server.onServerStatusUpdate((status) => {
+      if (runtimeInstalling() && status.startsWith('ERROR:')) setRuntimeInstallError(status.slice(6).trim());
+    });
+    const cleanupAwaiting = bridge.installer.onInstallerAwaitingChoice(() => setRuntimeInstalling(false));
+    const cleanupSuccess = bridge.installer.onPythonSuccess(() => {
+      setRuntimeInstalling(false);
+      setRuntimeInstallError(null);
+      bridge.installer.getComponentsState();
+    });
     bridge.installer.getComponentsState();
     onCleanup(() => {
       cleanup();
       cleanupUninstalled();
+      cleanupStarted();
+      cleanupStatus();
+      cleanupAwaiting();
+      cleanupSuccess();
     });
   });
 

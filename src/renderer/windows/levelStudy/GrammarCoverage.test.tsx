@@ -82,6 +82,26 @@ const summary: CurriculumComponentSummary = {
   complete: false,
 };
 
+function storedGrammarSession(
+  language: string,
+  level: number,
+  queue: string[],
+  kind: 'self-assess' | 'contrast' = 'self-assess',
+  index = 0,
+) {
+  const denominator = [...queue].sort().join('\u0000');
+  return {
+    id: 'fixture-session',
+    identity: JSON.stringify({ language, level, kind, denominator }),
+    queue: queue.map((id) => ({ id })),
+    index,
+    visited: Array.from({ length: index }, (_, value) => value),
+    rated: index,
+    revealed: false,
+    meta: { level, kind, denominator, ...(kind === 'contrast' ? { mode: 'mcq' } : {}) },
+  };
+}
+
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 /** The presentation beat (GrammarCoverage rate lock) before the next prompt
  *  accepts input; the gesture guards (click detail / key repeat) are the
@@ -158,7 +178,7 @@ function revealCurrent(container: HTMLElement, level: number) {
 
 describe('GrammarCoverage policy-selected practice session', () => {
   // Durable-pass storage is cleared at the shared boundary: tests that dispose
-  // mid-pass would otherwise leak `mlearn-grammar-pass:ja` into later mounts
+  // mid-pass would otherwise leak `mlearn-study-grammar:ja` into later mounts
   // and restore unexpectedly.
   beforeEach(() => {
     localStorage.clear();
@@ -223,7 +243,8 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(levelBlock(first.container, 2).querySelector<HTMLButtonElement>('.rating-matrix__quality:nth-child(3)')?.disabled).toBe(true);
     expect(levelBlock(first.container, 2).textContent).toContain('mlearn.LevelStudy.Grammar.SessionProgress');
     revealCurrent(first.container, 2);
-    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!).revealed).toMatchObject({ index: 0, pattern: firstPrompt });
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).revealed).toBe(true);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).queue[0].id).toBe(firstPrompt);
     first.dispose();
     first.container.remove();
 
@@ -253,12 +274,12 @@ describe('GrammarCoverage policy-selected practice session', () => {
     revealCurrent(container, 2);
     (container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await tick();
-    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!).pending?.attemptId).toBe(attemptIds[0]);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).pending?.attemptId).toBe(attemptIds[0]);
     expect(container.querySelector('[data-phase="save-failed"]')).toBeTruthy();
     (container.querySelector('[data-testid="grammar-session-retry"]') as HTMLButtonElement).click();
     await tick();
     expect(attemptIds).toEqual([attemptIds[0], attemptIds[0]]);
-    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!).index).toBe(1);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).index).toBe(1);
     dispose();
     container.remove();
   });
@@ -270,18 +291,18 @@ describe('GrammarCoverage policy-selected practice session', () => {
     revealCurrent(first.container, 2);
     (first.container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await beat();
-    const reserved = localStorage.getItem('mlearn-grammar-pass:ja');
+    const reserved = localStorage.getItem('mlearn-study-grammar:ja');
     const skip = first.container.querySelector('.grammar-coverage__session-skip') as HTMLButtonElement;
     skip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await beat();
-    expect(localStorage.getItem('mlearn-grammar-pass:ja')).toBe(reserved);
+    expect(localStorage.getItem('mlearn-study-grammar:ja')).toBe(reserved);
     expect(skip.disabled).toBe(true);
     first.dispose();
     first.container.remove();
     const second = mount(onProbe);
     await beat();
     expect(second.container.querySelector('[data-phase="save-failed"]')).toBeTruthy();
-    expect(localStorage.getItem('mlearn-grammar-pass:ja')).toBe(reserved);
+    expect(localStorage.getItem('mlearn-study-grammar:ja')).toBe(reserved);
     second.dispose();
     second.container.remove();
   });
@@ -715,7 +736,8 @@ describe('GrammarCoverage policy-selected practice session', () => {
   it('a stored pass survives a de→ja→de language round trip without being clobbered', async () => {
     // Seed a VALID de pass so the de cursor is genuinely ACTIVE on load — this
     // exercises a real de→ja reload (not stale-entry rejection).
-    globalThis.localStorage?.setItem('mlearn-grammar-pass:de', JSON.stringify({ level: 2, queue: ['weil', 'trotzdem'], index: 0, "denominator": "trotzdem\u0000weil" }));
+    const storedGerman = JSON.stringify(storedGrammarSession('de', 2, ['weil', 'trotzdem']));
+    globalThis.localStorage?.setItem('mlearn-study-grammar:de', storedGerman);
     const germanPackage = {
       language: 'de',
       meaningLanguage: 'en',
@@ -757,8 +779,8 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // must NOT clobber the stored de cursor with the (different) ja context.
     setActiveLanguage('ja');
     await tick();
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:de')).toBe(JSON.stringify({ level: 2, queue: ['weil', 'trotzdem'], index: 0, "denominator": "trotzdem\u0000weil" }));
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:ja')).toBeNull();
+    expect(globalThis.localStorage?.getItem('mlearn-study-grammar:de')).toBe(storedGerman);
+    expect(globalThis.localStorage?.getItem('mlearn-study-grammar:ja')).toBeNull();
 
     // Flip back: the de cursor resumes exactly where it was.
     setActiveLanguage('de');
@@ -767,7 +789,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     dispose();
     container.remove();
-    globalThis.localStorage?.removeItem('mlearn-grammar-pass:de');
+    globalThis.localStorage?.removeItem('mlearn-study-grammar:de');
   });
 
   it('a package-declared non-English meaning language is honored (open-world)', async () => {
@@ -825,7 +847,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     (first.container.querySelector('[data-level="2"] .grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(1);
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:ja')).toBeTruthy(); // in-progress pass persisted
+    expect(globalThis.localStorage?.getItem('mlearn-study-grammar:ja')).toBeTruthy(); // in-progress pass persisted
     first.dispose();
     first.container.remove();
 
@@ -845,7 +867,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // Level 2 has exactly two constructions: after the resumed rating the pass
     // is complete, which must clear the stored cursor (no phantom resume).
     expect(second.container.querySelector('.grammar-coverage__session-done')).toBeTruthy();
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:ja')).toBeNull();
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!).index).toBe(2);
 
     second.dispose();
     second.container.remove();
@@ -864,7 +886,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       ['empty-queue', JSON.stringify({ level: 2, queue: [], index: 0 })],
     ];
     for (const [label, value] of cases) {
-      globalThis.localStorage?.setItem('mlearn-grammar-pass:ja', value);
+      globalThis.localStorage?.setItem('mlearn-study-grammar:ja', value);
       const { container, dispose } = mount(vi.fn());
       await expand(container, 2);
       // No restored prompt; the user gets a clean Practise entry instead.
@@ -876,7 +898,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
   });
 
   it('stored pass is scoped to its learning language (no cross-language resume)', async () => {
-    globalThis.localStorage?.setItem('mlearn-grammar-pass:de', JSON.stringify({ level: 2, queue: ['weil', 'trotzdem'], index: 0, "denominator": "trotzdem\u0000weil" }));
+    globalThis.localStorage?.setItem('mlearn-study-grammar:de', JSON.stringify(storedGrammarSession('de', 2, ['weil', 'trotzdem'])));
     const { container, dispose } = mount(vi.fn());
     await expand(container, 2);
     // The 'ja' mount must not adopt a German-language cursor.
@@ -890,8 +912,8 @@ describe('GrammarCoverage policy-selected practice session', () => {
     localStorage.clear();
     // Level 2 is のに + ば; a valid stored pass for that multiset.
     globalThis.localStorage?.setItem(
-      'mlearn-grammar-pass:ja',
-      JSON.stringify({ level: 2, queue: ['のに', 'ば'], index: 0, denominator: 'のに\u0000ば' }),
+      'mlearn-study-grammar:ja',
+      JSON.stringify(storedGrammarSession('ja', 2, ['のに', 'ば'])),
     );
     const { createComponent, createSignal } = await import('solid-js');
     const { render } = await import('solid-js/web');
@@ -923,7 +945,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(levelBlock(container, 2).querySelector('[data-pattern]')).toBeNull();
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-btn')).toBeTruthy();
     // Stored entry is untouched by re-validation (restart/remount reconciles).
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:ja')).not.toBeNull();
+    expect(globalThis.localStorage?.getItem('mlearn-study-grammar:ja')).not.toBeNull();
 
     dispose();
     container.remove();
@@ -934,7 +956,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2);
-    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!)).toMatchObject({ index: 0 });
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toMatchObject({ index: 0 });
 
     // The rating handler synchronously persists a stable pending attempt at
     // the presented cursor before invoking the journal writer.
@@ -943,7 +965,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     (levelBlock(container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLElement).click();
-    const persistedWrite = setItem.mock.calls.find(([key]) => key === 'mlearn-grammar-pass:ja');
+    const persistedWrite = setItem.mock.calls.find(([key]) => key === 'mlearn-study-grammar:ja');
     expect(persistedWrite).toBeTruthy(); // persisted synchronously IN the handler
     expect(JSON.parse(persistedWrite![1]!).index).toBe(0);
     expect(JSON.parse(persistedWrite![1]!).pending?.index).toBe(0);
@@ -959,7 +981,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     ) as HTMLElement).click();
     await beat();
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-done')).toBeTruthy();
-    expect(localStorage.getItem('mlearn-grammar-pass:ja')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).index).toBe(2);
     dispose();
     container.remove();
   });
@@ -991,7 +1013,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     ), container);
 
     await startPass(container, 2);
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:ja')).not.toBeNull();
+    expect(globalThis.localStorage?.getItem('mlearn-study-grammar:ja')).not.toBeNull();
 
     // Switch to German while the Japanese pass is live: the stored Japanese
     // entry stays under its own key untouched, German's key stays empty, and
@@ -1001,8 +1023,8 @@ describe('GrammarCoverage policy-selected practice session', () => {
     setData(germanData);
     await tick();
     await tick();
-    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-pass:ja')!).level).toBe(2);
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:de')).toBeNull();
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!).meta.level).toBe(2);
+    expect(globalThis.localStorage?.getItem('mlearn-study-grammar:de')).toBeNull();
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeNull();
 
     dispose();
@@ -1014,7 +1036,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // A stored live pass exists, but without a lock primitive nothing may
     // act on it: the honest note replaces the start affordances — never an
     // unserialized multi-window pass (the MockExam G04 convention).
-    globalThis.localStorage?.setItem('mlearn-grammar-pass:ja', JSON.stringify({ level: 2, queue: ['のに', 'ば'], index: 0, denominator: 'のに\u0000ば' }));
+    globalThis.localStorage?.setItem('mlearn-study-grammar:ja', JSON.stringify({ level: 2, queue: ['のに', 'ば'], index: 0, denominator: 'のに\u0000ば' }));
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, null);
     await expand(container, 2);
@@ -1025,7 +1047,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(onProbe).not.toHaveBeenCalled();
     dispose();
     container.remove();
-    globalThis.localStorage?.removeItem('mlearn-grammar-pass:ja');
+    globalThis.localStorage?.removeItem('mlearn-study-grammar:ja');
   });
 });
 
@@ -1355,8 +1377,8 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
 
   it('a stored contrast pass resumes from its own key; a pass whose item was retired is discarded (G03)', async () => {
     globalThis.localStorage?.setItem(
-      'mlearn-grammar-contrast-pass:ja',
-      JSON.stringify({ level: 2, kind: 'contrast', queue: ['のに', 'ば'], index: 0, denominator: 'のに\u0000ば' }),
+      'mlearn-study-grammar:ja',
+      JSON.stringify(storedGrammarSession('ja', 2, ['のに', 'ば'], 'contrast')),
     );
     const resumed = mount(vi.fn(), contrastData, contrastSummary);
     await expand(resumed.container, 2);
@@ -1375,8 +1397,8 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
 
   it('discards a stored contrast pass when its queued item is no longer deliverable', async () => {
     globalThis.localStorage?.setItem(
-      'mlearn-grammar-contrast-pass:ja',
-      JSON.stringify({ level: 2, kind: 'contrast', queue: ['のに'], index: 0, denominator: 'のに' }),
+      'mlearn-study-grammar:ja',
+      JSON.stringify(storedGrammarSession('ja', 2, ['のに'], 'contrast')),
     );
     const rejected = {
       ...contrastData,
@@ -1406,8 +1428,8 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
         : point),
     } as LanguageData;
     globalThis.localStorage?.setItem(
-      'mlearn-grammar-contrast-pass:ja',
-      JSON.stringify({ level: 2, kind: 'contrast', queue: ['のに'], index: 0, denominator: 'のに' }),
+      'mlearn-study-grammar:ja',
+      JSON.stringify(storedGrammarSession('ja', 2, ['のに'], 'contrast')),
     );
     const mounted = mount(vi.fn(), mixed, contrastSummary);
     await expand(mounted.container, 2);
@@ -1416,28 +1438,13 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     mounted.container.remove();
   });
 
-  it('two stored pass kinds coexist: load picks one, completing it surfaces the other (G01)', async () => {
-    // Both kinds have in-progress cursors; neither load nor a pass may
-    // destroy the other kind's stored entry.
-    globalThis.localStorage?.setItem(
-      'mlearn-grammar-pass:ja',
-      JSON.stringify({ level: 2, queue: ['のに', 'ば'], index: 0, denominator: 'のに\u0000ば' }),
-    );
-    globalThis.localStorage?.setItem(
-      'mlearn-grammar-contrast-pass:ja',
-      JSON.stringify({ level: 2, kind: 'contrast', queue: ['のに', 'ば'], index: 0, denominator: 'のに\u0000ば' }),
-    );
+  it('keeps one durable pass per language and permits a new kind after completion', async () => {
+    localStorage.setItem('mlearn-study-grammar:ja', JSON.stringify(storedGrammarSession('ja', 2, ['のに', 'ば'])));
     const onProbe = vi.fn();
     const first = mount(onProbe, contrastData, contrastSummary);
     await expand(first.container, 2);
-    // Deterministic resume priority: the self-assessment walk wins.
     expect(first.container.querySelector('.grammar-coverage__session-probe')).toBeTruthy();
     expect(first.container.querySelector('.grammar-contrast')).toBeNull();
-    // Loading did not destroy the contrast cursor.
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-contrast-pass:ja')).toBeTruthy();
-
-    // Complete the self-assessment walk: its own entry clears, the contrast
-    // cursor stays stored.
     const fluent = () => levelBlock(first.container, 2).querySelector(
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
@@ -1447,17 +1454,15 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     revealCurrent(first.container, 2);
     fluent().click();
     await beat();
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-pass:ja')).toBeNull();
-    expect(globalThis.localStorage?.getItem('mlearn-grammar-contrast-pass:ja')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).index).toBe(2);
+    const contrast = levelBlock(first.container, 2).querySelector<HTMLButtonElement>('.grammar-coverage__contrast-btn');
+    expect(contrast?.disabled).toBe(false);
+    contrast?.click();
+    await tick();
+    expect(levelBlock(first.container, 2).querySelector('.grammar-contrast')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).meta.kind).toBe('contrast');
     first.dispose();
     first.container.remove();
-
-    // Remount: the surviving contrast cursor resumes.
-    const second = mount(onProbe, contrastData, contrastSummary);
-    await expand(second.container, 2);
-    expect(second.container.querySelector('.grammar-contrast__context')).toBeTruthy();
-    second.dispose();
-    second.container.remove();
   });
 
   it('a live contrast pass pauses other Practise and Contrast entries (G01)', async () => {
@@ -1676,7 +1681,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
 
     const itemRef = onProbe.mock.calls[0][4].itemRef as { id: string; version: string; seed: number };
     expect(itemRef.id).toBe(presented.itemId);
-    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!);
     expect(stored.answered.itemRef).toEqual(itemRef);
     first.dispose();
     first.container.remove();
@@ -1716,9 +1721,9 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     options.find((option) => option.getAttribute('data-option') === presented.gold)!.click();
     await tick();
 
-    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!);
     const attemptId = stored.pending.attemptId as string;
-    const itemRef = stored.pending.answered.itemRef as { id: string; version: string; seed: number };
+    const itemRef = stored.pending.answer.itemRef as { id: string; version: string; seed: number };
     first.dispose();
     first.container.remove();
 
@@ -1743,7 +1748,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     expect(resumedProbe.mock.calls[0][4]).toMatchObject({ attemptId, itemRef });
     expect(currentItem(resumed.container, 2).itemId).toBe(presented.itemId);
     expect(levelBlock(resumed.container, 2).querySelector('.grammar-contrast__feedback--correct')).toBeTruthy();
-    const settled = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    const settled = JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!);
     expect(settled.pending).toBeUndefined();
     expect(settled.answered.itemRef).toEqual(itemRef);
     resumed.dispose();
@@ -1908,7 +1913,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     (levelBlock(tabB.container, 2).querySelector('.grammar-contrast__next') as HTMLButtonElement).click();
     await beat();
     expect(probeB).not.toHaveBeenCalled();
-    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!);
     expect(stored.index).toBe(1);
     expect(stored.answered).toBeUndefined();
     tabA.dispose();
@@ -1963,7 +1968,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     // answer is dropped with the durable answered state adopted (both
     // windows show the same graded feedback).
     expect(probeA.mock.calls.length + probeB.mock.calls.length).toBe(1);
-    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    const stored = JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!);
     expect(stored.index).toBe(0);
     expect(stored.answered?.index).toBe(0);
     expect(levelBlock(tabA.container, 2).querySelector('.grammar-contrast__feedback')).toBeTruthy();
@@ -1976,13 +1981,13 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     (levelBlock(tabA.container, 2).querySelector('.grammar-contrast__next') as HTMLButtonElement).click();
     await beat();
     window.dispatchEvent(new StorageEvent('storage', {
-      key: 'mlearn-grammar-contrast-pass:ja',
-      newValue: globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja'),
+      key: 'mlearn-study-grammar:ja',
+      newValue: globalThis.localStorage!.getItem('mlearn-study-grammar:ja'),
     }));
     await tick();
     await tick();
     expect(probeA.mock.calls.length + probeB.mock.calls.length).toBe(1);
-    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!).index).toBe(1);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!).index).toBe(1);
     expect(levelBlock(tabB.container, 2).querySelector('.grammar-contrast__feedback')).toBeNull();
     tabA.dispose();
     tabB.dispose();
@@ -2016,7 +2021,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(1);
     expect(container.querySelector('[data-testid="grammar-storage-unavailable"]')).toBeNull();
-    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!).answered?.index).toBe(0);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!).answered?.index).toBe(0);
     dispose();
     container.remove();
   });
@@ -2035,7 +2040,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
 
     answer();
     await beat();
-    const reserved = JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!);
+    const reserved = JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!);
     expect(reserved.index).toBe(0);
     expect(reserved.answered).toBeUndefined();
     expect(reserved.pending?.attemptId).toEqual(expect.any(String));
@@ -2045,13 +2050,13 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     const skip = levelBlock(container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement;
     skip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await beat();
-    expect(JSON.parse(localStorage.getItem('mlearn-grammar-contrast-pass:ja')!)).toEqual(reserved);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(reserved);
     expect(skip.disabled).toBe(true);
 
     answer();
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-grammar-contrast-pass:ja')!).answered?.index).toBe(0);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!).answered?.index).toBe(0);
     expect(levelBlock(container, 2).querySelector('.grammar-contrast__feedback')).toBeTruthy();
     expect(container.querySelector('[data-testid="grammar-storage-unavailable"]')).toBeNull();
     dispose();
@@ -2067,7 +2072,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement).click();
     await tick();
-    const stored = JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!);
+    const stored = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
     const attemptId = stored.pending.attemptId as string;
     expect(stored.index).toBe(0);
     expect((interrupted.mock.calls[0] as unknown[])[4]).toMatchObject({ attemptId });
@@ -2079,7 +2084,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     await expand(second.container, 2);
     await beat();
     expect(resumed.mock.calls[0][4]).toMatchObject({ attemptId });
-    expect(JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!).index).toBe(1);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).index).toBe(1);
     second.dispose();
     second.container.remove();
   });
@@ -2093,7 +2098,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
       '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement).click();
     await tick();
-    const stored = JSON.parse(localStorage.getItem('mlearn-grammar-pass:ja')!);
+    const stored = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
     const attemptId = stored.pending.attemptId as string;
     expect(stored.index).toBe(0);
     expect((interrupted.mock.calls[0] as unknown[])[4]).toMatchObject({ attemptId });
@@ -2105,7 +2110,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     await expand(second.container, 3);
     await beat();
     expect(resumed.mock.calls[0][4]).toMatchObject({ attemptId });
-    expect(localStorage.getItem('mlearn-grammar-pass:ja')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).index).toBe(1);
     second.dispose();
     second.container.remove();
   });

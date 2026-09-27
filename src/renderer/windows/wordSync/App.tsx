@@ -46,7 +46,7 @@ import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
-import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
+import { type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
 import { KnowledgeSkeleton } from '../../components/common';
 import { fetchTranslation } from '../../hooks/useTranslation';
@@ -68,6 +68,7 @@ import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter } from '../../learning/engine';
 import { studySessionState } from '../../learning/studySession';
+import { createStudySessionController, inProcessStudySessionLocks, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
 import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import './WordSync.css';
@@ -80,6 +81,23 @@ interface PoolEntry {
   storageKey: string;
   weight: number;
 }
+
+interface WordQueueEntry { id: string }
+
+interface WordSessionMeta {
+  samplingLevel: number;
+  lastRating: AttemptQuality | null;
+}
+
+interface WordAttemptPayload {
+  language: string;
+  observations: readonly ProfileObservation[];
+  timing: AttemptTiming | null;
+  scaffolds: AttemptScaffolds;
+}
+
+type WordSession = StudySessionRecord<WordQueueEntry, WordAttemptPayload, never, WordSessionMeta>;
+type WordController = StudySessionController<WordQueueEntry, WordAttemptPayload, never, WordSessionMeta>;
 
 interface RatingWrite {
   word: PoolEntry;
@@ -98,10 +116,10 @@ interface WordSyncUndoEntry {
   /** Attempt ids whose events must be retracted when this rating is undone. */
   attemptIds: AttemptId[];
   previousRatedCount: number;
-  previousExcludedAtPresentation: number;
   previousLastRating: AttemptQuality | null;
   previousSamplingLevel: number;
   previousLevelCursors: Map<number, number>;
+  previousSession?: WordSession;
 }
 
 // Bounded undo history mirroring flashcard review (MAX_UNDO_STACK_SIZE there is also 50).
@@ -140,10 +158,13 @@ export const WordSyncContent: Component = () => {
     wordTimer = null;
     return timing;
   };
-  const [samplingLevel, setSamplingLevel] = createSignal<number>(0);
+  const [, setSamplingLevel] = createSignal<number>(0);
   const [ratedCount, setRatedCount] = createSignal(0);
   const [ratingWrite, setRatingWrite] = createSignal<RatingWrite | null>(null);
-  const [lastRating, setLastRating] = createSignal<AttemptQuality | null>(null);
+  const [sessionController, setSessionController] = createSignal<WordController | null>(null);
+  const [sessionStartFailed, setSessionStartFailed] = createSignal(false);
+  let retrySessionStart: (() => void) | null = null;
+  const [, setLastRating] = createSignal<AttemptQuality | null>(null);
   const [finished, setFinished] = createSignal(false);
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>([]);
   const [filterPresetInitialized, setFilterPresetInitialized] = createSignal(false);
@@ -156,8 +177,15 @@ export const WordSyncContent: Component = () => {
   // (the visible translation/reveal control): arms the rating control and shows
   // the translation together, so both input paths reach the same ratable state.
   const reveal = () => {
-    setShowAnswer(true);
-    setShowTranslation(true);
+    const controller = sessionController();
+    const record = controller?.current();
+    if (!controller || !record) return;
+    void controller.reveal(record).then((accepted) => {
+      if (accepted) {
+        setShowAnswer(true);
+        setShowTranslation(true);
+      }
+    });
   };
   // Whether the translation was visible BEFORE the reveal — part of the
   // retrieval-time scaffold snapshot below.
@@ -241,7 +269,6 @@ export const WordSyncContent: Component = () => {
   const [wordPool, setWordPool] = createSignal<Map<number, PoolEntry[]>>(new Map(), { equals: false });
   // Level labels describe a package; they are not the inventory of its queue.
   const sortedLevels = createMemo(() => sortFrequencyLevelsByDifficulty([...wordPool().keys()], langCtx.currentLangData()));
-  const [excludedAtPresentation, setExcludedAtPresentation] = createSignal(0);
   const [queueSummary, setQueueSummary] = createSignal({ ignored: 0, filtered: 0, noPrompt: 0 });
 
   // ─── F-N1 request bound: projections ONLY for evidence-bearing surfaces ──
@@ -411,6 +438,7 @@ export const WordSyncContent: Component = () => {
   }
 
   let levelCursors = new Map<number, number>();
+  let sessionEntriesByWord = new Map<string, PoolEntry>();
 
   // Reservoir-style weighted sampling: sortKey = -weight * random^(1/weight).
   // Higher-weight items land near the front proportionally more often
@@ -424,13 +452,53 @@ export const WordSyncContent: Component = () => {
   }
 
   function pickNext() {
-    const pool = sessionQueue();
-    if (!pool || !isKnowledgeReady()) return;
-    const levels = sortedLevels();
-    if (levels.length === 0) { setCurrentWord(null); setFinished(true); setShowAnswer(false); setShowTranslation(false); return; }
+    const record = sessionController()?.current();
+    if (!record || !isKnowledgeReady()) return;
+    const selected = sessionEntriesByWord.get(record.queue[record.index]?.id ?? '') ?? null;
+    if (selected && selected.word === currentWord()?.word) {
+      setShowAnswer(record.revealed);
+      return;
+    }
+    batch(() => {
+      stopWordTiming();
+      setCurrentWord(selected);
+      setFinished(selected === null);
+      setRatedCount(record.rated);
+      setSamplingLevel(record.meta.samplingLevel);
+      setLastRating(record.meta.lastRating);
+      setTranslationSeenAtPrompt(false);
+      setShowAnswer(record.revealed);
+      setShowTranslation(false);
+      if (selected) setPresentationCount((c) => c + 1);
+    });
+  }
 
-    let lvl = samplingLevel();
+  function skipCurrentWord() {
+    const controller = sessionController();
+    const record = controller?.current();
+    if (!controller || !record) return;
+    void controller.skip(record).then((accepted) => {
+      if (accepted) pickNext();
+    });
+  }
+
+  function nextWord(record: WordSession, outcome: 'rated' | 'skipped' | 'advanced', entriesByWord: Map<string, PoolEntry>): { index: number; meta: WordSessionMeta } {
+    const levels = sortedLevels();
+    if (levels.length === 0) return { index: record.queue.length, meta: record.meta };
+
+    let lvl = record.meta.samplingLevel;
     if (!levels.includes(lvl)) lvl = levels[0];
+
+    let quality = record.meta.lastRating;
+    if (outcome === 'rated' && record.pending) {
+      quality = 'fluent';
+      for (const observation of record.pending.payload.observations) {
+        if (ATTEMPT_QUALITIES.indexOf(observation.quality) < ATTEMPT_QUALITIES.indexOf(quality)) quality = observation.quality;
+      }
+      const previousLevel = levels.indexOf(lvl);
+      if (quality === 'missed' && previousLevel > 0) lvl = levels[previousLevel - 1];
+      else if (quality === 'fluent' && previousLevel < levels.length - 1) lvl = levels[previousLevel + 1];
+    }
 
     const idx = levels.indexOf(lvl);
 
@@ -440,7 +508,7 @@ export const WordSyncContent: Component = () => {
     for (let dist = 1; dist < levels.length; dist++) {
       const easierIdx = idx - dist;
       const harderIdx = idx + dist;
-      if (lastRating() === 'fluent') {
+      if (quality === 'fluent') {
         if (harderIdx < levels.length) tryOrder.push(levels[harderIdx]);
         if (easierIdx >= 0) tryOrder.push(levels[easierIdx]);
       } else {
@@ -449,98 +517,54 @@ export const WordSyncContent: Component = () => {
       }
     }
 
-    for (const tryLvl of tryOrder) {
-      const group = pool.get(tryLvl);
-      if (!group || group.length === 0) continue;
-      const cursor = levelCursors.get(tryLvl) ?? 0;
-      if (cursor < group.length) {
-        batch(() => {
-          stopWordTiming();
-          levelCursors.set(tryLvl, cursor + 1);
-          setSamplingLevel(tryLvl);
-          setTranslationSeenAtPrompt(false);
-          setShowAnswer(false);
-          setShowTranslation(false);
-          setPresentationCount((c) => c + 1);
-          trace('next card selected', { word: group[cursor].word, cursor, total: totalAvailable() });
-          setCurrentWord(group[cursor]);
-        });
-        return;
-      }
-    }
-    batch(() => {
-      setFinished(true);
-      setTranslationSeenAtPrompt(false);
-      setCurrentWord(null);
-      setShowAnswer(false);
-      setShowTranslation(false);
+    const visited = new Set(record.visited);
+    const firstByLevel = new Map<number, number>();
+    record.queue.forEach((item, index) => {
+      const level = entriesByWord.get(item.id)?.level;
+      if (level !== undefined && !visited.has(index) && !firstByLevel.has(level)) firstByLevel.set(level, index);
     });
+    for (const tryLvl of tryOrder) {
+      const nextIndex = firstByLevel.get(tryLvl);
+      if (nextIndex !== undefined) return { index: nextIndex, meta: { samplingLevel: tryLvl, lastRating: quality } };
+    }
+    return { index: record.queue.length, meta: { samplingLevel: lvl, lastRating: quality } };
   }
 
   // One logical attempt and one reactive update: row writes must not repeatedly
   // rebuild knowledge consumers before the next word can render.
-  const commitProfileRating = async (write: RatingWrite): Promise<void> => {
-    setRatingWrite({ ...write, phase: 'pending' });
-    try {
-      await recordAttemptsAcknowledged(write.word.word, write.observations, {
+  const commitProfileRating = async (write: Pick<RatingWrite, 'word' | 'language' | 'observations' | 'timing' | 'scaffolds'>): Promise<void> => {
+    const controller = sessionController();
+    const current = controller?.current();
+    if (!controller || !current || current.queue[current.index]?.id !== write.word.word) return;
+    if (current.pending) {
+      await controller.retry(current);
+    } else {
+      await controller.reserve(current, {
         language: write.language,
-        attemptId: write.attemptId,
-        origin: 'word-sync',
-        ...(write.timing ? { timing: write.timing } : {}),
+        observations: write.observations,
+        timing: write.timing,
         scaffolds: write.scaffolds,
-      });
-    } catch {
-      if (ratingWrite()?.attemptId === write.attemptId) setRatingWrite({ ...write, phase: 'failed' });
-      return;
+      }, 'advance');
     }
-    if (ratingWrite()?.attemptId !== write.attemptId) return;
-    setRatingWrite(null);
-    // A language/filter/store change may have retired this presentation while
-    // the append was in flight. Its evidence is durable, but it must not move
-    // the newly selected session or assign its count to a different word.
-    if (settings.language !== write.language || presentationCount() !== write.presentation
-      || currentWord()?.word !== write.word.word) return;
-    batch(() => {
-      setUndoStack((prev) => {
-        const next = [
-          ...prev,
-          {
-            word: write.word,
-            language: write.language,
-            attemptIds: [write.attemptId],
-            previousRatedCount: ratedCount(),
-            previousExcludedAtPresentation: excludedAtPresentation(),
-            previousLastRating: lastRating(),
-            previousSamplingLevel: samplingLevel(),
-            previousLevelCursors: new Map(levelCursors),
-          },
-        ];
-        if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-        return next;
-      });
-      trace('rating write', { word: write.word.word });
-      setRatedCount((c) => c + 1);
-
-      // Sample outward from the worst measured aspect, not the Easy scheduler
-      // preference. No direction or count changes before the journal accepts.
-      let worstQuality: AttemptQuality = 'fluent';
-      for (const observation of write.observations) {
-        if (ATTEMPT_QUALITIES.indexOf(observation.quality) < ATTEMPT_QUALITIES.indexOf(worstQuality)) {
-          worstQuality = observation.quality;
-        }
-      }
-      setLastRating(worstQuality);
-      const levels = sortedLevels();
-      const idx = levels.indexOf(samplingLevel());
-      if (worstQuality === 'missed') {
-        if (idx > 0) setSamplingLevel(levels[idx - 1]);
-      } else if (worstQuality === 'fluent') {
-        if (idx < levels.length - 1) setSamplingLevel(levels[idx + 1]);
-      }
-      setCurrentWord(null);
-      pickNext();
-    });
+    pickNext();
   };
+
+  createEffect(on(() => sessionController()?.current()?.pending, (pending) => {
+    if (!pending) { setRatingWrite(null); return; }
+    const record = sessionController()?.current();
+    const word = sessionEntriesByWord.get(record?.queue[pending.index]?.id ?? '');
+    if (!word) return;
+    setRatingWrite({
+      word,
+      language: pending.payload.language,
+      presentation: presentationCount(),
+      attemptId: pending.attemptId,
+      observations: pending.payload.observations,
+      timing: pending.payload.timing,
+      scaffolds: pending.payload.scaffolds,
+      phase: pending.state,
+    });
+  }));
 
   const handleSubmitProfile = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     const w = currentWord();
@@ -558,12 +582,9 @@ export const WordSyncContent: Component = () => {
     void commitProfileRating({
       word: w,
       language: settings.language,
-      presentation: presentationCount(),
-      attemptId: nextAttemptId(),
       observations: observations.map((observation) => ({ ...observation })),
       timing: stopWordTiming(),
       scaffolds: promptScaffolds(),
-      phase: 'pending',
     });
   };
 
@@ -660,12 +681,18 @@ export const WordSyncContent: Component = () => {
     });
   }
 
-  function recheckAll() {
+  async function recheckAll() {
+    const controller = sessionController();
+    const record = controller?.current();
+    if (controller && record && !await controller.clear(record)) return;
+    controller?.dispose();
+    setSessionController(null);
+    setSessionStartFailed(false);
+    retrySessionStart = null;
     stopWordTiming();
     setRatingWrite(null);
     setSessionQueue(undefined);
     setCurrentWord(null);
-    setExcludedAtPresentation(0);
     setFinished(false);
     setRatedCount(0);
     setLastRating(null);
@@ -679,11 +706,14 @@ export const WordSyncContent: Component = () => {
     rebuildWordPool();
   }
 
-  function undoLastWordSyncRating() {
+  async function undoLastWordSyncRating() {
     if (ratingWrite() !== null) return;
     const stack = undoStack();
     const undoEntry = stack[stack.length - 1];
-    if (!undoEntry) return;
+    const controller = sessionController();
+    const current = controller?.current();
+    if (!undoEntry?.previousSession || !controller || !current) return;
+    if (!await controller.undo(current, undoEntry.previousSession)) return;
 
     setUndoStack((prev) => prev.slice(0, -1));
 
@@ -691,7 +721,6 @@ export const WordSyncContent: Component = () => {
     appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds);
     void recomputeWordKnowledgeFromEvidence(undoEntry.word.word, undoEntry.language);
     setRatedCount(undoEntry.previousRatedCount);
-    setExcludedAtPresentation(undoEntry.previousExcludedAtPresentation);
     setLastRating(undoEntry.previousLastRating);
     setSamplingLevel(undoEntry.previousSamplingLevel);
     levelCursors = new Map(undoEntry.previousLevelCursors);
@@ -745,6 +774,10 @@ export const WordSyncContent: Component = () => {
   // A session belongs to one language/package/target scope. Journal updates
   // revalidate the current prompt; a different scope starts a new session.
   createEffect(on(() => [settings.language, langCtx.getWordFrequency(), langCtx.currentLangData(), getLearningLanguageLevelForLanguage(settings, settings.language)] as const, () => batch(() => {
+    sessionController()?.dispose();
+    setSessionController(null);
+    setSessionStartFailed(false);
+    retrySessionStart = null;
     stopWordTiming();
     setRatingWrite(null);
     setSessionQueue(undefined);
@@ -754,7 +787,6 @@ export const WordSyncContent: Component = () => {
     setCurrentWord(null);
     setFinished(false);
     setRatedCount(0);
-    setExcludedAtPresentation(0);
     setLastRating(null);
     setUndoStack([]);
     setShowAnswer(false);
@@ -773,6 +805,10 @@ export const WordSyncContent: Component = () => {
         // of it (rated set without count, undo without snapshots) would mix
         // inconsistent state.
         trace('projection not ready');
+        sessionController()?.dispose();
+        setSessionController(null);
+        setSessionStartFailed(false);
+        retrySessionStart = null;
         setRatingWrite(null);
         setSessionQueue(undefined);
         setPoolPrepared(false);
@@ -809,6 +845,7 @@ export const WordSyncContent: Component = () => {
   onCleanup(() => {
     window.removeEventListener('keydown', handleKeyDown);
     stopWordTiming();
+    sessionController()?.dispose();
   });
 
   // ─── Derived display state ──────────────────────────
@@ -824,27 +861,99 @@ export const WordSyncContent: Component = () => {
     return getFrequencyLevelVisualRank(w.level, langCtx.getFreqLevelNames(), langCtx.currentLangData());
   });
 
-  const totalAvailable = createMemo(() => Math.max(0, [...(sessionQueue()?.values() ?? [])].reduce((total, group) => total + group.length, 0) - excludedAtPresentation()));
+  const skippedCount = createMemo(() => {
+    const record = sessionController()?.current();
+    return record ? Math.max(0, record.visited.length - record.rated) : 0;
+  });
+  const totalAvailable = createMemo(() => Math.max(0,
+    (sessionController()?.current()?.queue.length
+      ?? [...(sessionQueue()?.values() ?? [])].reduce((total, group) => total + group.length, 0)) - skippedCount(),
+  ));
   const sessionPresentation = createMemo(() => studySessionState({
-    ready: !!sessionQueue(),
-    index: ratedCount(),
+    ready: !!sessionController()?.current(),
+    index: sessionController()?.current()?.rated ?? 0,
     total: totalAvailable(),
-    revealed: showAnswer(),
-    write: ratingWrite()?.phase ?? null,
+    revealed: sessionController()?.current()?.revealed ?? false,
+    write: sessionController()?.current()?.pending?.state ?? null,
   }));
   createEffect(on(() => eligibleWords.state === 'ready' ? eligibleWords() : undefined, result => {
     if (!result || sessionQueue() || result.pool !== wordPool() || result.tokens !== filterTokens()
       || result.revision !== scanRevision || !isKnowledgeReady() || !poolProjection.ready()) return;
     const queue = new Map([...result.pool].map(([level, group]) => [level, group.filter(entry => result.eligible.has(entry.word))]));
+    const entries: WordQueueEntry[] = [...queue.values()].flat().map((entry) => ({ id: entry.word }));
+    const entryByWord = new Map([...result.pool.values()].flat().map((entry) => [entry.word, entry]));
+    sessionEntriesByWord = entryByWord;
+    const identity = JSON.stringify({
+      language: settings.language,
+      provider: settings.frequencyProviderSelections?.[settings.language],
+      // FilterBuilder IDs are presentation identities regenerated on mount.
+      // Only the filter expression itself defines a durable study session.
+      tokens: filterTokens().map(({ instanceId: _instanceId, ...token }) => token),
+      packageVersion: langCtx.currentLangData()?.languageData?.version,
+    });
+    const locks = globalThis.navigator?.locks ?? inProcessStudySessionLocks;
+    const controller = createStudySessionController<WordQueueEntry, WordAttemptPayload, never, WordSessionMeta>({
+      storageKey: `mlearn-study-word-sync:${settings.language}`,
+      lockKey: `mlearn-study-word-sync:${settings.language}`,
+      locks,
+      storage: globalThis.localStorage,
+      validate: (record) => record.identity === identity
+        && record.queue.every((item) => entryByWord.has(item.id)),
+      writeAttempt: async (pending, record) => {
+        const word = record.queue[pending.index]?.id;
+        if (!word) throw new Error('Reserved Word Sync item is missing');
+        await recordAttemptsAcknowledged(word, pending.payload.observations, {
+          language: pending.payload.language,
+          attemptId: pending.attemptId,
+          origin: 'word-sync',
+          ...(pending.payload.timing ? { timing: pending.payload.timing } : {}),
+          scaffolds: pending.payload.scaffolds,
+        });
+      },
+      next: (record, outcome) => nextWord(record, outcome, entryByWord),
+      onAcknowledged: (before, _after, pending) => {
+        setUndoStack((previous) => {
+          const next = [...previous, {
+            word: entryByWord.get(before.queue[before.index].id)!,
+            language: pending.payload.language,
+            attemptIds: [pending.attemptId],
+            previousRatedCount: before.rated,
+            previousLastRating: before.meta.lastRating,
+            previousSamplingLevel: before.meta.samplingLevel,
+            previousLevelCursors: new Map(levelCursors),
+            previousSession: { ...before, pending: undefined, revealed: false },
+          }];
+          if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
+          return next;
+        });
+      },
+    });
+    setSessionController(controller);
     batch(() => {
       setQueueSummary({ ignored: Math.max(0, Object.keys(langCtx.getWordFrequency()).length - [...result.pool.values()].reduce((sum, group) => sum + group.length, 0)), filtered: result.filtered, noPrompt: result.noPrompt });
-      setExcludedAtPresentation(0);
       setSessionQueue(queue);
       levelCursors = new Map();
       trace('session queue created', { count: [...queue.values()].reduce((n, group) => n + group.length, 0) });
-      untrack(pickNext);
     });
+    const existing = controller.current();
+    if (existing) {
+      pickNext();
+      if (existing.pending) void controller.retry(existing);
+    } else {
+      retrySessionStart = () => {
+        void controller.start(identity, entries, entries.length > 0 ? 0 : entries.length, {
+          samplingLevel: sortedLevels()[0] ?? 0,
+          lastRating: null,
+        }).then((accepted) => {
+          setSessionStartFailed(!accepted && !controller.current());
+          if (controller.current()) pickNext();
+        });
+      };
+      retrySessionStart();
+    }
   }));
+
+  createEffect(on(() => sessionController()?.current(), () => untrack(pickNext)));
 
   // The definition comes from the dictionary's chosen entry; pair it with that
   // entry's own reading (data[0].reading) so reading and definition belong to
@@ -878,9 +987,7 @@ export const WordSyncContent: Component = () => {
   createEffect(on(() => [currentProjection.projection(), currentProjection.loading(), translation.loading, presentationCount(), store.ignoredWords[currentWord()?.storageKey ?? '']] as const, ([projection, projectionLoading, loading, presentation, ignored]) => {
     const w = currentWord();
     if (w && ignored) {
-      setExcludedAtPresentation(count => count + 1);
-      setCurrentWord(null);
-      untrack(pickNext);
+      skipCurrentWord();
       return;
     }
     // Transient gate (F-N1): the single-surface hook resets its projection
@@ -913,9 +1020,7 @@ export const WordSyncContent: Component = () => {
       wordSyncPoolItems: [{ key: w.storageKey, word: w.word, language: settings.language, targets, scores: { novelty: 1 } }],
     });
     if (targets.length === 0 || decision?.action === 'DEFER' || (ast.ok && ast.ast && !evaluateAst<unknown>(ast.ast, record, filterResolvers()))) {
-      setExcludedAtPresentation(count => count + 1);
-      setCurrentWord(null);
-      untrack(pickNext);
+      skipCurrentWord();
       return;
     }
     stopWordTiming();
@@ -1016,18 +1121,29 @@ export const WordSyncContent: Component = () => {
             fields={filterContext().fields}
             paletteItems={filterContext().paletteItems}
             tokens={filterTokens()}
-            onChange={(tokens) => batch(() => {
-              setRatingWrite(null);
-              setSessionQueue(undefined);
-              setCurrentWord(null);
-              setRatedCount(0);
-              setUndoStack([]);
-              setFilterTokens(tokens);
-              levelCursors = new Map();
-              setFinished(false);
-              setLastRating(null);
-              rebuildWordPool();
-            })}
+            onChange={(tokens) => {
+              const controller = sessionController();
+              const record = controller?.current();
+              void (async () => {
+                if (controller && record && !await controller.clear(record)) return;
+                controller?.dispose();
+                batch(() => {
+                  setSessionController(null);
+                  setSessionStartFailed(false);
+                  retrySessionStart = null;
+                  setRatingWrite(null);
+                  setSessionQueue(undefined);
+                  setCurrentWord(null);
+                  setRatedCount(0);
+                  setUndoStack([]);
+                  setFilterTokens(tokens);
+                  levelCursors = new Map();
+                  setFinished(false);
+                  setLastRating(null);
+                  rebuildWordPool();
+                });
+              })();
+            }}
             evaluation={filterValidation()}
           />
         </Popover>
@@ -1039,22 +1155,29 @@ export const WordSyncContent: Component = () => {
       </div>
 
     {/* Keep the session shell mounted while the next prompt materializes. */}
-    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && !projectionUnavailable()} fallback={
-      <Show when={projectionUnavailable()} fallback={
-        <Show when={!filterValidation().ok} fallback={<KnowledgeSkeleton variant="word-sync" />}>
-          <p role="alert">{t('mlearn.WordSync.InvalidFilter')}</p>
+    <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue() && !!sessionController()?.current() && !projectionUnavailable()} fallback={
+      <Show when={sessionStartFailed()} fallback={
+        <Show when={projectionUnavailable()} fallback={
+          <Show when={!filterValidation().ok} fallback={<KnowledgeSkeleton variant="word-sync" />}>
+            <p role="alert">{t('mlearn.WordSync.InvalidFilter')}</p>
+          </Show>
+        }>
+          <div class="word-sync-projection-error" role="alert">
+            <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
+            <Btn variant="primary" onClick={retryKnowledgeProjections}>{t('mlearn.Global.TryAgain')}</Btn>
+          </div>
         </Show>
       }>
         <div class="word-sync-projection-error" role="alert">
-          <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
-          <Btn variant="primary" onClick={retryKnowledgeProjections}>{t('mlearn.Global.TryAgain')}</Btn>
+          <p>{t('mlearn.WordSync.SaveFailed')}</p>
+          <Btn variant="primary" onClick={() => retrySessionStart?.()}>{t('mlearn.Global.TryAgain')}</Btn>
         </div>
       </Show>
     }>
       <details class="word-sync-queue-details">
         <summary>{t('mlearn.WordSync.QueueDetails')}</summary>
         <p>{t('mlearn.WordSync.QueueExplanation')}</p>
-        <p>{t('mlearn.WordSync.QueueExclusions', { ignored: String(queueSummary().ignored), filtered: String(queueSummary().filtered), unavailable: String(queueSummary().noPrompt + excludedAtPresentation()) })}</p>
+        <p>{t('mlearn.WordSync.QueueExclusions', { ignored: String(queueSummary().ignored), filtered: String(queueSummary().filtered), unavailable: String(queueSummary().noPrompt + skippedCount()) })}</p>
       </details>
       <Show when={!finished()} fallback={
         <div class="word-sync-finished">

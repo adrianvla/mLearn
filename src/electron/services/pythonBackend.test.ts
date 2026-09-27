@@ -1212,6 +1212,7 @@ describe('pythonBackend', () => {
       await installPromise;
 
       expect(mockSpawn.mock.calls.some((call) => call[0] === '/bin/sh')).toBe(true);
+      expect(mockWebContents.send).toHaveBeenCalledWith('successful-install', true);
     });
 
     it('verifies a freshly installed per-user runtime instead of a previously selected dev runtime', async () => {
@@ -1364,6 +1365,7 @@ describe('pythonBackend', () => {
       await installPromise;
 
       expect(mockSpawn.mock.calls.some((call) => call[0] === '/bin/sh')).toBe(true);
+      expect(mockWebContents.send).toHaveBeenCalledWith('successful-install', true);
     });
 
     it('does not verify concrete OCR engines unless language metadata requested them', async () => {
@@ -2121,7 +2123,7 @@ describe('pythonBackend', () => {
     }
 
     /** Capture pip group spawns; --version and -c checks close 0, everything else stays alive. */
-    function capturePipSpawns(): { spawns: CapturedSpawn[] } {
+    function capturePipSpawns(verifierExit: [number | null, NodeJS.Signals | null] = [0, null]): { spawns: CapturedSpawn[] } {
       const spawns: CapturedSpawn[] = [];
       mockSpawn.mockImplementation((cmd: string, args: string[]) => {
         if (args[0] === 'install' || (args[0] === '-m' && args[1] === 'pip')) {
@@ -2144,7 +2146,10 @@ describe('pythonBackend', () => {
             stdout: { on: vi.fn() },
             stderr: { on: vi.fn() },
             on: vi.fn((event: string, handler: (...handlerArgs: unknown[]) => void) => {
-              if (event === 'close') handler(0);
+              if (event === 'close') {
+                if (args[0] === '-c') handler(...verifierExit);
+                else handler(0);
+              }
             }),
             kill: vi.fn(),
             killed: false,
@@ -2335,6 +2340,26 @@ describe('pythonBackend', () => {
       expect(spawns).toHaveLength(1);
       expect(mockSpawn.mock.calls.some((call) => call[0] === '/bin/sh')).toBe(false);
       expect(mockWebContents.send).toHaveBeenCalledWith('installer-awaiting-choice');
+    });
+
+    it('reports a killed verifier as failure and returns to a retryable choice', async () => {
+      await setupInstaller('darwin', 'arm64', false);
+      const mockWebContents = { send: vi.fn() };
+      mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
+      const { spawns } = capturePipSpawns([null, 'SIGKILL']);
+
+      const installPromise = mod.startPythonInstall({ includeLLM: false, includeOCR: false, includeVoice: false });
+      await closeGroupsSequentially(spawns, [0]);
+      await installPromise;
+
+      expect(mockWebContents.send).toHaveBeenCalledWith('server-status-update', 'ERROR: Installation verification failed');
+      expect(mockWebContents.send).toHaveBeenCalledWith('installer-awaiting-choice');
+      expect(mockWebContents.send).not.toHaveBeenCalledWith('successful-install', true);
+      expect(mockSpawn.mock.calls).toContainEqual(expect.arrayContaining([
+        '/tmp/mlearn-python-backend-test/env/bin/python3',
+        expect.arrayContaining(['-c']),
+        expect.objectContaining({ cwd: '/tmp/mlearn-python-backend-test/env', env: expect.any(Object) }),
+      ]));
     });
 
     it('installs no AI packages on Intel Macs but keeps language core packages', async () => {
