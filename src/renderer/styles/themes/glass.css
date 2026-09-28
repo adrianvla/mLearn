@@ -38,7 +38,8 @@ body.theme-glass .label-status {
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
 
-body.theme-glass .panel {
+/* Dialog geometry is owned by the shared Modal, not the floating-panel skin. */
+body.theme-glass .panel:not(.modal-panel) {
     margin: var(--glass-spacing);
     border-radius: var(--radius-full);
 }

@@ -212,7 +212,7 @@ const installerBridge: InstallerBridge = {
 };
 
 const llmBridge: LLMBridge = {
-  llmStream: (msgs, tools, tier, think) => getIPC().llmStream(msgs, tools, tier, think),
+  llmStream: (msgs, tools, tier, think, traceContext) => getIPC().llmStream(msgs, tools, tier, think, traceContext),
   llmStreamAbort: () => getIPC().llmStreamAbort(),
   onLLMStreamChunk: (cb) => getIPC().onLLMStreamChunk(cb),
   llmCheckModel: (f) => getIPC().llmCheckModel(f),
@@ -382,6 +382,7 @@ const journalBridge: JournalBridge = {
 };
 
 const worldBridge: WorldBridge = {
+  onChanged: (callback) => getIPC().onWorldChanged(callback),
   getWorldState: () => getIPC().getWorldState(),
   createRoom: (title) => getIPC().createRoom(title),
   applyMembership: (roomId, participantId, kind) => getIPC().applyMembership(roomId, participantId, kind),
@@ -414,6 +415,12 @@ const browserBridge: BrowserBridge = {
 };
 
 const diagnosticsBridge: DiagnosticsBridge = {
+  getRuntimeTraces: () => getIPC().getRuntimeTraces(),
+  getRuntimeTrace: (id) => getIPC().getRuntimeTrace(id),
+  clearRuntimeTraces: () => getIPC().clearRuntimeTraces(),
+  onRuntimeTraceChanged: (callback) => getIPC().onRuntimeTraceChanged(callback),
+  recordRuntimeTool: (observation) => getIPC().recordRuntimeTool(observation),
+  getRuntimeWorld: () => getIPC().getRuntimeWorld(),
   runDiagnostics: () => getIPC().runDiagnostics(),
   onDiagnosticsProgress: (cb) => getIPC().onDiagnosticsProgress(cb),
   onDiagnosticsComplete: (cb) => getIPC().onDiagnosticsComplete(cb),

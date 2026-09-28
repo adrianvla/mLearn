@@ -106,6 +106,22 @@ describe('worldIpc', () => {
     await expect(mod.createSandbox({ ...request, intent: 'Another request' })).rejects.toThrow(/conflict/);
   });
 
+  it('lets a practice-only contact start independent practice without Living World consent', async () => {
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    const person = await mod.createParticipant({ displayName: 'Practice partner', kind: 'temporary', personaText: 'A patient colleague' });
+    const first = await mod.createSandbox({ operationId: 'practice-contact', participantIds: [person.id] });
+    const second = await mod.createSandbox({ operationId: 'practice-contact-2', participantIds: [person.id] });
+    expect(first.sandbox?.bindings).toEqual([{ baseline: person }]);
+    expect(first.id).not.toBe(second.id);
+    const world = await mod.getWorldState();
+    expect(world.rooms).toEqual([]);
+    expect(world.participants).toEqual([person]);
+    expect(world.threads).toHaveLength(2);
+    // Saving a reusable profile never promotes it into persistent world topology.
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: true });
+    await expect(mod.createPersistentRoom({ operationId: 'invalid-promotion', participantIds: [person.id] })).rejects.toThrow(/persistent person/);
+  });
+
   it('compiles the pinned sandbox person and local memories without importing later world changes', async () => {
     const person = await mod.createParticipant({ displayName: 'Sam', kind: 'persistent', personaText: 'Original persona' });
     const room = await mod.createRoom('World');

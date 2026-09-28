@@ -728,8 +728,8 @@
         "PreparedGoalLabel": "Practice focus",
         "ToggleParticipant": "Include {name} in the conversation",
         "ScopeLabel": "Where should this live?",
-        "ScopeTemporary": "Temporary practice",
-        "ScopePersistent": "My world (persistent room)",
+        "ScopeTemporary": "Practice",
+        "ScopePersistent": "In my world",
         "PersistentHint": "Messages, memories and relationships here become part of your persistent world."
       },
       "Integration": {
@@ -855,6 +855,62 @@
         "Connection": "Could not reach the AI service. Check your connection and AI settings, then try again.",
         "Generic": "The conversation could not continue. Try again; if it keeps failing, check AI settings.",
         "Settings": "Open AI settings"
+      },
+      "Contacts": {
+        "Chats": "Chats",
+        "Tab": "Contacts",
+        "Add": "Add contact",
+        "Search": "Find a contact",
+        "EmptyChats": "Choose a contact to start talking.",
+        "EmptyContacts": "Add your first AI contact.",
+        "InWorld": "AI contact · shared continuity",
+        "PracticeOnly": "AI contact · separate practice chats",
+        "PracticeChat": "Separate practice chat",
+        "Practice": "Practice",
+        "SayHello": "Say hello",
+        "PreviewUnavailable": "Some message previews could not be loaded.",
+        "EarlierSessions": "Earlier conversations",
+        "Profile": "Contact",
+        "Message": "Message",
+        "About": "About this contact",
+        "Remove": "Remove contact",
+        "RemoveHint": "Remove this AI contact from your contacts and persistent rooms? Existing messages and copies in practice chats remain. Pending calls are cancelled.",
+        "WorldMember": "Include in my world",
+        "PracticeProfileHint": "The contact is saved, but each practice chat has its own history. It does not update your shared world.",
+        "EnableAndAdd": "Enable continuity and add",
+        "OptionalGoal": "Practice goal (optional)",
+        "Notifications": "Initiative and notifications",
+        "Latest": "Latest messages",
+        "AnnotationUnavailable": "Language annotations are unavailable."
+      },
+      "Developer": {
+        "Title": "Runtime inspector",
+        "Disabled": "Enable Developer mode in Settings to inspect the runtime.",
+        "Context": "Context",
+        "AllContexts": "All contexts",
+        "WorldContinuity": "World continuity",
+        "Search": "Filter records",
+        "Refresh": "Refresh",
+        "Calls": "Model & tools",
+        "Runs": "Background runs",
+        "Memories": "Memories",
+        "Journal": "Sea & threads",
+        "World": "World state",
+        "CaptureNotice": "Live, local capture while Developer mode is on. Up to 128 recent calls, with bounded payloads. Cleared on disable, profile change or restart. Credentials are redacted; conversation content is visible. Historical prompts are never reconstructed.",
+        "Clear": "Clear capture",
+        "Unavailable": "Runtime capture is unavailable on this platform.",
+        "NoCalls": "No captured calls match. Start a conversation or a background run with Developer mode enabled.",
+        "SelectCall": "Select a captured call to inspect its actual request and response.",
+        "Copy": "Copy JSON",
+        "Truncated": "Capture limit reached. The displayed payload is explicitly truncated.",
+        "Request": "Application request · captured before dispatch",
+        "Response": "Actual response / tool result",
+        "RunsNotice": "Durable owner records, including pending/prepared data: Dreamer reflection, scenario evolution, autonomy and scheduled contact delivery. Match operation/context IDs to captured model calls.",
+        "WorldNotice": "Raw current world snapshot from the main-process owner. This is current state, not a historical before/after reconstruction.",
+        "JournalNotice": "Committed journal records, with scope, witnesses and provenance intact. Sea includes world continuity as projected by the journal owner. Thread shows that thread’s records only.",
+        "Scope": "Journal scope",
+        "ChooseContext": "Choose a room, practice thread or world continuity above.",
+        "NoEvents": "No matching records in this scope."
       }
     },
     "ErrorModal": {
@@ -1174,6 +1230,7 @@
       }
     },
     "Global": {
+      "Retry": "Retry",
       "Actions": {
         "SaveChanges": "Save Changes"
       },
@@ -2881,7 +2938,7 @@
         "Statistics": "Statistics",
         "VideoPlayer": "Video Player",
         "BrowserExtension": "Browser Extension",
-        "EventAudit": "Developer journal"
+        "EventAudit": "Runtime inspector"
       },
       "SearchPlaceholder": "Search settings..."
     },

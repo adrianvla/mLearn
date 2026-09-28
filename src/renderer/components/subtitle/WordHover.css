@@ -393,3 +393,13 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 .subtitle_hover .word-hover-inspect { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--font-size-xs); padding: var(--spacing-1); white-space: nowrap; cursor: pointer; }
 .subtitle_hover .word-hover-inspect:hover { color: var(--text-primary); text-decoration: underline; }
 .subtitle_hover .word-hover-inspect:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+/* Shared compact variant: placement still measures the actual panel. */
+.subtitle_hover.subtitle_hover--compact {
+  width: min(24rem, calc(100vw - var(--spacing-4)));
+  max-width: min(24rem, calc(100vw - var(--spacing-4)));
+  font-size: var(--font-size-base);
+}
+.subtitle_hover--compact .word-hover-headword { font-size: var(--font-size-2xl); }
+.subtitle_hover--compact .subtitle_hover_content { padding: var(--spacing-3); }
+.subtitle_hover--compact .footer { padding: var(--spacing-2); }

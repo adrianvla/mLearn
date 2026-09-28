@@ -226,7 +226,7 @@ export interface InstallerBridge {
 
 export interface LLMBridge {
   // Unified LLM
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: CloudLLMTier, think?: boolean) => void;
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: CloudLLMTier, think?: boolean, traceContext?: import('../runtimeInspection').RuntimeTraceContext) => void;
   llmStreamAbort: () => void;
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) => () => void;
   llmCheckModel: (modelFile?: string) => Promise<LLMModelStatus>;
@@ -413,6 +413,13 @@ export interface BrowserBridge {
 }
 
 export interface DiagnosticsBridge {
+  getRuntimeTraces: () => Promise<import('../runtimeInspection').RuntimeTraceList>;
+  getRuntimeTrace: (id: string) => Promise<import('../runtimeInspection').RuntimeTraceEntry | null>;
+  clearRuntimeTraces: () => Promise<void>;
+  onRuntimeTraceChanged: (callback: () => void) => () => void;
+  recordRuntimeTool: (observation: import('../runtimeInspection').RuntimeToolObservation) => void;
+  getRuntimeWorld: () => Promise<WorldSnapshot>;
+
   runDiagnostics: () => Promise<import('../diagnostics/types').DiagnosticsReport>;
   onDiagnosticsProgress: (callback: (progress: import('../diagnostics/types').DiagnosticsProgressEvent) => void) => () => void;
   onDiagnosticsComplete: (callback: (report: import('../diagnostics/types').DiagnosticsReport) => void) => () => void;
@@ -437,6 +444,7 @@ export interface JournalBridge {
 }
 
 export interface WorldBridge {
+  onChanged: (callback: (notice: import('../runtimeInspection').WorldChangeNotice) => void) => () => void;
   prepareScenario: (input: import('../world').CreateCastInput) => Promise<import('../world').ScenarioCreation>;
   activateScenario: (operationId: string) => Promise<import('../world').ScenarioActivation>;
   cancelScenario: (operationId: string) => Promise<void>;

@@ -8,6 +8,8 @@
  * Only the owning webContents may abort its stream.
  */
 
+import type { RuntimeTraceContext } from '../../shared/runtimeInspection';
+import { runtimeTrace, recordRuntimeChunk, finishRuntimeTrace } from './runtimeTraceService';
 import { ipcMain, type IpcMainEvent } from 'electron';
 import { EventEmitter } from 'events';
 import { getUserDataPath } from '../utils/platform';
@@ -28,6 +30,7 @@ const log = getLogger('electron.llmRouter');
 let cloudAdapter: CloudLLMAdapter | null = null;
 
 interface QueuedStreamRequest {
+  traceId?: string;
   sender: Electron.WebContents;
   messages: LLMChatMessage[];
   tools: LLMToolDefinition[];
@@ -52,6 +55,7 @@ let activeSender: Electron.WebContents | null = null;
 let activeOriginalSend: ((channel: string, ...args: unknown[]) => void) | null = null;
 let activeDestroyedListener: (() => void) | null = null;
 interface StreamLifecycle {
+  traceId?: string;
   providerSettled: boolean;
   terminal: boolean;
   cancelled: boolean;
@@ -71,8 +75,8 @@ function enqueueRequest(request: QueuedStreamRequest): void {
 
 // A terminal chunk completes delivery, but the provider still owns resources until
 // its promise settles (notably the built-in session's asynchronous disposal).
-function wrapSenderSend(sender: Electron.WebContents): void {
-  const lifecycle: StreamLifecycle = { providerSettled: false, terminal: false, cancelled: false };
+function wrapSenderSend(sender: Electron.WebContents, traceId?: string): void {
+  const lifecycle: StreamLifecycle = { traceId, providerSettled: false, terminal: false, cancelled: false };
   activeLifecycle = lifecycle;
   const originalSend = sender.send.bind(sender);
   activeOriginalSend = originalSend;
@@ -82,10 +86,19 @@ function wrapSenderSend(sender: Electron.WebContents): void {
       if (lifecycle.cancelled || lifecycle.terminal) return;
       const chunk = args[0] as LLMStreamChunk | undefined;
       if (chunk?.done) lifecycle.terminal = true;
+      // Capture provider output first, but defer terminal classification until
+      // the owner has synchronously accepted or rejected it (e.g. its budget).
+      if (chunk) { const { done: _done, error: _error, ...payload } = chunk; recordRuntimeChunk(lifecycle.traceId, payload); }
     }
     try {
       originalSend(channel, ...args);
     } finally {
+      // Main-owned jobs validate delivery (including budgets) synchronously.
+      // A rejected terminal chunk must not first be recorded as a success.
+      if (channel === IPC_CHANNELS.LLM_STREAM_CHUNK && args[0]) {
+        const chunk = args[0] as LLMStreamChunk;
+        if (chunk.done || chunk.error) recordRuntimeChunk(lifecycle.traceId, { done: chunk.done, error: chunk.error });
+      }
       if (activeLifecycle === lifecycle) releaseStream();
     }
   };
@@ -96,6 +109,7 @@ function wrapSenderSend(sender: Electron.WebContents): void {
 function cancelActiveStream(senderId: number): void {
   if (activeOwner !== senderId || !activeLifecycle || activeLifecycle.cancelled) return;
   activeLifecycle.cancelled = true;
+  finishRuntimeTrace(activeLifecycle.traceId, 'cancelled');
   abortProvider(senderId);
   releaseStream();
 }
@@ -121,11 +135,12 @@ function drainQueue(): void {
   while (queue.length > 0) {
     const next = queue.shift()!;
     if (next.sender.isDestroyed()) {
+      finishRuntimeTrace(next.traceId, 'cancelled');
       continue;
     }
     activeOwner = next.sender.id;
     activeSender = next.sender;
-    wrapSenderSend(next.sender);
+    wrapSenderSend(next.sender, next.traceId);
     void dispatchStream(next.sender, next.messages, next.tools, next.tier, next.think, next.expectedRoute,
       next.priority === 'background' ? 'internal' : 'foreground');
     return;
@@ -190,6 +205,7 @@ async function dispatchStream(
     const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
     log.info('Tutor inference dispatch', { ownerId: sender.id, provider, queued: expectedRoute !== undefined, modelFile: provider === 'builtin' ? settings.builtinModel : undefined, messageCount: messages.length, messageCharacters: messages.reduce((sum, message) => sum + message.content.length, 0) });
     activeProvider = provider;
+    runtimeTrace().start(lifecycle?.traceId, { provider, model: provider === 'builtin' ? settings.builtinModel : provider === 'ollama' ? settings.ollamaModel : undefined, tier });
     if (expectedRoute !== undefined && expectedRoute !== routeKey(settings)) throw new Error('Inference settings changed while the job was queued');
     if (provider === 'cloud') {
       if (!runtimeAllows('cloud-llm')) throw new Error('Cloud LLM is temporarily unavailable');
@@ -244,9 +260,12 @@ export function completeJob(
   signal: AbortSignal,
   maxOutputCharacters = 24000,
   priority: 'foreground' | 'background' = 'foreground',
+  traceContext: RuntimeTraceContext = { source: 'internal' },
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const queuedAt = performance.now();
+    messages = structuredClone(messages); // Freeze queued application input, not just its diagnostic copy.
+    const traceId = runtimeTrace().begin({ kind: 'model', context: traceContext, input: { messages, tools: [], priority, maxOutputCharacters } });
     let settled = false;
     let text = '';
     let firstContentAt = 0;
@@ -276,6 +295,7 @@ export function completeJob(
     };
     const cancel = (error: Error): void => {
       log.info('Tutor job stage', { ownerId: sender.id, stage: 'cancelled-or-failed', elapsedMs: Math.round(performance.now() - queuedAt), errorName: error.name });
+      finishRuntimeTrace(traceId, signal.aborted ? 'cancelled' : 'failed', error.message);
       finish(error);
       for (let i = queue.length - 1; i >= 0; i--) if (queue[i].sender.id === sender.id) queue.splice(i, 1);
       if (activeOwner === sender.id) {
@@ -285,7 +305,7 @@ export function completeJob(
     const onAbort = (): void => cancel(new Error('Scenario generation cancelled'));
     if (signal.aborted) { onAbort(); return; }
     signal.addEventListener('abort', onAbort, { once: true });
-    enqueueRequest({ sender, messages, tools: [], expectedRoute: routeKey(loadSettings()), priority });
+    enqueueRequest({ sender, messages, tools: [], expectedRoute: routeKey(loadSettings()), priority, traceId });
     log.info('Tutor job stage', { ownerId: sender.id, stage: 'queued', queueDepth: queue.length, maxOutputCharacters });
     if (activeOwner === null) drainQueue();
   });
@@ -297,22 +317,24 @@ export function completeJob(
  */
 export function setupLLMRouterIPC(): void {
   // Unified stream — routes to the correct provider, guarded to one active stream
-  ipcMain.on(IPC_CHANNELS.LLM_STREAM, async (event: IpcMainEvent, messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string, think?: boolean) => {
+  ipcMain.on(IPC_CHANNELS.LLM_STREAM, async (event: IpcMainEvent, messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string, think?: boolean, traceContext?: RuntimeTraceContext) => {
     const sender = event.sender;
+    const traceId = runtimeTrace().begin({ kind: 'model', context: traceContext ?? { source: 'foreground' }, input: { messages, tools, tier, think } });
 
     if (activeOwner === null) {
       activeOwner = sender.id;
       activeSender = sender;
-      wrapSenderSend(sender);
+      wrapSenderSend(sender, traceId);
       await dispatchStream(sender, messages, tools, tier, think);
     } else if (activeOwner === sender.id && !activeLifecycle?.terminal && !activeLifecycle?.cancelled) {
       // Same webContents overlapping its own stream is a programming error: reject without
       // touching the provider and without routing through the wrapped send (a done:true chunk
       // through the wrapper would release the active stream).
       const busyChunk: LLMStreamChunk = { error: 'STREAM_BUSY', done: true };
+      recordRuntimeChunk(traceId, busyChunk);
       activeOriginalSend!(IPC_CHANNELS.LLM_STREAM_CHUNK, busyChunk);
     } else {
-      enqueueRequest({ sender, messages, tools, tier, think, priority: 'foreground' });
+      enqueueRequest({ sender, messages, tools, tier, think, priority: 'foreground', traceId });
     }
   });
 
@@ -325,6 +347,7 @@ export function setupLLMRouterIPC(): void {
     // while that provider is disposing its resources.
     for (let i = queue.length - 1; i >= 0; i--) {
       if (queue[i].sender.id === sender.id) {
+        finishRuntimeTrace(queue[i].traceId, 'cancelled');
         queue.splice(i, 1);
         removedQueued = true;
       }

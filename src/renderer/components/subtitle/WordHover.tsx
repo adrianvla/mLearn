@@ -130,6 +130,8 @@ export function resolveCompoundDisplay(
 }
 
 export interface WordHoverProps {
+  /** Compact shared presentation for secondary surfaces such as a messenger. */
+  presentation?: 'default' | 'compact';
   token: Token;
   word: string;
   position: { x: number; y: number };
@@ -688,7 +690,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       ref={hoverRef}
     >
       <div
-        class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${isDarkColorScheme(settings.colorScheme) ? 'dark' : ''}`}
+        class={`subtitle_hover ${props.presentation === 'compact' ? 'subtitle_hover--compact' : ''} ${isShown() ? 'show-hover' : ''} ${isDarkColorScheme(settings.colorScheme) ? 'dark' : ''}`}
         role="dialog"
         aria-label={actualWord()}
         ref={(el) => { subtitleHoverRef = el; }}

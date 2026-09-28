@@ -13,6 +13,7 @@ describe('maintenance provider boundary', () => {
       controller.signal,
       MAINTENANCE_OUTPUT_CHARACTERS,
       'background',
+      { source: 'dreamer' },
     );
   });
   it('refuses unbounded input before provider exposure', async () => {

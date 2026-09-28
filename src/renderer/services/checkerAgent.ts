@@ -330,7 +330,7 @@ export function createCheckerAgent(): CheckerAgentInstance {
         tools.push(SOCIAL_CLIMATE_TOOL);
       }
 
-      log.info('[CheckerAgent] Prompt:', JSON.stringify(messages, null, 2));
+      // Request content is available only in the opt-in runtime inspector.
 
       const collectedToolCalls: ToolCall[] = [];
       let accumulated = '';
@@ -371,7 +371,7 @@ export function createCheckerAgent(): CheckerAgentInstance {
         }
       });
 
-      bridge.llm.llmStream(messages, tools);
+      bridge.llm.llmStream(messages, tools, undefined, undefined, { source: 'checker', requestId: crypto.randomUUID() });
     });
   }
 

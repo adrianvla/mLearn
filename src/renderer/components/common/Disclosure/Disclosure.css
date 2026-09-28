@@ -1,0 +1,4 @@
+.disclosure { min-width: 0; }
+.disclosure__summary { cursor: pointer; padding-block: var(--spacing-2); color: var(--text-secondary); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); overflow-wrap: anywhere; }
+.disclosure__summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+.disclosure__body { padding-block: var(--spacing-2); min-width: 0; }

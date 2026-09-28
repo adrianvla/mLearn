@@ -1585,3 +1585,22 @@ describe('warmTranslationCache invalidation', () => {
     expect(isTranslationWarming()).toBe(false);
   });
 });
+
+describe('conversation eager annotation warming', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks(); });
+  it('warms reading data and notifies mounted words before any hover request', async () => {
+    mockTranslate.mockResolvedValue(makeTranslationResponse('unseen'));
+    const { warmTranslationCache, getCachedReading, cacheVersion } = await import('./useTranslation');
+    const before = cacheVersion();
+    expect(getCachedReading('unseen', 'synthetic')).toBeNull();
+    await warmTranslationCache(['unseen'], undefined, undefined, 'synthetic');
+    expect(getCachedReading('unseen', 'synthetic')).toBe('unseenreading');
+    expect(cacheVersion()).toBeGreaterThan(before);
+    expect(mockTranslate).toHaveBeenCalledOnce();
+  });
+  it('surfaces an eager annotation failure so the conversation can offer Retry', async () => {
+    mockTranslate.mockRejectedValue(new Error('offline'));
+    const { warmTranslationCache } = await import('./useTranslation');
+    await expect(warmTranslationCache(['uncached'], undefined, undefined, 'synthetic', undefined, undefined, { throwOnFailure: true })).rejects.toThrow('offline');
+  });
+});

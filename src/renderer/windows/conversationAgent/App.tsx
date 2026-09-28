@@ -4,7 +4,7 @@ import { tutorSessionIntent } from '../../services/tutorSessionIntent';
  * AI-powered language tutor with tokenized chat, tool calling, and speech I/O
  */
 
-import { For, Component, Show, Index, batch, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
+import { For, Component, Show, Index, batch, createSignal, createEffect, createMemo, onMount, onCleanup, untrack } from 'solid-js';
 import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
@@ -18,7 +18,7 @@ import {
   ensureCloudAccessToken,
   handleCloudSessionError,
 } from '../../services/cloudSessionManager';
-import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, Tag, ChatIcon } from '../../components/common';
+import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, Tag, ChatIcon, Avatar, ResponsiveSidebar } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
 import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTranslation } from '../../hooks';
@@ -33,6 +33,12 @@ import { CommandPalette } from './CommandPalette';
 import type { SlashCommand } from './CommandPalette';
 import { getConversationDisplayLanguageName, getConversationPromptLanguageName } from './languageNames';
 import { RoomSidebar } from './RoomSidebar';
+import { ParticipantEditorModal } from './ParticipantEditorModal';
+import { ContactProfileModal } from './ContactProfileModal';
+import { useConversationPreviews } from './useConversationPreviews';
+import { createMessagePreparationQueue } from './messagePreparation';
+import { warmTranslationCache } from '../../hooks/useTranslation';
+import { RuntimeInspector } from './RuntimeInspector';
 import { NewConversationModal } from './NewConversationModal';
 
 import { createConversationAgent, type AgentInstance } from '../../services/conversationAgent';
@@ -50,7 +56,7 @@ import { compileContext, visibleThreadEventsFor, type CompiledContext, type Lear
 import { renderCompiledContext } from './roomMessages';
 import { createVoicePrefetch } from './voicePrefetch';
 import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot } from '../../../shared/world';
-import { getLearningLanguageLevelForLanguage, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
+import { getLearningLanguageLevelForLanguage, getTokenizerCacheNamespace, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -231,7 +237,6 @@ export const ConversationContent: Component = () => {
   const [voiceSessionStart, setVoiceSessionStart] = createSignal<number>(0);
   const [voiceAftermath, setVoiceAftermath] = createSignal<VoiceSessionAftermath | null>(null);
 
-  let firstRunModalHandled = false;
 
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
@@ -239,11 +244,11 @@ export const ConversationContent: Component = () => {
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,
-    language: settings.language,
+    language: () => settings.language,
     ...wordLookupOptions,
   });
-  const { lookup } = useDictionary({ language: settings.language, ...wordLookupOptions });
-  const { tokenize: tokenizeCached } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const { lookup } = useDictionary({ language: () => settings.language, ...wordLookupOptions });
+  const { tokenize: tokenizeCached } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
   const [translationData, setTranslationData] = createSignal<TranslationResponse | null>(null);
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
@@ -258,16 +263,41 @@ export const ConversationContent: Component = () => {
   const journal = createJournalThreadStore();
   const [liveOverlay, setLiveOverlay] = createSignal<(ConversationMessage & { displayName?: string }) | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
-  /** Event ids whose tokenization has been launched in this selection session; reset on thread switch. */
-  const tokenizedMessageIds = new Set<string>();
-  const tokenizationFailures = new Map<string, number>();
-  const MAX_TOKENIZATION_ATTEMPTS = 3;
-  const [tokenizationRetryTick, setTokenizationRetryTick] = createSignal(0);
   const interruptedSpokenText = new Map<string, { text: string; interruptedAt: string }>();
   const supersededEvents = new Set<string>();
   const participantAgents = new Map<string, AgentInstance>();
   let selectionSession = 0;
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
+  const [addingContact, setAddingContact] = createSignal(false);
+  const [contactId, setContactId] = createSignal<string | null>(null);
+  const [showRuntimeInspector, setShowRuntimeInspector] = createSignal(false);
+  const selectedContact = () => world()?.participants.find(person => person.id === contactId());
+  const conversationPreviews = useConversationPreviews(world);
+  const publishContact = (person: Participant): void => { setWorld(current => current ? {
+    ...current, participants: [...current.participants.filter(item => item.id !== person.id), person],
+  } : current); };
+  const messageContact = async (person: Participant): Promise<void> => {
+    const snapshot = await getBridge().world.getWorldState();
+    const persistent = person.kind === 'persistent' && settings.livingWorldEnabled;
+    if (persistent) {
+      const room = snapshot.rooms.filter(item => item.participantIds.length === 1 && item.participantIds[0] === person.id)
+        .sort((a, b) => (conversationPreviews.previews()[b.id]?.timestamp ?? b.createdAt) - (conversationPreviews.previews()[a.id]?.timestamp ?? a.createdAt))[0];
+      if (room) {
+        const threads = snapshot.threads.filter(thread => thread.roomId === room.id && thread.state !== 'archived');
+        const latest = [conversationPreviews.previews()[room.id], ...threads.map(thread => conversationPreviews.previews()[`${room.id}/${thread.id}`])]
+          .filter(item => item !== undefined).sort((a, b) => b.timestamp - a.timestamp)[0];
+        await selectRoom(room.id, latest ? latest.threadId : threads.sort((a, b) => b.createdAt - a.createdAt)[0]?.id); return;
+      }
+      const created = await getBridge().world.createPersistentRoom({ operationId: crypto.randomUUID(), participantIds: [person.id] });
+      await selectRoom(created.id);
+    } else {
+      const thread = snapshot.threads.filter(item => item.sandbox?.bindings.length === 1 && item.sandbox.bindings[0].baseline.id === person.id && item.state !== 'archived')
+        .sort((a, b) => b.createdAt - a.createdAt)[0];
+      if (thread) { await selectRoom(thread.id, thread.id); return; }
+      const created = await getBridge().world.createSandbox({ operationId: crypto.randomUUID(), participantIds: [person.id] });
+      await selectRoom(created.id, created.id);
+    }
+  };
   const [showNewConversationModal, setShowNewConversationModal] = createSignal(false);
   const [showOverflowMenu, setShowOverflowMenu] = createSignal(false);
   const [showIntegrationModal, setShowIntegrationModal] = createSignal(false);
@@ -425,44 +455,56 @@ export const ConversationContent: Component = () => {
     setMessageOverrides((overrides) => new Map(overrides).set(eventId, update(message)));
   };
 
-  // Tokenization lifecycle: every visible message is a candidate whenever it
-  // enters the display list — on append AND on thread mount/restore — so a
-  // restored thread never depends on the "new message arrived" path. Launched
-  // ids are tracked per selection session and reset by selectRoom; completions
-  // from a stale session are dropped, and failures unmark the event with a
-  // bounded retry so a tokenizer that becomes ready later still applies.
+  const [annotationFailed, setAnnotationFailed] = createSignal(false);
+  const [annotationRetry, setAnnotationRetry] = createSignal(0);
+  const [visibleMessageRevision, setVisibleMessageRevision] = createSignal(0);
+  const messageElements = new Set<HTMLElement>();
+  const visibleMessageElements = new Set<HTMLElement>();
+  let messageObserver: IntersectionObserver | undefined;
+  const registerMessage = (element: HTMLDivElement): void => {
+    messageElements.add(element); messageObserver?.observe(element);
+    onCleanup(() => { messageObserver?.unobserve(element); messageElements.delete(element); visibleMessageElements.delete(element); });
+  };
+  const preparation = createMessagePreparationQueue({
+    tokenize: tokenizeCached,
+    apply: (id, text, tokens) => {
+      const message = displayMessages().find(item => (item as EventMessage).eventId === id);
+      if (message?.content === text && message.tokens !== tokens) updateMessageOverride(id, current => ({ ...current, tokens }));
+    },
+    warm: async tokens => {
+      const capabilities = getLanguageFeatures().tokenizerCapabilities;
+      const words = tokens.filter(isTokenTranslatable).map(token => getTokenLookupWord(token, capabilities)).filter(Boolean);
+      await warmTranslationCache(words, undefined, undefined, settings.language, dictionaryTargetLanguage(), currentLangData(), { throwOnFailure: true });
+    },
+    onError: error => { setAnnotationFailed(true); log.warn('Message annotation unavailable', error); },
+  });
+  onCleanup(() => preparation.dispose());
+  onMount(() => {
+    if (typeof IntersectionObserver !== 'function') return;
+    messageObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) visibleMessageElements.add(entry.target as HTMLElement);
+        else visibleMessageElements.delete(entry.target as HTMLElement);
+      }
+      setVisibleMessageRevision(value => value + 1);
+    }, { root: messagesRef, rootMargin: '600px 0px' });
+    for (const element of messageElements) messageObserver.observe(element);
+    onCleanup(() => { messageObserver?.disconnect(); messageElements.clear(); visibleMessageElements.clear(); });
+  });
   createEffect(() => {
-    void tokenizationRetryTick();
-    for (const message of displayMessages() as EventMessage[]) {
-      if (
-        (message.role !== 'assistant' && message.role !== 'user')
-        ||
-        message.tokens?.length
-        || tokenizedMessageIds.has(message.eventId)
-        || (tokenizationFailures.get(message.eventId) ?? 0) >= MAX_TOKENIZATION_ATTEMPTS
-        || !shouldTokenizeTextForLanguage(message.content, settings.language, currentLangData())
-      ) continue;
-
-      tokenizedMessageIds.add(message.eventId);
-      const launchedAtSession = selectionSession;
-      void tokenizeCached(message.content)
-        .then((tokens) => {
-          // Stale session: never touch the mark — selectRoom's reset owns it,
-          // and deleting here could erase the live session's mark and cause a
-          // duplicate launch for the same event.
-          if (launchedAtSession !== selectionSession) return;
-          if (!tokens.length || displayMessages().find((item) => (item as EventMessage).eventId === message.eventId)?.tokens?.length) return;
-          updateMessageOverride(message.eventId, (current) => ({ ...current, tokens }));
-        })
-        .catch((error: unknown) => {
-          if (launchedAtSession !== selectionSession) return;
-          tokenizedMessageIds.delete(message.eventId);
-          const attempts = (tokenizationFailures.get(message.eventId) ?? 0) + 1;
-          tokenizationFailures.set(message.eventId, attempts);
-          if (attempts < MAX_TOKENIZATION_ATTEMPTS) setTokenizationRetryTick((tick) => tick + 1);
-          log.error('error', error);
-        });
-    }
+    visibleMessageRevision();
+    const languageData = currentLangData();
+    const selected = selection();
+    preparation.reset(JSON.stringify([selected?.roomId, selected?.threadId, settings.language, getTokenizerCacheNamespace(languageData), dictionaryTargetLanguage(), annotationRetry()]));
+    const visibleIds = new Set([...visibleMessageElements].map(element => element.dataset.eventId));
+    const displayed = displayMessages() as EventMessage[];
+    // Prepare the current tail immediately; older text enters through the scroll
+    // viewport plus overscan. Loading a long archive never queues every word.
+    const candidates = displayed.filter((message, index) => (index >= displayed.length - HISTORY_WINDOW || visibleIds.has(message.eventId))
+      && message.eventId !== (liveOverlay() as EventMessage | null)?.eventId
+      && (message.role === 'assistant' || message.role === 'user')
+      && shouldTokenizeTextForLanguage(message.content, settings.language, languageData));
+    preparation.enqueue(candidates.slice().reverse().map(message => ({ id: message.eventId, text: message.content })));
   });
 
   const providerLabel = () => {
@@ -503,6 +545,7 @@ export const ConversationContent: Component = () => {
     if (cached && !compiled) return cached;
     const runtimeSession = selectionSession;
     const runtimeAgent = createConversationAgent({
+    getTraceContext: () => ({ source: isVoiceCallActive() ? 'voice' : 'conversation', roomId: selection()?.roomId, threadId: selection()?.threadId ?? undefined, participantId: participant.id, sourceEventId: lastUserMessageEventId ?? undefined }),
     getSettings: () => settings,
     tokenize: tokenizeCached,
     getLanguage: () => settings.language,
@@ -692,15 +735,22 @@ export const ConversationContent: Component = () => {
     void initialSelection.catch(error => log.error('Unable to load conversations', error));
   });
 
-  createEffect(() => {
-    if (firstRunModalHandled) return;
-    if (settings.llmProvider === 'cloud' ? showSplash() : showDisclaimer()) return;
-    const snapshot = world();
-    if (!snapshot) return;
-    firstRunModalHandled = true;
-    if (snapshot.rooms.length === 0 && snapshot.threads.length === 0) {
-      setShowNewConversationModal(true);
-    }
+  onMount(() => {
+    let stopped = false, frame: number | undefined, revision = 0;
+    const unsubscribe = getBridge().world.onChanged(notice => {
+      conversationPreviews.refresh(notice);
+      // No polling: coalesce committed changes without clearing the visible chat.
+      if (frame !== undefined) return;
+      frame = requestAnimationFrame(() => {
+        frame = undefined;
+        const current = ++revision;
+        void getBridge().world.getWorldState().then(snapshot => {
+          if (!stopped && current === revision) setWorld(snapshot);
+        }).catch(error => log.error('Unable to refresh contacts', error));
+        void journal.refresh().catch(error => log.error('Unable to refresh conversation', error));
+      });
+    });
+    onCleanup(() => { stopped = true; revision++; unsubscribe(); if (frame !== undefined) cancelAnimationFrame(frame); });
   });
 
   const draftBySelection = new Map<string, string>();
@@ -741,10 +791,7 @@ export const ConversationContent: Component = () => {
     setIsSafetyLockedState(false);
     setLiveOverlay(null);
     setMessageOverrides(new Map());
-    // Token marks/failure budgets belong to the previous selection session —
-    // without this reset, restored events stay skipped forever (A→B→A bug).
-    tokenizedMessageIds.clear();
-    tokenizationFailures.clear();
+    setAnnotationFailed(false);
     participantAgents.clear();
     setSelection({ roomId, threadId });
     const key = selectionKey(roomId, threadId);
@@ -954,15 +1001,24 @@ export const ConversationContent: Component = () => {
     if (cleanupOpen) onCleanup(cleanupOpen);
   });
 
-  // Auto-scroll when messages change
+  // Dictionary hydration and new messages must not pull a reader away from history.
+  const [followingTail, setFollowingTail] = createSignal(true);
+  let scrollFrame: number | undefined;
+  createEffect(() => { selection()?.roomId; selection()?.threadId; setFollowingTail(true); });
+  const scrollToLatest = (): void => {
+    setFollowingTail(true);
+    if (messagesRef) messagesRef.scrollTop = messagesRef.scrollHeight;
+  };
   createEffect(() => {
     messages();
-    requestAnimationFrame(() => {
-      if (messagesRef) {
-        messagesRef.scrollTop = messagesRef.scrollHeight;
-      }
+    if (!untrack(followingTail)) return;
+    if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame);
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = undefined;
+      if (followingTail() && messagesRef) messagesRef.scrollTop = messagesRef.scrollHeight;
     });
   });
+  onCleanup(() => { if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame); });
 
   // STT result listener
   onMount(() => {
@@ -1351,6 +1407,7 @@ export const ConversationContent: Component = () => {
 
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.isComposing || e.keyCode === 229) return;
     if (showCommandPalette() && filteredCommands().length > 0) {
       const cmds = filteredCommands();
       if (e.key === 'ArrowUp') {
@@ -1376,7 +1433,7 @@ export const ConversationContent: Component = () => {
         return;
       }
     }
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Enter' && (!e.shiftKey || e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSend();
     }
@@ -1479,7 +1536,11 @@ export const ConversationContent: Component = () => {
           class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
           onClick={handleConnectionStatusClick}
           aria-disabled={!canOpenCloudSignIn()}
-          aria-label={canOpenCloudSignIn() ? t('mlearn.Connection.SignIn') : undefined}
+          aria-label={canOpenCloudSignIn()
+            ? t('mlearn.Connection.SignIn')
+            : `${providerLabel()} · ${t(isCheckingConnection()
+              ? 'mlearn.ConnectionStatus.Connecting'
+              : isConnected() ? 'mlearn.ConnectionStatus.Connected' : 'mlearn.ConnectionStatus.Disconnected')}`}
         >
           <Tag class="ca-provider-label" headless size="sm">{providerLabel()}</Tag>
           <ConnectionStatus
@@ -1491,6 +1552,67 @@ export const ConversationContent: Component = () => {
             <span class="ca-header-status">{t('mlearn.Global.Status.StartingBackend')}</span>
           </Show>
         </Button>
+  );
+
+  const ConversationHeader: Component = () => (
+    <div class="ca-header">
+        <Show when={!callSurfaceOpen()}><Button buttonType="icon"
+          variant="ghost"
+          class="ca-sidebar-toggle"
+          icon="sidebar"
+          onClick={() => setSidebarVisible((visible) => !visible)}
+          aria-label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
+          aria-controls="conversation-sidebar" aria-expanded={sidebarVisible()}
+        /></Show>
+        <div class="ca-header-identity">
+          <Button variant="ghost" class="ca-header-contact" onClick={openDetails} disabled={!activeRoom()}>
+            <Show when={rosterParticipants().length === 1}><Avatar size="sm" name={rosterParticipants()[0].displayName} src={rosterParticipants()[0].profilePhoto} /></Show>
+            <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
+          </Button>
+          <Show when={callSurfaceOpen()}>
+            <span class="ca-call-header-state" role="status" aria-live="polite">{voiceAftermath() ? t('mlearn.ConversationAgent.Voice.Aftermath.Title') : voiceHeaderStatus() || t('mlearn.ConversationAgent.Voice.CheckingModels')}</span>
+          </Show>
+          <Show when={!callSurfaceOpen() && (activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined))} keyed>
+            {(media) => (
+              <Button variant="ghost" class="ca-media-chip" onClick={openDetails}>
+                {media.mediaName}
+              </Button>
+            )}
+          </Show>
+        </div>
+        <div class="ca-header-spacer" />
+        <Show when={!callSurfaceOpen()}><ConnectionInfo /></Show>
+        <Show when={!callSurfaceOpen()}><Button buttonType="icon"
+          variant="ghost"
+          icon={<PhoneIcon />}
+          disabled={rosterParticipants().length === 0}
+          onClick={() => { setContactIngressError(null); setVoiceOverlayRequested(true); }}
+          aria-label={t('mlearn.ConversationAgent.Call.StartAria')}
+        /></Show>
+        <div class="ca-overflow-anchor">
+          <Button buttonType="icon"
+            ref={(el: HTMLButtonElement) => { overflowAnchorRef = el; }}
+            variant="ghost"
+            onClick={() => setShowOverflowMenu((open) => !open)}
+            aria-label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
+          >…</Button>
+          <Popover
+            open={showOverflowMenu}
+            anchor={() => overflowAnchorRef}
+            onClose={() => setShowOverflowMenu(false)}
+            label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
+            class="ca-overflow-menu"
+          >
+            <Show when={callSurfaceOpen()}><div class="ca-provider-details"><ConnectionInfo /></div></Show>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { setShowNewConversationModal(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { setAddingContact(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.Add')}</Button>
+            <Show when={settings.devMode}><Button variant="ghost" class="ca-overflow-item" onClick={() => { setShowRuntimeInspector(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Developer.Title')}</Button></Show>
+          </Popover>
+        </div>
+      </div>
   );
 
   return (
@@ -1564,80 +1686,20 @@ export const ConversationContent: Component = () => {
           </div>
         </div>
       </Modal>
-      <div class="ca-header">
-        <Show when={!callSurfaceOpen()}><Button buttonType="icon"
-          variant="ghost"
-          icon="sidebar"
-          onClick={() => setSidebarVisible((visible) => !visible)}
-          aria-label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
-        /></Show>
-        <div class="ca-header-identity">
-          <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
-          <Show when={callSurfaceOpen()}>
-            <span class="ca-call-header-state" role="status" aria-live="polite">{voiceAftermath() ? t('mlearn.ConversationAgent.Voice.Aftermath.Title') : voiceHeaderStatus() || t('mlearn.ConversationAgent.Voice.CheckingModels')}</span>
-          </Show>
-          <Show when={!callSurfaceOpen() && (activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined))} keyed>
-            {(media) => (
-              <Button variant="ghost" class="ca-media-chip" onClick={openDetails}>
-                {media.mediaName}
-              </Button>
-            )}
-          </Show>
-        </div>
-        <div class="ca-header-spacer" />
-        <Show when={!callSurfaceOpen()}><ConnectionInfo /></Show>
-        <Show when={!callSurfaceOpen()}><Button buttonType="icon"
-          variant="ghost"
-          icon={<PhoneIcon />}
-          disabled={rosterParticipants().length === 0}
-          onClick={() => { setContactIngressError(null); setVoiceOverlayRequested(true); }}
-          aria-label={t('mlearn.ConversationAgent.Call.StartAria')}
-        /></Show>
-        <div class="ca-overflow-anchor">
-          <Button buttonType="icon"
-            ref={(el: HTMLButtonElement) => { overflowAnchorRef = el; }}
-            variant="ghost"
-            onClick={() => setShowOverflowMenu((open) => !open)}
-            aria-label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
-          >…</Button>
-          <Popover
-            open={showOverflowMenu}
-            anchor={() => overflowAnchorRef}
-            onClose={() => setShowOverflowMenu(false)}
-            label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
-            class="ca-overflow-menu"
-          >
-            <Show when={callSurfaceOpen()}><div class="ca-provider-details"><ConnectionInfo /></div></Show>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { setShowNewConversationModal(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
-          </Popover>
-        </div>
-      </div>
+      <Show when={callSurfaceOpen()}><ConversationHeader /></Show>
 
       <div class="ca-chat-panel">
-          <Show when={sidebarVisible()}>
-            <>
-            <button
-              type="button"
-              class="ca-history-sidebar-backdrop"
-              aria-label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
-              onClick={() => setSidebarVisible(false)}
-            />
-            <div class="ca-history-sidebar">
-              <RoomSidebar
-                world={world()}
-                roomId={selection()?.roomId ?? null}
-                threadId={selection()?.threadId ?? null}
-                onSelectRoom={(roomId) => { void selectRoom(roomId); }}
-                onSelectThread={(threadId) => { const thread = world()?.threads.find(item => item.id === threadId); if (thread) void selectRoom(threadContextId(thread), threadId); }}
-          onNewConversation={() => { setShowNewConversationModal(true); }}
-              />
-            </div>
-            </>
-          </Show>
-          <div class={`ca-chat-content ${sidebarVisible() ? 'ca-chat-content--with-sidebar' : ''}`}>
+          <ResponsiveSidebar id="conversation-sidebar" label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
+            title={t('mlearn.ConversationAgent.Sidebar.Title')} open={sidebarVisible()} onOpenChange={setSidebarVisible} class="ca-history-sidebar">
+            <RoomSidebar world={world()} roomId={selection()?.roomId ?? null} threadId={selection()?.threadId ?? null}
+              previews={conversationPreviews.previews()} previewsError={conversationPreviews.error()}
+              onSelectRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
+              onSelectThread={threadId => { const thread = world()?.threads.find(item => item.id === threadId); if (thread) void selectRoom(threadContextId(thread), threadId).catch(error => setContactIngressError(String(error))); }}
+              onNewConversation={() => setShowNewConversationModal(true)} onAddContact={() => setAddingContact(true)}
+              onSelectContact={person => setContactId(person.id)} />
+          </ResponsiveSidebar>
+          <div class="ca-chat-content">
+            <Show when={!callSurfaceOpen()}><ConversationHeader /></Show>
             <Show when={isSpeaking()}>
               <div class="ca-tts-indicator">
                 <div class="ca-tts-bars">
@@ -1651,7 +1713,7 @@ export const ConversationContent: Component = () => {
             </Show>
 
             {/* Messages */}
-            <div class="ca-messages" ref={messagesRef}>
+            <div class="ca-messages" ref={messagesRef} onScroll={event => { const element = event.currentTarget; setFollowingTail(element.scrollHeight - element.clientHeight - element.scrollTop < 80); }}>
               <Show
                 when={messages().length > 0}
                 fallback={
@@ -1672,11 +1734,13 @@ export const ConversationContent: Component = () => {
                   {(msg, index) => (
                     <Show when={!isEmptyToolOnlyBubble(index)}>
                       <div
+                        ref={registerMessage}
                         data-event-id={(msg() as EventMessage).eventId}
-                        class={(msg() as EventMessage).eventId === contactEventId() ? 'ca-contact-target' : undefined}
+                        class={`ca-message-row${(msg() as EventMessage).eventId === contactEventId() ? ' ca-contact-target' : ''}`}
                       >
                         <ChatBubble
                           message={msg()}
+                          showSpeaker={rosterParticipants().length > 1}
                           isStreaming={msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null && isStreaming()}
                           isWaiting={isWaiting() && msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null}
                           onTokenHover={handleTokenHover}
@@ -1698,6 +1762,7 @@ export const ConversationContent: Component = () => {
             <Show when={hoverData()} keyed>
               {(data) => data.token ? (
                 <WordHover
+                  presentation="compact"
                   token={data.token}
                   word={data.word}
                   position={data.position}
@@ -1728,6 +1793,11 @@ export const ConversationContent: Component = () => {
                 {t('mlearn.ConversationAgent.Safety.LockoutMessage')}
               </div>
             </Show>
+            <Show when={!followingTail()}><Button variant="secondary" size="sm" class="ca-jump-latest" onClick={scrollToLatest}>{t('mlearn.ConversationAgent.Contacts.Latest')}</Button></Show>
+            <Show when={annotationFailed()}><div class="ca-annotation-notice" role="status">
+              <span>{t('mlearn.ConversationAgent.Contacts.AnnotationUnavailable')}</span>
+              <Button size="sm" variant="ghost" onClick={() => { setAnnotationFailed(false); setAnnotationRetry(value => value + 1); }}>{t('mlearn.Global.Retry')}</Button>
+            </div></Show>
             {/* Input */}
             <div class="ca-input-area">
               <div class="ca-input-row">
@@ -1761,7 +1831,7 @@ export const ConversationContent: Component = () => {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     resize="none"
-                    disabled={isStreaming() || isCompactingContext() || !isConnected() || isSafetyLockedState()}
+                    disabled={!hasActiveRoomSelection() || rosterParticipants().length === 0 || isStreaming() || isCompactingContext() || !isConnected() || isSafetyLockedState()}
                     ghost
                   />
 
@@ -1780,7 +1850,7 @@ export const ConversationContent: Component = () => {
                       icon={<SendIcon />}
                       variant="default"
                       onClick={handleSend}
-                      disabled={!inputText().trim() || !isConnected() || isCompactingContext() || isSafetyLockedState()}
+                      disabled={!hasActiveRoomSelection() || rosterParticipants().length === 0 || !inputText().trim() || !isConnected() || isCompactingContext() || isSafetyLockedState()}
                       aria-label={t('mlearn.ConversationAgent.Send')}
                     />
                   </Show>
@@ -1882,13 +1952,28 @@ export const ConversationContent: Component = () => {
         </div>
       </Show>
 
+      <Show when={addingContact()}><ParticipantEditorModal onClose={() => setAddingContact(false)} onCreate={async input => {
+        const person = await getBridge().world.createParticipant(input);
+        publishContact(person); setAddingContact(false); setContactId(person.id);
+      }} /></Show>
+      <Show when={selectedContact()}>{person => <ContactProfileModal person={person()}
+        onClose={() => setContactId(null)} onMessage={messageContact}
+        onSave={async updated => {
+          const saved = await getBridge().world.updateParticipant(updated);
+          participantAgents.get(saved.id)?.abortStream(); participantAgents.delete(saved.id); publishContact(saved);
+        }}
+        onRemove={async removed => {
+          participantAgents.get(removed.id)?.abortStream(); participantAgents.delete(removed.id);
+          await getBridge().world.deleteParticipant(removed.id);
+          setWorld(await getBridge().world.getWorldState()); setContactId(null);
+        }} />}</Show>
+      <Show when={settings.devMode && showRuntimeInspector()}>
+        <Modal isOpen onClose={() => setShowRuntimeInspector(false)} title={t('mlearn.ConversationAgent.Developer.Title')} size="xl" fullHeight panelClass="ca-runtime-modal">
+          <RuntimeInspector initialRoomId={selection()?.roomId} />
+        </Modal>
+      </Show>
       <Show when={showDetailsDrawer()}>
-        <>
-        <button type="button" class="ca-details-backdrop" aria-label="Close conversation details" onClick={() => setShowDetailsDrawer(false)} />
-        <aside class="ca-details-drawer">
-          <div class="ca-details-actions">
-            <Button variant="ghost" onClick={() => setShowDetailsDrawer(false)}>{t('mlearn.ConversationAgent.Integration.Close')}</Button>
-          </div>
+        <Modal isOpen onClose={() => setShowDetailsDrawer(false)} title={t('mlearn.ConversationAgent.Menu.Details')} size="md">
           <ThreadInfoPanel roomTitle={activeRoom()?.title}
             roomId={activeThread()?.sandbox ? activeThread()?.id : activeRoom()?.id}
             thread={activeThread()}
@@ -1942,14 +2027,14 @@ export const ConversationContent: Component = () => {
                 : [...new Set([...current, participantId])] });
             }}
           />
-        </aside>
-        </>
+        </Modal>
       </Show>
       <Show when={showNewConversationModal() && !(settings.llmProvider === 'cloud' ? showSplash() : showDisclaimer())}>
         <Show when={pendingTutorConfig() ?? 'manual'} keyed>{(_config) => <NewConversationModal
           world={world()}
           initialIntent={pendingTutorConfig() ? tutorSessionIntent(pendingTutorConfig()!) : undefined}
           mediaName={mediaContext()?.mediaName}
+          onContactCreated={publishContact}
           onClose={() => { setShowNewConversationModal(false); setPendingTutorConfig(undefined); setMediaContext(null); }}
           onCreated={handleScenarioCreated}
         />}</Show>

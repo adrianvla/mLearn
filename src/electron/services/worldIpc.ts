@@ -118,9 +118,11 @@ export async function createSandbox(input: CreateCastInput): Promise<Thread> {
       return existing;
     }
     const bindings = ids.map(id => {
-      const person = state.participants.find(candidate => candidate.id === id && candidate.kind === 'persistent');
-      if (!person) throw new Error('[world] selected persistent person is unavailable');
-      return { originId: id, baseline: structuredClone(person) };
+      const person = state.participants.find(candidate => candidate.id === id);
+      if (!person) throw new Error('[world] selected person is unavailable');
+      // Reusable practice profiles are not world individuals. Do not give them
+      // an origin link that integration could silently treat as persistent.
+      return { ...(person.kind === 'persistent' ? { originId: id } : {}), baseline: structuredClone(person) };
     });
     const baselineHeads: Record<string, number> = { [WORLD_CONTINUITY_ID]: (await readSeaProjection(WORLD_CONTINUITY_ID)).at(-1)?.seq ?? 0 };
     for (const room of state.rooms) {
