@@ -25,7 +25,8 @@ const storeMock = {
   wordCandidates: {} as Record<string, unknown>,
 };
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../components/common')>()),
   Modal: (props: { children?: JSX.Element; footer?: JSX.Element; title?: string }) => (
     <section data-testid="modal">
       <h1>{props.title}</h1>

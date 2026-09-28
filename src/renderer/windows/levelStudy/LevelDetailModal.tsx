@@ -2,7 +2,7 @@ import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGa
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createSignal, For, Show, untrack } from 'solid-js';
-import { Button, Modal, SkeletonLine, SkeletonPill, SkeletonRows } from '../../components/common';
+import { Button, KnowledgeLoadError, Modal, SkeletonLine, SkeletonPill, SkeletonRows } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
@@ -215,10 +215,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
       }
     >
       <Show when={!projected.failed()} fallback={
-        <div role="alert">
-          <p>{t('mlearn.Knowledge.LoadError')}</p>
-          <Button onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Button>
-        </div>
+        <KnowledgeLoadError onRetry={projected.retry} />
       }>
       <KnowledgeGate ready={projected.ready()} fallback={
         <div class="level-detail-modal-content" aria-busy="true">

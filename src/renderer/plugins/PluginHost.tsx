@@ -5,6 +5,7 @@ import { getBackend } from '../../shared/backends';
 import type { PluginHostContext, PluginComponentLibraryRef } from '../../shared/plugins/types';
 import type { TranslationResponse } from '../../shared/types';
 import { PluginErrorBoundary } from './PluginErrorBoundary';
+import { PluginLoadError } from './PluginLoadError';
 import { SchemaRenderer } from './SchemaRenderer';
 import { pluginComponentLibrary } from './pluginComponents';
 
@@ -159,11 +160,10 @@ export const PluginHost: Component<PluginHostProps> = (props) => {
             <Show when={!loadingComponent()} fallback={<p>Loading plugin UI...</p>}>
               <Show when={loadError()}>
                 {(errorMessage) => (
-                  <div class="plugin-host__error" role="alert" aria-live="assertive">
-                    <h2>Plugin UI failed to load</h2>
-                    <p>{props.hostContext.pluginName}</p>
-                    <p>{errorMessage()}</p>
-                  </div>
+                  <PluginLoadError
+                    pluginName={props.hostContext.pluginName}
+                    message={errorMessage()}
+                  />
                 )}
               </Show>
               <Show when={component()}>

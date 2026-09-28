@@ -1,4 +1,5 @@
 import { createCloudLLMRequest, OpenAICompatibleLLMAdapter } from '../backends/cloudLLMAdapter';
+import { resolveCloudApiUrl } from '../backends';
 import { usesManagedLlm } from '../llmTask';
 import { getNodeServerAuthToken, getNodeServerUrl } from '../nodeServerCredentials';
 import { projectCapabilities } from '../knowledge/capabilityProjection';
@@ -139,6 +140,36 @@ async function storageSet(key: string, value: string): Promise<void> {
   } catch (e) {
     log.error("error", e);
     log.info('[CapacitorBridge] Preferences.set failed, data saved to localStorage only:', e);
+  }
+}
+
+/**
+ * The ONE way this bridge reads persisted settings. Both storage tiers are
+ * written by storageSet; reading the localStorage tier directly returns
+ * nothing once the WebView store is evicted or a Preferences.set failed.
+ */
+async function readStoredSettings(): Promise<Partial<Settings>> {
+  const raw = await storageGet('settings');
+  if (raw === null) return {};
+  try {
+    return JSON.parse(raw) as Partial<Settings>;
+  } catch (e) {
+    log.info('[CapacitorBridge] stored settings are unreadable, using defaults:', e);
+    return {};
+  }
+}
+
+/**
+ * Synchronous variant for bridge methods the contract types as returning
+ * void. localStorage is written first by storageSet, so it is a valid cache
+ * here; it is never the only durable copy.
+ */
+function readStoredSettingsSync(): Partial<Settings> {
+  try {
+    const raw = localStorage.getItem('settings');
+    return raw === null ? {} : JSON.parse(raw) as Partial<Settings>;
+  } catch {
+    return {};
   }
 }
 
@@ -1233,7 +1264,10 @@ const llmBridge: LLMBridge = {
     const { signal } = llmAbortController;
 
     // On mobile, stream via HTTP to tethered desktop or cloud endpoint
-    const settings: Settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('settings') || '{}') };
+    // The bridge contract types this as `=> void` (chunks arrive on the
+    // emitter), so the settings read cannot await. storageSet always writes
+    // localStorage first, so the sync tier is a valid cache here.
+    const settings: Settings = { ...DEFAULT_SETTINGS, ...readStoredSettingsSync() };
     if (settings.llmProvider === 'openai-compatible') {
       const adapter = new OpenAICompatibleLLMAdapter(settings.compatibleApiBaseUrl,
         settings.compatibleApiKey, settings.compatibleModel);
@@ -1248,11 +1282,9 @@ const llmBridge: LLMBridge = {
     const cloudToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
     const nodeUrl = getNodeServerUrl();
 
-    // Resolve cloud API URL: use override if set, otherwise default
-    const overrideCloudEndpoint = settings.overrideCloudEndpointUrl && settings.cloudApiUrl;
-    const cloudApiUrl = overrideCloudEndpoint
-      ? settings.cloudApiUrl.replace(/\/+$/, '')
-      : 'https://mlearn-cloud.kikan.net';
+    // Same gate the rest of the app uses — a saved-but-disabled override must
+    // not silently redirect the stream to a custom endpoint.
+    const cloudApiUrl = resolveCloudApiUrl(settings);
     const isCloudMode = settings.llmProvider === 'cloud';
 
     const url = isCloudMode
@@ -1355,7 +1387,7 @@ const llmBridge: LLMBridge = {
     ollamaAbortController = new AbortController();
     const { signal } = ollamaAbortController;
 
-    const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+    const settings = readStoredSettingsSync();
     const ollamaUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
 
     fetch(`${ollamaUrl}/api/chat`, {
@@ -1417,7 +1449,7 @@ const llmBridge: LLMBridge = {
 
   async ollamaListModels(): Promise<unknown[]> {
     try {
-      const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+      const settings = await readStoredSettings();
       const res = await fetch(`${settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl}/api/tags`);
       const data = await res.json();
       return data.models || [];
@@ -1429,7 +1461,7 @@ const llmBridge: LLMBridge = {
 
   async ollamaCheck(): Promise<boolean> {
     try {
-      const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+      const settings = await readStoredSettings();
       const res = await fetch(`${settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl}/api/tags`);
       return res.ok;
     } catch (e) {

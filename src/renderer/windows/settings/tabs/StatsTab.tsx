@@ -7,7 +7,7 @@ import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedPr
 import { Component, createMemo, createSignal, onMount, Show, For } from 'solid-js';
 import type { ComprehensiveWordStats } from '../../../utils/wordLevelStats';
 import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../../context';
-import { Button, TabContent, StatCard, KnowledgeGate, KnowledgeSkeleton } from '../../../components/common';
+import { Button, TabContent, StatCard, KnowledgeGate, KnowledgeLoadError, KnowledgeSkeleton } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import {
   getTimeWatchedFormatted,
@@ -64,7 +64,7 @@ export const StatsTab: Component = () => {
       }}
       padding="lg"
     >
-      <Show when={projected.failed()}><div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <Button onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Button></div></Show>
+      <Show when={projected.failed()}><KnowledgeLoadError message={t('mlearn.WordSync.ProjectionUnavailable')} onRetry={projected.retry} /></Show>
       <KnowledgeGate ready={projected.ready()} fallback={<KnowledgeSkeleton variant="lines" />}>
       <div class="stats-grid">
         <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} size="md" />

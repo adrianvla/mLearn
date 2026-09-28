@@ -14,6 +14,7 @@ import { useOptionalGraph } from '../../../context/GraphContext';
 import { KnowledgeHistoryTimeline, type HistoryEvent } from '../KnowledgeHistoryTimeline';
 import { Button } from '../Button';
 import { KnowledgeSkeleton } from '../KnowledgeGate/KnowledgeGate';
+import { KnowledgeLoadError } from '../Feedback/KnowledgeLoadError';
 import { TabContainer } from '../Tabs';
 import { SkeletonRows, SkeletonText } from '../Skeleton';
 import { PolicyTraceDetails } from '../PolicyTrace/PolicyTraceDetails';
@@ -548,10 +549,11 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   };
 
   const projectionFallback = () => <Show when={model().projection !== undefined} fallback={<KnowledgeSkeleton />}>
-    <div role="status">
-      <p>{t(model().projection?.status === 'not-installed' ? 'mlearn.Knowledge.UnavailableHint' : 'mlearn.Knowledge.LoadError')}</p>
-      <Show when={model().projection?.status === 'error' && props.onRetryProjection}><Button onClick={props.onRetryProjection}>{t('mlearn.Knowledge.Retry')}</Button></Show>
-    </div>
+    <KnowledgeLoadError
+      role="status"
+      message={t(model().projection?.status === 'not-installed' ? 'mlearn.Knowledge.UnavailableHint' : 'mlearn.Knowledge.LoadError')}
+      onRetry={model().projection?.status === 'error' ? props.onRetryProjection : undefined}
+    />
   </Show>;
 
   return <Modal
@@ -738,10 +740,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         <Show when={tab() === 'history'}>
           <div class="knowledge-history">
             <Show when={!props.historyFailed} fallback={
-              <div role="alert">
-                <p>{t('mlearn.Knowledge.LoadError')}</p>
-                <Show when={props.onRetryHistory}><Button onClick={props.onRetryHistory}>{t('mlearn.Knowledge.Retry')}</Button></Show>
-              </div>
+              <KnowledgeLoadError onRetry={props.onRetryHistory} />
             }>
             <Show when={model().events !== undefined} fallback={<KnowledgeSkeleton />}>
             <Show when={journalEvents().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>

@@ -5,42 +5,21 @@
  * Cached per base URL — call `resetBackend()` when settings change.
  */
 
-import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import type { BackendAdapter, BackendMode } from './types';
 import { HttpBackend } from './httpBackend';
 import { getNodeServerAuthToken } from '../nodeServerCredentials';
 
 export { CloudOCRAdapter } from './cloudOCRAdapter';
-export { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL };
-
-interface CloudUrlSettings {
-  overrideCloudEndpointUrl?: boolean;
-  cloudLoginUrl?: string;
-  cloudApiUrl?: string;
-}
-
-/** Resolve the cloud login/website URL from settings */
-export function resolveCloudLoginUrl(settings: CloudUrlSettings): string {
-  const url = settings.overrideCloudEndpointUrl && settings.cloudLoginUrl
-    ? settings.cloudLoginUrl : DEFAULT_CLOUD_LOGIN_URL;
-  return url.replace(/\/+$/, '');
-}
-
-/** Resolve the cloud API URL from settings */
-export function resolveCloudApiUrl(settings: CloudUrlSettings): string {
-  const url = settings.overrideCloudEndpointUrl && settings.cloudApiUrl
-    ? settings.cloudApiUrl : DEFAULT_CLOUD_API_URL;
-  return url.replace(/\/+$/, '');
-}
-
-/**
- * mLearn's legal acceptance applies only to mLearn-hosted cloud services.
- * A custom provider owns its own legal and consent flow.
- */
-export function requiresFirstPartyCloudLegalConsent(settings: CloudUrlSettings): boolean {
-  return resolveCloudLoginUrl(settings) === DEFAULT_CLOUD_LOGIN_URL
-    && resolveCloudApiUrl(settings) === DEFAULT_CLOUD_API_URL;
-}
+// The pure URL rule lives in shared/cloudUrl so the Electron main process can
+// use it too; it is re-exported here for the renderer's existing imports.
+export {
+  resolveCloudLoginUrl,
+  resolveCloudApiUrl,
+  requiresFirstPartyCloudLegalConsent,
+  DEFAULT_CLOUD_LOGIN_URL,
+  DEFAULT_CLOUD_API_URL,
+} from '../cloudUrl';
 
 function isViteDevRendererOrigin(): boolean {
   const location = globalThis.location;

@@ -57,7 +57,8 @@ vi.mock('../../context', () => ({
   }),
 }));
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../components/common')>()),
   Button: (props: { children?: JSX.Element; onClick?: () => void }) => <button type="button" onClick={props.onClick}>{props.children}</button>,
   SkeletonGrid: (props: { cells?: number }) => <div data-testid="skeleton-grid" data-cells={props.cells} />,
   PillLabel: (props: {

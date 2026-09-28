@@ -14,7 +14,7 @@ import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
 import './WordDbEditorLayout.css';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
-import { Button, ModalLoadingOverlay, SkeletonRows, CollapsibleStickyHeader, buildEmptyPreset, buildWordDbEditorFields, validateTokens, evaluateAst, parseTokens, type FieldResolver, type FilterToken, type ValidationError } from '../../components/common';
+import { Button, KnowledgeLoadError, ModalLoadingOverlay, SkeletonRows, CollapsibleStickyHeader, buildEmptyPreset, buildWordDbEditorFields, validateTokens, evaluateAst, parseTokens, type FieldResolver, type FilterToken, type ValidationError } from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
 import { getWordFormCandidates } from '../../utils/wordForms';
@@ -679,7 +679,7 @@ export const WordDbEditorContent: Component = () => {
           </CollapsibleStickyHeader>
 
           <Show when={needsKnowledgeQuery() && (journalKeys.state === 'errored' || projected.failed())}>
-            <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Button onClick={() => { if (journalKeys.state === 'errored') void retryJournalKeys(); else projected.retry(); }}>{t('mlearn.Knowledge.Retry')}</Button></div>
+            <KnowledgeLoadError onRetry={() => { if (journalKeys.state === 'errored') void retryJournalKeys(); else projected.retry(); }} />
           </Show>
           <Show when={!knowledgeQueryReady() && journalKeys.state !== 'errored' && !projected.failed()}><div aria-busy="true"><SkeletonRows rows={9} /></div></Show>
           {/* Entries List */}

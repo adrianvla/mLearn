@@ -21,7 +21,7 @@ import { loadSettings } from './settings';
 import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
 import { builtinStreamChat, builtinAbortStream } from './builtinLLMService';
 import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
-import { DEFAULT_CLOUD_API_URL } from '../../shared/constants';
+import { resolveCloudApiUrl } from '../../shared/cloudUrl';
 import { getLogger } from '../../shared/utils/logger';
 import { runtimeAllows } from './kikanRuntime';
 
@@ -150,11 +150,8 @@ function drainQueue(): void {
 }
 
 function cloudAdapterFromSettings(settings: Settings): CloudLLMAdapter {
-  const cloudApiUrl = (settings.overrideCloudEndpointUrl && settings.cloudApiUrl)
-    ? settings.cloudApiUrl.replace(/\/+$/, '')
-    : DEFAULT_CLOUD_API_URL;
   return new CloudLLMAdapter(
-    cloudApiUrl,
+    resolveCloudApiUrl(settings),
     settings.cloudAuthAccessToken || settings.cloudAuthToken,
     usesManagedLlm(settings),
   );

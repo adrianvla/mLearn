@@ -123,7 +123,8 @@ vi.mock('../../context', () => ({
   }),
 }));
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../components/common')>()),
   RatingMatrix: (props: { armed: boolean; capabilities: readonly string[]; onSubmit: (observations: readonly { capability: string; quality: 'missed' | 'struggled' | 'fluent' }[], options?: { easy?: boolean }) => void }) => (
     <div class="rating-matrix">
       {(['missed', 'struggled', 'fluent', 'easy'] as const).map((action) => (

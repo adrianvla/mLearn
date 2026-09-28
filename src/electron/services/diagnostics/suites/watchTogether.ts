@@ -2,7 +2,8 @@
  * Watch Together Diagnostics Suite
  */
 
-import { PROXY_SERVER_PORT, DEFAULT_CLOUD_API_URL } from '../../../../shared/constants';
+import { PROXY_SERVER_PORT } from '../../../../shared/constants';
+import { resolveCloudApiUrl } from '../../../../shared/cloudUrl';
 import { SUITE_NAMES } from '../../../../shared/diagnostics/constants';
 import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry';
 import { loadSettings } from '../../settings';
@@ -24,7 +25,7 @@ registerDiagnosticSuite({
       timeoutMs: 15_000,
       async fn() {
         const settings = loadSettings();
-        const baseUrl = settings.cloudApiUrl || DEFAULT_CLOUD_API_URL;
+        const baseUrl = resolveCloudApiUrl(settings);
         try {
           // Try creating a room without auth — we expect 401 (endpoint exists)
           const { status } = await httpPost(
@@ -48,7 +49,7 @@ registerDiagnosticSuite({
       timeoutMs: 15_000,
       async fn() {
         const settings = loadSettings();
-        const baseUrl = settings.cloudApiUrl || DEFAULT_CLOUD_API_URL;
+        const baseUrl = resolveCloudApiUrl(settings);
         try {
           // Try joining a room without auth — we expect 401 (endpoint exists)
           const { status } = await httpPost(

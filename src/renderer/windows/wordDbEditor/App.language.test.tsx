@@ -110,7 +110,8 @@ vi.mock('./components', () => ({
   AnkiCardPreviewModal: () => <div />,
 }));
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../components/common')>()),
   Button: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
   ModalLoadingOverlay: () => <div />,
   Spinner: () => <div />,

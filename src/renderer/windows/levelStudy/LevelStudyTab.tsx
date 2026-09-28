@@ -24,7 +24,7 @@ import {
   getLevelStudyFrequency,
   getLevelStudyLevelNames,
 } from '../../utils/wordLevelStats';
-import { Button, EmptyState, Panel, TargetIcon, SkeletonCard, SkeletonRows } from '../../components/common';
+import { Button, EmptyState, KnowledgeLoadError, Panel, TargetIcon, SkeletonCard, SkeletonRows } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
 import {
   getFrequencyLevelLabel,
@@ -327,10 +327,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
   return (
     <div class="level-study-tab">
       <Show when={projected.failed()}>
-        <div role="alert">
-          <p>{t('mlearn.Knowledge.LoadError')}</p>
-          <Button onClick={() => { projected.retry(); }}>{t('mlearn.Knowledge.Retry')}</Button>
-        </div>
+        <KnowledgeLoadError onRetry={() => { projected.retry(); }} />
       </Show>
       <Show when={resolvedLanguageData().language !== ''}>
         <LearningBackgroundPanel language={resolvedLanguageData().language} />
@@ -447,7 +444,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
 
         <Show when={requiresGrammar() && grammarLog() === undefined}>
           <Show when={grammarLogResource.state === 'errored'} fallback={<SkeletonRows rows={3} />}>
-            <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Button onClick={() => void retryGrammarLog()}>{t('mlearn.Knowledge.Retry')}</Button></div>
+            <KnowledgeLoadError onRetry={() => void retryGrammarLog()} />
           </Show>
         </Show>
         <Show when={grammarSummary() !== null && grammarSummary()!.total > 0 && grammarLog() !== undefined}>

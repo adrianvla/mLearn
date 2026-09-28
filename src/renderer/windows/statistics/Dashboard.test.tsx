@@ -64,6 +64,7 @@ vi.mock('../../components/common', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../components/common')>();
   return ({
   KnowledgeGate: actual.KnowledgeGate,
+  KnowledgeLoadError: actual.KnowledgeLoadError,
   KnowledgeSkeleton: actual.KnowledgeSkeleton,
   SkeletonCard: actual.SkeletonCard,
   SkeletonStatGrid: actual.SkeletonStatGrid,

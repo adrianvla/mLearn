@@ -1,0 +1,10 @@
+/**
+ * KnowledgeLoadError Component Styles
+ * A failed knowledge read is a message plus a retry action — no banner chrome.
+ * Layout stays a plain block so surfaces that supply their own class
+ * (e.g. `.cg-error`'s inline row) keep controlling their own arrangement.
+ */
+
+.knowledge-load-error__message {
+  margin: 0 0 var(--spacing-2);
+}
