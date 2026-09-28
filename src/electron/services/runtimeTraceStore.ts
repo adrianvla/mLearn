@@ -16,14 +16,15 @@ export function createRuntimeTraceStore(limits: { maxEntries?: number; maxFieldC
   const clear = (): void => { entries.clear(); sizes.clear(); retainedCharacters = 0; changed(); };
   const redact = (text: string): string => {
     let result = text.replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]')
-      .replace(/\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}/g, '[redacted]');
+      .replace(/\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}/g, '[redacted]')
+      .replace(/([?&](?:api[-_]?key|access[-_]?token|refresh[-_]?token|session[-_]?token|id[-_]?token|auth(?:orization)?|password|client[-_]?secret)=)[^&#\s]+/gi, '$1[redacted]');
     for (const secret of secrets) if (secret.length >= 4) result = result.split(secret).join('[redacted]');
     return result;
   };
   const sanitize = (value: unknown): { value: unknown; truncated: boolean } => {
     try {
       const json = JSON.stringify(value, (key, item: unknown) => {
-        if (/^(authorization|password|api[-_]?key|access[-_]?token|refresh[-_]?token|cloudAuthAccessToken|cloudAuthToken|cookie)$/i.test(key)) return '[redacted]';
+        if (/^(authorization|password|api[-_]?key|access[-_]?token|refresh[-_]?token|session[-_]?token|id[-_]?token|client[-_]?secret|private[-_]?key|credential|secret|cloudAuthAccessToken|cloudAuthToken|compatibleApiKey|cookie)$/i.test(key)) return '[redacted]';
         return typeof item === 'string' ? redact(item) : item;
       });
       if (json === undefined) return { value: null, truncated: false };
@@ -68,7 +69,9 @@ export function createRuntimeTraceStore(limits: { maxEntries?: number; maxFieldC
       const entry = id ? entries.get(id) : undefined;
       if (!enabled || !entry || entry.finishedAt !== undefined) return;
       if (execution) Object.assign(entry, sanitize(execution).value);
-      entry.status = 'running'; entry.updatedAt = Date.now(); account(entry);
+      const now = Date.now();
+      if (entry.kind === 'model') entry.providerStartedAt ??= now;
+      entry.status = 'running'; entry.updatedAt = now; account(entry);
     },
     chunk(id: string | undefined, chunk: LLMStreamChunk): void {
       const entry = id ? entries.get(id) : undefined;
@@ -77,12 +80,17 @@ export function createRuntimeTraceStore(limits: { maxEntries?: number; maxFieldC
       const metadata = sanitize(rest);
       if (!metadata.truncated && metadata.value && typeof metadata.value === 'object') Object.assign(entry.output, metadata.value);
       if (metadata.truncated) entry.truncated = true;
+      const now = Date.now();
       if (content) {
+        if (entry.kind === 'model' && entry.providerStartedAt !== undefined && entry.firstTokenAt === undefined) {
+          entry.firstTokenAt = now;
+          entry.timeToFirstTokenMs = now - entry.providerStartedAt;
+        }
         const text = redact((entry.output.content ?? '') + content);
         if (text.length > maxField) entry.truncated = true;
         entry.output.content = text.slice(0, maxField);
       }
-      entry.updatedAt = Date.now();
+      entry.updatedAt = now;
       if (chunk.done || chunk.error) {
         entry.status = chunk.error ? 'failed' : 'completed'; entry.finishedAt = entry.updatedAt;
       }

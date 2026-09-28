@@ -5,7 +5,9 @@ import { DEFAULT_SETTINGS, type Settings, type LLMStreamChunk } from '../../shar
 import { subscribeSettingsCommitted } from './settingsChanges';
 const store = createRuntimeTraceStore();
 function configure(settings: Settings, profile: string): void {
-  store.configure(settings.devMode ?? DEFAULT_SETTINGS.devMode, profile, [settings.cloudAuthAccessToken, settings.cloudAuthToken].filter((value): value is string => Boolean(value)));
+  store.configure(settings.devMode ?? DEFAULT_SETTINGS.devMode, profile,
+    [settings.cloudAuthAccessToken, settings.cloudAuthToken, settings.compatibleApiKey]
+      .filter((value): value is string => Boolean(value)));
 }
 subscribeSettingsCommitted(configure);
 /** Synchronize at observation/read boundaries; no capture is written to disk. */

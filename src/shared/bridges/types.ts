@@ -62,6 +62,7 @@ import type { IntegrateThreadInput, IntegrateThreadResult, IntegrationPreview, J
 export interface SettingsBridge {
   getSettings: () => void;
   saveSettings: (settings: Settings) => void;
+  awaitSettingsSaved: () => Promise<void>;
   onSettings: (callback: (settings: Settings) => void) => () => void;
   onSettingsSaved: (callback: () => void) => () => void;
 }
@@ -467,6 +468,18 @@ export interface WorldBridge {
   updateParticipant: (participant: Participant, threadId?: string) => Promise<Participant>;
   deleteParticipant: (participantId: string) => Promise<void>;
   clearRoomUnread: (roomId: string) => Promise<void>;
+  saveStoryTrack: (input: import('../story').SaveStoryTrackInput) => Promise<import('../story').StoryTrack>;
+  setStoryProgress: (input: import('../story').SetStoryProgressInput) => Promise<import('../story').StoryTrack>;
+  updateStoryBranch: (input: import('../story').UpdateStoryBranchInput) => Promise<Thread>;
+  researchCharacter: (input: import('../characterIdentity').CharacterResearchRequest) => Promise<import('../characterIdentity').CharacterResearchResult>;
+  cancelCharacterResearch: (operationId: string) => Promise<void>;
+  prepareStoryAdvance: (input: import('../story').StoryAdvanceInput) => Promise<import('../story').StoryAdvanceRecord>;
+  applyStoryAdvance: (id: string) => Promise<import('../story').StoryAdvanceRecord>;
+  cancelStoryAdvance: (id: string) => Promise<void>;
+  reviewConversationTurn: (input: import('../conversationReview').TurnReviewRequest) => Promise<import('../conversationReview').TurnReviewResult>;
+  cancelConversationReview: (operationId: string) => Promise<void>;
+  getLocalGuardStatus: () => Promise<import('../conversationReview').LocalGuardStatus>;
+  installLocalGuard: () => Promise<void>;
 }
 
 // ============================================================================

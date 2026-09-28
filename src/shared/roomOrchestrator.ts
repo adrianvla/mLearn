@@ -112,6 +112,7 @@ export function makeThread(roomId: string, id: string, now: number, title?: stri
 
 export interface RoomAgentRunResult {
   text: string;
+  reviewEvent?: JournalEvent;
 }
 
 export type RoomAgentRunner = (
@@ -190,10 +191,15 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
   const speakerIds: string[] = [];
   const events: JournalEvent[] = [];
   const currentThreadEvents = [...threadEvents];
+  const currentSeaEvents = [...seaEvents];
   const threadId = input.thread?.id ?? input.contextTurn?.threadId ?? threadIdOf(threadEvents);
 
   const runAndAppend = async (speakerId: string, context: CompiledContext): Promise<void> => {
     const result = await runAgentTurn(speakerId, context);
+    if (result.reviewEvent) {
+      currentThreadEvents.push(result.reviewEvent);
+      if (result.reviewEvent.scope.kind === 'sea') currentSeaEvents.push(result.reviewEvent);
+    }
     const draft: JournalEventDraft = {
       roomId: room.id,
       scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
@@ -233,7 +239,7 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
       thread: input.thread,
       participant: nextParticipant,
       participants,
-      seaEvents,
+      seaEvents: currentSeaEvents,
       threadEvents: currentThreadEvents,
     });
     await runAndAppend(next, context);

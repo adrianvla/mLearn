@@ -44,6 +44,8 @@ vi.mock('./builtinLLMService', () => ({
 const mockCloudStreamChat = vi.fn();
 const mockCloudAbort = vi.fn();
 const mockCloudConstructor = vi.fn();
+const mockCompatibleStreamChat = vi.fn();
+const mockCompatibleConstructor = vi.fn();
 
 vi.mock('../../shared/backends/cloudLLMAdapter', () => {
   return {
@@ -51,6 +53,11 @@ vi.mock('../../shared/backends/cloudLLMAdapter', () => {
       constructor(...args: unknown[]) { mockCloudConstructor(...args); }
       streamChat = mockCloudStreamChat;
       abort = mockCloudAbort;
+    },
+    OpenAICompatibleLLMAdapter: class {
+      constructor(...args: unknown[]) { mockCompatibleConstructor(...args); }
+      streamChat = mockCompatibleStreamChat;
+      abort = vi.fn();
     },
   };
 });
@@ -357,6 +364,25 @@ describe('LLM_STREAM routing to cloud', () => {
       error: 'cloud error',
       done: true,
     }));
+  });
+});
+
+describe('LLM_STREAM routing to an OpenAI-compatible API', () => {
+  it('routes foreground turns through the selected model', async () => {
+    mockLoadSettings.mockReturnValue({ llmProvider: 'openai-compatible', compatibleApiBaseUrl: 'https://example.test/v1',
+      compatibleApiKey: 'test-key', compatibleModel: 'test/model' });
+    mockCompatibleStreamChat.mockImplementation(async (_messages, _tools, callbacks) => {
+      callbacks.onChunk({ content: 'yes' });
+      callbacks.onChunk({ done: true });
+    });
+    mod.setupLLMRouterIPC();
+    const sender = createMockSender();
+    const sendSpy = sender.send;
+    const listeners = mockIpcListeners.get('llm-stream') ?? [];
+    await listeners[0](createMockEvent(sender), [{ role: 'user', content: 'hello' }], []);
+    expect(mockCompatibleConstructor).toHaveBeenCalledWith('https://example.test/v1', 'test-key', 'test/model');
+    expect(mockCompatibleStreamChat).toHaveBeenCalledOnce();
+    expect(sendSpy).toHaveBeenCalledWith('llm-stream-chunk', { content: 'yes' });
   });
 });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createRuntimeTraceStore } from './runtimeTraceStore';
 
 describe('runtime inspection capture', () => {
@@ -14,6 +14,25 @@ describe('runtime inspection capture', () => {
     store.chunk(id, { content: ' there', done: true });
     expect(store.get(id!)?.status).toBe('completed');
     expect(store.get(id!)?.output.content).toBe('Hello there');
+  });
+  it('measures first-token latency from provider start, ignoring empty chunks', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000);
+      const store = createRuntimeTraceStore(); store.configure(true, 'profile-a');
+      const id = store.begin({ kind: 'model', context: { source: 'conversation' }, input: { messages: [] } });
+      vi.setSystemTime(1_050); store.start(id);
+      vi.setSystemTime(1_100); store.chunk(id, { content: '', done: false });
+      expect(store.get(id!)?.firstTokenAt).toBeUndefined();
+      vi.setSystemTime(1_175); store.chunk(id, { content: 'Hello', done: false });
+      vi.setSystemTime(1_200); store.chunk(id, { content: ' world', done: true });
+      expect(store.get(id!)).toMatchObject({
+        providerStartedAt: 1_050,
+        firstTokenAt: 1_175,
+        timeToFirstTokenMs: 125,
+        status: 'completed',
+      });
+    } finally { vi.useRealTimers(); }
   });
   it('captures tool arguments, results, errors, and cancellation without fabricating model reasoning', () => {
     const store = createRuntimeTraceStore(); store.configure(true, 'a');
@@ -36,15 +55,28 @@ describe('runtime inspection capture', () => {
   });
   it('redacts credentials, reports truncation and bounds retained records', () => {
     const store = createRuntimeTraceStore({ maxEntries: 2, maxFieldCharacters: 200 }); store.configure(true, 'a', ['private-credential']);
-    const first = store.begin({ kind: 'model', context: { source: 'test' }, input: { Authorization: 'Bearer password', apiKey: 'secret', text: 'private-credential' } });
+    const first = store.begin({ kind: 'model', context: { source: 'test' }, input: { Authorization: 'Bearer password', apiKey: 'secret', compatibleApiKey: 'alternate-secret', text: 'private-credential' } });
     expect(JSON.stringify(store.get(first!))).not.toContain('private-credential');
     expect(JSON.stringify(store.get(first!))).not.toContain('password');
+    expect(JSON.stringify(store.get(first!))).not.toContain('alternate-secret');
     const second = store.begin({ kind: 'model', context: { source: 'test' }, input: {} });
     store.chunk(second, { content: 'x'.repeat(1000), done: false });
     expect(store.get(second!)?.truncated).toBe(true);
     expect(store.get(second!)!.output.content!.length).toBeLessThanOrEqual(200);
     store.begin({ kind: 'model', context: { source: 'test' }, input: {} });
     expect(store.get(first!)).toBeNull(); expect(store.list().entries).toHaveLength(2);
+  });
+  it('redacts secrets embedded in source URLs and nested request fields', () => {
+    const store = createRuntimeTraceStore(); store.configure(true, 'a');
+    const id = store.begin({ kind: 'model', context: { source: 'research' }, input: {
+      url: 'https://example.org/page?api_key=url-secret&chapter=3',
+      payload: { client_secret: 'nested-secret', access_token: 'another-secret' },
+    } });
+    const captured = JSON.stringify(store.get(id));
+    expect(captured).not.toContain('url-secret');
+    expect(captured).not.toContain('nested-secret');
+    expect(captured).not.toContain('another-secret');
+    expect(captured).toContain('chapter=3');
   });
   it('isolates inspection listener failures from inference and emits changes as they happen', () => {
     const store = createRuntimeTraceStore(); store.configure(true, 'a');

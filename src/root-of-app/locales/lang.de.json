@@ -167,6 +167,15 @@
           },
           "Title": "Integriertes Modell"
         },
+        "CompatibleConfig": {
+          "Title": "OpenAI-kompatible API",
+          "BaseUrl": "API-Basis-URL",
+          "ApiKey": "API-Schlüssel",
+          "Model": "Modell",
+          "TestConnection": "Verbindung testen",
+          "ConnectionSuccess": "Verbindung erfolgreich",
+          "AuthenticationFailed": "Prüfen Sie API-Schlüssel und Modell in den KI-Einstellungen und versuchen Sie es erneut."
+        },
         "CloudConfig": {
           "ApiUrlHint": "Die Cloud-API-URL wird in den Verbindungseinstellungen konfiguriert.",
           "ConnectionSuccess": "Verbindung erfolgreich.",
@@ -252,8 +261,13 @@
           "Title": "Ollama-Konfiguration"
         },
         "Provider": {
+          "EnableLocal": {
+            "Label": "Lokale KI-Gespräche",
+            "Description": "Gespräche und Texterklärungen mit dem ausgewählten lokalen Anbieter aktivieren."
+          },
           "Builtin": "Integriert",
           "Cloud": "Cloud",
+          "OpenAICompatible": "OpenAI-kompatibel",
           "Description": "Wählen Sie, wie KI-Modelle ausgeführt werden.",
           "Ollama": "Ollama",
           "Title": "LLM-Anbieter"
@@ -268,6 +282,9 @@
             "Description": "Wenn aktiviert, können alle Agenten auf alle Erinnerungen zugreifen. Wenn deaktiviert, sieht jeder Agent nur seine eigenen."
           },
           "Title": "Agenten-Gedächtnis"
+        },
+        "Boundary": {
+          "Title": "Gesprächsgrenze", "Provider": "Prüfverfahren", "Description": "Antworten werden vor dem Speichern geprüft. Ein lokaler Klassifikator kann eine private Vorprüfung ergänzen; die Produktentscheidung trifft weiterhin das gewählte Akteursmodell.", "Actor": "Prüfung durch Akteursmodell", "Local": "Lokaler CPU-Wächter + Akteursprüfung", "LocalDescription": "Qwen3Guard-Gen 0,6B, etwa 484 MB. Läuft auf der CPU.", "Install": "Lokalen Wächter installieren", "Installed": "Lokaler Wächter installiert"
         },
         "Checker": {
           "Title": "Korrektur-Agent",
@@ -521,7 +538,8 @@
         "TotalTime": "Gesamt: {value}ms"
       },
       "Empty": {
-        "Hint": "Üben Sie die Zielsprache mit dem KI-Tutor. Er korrigiert Fehler, stellt Fragen und unterstützt Ihr Lernen.",
+        "Hint": "Wählen Sie einen Chat aus oder beginnen Sie ein Gespräch mit einem Ihrer Kontakte.",
+        "ReadyHint": "Schreiben Sie eine Nachricht oder lassen Sie die KI beginnen.",
         "StartConversation": "KI beginnen lassen",
         "Title": "Gespräch beginnen",
         "NewConversation": "Neue Unterhaltung"
@@ -856,7 +874,21 @@
         "Generic": "Das Gespräch konnte nicht fortgesetzt werden. Versuche es erneut. Prüfe bei weiteren Fehlern die KI-Einstellungen.",
         "Settings": "KI-Einstellungen öffnen"
       },
+      "Story": {
+        "SupportResponse": "Es tut mir leid, dass du das durchmachst. Du musst damit nicht allein sein. Wenn du akut in Gefahr bist, wende dich jetzt an den örtlichen Notruf oder eine Person deines Vertrauens.",
+        "Branch": "Übungsgeschichte", "BranchMode": "Quellenhintergrund verwenden", "Follow": "Neue Quellen übernehmen", "Pinned": "Diese Version behalten", "Independent": "Eigene Geschichte", "AlternatePremises": "Alternative Annahmen (eine pro Zeile)",
+        "SaveBeforeUse": "Speichere die Änderungen, bevor du den Fortschritt änderst oder ein Update recherchierst.",
+        "Title": "Lesefortschritt", "Track": "Fassung", "NewTrack": "Neue Fassung", "Work": "Werk", "Edition": "Fassung oder Kontinuität", "Unit": "Einheit", "Total": "Einheiten gesamt", "SourceWiki": "Quellen-Wiki-URL", "AutoAdvance": "Neu recherchierten Hintergrund automatisch übernehmen", "Progress": "Abgeschlossene Einheiten", "UnitNumber": "Einheitennummer", "Through": "Bis hier abschließen", "Complete": "Einheit abschließen", "Remove": "Einheit entfernen", "Sources": "Quellenseiten", "SourceUrl": "URL der Quellenseite", "From": "Von Einheit", "To": "Bis Einheit", "AddSource": "Quelle zuordnen", "SourceHint": "Nur geprüfte Seiten zuordnen. Eine Seite wird erst verwendet, wenn ihr gesamter Bereich abgeschlossen ist.", "UpdatePeople": "Hintergrund der Kontakte aktualisieren", "ReviewUpdate": "Aktualisierung recherchieren", "Ready": "Prüfe diese belegten Änderungen, bevor du sie übernimmst.", "ApplyUpdate": "Auf Kontakte anwenden", "ValidUnit": "Gib eine gültige Einheitennummer ein.", "ValidSource": "Gib eine Quellen-URL und einen gültigen Bereich ein.", "ResearchIdentity": "Identität anhand einer Quelle recherchieren", "NoTrack": "Kein Lesefortschritt angegeben", "Research": "Recherchieren", "ScopedContext": "Geschichte bis zu deinem Stand", "SourceQuotes": "Quellenzitate", "Unknowns": "Unklar oder fehlend", "UseDraft": "Diesen Entwurf verwenden", "ResearchAccepted": "Entwurf ausgewählt"
+      },
       "Contacts": {
+        "Archive": "Kontakt archivieren",
+        "ArchiveHint": "Dieser Kontakt wird aus Kontakte ausgeblendet und meldet sich nicht mehr von selbst. Bestehende Chats und der Verlauf bleiben erhalten.",
+        "Archived": "Archivierte Kontakte",
+        "Restore": "Kontakt wiederherstellen",
+        "SharedChats": "Gemeinsame Chats",
+        "NewMessage": "Neue Nachricht",
+        "NewPractice": "Neue Übung",
+        "EmptyPractice": "Noch keine Übungschats.",
         "Chats": "Chats",
         "Tab": "Kontakte",
         "Add": "Kontakt hinzufügen",
@@ -945,6 +977,7 @@
       "Provider": {
         "Builtin": "lokaler KI",
         "Cloud": "Cloud-KI",
+        "OpenAICompatible": "OpenAI-kompatibler KI",
         "Ollama": "Ollama"
       },
       "ShowParsed": "Analysierte Ansicht",

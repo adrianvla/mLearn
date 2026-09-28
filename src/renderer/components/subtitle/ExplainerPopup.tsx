@@ -6,6 +6,7 @@
 
 import { Component, Show, createSignal, createEffect, createMemo, onCleanup, untrack } from 'solid-js';
 import type { LLMToolCall } from '../../../shared/types';
+import { isRemoteLLMProvider } from '../../../shared/types';
 import { Button, DraggablePopup } from '../common';
 import { RefreshIcon, BotIcon } from '../common/Misc/Icons';
 import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../../context';
@@ -206,7 +207,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       const languageData = currentLangData();
 
       // Low power gate: prompt before local LLM call
-      if (currentSettings.llmProvider !== 'cloud') {
+      if (!isRemoteLLMProvider(currentSettings.llmProvider)) {
         const allowed = await requestAccess('llm');
         if (requestId !== activeStreamRequestId) {
           return;

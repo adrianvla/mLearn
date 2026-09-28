@@ -7,6 +7,7 @@ export interface RuntimeTraceContext {
   threadId?: string;
   participantId?: string;
   operationId?: string;
+  attempt?: number;
 }
 export type RuntimeTraceStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export interface RuntimeTraceSummary {
@@ -15,6 +16,9 @@ export interface RuntimeTraceSummary {
   context: RuntimeTraceContext;
   status: RuntimeTraceStatus;
   startedAt: number;
+  providerStartedAt?: number;
+  firstTokenAt?: number;
+  timeToFirstTokenMs?: number;
   updatedAt: number;
   finishedAt?: number;
   truncated: boolean;

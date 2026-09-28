@@ -483,12 +483,18 @@ export interface Settings {
   ratingKeyboardMode: RatingKeyboardMode;
 
   // LLM provider settings
-  /** LLM provider: built-in local model or Ollama */
+  /** Selected inference provider. */
   llmProvider: LLMProvider;
   /** Ollama server URL */
   ollamaUrl: string;
   /** Ollama model name */
   ollamaModel: string;
+  /** Base URL of an OpenAI-compatible API, ending before /chat/completions. */
+  compatibleApiBaseUrl: string;
+  /** API credential for the OpenAI-compatible endpoint. */
+  compatibleApiKey: string;
+  /** Model identifier understood by the OpenAI-compatible endpoint. */
+  compatibleModel: string;
   /** Built-in model identifier (GGUF filename) */
   builtinModel: string;
   /** Whether the built-in model has been autoselected (prevents re-running autoselect) */
@@ -578,6 +584,8 @@ export interface Settings {
   agentMistakeChecker: boolean;
   /** Whether the separate checker agent should flag safety risks (e.g. self-harm) */
   agentSafetyChecker: boolean;
+  /** Optional independent CPU first-pass classifier; product review remains separate. */
+  conversationGuardProvider?: 'actor' | 'local';
   /** List of browser paths that have the mLearn browser extension installed */
   installedBrowserExtensions: string[];
 
@@ -767,6 +775,9 @@ export const DEFAULT_SETTINGS: Settings = {
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: '',
+  compatibleApiBaseUrl: 'https://openrouter.ai/api/v1',
+  compatibleApiKey: '',
+  compatibleModel: '',
   builtinModel: 'gemma-4-12b-it-qat-q4_0.gguf',
   builtinModelAutoselected: false,
   speechEnabled: false,
@@ -788,6 +799,7 @@ export const DEFAULT_SETTINGS: Settings = {
   agentMemoryShared: true,
   agentMistakeChecker: true,
   agentSafetyChecker: true,
+  conversationGuardProvider: 'actor',
   installedBrowserExtensions: [],
   eulaAccepted: false,
   eulaAcceptedVersion: '',
@@ -2486,7 +2498,11 @@ export interface LLMResponse {
 // ============================================================================
 
 /** LLM backend provider */
-export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
+export type LLMProvider = 'builtin' | 'ollama' | 'cloud' | 'openai-compatible';
+
+export function isRemoteLLMProvider(provider: LLMProvider): boolean {
+  return provider === 'cloud' || provider === 'openai-compatible';
+}
 
 /** User-facing hosted inference serving class. Provider/model selection stays server-side. */
 export type CloudLLMTier = 'standard' | 'realtime';

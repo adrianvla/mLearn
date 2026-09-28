@@ -29,6 +29,8 @@ export interface NewConversationResult {
 
 interface NewConversationModalProps {
   world: WorldSnapshot | null;
+  mode?: 'message' | 'practice' | 'scenario';
+  initialParticipantId?: string;
   initialIntent?: string;
   mediaName?: string;
   onContactCreated?: (person: Participant) => void;
@@ -43,10 +45,11 @@ export function firstCapitalizedWordSequence(text: string): string {
 export const NewConversationModal: Component<NewConversationModalProps> = (props) => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
-  const saved = props.initialIntent ? undefined : props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating');
+  const mode = () => props.mode ?? 'scenario';
+  const saved = mode() !== 'scenario' || props.initialIntent ? undefined : props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating');
   const [intent, setIntent] = createSignal(props.initialIntent ?? saved?.request.intent ?? '');
-  const [scope, setScope] = createSignal<'sandbox' | 'persistent'>(saved?.request.scope === 'persistent' ? 'persistent' : 'sandbox');
-  const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set(saved?.request.participantIds ?? []));
+  const [scope, setScope] = createSignal<'sandbox' | 'persistent'>(mode() === 'message' || saved?.request.scope === 'persistent' ? 'persistent' : 'sandbox');
+  const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set(props.initialParticipantId ? [props.initialParticipantId] : saved?.request.participantIds ?? []));
   const [preview, setPreview] = createSignal<ScenarioCreation | null>(saved?.status === 'ready' ? saved : null);
   const [candidates, setCandidates] = createSignal<Participant[]>([]);
   const [busy, setBusy] = createSignal(false);
@@ -59,7 +62,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   const [query, setQuery] = createSignal('');
   const [addingContact, setAddingContact] = createSignal(false);
   const [createdContacts, setCreatedContacts] = createSignal<Participant[]>([]);
-  const contacts = createMemo(() => [...new Map([...(props.world?.participants ?? []), ...createdContacts()].map(person => [person.id, person])).values()]);
+  const contacts = createMemo(() => [...new Map([...(props.world?.participants ?? []), ...createdContacts()].map(person => [person.id, person])).values()]
+    .filter(person => !person.archivedAt));
   const visibleContacts = createMemo(() => contacts().filter(person => person.displayName.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase())));
   const changeScope = (value: 'sandbox' | 'persistent'): void => {
     setScope(value);
@@ -96,7 +100,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
 
   const startWithSelection = async (ids: string[]): Promise<void> => {
     const bridge = getBridge().world;
-    const trimmedIntent = intent().trim();
+    const trimmedIntent = mode() === 'message' ? '' : intent().trim();
     const persistent = scope() === 'persistent';
     const key = JSON.stringify({ ids, intent: trimmedIntent, scope: scope() });
     if (key !== creationKey) { creationKey = key; creationOperationId = crypto.randomUUID(); }
@@ -110,6 +114,10 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       return;
     }
     if (persistent) {
+      if (ids.length === 1 && mode() === 'message') {
+        const existing = props.world?.rooms.find(room => room.participantIds.length === 1 && room.participantIds[0] === ids[0]);
+        if (existing) { await props.onCreated({ roomId: existing.id, threadId: null }); return; }
+      }
       const room = await bridge.createPersistentRoom(request);
       await props.onCreated({ roomId: room.id, threadId: null });
       return;
@@ -121,7 +129,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   const handleStart = async (): Promise<void> => {
     const ids = [...selectedIds()];
     const text = intent().trim();
-    if (busy() || (!preview() && ids.length === 0 && !text)) return;
+    if (busy() || (!preview() && ids.length === 0 && (mode() === 'message' || !text))) return;
     const startedAt = performance.now();
     log.info('Tutor Start', { stage: 'action', selectedCount: ids.length, intentCharacters: text.length, resumingPreview: Boolean(preview()) });
     setBusy(true);
@@ -189,7 +197,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     <ModalForm
       isOpen={!addingContact()}
       onClose={() => { void close(); }}
-      title={t('mlearn.ConversationAgent.NewConversation.Title')}
+      title={t(mode() === 'message' ? 'mlearn.ConversationAgent.Contacts.NewMessage' : mode() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.NewConversation.Title')}
       size="sm"
       showCloseButton={true}
       closeOnOverlay={!busy()}
@@ -205,7 +213,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
             variant="primary"
             aria-label={t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.StartAria')}
             onClick={handleStart}
-            disabled={busy() || (!preview() && selectedIds().size === 0 && !intent().trim())
+            disabled={busy() || (!preview() && selectedIds().size === 0 && (mode() === 'message' || !intent().trim()))
               || (!preview() && scope() === 'persistent' && !settings.livingWorldEnabled)}
           >
             {busy() ? t('mlearn.ConversationAgent.NewConversation.Starting') : t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.Start')}
@@ -235,7 +243,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               <Show when={visibleContacts().length === 0}><HintText>{t('mlearn.ConversationAgent.Contacts.EmptyContacts')}</HintText></Show>
             </div>
           </div>
-          <fieldset class="new-conversation-scope">
+          <Show when={mode() === 'scenario'}><fieldset class="new-conversation-scope">
             <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}</legend>
             <div class="new-conversation-scope-options" role="radiogroup" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}>
               <RadioChoice name="conversation-scope" size="sm" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')} checked={scope() === 'sandbox'} onChange={() => changeScope('sandbox')} disabled={busy()} />
@@ -247,8 +255,14 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
                 {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
               </Button>
             </Show>
-          </fieldset>
-          <Disclosure title={t('mlearn.ConversationAgent.Contacts.OptionalGoal')} open={Boolean(props.initialIntent || saved?.request.intent)}>
+          </fieldset></Show>
+          <Show when={mode() === 'message' && !settings.livingWorldEnabled}>
+            <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
+            <Button variant="primary" disabled={busy() || selectedIds().size === 0} onClick={() => { void enableLivingWorldAndStart(); }}>
+              {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
+            </Button>
+          </Show>
+          <Show when={mode() !== 'message'}><Disclosure title={t('mlearn.ConversationAgent.Contacts.OptionalGoal')} open={Boolean(props.initialIntent || saved?.request.intent)}>
           <FormField label={t(props.initialIntent || saved?.request.intent
             ? 'mlearn.ConversationAgent.NewConversation.PreparedGoalLabel'
             : 'mlearn.ConversationAgent.NewConversation.IntentLabel')}>
@@ -259,7 +273,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               rows={3}
             />
           </FormField>
-          </Disclosure>
+          </Disclosure></Show>
           <Show when={candidates().length > 0}>
             <div class="new-conversation-disambiguation">
               <span>{t('mlearn.ConversationAgent.NewConversation.DidYouMean')}</span>
@@ -306,11 +320,11 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
         </Show>
       </div>
     </ModalForm>
-    <Show when={addingContact()}><ParticipantEditorModal onClose={() => setAddingContact(false)} onCreate={async input => {
+    <Show when={addingContact()}><ParticipantEditorModal storyTracks={props.world?.storyTracks} persistentOnly={scope() === 'persistent'} onClose={() => setAddingContact(false)} onCreate={async input => {
       const person = await getBridge().world.createParticipant(input);
+      if (scope() === 'persistent' && person.kind !== 'persistent') throw new Error('A persistent contact is required for this conversation');
       setCreatedContacts(current => [...current, person]);
       props.onContactCreated?.(person);
-      if (scope() === 'persistent' && person.kind !== 'persistent') setScope('sandbox');
       setSelectedIds(current => new Set([...current, person.id]));
       setQuery(''); setAddingContact(false);
     }} /></Show>

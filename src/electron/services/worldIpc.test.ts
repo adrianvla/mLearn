@@ -106,6 +106,22 @@ describe('worldIpc', () => {
     await expect(mod.createSandbox({ ...request, intent: 'Another request' })).rejects.toThrow(/conflict/);
   });
 
+  it('keeps a newer source baseline when a stale profile editor saves', async () => {
+    const baseline = { lore: 'Curious', quotes: [], context: 'Chapter one', notYetHappened: [], provenance: [], generatedFill: [] };
+    const person = await mod.createParticipant({ displayName: 'Mira', kind: 'persistent', personaText: 'Patient',
+      canon: { workTitle: 'Voyage', fandomBaseUrl: 'https://example.org', characterPageTitle: 'Mira',
+        coordinate: { kind: 'point', value: '1' }, baseline } });
+    const { loadWorld, saveWorld } = await import('./worldStore');
+    const world = await loadWorld();
+    await saveWorld({ ...world, participants: [{ ...person, canon: { ...person.canon!,
+      coordinate: { kind: 'point', value: '2' }, baseline: { ...baseline, context: 'Chapter two' } } }] });
+    await mod.updateParticipant({ ...person, displayName: 'Mira Renamed' });
+    const updated = (await mod.getWorldState()).participants[0];
+    expect(updated.displayName).toBe('Mira Renamed');
+    expect(updated.canon?.baseline.context).toBe('Chapter two');
+    expect(updated.canon?.coordinate.value).toBe('2');
+  });
+
   it('lets a practice-only contact start independent practice without Living World consent', async () => {
     mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
     const person = await mod.createParticipant({ displayName: 'Practice partner', kind: 'temporary', personaText: 'A patient colleague' });
@@ -204,9 +220,9 @@ describe('worldIpc', () => {
 
     await mod.deleteParticipant('p1');
     const state = await mod.getWorldState();
-    expect(state.participants).toEqual([]);
-    expect(state.rooms[0].participantIds).toEqual([]);
-    expect(state.contacts?.[0]).toMatchObject({ status: 'cancelled', reason: 'The contact destination was erased' });
+    expect(state.participants[0]).toMatchObject({ id: 'p1', archivedAt: expect.any(Number) });
+    expect(state.rooms[0].participantIds).toEqual(['p1']);
+    expect(state.contacts?.[0]).toMatchObject({ status: 'cancelled', reason: 'The contact was archived' });
   });
 
   it('membership add appends a membership event and persists the updated room', async () => {
@@ -283,6 +299,16 @@ describe('worldIpc', () => {
       .rejects.toThrow(/conflict/);
     const state = await mod.getWorldState();
     expect(state.rooms).toHaveLength(1);
+  });
+
+  it('uses one canonical direct message even for distinct creation operations', async () => {
+    seedWorld([], [], [participant('p1', 'Pat')]);
+    const [first, second] = await Promise.all([
+      mod.createPersistentRoom({ operationId: 'first-message', participantIds: ['p1'] }),
+      mod.createPersistentRoom({ operationId: 'another-message', participantIds: ['p1'] }),
+    ]);
+    expect(second.id).toBe(first.id);
+    expect((await mod.getWorldState()).rooms).toHaveLength(1);
   });
 
   it('createPersistentRoom on an unavailable or temporary person throws', async () => {

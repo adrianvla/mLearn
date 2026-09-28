@@ -479,6 +479,20 @@ function streamChatUnified(
 
   const req = lib.request(options, (res) => {
     responseStarted = true;
+    if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+      let errorBody = '';
+      res.on('data', (rawChunk: Buffer) => { errorBody += rawChunk.toString().slice(0, Math.max(0, 2048 - errorBody.length)); });
+      res.on('end', () => {
+        let detail = errorBody.trim();
+        try {
+          const parsed = JSON.parse(detail) as { error?: unknown };
+          if (typeof parsed.error === 'string') detail = parsed.error;
+        } catch { /* Keep the plain response. */ }
+        complete({ error: `Ollama HTTP ${res.statusCode}${detail ? `: ${detail.slice(0, 1024)}` : ''}`, done: true });
+      });
+      res.on('error', err => complete({ error: err.message, done: true }));
+      return;
+    }
     let buffer = '';
     // Track thinking state for models that still use thinking mode
     // (fallback if `think: false` is not supported by the Ollama version).

@@ -36,6 +36,10 @@ import { cancelAllAutonomy, reconcilePendingAutonomyRuntime } from './services/a
 import { activateContactFromDeepLink, cancelAllContacts } from './services/contactRuntime';
 import { setupRuntimeInspectionIPC } from './services/runtimeInspectionIpc';
 import { setupWorldIPC, openRoomAt } from './services/worldIpc';
+import { cancelAllCharacterResearch } from './services/characterResearch';
+import { cancelAllStoryAdvances, reconcileStoryAdvances } from './services/storyAdvancement';
+import { cancelAllConversationReviews } from './services/conversationReviewService';
+import { unloadLocalGuard } from './services/localConversationGuard';
 import { runLegacyMigration } from './services/legacyMigration';
 import { reconcilePendingIntegrations } from './services/integration';
 import { handleStartupFailure } from './services/startupFailure';
@@ -537,6 +541,7 @@ async function initialize(): Promise<void> {
   // or scheduler work. A failed read must reach the startup error boundary.
   phase = startupTime();
   await reconcilePendingIntegrations();
+  await reconcileStoryAdvances();
   startupMark('integration recovery complete', phase);
 
   // Maintenance recovery (V08): finish interrupted reflection/evolution
@@ -642,6 +647,10 @@ app.on('before-quit', () => {
   cancelAllMaintenance();
   cancelAllAutonomy();
   cancelAllContacts();
+  cancelAllCharacterResearch();
+  cancelAllStoryAdvances();
+  cancelAllConversationReviews();
+  void unloadLocalGuard();
   terminatePythonBackend();
 });
 

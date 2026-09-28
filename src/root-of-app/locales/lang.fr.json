@@ -167,6 +167,15 @@
           },
           "Title": "Modèle intégré"
         },
+        "CompatibleConfig": {
+          "Title": "API compatible OpenAI",
+          "BaseUrl": "URL de base de l'API",
+          "ApiKey": "Clé API",
+          "Model": "Modèle",
+          "TestConnection": "Tester la connexion",
+          "ConnectionSuccess": "Connexion réussie",
+          "AuthenticationFailed": "Vérifiez la clé API et le modèle dans les réglages IA, puis réessayez."
+        },
         "CloudConfig": {
           "ApiUrlHint": "L'URL de l'API cloud est configurée dans les paramètres de connexion.",
           "ConnectionSuccess": "Connexion réussie.",
@@ -252,8 +261,13 @@
           "Title": "Configuration Ollama"
         },
         "Provider": {
+          "EnableLocal": {
+            "Label": "Conversations IA locales",
+            "Description": "Activer les conversations et les explications de texte avec le fournisseur local choisi."
+          },
           "Builtin": "Intégré",
           "Cloud": "Cloud",
+          "OpenAICompatible": "Compatible OpenAI",
           "Description": "Choisissez comment exécuter les modèles IA.",
           "Ollama": "Ollama",
           "Title": "Fournisseur LLM"
@@ -268,6 +282,9 @@
             "Description": "Si activé, tous les agents peuvent accéder à tous les souvenirs. Si désactivé, chaque agent ne voit que les siens."
           },
           "Title": "Mémoire de l'agent"
+        },
+        "Boundary": {
+          "Title": "Limites de conversation", "Provider": "Méthode de vérification", "Description": "Les réponses sont vérifiées avant d'être enregistrées. Un classificateur local peut ajouter un premier passage privé ; le modèle choisi garde le jugement final.", "Actor": "Vérification par le modèle", "Local": "Garde CPU local + vérification", "LocalDescription": "Qwen3Guard-Gen 0,6B, environ 484 Mo. Fonctionne sur le processeur.", "Install": "Installer la garde locale", "Installed": "Garde locale installée"
         },
         "Checker": {
           "Title": "Agent correcteur",
@@ -521,7 +538,8 @@
         "TotalTime": "Total : {value}ms"
       },
       "Empty": {
-        "Hint": "Pratiquez la langue cible avec le tuteur IA. Il corrigera vos erreurs, vous interrogera et vous aidera à progresser.",
+        "Hint": "Choisissez une discussion à poursuivre ou démarrez une conversation avec un de vos contacts.",
+        "ReadyHint": "Envoyez un message ou laissez l'IA commencer.",
         "StartConversation": "Laisser l'IA commencer",
         "Title": "Démarrer une conversation",
         "NewConversation": "Nouvelle conversation"
@@ -856,7 +874,21 @@
         "Generic": "La conversation n’a pas pu continuer. Réessayez ; si le problème persiste, vérifiez les paramètres IA.",
         "Settings": "Ouvrir les paramètres IA"
       },
+      "Story": {
+        "SupportResponse": "Je suis désolé que tu traverses cela. Tu n'as pas à rester seul. Si tu es en danger immédiat, contacte les services d'urgence locaux ou une personne de confiance maintenant.",
+        "Branch": "Histoire de pratique", "BranchMode": "Utiliser les sources", "Follow": "Suivre les nouvelles sources", "Pinned": "Garder cette version", "Independent": "Histoire distincte", "AlternatePremises": "Hypothèses alternatives (une par ligne)",
+        "SaveBeforeUse": "Enregistrez les changements avant de modifier la progression ou de rechercher une mise à jour.",
+        "Title": "Progression de l'histoire", "Track": "Édition", "NewTrack": "Nouvelle édition", "Work": "Œuvre", "Edition": "Édition ou continuité", "Unit": "Nom de l'unité", "Total": "Nombre d'unités", "SourceWiki": "URL du wiki source", "AutoAdvance": "Appliquer automatiquement les nouveaux éléments recherchés", "Progress": "Unités terminées", "UnitNumber": "Numéro d'unité", "Through": "Terminer jusqu'ici", "Complete": "Terminer l'unité", "Remove": "Retirer l'unité", "Sources": "Pages sources", "SourceUrl": "URL de la page source", "From": "De l'unité", "To": "À l'unité", "AddSource": "Associer une source", "SourceHint": "N'associez que des pages vérifiées. Une page n'est utilisée que si toute sa plage est terminée.", "UpdatePeople": "Mettre à jour les personnages", "ReviewUpdate": "Rechercher la mise à jour", "Ready": "Vérifiez ces changements sourcés avant de les appliquer.", "ApplyUpdate": "Appliquer aux contacts", "ValidUnit": "Saisissez un numéro d'unité valide.", "ValidSource": "Saisissez une URL et une plage d'unités valides.", "ResearchIdentity": "Rechercher l'identité dans une source", "NoTrack": "Aucune progression déclarée", "Research": "Rechercher", "ScopedContext": "Contexte à votre progression", "SourceQuotes": "Citations de la source", "Unknowns": "Incertain ou manquant", "UseDraft": "Utiliser ce brouillon", "ResearchAccepted": "Brouillon sélectionné"
+      },
       "Contacts": {
+        "Archive": "Archiver le contact",
+        "ArchiveHint": "Ce contact sera masqué des contacts et ne prendra plus l’initiative d’écrire. Les discussions et l’historique sont conservés.",
+        "Archived": "Contacts archivés",
+        "Restore": "Restaurer le contact",
+        "SharedChats": "Discussions partagées",
+        "NewMessage": "Nouveau message",
+        "NewPractice": "Nouvel exercice",
+        "EmptyPractice": "Aucune discussion d'entraînement pour le moment.",
         "Chats": "Discussions",
         "Tab": "Contacts",
         "Add": "Ajouter un contact",
@@ -945,6 +977,7 @@
       "Provider": {
         "Builtin": "l'IA locale",
         "Cloud": "l'IA cloud",
+        "OpenAICompatible": "l'IA compatible OpenAI",
         "Ollama": "Ollama"
       },
       "ShowParsed": "Vue analysée",

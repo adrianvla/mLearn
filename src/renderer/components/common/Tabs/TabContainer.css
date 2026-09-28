@@ -31,7 +31,7 @@
   display: none;
 }
 
-.tab-container.vertical .tab-list {
+.tab-container.vertical > .tab-list {
   flex-direction: column;
   min-width: 200px;
   padding-right: 0.5rem;
@@ -195,7 +195,7 @@
   min-height: 0;
 }
 
-.tab-container.vertical .tab-content {
+.tab-container.vertical > .tab-content {
   padding-left: 1rem;
 }
 

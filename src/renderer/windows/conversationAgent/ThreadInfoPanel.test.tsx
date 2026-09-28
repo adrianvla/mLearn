@@ -5,6 +5,8 @@ import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import type { Participant, Thread } from '../../../shared/world';
 
+const mockSettings = vi.hoisted(() => ({ devMode: false }));
+
 vi.mock('../../components/common', () => ({
   Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
@@ -31,7 +33,7 @@ vi.mock('../../components/common', () => ({
 
 
 vi.mock('../../context', () => ({
-  useSettings: () => ({ settings: {}, updateSettings: vi.fn() }),
+  useSettings: () => ({ settings: mockSettings, updateSettings: vi.fn() }),
   useLocalization: () => ({ t: (key: string) => key, locale: () => 'en' }),
 }));
 
@@ -61,6 +63,7 @@ describe('ThreadInfoPanel', () => {
     onUpdateParticipant.mockClear();
     onDeleteThread.mockClear();
     onRetryMaintenance.mockClear();
+    mockSettings.devMode = false;
   });
 
   afterEach(() => {
@@ -91,6 +94,11 @@ describe('ThreadInfoPanel', () => {
     expect(container.textContent).toContain('mlearn.ConversationAgent.Details.ParticipantsLabel');
     expect(container.textContent).toContain('Rin');
     expect(container.textContent).toContain('mlearn.ConversationAgent.Details.Kind.Persistent');
+    expect(container.textContent).not.toContain(participant.personaText);
+    mockSettings.devMode = true;
+    dispose();
+    container.textContent = '';
+    renderPanel();
     expect(container.textContent).toContain(participant.personaText);
   });
 
@@ -106,6 +114,7 @@ describe('ThreadInfoPanel', () => {
   });
 
   it('offers an explicit retry for a failed maintenance window', async () => {
+    mockSettings.devMode = true;
     renderPanel({
       roomId: 'room-1',
       thread: null,
@@ -121,6 +130,7 @@ describe('ThreadInfoPanel', () => {
   });
 
   it('shows durable autonomy state and exposes the production pause control', async () => {
+    mockSettings.devMode = true;
     const onSetAutonomyEnabled = vi.fn(async () => {});
     renderPanel({
       roomId: 'room-1',

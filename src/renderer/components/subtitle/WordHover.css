@@ -396,10 +396,11 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 
 /* Shared compact variant: placement still measures the actual panel. */
 .subtitle_hover.subtitle_hover--compact {
-  width: min(24rem, calc(100vw - var(--spacing-4)));
-  max-width: min(24rem, calc(100vw - var(--spacing-4)));
-  font-size: var(--font-size-base);
+  width: min(20rem, calc(100vw - var(--spacing-4)));
+  max-width: min(20rem, calc(100vw - var(--spacing-4)));
+  font-size: var(--font-size-sm);
 }
-.subtitle_hover--compact .word-hover-headword { font-size: var(--font-size-2xl); }
+.subtitle_hover--compact .word-hover-headword { font-size: var(--font-size-xl); }
 .subtitle_hover--compact .subtitle_hover_content { padding: var(--spacing-3); }
+.subtitle_hover--compact .word-hover-dictionary { max-height: 5rem; overflow: auto; }
 .subtitle_hover--compact .footer { padding: var(--spacing-2); }

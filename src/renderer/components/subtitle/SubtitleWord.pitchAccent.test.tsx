@@ -171,6 +171,22 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     dispose();
   });
 
+  it('keeps reading annotations but omits prosody overlays in compact chat layout', () => {
+    const token: Token = {
+      word: '何時', surface: '何時', actual_word: '何時', reading: 'いつ', type: '名詞', partOfSpeech: '名詞',
+    };
+
+    const dispose = render(() => (
+      <SubtitleWord token={token} index={0} compact />
+    ), container);
+
+    expect(container.querySelector('ruby rt')?.textContent).toBe('いつ');
+    expect(container.querySelector('.prosody-overlay-wrapper')).toBeNull();
+    expect(container.querySelector('.frequency')).toBeNull();
+
+    dispose();
+  });
+
   it('looks up ruby prosody by the surface word while drawing it over the reading', () => {
     mockGetCachedTranslation.mockImplementation((word: string) => (
       word === '望月'

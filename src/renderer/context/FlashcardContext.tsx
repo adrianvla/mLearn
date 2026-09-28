@@ -8,7 +8,7 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, batch } from 'solid-js';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PendingReviewUndo } from '../../shared/types';
+import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PendingReviewUndo } from '../../shared/types';
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
@@ -4051,7 +4051,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    */
   const generateExampleSentenceWithLLM = async (word: string, definition: string, language: string): Promise<{ sentence: string; meaning: string }> => {
     // Low power gate: prompt before local LLM call
-    if (settings.llmProvider !== 'cloud') {
+    if (!isRemoteLLMProvider(settings.llmProvider)) {
       const allowed = await requestAccess('llm');
       if (!allowed) return { sentence: '', meaning: '' };
     }
@@ -4137,7 +4137,7 @@ Translation: [${targetLang} translation]`;
         const { sourceLang, targetLang } = chunk[0];
         let parsed: LLMExampleResult[] | null = null;
 
-        if (settings.llmProvider === 'cloud' || await requestAccess('llm')) {
+        if (isRemoteLLMProvider(settings.llmProvider) || await requestAccess('llm')) {
           try {
             const response = await new Promise<string>((resolve, reject) => {
               const prompt = `Generate a simple, natural example sentence in ${sourceLang} for each of the following words, then give the ${targetLang} translation of each sentence. Respond with exactly ${chunk.length} numbered blocks. Use this exact format per item N:
@@ -4197,7 +4197,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     const targetLang = getLanguagePromptName(dictionaryTargetLanguage, languageDataFor(dictionaryTargetLanguage));
 
     // Low power gate: prompt before local LLM call
-    if (settings.llmProvider !== 'cloud') {
+    if (!isRemoteLLMProvider(settings.llmProvider)) {
       const allowed = await requestAccess('llm');
       if (!allowed) return '';
     }

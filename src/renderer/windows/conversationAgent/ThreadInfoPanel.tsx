@@ -6,10 +6,11 @@
  */
 
 import { Component, For, Show, createSignal } from 'solid-js';
+import type { StoryFollowMode, UpdateStoryBranchInput } from '../../../shared/story';
 import type { ConversationAgentContext } from '../../../shared/types';
 import type { AutonomyJobRecord, ContactRecord, Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
-import { Avatar, Button, Disclosure, FormField, Input, Tag } from '../../components/common';
-import { useLocalization } from '../../context';
+import { Avatar, Button, Disclosure, FormField, Input, Select, Tag, Textarea } from '../../components/common';
+import { useLocalization, useSettings } from '../../context';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
 import './ThreadInfoPanel.css';
 
@@ -34,6 +35,7 @@ interface ThreadInfoPanelProps {
   onUpdateParticipant: (participant: Participant) => Promise<void> | void;
   onDeleteThread: () => Promise<void> | void;
   onIntegrate?: () => void | Promise<void>;
+  onUpdateStoryBranch?: (input: UpdateStoryBranchInput) => Promise<void>;
   onRetryMaintenance?: (reflectionId: string) => Promise<void> | void;
   onSetAutonomyEnabled?: (enabled: boolean) => Promise<void> | void;
   onSetContactEnabled?: (enabled: boolean) => Promise<void> | void;
@@ -47,11 +49,25 @@ interface ThreadInfoPanelProps {
 
 export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   const { t } = useLocalization();
+  const { settings } = useSettings();
   const [renaming, setRenaming] = createSignal(false);
   const [titleDraft, setTitleDraft] = createSignal('');
   const [editingParticipant, setEditingParticipant] = createSignal<Participant | null>(null);
   const [confirmingDelete, setConfirmingDelete] = createSignal(false);
   const [retryingRunId, setRetryingRunId] = createSignal<string | null>(null);
+  const [storyMode, setStoryMode] = createSignal<StoryFollowMode>(props.thread?.storyBranch?.mode ?? 'follow');
+  const [adaptations, setAdaptations] = createSignal((props.thread?.storyBranch?.adaptations ?? []).join('\n'));
+  const [storySaving, setStorySaving] = createSignal(false);
+  const [storyError, setStoryError] = createSignal('');
+  const saveStoryBranch = async (): Promise<void> => {
+    if (!props.thread || !props.onUpdateStoryBranch || storySaving()) return;
+    setStorySaving(true); setStoryError('');
+    try { await props.onUpdateStoryBranch({ threadId: props.thread.id,
+      expectedRevision: props.thread.storyBranch?.revision ?? 0, mode: storyMode(),
+      adaptations: adaptations().split('\n').map(value => value.trim()).filter(Boolean) }); }
+    catch (failure) { setStoryError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setStorySaving(false); }
+  };
   const mediaRef = () => props.thread?.mediaRef;
   // Maintenance runs for THIS context: a sandbox Thread has its own journal;
   // Room turns use the Room's Sea stream (including world continuity for the
@@ -161,7 +177,7 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => setEditingParticipant(participant)}>{t('mlearn.ConversationAgent.Details.Edit')}</Button>
                 </div>
-                <Show when={participant.personaText.trim()}>
+                <Show when={settings.devMode && participant.personaText.trim()}>
                   <Disclosure title={t('mlearn.ConversationAgent.Contacts.About')}><p class="ca-thread-participant-persona">{participant.personaText}</p></Disclosure>
                 </Show>
                 <Show when={!props.thread?.sandbox && props.onSetParticipantMuted}>
@@ -193,7 +209,23 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
         </section>
       </Show>
 
-      <Show when={contextRuns().length > 0}>
+      <Show when={props.thread?.sandbox && props.onUpdateStoryBranch}>
+        <Disclosure title={t('mlearn.ConversationAgent.Story.Branch')}>
+          <div class="ca-story-branch">
+            <FormField label={t('mlearn.ConversationAgent.Story.BranchMode')}><Select value={storyMode()}
+              onChange={event => setStoryMode(event.currentTarget.value as StoryFollowMode)}
+              options={[{ value: 'follow', label: t('mlearn.ConversationAgent.Story.Follow') },
+                { value: 'pinned', label: t('mlearn.ConversationAgent.Story.Pinned') },
+                { value: 'independent', label: t('mlearn.ConversationAgent.Story.Independent') }]} /></FormField>
+            <FormField label={t('mlearn.ConversationAgent.Story.AlternatePremises')}><Textarea rows={3} value={adaptations()}
+              onInput={event => setAdaptations(event.currentTarget.value)} /></FormField>
+            <Button size="sm" loading={storySaving()} onClick={() => { void saveStoryBranch(); }}>{t('mlearn.ConversationAgent.Details.Save')}</Button>
+            <Show when={storyError()}><p role="alert" class="ca-thread-world-run-error">{storyError()}</p></Show>
+          </div>
+        </Disclosure>
+      </Show>
+
+      <Show when={settings.devMode && contextRuns().length > 0}>
         <section class="ca-thread-section">
           <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.WorldActivity')}</span>
           <For each={contextRuns()}>
@@ -231,7 +263,7 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
           <p>{t((props.autonomyEnabled ?? true)
             ? 'mlearn.ConversationAgent.Details.AutonomyWaiting'
             : 'mlearn.ConversationAgent.Details.AutonomyPaused')}</p>
-          <For each={roomAutonomyJobs()}>
+          <For each={settings.devMode ? roomAutonomyJobs() : []}>
             {(job) => (
               <article class="ca-thread-world-run">
                 <span class="ca-thread-world-run-status">{autonomyStatus(job)}</span>
@@ -280,7 +312,7 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
               </Show>
             </div>
           </Show>
-          <For each={roomContacts()}>
+          <For each={settings.devMode ? roomContacts() : []}>
             {(contact) => <article class="ca-thread-world-run">
               <span class="ca-thread-world-run-status">{t('mlearn.ConversationAgent.Details.ContactStatus', { status: contact.status })}</span>
             </article>}

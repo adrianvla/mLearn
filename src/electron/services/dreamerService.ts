@@ -44,6 +44,7 @@
 
 import { createHash, randomUUID } from 'crypto';
 import { livingWorldEnabled, requireLivingWorld } from '../../shared/livingWorld';
+import { inferenceEvents } from '../../shared/inferenceBoundary';
 import { loadSettings } from './settings';
 import type { InferencePolicy } from '../../shared/inferencePolicy';
 import { HARNESS_ACTOR, USER_ACTOR, WORLD_CONTINUITY_ID } from '../../shared/world';
@@ -664,7 +665,7 @@ export function maintenanceMarkers(stream: JournalEvent[], kind: 'reflection' | 
  *  excluding tombstoned content and already-derived rows. */
 export function maintenanceWindow(stream: JournalEvent[], lastWindowEnd: number): JournalEvent[] {
   const tombstoned = tombstonedIds(stream);
-  return stream
+  return inferenceEvents(stream)
     .filter(event => SOURCE_TYPES.has(event.type) && !tombstoned.has(event.id) && event.provenance?.reflectionId === undefined && event.seq > lastWindowEnd);
 }
 
@@ -743,7 +744,7 @@ export function requestedMaintenanceRetry(
 }
 
 export function maintenanceRetryWindow(record: ReflectionRunRecord, stream: JournalEvent[]): JournalEvent[] | null {
-  const byId = new Map(stream.map(event => [event.id, event]));
+  const byId = new Map(inferenceEvents(stream).map(event => [event.id, event]));
   const events = record.sourceEventIds.map(id => byId.get(id));
   if (events.some(event => event === undefined)) return null;
   const invalid = tombstonedIds(stream);

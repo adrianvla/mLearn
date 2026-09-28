@@ -561,7 +561,7 @@ interface ChatTokenProps {
 }
 
 const ChatToken: Component<ChatTokenProps> = (props) => (
-  <SubtitleWord class="chat-token" token={props.token} index={0} onHover={props.onTokenHover} onLeave={props.onTokenLeave} />
+  <SubtitleWord class="chat-token" compact token={props.token} index={0} onHover={props.onTokenHover} onLeave={props.onTokenLeave} />
 );
 
 // Quiz widget

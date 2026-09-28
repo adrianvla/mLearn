@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { getUserDataPath } from '../utils/platform';
 import type { AutonomyJobRecord, ContactRecord, IntegrationRecord, Participant, Room, Thread, ScenarioCreation, ReflectionRunRecord } from '../../shared/world';
+import type { StoryTrack, StoryAdvanceRecord } from '../../shared/story';
 import { guardianForWrites } from './guardian';
 
 export interface WorldState {
@@ -24,6 +25,8 @@ export interface WorldState {
   autonomyJobs?: AutonomyJobRecord[];
   /** Durable V10 contact and delivery ledger. */
   contacts?: ContactRecord[];
+  storyTracks?: StoryTrack[];
+  storyAdvances?: StoryAdvanceRecord[];
 }
 
 function worldFilePath(): string {
@@ -52,7 +55,7 @@ export async function loadWorld(): Promise<WorldState> {
       throw new Error(`[worldStore] world.json ${key} must be an array`);
     }
   }
-  for (const key of ['scenarioCreations', 'integrations', 'reflectionRuns', 'autonomyJobs', 'contacts'] as const) {
+  for (const key of ['scenarioCreations', 'integrations', 'reflectionRuns', 'autonomyJobs', 'contacts', 'storyTracks', 'storyAdvances'] as const) {
     if (Object.prototype.hasOwnProperty.call(state, key) && !Array.isArray(state[key])) {
       throw new Error(`[worldStore] world.json ${key} must be an array when present`);
     }

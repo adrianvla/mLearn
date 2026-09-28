@@ -167,6 +167,15 @@
           },
           "Title": "内蔵モデル"
         },
+        "CompatibleConfig": {
+          "Title": "OpenAI互換API",
+          "BaseUrl": "APIベースURL",
+          "ApiKey": "APIキー",
+          "Model": "モデル",
+          "TestConnection": "接続をテスト",
+          "ConnectionSuccess": "接続に成功しました",
+          "AuthenticationFailed": "AI設定でAPIキーとモデルを確認してから、もう一度お試しください。"
+        },
         "CloudConfig": {
           "ApiUrlHint": "クラウドAPI URLは接続設定で設定されます。",
           "ConnectionSuccess": "接続成功。",
@@ -252,8 +261,13 @@
           "Title": "Ollama設定"
         },
         "Provider": {
+          "EnableLocal": {
+            "Label": "ローカルAI会話",
+            "Description": "選択したローカルプロバイダーで会話とテキストの説明を有効にします。"
+          },
           "Builtin": "内蔵",
           "Cloud": "クラウド",
+          "OpenAICompatible": "OpenAI互換",
           "Description": "AIモデルの実行方法を選択します。",
           "Ollama": "Ollama",
           "Title": "LLMプロバイダー"
@@ -268,6 +282,9 @@
             "Description": "有効にすると、すべてのエージェントがすべての記憶にアクセスできます。無効にすると、各エージェントは自分の記憶のみ参照します。"
           },
           "Title": "エージェントの記憶"
+        },
+        "Boundary": {
+          "Title": "会話の境界確認", "Provider": "確認方法", "Description": "返信は保存前に確認されます。ローカル分類器で非公開の一次確認を追加できます。最終的な判断は選択したモデルが行います。", "Actor": "モデルによる確認", "Local": "ローカルCPUガード＋モデル確認", "LocalDescription": "Qwen3Guard-Gen 0.6B、約484 MB。CPUで動作します。", "Install": "ローカルガードをインストール", "Installed": "ローカルガードをインストール済み"
         },
         "Checker": {
           "Title": "校正エージェント",
@@ -521,7 +538,8 @@
         "TotalTime": "合計: {value}ms"
       },
       "Empty": {
-        "Hint": "AIチューターと対象言語で練習しましょう。間違いを修正し、クイズを出し、学習を支援します。",
+        "Hint": "チャットを選んで続けるか、連絡先の相手と新しい会話を始めましょう。",
+        "ReadyHint": "メッセージを送るか、AIに会話を始めてもらいましょう。",
         "StartConversation": "AIに始めてもらう",
         "Title": "会話を始める",
         "NewConversation": "新しい会話"
@@ -856,7 +874,21 @@
         "Generic": "会話を続行できませんでした。再試行し、問題が続く場合はAI設定を確認してください。",
         "Settings": "AI設定を開く"
       },
+      "Story": {
+        "SupportResponse": "つらい状況にいるのですね。一人で抱えなくて大丈夫です。差し迫った危険がある場合は、今すぐ地域の緊急窓口か信頼できる人に連絡してください。",
+        "Branch": "練習用の物語", "BranchMode": "出典の背景を使う", "Follow": "新しい出典に追随", "Pinned": "この版を保持", "Independent": "別の物語", "AlternatePremises": "別の前提（1行に1件）",
+        "SaveBeforeUse": "進捗の変更や更新の調査を行う前に、この変更を保存してください。",
+        "Title": "物語の進捗", "Track": "作品の版", "NewTrack": "新しい版", "Work": "作品", "Edition": "版・世界線", "Unit": "単位名", "Total": "総単位数", "SourceWiki": "出典WikiのURL", "AutoAdvance": "新たに調べた背景を自動で反映", "Progress": "完了した単位", "UnitNumber": "単位番号", "Through": "ここまで完了", "Complete": "単位を完了", "Remove": "単位を外す", "Sources": "出典ページ", "SourceUrl": "出典ページのURL", "From": "開始単位", "To": "終了単位", "AddSource": "出典を追加", "SourceHint": "確認済みのページだけを登録してください。範囲全体を完了した場合のみ使用されます。", "UpdatePeople": "連絡先の背景を更新", "ReviewUpdate": "更新内容を調査", "Ready": "出典に基づく変更を確認してから適用してください。", "ApplyUpdate": "連絡先に適用", "ValidUnit": "有効な単位番号を入力してください。", "ValidSource": "出典URLと有効な単位範囲を入力してください。", "ResearchIdentity": "出典から人物を調査", "NoTrack": "進捗の指定なし", "Research": "調査", "ScopedContext": "現在の進捗までの背景", "SourceQuotes": "出典の引用", "Unknowns": "不明・未確認", "UseDraft": "この下書きを使用", "ResearchAccepted": "下書きを選択済み"
+      },
       "Contacts": {
+        "Archive": "連絡先をアーカイブ",
+        "ArchiveHint": "この連絡先は一覧から非表示になり、自分から連絡しなくなります。既存のチャットと履歴は残ります。",
+        "Archived": "アーカイブした連絡先",
+        "Restore": "連絡先を復元",
+        "SharedChats": "共有チャット",
+        "NewMessage": "新しいメッセージ",
+        "NewPractice": "新しい練習",
+        "EmptyPractice": "練習チャットはまだありません。",
         "Chats": "チャット",
         "Tab": "連絡先",
         "Add": "連絡先を追加",
@@ -945,6 +977,7 @@
       "Provider": {
         "Builtin": "ローカルAI",
         "Cloud": "クラウドAI",
+        "OpenAICompatible": "OpenAI互換AI",
         "Ollama": "Ollama"
       },
       "ShowParsed": "解析表示",

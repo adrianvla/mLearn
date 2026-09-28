@@ -43,6 +43,11 @@ import { settleMaintenanceRunUnlocked } from './dreamerService';
 import { prepareScenario, activateScenario, cancelScenario } from './scenarioDirector';
 import * as integration from './integration';
 import { activateContact, respondToContact } from './contactService';
+import { saveStoryTrack, setStoryProgress, updateStoryBranch } from './storyService';
+import { researchCharacter, cancelCharacterResearch } from './characterResearch';
+import { prepareStoryAdvance, applyStoryAdvance, cancelStoryAdvance } from './storyAdvancement';
+import { reviewConversationTurn, cancelConversationReview } from './conversationReviewService';
+import { localGuardStatus, installLocalGuard } from './localConversationGuard';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
   return withWorldMutation(async () => {
@@ -118,7 +123,7 @@ export async function createSandbox(input: CreateCastInput): Promise<Thread> {
       return existing;
     }
     const bindings = ids.map(id => {
-      const person = state.participants.find(candidate => candidate.id === id);
+      const person = state.participants.find(candidate => candidate.id === id && !candidate.archivedAt);
       if (!person) throw new Error('[world] selected person is unavailable');
       // Reusable practice profiles are not world individuals. Do not give them
       // an origin link that integration could silently treat as persistent.
@@ -165,10 +170,14 @@ export async function createPersistentRoom(input: CreateCastInput): Promise<Room
       return existing;
     }
     const members = ids.map(id => {
-      const person = state.participants.find(candidate => candidate.id === id && candidate.kind === 'persistent');
+      const person = state.participants.find(candidate => candidate.id === id && candidate.kind === 'persistent' && !candidate.archivedAt);
       if (!person) throw new Error('[world] selected persistent person is unavailable');
       return person;
     });
+    if (ids.length === 1) {
+      const direct = state.rooms.find(room => room.participantIds.length === 1 && room.participantIds[0] === ids[0]);
+      if (direct) return direct;
+    }
     const room: Room = {
       id: `room-${randomUUID()}`,
       title: request.title?.trim() || members.map(person => person.displayName).join(', '),
@@ -198,7 +207,8 @@ export async function updateThread(thread: Thread): Promise<Thread> {
     }
     const current = state.threads[index];
     if (!isDeepStrictEqual(current.sandbox, thread.sandbox) || current.roomId !== thread.roomId ||
-        !isDeepStrictEqual(current.scenario, thread.scenario) || current.scenarioRef !== thread.scenarioRef) {
+        !isDeepStrictEqual(current.scenario, thread.scenario) || current.scenarioRef !== thread.scenarioRef ||
+        !isDeepStrictEqual(current.storyBranch, thread.storyBranch)) {
       throw new Error('[world] thread ownership and baseline cannot be replaced');
     }
     const threads = [...state.threads];
@@ -401,6 +411,18 @@ export function setupWorldIPC(): void {
   ipcMain.handle(IPC_CHANNELS.WORLD_CLEAR_UNREAD, async (_event, roomId: string): Promise<void> => {
     await clearRoomUnread(roomId);
   });
+  ipcMain.handle(IPC_CHANNELS.WORLD_SAVE_STORY_TRACK, (_event, input: import('../../shared/story').SaveStoryTrackInput) => saveStoryTrack(input));
+  ipcMain.handle(IPC_CHANNELS.WORLD_SET_STORY_PROGRESS, (_event, input: import('../../shared/story').SetStoryProgressInput) => setStoryProgress(input));
+  ipcMain.handle(IPC_CHANNELS.WORLD_UPDATE_STORY_BRANCH, (_event, input: import('../../shared/story').UpdateStoryBranchInput) => updateStoryBranch(input));
+  ipcMain.handle(IPC_CHANNELS.WORLD_RESEARCH_CHARACTER, (_event, input: import('../../shared/characterIdentity').CharacterResearchRequest) => researchCharacter(input));
+  ipcMain.handle(IPC_CHANNELS.WORLD_CANCEL_CHARACTER_RESEARCH, (_event, id: string) => { cancelCharacterResearch(id); });
+  ipcMain.handle(IPC_CHANNELS.WORLD_PREPARE_STORY_ADVANCE, (_event, input: import('../../shared/story').StoryAdvanceInput) => prepareStoryAdvance(input));
+  ipcMain.handle(IPC_CHANNELS.WORLD_APPLY_STORY_ADVANCE, (_event, id: string) => applyStoryAdvance(id));
+  ipcMain.handle(IPC_CHANNELS.WORLD_CANCEL_STORY_ADVANCE, (_event, id: string) => { cancelStoryAdvance(id); });
+  ipcMain.handle(IPC_CHANNELS.WORLD_REVIEW_CONVERSATION_TURN, (_event, input: import('../../shared/conversationReview').TurnReviewRequest) => reviewConversationTurn(input));
+  ipcMain.handle(IPC_CHANNELS.WORLD_CANCEL_CONVERSATION_REVIEW, (_event, id: string) => { cancelConversationReview(id); });
+  ipcMain.handle(IPC_CHANNELS.WORLD_LOCAL_GUARD_STATUS, () => localGuardStatus());
+  ipcMain.handle(IPC_CHANNELS.WORLD_INSTALL_LOCAL_GUARD, () => installLocalGuard());
 }
 
 export async function createParticipant(input: {
@@ -418,6 +440,13 @@ export async function createParticipant(input: {
   return withWorldMutation(async () => {
     if (input.kind === 'persistent') requireLivingWorld(loadSettings());
     const world = await loadWorld();
+    if (input.canon?.trackId) {
+      const track = world.storyTracks?.find(item => item.id === input.canon?.trackId);
+      if (!track || track.revision !== input.canon.trackRevision) throw new Error('Source progress changed; research this identity again before creating the contact');
+      if (input.canon.coverage?.some(range => !track.completed.some(item => item.from <= range.from && item.to >= range.to))) {
+        throw new Error('Identity source material exceeds declared progress');
+      }
+    }
     const participant: Participant = {
       id: `participant-${randomUUID()}`,
       displayName: input.displayName,
@@ -438,21 +467,26 @@ export async function createParticipant(input: {
 export async function updateParticipant(participant: Participant, threadId?: string): Promise<Participant> {
   return withWorldMutation(async () => {
     const world = await loadWorld();
+    // Editors submit a snapshot; only profile fields may replace current world state.
+    const profile = {
+      displayName: participant.displayName,
+      personaText: participant.personaText,
+      profilePhoto: participant.profilePhoto,
+      voiceSampleId: participant.voiceSampleId,
+    };
     if (threadId) {
       const thread = world.threads.find(item => item.id === threadId);
       const binding = thread?.sandbox?.bindings.find(item => item.baseline.id === participant.id);
       if (!binding) throw new Error('[world] person is not bound to the selected sandbox');
-      binding.localOverride = { ...binding.baseline,
-        displayName: participant.displayName, personaText: participant.personaText,
-        profilePhoto: participant.profilePhoto, voiceSampleId: participant.voiceSampleId,
-      };
+      binding.localOverride = { ...(binding.localOverride ?? binding.baseline), ...profile };
       await saveWorld(world);
       return binding.localOverride;
     }
     const index = world.participants.findIndex((item) => item.id === participant.id);
     if (index === -1) throw new Error(`[world] participant not found: ${participant.id}`);
     if (participant.kind === 'persistent' && world.participants[index].kind !== 'persistent') requireLivingWorld(loadSettings());
-    participant = { ...participant, adoption: world.participants[index].adoption };
+    const current = world.participants[index];
+    participant = { ...current, ...profile, kind: participant.kind, archivedAt: participant.archivedAt };
     world.participants[index] = participant;
     await saveWorld(world);
     return participant;
@@ -462,6 +496,8 @@ export async function updateParticipant(participant: Participant, threadId?: str
 export async function deleteParticipant(participantId: string): Promise<void> {
   return withWorldMutation(async () => {
     const world = await loadWorld();
+    const person = world.participants.find(item => item.id === participantId);
+    if (!person || person.archivedAt) return;
     const now = Date.now();
     world.contacts = world.contacts?.map(contact => {
       if (contact.participantId !== participantId
@@ -471,16 +507,13 @@ export async function deleteParticipant(participantId: string): Promise<void> {
         status: 'cancelled' as const,
         revision: contact.revision + 1,
         settledAt: now,
-        reason: 'The contact destination was erased',
-        history: [...contact.history, { status: 'cancelled' as const, at: now, reason: 'The contact destination was erased' }],
+        reason: 'The contact was archived',
+        history: [...contact.history, { status: 'cancelled' as const, at: now, reason: 'The contact was archived' }],
         prepared: undefined,
       };
     });
-    world.participants = world.participants.filter((item) => item.id !== participantId);
-    for (const room of world.rooms) {
-      room.participantIds = room.participantIds.filter((id) => id !== participantId);
-    }
-    await saveWorld(world, { participants: [participantId] });
+    person.archivedAt = now;
+    await saveWorld(world);
   });
 }
 

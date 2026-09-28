@@ -6,6 +6,7 @@ const EXPLAINER_PROVIDER_KEYS: Record<LLMProvider, string> = {
   builtin: 'mlearn.Explainer.Provider.Builtin',
   ollama: 'mlearn.Explainer.Provider.Ollama',
   cloud: 'mlearn.Explainer.Provider.Cloud',
+  'openai-compatible': 'mlearn.Explainer.Provider.OpenAICompatible',
 };
 
 export function getExplainerProviderTranslationKey(provider: LLMProvider): string {

@@ -1128,6 +1128,23 @@ describe('LLM Bridge', () => {
     );
   });
 
+  it('llmStream uses the configured OpenAI-compatible endpoint on mobile', async () => {
+    localStorage.setItem('settings', JSON.stringify({ llmProvider: 'openai-compatible',
+      compatibleApiBaseUrl: 'https://provider.test/v1', compatibleApiKey: 'test-key', compatibleModel: 'model-id' }));
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      body: { getReader: () => ({ read: vi.fn().mockResolvedValue({ done: true }) }) },
+    });
+    vi.stubGlobal('fetch', mockFetch);
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    bridge.llm.llmStream([{ role: 'user', content: 'test' }], []);
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    expect(mockFetch).toHaveBeenCalledWith('https://provider.test/v1/chat/completions',
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer test-key' }) }));
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({ model: 'model-id', stream: true });
+  });
+
   it('uses the managed task boundary for direct school requests and rejects raw system roles', async () => {
     localStorage.setItem('settings', JSON.stringify({ llmProvider: 'cloud', overrideCloudEndpointUrl: true, cloudApiUrl: 'https://school.test', cloudAuthAccessToken: 'school-token' }));
     const fetchMock = vi.fn().mockResolvedValue(new Response(''));

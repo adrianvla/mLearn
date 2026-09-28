@@ -4,6 +4,7 @@ function createMockIPC() {
   return {
     getSettings: vi.fn(),
     saveSettings: vi.fn(),
+    awaitSettingsSaved: vi.fn(),
     onSettings: vi.fn(),
     onSettingsSaved: vi.fn(),
     getFlashcards: vi.fn(),
@@ -242,6 +243,12 @@ describe('settingsBridge', () => {
     const settings = { colorScheme: 'dark-quartz' } as never;
     bridge.settings.saveSettings(settings);
     expect(mockIPC.saveSettings).toHaveBeenCalledWith(settings);
+  });
+
+  it('awaitSettingsSaved forwards the persistence barrier', async () => {
+    mockIPC.awaitSettingsSaved.mockResolvedValue(undefined);
+    await createElectronBridge().settings.awaitSettingsSaved();
+    expect(mockIPC.awaitSettingsSaved).toHaveBeenCalledOnce();
   });
 
   it('onSettings passes callback to ipc.onSettings and returns its result', () => {

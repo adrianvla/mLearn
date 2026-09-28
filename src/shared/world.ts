@@ -29,7 +29,9 @@ export type EventType =
   | 'scenario_evolved'
   | 'intention'
   | 'occurrence.simulated'
-  | 'contact.invitation';
+  | 'contact.invitation'
+  | 'review.admitted'
+  | 'review.boundary';
 
 /** Reserved actor ids. Anything else is a Participant id. */
 export const USER_ACTOR = 'user';
@@ -281,6 +283,8 @@ export type ContactActionResult =
 // Entities
 // ---------------------------------------------------------------------------
 
+import { resolveStoryCanon, type StoryBranch, type UnitRange, type StoryTrack, type StoryAdvanceRecord } from './story';
+
 export interface Room {
   /** Persistent situation; survives individual encounters and Room return. */
   scenario?: ScenarioSpec;
@@ -315,6 +319,8 @@ export interface Thread {
   intent?: string;
   mediaRef?: ThreadMediaRef;
   state: 'active' | 'archived' | 'integrated';
+  /** User-authored alternative premises remain separate from source canon. */
+  storyBranch?: StoryBranch;
   createdAt: number;
   /** A durable sandbox has its own cast, never permanent Room membership. */
   sandbox?: {
@@ -359,7 +365,14 @@ export function threadContextId(thread: Thread): string {
 
 export function threadParticipants(thread: Thread, participants: Participant[]): Participant[] {
   return thread.sandbox
-    ? thread.sandbox.bindings.map(binding => binding.localOverride ?? binding.baseline)
+    ? thread.sandbox.bindings.map(binding => {
+      const frozen = binding.localOverride ?? binding.baseline;
+      const branch = thread.storyBranch;
+      if (!branch || !binding.originId) return frozen;
+      const current = participants.find(person => person.id === binding.originId);
+      const canon = resolveStoryCanon(frozen, current, branch.mode, branch.adaptations);
+      return canon === frozen.canon ? frozen : { ...frozen, canon };
+    })
     : participants;
 }
 
@@ -376,6 +389,8 @@ export interface Participant {
   /** Immutable adoption identity; ordinary profile edits must preserve it. */
   adoption?: { sourceThreadId: string; baselineHash: string };
   id: string; // legacy agent_* ids preserved
+  /** Hidden from new conversations, but retained so journal actors and Rooms resolve. */
+  archivedAt?: number;
   displayName: string;
   kind: 'persistent' | 'temporary';
   personaText: string; // rich persona (was roleplayLore); plain tutors have plain descriptions
@@ -389,6 +404,10 @@ export interface Participant {
 }
 
 export interface CanonAnchor {
+  trackId?: string;
+  trackRevision?: number;
+  /** Scoped source units already admitted into this person's baseline. */
+  coverage?: UnitRange[];
   workTitle: string;
   fandomBaseUrl: string;
   characterPageTitle: string;
@@ -404,6 +423,7 @@ export interface CanonCoordinate {
 
 export interface SourceRef {
   pageTitle: string;
+  url?: string;
   section?: string;
   fetchedAt: number;
 }
@@ -598,6 +618,8 @@ export interface ScenarioGrounding {
 
 /** Full entity snapshot handed to the renderer over WORLD_GET_STATE. */
 export interface WorldSnapshot {
+  storyTracks?: StoryTrack[];
+  storyAdvances?: StoryAdvanceRecord[];
   integrations?: Omit<IntegrationRecord, 'prepared'>[];
   reflectionRuns?: Omit<ReflectionRunRecord, 'prepared'>[];
   autonomyJobs?: Omit<AutonomyJobRecord, 'prepared'>[];

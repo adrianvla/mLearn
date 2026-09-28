@@ -59,6 +59,7 @@ vi.mock('../../components/common', async (original) => ({
     <button type="button" role={props.role} aria-label={props['aria-label']} aria-pressed={props['aria-pressed']} aria-checked={props['aria-checked']} class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   HintText: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+  VoiceSamplePicker: () => <div />,
 }));
 
 import { NewConversationModal } from './NewConversationModal';
@@ -121,6 +122,70 @@ describe('NewConversationModal', () => {
     textarea.value = text;
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   };
+
+  it('opens an existing direct message without a persistence choice', async () => {
+    const onCreated = vi.fn();
+    const existing = { ...world(), rooms: [{ id: 'dm-rin', title: 'Rin', participantIds: [rin.id], createdAt: 1 }] };
+    dispose = render(() => <NewConversationModal mode="message" world={existing} onClose={vi.fn()} onCreated={onCreated} />, container);
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Contacts.NewMessage');
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.ScopeLabel');
+    expect(container.querySelector('textarea')).toBeNull();
+    personButton('Rin').click();
+    startButton().click();
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'dm-rin', threadId: null }));
+    expect(createPersistentRoom).not.toHaveBeenCalled();
+    expect(createSandbox).not.toHaveBeenCalled();
+  });
+
+  it('keeps inline contact creation in New Message persistent', async () => {
+    createParticipant.mockResolvedValueOnce({ id: 'person-new', displayName: 'Mara', kind: 'persistent', personaText: '', setupComplete: true });
+    const onCreated = vi.fn();
+    dispose = render(() => <NewConversationModal mode="message" world={world([])} onClose={vi.fn()} onCreated={onCreated} />, container);
+    const addContact = Array.from(container.querySelectorAll('button')).find(item => item.textContent === 'mlearn.ConversationAgent.Contacts.Add');
+    expect(addContact).toBeDefined(); addContact!.click();
+    expect(container.querySelector('.participant-editor-continuity')).toBeNull();
+    const name = container.querySelector('.participant-editor input[type="text"]') as HTMLInputElement;
+    name.value = 'Mara'; name.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('.participant-editor-actions button[aria-label="mlearn.ConversationAgent.Contacts.Add"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(createParticipant).toHaveBeenCalledWith(expect.objectContaining({ displayName: 'Mara', kind: 'persistent' })));
+    await vi.waitFor(() => expect(personButton('Mara')).toBeDefined());
+    startButton().click();
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-9', threadId: null }));
+    expect(createSandbox).not.toHaveBeenCalled();
+  });
+
+  it('keeps the inline contact editor consistent with a selected persistent scope', () => {
+    dispose = render(() => <NewConversationModal world={world([])} onClose={vi.fn()} onCreated={vi.fn()} />, container);
+    (container.querySelectorAll('[role="radio"]')[1] as HTMLInputElement).click();
+    const addContact = Array.from(container.querySelectorAll('button')).find(item => item.textContent === 'mlearn.ConversationAgent.Contacts.Add');
+    expect(addContact).toBeDefined(); addContact!.click();
+    expect(container.querySelector('.participant-editor-continuity')).toBeNull();
+  });
+
+  it('starts a separate practice chat from the practice action', async () => {
+    const onCreated = vi.fn();
+    dispose = render(() => <NewConversationModal mode="practice" world={world()} onClose={vi.fn()} onCreated={onCreated} />, container);
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Contacts.NewPractice');
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.ScopeLabel');
+    personButton('Rin').click();
+    startButton().click();
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'sandbox-1', threadId: 'sandbox-1' }));
+    expect(createSandbox).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: [rin.id] });
+    expect(createPersistentRoom).not.toHaveBeenCalled();
+  });
+
+  it('keeps a tutor-launched practice goal in the disposable flow', async () => {
+    const onCreated = vi.fn();
+    dispose = render(() => <NewConversationModal mode="practice" world={world([])} initialIntent="Practise describing my work" onClose={vi.fn()} onCreated={onCreated} />, container);
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Contacts.NewPractice');
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.ScopeLabel');
+    expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('Practise describing my work');
+    startButton().click();
+    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith(expect.objectContaining({
+      participantIds: [], intent: 'Practise describing my work',
+    })));
+    expect(createPersistentRoom).not.toHaveBeenCalled();
+  });
 
   it('carries the tutor purpose into scenario setup without asking the learner to re-enter it', () => {
     dispose = render(() => <NewConversationModal world={world()} initialIntent="Practise describing my work" onClose={vi.fn()} onCreated={vi.fn()} />, container);
@@ -411,16 +476,20 @@ describe('living world consent', () => {
 });
 
 describe('RoomSidebar', () => {
-  it('renders the New conversation button and fires onNewConversation', () => {
+  it('offers distinct new message and practice actions', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const onNewConversation = vi.fn();
+    const onPractice = vi.fn();
     const dispose = render(() => (
-      <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={onNewConversation} onAddContact={vi.fn()} onSelectContact={vi.fn()} />
+      <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={onNewConversation} onPractice={onPractice} onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />
     ), container);
 
-    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.Sidebar.NewConversation')!.click();
+    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.Contacts.NewMessage')!.click();
     expect(onNewConversation).toHaveBeenCalledTimes(1);
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Contacts.Practice')!.click();
+    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.Contacts.NewPractice')!.click();
+    expect(onPractice).toHaveBeenCalledTimes(1);
     dispose();
     container.remove();
   });

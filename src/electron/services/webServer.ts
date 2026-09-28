@@ -173,7 +173,8 @@ function installRendererNodeAuth(): void {
 }
 
 function settingsWithoutCloudCredentials(settings: ReturnType<typeof loadSettings>) {
-  const { cloudAuthAccessToken: _access, cloudAuthToken: _legacy, cloudAuthRefreshToken: _refresh, ...safeSettings } = settings;
+  const { cloudAuthAccessToken: _access, cloudAuthToken: _legacy, cloudAuthRefreshToken: _refresh,
+    compatibleApiKey: _compatibleKey, ...safeSettings } = settings;
   return safeSettings;
 }
 
