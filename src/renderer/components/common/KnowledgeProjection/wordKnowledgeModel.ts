@@ -1,5 +1,6 @@
 import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
+import { wordStatusFromClassification } from '../../../../shared/graph/targets';
 import type { WordStatus } from '../../../../shared/constants';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
 import type { KnowledgeBasisToken } from '../WordStatusPillKnowledge/knowledgeSummary';
@@ -46,7 +47,7 @@ export function assembleWordKnowledgeModel(input: {
   // projection. Materialized word status can refer to a different form family.
   const overall = projected
     ? {
-        status: (projected.classification === 'known' || projected.classification === 'learning' ? projected.classification : 'unknown') as WordStatus,
+        status: wordStatusFromClassification(projected.classification),
         basis: projected.basis,
         timesSeen: comprehensive?.timesSeen ?? 0,
       }

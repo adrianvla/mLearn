@@ -27,8 +27,9 @@ import {
   type KnowledgeBasisToken,
 } from '../WordStatusPillKnowledge/knowledgeSummary';
 import './KnowledgeProjection.css';
-import type { WordKnowledgeModel } from './wordKnowledgeModel';
 import { getBridge } from '../../../../shared/bridges';
+import { wordStatusFromClassification } from '../../../../shared/graph/targets';
+import type { WordKnowledgeModel } from './wordKnowledgeModel';
 import type { KnowledgeInspection } from '../../../services/openKnowledgeInspector';
 
 type Tone = 'evidence' | 'claim' | 'predicted' | 'unmeasured';
@@ -343,7 +344,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const effectiveFor = (capability: CapabilityKey): { status: WordStatus; basis: KnowledgeBasisToken; claim?: WordStatus; untracked: boolean } => {
     const projected = stateFor(capability);
     if (projected) {
-      const status: WordStatus = projected.classification === 'known' || projected.classification === 'learning' ? projected.classification : 'unknown';
+      const status: WordStatus = wordStatusFromClassification(projected.classification);
       return { status, basis: projected.basis, claim: projected.basis === 'claim' ? status : undefined, untracked: isUnmeasuredKnowledge(status, projected.basis) };
     }
     return { status: 'unknown', basis: 'unmeasured', untracked: true };

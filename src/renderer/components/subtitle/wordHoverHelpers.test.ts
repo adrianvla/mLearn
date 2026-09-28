@@ -98,44 +98,6 @@ describe('compact word hover content', () => {
   });
 });
 
-describe('getAnkiWordKnowledgeStatus', () => {
-  it('returns null when there are no matching Anki cards', () => {
-    expect(getAnkiWordKnowledgeStatus([], 1550, 1800)).toBeNull();
-    expect(getAnkiWordKnowledgeStatus(null, 1550, 1800)).toBeNull();
-  });
-
-  it('returns unknown for new cards below the learning threshold', () => {
-    expect(getAnkiWordKnowledgeStatus([{ factor: 1300, queue: 0, type: 0 }], 1550, 1800)).toBe('unknown');
-  });
-
-  it('returns learning for learning queue cards', () => {
-    expect(getAnkiWordKnowledgeStatus([{ factor: 1500, queue: 1, type: 1 }], 1550, 1800)).toBe('learning');
-  });
-
-  it('returns known for review cards', () => {
-    expect(getAnkiWordKnowledgeStatus([{ factor: 1700, queue: 2, type: 2 }], 1550, 1800)).toBe('known');
-  });
-
-  it('uses the highest status across multiple Anki cards for the same word', () => {
-    expect(getAnkiWordKnowledgeStatus([
-      { factor: 1300, queue: 0, type: 0 },
-      { factor: 2300, queue: 2, type: 2 },
-    ], 1550, 1800)).toBe('known');
-  });
-});
-
-describe('numericToWordStatus', () => {
-  it('converts WORD_STATUS values', () => {
-    expect(numericToWordStatus(WORD_STATUS.UNKNOWN)).toBe('unknown');
-    expect(numericToWordStatus(WORD_STATUS.LEARNING)).toBe('learning');
-    expect(numericToWordStatus(WORD_STATUS.KNOWN)).toBe('known');
-  });
-
-  it('defaults to unknown for unrecognized', () => {
-    expect(numericToWordStatus(999)).toBe('unknown');
-  });
-});
-
 describe('wordStatusToNumeric', () => {
   it('converts word status strings', () => {
     expect(wordStatusToNumeric('unknown')).toBe(WORD_STATUS.UNKNOWN);
@@ -158,22 +120,6 @@ describe('getEaseFromWordStatus', () => {
 
   it('returns minimum ease for unknown status regardless of custom values', () => {
     expect(getEaseFromWordStatus('unknown', 2.0, 2.5)).toBeCloseTo(1.3);
-  });
-});
-
-describe('getAnkiEaseForStatus', () => {
-  it('returns ankiLearningEase for learning status', () => {
-    expect(getAnkiEaseForStatus('learning', 1550, 1800)).toBe(1550);
-    expect(getAnkiEaseForStatus('learning', 2000, 2500)).toBe(2000);
-  });
-
-  it('returns ankiKnownEase for known status', () => {
-    expect(getAnkiEaseForStatus('known', 1550, 1800)).toBe(1800);
-    expect(getAnkiEaseForStatus('known', 2000, 2500)).toBe(2500);
-  });
-
-  it('returns Anki minimum ease (1300) for unknown status', () => {
-    expect(getAnkiEaseForStatus('unknown', 1550, 1800)).toBe(1300);
   });
 });
 

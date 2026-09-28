@@ -71,6 +71,13 @@ export function evidenceStatusFromEase(ease: number | undefined, thresholds: Eff
   return 'unknown';
 }
 
+/**
+ * Total order over learner statuses. Used wherever several resolved states
+ * must be reduced to the strongest one — the ordering is a property of the
+ * status vocabulary, not of any one surface.
+ */
+export const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
+
 export function effectiveStateFromEntry<T extends EffectiveKnowledgeEntry>(
   entry: T | undefined,
   thresholds: EffectiveThresholds,

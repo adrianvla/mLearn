@@ -1,5 +1,6 @@
 import type { JSX } from 'solid-js';
 import type { WordStatus } from '../../shared/constants';
+import { STATUS_RANK } from '../../shared/knowledge/effectiveKnowledge';
 import { statusToStrength } from '../../shared/utils/knowledgeStrength';
 import {
   DEFAULT_SETTINGS,
@@ -114,8 +115,7 @@ export function buildColoredProsodySegments(
 }
 
 export function coloredProsodyAllowsStatus(status: WordStatus, limit: Settings['coloredProsodyStatusLimit']): boolean {
-  const ranks: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
-  return ranks[status] <= ranks[limit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit];
+  return STATUS_RANK[status] <= STATUS_RANK[limit ?? DEFAULT_SETTINGS.coloredProsodyStatusLimit];
 }
 
 /**

@@ -1,7 +1,6 @@
 import type { FlashcardContent, DictionaryEntry, FlashcardProsody, LanguageData, Token, TranslationEntry } from '../../../shared/types';
-import { WORD_STATUS, SRS_EASE, ANKI_EASE } from '../../../shared/constants';
+import { WORD_STATUS, SRS_EASE } from '../../../shared/constants';
 import type { WordStatus } from '../../../shared/constants';
-import type { AnkiWordStatusRecord } from '../../../shared/backends/types';
 import type { WordLookupCandidateOptions } from '../../hooks/useTranslation';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { getLogger } from '../../../shared/utils/logger';
@@ -88,16 +87,6 @@ export interface BuildWordHoverFlashcardContentParams {
   screenshotDataUrl?: string;
 }
 
-export function numericToWordStatus(num: number): WordStatus {
-  switch (num) {
-    case WORD_STATUS.LEARNING:
-      return 'learning';
-    case WORD_STATUS.KNOWN:
-      return 'known';
-    default:
-      return 'unknown';
-  }
-}
 
 export function wordStatusToNumeric(status: WordStatus): number {
   switch (status) {
@@ -110,71 +99,6 @@ export function wordStatusToNumeric(status: WordStatus): number {
   }
 }
 
-const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
-
-function getAnkiQueueTypeStatus(card: Pick<AnkiWordStatusRecord, 'queue' | 'type'>): WordStatus | null {
-  if (card.queue === 2 || card.type === 2) {
-    return 'known';
-  }
-
-  if (card.queue === 1 || card.queue === 3 || card.type === 1 || card.type === 3) {
-    return 'learning';
-  }
-
-  if (card.queue === 0 || card.type === 0) {
-    return 'unknown';
-  }
-
-  return null;
-}
-
-function getAnkiFactorStatus(
-  factor: number | null | undefined,
-  learningThreshold: number,
-  knownThreshold: number,
-): WordStatus | null {
-  if (factor == null || factor <= 0) {
-    return null;
-  }
-
-  if (factor >= knownThreshold) {
-    return 'known';
-  }
-
-  if (factor >= learningThreshold) {
-    return 'learning';
-  }
-
-  return 'unknown';
-}
-
-/** Resolve a word-level Anki status from cached card scheduling/factor metadata. */
-export function getAnkiWordKnowledgeStatus(
-  cards: readonly Pick<AnkiWordStatusRecord, 'factor' | 'queue' | 'type'>[] | null | undefined,
-  learningThreshold: number,
-  knownThreshold: number,
-): WordStatus | null {
-  if (!cards || cards.length === 0) {
-    return null;
-  }
-
-  let bestStatus: WordStatus = 'unknown';
-
-  for (const card of cards) {
-    const queueTypeStatus = getAnkiQueueTypeStatus(card);
-    const factorStatus = getAnkiFactorStatus(card.factor, learningThreshold, knownThreshold);
-    const statuses = [queueTypeStatus, factorStatus].filter((status): status is WordStatus => status !== null);
-    const cardStatus = statuses.length > 0
-      ? statuses.reduce((best, current) => STATUS_RANK[current] > STATUS_RANK[best] ? current : best)
-      : 'unknown';
-
-    if (STATUS_RANK[cardStatus] > STATUS_RANK[bestStatus]) {
-      bestStatus = cardStatus;
-    }
-  }
-
-  return bestStatus;
-}
 
 export function getEaseFromWordStatus(
   status: WordStatus,
@@ -191,21 +115,6 @@ export function getEaseFromWordStatus(
   }
 }
 
-/** Convert a WordStatus to the Anki integer ease factor (1000 = 1.0×). */
-export function getAnkiEaseForStatus(
-  status: WordStatus,
-  ankiLearningEase: number,
-  ankiKnownEase: number,
-): number {
-  switch (status) {
-    case 'learning':
-      return ankiLearningEase;
-    case 'known':
-      return ankiKnownEase;
-    default:
-      return ANKI_EASE.MIN;
-  }
-}
 
 export function extractReadingFromEntries(entries: unknown[], languageData?: LanguageData | null): string {
   if (!Array.isArray(entries)) return '';

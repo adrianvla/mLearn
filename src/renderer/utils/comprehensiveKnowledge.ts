@@ -1,7 +1,7 @@
 import { LEXICAL_IDENTITY_CAPABILITIES } from '../../shared/graph/access';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource, type WordStatus, type WordKnowledgeSource } from '../../shared/constants';
 import type { IgnoredWordEntry, PassiveWordKnowledge } from '../../shared/types';
-import { effectiveStateFromEntry, type EffectiveWordState, type EffectiveThresholds, type KnowledgeBasis } from '../../shared/knowledge/effectiveKnowledge';
+import { STATUS_RANK, effectiveStateFromEntry, type EffectiveWordState, type EffectiveThresholds, type KnowledgeBasis } from '../../shared/knowledge/effectiveKnowledge';
 /**
  * Comprehensive synchronous word status — Tier-2 semantics.
  *
@@ -73,7 +73,6 @@ function buildWordFormMatches(word: string, deps: ComprehensiveKnowledgeDeps): W
   return matches;
 }
 
-const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
 
 function sourceLabel(basis: KnowledgeBasis, evidenceSource: string | undefined): WordKnowledgeSource {
   if (basis === 'claim') return 'Manual';
@@ -263,15 +262,6 @@ export function getComprehensiveWordStatus(
   deps: ComprehensiveKnowledgeDeps
 ): WordStatus {
   return getComprehensiveWordStatusWithSource(word, deps).status;
-}
-
-/**
- * Selection-policy view of a resolved status for "should we suggest/capture
- * this word" — same effective status; kept as a named read so policy callsites
- * stay explicit.
- */
-export function toSelectionBlockingStatus(resolved: ComprehensiveWordStatusResult): WordStatus {
-  return resolved.status;
 }
 
 /**

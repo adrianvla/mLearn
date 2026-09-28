@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PassiveWordKnowledge } from '../../shared/types';
 import type { ComprehensiveKnowledgeDeps } from './comprehensiveKnowledge';
-import { getComprehensiveWordStatusWithSource, toSelectionBlockingStatus } from './comprehensiveKnowledge';
+import { getComprehensiveWordStatusWithSource } from './comprehensiveKnowledge';
 import { effectiveStateFromEntry } from '../../shared/knowledge/effectiveKnowledge';
 
 function makeDeps(overrides: Partial<ComprehensiveKnowledgeDeps> = {}): ComprehensiveKnowledgeDeps {
@@ -183,16 +183,6 @@ describe('exclusion vs knowledge (Tier-2 semantics)', () => {
     expect(result.status).toBe('known');
     expect(result.basis).toBe('claim');
     expect(result.excluded).toBe(true);
-  });
-});
-
-describe('toSelectionBlockingStatus', () => {
-  it('mirrors the effective status for selection gates', () => {
-    const resolved = getComprehensiveWordStatusWithSource('слово', makeDeps({
-      wordKnowledge: { 'ru:hash:слово': entry({ claim: 'learning', claimAt: 3 }) },
-    }));
-
-    expect(toSelectionBlockingStatus(resolved)).toBe('learning');
   });
 });
 

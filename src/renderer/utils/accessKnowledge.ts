@@ -5,6 +5,7 @@ import {
   type WordStatus,
   type WordKnowledgeSource,
 } from '../../shared/constants';
+import { STATUS_RANK } from '../../shared/knowledge/effectiveKnowledge';
 import { CAPABILITY_ASPECT, demonstratesOf, migrateAspectRecordsToAccess, type AccessCue } from '../../shared/graph/access';
 import type { CapabilityKind } from '../../shared/graph/types';
 import type { CapabilityKey, PassiveWordKnowledge } from '../../shared/types';
@@ -18,7 +19,6 @@ export { migrateAspectRecordsToAccess };
 /** Capabilities a rating row can address directly (sense knowledge rides the word-level projection). */
 export type RatedCapability = CapabilityKey;
 
-const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
 
 export interface AccessStatusResult {
   status: WordStatus;

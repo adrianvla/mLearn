@@ -1,4 +1,4 @@
-import type { KnowledgeProjection } from './ipc';
+import type { KnowledgeProjection, KnowledgeProjectionClassification } from './ipc';
 import { relationsOf, type LingualGraph } from './load';
 import {
   type CapabilityKey,
@@ -112,13 +112,25 @@ export function unresolvedProjectionTargets(projection: KnowledgeProjection | un
     .map(capability => ({ entityId: target.targetRef.id, capability })));
 }
 
+/**
+ * The one projection→status edge. `predicted` and `unmeasured` are not
+ * measured knowledge, so they collapse to `unknown`; the accompanying basis
+ * is what distinguishes them. Every surface that renders a projection
+ * classification as a status must go through this.
+ */
+export function wordStatusFromClassification(
+  classification: KnowledgeProjectionClassification | undefined,
+): 'known' | 'learning' | 'unknown' {
+  return classification === 'known' || classification === 'learning' ? classification : 'unknown';
+}
+
 /** Presentation-only compact category. Prediction never becomes measured knowledge. */
 export function projectedWordStatus(projection: KnowledgeProjection | undefined): {
   status: 'known' | 'learning' | 'unknown'; basis: 'claim' | 'evidence' | 'unmeasured';
 } {
   const overall = projection?.status === 'ready' ? projection.lexical?.overall : undefined;
   return {
-    status: overall?.classification === 'known' || overall?.classification === 'learning' ? overall.classification : 'unknown',
+    status: wordStatusFromClassification(overall?.classification),
     basis: overall?.basis === 'claim' || overall?.basis === 'evidence' ? overall.basis : 'unmeasured',
   };
 }

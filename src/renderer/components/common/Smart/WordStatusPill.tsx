@@ -47,7 +47,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     getWordVariantsForLanguage,
     currentLangData,
   } = useLanguage();
-  const { setWordClaim } = useFlashcards();
+  const { setWordClaim, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { t } = useLocalization();
 
   const [showStatusSourceWarning, setShowStatusSourceWarning] = createSignal(false);
@@ -74,17 +74,24 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   ));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
   const projection = useKnowledgeProjection(() => ({ language: targetLanguage(), surface: props.word }));
-  const comprehensiveResult = createMemo(() => {
+  // The pill reads the SAME resolver every other surface uses. Deriving the
+  // result from the projection alone would fabricate `source`, which made the
+  // passive-evidence exemption in hasIntentionalBasis unreachable.
+  const comprehensiveResult = createMemo<ComprehensiveWordStatusResult>(() => {
     const payload = projection.projection();
-    const status = projectedWordStatus(payload);
-    return {
-      ...status,
-      claim: status.basis === 'claim' ? status.status : undefined,
-      evidenceStatus: status.status,
-      source: status.basis === 'claim' ? 'Manual' as const : 'None' as const,
-      matchedWord: props.word,
-      timesSeen: Math.max(0, ...(payload?.targets.flatMap(target => target.states.map(state => state.strength?.timesSeen ?? 0)) ?? [])),
-    };
+    const resolved = getComprehensiveWordStatusWithSourceSync(primaryWord(), targetLanguage());
+    const projected = projectedWordStatus(payload);
+    // The projection is the authority when it is ready; the materialized
+    // resolver still supplies the source and matched-form detail the pill needs.
+    return resolved.basis === 'unmeasured' && projected.basis !== 'unmeasured'
+      ? {
+        ...resolved,
+        status: projected.status,
+        basis: projected.basis,
+        claim: projected.basis === 'claim' ? projected.status : undefined,
+        evidenceStatus: projected.status,
+      }
+      : resolved;
   });
   const effectiveStatus = createMemo(() => comprehensiveResult().status);
 

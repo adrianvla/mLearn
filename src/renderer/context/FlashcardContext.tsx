@@ -40,7 +40,7 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
-import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys, toSelectionBlockingStatus } from '../utils/comprehensiveKnowledge';
+import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys } from '../utils/comprehensiveKnowledge';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
 import { appendEvents, appendEventsIdempotentAcknowledged, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
@@ -2027,9 +2027,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const now = Date.now();
     const unpopulatedCard = findUnpopulatedFlashcardForWord(word, lang);
 
-    const comprehensiveStatus = toSelectionBlockingStatus(
-      getComprehensiveWordStatusWithSourceSync(word, lang),
-    );
+    const comprehensiveStatus = getComprehensiveWordStatusWithSourceSync(word, lang).status;
     const suggestionLanguageData = languageDataFor(lang);
     const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? getDictionaryTargetLanguageForSettings(settings, lang);
     const keepSuggestion = shouldKeepSuggestion(
@@ -2148,9 +2146,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       .filter((s) => {
         if (s.language !== lang) return false;
         const hasUnpopulatedCard = findUnpopulatedFlashcardForWord(s.word, lang) !== null;
-        const comprehensiveStatus = toSelectionBlockingStatus(
-          getComprehensiveWordStatusWithSourceSync(s.word, lang),
-        );
+        const comprehensiveStatus = getComprehensiveWordStatusWithSourceSync(s.word, lang).status;
         const level = getSuggestedFlashcardLevel(s);
         const suggestionLanguageData = languageDataFor(lang);
         const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
@@ -2367,9 +2363,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           settings,
           known,
           userLevel,
-          toSelectionBlockingStatus(
-            getComprehensiveWordStatusWithSourceSync(suggestion.word, lang),
-          ),
+          getComprehensiveWordStatusWithSourceSync(suggestion.word, lang).status,
           suggestionLanguageData,
           {
             getWordForms: (word) => getWordFormsForLanguage(word, lang),

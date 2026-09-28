@@ -335,6 +335,29 @@ describe('WordStatusPill', () => {
     dispose();
   });
 
+  it('claims without warning when the only evidence is passive exposure', () => {
+    // Passive exposure is familiarity, not a decision the learner made, so
+    // overriding it needs no confirm. The pill used to fabricate `source`,
+    // which made this exemption unreachable and warned on every evidence word.
+    ankiMocks.findAnkiWordMatchInCacheMock.mockReturnValue(null);
+    comprehensiveResultMock = {
+      status: 'learning',
+      basis: 'evidence',
+      evidenceStatus: 'learning',
+      source: 'PassiveTracking',
+      timesSeen: 9,
+      matchedWord: 'Haus',
+    };
+    const dispose = render(() => <WordStatusPill word="Haus" language="de" />, container);
+
+    container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(container.querySelector('[data-testid="anki-warning"]')).toBeNull();
+    expect(setWordClaimMock).toHaveBeenCalledWith('de:Haus', 'known', 'de');
+
+    dispose();
+  });
+
   it('renders a loading placeholder and claims nothing while knowledge has not hydrated', () => {
     knowledgeReady.ready = false;
     comprehensiveResultMock = {
