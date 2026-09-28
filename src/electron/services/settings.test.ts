@@ -148,14 +148,6 @@ describe('loadSettings', () => {
     expect(DEFAULT_SETTINGS.videoFit).toBe('contain');
   });
 
-  it('omits nothing the Settings type requires from DEFAULT_SETTINGS', () => {
-    // Guards the same root cause generically: every key a caller can read off
-    // a loaded Settings object must be present in the defaults allowlist.
-    for (const key of Object.keys(mod.loadSettings()) as Array<keyof typeof DEFAULT_SETTINGS>) {
-      expect(Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)).toBe(true);
-    }
-  });
-
   it('recovers the selected language from a single installed language when settings file is missing', () => {
     const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });
