@@ -775,9 +775,30 @@ body.reduce-transparency .wfv-play{
 
 .wfv-level-value {
   position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.075rem;
+  max-width: 52px;
+  line-height: 1;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.wfv-level-value-main {
   font-size: 0.85rem;
   font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
+}
+
+.wfv-level-value-label {
+  max-width: 48px;
+  overflow: hidden;
+  font-size: 0.48rem;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wfv-level-side {

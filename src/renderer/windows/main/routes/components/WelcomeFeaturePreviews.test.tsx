@@ -753,7 +753,15 @@ describe('WelcomeLevelPreview', () => {
     const dispose = render(
       () => (
         <WelcomeLevelPreview
-          coverage={{ total: 100, tracked: 60, pct: 60 }}
+          progress={{
+            total: 100,
+            known: 60,
+            tracked: 60,
+            knownPct: 60,
+            assessedPct: 60,
+            masteryComplete: false,
+            assessmentComplete: false,
+          }}
           active={makeLevel(3, 60)}
           chips={[makeLevel(1, 100), makeLevel(2, 100), makeLevel(3, 60), makeLevel(4, 40), makeLevel(5, 10)]}
           titleLabel="Coverage"
@@ -764,7 +772,7 @@ describe('WelcomeLevelPreview', () => {
       container,
     );
 
-    expect(container.querySelector('.wfv-level-value')?.textContent).toBe('60%');
+    expect(container.querySelector('.wfv-level-value-main')?.textContent).toBe('60%');
     const chips = container.querySelectorAll('.wfv-level-chip');
     expect(chips).toHaveLength(5);
     expect(chips[0]?.classList.contains('wfv-level-chip-active')).toBe(true);
@@ -780,7 +788,7 @@ describe('WelcomeLevelPreview', () => {
     const dispose = render(
       () => (
         <WelcomeLevelPreview
-          coverage={null}
+          progress={null}
           active={null}
           chips={[]}
           titleLabel="Coverage"
@@ -791,7 +799,7 @@ describe('WelcomeLevelPreview', () => {
       container,
     );
 
-    expect(container.querySelector('.wfv-level-value')?.textContent).toBe('0%');
+    expect(container.querySelector('.wfv-level-value-main')?.textContent).toBe('0%');
     expect(container.querySelector('.wfv-level .wfv-empty')?.textContent).toBe('No level data yet');
 
     dispose();
@@ -802,7 +810,7 @@ describe('WelcomeLevelPreview', () => {
       () => (
         <WelcomeLevelPreview
           pending
-          coverage={null}
+          progress={null}
           active={null}
           chips={[]}
           titleLabel="Coverage"
@@ -829,7 +837,15 @@ describe('WelcomeLevelPreview', () => {
     const dispose = render(
       () => (
         <WelcomeLevelPreview
-          coverage={{ total: 100, tracked: 99, pct: 99 }}
+          progress={{
+            total: 100,
+            known: 99,
+            tracked: 99,
+            knownPct: 99,
+            assessedPct: 99,
+            masteryComplete: false,
+            assessmentComplete: false,
+          }}
           active={incomplete}
           chips={[incomplete]}
           titleLabel="Coverage"
@@ -849,7 +865,15 @@ describe('WelcomeLevelPreview', () => {
     const level = { ...makeLevel(4, 87.5), known: 559, total: 639 };
     const dispose = render(
       () => <WelcomeLevelPreview
-        coverage={{ total: 639, tracked: 559, pct: 87.5 }}
+        progress={{
+          total: 639,
+          known: 559,
+          tracked: 559,
+          knownPct: 87.5,
+          assessedPct: 87.5,
+          masteryComplete: false,
+          assessmentComplete: false,
+        }}
         active={level}
         chips={[level]}
         titleLabel="Coverage"
@@ -862,11 +886,19 @@ describe('WelcomeLevelPreview', () => {
     dispose();
   });
 
-  it('marks the dial percentage as assessed coverage and labels chip tooltips as Known', () => {
+  it('uses mastery for the dial and keeps assessment coverage as a separate metric', () => {
     const dispose = render(
       () => (
         <WelcomeLevelPreview
-          coverage={{ total: 100, tracked: 60, pct: 60 }}
+          progress={{
+            total: 100,
+            known: 60,
+            tracked: 100,
+            knownPct: 60,
+            assessedPct: 100,
+            masteryComplete: false,
+            assessmentComplete: true,
+          }}
           active={makeLevel(3, 60)}
           chips={[makeLevel(3, 60), makeLevel(4, 40)]}
           titleLabel="Coverage"
@@ -879,10 +911,12 @@ describe('WelcomeLevelPreview', () => {
       container,
     );
 
-    expect(container.querySelector('.wfv-level-status')?.textContent).toBe('60 / 100 assessed');
+    expect(container.querySelector('.wfv-level-value-main')?.textContent).toBe('60%');
+    expect(container.querySelector('.wfv-level-value-label')?.textContent).toBe('Known');
+    expect(container.querySelector('.wfv-level-status')?.textContent).toBe('100% assessed');
 
     const dial = container.querySelector<HTMLButtonElement>('button.wfv-level-dial-wrap');
-    expect(dial?.getAttribute('aria-label')).toBe('Coverage: 60% (assessed)');
+    expect(dial?.getAttribute('aria-label')).toBe('Coverage: Known: 60%; 100% assessed');
 
     const chips = container.querySelectorAll('.wfv-level-chip');
     expect(chips).toHaveLength(2);

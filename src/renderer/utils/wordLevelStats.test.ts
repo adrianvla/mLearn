@@ -8,7 +8,8 @@ import {
   computeLevelStats,
   getWordLevelStatus,
   resolveLevelStudyWordFrequency,
-  summarizeLevelCoverage,
+  summarizeLevelProgress,
+  progressPct,
   roundPct,
 } from './wordLevelStats';
 import { hashWordSync } from '../services/srsAlgorithm';
@@ -18,37 +19,69 @@ it('formats the shared 559/639 knowledge count as 87.5 percent', () => {
   expect(roundPct(559, 639)).toBe(87.5);
 });
 
+it('never rounds incomplete user-facing progress up to 100 percent', () => {
+  expect(roundPct(1999, 2000)).toBe(100);
+  expect(progressPct(1999, 2000)).toBe(99.9);
+  expect(progressPct(2000, 2000)).toBe(100);
+});
+
 function lk(language: string, word: string): string {
   return language + ':' + hashWordSync(word);
 }
 
-describe('summarizeLevelCoverage', () => {
-  it('uses exact counts for completion and caps rounded incomplete coverage below 100', () => {
+describe('summarizeLevelProgress', () => {
+  it('keeps mastery and assessment coverage as separate metrics', () => {
     const level = {
       level: 1,
       name: 'L1',
       total: 2000,
-      known: 1999,
-      learning: 0,
-      unknown: 0,
-      untracked: 1,
-      knownPct: 100,
-      learningPct: 0,
-      unknownPct: 0,
-      untrackedPct: 0.1,
+      known: 1804,
+      learning: 100,
+      unknown: 96,
+      untracked: 0,
+      knownPct: 90.2,
+      learningPct: 5,
+      unknownPct: 4.8,
+      untrackedPct: 0,
     };
 
-    expect(summarizeLevelCoverage([level])).toEqual({
+    expect(summarizeLevelProgress([level])).toEqual({
       total: 2000,
-      tracked: 1999,
-      pct: 99,
-      complete: false,
-    });
-    expect(summarizeLevelCoverage([{ ...level, known: 2000, untracked: 0 }])).toEqual({
-      total: 2000,
+      known: 1804,
       tracked: 2000,
-      pct: 100,
-      complete: true,
+      knownPct: 90.2,
+      assessedPct: 100,
+      masteryComplete: false,
+      assessmentComplete: true,
+    });
+
+    expect(summarizeLevelProgress([{
+      ...level,
+      known: 2000,
+      learning: 0,
+      unknown: 0,
+    }])).toEqual({
+      total: 2000,
+      known: 2000,
+      tracked: 2000,
+      knownPct: 100,
+      assessedPct: 100,
+      masteryComplete: true,
+      assessmentComplete: true,
+    });
+  });
+
+  it('does not expose a rounded 100 for incomplete mastery or assessment', () => {
+    const almostComplete = {
+      level: 1, name: 'L1', total: 2000, known: 1999,
+      learning: 0, unknown: 0, untracked: 1,
+      knownPct: 100, learningPct: 0, unknownPct: 0, untrackedPct: 0.1,
+    };
+    expect(summarizeLevelProgress([almostComplete])).toMatchObject({
+      knownPct: 99.9,
+      assessedPct: 99.9,
+      masteryComplete: false,
+      assessmentComplete: false,
     });
   });
 });

@@ -7,7 +7,7 @@
 import { Component, createEffect, createSignal, For, Show } from 'solid-js';
 import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
-import type { LevelStats } from '../../../../utils/wordLevelStats';
+import { progressPct, type LevelProgressSummary, type LevelStats } from '../../../../utils/wordLevelStats';
 import { RatingMatrix, SkeletonLine, SkeletonPill } from '../../../../components/common';
 import type { RecentWordRow, WeekStatDay } from '../welcomeSelectors';
 import type { AttemptQuality, RatingKeyboardMode } from '../../../../../shared/constants';
@@ -368,7 +368,7 @@ export const WelcomeLookupPreview: Component<WelcomeLookupPreviewProps> = (props
 };
 
 export interface WelcomeLevelPreviewProps {
-  coverage: { total: number; tracked: number; pct: number } | null;
+  progress: LevelProgressSummary | null;
   active: LevelStats | null;
   chips: LevelStats[];
   titleLabel: string;
@@ -380,13 +380,21 @@ export interface WelcomeLevelPreviewProps {
   pending?: boolean;
 }
 
-/** Circular coverage dial with real metadata-driven level chips; empty keeps the dial shell. */
+/** Mastery dial with per-level mastery chips and explicit assessment coverage. */
 export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) => {
-  const knownPct = (level: LevelStats) => (
-    level.total > 0 && level.known === level.total
-      ? 100
-      : Math.min(level.knownPct, 99)
-  );
+  const knownPct = (level: LevelStats) => progressPct(level.known, level.total);
+
+  const dialAriaLabel = () => {
+    if (props.pending) return props.titleLabel;
+    const progress = props.progress;
+    if (!progress) return props.emptyLabel;
+    const mastery = props.knownLabel
+      ? `${props.knownLabel}: ${progress.knownPct}%`
+      : `${progress.knownPct}%`;
+    return props.assessedLabel
+      ? `${props.titleLabel}: ${mastery}; ${progress.assessedPct}% ${props.assessedLabel}`
+      : `${props.titleLabel}: ${mastery}`;
+  };
 
   const remainingChips = () => props.chips.filter(
     (chip) => props.active === null || chip.level !== props.active.level,
@@ -400,21 +408,13 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
         <button
           type="button"
           class="wfv-level-dial-wrap"
-          aria-label={
-            props.pending
-              ? props.titleLabel
-              : props.coverage === null
-                ? props.emptyLabel
-                : props.assessedLabel
-                  ? `${props.titleLabel}: ${props.coverage.pct}% (${props.assessedLabel})`
-                  : `${props.titleLabel}: ${props.coverage.pct}%`
-          }
+          aria-label={dialAriaLabel()}
           onClick={props.onOpen}
         >
           <svg class="wfv-level-dial" viewBox="0 0 100 100" role="img" aria-hidden="true">
             <circle class="wfv-level-track" cx="50" cy="50" r="44" pathLength="100" />
-            <Show when={props.coverage}>
-              {(coverage) => (
+            <Show when={props.progress}>
+              {(progress) => (
                 <circle
                   class="wfv-level-fill"
                   cx="50"
@@ -422,7 +422,7 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
                   r="44"
                   pathLength="100"
                   stroke-dasharray="100"
-                  stroke-dashoffset={100 - coverage().pct}
+                  stroke-dashoffset={100 - progress().knownPct}
                 />
               )}
             </Show>
@@ -431,7 +431,10 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
             {/* Pending: placeholders preserve the dial's geometry; a bare 0%
                 here is the false semantic value that made the dial morph. */}
             <Show when={!props.pending} fallback={<SkeletonLine size="lg" width="3.2em" />}>
-              {props.coverage === null ? '0%' : `${props.coverage.pct}%`}
+              <span class="wfv-level-value-main">{props.progress === null ? '0%' : `${props.progress.knownPct}%`}</span>
+            </Show>
+            <Show when={!props.pending && props.progress !== null && props.knownLabel}>
+              <span class="wfv-level-value-label">{props.knownLabel}</span>
             </Show>
           </span>
           <Show
@@ -444,10 +447,10 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
             }
           >
             <Show
-              when={props.coverage}
+              when={props.progress}
               fallback={<p class="wfv-empty">{props.emptyLabel}</p>}
             >
-              {(coverage) => (
+              {(progress) => (
                 <div class="wfv-level-side">
                   <Show when={props.active}>
                     {(active) => (
@@ -460,7 +463,11 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
                       </span>
                     )}
                   </Show>
-                  <p class="wfv-level-status">{coverage().tracked} / {coverage().total}{props.assessedLabel ? ` ${props.assessedLabel}` : ''}</p>
+                  <p class="wfv-level-status" title={`${progress().tracked} / ${progress().total}`}>
+                    {props.assessedLabel
+                      ? `${progress().assessedPct}% ${props.assessedLabel}`
+                      : `${progress().tracked} / ${progress().total}`}
+                  </p>
                 </div>
               )}
             </Show>
@@ -474,7 +481,7 @@ export const WelcomeLevelPreview: Component<WelcomeLevelPreviewProps> = (props) 
           <SkeletonPill />
         </div>
       }>
-        <Show when={props.coverage && remainingChips().length > 0}>
+        <Show when={props.progress && remainingChips().length > 0}>
           <div class="wfv-level-chips">
             <For each={remainingChips()}>
               {(chip) => (

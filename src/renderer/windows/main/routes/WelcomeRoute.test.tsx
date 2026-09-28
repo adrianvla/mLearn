@@ -12,7 +12,7 @@ const [knowledgeReady, setKnowledgeReady] = createSignal(true);
 const [languageFlag, setLanguageFlag] = createSignal<string | undefined>();
 const levelPreviewState = vi.hoisted(() => ({
   // Holds the live Solid props proxy: assertions read current values.
-  last: null as null | { pending?: boolean; coverage: { pct: number } | null },
+  last: null as null | { pending?: boolean; progress: { knownPct: number; assessedPct: number } | null },
 }));
 const flashcardFixture = vi.hoisted(() => ({
   store: { flashcards: {} as Record<string, { id: string }>, dailyStats: {} },
@@ -116,7 +116,7 @@ vi.mock('./components', () => {
     WelcomeSettingsPreview: Preview,
     WelcomeStatsPreview: Preview,
     WelcomeLookupPreview: Preview,
-    WelcomeLevelPreview: (props: { pending?: boolean; coverage: { pct: number } | null }) => {
+    WelcomeLevelPreview: (props: { pending?: boolean; progress: { knownPct: number; assessedPct: number } | null }) => {
       levelPreviewState.last = props;
       return <div data-testid="level-preview" data-pending={String(props.pending ?? false)} />;
     },
@@ -202,7 +202,7 @@ describe('WelcomeRoute localization', () => {
     expect(levelPreviewState.last).not.toBeNull();
     expect(levelPreviewState.last!.pending).toBe(true);
     expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-loading')).toBe('true');
-    expect(levelPreviewState.last!.coverage).toBeNull();
+    expect(levelPreviewState.last!.progress).toBeNull();
 
     // Projection settles: the dial leaves pending; with no language data in
     // this harness, null stays the genuine no-data state.
@@ -210,7 +210,7 @@ describe('WelcomeRoute localization', () => {
     await Promise.resolve();
     expect(levelPreviewState.last!.pending).toBe(false);
     expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-loading')).toBe('false');
-    expect(levelPreviewState.last!.coverage).toBeNull();
+    expect(levelPreviewState.last!.progress).toBeNull();
 
     dispose();
   });

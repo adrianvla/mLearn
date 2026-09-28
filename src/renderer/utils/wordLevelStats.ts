@@ -153,6 +153,16 @@ export function roundPct(count: number, total: number): number {
   return total > 0 ? Math.round((count / total) * 1000) / 10 : 0;
 }
 
+/**
+ * User-facing progress percentage. A rounded value must never claim 100%
+ * unless the underlying count is actually complete.
+ */
+export function progressPct(count: number, total: number): number {
+  if (total <= 0) return 0;
+  if (count >= total) return 100;
+  return Math.max(0, Math.min(roundPct(count, total), 99.9));
+}
+
 function buildLevelBuckets(
   wordFrequency: WordFrequencyMap,
   levelNames: Record<string, string>,
@@ -196,26 +206,34 @@ export function getLevelStudyLevelNames(
   return names;
 }
 
-export interface LevelCoverageSummary {
+export interface LevelProgressSummary {
   total: number;
+  known: number;
   tracked: number;
-  pct: number;
-  complete: boolean;
+  /** Mastery: known / total. This is the primary learner-progress metric. */
+  knownPct: number;
+  /** Assessment coverage: (known + learning + unknown) / total. */
+  assessedPct: number;
+  masteryComplete: boolean;
+  assessmentComplete: boolean;
 }
 
-export function summarizeLevelCoverage(levels: readonly LevelStats[]): LevelCoverageSummary {
+export function summarizeLevelProgress(levels: readonly LevelStats[]): LevelProgressSummary {
   const total = levels.reduce((sum, level) => sum + level.total, 0);
+  const known = levels.reduce((sum, level) => sum + level.known, 0);
   const tracked = levels.reduce(
     (sum, level) => sum + level.known + level.learning + level.unknown,
     0,
   );
-  const complete = total > 0 && tracked === total;
-  const pct = total === 0
-    ? 0
-    : complete
-      ? 100
-      : Math.min(Math.round((tracked / total) * 100), 99);
-  return { total, tracked, pct, complete };
+  return {
+    total,
+    known,
+    tracked,
+    knownPct: progressPct(known, total),
+    assessedPct: progressPct(tracked, total),
+    masteryComplete: total > 0 && known === total,
+    assessmentComplete: total > 0 && tracked === total,
+  };
 }
 
 function getSortedFrequencyLevels(
@@ -281,7 +299,7 @@ export function computeLevelStats(
         learning,
         unknown,
         untracked,
-        knownPct: roundPct(known, total),
+        knownPct: progressPct(known, total),
         learningPct: roundPct(learning, total),
         unknownPct: roundPct(unknown, total),
         untrackedPct: roundPct(untracked, total),
@@ -350,7 +368,7 @@ export function computeWordLevelStats(
       learning: b.learning,
       unknown: b.unknown,
       untracked: b.untracked,
-      knownPct: roundPct(b.known, b.total),
+      knownPct: progressPct(b.known, b.total),
     };
   });
 
@@ -452,7 +470,7 @@ export function computeBeyondExamLevelStats(
     learning,
     unknown,
     untracked,
-    knownPct: roundPct(known, total),
+    knownPct: progressPct(known, total),
     learningPct: roundPct(learning, total),
     unknownPct: roundPct(unknown, total),
     untrackedPct: roundPct(untracked, total),
@@ -505,7 +523,7 @@ export function computeLevelCoverage(
       name: getFrequencyLevelLabel(level, levelNames, languageData),
       total,
       known,
-      pct: total > 0 ? Math.round((known / total) * 100) : 0,
+      pct: progressPct(known, total),
     };
   });
 }

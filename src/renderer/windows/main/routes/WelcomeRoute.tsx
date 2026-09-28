@@ -28,7 +28,7 @@ import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
-import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelCoverage } from '../../../utils/wordLevelStats';
+import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelProgress } from '../../../utils/wordLevelStats';
 import { qualityToSrsRating, type AttemptQuality } from '../../../../shared/constants';
 import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../../../shared/languageFeatures';
 import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
@@ -391,7 +391,7 @@ export const WelcomeRoute: Component = () => {
     surfaces: Object.keys(levelStudySource()!.freq),
     materializedKeys: Object.keys(flashcards.store.wordKnowledge),
   } : undefined);
-  // The coverage dial must never render intermediate percentages: the store
+  // The mastery dial must never render intermediate percentages: the store
   // arriving, the legacy knowledge migrations settling, and the language
   // data landing each change the numbers. Until all three are authoritative,
   // levelStudy is pending (skeleton), not empty (0%).
@@ -416,7 +416,7 @@ export const WelcomeRoute: Component = () => {
     if (stats.length === 0) return null;
     return { levels: stats };
   });
-  const levelCoverage = createMemo(() => {
+  const levelProgress = createMemo(() => {
     const data = levelStudy();
     if (data === null) return null;
     const examLevel = getLearningLanguageLevelForLanguage(settings, settings.language || null);
@@ -425,8 +425,7 @@ export const WelcomeRoute: Component = () => {
       : data.levels.filter((level) => (
         isFrequencyLevelAtOrEasierThanTarget(level.level, examLevel, language.currentLangData())
       ));
-    const { total, tracked, pct } = summarizeLevelCoverage(scoped);
-    return { total, tracked, pct };
+    return summarizeLevelProgress(scoped);
   });
   const levelChips = createMemo(() => selectLevelChips(levelStudy()?.levels ?? []));
 
@@ -496,7 +495,7 @@ export const WelcomeRoute: Component = () => {
             <Show when={!curriculumProjection.failed()} fallback={<div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <button type="button" onClick={(event) => { event.stopPropagation(); curriculumProjection.retry(); }}>{t('mlearn.Knowledge.Retry')}</button></div>}>
             <WelcomeLevelPreview
               pending={levelStudyPending()}
-              coverage={levelCoverage()}
+              progress={levelProgress()}
               active={levelChips().active}
               chips={levelChips().chips}
               titleLabel={t('mlearn.LevelStudy.Coverage.Title')}
