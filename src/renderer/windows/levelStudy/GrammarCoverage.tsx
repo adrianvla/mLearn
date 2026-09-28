@@ -15,6 +15,7 @@ import {
 } from '../../learning/questionBank';
 import {
   classifyGrammarMeasurements,
+  classifyGrammarProjectionMeasurements,
   grammarCategoryPressure,
   grammarLevelName,
 } from '../../utils/curriculumCoverage';
@@ -23,6 +24,7 @@ import { grammarPointMeaning } from '../../../shared/languageFeatures';
 import type { AttemptQuality } from '../../../shared/constants';
 import type { GrammarPracticeItemSource, LanguageData } from '../../../shared/types';
 import type { CurriculumComponentSummary } from '../../../shared/curriculum';
+import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
 import { nextAttemptId, type AttemptId, type AttemptScaffolds, type KnowledgeEvent, type KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { PlacementLocks } from './PlacementSession';
 import { loadQuestionValidationRecords, questionValidationRecordKey, validateQuestionItemsWithLLM } from '../../learning/questionValidation';
@@ -35,6 +37,8 @@ export interface GrammarCoverageProps {
   languageData: LanguageData;
   /** Capability-scoped journal for the language (already loaded by the tab). */
   eventLog: KnowledgeEventLog;
+  /** Journal-side grammar fold; exact item events remain in eventLog. */
+  projections?: GrammarProjectionMap;
   summary: CurriculumComponentSummary;
   /** Records a grammar-recognize probe (self-assessed construction recognition).
    *  The active task supplies the written pattern only — no meaning cue is
@@ -295,6 +299,9 @@ const questionItemCache = new QuestionBankCache();
 export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
+  const grammarMeasurements = () => props.projections
+    ? classifyGrammarProjectionMeasurements(props.language, props.projections, effectiveThresholds(settings))
+    : classifyGrammarMeasurements(props.language, props.eventLog, effectiveThresholds(settings));
 
   // Web Locks DI seam (PlacementSession/MockExam convention). happy-dom/Node
   // report `navigator.locks` as null (not undefined) — the typed view treats
@@ -417,7 +424,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     resetContrastInput();
   };
 
-  const measurements = createMemo(() => classifyGrammarMeasurements(props.language, props.eventLog, effectiveThresholds(settings)));
+  const measurements = createMemo(grammarMeasurements);
 
   createEffect(on([() => props.language, () => props.languageData], ([language, data]) => {
     sessionController()?.dispose();
@@ -535,7 +542,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     // insecure, through the SAME policy pick (no separate scheduler).
     const pressure = grammarCategoryPressure(
       items,
-      classifyGrammarMeasurements(props.language, props.eventLog, effectiveThresholds(settings)),
+      grammarMeasurements(),
     );
     const queue: string[] = [];
     const recentPicks: string[] = [];
@@ -826,7 +833,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     if (items.length === 0) return;
     const pressure = grammarCategoryPressure(
       items,
-      classifyGrammarMeasurements(props.language, props.eventLog, effectiveThresholds(settings)),
+      grammarMeasurements(),
     );
     const queue: string[] = [];
     const recentPicks: string[] = [];

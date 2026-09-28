@@ -1,5 +1,6 @@
 import type { KeyArchive } from './historyArchive';
 import type { ReplayProjection } from '../utils/projectionReplay';
+import type { GrammarProjection } from '../grammar/evidence';
 
 /**
  * Payload shapes for the knowledge-history query surface (IPC + bridges).
@@ -41,4 +42,18 @@ export interface KeyHistorySummary {
 export interface KnowledgeArchiveEnvelope {
   key: string;
   archive?: KeyArchive;
+}
+
+export type GrammarProjectionMap = Record<string, GrammarProjection>;
+
+export interface KnowledgeEventCursor { t: number; seq: number }
+
+/** One bounded wire page of exact event JSON for one key. */
+export interface KnowledgeEventPage {
+  events: string[];
+  after: KnowledgeEventCursor | null;
+  maxSeq: number;
+  hasMore: boolean;
+  /** A single unusually large row is split into base64 byte fragments. */
+  fragment?: { data: string; nextOffset: number; complete: boolean };
 }

@@ -21,6 +21,7 @@ import { stripRetractions, type KnowledgeEvent, type KnowledgeEventLog } from '.
 import { evidenceStatusFromEase, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { sortGrammarLevelsByDifficulty } from '../../shared/languageFeatures';
 import { grammarEntityId } from '../../shared/graph/load';
+import type { GrammarProjectionMap } from '../../shared/knowledge/historyQueries';
 
 export interface GrammarMeasurement {
   state: CurriculumTargetState;
@@ -141,6 +142,45 @@ export function classifyGrammarMeasurements(
     });
   }
   return measurements;
+}
+
+/** Desktop's bounded journal-side fold yields the same grammar read model. */
+export function classifyGrammarProjectionMeasurements(
+  language: string,
+  projections: GrammarProjectionMap,
+  thresholds: EffectiveThresholds = effectiveThresholds(),
+): Map<string, GrammarMeasurement> {
+  const suffix = ':grammar-recognition';
+  const prefix = `${language}:grammar:`;
+  const measurements = new Map<string, GrammarMeasurement>();
+  for (const [key, projection] of Object.entries(projections)) {
+    if (!key.startsWith(prefix) || !key.endsWith(suffix)) continue;
+    const entityId = key.slice(prefix.length, key.length - suffix.length);
+    if (!entityId.startsWith(prefix)) continue;
+    const pattern = entityId.slice(prefix.length);
+    if (!pattern) continue;
+    const measured = projection.hasActiveEvidence;
+    measurements.set(pattern, {
+      state: measured ? evidenceStatusFromEase(projection.ease, thresholds) : 'unmeasured',
+      passiveOnly: !measured,
+      exposures: projection.timesEncountered,
+      failures: projection.timesFailed,
+    });
+  }
+  return measurements;
+}
+
+export function summarizeGrammarCurriculumFromProjections(
+  language: string,
+  languageData: LanguageData,
+  projections: GrammarProjectionMap,
+  thresholds: EffectiveThresholds = effectiveThresholds(),
+): CurriculumComponentSummary {
+  const measurements = classifyGrammarProjectionMeasurements(language, projections, thresholds);
+  return summarizeCurriculumComponent(
+    'grammar', grammarCurriculumRequirements(language, languageData), grammarLevelOrder(languageData),
+    (requirement) => measurements.get(requirement.label)?.state ?? 'unmeasured',
+  );
 }
 
 /** Per-level grammar coverage summary for the Level Study surface. */

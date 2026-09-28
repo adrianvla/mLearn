@@ -29,6 +29,48 @@ export interface GrammarProjection {
   hasActiveEvidence: boolean;
 }
 
+/** Ordered, active rows can be folded without retaining the full journal. */
+export function createGrammarRecognitionFold() {
+  let ease: number | undefined;
+  let timesEncountered = 0;
+  let timesFailed = 0;
+  let hasActiveEvidence = false;
+  let firstSeen: number | undefined;
+  let lastSeen: number | undefined;
+  const attemptedItems = new Set<string>();
+
+  return {
+    push(event: KnowledgeEvent): void {
+      if (firstSeen === undefined) firstSeen = event.t;
+      lastSeen = event.t;
+      timesEncountered += event.timesSeenDelta ?? 0;
+      timesFailed += event.grammarFailedDelta ?? 0;
+      if (event.kind === 'rating' || event.easeAfter !== undefined || (event.grammarFailedDelta ?? 0) > 0) {
+        hasActiveEvidence = true;
+      }
+      const itemKey = event.itemRef !== undefined ? `${event.itemRef.id}\u0000${event.itemRef.version}` : null;
+      if (event.easeAfter !== undefined) {
+        const repeatSuccess = itemKey !== null && attemptedItems.has(itemKey);
+        if (itemKey !== null) attemptedItems.add(itemKey);
+        if (!repeatSuccess) ease = event.easeAfter;
+        return;
+      }
+      if (itemKey !== null) attemptedItems.add(itemKey);
+      const encounters = event.timesSeenDelta ?? 0;
+      const failures = event.grammarFailedDelta ?? 0;
+      if (encounters === 0 && failures === 0) return;
+      let next = ease ?? initialGrammarEase();
+      for (let i = 0; i < encounters; i++) next = applyGrammarEncounter(next);
+      for (let i = 0; i < failures; i++) next = applyGrammarFailure(next);
+      ease = next;
+    },
+    finish(): GrammarProjection | null {
+      if (ease === undefined || firstSeen === undefined || lastSeen === undefined) return null;
+      return { ease, timesEncountered, timesFailed, firstSeen, lastSeen, hasActiveEvidence };
+    },
+  };
+}
+
 export function grammarTarget(language: string, pattern: string, capability: GrammarCapability): LearnableTarget {
   return { entityId: grammarEntityId(language, pattern), capability };
 }
@@ -54,52 +96,7 @@ export function grammarRecognitionEvidence(
 /** Materialized recognition read-model, replayed from capability-specific evidence. */
 export function replayGrammarRecognition(events: readonly KnowledgeEvent[]): GrammarProjection | null {
   const active = stripRetractions(events).sort((a, b) => a.t - b.t);
-  if (active.length === 0) return null;
-
-  let ease: number | undefined;
-  let timesEncountered = 0;
-  let timesFailed = 0;
-  let hasActiveEvidence = false;
-  // Items already attempted earlier in this replay (same id+content version),
-  // in attempt order (G02 repeated-item familiarity).
-  const attemptedItems = new Set<string>();
-  for (const event of active) {
-    timesEncountered += event.timesSeenDelta ?? 0;
-    timesFailed += event.grammarFailedDelta ?? 0;
-    // Active measurement: interactive ratings, anki imports, legacy
-    // migration rollups with an explicit ease outcome, and failure rollups
-    // (interactive/media task failure is measured, unlike pure exposure).
-    if (event.kind === 'rating' || event.easeAfter !== undefined || (event.grammarFailedDelta ?? 0) > 0) {
-      hasActiveEvidence = true;
-    }
-    const itemKey = event.itemRef !== undefined ? `${event.itemRef.id}\u0000${event.itemRef.version}` : null;
-    if (event.easeAfter !== undefined) {
-      // Repeated-item familiarity (G02): a SUCCESS on an item already
-      // attempted earlier in this replay is not fresh contextual
-      // generalization — it demonstrates recognition of a memorized item.
-      // The observation stays measured and in the journal, but it never
-      // raises the projection. Failures keep their full force: repeated
-      // confusion on the same item is still failure evidence.
-      const repeatSuccess = itemKey !== null && attemptedItems.has(itemKey);
-      if (itemKey !== null) attemptedItems.add(itemKey);
-      if (!repeatSuccess) {
-        // Explicit recorded outcome wins (Anki ratings, legacy migration rollups).
-        ease = event.easeAfter;
-      }
-      continue;
-    }
-    if (itemKey !== null) attemptedItems.add(itemKey);
-    // Observation rows (encounter/failure deltas only) move ease along the
-    // grammarPolicy anchors, seeded at the initial ease — identical to the
-    // arithmetic the legacy in-place tracker applied.
-    const encounters = event.timesSeenDelta ?? 0;
-    const failures = event.grammarFailedDelta ?? 0;
-    if (encounters === 0 && failures === 0) continue;
-    let next = ease ?? initialGrammarEase();
-    for (let i = 0; i < encounters; i++) next = applyGrammarEncounter(next);
-    for (let i = 0; i < failures; i++) next = applyGrammarFailure(next);
-    ease = next;
-  }
-  if (ease === undefined) return null;
-  return { ease, timesEncountered, timesFailed, firstSeen: active[0].t, lastSeen: active[active.length - 1].t, hasActiveEvidence };
+  const fold = createGrammarRecognitionFold();
+  for (const event of active) fold.push(event);
+  return fold.finish();
 }

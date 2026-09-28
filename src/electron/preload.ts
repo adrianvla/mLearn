@@ -11,6 +11,7 @@ import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOption
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
+import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../shared/knowledge/historyQueries';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../shared/graph/ipc';
 import type { GraphRelationType } from '../shared/graph/types';
 import type { IntegrateThreadInput, IntegrateThreadResult, IntegrationPreview, PreviewIntegrationInput } from '../shared/world';
@@ -26,6 +27,37 @@ const log = getLogger('electron.preload');
 function ipcOn(channel: string, handler: (...args: any[]) => void): () => void {
   ipcRenderer.on(channel, handler);
   return () => { ipcRenderer.removeListener(channel, handler); };
+}
+
+async function readKnowledgeEventPages(keys: readonly string[], itemOnly = false): Promise<KnowledgeEventLog> {
+  const result: KnowledgeEventLog = {};
+  for (const key of new Set(keys)) {
+    let after: KnowledgeEventCursor | null = null;
+    let maxSeq: number | undefined;
+    let fragmentOffset = 0;
+    let fragments: Buffer[] = [];
+    let hasMore = true;
+    while (hasMore) {
+      const page = await ipcRenderer.invoke(
+        IPC_CHANNELS.KNOWLEDGE_EVENTS_PAGE, key, after, maxSeq, fragmentOffset, itemOnly,
+      ) as KnowledgeEventPage;
+      maxSeq = page.maxSeq;
+      for (const json of page.events) (result[key] ??= []).push(JSON.parse(json) as KnowledgeEvent);
+      if (page.fragment) {
+        fragments.push(Buffer.from(page.fragment.data, 'base64'));
+        fragmentOffset = page.fragment.nextOffset;
+        if (page.fragment.complete) {
+          (result[key] ??= []).push(JSON.parse(Buffer.concat(fragments).toString('utf8')) as KnowledgeEvent);
+          fragments = [];
+          fragmentOffset = 0;
+        }
+      }
+      after = page.after;
+      hasMore = page.hasMore;
+    }
+    if (fragments.length > 0) throw new Error('Incomplete knowledge event transfer');
+  }
+  return result;
 }
 
 const mLearnIPC = {
@@ -88,12 +120,13 @@ const mLearnIPC = {
   // ========== Knowledge Events ==========
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, eventsByKey),
-  queryKnowledgeEvents: (keys: string[]): Promise<KnowledgeEventLog> =>
-    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, keys),
-  queryKnowledgeEventsForLanguage: (language: string): Promise<KnowledgeEventLog> =>
-    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY_LANGUAGE, language),
-  getKnowledgeEvents: (key: string): Promise<KnowledgeEventLog> =>
-    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, key),
+  queryKnowledgeEvents: (keys: string[]): Promise<KnowledgeEventLog> => readKnowledgeEventPages(keys),
+  queryKnowledgeItemEvents: (keys: string[]): Promise<KnowledgeEventLog> => readKnowledgeEventPages(keys, true),
+  queryKnowledgeEventsForLanguage: async (language: string): Promise<KnowledgeEventLog> =>
+    readKnowledgeEventPages(await ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_LANGUAGE_KEYS, language) as string[]),
+  getKnowledgeEvents: (key: string): Promise<KnowledgeEventLog> => readKnowledgeEventPages([key]),
+  getGrammarProjections: (language: string): Promise<GrammarProjectionMap> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_GRAMMAR_PROJECTIONS_QUERY, language),
   onKnowledgeEventsChanged: (callback: (keys?: string[]) => void) =>
     ipcOn(IPC_CHANNELS.KNOWLEDGE_EVENTS_CHANGED, (_event, keys: string[] | undefined) => callback(keys)),
   getKnowledgeStates: (keys: string[]): Promise<Record<string, import('../shared/knowledge/historyQueries').KeyKnowledgeState>> =>

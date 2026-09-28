@@ -104,6 +104,8 @@ export const IPC_CHANNELS = {
   // Knowledge events
   KNOWLEDGE_EVENTS_APPEND: 'knowledge-events-append',
   KNOWLEDGE_EVENTS_QUERY: 'knowledge-events-query',
+  KNOWLEDGE_EVENTS_PAGE: 'knowledge-events-page',
+  KNOWLEDGE_GRAMMAR_PROJECTIONS_QUERY: 'knowledge-grammar-projections-query',
   KNOWLEDGE_EVENTS_QUERY_LANGUAGE: 'knowledge-events-query-language',
   KNOWLEDGE_EVENTS_GET: 'knowledge-events-get',
   KNOWLEDGE_EVENTS_CHANGED: 'knowledge-events-changed',

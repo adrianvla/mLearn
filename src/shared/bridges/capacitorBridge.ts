@@ -59,6 +59,7 @@ import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, eventCapabili
 import { emptyTransitions, applyTransitions } from '../knowledge/historyArchive';
 import type { KeyHistorySummary, KeyKnowledgeState } from '../knowledge/historyQueries';
 import { replayKeyProjection } from '../utils/projectionReplay';
+import { replayGrammarRecognition } from '../grammar/evidence';
 import type { AppUpdateState } from '../appUpdate';
 import type { IntegrateThreadResult, IntegrationPreview, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
@@ -1683,6 +1684,24 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
       for (const key of Object.keys(shard)) {
         if (wanted.has(key) && shard[key]?.length) result[key] = shard[key];
       }
+    }
+    return result;
+  },
+
+  async queryKnowledgeItemEvents(keys: string[]) {
+    const log = await this.queryKnowledgeEvents(keys);
+    return Object.fromEntries(Object.entries(log)
+      .map(([key, events]) => [key, events.filter((event) => event.itemRef !== undefined || event.retracts !== undefined)] as const)
+      .filter(([, events]) => events.length > 0));
+  },
+
+  async getGrammarProjections(language: string) {
+    const shard = await loadKnowledgeEventsForLanguage(language);
+    const result: import('../knowledge/historyQueries').GrammarProjectionMap = {};
+    for (const [key, events] of Object.entries(shard)) {
+      if (!key.startsWith(`${language}:grammar:`) || !key.endsWith(':grammar-recognition')) continue;
+      const projection = replayGrammarRecognition(events);
+      if (projection) result[key] = projection;
     }
     return result;
   },

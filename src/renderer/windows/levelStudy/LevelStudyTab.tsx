@@ -8,11 +8,12 @@ import { BulkAddModal } from './BulkAddModal';
 import { GrammarCoverage } from './GrammarCoverage';
 import MockExam from './MockExam';
 import PlacementSession, { backgroundRecordsForLanguage } from './PlacementSession';
-import { summarizeGrammarCurriculum } from '../../utils/curriculumCoverage';
+import { summarizeGrammarCurriculumFromProjections } from '../../utils/curriculumCoverage';
 import { declaredItemStates, questionBankFromLanguageData } from '../../learning/questionBank';
 import { languageDataWithStoredQuestionValidations } from '../../learning/questionValidation';
 import type { MockJournalPayload } from '../../learning/mockExam';
 import type { AttemptId, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
+import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
 import { isLLMReady } from '../../services/llmProvider';
 import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 import { eventsVersion, queryLanguageKeys } from '../../services/knowledgeEvents';
@@ -321,14 +322,16 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
   const [grammarLogResource, { refetch: retryGrammarLog }] = createResource(
     () => (flashcards.isKnowledgeReady() && !language.isLoading() ? { language: resolvedLanguageData().language, version: eventsVersion() } : undefined),
     async (source) => {
-      // Grammar rows are ledger-exact (source 'grammar' never aggregates), so
-      // the grammar-key slice of exact rows is the full curriculum evidence.
       const keys = await queryLanguageKeys(source.language, 'grammar:');
-      return keys.length > 0 ? await getBridge().knowledgeEvents.queryKnowledgeEvents(keys) : {};
+      const [projections, itemLog] = await Promise.all([
+        getBridge().knowledgeEvents.getGrammarProjections(source.language),
+        keys.length > 0 ? getBridge().knowledgeEvents.queryKnowledgeItemEvents(keys) : Promise.resolve({} as KnowledgeEventLog),
+      ]);
+      return { projections, itemLog };
     },
   );
-  let settledGrammarLog: { language: string; value: KnowledgeEventLog } | null = null;
-  const grammarLog = createMemo(() => {
+  let settledGrammarLog: { language: string; value: { projections: GrammarProjectionMap; itemLog: KnowledgeEventLog } } | null = null;
+  const grammarEvidence = createMemo(() => {
     const currentLanguage = resolvedLanguageData().language;
     const value = grammarLogResource();
     if (grammarLogResource.state === 'ready' && value !== undefined) {
@@ -337,14 +340,16 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
     }
     return settledGrammarLog?.language === currentLanguage ? settledGrammarLog.value : undefined;
   });
+  const grammarLog = () => grammarEvidence()?.itemLog;
+  const grammarProjections = () => grammarEvidence()?.projections;
   const requiresGrammar = () => Boolean(resolvedLanguageData().data?.grammar?.length);
   const grammarSummary = createMemo(() => {
     const data = resolvedLanguageData().data;
-    const log = grammarLog();
-    if (!data || !log || resolvedLanguageData().language === '') return null;
+    const projections = grammarProjections();
+    if (!data || !projections || resolvedLanguageData().language === '') return null;
     // Vocabulary-only packages: no grammar gate at all.
     if (!data.grammar?.length) return null;
-    return summarizeGrammarCurriculum(resolvedLanguageData().language, data, log, effectiveThresholds(settings));
+    return summarizeGrammarCurriculumFromProjections(resolvedLanguageData().language, data, projections, effectiveThresholds(settings));
   });
   // Package-update invalidation (G03): once the grammar evidence for this
   // language is loaded, retire attempts recorded through practice items the
@@ -557,6 +562,7 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
             language={resolvedLanguageData().language}
             languageData={resolvedLanguageData().data!}
             eventLog={grammarLog()!}
+            projections={grammarProjections()!}
             summary={grammarSummary()!}
             repairRequest={mockRepairRequest()}
             onRepairRequestHandled={(requestedAt) => {

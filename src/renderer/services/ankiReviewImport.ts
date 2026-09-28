@@ -16,6 +16,11 @@ import { CAPABILITY_ASPECT } from '../../shared/graph/access';
 const log = getLogger('renderer.services.ankiReviewImport');
 
 const REVIEW_BATCH_SIZE = 500;
+const REVIEW_ID_QUERY_BATCH_SIZE = 32;
+const APPEND_BATCH_MAX_EVENTS = 1000;
+const APPEND_BATCH_MAX_KEYS = 128;
+const APPEND_BATCH_MAX_BYTES = 1024 * 1024;
+const IPC_ENCODER = new TextEncoder();
 
 const RATING_BY_BUTTON: Record<number, Rating> = {
   1: 'again',
@@ -23,6 +28,74 @@ const RATING_BY_BUTTON: Record<number, Rating> = {
   3: 'good',
   4: 'easy',
 };
+
+function estimateWireBytes(key: string, event: KnowledgeEvent): number {
+  // Conservative structured-clone proxy: UTF-8 payload + object/array framing.
+  // The exact Mojo envelope is implementation-defined; this cap exists to keep
+  // us far away from giant single-value serialization in Electron.
+  return IPC_ENCODER.encode(key).byteLength
+    + IPC_ENCODER.encode(JSON.stringify(event)).byteLength
+    + 32;
+}
+
+async function queryStoredAnkiReviewIdSets(keys: readonly string[]): Promise<Record<string, number[]>> {
+  const result: Record<string, number[]> = {};
+  for (let offset = 0; offset < keys.length; offset += REVIEW_ID_QUERY_BATCH_SIZE) {
+    const batch = keys.slice(offset, offset + REVIEW_ID_QUERY_BATCH_SIZE);
+    Object.assign(result, await getBridge().knowledgeEvents.queryAnkiReviewIdSets(batch));
+  }
+  return result;
+}
+
+function createBoundedEventAppender() {
+  let pending: KnowledgeEventLog = {};
+  let pendingEvents = 0;
+  let pendingKeys = 0;
+  let pendingBytes = 2;
+
+  const flush = async (): Promise<void> => {
+    if (pendingEvents === 0) return;
+    const batch = pending;
+    pending = {};
+    pendingEvents = 0;
+    pendingKeys = 0;
+    pendingBytes = 2;
+    await appendEvents(batch);
+  };
+
+  const push = async (key: string, event: KnowledgeEvent): Promise<void> => {
+    const eventBytes = estimateWireBytes(key, event);
+    const addsKey = pending[key] === undefined ? 1 : 0;
+    if (
+      pendingEvents > 0
+      && (
+        pendingEvents + 1 > APPEND_BATCH_MAX_EVENTS
+        || pendingKeys + addsKey > APPEND_BATCH_MAX_KEYS
+        || pendingBytes + eventBytes > APPEND_BATCH_MAX_BYTES
+      )
+    ) {
+      await flush();
+    }
+
+    if (!pending[key]) {
+      pending[key] = [];
+      pendingKeys += 1;
+    }
+    pending[key].push(event);
+    pendingEvents += 1;
+    pendingBytes += eventBytes;
+
+    if (
+      pendingEvents >= APPEND_BATCH_MAX_EVENTS
+      || pendingKeys >= APPEND_BATCH_MAX_KEYS
+      || pendingBytes >= APPEND_BATCH_MAX_BYTES
+    ) {
+      await flush();
+    }
+  };
+
+  return { push, flush };
+}
 
 export interface AnkiReviewImportResult {
   words: number;
@@ -210,7 +283,7 @@ export async function importAnkiReviewHistory(
   // Idempotency keys come from the store's per-key registries (exact rows +
   // archive ankiReviewIds) — no whole-language journal read.
   const candidateWordKeys = [...byWord.keys()].map((word) => `${language}:${hashWordSync(word)}`);
-  const newEventsByKey: KnowledgeEventLog = {};
+  const eventAppender = createBoundedEventAppender();
   let words = 0;
   let imported = 0;
   let skipped = 0;
@@ -232,7 +305,7 @@ export async function importAnkiReviewHistory(
       candidateKeys.add(grammarEvidenceKey(language, point.pattern, capabilityForCard(card, point.pattern).capability));
     }
   }
-  const storedIdSets = await getBridge().knowledgeEvents.queryAnkiReviewIdSets([...candidateKeys]);
+  const storedIdSets = await queryStoredAnkiReviewIdSets([...candidateKeys]);
   const existingGrammarIds = new Map<string, Set<number>>();
   for (const [key, ids] of Object.entries(storedIdSets as Record<string, number[]>)) {
     if (!key.startsWith(`${language}:grammar:`)) continue;
@@ -274,9 +347,7 @@ export async function importAnkiReviewHistory(
       if (card && deps.grammar) {
         const mapped = mapAnkiGrammarReviews({ language, grammar: deps.grammar, card, reviews: entries, existingReviewIdsByTarget: existingGrammarIds });
         for (const mappedEvent of mapped.events) {
-          const events = newEventsByKey[mappedEvent.key] ?? [];
-          events.push(mappedEvent.event);
-          newEventsByKey[mappedEvent.key] = events;
+          await eventAppender.push(mappedEvent.key, mappedEvent.event);
           const importedIds = existingGrammarIds.get(mappedEvent.key) ?? new Set<number>();
           importedIds.add(mappedEvent.event.ankiReviewId!);
           existingGrammarIds.set(mappedEvent.key, importedIds);
@@ -291,7 +362,7 @@ export async function importAnkiReviewHistory(
     if (wordEvents.length === 0 && !wordImported) continue;
     if (wordEvents.length > 0) {
       wordEvents.sort((a, b) => a.t - b.t);
-      newEventsByKey[key] = wordEvents;
+      for (const event of wordEvents) await eventAppender.push(key, event);
       words++;
       imported += wordEvents.length;
     }
@@ -299,7 +370,7 @@ export async function importAnkiReviewHistory(
   }
 
   if (imported > 0) {
-    await appendEvents(newEventsByKey);
+    await eventAppender.flush();
   }
   if (ambiguousGrammar.length > 0) {
     const unique = [...new Set(ambiguousGrammar)];

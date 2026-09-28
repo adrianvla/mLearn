@@ -12,7 +12,7 @@ import { DEFAULT_SETTINGS, type CapabilityKey, type FlashcardStore, type Flashca
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
-import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
+import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
 import { evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
 import { isAccessMeasurable } from '../../shared/knowledgeEvents';
@@ -3542,13 +3542,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     language: string,
     seeds: Array<{ pattern: string; level?: number }> = [],
   ): Promise<void> => {
-    // Grammar evidence rows are ledger-exact (source 'grammar' never
-    // aggregates), so the exact-row query covers their full history; the key
-    // index enumerates patterns without loading the whole language log.
-    let eventLog: KnowledgeEventLog;
+    // The journal owner folds exact recognition rows beside SQLite; only the
+    // small read model crosses IPC, including when other grammar capabilities
+    // have very large histories.
+    let projections: import('../../shared/knowledge/historyQueries').GrammarProjectionMap;
     try {
-      const grammarKeys = await queryLanguageKeys(language, 'grammar:');
-      eventLog = grammarKeys.length > 0 ? await getBridge().knowledgeEvents.queryKnowledgeEvents(grammarKeys) : {};
+      projections = await getBridge().knowledgeEvents.getGrammarProjections(language);
     } catch (e) {
       log.warn('grammar projection recompute failed to load events:', e);
       return;
@@ -3565,13 +3564,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (!levels.has(entry.pattern)) levels.set(entry.pattern, entry.level);
     }
     // Rebuild criterion: the cache must be reconstructable from active
-    // evidence alone, so patterns are also enumerated from the journal's
-    // recognition-evidence keys — seeds and surviving entries only add
-    // presentation hints. Key shape: `${language}:grammar:` +
+    // evidence alone, so patterns are also enumerated from the recognition
+    // projection keys — seeds and surviving entries only add presentation
+    // hints. Key shape: `${language}:grammar:` +
     // `${language}:grammar:${pattern}` + ':grammar-recognition'.
     const recognitionSuffix = ':grammar-recognition';
     const grammarKeyPrefix = `${language}:grammar:`;
-    for (const key of Object.keys(eventLog)) {
+    for (const key of Object.keys(projections)) {
       if (!key.startsWith(grammarKeyPrefix) || !key.endsWith(recognitionSuffix)) continue;
       const entityId = key.slice(grammarKeyPrefix.length, key.length - recognitionSuffix.length);
       if (!entityId.startsWith(grammarKeyPrefix)) continue;
@@ -3581,7 +3580,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     setStore(produce((s) => {
       for (const [pattern, level] of levels) {
         const lk = langKey(language, pattern);
-        const projection = replayGrammarRecognition(eventLog[grammarEvidenceKey(language, pattern, 'grammar-recognition')] ?? []);
+        const projection = projections[grammarEvidenceKey(language, pattern, 'grammar-recognition')];
         if (!projection) {
           // No active evidence → no materialized entry.
           delete s.grammarKnowledge[lk];
@@ -3605,8 +3604,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     saveFlashcards();
   };
 
-  // Serialize materializations so a rapid tracker burst always lands the
-  // full-log replay last (each run re-reads the whole language log).
+  // Serialize materializations so a rapid tracker burst lands the latest
+  // journal-side fold last.
   const queueGrammarMaterialize = (language: string, seeds: Array<{ pattern: string; level?: number }>): void => {
     grammarReplayChain = grammarReplayChain
       .then(() => materializeGrammarKnowledge(language, seeds))
@@ -3767,7 +3766,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (keys.length === 0) return 0;
       // Per-key log (not the flattened service view): tombstones must land on
       // the exact evidence keys the item attempts were written to.
-      const log = await getBridge().knowledgeEvents.queryKnowledgeEvents(keys);
+      const log = await getBridge().knowledgeEvents.queryKnowledgeItemEvents(keys);
       const result = reconcileQuestionItems(log, declaredItems);
       await retractGrammarItemAttempts(result.tombstones, language, [...result.patterns]);
       return result.retiredItemIds.size;
@@ -4258,7 +4257,12 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
         meaning: settings.anki_field_meaning ?? DEFAULT_SETTINGS.anki_field_meaning,
       },
     });
-    await Promise.all(result.importedWords.map((word) => recomputeWordKnowledgeFromEvidence(word, language)));
+    // Keep projection refresh bounded. A large Anki backfill can touch thousands
+    // of words; fanning every getKnowledgeStates IPC out at once can make the
+    // Electron main process serialize thousands of replies concurrently.
+    for (const word of result.importedWords) {
+      await recomputeWordKnowledgeFromEvidence(word, language);
+    }
     return;
   });
   onCleanup(unregisterAnkiReviewSync);

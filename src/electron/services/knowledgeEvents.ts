@@ -3,7 +3,7 @@ import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
-import type { KeyHistorySummary, KeyKnowledgeState, KnowledgeArchiveEnvelope } from '../../shared/knowledge/historyQueries';
+import type { KeyHistorySummary, KeyKnowledgeState, KnowledgeArchiveEnvelope, KnowledgeEventCursor, KnowledgeEventPage, GrammarProjectionMap } from '../../shared/knowledge/historyQueries';
 import { KNOWLEDGE_STORE_SCHEMA_VERSION, KnowledgeHistoryStore, STORE_FILE_NAME, isKnowledgeEvent } from './knowledgeHistoryStore';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
@@ -15,11 +15,13 @@ const LEGACY_FILE_NAME = 'knowledge-events.json';
 const SAVE_DEBOUNCE_MS = 300;
 /** Bounded incremental compaction work per debounced save. */
 const COMPACTION_BUDGET_PER_SAVE = 50;
+const LEGACY_OBJECT_IPC_MAX_BYTES = 512 * 1024;
 
 let store: KnowledgeHistoryStore | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
 let readyPromise: Promise<void> = Promise.resolve();
+const grammarProjectionCache = new Map<string, { sequence: number; projections: GrammarProjectionMap }>();
 
 function getStorePath(): string {
   return path.join(getUserDataPath(), STORE_FILE_NAME);
@@ -133,6 +135,7 @@ function ensureSchemaCurrent(active: KnowledgeHistoryStore, now: number): void {
 }
 
 export function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog> {
+  grammarProjectionCache.clear();
   const load = (async () => {
     openAndMigrate(now);
     return {};
@@ -151,6 +154,7 @@ export async function saveKnowledgeEvents(): Promise<void> {
   return enqueueWrite(async () => {
     try {
       active.compact(Date.now(), COMPACTION_BUDGET_PER_SAVE);
+      grammarProjectionCache.clear();
       guardianForWrites()?.recordKnowledgeSequence(active.sequenceCounter);
     } catch (error) {
       log.error('Failed to compact knowledge history:', error);
@@ -176,6 +180,26 @@ export async function appendKnowledgeEvents(eventsByKey: KnowledgeEventLog): Pro
 /** Exact rows (ledger + tail + acquisition residue) for the given keys. */
 export function getKnowledgeEvents(keys: readonly string[]): KnowledgeEventLog {
   return ensureStore().getExactEvents(keys);
+}
+
+function assertLegacyObjectReplyBounded(keys: readonly string[]): void {
+  if (ensureStore().exactEventJsonBytesOver(keys, LEGACY_OBJECT_IPC_MAX_BYTES)) {
+    throw new Error('Exact knowledge history exceeds the object IPC limit; use paged event reads');
+  }
+}
+
+export function pageKnowledgeEvents(key: string, after: KnowledgeEventCursor | null, maxSeq?: number, fragmentOffset?: number, itemOnly?: boolean): KnowledgeEventPage {
+  return ensureStore().pageExactEvents(key, after, maxSeq, fragmentOffset, itemOnly);
+}
+
+export function queryGrammarProjections(language: string): GrammarProjectionMap {
+  const active = ensureStore();
+  const sequence = active.sequenceCounter;
+  const cached = grammarProjectionCache.get(language);
+  if (cached?.sequence === sequence) return cached.projections;
+  const projections = active.getGrammarProjections(language);
+  grammarProjectionCache.set(language, { sequence, projections });
+  return projections;
 }
 
 export function getKnowledgeEventsForLanguage(language: string): KnowledgeEventLog {
@@ -237,18 +261,31 @@ export function setupKnowledgeEventsIPC(): void {
   });
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, async (_event, keys: string[]) => {
     await whenKnowledgeEventsReady();
+    assertLegacyObjectReplyBounded(keys);
     return getKnowledgeEvents(keys);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_PAGE, async (_event, key: string, after: KnowledgeEventCursor | null, maxSeq?: number, fragmentOffset?: number, itemOnly?: boolean) => {
+    await whenKnowledgeEventsReady();
+    return pageKnowledgeEvents(key, after, maxSeq, fragmentOffset, itemOnly);
+  });
+  ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_GRAMMAR_PROJECTIONS_QUERY, async (_event, language: string) => {
+    await whenKnowledgeEventsReady();
+    return queryGrammarProjections(language);
   });
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY_LANGUAGE, async (_event, language: string) => {
     await whenKnowledgeEventsReady();
-    return getKnowledgeEventsForLanguage(language);
+    const keys = queryLanguageKeys(language);
+    assertLegacyObjectReplyBounded(keys);
+    return getKnowledgeEvents(keys);
   });
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_GET, async (_event, key: string) => {
     await whenKnowledgeEventsReady();
+    assertLegacyObjectReplyBounded([key]);
     return getKnowledgeEvents([key]);
   });
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_ROWS_QUERY, async (_event, keys: string[]) => {
     await whenKnowledgeEventsReady();
+    assertLegacyObjectReplyBounded(keys);
     return getKnowledgeRows(keys);
   });
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_STATES_QUERY, async (_event, keys: string[]) => {

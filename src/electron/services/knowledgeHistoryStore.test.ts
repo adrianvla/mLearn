@@ -6,6 +6,8 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
+import { grammarEvidenceKey, replayGrammarRecognition } from '../../shared/grammar/evidence';
+import type { KnowledgeEventCursor } from '../../shared/knowledge/historyQueries';
 import { COMPACTION_KEY_BUDGET, KnowledgeHistoryStore, isKnowledgeEvent } from './knowledgeHistoryStore';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -14,6 +16,84 @@ let dir: string;
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mlearn-khstore-'));
+});
+
+describe('bounded exact-event wire and grammar fold', () => {
+  it('pages Unicode events below the wire ceiling with a stable sequence snapshot', () => {
+    const s = store();
+    const key = 'xx:page';
+    const original = Array.from({ length: 500 }, (_, index): KnowledgeEvent => ({
+      t: index + 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 2,
+      origin: '漢字😀'.repeat(140),
+    }));
+    s.appendEvents({ [key]: original });
+    let after: KnowledgeEventCursor | null = null;
+    let maxSeq: number | undefined;
+    const decoded: KnowledgeEvent[] = [];
+    let pages = 0;
+    for (;;) {
+      const page = s.pageExactEvents(key, after, maxSeq);
+      expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(512 * 1024);
+      expect(page.events.every((value) => typeof value === 'string')).toBe(true);
+      if (pages === 0) {
+        s.appendEvents({ [key]: [{ t: 0, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 1 }] });
+      }
+      decoded.push(...page.events.map((json) => JSON.parse(json) as KnowledgeEvent));
+      after = page.after;
+      maxSeq = page.maxSeq;
+      pages++;
+      if (!page.hasMore) break;
+    }
+    expect(pages).toBeGreaterThan(1);
+    expect(decoded).toEqual(original);
+    s.close();
+  });
+
+  it('fragments one oversized event on UTF-8 byte boundaries and rejects a stale offset', () => {
+    const s = store();
+    const key = 'xx:large';
+    const event: KnowledgeEvent = {
+      t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 2.5,
+      origin: '漢字😀'.repeat(80_000),
+    };
+    s.appendEvents({ [key]: [event] });
+    let after: KnowledgeEventCursor | null = null;
+    let maxSeq: number | undefined;
+    let offset = 0;
+    const fragments: Buffer[] = [];
+    for (;;) {
+      const page = s.pageExactEvents(key, after, maxSeq, offset);
+      expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(512 * 1024);
+      if (page.fragment) {
+        fragments.push(Buffer.from(page.fragment.data, 'base64'));
+        offset = page.fragment.complete ? 0 : page.fragment.nextOffset;
+      }
+      after = page.after;
+      maxSeq = page.maxSeq;
+      if (!page.hasMore) break;
+    }
+    expect(JSON.parse(Buffer.concat(fragments).toString('utf8'))).toEqual(event);
+    expect(() => s.pageExactEvents(key, null, maxSeq, 999_999_999)).toThrow('Invalid event fragment offset');
+    s.close();
+  });
+
+  it('folds grammar evidence without shipping its raw history and keeps only item rows for item consumers', () => {
+    const s = store();
+    const key = grammarEvidenceKey('xx', '構文😀', 'grammar-recognition');
+    const events: KnowledgeEvent[] = [
+      { t: 1, kind: 'rollup', source: 'grammar', aspect: 'grammar', timesSeenDelta: 3 },
+      { t: 2, kind: 'rating', source: 'grammar', aspect: 'grammar', easeAfter: 3, attemptId: 'item-1', itemRef: { id: 'item', version: 'v1' } },
+      { t: 3, kind: 'rating', source: 'grammar', aspect: 'grammar', easeAfter: 4, attemptId: 'item-2', itemRef: { id: 'item', version: 'v1' } },
+      { t: 4, kind: 'retraction', source: 'manual', retracts: 'item-1' },
+      { t: 5, kind: 'review', source: 'anki', aspect: 'grammar', easeAfter: 2.4, ankiReviewId: 123 },
+    ];
+    s.appendEvents({ [key]: events });
+    expect(s.getGrammarProjections('xx')[key]).toEqual(replayGrammarRecognition(events));
+    const itemPage = s.pageExactEvents(key, null, undefined, 0, true);
+    expect(itemPage.events.map((json) => JSON.parse(json))).toEqual(events.slice(1, 4));
+    expect(Object.keys(s.getGrammarProjections('none'))).toHaveLength(0);
+    s.close();
+  });
 });
 
 afterEach(() => {

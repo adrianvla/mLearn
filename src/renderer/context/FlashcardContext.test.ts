@@ -11,7 +11,7 @@ import type { Rating } from '../services/srsAlgorithm';
 import * as SRS from '../services/srsAlgorithm';
 import { replayKeyProjection, type ReplayProjection } from '../../shared/utils/projectionReplay';
 import { GRAMMAR_ENCOUNTER_EASE_BUMP, GRAMMAR_FAIL_EASE_PENALTY, initialGrammarEase } from '../../shared/utils/grammarPolicy';
-import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
+import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
 import { itemContentVersion, retractionEventsForItem, type DeclaredItemState } from '../learning/questionBank';
 import { summarizeGrammarCurriculum, classifyGrammarMeasurements } from '../utils/curriculumCoverage';
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
@@ -72,6 +72,8 @@ const mockBridge = {
   },
   knowledgeEvents: {
     queryKnowledgeEvents: knowledgeJournal.queryKnowledgeEvents,
+    queryKnowledgeItemEvents: knowledgeJournal.queryKnowledgeItemEvents,
+    getGrammarProjections: knowledgeJournal.getGrammarProjections,
     getKnowledgeRows: knowledgeJournal.getKnowledgeRows,
     getKnowledgeStates: knowledgeJournal.getKnowledgeStates,
     getKnowledgeArchive: knowledgeJournal.getKnowledgeArchive,
@@ -134,6 +136,21 @@ const knowledgeJournal = vi.hoisted(() => {
     for (const key of keys) if (rows[key]?.length) log[key] = rows[key];
     return log;
   });
+  const queryKnowledgeItemEvents = vi.fn(async (keys: readonly string[]) => {
+    const log = await queryKnowledgeEvents(keys);
+    return Object.fromEntries(Object.entries(log).map(([key, events]) => [key,
+      events.filter((event) => event.itemRef !== undefined || event.retracts !== undefined),
+    ]).filter(([, events]) => events.length > 0));
+  });
+  const getGrammarProjections = vi.fn(async (language: string) => {
+    const result: Record<string, NonNullable<ReturnType<typeof replayGrammarRecognition>>> = {};
+    for (const [key, events] of Object.entries(allRows())) {
+      if (!key.startsWith(`${language}:grammar:`) || !key.endsWith(':grammar-recognition')) continue;
+      const projection = replayGrammarRecognition(events as KnowledgeEvent[]);
+      if (projection) result[key] = projection;
+    }
+    return result;
+  });
   const getKnowledgeRows = vi.fn(async (keys: readonly string[]) => {
     const rows = allRows();
     const out: Record<string, Array<{ event: Record<string, unknown>; seq: number }>> = {};
@@ -162,7 +179,7 @@ const knowledgeJournal = vi.hoisted(() => {
   const queryAnkiReviewIds = vi.fn(async () => [] as number[]);
   const queryAnkiReviewIdSets = vi.fn(async () => ({}) as Record<string, number[]>);
   return {
-    mockAppendEvents, allRows, queryKnowledgeEvents, getKnowledgeRows, getKnowledgeStates,
+    mockAppendEvents, allRows, queryKnowledgeEvents, queryKnowledgeItemEvents, getGrammarProjections, getKnowledgeRows, getKnowledgeStates,
     queryLanguageKeys, getKnowledgeArchive, queryKnowledgeSummaries, queryAnkiReviewIds, queryAnkiReviewIdSets,
   };
 });

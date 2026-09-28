@@ -56,6 +56,8 @@ vi.mock('../../../shared/bridges', () => ({
     knowledgeEvents: {
       queryLanguageKeys: () => Promise.resolve(journalKeysMock),
       queryKnowledgeEvents: () => Promise.resolve({}),
+      queryKnowledgeItemEvents: () => Promise.resolve({}),
+      getGrammarProjections: () => Promise.resolve({}),
       onKnowledgeEventsChanged: () => () => {},
     },
   }),

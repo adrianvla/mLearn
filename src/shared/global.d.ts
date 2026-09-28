@@ -31,8 +31,10 @@ export interface MLearnIPC {
   // Knowledge events
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
+  queryKnowledgeItemEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;
   getKnowledgeEvents: (key: string) => Promise<KnowledgeEventLog>;
+  getGrammarProjections: (language: string) => Promise<import('./knowledge/historyQueries').GrammarProjectionMap>;
   onKnowledgeEventsChanged: (callback: (keys?: string[]) => void) => () => void;
   getKnowledgeStates: (keys: string[]) => Promise<Record<string, import('./knowledge/historyQueries').KeyKnowledgeState>>;
   getKnowledgeRows: (keys: string[]) => Promise<Record<string, Array<{ event: KnowledgeEvent; seq: number }>>>;

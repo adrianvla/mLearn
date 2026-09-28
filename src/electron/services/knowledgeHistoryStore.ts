@@ -1,5 +1,7 @@
 import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
+import { createGrammarRecognitionFold } from '../../shared/grammar/evidence';
+import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../../shared/knowledge/historyQueries';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { eventCapability } from '../../shared/knowledgeEvents';
 import {
@@ -629,6 +631,91 @@ export class KnowledgeHistoryStore {
     for (const key of keys) {
       const rows = stmt.all(key) as Array<{ json: string }>;
       if (rows.length > 0) result[key] = rows.map((row) => JSON.parse(row.json) as KnowledgeEvent);
+    }
+    return result;
+  }
+
+  /** Cheap preflight for legacy whole-object IPC readers. */
+  exactEventJsonBytesOver(keys: readonly string[], ceiling: number): boolean {
+    const stmt = this.db.prepare('SELECT COALESCE(SUM(length(CAST(json AS BLOB))), 0) AS bytes FROM rows WHERE key = ?');
+    let bytes = 0;
+    for (const key of keys) {
+      bytes += (stmt.get(key) as { bytes: number }).bytes;
+      if (bytes > ceiling) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Exact rows cross IPC as pages of at most 256 KiB of escaped JSON strings.
+   * A very large individual event uses 192 KiB binary fragments. The page
+   * cursor includes a fixed sequence ceiling, so concurrent appends cannot
+   * make a backdated event appear halfway through one read.
+   */
+  pageExactEvents(
+    key: string,
+    after: KnowledgeEventCursor | null = null,
+    snapshotMaxSeq?: number,
+    fragmentOffset = 0,
+    itemOnly = false,
+  ): KnowledgeEventPage {
+    if (!Number.isSafeInteger(fragmentOffset) || fragmentOffset < 0) throw new Error('Invalid event fragment offset');
+    const maxSeq = snapshotMaxSeq ?? ((this.db.prepare('SELECT MAX(seq) AS n FROM rows WHERE key = ?').get(key) as { n: number | null }).n ?? 0);
+    const filter = itemOnly ? " AND (json LIKE '%\"itemRef\"%' OR json LIKE '%\"retracts\"%')" : '';
+    const cursor = after ? ' AND (t > ? OR (t = ? AND seq > ?))' : '';
+    const sql = `SELECT t, seq, json FROM rows WHERE key = ? AND seq <= ?${cursor}${filter} ORDER BY t, seq LIMIT 256`;
+    const rows = (after
+      ? this.db.prepare(sql).all(key, maxSeq, after.t, after.t, after.seq)
+      : this.db.prepare(sql).all(key, maxSeq)) as Array<{ t: number; seq: number; json: string }>;
+    const events: string[] = [];
+    let bytes = 0;
+    let nextAfter = after;
+    for (const row of rows) {
+      const rawBytes = Buffer.byteLength(row.json, 'utf8');
+      const wireBytes = rawBytes > 256 * 1024 ? Infinity : Buffer.byteLength(JSON.stringify(row.json), 'utf8') + 1;
+      if (wireBytes > 256 * 1024) {
+        if (events.length > 0) return { events, after: nextAfter, maxSeq, hasMore: true };
+        const encoded = Buffer.from(row.json, 'utf8');
+        if (fragmentOffset >= encoded.length) throw new Error('Invalid event fragment offset');
+        const end = Math.min(encoded.length, fragmentOffset + 192 * 1024);
+        const complete = end === encoded.length;
+        return {
+          events: [], after: complete ? { t: row.t, seq: row.seq } : after,
+          maxSeq, hasMore: true,
+          fragment: { data: encoded.subarray(fragmentOffset, end).toString('base64'), nextOffset: end, complete },
+        };
+      }
+      if (fragmentOffset !== 0) throw new Error('Fragment cursor does not refer to a large event');
+      if (bytes + wireBytes > 256 * 1024 && events.length > 0) {
+        return { events, after: nextAfter, maxSeq, hasMore: true };
+      }
+      events.push(row.json);
+      bytes += wireBytes;
+      nextAfter = { t: row.t, seq: row.seq };
+    }
+    return { events, after: nextAfter, maxSeq, hasMore: rows.length === 256 };
+  }
+
+  /** Fold the existing grammar read model beside SQLite, without shipping its exact rows. */
+  getGrammarProjections(language: string): GrammarProjectionMap {
+    const result: GrammarProjectionMap = {};
+    const rows = this.db.prepare('SELECT json FROM rows WHERE key = ? ORDER BY t, seq');
+    const tombstones = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json LIKE '%\"retracts\"%'");
+    for (const key of this.queryLanguageKeys(language, 'grammar:')) {
+      if (!key.endsWith(':grammar-recognition')) continue;
+      const retracted = new Set<string>();
+      for (const row of tombstones.iterate(key) as Iterable<{ json: string }>) {
+        const event = JSON.parse(row.json) as KnowledgeEvent;
+        if (event.retracts !== undefined) retracted.add(String(event.retracts));
+      }
+      const fold = createGrammarRecognitionFold();
+      for (const row of rows.iterate(key) as Iterable<{ json: string }>) {
+        const event = JSON.parse(row.json) as KnowledgeEvent;
+        if (event.retracts !== undefined || (event.attemptId !== undefined && retracted.has(String(event.attemptId)))) continue;
+        fold.push(event);
+      }
+      const projection = fold.finish();
+      if (projection) result[key] = projection;
     }
     return result;
   }

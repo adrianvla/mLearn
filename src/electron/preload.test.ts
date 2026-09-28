@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PLUGIN_IPC_CHANNELS } from '../shared/plugins/constants'
+import { IPC_CHANNELS } from '../shared/constants'
 
 const sendMock = vi.fn()
 const sendSyncMock = vi.fn()
@@ -210,5 +211,38 @@ describe('preload plugin bus bridge', () => {
     expect(onMock).toHaveBeenCalledWith('update-state-changed', expect.any(Function))
     cleanup?.()
     expect(removeListenerMock).toHaveBeenCalledWith('update-state-changed', expect.any(Function))
+  })
+
+  it('reassembles bounded event pages and UTF-8 fragments without requesting the full object graph', async () => {
+    await import('./preload')
+    const api = exposeInMainWorldMock.mock.calls[0]?.[1] as {
+      queryKnowledgeEvents: (keys: string[]) => Promise<Record<string, unknown[]>>
+    }
+    const first = { t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 2 }
+    const second = { ...first, t: 2, origin: '漢字😀'.repeat(100) }
+    const bytes = Buffer.from(JSON.stringify(second))
+    const parts = [bytes.subarray(0, 7), bytes.subarray(7)]
+    const replies = [
+      { events: [JSON.stringify(first)], after: { t: 1, seq: 1 }, maxSeq: 2, hasMore: true },
+      { events: [], after: { t: 1, seq: 1 }, maxSeq: 2, hasMore: true, fragment: { data: parts[0].toString('base64'), nextOffset: 7, complete: false } },
+      { events: [], after: { t: 2, seq: 2 }, maxSeq: 2, hasMore: true, fragment: { data: parts[1].toString('base64'), nextOffset: bytes.length, complete: true } },
+      { events: [], after: { t: 2, seq: 2 }, maxSeq: 2, hasMore: false },
+    ]
+    invokeMock.mockImplementation(async () => replies.shift())
+
+    await expect(api.queryKnowledgeEvents(['xx:key'])).resolves.toEqual({ 'xx:key': [first, second] })
+    expect(invokeMock).toHaveBeenCalledTimes(4)
+    expect(invokeMock.mock.calls.every(([channel]) => channel === IPC_CHANNELS.KNOWLEDGE_EVENTS_PAGE)).toBe(true)
+    expect(invokeMock.mock.calls[2]?.[4]).toBe(7)
+  })
+
+  it('requests only item-bearing event pages for the item consumer', async () => {
+    await import('./preload')
+    const api = exposeInMainWorldMock.mock.calls[0]?.[1] as {
+      queryKnowledgeItemEvents: (keys: string[]) => Promise<Record<string, unknown[]>>
+    }
+    invokeMock.mockResolvedValue({ events: [], after: null, maxSeq: 0, hasMore: false })
+    await expect(api.queryKnowledgeItemEvents(['xx:key'])).resolves.toEqual({})
+    expect(invokeMock).toHaveBeenCalledWith(IPC_CHANNELS.KNOWLEDGE_EVENTS_PAGE, 'xx:key', null, undefined, 0, true)
   })
 })

@@ -5,6 +5,7 @@ import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { grammarEvidenceKey } from '../../shared/grammar/evidence';
 
 let tempDir: TempDir;
 const warn = vi.fn();
@@ -65,6 +66,26 @@ describe('knowledge event storage', () => {
 
   it('returns an empty log for an empty store', () => {
     expect(mod.getKnowledgeEvents(['ja:missing'])).toEqual({});
+  });
+
+  it('refuses oversized legacy object replies while serving the same rows in bounded pages', async () => {
+    const key = 'xx:oversized';
+    await mod.appendKnowledgeEvents({ [key]: [event(now, { origin: '漢字😀'.repeat(90_000) })] });
+    mod.setupKnowledgeEventsIPC();
+    const handler = (channel: string) => ipcHandle.mock.calls.find(([name]) => name === channel)?.[1] as (...args: unknown[]) => Promise<unknown>;
+    await expect(handler(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY)(undefined, [key]))
+      .rejects.toThrow('use paged event reads');
+    const page = await handler(IPC_CHANNELS.KNOWLEDGE_EVENTS_PAGE)(undefined, key, null) as { fragment?: { data: string } };
+    expect(page.fragment?.data).toBeTypeOf('string');
+    expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(512 * 1024);
+  });
+
+  it('refreshes the compact grammar projection after an acknowledged append', async () => {
+    const key = grammarEvidenceKey('xx', 'pattern', 'grammar-recognition');
+    await mod.appendKnowledgeEvents({ [key]: [{ t: 1, kind: 'rating', source: 'grammar', aspect: 'grammar', easeAfter: 2 }] });
+    expect(mod.queryGrammarProjections('xx')[key]?.ease).toBe(2);
+    await mod.appendKnowledgeEvents({ [key]: [{ t: 2, kind: 'rating', source: 'grammar', aspect: 'grammar', easeAfter: 3 }] });
+    expect(mod.queryGrammarProjections('xx')[key]?.ease).toBe(3);
   });
 
   it('queries all entries for one language while preserving their keys', async () => {

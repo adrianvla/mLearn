@@ -408,6 +408,62 @@ describe('importAnkiReviewHistory', () => {
     expect(mocks.appendEvents).not.toHaveBeenCalled();
   });
 
+  it('bounds persisted review-id queries instead of serializing the whole learner history in one IPC reply', async () => {
+    const statuses = Array.from({ length: 70 }, (_, i) => ({ word: `w${i}`, cardId: i + 1 }));
+    mocks.getAnkiWordStatuses.mockResolvedValue(statuses);
+
+    await importAnkiReviewHistory('ja', { fetchReviews: async () => ({}) });
+
+    expect(mocks.queryAnkiReviewIdSets).toHaveBeenCalledTimes(3);
+    expect(mocks.queryAnkiReviewIdSets.mock.calls.map(([keys]) => keys.length)).toEqual([32, 32, 6]);
+  });
+
+  it('bounds knowledge-event append payloads for large review histories', async () => {
+    mocks.getAnkiWordStatuses.mockResolvedValue([{ word: 'w', cardId: 1 }]);
+    const reviews = Array.from({ length: 2200 }, (_, i) => review({ id: i + 1, cid: 1 }));
+
+    const result = await importAnkiReviewHistory('ja', {
+      fetchReviews: async () => ({ '1': reviews }),
+    });
+
+    expect(result.imported).toBe(2200);
+    expect(mocks.appendEvents.mock.calls.length).toBeGreaterThan(1);
+    for (const [batch] of mocks.appendEvents.mock.calls) {
+      const count = Object.values(batch as KnowledgeEventLog).reduce((sum, events) => sum + events.length, 0);
+      expect(count).toBeLessThanOrEqual(1000);
+      expect(Object.keys(batch as KnowledgeEventLog).length).toBeLessThanOrEqual(128);
+    }
+  });
+
+  it('resumes after a failed append without duplicating committed review batches', async () => {
+    mocks.getAnkiWordStatuses.mockResolvedValue([{ word: 'w', cardId: 1 }]);
+    const reviews = Array.from({ length: 2200 }, (_, i) => review({ id: i + 1, cid: 1 }));
+    const persisted: KnowledgeEventLog = {};
+    const key = `ja:${hashWordSync('w')}`;
+    mocks.queryAnkiReviewIdSets.mockImplementation(async (keys: string[]) => Object.fromEntries(
+      keys.map(candidate => [candidate, (persisted[candidate] ?? []).map(event => event.ankiReviewId)]),
+    ));
+    let appendAttempt = 0;
+    mocks.appendEvents.mockImplementation(async (batch: KnowledgeEventLog) => {
+      appendAttempt++;
+      if (appendAttempt === 2) throw new Error('interrupted append');
+      for (const [candidate, events] of Object.entries(batch)) {
+        persisted[candidate] = [...(persisted[candidate] ?? []), ...events];
+      }
+    });
+    const deps = { fetchReviews: async () => ({ '1': reviews }) };
+
+    await expect(importAnkiReviewHistory('ja', deps)).rejects.toThrow('interrupted append');
+    const committed = persisted[key]?.length ?? 0;
+    expect(committed).toBeGreaterThan(0);
+    expect(committed).toBeLessThan(reviews.length);
+
+    const retry = await importAnkiReviewHistory('ja', deps);
+    expect(retry.imported).toBe(reviews.length - committed);
+    expect(persisted[key]).toHaveLength(reviews.length);
+    expect(new Set(persisted[key].map(event => event.ankiReviewId)).size).toBe(reviews.length);
+  });
+
   it('batches review fetches in chunks of 500 card ids', async () => {
     const statuses = Array.from({ length: 1200 }, (_, i) => ({ word: `w${i}`, cardId: i + 1 }));
     mocks.getAnkiWordStatuses.mockResolvedValue(statuses);
