@@ -20,7 +20,6 @@ export {
   Modal, 
   ConfirmDialog, 
   useConfirmDialog,
-  WindowOverlay,
   LoadingOverlay as ModalLoadingOverlay,
   ErrorModal,
   DraggablePopup,
@@ -28,7 +27,6 @@ export {
   type ConfirmDialogProps, 
   type ConfirmVariant, 
   type ConfirmOptions,
-  type WindowOverlayProps,
   type LoadingOverlayProps,
   type ErrorModalProps,
   type ErrorSeverity,
@@ -55,7 +53,6 @@ export {
   SkeletonLine,
   SkeletonText,
   SkeletonPill,
-  SkeletonInline,
   SkeletonRows,
   SkeletonGrid,
   SkeletonCard,
@@ -136,14 +133,11 @@ export {
   Card,
   CheckboxCard,
   SelectableCard,
-  RecentCard,
   StatCard,
   type ActionCardProps,
   type CardProps,
   type CheckboxCardProps,
   type SelectableCardProps,
-  type RecentCardProps,
-  type RecentItem,
   type StatCardProps,
 } from './Card';
 
@@ -254,8 +248,6 @@ export {
   type ConnectionStatusProps,
   type ConnectionState,
   type ProgressBarProps,
-  FloatingStatus,
-  type FloatingStatusProps,
   AppUpdateNotifier,
 } from './Feedback';
 
@@ -322,21 +314,12 @@ export {
 
 // Misc Components
 export { 
-  IconRenderer,
   LegendItem,
   KeyboardShortcut,
-  ShortcutsList,
-  SortableColumnHeader,
   ModalFooter,
-  StatsGrid,
-  type IconRendererProps,
   type LegendItemProps,
   type KeyboardShortcutProps,
-  type ShortcutsListProps,
-  type SortableColumnHeaderProps,
-  type SortDirection,
   type ModalFooterProps,
-  type StatsGridProps,
 } from './Misc';
 
 // AnkiHoverPreview Components

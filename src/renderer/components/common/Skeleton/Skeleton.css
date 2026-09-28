@@ -9,7 +9,6 @@
  * prefers-reduced-motion. */
 .skeleton-line,
 .skeleton-pill,
-.skeleton-inline,
 .skeleton-row,
 .skeleton-grid__cell,
 .skeleton-stat,
@@ -21,7 +20,6 @@
 
 .skeleton-line,
 .skeleton-pill,
-.skeleton-inline {
   display: inline-block;
   vertical-align: middle;
 }
@@ -36,7 +34,6 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton-line,
   .skeleton-pill,
-  .skeleton-inline,
   .skeleton-row,
   .skeleton-grid__cell,
   .skeleton-stat,
@@ -73,18 +70,12 @@
   width: 60%;
 }
 
-/* ── Pill / inline ── */
+/* ── Pill ── */
 
 .skeleton-pill {
   height: 1.65rem;
   width: 5.5rem;
   border-radius: var(--radius-full);
-}
-
-.skeleton-inline {
-  height: 1rem;
-  width: 3rem;
-  border-radius: var(--radius-sm);
 }
 
 /* ── Rows (list / table body) ── */

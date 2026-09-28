@@ -38,14 +38,6 @@
   border-color: var(--color-primary);
 }
 
-.word-search-prompt,
-.word-search-empty {
-  margin: 0;
-  padding: var(--spacing-3) 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
 .word-search-panel { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: var(--spacing-4); }
 .word-search-search { margin-bottom: 0; }
 .word-search-panel input { transition: none !important; }

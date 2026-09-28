@@ -10,7 +10,7 @@ import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../
 import type { Flashcard } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, Button, type RecentItem } from '../../../components/common';
+import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, Button } from '../../../components/common';
 import {
   WelcomeFeatureCard,
   WelcomeVideoPreview,
@@ -26,7 +26,7 @@ import { ActionCard } from '../../../components/common/Card/ActionCard';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { nextAttemptId, type AttemptId } from '../../../../shared/knowledgeEvents';
-import { getRecentItems } from '../../../services/thumbnailService';
+import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelProgress } from '../../../utils/wordLevelStats';

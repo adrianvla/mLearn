@@ -2,7 +2,6 @@
  * Miscellaneous Components Barrel Export
  */
 
-export { IconRenderer, type IconRendererProps } from './IconRenderer';
 export {
   CloseIcon,
   CrossIcon,
@@ -71,20 +70,12 @@ export {
 } from './Icons';
 export { HoverReveal, type HoverRevealProps } from './HoverReveal';
 export { LegendItem, type LegendItemProps } from './LegendItem';
-export { 
-  KeyboardShortcut, 
-  ShortcutsList, 
-  type KeyboardShortcutProps, 
-  type ShortcutsListProps 
-} from './KeyboardShortcut';
-export { SortableColumnHeader, type SortableColumnHeaderProps, type SortDirection } from './SortableColumnHeader';
+export { KeyboardShortcut, type KeyboardShortcutProps } from './KeyboardShortcut';
 export { ModalFooter, type ModalFooterProps } from './ModalFooter';
-export { StatsGrid, type StatsGridProps } from './StatsGrid';
 
 // Import CSS
 import './LegendItem.css';
 import './KeyboardShortcut.css';
-import './SortableColumnHeader.css';
 import './ModalFooter.css';
 import './StatsGrid.css';
 import './HoverReveal.css';

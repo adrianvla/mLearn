@@ -6,7 +6,6 @@ import {
   SkeletonLine,
   SkeletonText,
   SkeletonPill,
-  SkeletonInline,
   SkeletonRows,
   SkeletonGrid,
   SkeletonCard,
@@ -64,7 +63,6 @@ describe('Skeleton primitives', () => {
         <>
           <SkeletonLine />
           <SkeletonPill />
-          <SkeletonInline />
           <SkeletonText lines={2} animate={false} />
         </>
       ),

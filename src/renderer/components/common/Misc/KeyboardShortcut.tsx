@@ -50,30 +50,4 @@ export const KeyboardShortcut: Component<KeyboardShortcutProps> = (props) => {
   );
 };
 
-export interface ShortcutsListProps {
-  /** Title for the shortcuts section */
-  title?: string;
-  /** List of shortcuts */
-  shortcuts: { description: string; keys: string[] }[];
-  /** Additional CSS class */
-  class?: string;
-}
-
-export const ShortcutsList: Component<ShortcutsListProps> = (props) => {
-  return (
-    <div class={`shortcuts-list ${props.class || ''}`}>
-      <Show when={props.title}>
-        <h4 class="shortcuts-title">{props.title}</h4>
-      </Show>
-      <div class="shortcuts-items">
-        <For each={props.shortcuts}>
-          {(shortcut) => (
-            <KeyboardShortcut row description={shortcut.description} keys={shortcut.keys} />
-          )}
-        </For>
-      </div>
-    </div>
-  );
-};
-
 export default KeyboardShortcut;

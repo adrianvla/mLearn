@@ -247,7 +247,6 @@ vi.mock('../../components/common', async (original) => ({
     <label><input type="radio" name={props.name} aria-label={props.label} checked={props.checked} disabled={props.disabled} onChange={props.onChange} />{props.label}</label>
   ),
   VoiceSamplePicker: () => <span />,
-  FloatingStatus: () => <span />,
   TabContainer: (props: { children?: JSX.Element; tabs?: Array<{ id: string; label: string }>; onTabChange?: (id: string) => void }) => (
     <div>{props.tabs?.map((tab) => <button type="button" onClick={() => props.onTabChange?.(tab.id)}>{tab.label}</button>)}{props.children}</div>
   ),

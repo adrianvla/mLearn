@@ -73,14 +73,6 @@ export const SkeletonPill: Component<{
   />
 );
 
-/** Small inline chunk (icon / inline value / short token). */
-export const SkeletonInline: Component<{
-  animate?: boolean;
-  class?: string;
-}> = (props) => (
-  <span class={`skeleton-inline${staticClass(props.animate)}${extraClass(props.class)}`} aria-hidden="true" />
-);
-
 /** Vertical list or table-body placeholder: N stable full-width rows. */
 export const SkeletonRows: Component<{
   rows?: number;

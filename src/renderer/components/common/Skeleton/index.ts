@@ -2,7 +2,6 @@ export {
   SkeletonLine,
   SkeletonText,
   SkeletonPill,
-  SkeletonInline,
   SkeletonRows,
   SkeletonGrid,
   SkeletonCard,

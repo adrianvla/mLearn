@@ -3,7 +3,6 @@ import { Button, type ButtonProps, type ButtonType } from '../components/common/
 import {
   Modal,
   ConfirmDialog,
-  WindowOverlay,
   ModalLoadingOverlay,
   ErrorModal,
   DraggablePopup,
@@ -23,7 +22,6 @@ import {
   ActionCard,
   CheckboxCard,
   SelectableCard,
-  RecentCard,
   StatCard,
   Select,
   Label,
@@ -41,7 +39,6 @@ import {
   EmptyState,
   AlertBanner,
   ProgressBar,
-  FloatingStatus,
   Flex,
   Row,
   Column,
@@ -56,7 +53,6 @@ import {
   Tooltip,
   HoverReveal,
   KeyboardShortcut,
-  StatsGrid,
   CloseIcon,
   CrossIcon,
   CheckIcon,
@@ -128,7 +124,6 @@ export type {
   ConfirmDialogProps,
   ConfirmVariant,
   ConfirmOptions,
-  WindowOverlayProps,
   LoadingOverlayProps,
   ErrorModalProps,
   ErrorSeverity,
@@ -149,7 +144,6 @@ export type {
   ActionCardProps,
   CheckboxCardProps,
   SelectableCardProps,
-  RecentCardProps,
   StatCardProps,
   SelectProps,
   SelectOption,
@@ -166,7 +160,6 @@ export type {
   AlertBannerProps,
   AlertVariant,
   ProgressBarProps,
-  FloatingStatusProps,
   FlexProps,
   StatusBarProps,
   TabHeaderProps,
@@ -178,7 +171,6 @@ export type {
   TooltipProps,
   HoverRevealProps,
   KeyboardShortcutProps,
-  StatsGridProps,
   IconProps,
 } from '../components/common';
 
@@ -190,7 +182,6 @@ export interface PluginComponentLibrary {
   TabBtn: typeof TabBtn;
   Modal: typeof Modal;
   ConfirmDialog: typeof ConfirmDialog;
-  WindowOverlay: typeof WindowOverlay;
   ModalLoadingOverlay: typeof ModalLoadingOverlay;
   ErrorModal: typeof ErrorModal;
   DraggablePopup: typeof DraggablePopup;
@@ -210,7 +201,6 @@ export interface PluginComponentLibrary {
   ActionCard: typeof ActionCard;
   CheckboxCard: typeof CheckboxCard;
   SelectableCard: typeof SelectableCard;
-  RecentCard: typeof RecentCard;
   StatCard: typeof StatCard;
   Select: typeof Select;
   Label: typeof Label;
@@ -226,7 +216,6 @@ export interface PluginComponentLibrary {
   EmptyState: typeof EmptyState;
   AlertBanner: typeof AlertBanner;
   ProgressBar: typeof ProgressBar;
-  FloatingStatus: typeof FloatingStatus;
   Flex: typeof Flex;
   Row: typeof Row;
   Column: typeof Column;
@@ -241,7 +230,6 @@ export interface PluginComponentLibrary {
   Tooltip: typeof Tooltip;
   HoverReveal: typeof HoverReveal;
   KeyboardShortcut: typeof KeyboardShortcut;
-  StatsGrid: typeof StatsGrid;
   CloseIcon: typeof CloseIcon;
   CrossIcon: typeof CrossIcon;
   CheckIcon: typeof CheckIcon;
@@ -302,7 +290,6 @@ export const pluginComponentLibrary: PluginComponentLibrary = {
   TabBtn,
   Modal,
   ConfirmDialog,
-  WindowOverlay,
   ModalLoadingOverlay,
   ErrorModal,
   DraggablePopup,
@@ -322,7 +309,6 @@ export const pluginComponentLibrary: PluginComponentLibrary = {
   ActionCard,
   CheckboxCard,
   SelectableCard,
-  RecentCard,
   StatCard,
   Select,
   Label,
@@ -338,7 +324,6 @@ export const pluginComponentLibrary: PluginComponentLibrary = {
   EmptyState,
   AlertBanner,
   ProgressBar,
-  FloatingStatus,
   Flex,
   Row,
   Column,
@@ -353,7 +338,6 @@ export const pluginComponentLibrary: PluginComponentLibrary = {
   Tooltip,
   HoverReveal,
   KeyboardShortcut,
-  StatsGrid,
   CloseIcon,
   CrossIcon,
   CheckIcon,

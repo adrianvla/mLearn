@@ -10,7 +10,6 @@ export {
   type ConfirmVariant, 
   type ConfirmOptions 
 } from './ConfirmDialog';
-export { WindowOverlay, type WindowOverlayProps } from './WindowOverlay';
 export { 
   LoadingOverlay, 
   type LoadingOverlayProps 
