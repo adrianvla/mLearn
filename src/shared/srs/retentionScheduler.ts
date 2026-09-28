@@ -1,8 +1,9 @@
+import { SRS_EASE } from '../constants';
 import type { FlashcardMeta, RetentionScheduleCache } from '../types';
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
-const MIN_EASE = 1.3;
+const MIN_EASE = SRS_EASE.MIN;
 const EASY_BONUS = 1.3;
 
 export type RetentionRating = 'again' | 'hard' | 'good' | 'easy';

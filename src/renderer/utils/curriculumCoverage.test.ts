@@ -8,7 +8,8 @@ import {
   grammarLevelOrder,
   summarizeGrammarCurriculum,
 } from './curriculumCoverage';
-import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
+import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
+import type { GrammarProjectionMap } from '../../shared/knowledge/historyQueries';
 import { effectiveThresholds, evidenceStatusFromEase } from '../../shared/knowledge/effectiveKnowledge';
 
 const languageData = {
@@ -24,12 +25,24 @@ const languageData = {
 
 const key = (pattern: string): string => grammarEvidenceKey('ja', pattern, 'grammar-recognition');
 
+/** The journal, then the read model the journal owner folds from it. */
 function log(entries: Array<{ pattern: string; event: ReturnType<typeof grammarRecognitionEvidence> }>): KnowledgeEventLog {
   const result: KnowledgeEventLog = {};
   for (const { pattern, event } of entries) {
     (result[key(pattern)] ??= []).push(event);
   }
   return result;
+}
+
+/** Mirrors getGrammarProjections on the bridge/store side. */
+function projectionsOf(journal: KnowledgeEventLog): GrammarProjectionMap {
+  const projections: GrammarProjectionMap = {};
+  for (const [evidenceKey, events] of Object.entries(journal)) {
+    if (grammarPatternFromEvidenceKey('ja', evidenceKey) === null) continue;
+    const projection = replayGrammarRecognition(events);
+    if (projection) projections[evidenceKey] = projection;
+  }
+  return projections;
 }
 
 describe('grammarCategoryPressure (R07 bottleneck signal)', () => {
@@ -41,10 +54,10 @@ describe('grammarCategoryPressure (R07 bottleneck signal)', () => {
   ];
 
   it('scores mean insecurity per category from recorded measurements only', () => {
-    const measurements = classifyGrammarMeasurements('ja', log([
+    const measurements = classifyGrammarMeasurements('ja', projectionsOf(log([
       { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rating', quality: 'missed', easeAfter: 1.3 }) },
       { pattern: '〜わけではない', event: grammarRecognitionEvidence('ja', '〜わけではない', { t: 2, kind: 'rating', quality: 'fluent', easeAfter: 2.5 }) },
-    ]));
+    ])));
     const pressure = grammarCategoryPressure(items, measurements);
     // conditional: its one measured construction is unknown → 1;
     // negation: its one measured construction is known → 0.
@@ -52,9 +65,9 @@ describe('grammarCategoryPressure (R07 bottleneck signal)', () => {
   });
 
   it('stays absent without measured attempts and ignores uncategorized items', () => {
-    const measurements = classifyGrammarMeasurements('ja', log([
+    const measurements = classifyGrammarMeasurements('ja', projectionsOf(log([
       { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rollup', timesSeenDelta: 5 }) },
-    ]));
+    ])));
     // Passive exposure is not attempt evidence: no pressure invented.
     expect(measurements.get('ば')?.passiveOnly).toBe(true);
     expect(grammarCategoryPressure(items, measurements)).toEqual({});
@@ -82,24 +95,24 @@ describe('grammarLevelOrder', () => {
 
 describe('classifyGrammarMeasurements', () => {
   it('passive encounter rollups are familiarity only — never measured', () => {
-    const measurements = classifyGrammarMeasurements('ja', log([
+    const measurements = classifyGrammarMeasurements('ja', projectionsOf(log([
       { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rollup', timesSeenDelta: 3 }) },
-    ]));
+    ])));
     expect(measurements.get('ば')).toMatchObject({ state: 'unmeasured', passiveOnly: true, exposures: 3 });
   });
 
   it('an interactive rating measures the construction', () => {
-    const measurements = classifyGrammarMeasurements('ja', log([
+    const measurements = classifyGrammarMeasurements('ja', projectionsOf(log([
       { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rating', quality: 'fluent', easeAfter: 1.8 }) },
-    ]));
+    ])));
     expect(measurements.get('ば')?.state).toBe('known');
     expect(measurements.get('ば')?.passiveOnly).toBe(false);
   });
 
   it('a failure report is measured negative, not unmeasured', () => {
-    const measurements = classifyGrammarMeasurements('ja', log([
+    const measurements = classifyGrammarMeasurements('ja', projectionsOf(log([
       { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rollup', grammarFailedDelta: 1, origin: 'grammar-failure' }) },
-    ]));
+    ])));
     expect(measurements.get('ば')?.state).toBe('unknown');
     expect(measurements.get('ば')?.passiveOnly).toBe(false);
   });
@@ -116,7 +129,7 @@ describe('classifyGrammarMeasurements', () => {
     const fullReplay = replayGrammarRecognition(events[grammarEvidenceKey('ja', 'ば', 'grammar-recognition')]!)!;
     expect(fullReplay.hasActiveEvidence).toBe(true);
     expect(fullReplay.ease).toBeCloseTo(1.8 - 0.15, 10);
-    const covered = classifyGrammarMeasurements('ja', events).get('ば')!;
+    const covered = classifyGrammarMeasurements('ja', projectionsOf(events)).get('ば')!;
     expect(covered.state).toBe(evidenceStatusFromEase(fullReplay.ease, effectiveThresholds()));
     expect(covered.state).toBe('learning');
     expect(covered.passiveOnly).toBe(fullReplay.hasActiveEvidence === false);
@@ -128,15 +141,19 @@ describe('classifyGrammarMeasurements', () => {
     // knowledgeStrength.easeToStatus hardcoded the 1.8 anchor and reported
     // Known — the Level Study vs GrammarSelector disagreement the FINAL
     // review reproduced.
-    const measurements = classifyGrammarMeasurements('ja', log([
+    const measurements = classifyGrammarMeasurements('ja', projectionsOf(log([
       { pattern: 'ば', event: grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rating', quality: 'good', easeAfter: 2.6 }) },
-    ]), effectiveThresholds({ easeThresholdLearning: 2.0, easeThresholdKnown: 3.0 }));
+    ])), effectiveThresholds({ easeThresholdLearning: 2.0, easeThresholdKnown: 3.0 }));
     expect(measurements.get('ば')?.state).toBe('learning');
   });
 
-  it('retracted evidence stops measuring the construction', () => {
+  it('retracted evidence leaves the construction out of the read model entirely', () => {
+    // Retraction removes the attempt, and with it the only evidence — so the
+    // fold yields no projection at all. Coverage must therefore report the
+    // construction as absent (never as a stale 'known').
     const rating = grammarRecognitionEvidence('ja', 'ば', { t: 1, kind: 'rating', quality: 'fluent', easeAfter: 1.8, attemptId: 'a1' });
     const eventLog = log([{ pattern: 'ば', event: rating }]);
+    expect(classifyGrammarMeasurements('ja', projectionsOf(eventLog)).get('ば')?.state).toBe('known');
     eventLog[key('ば')].push({
       t: 2,
       kind: 'retraction',
@@ -144,8 +161,7 @@ describe('classifyGrammarMeasurements', () => {
       aspect: 'grammar',
       retracts: 'a1',
     });
-    const measurements = classifyGrammarMeasurements('ja', eventLog);
-    expect(measurements.get('ば')?.state).toBe('unmeasured');
+    expect(classifyGrammarMeasurements('ja', projectionsOf(eventLog)).has('ば')).toBe(false);
   });
 });
 
@@ -155,7 +171,7 @@ describe('summarizeGrammarCurriculum', () => {
       { pattern: 'ない', event: grammarRecognitionEvidence('ja', 'ない', { t: 1, kind: 'rating', quality: 'fluent', easeAfter: 1.8 }) },
       { pattern: '〜わけではない', event: grammarRecognitionEvidence('ja', '〜わけではない', { t: 2, kind: 'rollup', timesSeenDelta: 5 }) },
     ]);
-    const summary = summarizeGrammarCurriculum('ja', languageData, eventLog);
+    const summary = summarizeGrammarCurriculum('ja', languageData, projectionsOf(eventLog));
     expect(summary.component).toBe('grammar');
     expect(summary.total).toBe(3);
     expect(summary.known).toBe(1);

@@ -15,7 +15,6 @@ import {
 } from '../../learning/questionBank';
 import {
   classifyGrammarMeasurements,
-  classifyGrammarProjectionMeasurements,
   grammarCategoryPressure,
   grammarLevelName,
 } from '../../utils/curriculumCoverage';
@@ -35,10 +34,10 @@ import './GrammarCoverage.css';
 export interface GrammarCoverageProps {
   language: string;
   languageData: LanguageData;
-  /** Capability-scoped journal for the language (already loaded by the tab). */
+  /** Exact item events for the level (item versions, attempt counts). */
   eventLog: KnowledgeEventLog;
-  /** Journal-side grammar fold; exact item events remain in eventLog. */
-  projections?: GrammarProjectionMap;
+  /** The language's recognition read model — the only coverage input. */
+  projections: GrammarProjectionMap;
   summary: CurriculumComponentSummary;
   /** Records a grammar-recognize probe (self-assessed construction recognition).
    *  The active task supplies the written pattern only — no meaning cue is
@@ -299,9 +298,8 @@ const questionItemCache = new QuestionBankCache();
 export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const grammarMeasurements = () => props.projections
-    ? classifyGrammarProjectionMeasurements(props.language, props.projections, effectiveThresholds(settings))
-    : classifyGrammarMeasurements(props.language, props.eventLog, effectiveThresholds(settings));
+  const grammarMeasurements = () =>
+    classifyGrammarMeasurements(props.language, props.projections, effectiveThresholds(settings));
 
   // Web Locks DI seam (shared study-session convention). happy-dom/Node
   // report `navigator.locks` as null (not undefined) — the typed view treats

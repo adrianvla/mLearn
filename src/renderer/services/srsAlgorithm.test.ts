@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { Flashcard, FlashcardMeta, ReviewQueue } from '@shared/types';
 import {
     getTodayDateString,
-    isToday,
     getEndOfSRSDay,
     generateUUID,
     hashWord,
@@ -15,7 +14,6 @@ import {
     sortByDueDate,
     getDueCards,
     getNewCards,
-    getLearningCards,
     getReviewCards,
     buildReviewQueue,
     getNextCard,
@@ -144,55 +142,6 @@ describe('getTodayDateString', () => {
         vi.setSystemTime(new Date('2025-06-15T12:00:00'));
         expect(getTodayDateString()).toBe('2025-06-15');
     });
-});
-
-// ---------------------------------------------------------------------------
-// isToday
-// ---------------------------------------------------------------------------
-
-describe('isToday', () => {
-    afterEach(() => {
-        vi.useRealTimers();
-    });
-
-    it('returns true for timestamp in the current SRS day', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T12:00:00'));
-        const ts = new Date('2025-06-15T08:00:00').getTime();
-        expect(isToday(ts, 4)).toBe(true);
-    });
-
-    it('returns false for timestamp from yesterday', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T12:00:00'));
-        const ts = new Date('2025-06-14T20:00:00').getTime();
-        expect(isToday(ts, 4)).toBe(false);
-    });
-
-    it('returns false for timestamp from tomorrow', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T12:00:00'));
-        const ts = new Date('2025-06-16T08:00:00').getTime();
-        expect(isToday(ts, 4)).toBe(false);
-    });
-
-    it('treats 3 AM as still "yesterday" for default 4 AM boundary', () => {
-        vi.useFakeTimers();
-        // Current time is 3 AM on June 15 — in the SRS day of June 14
-        vi.setSystemTime(new Date('2025-06-15T03:00:00'));
-        // Timestamp at 11 PM on June 14 — in the same SRS day
-        const ts = new Date('2025-06-14T23:00:00').getTime();
-        expect(isToday(ts, 4)).toBe(true);
-    });
-
-    it('returns false when current time is 3 AM and timestamp is from previous SRS day', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T03:00:00'));
-        // Timestamp is from the day before yesterday evening — different SRS day
-        const ts = new Date('2025-06-13T22:00:00').getTime();
-        expect(isToday(ts, 4)).toBe(false);
-    });
-
 });
 
 // ---------------------------------------------------------------------------
@@ -1092,78 +1041,6 @@ describe('getNewCards', () => {
             a: createTestCard({ id: 'a', state: 'review' }),
         };
         expect(getNewCards(cards)).toHaveLength(0);
-    });
-});
-
-// ---------------------------------------------------------------------------
-// getLearningCards
-// ---------------------------------------------------------------------------
-
-describe('getLearningCards', () => {
-    afterEach(() => {
-        vi.useRealTimers();
-    });
-
-    it('returns learning cards that are due now', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        const cards = {
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: now - 500 }),
-        };
-        const result = getLearningCards(cards);
-        expect(result).toHaveLength(1);
-    });
-
-    it('excludes learning cards not yet due (beyond SRS day)', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const cards = {
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
-        };
-        expect(getLearningCards(cards)).toHaveLength(0);
-    });
-
-    it('does not return learning cards before their exact due time even within the same SRS day', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const cards = {
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-15T12:00:00').getTime() }),
-        };
-        expect(getLearningCards(cards)).toHaveLength(0);
-    });
-
-    it('excludes relearning cards (they are not "learning")', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        const cards = {
-            a: createTestCard({ id: 'a', state: 'relearning', dueDate: now - 500 }),
-        };
-        expect(getLearningCards(cards)).toHaveLength(0);
-    });
-
-    it('excludes suspended and buried', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        const cards = {
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: now - 500, suspended: true }),
-            b: createTestCard({ id: 'b', state: 'learning', dueDate: now - 500, buried: true }),
-        };
-        expect(getLearningCards(cards)).toHaveLength(0);
-    });
-
-    it('sorts by dueDate ascending', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        const cards = {
-            b: createTestCard({ id: 'b', state: 'learning', dueDate: now - 100 }),
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: now - 500 }),
-        };
-        const result = getLearningCards(cards);
-        expect(result[0].id).toBe('a');
     });
 });
 

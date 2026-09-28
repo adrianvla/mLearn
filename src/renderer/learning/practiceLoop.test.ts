@@ -7,10 +7,12 @@ import { GRAMMAR_RECOGNIZE_TASK } from './types';
 import { classifyGrammarMeasurements, grammarLevelName, summarizeGrammarCurriculum } from '../utils/curriculumCoverage';
 import {
   grammarEvidenceKey,
+  grammarPatternFromEvidenceKey,
   grammarRecognitionEvidence,
   grammarTarget,
   replayGrammarRecognition,
 } from '../../shared/grammar/evidence';
+import type { GrammarProjectionMap } from '../../shared/knowledge/historyQueries';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import {
   evidenceStatusFromEase,
@@ -19,6 +21,17 @@ import {
 } from '../../shared/knowledge/effectiveKnowledge';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import type { LanguageData } from '../../shared/types';
+
+/** Mirrors getGrammarProjections: the journal owner folds keys into the read model. */
+function projectionsOf(language: string, log: KnowledgeEventLog): GrammarProjectionMap {
+  const projections: GrammarProjectionMap = {};
+  for (const [key, events] of Object.entries(log)) {
+    if (grammarPatternFromEvidenceKey(language, key) === null) continue;
+    const projection = replayGrammarRecognition(events);
+    if (projection) projections[key] = projection;
+  }
+  return projections;
+}
 
 /**
  * W02 acceptance loop over the REAL language packages (source of truth for
@@ -175,14 +188,14 @@ describe.each(['de', 'ja', 'zh'] as const)('practice loop on the real %s package
   });
 
   it('recorded practice reaches the Progress/Inspector aggregation with honest states', () => {
-    const summary = summarizeGrammarCurriculum(language, data, JOURNALS[language], thresholds);
+    const summary = summarizeGrammarCurriculum(language, data, projectionsOf(language, JOURNALS[language]), thresholds);
     // Real packages hold many more constructions than one practice session
     // measures: partial coverage stays honestly partial (never "complete").
     expect(summary.complete).toBe(false);
     expect(summary.known + summary.learning + summary.unknown + summary.unmeasured).toBe(summary.total);
     expect(summary.unmeasured).toBe((data.grammar ?? []).length - 3);
 
-    const measurements = classifyGrammarMeasurements(language, JOURNALS[language], thresholds);
+    const measurements = classifyGrammarMeasurements(language, projectionsOf(language, JOURNALS[language]), thresholds);
     expect(measurements.get(scenario.learning)).toMatchObject({ state: 'learning', passiveOnly: false });
     expect(measurements.get(scenario.known)).toMatchObject({ state: 'known', passiveOnly: false });
     expect(measurements.get(scenario.failed)).toMatchObject({ state: 'unknown', passiveOnly: false });
@@ -190,7 +203,7 @@ describe.each(['de', 'ja', 'zh'] as const)('practice loop on the real %s package
   });
 
   it('coverage classification agrees with the materialized recognition projection', () => {
-    const measurements = classifyGrammarMeasurements(language, JOURNALS[language], thresholds);
+    const measurements = classifyGrammarMeasurements(language, projectionsOf(language, JOURNALS[language]), thresholds);
     for (const [evidenceKey, events] of Object.entries(JOURNALS[language])) {
       const projection = replayGrammarRecognition(events)!;
       const materialized = projection.hasActiveEvidence
@@ -205,7 +218,7 @@ describe.each(['de', 'ja', 'zh'] as const)('practice loop on the real %s package
 describe('practice loop invariants across the three languages', () => {
   it('per-language summaries reflect the curated practice outcomes', () => {
     for (const language of ['de', 'ja', 'zh'] as const) {
-      const summary = summarizeGrammarCurriculum(language, PACKAGES[language], JOURNALS[language], thresholds);
+      const summary = summarizeGrammarCurriculum(language, PACKAGES[language], projectionsOf(language, JOURNALS[language]), thresholds);
       expect(summary).toMatchObject({ known: 1, learning: 1, unknown: 1, unmeasured: (PACKAGES[language].grammar ?? []).length - 3 });
     }
   });
@@ -221,8 +234,10 @@ describe('practice loop invariants across the three languages', () => {
       ],
     };
 
-    const measurements = classifyGrammarMeasurements('de', log, thresholds);
-    expect(measurements.get(scenario.learning)).toMatchObject({ state: 'unmeasured', passiveOnly: true });
+    const measurements = classifyGrammarMeasurements('de', projectionsOf('de', log), thresholds);
+    // Retraction removes the attempt and its projection, so the construction
+    // drops out of coverage entirely (never left as a stale 'learning').
+    expect(measurements.has(scenario.learning)).toBe(false);
     // Unrelated history survives the retraction.
     expect(measurements.get(scenario.known)).toMatchObject({ state: 'known' });
   });

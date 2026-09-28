@@ -16,8 +16,7 @@ import {
   type CurriculumRequirement,
   type CurriculumTargetState,
 } from '../../shared/curriculum';
-import { replayGrammarRecognition } from '../../shared/grammar/evidence';
-import { stripRetractions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { grammarPatternFromEvidenceKey } from '../../shared/grammar/evidence';
 import { evidenceStatusFromEase, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { sortGrammarLevelsByDifficulty } from '../../shared/languageFeatures';
 import { grammarEntityId } from '../../shared/graph/load';
@@ -92,73 +91,22 @@ export function grammarLevelName(level: number, languageData: LanguageData): str
 }
 
 /**
- * Classifies every grammar construction found in the journal. Keys ending in
- * `:grammar-recognition` carry capability-scoped evidence; the pattern is
- * recovered from the embedded entity id (same shape the materialization uses).
+ * Classifies every grammar construction in the recognition read model.
+ *
+ * The `GrammarProjectionMap` is the ONLY input: the journal-side fold that
+ * produces it is the same algorithm on every platform (SQLite beside the
+ * rows, array replay on mobile), so a second journal-scanning classifier
+ * could only ever disagree with it.
  */
 export function classifyGrammarMeasurements(
-  language: string,
-  eventLog: KnowledgeEventLog,
-  thresholds: EffectiveThresholds = effectiveThresholds(),
-): Map<string, GrammarMeasurement> {
-  const suffix = ':grammar-recognition';
-  const prefix = `${language}:grammar:`;
-  const byPattern = new Map<string, KnowledgeEvent[]>();
-  for (const key of Object.keys(eventLog)) {
-    if (!key.startsWith(prefix) || !key.endsWith(suffix)) continue;
-    const entityId = key.slice(prefix.length, key.length - suffix.length);
-    if (!entityId.startsWith(prefix)) continue;
-    const pattern = entityId.slice(prefix.length);
-    if (!pattern) continue;
-    const events = byPattern.get(pattern) ?? [];
-    events.push(...eventLog[key] ?? []);
-    byPattern.set(pattern, events);
-  }
-
-  const measurements = new Map<string, GrammarMeasurement>();
-  for (const [pattern, events] of byPattern) {
-    const active = stripRetractions(events);
-    let exposures = 0;
-    let failures = 0;
-    for (const event of active) {
-      exposures += event.timesSeenDelta ?? 0;
-      failures += event.grammarFailedDelta ?? 0;
-    }
-    // Replay the COMPLETE ordered sequence — rating, failure, and encounter
-    // rows together — so coverage classification is ledger-exact with the
-    // materialized GrammarSelector projection. Filtering delta rows out
-    // (the pre-review behavior) let a rating followed by a failure rollup
-    // read Known here while the selector read Learning (R01 same-state).
-    const projection = replayGrammarRecognition(active);
-    const measured = projection?.hasActiveEvidence === true;
-    const state: CurriculumTargetState = measured
-      ? evidenceStatusFromEase(projection!.ease, thresholds)
-      : 'unmeasured';
-    measurements.set(pattern, {
-      state,
-      passiveOnly: !measured,
-      exposures,
-      failures,
-    });
-  }
-  return measurements;
-}
-
-/** Desktop's bounded journal-side fold yields the same grammar read model. */
-export function classifyGrammarProjectionMeasurements(
   language: string,
   projections: GrammarProjectionMap,
   thresholds: EffectiveThresholds = effectiveThresholds(),
 ): Map<string, GrammarMeasurement> {
-  const suffix = ':grammar-recognition';
-  const prefix = `${language}:grammar:`;
   const measurements = new Map<string, GrammarMeasurement>();
   for (const [key, projection] of Object.entries(projections)) {
-    if (!key.startsWith(prefix) || !key.endsWith(suffix)) continue;
-    const entityId = key.slice(prefix.length, key.length - suffix.length);
-    if (!entityId.startsWith(prefix)) continue;
-    const pattern = entityId.slice(prefix.length);
-    if (!pattern) continue;
+    const pattern = grammarPatternFromEvidenceKey(language, key);
+    if (pattern === null) continue;
     const measured = projection.hasActiveEvidence;
     measurements.set(pattern, {
       state: measured ? evidenceStatusFromEase(projection.ease, thresholds) : 'unmeasured',
@@ -170,32 +118,18 @@ export function classifyGrammarProjectionMeasurements(
   return measurements;
 }
 
-export function summarizeGrammarCurriculumFromProjections(
+/** Per-level grammar coverage summary for the Level Study surface. */
+export function summarizeGrammarCurriculum(
   language: string,
   languageData: LanguageData,
   projections: GrammarProjectionMap,
   thresholds: EffectiveThresholds = effectiveThresholds(),
 ): CurriculumComponentSummary {
-  const measurements = classifyGrammarProjectionMeasurements(language, projections, thresholds);
   return summarizeCurriculumComponent(
-    'grammar', grammarCurriculumRequirements(language, languageData), grammarLevelOrder(languageData),
-    (requirement) => measurements.get(requirement.label)?.state ?? 'unmeasured',
+    'grammar',
+    grammarCurriculumRequirements(language, languageData),
+    grammarLevelOrder(languageData),
+    (requirement) => classifyGrammarMeasurements(language, projections, thresholds).get(requirement.label)?.state ?? 'unmeasured',
   );
 }
 
-/** Per-level grammar coverage summary for the Level Study surface. */
-export function summarizeGrammarCurriculum(
-  language: string,
-  languageData: LanguageData,
-  eventLog: KnowledgeEventLog,
-  thresholds: EffectiveThresholds = effectiveThresholds(),
-): CurriculumComponentSummary {
-  const requirements = grammarCurriculumRequirements(language, languageData);
-  const measurements = classifyGrammarMeasurements(language, eventLog, thresholds);
-  return summarizeCurriculumComponent(
-    'grammar',
-    requirements,
-    grammarLevelOrder(languageData),
-    (requirement) => measurements.get(requirement.label)?.state ?? 'unmeasured',
-  );
-}

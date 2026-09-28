@@ -13,6 +13,13 @@ export const GRAMMAR_CAPABILITIES: readonly GrammarCapability[] = [
   'grammar-production',
 ];
 
+
+/**
+ * The capability the recognition read model folds. Capability-scoped keys
+ * mean contrast, comprehension, formation and production never share mastery.
+ */
+const GRAMMAR_RECOGNITION_CAPABILITY: GrammarCapability = 'grammar-recognition';
+
 export interface GrammarProjection {
   ease: number;
   timesEncountered: number;
@@ -78,6 +85,20 @@ export function grammarTarget(language: string, pattern: string, capability: Gra
 /** Journal keys are capability-scoped, so contrast and task type never transfer mastery. */
 export function grammarEvidenceKey(language: string, pattern: string, capability: GrammarCapability): string {
   return `${language}:grammar:${grammarTarget(language, pattern, capability).entityId}:${capability}`;
+}
+
+/**
+ * The inverse of {@link grammarEvidenceKey}: recovers the pattern from a
+ * journal key. This is the ONLY place that knows the key's wire shape —
+ * readers (coverage, materialization, mobile bridge) must not re-slice it.
+ * Returns null for keys that are not this language's recognition evidence.
+ */
+export function grammarPatternFromEvidenceKey(language: string, key: string): string | null {
+  const prefix = `${language}:grammar:`;
+  if (!key.startsWith(prefix) || !key.endsWith(GRAMMAR_RECOGNITION_CAPABILITY)) return null;
+  const entityId = key.slice(prefix.length, key.length - GRAMMAR_RECOGNITION_CAPABILITY.length - 1);
+  if (!entityId.startsWith(prefix)) return null;
+  return entityId.slice(prefix.length) || null;
 }
 
 export function grammarRecognitionEvidence(

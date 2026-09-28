@@ -12,7 +12,7 @@ import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type Flashca
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
-import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
+import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
 import { evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
 import { isAccessMeasurable } from '../../shared/knowledgeEvents';
@@ -1029,6 +1029,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         card.lastUpdated = now;
         card.suspended = false;
         card.buried = false;
+        // The scheduler cache is the authoritative schedule (answerCard reads
+        // it in preference to these mirrored fields). Leaving it behind would
+        // make the very next review resume the pre-reset interval, so the
+        // reset has to drop it and let the fields above be the seed again.
+        delete card.retentionCache;
       }
       const today = SRS.getTodayDateString(newDayHour());
       for (const plm of Object.values(s.meta.perLanguage)) {
@@ -3683,16 +3688,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // Rebuild criterion: the cache must be reconstructable from active
     // evidence alone, so patterns are also enumerated from the recognition
     // projection keys — seeds and surviving entries only add presentation
-    // hints. Key shape: `${language}:grammar:` +
-    // `${language}:grammar:${pattern}` + ':grammar-recognition'.
-    const recognitionSuffix = ':grammar-recognition';
-    const grammarKeyPrefix = `${language}:grammar:`;
+    // hints. Key parsing belongs to the evidence module.
     for (const key of Object.keys(projections)) {
-      if (!key.startsWith(grammarKeyPrefix) || !key.endsWith(recognitionSuffix)) continue;
-      const entityId = key.slice(grammarKeyPrefix.length, key.length - recognitionSuffix.length);
-      if (!entityId.startsWith(grammarKeyPrefix)) continue;
-      const pattern = entityId.slice(grammarKeyPrefix.length);
-      if (pattern && !levels.has(pattern)) levels.set(pattern, undefined);
+      const pattern = grammarPatternFromEvidenceKey(language, key);
+      if (pattern !== null && !levels.has(pattern)) levels.set(pattern, undefined);
     }
     setStore(produce((s) => {
       for (const [pattern, level] of levels) {

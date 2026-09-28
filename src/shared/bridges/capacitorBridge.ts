@@ -59,7 +59,7 @@ import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, eventCapabili
 import { emptyTransitions, applyTransitions } from '../knowledge/historyArchive';
 import type { KeyHistorySummary, KeyKnowledgeState } from '../knowledge/historyQueries';
 import { replayKeyProjection } from '../utils/projectionReplay';
-import { replayGrammarRecognition } from '../grammar/evidence';
+import { grammarPatternFromEvidenceKey, replayGrammarRecognition } from '../grammar/evidence';
 import type { AppUpdateState } from '../appUpdate';
 import type { IntegrateThreadResult, IntegrationPreview, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
 import { DEFAULT_SETTINGS } from '../types';
@@ -1720,7 +1720,7 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
     const shard = await loadKnowledgeEventsForLanguage(language);
     const result: import('../knowledge/historyQueries').GrammarProjectionMap = {};
     for (const [key, events] of Object.entries(shard)) {
-      if (!key.startsWith(`${language}:grammar:`) || !key.endsWith(':grammar-recognition')) continue;
+      if (grammarPatternFromEvidenceKey(language, key) === null) continue;
       const projection = replayGrammarRecognition(events);
       if (projection) result[key] = projection;
     }

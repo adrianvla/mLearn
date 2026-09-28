@@ -10,7 +10,8 @@ import type { StudySessionLocks } from '../../learning/studySessionController';
 import type { GrammarItemSemanticValidation, GrammarPracticeItemSource } from '../../../shared/types';
 import type { CurriculumComponentSummary } from '../../../shared/curriculum';
 import type { AttemptScaffolds, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
-import { grammarEvidenceKey, grammarRecognitionEvidence } from '../../../shared/grammar/evidence';
+import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../../shared/grammar/evidence';
+import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
 import type { LanguageData } from '../../../shared/types';
 import type { AttemptQuality } from '../../../shared/constants';
 
@@ -67,6 +68,17 @@ const languageData = {
   ],
   grammarLevels: { difficulty: 'lower-is-harder', names: { '2': 'N3', '3': 'N2' } },
 } as unknown as LanguageData;
+
+/** Mirrors getGrammarProjections: fold each recognition key into the read model. */
+function projectionsOf(language: string, log: KnowledgeEventLog): GrammarProjectionMap {
+  const projections: GrammarProjectionMap = {};
+  for (const [key, events] of Object.entries(log)) {
+    if (grammarPatternFromEvidenceKey(language, key) === null) continue;
+    const projection = replayGrammarRecognition(events);
+    if (projection) projections[key] = projection;
+  }
+  return projections;
+}
 
 const summary: CurriculumComponentSummary = {
   component: 'grammar',
@@ -129,12 +141,14 @@ function mount(
   // Solid attaches delegated listeners on the document; container must be
   // connected for bubbled clicks to reach them (see DECISIONS D10).
   document.body.appendChild(container);
+  const eventLog = eventLogOverride ?? ({} as KnowledgeEventLog);
   const dispose = render(
     () => (
       <GrammarCoverage
         language="ja"
         languageData={languageDataOverride ?? languageData}
-        eventLog={eventLogOverride ?? ({} as KnowledgeEventLog)}
+        eventLog={eventLog}
+        projections={projectionsOf('ja', eventLog)}
         summary={summaryOverride ?? summary}
         onProbe={async (...args) => {
           await onProbe(...args);
@@ -617,6 +631,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
         language="ja"
         languageData={languageData}
         eventLog={{} as KnowledgeEventLog}
+        projections={{}}
         summary={liveSummary()}
         onProbe={async () => 'fixture-grammar-attempt'}
         locks={passThroughLocks}
@@ -768,6 +783,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       get languageData() { return activeLanguage() === 'de' ? germanPackage : languageData; },
       get summary() { return activeLanguage() === 'de' ? germanSummary : summary; },
       eventLog: {} as KnowledgeEventLog,
+      projections: {},
       onProbe: async () => 'fixture-grammar-attempt',
     }), container);
 
@@ -932,6 +948,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       get languageData() { return data(); },
       summary,
       eventLog: {} as KnowledgeEventLog,
+      projections: {},
       onProbe: async () => 'fixture-grammar-attempt',
     }), container);
 
@@ -1008,6 +1025,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
         languageData={data()}
         summary={language() === 'ja' ? summary : germanSummary}
         eventLog={{} as KnowledgeEventLog}
+        projections={{}}
         onProbe={onProbe}
       />
     ), container);

@@ -11,7 +11,8 @@ import type { Rating } from '../services/srsAlgorithm';
 import * as SRS from '../services/srsAlgorithm';
 import { replayKeyProjection, type ReplayProjection } from '../../shared/utils/projectionReplay';
 import { GRAMMAR_ENCOUNTER_EASE_BUMP, GRAMMAR_FAIL_EASE_PENALTY, initialGrammarEase } from '../../shared/utils/grammarPolicy';
-import { grammarEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
+import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence, replayGrammarRecognition } from '../../shared/grammar/evidence';
+import type { GrammarProjectionMap } from '../../shared/knowledge/historyQueries';
 import { itemContentVersion, retractionEventsForItem, type DeclaredItemState } from '../learning/questionBank';
 import { summarizeGrammarCurriculum, classifyGrammarMeasurements } from '../utils/curriculumCoverage';
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
@@ -143,15 +144,17 @@ const knowledgeJournal = vi.hoisted(() => {
       events.filter((event) => event.itemRef !== undefined || event.retracts !== undefined),
     ]).filter(([, events]) => events.length > 0));
   });
-  const getGrammarProjections = vi.fn(async (language: string) => {
-    const result: Record<string, NonNullable<ReturnType<typeof replayGrammarRecognition>>> = {};
+  /** Mirrors the real bridge: fold every recognition key into the read model. */
+  const grammarProjectionsOf = (language: string): GrammarProjectionMap => {
+    const result: GrammarProjectionMap = {};
     for (const [key, events] of Object.entries(allRows())) {
-      if (!key.startsWith(`${language}:grammar:`) || !key.endsWith(':grammar-recognition')) continue;
+      if (grammarPatternFromEvidenceKey(language, key) === null) continue;
       const projection = replayGrammarRecognition(events as KnowledgeEvent[]);
       if (projection) result[key] = projection;
     }
     return result;
-  });
+  };
+  const getGrammarProjections = vi.fn(async (language: string) => grammarProjectionsOf(language));
   const getKnowledgeRows = vi.fn(async (keys: readonly string[]) => {
     const rows = allRows();
     const out: Record<string, Array<{ event: Record<string, unknown>; seq: number }>> = {};
@@ -180,11 +183,12 @@ const knowledgeJournal = vi.hoisted(() => {
   const queryAnkiReviewIds = vi.fn(async () => [] as number[]);
   const queryAnkiReviewIdSets = vi.fn(async () => ({}) as Record<string, number[]>);
   return {
-    mockAppendEvents, allRows, queryKnowledgeEvents, queryKnowledgeItemEvents, getGrammarProjections, getKnowledgeRows, getKnowledgeStates,
+    mockAppendEvents, allRows, queryKnowledgeEvents, queryKnowledgeItemEvents, getGrammarProjections, grammarProjectionsOf, getKnowledgeRows, getKnowledgeStates,
     queryLanguageKeys, getKnowledgeArchive, queryKnowledgeSummaries, queryAnkiReviewIds, queryAnkiReviewIdSets,
   };
 });
 const mockAppendEvents = knowledgeJournal.mockAppendEvents;
+const grammarProjectionsOf = knowledgeJournal.grammarProjectionsOf;
 const mockAccumulateWordSeen = vi.hoisted(() => vi.fn());
 const mockFlushKnowledgeRollup = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
@@ -1867,6 +1871,29 @@ describe('FlashcardProvider', () => {
     expect(after.interval).toBe(0);
     expect(after.reviews).toBe(0);
     expect(ctx.store.meta.newCardsToday).toBe(0);
+    dispose();
+  });
+
+  it('resetSRS makes the NEXT review schedule from the reset state, not the pre-reset cache', async () => {
+    // The scheduler cache is what answerCard reads in preference to the
+    // mirrored card fields. A reset that leaves it behind would show
+    // 'new' in the UI while silently resuming the pre-reset review interval.
+    const { ctx, dispose } = await mountProvider();
+    const scheduled = SRS.answerCard(
+      makeCard({ id: 'reset-cache', state: 'review', interval: 86400000, ease: 3.0, reviews: 10 }),
+      'good',
+      SRS.getDefaultMeta(),
+    );
+    expect(scheduled.retentionCache?.interval).toBeGreaterThan(0);
+    flashcardsCb(makeEmptyStore({ flashcards: { 'reset-cache': scheduled } }));
+
+    ctx.resetSRS();
+
+    const next = SRS.answerCard(ctx.store.flashcards['reset-cache'], 'good', SRS.getDefaultMeta());
+    // A fresh card's first 'good' walks the learning steps, so the next due
+    // date is minutes away — never the pre-reset multi-day review interval.
+    expect(next.state).toBe('learning');
+    expect(next.retentionCache!.dueAt - Date.now()).toBeLessThan(60 * 60 * 1000);
     dispose();
   });
 
@@ -5162,11 +5189,15 @@ describe('acknowledged rating command semantics', () => {
       const { render } = await import('solid-js/web');
       const { GrammarCoverage } = await import('../windows/levelStudy/GrammarCoverage');
       const [journalSignal, setJournalSignal] = createSignal<KnowledgeEventLog>({});
+      // Production path: the journal is written, the bridge folds it into the
+      // recognition read model, and coverage reads THAT (never the raw log).
+      const [projectionsSignal, setProjectionsSignal] = createSignal<GrammarProjectionMap>({});
       const disposeUi = render(() => createComponent(GrammarCoverage, {
         language,
         languageData: languagePackage,
         get eventLog() { return journalSignal(); },
-        get summary() { return summarizeGrammarCurriculum(language, languagePackage, journalSignal(), effectiveThresholds()); },
+        get projections() { return projectionsSignal(); },
+        get summary() { return summarizeGrammarCurriculum(language, languagePackage, projectionsSignal(), effectiveThresholds()); },
         // LevelStudyTab's real onProbe wiring: component → provider writer.
         onProbe: (pattern, quality, level) => {
           ctx.recordGrammarAttempt(pattern, quality, { language, level });
@@ -5206,14 +5237,17 @@ describe('acknowledged rating command semantics', () => {
       }
       await vi.waitFor(() => expect(block().querySelector('.grammar-coverage__session-done')).toBeTruthy());
 
-      // Feed the persisted journal back into the mounted surface: the rated
-      // construction renders as known (rendered progress, not just math).
+      // Feed the persisted journal back through the same fold the bridge
+      // applies: the rated construction renders as known (rendered progress,
+      // not just math).
       const journal = (mockAppendEvents.mock.calls[0][0] ?? {}) as Record<string, KnowledgeEvent[]>;
+      const projections = grammarProjectionsOf(language);
       setJournalSignal(journal);
+      setProjectionsSignal(projections);
       await vi.waitFor(() => expect(container.querySelectorAll('.grammar-coverage__state--known').length).toBeGreaterThan(0));
-      const measurements = classifyGrammarMeasurements(language, journal, effectiveThresholds());
+      const measurements = classifyGrammarMeasurements(language, projections, effectiveThresholds());
       expect(measurements.get(presented as string)).toMatchObject({ state: 'known', passiveOnly: false });
-      const summary = summarizeGrammarCurriculum(language, languagePackage, journal, effectiveThresholds());
+      const summary = summarizeGrammarCurriculum(language, languagePackage, projections, effectiveThresholds());
       expect(summary.known).toBe(1);
       expect(summary.complete).toBe(false); // one pass never claims full coverage
 
@@ -5257,11 +5291,13 @@ describe('acknowledged rating command semantics', () => {
     const { render } = await import('solid-js/web');
     const { GrammarCoverage } = await import('../windows/levelStudy/GrammarCoverage');
     const [journalSignal, setJournalSignal] = createSignal<KnowledgeEventLog>({});
+    const [projectionsSignal, setProjectionsSignal] = createSignal<GrammarProjectionMap>({});
     const disposeUi = render(() => createComponent(GrammarCoverage, {
       language: 'zh',
       languageData: zhPackage,
       get eventLog() { return journalSignal(); },
-      get summary() { return summarizeGrammarCurriculum('zh', zhPackage, journalSignal(), effectiveThresholds()); },
+      get projections() { return projectionsSignal(); },
+      get summary() { return summarizeGrammarCurriculum('zh', zhPackage, projectionsSignal(), effectiveThresholds()); },
       onProbe: (pattern, quality, level) => { ctx.recordGrammarAttempt(pattern, quality, { language: 'zh', level }); },
     }), container);
 
@@ -5288,9 +5324,11 @@ describe('acknowledged rating command semantics', () => {
     await vi.waitFor(() => expect(container.querySelector(`[data-level="${level}"] .grammar-coverage__session-done`)).toBeTruthy());
 
     const journal = (mockAppendEvents.mock.calls[0][0] ?? {}) as Record<string, KnowledgeEvent[]>;
+    const projections = grammarProjectionsOf('zh');
     setJournalSignal(journal);
+    setProjectionsSignal(projections);
     await vi.waitFor(() => expect(container.querySelectorAll('.grammar-coverage__state--known').length).toBeGreaterThan(0));
-    const measurements = classifyGrammarMeasurements('zh', journal, effectiveThresholds());
+    const measurements = classifyGrammarMeasurements('zh', projections, effectiveThresholds());
     expect(measurements.get(presented as string)).toMatchObject({ state: 'known', passiveOnly: false });
 
     await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));

@@ -8,7 +8,7 @@ import { BulkAddModal } from './BulkAddModal';
 import { GrammarCoverage } from './GrammarCoverage';
 import MockExam from './MockExam';
 import LearningBackgroundPanel from './LearningBackgroundPanel';
-import { summarizeGrammarCurriculumFromProjections } from '../../utils/curriculumCoverage';
+import { summarizeGrammarCurriculum } from '../../utils/curriculumCoverage';
 import { declaredItemStates, questionBankFromLanguageData } from '../../learning/questionBank';
 import { languageDataWithStoredQuestionValidations } from '../../learning/questionValidation';
 import type { MockJournalPayload } from '../../learning/mockExam';
@@ -240,7 +240,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
     if (!data || !projections || resolvedLanguageData().language === '') return null;
     // Vocabulary-only packages: no grammar gate at all.
     if (!data.grammar?.length) return null;
-    return summarizeGrammarCurriculumFromProjections(resolvedLanguageData().language, data, projections, effectiveThresholds(settings));
+    return summarizeGrammarCurriculum(resolvedLanguageData().language, data, projections, effectiveThresholds(settings));
   });
   // Package-update invalidation (G03): once the grammar evidence for this
   // language is loaded, retire attempts recorded through practice items the
