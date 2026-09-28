@@ -3,7 +3,7 @@
  * Modal dialog with themed styling
  */
 
-import { Component, JSX, Show, createEffect, onCleanup, splitProps, mergeProps } from 'solid-js';
+import { Component, JSX, Show, createEffect, createUniqueId, onCleanup, splitProps, mergeProps } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { Panel } from '../Panel';
 import { Button } from '../Button';
@@ -34,6 +34,7 @@ export interface ModalProps {
 
 export const Modal: Component<ModalProps> = (props) => {
   const { t } = useLocalization();
+  const titleId = createUniqueId();
   const merged = mergeProps(
     {
       size: 'md' as const,
@@ -151,7 +152,11 @@ export const Modal: Component<ModalProps> = (props) => {
             variant="solid"
             rounded="lg"
             padding="none"
-            class={local.panelClass}
+            class={`modal-panel ${local.panelClass ?? ''}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label={typeof local.title === 'string' ? local.title : undefined}
+            aria-labelledby={local.title ? titleId : undefined}
             style={modalStyle()}
           >
             {/* Header */}
@@ -169,6 +174,7 @@ export const Modal: Component<ModalProps> = (props) => {
                 <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-1)' }}>
                   <Show when={local.title}>
                     <h2
+                      id={titleId}
                       style={{
                         margin: '0',
                         'font-size': 'var(--font-size-xl)',
@@ -207,6 +213,7 @@ export const Modal: Component<ModalProps> = (props) => {
 
             {/* Content */}
             <div
+              class="modal-content"
               style={{
                 flex: '1',
                 overflow: 'auto',

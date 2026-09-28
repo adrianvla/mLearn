@@ -90,6 +90,7 @@ export async function runRoomContact(roomId: string): Promise<ContactPassResult>
         controller.signal,
         CONTACT_LIMITS.outputCharacters,
         'background',
+        { source: 'contact', roomId },
       );
     },
   }).catch((error): ContactPassResult => {

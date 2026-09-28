@@ -1,3 +1,4 @@
+import type { RuntimeTraceContext, RuntimeToolObservation } from '../../shared/runtimeInspection';
 /**
  * Conversation Agent Service
  * Handles system prompt construction, tool definitions, streaming,
@@ -40,6 +41,7 @@ const MANUAL_COMPACTION_MIN_MESSAGES = MANUAL_COMPACTION_KEEP_RECENT_MESSAGES + 
 // ============================================================================
 
 interface AgentDeps {
+  getTraceContext?: () => RuntimeTraceContext;
   getSettings: () => Settings;
   tokenize: (text: string) => Promise<Token[]>;
   getLanguage: () => string;
@@ -867,7 +869,7 @@ function streamConversationSummary(
   history: LLMChatMessage[],
   langName: string,
   tier: Settings['cloudLLMTierConversation'],
-  devMode: Settings['devMode'],
+  traceContext?: RuntimeTraceContext,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const bridge = getBridge();
@@ -895,11 +897,7 @@ function streamConversationSummary(
       }
     });
 
-    if (devMode) {
-      log.info('[ConversationAgent:Compaction] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
-    }
-
-    bridge.llm.llmStream([systemMsg, userMsg], [], tier);
+    bridge.llm.llmStream([systemMsg, userMsg], [], tier, undefined, { ...traceContext, source: 'compaction', requestId: crypto.randomUUID() });
   });
 }
 
@@ -916,6 +914,34 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   /** Monotonically increasing counter to correlate stream chunks with the request that produced them */
   let streamRequestId = 0;
 
+  let activeTraceContext: RuntimeTraceContext = { source: 'conversation' };
+  const toolOrigins = new Map<string, RuntimeTraceContext>();
+  const observeTool = (observation: RuntimeToolObservation): void => {
+    if (!deps.getSettings().devMode) return;
+    try { getBridge().diagnostics.recordRuntimeTool(observation); }
+    catch { /* A failed inspector must never stop the actual tool. */ }
+  };
+  async function performTool(tool: ToolCall, widgets: ChatWidget[], callbacks: StreamCallbacks): Promise<string | null> {
+    const id = crypto.randomUUID();
+    const context = toolOrigins.get(tool.id) ?? activeTraceContext;
+    const observation = { id, context, name: tool.name, arguments: tool.arguments };
+    observeTool({ ...observation, status: 'running' });
+    try {
+      const produced = executeTool(tool, deps);
+      if (produced) {
+        for (const widget of Array.isArray(produced) ? produced : [produced]) {
+          widgets.push(widget); callbacks.onToolCall(widget);
+        }
+      }
+      const result = await executeToolWithResponse(tool, deps);
+      observeTool({ ...observation, status: 'completed', result: { response: result, widgets: produced ?? null } });
+      return result;
+    } catch (error) {
+      observeTool({ ...observation, status: 'failed', error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    } finally { toolOrigins.delete(tool.id); }
+  }
+
   function clearStreamTimeout(): void {
     if (streamTimeout !== null) clearTimeout(streamTimeout);
     streamTimeout = null;
@@ -923,6 +949,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
   function clearHistory(): void {
     conversationHistory = [];
+    toolOrigins.clear();
     safetyLocked = false;
   }
 
@@ -1006,7 +1033,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     hiddenStreamActive = true;
     let summary = '';
     try {
-      summary = await streamConversationSummary(historyToSummarize, deps.getLanguageName(), tier, settingsObj.devMode);
+      summary = await streamConversationSummary(historyToSummarize, deps.getLanguageName(), tier, deps.getTraceContext?.());
     } finally {
       hiddenStreamActive = false;
     }
@@ -1114,6 +1141,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
         newId = `${tc.id}_dup${Math.random().toString(36).slice(2, 9)}`;
       }
       usedIds.add(newId);
+      toolOrigins.set(newId, activeTraceContext);
       return { ...tc, id: newId, arguments: tc.name === 'correct_mistake'
         ? validatedCorrectionArguments(tc.arguments, deps.getObservedLearnerText?.() ?? lastUserMessageText(conversationHistory)) : tc.arguments };
     });
@@ -1142,19 +1170,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     conversationHistory.push(assistantMsg);
 
     for (const tc of nonTerminalToolCalls) {
-      // Widget-producing tools (create_quiz)
-      const w = executeTool(tc, deps);
-      if (w) {
-        const widgetList = Array.isArray(w) ? w : [w];
-        for (const widget of widgetList) {
-          widgets.push(widget);
-          callbacks.onToolCall(widget);
-        }
-      }
-
-      // Every tool_call in the assistant message MUST have a matching tool response
-      // in the conversation history, or the LLM API will reject the next request.
-      const result = await executeToolWithResponse(tc, deps);
+      const result = await performTool(tc, widgets, callbacks);
       toolResponses.push({
         role: 'tool' as const,
         toolName: tc.name,
@@ -1167,17 +1183,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     // Only terminal-only (correct_mistake) flow can finalize immediately.
     if (nonTerminalToolCalls.length === 0) {
       for (const terminalCall of allDeferredTerminalCalls) {
-        const terminalWidget = executeTool(terminalCall, deps);
-        if (terminalWidget) {
-          const widgetList = Array.isArray(terminalWidget) ? terminalWidget : [terminalWidget];
-          for (const w of widgetList) {
-            widgets.push(w);
-            callbacks.onToolCall(w);
-          }
-        }
-
-        // Every tool_call in the assistant message MUST have a matching tool response.
-        const result = await executeToolWithResponse(terminalCall, deps);
+        const result = await performTool(terminalCall, widgets, callbacks);
         conversationHistory.push({
           role: 'tool' as const,
           toolName: terminalCall.name,
@@ -1257,9 +1263,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       ...conversationHistory,
     ];
 
-    if (settingsObj.devMode) {
-      log.info('[ConversationAgent] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
-    }
+    activeTraceContext = { ...deps.getTraceContext?.(), source: deps.getTraceContext?.().source ?? 'conversation', requestId: crypto.randomUUID() };
 
     let accumulated = '';
     const collectedToolCalls: ToolCall[] = [];
@@ -1396,16 +1400,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
         if (deferredTerminalToolCalls.length > 0) {
           for (const terminalCall of deferredTerminalToolCalls) {
-            const terminalWidget = executeTool(terminalCall, deps);
-            if (terminalWidget) {
-              const widgetList = Array.isArray(terminalWidget) ? terminalWidget : [terminalWidget];
-              for (const w of widgetList) {
-                widgets.push(w);
-                callbacks.onToolCall(w);
-              }
-            }
-
-            const result = await executeToolWithResponse(terminalCall, deps);
+            const result = await performTool(terminalCall, widgets, callbacks);
             conversationHistory.push({
               role: 'tool' as const,
               toolName: terminalCall.name,
@@ -1432,7 +1427,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     });
 
     armStreamTimeout();
-    bridge.llm.llmStream(messages, tools, tier);
+    bridge.llm.llmStream(messages, tools, tier, undefined, activeTraceContext);
   }
 
   function processMessage(

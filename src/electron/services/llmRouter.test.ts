@@ -628,3 +628,41 @@ describe('provider cleanup ownership', () => {
     expect(mockBuiltinStreamChat).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('developer runtime capture at the provider boundary', () => {
+  it('captures the real queued request and response without subsequent caller mutation', async () => {
+    mockLoadSettings.mockReturnValue({ ...mockLoadSettings(), devMode: true, builtinModel: 'local-model.gguf' });
+    mockBuiltinStreamChat.mockImplementation(async (sender, messages) => {
+      expect(messages[0].content).toBe('Actual request');
+      sender.send('llm-stream-chunk', { content: 'First ' });
+      sender.send('llm-stream-chunk', { content: 'answer', done: true, evalCount: 2 });
+    });
+    const messages = [{ role: 'user' as const, content: 'Actual request' }];
+    const result = mod.completeJob(messages, new AbortController().signal, 100, 'background', { source: 'dreamer', roomId: 'room-live' });
+    messages[0].content = 'Later state, not the request';
+    await expect(result).resolves.toBe('First answer');
+    const { runtimeTrace } = await import('./runtimeTraceService');
+    const store = runtimeTrace();
+    const captured = store.get(store.list().entries[0].id)!;
+    expect(captured).toMatchObject({ status: 'completed', provider: 'builtin', model: 'local-model.gguf', context: { source: 'dreamer', roomId: 'room-live' }, input: { messages: [{ role: 'user', content: 'Actual request' }] }, output: { content: 'First answer', evalCount: 2 } });
+  });
+
+  it('retains a rejected terminal response and the real budget failure, not a success', async () => {
+    mockLoadSettings.mockReturnValue({ ...mockLoadSettings(), devMode: true });
+    mockBuiltinStreamChat.mockImplementation(async sender => sender.send('llm-stream-chunk', { content: 'too much output', done: true }));
+    await expect(mod.completeJob([{ role: 'user', content: 'bounded' }], new AbortController().signal, 4)).rejects.toThrow(/budget/);
+    const { runtimeTrace } = await import('./runtimeTraceService');
+    const store = runtimeTrace();
+    const captured = store.get(store.list().entries[0].id)!;
+    expect(captured.status).toBe('failed');
+    expect(captured.output.content).toBe('too much output');
+    expect(captured.output.error).toMatch(/budget/);
+  });
+
+  it('records nothing when developer capture is disabled', async () => {
+    mockBuiltinStreamChat.mockImplementation(async sender => sender.send('llm-stream-chunk', { content: 'private', done: true }));
+    await mod.completeJob([{ role: 'user', content: 'private prompt' }], new AbortController().signal);
+    const { runtimeTrace } = await import('./runtimeTraceService');
+    expect(runtimeTrace().list().entries).toEqual([]);
+  });
+});

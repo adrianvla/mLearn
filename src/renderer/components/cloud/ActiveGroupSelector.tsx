@@ -130,9 +130,6 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
       >
         <div
           class="active-group-selector"
-          role="dialog"
-          aria-label={t('mlearn.Management.ChooseGroup')}
-          aria-modal="true"
         >
           <div class="active-group-list">
             <For each={props.groups}>

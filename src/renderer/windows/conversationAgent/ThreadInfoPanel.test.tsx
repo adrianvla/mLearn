@@ -9,6 +9,10 @@ vi.mock('../../components/common', () => ({
   Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
+  Avatar: (props: { name: string }) => <span aria-hidden="true">{props.name.slice(0, 1)}</span>,
+  Disclosure: (props: { title: JSX.Element; children?: JSX.Element }) => <details><summary>{props.title}</summary>{props.children}</details>,
+  HintText: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
+  ToggleSwitch: (props: { label: string; checked: boolean; onChange: (checked: boolean) => void }) => <button type="button" onClick={() => props.onChange(!props.checked)}>{props.label}</button>,
   Tag: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
   FormField: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   Input: (props: { value?: string; onInput?: (event: InputEvent) => void }) => (
@@ -27,6 +31,7 @@ vi.mock('../../components/common', () => ({
 
 
 vi.mock('../../context', () => ({
+  useSettings: () => ({ settings: {}, updateSettings: vi.fn() }),
   useLocalization: () => ({ t: (key: string) => key, locale: () => 'en' }),
 }));
 

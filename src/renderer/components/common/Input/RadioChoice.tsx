@@ -3,6 +3,7 @@ import './RadioChoice.css';
 
 export interface RadioChoiceProps {
   name: string;
+  size?: 'sm' | 'md';
   label: string;
   checked: boolean;
   onChange: () => void;
@@ -12,7 +13,7 @@ export interface RadioChoiceProps {
 
 /** A card-sized choice with a native radio input for keyboard and form behavior. */
 export const RadioChoice: Component<RadioChoiceProps> = (props) => (
-  <label class={`radio-choice${props.checked ? ' radio-choice--selected' : ''}${props.disabled ? ' radio-choice--disabled' : ''}${props.class ? ` ${props.class}` : ''}`}>
+  <label class={`radio-choice${props.size === 'sm' ? ' radio-choice--compact' : ''}${props.checked ? ' radio-choice--selected' : ''}${props.disabled ? ' radio-choice--disabled' : ''}${props.class ? ` ${props.class}` : ''}`}>
     <input
       class="radio-choice__input"
       type="radio"

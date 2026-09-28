@@ -1,3 +1,4 @@
+import { publishWorldChange } from './worldChanges';
 /**
  * World Store — rooms/threads/participants entity persistence.
  * One JSON file ({userData}/world.json), written atomically (tmp + rename).
@@ -69,6 +70,7 @@ export async function saveWorld(state: WorldState, removed?: { threads?: readonl
   await fs.promises.writeFile(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
   await fs.promises.rename(tmpPath, filePath);
   guardian?.recordWorldWrite(state);
+  publishWorldChange({ kind: 'world' });
 }
 
 // Serialize complete read-modify-write operations, including scheduler updates.

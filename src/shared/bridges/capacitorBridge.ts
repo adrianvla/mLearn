@@ -1964,6 +1964,12 @@ const browserBridge: BrowserBridge = {
 };
 
 const diagnosticsBridge: DiagnosticsBridge = {
+  getRuntimeTraces: async () => ({ available: false, enabled: false, revision: 0, entries: [] }),
+  getRuntimeTrace: async () => null,
+  clearRuntimeTraces: async () => {},
+  onRuntimeTraceChanged: () => () => {},
+  recordRuntimeTool: () => {},
+  getRuntimeWorld: async () => { throw new Error('Runtime inspection is available on desktop only'); },
   runDiagnostics: async () => ({ timestamp: new Date().toISOString(), appVersion: '0.0.0', platform: 'capacitor', suites: [], summary: { passed: 0, failed: 0, skipped: 0, total: 0, durationMs: 0 } }),
   onDiagnosticsProgress: () => () => {},
   onDiagnosticsComplete: () => () => {},
@@ -2113,6 +2119,7 @@ const journalBridge: JournalBridge = {
 };
 
 const worldBridge: WorldBridge = {
+  onChanged: () => () => {},
   async prepareScenario() { throw new Error('Not supported on mobile'); },
   async activateScenario() { throw new Error('Not supported on mobile'); },
   async cancelScenario() { throw new Error('Not supported on mobile'); },

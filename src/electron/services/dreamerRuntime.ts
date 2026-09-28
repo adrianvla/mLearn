@@ -82,7 +82,7 @@ async function runMaintenance(context: MaintenanceContext, deps: DreamerRuntimeD
   if (!(settings.llmEnabled ?? DEFAULT_SETTINGS.llmEnabled) || !policy.isPermitted('dreamer')) return;
   const llmFn = (prompt: string): Promise<string> => {
     if (!livingWorldEnabled(deps.getSettings()) || profile !== getUserDataPath() || !(deps.getSettings().llmEnabled ?? DEFAULT_SETTINGS.llmEnabled) || !getInferencePolicy(deps.getSettings()).isPermitted('dreamer')) throw new Error('Maintenance policy changed');
-    return complete(prompt, signal);
+    return complete(prompt, signal, context);
   };
   for (let window = 0; window < MAX_MAINTENANCE_WINDOWS_PER_PASS; window++) {
     const reflected = await runReflection(context, { policy, llmFn, signal });

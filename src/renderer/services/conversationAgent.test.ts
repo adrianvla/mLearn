@@ -187,7 +187,7 @@ describe('createConversationAgent', () => {
   });
 
   describe('prompt log privacy', () => {
-    it.each([false, true])('logs conversation content only with explicit developer mode (%s)', (devMode) => {
+    it.each([false, true])('logs conversation content never to the general logger, including developer mode (%s)', (devMode) => {
       const before = new Set(getRecentRecords());
       const agent = createConversationAgent(createMockDeps({
         getSettings: () => devMode ? { ...DEFAULT_SETTINGS, devMode: true } : { ...DEFAULT_SETTINGS },
@@ -196,14 +196,14 @@ describe('createConversationAgent', () => {
       agent.loadHistory([{ role: 'assistant', content: 'private-history-marker' }]);
       agent.processMessage('private-user-marker', [], createCallbacks().callbacks);
       const emitted = getRecentRecords().filter(record => !before.has(record)).map(record => record.msg).join('\n');
-      expect(emitted.includes('private-user-marker')).toBe(devMode);
-      expect(emitted.includes('private-history-marker')).toBe(devMode);
-      expect(emitted.includes('private-persona-marker')).toBe(devMode);
+      expect(emitted.includes('private-user-marker')).toBe(false);
+      expect(emitted.includes('private-history-marker')).toBe(false);
+      expect(emitted.includes('private-persona-marker')).toBe(false);
       expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
       agent.abortStream();
     });
 
-    it.each([false, true])('logs compaction source content only with explicit developer mode (%s)', async (devMode) => {
+    it.each([false, true])('logs compaction source content never to the general logger, including developer mode (%s)', async (devMode) => {
       const before = new Set(getRecentRecords());
       const agent = createConversationAgent(createMockDeps({
         getSettings: () => devMode ? { ...DEFAULT_SETTINGS, devMode: true } : { ...DEFAULT_SETTINGS },
@@ -217,7 +217,7 @@ describe('createConversationAgent', () => {
       sendDone();
       await expect(pending).resolves.toMatchObject({ status: 'compacted' });
       const emitted = getRecentRecords().filter(record => !before.has(record)).map(record => record.msg).join('\n');
-      expect(emitted.includes('private-compaction-marker')).toBe(devMode);
+      expect(emitted.includes('private-compaction-marker')).toBe(false);
       expect(emitted).not.toContain('Private summary');
     });
   });

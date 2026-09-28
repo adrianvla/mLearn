@@ -37,7 +37,7 @@ export async function runRoomAutonomy(roomId: string): Promise<AutonomyPassResul
   const done = runAutonomyPass(roomId, {
     policy: getInferencePolicy(settings),
     getSettings: loadSettings,
-    llmFn: async (prompt) => {
+    llmFn: async (prompt, participantId) => {
       const current = loadSettings();
       if (!enabled(current) || profile !== getUserDataPath() || controller.signal.aborted) {
         throw new Error('Autonomy policy changed');
@@ -47,6 +47,7 @@ export async function runRoomAutonomy(roomId: string): Promise<AutonomyPassResul
         controller.signal,
         AUTONOMY_LIMITS.outputCharacters,
         'background',
+        { source: 'autonomy', roomId, participantId },
       );
     },
   }).then(async (result) => {

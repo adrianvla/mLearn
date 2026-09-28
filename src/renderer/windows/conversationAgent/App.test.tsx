@@ -4,7 +4,7 @@
  * are controlled; turn orchestration, prompt construction, journal projection,
  * message rendering and the shared token component are real. */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { Show } from 'solid-js';
 import type { JSX } from 'solid-js';
@@ -63,6 +63,7 @@ const mockBridge = {
     openWindow: vi.fn(),
   },
   world: {
+    onChanged: vi.fn(() => () => {}),
     getWorldState: vi.fn(async () => currentWorld),
     prepareScenario: vi.fn(async (request: { operationId: string; intent?: string; participantIds: string[] }) => ({
       operationId: request.operationId, status: 'ready', request, bindings: [],
@@ -78,6 +79,7 @@ const mockBridge = {
     createPersistentRoom: vi.fn(async (input: { operationId: string; participantIds: string[] }) => ({ id: 'room-new', title: 'New room', participantIds: input.participantIds, createdByOperation: input.operationId, createdAt: Date.now() })),
     updateThread: vi.fn(async (thread: WorldSnapshot['threads'][number]) => thread),
     clearRoomUnread: vi.fn(async () => {}),
+    triggerReflection: vi.fn(async () => {}),
     respondToContact: vi.fn(async (contactId: string, response: 'accept' | 'decline') => ({
       ok: true as const,
       contact: currentWorld.contacts!.find(contact => contact.contactId === contactId && contact.modality === 'call')!,
@@ -194,7 +196,8 @@ vi.mock('../../hooks', () => ({
 // UI primitive mocks — plain DOM so behavior is asserted, not markup
 // ============================================================================
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (original) => ({
+  ...await original<typeof import('../../components/common')>(),
   PlusIcon: () => <span aria-hidden="true" />,
   SearchIcon: () => <span aria-hidden="true" />,
   Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; variant?: string; size?: string; class?: string; 'aria-label'?: string; 'aria-disabled'?: boolean }) => (
@@ -225,8 +228,8 @@ vi.mock('../../components/common', () => ({
   ),
   VoiceSamplePicker: () => <span />,
   FloatingStatus: () => <span />,
-  TabContainer: (props: { tabs?: Array<{ id: string; label: string }>; onTabChange?: (id: string) => void }) => (
-    <div>{props.tabs?.map((tab) => <button type="button" onClick={() => props.onTabChange?.(tab.id)}>{tab.label}</button>)}</div>
+  TabContainer: (props: { children?: JSX.Element; tabs?: Array<{ id: string; label: string }>; onTabChange?: (id: string) => void }) => (
+    <div>{props.tabs?.map((tab) => <button type="button" onClick={() => props.onTabChange?.(tab.id)}>{tab.label}</button>)}{props.children}</div>
   ),
   TabPanel: (props: { tabId?: string; activeTab?: string; children?: JSX.Element }) => (
     props.tabId === props.activeTab ? <div>{props.children}</div> : null
@@ -343,10 +346,12 @@ function chatText(container: HTMLElement): string {
 // ============================================================================
 
 describe('conversationAgent window golden path (parity baseline)', () => {
+  beforeAll(async () => { await import('./App'); }, 30000);
   let container: HTMLDivElement;
   let dispose: (() => void) | undefined;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     dispose = undefined;
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -522,7 +527,23 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-a', 'thread-a'));
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
-    expect(chatText(container)).toContain('こんにちは');
+    await vi.waitFor(() => expect(chatText(container)).toContain('こんにちは'));
+  });
+
+  it('sends on Enter, but not Shift+Enter or an IME composition confirmation', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
+    const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'Compose before sending'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, bubbles: true }));
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
+    await Promise.resolve(); expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Reply', done: true });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
   });
 
   it('opens persistent Room history and commits replies directly to Sea without creating a Thread', async () => {
@@ -531,6 +552,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'Hello Tutor';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     const send = () => container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
@@ -560,7 +582,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       const send = () => container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
       await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
       const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
-      textarea.value = 'What should we plant?'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'What should we plant?'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
       await vi.waitFor(() => expect(send()?.disabled).toBe(false)); send().click();
       await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(turn + 1));
       const prompt = JSON.stringify(mockBridge.llm.llmStream.mock.calls[turn][0]);
@@ -592,6 +615,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement | null;
     expect(textarea).not.toBeNull();
+    await vi.waitFor(() => expect(textarea!.disabled).toBe(false));
     textarea!.value = 'hola';
     textarea!.dispatchEvent(new Event('input', { bubbles: true }));
 
@@ -604,7 +628,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(sentHistory.filter((message: { role: string; content: string }) => message.role === 'user' && message.content === 'hola')).toHaveLength(1);
 
     emitChunk({ content: 'こんにちは' });
-    expect(chatText(container)).toContain('こんにちは');
+    await vi.waitFor(() => expect(chatText(container)).toContain('こんにちは'));
 
     emitChunk({ content: '、元気？' });
     expect(chatText(container)).toContain('こんにちは、元気？');
@@ -613,6 +637,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(journalEvents.map((event) => event.type)).toEqual(['message.user', 'message.character']));
     expect(chatText(container)).toContain('こんにちは、元気？');
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(2));
+    expect(container.querySelector('.chat-bubble.error')).toBeNull();
   });
 
   it('keeps AI memory notes in the disposable Thread without writing Sea', async () => {
@@ -621,6 +646,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'I enjoy coffee';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     const send = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
@@ -645,6 +671,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const sendButton = () => container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement | null;
     await vi.waitFor(() => expect(sendButton()).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'Hello again';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     await vi.waitFor(() => expect(sendButton()?.disabled).toBe(false));
@@ -728,6 +755,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea).toBeTruthy());
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'hello';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     const sendButton = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
@@ -760,6 +788,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     });
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea).toBeTruthy());
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'hello';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     const sendButton = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
@@ -800,6 +829,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea).toBeTruthy());
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'hello';
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     const sendButton = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
@@ -835,8 +865,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')).toBe(true));
-    expect(container.querySelector('.room-sidebar-new-conversation')).not.toBeNull();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.Sidebar.NewConversation' || button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')).toBe(true));
+    expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.Sidebar.NewConversation"]')).not.toBeNull();
   });
 
   it('keeps drafts scoped to their conversation while browsing searchable history', async () => {
@@ -859,7 +889,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
     windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-a', 'thread-a'));
-    await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
+    await vi.waitFor(() => expect((container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement)?.disabled).toBe(false));
     const input = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     input.value = 'draft for book';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -867,9 +897,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelectorAll('.room-sidebar-room').length).toBe(2));
     expect(container.querySelector('.room-sidebar-list')?.textContent).toContain('Book practice');
     expect(container.querySelector('.room-sidebar-list')?.textContent).toContain('Video practice');
-    (container.querySelectorAll('.room-sidebar-room')[0] as HTMLButtonElement).click();
+    (Array.from(container.querySelectorAll('.room-sidebar-room')).find(row => row.textContent?.includes('Video practice')) as HTMLButtonElement).click();
     await vi.waitFor(() => expect((container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement).value).toBe(''));
-    await vi.waitFor(() => expect(container.querySelector('.room-sidebar-search input')).toBeNull());
+    // The desktop navigation remains mounted; the shared drawer handles narrow layouts.
+    expect(container.querySelector('.room-sidebar-search input')).not.toBeNull();
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.querySelector('.room-sidebar-search input')).not.toBeNull());
     const search = container.querySelector('.room-sidebar-search input') as HTMLInputElement;
@@ -886,19 +917,20 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')).toBe(true));
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')!.click();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.Sidebar.NewConversation' || button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')).toBe(true));
+    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.Sidebar.NewConversation' || button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')!.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
   });
 
-  it('waits for the introduction before opening empty-world creation', async () => {
+  it('leaves the empty messenger available after introduction instead of forcing a setup form', async () => {
     currentWorld = { rooms: [], threads: [], participants: [] };
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(mockBridge.world.getWorldState).toHaveBeenCalled());
     expect(container.querySelector('.new-conversation-form')).toBeNull();
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
-    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Contacts.Add');
   });
 
   it('opens NewConversationModal from the empty state when no room is selected', async () => {

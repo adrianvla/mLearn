@@ -34,6 +34,7 @@ import { startScheduler, stopScheduler } from './services/schedulerRuntime';
 import { cancelAllMaintenance, reconcilePendingMaintenance } from './services/dreamerRuntime';
 import { cancelAllAutonomy, reconcilePendingAutonomyRuntime } from './services/autonomyRuntime';
 import { activateContactFromDeepLink, cancelAllContacts } from './services/contactRuntime';
+import { setupRuntimeInspectionIPC } from './services/runtimeInspectionIpc';
 import { setupWorldIPC, openRoomAt } from './services/worldIpc';
 import { runLegacyMigration } from './services/legacyMigration';
 import { reconcilePendingIntegrations } from './services/integration';
@@ -401,6 +402,7 @@ function setupAllIPC(): void {
   setupLinguisticGraphIPC();
   setupJournalIPC();
   setupWorldIPC();
+  setupRuntimeInspectionIPC();
   startupMark('IPC world and language services registered', phase);
   phase = startupTime();
   setupBrowserDetectionIPC();

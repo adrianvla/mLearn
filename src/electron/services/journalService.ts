@@ -1,3 +1,4 @@
+import { publishWorldChange } from './worldChanges';
 /**
  * Journal Service — append-only per-room NDJSON event journal, single writer.
  *
@@ -149,6 +150,7 @@ async function appendEventUnlocked(roomId: string, draft: JournalEventDraft): Pr
   await fs.promises.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf-8');
   guardianForWrites()?.recordJournalAppend(filePath, seq);
   state.headSeq = seq;
+  publishWorldChange({ kind: 'journal', roomId, threadId: draft.scope.kind === 'thread' ? draft.scope.threadId : undefined });
   return event;
 }
 
