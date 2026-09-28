@@ -2867,12 +2867,6 @@
           "ShowTranslation": {
             "Label": "Afficher la traduction",
             "Description": "Afficher la ligne de traduction sous les sous-titres"
-          },
-          "SubtitlePosition": {
-            "Label": "Position des sous-titres",
-            "Description": "Position des sous-titres à l'écran",
-            "Top": "Haut",
-            "Bottom": "Bas"
           }
         },
         "SubtitleProcessing": {

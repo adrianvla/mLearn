@@ -2924,12 +2924,6 @@
           "ShowTranslation": {
             "Label": "Show Translation",
             "Description": "Show the translation line below subtitles"
-          },
-          "SubtitlePosition": {
-            "Label": "Subtitle Position",
-            "Description": "Position of the subtitles on screen",
-            "Top": "Top",
-            "Bottom": "Bottom"
           }
         },
         "SubtitleProcessing": {

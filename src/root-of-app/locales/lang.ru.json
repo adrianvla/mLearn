@@ -2867,12 +2867,6 @@
           "ShowTranslation": {
             "Label": "Показывать перевод",
             "Description": "Показывать строку перевода под субтитрами"
-          },
-          "SubtitlePosition": {
-            "Label": "Позиция субтитров",
-            "Description": "Расположение субтитров на экране",
-            "Top": "Сверху",
-            "Bottom": "Снизу"
           }
         },
         "SubtitleProcessing": {

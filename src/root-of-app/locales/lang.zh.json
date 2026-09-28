@@ -2924,12 +2924,6 @@
           "ShowTranslation": {
             "Label": "显示翻译",
             "Description": "在字幕下方显示翻译行"
-          },
-          "SubtitlePosition": {
-            "Label": "字幕位置",
-            "Description": "字幕在屏幕上的位置",
-            "Top": "顶部",
-            "Bottom": "底部"
           }
         },
         "SubtitleProcessing": {
