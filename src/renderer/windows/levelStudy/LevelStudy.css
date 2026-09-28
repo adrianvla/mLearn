@@ -245,6 +245,10 @@
   text-overflow: ellipsis;
   overflow: hidden;
 }
+.level-card-legend-label:hover{
+  text-overflow: clip;
+  overflow: unset;
+}
 .level-card-legend-count {
   flex: 0 0 auto;
   font-weight: 600;

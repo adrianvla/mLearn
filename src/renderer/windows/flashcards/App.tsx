@@ -828,6 +828,9 @@ export const FlashcardsContent: Component = () => {
           </nav>
           
           <div class="flashcards-sidebar-actions">
+            <Show when={repairJobs().length + llmRepairJobs().length > 0}>
+              <Button variant="warning" size="sm" onClick={() => setShowRepairModal(true)}>{t('mlearn.Flashcards.Repair.Title')}</Button>
+            </Show>
             <Button
               size="sm" 
               variant="secondary" 
@@ -850,9 +853,6 @@ export const FlashcardsContent: Component = () => {
         {/* Main Content */}
         <main class="flashcards-main">
           <KnowledgeGate>
-          <Show when={repairJobs().length + llmRepairJobs().length > 0}>
-            <div class="flashcards-repair-notice"><Button variant="ghost" onClick={() => setShowRepairModal(true)}>{t('mlearn.Flashcards.Repair.Title')}</Button></div>
-          </Show>
           {/* Review Tab */}
           <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review" hidden={activeTab() !== 'review'}>
           <Show when={activeTab() === 'review'}>
