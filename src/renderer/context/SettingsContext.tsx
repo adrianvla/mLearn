@@ -12,7 +12,6 @@ import type {
   ManagedSettingRule,
   PolicySettingKey,
 } from '../../shared/managementPolicy';
-import type { SubtitleTheme } from '../../shared/constants';
 import { COLOR_SCHEMES, isDarkColorScheme, isOpaqueColorScheme, migrateLegacyThemeSettings, UI_TYPES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend, configureBackend } from '../../shared/backends';
@@ -20,7 +19,6 @@ import { isCapacitor, initPlatformBodyClass } from '../../shared/platform';
 import {
   readingAnnotationMoreContrastEnabled,
   readingAnnotationSizePercent,
-  readingAnnotationsEnabled,
 } from '../../shared/readingAnnotationSettings';
 import { prosodyVisible } from '../../shared/prosodySettings';
 import {
@@ -924,36 +922,3 @@ export function useOptionalSettings(): SettingsContextValue | undefined {
   return useContext(SettingsContext);
 }
 
-// Specialized hooks for common operations
-
-export function useSubtitleSettings() {
-  const { settings, updateSetting, updateSettings } = useSettings();
-  const showProsody = () => prosodyVisible(settings);
-  const setProsodyVisible = (show: boolean) => updateSetting('showProsody', show);
-
-  return {
-    fontSize: () => settings.subtitle_font_size,
-    fontWeight: () => settings.subtitle_font_weight,
-    theme: () => settings.subtitleTheme,
-    offset: () => settings.subsOffsetTime,
-    showReadingAnnotations: () => readingAnnotationsEnabled(settings),
-    showProsody,
-    setFontSize: (size: number) => updateSetting('subtitle_font_size', size),
-    setFontWeight: (weight: number) => updateSetting('subtitle_font_weight', weight),
-    setTheme: (theme: SubtitleTheme) => updateSetting('subtitleTheme', theme),
-    setOffset: (offset: number) => updateSetting('subsOffsetTime', offset),
-    setReadingAnnotations: (show: boolean) => updateSettings({
-      showReadingAnnotations: show,
-    }),
-    setProsodyVisible,
-  };
-}
-
-export function useLanguageSettings() {
-  const { settings, updateSetting } = useSettings();
-
-  return {
-    language: () => settings.language,
-    setLanguage: (lang: string) => updateSetting('language', lang),
-  };
-}

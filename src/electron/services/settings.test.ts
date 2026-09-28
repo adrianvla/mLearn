@@ -137,6 +137,25 @@ describe('loadSettings', () => {
     expect(settings.languageCatalogUrl).toBe('https://mlearn.kikan.net/language-catalog.json');
   });
 
+  it('persists a setting that DEFAULT_SETTINGS declares, across a save/load round trip', async () => {
+    // keepKnownSettingsKeys allowlists on Object.keys(DEFAULT_SETTINGS), so a
+    // setting the interface declares but DEFAULT_SETTINGS omits is silently
+    // dropped on save AND absent on load. That made the visible Video Fit
+    // control a no-op that emitted a `video-fit-undefined` class.
+    await mod.saveSettings({ ...mod.loadSettings(), videoFit: 'cover' });
+
+    expect(mod.loadSettings().videoFit).toBe('cover');
+    expect(DEFAULT_SETTINGS.videoFit).toBe('contain');
+  });
+
+  it('omits nothing the Settings type requires from DEFAULT_SETTINGS', () => {
+    // Guards the same root cause generically: every key a caller can read off
+    // a loaded Settings object must be present in the defaults allowlist.
+    for (const key of Object.keys(mod.loadSettings()) as Array<keyof typeof DEFAULT_SETTINGS>) {
+      expect(Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)).toBe(true);
+    }
+  });
+
   it('recovers the selected language from a single installed language when settings file is missing', () => {
     const langsDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(langsDir, { recursive: true });

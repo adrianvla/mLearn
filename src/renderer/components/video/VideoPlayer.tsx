@@ -10,7 +10,6 @@ import { useVideoTouch } from '../../hooks/useVideoTouch';
 import { useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { isElectron } from '../../../shared/platform';
-import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getLogger } from '../../../shared/utils/logger';
 import { SubtitleContainer } from '../subtitle/SubtitleContainer';
 import { LiveWordTranslator } from '../subtitle/LiveWordTranslator';
@@ -120,10 +119,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   const handlePageHide = () => pauseOwnedVideo('pagehide');
 
   // Compute video fit class
-  const videoFitClass = createMemo(() => {
-    const fit = settings.videoFit ?? DEFAULT_SETTINGS.videoFit;
-    return `video-fit-${fit}`;
-  });
+  const videoFitClass = createMemo(() => `video-fit-${settings.videoFit}`);
 
   // Attach video element
   onMount(() => {

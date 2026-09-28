@@ -369,11 +369,9 @@ export interface Settings {
   subtitleTheme: SubtitleTheme;
   subtitle_font_size: number;
   subtitle_font_weight: number;
-  subtitlePosition?: 'top' | 'bottom'; // Subtitle position on screen
-  subtitleFont?: string; // Custom font for subtitles
   showSubtitles?: boolean; // Toggle subtitle visibility
   showTranslation?: boolean; // Show translation line
-  videoFit?: 'contain' | 'cover' | 'fill'; // Video object fit
+  videoFit: 'contain' | 'cover' | 'fill'; // Video object fit
   overlayAutoPosition?: boolean; // Enable automatic overlay positioning from browser extension
   overlayTextMode?: boolean;
 
@@ -589,7 +587,6 @@ export interface Settings {
   /** List of browser paths that have the mLearn browser extension installed */
   installedBrowserExtensions: string[];
 
-  hasCompletedSetup?: boolean;
 
   eulaAccepted: boolean;
   eulaAcceptedVersion: string;
@@ -695,6 +692,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showTranslation: false,
   removeParentheses: false,
   removeSpeakerNames: false,
+  videoFit: 'contain',
   overlayAutoPosition: true,
   overlayTextMode: false,
   showProsody: true,

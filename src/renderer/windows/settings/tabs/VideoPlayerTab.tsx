@@ -180,7 +180,7 @@ export const VideoPlayerTab: Component = () => {
         >
           <Select
             class="setting-select"
-            value={settings.videoFit ?? DEFAULT_SETTINGS.videoFit}
+            value={settings.videoFit}
             onChange={(e) => updateSettings({ videoFit: e.currentTarget.value as 'contain' | 'cover' | 'fill' })}
           >
             <option value="contain">{t('mlearn.Settings.VideoPlayer.Playback.VideoFit.Contain')}</option>
@@ -220,20 +220,6 @@ export const VideoPlayerTab: Component = () => {
             checked={settings.showTranslation ?? DEFAULT_SETTINGS.showTranslation!}
             onChange={(checked) => updateSettings({ showTranslation: checked })}
           />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.VideoPlayer.Playback.SubtitlePosition.Label')}
-          description={t('mlearn.Settings.VideoPlayer.Playback.SubtitlePosition.Description')}
-        >
-          <Select
-            class="setting-select"
-            value={settings.subtitlePosition ?? DEFAULT_SETTINGS.subtitlePosition}
-            onChange={(e) => updateSettings({ subtitlePosition: e.currentTarget.value as 'top' | 'bottom' })}
-          >
-            <option value="bottom">{t('mlearn.Settings.VideoPlayer.Playback.SubtitlePosition.Bottom')}</option>
-            <option value="top">{t('mlearn.Settings.VideoPlayer.Playback.SubtitlePosition.Top')}</option>
-          </Select>
         </SettingRow>
       </SettingGroup>
 

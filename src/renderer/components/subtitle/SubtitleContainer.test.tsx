@@ -117,7 +117,6 @@ describe('SubtitleContainer', () => {
     mockSettings.blur_known_subtitles = false;
     mockSettings.showLiveTranslator = false;
     mockSettings.language = 'ja';
-    delete mockSettings.subtitleFont;
     mockLanguageData = null;
     mockGetCanonicalForm.mockImplementation((word: string) => word);
     mockIsWordKnownComprehensiveSync.mockClear();
@@ -237,32 +236,6 @@ describe('SubtitleContainer', () => {
 
     const subtitleText = container.querySelector('.subtitles > div') as HTMLElement | null;
     expect(subtitleText?.style.getPropertyValue('direction')).toBe('ltr');
-    dispose();
-  });
-
-  it('keeps the user subtitle font above language script defaults', () => {
-    mockSettings.subtitleFont = '"User Subtitle Font"';
-    mockLanguageData = {
-      name: 'Arabic',
-      settings: { fixed: {} },
-      textProcessing: {
-        scriptProfile: { acceptedScripts: ['Arab'] },
-      },
-    };
-
-    const dispose = render(
-      () => (
-        <SubtitleContainer
-          tokens={mockTokens}
-          originalText="مرحبا"
-          isLoading={false}
-        />
-      ),
-      container,
-    );
-
-    const subtitleText = container.querySelector('.subtitles > div') as HTMLElement | null;
-    expect(subtitleText?.style.getPropertyValue('font-family')).toBe('"User Subtitle Font"');
     dispose();
   });
 

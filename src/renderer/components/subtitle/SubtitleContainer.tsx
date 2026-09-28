@@ -226,7 +226,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   // Determine subtitle style based on settings
   const subtitleStyle = createMemo((): JSX.CSSProperties => ({
     'font-size': `${settings.subtitle_font_size}px`,
-    'font-family': settings.subtitleFont?.trim() || getSubtitleFontFamily(currentLangData()),
+    'font-family': getSubtitleFontFamily(currentLangData()),
     direction: getLanguageCssDirection(currentLangData(), settings.language),
     'unicode-bidi': 'isolate',
     'text-align': 'center',
