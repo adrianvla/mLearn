@@ -360,6 +360,13 @@ export const IPC_CHANNELS = {
   JOURNAL_ERASE_THREAD: 'journal-erase-thread',
 
   // World (rooms/threads/participants entity state)
+  RUNTIME_TRACE_LIST: 'runtime-trace-list',
+  RUNTIME_TRACE_GET: 'runtime-trace-get',
+  RUNTIME_TRACE_CLEAR: 'runtime-trace-clear',
+  RUNTIME_TRACE_CHANGED: 'runtime-trace-changed',
+  RUNTIME_TRACE_TOOL: 'runtime-trace-tool',
+  RUNTIME_WORLD_GET: 'runtime-world-get',
+  WORLD_CHANGED: 'world-changed',
   WORLD_GET_STATE: 'world-get-state',
   WORLD_CREATE_ROOM: 'world-create-room',
   WORLD_APPLY_MEMBERSHIP: 'world-apply-membership',

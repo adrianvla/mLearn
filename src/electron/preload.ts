@@ -436,8 +436,8 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, (_event, progress) => callback(progress)),
 
   // ========== Unified LLM ==========
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string, think?: boolean) =>
-    ipcRenderer.send(IPC_CHANNELS.LLM_STREAM, messages, tools, tier, think),
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string, think?: boolean, traceContext?: import('../shared/runtimeInspection').RuntimeTraceContext) =>
+    ipcRenderer.send(IPC_CHANNELS.LLM_STREAM, messages, tools, tier, think, traceContext),
   llmStreamAbort: () =>
     ipcRenderer.send(IPC_CHANNELS.LLM_STREAM_ABORT),
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) =>
@@ -575,6 +575,14 @@ const mLearnIPC = {
   eraseThread: (roomId: string, threadId: string): Promise<{ deletedCount: number }> =>
     ipcRenderer.invoke(IPC_CHANNELS.JOURNAL_ERASE_THREAD, roomId, threadId),
 
+  // ========== Developer inspection ==========
+  getRuntimeTraces: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_TRACE_LIST),
+  getRuntimeTrace: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_TRACE_GET, id),
+  clearRuntimeTraces: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_TRACE_CLEAR),
+  onRuntimeTraceChanged: (callback: () => void) => ipcOn(IPC_CHANNELS.RUNTIME_TRACE_CHANGED, () => callback()),
+  recordRuntimeTool: (observation: import('../shared/runtimeInspection').RuntimeToolObservation) => ipcRenderer.send(IPC_CHANNELS.RUNTIME_TRACE_TOOL, observation),
+  getRuntimeWorld: () => ipcRenderer.invoke(IPC_CHANNELS.RUNTIME_WORLD_GET),
+  onWorldChanged: (callback: (notice: import('../shared/runtimeInspection').WorldChangeNotice) => void) => ipcOn(IPC_CHANNELS.WORLD_CHANGED, (_event, notice) => callback(notice)),
   // ========== World ==========
   getWorldState: (): Promise<import('../shared/world').WorldSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_GET_STATE),

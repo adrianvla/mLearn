@@ -10,9 +10,10 @@ import { Component, For, Show, createMemo, createSignal, onCleanup } from 'solid
 import { getBridge } from '../../../shared/bridges';
 import { threadContextId, type Participant, type WorldSnapshot, type ScenarioCreation } from '../../../shared/world';
 import { resolveParticipant } from '../../services/participantConstruction';
-import { Btn, FormField, HintText, ModalForm, RadioChoice, Textarea } from '../../components/common';
+import { Avatar, Btn, Disclosure, FormField, HintText, Input, ListRow, ModalForm, PlusIcon, RadioChoice, SearchIcon, Textarea } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import './NewConversationModal.css';
+import { ParticipantEditorModal } from './ParticipantEditorModal';
 import { conversationRecoveryKey } from './errorUtils';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -30,16 +31,13 @@ interface NewConversationModalProps {
   world: WorldSnapshot | null;
   initialIntent?: string;
   mediaName?: string;
+  onContactCreated?: (person: Participant) => void;
   onCreated: (result: NewConversationResult) => void | Promise<void>;
   onClose: () => void;
 }
 
 export function firstCapitalizedWordSequence(text: string): string {
   return text.match(/\b[A-Z][\p{L}'-]*(?:\s+[A-Z][\p{L}'-]*)*/u)?.[0] ?? '';
-}
-
-function participantInitial(participant: Participant): string {
-  return participant.displayName.trim().charAt(0).toUpperCase() || '?';
 }
 
 export const NewConversationModal: Component<NewConversationModalProps> = (props) => {
@@ -58,11 +56,20 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   let generation = 0;
   let stopConsentWait: (() => void) | undefined;
   onCleanup(() => stopConsentWait?.());
-  const persistentParticipants = createMemo(() => (props.world?.participants ?? []).filter((participant) => participant.kind === 'persistent'));
+  const [query, setQuery] = createSignal('');
+  const [addingContact, setAddingContact] = createSignal(false);
+  const [createdContacts, setCreatedContacts] = createSignal<Participant[]>([]);
+  const contacts = createMemo(() => [...new Map([...(props.world?.participants ?? []), ...createdContacts()].map(person => [person.id, person])).values()]);
+  const visibleContacts = createMemo(() => contacts().filter(person => person.displayName.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase())));
+  const changeScope = (value: 'sandbox' | 'persistent'): void => {
+    setScope(value);
+    if (value === 'persistent') setSelectedIds(current => new Set([...current].filter(id => contacts().some(person => person.id === id && person.kind === 'persistent'))));
+  };
 
   const isSelected = (participant: Participant): boolean => selectedIds().has(participant.id);
 
   const toggleParticipant = (participant: Participant): void => {
+    if (busy() || (scope() === 'persistent' && participant.kind !== 'persistent')) return;
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(participant.id)) next.delete(participant.id);
@@ -136,7 +143,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       const resolution = resolveParticipant({
         characterName: firstCapitalizedWordSequence(text),
         freeFormText: text,
-      }, props.world?.participants ?? []);
+      }, contacts().filter(person => scope() !== 'persistent' || person.kind === 'persistent'));
       if (resolution.kind === 'ambiguous') {
         setCandidates(resolution.candidates);
         return;
@@ -178,12 +185,12 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     updateSettings({ livingWorldEnabled: true });
   };
 
-  return (
+  return (<>
     <ModalForm
-      isOpen={true}
+      isOpen={!addingContact()}
       onClose={() => { void close(); }}
       title={t('mlearn.ConversationAgent.NewConversation.Title')}
-      size="md"
+      size="sm"
       showCloseButton={true}
       closeOnOverlay={!busy()}
       closeOnEscape={!busy()}
@@ -211,11 +218,28 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
           <p class="new-conversation-media-context">{t('mlearn.ConversationAgent.NewConversation.MediaContext', { media: props.mediaName! })}</p>
         </Show>
         <Show when={!preview()}>
+          <div class="new-conversation-people">
+            <Input type="search" value={query()} onInput={event => setQuery(event.currentTarget.value)}
+              leftIcon={<SearchIcon size={16} />} placeholder={t('mlearn.ConversationAgent.Contacts.Search')}
+              aria-label={t('mlearn.ConversationAgent.Contacts.Search')} disabled={busy()} />
+            <ListRow class="new-conversation-add" headline={t('mlearn.ConversationAgent.Contacts.Add')}
+              leading={<PlusIcon size={20} />} onClick={() => setAddingContact(true)} disabled={busy()} />
+            <div class="new-conversation-people-list" aria-label={t('mlearn.ConversationAgent.NewConversation.PeopleLabel')}>
+              <For each={visibleContacts()}>{person => <ListRow
+                class="new-conversation-person" leading={<Avatar name={person.displayName} src={person.profilePhoto} size="sm" />}
+                headline={person.displayName} selected={isSelected(person)} aria-pressed={isSelected(person)}
+                aria-label={t('mlearn.ConversationAgent.NewConversation.ToggleParticipant', { name: person.displayName })}
+                description={scope() === 'persistent' && person.kind !== 'persistent' ? t('mlearn.ConversationAgent.Contacts.PracticeOnly') : undefined}
+                disabled={busy() || (scope() === 'persistent' && person.kind !== 'persistent')}
+                onClick={() => toggleParticipant(person)} />}</For>
+              <Show when={visibleContacts().length === 0}><HintText>{t('mlearn.ConversationAgent.Contacts.EmptyContacts')}</HintText></Show>
+            </div>
+          </div>
           <fieldset class="new-conversation-scope">
             <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}</legend>
             <div class="new-conversation-scope-options" role="radiogroup" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}>
-              <RadioChoice name="conversation-scope" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')} checked={scope() === 'sandbox'} onChange={() => setScope('sandbox')} disabled={busy()} />
-              <RadioChoice name="conversation-scope" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopePersistent')} checked={scope() === 'persistent'} onChange={() => setScope('persistent')} disabled={busy()} />
+              <RadioChoice name="conversation-scope" size="sm" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')} checked={scope() === 'sandbox'} onChange={() => changeScope('sandbox')} disabled={busy()} />
+              <RadioChoice name="conversation-scope" size="sm" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopePersistent')} checked={scope() === 'persistent'} onChange={() => changeScope('persistent')} disabled={busy()} />
             </div>
             <Show when={scope() === 'persistent' && !settings.livingWorldEnabled}>
               <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
@@ -224,39 +248,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               </Btn>
             </Show>
           </fieldset>
-          <Show when={persistentParticipants().length > 0}>
-            <fieldset class="new-conversation-people">
-              <legend class="new-conversation-people-label">{t('mlearn.ConversationAgent.NewConversation.PeopleLabel')}</legend>
-              <div class="new-conversation-people-list">
-                <For each={persistentParticipants()}>
-                  {(participant) => (
-                    <Btn
-                      variant="ghost"
-                      class={`new-conversation-person ${isSelected(participant) ? 'new-conversation-person--selected' : ''}`}
-                      aria-label={t('mlearn.ConversationAgent.NewConversation.ToggleParticipant', { name: participant.displayName })}
-                      aria-pressed={isSelected(participant)}
-                      onClick={() => toggleParticipant(participant)}
-                      disabled={busy()}
-                    >
-                      <Show
-                        when={participant.profilePhoto}
-                        fallback={<span class="new-conversation-avatar">{participantInitial(participant)}</span>}
-                      >
-                        <img class="new-conversation-avatar" src={participant.profilePhoto} alt="" />
-                      </Show>
-                      <span class="new-conversation-person-name">{participant.displayName}</span>
-                    </Btn>
-                  )}
-                </For>
-              </div>
-              <HintText>{t('mlearn.ConversationAgent.NewConversation.PeopleHint')}</HintText>
-              <Show when={selectedIds().size > 0}>
-                <HintText>{t(scope() === 'persistent'
-                  ? 'mlearn.ConversationAgent.NewConversation.PersistentHint'
-                  : 'mlearn.ConversationAgent.NewConversation.TemporaryHint')}</HintText>
-              </Show>
-            </fieldset>
-          </Show>
+          <Disclosure title={t('mlearn.ConversationAgent.Contacts.OptionalGoal')} open={Boolean(props.initialIntent || saved?.request.intent)}>
           <FormField label={t(props.initialIntent || saved?.request.intent
             ? 'mlearn.ConversationAgent.NewConversation.PreparedGoalLabel'
             : 'mlearn.ConversationAgent.NewConversation.IntentLabel')}>
@@ -264,9 +256,10 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               value={intent()}
               onInput={(event) => setIntent(event.currentTarget.value)}
               placeholder={t('mlearn.ConversationAgent.NewConversation.Placeholder')}
-              rows={4}
+              rows={3}
             />
           </FormField>
+          </Disclosure>
           <Show when={candidates().length > 0}>
             <div class="new-conversation-disambiguation">
               <span>{t('mlearn.ConversationAgent.NewConversation.DidYouMean')}</span>
@@ -290,16 +283,15 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               <For each={prepared.scenario?.participants ?? []}>
                 {(reference) => {
                   const profile = reference.kind === 'temporary' ? reference.profile : undefined;
-                  const existing = reference.kind === 'existing' ? prepared.bindings.find(item => item.originId === reference.participantId)?.baseline : undefined;
-                  return <details>
-                    <summary>{profile?.name ?? existing?.displayName}</summary>
+                  const existing = reference.kind === 'existing' ? prepared.bindings.find(item => item.baseline.id === reference.participantId)?.baseline : undefined;
+                  return <Disclosure title={profile?.name ?? existing?.displayName ?? ''}>
                     <p>{profile?.personaText ?? existing?.personaText}</p>
                     <Show when={profile}>
                       <HintText>{t('mlearn.ConversationAgent.NewConversation.PrivatePreview')}</HintText>
                       <For each={profile?.goals ?? []}>{goal => <p>{goal}</p>}</For>
                       <For each={profile?.initialKnowledge ?? []}>{fact => <p>{fact.text}</p>}</For>
                     </Show>
-                  </details>;
+                  </Disclosure>;
                 }}
               </For>
             </div>
@@ -309,10 +301,18 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
           <div class="new-conversation-error" role="alert">
             <p>{t(conversationRecoveryKey(error()))}</p>
             <Btn variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings', context: { section: 'ai' } })}>{t('mlearn.ConversationAgent.Recovery.Settings')}</Btn>
-            <details><summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary><p>{error()}</p></details>
+            <Disclosure title={t('mlearn.Knowledge.Projection.Relations.Advanced')}><p>{error()}</p></Disclosure>
           </div>
         </Show>
       </div>
     </ModalForm>
-  );
+    <Show when={addingContact()}><ParticipantEditorModal onClose={() => setAddingContact(false)} onCreate={async input => {
+      const person = await getBridge().world.createParticipant(input);
+      setCreatedContacts(current => [...current, person]);
+      props.onContactCreated?.(person);
+      if (scope() === 'persistent' && person.kind !== 'persistent') setScope('sandbox');
+      setSelectedIds(current => new Set([...current, person.id]));
+      setQuery(''); setAddingContact(false);
+    }} /></Show>
+  </>);
 };

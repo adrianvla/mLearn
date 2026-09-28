@@ -69,3 +69,5 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+.radio-choice.radio-choice--compact { padding: var(--spacing-2) var(--spacing-3); min-height: 2.5rem; font-size: var(--font-size-sm); }

@@ -1,7 +1,9 @@
-import createDOMPurify from 'dompurify';
+import createDOMPurify, { type WindowLike } from 'dompurify';
 
 // Default import returns empty strings under happy-dom; bind explicitly to window.
-const purify = createDOMPurify(window);
+// DOMPurify feature-detects Trusted Types at runtime. Its WindowLike type
+// requires the member even on browsers where the optional API is absent.
+const purify = createDOMPurify(window as unknown as WindowLike);
 
 // Default DOMPurify URI allowlist extended with the app's custom media protocols.
 const ALLOWED_URI_REGEXP =

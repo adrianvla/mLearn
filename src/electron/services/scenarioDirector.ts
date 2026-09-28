@@ -73,9 +73,9 @@ async function generate(request: CreateCastInput, hash: string, signal: AbortSig
     if (existing && existing.requestHash !== hash) throw new Error('Scenario creation conflict');
     if (existing && (existing.status === 'ready' || existing.status === 'activated')) return existing;
     const bindings = request.participantIds.map(id => {
-      const person = world.participants.find(item => item.id === id && item.kind === 'persistent');
+      const person = world.participants.find(item => item.id === id && (request.scope !== 'persistent' || item.kind === 'persistent'));
       if (!person) throw new Error('Selected person is unavailable');
-      return { originId: id, baseline: structuredClone(person) };
+      return { ...(person.kind === 'persistent' ? { originId: id } : {}), baseline: structuredClone(person) };
     });
     const baselineHeads: Record<string, number> = { [WORLD_CONTINUITY_ID]: (await readSeaProjection(WORLD_CONTINUITY_ID)).at(-1)?.seq ?? 0 };
     for (const room of world.rooms) baselineHeads[room.id] = (await readSeaProjection(room.id)).at(-1)?.seq ?? 0;
@@ -93,7 +93,7 @@ async function generate(request: CreateCastInput, hash: string, signal: AbortSig
       selectedPeople: stage.bindings.map(binding => ({ id: binding.baseline.id, name: binding.baseline.displayName })), intent: request.intent,
     }) }];
     trace('director-request-built', { messageCharacters: messages.reduce((sum, message) => sum + message.content.length, 0), outputCharacterLimit: SCENARIO_LIMITS.outputCharacters });
-    const raw = await completeJob(messages, signal, SCENARIO_LIMITS.outputCharacters);
+    const raw = await completeJob(messages, signal, SCENARIO_LIMITS.outputCharacters, 'foreground', { source: 'director', operationId: request.operationId });
     trace('generation-complete', { outputCharacters: raw.length });
     const scenario = parseScenarioProposal(raw, request.participantIds, request.intent!);
     trace('parsed-and-validated', { generatedParticipants: scenario.participants.length });
@@ -162,7 +162,7 @@ export async function activateScenario(operationId: string): Promise<ScenarioAct
     }
     if (!stage || stage.status !== 'ready' || !stage.scenario) throw new Error('Scenario is not ready to start');
     for (const binding of stage.bindings) {
-      if (!isDeepStrictEqual(world.participants.find(item => item.id === binding.originId), binding.baseline)) {
+      if (!isDeepStrictEqual(world.participants.find(item => item.id === (binding.originId ?? binding.baseline.id)), binding.baseline)) {
         throw new Error('A selected person changed. Review a new scenario before starting.');
       }
     }

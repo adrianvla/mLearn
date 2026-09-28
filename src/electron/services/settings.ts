@@ -1,3 +1,4 @@
+import { notifySettingsCommitted } from './settingsChanges';
 /**
  * Settings Service
  * Handles loading, saving, and IPC for application settings
@@ -223,6 +224,8 @@ export function loadSettings(): Settings {
 
 export async function saveSettings(settings: Settings): Promise<void> {
   const settingsPath = getSettingsPath();
+  const profile = getUserDataPath();
+  const committedSettings = structuredClone(settings);
   const serializedSettings = JSON.stringify(keepKnownSettingsKeys({ ...settings }), null, 2);
 
   const queuedSave = settingsSaveQueue
@@ -234,6 +237,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
       await fs.promises.mkdir(dir, { recursive: true });
       await fs.promises.writeFile(tmpPath, serializedSettings, 'utf-8');
       await fs.promises.rename(tmpPath, settingsPath);
+      notifySettingsCommitted(committedSettings, profile);
     });
 
   settingsSaveQueue = queuedSave;

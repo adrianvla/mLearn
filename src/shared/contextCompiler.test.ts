@@ -75,6 +75,16 @@ function correction(seq: number, ownerId: string, targetId: string, witnesses: s
 }
 
 describe('context compiler', () => {
+  it('does not import Sea memories into a practice-only contact, even with a matching historical ID', () => {
+    const person = participant({ kind: 'temporary' });
+    const sea = [belief(1, person.id, 'fact', 'World secret', [person.id])];
+    const ctx = compileContext({ participant: person, participants: [person], seaEvents: sea,
+      thread: { id: 'practice', state: 'active', createdAt: 1,
+        sandbox: { operationId: 'practice', requestHash: 'hash', baselineHeads: { room_1: 100 }, bindings: [{ baseline: person }] } },
+      threadEvents: [] });
+    expect(ctx.memories).toEqual([]);
+  });
+
   it('filters by witnesses per participant in both streams', () => {
     const sea = [
       belief(1, 'A', 'belief', 'A secret only A heard.', ['A', 'user']),

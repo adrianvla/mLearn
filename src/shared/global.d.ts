@@ -14,6 +14,14 @@ import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQ
 import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
+  getRuntimeTraces: () => Promise<import('./runtimeInspection').RuntimeTraceList>;
+  getRuntimeTrace: (id: string) => Promise<import('./runtimeInspection').RuntimeTraceEntry | null>;
+  clearRuntimeTraces: () => Promise<void>;
+  onRuntimeTraceChanged: (callback: () => void) => () => void;
+  recordRuntimeTool: (observation: import('./runtimeInspection').RuntimeToolObservation) => void;
+  getRuntimeWorld: () => Promise<import('./world').WorldSnapshot>;
+  onWorldChanged: (callback: (notice: import('./runtimeInspection').WorldChangeNotice) => void) => () => void;
+
   // Settings
   getSettings: () => void;
   saveSettings: (settings: Settings) => void;
@@ -257,7 +265,7 @@ sendLogRecord: (record: unknown) => void;
   onOllamaPullModelProgress: (callback: (progress: { status: string; completed?: number; total?: number; error?: string }) => void) => () => void;
 
   // Unified LLM
-  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string, think?: boolean) => void;
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[], tier?: string, think?: boolean, traceContext?: import('./runtimeInspection').RuntimeTraceContext) => void;
   llmStreamAbort: () => void;
   onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) => () => void;
   llmCheckModel: (modelFile?: string) => Promise<LLMModelStatus>;

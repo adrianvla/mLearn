@@ -12,7 +12,7 @@ import { useDecisionPin } from '../../hooks/useDecisionPin';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
-  Button, Badge, Panel, ProgressBar, Select, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
+  Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
   EyeIcon
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';

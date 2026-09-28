@@ -66,6 +66,7 @@ describe('V09 main-owned autonomy runtime', () => {
       expect.any(AbortSignal),
       6000,
       'background',
+      { source: 'autonomy', roomId: 'room-a', participantId: 'person-a' },
     );
     expect(mocks.consolidateContext).toHaveBeenCalledWith({ roomId: 'room-a' }, expect.any(Object));
   });

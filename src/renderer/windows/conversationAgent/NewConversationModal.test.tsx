@@ -41,7 +41,8 @@ vi.mock('../../context', () => ({
   useSettings: () => ({ settings: settingsStore, updateSettings: updateSettingsMock }),
 }));
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (original) => ({
+  ...await original<typeof import('../../components/common')>(),
   PlusIcon: () => <span aria-hidden="true" />,
   SearchIcon: () => <span aria-hidden="true" />,
   ModalForm: (props: { children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
@@ -415,10 +416,10 @@ describe('RoomSidebar', () => {
     document.body.appendChild(container);
     const onNewConversation = vi.fn();
     const dispose = render(() => (
-      <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={onNewConversation} />
+      <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={onNewConversation} onAddContact={vi.fn()} onSelectContact={vi.fn()} />
     ), container);
 
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Sidebar.NewConversation')!.click();
+    Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.Sidebar.NewConversation')!.click();
     expect(onNewConversation).toHaveBeenCalledTimes(1);
     dispose();
     container.remove();

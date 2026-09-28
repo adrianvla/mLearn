@@ -238,7 +238,9 @@ export function compileContext(input: CompileContextInput): CompiledContext {
   const binding = sandbox?.bindings.find(item => item.baseline.id === input.participant.id);
   if (sandbox && !binding) throw new Error('Participant is not bound to this sandbox');
   const participant = binding?.localOverride ?? binding?.baseline ?? input.participant;
-  const seaEvents = sandbox
+  const seaEvents = sandbox && binding?.baseline.kind === 'temporary'
+    ? []
+    : sandbox
     ? (input.seaEvents ?? []).filter(event => event.scope.kind === 'sea' && event.seq <= (sandbox.baselineHeads[event.roomId] ?? 0))
     : (input.seaEvents ?? []);
   const threadEvents = input.thread

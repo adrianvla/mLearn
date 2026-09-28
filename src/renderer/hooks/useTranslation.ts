@@ -249,7 +249,11 @@ export interface WordLookupCandidateOptions {
   dictionaryTargetLanguage?: string | (() => string | undefined);
   languageData?: LanguageData | null | (() => LanguageData | null);
   /** Language code — required for package mapping-table normalizer steps to apply. */
-  language?: string;
+  language?: string | (() => string);
+}
+
+function resolveLanguage(value: string | (() => string) | undefined): string | undefined {
+  return typeof value === 'function' ? value() : value;
 }
 
 function resolveDictionaryTargetLanguage(value: WordLookupCandidateOptions['dictionaryTargetLanguage']): string | undefined {
@@ -387,7 +391,7 @@ export async function fetchTranslation(
 
 export interface UseTranslationOptions {
   immediate?: boolean;
-  language?: string;
+  language?: string | (() => string);
   getCanonicalForm?: (word: string) => string;
   getWordVariants?: (word: string) => string[];
   getReadingVariants?: (reading: string) => string[];
@@ -402,7 +406,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     () => currentWord(),
     async (word) => {
       if (!word) return null;
-      return fetchTranslation(word, options.language, options);
+      return fetchTranslation(word, resolveLanguage(options.language), options);
     },
   );
 
@@ -415,15 +419,16 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   };
 
   const translateWord = async (word: string): Promise<TranslationResponse> => {
-    return fetchTranslation(word, options.language, options);
+    return fetchTranslation(word, resolveLanguage(options.language), options);
   };
 
   const setOverride = async (word: string, value: TranslationResponse | null) => {
-    const overrides = await readOverrides();
+    const language = resolveLanguage(options.language);
     const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
+    const overrides = await readOverrides();
     const cacheKey = buildTranslationCacheKey(
       word,
-      options.language,
+      language,
       dictionaryTargetLanguage,
     );
     if (value === null) {
@@ -459,10 +464,12 @@ export async function warmTranslationCache(
   language?: string,
   dictionaryTargetLanguage?: string,
   languageData?: LanguageData | null,
+  options?: { throwOnFailure?: boolean },
 ): Promise<void> {
   const backend = getBackend();
   const unique = [...new Set(words)];
   const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
+  const failures: unknown[] = [];
   const batchEntries: Array<{ word: string; data: TranslationResponse }> = [];
   const wordsToWarm = unique
     .filter((w) => w && w.trim())
@@ -479,8 +486,8 @@ export async function warmTranslationCache(
           setTranslationCache(buildTranslationCacheKey(word, cacheLanguage, dictionaryTargetLanguage), data);
           chunkHits += 1;
           batchEntries.push({ word, data });
-        } catch {
-          // Ignore errors during cache warming
+        } catch (error) {
+          failures.push(error);
         }
       });
 
@@ -496,13 +503,14 @@ export async function warmTranslationCache(
     if (batchEntries.length > 0) {
       void setCachedTranslationBatchScopedDB(batchEntries, cacheLanguage, dictionaryTargetLanguage);
     }
+    if (options?.throwOnFailure && failures.length > 0) throw failures[0];
   } finally {
     setWarmInFlightCount((c) => c - 1);
   }
 }
 
 export interface UseTokenizerOptions {
-  language?: string;
+  language?: string | (() => string);
   languageData?: LanguageData | null | (() => LanguageData | null);
 }
 
@@ -520,18 +528,19 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     namespace: string | undefined,
     cacheKey: string,
     persist: boolean,
+    language: string | undefined,
   ): Promise<{ tokens: Token[]; fresh: boolean }> => {
-    const dbCached = await getCachedTokensByLanguageDB(key, options.language, namespace);
+    const dbCached = await getCachedTokensByLanguageDB(key, language, namespace);
     if (dbCached) {
       tokenCache.set(cacheKey, { tokens: dbCached, ts: Date.now() });
       return { tokens: dbCached, fresh: false };
     }
 
-    const tokens = await getBackend().tokenize(key, options.language);
+    const tokens = await getBackend().tokenize(key, language);
     tokenCache.set(cacheKey, { tokens, ts: Date.now() });
     pruneMapFIFO(tokenCache, TOKEN_CACHE_MAX);
     if (persist) {
-      void setCachedTokensByLanguageDB(key, tokens, options.language, namespace);
+      void setCachedTokensByLanguageDB(key, tokens, language, namespace);
     }
     return { tokens, fresh: true };
   };
@@ -541,8 +550,9 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     namespace: string | undefined,
     cacheKey: string,
     persist: boolean,
+    language: string | undefined,
   ): Promise<{ tokens: Token[]; fresh: boolean }> => {
-    const p = resolveUncached(key, namespace, cacheKey, persist);
+    const p = resolveUncached(key, namespace, cacheKey, persist, language);
     tokenInFlight.set(cacheKey, p);
     try {
       return await p;
@@ -551,45 +561,47 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     }
   };
 
-  const roughFallbackOrThrow = (key: string, languageData: LanguageData | null, error: unknown): Token[] => {
+  const roughFallbackOrThrow = (key: string, languageData: LanguageData | null, error: unknown, language: string | undefined): Token[] => {
     log.error("error", error);
     if (!tokenizerAllowsFallback(languageData)) {
       throw error;
     }
-    const fallbackTokens = createRoughTokenizerTokens(key, languageData, options.language);
+    const fallbackTokens = createRoughTokenizerTokens(key, languageData, language);
     if (fallbackTokens.length === 0) {
       throw error;
     }
     return fallbackTokens;
   };
 
-  const cachedOrFlight = (key: string, namespace: string | undefined): Promise<Token[]> | undefined => {
-    const cacheKey = buildTokenCacheKey(key, options.language, namespace);
+  const cachedOrFlight = (key: string, namespace: string | undefined, language: string | undefined): Promise<Token[]> | undefined => {
+    const cacheKey = buildTokenCacheKey(key, language, namespace);
     if (tokenCache.has(cacheKey)) return Promise.resolve(tokenCache.get(cacheKey)!.tokens);
     if (tokenInFlight.has(cacheKey)) return tokenInFlight.get(cacheKey)!.then((result) => result.tokens);
     return undefined;
   };
 
   const tokenize = async (text: string): Promise<Token[]> => {
+    const language = typeof options.language === 'function' ? options.language() : options.language;
     const key = typeof text === 'string' ? text : String(text);
     if (!key.trim()) return createEmptyFallbackToken(key);
     const languageData = resolveTokenizerLanguageData(options.languageData);
     const namespace = getTokenizerCacheNamespace(languageData);
-    const fast = cachedOrFlight(key, namespace);
+    const fast = cachedOrFlight(key, namespace, language);
     perfCount(fast ? 'tokenize.cacheHit' : 'tokenize.miss');
     if (fast) return fast;
-    const cacheKey = buildTokenCacheKey(key, options.language, namespace);
+    const cacheKey = buildTokenCacheKey(key, language, namespace);
     try {
-      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true);
+      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true, language);
       return tokens;
     } catch (e) {
-      return roughFallbackOrThrow(key, languageData, e);
+      return roughFallbackOrThrow(key, languageData, e, language);
     }
   };
 
   // Page-level entry: identical per-text semantics (memory cache, in-flight
   // dedupe, DB cache, rough fallback), but fresh backend results persist in
   const tokenizeMany = async (texts: string[]): Promise<Token[][]> => {
+    const language = typeof options.language === 'function' ? options.language() : options.language;
     perfCount('tokenizeMany.calls', 1);
     perfCount('tokenizeMany.texts', texts.length);
     const tmStart = performance.now();
@@ -599,15 +611,15 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     const results = await Promise.all(texts.map(async (text) => {
       const key = typeof text === 'string' ? text : String(text);
       if (!key.trim()) return createEmptyFallbackToken(key);
-      const fast = cachedOrFlight(key, namespace);
+      const fast = cachedOrFlight(key, namespace, language);
       if (fast) return fast;
-      const cacheKey = buildTokenCacheKey(key, options.language, namespace);
+      const cacheKey = buildTokenCacheKey(key, language, namespace);
       let result: { tokens: Token[]; fresh: boolean };
       try {
-        result = await tokenizeUncached(key, namespace, cacheKey, false);
+        result = await tokenizeUncached(key, namespace, cacheKey, false, language);
       } catch (e) {
         // Rough fallbacks are display-only and never persisted (same as `tokenize`).
-        return roughFallbackOrThrow(key, languageData, e);
+        return roughFallbackOrThrow(key, languageData, e, language);
       }
       // Only backend misses enter the batch: DB-cache hits and rough fallbacks
       // are already stored (or display-only) and must not be rewritten.
@@ -618,7 +630,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     }));
     perfCount('tokenizeMany.ms', performance.now() - tmStart);
     if (fresh.length > 0) {
-      void setCachedTokensBatchByLanguageDB(fresh, options.language, namespace);
+      void setCachedTokensBatchByLanguageDB(fresh, language, namespace);
     }
     return results;
   };
@@ -627,7 +639,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
 }
 
 export interface UseDictionaryOptions {
-  language?: string;
+  language?: string | (() => string);
   getCanonicalForm?: (word: string) => string;
   getWordVariants?: (word: string) => string[];
   getReadingVariants?: (reading: string) => string[];
@@ -669,6 +681,7 @@ export function buildDictionaryReadingCandidates(
 export function useDictionary(options: UseDictionaryOptions = {}) {
   const lookup = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
     try {
+      const language = resolveLanguage(options.language);
       const readingKey = reading || '';
       const languageData = resolveLanguageData(options.languageData);
       const candidates = buildDictionaryLookupCandidates(
@@ -676,11 +689,11 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
         options.getCanonicalForm ?? identityWordForm,
         options.getWordVariants,
         languageData,
-        options.language,
+        language,
       );
       const readingCandidates = buildDictionaryReadingCandidates(readingKey, options.getReadingVariants);
       const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
-      const cacheLanguage = buildVersionedLanguageCacheId(options.language, languageData, dictionaryTargetLanguage);
+      const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
       const originalCacheKey = buildDictionaryCacheKey(word, readingKey, cacheLanguage, dictionaryTargetLanguage);
 
       for (const candidate of candidates) {
@@ -722,7 +735,7 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
         const data = await translateWithDictionaryTarget(
           getBackend(),
           candidate,
-          options.language,
+          language,
           dictionaryTargetLanguage,
         );
         if (data.data && Array.isArray(data.data)) {

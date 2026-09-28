@@ -1,7 +1,7 @@
 /* ============ Chat Bubble ============ */
 
 .chat-bubble {
-  max-width: 85%;
+  max-width: min(85%, 42rem);
   width: fit-content;
   animation: bubbleIn 0.2s ease-out both;
 }
@@ -59,19 +59,19 @@
 .chat-bubble-content {
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-lg);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   line-height: var(--line-height-relaxed);
   word-break: break-word;
 }
 
 .chat-bubble.user .chat-bubble-content {
-  background: var(--bg);
-  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 15%, var(--border-color));
   border-bottom-right-radius: var(--radius-sm);
 }
 
 .chat-bubble.assistant .chat-bubble-content {
-  background: var(--bg);
+  background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-bottom-left-radius: var(--radius-sm);
 }
@@ -91,9 +91,6 @@
   transition: background var(--transition-fast);
   border-radius: 2px;
   padding: 0 1px;
-  /* SubtitleWord can apply package POS colors inline; those colors lose
-     contrast against the chat bubble surface. Keep conversation text readable. */
-  color: var(--text-primary) !important;
 }
 
 .chat-token:hover {
@@ -170,7 +167,7 @@
 /* ============ Chat timestamp & actions ============ */
 
 .chat-bubble-footer {
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   margin-top: var(--spacing-1);
   padding: 0 var(--spacing-1);
@@ -402,3 +399,6 @@
 .quiz-fill-in-input:disabled {
   color: var(--text-secondary);
 }
+
+.chat-bubble:focus-within .chat-bubble-regenerate { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .chat-bubble { animation: none; } }

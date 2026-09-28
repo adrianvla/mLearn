@@ -1,0 +1,71 @@
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render } from 'solid-js/web';
+import type { JSX } from 'solid-js';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
+import type { Participant } from '../../../shared/world';
+
+vi.mock('../../context', () => ({
+  useLocalization: () => ({ t: (key: string) => key, locale: () => 'en' }),
+  useSettings: () => ({ settings: { ...DEFAULT_SETTINGS, livingWorldEnabled: false }, updateSettings: vi.fn() }),
+}));
+vi.mock('../../components/common', async (original) => ({
+  ...await original<typeof import('../../components/common')>(),
+  ModalForm: (props: { title?: JSX.Element; children?: JSX.Element; footer?: JSX.Element }) => <div>{props.title}{props.children}{props.footer}</div>,
+  VoiceSamplePicker: () => <div />,
+}));
+import { ParticipantEditorModal } from './ParticipantEditorModal';
+import { RoomSidebar } from './RoomSidebar';
+const cleanups: Array<() => void> = [];
+function mount(view: () => JSX.Element): HTMLDivElement {
+  const el = document.createElement('div'); document.body.append(el);
+  const dispose = render(view, el); cleanups.push(() => { dispose(); el.remove(); });
+  return el;
+}
+afterEach(() => cleanups.splice(0).forEach(fn => fn()));
+const click = (el: HTMLElement, label: string): void => {
+  const btn = Array.from(el.querySelectorAll('button')).find(node => node.getAttribute('aria-label') === label || node.textContent === label);
+  expect(btn, label).toBeDefined(); btn!.click();
+};
+
+describe('Contacts are independent from conversations', () => {
+  it('offers Add contact from an empty messenger and a Contacts tab', () => {
+    const add = vi.fn();
+    const el = mount(() => <RoomSidebar world={{ rooms: [], threads: [], participants: [] }} roomId={null} threadId={null}
+      onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onAddContact={add} onSelectContact={vi.fn()} />);
+    click(el, 'mlearn.ConversationAgent.Contacts.Tab');
+    click(el, 'mlearn.ConversationAgent.Contacts.Add');
+    expect(add).toHaveBeenCalledOnce();
+  });
+  it('lists practice-only contact profiles even without any rooms, and selects the exact identity', () => {
+    const person: Participant = { id: 'person-a', displayName: 'Mara', kind: 'temporary', personaText: 'Loves films.', setupComplete: true };
+    const selected = vi.fn();
+    const el = mount(() => <RoomSidebar world={{ rooms: [], threads: [], participants: [person] }} roomId={null} threadId={null}
+      onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onAddContact={vi.fn()} onSelectContact={selected} />);
+    click(el, 'mlearn.ConversationAgent.Contacts.Tab');
+    const row = Array.from(el.querySelectorAll('button')).find(node => node.textContent?.includes('Mara'))!;
+    expect(row).toBeDefined(); row.click(); expect(selected).toHaveBeenCalledWith(person);
+  });
+  it('creates a profile without creating a room or silently enabling world continuity', async () => {
+    const create = vi.fn(async () => {});
+    const el = mount(() => <ParticipantEditorModal onCreate={create} onClose={vi.fn()} />);
+    const name = el.querySelector('input[type="text"]') as HTMLInputElement;
+    expect(name).not.toBeNull(); name.value = '  Mara  '; name.dispatchEvent(new Event('input', { bubbles: true }));
+    const persona = el.querySelector('textarea')!; persona.value = 'A film student.'; persona.dispatchEvent(new Event('input', { bubbles: true }));
+    click(el, 'mlearn.ConversationAgent.Contacts.Add');
+    await vi.waitFor(() => expect(create).toHaveBeenCalledOnce());
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ displayName: 'Mara', personaText: 'A film student.', kind: 'temporary' }));
+    expect(create).not.toHaveBeenCalledWith(expect.objectContaining({ id: expect.anything() }));
+  });
+  it('keeps a failed save editable and prevents duplicate in-flight creation', async () => {
+    let reject!: (err: Error) => void;
+    const create = vi.fn(() => new Promise<void>((_, fail) => { reject = fail; }));
+    const el = mount(() => <ParticipantEditorModal onCreate={create} onClose={vi.fn()} />);
+    const name = el.querySelector('input[type="text"]') as HTMLInputElement;
+    name.value = 'Mara'; name.dispatchEvent(new Event('input', { bubbles: true }));
+    click(el, 'mlearn.ConversationAgent.Contacts.Add'); click(el, 'mlearn.ConversationAgent.Contacts.Add');
+    expect(create).toHaveBeenCalledOnce(); reject(new Error('Disk is full'));
+    await vi.waitFor(() => expect(el.querySelector('[role="alert"]')?.textContent).toContain('Disk is full'));
+    expect(name.value).toBe('Mara');
+  });
+});

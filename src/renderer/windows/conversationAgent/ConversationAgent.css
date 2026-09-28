@@ -161,6 +161,7 @@
 
 /* Chat panel — fills remaining space below tabs, contains its own scroll */
 .ca-chat-panel {
+  position: relative;
   display: flex;
   flex-direction: row;
   flex: 1;
@@ -169,56 +170,29 @@
   height: 100%;
 }
 
-.ca-history-sidebar-backdrop {
-  display: none;
-}
-
 .ca-history-sidebar {
-  width: 280px;
+  --responsive-sidebar-width: 19rem;
+  width: var(--responsive-sidebar-width);
+  min-width: 15rem;
   flex-shrink: 0;
   border-right: 1px solid var(--border-color);
   background: var(--bg-nt-primary);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.ca-chat-content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
   overflow: hidden;
-  position: relative;
+  display: flex;
+  flex-direction: column;
 }
-
-:root[data-sidebar-layout='drawer'] .ca-chat-panel {
-    position: relative;
-}
-
-:root[data-sidebar-layout='drawer'] .ca-history-sidebar-backdrop {
-    display: block;
-    position: absolute;
-    z-index: var(--z-modal-backdrop);
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    padding: 0;
-    border: 0;
-    background: var(--overlay-bg-soft);
-}
-
-:root[data-sidebar-layout='drawer'] .ca-history-sidebar {
-    position: absolute;
-    z-index: var(--z-modal);
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: min(17.5rem, calc(100vw - 3rem));
-    padding-block-start: var(--window-controls-block-start-inset);
-    box-sizing: border-box;
-    box-shadow: var(--shadow-lg);
-}
+/* Each pane owns its header; native drag/control zones stay unobstructed. */
+.ca-chat-panel > .responsive-sidebar--left { padding-block-start: 0; }
+:root[data-sidebar-layout='drawer'] .ca-chat-panel > .responsive-sidebar__mobile-bar { display: none; }
+.ca-sidebar-toggle { display: none; }
+:root[data-sidebar-layout='drawer'] .ca-sidebar-toggle { display: inline-flex; }
+.ca-chat-content { background: var(--bg-opaque); display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+.ca-header-contact { min-width: 0; padding: var(--spacing-1); }
+.ca-header-contact > .btn-content { min-width: 0; gap: var(--spacing-2); }
+.ca-header-identity { flex: 1; }
+.ca-message-row { display: flex; flex-direction: column; min-width: 0; }
+.ca-jump-latest { position: absolute; bottom: 7rem; inset-inline-end: var(--spacing-4); z-index: var(--z-dropdown); box-shadow: var(--shadow-md); }
+.ca-annotation-notice { display: flex; gap: var(--spacing-2); align-items: center; padding: var(--spacing-1) var(--spacing-4); color: var(--text-secondary); font-size: var(--font-size-xs); }
 
 .ca-voice-overlay {
   position: relative;
@@ -243,20 +217,6 @@
 }
 .ca-overflow-menu .ca-overflow-item:hover { background: var(--bg-secondary); }
 
-.ca-details-backdrop { position: absolute; z-index: var(--z-modal-backdrop); inset: var(--window-controls-block-start-inset) 0 0; border: 0; background: var(--overlay-bg-soft); }
-.ca-details-drawer {
-  position: absolute;
-  z-index: var(--z-modal);
-  top: var(--window-controls-block-start-inset);
-  right: 0;
-  bottom: 0;
-  width: min(24rem, calc(100vw - 3rem));
-  overflow-y: auto;
-  border-left: 1px solid var(--border-color);
-  background: var(--bg-nt-primary);
-  box-shadow: var(--shadow-lg);
-}
-
 /* Messages area — scrollable */
 .ca-messages {
   flex: 1;
@@ -264,22 +224,8 @@
   padding: var(--spacing-4) var(--spacing-5);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
-  scroll-behavior: smooth;
+  gap: var(--spacing-3);
   min-height: 0;
-}
-
-.ca-messages::-webkit-scrollbar {
-  width: 6px;
-}
-
-.ca-messages::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.ca-messages::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: var(--radius-sm);
 }
 
 /* Empty state positioning inside messages */
@@ -502,3 +448,8 @@ textarea.ca-chat-textarea,
 .ca-incoming-call-copy strong {
   color: var(--text-primary);
 }
+
+/* Conversation chrome belongs to its pane; the contact list owns its header. */
+.ca-chat-content > .ca-header { padding-inline-start: var(--spacing-4); }
+.ca-history-sidebar .room-sidebar { padding-top: calc(var(--spacing-4) + var(--window-controls-block-start-inset)); }
+:root[data-sidebar-layout='drawer'] .ca-chat-content > .ca-header { padding-inline-start: calc(var(--spacing-1) + var(--window-controls-inline-start-inset)); }

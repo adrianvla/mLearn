@@ -5,7 +5,8 @@ import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import type { Participant, Thread } from '../../../shared/world';
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async (original) => ({
+  ...await original<typeof import('../../components/common')>(),
   Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
@@ -27,6 +28,7 @@ vi.mock('../../components/common', () => ({
 
 
 vi.mock('../../context', () => ({
+  useSettings: () => ({ settings: {}, updateSettings: vi.fn() }),
   useLocalization: () => ({ t: (key: string) => key, locale: () => 'en' }),
 }));
 

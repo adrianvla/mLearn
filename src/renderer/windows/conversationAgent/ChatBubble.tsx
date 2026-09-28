@@ -79,6 +79,7 @@ function joinChatTokenText(tokens: readonly Token[], separator: string): string 
 }
 
 interface ChatBubbleProps {
+  showSpeaker?: boolean;
   message: ConversationMessage & { displayName?: string };
   isStreaming?: boolean;
   /** True when waiting for the request to be sent / before streaming starts */
@@ -130,7 +131,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
         <img class="chat-bubble-avatar" src={props.avatarSrc} alt="" />
       </Show>
       <div class="chat-bubble-inner">
-      <Show when={isAssistant() && props.message.displayName}>
+      <Show when={props.showSpeaker !== false && isAssistant() && props.message.displayName}>
         <div class="chat-bubble-speaker">{props.message.displayName}</div>
       </Show>
       <div class="chat-bubble-content">

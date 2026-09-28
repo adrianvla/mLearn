@@ -26,6 +26,7 @@ export interface JournalThreadSelection {
 
 export function createJournalThreadStore(): {
   select(selection: JournalThreadSelection | null): Promise<void>;
+  refresh(): Promise<void>;
   threadEvents(): JournalEvent[];
   seaEvents(): JournalEvent[];
   append(draft: JournalEventDraft): Promise<JournalEvent>;
@@ -34,6 +35,7 @@ export function createJournalThreadStore(): {
   const [threadEvents, setThreadEvents] = createSignal<JournalEvent[]>([]);
   const [seaEvents, setSeaEvents] = createSignal<JournalEvent[]>([]);
   let requestId = 0;
+  let readVersion = 0;
   let selected: JournalThreadSelection | null = null;
 
   const teardown = (): void => {
@@ -43,24 +45,27 @@ export function createJournalThreadStore(): {
     setSeaEvents([]);
   };
 
+  const refresh = async (): Promise<void> => {
+    const selection = selected;
+    if (!selection) return;
+    const session = requestId, version = ++readVersion;
+    const journal = getBridge().journal;
+    const sea = (await Promise.all([...new Set([selection.roomId, WORLD_CONTINUITY_ID, ...(selection.continuityRoomIds ?? [])])]
+      .map(roomId => journal.readSeaProjection(roomId)))).flat()
+      .filter(event => !selection.baselineHeads || event.seq <= (selection.baselineHeads[event.roomId] ?? 0));
+    const thread = selection.threadId ? await journal.readThread(selection.roomId, selection.threadId)
+      : sea.filter(event => event.roomId === selection.roomId && event.witnesses.includes('user'));
+    if (session !== requestId || version !== readVersion) return;
+    setSeaEvents(sea); setThreadEvents(thread);
+  };
   return {
     async select(selection): Promise<void> {
       teardown();
       if (!selection) return;
       selected = selection;
-
-      const currentRequest = requestId;
-      const journal = getBridge().journal;
-      const sea = (await Promise.all([...new Set([selection.roomId, WORLD_CONTINUITY_ID, ...(selection.continuityRoomIds ?? [])])]
-        .map((roomId) => journal.readSeaProjection(roomId)))).flat().filter(event => !selection.baselineHeads || event.seq <= (selection.baselineHeads[event.roomId] ?? 0));
-      const thread = selection.threadId
-        ? await journal.readThread(selection.roomId, selection.threadId)
-        : sea.filter(event => event.roomId === selection.roomId && event.witnesses.includes('user'));
-      if (currentRequest !== requestId) return;
-
-      setSeaEvents(sea);
-      setThreadEvents(thread);
+      await refresh();
     },
+    refresh,
 
     threadEvents,
     seaEvents,
@@ -69,13 +74,14 @@ export function createJournalThreadStore(): {
       const session = requestId;
       const event = await getBridge().journal.appendEvent(draft.roomId, draft);
       if (session !== requestId || !selected) return event;
+      readVersion++; // An older in-flight read must not erase this newly committed event.
       if (event.scope.kind === 'sea') {
-        setSeaEvents((events) => [...events, event]);
+        setSeaEvents((events) => events.some(item => item.id === event.id) ? events : [...events, event]);
         if (!selected.threadId && event.roomId === selected.roomId && event.witnesses.includes('user')) {
-          setThreadEvents((events) => [...events, event]);
+          setThreadEvents((events) => events.some(item => item.id === event.id) ? events : [...events, event]);
         }
       } else if (event.roomId === selected.roomId && event.scope.threadId === selected.threadId) {
-        setThreadEvents((events) => [...events, event]);
+        setThreadEvents((events) => events.some(item => item.id === event.id) ? events : [...events, event]);
       }
       return event;
     },
