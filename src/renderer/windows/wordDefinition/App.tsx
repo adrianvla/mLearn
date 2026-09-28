@@ -6,7 +6,7 @@ import { getBridge } from '../../../shared/bridges';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { fetchTranslation, getCachedTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, ClockIcon, SafeHtml, SkeletonText } from '../../components/common';
+import { Button, PillLabel, ClockIcon, SafeHtml, SkeletonText } from '../../components/common';
 import { ProsodyOverlay } from '../../components/language-specific';
 import { WordStatusPill } from '../../components/common/Smart';
 import {
@@ -290,7 +290,7 @@ const WordDefinitionContent: Component = () => {
           <WordStatusPill word={word()} language={settings.language} />
           <Show when={isTracked()} fallback={
             <Show when={isAddingFlashcard()} fallback={
-              <PillBtn
+              <Button buttonType="pill"
                 variant="blue"
                 icon={ICON_CROSS2}
                 iconRotation={45}
@@ -298,7 +298,7 @@ const WordDefinitionContent: Component = () => {
                 onClick={handleAddFlashcard}
               />
             }>
-              <PillBtn
+              <Button buttonType="pill"
                 variant="yellow"
                 icon={<ClockIcon size={14} />}
                 label={t('mlearn.Global.Status.Adding')}
@@ -306,7 +306,7 @@ const WordDefinitionContent: Component = () => {
               />
             </Show>
           }>
-            <PillBtn
+            <Button buttonType="pill"
               variant="green"
               icon={ICON_CHECK}
               label={t('mlearn.Flashcards.Card.Tracked')}

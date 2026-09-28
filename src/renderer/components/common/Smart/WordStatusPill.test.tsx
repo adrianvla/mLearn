@@ -91,8 +91,8 @@ vi.mock('../../../services/ankiWordsCache', () => ({
 }));
 
 vi.mock('../Button', () => ({
-  PillBtn: (props: { label?: string; onClick?: (event: MouseEvent) => void }) => (
-    <button type="button" onClick={props.onClick}>{props.label}</button>
+  Button: (props: { label?: string; children?: JSX.Element; onClick?: (event: MouseEvent) => void }) => (
+    <button type="button" onClick={props.onClick}>{props.label ?? props.children}</button>
   ),
 }));
 

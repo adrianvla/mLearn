@@ -8,7 +8,7 @@
 import { Component, createSignal, createEffect, createMemo, Show, onMount } from 'solid-js';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../context';
-import { Input, Btn } from '../common';
+import { Button, Input } from '../common';
 import { ProsodyOverlay } from '../language-specific';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import { isElectron } from '../../../shared/platform';
@@ -342,14 +342,14 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
             <label>{t('mlearn.CardEditor.Fields.ExampleSentence')}</label>
             <Show when={props.flashcard}>
               <div class="editor-field-actions">
-                <Btn
+                <Button
                   size="xs"
                   variant="ghost"
                   onClick={handleRegenerateExample}
                   disabled={regeneratingExample()}
                 >
                   {t('mlearn.CardEditor.RegenerateExample')}
-                </Btn>
+                </Button>
               </div>
             </Show>
           </div>
@@ -383,13 +383,13 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
       {/* TTS Regeneration - only for existing cards on Electron */}
       <Show when={hasTtsAudio()}>
         <div class="editor-section">
-          <Btn
+          <Button
             size="sm"
             variant="secondary"
             onClick={() => setShowTtsModal(true)}
           >
             {t('mlearn.CardEditor.Regenerate.Title')}
-          </Btn>
+          </Button>
           <TtsGenerateModal
             isOpen={showTtsModal()}
             onClose={() => setShowTtsModal(false)}
@@ -447,10 +447,10 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
       {/* Footer Actions */}
       <div class="editor-footer">
-        <Btn onClick={props.onCancel}>{t('mlearn.Global.Cancel')}</Btn>
-        <Btn variant="primary" onClick={handleSave}>
+        <Button onClick={props.onCancel}>{t('mlearn.Global.Cancel')}</Button>
+        <Button variant="primary" onClick={handleSave}>
           {t('mlearn.Global.Actions.SaveChanges')}
-        </Btn>
+        </Button>
       </div>
     </div>
   );

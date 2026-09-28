@@ -12,8 +12,8 @@
   max-width: 100%;
   padding: 1px var(--spacing-1);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-xs);
-  font-size: var(--font-size-2xs);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 

@@ -1,7 +1,7 @@
 import { Component, Show, createEffect, createSignal } from 'solid-js';
 import { useLocalization } from '../../context';
 import type { WatchTogetherRoomSession } from '../../services/watchTogetherRoomService';
-import { Btn, HintText, Input, Modal, Panel } from '../common';
+import { Button, HintText, Input, Modal, Panel } from '../common';
 import './WatchTogetherCodeModal.css';
 
 export interface WatchTogetherCodeModalProps {
@@ -63,9 +63,9 @@ export const WatchTogetherCodeModal: Component<WatchTogetherCodeModalProps> = (p
                   <h3>{t('mlearn.WatchTogether.Code.SignInRequiredTitle')}</h3>
                   <p>{t('mlearn.WatchTogether.Code.SignInRequiredMessage')}</p>
                 </div>
-                <Btn variant="primary" onClick={props.onOpenSignIn}>
+                <Button variant="primary" onClick={props.onOpenSignIn}>
                   {t('mlearn.Connection.SignIn')}
-                </Btn>
+                </Button>
               </Panel>
             }>
               <div class="watch-together-code-tabs" role="tablist" aria-label={t('mlearn.WatchTogether.Code.TabAriaLabel')}>
@@ -94,9 +94,9 @@ export const WatchTogetherCodeModal: Component<WatchTogetherCodeModalProps> = (p
                       <HintText>{t('mlearn.WatchTogether.Code.HostDisabled')}</HintText>
                     </Show>
                   </div>
-                  <Btn variant="primary" onClick={props.onCreateRoom} disabled={!props.canHost} loading={props.isBusy}>
+                  <Button variant="primary" onClick={props.onCreateRoom} disabled={!props.canHost} loading={props.isBusy}>
                     {t('mlearn.WatchTogether.Code.CreateAction')}
-                  </Btn>
+                  </Button>
                 </Panel>
               </Show>
 
@@ -113,9 +113,9 @@ export const WatchTogetherCodeModal: Component<WatchTogetherCodeModalProps> = (p
                       placeholder={t('mlearn.WatchTogether.Code.RoomCodePlaceholder')}
                       fullWidth
                     />
-                    <Btn variant="primary" onClick={handleJoin} disabled={!joinCode().trim()} loading={props.isBusy}>
+                    <Button variant="primary" onClick={handleJoin} disabled={!joinCode().trim()} loading={props.isBusy}>
                       {t('mlearn.WatchTogether.Code.JoinAction')}
-                    </Btn>
+                    </Button>
                   </div>
                 </Panel>
               </Show>
@@ -144,13 +144,13 @@ export const WatchTogetherCodeModal: Component<WatchTogetherCodeModalProps> = (p
 
               <div class="watch-together-code-room-actions">
                 <Show when={session().role === 'owner'}>
-                  <Btn variant="secondary" onClick={props.onCopyRoomCode}>
+                  <Button variant="secondary" onClick={props.onCopyRoomCode}>
                     {t('mlearn.WatchTogether.Code.CopyCodeAction')}
-                  </Btn>
+                  </Button>
                 </Show>
-                <Btn variant="primary" onClick={props.onDisconnect}>
+                <Button variant="primary" onClick={props.onDisconnect}>
                   {t('mlearn.WatchTogether.Code.DisconnectAction')}
-                </Btn>
+                </Button>
               </div>
             </Panel>
           )}

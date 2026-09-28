@@ -43,7 +43,7 @@ vi.mock('../../utils/timeFormatting', () => ({
 }));
 
 vi.mock('../../components', () => ({
-  Btn: (props: Record<string, unknown>) => (
+  Button: (props: Record<string, unknown>) => (
     <button type="button" onClick={props.onClick as ((event: MouseEvent) => void) | undefined}>
       {props.children as any}
     </button>

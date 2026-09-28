@@ -73,19 +73,19 @@
 .word-sync-card {
   box-sizing: border-box;
   max-width: 100%;
+  order: 2;
+  width: min(100%, 36rem);
+}
+
+.word-sync-card__body {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-8) var(--spacing-10);
-  order: 2;
-  width: min(100%, 36rem);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: var(--panel-bg);
 }
 
-.word-sync-card--pending {
+.word-sync-card__body--pending {
   min-height: 18rem;
   justify-content: center;
   color: var(--text-secondary);
@@ -154,8 +154,6 @@
   align-self: flex-end;
 }
 
-.word-sync .tell-mlearn__toggle { border: 1px solid var(--border-color); background: var(--panel-bg); padding: var(--spacing-2) var(--spacing-3); }
-
 .word-sync-attribution-prompt {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
@@ -188,15 +186,69 @@
   gap: var(--spacing-4);
   order: 2;
   width: min(100%, 36rem);
-  padding: var(--spacing-6);
   box-sizing: border-box;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  width: min(100%, 36rem);
 }
 
 .word-sync-finished .empty-state { padding: var(--spacing-4); }
 .word-sync-finished .empty-state-description { max-width: 38ch; }
+
+.word-sync-assessment-start,
+.word-sync-assessment-panel {
+  box-sizing: border-box;
+  width: min(100%, 36rem);
+  order: 2;
+}
+
+.word-sync-assessment-start {
+  display: grid;
+  justify-items: center;
+  gap: var(--spacing-3);
+  text-align: center;
+}
+
+.word-sync-assessment-start p { margin: 0; line-height: var(--line-height-normal); }
+
+.word-sync-assessment-summary,
+.word-sync-assessment-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin: 0;
+  text-align: center;
+}
+
+.word-sync-assessment-summary__placement {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.word-sync-assessment-summary__trace {
+  width: 100%;
+  margin: 0;
+  padding-left: var(--spacing-5);
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.word-sync-assessment-summary__trace li { margin: var(--spacing-1) 0; }
+
+.word-sync-assessment-summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-2);
+}
+
+.word-sync-assessment-card__prompt {
+  margin: 0;
+  font-size: var(--font-size-5xl);
+  line-height: 1.2;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
 
 .word-sync-recheck-btn {
   margin-top: var(--spacing-2);
@@ -214,6 +266,10 @@
   }
 
   .word-sync-card {
+    width: min(100%, 36rem);
+  }
+
+  .word-sync-card__body {
     padding: var(--spacing-4);
   }
 

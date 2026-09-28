@@ -53,9 +53,9 @@ const settingsBridge: SettingsBridge = {
 
 const flashcardBridge: FlashcardBridge = {
   getFlashcards: (knownRev?: number) => getIPC().getFlashcards(knownRev),
-  saveFlashcards: (fc, removedCardIds, resetReviewProgress) => removedCardIds === undefined && resetReviewProgress === undefined
+  saveFlashcards: (fc, removedCardIds, resetReviewProgress, authorization) => removedCardIds === undefined && resetReviewProgress === undefined && authorization === undefined
     ? getIPC().saveFlashcards(fc)
-    : getIPC().saveFlashcards(fc, removedCardIds, resetReviewProgress),
+    : getIPC().saveFlashcards(fc, removedCardIds, resetReviewProgress, authorization),
   onFlashcards: (cb) => getIPC().onFlashcards(cb),
   onNewDayFlashcards: (cb) => getIPC().onNewDayFlashcards(cb),
   onFlashcardConnectOpen: (cb) => getIPC().onFlashcardConnectOpen(cb),

@@ -1,6 +1,6 @@
 import { Component, Show, createEffect, createSignal, createMemo } from 'solid-js';
 import { WindowWrapper, useLanguage, useLocalization } from '../../context';
-import { Btn, NavBtn, ArrowLeftIcon, TargetIcon } from '../../components/common';
+import { Button, ArrowLeftIcon, Panel, TargetIcon } from '../../components/common';
 import { WordSyncContent } from '../wordSync/App';
 import { CharacterGridContent } from '../characterGrid/App';
 import { LevelStudyTab } from './LevelStudyTab';
@@ -33,13 +33,13 @@ export const LevelStudyContent: Component = () => {
       <header class="level-study-header">
         <div class="level-study-header-title"><TargetIcon size={20} /><span>{title()}</span></div>
         <Show when={destination() !== 'plan'}>
-          <NavBtn onClick={() => setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
+          <Button buttonType="nav" onClick={() => setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
             {t('mlearn.LearningPlan.Back')}
-          </NavBtn>
+          </Button>
         </Show>
       </header>
       <div class="level-study-content">
-        <Show when={destination() === 'plan' || destination() === 'assessment'}>
+        <Show when={destination() === 'plan'}>
           <div class="learning-plan-page">
             <Show when={destination() === 'plan'}>
               <p class="learning-plan-intro">{t('mlearn.LearningPlan.Description')}</p>
@@ -47,17 +47,19 @@ export const LevelStudyContent: Component = () => {
               <section class="learning-plan-activity-section" aria-label={t('mlearn.LearningPlan.Activities')}>
                 <h2>{t('mlearn.LearningPlan.Activities')}</h2>
                 <div class="learning-plan-activities">
-                  <div><h3>{t('mlearn.LearningPlan.Assess')}</h3><p>{t('mlearn.LearningPlan.AssessDescription')}</p><Btn variant="primary" onClick={() => setDestination('assessment')}>{t('mlearn.LearningPlan.Assess')}</Btn></div>
-                  <div><h3>{t('mlearn.LevelStudy.Tabs.WordSync')}</h3><p>{t('mlearn.LearningPlan.WordSyncDescription')}</p><Btn onClick={() => setDestination('word-sync')}>{t('mlearn.LevelStudy.Tabs.WordSync')}</Btn></div>
-                  <Show when={showCharacterGrid()}><div><h3>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</h3><p>{t('mlearn.LearningPlan.CharactersDescription')}</p><Btn onClick={() => setDestination('character-grid')}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Btn></div></Show>
+                  <Panel class="learning-plan-activity" padding="lg"><h3>{t('mlearn.LearningPlan.Assess')}</h3><p>{t('mlearn.LearningPlan.AssessDescription')}</p><Button variant="primary" onClick={() => setDestination('assessment')}>{t('mlearn.LearningPlan.Assess')}</Button></Panel>
+                  <Panel class="learning-plan-activity" padding="lg"><h3>{t('mlearn.LevelStudy.Tabs.WordSync')}</h3><p>{t('mlearn.LearningPlan.WordSyncDescription')}</p><Button onClick={() => setDestination('word-sync')}>{t('mlearn.LevelStudy.Tabs.WordSync')}</Button></Panel>
+                  <Show when={showCharacterGrid()}><Panel class="learning-plan-activity" padding="lg"><h3>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</h3><p>{t('mlearn.LearningPlan.CharactersDescription')}</p><Button onClick={() => setDestination('character-grid')}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Button></Panel></Show>
                 </div>
               </section>
               <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
-            <LevelStudyTab assessment={destination() === 'assessment'} onEditPlan={editPlan} />
+            <LevelStudyTab onEditPlan={editPlan} />
           </div>
         </Show>
-        <Show when={destination() === 'word-sync'}><WordSyncContent /></Show>
+        <Show when={destination() === 'word-sync' || destination() === 'assessment'}>
+          <WordSyncContent mode={destination() === 'assessment' ? 'assessment' : 'study'} />
+        </Show>
         <Show when={destination() === 'character-grid' && showCharacterGrid()}><CharacterGridContent /></Show>
       </div>
     </div>

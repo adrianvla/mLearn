@@ -16,6 +16,8 @@ const levelPreviewState = vi.hoisted(() => ({
 }));
 const flashcardFixture = vi.hoisted(() => ({
   store: { flashcards: {} as Record<string, { id: string }>, dailyStats: {} },
+  currentCard: null as null | { id: string; content: { front: string }; language?: string },
+  submitRating: vi.fn(),
 }));
 
 const settingsState = vi.hoisted(() => ({
@@ -49,10 +51,10 @@ vi.mock('../../../context', () => ({
     isLoading: () => false,
     queue: () => ({ newQueue: [], scheduledQueue: [] }),
     queueCounts: () => ({ total: 0 }),
-    getCurrentCard: () => null,
+    getCurrentCard: () => flashcardFixture.currentCard,
     getPreviewDueDates: () => null,
     dueDateToString: (_dueDate: number) => '',
-    answerCard: vi.fn(),
+    submitRating: flashcardFixture.submitRating,
   }),
 }));
 
@@ -74,7 +76,7 @@ vi.mock('@renderer/components/common/Misc/AppLogo', () => ({ default: () => <spa
 vi.mock('../../../components/common', () => {
   const Icon: Component = () => <span />;
   return {
-    Btn: (props: { children?: JSX.Element; onClick?: () => void }) => (
+    Button: (props: { children?: JSX.Element; onClick?: () => void }) => (
       <button type="button" onClick={props.onClick}>{props.children}</button>
     ),
     Tooltip: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
@@ -110,8 +112,10 @@ vi.mock('./components', () => {
     ),
     WelcomeVideoPreview: Preview,
     WelcomeReaderPreview: Preview,
-    WelcomeFlashcardPreview: (props: { loading?: boolean; emptyLabel: string }) => (
-      <div data-testid="flashcard-preview" data-loading={String(props.loading)} data-empty-label={props.emptyLabel} />
+    WelcomeFlashcardPreview: (props: { loading?: boolean; emptyLabel: string; onRate?: (quality: 'fluent') => void }) => (
+      <div data-testid="flashcard-preview" data-loading={String(props.loading)} data-empty-label={props.emptyLabel}>
+        <button type="button" data-testid="welcome-rate" onClick={() => props.onRate?.('fluent')}>Rate</button>
+      </div>
     ),
     WelcomeSettingsPreview: Preview,
     WelcomeStatsPreview: Preview,
@@ -137,6 +141,8 @@ describe('WelcomeRoute localization', () => {
     setLanguageFlag(undefined);
     levelPreviewState.last = null;
     flashcardFixture.store.flashcards = {};
+    flashcardFixture.currentCard = null;
+    flashcardFixture.submitRating.mockReset();
     localization.translate = (key) => key;
   });
 
@@ -212,6 +218,32 @@ describe('WelcomeRoute localization', () => {
     expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-loading')).toBe('false');
     expect(levelPreviewState.last!.coverage).toBeNull();
 
+    dispose();
+  });
+
+  it('keeps the welcome card in place and retries the same acknowledged rating command', async () => {
+    flashcardFixture.currentCard = { id: 'card-1', content: { front: '犬' }, language: 'ja' };
+    flashcardFixture.submitRating
+      .mockRejectedValueOnce(new Error('disk unavailable'))
+      .mockResolvedValueOnce({ attemptId: 'attempt-1', completed: true });
+    const dispose = render(() => <WelcomeRoute />, container);
+    container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(flashcardFixture.submitRating).toHaveBeenCalledOnce();
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Retry');
+    expect(retry).toBeDefined();
+    retry!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(flashcardFixture.submitRating).toHaveBeenCalledTimes(2);
+    expect(flashcardFixture.submitRating.mock.calls[1]).toEqual(flashcardFixture.submitRating.mock.calls[0]);
+    expect(flashcardFixture.submitRating.mock.calls[0][2]).toMatchObject({
+      taskType: 'welcome-review',
+      scheduler: { cardId: 'card-1', rating: 'good', tested: ['sense-recognition'] },
+    });
     dispose();
   });
 });

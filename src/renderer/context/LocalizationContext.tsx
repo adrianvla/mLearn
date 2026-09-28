@@ -17,7 +17,7 @@ export type LocaleStrings = Record<string, unknown>;
 interface LocalizationContextValue {
   /** Current locale code (e.g., 'en', 'ja') */
   locale: () => string;
-  /** Get a localized string by path (e.g., 'mlearn.Home.UI.Title') */
+  /** Get a localized string by path (e.g., 'mlearn.Global.AppName') */
   t: (path: string, params?: Record<string, string | number>) => string;
   /** Change the UI language */
   changeLanguage: (langCode: string) => void;

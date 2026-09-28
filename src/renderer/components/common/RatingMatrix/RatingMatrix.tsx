@@ -258,6 +258,10 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
   const isAllSelected = (action: RatingAction): boolean => props.capabilities.length > 0
     && props.capabilities.every((capability) => isSelected(capability, action));
 
+  const preventRepeatedActivation = (event: KeyboardEvent) => {
+    if (event.repeat) event.preventDefault();
+  };
+
   const cellHint = (capability: CapabilityKey, action: RatingAction): string[] => {
     if (props.keyboardMode === 'mnemonic') {
       const mnemonic = CAPABILITY_MNEMONIC_KEYS[capability as CapabilityKind]?.toUpperCase() ?? '·';
@@ -269,12 +273,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (!actionable()) return;
-    const buttonTarget = e.target instanceof HTMLElement && e.target.matches('button, [role="button"]');
-    if (e.repeat) {
-      if (buttonTarget || /^[1-4]$/.test(e.key)) e.preventDefault();
-      return;
-    }
-    if (isRatingKeyIgnored(e) && !buttonTarget) return;
+    if (isRatingKeyIgnored(e)) return;
     if (e.metaKey || e.ctrlKey) return;
     const key = e.key.toLowerCase();
 
@@ -361,6 +360,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                   classList={{ 'rating-matrix__cell--selected': isAllSelected(action) }}
                   aria-pressed={isAllSelected(action)}
                   disabled={!actionable()}
+                  onKeyDown={preventRepeatedActivation}
                   onClick={(e) => { if (e.detail < 2) submitWholeWord(action, e.altKey); }}
                 >
                   {t(ACTION_LABEL_KEYS[action])}
@@ -403,6 +403,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                   classList={{ 'rating-matrix__cell--selected': isAllSelected(action) }}
                   aria-pressed={isAllSelected(action)}
                   aria-label={`${t('mlearn.Rating.Matrix.AllRow')}: ${t(ACTION_LABEL_KEYS[action])}`}
+                  onKeyDown={preventRepeatedActivation}
                   onClick={(e) => { if (e.detail < 2) fillAll(action, e.altKey); }}
                 >
                   <KeyboardShortcut keys={[ACTION_KEYS[action]]} class="rating-matrix__hint" />
@@ -427,6 +428,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                       aria-pressed={isSelected(capability, action)}
                       aria-label={`${capabilityLabel(capability)}: ${t(ACTION_LABEL_KEYS[action])}`}
                       disabled={!actionable() || !props.capabilities.includes(capability)}
+                      onKeyDown={preventRepeatedActivation}
                       onClick={(e) => { if (e.detail < 2) draftAccess(capability, action, e.altKey); }}
                     >
                       <Show when={props.capabilities.includes(capability)}>

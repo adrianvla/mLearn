@@ -1,7 +1,7 @@
 import { Component, For, Show, Accessor, createEffect, createMemo, createSignal, JSX } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
-import { Btn, CloseIcon, CollapsibleStickyHeader, IconBtn, PillBtn, PillLabel, Select } from '../common';
+import { Button, CloseIcon, CollapsibleStickyHeader, PillLabel, Select } from '../common';
 import { WordWithReading } from '../language-specific';
 import { ResourcePill } from '../common/Smart';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
@@ -222,7 +222,7 @@ const UnknownWordRow: Component<{
             </PillLabel>
           )}
         </Show>
-        <PillBtn
+        <Button buttonType="pill"
           variant="gray"
           label={t('mlearn.Knowledge.Popup.Inspect')}
           onClick={() => {
@@ -230,7 +230,7 @@ const UnknownWordRow: Component<{
             openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface));
           }}
         />
-        <PillBtn
+        <Button buttonType="pill"
           variant="gray"
           label={t('mlearn.Sidebar.Ignore')}
           onClick={() => props.onIgnoreWord(props.entry)}
@@ -424,7 +424,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
                 options={props.sortOptions()}
               />
               <Show when={props.onClose}>
-                <IconBtn
+                <Button buttonType="icon"
                   size="sm"
                   variant="ghost"
                   icon={<CloseIcon size={16} />}
@@ -435,14 +435,14 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
             </div>
           </div>
           <div class="unknown-words-sidebar-categories">
-            <PillBtn
+            <Button buttonType="pill"
               size="sm"
               variant={category() === 'all' ? 'blue' : 'gray'}
               label={t('mlearn.AITutorSetup.AllLevels')}
               onClick={() => setCategory('all')}
               aria-pressed={category() === 'all'}
             />
-            <PillBtn
+            <Button buttonType="pill"
               size="sm"
               variant={category() === 'dictionary' ? 'blue' : 'gray'}
               label={t('mlearn.Sidebar.DictionaryOnly')}
@@ -450,7 +450,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
               aria-pressed={category() === 'dictionary'}
             />
             <Show when={props.failedWordSet}>
-              <PillBtn
+              <Button buttonType="pill"
                 size="sm"
                 variant={category() === 'failed' ? 'blue' : 'gray'}
                 label={t('mlearn.ConversationAgent.Stats.HoveredWords')}
@@ -460,7 +460,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
             </Show>
           </div>
           <div class="unknown-words-sidebar-actions">
-            <Btn
+            <Button
               size="sm"
               variant="primary"
               label={props.isAddingAll() ? t('mlearn.Sidebar.AddingAll') : t('mlearn.Sidebar.AddAll')}

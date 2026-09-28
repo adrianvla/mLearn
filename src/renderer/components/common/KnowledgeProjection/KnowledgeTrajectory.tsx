@@ -8,7 +8,7 @@ import { useLocalization, useSettings } from '../../../context';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
 import { WordEaseTrajectory } from './WordEaseTrajectory';
 import { SkeletonRows } from '../Skeleton';
-import { PillBtn } from '../Button';
+import { Button } from '../Button';
 import { knowledgeTrajectoryData, type TrajectoryPoint, type TrajectoryState } from './knowledgeTrajectoryData';
 
 const STATES: readonly TrajectoryState[] = ['known', 'learning', 'unknown', 'unmeasured'];
@@ -73,8 +73,8 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
     <div class="knowledge-trajectory__controls">
       {props.selector}
       <div class="knowledge-trajectory__range">
-        <PillBtn size="sm" variant={!allTime() ? 'blue' : 'gray'} aria-pressed={!allTime()} label={t('mlearn.Knowledge.Projection.TrajectoryRecent')} onClick={() => setAllTime(false)} />
-        <PillBtn size="sm" variant={allTime() ? 'blue' : 'gray'} aria-pressed={allTime()} label={t('mlearn.Knowledge.Projection.TrajectoryAll')} onClick={() => setAllTime(true)} />
+        <Button buttonType="pill" size="sm" variant={!allTime() ? 'blue' : 'gray'} aria-pressed={!allTime()} label={t('mlearn.Knowledge.Projection.TrajectoryRecent')} onClick={() => setAllTime(false)} />
+        <Button buttonType="pill" size="sm" variant={allTime() ? 'blue' : 'gray'} aria-pressed={allTime()} label={t('mlearn.Knowledge.Projection.TrajectoryAll')} onClick={() => setAllTime(true)} />
       </div>
     </div>
     <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.TrajectoryDescription')}</p>

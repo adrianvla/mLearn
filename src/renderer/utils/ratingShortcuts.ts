@@ -1,17 +1,20 @@
-/**
- * Shared rating-surface keyboard contract (flashcard review + Word Sync):
- * a rating press is ONE keydown — held-down OS auto-repeat never dispatches a
- * rating, and keystrokes while typing in an editable/control element never do
- * either. Both surfaces route their keydown guard through this so the
- * interaction stays identical and the repeat guard cannot drift again.
- */
+/** Shared ownership boundary for global study shortcuts. */
+
+const studyOverlaySelector = '[role="dialog"], [aria-modal="true"], [role="menu"], [role="listbox"], dialog[open]';
+const editableControlSelector = 'input, textarea, select, [role="textbox"], [contenteditable="true"]';
 
 export function isRatingKeyIgnored(e: KeyboardEvent): boolean {
   if (e.repeat) return true;
+  if (typeof document !== 'undefined' && document.querySelector(studyOverlaySelector)) return true;
   const target = e.target;
   if (!(target instanceof HTMLElement)) return false;
-  if (target.isContentEditable) return true;
-  return target.matches('input, textarea, select, button, [role="textbox"], [role="button"]');
+  return target.isContentEditable || target.closest(editableControlSelector) !== null;
+}
+
+export function isNativeActivationTarget(e: KeyboardEvent): boolean {
+  const target = e.target;
+  return target instanceof HTMLElement
+    && target.closest('button, a[href], summary, [role="button"], [role="link"]') !== null;
 }
 
 export function isUndoShortcut(e: KeyboardEvent): boolean {

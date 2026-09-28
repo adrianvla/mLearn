@@ -27,7 +27,7 @@
 }
 
 .tts-generate-separator {
-  border-top: 1px solid var(--border-primary);
+  border-top: 1px solid var(--border-color);
   margin: 0.25rem 0;
 }
 

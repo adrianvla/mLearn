@@ -6,6 +6,7 @@ import { backup, DatabaseSync } from 'node:sqlite';
 import AdmZip from 'adm-zip';
 import { StringDecoder } from 'node:string_decoder';
 import type { RecoveryPointSummary } from '../../shared/guardian';
+import type { FlashcardWriteAuthorization } from '../../shared/types';
 import { startupDuration, startupMark, startupTime } from '../startupTiming';
 
 const SCHEMA = 1;
@@ -495,7 +496,12 @@ export class Guardian {
   }
 
   /** Authorize only specific intentional card removals, retaining the snapshot. */
-  checkFlashcardWrite(next: unknown, removedCardIds: readonly string[] = [], resetReviewProgress = false): void {
+  checkFlashcardWrite(
+    next: unknown,
+    removedCardIds: readonly string[] = [],
+    resetReviewProgress = false,
+    authorization?: FlashcardWriteAuthorization,
+  ): void {
     this.requireReady();
     const current = this.ledger!.metrics;
     const store = object(next, 'flashcard write');
@@ -507,7 +513,13 @@ export class Guardian {
     if (!resetReviewProgress) {
       const counts = reviewCounts(store.flashcards);
       for (const [id, count] of Object.entries(current.cardReviews)) {
-        if (counts[id] !== undefined && counts[id] < count) throw new Error(`Guardian rejected flashcard write: ${id} review history decreased`);
+        if (counts[id] !== undefined && counts[id] < count) {
+          const authorizedUndo = authorization?.kind === 'undo-review'
+            && authorization.cardId === id
+            && authorization.restoredReviews === counts[id]
+            && counts[id] === count - 1;
+          if (!authorizedUndo) throw new Error(`Guardian rejected flashcard write: ${id} review history decreased`);
+        }
       }
     }
   }

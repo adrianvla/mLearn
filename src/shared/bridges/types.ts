@@ -10,6 +10,7 @@ import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import type {
   Settings,
   FlashcardStore,
+  FlashcardWriteAuthorization,
   LanguageDataCatalogStatus,
   LanguageDataInstallError,
   LanguageDataMap,
@@ -67,7 +68,7 @@ export interface SettingsBridge {
 
 export interface FlashcardBridge {
   getFlashcards: (knownRev?: number) => void;
-  saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean) => void;
+  saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;

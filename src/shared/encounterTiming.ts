@@ -85,7 +85,7 @@ export function createEncounterTimer(options?: EncounterTimerOptions): Encounter
   // Well-known DOM global (`document`): the visibility/focus surface this
   // timer must read. In a renderer `globalThis` IS the window, and a window
   // has NO `hidden`/`hasFocus` of its own — without resolving the document,
-  // the no-options callers (FlashcardReview, PlacementSession, WelcomeRoute,
+  // the no-options callers (FlashcardReview, Word Sync, WelcomeRoute,
   // WordSync) would read `window.hidden` (always undefined → "visible") and
   // could never probe focus.
   const rendererScope = globalThis as { document?: EncounterTimerDocument };
@@ -233,4 +233,3 @@ export function createEncounterTimer(options?: EncounterTimerOptions): Encounter
     },
   };
 }
-

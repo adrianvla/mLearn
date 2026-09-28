@@ -76,8 +76,10 @@ vi.mock('../../services/statsService', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
+  Button: (props: { label?: string; children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
+    <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.label ?? props.children}</button>
+  ),
   ClockIcon: () => <span />,
-  PillBtn: (props: { label?: string; children?: JSX.Element }) => <button>{props.label ?? props.children}</button>,
   PillLabel: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
   Spinner: () => <span />,
   SkeletonText: (props: { lines?: number }) => <div data-testid="skeleton-text" data-lines={props.lines} />,

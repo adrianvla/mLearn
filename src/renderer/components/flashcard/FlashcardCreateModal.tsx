@@ -1,6 +1,6 @@
 import { Component, createSignal, Show } from 'solid-js';
 import { useLocalization } from '../../context';
-import { Btn, Input, Modal } from '../common';
+import { Button, Input, Modal } from '../common';
 import type { FlashcardContent } from '../../../shared/types';
 
 export const FlashcardCreateModal: Component<{
@@ -41,8 +41,8 @@ export const FlashcardCreateModal: Component<{
         title={t('mlearn.Flashcards.Modals.AddCard.Title')}
         footer={
           <>
-            <Btn onClick={close} disabled={addingCard()}>{t('mlearn.Global.Cancel')}</Btn>
-            <Btn variant="primary" onClick={handleAddCard} disabled={addingCard() || !newWord().trim() || !newMeaning().trim()}>{t('mlearn.Flashcards.Modals.AddCard.Submit')}</Btn>
+            <Button onClick={close} disabled={addingCard()}>{t('mlearn.Global.Cancel')}</Button>
+            <Button variant="primary" onClick={handleAddCard} disabled={addingCard() || !newWord().trim() || !newMeaning().trim()}>{t('mlearn.Flashcards.Modals.AddCard.Submit')}</Button>
           </>
         }
       >

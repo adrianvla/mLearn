@@ -4,7 +4,7 @@
  */
 
 import {Component, Accessor, Show, createSignal} from 'solid-js';
-import { NavBtn, Tag, Select, ChevronLeftIcon, ChevronRightIcon } from '../../../../components/common';
+import { Button, Tag, Select, ChevronLeftIcon, ChevronRightIcon } from '../../../../components/common';
 import { useLocalization } from '../../../../context';
 import { isElectron } from '@shared/platform';
 import './ReaderNav.css';
@@ -61,13 +61,13 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       </Show>
       <div class="nav-group">
         <Show when={props.hasPages()}>
-          <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar} aria-label={t('mlearn.Reader.Toolbar.ToggleContents')}>
+          <Button buttonType="nav" class="sidebar-btn" onClick={props.onToggleSidebar} aria-label={t('mlearn.Reader.Toolbar.ToggleContents')}>
             <Icon icon="sidebar" color={"currentColor"} class={""}/>
-          </NavBtn>
+          </Button>
         </Show>
-        <NavBtn onClick={props.onGoHome} title={t('mlearn.Reader.Toolbar.BackToHome')}>
+        <Button buttonType="nav" onClick={props.onGoHome} title={t('mlearn.Reader.Toolbar.BackToHome')}>
           {t('mlearn.Reader.Toolbar.Home')}
-        </NavBtn>
+        </Button>
       </div>
       <Show when={props.hasPages()}>
         <div class="nav-group reader-nav-title">
@@ -81,14 +81,14 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       <details class="nav-group reader-nav-options">
         <summary aria-label={t('mlearn.Reader.Toolbar.ViewOptions')}>{t('mlearn.Reader.Toolbar.ViewOptions')}</summary>
         <div class="reader-nav-options-panel">
-        <NavBtn onClick={props.onOpenFolder}>
+        <Button buttonType="nav" onClick={props.onOpenFolder}>
           {t('mlearn.Reader.UI.WelcomeSplash.OpenFolder')}
-        </NavBtn>
-        <NavBtn onClick={props.onOpenPdf}>
+        </Button>
+        <Button buttonType="nav" onClick={props.onOpenPdf}>
           {t('mlearn.Reader.UI.WelcomeSplash.OpenPdf')}
-        </NavBtn>
+        </Button>
         <Show when={props.showTextTheme}>
-          <NavBtn
+          <Button buttonType="nav"
             onClick={handleThemeTriggerClick}
             active={themePopoverOpen()}
             title={t('mlearn.Reader.Themes.Button')}
@@ -96,7 +96,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
             aria-expanded={themePopoverOpen()}
           >
             {t('mlearn.Reader.Themes.Button')}
-          </NavBtn>
+          </Button>
           <ReaderThemePopover
             open={themePopoverOpen}
             anchor={() => themeTriggerRef}
@@ -135,27 +135,27 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
               value={props.spreadDirection()}
               onChange={(e) => props.onSpreadDirectionChange(e.currentTarget.value)}
             />
-            <NavBtn
+            <Button buttonType="nav"
               onClick={props.onToggleFirstPageSingle}
               title={props.firstPageSingle() ? t('mlearn.Reader.Toolbar.FirstPageSingleTooltip') : t('mlearn.Reader.Toolbar.FirstPagePairedTooltip')}
               class={props.firstPageSingle() ? 'active' : ''}
             >
               {props.firstPageSingle() ? t('mlearn.Reader.Toolbar.PageLayoutSingle') : t('mlearn.Reader.Toolbar.PageLayoutPaired')}
-            </NavBtn>
+            </Button>
           </>
         )}
         </div>
       </details>
 
       <div class="nav-group nav-arrows">
-        <NavBtn onClick={props.onPrevPage} aria-label={t('mlearn.Reader.Toolbar.PreviousPage')}><ChevronLeftIcon size={16} /></NavBtn>
-        <NavBtn onClick={props.onNextPage} aria-label={t('mlearn.Reader.Toolbar.NextPage')}><ChevronRightIcon size={16} /></NavBtn>
+        <Button buttonType="nav" onClick={props.onPrevPage} aria-label={t('mlearn.Reader.Toolbar.PreviousPage')}><ChevronLeftIcon size={16} /></Button>
+        <Button buttonType="nav" onClick={props.onNextPage} aria-label={t('mlearn.Reader.Toolbar.NextPage')}><ChevronRightIcon size={16} /></Button>
       </div>
 
       <div class="nav-group">
-        <NavBtn class="sidebar-btn sidebar-btn-right" onClick={props.onToggleWordSidebar} title={t('mlearn.Reader.Toolbar.ToggleUnknownWordsSidebar')}>
+        <Button buttonType="nav" class="sidebar-btn sidebar-btn-right" onClick={props.onToggleWordSidebar} title={t('mlearn.Reader.Toolbar.ToggleUnknownWordsSidebar')}>
           <Icon icon="sidebar" color={"currentColor"} class={"reader-nav-icon-mirrored"} />
-        </NavBtn>
+        </Button>
       </div>
       </Show>
     </nav>

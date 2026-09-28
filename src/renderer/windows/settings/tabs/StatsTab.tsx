@@ -7,7 +7,7 @@ import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedPr
 import { Component, createMemo, createSignal, onMount, Show, For } from 'solid-js';
 import type { ComprehensiveWordStats } from '../../../utils/wordLevelStats';
 import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../../context';
-import { TabContent, StatCard, Btn, KnowledgeGate, KnowledgeSkeleton } from '../../../components/common';
+import { Button, TabContent, StatCard, KnowledgeGate, KnowledgeSkeleton } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import {
   getTimeWatchedFormatted,
@@ -64,7 +64,7 @@ export const StatsTab: Component = () => {
       }}
       padding="lg"
     >
-      <Show when={projected.failed()}><div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn></div></Show>
+      <Show when={projected.failed()}><div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <Button onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Button></div></Show>
       <KnowledgeGate ready={projected.ready()} fallback={<KnowledgeSkeleton variant="lines" />}>
       <div class="stats-grid">
         <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} size="md" />
@@ -136,15 +136,15 @@ export const StatsTab: Component = () => {
       </Show>
 
       <div class="stats-actions">
-        <Btn variant="default" onClick={openLevelStudy}>
+        <Button variant="default" onClick={openLevelStudy}>
           {t('mlearn.Statistics.Actions.OpenLevelStudy')}
-        </Btn>
-        <Btn variant="default" onClick={openWordDbEditor}>
+        </Button>
+        <Button variant="default" onClick={openWordDbEditor}>
           {t('mlearn.Statistics.Actions.EditWordDatabase')}
-        </Btn>
-        <Btn variant="default" onClick={openAiAnalytics}>
+        </Button>
+        <Button variant="default" onClick={openAiAnalytics}>
           {t('mlearn.Statistics.Actions.OpenAiAnalytics')}
-        </Btn>
+        </Button>
       </div>
       </KnowledgeGate>
     </TabContent>

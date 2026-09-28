@@ -56,7 +56,7 @@
 .active-group-option:focus-visible,
 .active-group-option.selected {
   border-color: var(--color-primary);
-  background: var(--bg-hover);
+  background: var(--bg-intense);
 }
 
 .active-group-option:focus-visible {

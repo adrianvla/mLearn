@@ -3,7 +3,7 @@ import type { AppUpdateState } from '../../../../shared/appUpdate';
 import { getBridge } from '../../../../shared/bridges';
 import { isElectron } from '../../../../shared/platform';
 import { useLocalization } from '../../../context/LocalizationContext';
-import { Btn } from '../Button';
+import { Button } from '../Button';
 import { ProgressBar } from './ProgressBar';
 import { removeToast, showToast, updateToast } from './Toast';
 import './AppUpdateNotifier.css';
@@ -43,11 +43,11 @@ const AppUpdateToastContent: Component<AppUpdateToastContentProps> = (props) => 
                   ? t('mlearn.About.Updates.Available', { version: state().availableVersion ?? '' })
                   : t('mlearn.About.Updates.ManualDownload')}
               </p>
-              <Btn size="sm" variant="primary" onClick={state().canAutoUpdate ? download : openDownloadPage}>
+              <Button size="sm" variant="primary" onClick={state().canAutoUpdate ? download : openDownloadPage}>
                 {state().canAutoUpdate
                   ? t('mlearn.About.Updates.Download')
                   : t('mlearn.About.Updates.DownloadPage')}
-              </Btn>
+              </Button>
             </Show>
             <Show when={state().status === 'downloading'}>
               <p>
@@ -67,9 +67,9 @@ const AppUpdateToastContent: Component<AppUpdateToastContentProps> = (props) => 
             </Show>
             <Show when={state().status === 'downloaded'}>
               <p>{t('mlearn.About.Updates.Ready', { version: state().availableVersion ?? '' })}</p>
-              <Btn size="sm" variant="primary" onClick={install}>
+              <Button size="sm" variant="primary" onClick={install}>
                 {t('mlearn.About.Updates.Restart')}
-              </Btn>
+              </Button>
             </Show>
             <Show when={state().status === 'error'}>
               <p>
@@ -83,12 +83,12 @@ const AppUpdateToastContent: Component<AppUpdateToastContentProps> = (props) => 
                   && 'update' in state()
                   && (state() as Extract<AppUpdateState, { status: 'error' }>).update}
                 fallback={
-                  <Btn size="sm" variant="secondary" onClick={openDownloadPage}>
+                  <Button size="sm" variant="secondary" onClick={openDownloadPage}>
                     {t('mlearn.About.Updates.DownloadPage')}
-                  </Btn>
+                  </Button>
                 }
               >
-                <Btn
+                <Button
                   size="sm"
                   variant="secondary"
                   onClick={(state() as Extract<AppUpdateState, { status: 'error' }>).operation === 'install' ? install : download}
@@ -96,7 +96,7 @@ const AppUpdateToastContent: Component<AppUpdateToastContentProps> = (props) => 
                   {(state() as Extract<AppUpdateState, { status: 'error' }>).operation === 'install'
                     ? t('mlearn.About.Updates.Restart')
                     : t('mlearn.About.Updates.Download')}
-                </Btn>
+                </Button>
               </Show>
             </Show>
           </div>

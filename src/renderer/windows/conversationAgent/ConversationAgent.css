@@ -101,7 +101,7 @@
   border: 0;
   background: none;
   font: inherit;
-  color: var(--text-link);
+  color: var(--color-primary);
   text-decoration: underline;
   cursor: pointer;
 }

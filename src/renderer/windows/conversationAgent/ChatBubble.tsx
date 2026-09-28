@@ -6,7 +6,7 @@
 import { Component, Show, For, createSignal, createMemo, createEffect } from 'solid-js';
 import { useLanguage, useLocalization } from '../../context';
 import { formatClockTime } from '../../utils/timeFormatting';
-import { Btn, Input, Spinner, IconBtn, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon, SafeHtml } from '../../components';
+import { Button, Input, Spinner, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon, SafeHtml } from '../../components';
 import { SubtitleWord } from '../../components/subtitle/SubtitleWord';
 import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
 import { getTokenJoinSeparator } from '../../../shared/languageFeatures';
@@ -262,7 +262,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
         >
           <span>{formatTime(props.message.timestamp)}</span>
           <Show when={isAssistant() && !props.isStreaming && props.onRegenerate}>
-            <IconBtn
+            <Button buttonType="icon"
                 class="chat-bubble-regenerate"
                 variant="ghost"
                 size="xs"
@@ -689,7 +689,7 @@ const QuizWidget: Component<QuizWidgetProps> = (props) => {
                 return 'default' as const;
               };
               return (
-                <Btn
+                <Button
                   class="quiz-option"
                   variant={variant()}
                   size="sm"
@@ -697,7 +697,7 @@ const QuizWidget: Component<QuizWidgetProps> = (props) => {
                   onClick={() => handleMCQ(option)}
                 >
                   {option}
-                </Btn>
+                </Button>
               );
             }}
           </For>

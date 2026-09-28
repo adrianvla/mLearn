@@ -52,7 +52,7 @@
   flex-shrink: 0;
   -webkit-app-region: drag;
   background-color: var(--bg);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .window-content-below-titlebar {

@@ -3,12 +3,7 @@
  */
 
 export { 
-  Button, 
-  Btn,
-  PillBtn, 
-  IconBtn, 
-  NavBtn, 
-  TabBtn,
+  Button,
   type ButtonProps,
   type ButtonType,
   type ButtonVariant,

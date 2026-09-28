@@ -4,9 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { HistoricalBackgroundRecord } from '../../../shared/learningBackground';
 import { assembleContrastItem, itemContentVersion, questionBankFromLanguageData } from '../../learning/questionBank';
-import { wordStorageKey } from '../../utils/wordLevelStats';
 import type { GrammarItemSemanticValidation, GrammarPracticeItemSource, LanguageData } from '../../../shared/types';
 
 const refreshLanguageDataMock = vi.fn();
@@ -14,7 +12,6 @@ const addLevelStudyFlashcardsMock = vi.fn();
 const reconcileGrammarItemsMock = vi.fn(async () => 0);
 const getComprehensiveWordStatusSyncMock = vi.fn(() => 'unknown');
 const hasWordSyncMock = vi.fn(() => false);
-const isWordIgnoredSyncMock = vi.fn<(word: string, language?: string) => boolean>(() => false);
 const openWindowMock = vi.fn();
 let currentLangDataMock: Record<string, unknown> | null = null;
 let installedLangDataMock: Record<string, Record<string, unknown>> = {};
@@ -23,9 +20,11 @@ let wordFrequencyMock: Record<string, unknown> = {};
 let settingsLanguageMock = 'ja';
 let learningLanguageLevelsMock: Record<string, number> | undefined;
 let bulkAddModalPropsMock: Record<string, unknown> | null = null;
-let placementPropsMock: Record<string, unknown> | null = null;
-let learningBackgroundRecordsMock: unknown[] | undefined;
 const updateSettingsMock = vi.fn();
+let learningBackgroundMock: { records: Array<Record<string, unknown>> } = { records: [] };
+const updateSettingMock = vi.fn((key: string, value: unknown) => {
+  if (key === 'learningBackground') learningBackgroundMock = value as { records: Array<Record<string, unknown>> };
+});
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 // Canonical grammar/mock writer through the tab's recordGrammarAttempt /
@@ -51,7 +50,7 @@ vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({
     window: { openWindow: openWindowMock },
     // Grammar-coverage journal queries + the F-N1 journal-key snapshot: the
-    // returning-learner tab mounts the same resource, so the stub must
+    // level-study tab mounts the same resource, so the stub must
     // answer language-key queries and the change-listener contract.
     knowledgeEvents: {
       queryLanguageKeys: () => Promise.resolve(journalKeysMock),
@@ -70,23 +69,6 @@ vi.mock('./BulkAddModal', () => ({
   },
 }));
 
-vi.mock('./PlacementSession', async (importOriginal) => {
-  // Module-loading boundary: vitest factory imports the real module while
-  // stubbing only the component render.
-  const actual = (await importOriginal()) as {
-    backgroundRecordsForLanguage: (raw: unknown, language: string) => HistoricalBackgroundRecord[];
-  };
-  return {
-    // Keep the REAL background parser: the tab must unwrap `.records` and
-    // the parser must drop foreign/malformed rows — only the render is stubbed.
-    backgroundRecordsForLanguage: actual.backgroundRecordsForLanguage,
-    default: (props: Record<string, unknown>) => {
-      placementPropsMock = props;
-      return <div data-testid="placement-session" />;
-    },
-  };
-});
-
 vi.mock('../../context', () => ({
   useLocalization: () => ({
     t: (key: string) => key,
@@ -103,7 +85,6 @@ vi.mock('../../context', () => ({
     },
     isLoading: () => false,
     isKnowledgeReady: () => true,
-    isWordIgnoredSync: isWordIgnoredSyncMock,
     getComprehensiveWordStatusSync: getComprehensiveWordStatusSyncMock,
     hasWordSync: hasWordSyncMock,
     addLevelStudyFlashcards: addLevelStudyFlashcardsMock,
@@ -119,13 +100,14 @@ vi.mock('../../context', () => ({
       easeThresholdKnown: 3.5,
       easeThresholdLearning: 1.5,
       learningLanguageLevels: learningLanguageLevelsMock,
+      get learningBackground() { return learningBackgroundMock; },
       get uiLanguage() { return settingsUiLanguage; },
       llmProvider: 'builtin',
       ratingKeyboardMode: 'mnemonic',
       builtinModel: 'fixture-local-model',
       ollamaModel: '',
-      ...(learningBackgroundRecordsMock === undefined ? {} : { learningBackground: { records: learningBackgroundRecordsMock } }),
     },
+    updateSetting: updateSettingMock,
     updateSettings: updateSettingsMock,
   }),
   useLanguage: () => ({
@@ -162,12 +144,10 @@ vi.mock('../../components/common', () => ({
     </div>
   ),
   TargetIcon: (props: { size?: number }) => <span data-testid="target-icon">{props.size}</span>,
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; class?: string }) => (
-    <button type="button" class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  Button: (props: { children?: JSX.Element; label?: string; buttonType?: string; onClick?: () => void; disabled?: boolean; class?: string }) => (
+    <button type="button" class={props.class} data-testid={props.buttonType === 'pill' ? 'level-pill' : undefined} disabled={props.disabled} onClick={props.onClick}>{props.label ?? props.children}</button>
   ),
-  PillBtn: (props: { label?: string; onClick?: () => void }) => (
-    <button type="button" data-testid="level-pill" onClick={props.onClick}>{props.label}</button>
-  ),
+  Panel: (props: { children?: JSX.Element; class?: string }) => <div class={props.class}>{props.children}</div>,
   Card: (props: { children?: JSX.Element; title?: string; subtitle?: string; footer?: JSX.Element; onClick?: () => void }) => (
     <button type="button" onClick={props.onClick} data-testid="level-card">
       <span>{props.title}</span>
@@ -188,12 +168,11 @@ describe('LevelStudyTab', () => {
     addLevelStudyFlashcardsMock.mockReset();
     getComprehensiveWordStatusSyncMock.mockClear();
     hasWordSyncMock.mockClear();
-    isWordIgnoredSyncMock.mockReturnValue(false);
     openWindowMock.mockClear();
     bulkAddModalPropsMock = null;
-    placementPropsMock = null;
-    learningBackgroundRecordsMock = undefined;
     updateSettingsMock.mockClear();
+    updateSettingMock.mockClear();
+    learningBackgroundMock = { records: [] };
     // Mock/GrammarCoverage durability is localStorage-backed (pending
     // results, stored walk cursors, validation records): clear it so no
     // fixture leaks into the next mount (G01 isolation).
@@ -202,7 +181,7 @@ describe('LevelStudyTab', () => {
     // API; happy-dom reports navigator.locks as null, which DISABLES the
     // mock surface (G04). These integration tests drive the REAL child's
     // serialized paths, so inject a pass-through lock (the
-    // PlacementSession.test convention) instead of a no-op fallback.
+    // study-session test convention) instead of a no-op fallback.
     Object.defineProperty(globalThis.navigator, 'locks', {
       value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
       configurable: true,
@@ -211,7 +190,6 @@ describe('LevelStudyTab', () => {
     setProjectionLoading(false);
     settingsUiLanguage = 'en';
     llmReadyMock = true;
-    projectionQueryAccessor = undefined;
     storeWordKnowledgeMock = {};
     journalKeysMock = [];
     wordVariantsForWordMock = (word) => [word];
@@ -249,6 +227,75 @@ describe('LevelStudyTab', () => {
 
     dispose();
   }, 10000);
+
+  it('keeps historical background results editable in Level Study and preserves stored metadata', async () => {
+    learningBackgroundMock = {
+      records: [{ id: 'old-result', language: 'de', kind: 'exam', label: 'B2 certificate', recordedAt: 12, providerMetadata: { source: 'learner' } }],
+    };
+    const { LevelStudyTab } = await import('./LevelStudyTab');
+    const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
+
+    const panel = container.querySelector('.learning-background-panel')!;
+    (panel.querySelector('summary') as HTMLElement).click();
+    const addButton = Array.from(panel.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.LevelStudy.Placement.AddRecord'))!;
+    addButton.click();
+    const fill = (key: string, value: string) => {
+      const input = panel.querySelector<HTMLInputElement>(`[aria-label="${key}"]`)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    fill('mlearn.LevelStudy.Placement.ResultLabel', 'Goethe-Zertifikat B2');
+    fill('mlearn.LevelStudy.Placement.LevelLabel', 'B2');
+    fill('mlearn.LevelStudy.Placement.DateLabel', '2025-05-03');
+    fill('mlearn.LevelStudy.Placement.SkillsLabel', 'reading, listening');
+    fill('mlearn.LevelStudy.Placement.ScoreOverallLabel', '80/100');
+    const saveButton = Array.from(panel.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.LevelStudy.Placement.SaveRecord'))!;
+    saveButton.click();
+
+    expect(updateSettingMock).toHaveBeenCalledOnce();
+    const [settingKey, updatedValue] = updateSettingMock.mock.calls[0]!;
+    const updated = updatedValue as { records: Array<Record<string, unknown>> };
+    expect(settingKey).toBe('learningBackground');
+    expect(updated.records[0]).toMatchObject({ providerMetadata: { source: 'learner' } });
+    expect(updated.records[1]).toMatchObject({
+      language: 'ja',
+      kind: 'exam',
+      label: 'Goethe-Zertifikat B2',
+      level: 'B2',
+      completedAt: '2025-05-03',
+      skillScope: ['reading', 'listening'],
+      score: { overall: '80/100' },
+    });
+    dispose();
+  });
+
+  it('removes only the selected historical result and retains the other saved records', async () => {
+    learningBackgroundMock = {
+      records: [
+        { id: 'remove-me', language: 'ja', kind: 'exam', label: 'Old result', recordedAt: 12 },
+        { id: 'keep-me', language: 'ja', kind: 'school', label: 'School', recordedAt: 13, customScale: 'x' },
+        { id: 'other-language', language: 'de', kind: 'exam', label: 'Deutsch', recordedAt: 14 },
+      ],
+    };
+    const { LevelStudyTab } = await import('./LevelStudyTab');
+    const dispose = render(() => <LevelStudyTab />, container);
+    await tick();
+
+    const panel = container.querySelector('.learning-background-panel')!;
+    (panel.querySelector('summary') as HTMLElement).click();
+    const removeButton = Array.from(panel.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.LevelStudy.Placement.RemoveRecord'))!;
+    removeButton.click();
+
+    const [settingKey, updatedValue] = updateSettingMock.mock.calls[0]!;
+    const updated = updatedValue as { records: Array<Record<string, unknown>> };
+    expect(settingKey).toBe('learningBackground');
+    expect(updated.records).toEqual([
+      { id: 'keep-me', language: 'ja', kind: 'school', label: 'School', recordedAt: 13, customScale: 'x' },
+      { id: 'other-language', language: 'de', kind: 'exam', label: 'Deutsch', recordedAt: 14 },
+    ]);
+    dispose();
+  });
 
   it('renders level cards from installed language rows when the derived frequency map is stale', async () => {
     currentLangDataMock = {
@@ -384,224 +431,6 @@ describe('LevelStudyTab', () => {
     expect(bulkAddModalPropsMock).not.toBeNull();
     expect(bulkAddModalPropsMock?.language).toBe('ja');
     expect(Object.keys(bulkAddModalPropsMock?.frequency as Record<string, unknown>)).toEqual(['猫', '犬']);
-
-    dispose();
-  });
-
-  it('passes language-scoped dated background records into the returning-learner flow', async () => {
-    currentLangDataMock = {
-      name: 'Japanese',
-      freq: [
-        ['猫', 'ねこ', 5],
-        ['犬', 'いぬ', 5],
-      ],
-      frequencyLevels: {
-        rowLevelIndex: 2,
-        names: { '5': 'N5' },
-      },
-    };
-    // Wrapper object as stored in settings: the tab must unwrap `.records`
-    // and scope to the learning language, dropping foreign/malformed rows.
-    learningBackgroundRecordsMock = [
-      { id: 'ja-1', language: 'ja', kind: 'exam', label: 'Old N3', level: 'N3', completedAt: '2024-12-01', recordedAt: 1 },
-      { id: 'de-1', language: 'de', kind: 'school', label: 'B2 Kurs', recordedAt: 2 },
-      { id: 'bad', language: 'ja', kind: 'nope', label: 'x', recordedAt: 3 },
-    ];
-
-    const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
-    await tick();
-
-    expect(container.querySelector('[data-testid="placement-session"]')).not.toBeNull();
-    expect(placementPropsMock).not.toBeNull();
-    expect(placementPropsMock?.language).toBe('ja');
-    const background = placementPropsMock?.background as Array<{ id: string }>;
-    expect(background.map((record) => record.id)).toEqual(['ja-1']);
-
-    dispose();
-  });
-
-  it('never offers an ignored word as a placement candidate (G04 ignore policy)', async () => {
-    currentLangDataMock = {
-      name: 'Japanese',
-      freq: [
-        ['猫', 'ねこ', 5],
-        ['犬', 'いぬ', 5],
-        ['虫', 'むし', 5],
-      ],
-      frequencyLevels: {
-        rowLevelIndex: 2,
-        names: { '5': 'N5' },
-      },
-    };
-    // The learner "ignored" いぬ: it stays unmeasured but must never be
-    // selected, taught or tested by the placement probe.
-    isWordIgnoredSyncMock.mockImplementation((word: string) => word === 'いぬ');
-
-    const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
-    await tick();
-
-    expect(placementPropsMock).not.toBeNull();
-    const words = (placementPropsMock?.pools as Array<{ words: string[] }>)[0]?.words ?? [];
-    expect(words).toContain('猫');
-    expect(words).toContain('虫');
-    expect(words).not.toContain('いぬ');
-
-    dispose();
-  });
-
-  it('offers every declared band even when an easy-band prefix fills the scan (R09 balance)', async () => {
-    // 210 frequency-ordered easy-band rows followed by harder bands: the old
-    // global scan cap stopped collecting before the harder bands were ever
-    // discovered, so an underconfident learner could never be probed above
-    // the easiest band.
-    const easy = Array.from({ length: 210 }, (_, i) => [`易${i}`, `やさ${i}`, 5]);
-    currentLangDataMock = {
-      name: 'Japanese',
-      freq: [
-        ...easy,
-        ['難1', 'むずか1', 2],
-        ['難2', 'むずか2', 2],
-        ['難3', 'むずか3', 3],
-      ],
-      frequencyLevels: {
-        rowLevelIndex: 2,
-        names: { '2': 'N2', '3': 'N3', '5': 'N5' },
-      },
-    };
-
-    const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
-    await tick();
-
-    expect(placementPropsMock).not.toBeNull();
-    const pools = placementPropsMock?.pools as Array<{ level: number; label: string; words: string[] }>;
-    const byLevel = new Map(pools.map((pool) => [pool.level, pool]));
-    // Every declared band is offered, not just the easiest one.
-    expect(byLevel.get(5)?.words.length).toBe(6); // capped per band
-    expect(byLevel.get(2)?.words).toEqual(['難1', '難2']);
-    expect(byLevel.get(3)?.words).toEqual(['難3']);
-    expect(pools.map((pool) => pool.level).sort((a, b) => a - b)).toEqual([2, 3, 5]);
-
-    dispose();
-  });
-
-  it('passes frequency candidates and store evidence to graph-linked selection (F28)', async () => {
-    currentLangDataMock = {
-      name: 'Japanese',
-      freq: [
-        ['猫', 'ねこ', 5],
-        ['犬', 'いぬ', 5],
-      ],
-      frequencyLevels: {
-        rowLevelIndex: 2,
-        names: { '5': 'N5' },
-      },
-    };
-    // Only 猫 has stored state: the 49k-row untracked tail of a real package
-    // must never reach the projection materialization path (F-N1 lead).
-    storeWordKnowledgeMock = {
-      [wordStorageKey('ja', '猫')]: { ease: 2.2, timesSeen: 1 },
-    };
-
-    const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
-    await tick();
-
-    // The journal-key snapshot settles asynchronously before the bounded
-    // projection request is issued; poll rather than assuming tick counts.
-    for (let i = 0; i < 100 && projectionQueryAccessor?.()?.surfaces === undefined; i += 1) await tick();
-
-    expect(projectionQueryAccessor?.()).not.toBeNull();
-    expect(projectionQueryAccessor?.()?.surfaces).toEqual(['猫', '犬']);
-    expect(projectionQueryAccessor?.()?.evidenceKeys).toEqual([wordStorageKey('ja', '猫')]);
-
-    dispose();
-  });
-
-  it('passes journal-only evidence to graph-linked selection (F28)', async () => {
-    // Store cache empty, but the journal holds a key for one surface: the
-    // journal snapshot is the evidence authority, so that surface is still
-    // requested — while the unmeasured tail stays out of the fan-out.
-    currentLangDataMock = {
-      name: 'Japanese',
-      freq: [
-        ['猫', 'ねこ', 5],
-        ['犬', 'いぬ', 5],
-      ],
-      frequencyLevels: {
-        rowLevelIndex: 2,
-        names: { '5': 'N5' },
-      },
-    };
-    journalKeysMock = [wordStorageKey('ja', '犬')];
-
-    const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
-    await tick();
-
-    for (let i = 0; i < 100 && projectionQueryAccessor?.()?.surfaces === undefined; i += 1) await tick();
-
-    expect(projectionQueryAccessor?.()).not.toBeNull();
-    expect(projectionQueryAccessor?.()?.surfaces).toEqual(['猫', '犬']);
-    expect(projectionQueryAccessor?.()?.evidenceKeys).toEqual([wordStorageKey('ja', '犬')]);
-
-    dispose();
-  });
-  it('matches surfaces whose evidence is stored under a VARIANT form key (F-N1 candidate keys)', async () => {
-    // The writer derives storage keys from getWordFormCandidates(...)[0];
-    // when a package declares variants, evidence may live under a variant
-    // form's key rather than the raw surface. The reader must test every
-    // candidate form or the surface looks untracked (W04 follow-up landed).
-    currentLangDataMock = {
-      name: 'Japanese',
-      freq: [
-        ['猫', 'ねこ', 5],
-      ],
-      frequencyLevels: {
-        rowLevelIndex: 2,
-        names: { '5': 'N5' },
-      },
-    };
-    wordVariantsForWordMock = (word) => (word === '猫' ? ['ねこ'] : [word]);
-    journalKeysMock = [wordStorageKey('ja', 'ねこ')];
-
-    const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
-    await tick();
-
-    for (let i = 0; i < 100 && projectionQueryAccessor?.()?.surfaces === undefined; i += 1) await tick();
-
-    expect(projectionQueryAccessor?.()).not.toBeNull();
-    expect(projectionQueryAccessor?.()?.surfaces).toEqual(['猫']);
-
-    dispose();
-  });
-
-  it('keeps the returning-learner flow mounted while projections reload (integration blocker regression)', async () => {
-    currentLangDataMock = {
-      name: 'Japanese',
-      freq: [
-        ['猫', 'ねこ', 5],
-        ['犬', 'いぬ', 5],
-      ],
-      frequencyLevels: {
-        rowLevelIndex: 2,
-        names: { '5': 'N5' },
-      },
-    };
-    // A placement rating bumps eventsVersion and flips the projections to
-    // loading; the placement flow must NOT sit inside that loading gate.
-    setProjectionLoading(true);
-
-    const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
-    await tick();
-
-    expect(container.querySelector('[data-testid="placement-session"]')).not.toBeNull();
-    expect(placementPropsMock).not.toBeNull();
-    expect(placementPropsMock?.booting).toBe(true);
 
     dispose();
   });
@@ -965,7 +794,6 @@ const runMockThroughResults = async (container: HTMLElement, gold: Map<string, n
   }
 };
 
-let projectionQueryAccessor: (() => { language: string; surfaces: string[]; evidenceKeys?: string[] } | undefined) | undefined = undefined;
 let storeWordKnowledgeMock: Record<string, unknown> = {};
 let journalKeysMock: string[] = [];
 let wordVariantsForWordMock: (word: string) => string[] = (word) => [word];
@@ -982,9 +810,6 @@ vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { projectionFixture } = await import('../../../../test/projectionFixture');
   return {
     useKnowledgeProjections: (query: () => { language: string; surfaces: string[]; evidenceKeys?: string[] } | undefined) => {
-      // Capture the accessor: the underlying journal-key resource settles
-    // asynchronously, so tests poll the accessor instead of one snapshot.
-    projectionQueryAccessor = query;
       return {
         loading: () => projectionLoading(),
         ready: () => !projectionLoading(),

@@ -6,7 +6,7 @@ import { useGraphNeighborhood } from '../../../hooks/useGraphNeighborhood';
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, GraphNeighborhoodViz, Modal, PillLabel, AnkiHoverPreview, ReadinessGate, deriveReadiness, SkeletonRows } from '../../../components/common';
+import { Button, GraphNeighborhoodViz, Modal, PillLabel, AnkiHoverPreview, ReadinessGate, deriveReadiness, SkeletonRows } from '../../../components/common';
 import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
@@ -388,14 +388,14 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           prosodyOverlay={prosodyOverlayData()}
         />
         <Show when={props.onEdit}>
-          <Btn
+          <Button
             variant="ghost"
             size="sm"
             onClick={() => props.onEdit?.(props.entry)}
             title={t('mlearn.WordDbEditor.EditTranslation.Tooltip')}
           >
             {t('mlearn.Global.Edit')}
-          </Btn>
+          </Button>
         </Show>
         <Show when={visibleAlternateReadings().length > 0}>
           <span class="word-db-alt-readings">
@@ -453,8 +453,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           onStatusChange={(status) => props.onStatusChange(props.entry, status)}
         />
         <div class="knowledge-actions">
-          <Btn variant="ghost" size="sm" onClick={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word))}>{t('mlearn.Knowledge.Popup.Inspect')}</Btn>
-          <Btn variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Btn>
+          <Button variant="ghost" size="sm" onClick={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word))}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Button>
         </div>
       </div>
       <div class="col integrations">
@@ -473,55 +473,55 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={hasFlashcard()}>
           <span class="integration-label">{t('mlearn.WordDbEditor.Integrations.Flashcard')}</span>
           <Show when={props.onEditFlashcard}>
-            <Btn
+            <Button
               variant="ghost"
               size="sm"
               onClick={() => props.onEditFlashcard?.(props.entry)}
             >
               {t('mlearn.Global.Edit')}
-            </Btn>
+            </Button>
           </Show>
-          <Btn
+          <Button
             variant="danger"
             size="sm"
             onClick={() => props.onRemoveFlashcard(props.entry)}
           >
             {t('mlearn.Global.Remove')}
-          </Btn>
+          </Button>
         </Show>
         <Show when={ignored()}>
           <span class="integration-label">{t('mlearn.WordDbEditor.Integrations.Ignored')}</span>
         </Show>
         <Show when={ignored() && props.onUnignore}>
-          <Btn
+          <Button
             variant="secondary"
             size="sm"
             onClick={() => props.onUnignore?.(props.entry)}
           >
             {t('mlearn.WordDbEditor.Actions.Unignore')}
-          </Btn>
+          </Button>
         </Show>
         <Show when={!hasFlashcard() && !ignored()}>
-          <Btn
+          <Button
             variant="primary"
             size="sm"
             onClick={() => props.onAddFlashcard(props.entry)}
           >
             {t('mlearn.WordDbEditor.Integrations.AddFlashcard')}
-          </Btn>
+          </Button>
         </Show>
         <Show when={props.onAnkiPreview && isInAnki()}>
-          <Btn
+          <Button
             variant="ghost"
             size="sm"
             onClick={() => props.onAnkiPreview?.(props.entry)}
             title={t('mlearn.WordDbEditor.Anki.PreviewTitle', { word: props.entry.word })}
           >
             {t('mlearn.WordDbEditor.Anki.Preview')}
-          </Btn>
+          </Button>
         </Show>
         <Show when={props.onExportToAnki && !isInAnki()}>
-          <Btn
+          <Button
             variant={props.ankiExportState === 'exported' || props.ankiExportState === 'duplicate' ? 'ghost' : 'secondary'}
             size="sm"
             loading={props.ankiExportState === 'exporting'}
@@ -536,7 +536,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
                 : props.ankiExportState === 'error'
                   ? t('mlearn.WordDbEditor.Anki.ExportFailed')
                   : t('mlearn.WordDbEditor.Anki.ExportToAnki')}
-          </Btn>
+          </Button>
         </Show>
       </div>
     </div>
@@ -550,7 +550,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
       size="lg"
       footer={
         <Show when={graphEntityId()}>
-          {(id) => <Btn variant="secondary" size="sm" onClick={() => openGraphInspector({ entityId: id() })}>{t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}</Btn>}
+          {(id) => <Button variant="secondary" size="sm" onClick={() => openGraphInspector({ entityId: id() })}>{t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}</Button>}
         </Show>
       }
     >
@@ -559,7 +559,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           {/* Pending ≠ not-in-graph: the skeleton holds only while the
               lookup is in flight; absence resolves to the explicit note. */}
           <ReadinessGate when={deriveReadiness({ pending: () => neighborhoodPending() && !neighborhood() })} instant fallback={<SkeletonRows rows={2} />}>
-          <Show when={neighborhoodFailed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Btn size="sm" onClick={retryNeighborhood}>{t('mlearn.GraphInspector.Explore.Retry')}</Btn></p></Show>
+          <Show when={neighborhoodFailed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Button size="sm" onClick={retryNeighborhood}>{t('mlearn.GraphInspector.Explore.Retry')}</Button></p></Show>
           <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
             {(value) => (
               <GraphNeighborhoodViz

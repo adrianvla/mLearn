@@ -8,7 +8,7 @@ import { createContext, useContext, ParentComponent, createSignal, batch } from 
 import { useSettings } from './SettingsContext';
 import { useLocalization } from './LocalizationContext';
 import { Modal } from '../components/common/Modal/Modal';
-import { Btn } from '../components/common/Button';
+import { Button } from '../components/common/Button';
 import './LowPowerGateContext.css';
 
 export type GateBackendType = 'llm' | 'tts' | 'ocr';
@@ -81,20 +81,20 @@ export const LowPowerGateProvider: ParentComponent = (props) => {
   const footer = () => (
     <div class="low-power-gate-actions">
       <div class="low-power-gate-actions-row">
-        <Btn variant="danger" onClick={() => handleDecision(false, false)}>
+        <Button variant="danger" onClick={() => handleDecision(false, false)}>
           {t('mlearn.LowPowerGate.Deny')}
-        </Btn>
-        <Btn variant="primary" onClick={() => handleDecision(true, false)}>
+        </Button>
+        <Button variant="primary" onClick={() => handleDecision(true, false)}>
           {t('mlearn.LowPowerGate.Allow')}
-        </Btn>
+        </Button>
       </div>
       <div class="low-power-gate-actions-row">
-        <Btn variant="danger" onClick={() => handleDecision(false, true)}>
+        <Button variant="danger" onClick={() => handleDecision(false, true)}>
           {t('mlearn.LowPowerGate.DenySession')}
-        </Btn>
-        <Btn variant="primary" onClick={() => handleDecision(true, true)}>
+        </Button>
+        <Button variant="primary" onClick={() => handleDecision(true, true)}>
           {t('mlearn.LowPowerGate.AllowSession')}
-        </Btn>
+        </Button>
       </div>
     </div>
   );

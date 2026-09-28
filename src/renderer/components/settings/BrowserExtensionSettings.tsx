@@ -5,17 +5,7 @@
 
 import { Component, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import {
-  SettingRow,
-  SettingGroup,
-  Btn,
-  Select,
-  TabContent,
-  EmptyState,
-  Spinner,
-  AlertBanner,
-  Indicator,
-} from '../common';
+import { Button, SettingRow, SettingGroup, Select, TabContent, EmptyState, Spinner, AlertBanner, Indicator } from '../common';
 import { showToast } from '../common/Feedback/Toast';
 import { getBridge } from '../../../shared/bridges';
 import type { BrowserInfo, CustomBrowserPath } from '../../../shared/bridges/types';
@@ -282,9 +272,9 @@ export const BrowserExtensionSettings: Component = () => {
           label={t('mlearn.BrowserExtension.OpenExtensionFolder')}
           description={t('mlearn.BrowserExtension.ManualInstallHint')}
         >
-          <Btn size="sm" onClick={handleOpenExtensionFolder}>
+          <Button size="sm" onClick={handleOpenExtensionFolder}>
             {t('mlearn.BrowserExtension.OpenExtensionFolder')}
-          </Btn>
+          </Button>
         </SettingRow>
       </SettingGroup>
 
@@ -331,7 +321,7 @@ export const BrowserExtensionSettings: Component = () => {
                     <Show
                       when={item.status === 'success'}
                       fallback={
-                        <Btn
+                        <Button
                           size="sm"
                           onClick={() => handleInstall(index())}
                           disabled={item.status === 'installing'}
@@ -340,17 +330,17 @@ export const BrowserExtensionSettings: Component = () => {
                           }
                         >
                           {getInstallLabel(item.status)}
-                        </Btn>
+                        </Button>
                       }
                     >
-                      <Btn
+                      <Button
                         size="sm"
                         variant="danger"
                         onClick={() => handleUninstall(index())}
                         disabled={item.status === 'installing'}
                       >
                         {t('mlearn.BrowserExtension.Uninstall')}
-                      </Btn>
+                      </Button>
                     </Show>
                   </div>
                   <Show when={item.status === 'error'}>
@@ -361,17 +351,17 @@ export const BrowserExtensionSettings: Component = () => {
                         <p class="manual-instructions">{getManualInstruction(item.browser.type)}</p>
                       </div>
                       <div class="manual-install-actions">
-                        <Btn size="sm" onClick={handleOpenExtensionFolder}>
+                        <Button size="sm" onClick={handleOpenExtensionFolder}>
                           {t('mlearn.BrowserExtension.OpenExtensionFolder')}
-                        </Btn>
+                        </Button>
                         <Show when={item.extensionPath}>
-                          <Btn
+                          <Button
                             size="sm"
                             variant="secondary"
                             onClick={() => handleCopyExtensionPath(item.extensionPath!)}
                           >
                             {t('mlearn.BrowserExtension.CopyExtensionPath')}
-                          </Btn>
+                          </Button>
                         </Show>
                       </div>
                     </div>
@@ -394,9 +384,9 @@ export const BrowserExtensionSettings: Component = () => {
                 setCustomPathType(e.currentTarget.value as 'chrome' | 'firefox')
               }
             />
-            <Btn size="sm" onClick={handleBrowseBrowser}>
+            <Button size="sm" onClick={handleBrowseBrowser}>
               {t('mlearn.BrowserExtension.Browse')}
-            </Btn>
+            </Button>
           </div>
           <span class="custom-path-hint">
             {t('mlearn.BrowserExtension.CustomPathHint')}
@@ -416,13 +406,13 @@ export const BrowserExtensionSettings: Component = () => {
                         : 'Firefox'}
                     </span>
                   </span>
-                  <Btn
+                  <Button
                     size="sm"
                     variant="danger"
                     onClick={() => handleRemoveCustomPath(custom.path)}
                   >
                     {t('mlearn.Global.Remove')}
-                  </Btn>
+                  </Button>
                 </div>
               )}
             </For>

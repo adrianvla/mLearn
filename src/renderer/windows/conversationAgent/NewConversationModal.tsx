@@ -10,7 +10,7 @@ import { Component, For, Show, createMemo, createSignal, onCleanup } from 'solid
 import { getBridge } from '../../../shared/bridges';
 import { threadContextId, type Participant, type WorldSnapshot, type ScenarioCreation } from '../../../shared/world';
 import { resolveParticipant } from '../../services/participantConstruction';
-import { Btn, FormField, HintText, ModalForm, RadioChoice, Textarea } from '../../components/common';
+import { Button, FormField, HintText, ModalForm, RadioChoice, Textarea } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import './NewConversationModal.css';
 import { conversationRecoveryKey } from './errorUtils';
@@ -190,11 +190,11 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       onSubmit={handleStart}
       footer={
         <div class="new-conversation-actions">
-          <Btn variant="ghost" onClick={() => { void close(); }}>{t('mlearn.ConversationAgent.NewConversation.Cancel')}</Btn>
+          <Button variant="ghost" onClick={() => { void close(); }}>{t('mlearn.ConversationAgent.NewConversation.Cancel')}</Button>
           <Show when={preview()}>
-            <Btn variant="ghost" disabled={busy()} onClick={() => { void changeScenario().catch(err => setError(String(err))); }}>{t('mlearn.ConversationAgent.NewConversation.ChangeScenario')}</Btn>
+            <Button variant="ghost" disabled={busy()} onClick={() => { void changeScenario().catch(err => setError(String(err))); }}>{t('mlearn.ConversationAgent.NewConversation.ChangeScenario')}</Button>
           </Show>
-          <Btn
+          <Button
             variant="primary"
             aria-label={t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.StartAria')}
             onClick={handleStart}
@@ -202,7 +202,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               || (!preview() && scope() === 'persistent' && !settings.livingWorldEnabled)}
           >
             {busy() ? t('mlearn.ConversationAgent.NewConversation.Starting') : t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.Start')}
-          </Btn>
+          </Button>
         </div>
       }
     >
@@ -219,9 +219,9 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
             </div>
             <Show when={scope() === 'persistent' && !settings.livingWorldEnabled}>
               <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
-              <Btn variant="primary" disabled={busy()} onClick={() => { void enableLivingWorldAndStart(); }}>
+              <Button variant="primary" disabled={busy()} onClick={() => { void enableLivingWorldAndStart(); }}>
                 {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
-              </Btn>
+              </Button>
             </Show>
           </fieldset>
           <Show when={persistentParticipants().length > 0}>
@@ -230,7 +230,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               <div class="new-conversation-people-list">
                 <For each={persistentParticipants()}>
                   {(participant) => (
-                    <Btn
+                    <Button
                       variant="ghost"
                       class={`new-conversation-person ${isSelected(participant) ? 'new-conversation-person--selected' : ''}`}
                       aria-label={t('mlearn.ConversationAgent.NewConversation.ToggleParticipant', { name: participant.displayName })}
@@ -245,7 +245,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
                         <img class="new-conversation-avatar" src={participant.profilePhoto} alt="" />
                       </Show>
                       <span class="new-conversation-person-name">{participant.displayName}</span>
-                    </Btn>
+                    </Button>
                   )}
                 </For>
               </div>
@@ -273,9 +273,9 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               <div class="new-conversation-people-list">
                 <For each={candidates()}>
                   {(participant) => (
-                    <Btn variant="ghost" class="new-conversation-person" onClick={() => toggleParticipant(participant)} disabled={busy()}>
+                    <Button variant="ghost" class="new-conversation-person" onClick={() => toggleParticipant(participant)} disabled={busy()}>
                       {participant.displayName}
-                    </Btn>
+                    </Button>
                   )}
                 </For>
               </div>
@@ -308,7 +308,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
         <Show when={error()}>
           <div class="new-conversation-error" role="alert">
             <p>{t(conversationRecoveryKey(error()))}</p>
-            <Btn variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings', context: { section: 'ai' } })}>{t('mlearn.ConversationAgent.Recovery.Settings')}</Btn>
+            <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings', context: { section: 'ai' } })}>{t('mlearn.ConversationAgent.Recovery.Settings')}</Button>
             <details><summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary><p>{error()}</p></details>
           </div>
         </Show>

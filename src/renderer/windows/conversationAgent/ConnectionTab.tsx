@@ -6,14 +6,7 @@
 import { Component, Show, createSignal, onMount } from 'solid-js';
 import { useSettings, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import {
-  FormField,
-  Input,
-  Btn,
-  EmptyState,
-  TabHeader,
-  Select,
-} from '../../components/common';
+import { Button, FormField, Input, EmptyState, TabHeader, Select } from '../../components/common';
 import type { SelectOption } from '../../components/common';
 import type { OllamaModel } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
@@ -151,23 +144,23 @@ export const ConnectionTab: Component = () => {
       </FormField>
 
       <div class="ca-conn-actions">
-        <Btn
+        <Button
           variant={testBtnVariant()}
           onClick={handleTestConnection}
           disabled={testStatus() === 'testing'}
           loading={testStatus() === 'testing'}
         >
           {testBtnLabel()}
-        </Btn>
+        </Button>
 
-        <Btn
+        <Button
           variant={saveStatus() === 'saved' ? 'success' : 'primary'}
           onClick={handleSave}
         >
           {saveStatus() === 'saved'
             ? t('mlearn.ConversationAgent.Connection.Saved')
             : t('mlearn.ConversationAgent.Connection.Save')}
-        </Btn>
+        </Button>
       </div>
 
       <div class="ca-conn-models-section">
@@ -175,7 +168,7 @@ export const ConnectionTab: Component = () => {
           <span class="ca-conn-label">
             {t('mlearn.ConversationAgent.Connection.AvailableModels')}
           </span>
-          <Btn
+          <Button
             size="sm"
             variant="ghost"
             onClick={handleFetchModels}
@@ -185,7 +178,7 @@ export const ConnectionTab: Component = () => {
             {loadingModels()
               ? t('mlearn.ConversationAgent.Connection.LoadingModels')
               : t('mlearn.ConversationAgent.Connection.FetchModels')}
-          </Btn>
+          </Button>
         </div>
 
         <Show when={availableModels().length > 0}>

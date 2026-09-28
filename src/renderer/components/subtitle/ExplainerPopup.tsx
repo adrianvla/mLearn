@@ -6,7 +6,7 @@
 
 import { Component, Show, createSignal, createEffect, createMemo, onCleanup, untrack } from 'solid-js';
 import type { LLMToolCall } from '../../../shared/types';
-import { Button, DraggablePopup, IconBtn } from '../common';
+import { Button, DraggablePopup } from '../common';
 import { RefreshIcon, BotIcon } from '../common/Misc/Icons';
 import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../../context';
 import { streamExplanation, getCachedExplanation, requiresSetup, type ExplainerMode } from '../../services/llmProvider';
@@ -336,14 +336,14 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       maxSize={{ width: 700, height: 600 }}
       contentClass="explainer-popup__content"
       headerActions={
-        <IconBtn
+        <Button buttonType="icon"
           variant="ghost"
           size="sm"
           title={t('mlearn.ConversationAgent.Regenerate')}
           onClick={handleRegenerate}
         >
           <RefreshIcon size={16} />
-        </IconBtn>
+        </Button>
       }
       footer={
         <div class="explainer-popup__footer">

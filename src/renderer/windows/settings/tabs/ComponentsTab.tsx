@@ -2,7 +2,7 @@ import { Component, createMemo, createSignal, onCleanup, onMount, Show } from 's
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { getOcrRuntimeConfig } from '../../../../shared/languageFeatures';
-import { Panel, Btn, AlertBanner, ManagedSettingNotice, ToggleSwitch } from '../../../components/common';
+import { Button, Panel, AlertBanner, ManagedSettingNotice, ToggleSwitch } from '../../../components/common';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import type { ComponentsUninstallResult, LanguageDataCatalogStatus, LanguageDataMap, PythonComponentId, PythonComponentInfo, Settings } from '../../../../shared/types';
 import type { PolicySettingKey } from '../../../../shared/managementPolicy';
@@ -395,7 +395,7 @@ export const ComponentsTab: Component = () => {
             </p>
           </div>
           <Show when={needsInstall}>
-            <Btn
+            <Button
               variant="secondary"
               onClick={() => handleInstallLanguagePack(row)}
               disabled={isInstalling}
@@ -406,7 +406,7 @@ export const ComponentsTab: Component = () => {
                 : row.outdated
                   ? t('mlearn.ComponentsTab.Actions.Update')
                   : t('mlearn.ComponentsTab.Actions.Install')}
-            </Btn>
+            </Button>
           </Show>
         </div>
 
@@ -534,7 +534,7 @@ export const ComponentsTab: Component = () => {
             />
           </Show>
 
-          <Btn
+          <Button
             variant="secondary"
             onClick={handleRuntimeRepair}
             disabled={runtimeInstalling()}
@@ -543,7 +543,7 @@ export const ComponentsTab: Component = () => {
             {runtimeInstalling()
               ? t('mlearn.Installer.Buttons.Installing')
               : t('mlearn.ComponentsTab.Actions.RepairRuntime')}
-          </Btn>
+          </Button>
         </section>
 
         <section class="components-tab__section">

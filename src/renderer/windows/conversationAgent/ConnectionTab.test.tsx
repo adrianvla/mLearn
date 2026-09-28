@@ -61,7 +61,7 @@ vi.mock('../../components/common', () => ({
       placeholder={props.placeholder as string}
     />
   ),
-  Btn: (props: Record<string, unknown>) => (
+  Button: (props: Record<string, unknown>) => (
     <button
       type="button"
       disabled={props.disabled as boolean | undefined}

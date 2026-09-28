@@ -379,7 +379,6 @@
         "UpDown": "Volume control"
       },
       "Licenses": "Licenses",
-      "Title": "mLearn",
       "VersionLabel": "Version {version}",
       "Website": "Website"
     },
@@ -496,26 +495,7 @@
       "Unreachable": "Unreachable"
     },
     "ConversationAgent": {
-      "Agents": {
-        "Create": "Create agent",
-        "Delete": "Delete agent",
-        "DeleteAll": "Delete all agents",
-        "DeleteAllConfirm": "This will permanently delete all agents, their memories, and conversation data. Type the word below to confirm:",
-        "DeleteAllConfirmPlaceholder": "Type to confirm",
-        "DeleteAllConfirmWord": "DELETE",
-        "DeleteAllTitle": "Delete all agents",
-        "DeleteConfirm": "Type the agent's name to confirm deletion:",
-        "DeleteConfirmPlaceholder": "Agent name",
-        "DeleteConfirmTitle": "Delete agent",
-        "Edit": "Edit agent",
-        "EditTitle": "Edit agent",
-        "Empty": "No agents yet. Create one to get started.",
-        "Memories": "Memories",
-        "NoMemories": "No memories saved yet.",
-        "Save": "Save",
-        "Title": "Agents",
-        "Unnamed": "Unnamed agent"
-      },
+      "Agents": {},
       "Clear": "Clear conversation",
       "Connection": {
         "AvailableModels": "Available Models",
@@ -612,16 +592,7 @@
         "CompactBusy": "Wait for the current reply to finish before compacting.",
         "CompactFailed": "Could not compact the conversation."
       },
-      "Tools": {
-        "CorrectMistake": "Correct mistakes",
-        "CreateQuiz": "Create quizzes",
-        "FetchUrl": "Fetch URLs",
-        "GetMediaStats": "Media stats",
-        "SearchWikipedia": "Search Wikipedia",
-        "SearchFandom": "Search Fandom",
-        "RecallBackstory": "Recall backstory",
-        "SaveMemory": "Save memory"
-      },
+      "Tools": {},
       "Quiz": {
         "BlankInputAriaLabel": "Blank {index}",
         "Correct": "Correct!",
@@ -636,38 +607,9 @@
       "Speaking": "Speaking...",
       "StartRecording": "Start recording",
       "Stats": {
-        "AssessedLevel": "Assessed Level",
-        "ByOccurrence": "By occurrence",
-        "Current": "current",
-        "Struggled": "struggled",
-        "StruggledGrammarCount": "Struggled Grammar",
         "HoveredWords": "Hovered words",
-        "Filter": {
-          "All": "All",
-          "HoveredOnly": "Hovered only",
-          "Unknown": "No level"
-        },
-        "Grammar": "Grammar",
-        "GrammarLevels": "Grammar Levels",
-        "Hovered": "hovered",
-        "Levels": "Levels",
-        "NoStruggledGrammar": "No struggled grammar points yet.",
-        "NoHoveredWords": "No hovered words yet — keep immersing!",
-        "NoGrammarMatching": "No grammar points match the current filter.",
-        "NoLevelData": "Not enough data to compute level distribution.",
-        "NoMedia": "No media stats saved yet",
-        "NoMediaHint": "Watch a video or read a book to see analytics here.",
-        "NoWordsMatching": "No words match the current filter.",
-        "Overview": "Overview",
-        "Seen": "seen",
-        "Unique": "Unique",
-        "UniqueWords": "Unique Words",
-        "UnknownWords": "Unknown Words",
-        "Words": "Words",
-        "WordLevelDistribution": "Word Level Distribution",
-        "WordLevels": "Word Levels",
-        "Lexical": "Lexical",
-        "Structural": "Structural"
+        "Filter": {},
+        "NoHoveredWords": "No hovered words yet — keep immersing!"
       },
       "StopRecording": "Stop recording",
       "StopStreaming": "Stop",
@@ -742,85 +684,13 @@
         "ClearAll": "Clear all memories",
         "ClearAllConfirm": "Are you sure you want to delete all agent memories? This cannot be undone.",
         "Delete": "Delete memory",
-        "Empty": "No memories saved yet. The agent will save important facts as you converse.",
-        "Title": "Agent Memory"
+        "Empty": "No memories saved yet. The agent will save important facts as you converse."
       },
-      "Personality": {
-        "Casual": "Casual",
-        "CasualDescription": "Relaxed, friendly, uses slang and informal language",
-        "Label": "Personality",
-        "Polite": "Polite",
-        "PoliteDescription": "Formal, structured, educational tone",
-        "Roleplay": "Roleplay",
-        "RoleplayDescription": "Custom character with a name and description",
-        "RoleplayFormality": "Formality",
-        "RoleplayLore": "Character description",
-        "RoleplayLorePlaceholder": "Describe the character's personality, traits, and how they should interact...",
-        "RoleplayBackstory": "Backstory",
-        "RoleplayBackstoryPlaceholder": "Story context summarized from media...",
-        "RoleplayName": "Character name",
-        "RoleplayNamePlaceholder": "Enter a name for the character...",
-        "RoleplayQuotes": "Sample quotes",
-        "RoleplayQuotesHint": "2-4 short quotes that show different aspects of the character's voice. The AI will match this style.",
-        "RoleplayQuotePlaceholder": "Enter a quote...",
-        "AddQuote": "Add quote",
-        "FandomUrl": "Fandom wiki URL",
-        "FandomUrlHint": "The URL of the Fandom wiki for this character's series. Enables the search_fandom tool.",
-        "FandomUrlPlaceholder": "e.g. https://myheroacademia.fandom.com"
-      },
+      "Personality": {},
       "Reset": "Reset agent",
       "ResetConfirm": "This will clear the agent's name, personality, and all memories. The setup process will start again. Continue?",
-      "Setup": {
-        "Cancel": "Cancel",
-        "NameLabel": "Give your agent a name",
-        "NamePlaceholder": "Leave blank for no name",
-        "PersonalityLabel": "Choose a personality",
-        "ProfilePhoto": "Profile photo",
-        "ProfilePhotoHint": "Upload an image for this agent's avatar",
-        "ProfilePhotoRemove": "Remove photo",
-        "Start": "Start",
-        "Title": "Set up your AI tutor",
-        "UserNameLabel": "Your name",
-        "UserNamePlaceholder": "What should the agent call you?",
-        "AboutMeLabel": "About you",
-        "AboutMeHint": "Tell the agent about yourself so it can personalize conversations.",
-        "AboutMePlaceholder": "e.g. I'm a university student, I enjoy manga, I've been learning for 6 months...",
-        "VoiceSample": "Default voice",
-        "ManualSetup": "Manual setup",
-        "ManualSetupHint": "Fill in the character details yourself."
-      },
-      "QuickStart": {
-        "Button": "Quick start from Fandom",
-        "Hint": "Automatically fill roleplay fields by searching a Fandom wiki.",
-        "Title": "Quick start roleplay character - {name}",
-        "CharacterNameLabel": "Character name",
-        "CharacterNamePlaceholder": "e.g. Izuku Midoriya",
-        "FandomUrlLabel": "Fandom wiki URL",
-        "FandomUrlHint": "Enter the base URL of the Fandom wiki, or just the wiki name (e.g. myheroacademia).",
-        "FandomUrlPlaceholder": "e.g. myheroacademia or https://myheroacademia.fandom.com",
-        "Next": "Next",
-        "Back": "Back",
-        "Search": "Search",
-        "Searching": "Searching Fandom wiki...",
-        "NoResults": "No results found. Try a different name or check the wiki URL.",
-        "SelectResult": "Multiple results found. Select the correct one:",
-        "MediaTypeLabel": "Media type",
-        "ProgressPointLabel": "Your current progress",
-        "ProgressPointHint": "Use a format like 'Chapter 43', 'Episode 30', or type 'all' for the full story.",
-        "ProgressPointPlaceholder": "e.g. Chapter 43, Episode 30, all",
-        "InvalidProgressPoint": "Please use a recognized format like 'Chapter 43', 'Episode 30', a number, or 'all'.",
-        "Generate": "Generate persona",
-        "Generating": "Building character persona...",
-        "Confirm": "Use this character",
-        "ReviewName": "Character",
-        "ReviewLore": "Character description",
-        "ReviewQuotes": "Sample quotes",
-        "ReviewContext": "Backstory",
-        "ReviewFandom": "Fandom wiki",
-        "FetchingChapters": "Fetching chapter summaries...",
-        "ExploringWiki": "Exploring wiki for story context...",
-        "ExploringWikiDetail": "Exploring wiki: {detail}"
-      },
+      "Setup": {},
+      "QuickStart": {},
       "Sidebar": {
         "TemporaryPractice": "Temporary practice",
         "Title": "Conversations",
@@ -1057,7 +927,6 @@
         "ExamplesButton": "Generate Examples",
         "ExamplesDone": "Generated examples for {count} cards",
         "ExamplesDoneWithErrors": "Generated examples for {count} cards, {failed} failed",
-        "ExamplesLLMUnavailable": "No LLM backend is running. Enable a model in Settings to generate examples.",
         "ExamplesProgress": "Generating examples…",
         "ExamplesTooltip": "Generate example sentences using LLM for cards without examples",
         "GenerateDescription": "Bulk generate audio and example sentences for your flashcards",
@@ -1149,7 +1018,6 @@
         "LLMToastTitle": "Generating missing example translations…",
         "LLMDone": "Generated translations for {count} flashcard(s)",
         "LLMDoneWithErrors": "Generated translations for {count} flashcard(s), {failed} failed",
-        "LLMUnavailable": "No LLM backend is running. Enable a model in Settings to generate examples.",
         "RepairButton": "Repair",
         "Title": "Missing flashcard data",
         "ToastTitle": "Repairing flashcard audio…"
@@ -1162,7 +1030,6 @@
         "CompleteDescription": "You've reviewed all cards for now. Great job!",
         "WaitingTitle": "Waiting for cards…",
         "WaitingDescription": "Next card due in {time}",
-        "Easy": "Easy",
         "Hard": "Hard",
         "LearningCard": "Learning Card",
         "LearningLabel": "Learning:",
@@ -1182,19 +1049,17 @@
         "UndoTooltip": "Undo",
         "StealthMode": "Stealth Mode",
         "MuteAudio": "Mute Audio",
-        "Modes": {
-          "Label": "Answer view",
-          "Help": "Answer view changes the revealed cues. Ratings cover every tested skill; use Adjust to rate them separately.",
-          "Meaning": "Meaning",
-          "Reading": "Reading",
-          "Prosody": "Prosody"
-        },
+        "Modes": {},
         "Attribution": {
           "WrongReading": "Wrong reading",
           "WrongProsody": "Wrong prosody",
           "WrongOrthography": "Unrecognized form",
           "Marked": "Marked {aspect} as unknown"
-        }
+        },
+        "SavingRating": "Saving rating…",
+        "SaveFailed": "This rating could not be saved. The card is still here; try again.",
+        "SavingUndo": "Saving undo…",
+        "UndoSaveFailed": "This undo could not be saved. The card remains rated; try again."
       },
       "State": {
         "Learning": "Learning",
@@ -1435,8 +1300,7 @@
           "FilterUnknownOnly": "Unknown only",
           "FilterUnknownLearning": "Unknown + Learning",
           "FilterPassive": "Passively tracked",
-          "IgnoreSeen": "Ignore seen filter",
-          "Title": "Word Sync"
+          "IgnoreSeen": "Ignore seen filter"
         },
         "LevelStudy": {
           "Description": "Set your curriculum, learning target and study pace.",
@@ -1450,7 +1314,6 @@
         "ChangeLanguage": "Change Language",
         "ContinueLearning": "Continue Learning",
         "LearningLanguage": "Learning {language}",
-        "Title": "mLearn",
         "TitleDescription": "Select an option below to begin"
       }
     },
@@ -1590,7 +1453,10 @@
         "Overall": "Overall",
         "Basis": "Basis",
         "Rate": "Rate",
-        "Inspect": "Inspect"
+        "Inspect": "Inspect",
+        "Saving": "Saving rating…",
+        "SaveFailed": "This rating could not be saved. Try again.",
+        "Retry": "Retry"
       },
       "Projection": {
         "EaseOverall": "Overall word ease",
@@ -1784,7 +1650,6 @@
         "Correct": "Correct!",
         "Incorrect": "Not quite — the answer is: {answer}",
         "Next": "Next",
-        "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app.",
         "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again.",
         "SavingAnswer": "Saving answer…",
         "ModeLabel": "Answer format",
@@ -1797,11 +1662,7 @@
         "ValidateDone": "Validated {passed} · rejected {rejected} · unchanged {unchanged}",
         "ValidateFailed": "Validation could not run: {errors}"
       },
-      "PopulationStats": {
-        "Title": "Flashcard Population",
-        "Populated": "{populated} of {total} populated",
-        "Complete": "All flashcards populated"
-      },
+      "PopulationStats": {},
       "BulkAdd": {
         "Button": "Bulk Add",
         "Title": "Bulk Add Flashcards",
@@ -1879,15 +1740,12 @@
         "MoveAhead": "This is above your currently set level — you can move ahead.",
         "TraceRow": "{label}: {sampled} sampled · {hits} fluent · {misses} missed · {skipped} skipped",
         "EvidenceNote": "Only the {count} sampled words were measured — every other word stays unmeasured.",
-        "CleanLatency": "Median task response ({range} chars): {ms} ms (unusable attempts excluded)",
         "UseLevel": "Use this level",
         "Dismiss": "Dismiss",
         "EmptyPools": "No unmeasured words are available to sample right now.",
         "DateRequired": "An exam or school result needs the date it was achieved.",
         "DateUnknown": "date unknown",
-        "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app.",
-        "NoStorage": "Placement is unavailable here: the session could not be stored (storage full or private mode).",
-        "LiveProgress": "Progress: {count} words. The assessment adapts as you answer. You can return to your plan and resume later."
+        "LiveProgress": "Responses recorded: {count}. The assessment adapts as you answer. You can return to your plan and resume later."
       },
       "Mock": {
         "Title": "Practice checkpoints",
@@ -1933,9 +1791,9 @@
         "BackToBlueprints": "Back to practice sets",
         "Summaries": "Recent results",
         "SummaryCounts": "{correct}/{answered} correct · {timedOut} unanswered",
-        "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app.",
         "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again."
-      }
+      },
+      "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app."
     },
     "Languages": {
       "cu": "Church Slavonic",
@@ -2133,18 +1991,9 @@
       },
       "UI": {
         "Tips": {
-          "NeverLosePlace": {
-            "Description": "Your page position is automatically saved for when you return.",
-            "Title": "Never lose your place"
-          },
-          "ShapeView": {
-            "Description": "Switch between single and double page layouts using the sidebar or keyboard shortcuts.",
-            "Title": "Shape your view"
-          },
-          "SummonOcr": {
-            "Description": "Once a page is visible, trigger OCR to turn images into interactive text.",
-            "Title": "Summon OCR magic"
-          }
+          "NeverLosePlace": {},
+          "ShapeView": {},
+          "SummonOcr": {}
         },
         "WelcomeSplash": {
           "DropZone": "Drop files here to import them instantly",
@@ -2514,29 +2363,9 @@
         }
       },
       "Shiritori": {
-        "Title": "Shiritori",
-        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
-        "Turn": {
-          "User": "Your turn — say a word starting with \"{kana}\"",
-          "UserFirst": "Your turn — say any Japanese noun",
-          "Computer": "Computer's turn",
-          "ComputerThinking": "Computer is thinking..."
-        },
-        "Error": {
-          "Empty": "Please enter a word.",
-          "Duplicate": "You cannot use a word twice.",
-          "NotFound": "That word was not found in the dictionary.",
-          "WrongStart": "That word must start with \"{kana}\".",
-          "EndsWithN": "Word ends in ん — you lose!",
-          "NoReading": "Could not determine the reading of that word."
-        },
-        "GameOver": {
-          "UserWins": "You win!",
-          "ComputerWins": "Computer wins!",
-          "PlayAgain": "Play Again"
-        },
-        "Submit": "Submit",
-        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+        "Turn": {},
+        "Error": {},
+        "GameOver": {}
       },
       "Reader": {
         "Description": "Configure OCR and manga reader settings",
@@ -3163,17 +2992,7 @@
         "ReviewStudyTime": "Review Study Time",
         "Reviews": "Reviews",
         "SrsConfig": "SRS Configuration",
-        "Srs": {
-          "EasyInterval": "Easy Interval",
-          "GraduatingInterval": "Graduating Interval",
-          "LearningSteps": "Learning Steps",
-          "MaxInterval": "Max Interval",
-          "MaxReviewsPerDay": "Max Reviews/Day",
-          "NewCardsPerDay": "New Cards/Day",
-          "NewIntervalMod": "New Interval Mod",
-          "RelearnSteps": "Relearn Steps",
-          "ReviewIntervalMod": "Review Interval Mod"
-        },
+        "Srs": {},
         "StudyTime": "Study Time",
         "TimeRead": "Time Read",
         "TimeWatched": "Time Watched",
@@ -3344,23 +3163,7 @@
         "PeerJoinedPlural": "{count} participants joined your room",
         "AnticipatingPing": "Anticipating ping..."
       },
-      "Extension": {
-        "HeadlessMode": "Headless Mode",
-        "Enable": "Enable",
-        "Disable": "Disable",
-        "Subtitles": "Subtitles",
-        "LoadSubtitleFile": "Load Subtitle File",
-        "SyncOffset": "Sync Offset",
-        "SignInRequired": "Sign in to use Watch Together",
-        "SignIn": "Sign In",
-        "Host": "Host",
-        "Join": "Join",
-        "CreateRoom": "Create Room",
-        "RoomCodePlaceholder": "Enter room code",
-        "RoomCode": "Room Code",
-        "Peers": "Participants",
-        "LeaveRoom": "Leave Room"
-      },
+      "Extension": {},
       "Media": {
         "DistributeTitle": "Distribute Media",
         "DistributeSubtitle": "Send the media file to connected participants via cloud sync",
@@ -3541,15 +3344,7 @@
       "SavingRating": "Saving rating…",
       "AnswerUnavailable": "No answer is available for this word. Retry the dictionary lookup or choose another filter. No rating has been recorded.",
       "SaveFailed": "This rating could not be saved. The word is still here; try again.",
-      "Statement": {
-        "Label": "Describe it instead",
-        "KnownSpoken": "I know this word when I hear it.",
-        "MeaningNotForm": "I know the meaning but not this spelling.",
-        "KnownCharacters": "I know the individual characters.",
-        "InferredFromParts": "I can infer the meaning from the parts.",
-        "ReadablePitchWrong": "I can read it, but my pitch is wrong.",
-        "NeverSeenForm": "I have never seen this form."
-      },
+      "Statement": {},
       "FinishedTitle": "All done!",
       "FinishedDescription": "Recorded checks: {count}. These responses are now part of your learning history.",
       "Progress": "{rated} / {total} words",

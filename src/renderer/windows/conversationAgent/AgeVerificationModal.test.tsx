@@ -21,7 +21,7 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
-  Btn: (props: { onClick?: () => void; children?: unknown }) => (
+  Button: (props: { onClick?: () => void; children?: unknown }) => (
     <button type="button" onClick={props.onClick}>
       {props.children as string}
     </button>

@@ -2063,6 +2063,19 @@ export interface FlashcardMeta {
   normalizationVersion?: number;
 }
 
+/** Durable recovery record for an Undo that spans the journal and card store. */
+export interface PendingReviewUndo {
+  attemptId: string;
+  type: string;
+  cardId: string;
+  restoreCard: Flashcard;
+  word: string;
+  language: string;
+  restorePerLanguage: PerLanguageMeta | null;
+  today: string;
+  restoreDailyStats: DailyStudyStats | null;
+}
+
 /**
  * Full flashcard store with UUID-keyed flashcards
  */
@@ -2097,6 +2110,8 @@ export interface FlashcardStore {
   suggestedFlashcards: Record<string, SuggestedFlashcard>;
   /** Version for migrations */
   version: number;
+  /** Recovery record while a reversible review Undo is being completed. */
+  pendingReviewUndo?: PendingReviewUndo;
   /**
    * Monotonic store revision for sync conflict gating. Bumped on every
    * persisted write (flashcardStorage.saveFlashcards). Sync clients echo the
@@ -2104,6 +2119,13 @@ export interface FlashcardStore {
    * HTTP 409 so a stale snapshot cannot resurrect deleted entries.
    */
   rev?: number;
+}
+
+/** A single-card review rollback initiated by the acknowledged Undo command. */
+export interface FlashcardWriteAuthorization {
+  kind: 'undo-review';
+  cardId: string;
+  restoredReviews: number;
 }
 
 /**

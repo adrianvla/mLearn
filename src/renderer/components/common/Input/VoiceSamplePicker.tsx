@@ -11,8 +11,7 @@ import { getBridge } from '../../../../shared/bridges';
 import { withCloudAuth } from '../../../services/cloudSessionManager';
 import { Select } from '../Select/Select';
 import { Input } from './Input';
-import { Btn } from '../Button/Button';
-import { IconBtn } from '../Button/Button';
+import { Button } from '../Button/Button';
 import { ProgressBar } from '../Feedback/ProgressBar';
 import { ConfirmDialog } from '../Modal/ConfirmDialog';
 import { PlayIcon, PauseIcon, TrashIcon } from '../Misc';
@@ -337,14 +336,14 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
           class={props.selectClass}
         />
         <Show when={props.value}>
-          <IconBtn
+          <Button buttonType="icon"
             size="sm"
             icon={playingSample() ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
             onClick={toggleSamplePlayback}
             aria-label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.PlaySample')}
             title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.PlaySample')}
           />
-          <IconBtn
+          <Button buttonType="icon"
             size="sm"
             icon={<TrashIcon size={14} />}
             onClick={() => setDeleteConfirmOpen(true)}
@@ -352,9 +351,9 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
             title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.DeleteSample')}
           />
         </Show>
-        <Btn size="sm" onClick={handleUpload} disabled={transcribing()}>
+        <Button size="sm" onClick={handleUpload} disabled={transcribing()}>
           {t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Upload')}
-        </Btn>
+        </Button>
       </div>
 
       <Show when={transcribing()}>
@@ -408,7 +407,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
           onKeyDown={(e) => { if (e.key === 'Enter') handleTtsTest(); }}
           disabled={ttsGenerating()}
         />
-        <IconBtn
+        <Button buttonType="icon"
           size="sm"
           loading={ttsGenerating()}
           icon={

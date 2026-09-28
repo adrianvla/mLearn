@@ -6,7 +6,7 @@ import { FlashcardCreateModal } from './FlashcardCreateModal';
 vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }) }));
 vi.mock('../common', () => ({
   Modal: (props: { children?: JSX.Element; footer?: JSX.Element }) => <div>{props.children}{props.footer}</div>,
-  Btn: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
+  Button: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
   Input: (props: JSX.InputHTMLAttributes<HTMLInputElement> & { label?: string }) => <input {...props} aria-label={props.label} />,
 }));
 it('requires content, prevents duplicate saves, and retains the draft after failure for retry', async () => {

@@ -1,5 +1,5 @@
 import { Component, Accessor, For, Show, createMemo, createResource } from 'solid-js';
-import { IconBtn, Select, Popover, ToggleSwitch, RangeInput } from '../../../../components/common';
+import { Button, Select, Popover, ToggleSwitch, RangeInput } from '../../../../components/common';
 import { useSettings, useLocalization, useLanguage } from '../../../../context';
 import { DEFAULT_SETTINGS, ReaderTextFontStyle } from '@shared/types';
 import { getReadingAnnotationDisplay } from '@shared/languageFeatures';
@@ -57,9 +57,9 @@ export const ReaderThemePopover: Component<ReaderThemePopoverProps> = (props) =>
       <div class="reader-theme-row">
         <span class="reader-theme-label">{t('mlearn.Reader.Themes.FontSize')}</span>
         <div class="reader-theme-size-control">
-          <IconBtn class="reader-theme-size-btn" onClick={decreaseSize}>A−</IconBtn>
+          <Button buttonType="icon" class="reader-theme-size-btn" onClick={decreaseSize}>A−</Button>
           <span class="reader-theme-size-value">{Math.round(textSize() * 100)}%</span>
-          <IconBtn class="reader-theme-size-btn" onClick={increaseSize}>A+</IconBtn>
+          <Button buttonType="icon" class="reader-theme-size-btn" onClick={increaseSize}>A+</Button>
         </div>
       </div>
 

@@ -110,7 +110,7 @@ vi.mock('../../../components/common', () => ({
   SettingGroup: (props: { children?: JSX.Element }) => <section>{props.children}</section>,
   ToggleSwitch: () => <div />,
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
-  Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button type="button" onClick={props.onClick}>{props.children}</button>,
+  Button: (props: { children?: JSX.Element; onClick?: () => void }) => <button type="button" onClick={props.onClick}>{props.children}</button>,
   Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement> & { options?: Array<{ value: string; label: string; disabled?: boolean }> }) => (
     <select {...props}>
       {props.children}

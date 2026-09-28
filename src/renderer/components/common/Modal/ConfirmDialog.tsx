@@ -7,7 +7,7 @@
 import { Component, Show, createSignal, JSX } from 'solid-js';
 import { useLocalization } from '../../../context';
 import { Modal } from './Modal';
-import { Btn } from '../Button';
+import { Button } from '../Button';
 import { WarningIcon, InfoIcon } from '../Misc/Icons';
 
 export type ConfirmVariant = 'danger' | 'warning' | 'info';
@@ -66,20 +66,20 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
   
   const footer = (
     <div style={{ display: 'flex', gap: '0.75rem', 'justify-content': 'flex-end' }}>
-      <Btn
+      <Button
         variant="ghost"
         onClick={props.onClose}
         disabled={isLoading()}
       >
         {props.cancelText ?? t('mlearn.Global.Cancel')}
-      </Btn>
-      <Btn
+      </Button>
+      <Button
         variant={config().confirmVariant}
         onClick={handleConfirm}
         loading={isLoading()}
       >
         {props.confirmText ?? config().defaultConfirmText}
-      </Btn>
+      </Button>
     </div>
   );
   

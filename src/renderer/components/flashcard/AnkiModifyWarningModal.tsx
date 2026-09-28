@@ -5,7 +5,7 @@
  */
 
 import { Component, createSignal, Show } from 'solid-js';
-import { Btn, Modal, ToggleSwitch } from '../common';
+import { Button, Modal, ToggleSwitch } from '../common';
 import { useLocalization } from '../../context';
 import './AnkiModifyWarningModal.css';
 
@@ -42,17 +42,17 @@ export const AnkiModifyWarningModal: Component<AnkiModifyWarningModalProps> = (p
           />
         </div>
         <div class="anki-modify-warning__actions">
-          <Btn variant="secondary" onClick={props.onCancel}>
+          <Button variant="secondary" onClick={props.onCancel}>
             {t('mlearn.Global.Cancel')}
-          </Btn>
+          </Button>
           <Show when={props.onConfirmBuiltInOnly}>
-            <Btn variant="secondary" onClick={() => props.onConfirmBuiltInOnly?.(dontRemind())}>
+            <Button variant="secondary" onClick={() => props.onConfirmBuiltInOnly?.(dontRemind())}>
               {t('mlearn.WordHover.AnkiModifyWarning.BuiltInOnly')}
-            </Btn>
+            </Button>
           </Show>
-          <Btn variant="primary" onClick={() => props.onConfirm(dontRemind())}>
+          <Button variant="primary" onClick={() => props.onConfirm(dontRemind())}>
             {props.confirmText}
-          </Btn>
+          </Button>
         </div>
       </div>
     </Modal>

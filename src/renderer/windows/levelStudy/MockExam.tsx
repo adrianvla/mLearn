@@ -1,5 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
+import { Panel } from '../../components/common';
 import {
   MOCK_PER_ITEM_SECONDS,
   abandonMockSession,
@@ -39,7 +40,7 @@ import { questionBankFromLanguageData } from '../../learning/questionBank';
 import { grammarPointMeaning } from '../../../shared/languageFeatures';
 import type { AttemptId, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { LanguageData } from '../../../shared/types';
-import type { PlacementLocks } from './PlacementSession';
+import type { StudySessionLocks } from '../../learning/studySessionController';
 import './MockExam.css';
 
 export interface MockExamProps {
@@ -57,12 +58,12 @@ export interface MockExamProps {
   /** Passes the missed constructions into the EXISTING conversation agent —
    *  the one conversation implementation (R14 targeted output). */
   onTargetedOutput?: (targets: readonly { pattern: string; meaning: string; level: number }[]) => void;
-  /** Web Locks DI seam (PlacementSession convention). Production resolves
+  /** Web Locks DI seam (shared study-session convention). Production resolves
    *  `globalThis.navigator.locks` (Chromium renderers); when absent (or
    *  explicitly `null`) the mock session surface is DISABLED with a
    *  localized fallback (G04) instead of running an unserialized multi-
    *  window session — cursor reads are not atomic without a real lock. */
-  locks?: PlacementLocks | null;
+  locks?: StudySessionLocks | null;
 }
 
 const fmtSeconds = (ms: number): number => Math.round(ms / 1000);
@@ -82,12 +83,12 @@ export const MockExam: Component<MockExamProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
 
-  // Web Locks DI seam (PlacementSession convention). happy-dom/Node report
+  // Web Locks DI seam (shared study-session convention). happy-dom/Node report
   // `navigator.locks` as null (not undefined) — the typed view treats both
   // as absent. An explicit `locks` prop (null included) overrides the
   // global resolution so tests can force each path deterministically.
-  const globalLocks = globalThis as { navigator?: { locks?: PlacementLocks | null } };
-  const locksApi = (): PlacementLocks | null => {
+  const globalLocks = globalThis as { navigator?: { locks?: StudySessionLocks | null } };
+  const locksApi = (): StudySessionLocks | null => {
     if (props.locks !== undefined) return props.locks;
     return globalLocks.navigator?.locks ?? null;
   };
@@ -102,7 +103,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
   const [assembleEmpty, setAssembleEmpty] = createSignal<string | null>(null);
   /** A durable write failed (quota/private storage): submissions are
    *  REFUSED with an honest note and the presented prompt stays retryable —
-   *  never evidence without a durable cursor (PlacementSession contract,
+   *  never evidence without a durable cursor (shared study-session contract,
    *  G01/G04). Cleared by the next successful durable write. */
   const [storageUnavailable, setStorageUnavailable] = createSignal(false);
   /** Active-time tick for the countdown; the interval is the sanctioned
@@ -183,7 +184,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
    *  an unpaused click waited): adopt the durable state and drop the
    *  captured action — never double-journal, never clobber (G01). The full
    *  durable fingerprint (cursor, answers, pause history, clock anchors)
-   *  is the compared content. Mirrors PlacementSession's captured pick-key
+   *  is the compared content. Mirrors shared study-session's captured pick-key
    *  guard. Callers abort on a language flip BEFORE calling this, so the
    *  live props still describe the captured language here. */
   const verifyOrAdopt = (language: string, captured: MockSessionState): boolean => {
@@ -228,7 +229,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
   };
 
   /** Terminal bookkeeping: bounded summary + pending results + durable
-   *  clear. The removal is best-effort (PlacementSession's terminal
+   *  clear. The removal is best-effort (shared study-session's terminal
    *  policy): the in-memory results must stand even when the cleanup write
    *  fails, and a leftover in-progress entry cannot resurrect answered
    *  evidence — the next mount's rebuild revalidates it against the
@@ -243,7 +244,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
 
   /** Persists FIRST, publishes only on success (durable-first, G01): a
    *  mutation whose durable write fails publishes nothing — the caller
-   *  refuses the action with the honest unavailable note (PlacementSession
+   *  refuses the action with the honest unavailable note (shared study-session
    *  contract). Terminal transitions publish unconditionally: results and
    *  summary bookkeeping must stand even when the cleanup write fails, and
    *  a terminal clear cannot leave resumable evidence behind. */
@@ -351,12 +352,12 @@ export const MockExam: Component<MockExamProps> = (props) => {
       // A language switch while this start waited for the lock aborts: the
       // assembled instance belongs to the captured language, and a queued
       // action must never commit one language's state under another's key
-      // (G01/R19 — PlacementSession's queued language-switch guard).
+      // (G01/R19 — shared study-session's queued language-switch guard).
       if (props.language !== startLanguage) return;
       // Another window may have started (or advanced) a session for this
       // language while this start queued behind the lock: ADOPT the durable
       // session instead of clobbering it with a fresh start (G01; the
-      // PlacementSession adopt semantics). A durable copy that fails
+      // shared session adoption semantics). A durable copy that fails
       // revalidation adopts as idle.
       if (storedMockSessionFingerprint(startLanguage) !== null || state() !== null) {
         adoptDurableSession(startLanguage, startData);
@@ -420,7 +421,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
       const at = Date.now();
       const payload = mockAttemptPayload(active, envelope, at);
       if (payload === null) return;
-      // Durable cursor FIRST (PlacementSession `stageDraw` contract): the
+      // Durable cursor FIRST (shared study-session `stageDraw` contract): the
       // staged advance is persisted BEFORE the canonical writer is invoked.
       // A failed staged persist REFUSES this submission — no evidence
       // without a cursor — and the presented prompt stays retryable (the
@@ -541,6 +542,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
 
   return (
     <Show when={blueprints().length > 0 || summaries().length > 0 || live() || results() !== null}>
+    <Panel class="mock-exam-panel" padding="md">
     <section class="mock-exam" data-testid="mock-exam">
       <div class="mock-exam__header">
         <h3 class="mock-exam__title">{t('mlearn.LevelStudy.Mock.Title')}</h3>
@@ -659,7 +661,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
           </div>
           {/* A refused durable write is surfaced, never silent: the presented
               prompt stays retryable and the next attempt re-tries the write
-              (PlacementSession contract, G01/G04). */}
+              (shared study-session contract, G01/G04). */}
           <Show when={storageUnavailable()}>
             <button
               type="button"
@@ -802,7 +804,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
               honest localized note replaces the Start affordances — never an
               unserialized multi-window session. */}
           <Show when={locksAvailable()} fallback={
-            <span class="mock-exam__empty" data-testid="mock-no-locks">{t('mlearn.LevelStudy.Mock.NoLocks')}</span>
+            <span class="mock-exam__empty" data-testid="mock-no-locks">{t('mlearn.LevelStudy.NoLocks')}</span>
           }>
           <Show when={storageUnavailable()}>
             <span class="mock-exam__empty" data-testid="mock-storage-unavailable">
@@ -869,6 +871,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
         </Show>
       </Show>
     </section>
+    </Panel>
     </Show>
   );
 };

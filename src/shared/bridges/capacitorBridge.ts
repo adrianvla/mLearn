@@ -574,9 +574,11 @@ const flashcardBridge: FlashcardBridge = {
       });
   },
 
-  saveFlashcards(flashcards: FlashcardStore) {
-    saveShardedFlashcards(flashcards)
-      .catch(e => log.error('[CapacitorBridge] Failed to save flashcards:', e));
+  async saveFlashcards(flashcards: FlashcardStore): Promise<number> {
+    const revision = (flashcards.rev ?? 0) + 1;
+    flashcards.rev = revision;
+    await saveShardedFlashcards(flashcards);
+    return revision;
   },
 
   onFlashcards(callback) {

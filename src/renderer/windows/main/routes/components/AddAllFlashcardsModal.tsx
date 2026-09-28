@@ -1,5 +1,5 @@
 import { Component, For, Show, createEffect, createMemo, createSignal } from 'solid-js';
-import { Btn, CheckboxCard, LEVEL_VALUE_BEYOND_EXAM, Modal, PillLabel, Select, type SelectOption } from '../../../../components/common';
+import { Button, CheckboxCard, LEVEL_VALUE_BEYOND_EXAM, Modal, PillLabel, Select, type SelectOption } from '../../../../components/common';
 import { useLanguage, useLocalization } from '../../../../context';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, isDisplayableFrequencyLevel, isFrequencyLevelAtOrEasierThanTarget, sortFrequencyLevelsForDisplay } from '../../../../../shared/languageFeatures';
 import type { ReaderUnknownWordEntry } from './ReaderUnknownWordsSidebar';
@@ -166,12 +166,12 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
       footer={
         <Show when={showWordList()} fallback={
           <>
-            <Btn
+            <Button
               variant="ghost"
               label={t('mlearn.Global.Cancel')}
               onClick={props.onClose}
             />
-            <Btn
+            <Button
               variant="primary"
               label={anyFilterEnabled()
                 ? t('mlearn.Reader.Sidebar.AddModal.AddSelected', { count: selectedEntries().length })
@@ -183,12 +183,12 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
           </>
         }>
           <>
-            <Btn
+            <Button
               variant="ghost"
               label={t('mlearn.Global.Back')}
               onClick={handleBack}
             />
-            <Btn
+            <Button
               variant="primary"
               label={t('mlearn.Reader.Sidebar.AddModal.AddChecked', { count: checkedEntries().length })}
               onClick={handleAddChecked}
@@ -225,7 +225,7 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
       }>
         <div class="add-all-modal-content">
           <div class="add-all-modal-select-actions">
-            <Btn
+            <Button
               variant="ghost"
               size="sm"
               label={allChecked() ? t('mlearn.Reader.Sidebar.AddModal.DeselectAll') : t('mlearn.Reader.Sidebar.AddModal.SelectAll')}

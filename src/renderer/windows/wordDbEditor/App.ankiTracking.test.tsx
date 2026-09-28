@@ -126,7 +126,7 @@ vi.mock('../../components/common', async () => {
       queueMicrotask(() => props.ref?.(el));
       return <div ref={el} class={props.class}>{props.children}</div>;
     },
-    Btn: (props: { children?: JSX.Element; onClick?: () => void }) => (
+    Button: (props: { children?: JSX.Element; onClick?: () => void }) => (
       <button type="button" onClick={props.onClick}>{props.children}</button>
     ),
     PillLabel: (props: { children?: JSX.Element; class?: string }) => (

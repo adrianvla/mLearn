@@ -2,7 +2,7 @@ import { Component, Show, createEffect, createMemo, createSignal } from 'solid-j
 import { useFlashcards, useLocalization, useSettings } from '../../../context';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview';
 import { FlashcardHoverPreview } from '../FlashcardHoverPreview';
-import { PillBtn } from '../Button';
+import { Button } from '../Button';
 import { ClockIcon } from '../Misc';
 import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
@@ -109,11 +109,11 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
 
   return (
     <Show when={!props.isAdding} fallback={
-      <PillBtn variant="yellow" icon={<ClockIcon size={14} />} label={t('mlearn.Global.Status.Adding')} disabled />
+      <Button buttonType="pill" variant="yellow" icon={<ClockIcon size={14} />} label={t('mlearn.Global.Status.Adding')} disabled />
     }>
       <Show when={builtInCard()}>
         <FlashcardHoverPreview builtInCard={builtInCard()}>
-          <PillBtn variant="gray" icon="mlearn-logo" label={t('mlearn.WordDbEditor.Integrations.Flashcard')} />
+          <Button buttonType="pill" variant="gray" icon="mlearn-logo" label={t('mlearn.WordDbEditor.Integrations.Flashcard')} />
         </FlashcardHoverPreview>
       </Show>
       <Show when={props.isInAnki}>
@@ -123,11 +123,11 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
           ankiCardInfo={ankiHoverCardInfo()}
           onShow={handleTooltipShow}
         >
-          <PillBtn variant="gray" icon={ICON_ANKI} label={t('mlearn.WordHover.InAnki')} />
+          <Button buttonType="pill" variant="gray" icon={ICON_ANKI} label={t('mlearn.WordHover.InAnki')} />
         </FlashcardHoverPreview>
       </Show>
       <Show when={!builtInCard() && (!props.isInAnki || !addActionUsesAnki())}>
-        <PillBtn
+        <Button buttonType="pill"
           variant="blue"
           icon={addActionUsesAnki() ? ICON_ANKI : ICON_CROSS2}
           iconRotation={addActionUsesAnki() ? undefined : 45}

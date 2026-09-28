@@ -12,7 +12,7 @@
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on, onCleanup } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
-import { Panel, PillLabel, IconBtn, HoverReveal, AnkiIcon, SafeHtml } from '../common';
+import { Button, Panel, PillLabel, HoverReveal, AnkiIcon, SafeHtml } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardWordTitle } from './FlashcardWordTitle';
 import { FlashcardImage } from './FlashcardImage';
@@ -259,7 +259,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <div class="flashcard-word-row">
             <div class="flashcard-word">{displayWord()}</div>
             <Show when={props.onPlayTts}>
-              <IconBtn
+              <Button buttonType="icon"
                 icon="volume"
                 size="sm"
                 variant="ghost"
@@ -280,7 +280,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <div class="flashcard-example-row">
               <SafeHtml tag="div" class="flashcard-example" html={content().example} />
               <Show when={props.onPlayTts && !content().skipExampleTts}>
-                <IconBtn
+                <Button buttonType="icon"
                   icon="volume"
                   size="sm"
                   variant="ghost"
@@ -351,7 +351,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <div class="flashcard-word-header">
             <FlashcardWordTitle content={content()} language={props.flashcard.language}/>
             <Show when={props.onPlayTts}>
-              <IconBtn
+              <Button buttonType="icon"
                 icon="volume"
                 size="sm"
                 variant="ghost"
@@ -371,7 +371,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
               <div class="flashcard-example-row">
               <SafeHtml tag="div" class="flashcard-example" html={content().example} />
                 <Show when={props.onPlayTts && !content().skipExampleTts}>
-                  <IconBtn
+                  <Button buttonType="icon"
                     icon="volume"
                     size="sm"
                     variant="ghost"
@@ -383,7 +383,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
                   />
                 </Show>
                 <Show when={props.onRegenerateExample}>
-                  <IconBtn
+                  <Button buttonType="icon"
                     size="sm"
                     variant="ghost"
                     class="flashcard-regenerate-btn"

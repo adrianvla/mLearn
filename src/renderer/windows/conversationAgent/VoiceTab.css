@@ -178,7 +178,7 @@
 }
 
 .voice-call-agent-name {
-  color: var(--text);
+  color: var(--text-primary);
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0;
@@ -255,9 +255,7 @@
 }
 
 .voice-end-btn--call {
-  box-shadow:
-    0 16px 32px var(--shadow-color),
-    inset 0 0 0 1px var(--border-color);
+  box-shadow: var(--shadow-lg), inset 0 0 0 1px var(--border-color);
 }
 
 .voice-call-ptt {
@@ -437,7 +435,7 @@
 
 .voice-advanced[open] summary {
   margin-bottom: var(--spacing-2);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .voice-debug-panel {
@@ -459,7 +457,7 @@
 
 .voice-chunk-row strong,
 .voice-debug-grid strong {
-  color: var(--text);
+  color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -519,7 +517,7 @@
 }
 
 .voice-debug-event strong {
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .voice-debug-event span {

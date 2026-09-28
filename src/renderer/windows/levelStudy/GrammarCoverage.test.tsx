@@ -6,7 +6,7 @@ import { createSignal } from 'solid-js';
 import { GrammarCoverage } from './GrammarCoverage';
 import { itemContentVersion } from '../../learning/questionBank';
 import { loadQuestionValidationRecords } from '../../learning/questionValidation';
-import type { PlacementLocks } from './PlacementSession';
+import type { StudySessionLocks } from '../../learning/studySessionController';
 import type { GrammarItemSemanticValidation, GrammarPracticeItemSource } from '../../../shared/types';
 import type { CurriculumComponentSummary } from '../../../shared/curriculum';
 import type { AttemptScaffolds, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
@@ -108,10 +108,10 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
  *  load-bearing duplicate-submission protection, the beat is secondary. */
 const beat = () => new Promise<void>((resolve) => setTimeout(resolve, 170));
 
-/** Pass-through fake lock (PlacementSession.test convention): single-window
+/** Pass-through fake lock (shared study-session test convention): single-window
  *  tests exercise the serialized path without changing timing. Tests that
  *  need a lock-less environment pass `null` explicitly. */
-const passThroughLocks: PlacementLocks = {
+const passThroughLocks: StudySessionLocks = {
   request: async (_name: string, callback: () => void) => { await callback(); },
 };
 
@@ -123,7 +123,7 @@ function mount(
   onValidated?: () => void,
   repairRequest?: () => { level: number; requestedAt: number } | null,
   onRepairRequestHandled?: (requestedAt: number) => void,
-  locks: PlacementLocks | null = passThroughLocks,
+  locks: StudySessionLocks | null = passThroughLocks,
 ) {
   const container = document.createElement('div');
   // Solid attaches delegated listeners on the document; container must be
@@ -187,7 +187,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // happy-dom reports navigator.locks as null, which DISABLES the pass
     // surfaces (G04). These tests drive the serialized paths (including
     // direct createComponent renders that bypass the mount helper's lock
-    // prop), so inject a pass-through lock (the PlacementSession.test
+    // prop), so inject a pass-through lock (the shared study-session test
     // convention); removed in afterEach.
     Object.defineProperty(globalThis.navigator, 'locks', {
       value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
@@ -1930,7 +1930,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     // (MockExam.test convention).
     let claims = 0;
     let tail = gate;
-    const gating: PlacementLocks = {
+    const gating: StudySessionLocks = {
       request: async (_name: string, callback: () => void | Promise<void>) => {
         claims += 1;
         if (claims <= 2) { await callback(); return; }

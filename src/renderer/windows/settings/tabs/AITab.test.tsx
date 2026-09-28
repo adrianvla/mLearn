@@ -192,7 +192,7 @@ vi.mock('../../../components/common', () => ({
       {props.children}
     </section>
   ),
-  Btn: (props: Record<string, unknown>) => (
+  Button: (props: Record<string, unknown>) => (
     <button
       type="button"
       disabled={props.disabled as boolean | undefined}

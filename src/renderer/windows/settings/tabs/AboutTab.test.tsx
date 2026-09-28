@@ -60,7 +60,7 @@ vi.mock('../../../../shared/platform', () => ({
 
 vi.mock('../../../components/common', () => ({
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
     <button disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   ToggleSwitch: (props: { checked?: boolean; onChange?: (checked: boolean) => void }) => (

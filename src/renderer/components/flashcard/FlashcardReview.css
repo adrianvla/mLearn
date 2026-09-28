@@ -60,52 +60,12 @@
   gap: var(--spacing-3);
 }
 
-.flashcard-review-scope {
-  width: 100%;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-xs);
-}
-
 /* Header right side - bury/remove + undo */
 .flashcard-header-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
-}
-
-/* Review focus mode selector */
-.flashcard-mode-select {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-}
-
-.flashcard-mode-select__label {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.flashcard-mode-select__control {
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: 0.25rem 0.5rem;
-}
-
-/* Failure attribution buttons (ghost, secondary next to ratings) */
-.flashcard-attribution-btn {
-  border-color: var(--border-color);
-  color: var(--text-secondary);
-}
-
-.flashcard-attribution-btn:hover {
-  background: var(--panel-bg-hover);
-  color: var(--text-primary);
 }
 
 /* Ensure header buttons match badge height */
@@ -228,90 +188,34 @@
   min-width: 0;
 }
 
-.flashcard-rating-inspect {
-  align-self: flex-end;
+.flashcard-rating-write {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
   color: var(--text-secondary);
+  font-size: var(--font-size-sm);
 }
 
-/* Action buttons container - positioned in header area */
+.flashcard-rating-write--failed {
+  color: var(--color-error);
+}
+
+.flashcard-actions-trigger {
+  white-space: nowrap;
+}
+
+.flashcard-actions-popover {
+  padding: var(--spacing-2);
+}
+
 .flashcard-action-buttons {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--spacing-2);
-  position: absolute;
-  right: 0;
-  top: calc(100% + var(--spacing-1));
   min-width: 11rem;
-  padding: var(--spacing-2);
-  background: var(--bg-opaque);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-}
-
-.flashcard-secondary-actions {
-  position: relative;
-}
-
-.flashcard-secondary-actions summary {
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-}
-
-.flashcard-secondary-actions summary:hover,
-.flashcard-secondary-actions summary:focus-visible {
-  color: var(--text-primary);
-}
-
-/* Action button */
-.flashcard-action-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: var(--font-size-xs);
-  transition: all 0.1s ease;
-}
-
-.flashcard-action-btn:hover {
-  background: var(--panel-bg-hover);
-  color: var(--text-primary);
-}
-
-.flashcard-action-btn--pitch {
-  border-color: var(--color-warning);
-  color: var(--color-warning);
-}
-
-.flashcard-action-btn--postpone {
-  border-color: var(--color-info);
-  color: var(--color-info);
-}
-
-.flashcard-action-btn--known {
-  border-color: var(--color-success);
-  color: var(--color-success);
-}
-
-.flashcard-action-btn--remove:hover {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-.flashcard-action-label {
-  font-weight: 500;
-}
-
-.flashcard-action-time {
-  font-size: var(--font-size-xs);
-  opacity: 0.7;
 }
 
 /* Stats display */

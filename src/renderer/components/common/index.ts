@@ -3,18 +3,12 @@
  * 
  * This file re-exports all common UI components for easy importing.
  * 
- * Note: Glass-prefixed aliases have been removed.
- * Use Btn, Modal, Panel, Input, Card etc. directly.
+ * Controls expose a single Button API with explicit visual modes.
  */
 
 // Button Components
 export { 
-  Button, 
-  Btn,
-  PillBtn, 
-  IconBtn, 
-  NavBtn, 
-  TabBtn,
+  Button,
   type ButtonProps,
   type ButtonType,
   type ButtonVariant,

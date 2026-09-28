@@ -12,7 +12,7 @@
   flex-direction: column;
   gap: 0;
   padding: 4px 18px 0;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   -webkit-app-region: drag;
 }
@@ -59,10 +59,6 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
 }
 
 .level-study-coverage-header {
@@ -187,7 +183,7 @@
   height: 8px;
   border-radius: 4px;
   overflow: hidden;
-  background: var(--surface-base);
+  background: var(--bg);
 }
 
 .level-card-bar-segment {
@@ -230,6 +226,7 @@
   gap: 6px;
   font-size: 12px;
   width: 100%;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -242,38 +239,28 @@
 
 .level-card-legend-label {
   color: var(--text-secondary);
+  flex: 1 1 auto;
+  min-width: 0;
   white-space: nowrap;
-  text-overflow: clip;
+  text-overflow: ellipsis;
   overflow: hidden;
-  position:relative;
-}
-.level-card-legend-label:after, .level-card-legend-pct:after{
-  content: '';
-  position:absolute;
-  top:0;
-  right:0;
-  bottom:0;
-  width:var(--spacing-10);
-  background:linear-gradient(to right, #00000000 0%, #00000000 80%, var(--bg-nt-secondary) 100%);
-  pointer-events:none;
 }
 .level-card-legend-count {
+  flex: 0 0 auto;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .level-card-legend-pct {
+  flex: 0 0 auto;
   color: var(--text-tertiary);
-  text-overflow: clip;
-  overflow: hidden;
-  position:relative;
 }
 
 .level-card-card-action {
   margin-top: 4px;
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-link);
+  color: var(--color-primary);
   text-align: center;
 }
 
@@ -289,7 +276,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 12px;
-  background: var(--surface-base);
+  background: var(--bg);
   border-radius: 8px;
 }
 
@@ -337,12 +324,12 @@
   gap: 10px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--surface-base);
+  background: var(--bg);
   transition: background 0.15s ease;
 }
 
 .level-detail-word-row:hover {
-  background: var(--surface-hover);
+  background: var(--bg-intense);
 }
 
 .level-detail-word-info {
@@ -390,7 +377,7 @@
 }
 
 .level-detail-status-untracked {
-  background: var(--surface-hover);
+  background: var(--bg-intense);
   color: var(--text-secondary);
 }
 
@@ -436,7 +423,7 @@
 .learning-plan-activity-section { margin-bottom: var(--spacing-8); }
 .learning-plan-activity-section > h2, .learning-plan-progress-heading { margin: 0 0 var(--spacing-4); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
 .learning-plan-activities { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--spacing-4); }
-.learning-plan-activities > div { padding: var(--spacing-5); border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--panel-bg); display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.learning-plan-activities > .learning-plan-activity { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
 .learning-plan-activities h3 { font-size: var(--font-size-base); margin: 0; }
 .learning-plan-activities p { color: var(--text-secondary); line-height: var(--line-height-normal); font-size: var(--font-size-sm); flex: 1; margin: var(--spacing-2) 0 var(--spacing-4); }
 .learning-plan-activities .btn { white-space: normal; text-align: center; }
@@ -447,7 +434,6 @@
 .learning-plan-settings .setting-group-title::before { display: none; }
 .learning-plan-settings .setting-row { align-items: flex-start; flex-direction: column; gap: var(--spacing-2); }
 .learning-plan-settings .setting-control, .learning-plan-settings .setting-select { width: 100%; }
-.learning-plan-page .placement-session { width: 100%; max-width: 850px; margin: 0 auto; }
 @media (max-width: 950px) {
   .learning-plan-settings { grid-template-columns: minmax(0, 1fr); }
 }

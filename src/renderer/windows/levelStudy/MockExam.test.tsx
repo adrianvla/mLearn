@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { MockExam } from './MockExam';
-import type { PlacementLocks } from './PlacementSession';
+import type { StudySessionLocks } from '../../learning/studySessionController';
 import { assembleContrastItem, itemContentVersion, questionBankFromLanguageData } from '../../learning/questionBank';
 import type {
   GrammarItemSemanticValidation,
@@ -175,8 +175,8 @@ function mount(
     /** `null` simulates a lock-less environment (the session surface is
      *  DISABLED with the G04 note); omitted/default uses a pass-through fake
      *  lock so single-window tests exercise the serialized path
-     *  (PlacementSession.test convention). */
-    locks?: PlacementLocks | null;
+     *  (shared study-session test convention). */
+    locks?: StudySessionLocks | null;
   } = {},
 ): Harness {
   const locks = Object.prototype.hasOwnProperty.call(overrides, 'locks')
@@ -616,10 +616,10 @@ describe('MockExam surface (R13/R14)', () => {
     const gate = new Promise<void>((resolve) => { release = resolve; });
     // Pass-through for the two START claims, then hold the gate so both
     // windows' submissions queue and serialize behind the mutual-exclusion
-    // lock (PlacementSession.test convention).
+    // lock (shared study-session test convention).
     let claims = 0;
     let tail = gate;
-    const gating: PlacementLocks = {
+    const gating: StudySessionLocks = {
       request: async (_name: string, callback: () => void | Promise<void>) => {
         claims += 1;
         if (claims <= 2) { await callback(); return; }

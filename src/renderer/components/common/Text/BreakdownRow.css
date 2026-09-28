@@ -11,7 +11,7 @@
 }
 
 .breakdown-row:not(:last-child) {
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .breakdown-label {

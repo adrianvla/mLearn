@@ -379,7 +379,6 @@
         "UpDown": "Régler le volume"
       },
       "Licenses": "Licences",
-      "Title": "mLearn",
       "VersionLabel": "Version {version}",
       "Website": "Site web"
     },
@@ -496,26 +495,7 @@
       "TetheredServerEnabledDescription": "Expose le backend Python local aux autres appareils de ce réseau. Nécessaire uniquement lors de la synchronisation avec un téléphone ou une tablette."
     },
     "ConversationAgent": {
-      "Agents": {
-        "Create": "Créer un agent",
-        "Delete": "Supprimer l'agent",
-        "DeleteAll": "Supprimer tous les agents",
-        "DeleteAllConfirm": "Cela supprimera définitivement tous les agents, leurs mémoires et les données de conversation. Tapez le mot ci-dessous pour confirmer :",
-        "DeleteAllConfirmPlaceholder": "Taper pour confirmer",
-        "DeleteAllConfirmWord": "SUPPRIMER",
-        "DeleteAllTitle": "Supprimer tous les agents",
-        "DeleteConfirm": "Tapez le nom de l'agent pour confirmer la suppression :",
-        "DeleteConfirmPlaceholder": "Nom de l'agent",
-        "DeleteConfirmTitle": "Supprimer l'agent",
-        "Edit": "Modifier l'agent",
-        "EditTitle": "Modifier l'agent",
-        "Empty": "Aucun agent pour le moment. Créez-en un pour commencer.",
-        "Memories": "Mémoires",
-        "NoMemories": "Aucune mémoire enregistrée.",
-        "Save": "Enregistrer",
-        "Title": "Agents",
-        "Unnamed": "Agent sans nom"
-      },
+      "Agents": {},
       "Clear": "Effacer la conversation",
       "Connection": {
         "AvailableModels": "Modèles disponibles",
@@ -612,16 +592,7 @@
         "CompactBusy": "Attendez la fin de la réponse actuelle.",
         "CompactFailed": "Impossible de compacter la conversation."
       },
-      "Tools": {
-        "CorrectMistake": "Corriger les erreurs",
-        "CreateQuiz": "Créer des quiz",
-        "FetchUrl": "Récupérer des URLs",
-        "GetMediaStats": "Stats des médias",
-        "SearchWikipedia": "Chercher sur Wikipédia",
-        "SearchFandom": "Chercher sur Fandom",
-        "RecallBackstory": "Rappeler l'histoire",
-        "SaveMemory": "Sauvegarder un souvenir"
-      },
+      "Tools": {},
       "Quiz": {
         "BlankInputAriaLabel": "Blanc {index}",
         "Correct": "Correct !",
@@ -636,38 +607,9 @@
       "Speaking": "Parle...",
       "StartRecording": "Démarrer l'enregistrement",
       "Stats": {
-        "AssessedLevel": "Niveau évalué",
-        "ByOccurrence": "Par occurrence",
-        "Current": "Actuel",
-        "Struggled": "Difficile",
-        "StruggledGrammarCount": "Grammaire difficile",
         "HoveredWords": "Mots survolés",
-        "Filter": {
-          "All": "Tous",
-          "HoveredOnly": "Survolés uniquement",
-          "Unknown": "Sans niveau"
-        },
-        "Grammar": "Grammaire",
-        "GrammarLevels": "Niveaux de grammaire",
-        "Hovered": "Survolés",
-        "Levels": "Niveaux",
-        "NoStruggledGrammar": "Aucune grammaire difficile pour le moment.",
-        "NoHoveredWords": "Aucun mot survolé pour le moment — continuez l'immersion !",
-        "NoGrammarMatching": "Aucun point de grammaire ne correspond au filtre.",
-        "NoLevelData": "Pas assez de données pour calculer la distribution des niveaux.",
-        "NoMedia": "Aucune statistique média enregistrée",
-        "NoMediaHint": "Regardez des vidéos ou lisez des livres, et les analyses apparaîtront ici.",
-        "NoWordsMatching": "Aucun mot ne correspond au filtre.",
-        "Overview": "Vue d'ensemble",
-        "Seen": "Vus",
-        "Unique": "Uniques",
-        "UniqueWords": "Mots uniques",
-        "UnknownWords": "Mots inconnus",
-        "Words": "Mots",
-        "WordLevelDistribution": "Distribution des niveaux de mots",
-        "WordLevels": "Niveaux de mots",
-        "Lexical": "Lexique",
-        "Structural": "Structurel"
+        "Filter": {},
+        "NoHoveredWords": "Aucun mot survolé pour le moment — continuez l'immersion !"
       },
       "StopRecording": "Arrêter l'enregistrement",
       "StopStreaming": "Stop",
@@ -742,85 +684,13 @@
         "ClearAll": "Effacer toutes les mémoires",
         "ClearAllConfirm": "Voulez-vous vraiment supprimer toutes les mémoires de l'agent ? Cette action est irréversible.",
         "Delete": "Supprimer la mémoire",
-        "Empty": "Aucune mémoire enregistrée. L'agent retiendra les faits importants au fil de vos conversations.",
-        "Title": "Mémoire de l'agent"
+        "Empty": "Aucune mémoire enregistrée. L'agent retiendra les faits importants au fil de vos conversations."
       },
-      "Personality": {
-        "Casual": "Décontracté",
-        "CasualDescription": "Détendu, amical, utilise un langage familier",
-        "Label": "Personnalité",
-        "Polite": "Poli",
-        "PoliteDescription": "Formel, structuré, ton éducatif",
-        "Roleplay": "Jeu de rôle",
-        "RoleplayDescription": "Personnage personnalisé avec un nom et une description",
-        "RoleplayFormality": "Formalité",
-        "RoleplayLore": "Description du personnage",
-        "RoleplayLorePlaceholder": "Décrivez la personnalité, les traits et la manière dont le personnage doit interagir...",
-        "RoleplayBackstory": "Contexte narratif",
-        "RoleplayBackstoryPlaceholder": "Contexte de l'histoire résumé à partir des médias...",
-        "RoleplayName": "Nom du personnage",
-        "RoleplayNamePlaceholder": "Entrez un nom pour le personnage...",
-        "RoleplayQuotes": "Citations exemple",
-        "RoleplayQuotesHint": "2-4 courtes citations montrant différents aspects de la voix du personnage. L'IA imitera ce style.",
-        "RoleplayQuotePlaceholder": "Entrez une citation...",
-        "AddQuote": "Ajouter une citation",
-        "FandomUrl": "URL du wiki Fandom",
-        "FandomUrlHint": "L'URL du wiki Fandom pour la série de ce personnage. Active l'outil de recherche Fandom.",
-        "FandomUrlPlaceholder": "ex. https://myheroacademia.fandom.com"
-      },
+      "Personality": {},
       "Reset": "Réinitialiser l'agent",
       "ResetConfirm": "Cela effacera le nom, la personnalité et toutes les mémoires de l'agent. Le processus de configuration recommencera. Continuer ?",
-      "Setup": {
-        "Cancel": "Annuler",
-        "NameLabel": "Donnez un nom à votre agent",
-        "NamePlaceholder": "Laisser vide pour aucun nom",
-        "PersonalityLabel": "Choisir une personnalité",
-        "ProfilePhoto": "Photo de profil",
-        "ProfilePhotoHint": "Télécharger une image pour l'avatar de cet agent",
-        "ProfilePhotoRemove": "Supprimer la photo",
-        "Start": "Commencer",
-        "Title": "Configurer votre tuteur IA",
-        "UserNameLabel": "Votre nom",
-        "UserNamePlaceholder": "Comment l'agent doit-il vous appeler ?",
-        "AboutMeLabel": "À propos de vous",
-        "AboutMeHint": "Parlez de vous à l'agent pour qu'il puisse personnaliser les conversations.",
-        "AboutMePlaceholder": "ex. Je suis étudiant, j'aime les mangas, j'apprends depuis 6 mois...",
-        "VoiceSample": "Voix par défaut",
-        "ManualSetup": "Configuration manuelle",
-        "ManualSetupHint": "Remplissez les détails du personnage vous-même."
-      },
-      "QuickStart": {
-        "Button": "Démarrage rapide via Fandom",
-        "Hint": "Remplir automatiquement les champs de jeu de rôle en cherchant sur un wiki Fandom.",
-        "Title": "Création rapide de personnage - {name}",
-        "CharacterNameLabel": "Nom du personnage",
-        "CharacterNamePlaceholder": "ex. Izuku Midoriya",
-        "FandomUrlLabel": "URL du wiki Fandom",
-        "FandomUrlHint": "Entrez l'URL de base du wiki Fandom, ou juste le nom du wiki (ex. myheroacademia).",
-        "FandomUrlPlaceholder": "ex. myheroacademia ou https://myheroacademia.fandom.com",
-        "Next": "Suivant",
-        "Back": "Retour",
-        "Search": "Rechercher",
-        "Searching": "Recherche sur le wiki Fandom...",
-        "NoResults": "Aucun résultat. Essayez un autre nom ou vérifiez l'URL du wiki.",
-        "SelectResult": "Plusieurs résultats trouvés. Sélectionnez le bon :",
-        "MediaTypeLabel": "Type de média",
-        "ProgressPointLabel": "Votre progression actuelle",
-        "ProgressPointHint": "Utilisez un format comme 'Chapter 43', 'Episode 30' ou tapez 'all' pour toute l'histoire.",
-        "ProgressPointPlaceholder": "ex. Chapter 43, Episode 30, all",
-        "InvalidProgressPoint": "Veuillez utiliser un format reconnu comme 'Chapter 43', 'Episode 30', un nombre ou 'all'.",
-        "Generate": "Générer le persona",
-        "Generating": "Création du persona du personnage...",
-        "Confirm": "Utiliser ce personnage",
-        "ReviewName": "Personnage",
-        "ReviewLore": "Description du personnage",
-        "ReviewQuotes": "Citations exemple",
-        "ReviewContext": "Contexte narratif",
-        "ReviewFandom": "Wiki Fandom",
-        "FetchingChapters": "Récupération des résumés de chapitres...",
-        "ExploringWiki": "Exploration du wiki pour le contexte narratif...",
-        "ExploringWikiDetail": "Exploration du wiki : {detail}"
-      },
+      "Setup": {},
+      "QuickStart": {},
       "Sidebar": {
         "TemporaryPractice": "Entraînement temporaire",
         "Title": "Conversations",
@@ -1057,7 +927,6 @@
         "ExamplesButton": "Générer des exemples",
         "ExamplesDone": "Exemples générés pour {count} cartes",
         "ExamplesDoneWithErrors": "Exemples générés pour {count} cartes, {failed} échoué(s)",
-        "ExamplesLLMUnavailable": "Aucun backend LLM en cours d'exécution. Activez un modèle dans les paramètres.",
         "ExamplesProgress": "Génération des exemples…",
         "ExamplesTooltip": "Générer des phrases d'exemple par LLM pour les cartes sans exemples",
         "GenerateDescription": "Générer en lot l'audio et les phrases d'exemple pour vos cartes mémoire",
@@ -1149,7 +1018,6 @@
         "LLMToastTitle": "Génération des traductions d'exemples manquantes…",
         "LLMDone": "Traductions générées pour {count} carte(s)",
         "LLMDoneWithErrors": "Traductions générées pour {count} carte(s), {failed} échoué(s)",
-        "LLMUnavailable": "Aucun backend LLM en cours d'exécution. Activez un modèle dans les paramètres.",
         "RepairButton": "Réparer",
         "Title": "Données de cartes manquantes",
         "ToastTitle": "Réparation de l'audio des cartes…"
@@ -1162,7 +1030,6 @@
         "CompleteDescription": "Vous avez révisé toutes vos cartes du jour. Excellent travail !",
         "WaitingTitle": "En attente de cartes…",
         "WaitingDescription": "Prochaine carte dans {time}",
-        "Easy": "Facile",
         "Hard": "Difficile",
         "LearningCard": "Carte en apprentissage",
         "LearningLabel": "En apprentissage :",
@@ -1182,19 +1049,17 @@
         "UndoTooltip": "Annuler",
         "StealthMode": "Mode furtif",
         "MuteAudio": "Couper le son",
-        "Modes": {
-          "Label": "Vue de la réponse",
-          "Help": "La vue de la réponse change les indices révélés. La note couvre toutes les compétences évaluées ; utilisez Ajuster pour les noter séparément.",
-          "Meaning": "Sens",
-          "Reading": "Lecture",
-          "Prosody": "Prosodie"
-        },
+        "Modes": {},
         "Attribution": {
           "WrongReading": "Lecture incorrecte",
           "WrongProsody": "Prosodie incorrecte",
           "WrongOrthography": "Forme non reconnue",
           "Marked": "{aspect} marqué comme inconnu"
-        }
+        },
+        "SavingRating": "Enregistrement de l’évaluation…",
+        "SaveFailed": "Impossible d’enregistrer cette évaluation. La carte est toujours là ; réessayez.",
+        "SavingUndo": "Enregistrement de l’annulation…",
+        "UndoSaveFailed": "Impossible d’enregistrer cette annulation. La carte reste évaluée ; réessayez."
       },
       "State": {
         "Learning": "En apprentissage",
@@ -1435,8 +1300,7 @@
           "FilterUnknownOnly": "Inconnu seulement",
           "FilterUnknownLearning": "Inconnu + En apprentissage",
           "FilterPassive": "Suivi passivement",
-          "IgnoreSeen": "Ignorer les vus",
-          "Title": "Sync des mots"
+          "IgnoreSeen": "Ignorer les vus"
         },
         "LevelStudy": {
           "Description": "Définissez votre programme, votre objectif et votre rythme.",
@@ -1450,7 +1314,6 @@
         "ChangeLanguage": "Changer de langue",
         "ContinueLearning": "Continuer l'apprentissage",
         "LearningLanguage": "J'apprends le {language}",
-        "Title": "mLearn",
         "TitleDescription": "Sélectionnez une option ci-dessous pour commencer"
       }
     },
@@ -1590,7 +1453,10 @@
         "Overall": "Global",
         "Basis": "Base",
         "Rate": "Évaluer",
-        "Inspect": "Inspecter"
+        "Inspect": "Inspecter",
+        "Saving": "Enregistrement de l’évaluation…",
+        "SaveFailed": "Impossible d’enregistrer cette évaluation. Réessayez.",
+        "Retry": "Réessayer"
       },
       "Projection": {
         "EaseOverall": "Facilité globale du mot",
@@ -1784,7 +1650,6 @@
         "Correct": "Correct !",
         "Incorrect": "Pas tout à fait — la réponse est : {answer}",
         "Next": "Suivant",
-        "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau.",
         "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez.",
         "SavingAnswer": "Enregistrement de la réponse…",
         "ModeLabel": "Format de réponse",
@@ -1797,11 +1662,7 @@
         "ValidateDone": "Validées {passed} · rejetées {rejected} · inchangées {unchanged}",
         "ValidateFailed": "Validation impossible : {errors}"
       },
-      "PopulationStats": {
-        "Title": "Remplissage des flashcards",
-        "Populated": "{populated} sur {total} remplis",
-        "Complete": "Toutes les flashcards sont remplies"
-      },
+      "PopulationStats": {},
       "BulkAdd": {
         "Button": "Ajout en masse",
         "Title": "Ajouter des flashcards en masse",
@@ -1879,15 +1740,12 @@
         "MoveAhead": "C'est au-dessus de votre niveau actuel — vous pouvez avancer.",
         "TraceRow": "{label} : {sampled} échantillonnés · {hits} fluides · {misses} manqués · {skipped} ignorés",
         "EvidenceNote": "Seuls les {count} mots échantillonnés ont été mesurés — tous les autres restent non mesurés.",
-        "CleanLatency": "Réponse médiane à la tâche ({range} caractères) : {ms} ms (tentatives inutilisables exclues)",
         "UseLevel": "Utiliser ce niveau",
         "Dismiss": "Fermer",
         "EmptyPools": "Aucun mot non mesuré n'est disponible pour l'échantillonnage pour le moment.",
         "DateRequired": "Un résultat d'examen ou scolaire nécessite la date d'obtention.",
         "DateUnknown": "date inconnue",
-        "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau.",
-        "NoStorage": "Le placement n'est pas disponible ici : la session n'a pas pu être enregistrée (stockage plein ou mode privé).",
-        "LiveProgress": "Progression : {count} mots. L’évaluation s’adapte à vos réponses. Vous pouvez revenir au plan et reprendre plus tard."
+        "LiveProgress": "Réponses enregistrées : {count}. L’évaluation s’adapte à vos réponses. Vous pouvez revenir au plan et reprendre plus tard."
       },
       "Mock": {
         "Title": "Bilans de pratique",
@@ -1933,9 +1791,9 @@
         "BackToBlueprints": "Retour aux séries",
         "Summaries": "Résultats récents",
         "SummaryCounts": "{correct}/{answered} justes · {timedOut} sans réponse",
-        "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau.",
         "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez."
-      }
+      },
+      "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau."
     },
     "Languages": {
       "cu": "Slavon d'église",
@@ -2133,18 +1991,9 @@
       },
       "UI": {
         "Tips": {
-          "NeverLosePlace": {
-            "Description": "Votre position de page est sauvegardée automatiquement.",
-            "Title": "Marque-page automatique"
-          },
-          "ShapeView": {
-            "Description": "Utilisez la barre latérale ou les raccourcis clavier pour basculer entre les pages doubles et simples.",
-            "Title": "Ajustez la vue"
-          },
-          "SummonOcr": {
-            "Description": "Lorsqu'une page est affichée, lancez l'OCR pour convertir le texte de manière interactive.",
-            "Title": "Utilisez l'OCR"
-          }
+          "NeverLosePlace": {},
+          "ShapeView": {},
+          "SummonOcr": {}
         },
         "WelcomeSplash": {
           "DropZone": "Déposez les fichiers ici pour importer",
@@ -2461,29 +2310,9 @@
         }
       },
       "Shiritori": {
-        "Title": "Shiritori",
-        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
-        "Turn": {
-          "User": "Your turn — say a word starting with \"{kana}\"",
-          "UserFirst": "Your turn — say any Japanese noun",
-          "Computer": "Computer's turn",
-          "ComputerThinking": "Computer is thinking..."
-        },
-        "Error": {
-          "Empty": "Please enter a word.",
-          "Duplicate": "You cannot use a word twice.",
-          "NotFound": "That word was not found in the dictionary.",
-          "WrongStart": "That word must start with \"{kana}\".",
-          "EndsWithN": "Word ends in ん — you lose!",
-          "NoReading": "Could not determine the reading of that word."
-        },
-        "GameOver": {
-          "UserWins": "You win!",
-          "ComputerWins": "Computer wins!",
-          "PlayAgain": "Play Again"
-        },
-        "Submit": "Submit",
-        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+        "Turn": {},
+        "Error": {},
+        "GameOver": {}
       },
       "Reader": {
         "Description": "Paramètres OCR et lecteur",
@@ -3163,17 +2992,7 @@
         "ReviewStudyTime": "Temps de révision",
         "Reviews": "Révisions",
         "SrsConfig": "Configuration SRS",
-        "Srs": {
-          "EasyInterval": "Intervalle facile",
-          "GraduatingInterval": "Intervalle de graduation",
-          "LearningSteps": "Étapes d'apprentissage",
-          "MaxInterval": "Intervalle max.",
-          "MaxReviewsPerDay": "Révisions max./jour",
-          "NewCardsPerDay": "Nouvelles cartes/jour",
-          "NewIntervalMod": "Mod. nouvel intervalle",
-          "RelearnSteps": "Étapes de réapprentissage",
-          "ReviewIntervalMod": "Mod. intervalle révision"
-        },
+        "Srs": {},
         "StudyTime": "Temps d'étude",
         "TimeRead": "Temps de lecture",
         "TimeWatched": "Temps visionné",
@@ -3344,23 +3163,7 @@
         "PeerJoinedPlural": "{count} participants ont rejoint votre salle",
         "AnticipatingPing": "Anticipation du ping..."
       },
-      "Extension": {
-        "HeadlessMode": "Mode sans tête",
-        "Enable": "Activer",
-        "Disable": "Désactiver",
-        "Subtitles": "Sous-titres",
-        "LoadSubtitleFile": "Charger un fichier de sous-titres",
-        "SyncOffset": "Décalage de synchronisation",
-        "SignInRequired": "Connectez-vous pour utiliser Watch Together",
-        "SignIn": "Se connecter",
-        "Host": "Héberger",
-        "Join": "Rejoindre",
-        "CreateRoom": "Créer une salle",
-        "RoomCodePlaceholder": "Entrez le code de la salle",
-        "RoomCode": "Code de la salle",
-        "Peers": "Participants",
-        "LeaveRoom": "Quitter la salle"
-      },
+      "Extension": {},
       "Media": {
         "DistributeTitle": "Distribuer le média",
         "DistributeSubtitle": "Envoyer le fichier média aux participants connectés via synchronisation cloud",
@@ -3541,15 +3344,7 @@
       "SavingRating": "Enregistrement de l’évaluation…",
       "AnswerUnavailable": "Aucune réponse disponible pour ce mot. Réessayez la recherche ou choisissez un autre filtre. Aucune évaluation enregistrée.",
       "SaveFailed": "Cette évaluation n’a pas pu être enregistrée. Le mot reste affiché ; réessayez.",
-      "Statement": {
-        "Label": "Décrire autrement",
-        "KnownSpoken": "Je connais ce mot quand je l'entends.",
-        "MeaningNotForm": "Je connais le sens mais pas cette orthographe.",
-        "KnownCharacters": "Je connais les caractères individuellement.",
-        "InferredFromParts": "Je peux déduire le sens à partir des parties.",
-        "ReadablePitchWrong": "Je sais le lire, mais mon accent tonal est incorrect.",
-        "NeverSeenForm": "Je n'ai jamais vu cette forme."
-      },
+      "Statement": {},
       "FinishedTitle": "Terminé !",
       "FinishedDescription": "Vérifications enregistrées : {count}. Ces réponses font désormais partie de votre historique d’apprentissage.",
       "Progress": "{rated} / {total} mots",

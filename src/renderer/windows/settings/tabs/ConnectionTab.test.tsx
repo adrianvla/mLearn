@@ -83,7 +83,7 @@ vi.mock('../../../components/common', () => ({
     </label>
   ),
   SettingGroup: (props: { children?: JSX.Element; title?: string }) => <section><h2>{props.title}</h2>{props.children}</section>,
-  Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  Button: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
   Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement> & { options?: Array<{ value: string; label: string }> }) => (
     <select {...props}>
       {props.options?.map((option) => <option value={option.value}>{option.label}</option>)}

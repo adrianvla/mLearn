@@ -10,7 +10,7 @@
 
 import { Component, createSignal, createMemo, Show, For, batch } from 'solid-js';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
-import { Modal, TabContainer, TabPanel, Btn, ToggleSwitch } from '../common';
+import { Button, Modal, TabContainer, TabPanel, ToggleSwitch } from '../common';
 import { FlashcardEditor } from './FlashcardEditor';
 import { useLocalization } from '../../context';
 import type { TabItem } from '../common/Tabs/TabContainer';
@@ -310,13 +310,13 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                           />
                         </div>
                         <div class="flashcard-advanced-field-actions">
-                          <Btn
+                          <Button
                             size="xs"
                             variant="danger"
                             onClick={() => removeExtraField(index())}
                           >
                             {t('mlearn.Flashcards.Modals.EditCard.RemoveField')}
-                          </Btn>
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -344,9 +344,9 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                     onKeyDown={(e) => { if (e.key === 'Enter') addExtraField(); }}
                   />
                 </div>
-                <Btn size="xs" variant="secondary" onClick={addExtraField}>
+                <Button size="xs" variant="secondary" onClick={addExtraField}>
                   {t('mlearn.Flashcards.Modals.EditCard.AddField')}
-                </Btn>
+                </Button>
               </div>
             </div>
 
@@ -393,10 +393,10 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
 
             {/* Footer */}
             <div class="flashcard-advanced-footer">
-              <Btn onClick={props.onClose}>{t('mlearn.Global.Cancel')}</Btn>
-              <Btn variant="primary" onClick={handleAdvancedSave}>
+              <Button onClick={props.onClose}>{t('mlearn.Global.Cancel')}</Button>
+              <Button variant="primary" onClick={handleAdvancedSave}>
                 {t('mlearn.Global.Actions.SaveChanges')}
-              </Btn>
+              </Button>
             </div>
           </div>
         </TabPanel>

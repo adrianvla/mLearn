@@ -5,7 +5,7 @@
 
 import { Component, JSX, For, Show, splitProps, mergeProps, createSignal } from 'solid-js';
 import { Badge } from '../Label';
-import { IconBtn } from '../Button';
+import { Button } from '../Button';
 import './TabContainer.css';
 
 export interface TabItem {
@@ -135,7 +135,7 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
     >
       <Show when={local.responsiveSidebar}>
         <div class="tab-container__mobile-sidebar-bar">
-          <IconBtn
+          <Button buttonType="icon"
             size="sm"
             variant="secondary"
             icon="sidebar"

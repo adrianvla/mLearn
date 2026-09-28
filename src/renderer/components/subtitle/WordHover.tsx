@@ -12,7 +12,7 @@ import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Modal, Btn, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
+import { Button, PillLabel, Modal, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
 import { ProsodyOverlay } from '../language-specific';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
@@ -649,12 +649,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     handleAddFlashcard().catch((err) => log.error("unhandled promise rejection", err));
   };
 
-  // LLM Explain pill using PillBtn component
+  // LLM Explain pill using the shared Button.
   // Shows indicator if we have a cached explanation
   const LLMPill = () => {
     const hasCached = hasCachedExplanation();
     return (
-      <PillBtn
+      <Button buttonType="pill"
         variant={hasCached ? 'green' : 'blue'}
         icon={ICON_BOT}
         label={t('mlearn.WordHover.Explain')}
@@ -836,12 +836,12 @@ const AnkiDuplicateWarningModal: Component<{
           />
         </div>
         <div class="anki-duplicate-warning__actions">
-          <Btn variant="secondary" onClick={props.onCancel}>
+          <Button variant="secondary" onClick={props.onCancel}>
             {t('mlearn.Global.Cancel')}
-          </Btn>
-          <Btn variant="primary" onClick={() => props.onConfirm(dontRemind())}>
+          </Button>
+          <Button variant="primary" onClick={() => props.onConfirm(dontRemind())}>
             {t('mlearn.WordHover.AnkiDuplicateWarning.Confirm')}
-          </Btn>
+          </Button>
         </div>
       </div>
     </Modal>

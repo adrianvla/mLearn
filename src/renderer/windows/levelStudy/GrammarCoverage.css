@@ -1,10 +1,4 @@
-.grammar-coverage {
-  margin-top: var(--spacing-6);
-  padding: var(--spacing-5);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  background: var(--panel-bg);
-}
+.grammar-coverage-panel { margin-top: var(--spacing-6); }
 
 .grammar-coverage__header {
   display: flex;

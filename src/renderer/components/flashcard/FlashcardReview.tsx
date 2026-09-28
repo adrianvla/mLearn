@@ -13,7 +13,7 @@ import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
   Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
-  EyeIcon
+  EyeIcon, Popover
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
@@ -25,26 +25,34 @@ import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { qualityToSrsRating } from '../../../shared/constants';
-import { nextAttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
+import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
-import type { KnowledgeAspect } from '../../../shared/constants';
+import type { AttemptQuality } from '../../../shared/constants';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
-import { isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
+import { isNativeActivationTarget, isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
 import './FlashcardReview.css';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.components.flashcardReview");
 
+interface ReviewRatingWrite {
+  phase: 'pending' | 'failed';
+  attemptId: AttemptId;
+  card: Flashcard;
+  observations: readonly ProfileObservation[];
+  quality: AttemptQuality;
+  easy: boolean;
+  timing: AttemptTiming | null;
+  scaffolds?: AttemptScaffolds;
+}
+
 export interface FlashcardReviewProps {
   onComplete?: () => void;
   onClose?: () => void;
   style?: JSX.CSSProperties;
-  /** Session-local review focus mode (never persisted). */
-  reviewMode?: KnowledgeAspect;
-  onReviewModeChange?: (mode: KnowledgeAspect) => void;
 }
 
 export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
@@ -53,7 +61,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     store,
     queueCounts,
     getCurrentCard,
-    answerCard,
     buryCard,
     removeFlashcard,
     undoLastAction,
@@ -62,7 +69,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     generateExampleSentenceWithLLM,
     updateFlashcardContent,
     updateFlashcard,
-    recordAttempt,
+    submitRating,
     queue,
   } = useFlashcards();
 
@@ -73,6 +80,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const decisionPin = useDecisionPin();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
+  const [showCardActions, setShowCardActions] = createSignal(false);
+  let cardActionsAnchor: HTMLButtonElement | undefined;
   // Retrieval-time audio scaffold: whether the spoken form was available
   // BEFORE the reveal (auto-play or manual word TTS). Recorded on the
   // attempt's evidence so an audio-cued reading rating stays cued
@@ -82,6 +91,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
+  const [ratingWrite, setRatingWrite] = createSignal<ReviewRatingWrite | null>(null);
+  const [undoWrite, setUndoWrite] = createSignal<'pending' | 'failed' | null>(null);
   const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
   let reviewScrollContainer: HTMLDivElement | undefined;
@@ -232,34 +243,45 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }).filter(capability => knowledge.capabilities().includes(capability));
   });
 
-  // Review modes available for the current card: language capability
-  // (getAvailableAccesses) intersected with per-card data presence.
-  const availableAspects = createMemo<KnowledgeAspect[]>(() => {
-    const card = currentCard();
-    if (!card) return ['meaning'];
-    const supported = testedAccesses();
-    const aspects: KnowledgeAspect[] = supported.includes('sense-recognition') ? ['meaning'] : [];
-    if (supported.includes('surface-reading')) aspects.push('reading');
-    if (supported.includes('prosodic-pattern') && cardHasProsodyData(card)) aspects.push('prosody');
-    return aspects;
-  });
-
-  createEffect(() => {
-    if (knowledge.loading()) return;
-    const mode = props.reviewMode ?? 'meaning';
-    if (mode !== 'meaning' && !availableAspects().includes(mode)) {
-      props.onReviewModeChange?.('meaning');
-    }
-  });
-
   // Explicit whole-word / matrix submissions rate every tested capability —
   // revealed cues change the evidence condition, not the rating surface.
   // Scaffold provenance still travels on each observation (see below).
+  const commitRating = async (write: ReviewRatingWrite) => {
+    setRatingWrite({ ...write, phase: 'pending' });
+    try {
+      const result = await submitRating(write.card.content.front, write.observations, {
+        language: languageForCard(write.card),
+        attemptId: write.attemptId,
+        ...(write.timing ? { timing: write.timing } : {}),
+        taskType: 'srs-review',
+        ...(write.scaffolds ? { scaffolds: write.scaffolds } : {}),
+        scheduler: {
+          cardId: write.card.id,
+          rating: qualityToSrsRating(write.quality, write.easy),
+          timeSpentMs: write.timing?.wallLatencyMs ?? 0,
+          tested: write.observations.map((observation) => observation.capability),
+        },
+      });
+      batch(() => {
+        setShowAnswer(false);
+        setRatingWrite(null);
+        if (result.completed) setCardsAnswered((previous) => previous + 1);
+      });
+      setWordAudioPreReveal(false);
+      // The answer changed the pool: end the encounter so the next read
+      // re-selects instead of replaying the just-rated pick through the pin.
+      decisionPin.advance();
+      resetReviewScroll();
+    } catch (error) {
+      log.warn('Failed to save flashcard review rating:', error);
+      setRatingWrite({ ...write, phase: 'failed' });
+    }
+  };
+
   const handleBulkRate = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     const card = currentCard();
-    if (!card || !showAnswer() || observations.length === 0) return;
+    if (!card || !showAnswer() || observations.length === 0 || ratingWrite() !== null) return;
     const timing = stopTiming();
-    const attemptId = nextAttemptId();
     // A mixed profile schedules on its weakest evidence, matching the
     // whole-word semantics: missed dominates struggled dominates fluent.
     const quality = observations.some((observation) => observation.quality === 'missed')
@@ -269,31 +291,16 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         : 'fluent';
 
     stopTts();
-    batch(() => {
-      setShowAnswer(false);
-      for (const observation of observations) {
-        recordAttempt(card.content.front, observation.capability, observation.quality, {
-          language: languageForCard(card),
-          method: observation.method,
-          attemptId,
-          ...(timing ? { timing } : {}),
-          taskType: 'srs-review',
-          ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
-        });
-      }
-      const completed = answerCard(qualityToSrsRating(quality, opts?.easy), card.id, timing?.wallLatencyMs ?? 0, {
-        attemptId,
-        tested: observations.map((observation) => observation.capability),
-        ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
-      });
-      if (completed) setCardsAnswered((previous) => previous + 1);
+    void commitRating({
+      phase: 'pending',
+      attemptId: nextAttemptId(),
+      card,
+      observations,
+      quality,
+      easy: opts?.easy === true,
+      timing,
+      ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
     });
-    // The answer changed the pool: end the encounter so the next read
-    // re-selects instead of replaying the just-rated pick through the pin.
-    decisionPin.advance();
-    // A learning card can be selected again immediately with the same id.
-    // Its next prompt must start above the sticky controls even in that case.
-    resetReviewScroll();
   };
 
   // Counts
@@ -308,31 +315,26 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Keyboard shortcuts
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target;
-      const buttonTarget = target instanceof HTMLElement && target.matches('button, [role="button"]');
+      if (isRatingKeyIgnored(e)) return;
 
-      // Space/Enter reveal only. Prevent native button activation first, so a
-      // focused rating cell cannot turn Space into a concealed rating action.
+      // Native controls own Space/Enter. The study surface owns those keys
+      // only while focus remains on non-interactive prompt content.
       if (e.key === ' ' || e.key === 'Enter') {
-        if (isRatingKeyIgnored(e) && !buttonTarget) return;
+        if (isNativeActivationTarget(e)) return;
         e.preventDefault();
         e.stopPropagation();
-        if (!isComplete() && currentCard() && !showAnswer()) setShowAnswer(true);
+        if (!isComplete() && currentCard() && !showAnswer() && ratingWrite() === null && undoWrite() === null) setShowAnswer(true);
         return;
       }
-
-      // Shared press semantics: ignore held-down key repeats and typing in
-      // editable/control elements (single source of truth with Word Sync).
-      if (isRatingKeyIgnored(e)) return;
 
       // Check for Ctrl+Z / Cmd+Z for undo
       if (isUndoShortcut(e)) {
-        e.preventDefault();
-        if (canUndo()) {
-          handleUndo();
-        }
+        if (ratingWrite() !== null || undoWrite() !== null) { e.preventDefault(); return; }
+        if (canUndo()) { e.preventDefault(); void handleUndo(); }
         return;
       }
+
+      if (isNativeActivationTarget(e)) return;
 
       if (isComplete()) return;
 
@@ -419,18 +421,27 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }
   ));
 
-  const handleUndo = () => {
-    const actionType = undoLastAction();
-    if (actionType === 'answer') {
-      setCardsAnswered(prev => Math.max(0, prev - 1));
+  const handleUndo = async () => {
+    if (ratingWrite() !== null || undoWrite() === 'pending') return;
+    setUndoWrite('pending');
+    try {
+      const actionType = await undoLastAction();
+      if (actionType === 'answer') {
+        setCardsAnswered(prev => Math.max(0, prev - 1));
+      }
+      setUndoWrite(null);
+      setShowAnswer(false);
+      // The undo restored prior pool state: re-select afresh (R20 pin repair).
+      decisionPin.advance();
+      resetReviewScroll();
+    } catch (error) {
+      log.warn('Failed to persist flashcard Undo:', error);
+      setUndoWrite('failed');
     }
-    setShowAnswer(false);
-    // The undo restored prior pool state: re-select afresh (R20 pin repair).
-    decisionPin.advance();
-    resetReviewScroll();
   };
 
   const handleBury = () => {
+    if (ratingWrite() !== null || undoWrite() !== null) return;
     const card = currentCard();
     if (!card) return;
     stopTiming();
@@ -444,6 +455,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleRemove = async () => {
+    if (ratingWrite() !== null || undoWrite() !== null) return;
     const card = currentCard();
     if (!card) return;
     stopTiming();
@@ -596,35 +608,52 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               thumbIcon={<VolumeOffIcon size={12} />}
             />
             <Show when={canUndo()}>
-              <Button buttonType="default" variant="ghost" size="xs" onClick={handleUndo} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+              <Button buttonType="default" variant="ghost" size="xs" disabled={ratingWrite() !== null || undoWrite() === 'pending'} onClick={() => { void handleUndo(); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
                 {t('mlearn.Flashcards.Review.Undo')}
               </Button>
             </Show>
+            <Show when={undoWrite() === 'pending'}>
+              <div class="flashcard-rating-write" role="status" aria-live="polite">
+                {t('mlearn.Flashcards.Review.SavingUndo')}
+              </div>
+            </Show>
+            <Show when={undoWrite() === 'failed'}>
+              <div class="flashcard-rating-write flashcard-rating-write--failed" role="alert">
+                <span>{t('mlearn.Flashcards.Review.UndoSaveFailed')}</span>
+                <Button size="sm" variant="primary" onClick={() => { void handleUndo(); }}>
+                  {t('mlearn.Global.TryAgain')}
+                </Button>
+              </div>
+            </Show>
             <Show when={!isComplete() && currentCard()}>
-              <details class="flashcard-secondary-actions">
-                <summary>{t('mlearn.Flashcards.Review.CardActions')}</summary>
+              <Button
+                ref={(element) => { cardActionsAnchor = element; }}
+                variant="ghost"
+                size="xs"
+                class="flashcard-actions-trigger"
+                disabled={ratingWrite() !== null || undoWrite() !== null}
+                aria-haspopup="dialog"
+                aria-expanded={showCardActions()}
+                onClick={() => setShowCardActions((open) => !open)}
+              >
+                {t('mlearn.Flashcards.Review.CardActions')}
+              </Button>
+              <Popover
+                open={showCardActions}
+                anchor={() => cardActionsAnchor}
+                onClose={() => setShowCardActions(false)}
+                label={t('mlearn.Flashcards.Review.CardActions')}
+                class="flashcard-actions-popover"
+              >
                 <div class="flashcard-action-buttons">
-                <Button
-                    buttonType="default"
-                    variant="ghost"
-                    size="xs"
-                    class="flashcard-action-btn flashcard-action-btn--bury"
-                    onClick={handleBury}
-                    title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'b' })}
-                >
-                  <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Bury')}</span>
-                </Button>
-                <Button
-                    buttonType="default"
-                    variant="danger"
-                    size="xs"
-                    class="flashcard-action-btn flashcard-action-btn--remove"
-                    onClick={handleRemove}
-                    title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}
-                >
-                  <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Remove')}</span>
-                </Button>
-                <Button buttonType="default" variant="ghost" size="xs" class="flashcard-action-btn" icon={<EyeIcon size={14} />} onClick={() => {
+                  <Button variant="ghost" size="xs" disabled={ratingWrite() !== null || undoWrite() !== null} onClick={() => { setShowCardActions(false); handleBury(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'b' })}>
+                    {t('mlearn.Flashcards.Review.Bury')}
+                  </Button>
+                  <Button variant="danger" size="xs" disabled={ratingWrite() !== null || undoWrite() !== null} onClick={() => { setShowCardActions(false); handleRemove(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}>
+                    {t('mlearn.Flashcards.Review.Remove')}
+                  </Button>
+                  <Button variant="ghost" size="xs" icon={<EyeIcon size={14} />} onClick={() => {
+                  setShowCardActions(false);
                   const card = currentCard();
                   if (!card) return;
                   const language = languageForCard(card);
@@ -639,35 +668,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                       surface,
                       decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : undefined,
                   ));
-                }}>
-                  {t('mlearn.Knowledge.Popup.Inspect')}
-                </Button>
-                <Button
-                buttonType="default"
-                variant="ghost"
-                size="xs"
-                class="flashcard-action-btn"
-                onClick={handleOpenEditModal}
-                title={t('mlearn.Flashcards.Modals.EditCard.EditButton')}
-                icon={<EditIcon size={14} />}
-              >
-                <span class="flashcard-action-label">{t('mlearn.Flashcards.Modals.EditCard.EditButton')}</span>
-              </Button>
-                <Show when={isElectron()}>
-                  <Button
-                buttonType="default"
-                variant="ghost"
-                size="xs"
-                class="flashcard-action-btn"
-                onClick={() => setShowTtsModal(true)}
-                title={t('mlearn.CardEditor.Regenerate.Title')}
-                icon={<MicrophoneIcon size={14} />}
-              >
-                <span class="flashcard-action-label">{t('mlearn.CardEditor.Regenerate.Title')}</span>
+                  }}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
+                  <Button variant="ghost" size="xs" onClick={() => { setShowCardActions(false); handleOpenEditModal(); }} title={t('mlearn.Flashcards.Modals.EditCard.EditButton')} icon={<EditIcon size={14} />}>
+                    {t('mlearn.Flashcards.Modals.EditCard.EditButton')}
                   </Button>
-                </Show>
+                  <Show when={isElectron()}>
+                    <Button variant="ghost" size="xs" onClick={() => { setShowCardActions(false); setShowTtsModal(true); }} title={t('mlearn.CardEditor.Regenerate.Title')} icon={<MicrophoneIcon size={14} />}>
+                      {t('mlearn.CardEditor.Regenerate.Title')}
+                    </Button>
+                  </Show>
                 </div>
-              </details>
+              </Popover>
             </Show>
           </div>
         </div>
@@ -750,10 +761,26 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   return [capability, label];
                 }).filter((entry): entry is [string, string] => entry[1] !== undefined))}
                 keyboardMode={settings.ratingKeyboardMode}
-                armed={showAnswer() && !!currentCard() && !isComplete()}
+                armed={showAnswer() && !!currentCard() && !isComplete() && ratingWrite() === null && undoWrite() === null}
                 resetKey={currentCard()?.id}
                 onSubmit={handleBulkRate}
               />
+              <Show when={ratingWrite()?.phase === 'pending'}>
+                <div class="flashcard-rating-write" role="status" aria-live="polite">
+                  {t('mlearn.Flashcards.Review.SavingRating')}
+                </div>
+              </Show>
+              <Show when={ratingWrite()?.phase === 'failed'}>
+                <div class="flashcard-rating-write flashcard-rating-write--failed" role="alert">
+                  <span>{t('mlearn.Flashcards.Review.SaveFailed')}</span>
+                  <Button size="sm" variant="primary" onClick={() => {
+                    const failed = ratingWrite();
+                    if (failed?.phase === 'failed') void commitRating(failed);
+                  }}>
+                    {t('mlearn.Global.TryAgain')}
+                  </Button>
+                </div>
+              </Show>
             </div>
           </Show>
         </div>

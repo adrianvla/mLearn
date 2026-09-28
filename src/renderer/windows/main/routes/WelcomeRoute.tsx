@@ -10,7 +10,7 @@ import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../
 import type { Flashcard } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, type RecentItem } from '../../../components/common';
+import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, Button, type RecentItem } from '../../../components/common';
 import {
   WelcomeFeatureCard,
   WelcomeVideoPreview,
@@ -25,6 +25,7 @@ import {
 import { ActionCard } from '../../../components/common/Card/ActionCard';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
+import { nextAttemptId, type AttemptId } from '../../../../shared/knowledgeEvents';
 import { getRecentItems } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
 import { openWordLookup } from '../../../services/wordLookupService';
@@ -70,6 +71,22 @@ export const WelcomeRoute: Component = () => {
   const [showTutorModal, setShowTutorModal] = createSignal(false);
   const [lookupDraft, setLookupDraft] = createSignal('');
   const [tutorDraft, setTutorDraft] = createSignal('');
+  const [ratingSaveState, setRatingSaveState] = createSignal<'idle' | 'saving' | 'failed'>('idle');
+  type WelcomeRatingCommand = {
+    cardId: string;
+    word: string;
+    observations: readonly [{ capability: 'sense-recognition'; quality: AttemptQuality }];
+    options: {
+      language: string;
+      attemptId: AttemptId;
+      taskType: 'welcome-review';
+      timing?: AttemptTiming;
+      scaffolds: { reading: true };
+    };
+    rating: ReturnType<typeof qualityToSrsRating>;
+    timeSpentMs?: number;
+  };
+  let pendingWelcomeRating: WelcomeRatingCommand | undefined;
 
   onMount(async () => {
     try {
@@ -304,7 +321,31 @@ export const WelcomeRoute: Component = () => {
       welcomeTimer.start();
     },
   ));
+  const saveWelcomeRating = async (command: WelcomeRatingCommand) => {
+    setRatingSaveState('saving');
+    try {
+      await flashcards.submitRating(command.word, command.observations, {
+        ...command.options,
+        scheduler: {
+          cardId: command.cardId,
+          rating: command.rating,
+          timeSpentMs: command.timeSpentMs,
+          tested: ['sense-recognition'],
+        },
+      });
+      pendingWelcomeRating = undefined;
+      setRatingSaveState('idle');
+      // The answer changed the pool: end the encounter so the next displayed
+      // card re-selects instead of replaying the just-rated pick (R20 repair).
+      decisionPin.advance();
+    } catch (error) {
+      log.error('Failed to save welcome card rating:', error);
+      pendingWelcomeRating = command;
+      setRatingSaveState('failed');
+    }
+  };
   const rateCard = (quality: AttemptQuality, easy?: boolean) => {
+    if (ratingSaveState() !== 'idle') return;
     const card = currentCard();
     if (!card) return;
     const language = card.language || settings.language;
@@ -312,21 +353,22 @@ export const WelcomeRoute: Component = () => {
     // Meaning-row matrix semantics: the widget's card front supplies the
     // reading (rendered beneath it), so only Meaning is tested here — and the
     // evidence records that presentation honestly.
-    const { attemptId } = flashcards.recordAttempt(card.content.front, 'sense-recognition', quality, {
-      language,
-      taskType: 'welcome-review',
-      ...(timing ? { timing } : {}),
-      scaffolds: { reading: true },
-    });
-    flashcards.answerCard(qualityToSrsRating(quality, easy), card.id, timing?.wallLatencyMs, {
-      attemptId,
-      taskType: 'welcome-review',
-      tested: ['sense-recognition'],
-      scaffolds: { reading: true },
-    });
-    // The answer changed the pool: end the encounter so the next displayed
-    // card re-selects instead of replaying the just-rated pick (R20 repair).
-    decisionPin.advance();
+    const command: WelcomeRatingCommand = {
+      cardId: card.id,
+      word: card.content.front,
+      observations: [{ capability: 'sense-recognition', quality }],
+      options: {
+        language,
+        attemptId: nextAttemptId(),
+        taskType: 'welcome-review',
+        ...(timing ? { timing } : {}),
+        scaffolds: { reading: true },
+      },
+      rating: qualityToSrsRating(quality, easy),
+      ...(timing ? { timeSpentMs: timing.wallLatencyMs } : {}),
+    };
+    pendingWelcomeRating = command;
+    void saveWelcomeRating(command);
   };
   const recentWordRows = createMemo(() =>
     selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),
@@ -467,7 +509,7 @@ export const WelcomeRoute: Component = () => {
       <header class="welcome-header">
         <div class="welcome-logo">
           <AppLogo size={"2.5rem"}/>
-          <h1>{t('mlearn.Home.UI.Title')}</h1>
+          <h1>{t('mlearn.Global.AppName')}</h1>
         </div>
         <div class="welcome-subtitle">
           <span>
@@ -560,6 +602,15 @@ export const WelcomeRoute: Component = () => {
             />
           }
         />
+        <Show when={ratingSaveState() === 'saving'}>
+          <small role="status">{t('mlearn.Flashcards.SavingRating')}</small>
+        </Show>
+        <Show when={ratingSaveState() === 'failed'}>
+          <small role="alert">{t('mlearn.Flashcards.SaveFailed')}</small>
+          <Button variant="ghost" size="sm" onClick={() => {
+            if (pendingWelcomeRating) void saveWelcomeRating(pendingWelcomeRating);
+          }}>{t('mlearn.Knowledge.Popup.Retry')}</Button>
+        </Show>
 
         <WelcomeFeatureCard
           icon={<BarChartIcon size={24} />}

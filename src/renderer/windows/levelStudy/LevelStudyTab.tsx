@@ -7,7 +7,7 @@ import { LevelDetailModal } from './LevelDetailModal';
 import { BulkAddModal } from './BulkAddModal';
 import { GrammarCoverage } from './GrammarCoverage';
 import MockExam from './MockExam';
-import PlacementSession, { backgroundRecordsForLanguage } from './PlacementSession';
+import LearningBackgroundPanel from './LearningBackgroundPanel';
 import { summarizeGrammarCurriculumFromProjections } from '../../utils/curriculumCoverage';
 import { declaredItemStates, questionBankFromLanguageData } from '../../learning/questionBank';
 import { languageDataWithStoredQuestionValidations } from '../../learning/questionValidation';
@@ -23,20 +23,15 @@ import {
   computeLevelStats,
   getLevelStudyFrequency,
   getLevelStudyLevelNames,
-  getWordLevelStatus,
 } from '../../utils/wordLevelStats';
-import { EmptyState, TargetIcon, Btn, PillBtn, SkeletonCard, SkeletonRows } from '../../components/common';
+import { Button, EmptyState, Panel, TargetIcon, SkeletonCard, SkeletonRows } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
 import {
   getFrequencyLevelLabel,
   getLearningLanguageLevelForLanguage,
   isFrequencyLevelAtOrEasierThanTarget,
-  sortFrequencyLevelsByDifficulty,
 } from '../../../shared/languageFeatures';
-import { DEFAULT_SETTINGS, type LanguageData } from '../../../shared/types';
-import type { AttemptTiming } from '../../../shared/encounterTiming';
-import type { AttemptQuality } from '../../../shared/constants';
-import type { HistoricalBackgroundRecord } from '../../../shared/learningBackground';
+import type { LanguageData } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 
 function resolveLevelStudyLanguage(
@@ -67,11 +62,11 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () => void }> = (props) => {
+export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
-  const { settings, updateSettings } = useSettings();
+  const { settings } = useSettings();
   const [selectedLevel, setSelectedLevel] = createSignal<LevelStats | null>(null);
   const [showBulkAdd, setShowBulkAdd] = createSignal(false);
   // Question-validation record store (R12) is non-reactive localStorage: this
@@ -213,110 +208,6 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
 
   const hasFrequencyData = createMemo(() => stats().length > 0 || beyondCard() !== null);
 
-  // ─── Returning-learner placement (R09) ──────────────
-  /** Live untracked pools per package level, difficulty-ascending, capped
-   *  per level: the cross-section the placement probe can draw from. */
-  const PLACEMENT_POOL_CAP = 6;
-  const placementPools = createMemo(() => {
-    const resolved = resolvedLanguageData();
-    const langData = resolved.data;
-    if (!langData || flashcards.isLoading() || projected.loading()) return [];
-    const freq = frequency();
-    if (Object.keys(freq).length === 0) return [];
-    const projections = projected.projections();
-    const byLevel = new Map<number, string[]>();
-    // Every DECLARED level participates, even when its rows appear late in a
-    // frequency-ordered table: an easy-band-heavy prefix must never hide the
-    // harder bands from a category-balanced probe (R09).
-    const declaredLevels = Object.keys(levelNames())
-      .map((key) => Number(key))
-      .filter((level) => Number.isFinite(level));
-    const full = new Set<number>();
-    let fullDeclared = 0;
-    for (const level of declaredLevels) byLevel.set(level, []);
-    for (const [word, entry] of Object.entries(freq)) {
-      if (fullDeclared === declaredLevels.length) break; // every declared band capped
-      if (full.has(entry.raw_level)) continue;
-      // Surfaces are bounded to evidence-bearing words (F-N1): an absent
-      // projection is unmeasured, i.e. an untracked placement candidate.
-      const projection = projections.get(word);
-      const status = projection ? getWordLevelStatus(projectedWordStatus(projection)) : 'untracked';
-      if (status !== 'untracked') continue;
-      // G04 ignore policy: an ignored word stays epistemically unmeasured but is
-      // NEVER selected, taught or tested — exclude it before it can be sampled.
-      if (flashcards.isWordIgnoredSync(word, resolved.language)) continue;
-      const bucket = byLevel.get(entry.raw_level);
-      if (bucket === undefined) {
-        // Undeclared level: keep it offerable, but it cannot satisfy the
-        // declared-level stop condition on its own.
-        byLevel.set(entry.raw_level, [word]);
-        continue;
-      }
-      if (bucket.length >= PLACEMENT_POOL_CAP) {
-        full.add(entry.raw_level);
-        if (declaredLevels.includes(entry.raw_level)) fullDeclared += 1;
-        continue;
-      }
-      bucket.push(word);
-      if (bucket.length >= PLACEMENT_POOL_CAP) {
-        full.add(entry.raw_level);
-        if (declaredLevels.includes(entry.raw_level)) fullDeclared += 1;
-      }
-    }
-    const names = levelNames();
-    return sortFrequencyLevelsByDifficulty([...byLevel.keys()], langData)
-      .map((level) => ({
-        level,
-        label: getFrequencyLevelLabel(level, names, langData),
-        words: byLevel.get(level) ?? [],
-      }))
-      .filter((pool) => pool.words.length > 0);
-  });
-
-  const placementBackground = createMemo(() => backgroundRecordsForLanguage(
-    (settings.learningBackground ?? DEFAULT_SETTINGS.learningBackground).records,
-    resolvedLanguageData().language,
-  ));
-
-  const addBackground = (record: HistoricalBackgroundRecord) => {
-    const current = settings.learningBackground ?? DEFAULT_SETTINGS.learningBackground;
-    updateSettings({ learningBackground: { records: [...current.records, record] } });
-  };
-
-  const removeBackground = (id: string) => {
-    const current = settings.learningBackground ?? DEFAULT_SETTINGS.learningBackground;
-    updateSettings({ learningBackground: { records: current.records.filter((record) => record.id !== id) } });
-  };
-
-  const placementLanguage = createMemo(() => resolvedLanguageData().language);
-
-  /** True while the tab's projections/knowledge are (re)loading — e.g. right
-   *  after a placement rating bumped eventsVersion. PlacementSession stays
-   *  mounted through these flips; this only hides its DOM and stops timing. */
-  const placementBooting = createMemo(() => (
-    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || !projected.ready()
-  ));
-
-  const recordPlacementAttempt = (word: string, _level: number, quality: AttemptQuality, timing: AttemptTiming | null) => {
-    void flashcards.recordAttempt(word, 'surface-recognition', quality, {
-      language: placementLanguage(),
-      origin: 'placement',
-      taskType: 'placement',
-      ...(timing ? { timing } : {}),
-    });
-  };
-
-  const applyPlacement = (level: number) => {
-    updateSettings({
-      learningLanguageLevels: {
-        ...(settings.learningLanguageLevels ?? {}),
-        [placementLanguage()]: level,
-      },
-    });
-  };
-
-
-
   // Grammar curriculum coverage aggregates over the package's OWN grammar
   // scale (grammarLevels), from the capability-scoped journal.
   const [grammarLogResource, { refetch: retryGrammarLog }] = createResource(
@@ -438,10 +329,12 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
       <Show when={projected.failed()}>
         <div role="alert">
           <p>{t('mlearn.Knowledge.LoadError')}</p>
-          <Btn onClick={() => { projected.retry(); }}>{t('mlearn.Knowledge.Retry')}</Btn>
+          <Button onClick={() => { projected.retry(); }}>{t('mlearn.Knowledge.Retry')}</Button>
         </div>
       </Show>
-      <div hidden={props.assessment === true}>
+      <Show when={resolvedLanguageData().language !== ''}>
+        <LearningBackgroundPanel language={resolvedLanguageData().language} />
+      </Show>
       {/* Level stats are derived from the learner projection and the
           installed frequency data: until both are authoritative, keep the
           tab's geometry with placeholders instead of a blank panel, zeroed
@@ -467,7 +360,7 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
         }
       >
         <Show when={stats().length > 0}>
-        <div class="level-study-coverage-bar">
+        <Panel class="level-study-coverage-bar" padding="md">
           <div class="level-study-coverage-header">
             <span class="level-study-coverage-title">
               <Show
@@ -475,7 +368,7 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
                 fallback={t('mlearn.LevelStudy.Coverage.AllLevels')}
               >
                 {t('mlearn.LevelStudy.Coverage.UpTo')}
-                <PillBtn size="sm" variant="primary" label={userLevelLabel()} onClick={openBehaviourSettings} />
+                <Button buttonType="pill" size="sm" variant="primary" label={userLevelLabel()} onClick={openBehaviourSettings} />
               </Show>
             </span>
             <span>
@@ -529,13 +422,13 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
                </button>
              </Show>
           </Show>
-        </div>
+        </Panel>
         </Show>
 
         <div class="level-study-bulk-add">
-          <Btn variant="primary" onClick={() => setShowBulkAdd(true)}>
+          <Button variant="primary" onClick={() => setShowBulkAdd(true)}>
             {t('mlearn.LevelStudy.BulkAdd.Button')}
-          </Btn>
+          </Button>
         </div>
 
         <div class="level-study-levels-grid">
@@ -554,7 +447,7 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
 
         <Show when={requiresGrammar() && grammarLog() === undefined}>
           <Show when={grammarLogResource.state === 'errored'} fallback={<SkeletonRows rows={3} />}>
-            <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Btn onClick={() => void retryGrammarLog()}>{t('mlearn.Knowledge.Retry')}</Btn></div>
+            <div role="alert"><p>{t('mlearn.Knowledge.LoadError')}</p><Button onClick={() => void retryGrammarLog()}>{t('mlearn.Knowledge.Retry')}</Button></div>
           </Show>
         </Show>
         <Show when={grammarSummary() !== null && grammarSummary()!.total > 0 && grammarLog() !== undefined}>
@@ -594,42 +487,6 @@ export const LevelStudyTab: Component<{ assessment?: boolean; onEditPlan?: () =>
           />
       </Show>
       </Show>
-      </div>
-      <div hidden={!props.assessment}>
-      <Show when={props.assessment && placementBooting() && !projected.failed()}><div aria-busy="true"><SkeletonRows rows={3} /></div></Show>
-      {/* Mounted OUTSIDE the boot gate above: every placement rating appends
-          knowledge events, bumps eventsVersion and flips the projections to
-          loading — a gate here would unmount the live panel mid-session.
-          PlacementSession keeps its own state across those flips and only
-          hides its DOM while booting is true. Keyed on the learning language:
-          a language switch remounts the panel fresh, so a completed summary,
-          in-memory baseline or cursor of one language can never leak into
-          another language's placement (R19/G01). */}
-      <Show when={placementLanguage()} keyed>
-        {(keyedLanguage) => {
-          const language = typeof keyedLanguage === 'function'
-            ? (keyedLanguage as unknown as () => string)()
-            : keyedLanguage as string;
-          return (
-            <PlacementSession
-              language={language}
-              pools={placementPools()}
-              isWordAtLevel={(word, level) => frequency()[word]?.raw_level === level}
-              background={placementBackground()}
-              booting={placementBooting() || !props.assessment}
-              focused={props.assessment}
-              isWordIgnored={(word) => flashcards.isWordIgnoredSync(word, placementLanguage())}
-              onAddBackground={addBackground}
-              onRemoveBackground={removeBackground}
-              declaredLevel={userLevel()}
-              isLevelAtOrEasierThan={(level, target) => isFrequencyLevelAtOrEasierThanTarget(level, target, resolvedLanguageData().data)}
-              onRate={recordPlacementAttempt}
-              onApplyPlacement={applyPlacement}
-            />
-          );
-        }}
-      </Show>
-      </div>
       <Show when={selectedLevel()}>
         {(level) => (
           <LevelDetailModal

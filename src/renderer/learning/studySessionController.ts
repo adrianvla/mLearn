@@ -30,6 +30,11 @@ export interface StudySessionRecord<Item extends StudyQueueItem, Payload, Answer
 
 type RecordOf<I extends StudyQueueItem, P, A, M> = StudySessionRecord<I, P, A, M>;
 
+const stableJson = (value: unknown): string => JSON.stringify(value, (_key, entry: unknown) => {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
+  return Object.fromEntries(Object.keys(entry).sort().map((key) => [key, (entry as Record<string, unknown>)[key]]));
+}) ?? 'undefined';
+
 export interface StudySessionLocks {
   request(name: string, callback: () => void | Promise<void>): Promise<void>;
 }
@@ -54,6 +59,8 @@ export interface StudySessionControllerOptions<I extends StudyQueueItem, P, A, M
   locks: StudySessionLocks | null;
   storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   validate: (record: RecordOf<I, P, A, M>) => boolean;
+  /** Recheck dynamic exclusion policy under the session lock before evidence is written. */
+  shouldSkipAttempt?: (pending: StudyPending<P, A>, record: RecordOf<I, P, A, M>) => boolean | Promise<boolean>;
   writeAttempt: (pending: StudyPending<P, A>, record: RecordOf<I, P, A, M>) => Promise<void>;
   /** Task policy chooses a queue position; the controller owns the resulting cursor. */
   next: (record: RecordOf<I, P, A, M>, outcome: 'rated' | 'skipped' | 'advanced') => { index: number; meta: M };
@@ -86,6 +93,7 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
 ): StudySessionController<I, P, A, M> {
   type Session = RecordOf<I, P, A, M>;
   const [current, setCurrent] = createSignal<Session | null>(null);
+  let recoverPending: ((record: Session) => void) | undefined;
 
   const read = (): Session | null => {
     try {
@@ -116,9 +124,9 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
   const resume = (): Session | null => {
     const loaded = read();
     setCurrent(loaded);
+    if (loaded?.pending) recoverPending?.(loaded);
     return loaded;
   };
-  resume();
 
   const locked = async (
     expected: Session | null,
@@ -130,13 +138,13 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
     try {
       await options.locks.request(options.lockKey, async () => {
         const durable = read();
-        const exact = JSON.stringify(durable) === JSON.stringify(expected);
+        const exact = stableJson(durable) === stableJson(expected);
         // A failed attempt may be marked only in memory when storage refuses
         // the failure/acknowledgement write. Retrying that exact durable
         // reservation must still reuse its attempt ID.
         const sameReservation = allowPendingStateSkew && expected?.pending?.state === 'failed'
           && durable?.pending !== undefined
-          && JSON.stringify({ ...expected, pending: { ...expected.pending, state: durable.pending.state } }) === JSON.stringify(durable);
+          && stableJson({ ...expected, pending: { ...expected.pending, state: durable.pending.state } }) === stableJson(durable);
         if (!exact && !sameReservation) {
           setCurrent(durable);
           return;
@@ -166,6 +174,9 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
     const pending = record.pending;
     if (!pending) return false;
     try {
+      if (options.shouldSkipAttempt && await options.shouldSkipAttempt(pending, record)) {
+        return publish(move(record, 'skipped'));
+      }
       await options.writeAttempt(pending, record);
     } catch {
       const failed = { ...record, pending: { ...pending, state: 'failed' as const } };
@@ -188,14 +199,14 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
   };
   globalThis.addEventListener?.('storage', onStorage);
 
-  return {
+  const controller: StudySessionController<I, P, A, M> = {
     current,
     resume,
     start: (identity, queue, index, meta) => locked(current(), (durable) => {
       if (durable && durable.index < durable.queue.length) return false;
       if (index < 0 || index > queue.length || queue.some((item) => typeof item.id !== 'string')) return false;
       const record: Session = {
-        id: crypto.randomUUID(), identity, queue, index,
+        id: nextAttemptId(), identity, queue, index,
         visited: [], rated: 0, revealed: false, meta,
       };
       return options.validate(record) && publish(record);
@@ -242,4 +253,7 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
     }),
     dispose: () => globalThis.removeEventListener?.('storage', onStorage),
   };
+  recoverPending = (record) => { void controller.retry(record); };
+  resume();
+  return controller;
 }

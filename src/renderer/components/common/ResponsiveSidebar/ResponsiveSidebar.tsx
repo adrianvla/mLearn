@@ -1,5 +1,5 @@
 import { Component, JSX, Show, splitProps } from 'solid-js';
-import { IconBtn } from '../Button';
+import { Button } from '../Button';
 import './ResponsiveSidebar.css';
 
 export interface ResponsiveSidebarProps {
@@ -42,7 +42,7 @@ export const ResponsiveSidebar: Component<ResponsiveSidebarProps> = (props) => {
     <>
       <div class="responsive-sidebar__mobile-bar">
         <div class="responsive-sidebar__mobile-bar-drag" />
-        <IconBtn
+        <Button buttonType="icon"
           size="sm"
           variant="secondary"
           icon="sidebar"

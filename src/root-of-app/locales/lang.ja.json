@@ -379,7 +379,6 @@
         "UpDown": "音量調整"
       },
       "Licenses": "ライセンス",
-      "Title": "mLearn",
       "VersionLabel": "バージョン {version}",
       "Website": "ウェブサイト"
     },
@@ -496,26 +495,7 @@
       "TetheredServerEnabledDescription": "ローカルネットワーク上の他のデバイスにローカルPythonバックエンドを公開します。電話やタブレットと同期する場合のみ必要です。"
     },
     "ConversationAgent": {
-      "Agents": {
-        "Create": "エージェントを作成",
-        "Delete": "エージェントを削除",
-        "DeleteAll": "すべてのエージェントを削除",
-        "DeleteAllConfirm": "すべてのエージェント、記憶、会話データが完全に削除されます。確認のため以下の単語を入力してください：",
-        "DeleteAllConfirmPlaceholder": "確認のため入力",
-        "DeleteAllConfirmWord": "削除",
-        "DeleteAllTitle": "すべてのエージェントを削除",
-        "DeleteConfirm": "削除を確認するにはエージェント名を入力してください：",
-        "DeleteConfirmPlaceholder": "エージェント名",
-        "DeleteConfirmTitle": "エージェントを削除",
-        "Edit": "エージェントを編集",
-        "EditTitle": "エージェントを編集",
-        "Empty": "エージェントがまだありません。作成して始めましょう。",
-        "Memories": "記憶",
-        "NoMemories": "まだ記憶が保存されていません。",
-        "Save": "保存",
-        "Title": "エージェント",
-        "Unnamed": "名前なしのエージェント"
-      },
+      "Agents": {},
       "Clear": "会話をクリア",
       "Connection": {
         "AvailableModels": "利用可能なモデル",
@@ -612,16 +592,7 @@
         "CompactBusy": "現在の返答が終わってから圧縮してください。",
         "CompactFailed": "会話を圧縮できませんでした。"
       },
-      "Tools": {
-        "CorrectMistake": "間違いを訂正",
-        "CreateQuiz": "クイズ作成",
-        "FetchUrl": "URL取得",
-        "GetMediaStats": "メディア統計",
-        "SearchWikipedia": "Wikipedia検索",
-        "SearchFandom": "Fandom検索",
-        "RecallBackstory": "バックストーリーを思い出す",
-        "SaveMemory": "記憶を保存"
-      },
+      "Tools": {},
       "Quiz": {
         "BlankInputAriaLabel": "空欄 {index}",
         "Correct": "正解！",
@@ -636,38 +607,9 @@
       "Speaking": "話し中...",
       "StartRecording": "録音を開始",
       "Stats": {
-        "AssessedLevel": "評価レベル",
-        "ByOccurrence": "出現順",
-        "Current": "現在",
-        "Struggled": "苦手",
-        "StruggledGrammarCount": "苦手な文法",
         "HoveredWords": "ホバーした単語",
-        "Filter": {
-          "All": "すべて",
-          "HoveredOnly": "ホバーのみ",
-          "Unknown": "レベルなし"
-        },
-        "Grammar": "文法",
-        "GrammarLevels": "文法レベル",
-        "Hovered": "ホバー回数",
-        "Levels": "レベル",
-        "NoStruggledGrammar": "苦手な文法はまだありません。",
-        "NoHoveredWords": "ホバーした単語はまだありません — 没入を続けましょう！",
-        "NoGrammarMatching": "条件に一致する文法がありません。",
-        "NoLevelData": "レベル分布を計算するのに十分なデータがありません。",
-        "NoMedia": "メディア統計はまだ保存されていません",
-        "NoMediaHint": "動画を見たり本を読んだりすると、ここに分析結果が表示されます。",
-        "NoWordsMatching": "条件に一致する単語がありません。",
-        "Overview": "概要",
-        "Seen": "表示回数",
-        "Unique": "ユニーク",
-        "UniqueWords": "ユニーク単語数",
-        "UnknownWords": "未知の単語",
-        "Words": "単語",
-        "WordLevelDistribution": "単語レベル分布",
-        "WordLevels": "単語レベル",
-        "Lexical": "語彙",
-        "Structural": "構造"
+        "Filter": {},
+        "NoHoveredWords": "ホバーした単語はまだありません — 没入を続けましょう！"
       },
       "StopRecording": "録音を停止",
       "StopStreaming": "停止",
@@ -742,85 +684,13 @@
         "ClearAll": "すべての記憶を消去",
         "ClearAllConfirm": "エージェントのすべての記憶を削除しますか？この操作は取り消せません。",
         "Delete": "記憶を削除",
-        "Empty": "まだ記憶がありません。会話の中でエージェントが重要な情報を保存します。",
-        "Title": "エージェントの記憶"
+        "Empty": "まだ記憶がありません。会話の中でエージェントが重要な情報を保存します。"
       },
-      "Personality": {
-        "Casual": "カジュアル",
-        "CasualDescription": "リラックスした、フレンドリーな、くだけた言葉遣い",
-        "Label": "性格",
-        "Polite": "丁寧",
-        "PoliteDescription": "フォーマルで構造的、教育的なトーン",
-        "Roleplay": "ロールプレイ",
-        "RoleplayDescription": "名前と説明を持つカスタムキャラクター",
-        "RoleplayFormality": "丁寧さ",
-        "RoleplayLore": "キャラクター説明",
-        "RoleplayLorePlaceholder": "キャラクターの性格、特徴、対話方法を記述してください...",
-        "RoleplayBackstory": "バックストーリー",
-        "RoleplayBackstoryPlaceholder": "メディアから要約されたストーリーの背景...",
-        "RoleplayName": "キャラクター名",
-        "RoleplayNamePlaceholder": "キャラクターの名前を入力...",
-        "RoleplayQuotes": "サンプル台詞",
-        "RoleplayQuotesHint": "キャラクターの声の異なる側面を示す2〜4個の短い台詞。AIはこのスタイルに合わせます。",
-        "RoleplayQuotePlaceholder": "台詞を入力...",
-        "AddQuote": "台詞を追加",
-        "FandomUrl": "Fandom WikiのURL",
-        "FandomUrlHint": "このキャラクターのシリーズのFandom WikiのURL。Fandom検索ツールを有効にします。",
-        "FandomUrlPlaceholder": "例: https://myheroacademia.fandom.com"
-      },
+      "Personality": {},
       "Reset": "エージェントをリセット",
       "ResetConfirm": "エージェントの名前、性格、すべての記憶が消去されます。セットアップが最初からやり直しになります。続行しますか？",
-      "Setup": {
-        "Cancel": "キャンセル",
-        "NameLabel": "エージェントに名前をつける",
-        "NamePlaceholder": "空欄のままで名前なし",
-        "PersonalityLabel": "性格を選択",
-        "ProfilePhoto": "プロフィール写真",
-        "ProfilePhotoHint": "このエージェントのアバター用の画像をアップロード",
-        "ProfilePhotoRemove": "写真を削除",
-        "Start": "開始",
-        "Title": "AIチューターを設定",
-        "UserNameLabel": "あなたの名前",
-        "UserNamePlaceholder": "エージェントにどう呼んでほしいですか？",
-        "AboutMeLabel": "あなたについて",
-        "AboutMeHint": "会話をパーソナライズできるように、自分のことを教えてください。",
-        "AboutMePlaceholder": "例：大学生です、漫画が好きです、6ヶ月間学んでいます...",
-        "VoiceSample": "デフォルトボイス",
-        "ManualSetup": "手動設定",
-        "ManualSetupHint": "キャラクターの詳細を自分で入力します。"
-      },
-      "QuickStart": {
-        "Button": "Fandomからクイックスタート",
-        "Hint": "Fandom Wikiを検索してロールプレイフィールドを自動入力します。",
-        "Title": "ロールプレイキャラの簡単作成 - {name}",
-        "CharacterNameLabel": "キャラクター名",
-        "CharacterNamePlaceholder": "例: 緑谷出久",
-        "FandomUrlLabel": "Fandom WikiのURL",
-        "FandomUrlHint": "Fandom WikiのベースURLまたはWiki名を入力してください（例: myheroacademia）。",
-        "FandomUrlPlaceholder": "例: myheroacademia または https://myheroacademia.fandom.com",
-        "Next": "次へ",
-        "Back": "戻る",
-        "Search": "検索",
-        "Searching": "Fandom Wikiを検索中...",
-        "NoResults": "結果が見つかりません。別の名前を試すか、WikiのURLを確認してください。",
-        "SelectResult": "複数の結果が見つかりました。正しいものを選択してください：",
-        "MediaTypeLabel": "メディアタイプ",
-        "ProgressPointLabel": "現在の進捗",
-        "ProgressPointHint": "'Chapter 43'、'Episode 30'のような形式を使用するか、全体の場合は'all'と入力してください。",
-        "ProgressPointPlaceholder": "例: Chapter 43, Episode 30, all",
-        "InvalidProgressPoint": "'Chapter 43'、'Episode 30'、数字、または'all'などの認識された形式を使用してください。",
-        "Generate": "ペルソナ生成",
-        "Generating": "キャラクターペルソナを作成中...",
-        "Confirm": "このキャラクターを使用",
-        "ReviewName": "キャラクター",
-        "ReviewLore": "キャラクター説明",
-        "ReviewQuotes": "サンプル台詞",
-        "ReviewContext": "バックストーリー",
-        "ReviewFandom": "Fandom Wiki",
-        "FetchingChapters": "チャプター要約を取得中...",
-        "ExploringWiki": "Wikiからストーリー情報を探索中...",
-        "ExploringWikiDetail": "Wiki探索中: {detail}"
-      },
+      "Setup": {},
+      "QuickStart": {},
       "Sidebar": {
         "TemporaryPractice": "一時的な練習",
         "Title": "会話",
@@ -1057,7 +927,6 @@
         "ExamplesButton": "例文生成",
         "ExamplesDone": "{count}枚のカードに例文を生成しました",
         "ExamplesDoneWithErrors": "{count}枚のカードに例文を生成、{failed}件失敗",
-        "ExamplesLLMUnavailable": "LLMバックエンドが起動していません。設定でモデルを有効にしてください。",
         "ExamplesProgress": "例文を生成中…",
         "ExamplesTooltip": "例文のないカードにLLMで例文を生成",
         "GenerateDescription": "フラッシュカードの音声と例文を一括生成します",
@@ -1149,7 +1018,6 @@
         "LLMToastTitle": "不足している例文翻訳を生成中…",
         "LLMDone": "{count}枚のカードの翻訳を生成しました",
         "LLMDoneWithErrors": "{count}枚のカードの翻訳を生成、{failed}件失敗",
-        "LLMUnavailable": "LLMバックエンドが起動していません。設定でモデルを有効にしてください。",
         "RepairButton": "修復",
         "Title": "フラッシュカードデータの不足",
         "ToastTitle": "フラッシュカード音声を修復中…"
@@ -1162,7 +1030,6 @@
         "CompleteDescription": "すべてのカードの復習が完了しました。お疲れ様でした！",
         "WaitingTitle": "カードを待っています…",
         "WaitingDescription": "次のカードまで {time}",
-        "Easy": "簡単",
         "Hard": "難しい",
         "LearningCard": "学習中カード",
         "LearningLabel": "学習中:",
@@ -1182,19 +1049,17 @@
         "UndoTooltip": "元に戻す",
         "StealthMode": "ステルスモード",
         "MuteAudio": "音声ミュート",
-        "Modes": {
-          "Label": "解答表示",
-          "Help": "解答表示では公開されるヒントが変わります。評価はテスト対象の全能力に適用されます。個別に評価するには「調整」を使ってください。",
-          "Meaning": "意味",
-          "Reading": "読み",
-          "Prosody": "プロソディ"
-        },
+        "Modes": {},
         "Attribution": {
           "WrongReading": "読みを間違えた",
           "WrongProsody": "プロソディを間違えた",
           "WrongOrthography": "表記を認識できなかった",
           "Marked": "{aspect}を未知にしました"
-        }
+        },
+        "SavingRating": "評価を保存しています…",
+        "SaveFailed": "評価を保存できませんでした。カードは残っています。もう一度お試しください。",
+        "SavingUndo": "取り消しを保存しています…",
+        "UndoSaveFailed": "取り消しを保存できませんでした。カードは評価済みのままです。もう一度お試しください。"
       },
       "State": {
         "Learning": "学習中",
@@ -1435,8 +1300,7 @@
           "FilterUnknownOnly": "未知のみ",
           "FilterUnknownLearning": "未知 + 学習中",
           "FilterPassive": "受動的に追跡",
-          "IgnoreSeen": "既出を無視",
-          "Title": "単語シンク"
+          "IgnoreSeen": "既出を無視"
         },
         "LevelStudy": {
           "Description": "カリキュラム、学習目標、学習ペースを設定します。",
@@ -1450,7 +1314,6 @@
         "ChangeLanguage": "言語を変更",
         "ContinueLearning": "学習を続ける",
         "LearningLanguage": "{language}を学習中",
-        "Title": "mLearn",
         "TitleDescription": "下の項目を選択して始めましょう"
       }
     },
@@ -1590,7 +1453,10 @@
         "Overall": "全体",
         "Basis": "根拠",
         "Rate": "評価",
-        "Inspect": "詳細"
+        "Inspect": "詳細",
+        "Saving": "評価を保存しています…",
+        "SaveFailed": "評価を保存できませんでした。もう一度お試しください。",
+        "Retry": "再試行"
       },
       "Projection": {
         "EaseOverall": "単語全体の易しさ",
@@ -1784,7 +1650,6 @@
         "Correct": "正解！",
         "Incorrect": "惜しい — 答えは: {answer}",
         "Next": "次へ",
-        "NoLocks": "このブラウザーでは練習を安全に保存できません。対応ブラウザーまたはデスクトップアプリでmLearnを開いてください。",
         "StorageUnavailable": "回答を保存できませんでした。保存領域が利用できるか確認してから、もう一度お試しください。",
         "SavingAnswer": "回答を保存中…",
         "ModeLabel": "回答形式",
@@ -1797,11 +1662,7 @@
         "ValidateDone": "検証済み {passed} · 却下 {rejected} · 変更なし {unchanged}",
         "ValidateFailed": "検証を実行できません: {errors}"
       },
-      "PopulationStats": {
-        "Title": "フラッシュカード作成状況",
-        "Populated": "{populated} / {total} 件作成済み",
-        "Complete": "すべてのフラッシュカードが作成済み"
-      },
+      "PopulationStats": {},
       "BulkAdd": {
         "Button": "一括追加",
         "Title": "フラッシュカードを一括追加",
@@ -1879,15 +1740,12 @@
         "MoveAhead": "現在設定のレベルより上です。先へ進めます。",
         "TraceRow": "{label}：{sampled} 語サンプル · {hits} スムーズ · {misses} できず · {skipped} スキップ",
         "EvidenceNote": "サンプルの{count}語のみ測定されました。他の単語は未測定のままです。",
-        "CleanLatency": "タスク応答の中央値（{range}文字）：{ms}ミリ秒（使用できない試行は除外）",
         "UseLevel": "このレベルを使う",
         "Dismiss": "閉じる",
         "EmptyPools": "現在、サンプルできる未測定の単語がありません。",
         "DateRequired": "試験・学校の結果には達成日が必要です。",
         "DateUnknown": "日付不明",
-        "NoLocks": "このブラウザーでは練習を安全に保存できません。対応ブラウザーまたはデスクトップアプリでmLearnを開いてください。",
-        "NoStorage": "ここではプレースメントを利用できません：セッションを保存できませんでした（ストレージ満杯またはプライベートモード）。",
-        "LiveProgress": "進捗：{count}語。回答に応じて評価が調整されます。学習プランに戻って、後で再開できます。"
+        "LiveProgress": "回答数：{count}。回答に応じて評価内容が調整されます。学習プランに戻り、後で再開できます。"
       },
       "Mock": {
         "Title": "学習チェック",
@@ -1933,9 +1791,9 @@
         "BackToBlueprints": "練習セットに戻る",
         "Summaries": "最近の結果",
         "SummaryCounts": "{correct}/{answered} 正解 · {timedOut} 無回答",
-        "NoLocks": "このブラウザーでは練習を安全に保存できません。対応ブラウザーまたはデスクトップアプリでmLearnを開いてください。",
         "StorageUnavailable": "回答を保存できませんでした。保存領域が利用できるか確認してから、もう一度お試しください。"
-      }
+      },
+      "NoLocks": "このブラウザーでは練習を安全に保存できません。対応ブラウザーまたはデスクトップアプリでmLearnを開いてください。"
     },
     "Languages": {
       "cu": "教会スラヴ語",
@@ -2133,18 +1991,9 @@
       },
       "UI": {
         "Tips": {
-          "NeverLosePlace": {
-            "Description": "ページ位置は自動的に保存されます。",
-            "Title": "しおりは自動"
-          },
-          "ShapeView": {
-            "Description": "サイドバーやキーボードショートカットを使って、見開きと単一ページのレイアウトを切り替えられます。",
-            "Title": "表示を調整"
-          },
-          "SummonOcr": {
-            "Description": "ページが表示されたら、OCRを実行してテキストをインタラクティブに変換できます。",
-            "Title": "OCRを使う"
-          }
+          "NeverLosePlace": {},
+          "ShapeView": {},
+          "SummonOcr": {}
         },
         "WelcomeSplash": {
           "DropZone": "ファイルをここにドロップしてインポート",
@@ -2461,29 +2310,9 @@
         }
       },
       "Shiritori": {
-        "Title": "しりとり",
-        "Description": "日本語の名詞を繋げよう。次の言葉は前の言葉の最後の文字から始まる必要があります。ん で終わる言葉を言うと負けです。同じ言葉は2回使えません。",
-        "Turn": {
-          "User": "あなたの番 — 「{kana}」から始まる言葉を言ってください",
-          "UserFirst": "あなたの番 — 日本語の名詞を言ってください",
-          "Computer": "コンピューターの番",
-          "ComputerThinking": "コンピューターが考えています..."
-        },
-        "Error": {
-          "Empty": "言葉を入力してください。",
-          "Duplicate": "同じ言葉は2回使えません。",
-          "NotFound": "その言葉は辞書に見つかりませんでした。",
-          "WrongStart": "その言葉は「{kana}」から始まる必要があります。",
-          "EndsWithN": "ん で終わる言葉 — あなたの負け！",
-          "NoReading": "その言葉の読み方を判別できませんでした。"
-        },
-        "GameOver": {
-          "UserWins": "あなたの勝ち！",
-          "ComputerWins": "コンピューターの勝ち！",
-          "PlayAgain": "もう一度遊ぶ"
-        },
-        "Submit": "送信",
-        "LanguageWarning": "このプラグインは日本語が選択されている時のみ利用できます。設定で日本語に切り替えてください。"
+        "Turn": {},
+        "Error": {},
+        "GameOver": {}
       },
       "Reader": {
         "Description": "OCRとリーダーの設定",
@@ -3163,17 +2992,7 @@
         "ReviewStudyTime": "復習学習時間",
         "Reviews": "復習",
         "SrsConfig": "SRS設定",
-        "Srs": {
-          "EasyInterval": "簡単な間隔",
-          "GraduatingInterval": "修了間隔",
-          "LearningSteps": "学習ステップ",
-          "MaxInterval": "最大間隔",
-          "MaxReviewsPerDay": "1日の最大復習数",
-          "NewCardsPerDay": "1日の新規カード数",
-          "NewIntervalMod": "新規間隔修正",
-          "RelearnSteps": "再学習ステップ",
-          "ReviewIntervalMod": "復習間隔修正"
-        },
+        "Srs": {},
         "StudyTime": "学習時間",
         "TimeRead": "読書時間",
         "TimeWatched": "視聴時間",
@@ -3344,23 +3163,7 @@
         "PeerJoinedPlural": "{count}人の参加者がルームに参加しました",
         "AnticipatingPing": "pingを待機中..."
       },
-      "Extension": {
-        "HeadlessMode": "ヘッドレスモード",
-        "Enable": "有効にする",
-        "Disable": "無効にする",
-        "Subtitles": "字幕",
-        "LoadSubtitleFile": "字幕ファイルを読み込む",
-        "SyncOffset": "同期オフセット",
-        "SignInRequired": "Watch Togetherを使用するにはサインインしてください",
-        "SignIn": "サインイン",
-        "Host": "ホスト",
-        "Join": "参加",
-        "CreateRoom": "ルームを作成",
-        "RoomCodePlaceholder": "ルームコードを入力",
-        "RoomCode": "ルームコード",
-        "Peers": "参加者",
-        "LeaveRoom": "ルームを退出"
-      },
+      "Extension": {},
       "Media": {
         "DistributeTitle": "メディアを配信",
         "DistributeSubtitle": "クラウド同期を使用して接続中の参加者にメディアファイルを送信",
@@ -3541,15 +3344,7 @@
       "SavingRating": "評価を保存中…",
       "AnswerUnavailable": "この単語の解答がありません。辞書検索を再試行するか、別のフィルターを選んでください。評価は記録されていません。",
       "SaveFailed": "評価を保存できませんでした。この単語は表示されたままです。もう一度お試しください。",
-      "Statement": {
-        "Label": "言葉で伝える",
-        "KnownSpoken": "聞いたら分かる言葉です。",
-        "MeaningNotForm": "意味は知っていますが、この表記は分かりません。",
-        "KnownCharacters": "個々の文字は知っています。",
-        "InferredFromParts": "部分から意味を推測できます。",
-        "ReadablePitchWrong": "読めますが、アクセントが合っていません。",
-        "NeverSeenForm": "この形は見たことがありません。"
-      },
+      "Statement": {},
       "FinishedTitle": "完了！",
       "FinishedDescription": "記録した確認：{count}件。回答は学習履歴に保存されました。",
       "Progress": "{rated} / {total} 語",

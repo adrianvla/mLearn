@@ -9,7 +9,7 @@ import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable, buildLexemeIndex, buildWordFrequencyMapFromLanguageData, getFrequencyForLexeme, resolveLanguageFrequencyPayload } from '../../shared/languageFeatures';
 import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
-import type { FlashcardStore, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
+import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { calculateWordStats } from '../../shared/utils/wordStats';
 import { createWordFormDeriver } from '../../shared/utils/wordForms';
@@ -58,9 +58,10 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
 };
 
 let writeQueue: Promise<void> = Promise.resolve();
-function enqueueWrite(fn: () => Promise<void>): Promise<void> {
-  writeQueue = writeQueue.then(fn, fn);
-  return writeQueue;
+function enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
+  const write = writeQueue.then(fn, fn);
+  writeQueue = write.then(() => undefined, () => undefined);
+  return write;
 }
 
 function getFlashcardsPath(): string {
@@ -723,6 +724,7 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
     version: fc_to_check.version < CURRENT_VERSION ? CURRENT_VERSION : fc_to_check.version,
+    ...(fc_to_check.pendingReviewUndo ? { pendingReviewUndo: fc_to_check.pendingReviewUndo } : {}),
     rev: fc_to_check.rev,
   };
 
@@ -803,16 +805,30 @@ async function loadFlashcardsFromDisk(filePath: string): Promise<FlashcardStore>
   return { ...DEFAULT_FLASHCARD_STORE };
 }
 
-export async function saveFlashcards(store: FlashcardStore, removedCardIds: readonly string[] = [], resetReviewProgress = false): Promise<void> {
+export async function saveFlashcards(store: FlashcardStore, removedCardIds: readonly string[] = [], resetReviewProgress = false, authorization?: FlashcardWriteAuthorization): Promise<number> {
   return enqueueWrite(async () => {
+    const filePath = getFlashcardsPath();
+    let currentRevision = cachedStorePath === filePath ? cachedStore?.rev : undefined;
+    if (currentRevision === undefined) {
+      try {
+        const persisted = JSON.parse(await fs.promises.readFile(filePath, 'utf-8')) as { rev?: unknown };
+        currentRevision = typeof persisted.rev === 'number' && Number.isSafeInteger(persisted.rev) ? persisted.rev : 0;
+      } catch {
+        currentRevision = 0;
+      }
+    }
+    const expectedRevision = store.rev ?? 0;
+    if (expectedRevision !== currentRevision) {
+      throw new Error(`Stale flashcard store revision: expected ${currentRevision}, received ${expectedRevision}`);
+    }
+
     const guardian = guardianForWrites();
-    guardian?.checkFlashcardWrite(store, removedCardIds, resetReviewProgress);
-    // Monotonic store revision: every persisted write invalidates older
-    // client snapshots so the sync server can reject them with HTTP 409.
-    store.rev = (store.rev ?? 0) + 1;
+    guardian?.checkFlashcardWrite(store, removedCardIds, resetReviewProgress, authorization);
+    // The main process serializes writes and advances the authoritative
+    // revision. Other renderer snapshots from the previous revision are stale.
+    store.rev = currentRevision + 1;
     extractBase64Images(store);
     try {
-      const filePath = getFlashcardsPath();
       const tmpPath = `${filePath}.tmp`;
       const dir = path.dirname(filePath);
       try {
@@ -826,6 +842,7 @@ export async function saveFlashcards(store: FlashcardStore, removedCardIds: read
       guardian?.recordFlashcardWrite(store);
       cachedStore = store;
       cachedStorePath = filePath;
+      return store.rev;
     } catch (error) {
       log.error('Failed to save flashcards:', error);
       throw error;
@@ -860,8 +877,8 @@ export function setupFlashcardIPC(): void {
     }
   });
 
-  ipcMain.on(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean) => {
-    void saveFlashcards(store, removedCardIds, resetReviewProgress).catch((error) => log.error('Blocked flashcard write', error));
+  ipcMain.handle(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => {
+    return saveFlashcards(store, removedCardIds, resetReviewProgress, authorization);
   });
 
 }

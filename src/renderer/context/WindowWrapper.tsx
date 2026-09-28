@@ -15,7 +15,7 @@ import { hashWord } from '../services/srsAlgorithm';
 import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
-import { Btn, ErrorModal, EulaModal, Modal, ProgressBar } from '../components/common';
+import { Button, ErrorModal, EulaModal, Modal, ProgressBar } from '../components/common';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
@@ -165,12 +165,12 @@ const GlobalRuntimeRestartModal: Component = () => {
         showRetry={false}
         showQuit={false}
         actions={(
-          <Btn
+          <Button
             variant="primary"
             onClick={restartAppForRuntimeSettings}
           >
             {t('mlearn.RuntimeRestart.RestartNow')}
-          </Btn>
+          </Button>
         )}
       />
     </Show>
@@ -285,8 +285,8 @@ const GlobalInstallProgressModal: Component = () => {
           </Show>
           <Show when={hasFailed()}>
             <div class="install-progress-actions">
-              <Btn variant="primary" onClick={retry}>{t('mlearn.Global.TryAgain')}</Btn>
-              <Btn variant="secondary" onClick={dismiss}>{t('mlearn.Global.Close')}</Btn>
+              <Button variant="primary" onClick={retry}>{t('mlearn.Global.TryAgain')}</Button>
+              <Button variant="secondary" onClick={dismiss}>{t('mlearn.Global.Close')}</Button>
             </div>
           </Show>
         </div>

@@ -3,18 +3,7 @@
  */
 
 import { Component, Show, Accessor, Setter, createSignal } from 'solid-js';
-import {
-  Btn,
-  ProgressBar,
-  HintText,
-  Select,
-  Input,
-  FilterBuilder,
-  type FieldConfig,
-  type FilterToken,
-  type PaletteItem,
-  type ValidationResult,
-} from '../../../components/common';
+import { Button, ProgressBar, HintText, Select, Input, FilterBuilder, type FieldConfig, type FilterToken, type PaletteItem, type ValidationResult } from '../../../components/common';
 import { useLocalization } from '../../../context';
 import './SearchBar.css';
 
@@ -52,7 +41,7 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         onKeyPress={(e) => e.key === 'Enter' && props.onSearch()}
         size="md"
       />
-      <Btn onClick={props.onSearch}>{t('mlearn.Global.Search')}</Btn>
+      <Button onClick={props.onSearch}>{t('mlearn.Global.Search')}</Button>
 
       <Select
         class="mode-select"
@@ -63,13 +52,13 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         <option value="ignored">{t('mlearn.WordDbEditor.BrowseMode.IgnoredWords')}</option>
       </Select>
 
-      <Btn
+      <Button
         onClick={props.onStudyOrder}
         variant={props.studyOrderSelected ? 'primary' : 'secondary'}
         title={t('mlearn.WordDbEditor.StudyOrderHint')}
       >
         {t('mlearn.WordDbEditor.StudyOrder')}
-      </Btn>
+      </Button>
 
       <button
         type="button"

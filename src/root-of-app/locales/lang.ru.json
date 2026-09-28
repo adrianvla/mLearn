@@ -379,7 +379,6 @@
         "UpDown": "Регулировка громкости"
       },
       "Licenses": "Лицензии",
-      "Title": "mLearn",
       "VersionLabel": "Версия {version}",
       "Website": "Веб-сайт"
     },
@@ -496,26 +495,7 @@
       "TetheredServerEnabledDescription": "Открывает локальный Python-бэкенд для других устройств в этой сети. Нужно только при синхронизации с телефоном или планшетом."
     },
     "ConversationAgent": {
-      "Agents": {
-        "Create": "Создать агента",
-        "Delete": "Удалить агента",
-        "DeleteAll": "Удалить всех агентов",
-        "DeleteAllConfirm": "Это безвозвратно удалит всех агентов, их воспоминания и данные разговоров. Введите слово ниже для подтверждения:",
-        "DeleteAllConfirmPlaceholder": "Введите для подтверждения",
-        "DeleteAllConfirmWord": "УДАЛИТЬ",
-        "DeleteAllTitle": "Удалить всех агентов",
-        "DeleteConfirm": "Введите имя агента для подтверждения удаления:",
-        "DeleteConfirmPlaceholder": "Имя агента",
-        "DeleteConfirmTitle": "Удалить агента",
-        "Edit": "Редактировать агента",
-        "EditTitle": "Редактировать агента",
-        "Empty": "Агентов пока нет. Создайте одного, чтобы начать.",
-        "Memories": "Воспоминания",
-        "NoMemories": "Воспоминаний пока нет.",
-        "Save": "Сохранить",
-        "Title": "Агенты",
-        "Unnamed": "Безымянный агент"
-      },
+      "Agents": {},
       "Clear": "Очистить беседу",
       "Connection": {
         "AvailableModels": "Доступные модели",
@@ -612,16 +592,7 @@
         "CompactBusy": "Дождитесь завершения текущего ответа.",
         "CompactFailed": "Не удалось сжать разговор."
       },
-      "Tools": {
-        "CorrectMistake": "Исправление ошибок",
-        "CreateQuiz": "Создание викторин",
-        "FetchUrl": "Загрузка URL",
-        "GetMediaStats": "Статистика медиа",
-        "SearchWikipedia": "Поиск в Википедии",
-        "SearchFandom": "Поиск в Fandom",
-        "RecallBackstory": "Вспомнить предысторию",
-        "SaveMemory": "Сохранить воспоминание"
-      },
+      "Tools": {},
       "Quiz": {
         "BlankInputAriaLabel": "Пропуск {index}",
         "Correct": "Правильно!",
@@ -636,38 +607,9 @@
       "Speaking": "Говорит...",
       "StartRecording": "Начать запись",
       "Stats": {
-        "AssessedLevel": "Оценённый уровень",
-        "ByOccurrence": "По частоте",
-        "Current": "Текущий",
-        "Struggled": "Сложные",
-        "StruggledGrammarCount": "Сложная грамматика",
         "HoveredWords": "Часто наводимые слова",
-        "Filter": {
-          "All": "Все",
-          "HoveredOnly": "Только часто наводимые",
-          "Unknown": "Без уровня"
-        },
-        "Grammar": "Грамматика",
-        "GrammarLevels": "Уровни грамматики",
-        "Hovered": "Наведений",
-        "Levels": "Уровни",
-        "NoStruggledGrammar": "Сложной грамматики пока нет.",
-        "NoHoveredWords": "Часто наводимых слов пока нет — продолжайте погружение!",
-        "NoGrammarMatching": "Нет грамматики, соответствующей фильтру.",
-        "NoLevelData": "Недостаточно данных для расчёта распределения по уровням.",
-        "NoMedia": "Статистика медиа ещё не сохранена",
-        "NoMediaHint": "Смотрите видео или читайте книги, и здесь появится аналитика.",
-        "NoWordsMatching": "Нет слов, соответствующих фильтру.",
-        "Overview": "Обзор",
-        "Seen": "Просмотрено",
-        "Unique": "Уникальные",
-        "UniqueWords": "Уникальных слов",
-        "UnknownWords": "Неизвестные слова",
-        "Words": "Слова",
-        "WordLevelDistribution": "Распределение слов по уровням",
-        "WordLevels": "Уровни слов",
-        "Lexical": "Лексика",
-        "Structural": "Структура"
+        "Filter": {},
+        "NoHoveredWords": "Часто наводимых слов пока нет — продолжайте погружение!"
       },
       "StopRecording": "Остановить запись",
       "StopStreaming": "Стоп",
@@ -742,85 +684,13 @@
         "ClearAll": "Очистить все воспоминания",
         "ClearAllConfirm": "Вы уверены, что хотите удалить все воспоминания агента? Это действие необратимо.",
         "Delete": "Удалить воспоминание",
-        "Empty": "Пока нет сохранённых воспоминаний. Агент будет сохранять важные факты по мере ваших бесед.",
-        "Title": "Память агента"
+        "Empty": "Пока нет сохранённых воспоминаний. Агент будет сохранять важные факты по мере ваших бесед."
       },
-      "Personality": {
-        "Casual": "Непринуждённый",
-        "CasualDescription": "Расслабленный, дружелюбный, использует разговорный язык",
-        "Label": "Личность",
-        "Polite": "Вежливый",
-        "PoliteDescription": "Формальный, структурированный, обучающий тон",
-        "Roleplay": "Ролевая игра",
-        "RoleplayDescription": "Пользовательский персонаж с именем и описанием",
-        "RoleplayFormality": "Формальность",
-        "RoleplayLore": "Описание персонажа",
-        "RoleplayLorePlaceholder": "Опишите личность, черты характера и стиль общения персонажа...",
-        "RoleplayBackstory": "Предыстория",
-        "RoleplayBackstoryPlaceholder": "Контекст сюжета, обобщённый из медиа...",
-        "RoleplayName": "Имя персонажа",
-        "RoleplayNamePlaceholder": "Введите имя персонажа...",
-        "RoleplayQuotes": "Примеры цитат",
-        "RoleplayQuotesHint": "2-4 короткие цитаты, каждая показывающая разные стороны голоса персонажа. ИИ будет имитировать этот стиль.",
-        "RoleplayQuotePlaceholder": "Введите цитату...",
-        "AddQuote": "Добавить цитату",
-        "FandomUrl": "URL вики Fandom",
-        "FandomUrlHint": "URL вики Fandom для серии этого персонажа. Включает инструмент поиска Fandom.",
-        "FandomUrlPlaceholder": "например https://myheroacademia.fandom.com"
-      },
+      "Personality": {},
       "Reset": "Сбросить агента",
       "ResetConfirm": "Это удалит имя, личность и все воспоминания агента. Процесс настройки начнётся заново. Продолжить?",
-      "Setup": {
-        "Cancel": "Отмена",
-        "NameLabel": "Дайте агенту имя",
-        "NamePlaceholder": "Оставьте пустым, если имя не нужно",
-        "PersonalityLabel": "Выберите личность",
-        "ProfilePhoto": "Фото профиля",
-        "ProfilePhotoHint": "Загрузите изображение для аватара этого агента",
-        "ProfilePhotoRemove": "Удалить фото",
-        "Start": "Начать",
-        "Title": "Настройка ИИ-репетитора",
-        "UserNameLabel": "Ваше имя",
-        "UserNamePlaceholder": "Как агент должен вас называть?",
-        "AboutMeLabel": "О вас",
-        "AboutMeHint": "Расскажите агенту о себе, чтобы он мог персонализировать беседы.",
-        "AboutMePlaceholder": "напр. Я студент, увлекаюсь мангой, учу язык 6 месяцев...",
-        "VoiceSample": "Голос по умолчанию",
-        "ManualSetup": "Ручная настройка",
-        "ManualSetupHint": "Заполните данные персонажа самостоятельно."
-      },
-      "QuickStart": {
-        "Button": "Быстрый старт через Fandom",
-        "Hint": "Автоматически заполнить поля ролевой игры, выполнив поиск по Fandom Wiki.",
-        "Title": "Быстрое создание персонажа - {name}",
-        "CharacterNameLabel": "Имя персонажа",
-        "CharacterNamePlaceholder": "напр. Изуку Мидория",
-        "FandomUrlLabel": "URL Fandom Wiki",
-        "FandomUrlHint": "Введите базовый URL Fandom Wiki или просто название вики (напр. myheroacademia).",
-        "FandomUrlPlaceholder": "напр. myheroacademia или https://myheroacademia.fandom.com",
-        "Next": "Далее",
-        "Back": "Назад",
-        "Search": "Поиск",
-        "Searching": "Поиск по Fandom Wiki...",
-        "NoResults": "Результатов не найдено. Попробуйте другое имя или проверьте URL вики.",
-        "SelectResult": "Найдено несколько результатов. Выберите правильный:",
-        "MediaTypeLabel": "Тип медиа",
-        "ProgressPointLabel": "Ваш текущий прогресс",
-        "ProgressPointHint": "Используйте формат вроде 'Chapter 43', 'Episode 30' или введите 'all' для всего сюжета.",
-        "ProgressPointPlaceholder": "напр. Chapter 43, Episode 30, all",
-        "InvalidProgressPoint": "Пожалуйста, используйте распознанный формат: 'Chapter 43', 'Episode 30', число или 'all'.",
-        "Generate": "Сгенерировать персону",
-        "Generating": "Создание персоны персонажа...",
-        "Confirm": "Использовать этого персонажа",
-        "ReviewName": "Персонаж",
-        "ReviewLore": "Описание персонажа",
-        "ReviewQuotes": "Примеры цитат",
-        "ReviewContext": "Предыстория",
-        "ReviewFandom": "Fandom Wiki",
-        "FetchingChapters": "Загрузка кратких содержаний глав...",
-        "ExploringWiki": "Исследование вики для контекста сюжета...",
-        "ExploringWikiDetail": "Исследование вики: {detail}"
-      },
+      "Setup": {},
+      "QuickStart": {},
       "Sidebar": {
         "TemporaryPractice": "Временная практика",
         "Title": "Диалоги",
@@ -1057,7 +927,6 @@
         "ExamplesButton": "Генерировать примеры",
         "ExamplesDone": "Примеры сгенерированы для {count} карточек",
         "ExamplesDoneWithErrors": "Примеры сгенерированы для {count} карточек, {failed} не удалось",
-        "ExamplesLLMUnavailable": "LLM-бэкенд не запущен. Включите модель в настройках.",
         "ExamplesProgress": "Генерация примеров…",
         "ExamplesTooltip": "Генерировать примеры предложений с помощью LLM для карточек без примеров",
         "GenerateDescription": "Пакетная генерация аудио и примеров предложений для ваших карточек",
@@ -1149,7 +1018,6 @@
         "LLMToastTitle": "Генерация недостающих переводов примеров…",
         "LLMDone": "Переводы сгенерированы для {count} карточки(ок)",
         "LLMDoneWithErrors": "Переводы сгенерированы для {count} карточки(ок), {failed} не удалось",
-        "LLMUnavailable": "LLM-бэкенд не запущен. Включите модель в настройках.",
         "RepairButton": "Восстановить",
         "Title": "Отсутствующие данные карточек",
         "ToastTitle": "Восстановление аудио карточек…"
@@ -1162,7 +1030,6 @@
         "CompleteDescription": "Вы повторили все карточки на сегодня. Отличная работа!",
         "WaitingTitle": "Ожидание карточек…",
         "WaitingDescription": "Следующая карточка через {time}",
-        "Easy": "Легко",
         "Hard": "Трудно",
         "LearningCard": "Изучаемая карточка",
         "LearningLabel": "Изучение:",
@@ -1182,19 +1049,17 @@
         "UndoTooltip": "Отменить",
         "StealthMode": "Скрытый режим",
         "MuteAudio": "Без звука",
-        "Modes": {
-          "Label": "Вид ответа",
-          "Help": "Вид ответа меняет показанные подсказки. Оценка относится ко всем проверяемым навыкам; используйте «Настроить» для отдельных оценок.",
-          "Meaning": "Значение",
-          "Reading": "Чтение",
-          "Prosody": "Просодия"
-        },
+        "Modes": {},
         "Attribution": {
           "WrongReading": "Неверное чтение",
           "WrongProsody": "Неверная просодия",
           "WrongOrthography": "Не узнал написание",
           "Marked": "Отмечено: {aspect} — неизвестно"
-        }
+        },
+        "SavingRating": "Сохранение оценки…",
+        "SaveFailed": "Не удалось сохранить оценку. Карточка осталась; попробуйте ещё раз.",
+        "SavingUndo": "Сохранение отмены…",
+        "UndoSaveFailed": "Не удалось сохранить отмену. Оценка карточки сохраняется; попробуйте ещё раз."
       },
       "State": {
         "Learning": "Изучение",
@@ -1435,8 +1300,7 @@
           "FilterUnknownOnly": "Только неизвестные",
           "FilterUnknownLearning": "Неизвестные + Изучаемые",
           "FilterPassive": "Пассивно отслеживаемые",
-          "IgnoreSeen": "Игнорировать просмотренные",
-          "Title": "Синхронизация слов"
+          "IgnoreSeen": "Игнорировать просмотренные"
         },
         "LevelStudy": {
           "Description": "Настройте программу, целевой уровень и темп обучения.",
@@ -1450,7 +1314,6 @@
         "ChangeLanguage": "Сменить язык",
         "ContinueLearning": "Продолжить обучение",
         "LearningLanguage": "Изучаю {language}",
-        "Title": "mLearn",
         "TitleDescription": "Выберите пункт ниже, чтобы начать"
       }
     },
@@ -1590,7 +1453,10 @@
         "Overall": "Итого",
         "Basis": "Основание",
         "Rate": "Оценить",
-        "Inspect": "Подробнее"
+        "Inspect": "Подробнее",
+        "Saving": "Сохранение оценки…",
+        "SaveFailed": "Не удалось сохранить оценку. Попробуйте ещё раз.",
+        "Retry": "Повторить"
       },
       "Projection": {
         "EaseOverall": "Общая лёгкость слова",
@@ -1784,7 +1650,6 @@
         "Correct": "Правильно!",
         "Incorrect": "Не совсем — ответ: {answer}",
         "Next": "Далее",
-        "NoLocks": "В этом браузере нельзя безопасно сохранить практику. Откройте mLearn в поддерживаемом браузере или настольном приложении.",
         "StorageUnavailable": "Не удалось сохранить ответ. Проверьте доступность хранилища и повторите попытку.",
         "SavingAnswer": "Сохранение ответа…",
         "ModeLabel": "Формат ответа",
@@ -1797,11 +1662,7 @@
         "ValidateDone": "Проверено {passed} · отклонено {rejected} · без изменений {unchanged}",
         "ValidateFailed": "Не удалось выполнить проверку: {errors}"
       },
-      "PopulationStats": {
-        "Title": "Заполнение карточек",
-        "Populated": "{populated} из {total} заполнено",
-        "Complete": "Все карточки заполнены"
-      },
+      "PopulationStats": {},
       "BulkAdd": {
         "Button": "Массовое добавление",
         "Title": "Массовое добавление карточек",
@@ -1879,15 +1740,12 @@
         "MoveAhead": "Это выше вашего текущего уровня — можно двигаться дальше.",
         "TraceRow": "{label}: {sampled} в выборке · {hits} бегло · {misses} с ошибкой · {skipped} пропущено",
         "EvidenceNote": "Измерены только {count} слов выборки — все остальные остались неизмеренными.",
-        "CleanLatency": "Медиана отклика на задачу ({range} симв.): {ms} мс (непригодные попытки исключены)",
         "UseLevel": "Использовать этот уровень",
         "Dismiss": "Закрыть",
         "EmptyPools": "Сейчас нет неизмеренных слов, доступных для выборки.",
         "DateRequired": "Для экзаменационного или школьного результата нужна дата получения.",
         "DateUnknown": "дата неизвестна",
-        "NoLocks": "В этом браузере нельзя безопасно сохранить практику. Откройте mLearn в поддерживаемом браузере или настольном приложении.",
-        "NoStorage": "Размещение здесь недоступно: не удалось сохранить сессию (хранилище заполнено или приватный режим).",
-        "LiveProgress": "Прогресс: {count} слов. Оценка адаптируется к вашим ответам. Вы можете вернуться к плану и продолжить позже."
+        "LiveProgress": "Записано ответов: {count}. Оценка адаптируется к вашим ответам. Вы можете вернуться к плану и продолжить позже."
       },
       "Mock": {
         "Title": "Проверка прогресса",
@@ -1933,9 +1791,9 @@
         "BackToBlueprints": "К наборам упражнений",
         "Summaries": "Недавние результаты",
         "SummaryCounts": "{correct}/{answered} верно · {timedOut} без ответа",
-        "NoLocks": "В этом браузере нельзя безопасно сохранить практику. Откройте mLearn в поддерживаемом браузере или настольном приложении.",
         "StorageUnavailable": "Не удалось сохранить ответ. Проверьте доступность хранилища и повторите попытку."
-      }
+      },
+      "NoLocks": "В этом браузере нельзя безопасно сохранить практику. Откройте mLearn в поддерживаемом браузере или настольном приложении."
     },
     "Languages": {
       "cu": "Церковнославянский",
@@ -2133,18 +1991,9 @@
       },
       "UI": {
         "Tips": {
-          "NeverLosePlace": {
-            "Description": "Позиция страницы сохраняется автоматически.",
-            "Title": "Закладка автоматическая"
-          },
-          "ShapeView": {
-            "Description": "Используйте боковую панель или горячие клавиши для переключения между разворотом и одной страницей.",
-            "Title": "Настройте вид"
-          },
-          "SummonOcr": {
-            "Description": "При отображении страницы можно запустить OCR для интерактивного распознавания текста.",
-            "Title": "Используйте OCR"
-          }
+          "NeverLosePlace": {},
+          "ShapeView": {},
+          "SummonOcr": {}
         },
         "WelcomeSplash": {
           "DropZone": "Перетащите файлы сюда для импорта",
@@ -2461,29 +2310,9 @@
         }
       },
       "Shiritori": {
-        "Title": "Shiritori",
-        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
-        "Turn": {
-          "User": "Your turn — say a word starting with \"{kana}\"",
-          "UserFirst": "Your turn — say any Japanese noun",
-          "Computer": "Computer's turn",
-          "ComputerThinking": "Computer is thinking..."
-        },
-        "Error": {
-          "Empty": "Please enter a word.",
-          "Duplicate": "You cannot use a word twice.",
-          "NotFound": "That word was not found in the dictionary.",
-          "WrongStart": "That word must start with \"{kana}\".",
-          "EndsWithN": "Word ends in ん — you lose!",
-          "NoReading": "Could not determine the reading of that word."
-        },
-        "GameOver": {
-          "UserWins": "You win!",
-          "ComputerWins": "Computer wins!",
-          "PlayAgain": "Play Again"
-        },
-        "Submit": "Submit",
-        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+        "Turn": {},
+        "Error": {},
+        "GameOver": {}
       },
       "Reader": {
         "Description": "Настройки OCR и читалки",
@@ -3163,17 +2992,7 @@
         "ReviewStudyTime": "Время повторений",
         "Reviews": "Повторения",
         "SrsConfig": "Настройки SRS",
-        "Srs": {
-          "EasyInterval": "Лёгкий интервал",
-          "GraduatingInterval": "Интервал выпуска",
-          "LearningSteps": "Шаги обучения",
-          "MaxInterval": "Макс. интервал",
-          "MaxReviewsPerDay": "Макс. повторений/день",
-          "NewCardsPerDay": "Новых карточек/день",
-          "NewIntervalMod": "Мод. нового интервала",
-          "RelearnSteps": "Шаги переобучения",
-          "ReviewIntervalMod": "Мод. интервала повторения"
-        },
+        "Srs": {},
         "StudyTime": "Время обучения",
         "TimeRead": "Время чтения",
         "TimeWatched": "Время просмотра",
@@ -3344,23 +3163,7 @@
         "PeerJoinedPlural": "{count} участников присоединились к вашей комнате",
         "AnticipatingPing": "Ожидание ping..."
       },
-      "Extension": {
-        "HeadlessMode": "Безголовый режим",
-        "Enable": "Включить",
-        "Disable": "Отключить",
-        "Subtitles": "Субтитры",
-        "LoadSubtitleFile": "Загрузить файл субтитров",
-        "SyncOffset": "Смещение синхронизации",
-        "SignInRequired": "Войдите, чтобы использовать Watch Together",
-        "SignIn": "Войти",
-        "Host": "Создать",
-        "Join": "Присоединиться",
-        "CreateRoom": "Создать комнату",
-        "RoomCodePlaceholder": "Введите код комнаты",
-        "RoomCode": "Код комнаты",
-        "Peers": "Участники",
-        "LeaveRoom": "Покинуть комнату"
-      },
+      "Extension": {},
       "Media": {
         "DistributeTitle": "Раздать медиа",
         "DistributeSubtitle": "Отправить медиафайл подключённым участникам через облачную синхронизацию",
@@ -3541,15 +3344,7 @@
       "SavingRating": "Сохранение оценки…",
       "AnswerUnavailable": "Для этого слова нет ответа. Повторите поиск в словаре или выберите другой фильтр. Оценка не записана.",
       "SaveFailed": "Не удалось сохранить оценку. Слово остаётся на экране; повторите попытку.",
-      "Statement": {
-        "Label": "Описать словами",
-        "KnownSpoken": "Я знаю это слово на слух.",
-        "MeaningNotForm": "Я знаю значение, но не это написание.",
-        "KnownCharacters": "Я знаю отдельные знаки.",
-        "InferredFromParts": "Я могу вывести значение из частей.",
-        "ReadablePitchWrong": "Я могу это прочитать, но моё ударение неверно.",
-        "NeverSeenForm": "Я никогда не видел эту форму."
-      },
+      "Statement": {},
       "FinishedTitle": "Готово!",
       "FinishedDescription": "Записано проверок: {count}. Ответы добавлены в историю обучения.",
       "Progress": "{rated} / {total} слов",

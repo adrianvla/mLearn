@@ -549,7 +549,7 @@ body.reduce-transparency .wfv-play{
 }
 
 .wfv-week-day {
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
 }
 
@@ -569,7 +569,7 @@ body.reduce-transparency .wfv-play{
   flex-direction: column;
   align-items: flex-start;
   gap: 0.125rem;
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   white-space: nowrap;
 }

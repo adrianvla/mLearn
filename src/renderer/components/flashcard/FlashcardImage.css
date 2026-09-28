@@ -7,6 +7,6 @@
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-align: center;
-  background: var(--surface-secondary);
+  background: var(--bg);
   border-radius: var(--radius-md);
 }

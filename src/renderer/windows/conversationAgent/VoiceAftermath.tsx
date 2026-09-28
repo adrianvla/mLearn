@@ -6,7 +6,7 @@
 
 import { Component, Show, For } from 'solid-js';
 import { useLocalization } from '../../context';
-import { IconBtn, CrossIcon } from '../../components/common';
+import { Button, CrossIcon } from '../../components/common';
 import { formatDurationShort } from '../../utils/timeFormatting';
 import type { VoiceSessionAftermath } from '../../../shared/types';
 
@@ -22,7 +22,7 @@ export const VoiceAftermath: Component<VoiceAftermathProps> = (props) => {
     <div class="voice-aftermath">
       <div class="voice-aftermath-header">
         <h3 class="voice-aftermath-title">{t('mlearn.ConversationAgent.Voice.Aftermath.Title')}</h3>
-        <IconBtn
+        <Button buttonType="icon"
           icon={<CrossIcon />}
           variant="ghost"
           size="sm"

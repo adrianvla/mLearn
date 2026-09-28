@@ -1,0 +1,78 @@
+.learning-background-panel {
+  max-width: 850px;
+  margin: 0 auto var(--spacing-5);
+}
+
+.learning-background-panel summary {
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.learning-background-panel__description,
+.learning-background-panel__empty {
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.learning-background-panel__records {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: var(--spacing-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.learning-background-panel__record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+
+.learning-background-panel__record-label {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.learning-background-panel__form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-3);
+}
+
+.learning-background-panel__form label {
+  display: grid;
+  gap: var(--spacing-1);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.learning-background-panel__form input,
+.learning-background-panel__form select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--spacing-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.learning-background-panel__date-required {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}
+
+.learning-background-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}

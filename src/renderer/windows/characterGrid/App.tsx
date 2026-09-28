@@ -19,7 +19,7 @@ import {
   selectHarderFrequencyLevel,
   shouldShowCharacterStudyLevelDisclaimer,
 } from '../../../shared/languageFeatures';
-import { PillLabel, LegendItem, BookIcon, AlertBanner, SkeletonGrid, Btn } from '../../components/common';
+import { Button, PillLabel, LegendItem, BookIcon, AlertBanner, SkeletonGrid } from '../../components/common';
 import './characterGrid.css';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
@@ -444,16 +444,16 @@ export const CharacterGridContent: Component = () => {
       <Show when={journalKeysResource.state === 'errored' || projected.failed()}>
         <div role="alert" class="cg-error">
           <p>{t('mlearn.Knowledge.LoadError')}</p>
-          <Btn onClick={() => {
+          <Button onClick={() => {
             if (journalKeysResource.state === 'errored') void Promise.resolve(retryJournalKeys()).catch(() => {});
             else projected.retry();
-          }}>{t('mlearn.Knowledge.Retry')}</Btn>
+          }}>{t('mlearn.Knowledge.Retry')}</Button>
         </div>
       </Show>
       <Show when={buildFailed()}>
         <div role="alert" class="cg-error">
           <p>{t('mlearn.Knowledge.LoadError')}</p>
-          <Btn onClick={() => void buildCharacterStats()}>{t('mlearn.Knowledge.Retry')}</Btn>
+          <Button onClick={() => void buildCharacterStats()}>{t('mlearn.Knowledge.Retry')}</Button>
         </div>
       </Show>
       <div class="cg-main">

@@ -605,7 +605,7 @@ export function applyMockAnswer(
 }
 
 /**
- * Durable-FIRST staging of ONE real submission (G01, PlacementSession
+ * Durable-FIRST staging of ONE real submission (G01, shared study-session
  * `stageDraw` contract): advances the cursor and records the graded answer
  * WITHOUT a journal attempt id — the staged record is a durable cursor
  * reservation, not yet evidence. The canonical writer may be invoked only
@@ -840,7 +840,7 @@ const pendingResultsStorageKey = (language: string): string => `mlearn-mock-pend
 
 /** Durable in-progress session key. Exported for the surface's cross-window
  *  storage arbitration (the window listens for OTHER windows' session
- *  writes; PlacementSession's `storage`-listener convention). */
+ *  writes; shared study-session's `storage`-listener convention). */
 export const mockSessionStorageKey = (language: string): string => `mlearn-mock-session:${language}`;
 const sessionStorageKey = mockSessionStorageKey;
 
@@ -852,10 +852,10 @@ function storage(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefi
  * Persists the durable in-progress session (or removes it at terminal
  * states). Returns whether the durable write succeeded: callers MUST treat
  * `false` as "cursor not durable" and refuse evidence writes (the
- * PlacementSession `persistTo` contract — no evidence without a cursor,
+ * shared study-session `persistTo` contract — no evidence without a cursor,
  * G01). Removal is part of the same contract; a failed removal is reported
  * the same way (the terminal bookkeeping treats a leftover entry as
- * best-effort cleanup, mirroring PlacementSession's terminal policy).
+ * best-effort cleanup, mirroring shared study-session's terminal policy).
  */
 export function saveStoredMockSession(language: string, state: MockSessionState | null, now: number = Date.now()): boolean {
   const store = storage();

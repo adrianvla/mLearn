@@ -4,7 +4,7 @@
 
 import { Component, For, createMemo, createSignal, onMount, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon, Textarea } from '../../../components/common';
+import { Button, SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, SettingsIcon, Textarea } from '../../../components/common';
 import { DEFAULT_SETTINGS, type LanguageDataCatalogStatus, type LanguageDataMap, type Settings } from '../../../../shared/types';
 import { type ColorScheme, type UiType } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
@@ -339,7 +339,7 @@ export const GeneralTab: Component = () => {
             )}
           </Show>
           <Show when={(settings.devMode || selectedLanguageDataStatus()?.compatible !== false) && selectedLanguageDataStatus() && !selectedLanguageDataStatus()?.installed}>
-            <Btn
+            <Button
               size="sm"
               variant="secondary"
               loading={selectedLanguageInstalling()}
@@ -347,7 +347,7 @@ export const GeneralTab: Component = () => {
               onClick={() => installLanguageData(settings.language)}
             >
               {languageDataActionLabel(selectedLanguageDataStatus()!, selectedLanguageInstalling(), t)}
-            </Btn>
+            </Button>
           </Show>
           <Show when={selectedLanguageInstallError()}>
             {(error) => (
@@ -395,7 +395,7 @@ export const GeneralTab: Component = () => {
               )}
             </Show>
             <Show when={selectedDictionaryPackStatus() && !selectedDictionaryPackStatus()?.installed}>
-              <Btn
+              <Button
                 size="sm"
                 variant="secondary"
                 loading={selectedDictionaryInstalling()}
@@ -403,7 +403,7 @@ export const GeneralTab: Component = () => {
                 onClick={() => installLanguageData(settings.language, selectedDictionaryTargetLanguage())}
               >
                 {languageDataActionLabel(selectedDictionaryPackStatus()!, selectedDictionaryInstalling(), t)}
-              </Btn>
+              </Button>
             </Show>
           </SettingRow>
         </Show>
@@ -478,9 +478,9 @@ export const GeneralTab: Component = () => {
             label="Diagnostics"
             description="Run a comprehensive test of all features and integrations."
           >
-            <Btn size="sm" onClick={() => getBridge().window.openWindow({ type: 'diagnostics', options: { width: 900, height: 700 } })}>
+            <Button size="sm" onClick={() => getBridge().window.openWindow({ type: 'diagnostics', options: { width: 900, height: 700 } })}>
               Run Diagnostics
-            </Btn>
+            </Button>
           </SettingRow>
         )}
 
@@ -510,9 +510,9 @@ export const GeneralTab: Component = () => {
           label={t('mlearn.Settings.Data.ExportSettings.Label')}
           description={t('mlearn.Settings.Data.ExportSettings.Description')}
         >
-          <Btn size="sm" onClick={handleExportSettings}>
+          <Button size="sm" onClick={handleExportSettings}>
             {t('mlearn.Global.Export')}
-          </Btn>
+          </Button>
           {exportError() && <span class="setting-error">{exportError()}</span>}
         </SettingRow>
 
@@ -520,9 +520,9 @@ export const GeneralTab: Component = () => {
           label={t('mlearn.Settings.Data.ImportSettings.Label')}
           description={t('mlearn.Settings.Data.ImportSettings.Description')}
         >
-          <Btn size="sm" onClick={handleImportSettings}>
+          <Button size="sm" onClick={handleImportSettings}>
             {t('mlearn.Global.Import')}
-          </Btn>
+          </Button>
           {importError() && <span class="setting-error">{importError()}</span>}
         </SettingRow>
 
@@ -530,9 +530,9 @@ export const GeneralTab: Component = () => {
           label={t('mlearn.Settings.Data.ResetSettings.Label')}
           description={t('mlearn.Settings.Data.ResetSettings.Description')}
         >
-          <Btn size="sm" variant="danger" onClick={handleResetSettings}>
+          <Button size="sm" variant="danger" onClick={handleResetSettings}>
             {t('mlearn.Global.Reset')}
-          </Btn>
+          </Button>
         </SettingRow>
       </SettingGroup>
 
@@ -546,9 +546,9 @@ export const GeneralTab: Component = () => {
                 ? t('mlearn.Settings.Data.Guardian.Ready', { count: protectionStatus()?.recoveryPoints ?? 0 })
                 : t('mlearn.Settings.Data.Guardian.Blocked')}</span>
               <Show when={protectionStatus()?.state === 'ready' && (protectionStatus()?.recoveryPoints ?? 0) > 0}>
-                <Btn size="sm" variant="secondary" onClick={() => { void showRecoveryPoints(); }} disabled={recoveryBusy()}>
+                <Button size="sm" variant="secondary" onClick={() => { void showRecoveryPoints(); }} disabled={recoveryBusy()}>
                   {t('mlearn.Settings.Data.Guardian.View')}
-                </Btn>
+                </Button>
               </Show>
             </SettingRow>
             <Show when={recoveryPoints()}>
@@ -562,9 +562,9 @@ export const GeneralTab: Component = () => {
                         cards: point.cards, rooms: point.rooms, participants: point.participants,
                       })}</span>
                     </div>
-                    <Btn size="sm" variant="danger" onClick={() => { void restoreRecoveryPoint(point.id); }} disabled={recoveryBusy()}>
+                    <Button size="sm" variant="danger" onClick={() => { void restoreRecoveryPoint(point.id); }} disabled={recoveryBusy()}>
                       {t('mlearn.Settings.Data.Guardian.Restore')}
-                    </Btn>
+                    </Button>
                   </div>}
                 </For>
               </div>}
@@ -575,9 +575,9 @@ export const GeneralTab: Component = () => {
             label={t('mlearn.Settings.Data.ExportAllData.Label')}
             description={t('mlearn.Settings.Data.ExportAllData.Description')}
           >
-            <Btn size="sm" onClick={handleExportData} disabled={dataExporting()}>
+            <Button size="sm" onClick={handleExportData} disabled={dataExporting()}>
               {dataExporting() ? t('mlearn.Global.Loading') : t('mlearn.Global.Export')}
-            </Btn>
+            </Button>
             {dataExportError() && <span class="setting-error">{dataExportError()}</span>}
           </SettingRow>
 
@@ -585,9 +585,9 @@ export const GeneralTab: Component = () => {
             label={t('mlearn.Settings.Data.ImportAllData.Label')}
             description={t('mlearn.Settings.Data.ImportAllData.Description')}
           >
-            <Btn size="sm" variant="danger" onClick={handleImportData} disabled={dataImporting()}>
+            <Button size="sm" variant="danger" onClick={handleImportData} disabled={dataImporting()}>
               {dataImporting() ? t('mlearn.Global.Loading') : t('mlearn.Global.Import')}
-            </Btn>
+            </Button>
             {dataImportError() && <span class="setting-error">{dataImportError()}</span>}
           </SettingRow>
         </SettingGroup>

@@ -48,6 +48,7 @@
 .filter-builder-palette-pill {
   display: inline-flex;
   align-items: center;
+  min-height: unset;
   gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-2);
   background: var(--bg-intense);

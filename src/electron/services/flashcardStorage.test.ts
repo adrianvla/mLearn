@@ -5,6 +5,7 @@ import fs from 'fs';
 import type { FlashcardStore, Flashcard } from '../../shared/types';
 
 const mockIpcListeners = new Map<string, Function[]>();
+const mockIpcHandlers = new Map<string, Function>();
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -13,7 +14,9 @@ vi.mock('electron', () => ({
       existing.push(handler);
       mockIpcListeners.set(channel, existing);
     }),
-    handle: vi.fn(),
+    handle: vi.fn((channel: string, handler: Function) => {
+      mockIpcHandlers.set(channel, handler);
+    }),
     removeHandler: vi.fn(),
     removeAllListeners: vi.fn(),
   },
@@ -110,7 +113,7 @@ function writeLanguageMetadata(dir: string, language: string, data: unknown): vo
 
 describe('flashcardStorage', () => {
   let loadFlashcards: () => Promise<FlashcardStore>;
-  let saveFlashcards: (store: FlashcardStore) => Promise<void>;
+  let saveFlashcards: (store: FlashcardStore) => Promise<number>;
   let getFlashcardEaseMap: () => Promise<Record<string, number>>;
   let setupFlashcardIPC: () => void;
   let invalidateFlashcardsCache: () => void;
@@ -118,6 +121,7 @@ describe('flashcardStorage', () => {
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-fc-test-');
     mockIpcListeners.clear();
+    mockIpcHandlers.clear();
     vi.resetModules();
 
     const mod = await import('./flashcardStorage');
@@ -382,6 +386,30 @@ describe('flashcardStorage', () => {
     });
   });
 
+  it('rejects a stale renderer snapshot after another window commits a newer revision', async () => {
+    const original = makeStore({
+      rev: 0,
+      flashcards: { 'shared-card': makeFlashcard('shared-card', { state: 'review', reviews: 4 }) },
+    });
+    await saveFlashcards(original);
+
+    const undone = makeStore({
+      rev: 1,
+      flashcards: { 'shared-card': makeFlashcard('shared-card', { state: 'review', reviews: 3 }) },
+    });
+    await saveFlashcards(undone);
+
+    const staleWindow = makeStore({
+      rev: 0,
+      flashcards: { 'shared-card': makeFlashcard('shared-card', { state: 'review', reviews: 4 }) },
+    });
+    await expect(saveFlashcards(staleWindow)).rejects.toThrow(/revision/i);
+
+    const stored = await loadFlashcards();
+    expect(stored.rev).toBe(2);
+    expect(stored.flashcards['shared-card'].reviews).toBe(3);
+  });
+
   describe('saveFlashcards', () => {
     it('saves store to flashcards.json', async () => {
       const store = makeStore({ flashcards: { 'card-save': makeFlashcard('card-save') } });
@@ -439,9 +467,9 @@ describe('flashcardStorage', () => {
 
     it('overwrites existing file with updated store', async () => {
       const storeV1 = makeStore({ flashcards: { 'card-a': makeFlashcard('card-a') } });
-      await saveFlashcards(storeV1);
+      const revision = await saveFlashcards(storeV1);
 
-      const storeV2 = makeStore({ flashcards: { 'card-b': makeFlashcard('card-b') } });
+      const storeV2 = makeStore({ rev: revision, flashcards: { 'card-b': makeFlashcard('card-b') } });
       await saveFlashcards(storeV2);
 
       const saved = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8'));
@@ -459,21 +487,21 @@ describe('flashcardStorage', () => {
       expect(raw).toContain('\n');
     });
 
-    it('concurrent saves are serialized via write queue', async () => {
-      const results: string[] = [];
+    it('rejects concurrent stale snapshots after the first serialized commit', async () => {
       const stores = Array.from({ length: 5 }, (_, i) => {
         const id = `card-${i}`;
         return makeStore({ flashcards: { [id]: makeFlashcard(id) } });
       });
 
-      await Promise.all(stores.map(s => saveFlashcards(s)));
+      const results = await Promise.allSettled(stores.map(s => saveFlashcards(s)));
 
       const filePath = path.join(tempDir.tmpDir, 'flashcards.json');
       expect(fs.existsSync(filePath)).toBe(true);
       const saved = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       expect(typeof saved.flashcards).toBe('object');
-      results.push('done');
-      expect(results).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(4);
+      expect(saved.rev).toBe(1);
     });
   });
 
@@ -552,13 +580,13 @@ describe('flashcardStorage', () => {
   });
 
   describe('setupFlashcardIPC', () => {
-    it('registers listeners for GET_FLASHCARDS and SAVE_FLASHCARDS', async () => {
+    it('registers GET_FLASHCARDS and an acknowledged SAVE_FLASHCARDS handler', async () => {
       const { ipcMain } = await import('electron');
 
       setupFlashcardIPC();
 
       expect(vi.mocked(ipcMain.on)).toHaveBeenCalledWith('get-flashcards', expect.any(Function));
-      expect(vi.mocked(ipcMain.on)).toHaveBeenCalledWith('save-flashcards', expect.any(Function));
+      expect(vi.mocked(ipcMain.handle)).toHaveBeenCalledWith('save-flashcards', expect.any(Function));
     });
 
     it('GET_FLASHCARDS handler replies with loaded flashcards', async () => {
@@ -630,20 +658,27 @@ describe('flashcardStorage', () => {
       expect(replyFn).toHaveBeenCalledWith('flashcard-migration-complete', expect.objectContaining({ occurred: true, fromVersion: 2 }));
     });
 
-    it('SAVE_FLASHCARDS handler saves the provided store', async () => {
+    it('SAVE_FLASHCARDS handler resolves only after the provided store is durable', async () => {
       setupFlashcardIPC();
 
-      const listeners = mockIpcListeners.get('save-flashcards');
-      expect(listeners).toBeDefined();
+      const handler = mockIpcHandlers.get('save-flashcards');
+      expect(handler).toBeDefined();
 
       const store = makeStore({ flashcards: { 'card-ipc': makeFlashcard('card-ipc') } });
-      await listeners![0]({}, store);
-
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await expect(handler!({}, store)).resolves.toBe(1);
 
       const filePath = path.join(tempDir.tmpDir, 'flashcards.json');
       const saved = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       expect(saved.flashcards['card-ipc']).toBeDefined();
+    });
+
+    it('SAVE_FLASHCARDS handler rejects when durable persistence fails', async () => {
+      setupFlashcardIPC();
+      const handler = mockIpcHandlers.get('save-flashcards');
+      expect(handler).toBeDefined();
+      vi.spyOn(fs.promises, 'writeFile').mockRejectedValueOnce(new Error('disk full'));
+
+      await expect(handler!({}, makeStore())).rejects.toThrow('disk full');
     });
 
   });

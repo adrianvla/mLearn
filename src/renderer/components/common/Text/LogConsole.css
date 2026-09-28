@@ -119,7 +119,7 @@
 /* Level indicator */
 .log-console__level {
   flex-shrink: 0;
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   padding: 2px var(--spacing-1);
@@ -196,7 +196,7 @@
   position: absolute;
   bottom: var(--spacing-2);
   right: var(--spacing-2);
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   background: var(--bg-nt-secondary);
   padding: var(--spacing-1) var(--spacing-2);

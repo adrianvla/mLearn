@@ -108,7 +108,7 @@ vi.mock('../../../components/common', () => ({
     />
   ),
   Select: (props: JSX.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props}>{props.children}</select>,
-  Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  Button: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
   ColorInput: (props: { value?: string; onChange?: (value: string) => void }) => (
     <input
       type="color"

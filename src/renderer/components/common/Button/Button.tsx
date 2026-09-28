@@ -282,31 +282,4 @@ export const Button: Component<ButtonProps> = (props) => {
   );
 };
 
-// ============ Convenience Exports ============
-
-/** Standard button - default variant */
-export const Btn: Component<Omit<ButtonProps, 'buttonType'>> = (props) => (
-  <Button buttonType="default" {...props} />
-);
-
-/** Pill button - badge/pill styled */
-export const PillBtn: Component<Omit<ButtonProps, 'buttonType'>> = (props) => (
-  <Button buttonType="pill" {...props} />
-);
-
-/** Icon-only button */
-export const IconBtn: Component<Omit<ButtonProps, 'buttonType'>> = (props) => (
-  <Button buttonType="icon" {...props} />
-);
-
-/** Navigation button */
-export const NavBtn: Component<Omit<ButtonProps, 'buttonType'>> = (props) => (
-  <Button buttonType="nav" {...props} />
-);
-
-/** Tab button */
-export const TabBtn: Component<Omit<ButtonProps, 'buttonType'>> = (props) => (
-  <Button buttonType="tab" {...props} />
-);
-
 export default Button;

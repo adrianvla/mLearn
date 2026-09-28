@@ -5,7 +5,7 @@
 
 import { Component, Accessor, Show } from 'solid-js';
 import { useLocalization } from '../../../../context';
-import { Btn } from '../../../../components/common';
+import { Button } from '../../../../components/common';
 import './ReaderWelcomeCard.css';
 
 interface ReaderWelcomeCardProps {
@@ -40,14 +40,14 @@ export const ReaderWelcomeCard: Component<ReaderWelcomeCardProps> = (props) => {
           {(props.onOpenFolder || props.onOpenPdf) && (
               <div class="reader-welcome-buttons">
                 {props.onOpenFolder && (
-                    <Btn variant="secondary" onClick={props.onOpenFolder}>
+                    <Button variant="secondary" onClick={props.onOpenFolder}>
                       {t('mlearn.Reader.UI.WelcomeSplash.OpenFolder')}
-                    </Btn>
+                    </Button>
                 )}
                 {props.onOpenPdf && (
-                    <Btn variant="secondary" onClick={props.onOpenPdf}>
+                    <Button variant="secondary" onClick={props.onOpenPdf}>
                       {t('mlearn.Reader.UI.WelcomeSplash.OpenPdf')}
-                    </Btn>
+                    </Button>
                 )}
               </div>
           )}

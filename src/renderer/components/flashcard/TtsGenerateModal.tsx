@@ -6,7 +6,7 @@
  */
 
 import { Component, Show, createSignal, createMemo } from 'solid-js';
-import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressContent, type TaskState, type TaskStatus } from '../common';
+import { Button, Modal, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressContent, type TaskState, type TaskStatus } from '../common';
 import { ConfirmDialog } from '../common/Modal/ConfirmDialog';
 import { useSettings, useLocalization, useLanguage, useFlashcards, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
@@ -348,12 +348,12 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       size="md"
       footer={
         <>
-          <Btn onClick={props.onClose}>
+          <Button onClick={props.onClose}>
             {t('mlearn.Global.Cancel')}
-          </Btn>
-          <Btn variant="primary" onClick={handleGenerate} disabled={!hasAnySelected()}>
+          </Button>
+          <Button variant="primary" onClick={handleGenerate} disabled={!hasAnySelected()}>
             {t('mlearn.CardEditor.GenerateTtsAction')}
-          </Btn>
+          </Button>
         </>
       }
     >
