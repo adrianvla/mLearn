@@ -1,5 +1,4 @@
 import { useKnowledgeProjection } from '../../../hooks/useKnowledgeProjection';
-import { projectedWordStatus } from '../../../../shared/graph/targets';
 import { Component, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
 import type { ComprehensiveWordStatusResult } from '../../../utils/comprehensiveKnowledge';
@@ -75,24 +74,10 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
   const projection = useKnowledgeProjection(() => ({ language: targetLanguage(), surface: props.word }));
   // The pill reads the SAME resolver every other surface uses. Deriving the
-  // result from the projection alone would fabricate `source`, which made the
+  // result from the projection instead fabricated `source`, which made the
   // passive-evidence exemption in hasIntentionalBasis unreachable.
-  const comprehensiveResult = createMemo<ComprehensiveWordStatusResult>(() => {
-    const payload = projection.projection();
-    const resolved = getComprehensiveWordStatusWithSourceSync(primaryWord(), targetLanguage());
-    const projected = projectedWordStatus(payload);
-    // The projection is the authority when it is ready; the materialized
-    // resolver still supplies the source and matched-form detail the pill needs.
-    return resolved.basis === 'unmeasured' && projected.basis !== 'unmeasured'
-      ? {
-        ...resolved,
-        status: projected.status,
-        basis: projected.basis,
-        claim: projected.basis === 'claim' ? projected.status : undefined,
-        evidenceStatus: projected.status,
-      }
-      : resolved;
-  });
+  const comprehensiveResult = createMemo<ComprehensiveWordStatusResult>(() =>
+    getComprehensiveWordStatusWithSourceSync(primaryWord(), targetLanguage()));
   const effectiveStatus = createMemo(() => comprehensiveResult().status);
 
   const statusSourceLabel = createMemo(() => {
