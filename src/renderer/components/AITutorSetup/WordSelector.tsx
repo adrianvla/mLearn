@@ -6,6 +6,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
 import { streamChat, isLLMReady } from '../../services/llmProvider';
+import { isRemoteLLMProvider } from '../../../shared/types';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, getLanguagePromptName, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { resolveWordSelectorLanguageData } from './wordSelectorLanguage';
@@ -327,7 +328,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     }
 
     // Low power gate: prompt before local LLM call
-    if (settings.llmProvider !== 'cloud') {
+    if (!isRemoteLLMProvider(settings.llmProvider)) {
       const allowed = await requestAccess('llm');
       if (!allowed) return;
     }

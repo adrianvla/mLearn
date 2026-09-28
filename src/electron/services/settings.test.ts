@@ -1351,6 +1351,21 @@ describe('GET_SETTINGS IPC handler', () => {
 });
 
 describe('SAVE_SETTINGS IPC handler', () => {
+  it('waits for queued settings writes before acknowledging a stream barrier', async () => {
+    mod.setupSettingsIPC();
+    const { ipcMain } = await import('electron');
+    const barrier = vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === 'settings-save-barrier')?.[1];
+    expect(barrier).toBeDefined();
+
+    const settings = mod.loadSettings();
+    settings.cloudAuthAccessToken = 'refreshed-token';
+    const save = mod.saveSettings(settings);
+    await barrier!({} as never);
+    await save;
+
+    expect(mod.loadSettings().cloudAuthAccessToken).toBe('refreshed-token');
+  });
+
   it('saves settings and replies with settings-saved', async () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('save-settings') ?? [];

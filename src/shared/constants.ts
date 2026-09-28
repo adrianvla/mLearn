@@ -64,6 +64,7 @@ export const IPC_CHANNELS = {
   // Settings
   GET_SETTINGS: 'get-settings',
   SAVE_SETTINGS: 'save-settings',
+  SETTINGS_SAVE_BARRIER: 'settings-save-barrier',
   SETTINGS: 'settings',
   SETTINGS_SAVED: 'settings-saved',
   
@@ -390,6 +391,18 @@ export const IPC_CHANNELS = {
   WORLD_RETRY_MAINTENANCE: 'world-retry-maintenance',
   WORLD_ACTIVATE_CONTACT: 'world-activate-contact',
   WORLD_RESPOND_CONTACT: 'world-respond-contact',
+  WORLD_SAVE_STORY_TRACK: 'world-save-story-track',
+  WORLD_SET_STORY_PROGRESS: 'world-set-story-progress',
+  WORLD_UPDATE_STORY_BRANCH: 'world-update-story-branch',
+  WORLD_RESEARCH_CHARACTER: 'world-research-character',
+  WORLD_CANCEL_CHARACTER_RESEARCH: 'world-cancel-character-research',
+  WORLD_PREPARE_STORY_ADVANCE: 'world-prepare-story-advance',
+  WORLD_APPLY_STORY_ADVANCE: 'world-apply-story-advance',
+  WORLD_CANCEL_STORY_ADVANCE: 'world-cancel-story-advance',
+  WORLD_REVIEW_CONVERSATION_TURN: 'world-review-conversation-turn',
+  WORLD_CANCEL_CONVERSATION_REVIEW: 'world-cancel-conversation-review',
+  WORLD_LOCAL_GUARD_STATUS: 'world-local-guard-status',
+  WORLD_INSTALL_LOCAL_GUARD: 'world-install-local-guard',
 
   // Open the room window at a specific room (optionally deep-linked to an event)
   OPEN_ROOM_EVENT: 'open-room-event',

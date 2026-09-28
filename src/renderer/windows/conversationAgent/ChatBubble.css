@@ -105,6 +105,16 @@
   text-decoration-color: var(--color-warning);
 }
 
+.chat-token ruby rt,
+.chat-token ruby rt .subtitle-word__reading-overlay,
+.chat-token ruby rt .prosody-overlay-wrapper {
+  color: var(--text-secondary);
+}
+
+.chat-token .frequency {
+  display: none;
+}
+
 /* ============ Blinking cursor (waiting for first token) ============ */
 
 .chat-bubble-cursor {

@@ -11,3 +11,4 @@
 .room-sidebar-empty { padding: var(--spacing-4); text-align: center; color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--line-height-relaxed); }
 .room-sidebar-sessions { padding: var(--spacing-2); }
 .room-sidebar-notice { padding-inline: var(--spacing-3); font-size: var(--font-size-xs); color: var(--text-secondary); }
+.room-sidebar-story-action { display: flex; justify-content: flex-start; padding: var(--spacing-2); border-bottom: 1px solid var(--border-color); }

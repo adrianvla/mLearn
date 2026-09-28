@@ -1,5 +1,5 @@
 import managementRequestFixture from '../../../test/fixtures/management-llm-request-v1.json';
-import { CloudLLMAdapter } from './cloudLLMAdapter';
+import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from './cloudLLMAdapter';
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk } from '../types';
 
 const mockFetch = vi.fn();
@@ -631,5 +631,44 @@ describe('managed prompt ownership', () => {
     mockFetch.mockResolvedValue(createSSEResponse(['data: [DONE]']));
     await new CloudLLMAdapter('https://cloud.test', 'token').streamChat([{ role: 'system', content: 'LOCAL POLICY', applicationTask: { operation: 'conversation', instruction: 'Continue.', context: {} } }, ...baseMessages], [], makeCallbacks());
     expect(JSON.parse(mockFetch.mock.calls.at(-1)![1].body).messages).toEqual([{ role: 'system', content: 'LOCAL POLICY' }, ...baseMessages]);
+  });
+});
+
+describe('OpenAI-compatible inference', () => {
+  it('sends a standard chat-completions request and streams content', async () => {
+    mockFetch.mockResolvedValue(createSSEResponse([
+      'data: ' + JSON.stringify({ choices: [{ delta: { content: 'Hello' } }] }),
+      'data: [DONE]',
+    ]));
+    const callbacks = makeCallbacks();
+    await new OpenAICompatibleLLMAdapter('https://openrouter.ai/api/v1/', 'test-key', 'test/model')
+      .streamChat([{ role: 'system', content: 'Review this.' }, ...baseMessages], [], callbacks);
+    const [url, init] = mockFetch.mock.calls.at(-1)! as [string, RequestInit];
+    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-key');
+    expect(JSON.parse(init.body as string)).toEqual({ model: 'test/model',
+      messages: [{ role: 'system', content: 'Review this.' }, { role: 'user', content: 'Hello' }], stream: true });
+    expect(callbacks.onChunk).toHaveBeenCalledWith({ content: 'Hello' });
+    expect(callbacks.onDone).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a credential-bearing insecure remote URL before fetch', async () => {
+    mockFetch.mockClear();
+    const callbacks = makeCallbacks();
+    await new OpenAICompatibleLLMAdapter('http://remote.example/v1', 'test-key', 'test/model')
+      .streamChat(baseMessages, [], callbacks);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(callbacks.onError).toHaveBeenCalledWith(expect.stringContaining('secure'));
+  });
+
+  it('surfaces OpenAI-style streamed errors without reporting a completed turn', async () => {
+    mockFetch.mockResolvedValue(createSSEResponse([
+      'data: ' + JSON.stringify({ error: { message: 'Invalid API key' } }),
+    ]));
+    const callbacks = makeCallbacks();
+    await new OpenAICompatibleLLMAdapter('https://example.test/v1', 'test-key', 'test/model')
+      .streamChat(baseMessages, [], callbacks);
+    expect(callbacks.onError).toHaveBeenCalledWith('Invalid API key');
+    expect(callbacks.onDone).not.toHaveBeenCalled();
   });
 });

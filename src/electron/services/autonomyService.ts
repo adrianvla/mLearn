@@ -14,6 +14,7 @@ import { compileContext, visibleEventsFor, type CompiledContext } from '../../sh
 import { intentionPayload, intentionStates } from '../../shared/autonomyProjection';
 import { openLoopStates, tombstonedIds } from '../../shared/memoryProjection';
 import { livingWorldEnabled } from '../../shared/livingWorld';
+import { inferenceEvents } from '../../shared/inferenceBoundary';
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/types';
 import {
   USER_ACTOR,
@@ -133,7 +134,7 @@ function settingsAllowAutonomy(settings: Settings): boolean {
 }
 
 function foregroundEvents(events: JournalEvent[]): JournalEvent[] {
-  return events.filter(event => event.provenance?.autonomyJobId === undefined
+  return inferenceEvents(events).filter(event => event.provenance?.autonomyJobId === undefined
     && event.witnesses.includes(USER_ACTOR)
     && (event.type === 'message.user' || event.type === 'message.character'));
 }
@@ -154,7 +155,7 @@ function terminalJob(job: AutonomyJobRecord): boolean {
 
 function enumerateCandidates(world: WorldState, room: Room, events: JournalEvent[], now: number): Candidate[] {
   const roster = room.participantIds
-    .map(id => world.participants.find(person => person.id === id && person.kind === 'persistent'))
+    .map(id => world.participants.find(person => person.id === id && person.kind === 'persistent' && !person.archivedAt))
     .filter((person): person is Participant => person !== undefined)
     .slice(0, AUTONOMY_LIMITS.peopleConsideredPerRoom);
   if (roster.length === 0) return [];
@@ -809,7 +810,7 @@ async function publishPreparedJob(jobId: string, now: number): Promise<boolean> 
 async function runJob(job: AutonomyJobRecord, candidate: Candidate, deps: AutonomyDependencies, now: number): Promise<AutonomyPassResult> {
   const world = await loadWorld();
   const room = world.rooms.find(item => item.id === job.roomId);
-  const roster = room?.participantIds.map(id => world.participants.find(person => person.id === id && person.kind === 'persistent'))
+  const roster = room?.participantIds.map(id => world.participants.find(person => person.id === id && person.kind === 'persistent' && !person.archivedAt))
     .filter((person): person is Participant => person !== undefined)
     .slice(0, AUTONOMY_LIMITS.peopleConsideredPerRoom) ?? [];
   const lead = roster.find(person => person.id === job.leadParticipantId);

@@ -467,6 +467,25 @@ describe('OLLAMA_PULL_MODEL handler', () => {
 });
 
 describe('ollamaStreamChatUnified (exported)', () => {
+  it('reports a non-success response instead of an empty candidate', async () => {
+    const req = createMockRequest();
+    const res = createMockResponse(400);
+    mockHttpRequest.mockImplementation((_opts: unknown, cb: (r: MockResponse) => void) => {
+      cb(res);
+      return req;
+    });
+
+    const sender = createMockSender();
+    const completion = mod.ollamaStreamChatUnified(sender, [{ role: 'user', content: 'hi' }], []);
+    res.emit('data', Buffer.from(JSON.stringify({ error: 'invalid tool definition' })));
+    res.emit('end');
+    await completion;
+
+    expect(sender.send).toHaveBeenCalledWith('llm-stream-chunk', {
+      error: 'Ollama HTTP 400: invalid tool definition', done: true,
+    });
+  });
+
   it('uses LLM_STREAM_CHUNK channel for unified streaming', () => {
     const req = createMockRequest();
     const res = createMockResponse();

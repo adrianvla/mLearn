@@ -49,6 +49,7 @@ function toPosClass(pos: string): string | null {
 export interface SubtitleWordProps {
   token: Token;
   class?: string;
+  compact?: boolean;
   index: number;
   lookAheadPos?: string; // POS of the next token (for prosody rendering)
   onClick?: (token: Token) => void;
@@ -218,6 +219,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Get color from user overrides or package POS metadata.
   const getWordColor = createMemo((): string | undefined => {
+    if (props.compact) return undefined;
     if (!flashcardCtx.isKnowledgeReady()) return undefined;
     if (!settings.enableWordColoring) return undefined;
     if (!settings.colorKnownWords && wordIsKnown()) return undefined;
@@ -301,7 +303,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const wordUsesReadingScript = createMemo(() => isReadingScriptText(displayWord(), currentLangData()));
 
   const canRenderProsodyOverlay = createMemo(() => (
-    getProsodyOverlayRenderer(currentLangData(), getLanguageFeatures().prosodyRenderer) !== null
+    !props.compact
+    && getProsodyOverlayRenderer(currentLangData(), getLanguageFeatures().prosodyRenderer) !== null
     && prosodyVisible(settings)
   ));
 
@@ -315,6 +318,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   // Whether to show frequency stars
   // Only show when word has dictionary data and a valid frequency level
   const showFrequencyStars = createMemo(() => {
+    if (props.compact) return false;
     if (!cachedTranslation()) return false;
     const freq = wordFreqEntry();
     if (freq === null || !isDisplayableFrequencyLevel(freq.raw_level, getFreqLevelNames(), currentLangData())) return false;
@@ -369,7 +373,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       language={settings.language}
       languageData={currentLangData()}
       forceShowReadingAnnotation={showReadingAnnotation()}
-      coloredProsody={coloredProsodyCtx}
+      coloredProsody={props.compact ? null : coloredProsodyCtx}
       prosodyOverlay={prosodyOverlayData()}
       surfaceWord={actualWord()}
       readingClass="subtitle-word__reading-overlay"

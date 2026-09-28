@@ -1,4 +1,4 @@
-import { createCloudLLMRequest } from '../backends/cloudLLMAdapter';
+import { createCloudLLMRequest, OpenAICompatibleLLMAdapter } from '../backends/cloudLLMAdapter';
 import { usesManagedLlm } from '../llmTask';
 import { getNodeServerAuthToken, getNodeServerUrl } from '../nodeServerCredentials';
 import { projectCapabilities } from '../knowledge/capabilityProjection';
@@ -399,6 +399,10 @@ const settingsBridge: SettingsBridge = {
 
   onSettingsSaved(callback) {
     return emitter.on('settings-saved', callback as Listener);
+  },
+
+  async awaitSettingsSaved() {
+    // Mobile cloud requests use the renderer's current token directly.
   },
 };
 
@@ -1215,6 +1219,7 @@ const installerBridge: InstallerBridge = {
 
 /** Active LLM stream abort controller — allows cancellation of in-flight requests */
 let llmAbortController: AbortController | null = null;
+let compatibleBridgeAdapter: OpenAICompatibleLLMAdapter | null = null;
 
 /** Active Ollama stream abort controller — allows cancellation of in-flight Ollama requests */
 let ollamaAbortController: AbortController | null = null;
@@ -1223,11 +1228,23 @@ const llmBridge: LLMBridge = {
   llmStream(messages, tools, tier, think) {
     // Abort any previous stream
     llmAbortController?.abort();
+    compatibleBridgeAdapter?.abort();
     llmAbortController = new AbortController();
     const { signal } = llmAbortController;
 
     // On mobile, stream via HTTP to tethered desktop or cloud endpoint
     const settings: Settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('settings') || '{}') };
+    if (settings.llmProvider === 'openai-compatible') {
+      const adapter = new OpenAICompatibleLLMAdapter(settings.compatibleApiBaseUrl,
+        settings.compatibleApiKey, settings.compatibleModel);
+      compatibleBridgeAdapter = adapter;
+      void adapter.streamChat(messages, tools ?? [], {
+        onChunk: (chunk) => emitter.emit('llm-stream-chunk', chunk),
+        onDone: () => { if (compatibleBridgeAdapter === adapter) compatibleBridgeAdapter = null; },
+        onError: (error) => emitter.emit('llm-stream-chunk', { done: true, error }),
+      }, tier, think);
+      return;
+    }
     const cloudToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
     const nodeUrl = getNodeServerUrl();
 
@@ -1302,6 +1319,8 @@ const llmBridge: LLMBridge = {
 
   llmStreamAbort() {
     llmAbortController?.abort();
+    compatibleBridgeAdapter?.abort();
+    compatibleBridgeAdapter = null;
     llmAbortController = null;
     emitter.emit('llm-stream-chunk', { done: true });
   },
@@ -2173,6 +2192,18 @@ const worldBridge: WorldBridge = {
   async clearRoomUnread(): Promise<void> {
     throw new Error('Not supported on mobile');
   },
+  async saveStoryTrack() { throw new Error('Not supported on mobile'); },
+  async setStoryProgress() { throw new Error('Not supported on mobile'); },
+  async updateStoryBranch() { throw new Error('Not supported on mobile'); },
+  async researchCharacter() { throw new Error('Not supported on mobile'); },
+  async cancelCharacterResearch() { throw new Error('Not supported on mobile'); },
+  async prepareStoryAdvance() { throw new Error('Not supported on mobile'); },
+  async applyStoryAdvance() { throw new Error('Not supported on mobile'); },
+  async cancelStoryAdvance() { throw new Error('Not supported on mobile'); },
+  async reviewConversationTurn() { throw new Error('Not supported on mobile'); },
+  async cancelConversationReview() { throw new Error('Not supported on mobile'); },
+  async getLocalGuardStatus() { throw new Error('Not supported on mobile'); },
+  async installLocalGuard() { throw new Error('Not supported on mobile'); },
 };
 
 /**

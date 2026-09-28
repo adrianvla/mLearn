@@ -18,6 +18,16 @@ export interface CloudLLMCallbacks {
 
 export type CloudLLMUsageScope = 'foreground' | 'internal';
 
+export function validCompatibleApiBaseUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || (url.protocol === 'http:'
+      && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname));
+  } catch {
+    return false;
+  }
+}
+
 class CloudLLMStatusError extends Error {
   readonly status: number;
 
@@ -128,12 +138,20 @@ export function createCloudLLMRequest(
   };
 }
 
+export function createOpenAICompatibleRequest(
+  messages: LLMChatMessage[], tools: LLMToolDefinition[], model: string,
+) {
+  return { model, messages: serializeCloudMessages(messages, false),
+    tools: tools.length > 0 ? toOpenAITools(tools) : undefined, stream: true };
+}
+
 export class CloudLLMAdapter {
   private readonly baseUrl: string;
   private readonly authToken: string;
   private abortController: AbortController | null = null;
 
-  constructor(baseUrl: string, authToken: string, private readonly managed = false) {
+  constructor(baseUrl: string, authToken: string, private readonly managed = false,
+    private readonly compatibleModel?: string) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.authToken = authToken;
   }
@@ -150,6 +168,10 @@ export class CloudLLMAdapter {
     think?: boolean,
     usageScope: CloudLLMUsageScope = 'foreground',
   ): Promise<void> {
+    if (this.compatibleModel !== undefined && (!validCompatibleApiBaseUrl(this.baseUrl) || !this.compatibleModel.trim())) {
+      callbacks.onError('A secure OpenAI-compatible endpoint and model are required');
+      return;
+    }
     this.abortController = new AbortController();
     const partialToolCalls = new Map<string, PartialCloudToolCallState>();
     const toolCallIndexToId = new Map<number, string>();
@@ -162,10 +184,15 @@ export class CloudLLMAdapter {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/llm/stream`, {
+      const url = this.compatibleModel === undefined
+        ? `${this.baseUrl}/api/llm/stream` : `${this.baseUrl}/chat/completions`;
+      const body = this.compatibleModel === undefined
+        ? createCloudLLMRequest(messages, tools, tier, think, usageScope, this.managed)
+        : createOpenAICompatibleRequest(messages, tools, this.compatibleModel);
+      const res = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(createCloudLLMRequest(messages, tools, tier, think, usageScope, this.managed)),
+        body: JSON.stringify(body),
         signal: this.abortController.signal,
       });
 
@@ -209,6 +236,10 @@ export class CloudLLMAdapter {
             try {
               const parsed = JSON.parse(data) as CloudStreamEvent;
               const chunk = this.parseStreamEvent(parsed, partialToolCalls, toolCallIndexToId);
+              if (chunk.error) {
+                callbacks.onError(chunk.error);
+                return;
+              }
               callbacks.onChunk(chunk);
 
               if (chunk.done) {
@@ -247,6 +278,7 @@ export class CloudLLMAdapter {
 
   /** Check if the cloud endpoint is reachable */
   async checkAvailability(): Promise<boolean> {
+    if (this.compatibleModel !== undefined && (!validCompatibleApiBaseUrl(this.baseUrl) || !this.compatibleModel.trim())) return false;
     try {
       const headers: Record<string, string> = {};
       if (this.authToken) {
@@ -255,7 +287,8 @@ export class CloudLLMAdapter {
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${this.baseUrl}/api/health`, {
+      const res = await fetch(this.compatibleModel === undefined
+        ? `${this.baseUrl}/api/health` : `${this.baseUrl}/models`, {
         headers,
         signal: controller.signal,
       });
@@ -266,7 +299,7 @@ export class CloudLLMAdapter {
         throw new CloudLLMStatusError(401, errorText || 'Unauthorized');
       }
 
-      return res.ok;
+      return res.ok || (this.compatibleModel !== undefined && res.status === 404);
     } catch (e) {
       if (e instanceof CloudLLMStatusError) {
         throw e;
@@ -306,7 +339,8 @@ export class CloudLLMAdapter {
     // Direct mLearn format (content/done/toolCalls at top level)
     if (event.content) chunk.content = event.content;
     if (event.done) chunk.done = true;
-    if (event.error) chunk.error = event.error;
+    if (event.error) chunk.error = typeof event.error === 'string'
+      ? event.error : event.error.message ?? 'LLM stream failed';
 
     // Stats from final chunk
     if (event.eval_count) chunk.evalCount = event.eval_count;
@@ -318,6 +352,13 @@ export class CloudLLMAdapter {
     }
 
     return chunk;
+  }
+}
+
+/** Uses the same OpenAI-style SSE parser with a standard chat-completions request. */
+export class OpenAICompatibleLLMAdapter extends CloudLLMAdapter {
+  constructor(baseUrl: string, apiKey: string, model: string) {
+    super(baseUrl, apiKey, false, model);
   }
 }
 
@@ -343,7 +384,7 @@ interface CloudStreamEvent {
   // Direct mLearn format fields
   content?: string;
   done?: boolean;
-  error?: string;
+  error?: string | { message?: string };
   eval_count?: number;
   eval_duration?: number;
 }

@@ -8,7 +8,7 @@ import { applicationTaskMessage } from '../../shared/llmTask';
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Settings, CloudLLMTier, LanguageData } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
-import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
+import { CloudLLMAdapter, OpenAICompatibleLLMAdapter, validCompatibleApiBaseUrl } from '../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../shared/backends';
 import { getLanguagePromptName } from '../../shared/languageFeatures';
 import {
@@ -271,7 +271,9 @@ function streamChatMobile(
   // Determine the cloud URL: tethered via desktop's forwarding endpoint
   let url: string;
 
-  if (settings.backendMode === 'tethered' && settings.backendUrl) {
+  if (settings.llmProvider === 'openai-compatible') {
+    url = settings.compatibleApiBaseUrl;
+  } else if (settings.backendMode === 'tethered' && settings.backendUrl) {
     // Tethered: forward through the desktop's web server
     url = settings.backendUrl.replace(/\/+$/, '');
   } else {
@@ -280,7 +282,9 @@ function streamChatMobile(
   }
 
   const startMobileStream = (token: string) => new Promise<void>((resolve, reject) => {
-    mobileCloudAdapter = new CloudLLMAdapter(url, token);
+    mobileCloudAdapter = settings.llmProvider === 'openai-compatible'
+      ? new OpenAICompatibleLLMAdapter(url, token, settings.compatibleModel)
+      : new CloudLLMAdapter(url, token);
 
     mobileCloudAdapter.streamChat(messages, tools, {
       onChunk: (chunk) => {
@@ -314,14 +318,12 @@ function streamChatMobile(
     }, tier, think);
   });
 
-  void withCloudAuth(
-    async (token) => {
-      await startMobileStream(token);
-    },
-    {
+  const attempt = settings.llmProvider === 'openai-compatible'
+    ? startMobileStream(settings.compatibleApiKey)
+    : withCloudAuth(async (token) => { await startMobileStream(token); }, {
       alreadyEmittedOutput: () => accumulated.length > 0 || collectedToolCalls.length > 0,
-    },
-  ).catch((error) => {
+    });
+  void attempt.catch((error) => {
     log.error("error", error);
     if (!aborted) {
       callbacks.onError(error);
@@ -347,6 +349,13 @@ function streamChatMobile(
  */
 export async function checkAvailability(settings: Settings): Promise<{ available: boolean; reason?: string }> {
   const bridge = getBridge();
+
+  if (settings.llmProvider === 'openai-compatible') {
+    const adapter = new OpenAICompatibleLLMAdapter(settings.compatibleApiBaseUrl,
+      settings.compatibleApiKey, settings.compatibleModel);
+    return await adapter.checkAvailability()
+      ? { available: true } : { available: false, reason: 'compatible_unreachable' };
+  }
 
   if (settings.llmProvider === 'cloud') {
     try {
@@ -415,6 +424,9 @@ export async function checkAvailability(settings: Settings): Promise<{ available
  * For ollama/builtin, requires llmEnabled (the local component install flag).
  */
 export function isLLMReady(settings: Settings): boolean {
+  if (settings.llmProvider === 'openai-compatible') {
+    return validCompatibleApiBaseUrl(settings.compatibleApiBaseUrl) && !!settings.compatibleModel.trim();
+  }
   if (settings.llmProvider === 'cloud') {
     return settings.cloudAuthStatus === 'signed-in';
   }

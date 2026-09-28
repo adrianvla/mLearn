@@ -837,6 +837,7 @@ function getLanguageDataComponentsFromInstallOptions(options: InstallOptions): L
 }
 
 export function setupSettingsIPC(): void {
+  ipcMain.handle(IPC_CHANNELS.SETTINGS_SAVE_BARRIER, () => settingsSaveQueue);
   ipcMain.on(IPC_CHANNELS.GET_SETTINGS, (event) => {
     const settings = loadSettings();
     event.reply(IPC_CHANNELS.SETTINGS, settings);

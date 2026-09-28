@@ -12,6 +12,7 @@ import { intentionPayload, intentionStates, simulatedOccurrencePayload } from '.
 import { compileContext, visibleEventsFor, type CompiledContext } from '../../shared/contextCompiler';
 import { getInferencePolicy, type InferencePolicy } from '../../shared/inferencePolicy';
 import { livingWorldEnabled } from '../../shared/livingWorld';
+import { inferenceEvents } from '../../shared/inferenceBoundary';
 import { openLoopStates, tombstonedIds } from '../../shared/memoryProjection';
 import { sanitizeModelSpeech } from '../../shared/modelContent';
 import { isInQuietHours } from '../../shared/proactivity';
@@ -188,7 +189,7 @@ function leaksUnrelatedPrivateState(proposal: ContactProposal, visible: JournalE
 }
 
 function foregroundEvents(events: JournalEvent[]): JournalEvent[] {
-  return events.filter(event => event.provenance?.contactId === undefined
+  return inferenceEvents(events).filter(event => event.provenance?.contactId === undefined
     && event.provenance?.autonomyJobId === undefined
     && event.witnesses.includes(USER_ACTOR)
     && (event.type === 'message.user' || event.type === 'message.character'));
@@ -207,7 +208,7 @@ function contactIdFor(value: unknown): string {
 
 function enumerateCandidates(world: WorldState, room: Room, events: JournalEvent[], now: number): ContactCandidate[] {
   const roster = room.participantIds
-    .map(id => world.participants.find(person => person.id === id && person.kind === 'persistent'))
+    .map(id => world.participants.find(person => person.id === id && person.kind === 'persistent' && !person.archivedAt))
     .filter((person): person is Participant => person !== undefined);
   const foreground = foregroundEvents(events);
   const foregroundHead = foreground.at(-1);
@@ -369,12 +370,13 @@ function draftMatches(draft: JournalEventDraft, event: JournalEvent): boolean {
 
 function candidateStillValid(world: WorldState, record: ContactRecord, events: JournalEvent[]): boolean {
   const room = world.rooms.find(item => item.id === record.roomId);
-  const person = world.participants.find(item => item.id === record.participantId && item.kind === 'persistent');
+  const person = world.participants.find(item => item.id === record.participantId && item.kind === 'persistent' && !item.archivedAt);
   if (!room || !person || !room.participantIds.includes(person.id)) return false;
   if (record.roomRevision !== roomRevision(room, world.participants)
     || record.participantRevision !== participantRevision(person)) return false;
   const invalid = tombstonedIds(events);
-  if (record.sourceEventIds.some(id => invalid.has(id) || !events.some(event => event.id === id))) return false;
+  const inferable = new Set(inferenceEvents(events).map(event => event.id));
+  if (record.sourceEventIds.some(id => invalid.has(id) || !inferable.has(id))) return false;
   if (record.sourceHash !== hash(record.sourceEventIds.map(id => events.find(event => event.id === id)))) return false;
   if (record.causeKind === 'open-loop' && openLoopStates(events).get(record.sourceEventIds[0])?.status !== 'open') return false;
   if (record.causeKind === 'intention') {
@@ -393,7 +395,7 @@ async function stageContact(candidate: ContactCandidate, now: number): Promise<C
     const existing = current.contacts?.find(record => record.contactId === candidate.contactId);
     if (existing) return existing;
     const room = current.rooms.find(item => item.id === candidate.roomId);
-    const person = current.participants.find(item => item.id === candidate.participantId && item.kind === 'persistent');
+    const person = current.participants.find(item => item.id === candidate.participantId && item.kind === 'persistent' && !item.archivedAt);
     if (!room || !person) throw new ContactConflictError('Contact destination disappeared');
     const record: ContactRecord = {
       contactId: candidate.contactId,

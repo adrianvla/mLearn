@@ -6,6 +6,7 @@ import type {
   LLMChatMessage,
   Settings,
 } from '../../shared/types';
+import { isRemoteLLMProvider } from '../../shared/types';
 import { streamChat } from '../services/llmProvider';
 import { assembleContrastItem, itemContentVersion, validateAssembledItem } from './questionBank';
 
@@ -163,7 +164,7 @@ export async function validateQuestionItemsWithLLM(
     now?: () => string;
   } = {},
 ): Promise<QuestionValidationRunResult> {
-  if (settings.llmProvider === 'cloud' && options.allowCloud !== true) {
+  if (isRemoteLLMProvider(settings.llmProvider) && options.allowCloud !== true) {
     return { records: [], cached: 0, rejectedBeforeLLM: [], errors: ['cloud-validation-requires-explicit-opt-in'] };
   }
   const storage = options.storage ?? globalThis.localStorage;
@@ -195,7 +196,7 @@ export async function validateQuestionItemsWithLLM(
     ? settings.ollamaModel
     : settings.llmProvider === 'builtin'
       ? settings.builtinModel
-      : undefined;
+      : settings.llmProvider === 'openai-compatible' ? settings.compatibleModel : undefined;
   for (let start = 0; start < pending.length; start += QUESTION_VALIDATION_BATCH_LIMIT) {
     const batch = pending.slice(start, start + QUESTION_VALIDATION_BATCH_LIMIT);
     const payload = batch.map(({ pattern, source }) => {

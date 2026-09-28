@@ -300,6 +300,7 @@ describe('webServer', () => {
         language: 'xx', lastModified: 1000,
         cloudAuthAccessToken: 'private-access', cloudAuthToken: 'private-legacy',
         cloudAuthRefreshToken: 'private-refresh',
+        compatibleApiKey: 'private-compatible',
         cloudAuthUserEmail: 'private@example.test', futureCredential: 'private-future',
       } as unknown as ReturnType<typeof loadSettings>);
     });
@@ -369,6 +370,7 @@ describe('webServer', () => {
       expect(settings.cloudAuthAccessToken).toBeUndefined();
       expect(settings.cloudAuthToken).toBeUndefined();
       expect(settings.cloudAuthRefreshToken).toBeUndefined();
+      expect(settings.compatibleApiKey).toBeUndefined();
     });
 
     it.each(['/api/fwd-to-anki', '/api/anki/reload', '/api/anki/card'])('denies unpaired websites access to %s', async (route) => {

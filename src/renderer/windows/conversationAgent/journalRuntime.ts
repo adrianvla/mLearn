@@ -10,6 +10,7 @@ import type {
   MistakeWidgetData,
 } from '../../../shared/types';
 import { sanitizeJournalMessageText } from '../../../shared/modelContent';
+import { inferenceEvents } from '../../../shared/inferenceBoundary';
 
 type JournalDisplayMessage = ConversationMessage & {
   eventId: string;
@@ -144,7 +145,7 @@ export function buildLLMHistory(
   participantId: string,
   participants: Participant[],
 ): LLMChatMessage[] {
-  return projectHistoryForParticipant(events, participantId, participants);
+  return projectHistoryForParticipant(inferenceEvents(events), participantId, participants);
 }
 
 function messagePayload(payload: unknown): { text: string; widget?: ChatWidget; widgets?: ChatWidget[]; modality?: 'voice' } | undefined {

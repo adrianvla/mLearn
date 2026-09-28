@@ -246,6 +246,22 @@ describe('runRoomTurn', () => {
     expect(result.speakerIds).toEqual(['p_a', 'p_b']);
   });
 
+  it('keeps a reviewed-out learner message out of the next speaker context in the same turn', async () => {
+    const a = participant('p_a', 'Anna'), b = participant('p_b', 'Bella');
+    const user = messageEvent('evt_1', 1, USER_ACTOR, 'A private solicitation', ['p_a', 'p_b', USER_ACTOR]);
+    const marker: JournalEvent = { ...messageEvent('review_1', 2, HARNESS_ACTOR, '', [USER_ACTOR]),
+      type: 'review.boundary', payload: { sourceEventId: user.id } };
+    const seen: string[][] = [];
+    await runRoomTurn({ room: room('r1', ['p_a', 'p_b']), participants: [a, b], seaEvents: [], threadEvents: [user],
+      runAgentTurn: async (id, context) => {
+        seen.push(context.recentThreadEvents.map(item => item.text ?? ''));
+        return id === 'p_a' ? { text: 'Bella, your turn.', reviewEvent: marker } : { text: 'Understood.' };
+      }, appendEvent: makeAppender().appendEvent, maxCharacterExchanges: 1 });
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toContain('A private solicitation');
+    expect(seen[1]).not.toContain('A private solicitation');
+  });
+
   it('excludes a removed participant from appended-event witnesses', async () => {
     const a = participant('p_a', 'Anna');
     const b = participant('p_b', 'Bella');

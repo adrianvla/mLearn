@@ -29,6 +29,7 @@ import type {
 import { projectionForCaller, tombstonedIds, openLoopStates, type RoomMemoryProjection } from './memoryProjection';
 import { authoritativeScenario } from './scenarioState';
 import { intentionStates, simulatedOccurrencePayload } from './autonomyProjection';
+import { inferenceEvents } from './inferenceBoundary';
 import {
   rankRecentThreadEvents,
   recentTailWithinBudget,
@@ -224,7 +225,7 @@ export function visibleThreadEventsFor(
   threadEvents: JournalEvent[],
   seaEvents: JournalEvent[],
 ): JournalEvent[] {
-  return threadEvents.filter((event) => {
+  return inferenceEvents(threadEvents).filter((event) => {
     const membership = seaEvents.filter((item) => item.roomId === event.roomId)
       .map((item) => ({ ...item, seq: item.createdAt }));
     return isVisibleFor(participant.id, absenceSource(participant.id, membership),
@@ -238,14 +239,14 @@ export function compileContext(input: CompileContextInput): CompiledContext {
   const binding = sandbox?.bindings.find(item => item.baseline.id === input.participant.id);
   if (sandbox && !binding) throw new Error('Participant is not bound to this sandbox');
   const participant = binding?.localOverride ?? binding?.baseline ?? input.participant;
-  const seaEvents = sandbox && binding?.baseline.kind === 'temporary'
+  const seaEvents = inferenceEvents(sandbox && binding?.baseline.kind === 'temporary'
     ? []
     : sandbox
     ? (input.seaEvents ?? []).filter(event => event.scope.kind === 'sea' && event.seq <= (sandbox.baselineHeads[event.roomId] ?? 0))
-    : (input.seaEvents ?? []);
-  const threadEvents = input.thread
-    ? input.threadEvents?.filter(event => event.scope.kind === 'thread' && event.scope.threadId === input.thread!.id)
-    : input.threadEvents;
+    : (input.seaEvents ?? []));
+  const threadEvents = inferenceEvents(input.thread
+    ? (input.threadEvents?.filter(event => event.scope.kind === 'thread' && event.scope.threadId === input.thread!.id) ?? [])
+    : (input.threadEvents ?? []));
   const { capabilities } = participant;
 
   // Membership events are sea-scoped (durable roster changes); the intervals

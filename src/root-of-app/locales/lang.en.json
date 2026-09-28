@@ -167,6 +167,15 @@
           },
           "Title": "Built-in Model"
         },
+        "CompatibleConfig": {
+          "Title": "OpenAI-compatible API",
+          "BaseUrl": "API base URL",
+          "ApiKey": "API key",
+          "Model": "Model",
+          "TestConnection": "Test connection",
+          "ConnectionSuccess": "Connection successful",
+          "AuthenticationFailed": "Check the API key and model in AI settings, then try again."
+        },
         "CloudConfig": {
           "ApiUrlHint": "The cloud API URL is configured in Connection settings.",
           "ConnectionSuccess": "Connection successful.",
@@ -252,8 +261,13 @@
           "Title": "Ollama Configuration"
         },
         "Provider": {
+          "EnableLocal": {
+            "Label": "Local AI conversations",
+            "Description": "Enable conversation and text explanation with the selected local provider."
+          },
           "Builtin": "Built-in",
           "Cloud": "Cloud",
+          "OpenAICompatible": "OpenAI-compatible",
           "Description": "Choose how to run AI models.",
           "Ollama": "Ollama",
           "Title": "LLM Provider"
@@ -268,6 +282,9 @@
             "Description": "When enabled, all agents can access all memories. When disabled, each agent only sees its own."
           },
           "Title": "Agent Memory"
+        },
+        "Boundary": {
+          "Title": "Conversation boundary", "Provider": "Review method", "Description": "Replies are reviewed before being saved. A local classifier can add a private first pass; product judgment still uses the selected actor model.", "Actor": "Actor review", "Local": "Local CPU guard + actor review", "LocalDescription": "Qwen3Guard-Gen 0.6B, about 484 MB. Runs on your CPU.", "Install": "Install local guard", "Installed": "Local guard installed"
         },
         "Checker": {
           "Title": "Checker Agent",
@@ -521,7 +538,8 @@
         "TotalTime": "Total: {value}ms"
       },
       "Empty": {
-        "Hint": "Practice your target language with the AI tutor. It will correct mistakes, quiz you, and help you learn.",
+        "Hint": "Choose a chat to continue, or start a conversation with someone in your contacts.",
+        "ReadyHint": "Send a message, or let AI start.",
         "StartConversation": "Let AI start",
         "Title": "Start a conversation",
         "NewConversation": "New conversation"
@@ -856,7 +874,21 @@
         "Generic": "The conversation could not continue. Try again; if it keeps failing, check AI settings.",
         "Settings": "Open AI settings"
       },
+      "Story": {
+        "SupportResponse": "I'm sorry you're going through this. You don't have to face it alone. If you may be in immediate danger, please contact local emergency services or someone you trust now.",
+        "Branch": "Practice story", "BranchMode": "Use source background", "Follow": "Follow new source updates", "Pinned": "Keep this version", "Independent": "Separate story", "AlternatePremises": "Alternate premises (one per line)",
+        "SaveBeforeUse": "Save these changes before changing progress or researching an update.",
+        "Title": "Story progress", "Track": "Story edition", "NewTrack": "New story edition", "Work": "Work", "Edition": "Edition or continuity", "Unit": "Unit name", "Total": "Total units", "SourceWiki": "Source wiki URL", "AutoAdvance": "Automatically apply newly researched background", "Progress": "Completed units", "UnitNumber": "Unit number", "Through": "Complete through", "Complete": "Complete unit", "Remove": "Remove unit", "Sources": "Source pages", "SourceUrl": "Source page URL", "From": "From unit", "To": "To unit", "AddSource": "Add mapped source", "SourceHint": "Map only pages you have checked. A page is used only when its whole range is completed.", "UpdatePeople": "Update contact background", "ReviewUpdate": "Research update", "Ready": "Review these sourced changes before applying them.", "ApplyUpdate": "Apply to contacts", "ValidUnit": "Enter a valid unit number.", "ValidSource": "Enter a source URL and valid unit range.", "ResearchIdentity": "Research identity from a source", "NoTrack": "No declared story progress", "Research": "Research", "ScopedContext": "Story context at your progress", "SourceQuotes": "Source quotes", "Unknowns": "Uncertain or missing", "UseDraft": "Use this draft", "ResearchAccepted": "Draft selected"
+      },
       "Contacts": {
+        "Archive": "Archive contact",
+        "ArchiveHint": "This contact will be hidden from People and stop initiating contact. Existing chats and history stay intact.",
+        "Archived": "Archived contacts",
+        "Restore": "Restore contact",
+        "SharedChats": "Shared chats",
+        "NewMessage": "New message",
+        "NewPractice": "New practice",
+        "EmptyPractice": "No practice chats yet.",
         "Chats": "Chats",
         "Tab": "Contacts",
         "Add": "Add contact",
@@ -945,6 +977,7 @@
       "Provider": {
         "Builtin": "local AI",
         "Cloud": "cloud AI",
+        "OpenAICompatible": "OpenAI-compatible AI",
         "Ollama": "Ollama"
       },
       "ShowParsed": "Show parsed view",

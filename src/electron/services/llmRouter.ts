@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from '../../shared/types';
 import { loadSettings } from './settings';
 import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
 import { builtinStreamChat, builtinAbortStream } from './builtinLLMService';
-import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
+import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 import { DEFAULT_CLOUD_API_URL } from '../../shared/constants';
 import { getLogger } from '../../shared/utils/logger';
 import { runtimeAllows } from './kikanRuntime';
@@ -28,6 +28,7 @@ import { runtimeAllows } from './kikanRuntime';
 const log = getLogger('electron.llmRouter');
 
 let cloudAdapter: CloudLLMAdapter | null = null;
+let compatibleAdapter: OpenAICompatibleLLMAdapter | null = null;
 
 interface QueuedStreamRequest {
   traceId?: string;
@@ -46,7 +47,8 @@ function routeKey(settings: Settings): string {
     settings.proactiveOptOutParticipantIds, settings.proactiveOptOutRoomIds, settings.proactiveCallOptOutParticipantIds,
     settings.llmEnabled, settings.inferenceCloudTier, settings.llmProvider, settings.ollamaUrl, settings.ollamaModel,
     settings.builtinModel, settings.cloudApiUrl, settings.overrideCloudEndpointUrl,
-    settings.cloudAuthAccessToken, settings.cloudAuthToken]);
+    settings.cloudAuthAccessToken, settings.cloudAuthToken,
+    settings.compatibleApiBaseUrl, settings.compatibleApiKey, settings.compatibleModel]);
 }
 
 let activeOwner: number | null = null;
@@ -205,11 +207,14 @@ async function dispatchStream(
     const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
     log.info('Tutor inference dispatch', { ownerId: sender.id, provider, queued: expectedRoute !== undefined, modelFile: provider === 'builtin' ? settings.builtinModel : undefined, messageCount: messages.length, messageCharacters: messages.reduce((sum, message) => sum + message.content.length, 0) });
     activeProvider = provider;
-    runtimeTrace().start(lifecycle?.traceId, { provider, model: provider === 'builtin' ? settings.builtinModel : provider === 'ollama' ? settings.ollamaModel : undefined, tier });
+    runtimeTrace().start(lifecycle?.traceId, { provider, model: provider === 'builtin' ? settings.builtinModel
+      : provider === 'ollama' ? settings.ollamaModel : provider === 'openai-compatible' ? settings.compatibleModel : undefined, tier });
     if (expectedRoute !== undefined && expectedRoute !== routeKey(settings)) throw new Error('Inference settings changed while the job was queued');
-    if (provider === 'cloud') {
+    if (provider === 'cloud' || provider === 'openai-compatible') {
       if (!runtimeAllows('cloud-llm')) throw new Error('Cloud LLM is temporarily unavailable');
-      const adapter = getCloudAdapter();
+      const adapter = provider === 'cloud' ? getCloudAdapter()
+        : (compatibleAdapter = new OpenAICompatibleLLMAdapter(
+          settings.compatibleApiBaseUrl, settings.compatibleApiKey, settings.compatibleModel));
       await adapter.streamChat(messages, tools || [], {
         onChunk: (chunk) => sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk),
         onDone: () => {},
@@ -245,6 +250,8 @@ function abortProvider(senderId: number): void {
 
   if (provider === 'cloud') {
     cloudAdapter?.abort();
+  } else if (provider === 'openai-compatible') {
+    compatibleAdapter?.abort();
   } else if (provider === 'ollama') {
     ollamaAbortStream(senderId);
   } else {

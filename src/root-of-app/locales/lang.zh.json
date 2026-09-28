@@ -167,6 +167,15 @@
           },
           "Title": "内置模型"
         },
+        "CompatibleConfig": {
+          "Title": "兼容 OpenAI 的 API",
+          "BaseUrl": "API 基础 URL",
+          "ApiKey": "API 密钥",
+          "Model": "模型",
+          "TestConnection": "测试连接",
+          "ConnectionSuccess": "连接成功",
+          "AuthenticationFailed": "请在 AI 设置中检查 API 密钥和模型，然后重试。"
+        },
         "CloudConfig": {
           "ApiUrlHint": "云 API URL 在连接设置中配置。",
           "ConnectionSuccess": "连接成功。",
@@ -252,8 +261,13 @@
           "Title": "Ollama 配置"
         },
         "Provider": {
+          "EnableLocal": {
+            "Label": "本地 AI 对话",
+            "Description": "使用所选本地服务启用对话和文本解释。"
+          },
           "Builtin": "内置",
           "Cloud": "云端",
+          "OpenAICompatible": "兼容 OpenAI",
           "Description": "选择 AI 模型的运行方式。",
           "Ollama": "Ollama",
           "Title": "LLM 提供商"
@@ -268,6 +282,9 @@
             "Description": "启用后，所有代理可以访问所有记忆。禁用后，每个代理只能看到自己的记忆。"
           },
           "Title": "代理记忆"
+        },
+        "Boundary": {
+          "Title": "对话边界审核", "Provider": "审核方式", "Description": "回复会在保存前审核。本地分类器可增加私密的第一道检查；最终产品判断仍由所选模型完成。", "Actor": "模型审核", "Local": "本地 CPU 防护＋模型审核", "LocalDescription": "Qwen3Guard-Gen 0.6B，约 484 MB，在 CPU 上运行。", "Install": "安装本地防护模型", "Installed": "本地防护模型已安装"
         },
         "Checker": {
           "Title": "校对代理",
@@ -521,7 +538,8 @@
         "TotalTime": "总计：{value}ms"
       },
       "Empty": {
-        "Hint": "与 AI 导师一起练习目标语言。它会纠正错误、出题测验并帮助您学习。",
+        "Hint": "选择聊天继续对话，或与联系人开始新对话。",
+        "ReadyHint": "发送消息，或让 AI 开始对话。",
         "StartConversation": "让 AI 开始",
         "Title": "开始对话",
         "NewConversation": "新对话"
@@ -856,7 +874,21 @@
         "Generic": "无法继续对话。请重试；如果问题持续，请检查AI设置。",
         "Settings": "打开AI设置"
       },
+      "Story": {
+        "SupportResponse": "听到你正经历这些，我很难过。你不必独自面对。如果你眼下有危险，请立即联系当地急救服务或你信任的人。",
+        "Branch": "练习故事", "BranchMode": "使用来源背景", "Follow": "跟随新来源更新", "Pinned": "保留此版本", "Independent": "独立故事", "AlternatePremises": "替代前提（每行一项）",
+        "SaveBeforeUse": "更改进度或研究更新前，请先保存这些更改。",
+        "Title": "故事进度", "Track": "作品版本", "NewTrack": "新版本", "Work": "作品", "Edition": "版本或时间线", "Unit": "单元名称", "Total": "总单元数", "SourceWiki": "来源维基网址", "AutoAdvance": "自动应用新研究的背景", "Progress": "已完成单元", "UnitNumber": "单元编号", "Through": "完成至此", "Complete": "完成单元", "Remove": "移除单元", "Sources": "来源页面", "SourceUrl": "来源页面网址", "From": "起始单元", "To": "结束单元", "AddSource": "添加来源", "SourceHint": "仅添加已核实的页面。只有完成整个范围后才会使用该页面。", "UpdatePeople": "更新联系人背景", "ReviewUpdate": "研究更新", "Ready": "应用前请检查这些有来源的变更。", "ApplyUpdate": "应用到联系人", "ValidUnit": "请输入有效的单元编号。", "ValidSource": "请输入来源网址和有效单元范围。", "ResearchIdentity": "根据来源研究人物", "NoTrack": "未声明故事进度", "Research": "研究", "ScopedContext": "当前进度的故事背景", "SourceQuotes": "来源引文", "Unknowns": "不确定或缺失", "UseDraft": "使用此草稿", "ResearchAccepted": "已选择草稿"
+      },
       "Contacts": {
+        "Archive": "归档联系人",
+        "ArchiveHint": "此联系人将从联系人列表中隐藏，也不会主动联系你。现有聊天和历史记录会保留。",
+        "Archived": "已归档联系人",
+        "Restore": "恢复联系人",
+        "SharedChats": "共同聊天",
+        "NewMessage": "新消息",
+        "NewPractice": "新练习",
+        "EmptyPractice": "还没有练习对话。",
         "Chats": "聊天",
         "Tab": "联系人",
         "Add": "添加联系人",
@@ -945,6 +977,7 @@
       "Provider": {
         "Builtin": "本地 AI",
         "Cloud": "云端 AI",
+        "OpenAICompatible": "兼容 OpenAI 的 AI",
         "Ollama": "Ollama"
       },
       "ShowParsed": "显示解析视图",

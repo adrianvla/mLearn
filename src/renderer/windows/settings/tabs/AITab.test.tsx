@@ -12,6 +12,15 @@ const translations: Record<string, string> = {
   'mlearn.AI.Settings.Provider.Builtin': 'Built-in',
   'mlearn.AI.Settings.Provider.Ollama': 'Ollama',
   'mlearn.AI.Settings.Provider.Cloud': 'Cloud',
+  'mlearn.AI.Settings.Provider.OpenAICompatible': 'OpenAI-compatible',
+  'mlearn.AI.Settings.CompatibleConfig.Title': 'OpenAI-compatible API',
+  'mlearn.AI.Settings.CompatibleConfig.BaseUrl': 'API base URL',
+  'mlearn.AI.Settings.CompatibleConfig.ApiKey': 'API key',
+  'mlearn.AI.Settings.CompatibleConfig.Model': 'Model',
+  'mlearn.AI.Settings.CompatibleConfig.TestConnection': 'Test compatible connection',
+  'mlearn.AI.Settings.CompatibleConfig.ConnectionSuccess': 'Compatible connection success',
+  'mlearn.AI.Settings.Provider.EnableLocal.Label': 'Local AI conversations',
+  'mlearn.AI.Settings.Provider.EnableLocal.Description': 'Enable local AI.',
   'mlearn.AI.Settings.BuiltinModel.Title': 'Built-in model',
   'mlearn.AI.Settings.BuiltinModel.ModelName': 'Model',
   'mlearn.AI.Settings.BuiltinModel.Status': 'Status',
@@ -85,11 +94,15 @@ const builtinModels = [
 ];
 
 type TestSettings = {
-  llmProvider: 'builtin' | 'ollama' | 'cloud';
+  llmEnabled: boolean;
+  llmProvider: 'builtin' | 'ollama' | 'cloud' | 'openai-compatible';
   builtinModel: string;
   builtinModelAutoselected: boolean;
   ollamaUrl: string;
   ollamaModel: string;
+  compatibleApiBaseUrl: string;
+  compatibleApiKey: string;
+  compatibleModel: string;
   cloudAuthAccessToken: string;
   cloudAuthToken: string;
   cloudAuthStatus: string;
@@ -165,6 +178,9 @@ vi.mock('../../../../shared/backends/cloudLLMAdapter', () => ({
   CloudLLMAdapter: vi.fn().mockImplementation(() => ({
     checkAvailability: mockCloudCheckAvailability,
   })),
+  OpenAICompatibleLLMAdapter: vi.fn().mockImplementation(() => ({
+    checkAvailability: mockCloudCheckAvailability,
+  })),
 }));
 
 vi.mock('../../../services/cloudSessionManager', () => ({
@@ -215,6 +231,7 @@ vi.mock('../../../components/common', () => ({
   ),
   Input: (props: Record<string, unknown>) => (
     <input
+      type={props.type as string | undefined}
       value={props.value as string}
       onInput={props.onInput as (event: InputEvent) => void}
       placeholder={props.placeholder as string}
@@ -229,7 +246,8 @@ vi.mock('../../../components/common', () => ({
   ),
   HintText: (props: { children?: any }) => <div>{props.children as any}</div>,
   ToggleSwitch: (props: Record<string, unknown>) => (
-    <input type="checkbox" checked={props.checked as boolean} onChange={() => undefined} />
+    <input type="checkbox" checked={props.checked as boolean}
+      onChange={(event) => (props.onChange as ((checked: boolean) => void) | undefined)?.(event.currentTarget.checked)} />
   ),
   ConnectionStatus: (props: { status?: string }) => <div>{props.status}</div>,
   BotIcon: () => <span>bot</span>,
@@ -250,11 +268,15 @@ describe('AITab', () => {
     document.body.appendChild(container);
 
     const [store, setStore] = createStore<TestSettings>({
+      llmEnabled: false,
       llmProvider: 'builtin',
       builtinModel: 'small.gguf',
       builtinModelAutoselected: true,
       ollamaUrl: 'http://localhost:11434',
       ollamaModel: 'llama3.2',
+      compatibleApiBaseUrl: 'https://openrouter.ai/api/v1',
+      compatibleApiKey: '',
+      compatibleModel: '',
       cloudAuthAccessToken: '',
       cloudAuthToken: '',
       cloudAuthStatus: 'signed-out',
@@ -366,6 +388,16 @@ describe('AITab', () => {
     dispose();
   });
 
+  it('enables Ollama conversations from AI settings', async () => {
+    setSettingsStore?.({ llmProvider: 'ollama' });
+    const { dispose } = await renderAITab();
+    const providerGroup = Array.from(container.querySelectorAll('section'))
+      .find(section => section.textContent?.includes('Local AI conversations'))!;
+    (providerGroup.querySelector('input[type="checkbox"]') as HTMLInputElement).click();
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ llmEnabled: true });
+    dispose();
+  });
+
   it('keeps the autoselect message visible until the built-in model changes', async () => {
     setSettingsStore?.({
       llmProvider: 'builtin',
@@ -469,6 +501,20 @@ describe('AITab', () => {
     expect(mockHandleCloudSessionError).toHaveBeenCalledWith(expect.any(Error), true);
     expect(container.textContent).toContain('Sign in');
 
+    dispose();
+  });
+
+  it('configures a generic OpenAI-compatible endpoint without exposing the key in the field', async () => {
+    setSettingsStore?.({ llmProvider: 'openai-compatible' });
+    const { dispose } = await renderAITab();
+    const section = Array.from(container.querySelectorAll('section')).find((item) =>
+      item.textContent?.includes('OpenAI-compatible API'))!;
+    const inputs = section.querySelectorAll('input');
+    expect(inputs).toHaveLength(3);
+    expect(inputs[1].type).toBe('password');
+    inputs[2].value = 'test/model';
+    inputs[2].dispatchEvent(new Event('input', { bubbles: true }));
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ compatibleModel: 'test/model' });
     dispose();
   });
 });

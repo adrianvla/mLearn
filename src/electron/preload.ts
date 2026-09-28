@@ -64,6 +64,7 @@ const mLearnIPC = {
   // ========== Settings ==========
   getSettings: () => ipcRenderer.send(IPC_CHANNELS.GET_SETTINGS),
   saveSettings: (settings: Settings) => ipcRenderer.send(IPC_CHANNELS.SAVE_SETTINGS, settings),
+  awaitSettingsSaved: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SAVE_BARRIER),
   onSettings: (callback: (settings: Settings) => void) =>
     ipcOn(IPC_CHANNELS.SETTINGS, (_event, settings) => callback(settings)),
   onSettingsSaved: (callback: () => void) =>
@@ -667,6 +668,30 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_DELETE_PARTICIPANT, participantId),
   clearRoomUnread: (roomId: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_CLEAR_UNREAD, roomId),
+  saveStoryTrack: (input: import('../shared/story').SaveStoryTrackInput): Promise<import('../shared/story').StoryTrack> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_SAVE_STORY_TRACK, input),
+  setStoryProgress: (input: import('../shared/story').SetStoryProgressInput): Promise<import('../shared/story').StoryTrack> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_SET_STORY_PROGRESS, input),
+  updateStoryBranch: (input: import('../shared/story').UpdateStoryBranchInput): Promise<import('../shared/world').Thread> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_STORY_BRANCH, input),
+  researchCharacter: (input: import('../shared/characterIdentity').CharacterResearchRequest): Promise<import('../shared/characterIdentity').CharacterResearchResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_RESEARCH_CHARACTER, input),
+  cancelCharacterResearch: (operationId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CANCEL_CHARACTER_RESEARCH, operationId),
+  prepareStoryAdvance: (input: import('../shared/story').StoryAdvanceInput): Promise<import('../shared/story').StoryAdvanceRecord> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_PREPARE_STORY_ADVANCE, input),
+  applyStoryAdvance: (id: string): Promise<import('../shared/story').StoryAdvanceRecord> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_APPLY_STORY_ADVANCE, id),
+  cancelStoryAdvance: (id: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CANCEL_STORY_ADVANCE, id),
+  reviewConversationTurn: (input: import('../shared/conversationReview').TurnReviewRequest): Promise<import('../shared/conversationReview').TurnReviewResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_REVIEW_CONVERSATION_TURN, input),
+  cancelConversationReview: (operationId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_CANCEL_CONVERSATION_REVIEW, operationId),
+  getLocalGuardStatus: (): Promise<import('../shared/conversationReview').LocalGuardStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_LOCAL_GUARD_STATUS),
+  installLocalGuard: (): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_INSTALL_LOCAL_GUARD),
   onOpenRoomEvent: (callback: (payload: import('../shared/world').OpenRoomEventPayload) => void) =>
     ipcOn(IPC_CHANNELS.OPEN_ROOM_EVENT, (_event, payload) => callback(payload)),
 

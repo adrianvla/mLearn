@@ -8,7 +8,7 @@ import { For, Component, Show, Index, batch, createSignal, createEffect, createM
 import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
+import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../shared/backends';
 import { getTokenLookupWord } from '../../utils/wordForms';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
@@ -17,6 +17,7 @@ import {
   CloudUnreachableError,
   ensureCloudAccessToken,
   handleCloudSessionError,
+  isCloudSessionError,
 } from '../../services/cloudSessionManager';
 import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, Tag, ChatIcon, Avatar, ResponsiveSidebar } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
@@ -40,6 +41,7 @@ import { createMessagePreparationQueue } from './messagePreparation';
 import { warmTranslationCache } from '../../hooks/useTranslation';
 import { RuntimeInspector } from './RuntimeInspector';
 import { NewConversationModal } from './NewConversationModal';
+import { StoryProgressModal } from './StoryProgressModal';
 
 import { createConversationAgent, type AgentInstance } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
@@ -47,7 +49,8 @@ import { inferTurnAffect } from '../../../shared/socialState';
 import type { TurnAffectOptions, TurnSocialState } from '../../../shared/socialState';
 import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, StreamStats } from '../../../shared/types';
-import { DEFAULT_SETTINGS } from '../../../shared/types';
+import { DEFAULT_SETTINGS, isRemoteLLMProvider } from '../../../shared/types';
+import { isElectron } from '../../../shared/platform';
 import { conversationRecoveryKey } from './errorUtils';
 import { shouldHideAssistantBubble } from './messageState';
 import { createJournalThreadStore, eventsToDisplayMessages, buildLLMHistory } from './journalRuntime';
@@ -266,9 +269,16 @@ export const ConversationContent: Component = () => {
   const interruptedSpokenText = new Map<string, { text: string; interruptedAt: string }>();
   const supersededEvents = new Set<string>();
   const participantAgents = new Map<string, AgentInstance>();
+  const reviewOperations = new Set<string>();
+  const restrictedUserEventIds = new Set<string>();
+  const pendingMemoryWrites = new Map<string, string[]>();
+  const approvedMemoryWrites = new Map<string, string[]>();
+  onCleanup(() => { for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId); });
   let selectionSession = 0;
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
+  const [sidebarView, setSidebarView] = createSignal<'chats' | 'contacts' | 'practice'>('chats');
   const [addingContact, setAddingContact] = createSignal(false);
+  const [showStoryProgress, setShowStoryProgress] = createSignal(false);
   const [contactId, setContactId] = createSignal<string | null>(null);
   const [showRuntimeInspector, setShowRuntimeInspector] = createSignal(false);
   const selectedContact = () => world()?.participants.find(person => person.id === contactId());
@@ -278,8 +288,7 @@ export const ConversationContent: Component = () => {
   } : current); };
   const messageContact = async (person: Participant): Promise<void> => {
     const snapshot = await getBridge().world.getWorldState();
-    const persistent = person.kind === 'persistent' && settings.livingWorldEnabled;
-    if (persistent) {
+    if (person.kind === 'persistent') {
       const room = snapshot.rooms.filter(item => item.participantIds.length === 1 && item.participantIds[0] === person.id)
         .sort((a, b) => (conversationPreviews.previews()[b.id]?.timestamp ?? b.createdAt) - (conversationPreviews.previews()[a.id]?.timestamp ?? a.createdAt))[0];
       if (room) {
@@ -287,6 +296,10 @@ export const ConversationContent: Component = () => {
         const latest = [conversationPreviews.previews()[room.id], ...threads.map(thread => conversationPreviews.previews()[`${room.id}/${thread.id}`])]
           .filter(item => item !== undefined).sort((a, b) => b.timestamp - a.timestamp)[0];
         await selectRoom(room.id, latest ? latest.threadId : threads.sort((a, b) => b.createdAt - a.createdAt)[0]?.id); return;
+      }
+      if (!settings.livingWorldEnabled) {
+        openComposer('message', person.id);
+        return;
       }
       const created = await getBridge().world.createPersistentRoom({ operationId: crypto.randomUUID(), participantIds: [person.id] });
       await selectRoom(created.id);
@@ -299,6 +312,13 @@ export const ConversationContent: Component = () => {
     }
   };
   const [showNewConversationModal, setShowNewConversationModal] = createSignal(false);
+  const [composerParticipantId, setComposerParticipantId] = createSignal<string | undefined>();
+  const [newConversationMode, setNewConversationMode] = createSignal<'message' | 'practice' | 'scenario'>('message');
+  const openComposer = (mode: 'message' | 'practice' | 'scenario', participantId?: string): void => {
+    setComposerParticipantId(participantId);
+    setNewConversationMode(mode);
+    setShowNewConversationModal(true);
+  };
   const [showOverflowMenu, setShowOverflowMenu] = createSignal(false);
   const [showIntegrationModal, setShowIntegrationModal] = createSignal(false);
   let overflowAnchorRef: HTMLButtonElement | undefined;
@@ -411,7 +431,7 @@ export const ConversationContent: Component = () => {
   const rosterParticipants = () => {
     const room = activeRoom();
     if (!room) return [];
-    if (activeThread()?.sandbox) return threadParticipants(activeThread()!, []);
+    if (activeThread()?.sandbox) return threadParticipants(activeThread()!, world()?.participants ?? []);
     const byId = new Map((world()?.participants ?? []).map((participant) => [participant.id, participant]));
     return room.participantIds.map((id) => byId.get(id)).filter((participant): participant is Participant => participant !== undefined);
   };
@@ -510,6 +530,7 @@ export const ConversationContent: Component = () => {
   const providerLabel = () => {
     switch (settings.llmProvider) {
       case 'cloud': return t('mlearn.AI.Settings.Provider.Cloud');
+      case 'openai-compatible': return t('mlearn.AI.Settings.Provider.OpenAICompatible');
       case 'ollama': return t('mlearn.AI.Settings.Provider.Ollama');
       default: return t('mlearn.AI.Settings.Provider.Builtin');
     }
@@ -572,19 +593,7 @@ export const ConversationContent: Component = () => {
     onVoiceNudgeScheduled: scheduleVoiceNudge,
     onMemorySaved: (content: string) => {
       if (runtimeSession !== selectionSession) return;
-      const room = activeRoom();
-      const threadId = selection()?.threadId;
-      if (!room) return;
-      const sourceEventId = lastUserMessageEventRoomId === room.id ? lastUserMessageEventId : null;
-      void journal.append({
-        roomId: room.id,
-        scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
-        type: 'memory.belief',
-        actorId: HARNESS_ACTOR,
-        witnesses: [USER_ACTOR, participant.id],
-        payload: { ownerId: participant.id, kind: 'belief', text: content,
-          ...(sourceEventId ? { sourceEventIds: [sourceEventId] } : {}) },
-      }).catch(error => log.error('Conversation memory write failed', error));
+      pendingMemoryWrites.set(participant.id, [...(pendingMemoryWrites.get(participant.id) ?? []), content]);
     },
     getDisabledTools: () => new Set(settings.agentMemoryEnabled ? [] : ['save_memory']),
     getWorldContext: (turnText) => renderCompiledContext(
@@ -729,8 +738,11 @@ export const ConversationContent: Component = () => {
     } catch (error) { log.warn('Unable to restore conversation selection', error); }
     if (session !== selectionSession) return;
     const savedThread = snapshot.threads.find(thread => thread.id === saved?.threadId && threadContextId(thread) === saved?.roomId);
-    const roomId = savedThread ? threadContextId(savedThread) : (snapshot.rooms.find(room => room.id === saved?.roomId)?.id ?? snapshot.rooms[0]?.id ?? snapshot.threads.find(thread => thread.sandbox)?.id);
-    if (roomId) await selectRoom(roomId, savedThread?.id);
+    const eligibleSavedThread = settings.livingWorldEnabled || savedThread?.sandbox ? savedThread : undefined;
+    const roomId = settings.livingWorldEnabled
+      ? (eligibleSavedThread ? threadContextId(eligibleSavedThread) : (snapshot.rooms.find(room => room.id === saved?.roomId)?.id ?? snapshot.rooms[0]?.id ?? snapshot.threads.find(thread => thread.sandbox)?.id))
+      : (eligibleSavedThread?.id ?? snapshot.threads.find(thread => thread.sandbox && thread.state !== 'archived')?.id);
+    if (roomId) await selectRoom(roomId, eligibleSavedThread?.id);
     })();
     void initialSelection.catch(error => log.error('Unable to load conversations', error));
   });
@@ -758,6 +770,9 @@ export const ConversationContent: Component = () => {
   const selectionKey = (roomId: string, threadId: string | null) => `${roomId}:${threadId ?? ''}`;
   const selectRoom = async (roomId: string, requestedThreadId?: string): Promise<void> => {
     const mySession = ++selectionSession;
+    for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
+    reviewOperations.clear();
+    restrictedUserEventIds.clear(); pendingMemoryWrites.clear(); approvedMemoryWrites.clear();
     const previous = selection();
     if (previous) {
       const key = selectionKey(previous.roomId, previous.threadId);
@@ -836,6 +851,7 @@ export const ConversationContent: Component = () => {
       setPendingTutorConfig(undefined);
     }
     setShowNewConversationModal(false);
+    setComposerParticipantId(undefined);
     // Creation publishes setup context. The next actual exchange consumes it;
     // setup is not submitted to the turn engine as a synthetic user action.
   };
@@ -900,6 +916,9 @@ export const ConversationContent: Component = () => {
     void settings.cloudAuthStatus;
     void settings.cloudApiUrl;
     void settings.overrideCloudEndpointUrl;
+    void settings.compatibleApiBaseUrl;
+    void settings.compatibleApiKey;
+    void settings.compatibleModel;
 
     setIsCheckingConnection(true);
 
@@ -919,6 +938,10 @@ export const ConversationContent: Component = () => {
           );
           const reachable = await adapter.checkAvailability();
           setIsConnected(reachable);
+        } else if (provider === 'openai-compatible') {
+          const adapter = new OpenAICompatibleLLMAdapter(settings.compatibleApiBaseUrl,
+            settings.compatibleApiKey, settings.compatibleModel);
+          setIsConnected(await adapter.checkAvailability());
         } else if (provider === 'ollama') {
           const connected = await getBridge().llm.ollamaCheck();
           setIsConnected(connected ?? false);
@@ -928,7 +951,7 @@ export const ConversationContent: Component = () => {
         }
       } catch (e) {
         log.error("error", e);
-        handleCloudSessionError(e, false);
+        if (provider === 'cloud') handleCloudSessionError(e, false);
         setIsConnected(false);
       } finally {
         setIsCheckingConnection(false);
@@ -975,13 +998,13 @@ export const ConversationContent: Component = () => {
           if (typeof rawCtx.threadId === 'string' && activeThread()?.id === rawCtx.threadId) {
             await updateActiveThread((thread) => ({ ...thread, mediaRef: mediaRefFromContext(rawCtx) }));
           } else {
-            setShowNewConversationModal(true);
+            openComposer('practice');
           }
         }
         if (isTutorSessionConfig(rawCtx.tutorConfig)) {
           const config = rawCtx.tutorConfig;
           setPendingTutorConfig(config);
-          setShowNewConversationModal(true);
+          openComposer('practice');
         }
         if (typeof rawCtx.initialMessage === 'string' && rawCtx.initialMessage.trim()) {
           setInputText(rawCtx.initialMessage);
@@ -1065,7 +1088,7 @@ export const ConversationContent: Component = () => {
   };
 
   const ensureLlmAllowed = async (): Promise<boolean> => {
-    if (settings.llmProvider === 'cloud') return true;
+    if (isRemoteLLMProvider(settings.llmProvider)) return true;
     return requestLlmAccess('llm');
   };
 
@@ -1206,8 +1229,10 @@ export const ConversationContent: Component = () => {
       onError: (error) => {
         log.error('Conversation response failed', error);
         clearAssistantStreamState();
-        const message = isCloudSessionCancelled(error) ? t('mlearn.CloudReLogin.SignInCanceled')
-          : handleCloudSessionError(error, true) ? t('mlearn.CloudReLogin.SessionExpired')
+        const message = settings.llmProvider === 'openai-compatible' && isCloudSessionError(error)
+          ? t('mlearn.AI.Settings.CompatibleConfig.AuthenticationFailed')
+          : isCloudSessionCancelled(error) ? t('mlearn.CloudReLogin.SignInCanceled')
+          : settings.llmProvider === 'cloud' && handleCloudSessionError(error, true) ? t('mlearn.CloudReLogin.SessionExpired')
           : isCloudUnreachable(error) ? t('mlearn.AI.CloudUnreachable') : t(conversationRecoveryKey(error));
         setLiveOverlay({ role: 'assistant', content: message, timestamp: Date.now(), isError: true });
       },
@@ -1231,6 +1256,20 @@ export const ConversationContent: Component = () => {
       if (!settings.livingWorldEnabled && !fallbackThread) return;
       await selectRoom(fallbackThread ? fallbackThread.id : firstRoom.id);
       return runConversationTurn(text, contextOnly, modality);
+    }
+    if (isRemoteLLMProvider(settings.llmProvider)) {
+      try {
+        if (settings.llmProvider === 'cloud') {
+          const accessToken = await ensureCloudAccessToken({ interactive: true });
+          if (!accessToken) throw new CloudSessionCancelledError();
+        }
+        if (isElectron()) await getBridge().settings.awaitSettingsSaved();
+      } catch (error) {
+        const message = isCloudSessionCancelled(error) ? t('mlearn.CloudReLogin.SignInCanceled')
+          : isCloudUnreachable(error) ? t('mlearn.AI.CloudUnreachable') : t(conversationRecoveryKey(error));
+        setLiveOverlay({ role: 'assistant', content: message, timestamp: Date.now(), isError: true });
+        return;
+      }
     }
     cancelVoiceScheduledNudge();
     turnHeuristicSocial = inferTurnAffect(text, turnSocialOpts(text));
@@ -1264,8 +1303,10 @@ export const ConversationContent: Component = () => {
           if (session !== selectionSession) throw new Error('Conversation selection changed');
           setLiveOverlay((overlay) => overlay ? { ...overlay, displayName: participant.displayName } : overlay);
           const runtimeAgent = getParticipantAgent(participant, context);
+          pendingMemoryWrites.delete(participant.id);
           runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(
-            visibleThreadEventsFor(participant, journal.threadEvents(), activeThread()?.sandbox ? [] : journal.seaEvents()), participant.id, rosterParticipants())));
+            visibleThreadEventsFor(participant, journal.threadEvents().filter(event => !restrictedUserEventIds.has(event.id)),
+              activeThread()?.sandbox ? [] : journal.seaEvents().filter(event => !restrictedUserEventIds.has(event.id))), participant.id, rosterParticipants())));
           if (voiceTurnTiming) voiceTurnTiming.requestDispatchTs = Date.now();
           const history = runtimeAgent.getHistory();
           const last = history.at(-1);
@@ -1273,15 +1314,36 @@ export const ConversationContent: Component = () => {
           if (!contextOnly && last) runtimeAgent.popHistory(1);
           return new Promise((resolve, reject) => runtimeAgent.processMessage(currentText, [], {
             ...buildStreamCallbacks((final, tokens, widgets, streamStats) => {
-              if (session !== selectionSession) { reject(new Error('Conversation selection changed')); return; }
-              if (voiceTurnTiming && streamStats && !prefetchLogged) {
-                prefetchLogged = true;
-                const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
-                const { cacheHit, compileMs } = voiceContextPrefetch.lastStats();
-                log.info('[VoicePrefetch] voice turn', { cacheHit, compileMs, totalMs: dispatchMs + streamStats.timeToFirstToken });
-              }
-              pendingResponse = { tokens, widgets };
-              resolve({ text: final });
+              void (async () => {
+                if (session !== selectionSession) throw new Error('Conversation selection changed');
+                if (voiceTurnTiming && streamStats && !prefetchLogged) {
+                  prefetchLogged = true;
+                  const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
+                  const { cacheHit, compileMs } = voiceContextPrefetch.lastStats();
+                  log.info('[VoicePrefetch] voice turn', { cacheHit, compileMs, totalMs: dispatchMs + streamStats.timeToFirstToken });
+                }
+                  if (!isElectron()) { pendingResponse = { tokens, widgets }; approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []); resolve({ text: final }); return; }
+                const operationId = crypto.randomUUID();
+                reviewOperations.add(operationId);
+                try {
+                  const result = await getBridge().world.reviewConversationTurn({ operationId, roomId: room.id,
+                    threadId: threadId ?? undefined, participantId: participant.id, sourceEventId: userEvent?.id,
+                    userText: text, assistantText: final,
+                    auxiliaryText: widgets?.length ? JSON.stringify(widgets).slice(0, 12_000) : undefined,
+                    recent: history.filter(message => message.role === 'user' || message.role === 'assistant')
+                      .slice(-12).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content.slice(-4000) })),
+                    repairContext: renderCompiledContext(context, rosterParticipants(), youLabel()).slice(0, 30_000),
+                    language: promptLangName() });
+                  if (session !== selectionSession) throw new Error('Conversation selection changed');
+                  if (result.status === 'unavailable') throw new Error(result.error);
+                  if (result.restrictUserContext && userEvent) restrictedUserEventIds.add(userEvent.id);
+                  if (result.status === 'support') { pendingResponse = {}; pendingMemoryWrites.delete(participant.id); resolve({ text: t('mlearn.ConversationAgent.Story.SupportResponse'), reviewEvent: result.reviewEvent }); return; }
+                  pendingResponse = result.status === 'approved' ? { tokens, widgets } : {};
+                  if (result.status === 'approved' && !result.restrictUserContext) approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []);
+                  else pendingMemoryWrites.delete(participant.id);
+                  resolve({ text: result.text, reviewEvent: result.reviewEvent });
+                } finally { reviewOperations.delete(operationId); }
+              })().catch(reject);
             }, true),
             onError: (error) => reject(new Error(error)),
           }));
@@ -1291,6 +1353,17 @@ export const ConversationContent: Component = () => {
           const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets
             ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
             : draft);
+          if (draft.type === 'message.character') {
+            const writes = approvedMemoryWrites.get(draft.actorId) ?? [];
+            approvedMemoryWrites.delete(draft.actorId); pendingMemoryWrites.delete(draft.actorId);
+            for (const content of writes) {
+              const sourceEventId = lastUserMessageEventRoomId === room.id && !restrictedUserEventIds.has(lastUserMessageEventId ?? '') ? lastUserMessageEventId : null;
+              void journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
+                type: 'memory.belief', actorId: HARNESS_ACTOR, witnesses: [USER_ACTOR, draft.actorId],
+                payload: { ownerId: draft.actorId, kind: 'belief', text: content,
+                  ...(sourceEventId ? { sourceEventIds: [sourceEventId] } : {}) } }).catch(error => log.error('Conversation memory write failed', error));
+            }
+          }
           if (draft.type === 'message.character' && contextOnly && modality === 'text' && settings.autoSpeak && settings.speechEnabled) {
             speakAssistantText((draft.payload as MessagePayload).text);
           }
@@ -1316,7 +1389,12 @@ export const ConversationContent: Component = () => {
     } catch (error) {
       log.error('Conversation turn failed', error);
       if (session === selectionSession) {
-        setLiveOverlay({ role: 'assistant', content: t(conversationRecoveryKey(error)), timestamp: Date.now(), isError: true });
+        const message = settings.llmProvider === 'openai-compatible' && isCloudSessionError(error)
+          ? t('mlearn.AI.Settings.CompatibleConfig.AuthenticationFailed')
+          : isCloudSessionCancelled(error) ? t('mlearn.CloudReLogin.SignInCanceled')
+          : settings.llmProvider === 'cloud' && handleCloudSessionError(error, true) ? t('mlearn.CloudReLogin.SessionExpired')
+          : isCloudUnreachable(error) ? t('mlearn.AI.CloudUnreachable') : t(conversationRecoveryKey(error));
+        setLiveOverlay({ role: 'assistant', content: message, timestamp: Date.now(), isError: true });
       }
     } finally {
       if (session === selectionSession) {
@@ -1512,7 +1590,7 @@ export const ConversationContent: Component = () => {
   };
 
   const handleClear = () => {
-    setShowNewConversationModal(true);
+    openComposer('message');
     setLiveOverlay(null);
     clearAssistantStreamState();
   };
@@ -1565,7 +1643,10 @@ export const ConversationContent: Component = () => {
           aria-controls="conversation-sidebar" aria-expanded={sidebarVisible()}
         /></Show>
         <div class="ca-header-identity">
-          <Button variant="ghost" class="ca-header-contact" onClick={openDetails} disabled={!activeRoom()}>
+          <Button variant="ghost" class="ca-header-contact" onClick={() => {
+            if (rosterParticipants().length === 1 && !activeThread()?.sandbox) setContactId(rosterParticipants()[0].id);
+            else openDetails();
+          }} disabled={!activeRoom()}>
             <Show when={rosterParticipants().length === 1}><Avatar size="sm" name={rosterParticipants()[0].displayName} src={rosterParticipants()[0].profilePhoto} /></Show>
             <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
           </Button>
@@ -1604,7 +1685,8 @@ export const ConversationContent: Component = () => {
             class="ca-overflow-menu"
           >
             <Show when={callSurfaceOpen()}><div class="ca-provider-details"><ConnectionInfo /></div></Show>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { setShowNewConversationModal(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewMessage')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('practice'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewPractice')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
@@ -1645,11 +1727,11 @@ export const ConversationContent: Component = () => {
           </Show>
         </div>}
       </For>
-      <Show when={showSplash() && settings.llmProvider === 'cloud'}>
+      <Show when={showSplash() && isRemoteLLMProvider(settings.llmProvider)}>
         <AgeVerificationModal onAccept={() => setShowSplash(false)} />
       </Show>
       <Modal
-        isOpen={showDisclaimer() && settings.llmProvider !== 'cloud'}
+        isOpen={showDisclaimer() && !isRemoteLLMProvider(settings.llmProvider)}
         onClose={() => setShowDisclaimer(false)}
         title={t('mlearn.ConversationAgent.Title')}
         closeOnOverlay={false}
@@ -1695,7 +1777,9 @@ export const ConversationContent: Component = () => {
               previews={conversationPreviews.previews()} previewsError={conversationPreviews.error()}
               onSelectRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
               onSelectThread={threadId => { const thread = world()?.threads.find(item => item.id === threadId); if (thread) void selectRoom(threadContextId(thread), threadId).catch(error => setContactIngressError(String(error))); }}
-              onNewConversation={() => setShowNewConversationModal(true)} onAddContact={() => setAddingContact(true)}
+              onNewConversation={() => openComposer('message')} onPractice={() => openComposer('practice')} onAddContact={() => setAddingContact(true)}
+              onStoryProgress={() => setShowStoryProgress(true)}
+              onViewChange={setSidebarView}
               onSelectContact={person => setContactId(person.id)} />
           </ResponsiveSidebar>
           <div class="ca-chat-content">
@@ -1720,10 +1804,10 @@ export const ConversationContent: Component = () => {
                   <EmptyState
                     icon={<ChatIcon size={24} />}
                     title={t('mlearn.ConversationAgent.Empty.Title')}
-                    description={t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
+                    description={t(hasActiveRoomSelection() ? 'mlearn.ConversationAgent.Empty.ReadyHint' : 'mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                     action={{
-                      label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : t('mlearn.ConversationAgent.Empty.NewConversation'),
-                      onClick: hasActiveRoomSelection() ? handleStartConversation : () => setShowNewConversationModal(true),
+                      label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : t(sidebarView() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.Contacts.NewMessage'),
+                      onClick: hasActiveRoomSelection() ? handleStartConversation : () => openComposer(sidebarView() === 'practice' ? 'practice' : 'message'),
                       variant: 'primary',
                     }}
                     class="ca-empty"
@@ -1955,9 +2039,18 @@ export const ConversationContent: Component = () => {
       <Show when={addingContact()}><ParticipantEditorModal onClose={() => setAddingContact(false)} onCreate={async input => {
         const person = await getBridge().world.createParticipant(input);
         publishContact(person); setAddingContact(false); setContactId(person.id);
-      }} /></Show>
+      }} storyTracks={world()?.storyTracks ?? []} /></Show>
+      <Show when={showStoryProgress() && world()}>{snapshot => <StoryProgressModal world={snapshot()!}
+        onClose={() => setShowStoryProgress(false)} onRefresh={async () => { setWorld(await getBridge().world.getWorldState()); }} />}</Show>
       <Show when={selectedContact()}>{person => <ContactProfileModal person={person()}
         onClose={() => setContactId(null)} onMessage={messageContact}
+        rooms={world()?.rooms.filter(room => room.participantIds.includes(person().id))}
+        onOpenRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
+        muted={(settings.proactiveOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveOptOutParticipantIds).includes(person().id)}
+        onMutedChange={muted => {
+          const current = settings.proactiveOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveOptOutParticipantIds;
+          updateSettings({ proactiveOptOutParticipantIds: muted ? [...new Set([...current, person().id])] : current.filter(id => id !== person().id) });
+        }}
         onSave={async updated => {
           const saved = await getBridge().world.updateParticipant(updated);
           participantAgents.get(saved.id)?.abortStream(); participantAgents.delete(saved.id); publishContact(saved);
@@ -1995,6 +2088,7 @@ export const ConversationContent: Component = () => {
             onUpdateParticipant={handleUpdateParticipant}
             onDeleteThread={handleDeleteThread}
             onIntegrate={() => { setShowIntegrationModal(true); }}
+            onUpdateStoryBranch={async input => { await getBridge().world.updateStoryBranch(input); setWorld(await getBridge().world.getWorldState()); }}
             onRetryMaintenance={async (reflectionId) => {
               await getBridge().world.retryMaintenance(reflectionId);
               setWorld(await getBridge().world.getWorldState());
@@ -2029,13 +2123,15 @@ export const ConversationContent: Component = () => {
           />
         </Modal>
       </Show>
-      <Show when={showNewConversationModal() && !(settings.llmProvider === 'cloud' ? showSplash() : showDisclaimer())}>
+      <Show when={showNewConversationModal() && !(isRemoteLLMProvider(settings.llmProvider) ? showSplash() : showDisclaimer())}>
         <Show when={pendingTutorConfig() ?? 'manual'} keyed>{(_config) => <NewConversationModal
           world={world()}
+          mode={newConversationMode()}
+          initialParticipantId={composerParticipantId()}
           initialIntent={pendingTutorConfig() ? tutorSessionIntent(pendingTutorConfig()!) : undefined}
           mediaName={mediaContext()?.mediaName}
           onContactCreated={publishContact}
-          onClose={() => { setShowNewConversationModal(false); setPendingTutorConfig(undefined); setMediaContext(null); }}
+          onClose={() => { setShowNewConversationModal(false); setComposerParticipantId(undefined); setPendingTutorConfig(undefined); setMediaContext(null); }}
           onCreated={handleScenarioCreated}
         />}</Show>
       </Show>

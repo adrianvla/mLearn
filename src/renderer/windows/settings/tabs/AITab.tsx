@@ -7,7 +7,9 @@ import { Component, Show, For, createSignal, createEffect, onCleanup } from 'sol
 import { useSettings, useLocalization } from '../../../context';
 import { Button, SettingRow, SettingGroup, Select, Input, TabContent, HintText, ToggleSwitch, ConnectionStatus, BotIcon } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
-import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
+import { isElectron } from '../../../../shared/platform';
+import type { LocalGuardStatus } from '../../../../shared/conversationReview';
+import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../../shared/backends';
 import { BUILTIN_MODELS, autoselectBuiltinModel, getModelUrl } from '../../../../shared/builtinModels';
 import {
@@ -46,10 +48,38 @@ export const AITab: Component = () => {
   const [ollamaTesting, setOllamaTesting] = createSignal(false);
   const [ollamaModels, setOllamaModels] = createSignal<string[]>([]);
   const [loadingModels, setLoadingModels] = createSignal(false);
+  const [guardStatus, setGuardStatus] = createSignal<LocalGuardStatus>();
+  const [guardInstalling, setGuardInstalling] = createSignal(false);
+  const [guardError, setGuardError] = createSignal('');
+  const refreshGuard = async (): Promise<void> => {
+    try { setGuardStatus(await getBridge().world.getLocalGuardStatus()); setGuardError(''); }
+    catch (failure) { setGuardError(failure instanceof Error ? failure.message : String(failure)); }
+  };
+  const installGuard = async (): Promise<void> => {
+    setGuardInstalling(true); setGuardError('');
+    try { await getBridge().world.installLocalGuard(); await refreshGuard(); }
+    catch (failure) { setGuardError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setGuardInstalling(false); }
+  };
 
   // Cloud LLM state
   const [testingCloudLLM, setTestingCloudLLM] = createSignal(false);
   const [cloudLLMStatus, setCloudLLMStatus] = createSignal<'idle' | 'success' | 'error' | 'auth'>('idle');
+  const [compatibleStatus, setCompatibleStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
+  const [testingCompatible, setTestingCompatible] = createSignal(false);
+
+  const testCompatible = async () => {
+    setTestingCompatible(true);
+    try {
+      const adapter = new OpenAICompatibleLLMAdapter(settings.compatibleApiBaseUrl,
+        settings.compatibleApiKey, settings.compatibleModel);
+      setCompatibleStatus(await adapter.checkAvailability() ? 'success' : 'error');
+    } catch {
+      setCompatibleStatus('error');
+    } finally {
+      setTestingCompatible(false);
+    }
+  };
 
   // Autoselect state
   const [autoselectMsg, setAutoselectMsg] = createSignal<string | null>(null);
@@ -75,6 +105,7 @@ export const AITab: Component = () => {
   createEffect(() => {
     if (!isLoading()) void checkModelStatus();
   });
+  createEffect(() => { if (!isLoading() && isElectron()) void refreshGuard(); });
 
   createEffect(() => {
     if (settings.llmProvider !== 'ollama') return;
@@ -316,6 +347,15 @@ export const AITab: Component = () => {
     >
       {/* Provider Selection */}
       <SettingGroup title={t('mlearn.AI.Settings.Provider.Title')}>
+        <Show when={settings.llmProvider === 'builtin' || settings.llmProvider === 'ollama'}>
+          <SettingRow
+            label={t('mlearn.AI.Settings.Provider.EnableLocal.Label')}
+            description={t('mlearn.AI.Settings.Provider.EnableLocal.Description')}
+            settingKey="llmEnabled"
+          >
+            <ToggleSwitch checked={settings.llmEnabled} onChange={(checked) => updateSettings({ llmEnabled: checked })} />
+          </SettingRow>
+        </Show>
         <SettingRow
           label={t('mlearn.AI.Settings.Provider.Title')}
           description={t('mlearn.AI.Settings.Provider.Description')}
@@ -328,6 +368,7 @@ export const AITab: Component = () => {
               { value: 'builtin', label: t('mlearn.AI.Settings.Provider.Builtin') },
               { value: 'ollama', label: t('mlearn.AI.Settings.Provider.Ollama') },
               { value: 'cloud', label: t('mlearn.AI.Settings.Provider.Cloud') },
+              { value: 'openai-compatible', label: t('mlearn.AI.Settings.Provider.OpenAICompatible') },
             ]}
           />
         </SettingRow>
@@ -559,6 +600,30 @@ export const AITab: Component = () => {
         </SettingGroup>
       </Show>
 
+      <Show when={settings.llmProvider === 'openai-compatible'}>
+        <SettingGroup title={t('mlearn.AI.Settings.CompatibleConfig.Title')}>
+          <SettingRow label={t('mlearn.AI.Settings.CompatibleConfig.BaseUrl')} description="">
+            <Input value={settings.compatibleApiBaseUrl} type="url" size="md"
+              onInput={(event) => { setCompatibleStatus('idle'); updateSettings({ compatibleApiBaseUrl: event.currentTarget.value }); }} />
+          </SettingRow>
+          <SettingRow label={t('mlearn.AI.Settings.CompatibleConfig.ApiKey')} description="">
+            <Input value={settings.compatibleApiKey} type="password" autocomplete="off" size="md"
+              onInput={(event) => { setCompatibleStatus('idle'); updateSettings({ compatibleApiKey: event.currentTarget.value }); }} />
+          </SettingRow>
+          <SettingRow label={t('mlearn.AI.Settings.CompatibleConfig.Model')} description="">
+            <Input value={settings.compatibleModel} size="md"
+              onInput={(event) => { setCompatibleStatus('idle'); updateSettings({ compatibleModel: event.currentTarget.value }); }} />
+          </SettingRow>
+          <SettingRow label="" description="">
+            <Button size="sm" variant={compatibleStatus() === 'success' ? 'success' : compatibleStatus() === 'error' ? 'danger' : 'default'}
+              disabled={testingCompatible()} loading={testingCompatible()} onClick={() => void testCompatible()}>
+              {compatibleStatus() === 'success' ? t('mlearn.AI.Settings.CompatibleConfig.ConnectionSuccess')
+                : t('mlearn.AI.Settings.CompatibleConfig.TestConnection')}
+            </Button>
+          </SettingRow>
+        </SettingGroup>
+      </Show>
+
       {/* Cloud LLM Configuration */}
       <Show when={settings.llmProvider === 'cloud'}>
         <SettingGroup title={t('mlearn.AI.Settings.CloudConfig.Title')}>
@@ -667,6 +732,22 @@ export const AITab: Component = () => {
       </SettingGroup>
 
       {/* Checker Agent */}
+      <Show when={isElectron()}><SettingGroup title={t('mlearn.AI.Settings.Boundary.Title')}>
+        <SettingRow label={t('mlearn.AI.Settings.Boundary.Provider')} description={t('mlearn.AI.Settings.Boundary.Description')}>
+          <Select value={settings.conversationGuardProvider ?? DEFAULT_SETTINGS.conversationGuardProvider}
+            onChange={event => updateSettings({ conversationGuardProvider: event.currentTarget.value as 'actor' | 'local' })}
+            options={[{ value: 'actor', label: t('mlearn.AI.Settings.Boundary.Actor') },
+              { value: 'local', label: t('mlearn.AI.Settings.Boundary.Local') }]} />
+        </SettingRow>
+        <Show when={(settings.conversationGuardProvider ?? DEFAULT_SETTINGS.conversationGuardProvider) === 'local'}>
+          <SettingRow label={guardStatus()?.model ?? t('mlearn.AI.Settings.Boundary.Local')} description={t('mlearn.AI.Settings.Boundary.LocalDescription')}>
+            <Show when={guardStatus()?.verified} fallback={<Button loading={guardInstalling()} onClick={() => { void installGuard(); }}>{t('mlearn.AI.Settings.Boundary.Install')}</Button>}>
+              <HintText>{t('mlearn.AI.Settings.Boundary.Installed')}</HintText>
+            </Show>
+          </SettingRow>
+          <Show when={guardError()}><HintText>{guardError()}</HintText></Show>
+        </Show>
+      </SettingGroup></Show>
       <SettingGroup title={t('mlearn.AI.Settings.Checker.Title')}>
         <SettingRow
           label={t('mlearn.AI.Settings.Checker.SecondPass.Label')}

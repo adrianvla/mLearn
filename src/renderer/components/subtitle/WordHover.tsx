@@ -757,12 +757,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               </div>
             </Show>
 
-            {/* Keep the full dictionary entry below the compact gloss and metadata. */}
             <Show when={!props.isLoading}>
-              <Show when={hoverContent().dictionaryHtml.length > 0}>
+              <Show when={hoverContent().dictionaryHtml.length > 0 && (props.presentation !== 'compact' || !hoverContent().shortDefinitionHtml)}>
                 <div class="word-hover-dictionary">
                   <Show when={hoverContent().shortDefinitionHtml}><hr /></Show>
-                  <For each={hoverContent().dictionaryHtml}>
+                  <For each={props.presentation === 'compact' ? hoverContent().dictionaryHtml.slice(0, 1) : hoverContent().dictionaryHtml}>
                     {(html, index) => (
                       <>
                         <Show when={index() > 0}><hr /></Show>

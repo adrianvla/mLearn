@@ -47,6 +47,7 @@ function getIPC(): MLearnIPC {
 const settingsBridge: SettingsBridge = {
   getSettings: () => getIPC().getSettings(),
   saveSettings: (s) => getIPC().saveSettings(s),
+  awaitSettingsSaved: () => getIPC().awaitSettingsSaved(),
   onSettings: (cb) => getIPC().onSettings(cb),
   onSettingsSaved: (cb) => getIPC().onSettingsSaved(cb),
 };
@@ -404,6 +405,18 @@ const worldBridge: WorldBridge = {
   updateParticipant: (participant, threadId) => getIPC().updateParticipant(participant, threadId),
   deleteParticipant: (participantId) => getIPC().deleteParticipant(participantId),
   clearRoomUnread: (roomId) => getIPC().clearRoomUnread(roomId),
+  saveStoryTrack: (input) => getIPC().saveStoryTrack(input),
+  setStoryProgress: (input) => getIPC().setStoryProgress(input),
+  updateStoryBranch: (input) => getIPC().updateStoryBranch(input),
+  researchCharacter: (input) => getIPC().researchCharacter(input),
+  cancelCharacterResearch: (operationId) => getIPC().cancelCharacterResearch(operationId),
+  prepareStoryAdvance: (input) => getIPC().prepareStoryAdvance(input),
+  applyStoryAdvance: (id) => getIPC().applyStoryAdvance(id),
+  cancelStoryAdvance: (id) => getIPC().cancelStoryAdvance(id),
+  reviewConversationTurn: (input) => getIPC().reviewConversationTurn(input),
+  cancelConversationReview: (operationId) => getIPC().cancelConversationReview(operationId),
+  getLocalGuardStatus: () => getIPC().getLocalGuardStatus(),
+  installLocalGuard: () => getIPC().installLocalGuard(),
 };
 
 const browserBridge: BrowserBridge = {
