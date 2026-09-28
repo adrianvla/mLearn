@@ -1,21 +1,7 @@
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
-import {
-  Modal,
-  Btn,
-  FilterBuilder,
-  ProgressBar,
-  validateTokens,
-  parseTokens,
-  evaluateAst,
-  buildLevelStudyBulkAddFields,
-  buildBulkAddDefaultPreset,
-  WORD_SYNC_STATUS_UNTRACKED,
-  type FilterToken,
-  type FieldResolver,
-  type ExprNode,
-} from '../../components/common';
+import { Button, Modal, FilterBuilder, ProgressBar, validateTokens, parseTokens, evaluateAst, buildLevelStudyBulkAddFields, buildBulkAddDefaultPreset, WORD_SYNC_STATUS_UNTRACKED, type FilterToken, type FieldResolver, type ExprNode } from '../../components/common';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { useFlashcards, useLocalization } from '../../context';
 import type { LevelStudyTargetStatus } from '../../context/FlashcardContext';
@@ -253,13 +239,13 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
             <span class="bulk-add-target-label">{t('mlearn.LevelStudy.DetailModal.AddAs')}</span>
             <For each={TARGET_STATUS_OPTIONS}>
               {(option) => (
-                <Btn
+                <Button
                   size="sm"
                   variant={targetStatus() === option.value ? 'primary' : 'secondary'}
                   onClick={() => setTargetStatus(option.value)}
                 >
                   {t(option.labelKey)}
-                </Btn>
+                </Button>
               )}
             </For>
           </div>
@@ -288,10 +274,10 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
                   ? t('mlearn.LevelStudy.BulkAdd.Counting')
                   : t('mlearn.LevelStudy.BulkAdd.MatchingCount', { count: String(totalCount()) })}
             </span>
-            <Btn size="sm" variant="secondary" onClick={props.onClose}>
+            <Button size="sm" variant="secondary" onClick={props.onClose}>
               {t('mlearn.LevelStudy.BulkAdd.Cancel')}
-            </Btn>
-            <Btn
+            </Button>
+            <Button
               size="sm"
               variant="primary"
               onClick={handleConfirm}
@@ -300,7 +286,7 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
               {isAdding()
                 ? t('mlearn.LevelStudy.BulkAdd.Adding')
                 : t('mlearn.LevelStudy.DetailModal.AddFlashcards', { count: String(totalCount()) })}
-            </Btn>
+            </Button>
           </div>
         </div>
       }

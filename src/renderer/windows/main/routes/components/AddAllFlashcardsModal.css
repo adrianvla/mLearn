@@ -30,7 +30,7 @@
 }
 
 .add-all-modal-word-item:hover {
-  background: var(--bg-hover);
+  background: var(--bg-intense);
 }
 
 .add-all-modal-word-item input[type="checkbox"] {

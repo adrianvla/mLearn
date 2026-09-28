@@ -6,7 +6,7 @@
 
 import { Component, Show, createSignal } from 'solid-js';
 import type { Participant } from '../../../shared/world';
-import { Btn, FormField, Input, ModalForm, Textarea, VoiceSamplePicker } from '../../components/common';
+import { Button, FormField, Input, ModalForm, Textarea, VoiceSamplePicker } from '../../components/common';
 import { useLocalization } from '../../context';
 import { resizeProfilePhoto } from '../../utils/profilePhoto';
 import './ParticipantEditorModal.css';
@@ -73,10 +73,10 @@ export const ParticipantEditorModal: Component<ParticipantEditorModalProps> = (p
       closeOnEscape={!saving()}
       footer={
         <div class="participant-editor-actions">
-          <Btn variant="ghost" onClick={props.onClose} disabled={saving()}>{t('mlearn.ConversationAgent.Details.Cancel')}</Btn>
-          <Btn variant="primary" onClick={() => { void save(); }} disabled={saving() || !displayName().trim()}>
+          <Button variant="ghost" onClick={props.onClose} disabled={saving()}>{t('mlearn.ConversationAgent.Details.Cancel')}</Button>
+          <Button variant="primary" onClick={() => { void save(); }} disabled={saving() || !displayName().trim()}>
             {saving() ? t('mlearn.ConversationAgent.Details.Saving') : t('mlearn.ConversationAgent.Details.Save')}
-          </Btn>
+          </Button>
         </div>
       }
     >
@@ -89,9 +89,9 @@ export const ParticipantEditorModal: Component<ParticipantEditorModalProps> = (p
           <div class="participant-editor-identity-meta">
             <span class="participant-editor-kind">{kindLabel()}</span>
             <div class="participant-editor-photo-actions">
-              <Btn variant="ghost" size="sm" onClick={() => fileInputRef?.click()}>{t('mlearn.ConversationAgent.Details.PhotoChange')}</Btn>
+              <Button variant="ghost" size="sm" onClick={() => fileInputRef?.click()}>{t('mlearn.ConversationAgent.Details.PhotoChange')}</Button>
               <Show when={profilePhoto()}>
-                <Btn variant="ghost" size="sm" onClick={() => setProfilePhoto('')}>{t('mlearn.ConversationAgent.Details.PhotoRemove')}</Btn>
+                <Button variant="ghost" size="sm" onClick={() => setProfilePhoto('')}>{t('mlearn.ConversationAgent.Details.PhotoRemove')}</Button>
               </Show>
             </div>
             <input

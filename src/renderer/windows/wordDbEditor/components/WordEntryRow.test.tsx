@@ -91,7 +91,7 @@ vi.mock('../../../components/common', () => ({
       <div data-testid="modal-stub">{props.children}{props.footer}</div>
     </Show>
   ),
-  Btn: (props: { children?: JSX.Element; onClick?: () => void }) => (
+  Button: (props: { children?: JSX.Element; onClick?: () => void }) => (
     <button type="button" onClick={props.onClick}>{props.children}</button>
   ),
   ReadinessGate: (props: { children?: JSX.Element }) => <>{props.children}</>,

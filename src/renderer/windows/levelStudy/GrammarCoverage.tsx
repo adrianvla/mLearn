@@ -1,6 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { Btn, RatingMatrix } from '../../components/common';
+import { Button, Panel, RatingMatrix } from '../../components/common';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import {
@@ -26,7 +26,7 @@ import type { GrammarPracticeItemSource, LanguageData } from '../../../shared/ty
 import type { CurriculumComponentSummary } from '../../../shared/curriculum';
 import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
 import { nextAttemptId, type AttemptId, type AttemptScaffolds, type KnowledgeEvent, type KnowledgeEventLog } from '../../../shared/knowledgeEvents';
-import type { PlacementLocks } from './PlacementSession';
+import type { StudySessionLocks } from '../../learning/studySessionController';
 import { loadQuestionValidationRecords, questionValidationRecordKey, validateQuestionItemsWithLLM } from '../../learning/questionValidation';
 import { studySessionState } from '../../learning/studySession';
 import { createStudySessionController, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
@@ -62,12 +62,12 @@ export interface GrammarCoverageProps {
   repairRequest?: { level: number; requestedAt: number } | null;
   /** Clears the owner-held request only once its policy walk has started. */
   onRepairRequestHandled?: (requestedAt: number) => void;
-  /** Web Locks DI seam (PlacementSession/MockExam convention). Production
+  /** Web Locks DI seam (shared study-session convention). Production
    *  resolves `globalThis.navigator.locks`; when absent (or explicitly
    *  `null`) the pass surfaces are DISABLED with a localized fallback (G04)
    *  instead of running an unserialized multi-window pass — the shared
    *  cursor and answered marker are not atomic without a real lock. */
-  locks?: PlacementLocks | null;
+  locks?: StudySessionLocks | null;
 }
 
 interface ConstructionRow {
@@ -303,12 +303,12 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     ? classifyGrammarProjectionMeasurements(props.language, props.projections, effectiveThresholds(settings))
     : classifyGrammarMeasurements(props.language, props.eventLog, effectiveThresholds(settings));
 
-  // Web Locks DI seam (PlacementSession/MockExam convention). happy-dom/Node
+  // Web Locks DI seam (shared study-session convention). happy-dom/Node
   // report `navigator.locks` as null (not undefined) — the typed view treats
   // both as absent. An explicit `locks` prop (null included) overrides the
   // global resolution so tests can force each path deterministically.
-  const globalLocks = globalThis as { navigator?: { locks?: PlacementLocks | null } };
-  const locksApi = (): PlacementLocks | null => {
+  const globalLocks = globalThis as { navigator?: { locks?: StudySessionLocks | null } };
+  const locksApi = (): StudySessionLocks | null => {
     if (props.locks !== undefined) return props.locks;
     return globalLocks.navigator?.locks ?? null;
   };
@@ -359,7 +359,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   const [expandedLevel, setExpandedLevel] = createSignal<number | null>(initialPass?.level ?? null);
   /** A durable write failed (quota/private storage): the refused action is
    *  surfaced with an honest note and stays retryable — never a probe
-   *  without a durable cursor (PlacementSession contract, G01/G04). Cleared
+   *  without a durable cursor (shared study-session contract, G01/G04). Cleared
    *  by the next successful durable write. */
   const [storageWriteUnavailable, setStorageUnavailable] = createSignal(false);
   const storageUnavailable = () => storageWriteUnavailable() || sessionController()?.current()?.pending?.state === 'failed';
@@ -437,11 +437,6 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   createEffect(on(() => sessionController()?.current(), (record) => {
     adoptPresentation(presentGrammarRecord(record ?? null));
   }));
-  createEffect(on(sessionController, (controller) => {
-    const loaded = controller?.current();
-    if (controller && loaded?.pending) void controller.retry(loaded);
-  }));
-
   const finishAction = (controller: GrammarController, captured: GrammarRecord, action: Promise<boolean>): void => {
     void action.then((accepted) => {
       if (accepted) setStorageUnavailable(false);
@@ -1040,6 +1035,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   };
 
   return (
+    <Panel class="grammar-coverage-panel" padding="lg">
     <section class="grammar-coverage" aria-label={t('mlearn.LevelStudy.Grammar.Title')}>
       <div class="grammar-coverage__header">
         <h3 class="grammar-coverage__title">{t('mlearn.LevelStudy.Grammar.Title')}</h3>
@@ -1126,7 +1122,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                             (single-flight, not session-scoped). */}
                         <Show when={locksAvailable()} fallback={
                           <span class="grammar-coverage__session-done" data-testid="grammar-no-locks">
-                            {t('mlearn.LevelStudy.Grammar.NoLocks')}
+                            {t('mlearn.LevelStudy.NoLocks')}
                           </span>
                         }>
                         <button type="button" class="grammar-coverage__session-btn" disabled={sessionLive()} onClick={() => startSession(level)}>
@@ -1393,15 +1389,15 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                               row shows a meaning, the probe records that cue as
                               translation-scaffold provenance on the attempt. */}
                           <span class="grammar-coverage__probe">
-                            <Btn size="sm" variant="danger" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'missed', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            <Button size="sm" variant="danger" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'missed', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Missed')}
-                            </Btn>
-                            <Btn size="sm" variant="warning" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'struggled', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            </Button>
+                            <Button size="sm" variant="warning" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'struggled', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Struggled')}
-                            </Btn>
-                            <Btn size="sm" variant="success" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'fluent', level, row.meaning !== undefined ? { translation: true } : undefined)}>
+                            </Button>
+                            <Button size="sm" variant="success" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'fluent', level, row.meaning !== undefined ? { translation: true } : undefined)}>
                               {t('mlearn.Rating.Matrix.Fluent')}
-                            </Btn>
+                            </Button>
                           </span>
                           <Show when={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
                             <span class="grammar-coverage__review-error" role="status">{t('mlearn.LevelStudy.Grammar.SavingAnswer')}</span>
@@ -1409,10 +1405,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                           <Show when={reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
                             <span class="grammar-coverage__review-error" role="alert">
                               {t('mlearn.LevelStudy.Grammar.StorageUnavailable')}
-                              <Btn size="sm" data-testid="grammar-row-retry" onClick={() => {
+                              <Button size="sm" data-testid="grammar-row-retry" onClick={() => {
                                 const failed = reviewProbe();
                                 if (failed?.state === 'failed' && failed.language === props.language) void submitReviewProbe(failed.pattern, failed.quality, failed.level, failed.scaffolds, failed);
-                              }}>{t('mlearn.Knowledge.Retry')}</Btn>
+                              }}>{t('mlearn.Knowledge.Retry')}</Button>
                             </span>
                           </Show>
                         </li>
@@ -1428,6 +1424,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         </For>
       </div>
     </section>
+    </Panel>
   );
 };
 

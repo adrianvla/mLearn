@@ -161,7 +161,7 @@ vi.mock('../../../shared/bridges', () => ({
 
 vi.mock('../../components/common', () => ({
   Panel: (props: { children?: JSX.Element; class?: string }) => <div class={props.class}>{props.children}</div>,
-  Btn: (props: { children?: JSX.Element; disabled?: boolean; onClick?: () => void; class?: string }) => (
+  Button: (props: { children?: JSX.Element; disabled?: boolean; onClick?: () => void; class?: string }) => (
     <button type="button" class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   SelectableCard: (props: { selected?: boolean; onClick?: () => void; title: string; subtitle?: string; icon?: JSX.Element }) => (

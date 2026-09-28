@@ -7,7 +7,7 @@ import { getWordFormCandidates } from '../../../utils/wordForms';
 import {
   type WordStatus,
 } from '../../subtitle/wordHoverHelpers';
-import { Btn, PillBtn } from '../Button';
+import { Button } from '../Button';
 import { Tooltip } from '../Tooltip';
 import { AnkiModifyWarningModal } from '../../flashcard/AnkiModifyWarningModal';
 import { buildWordStatusSourceLabel, getWordStatusChangeAction } from './wordStatusPillLogic';
@@ -199,7 +199,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const statusLabel = createMemo(() => (
     t(knowledgeStatusLabelKey(effectiveStatus(), comprehensiveResult().basis))
   ));
-  const pill = () => <PillBtn
+  const pill = () => <Button buttonType="pill"
     variant={statusVariant()}
     icon={statusIcon()}
     label={props.iconOnly ? '' : statusLabel()}
@@ -213,7 +213,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
           a status from a half-loaded store would present false semantics. */}
       <Show when={!projection.projection() || projection.projection()?.status === 'ready'} fallback={
         <Show when={projection.projection()?.status === 'error'} fallback={<span title={t('mlearn.Knowledge.UnavailableHint')}>{t('mlearn.Knowledge.Unavailable')}</span>}>
-        <Btn size="xs" variant="ghost" title={t('mlearn.Knowledge.LoadError')} onClick={event => { event.stopPropagation(); projection.retry(); }}>{t('mlearn.Knowledge.Retry')}</Btn>
+        <Button size="xs" variant="ghost" title={t('mlearn.Knowledge.LoadError')} onClick={event => { event.stopPropagation(); projection.retry(); }}>{t('mlearn.Knowledge.Retry')}</Button>
         </Show>
       }>
       <KnowledgeGate variant="pill" ready={projection.projection()?.status === 'ready'}>

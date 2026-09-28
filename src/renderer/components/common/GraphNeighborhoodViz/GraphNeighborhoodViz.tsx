@@ -8,7 +8,7 @@ import type { GraphNeighborhood, GraphNode, GraphRelatedNode } from '../../../..
 import { relationCategory } from '../../../../shared/graph/types';
 import type { TargetState } from '../../../../shared/graph/explanations';
 import { useLocalization } from '../../../context';
-import { Btn, IconBtn } from '../Button';
+import { Button } from '../Button';
 import './GraphNeighborhoodViz.css';
 import { layoutOverview, uniqueConnections, type OverviewNode } from './graphOverview';
 
@@ -268,7 +268,7 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
 
   const SelectionDetails: Component = () => (<Show when={selection()}><aside class="graph-viz__detail" classList={{ 'graph-viz__detail--floating': compact() }} aria-live="polite" onKeyDown={(event) => { if (event.key === 'Escape') setSelection(undefined); }}>
             <Show when={selection()} fallback={<p class="graph-viz__note">{text('SelectHint')}</p>}>{(node) => <>
-              <div class="graph-viz__detail-heading"><Show when={compact()}><IconBtn icon="cross" size="sm" variant="ghost" aria-label={t('mlearn.Global.Close')} onClick={() => setSelection(undefined)} /></Show><strong>{nodeLabel(node())}</strong><Show when={props.onSelect}><Btn size="sm" variant="secondary" onClick={() => navigate(node().id)}>{text('Explore')}</Btn></Show></div>
+              <div class="graph-viz__detail-heading"><Show when={compact()}><Button buttonType="icon" icon="cross" size="sm" variant="ghost" aria-label={t('mlearn.Global.Close')} onClick={() => setSelection(undefined)} /></Show><strong>{nodeLabel(node())}</strong><Show when={props.onSelect}><Button size="sm" variant="secondary" onClick={() => navigate(node().id)}>{text('Explore')}</Button></Show></div>
               <For each={[...new Map(allRecords().map((record) => [JSON.stringify([record.relationType, record.via?.id]), record])).values()]}>{(record) => <p>{relationLabel(record.relationType)} · {text('ConnectedTo', { label: nodeLabel(record.via ?? props.neighborhood.center) })}</p>}</For>
 
               <details><summary>{t('mlearn.GraphInspector.Details')}</summary><dl><dt>{text('Identifier')}</dt><dd>{node().id}</dd><Show when={node().relationType}><dt>{text('Relationship')}</dt><dd>{node().relationType}</dd></Show><Show when={node().provenance}><dt>{t('mlearn.GraphInspector.Provenance')}</dt><dd>{node().provenance}</dd></Show><Show when={node().label !== node().displayLabel && node().displayLabel}><dt>{text('SourceLabel')}</dt><dd>{node().label}</dd></Show><Show when={node().role}><dt>{text('Role')}</dt><dd>{node().role}</dd></Show></dl><For each={allRecords()}>{(record) => <p>{[record.relationType, record.provenance, record.confidence, record.order, record.role].filter((value) => value !== undefined).join(' · ')}</p>}</For></details>
@@ -278,8 +278,8 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
   return <div class="graph-viz" classList={{ 'graph-viz--overview': isOverview(), 'graph-viz--compact': compact() }} aria-busy={props.busy}>
     <header class="graph-viz__header">
       <nav class="graph-viz__history" aria-label={text('History')}>
-        <IconBtn icon="chevron" iconRotation={-90} size="sm" variant="ghost" aria-label={text('Back')} disabled={!props.onSelect || cursor() <= 0} onClick={() => travel(cursor() - 1)} />
-        <IconBtn icon="chevron" iconRotation={90} size="sm" variant="ghost" aria-label={text('Forward')} disabled={!props.onSelect || cursor() >= visits().length - 1} onClick={() => travel(cursor() + 1)} />
+        <Button buttonType="icon" icon="chevron" iconRotation={-90} size="sm" variant="ghost" aria-label={text('Back')} disabled={!props.onSelect || cursor() <= 0} onClick={() => travel(cursor() - 1)} />
+        <Button buttonType="icon" icon="chevron" iconRotation={90} size="sm" variant="ghost" aria-label={text('Forward')} disabled={!props.onSelect || cursor() >= visits().length - 1} onClick={() => travel(cursor() + 1)} />
         <Show when={cursor() > 0}><button type="button" class="graph-viz__breadcrumb" onClick={() => travel(0)}>{visits()[0]?.label}</button><span aria-hidden="true">/</span></Show>
       </nav>
       <div class="graph-viz__heading"><h2>{nodeLabel(props.neighborhood.center)}</h2></div>
@@ -368,16 +368,16 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
             </svg>
             <Show when={!isOverview() && !visible().length}><p class="graph-viz__no-results">{text('NoMatches')}</p></Show>
             <div class="graph-viz__controls">
-              <IconBtn icon="zoom-out" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.ZoomOut')} disabled={currentView().scale <= MIN_SCALE} onClick={() => zoom(1 / 1.2)} />
+              <Button buttonType="icon" icon="zoom-out" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.ZoomOut')} disabled={currentView().scale <= MIN_SCALE} onClick={() => zoom(1 / 1.2)} />
 
-              <IconBtn icon="zoom-in" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.ZoomIn')} disabled={currentView().scale >= MAX_SCALE} onClick={() => zoom(1.2)} />
-              <IconBtn icon="fit" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.Fit')} onClick={() => setView(undefined)} />
+              <Button buttonType="icon" icon="zoom-in" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.ZoomIn')} disabled={currentView().scale >= MAX_SCALE} onClick={() => zoom(1.2)} />
+              <Button buttonType="icon" icon="fit" size="sm" variant="ghost" aria-label={t('mlearn.GraphInspector.Neighborhood.Fit')} onClick={() => setView(undefined)} />
             </div>
           </div>
           <footer class="graph-viz__footer">
 
-            <Show when={!isOverview() && pageCount() > 1}><div class="graph-viz__pagination"><Btn size="sm" variant="ghost" disabled={currentPage() === 0} onClick={() => changePage(currentPage() - 1)}>{text('Previous')}</Btn><span aria-live="polite">{text('Page', { page: currentPage() + 1, total: pageCount() })}</span><Btn size="sm" variant="ghost" disabled={currentPage() >= pageCount() - 1} onClick={() => changePage(currentPage() + 1)}>{text('Next')}</Btn></div></Show>
-            <Show when={props.neighborhood.relations.length < props.neighborhood.relationCount && props.onLoadMore}><Btn variant="ghost" size="sm" loading={props.loadingMore} onClick={props.onLoadMore}>{text('LoadMore')}</Btn></Show>
+            <Show when={!isOverview() && pageCount() > 1}><div class="graph-viz__pagination"><Button size="sm" variant="ghost" disabled={currentPage() === 0} onClick={() => changePage(currentPage() - 1)}>{text('Previous')}</Button><span aria-live="polite">{text('Page', { page: currentPage() + 1, total: pageCount() })}</span><Button size="sm" variant="ghost" disabled={currentPage() >= pageCount() - 1} onClick={() => changePage(currentPage() + 1)}>{text('Next')}</Button></div></Show>
+            <Show when={props.neighborhood.relations.length < props.neighborhood.relationCount && props.onLoadMore}><Button variant="ghost" size="sm" loading={props.loadingMore} onClick={props.onLoadMore}>{text('LoadMore')}</Button></Show>
           </footer>
           <Show when={compact()} fallback={<SelectionDetails />}><Portal><SelectionDetails /></Portal></Show>
           <Show when={!isOverview() && group()?.category === 'support'}><p class="graph-viz__note graph-viz__support-note">{t('mlearn.GraphInspector.SupportCaption')}</p></Show>

@@ -5,7 +5,7 @@ import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import { eventCapability } from '../../../../shared/knowledgeEvents';
 import { useLocalization, useSettings } from '../../../context';
 import { useWordEaseHistory } from '../../../hooks/useKnowledgeHistory';
-import { PillBtn } from '../Button';
+import { Button } from '../Button';
 import { SkeletonRows } from '../Skeleton';
 import { wordEaseTrajectoryData, type WordEasePoint } from './wordEaseTrajectoryData';
 
@@ -70,8 +70,8 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
     <div class="knowledge-trajectory__controls">
       {props.selector}
       <div class="knowledge-trajectory__range">
-        <PillBtn size="sm" variant={!allTime() ? 'blue' : 'gray'} aria-pressed={!allTime()} label={t('mlearn.Knowledge.Projection.TrajectoryRecent')} onClick={() => setAllTime(false)} />
-        <PillBtn size="sm" variant={allTime() ? 'blue' : 'gray'} aria-pressed={allTime()} label={t('mlearn.Knowledge.Projection.TrajectoryAll')} onClick={() => setAllTime(true)} />
+        <Button buttonType="pill" size="sm" variant={!allTime() ? 'blue' : 'gray'} aria-pressed={!allTime()} label={t('mlearn.Knowledge.Projection.TrajectoryRecent')} onClick={() => setAllTime(false)} />
+        <Button buttonType="pill" size="sm" variant={allTime() ? 'blue' : 'gray'} aria-pressed={allTime()} label={t('mlearn.Knowledge.Projection.TrajectoryAll')} onClick={() => setAllTime(true)} />
       </div>
     </div>
     <div class="knowledge-ease__summary">

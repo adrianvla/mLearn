@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createStudySessionController, type StudySessionLocks } from './studySessionController';
 
-function harness() {
+function harness(skipAttempts = false) {
   const values = new Map<string, string>();
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,
@@ -19,6 +19,7 @@ function harness() {
   const write = vi.fn<(_attemptId: string) => Promise<void>>();
   const make = () => createStudySessionController({
     storageKey: 'study:test', lockKey: 'study-lock:test', storage, locks,
+    shouldSkipAttempt: skipAttempts ? () => true : undefined,
     validate: (record) => record.identity === 'package-v1'
       && record.queue.length === 3 && record.queue.every((item) => typeof item.id === 'string'),
     writeAttempt: async (pending) => write(pending.attemptId),
@@ -28,6 +29,20 @@ function harness() {
 }
 
 describe('shared study session controller', () => {
+  it('rechecks a dynamic exclusion under the lock and advances as a skip without evidence', async () => {
+    const h = harness(true);
+    const session = h.make();
+    await session.start('package-v1', [{ id: 'one' }, { id: 'two' }, { id: 'three' }], 0, {});
+    await session.reveal(session.current()!);
+
+    expect(await session.reserve(session.current()!, { quality: 'fluent' }, 'advance')).toBe(true);
+    expect(session.current()?.index).toBe(1);
+    expect(session.current()?.rated).toBe(0);
+    expect(session.current()?.visited).toEqual([0]);
+    expect(h.write).not.toHaveBeenCalled();
+    session.dispose();
+  });
+
   it('reserves one attempt, persists a failure, retries with its id, then resumes at the acknowledged cursor', async () => {
     const h = harness();
     h.write.mockRejectedValueOnce(new Error('journal unavailable')).mockResolvedValue(undefined);
@@ -41,13 +56,61 @@ describe('shared study session controller', () => {
     expect(await first.skip(failed)).toBe(false);
     const resumed = h.make();
     expect(resumed.current()?.pending?.attemptId).toBe(failed.pending?.attemptId);
-    expect(await resumed.retry(resumed.current()!)).toBe(true);
-    expect(resumed.current()?.index).toBe(1);
+    await vi.waitFor(() => expect(resumed.current()?.index).toBe(1));
     expect(resumed.current()?.rated).toBe(1);
     expect(h.write.mock.calls[0][0]).toBe(h.write.mock.calls[1][0]);
     expect(await first.skip(failed)).toBe(false);
     expect(first.current()?.index).toBe(1);
     first.dispose(); resumed.dispose();
+  });
+
+  it('recovers a durable pending reservation when the shared controller resumes', async () => {
+    const h = harness();
+    h.write.mockResolvedValue(undefined);
+    h.values.set('study:test', JSON.stringify({
+      id: 'session-1', identity: 'package-v1',
+      queue: [{ id: 'one' }, { id: 'two' }, { id: 'three' }],
+      index: 0, visited: [], rated: 0, revealed: true, meta: {},
+      pending: {
+        index: 0, itemId: 'one', attemptId: 'persisted-attempt',
+        payload: { quality: 'fluent' }, outcome: 'advance', state: 'pending',
+      },
+    }));
+
+    const recovered = h.make();
+    await vi.waitFor(() => expect(recovered.current()?.index).toBe(1));
+
+    expect(h.write).toHaveBeenCalledOnce();
+    expect(h.write).toHaveBeenCalledWith('persisted-attempt');
+    expect(recovered.current()?.rated).toBe(1);
+    expect(recovered.current()?.pending).toBeUndefined();
+    recovered.dispose();
+  });
+
+  it('serializes concurrent recovery to one accepted attempt', async () => {
+    const h = harness();
+    h.write.mockResolvedValue(undefined);
+    h.values.set('study:test', JSON.stringify({
+      id: 'session-1', identity: 'package-v1',
+      queue: [{ id: 'one' }, { id: 'two' }, { id: 'three' }],
+      index: 0, visited: [], rated: 0, revealed: true, meta: {},
+      pending: {
+        index: 0, itemId: 'one', attemptId: 'concurrent-attempt',
+        payload: { quality: 'fluent' }, outcome: 'advance', state: 'pending',
+      },
+    }));
+
+    const first = h.make();
+    const second = h.make();
+    await vi.waitFor(() => {
+      expect(first.current()?.index).toBe(1);
+      expect(second.current()?.index).toBe(1);
+    });
+
+    expect(h.write).toHaveBeenCalledOnce();
+    expect(h.write).toHaveBeenCalledWith('concurrent-attempt');
+    first.dispose();
+    second.dispose();
   });
 
   it('serializes skip and a competing answer across windows without evidence for the skipped item', async () => {
@@ -98,9 +161,11 @@ describe('shared study session controller', () => {
     expect(JSON.parse(h.values.get('study:test')!).pending.state).toBe('pending');
     expect(await session.skip(failed)).toBe(false);
     refuseAcknowledgement = false;
-    expect(await session.retry(failed)).toBe(true);
-    expect(session.current()?.index).toBe(1);
-    expect(h.write.mock.calls[0][0]).toBe(h.write.mock.calls[1][0]);
     session.dispose();
+    const recovered = h.make();
+    await vi.waitFor(() => expect(recovered.current()?.index).toBe(1));
+    expect(h.write).toHaveBeenCalledTimes(2);
+    expect(h.write.mock.calls[0][0]).toBe(h.write.mock.calls[1][0]);
+    recovered.dispose();
   });
 });

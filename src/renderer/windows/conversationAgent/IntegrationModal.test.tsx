@@ -10,7 +10,7 @@ const previewIntegration = vi.fn();
 const integrateThread = vi.fn();
 
 vi.mock('../../components/common', () => ({
-  Btn: (props: { children?: unknown; onClick?: () => void; disabled?: boolean }) => (
+  Button: (props: { children?: unknown; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children as string}</button>
   ),
   Tag: (props: { children?: unknown }) => <span>{props.children as string}</span>,

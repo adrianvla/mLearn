@@ -11,41 +11,7 @@ import { Component, Show, For, createSignal, createMemo, createEffect, on, onCle
 import { WindowWrapper, useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle, OtherLanguageDueHint } from '../../components/flashcard';
-import {
-  Modal,
-  Input,
-  Btn,
-  Badge,
-  EmptyState,
-  IconBtn,
-  SearchIcon,
-  TabContainer,
-  Select,
-  EditIcon,
-  BookIcon,
-  BarChartIcon,
-  SparklesIcon,
-  PlusIcon,
-  ProgressBar,
-  ResponsiveSidebar,
-  MicrophoneIcon,
-  VoiceSamplePicker,
-  CollapsibleStickyHeader,
-  FilterBuilder,
-  SelectableCard,
-  TrashIcon,
-  buildFlashcardBrowseFields,
-  buildEmptyPreset,
-  evaluateAst,
-  parseTokens,
-  validateTokens,
-  type ExprNode,
-  type FieldConfig,
-  type FieldResolver,
-  type FilterToken,
-  type PaletteItem,
-  type ValidationError,
-} from '../../components/common';
+import { Button, Modal, Input, Badge, EmptyState, SearchIcon, TabContainer, Select, EditIcon, BookIcon, BarChartIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
 import { getLanguageDisplayName, stripHtmlForTts } from '../../../shared/utils/textUtils';
 import { getBridge } from '../../../shared/bridges';
@@ -57,7 +23,6 @@ import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
 import { isLLMReady } from '../../services/llmProvider';
 import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider } from '../../../shared/types';
-import type { KnowledgeAspect } from '../../../shared/constants';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
 import { getSuggestedFlashcardBadgeCount } from './flashcardsSuggestedCount';
@@ -121,7 +86,6 @@ export const FlashcardsContent: Component = () => {
   const { langData, currentLangData } = useLanguage();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
-  const [reviewMode, setReviewMode] = createSignal<KnowledgeAspect>('meaning');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
@@ -864,22 +828,22 @@ export const FlashcardsContent: Component = () => {
           </nav>
           
           <div class="flashcards-sidebar-actions">
-            <Btn 
+            <Button
               size="sm" 
               variant="secondary" 
               onClick={() => setShowSyncModal(true)}
               class="flashcards-sidebar-btn"
             >
               {t('mlearn.Flashcards.UI.Sync')}
-            </Btn>
-            <Btn 
+            </Button>
+            <Button
               size="sm" 
               variant="primary"
               onClick={() => setShowAddModal(true)}
               class="flashcards-sidebar-btn"
             >
               {t('mlearn.Flashcards.UI.AddCard')}
-            </Btn>
+            </Button>
           </div>
         </ResponsiveSidebar>
 
@@ -887,7 +851,7 @@ export const FlashcardsContent: Component = () => {
         <main class="flashcards-main">
           <KnowledgeGate>
           <Show when={repairJobs().length + llmRepairJobs().length > 0}>
-            <div class="flashcards-repair-notice"><Btn variant="ghost" onClick={() => setShowRepairModal(true)}>{t('mlearn.Flashcards.Repair.Title')}</Btn></div>
+            <div class="flashcards-repair-notice"><Button variant="ghost" onClick={() => setShowRepairModal(true)}>{t('mlearn.Flashcards.Repair.Title')}</Button></div>
           </Show>
           {/* Review Tab */}
           <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review" hidden={activeTab() !== 'review'}>
@@ -907,7 +871,7 @@ export const FlashcardsContent: Component = () => {
                 </div>
               }
             >
-              <FlashcardReview reviewMode={reviewMode()} onReviewModeChange={setReviewMode} />
+              <FlashcardReview />
             </Show>
           </Show>
           </div>
@@ -957,17 +921,17 @@ export const FlashcardsContent: Component = () => {
                     <Show when={flashcards().length > 0}>
                       <div class="flashcards-browse-bulkbar">
                         <div class="flashcards-browse-bulkbar-left">
-                          <Btn size="sm" variant="secondary" onClick={toggleSelectAllFiltered}>
+                          <Button size="sm" variant="secondary" onClick={toggleSelectAllFiltered}>
                             {allFilteredSelected()
                               ? t('mlearn.Flashcards.Browse.DeselectAll')
                               : t('mlearn.Flashcards.Browse.SelectAll')}
-                          </Btn>
+                          </Button>
                           <span class="flashcards-browse-selected-count">
                             {t('mlearn.Flashcards.Browse.SelectedCount', { count: String(selected().size) })}
                           </span>
                         </div>
                         <div class="flashcards-browse-bulkbar-right">
-                          <Btn
+                          <Button
                             size="sm"
                             variant="danger"
                             disabled={selected().size === 0}
@@ -976,7 +940,7 @@ export const FlashcardsContent: Component = () => {
                             iconPosition="left"
                           >
                             {t('mlearn.Flashcards.Browse.DeleteSelected')}
-                          </Btn>
+                          </Button>
                         </div>
                       </div>
                     </Show>
@@ -1021,7 +985,7 @@ export const FlashcardsContent: Component = () => {
                               <FlashcardWordTitle content={card.content} language={card.language} />
                             }
                             headerActions={
-                              <IconBtn
+                              <Button buttonType="icon"
                                 icon="volume"
                                 size="sm"
                                 variant="ghost"
@@ -1046,14 +1010,14 @@ export const FlashcardsContent: Component = () => {
                               </div>
                               <div class="flashcard-actions">
                                 <FlashcardInspectButton language={languageForCard(card)} surface={card.content.front} />
-                                <Btn
+                                <Button
                                   variant="ghost"
                                   size="xs"
                                   onClick={(e) => { e.stopPropagation(); openEditModal(card); }}
                                 >
                                   {t('mlearn.Global.Edit')}
-                                </Btn>
-                                <Btn
+                                </Button>
+                                <Button
                                   variant="danger"
                                   size="xs"
                                   onClick={(e) => {
@@ -1063,7 +1027,7 @@ export const FlashcardsContent: Component = () => {
                                   }}
                                 >
                                   {t('mlearn.Global.Delete')}
-                                </Btn>
+                                </Button>
                               </div>
                             </div>
                           </SelectableCard>
@@ -1142,7 +1106,7 @@ export const FlashcardsContent: Component = () => {
                       </div>
                     </Show>
 
-                    <Btn
+                    <Button
                       size="md"
                       variant="primary"
                       onClick={handleBulkTts}
@@ -1151,7 +1115,7 @@ export const FlashcardsContent: Component = () => {
                       icon={<MicrophoneIcon size={16} />}
                     >
                       {t('mlearn.Flashcards.Bulk.TtsButton')}
-                    </Btn>
+                    </Button>
                   </div>
                 </Show>
 
@@ -1162,7 +1126,7 @@ export const FlashcardsContent: Component = () => {
                   </div>
                   <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.ExamplesTooltip')}</p>
 
-                  <Btn
+                  <Button
                     size="md"
                     variant="primary"
                     onClick={handleBulkExamples}
@@ -1171,7 +1135,7 @@ export const FlashcardsContent: Component = () => {
                     icon={<SparklesIcon size={16} />}
                   >
                     {t('mlearn.Flashcards.Bulk.ExamplesButton')}
-                  </Btn>
+                  </Button>
                 </div>
               </div>
 
@@ -1233,8 +1197,8 @@ export const FlashcardsContent: Component = () => {
         size="sm"
         footer={
           <>
-            <Btn onClick={() => setShowDeleteConfirm(false)}>{t('mlearn.Global.Cancel')}</Btn>
-            <Btn variant="danger" onClick={handleDeleteCard}>{t('mlearn.Global.Delete')}</Btn>
+            <Button onClick={() => setShowDeleteConfirm(false)}>{t('mlearn.Global.Cancel')}</Button>
+            <Button variant="danger" onClick={handleDeleteCard}>{t('mlearn.Global.Delete')}</Button>
           </>
         }
       >
@@ -1265,8 +1229,8 @@ export const FlashcardsContent: Component = () => {
         size="sm"
         footer={
           <>
-            <Btn onClick={() => setShowRepairModal(false)}>{t('mlearn.Global.Close')}</Btn>
-            <Btn variant="primary" onClick={handleRepair}>{t('mlearn.Flashcards.Repair.RepairButton')}</Btn>
+            <Button onClick={() => setShowRepairModal(false)}>{t('mlearn.Global.Close')}</Button>
+            <Button variant="primary" onClick={handleRepair}>{t('mlearn.Flashcards.Repair.RepairButton')}</Button>
           </>
         }
       >

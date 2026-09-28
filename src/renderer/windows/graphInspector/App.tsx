@@ -10,7 +10,7 @@ import { attemptActiveLatencyMs } from '../../../shared/knowledgeEvents';
 import { WindowWrapper, useFlashcards, useGraph, useLocalization, useSettings } from '../../context';
 import { useGraphNeighborhood } from '../../hooks/useGraphNeighborhood';
 import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
-import { Btn, GraphNeighborhoodViz, SkeletonText } from '../../components/common';
+import { Button, GraphNeighborhoodViz, SkeletonText } from '../../components/common';
 import './GraphInspector.css';
 
 const targetStates: Record<TargetState, string> = {
@@ -86,7 +86,7 @@ export const GraphInspectorContent: Component = () => {
       </div>
     </Show>
     <Show when={pending() && !neighborhood()}><SkeletonText lines={4} /></Show>
-    <Show when={failed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Btn size="sm" variant="secondary" onClick={retry}>{t('mlearn.GraphInspector.Explore.Retry')}</Btn></p></Show>
+    <Show when={failed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Button size="sm" variant="secondary" onClick={retry}>{t('mlearn.GraphInspector.Explore.Retry')}</Button></p></Show>
     <Show when={graph.meta().ready && !pending() && !failed() && !neighborhood()}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.SelectEntity')}</p></Show>
     <Show when={neighborhood()}>
       <section class="graph-inspector__section">

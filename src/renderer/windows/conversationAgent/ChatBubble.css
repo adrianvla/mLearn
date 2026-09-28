@@ -97,7 +97,7 @@
 }
 
 .chat-token:hover {
-  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
 .chat-token.unknown {
@@ -112,7 +112,7 @@
   display: inline-block;
   width: 2px;
   height: 1em;
-  background: var(--color-accent);
+  background: var(--color-primary);
   vertical-align: text-bottom;
   animation: cursorBlink 0.8s step-end infinite;
 }
@@ -170,7 +170,7 @@
 /* ============ Chat timestamp & actions ============ */
 
 .chat-bubble-footer {
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   margin-top: var(--spacing-1);
   padding: 0 var(--spacing-1);
@@ -185,7 +185,7 @@
 }
 
 .chat-bubble-debug-stats {
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   opacity: 0.8;
   font-variant-numeric: tabular-nums;
@@ -216,7 +216,7 @@
   align-items: center;
   gap: var(--spacing-1);
   font-size: var(--font-size-xs);
-  color: var(--text-muted);
+  color: var(--text-tertiary);
   font-style: italic;
   margin-left: var(--spacing-2);
 }
@@ -396,7 +396,7 @@
 }
 
 .quiz-fill-in-input:focus {
-  border-bottom-color: var(--color-accent);
+  border-bottom-color: var(--color-primary);
 }
 
 .quiz-fill-in-input:disabled {

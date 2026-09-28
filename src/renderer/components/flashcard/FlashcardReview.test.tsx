@@ -19,10 +19,12 @@ let mockLangMap: Record<string, LanguageData> = {};
 let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
 let mockTtsAvailable = true;
-const mockAnswerCard = vi.fn(() => false);
 const mockSetAccessStatus = vi.fn();
-const mockRecordAttempt = vi.fn((..._callArgs: unknown[]) => ({ attemptId: 'attempt-1' }));
+const mockBuryCard = vi.fn();
+const mockSubmitRating = vi.fn(async (..._callArgs: unknown[]) => ({ attemptId: 'attempt-1', completed: false }));
 const mockAppendRetractions = vi.fn();
+const mockUndoLastAction = vi.fn<() => Promise<string | null>>();
+const mockCanUndo = vi.fn(() => false);
 
 const flushEffects = () => new Promise<void>((resolve) => {
   const channel = new MessageChannel();
@@ -32,10 +34,6 @@ const flushEffects = () => new Promise<void>((resolve) => {
 
 const mockT = (key: string, params?: Record<string, unknown>): string => {
   switch (key) {
-    case 'mlearn.Flashcards.Review.Modes.Label': return 'Focus';
-    case 'mlearn.Flashcards.Review.Modes.Meaning': return 'Meaning';
-    case 'mlearn.Flashcards.Review.Modes.Reading': return 'Reading';
-    case 'mlearn.Flashcards.Review.Modes.Prosody': return 'Prosody';
     case 'mlearn.Flashcards.Review.Attribution.WrongReading': return 'Wrong reading';
     case 'mlearn.Flashcards.Review.Attribution.WrongOrthography': return 'Unrecognized form';
     case 'mlearn.Flashcards.Review.Attribution.WrongProsody': return 'Wrong prosody';
@@ -54,7 +52,6 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Flashcards.Review.Again': return 'Again';
     case 'mlearn.Flashcards.Review.Hard': return 'Hard';
     case 'mlearn.Flashcards.Review.Ok': return 'Ok';
-    case 'mlearn.Flashcards.Review.Easy': return 'Easy';
     case 'mlearn.Flashcards.Review.ShowAnswer': return 'Show Answer';
     case 'mlearn.Flashcards.Review.PressKeyTooltip': return `Press ${String(params?.key ?? '')}`;
     default: return key;
@@ -73,18 +70,17 @@ vi.mock('../../context', () => ({
     queueCounts: () => ({ new: 1, learning: 0, review: 0, total: 1 }),
     getCurrentCard: () => mockCard(),
     getPreviewDueDates: () => ({ again: 1, hard: 2, good: 3, easy: 4 }),
-    answerCard: mockAnswerCard,
-    buryCard: vi.fn(),
+    buryCard: mockBuryCard,
     removeFlashcard: vi.fn(),
-    undoLastAction: vi.fn(),
-    canUndo: () => false,
+    undoLastAction: mockUndoLastAction,
+    canUndo: mockCanUndo,
     refreshQueue: vi.fn(),
     dueDateToString: () => '1d',
     generateExampleSentenceWithLLM: vi.fn(),
     updateFlashcardContent: vi.fn(),
     updateFlashcard: vi.fn(),
     setAccessStatus: mockSetAccessStatus,
-    recordAttempt: mockRecordAttempt,
+    submitRating: mockSubmitRating,
     appendRetractions: mockAppendRetractions,
     recomputeWordKnowledgeFromEvidence: mockAppendRetractions,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0, ease: 0 }),
@@ -213,6 +209,7 @@ vi.mock('../common', async (importOriginal) => {
     HoverReveal,
     SafeHtml,
     RatingMatrix: actual.RatingMatrix,
+    Popover: actual.Popover,
   };
 });
 
@@ -238,14 +235,6 @@ const jaLanguageData: LanguageData = {
   prosody: { type: 'tone' },
 };
 
-const deLanguageData: LanguageData = {
-  name: 'German',
-  settings: { fixed: {} },
-  textProcessing: {
-    scriptProfile: { acceptedScripts: ['Latn'] },
-  },
-};
-
 function makeCard(overrides: Partial<Flashcard> = {}): Flashcard {
   return {
     id: 'card-1',
@@ -265,19 +254,13 @@ function makeCard(overrides: Partial<Flashcard> = {}): Flashcard {
   };
 }
 
-function modeSelectOptions(container: HTMLDivElement): string[] {
-  return Array.from(container.querySelectorAll('.flashcard-mode-select__control option'))
-    .map((option) => option.getAttribute('value'))
-    .filter((value): value is string => value !== null);
-}
-
 function clickShowAnswer(container: HTMLDivElement): void {
   const button = container.querySelector<HTMLButtonElement>('.flashcard-show-answer-btn');
   if (!button) throw new Error('Show Answer button missing');
   button.click();
 }
 
-describe('FlashcardReview review modes', () => {
+describe('FlashcardReview', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
@@ -294,7 +277,7 @@ describe('FlashcardReview review modes', () => {
       flashcardStealthMode: false,
       flashcardMuteAudio: false,
     };
-    mockLangMap = { ja: jaLanguageData, de: deLanguageData };
+    mockLangMap = { ja: jaLanguageData };
     mockLanguageData = jaLanguageData;
     const [card, setCard] = createSignal<Flashcard | null>(null);
     mockCard = card;
@@ -310,7 +293,10 @@ describe('FlashcardReview review modes', () => {
   it('opens the shared inspector on the reviewed card identity without recording an outcome', () => {
     const dispose = render(() => <FlashcardReview />, container);
     clickShowAnswer(container);
-    const inspect = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Inspect');
+    const actions = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Flashcards.Review.CardActions');
+    expect(actions).toBeDefined();
+    actions!.click();
+    const inspect = Array.from(document.body.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Inspect');
     expect(inspect).toBeDefined();
     inspect!.click();
     // R20: the SAME pinned decision that selected the card rides into the
@@ -323,57 +309,7 @@ describe('FlashcardReview review modes', () => {
     expect(inspection.policyBrief).toBeTypeOf('string');
     expect(inspection.policyTrace?.version).toBeTypeOf('string');
     expect(inspection.policyTrace?.selectedKey).toBeTypeOf('string');
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-    expect(mockAnswerCard).not.toHaveBeenCalled();
-    dispose();
-  });
-
-  it('hides the mode selector when only the meaning aspect is available', () => {
-    mockLanguageData = deLanguageData;
-    setMockCard(makeCard({ language: 'de' }));
-
-    const dispose = render(() => <FlashcardReview />, container);
-
-    expect(container.querySelector('.flashcard-mode-select')).toBeNull();
-    dispose();
-  });
-
-  it('filters modes by language capability and per-card prosody data', () => {
-    setMockCard(makeCard({
-      content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'tone', display: 'HL' } },
-    }));
-
-    const dispose = render(() => <FlashcardReview />, container);
-
-    expect(modeSelectOptions(container)).toEqual(['meaning', 'reading', 'prosody']);
-    dispose();
-  });
-
-  it('omits the prosody mode when the current card carries no prosody data', () => {
-    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog' } }));
-
-    const dispose = render(() => <FlashcardReview />, container);
-
-    expect(modeSelectOptions(container)).toEqual(['meaning', 'reading']);
-    dispose();
-  });
-
-  it('falls back to meaning when the active mode becomes unavailable on the next card', async () => {
-    setMockCard(makeCard({
-      content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'tone', display: 'HL' } },
-    }));
-    const onModeChange = vi.fn();
-
-    const dispose = render(() => (
-      <FlashcardReview reviewMode="prosody" onReviewModeChange={onModeChange} />
-    ), container);
-
-    expect(onModeChange).not.toHaveBeenCalled();
-
-    setMockCard(makeCard({ id: 'card-2', content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog' } }));
-    await flushEffects();
-
-    expect(onModeChange).toHaveBeenCalledWith('meaning');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
     dispose();
   });
 
@@ -407,23 +343,6 @@ describe('FlashcardReview review modes', () => {
     dispose();
   });
 
-  it('reveals the reading annotation on the back face in reading mode without leaking it on the front', () => {
-    const dispose = render(() => (
-      <FlashcardReview reviewMode="reading" />
-    ), container);
-
-    expect(container.querySelector('.flashcard-front ruby')).toBeNull();
-    expect(container.querySelector('.flashcard-back ruby')).not.toBeNull();
-    expect(container.querySelector('.flashcard-back')?.textContent).toContain('いぬ');
-    dispose();
-  });
-
-  it('does not force the reading annotation on the back face in meaning mode', () => {
-    const dispose = render(() => <FlashcardReview reviewMode="meaning" />, container);
-
-    expect(container.querySelector('.flashcard-back ruby')).toBeNull();
-    dispose();
-  });
 });
 
 describe('FlashcardReview failure attribution', () => {
@@ -443,7 +362,7 @@ describe('FlashcardReview failure attribution', () => {
       flashcardStealthMode: false,
       flashcardMuteAudio: false,
     };
-    mockLangMap = { ja: jaLanguageData, de: deLanguageData };
+    mockLangMap = { ja: jaLanguageData };
     mockLanguageData = jaLanguageData;
     const [card, setCard] = createSignal<Flashcard | null>(null);
     mockCard = card;
@@ -455,18 +374,23 @@ describe('FlashcardReview failure attribution', () => {
     container.remove();
   });
 
-  it('collapsed digit rates every tested capability under one whole-word attempt', () => {
-    const dispose = render(() => <FlashcardReview reviewMode="reading" />, container);
+  it('persists every tested capability as one acknowledged whole-word attempt', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
     expect(container.querySelector('.rating-matrix')).toBeNull();
     clickShowAnswer(container);
     // Canonical collapsed digit: the whole tested word rates at once —
     // every tested capability, one logical attempt; strays are absorbed.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'missed', expect.objectContaining({ taskType: 'srs-review' }));
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({ taskType: 'srs-review' }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', expect.any(String), expect.any(Number), expect.objectContaining({ tested: ['sense-recognition', 'surface-reading'] }));
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating).toHaveBeenCalledWith('犬', [
+      { capability: 'sense-recognition', quality: 'missed' },
+      { capability: 'surface-reading', quality: 'missed' },
+    ], expect.objectContaining({
+      taskType: 'srs-review',
+      scheduler: { cardId: 'card-1', rating: 'again', timeSpentMs: expect.any(Number), tested: ['sense-recognition', 'surface-reading'] },
+    }));
     dispose();
   });
 
@@ -475,17 +399,17 @@ describe('FlashcardReview failure attribution', () => {
     expect(container.querySelector('[data-testid="policy-why"]')).toBeNull();
     clickShowAnswer(container);
     expect(container.querySelector('[data-testid="policy-why"]')).toBeNull();
-    expect(container.querySelector('.flashcard-rating-inspect')).not.toBeNull();
     dispose();
   });
 
-  it('resets scroll when the same learning card is queued again after rating', () => {
+  it('resets scroll when the same learning card is queued again after rating', async () => {
     const dispose = render(() => <FlashcardReview />, container);
     const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-container')!;
     clickShowAnswer(container);
     scrollRegion.scrollTop = 240;
 
     container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    await flushEffects();
 
     expect(scrollRegion.scrollTop).toBe(0);
     expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
@@ -501,12 +425,27 @@ describe('FlashcardReview failure attribution', () => {
     expect(compactActions().length).toBeGreaterThan(0);
     expect(compactActions().every((action) => action.disabled)).toBe(false);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
-    expect(mockRecordAttempt).not.toHaveBeenCalled();
-    expect(mockAnswerCard).not.toHaveBeenCalled();
+    expect(mockSubmitRating).not.toHaveBeenCalled();
     dispose();
   });
-  it('a mixed drafted profile schedules on its weakest evidence under one attempt', () => {
-    const dispose = render(() => <FlashcardReview reviewMode="reading" />, container);
+
+  it('keeps study shortcuts out of the card actions popover', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    const actions = container.querySelector<HTMLButtonElement>('.flashcard-actions-trigger')!;
+    actions.click();
+    const bury = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => button.textContent === 'mlearn.Flashcards.Review.Bury');
+    expect(bury).toBeDefined();
+
+    bury!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', bubbles: true }));
+
+    expect(mockBuryCard).not.toHaveBeenCalled();
+    expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+    dispose();
+  });
+  it('a mixed drafted profile schedules on its weakest evidence under one attempt', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
     clickShowAnswer(container);
     container.querySelector<HTMLButtonElement>('.rating-matrix__adjust')!.click();
     // sense fluent, reading missed — the weaker LATER row must dominate
@@ -515,44 +454,98 @@ describe('FlashcardReview failure attribution', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'fluent', expect.objectContaining({ taskType: 'srs-review' }));
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({ taskType: 'srs-review' }));
-    expect(mockAnswerCard).toHaveBeenCalledWith('again', expect.any(String), expect.any(Number), expect.objectContaining({ tested: ['sense-recognition', 'surface-reading'] }));
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating).toHaveBeenCalledWith('犬', [
+      { capability: 'sense-recognition', quality: 'fluent' },
+      { capability: 'surface-reading', quality: 'missed' },
+    ], expect.objectContaining({
+      taskType: 'srs-review',
+      scheduler: { cardId: 'card-1', rating: 'again', timeSpentMs: expect.any(Number), tested: ['sense-recognition', 'surface-reading'] },
+    }));
     dispose();
   });
 
-  it('audio supplied before reveal still offers Reading and records the scaffold with the attempt', () => {
+  it('audio supplied before reveal still offers Reading and records the scaffold with the attempt', async () => {
     mockSettings.flashcardAutoTts = true;
-    const dispose = render(() => <FlashcardReview reviewMode="reading" />, container);
+    const dispose = render(() => <FlashcardReview />, container);
     clickShowAnswer(container);
     // A revealed cue changes the evidence condition, not the rating surface:
     // the Reading row stays ratable and the audio scaffold travels with the
     // attempt so the projection can weigh it. Collapsed digit = whole word.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'missed', expect.objectContaining({
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating).toHaveBeenCalledWith('犬', [
+      { capability: 'sense-recognition', quality: 'missed' },
+      { capability: 'surface-reading', quality: 'missed' },
+    ], expect.objectContaining({
       taskType: 'srs-review',
       scaffolds: { audio: true },
-    }));
-    expect(mockRecordAttempt).toHaveBeenCalledWith('犬', 'surface-reading', 'missed', expect.objectContaining({
-      taskType: 'srs-review',
-      scaffolds: { audio: true },
+      scheduler: expect.objectContaining({ cardId: 'card-1', rating: 'again', tested: ['sense-recognition', 'surface-reading'] }),
     }));
     dispose();
   });
 
-  it('does not attribute an audio cue when automatic playback has no recording', () => {
+  it('does not attribute an audio cue when automatic playback has no recording', async () => {
     mockTtsAvailable = false;
     mockSettings.flashcardAutoTts = true;
-    const dispose = render(() => <FlashcardReview reviewMode="reading" />, container);
+    const dispose = render(() => <FlashcardReview />, container);
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    expect(mockRecordAttempt).toHaveBeenCalledTimes(2);
-    expect(mockRecordAttempt.mock.calls[0][3]).not.toHaveProperty('scaffolds');
-    expect(mockRecordAttempt.mock.calls[1][3]).not.toHaveProperty('scaffolds');
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating.mock.calls[0][2]).not.toHaveProperty('scaffolds');
+    dispose();
+  });
+
+  it('keeps the card visible on a refused rating command and retries the same command', async () => {
+    mockSubmitRating.mockRejectedValueOnce(new Error('journal unavailable'));
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    await flushEffects();
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Flashcards.Review.SaveFailed');
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Global.TryAgain');
+    expect(retry).toBeDefined();
+    retry!.click();
+    await flushEffects();
+
+    expect(mockSubmitRating).toHaveBeenCalledTimes(2);
+    expect(mockSubmitRating.mock.calls[0]).toEqual(mockSubmitRating.mock.calls[1]);
+    dispose();
+  });
+
+  it('keeps a failed Undo visible and retries the same Undo command', async () => {
+    mockCanUndo.mockReturnValue(true);
+    mockUndoLastAction.mockRejectedValueOnce(new Error('disk full')).mockResolvedValueOnce('answer');
+    const dispose = render(() => <FlashcardReview />, container);
+    const undo = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Flashcards.Review.Undo');
+    expect(undo).toBeDefined();
+    undo!.click();
+    await flushEffects();
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Flashcards.Review.UndoSaveFailed');
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Global.TryAgain');
+    expect(retry).toBeDefined();
+    retry!.click();
+    await flushEffects();
+
+    expect(mockUndoLastAction).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    dispose();
+  });
+
+  it('renders card actions in the shared anchored popover', () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    const trigger = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Flashcards.Review.CardActions');
+    expect(trigger).toBeDefined();
+    trigger!.click();
+    expect(document.body.querySelector('.flashcard-actions-popover')).not.toBeNull();
+    expect(document.body.textContent).toContain('mlearn.Flashcards.Review.Bury');
     dispose();
   });
 });

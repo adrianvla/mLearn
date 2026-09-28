@@ -111,7 +111,7 @@ vi.mock('./components', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
-  Btn: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
+  Button: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
   ModalLoadingOverlay: () => <div />,
   Spinner: () => <div />,
   SkeletonRows: (props: { rows?: number }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,

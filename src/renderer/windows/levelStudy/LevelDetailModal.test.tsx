@@ -33,13 +33,9 @@ vi.mock('../../components/common', () => ({
       {props.footer}
     </section>
   ),
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
-    <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
-  ),
-  PillBtn: (props: { label?: string; badge?: string | number; active?: boolean; onClick?: () => void }) => (
-    <button type="button" class={props.active ? 'active' : ''} onClick={props.onClick}>
-      {props.label}
-      {props.badge !== undefined && props.badge !== null ? ` (${props.badge})` : ''}
+  Button: (props: { children?: JSX.Element; label?: string; badge?: string | number; active?: boolean; onClick?: () => void; disabled?: boolean }) => (
+    <button type="button" class={props.active ? 'active' : ''} disabled={props.disabled} onClick={props.onClick}>
+      {props.label ?? props.children}{props.badge !== undefined ? ` (${props.badge})` : ''}
     </button>
   ),
   SkeletonPill: () => <span class="skeleton-pill" />,

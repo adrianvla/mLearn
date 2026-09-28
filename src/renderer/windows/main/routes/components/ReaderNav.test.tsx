@@ -15,7 +15,7 @@ vi.mock('../../../../context', () => ({
 }));
 vi.mock('@shared/platform', () => ({ isElectron: () => false }));
 vi.mock('../../../../components/common', () => ({
-  NavBtn: (props: { children?: JSX.Element; onClick?: () => void; class?: string }) =>
+  Button: (props: { children?: JSX.Element; onClick?: () => void; class?: string }) =>
     <button class={props.class} onClick={props.onClick}>{props.children}</button>,
   Tag: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
   Select: () => <select />,

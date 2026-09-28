@@ -30,7 +30,7 @@
 }
 
 .pie-chart-center-label {
-  font-size: var(--font-size-xxs);
+  font-size: var(--font-size-xs);
   fill: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.05em;

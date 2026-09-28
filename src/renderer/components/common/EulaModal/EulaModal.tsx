@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount } from 'solid-js';
 import { useSettings, useLocalization } from '@renderer/context';
-import { Btn, ToggleSwitch } from '../';
+import { Button, ToggleSwitch } from '../';
 import './EulaModal.css';
 
 export interface EulaModalProps {
@@ -149,7 +149,7 @@ export const EulaModal: Component<EulaModalProps> = (props) => {
         </div>
 
         <div class="eula-actions">
-          <Btn
+          <Button
             variant="primary"
             size="lg"
             onClick={handleAccept}
@@ -157,7 +157,7 @@ export const EulaModal: Component<EulaModalProps> = (props) => {
             class="eula-accept-btn"
           >
             {t('mlearn.Eula.AcceptButton')}
-          </Btn>
+          </Button>
         </div>
       </div>
     </div>

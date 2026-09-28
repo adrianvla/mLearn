@@ -279,6 +279,19 @@ describe('flashcardBridge', () => {
     expect(mockIPC.saveFlashcards).toHaveBeenCalledWith(store);
   });
 
+  it('forwards the narrow review Undo authorization and returns its acknowledgement', () => {
+    const bridge = createElectronBridge();
+    const store = { version: 4 } as never;
+    const authorization = { kind: 'undo-review' as const, cardId: 'card-1', restoredReviews: 2 };
+    const acknowledgement = Promise.resolve();
+    mockIPC.saveFlashcards.mockReturnValue(acknowledgement);
+
+    const result = bridge.flashcards.saveFlashcards(store, [], false, authorization);
+
+    expect(mockIPC.saveFlashcards).toHaveBeenCalledWith(store, [], false, authorization);
+    expect(result).toBe(acknowledgement);
+  });
+
   it('onFlashcards passes callback to ipc.onFlashcards', () => {
     const cb = vi.fn();
     const cleanup = vi.fn();

@@ -7,7 +7,7 @@
 import { Component, JSX, Show, For, createSignal, createEffect, onCleanup, splitProps, mergeProps } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { Panel } from '../Panel';
-import { IconBtn } from '../Button';
+import { Button } from '../Button';
 import { CloseIcon } from '../Misc/Icons';
 import { useLocalization } from '../../../context';
 import './DraggablePopup.css';
@@ -268,14 +268,14 @@ export const DraggablePopup: Component<DraggablePopupProps> = (props) => {
               <div class="draggable-popup__header-actions popup-header-actions">
                 {local.headerActions}
                 <Show when={local.showCloseButton}>
-                  <IconBtn
+                  <Button buttonType="icon"
                     variant="ghost"
                     size="sm"
                     aria-label={t('mlearn.Global.Aria.CloseModal')}
                     onClick={local.onClose}
                   >
                     <CloseIcon size={16} />
-                  </IconBtn>
+                  </Button>
                 </Show>
               </div>
             </div>

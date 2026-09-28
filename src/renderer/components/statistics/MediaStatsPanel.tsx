@@ -8,7 +8,7 @@ import type { LanguageData, MediaStats } from '../../../shared/types';
 import { getFrequencyLevelLabel } from '../../../shared/languageFeatures';
 import { useLocalization, useSettings } from '../../context';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
-import { Btn, IconBtn, CloseIcon } from '../common';
+import { Button, CloseIcon } from '../common';
 import { formatDurationHM } from '../../utils/timeFormatting';
 import './MediaStats.css';
 
@@ -70,9 +70,9 @@ export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
     <div class="media-stats-panel">
       <div class="media-stats-header">
         <h3 class="media-stats-title">{props.stats.mediaName}</h3>
-        <IconBtn variant="ghost" onClick={props.onClose} aria-label={t('mlearn.Global.Close')}>
+        <Button buttonType="icon" variant="ghost" onClick={props.onClose} aria-label={t('mlearn.Global.Close')}>
           <CloseIcon size={16} />
-        </IconBtn>
+        </Button>
       </div>
 
       <div class="media-stats-tabs">
@@ -121,9 +121,9 @@ export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
           </div>
 
           <Show when={props.onReviewWithAI}>
-            <Btn variant="primary" onClick={props.onReviewWithAI} class="media-stats-review-btn">
+            <Button variant="primary" onClick={props.onReviewWithAI} class="media-stats-review-btn">
               {t('mlearn.MediaStats.ReviewWithAI')}
-            </Btn>
+            </Button>
           </Show>
         </Show>
 

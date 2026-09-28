@@ -20,11 +20,11 @@ describe('Button', () => {
   });
 
   it('renders a single shared spinner and hides the icon while loading', async () => {
-    const { Btn } = await import('./Button');
+    const { Button } = await import('./Button');
 
     const dispose = render(
       () => (
-        <Btn
+        <Button
           loading
           icon="check"
           label="Test connection"
@@ -43,10 +43,19 @@ describe('Button', () => {
   });
 
   it('marks pill icons as fixed-size flex items', async () => {
-    const { PillBtn } = await import('./Button');
-    const dispose = render(() => <PillBtn icon="cross2" label="Unknown" />, container);
+    const { Button } = await import('./Button');
+    const dispose = render(() => <Button buttonType="pill" icon="cross2" label="Unknown" />, container);
 
     expect(container.querySelector('.btn-pill > .btn-icon-content')).not.toBeNull();
+
+    dispose();
+  });
+
+  it('renders icon actions through the shared button mode', async () => {
+    const { Button } = await import('./Button');
+    const dispose = render(() => <Button buttonType="icon" aria-label="Close" icon="cross2" />, container);
+
+    expect(container.querySelector('button.btn-icon')?.getAttribute('aria-label')).toBe('Close');
 
     dispose();
   });

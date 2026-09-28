@@ -6,7 +6,7 @@
 import { Component, JSX, Show, createEffect, onCleanup, splitProps, mergeProps } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { Panel } from '../Panel';
-import { IconBtn } from '../Button';
+import { Button } from '../Button';
 import { CloseIcon } from '../Misc/Icons';
 import { useLocalization } from '../../../context';
 import { isElectron } from '../../../../shared/platform';
@@ -192,7 +192,7 @@ export const Modal: Component<ModalProps> = (props) => {
                   </Show>
                 </div>
                 <Show when={local.showCloseButton}>
-                  <IconBtn
+                  <Button buttonType="icon"
                     variant="ghost"
                     size="sm"
                     aria-label={t('mlearn.Global.Aria.CloseModal')}
@@ -200,7 +200,7 @@ export const Modal: Component<ModalProps> = (props) => {
                      style={{ 'margin-left': 'var(--spacing-4)', 'flex-shrink': 0, '-webkit-app-region': 'no-drag' }}
                   >
                     <CloseIcon />
-                  </IconBtn>
+                  </Button>
                 </Show>
               </div>
             </Show>

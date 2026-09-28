@@ -1,104 +1,124 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
 
-const queryKnowledgeEvents = vi.fn();
-const appendKnowledgeEvents = vi.fn();
-const onKnowledgeEventsChanged = vi.fn();
+const journal = vi.hoisted(() => {
+  const rows = new Map<string, Array<Record<string, unknown>>>();
+  const query = vi.fn(async (keys: readonly string[]) => Object.fromEntries(
+    keys.flatMap((key) => rows.has(key) ? [[key, rows.get(key)!]] : []),
+  ));
+  const append = vi.fn(async (eventsByKey: KnowledgeEventLog) => {
+    for (const [key, events] of Object.entries(eventsByKey)) {
+      rows.set(key, [...(rows.get(key) ?? []), ...events]);
+    }
+    return true;
+  });
+  return { rows, query, append };
+});
 
 vi.mock('../../shared/bridges', () => ({
   getBridge: () => ({
     knowledgeEvents: {
-      queryKnowledgeEventsForLanguage: vi.fn().mockResolvedValue({}),
-      appendKnowledgeEvents: (...args: unknown[]) => appendKnowledgeEvents(...args),
-      queryKnowledgeEvents: (...args: unknown[]) => queryKnowledgeEvents(...args),
-      getKnowledgeStates: vi.fn().mockResolvedValue({}),
-      getKnowledgeArchive: vi.fn().mockResolvedValue({}),
-      queryKnowledgeSummaries: vi.fn().mockResolvedValue({}),
-      queryAnkiReviewIds: vi.fn().mockResolvedValue([]),
-      queryAnkiReviewIdSets: vi.fn().mockResolvedValue({}),
-      queryLanguageKeys: vi.fn().mockResolvedValue([]),
-      onKnowledgeEventsChanged: (...args: unknown[]) => onKnowledgeEventsChanged(...args),
+      queryKnowledgeEvents: journal.query,
+      appendKnowledgeEvents: journal.append,
+      onKnowledgeEventsChanged: () => () => undefined,
     },
   }),
 }));
 
-describe('knowledgeEvents renderer service', () => {
+describe('knowledge event idempotent append', () => {
   beforeEach(() => {
     vi.resetModules();
-    queryKnowledgeEvents.mockReset().mockResolvedValue({});
-    appendKnowledgeEvents.mockReset().mockResolvedValue(true);
-    onKnowledgeEventsChanged.mockReset();
+    vi.clearAllMocks();
+    journal.rows.clear();
   });
 
-  // Module-loading boundary: the service under test owns module-scoped cache
-  // state, so each test must import a fresh instance after resetModules.
-  async function importService() {
-    return await import('./knowledgeEvents');
-  }
+  it('does not append the same retraction twice after an interrupted Undo acknowledgement', async () => {
+    const { appendEventsIdempotentAcknowledged } = await import('./knowledgeEvents');
+    const retractions: KnowledgeEventLog = {
+      'ja:hash': [{ t: 1, kind: 'retraction', source: 'manual', retracts: 'attempt-1' }],
+    };
 
-  it('serves repeated key-set reads within one events version from one IPC fetch', async () => {
-    queryKnowledgeEvents.mockResolvedValue({ 'ja:h1': [{ t: 1, kind: 'rollup', source: 'passiveTracking' }] });
-    const svc = await importService();
+    await expect(appendEventsIdempotentAcknowledged(retractions)).resolves.toBe(true);
+    await expect(appendEventsIdempotentAcknowledged(retractions)).resolves.toBe(true);
 
-    const first = await svc.getEvents(['ja:h1']);
-    const second = await svc.getEvents(['ja:h1']);
-
-    expect(queryKnowledgeEvents).toHaveBeenCalledTimes(1);
-    expect(first).toEqual(second);
+    expect(journal.append).toHaveBeenCalledTimes(1);
   });
 
-  it('refetches after a local append bumps the events version', async () => {
-    queryKnowledgeEvents.mockResolvedValue({ 'ja:h1': [{ t: 1, kind: 'rollup', source: 'passiveTracking' }] });
-    const svc = await importService();
-    await svc.getEvents(['ja:h1']);
-
-    await svc.appendEvents({ 'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
-    queryKnowledgeEvents.mockResolvedValue({
-      'ja:h1': [{ t: 1, kind: 'rollup', source: 'passiveTracking' }],
-      'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking' }],
+  it('deduplicates a retried attempt but accepts identical evidence under a new action id', async () => {
+    const { appendEventsIdempotentAcknowledged } = await import('./knowledgeEvents');
+    const rating = (attemptId: string): KnowledgeEventLog => ({
+      'ja:hash': [{ t: 1, kind: 'rating', source: 'manual', quality: 'fluent', attemptId }],
     });
 
-    const refetched = await svc.getEvents(['ja:h1', 'ja:h2']);
-    expect(queryKnowledgeEvents).toHaveBeenCalledTimes(2);
-    expect(refetched.map(({ t }) => t)).toContain(2);
+    await expect(appendEventsIdempotentAcknowledged(rating('action-1'))).resolves.toBe(true);
+    await expect(appendEventsIdempotentAcknowledged({
+      'ja:hash': [{ t: 2, kind: 'retraction', source: 'manual', retracts: 'action-1' }],
+    })).resolves.toBe(true);
+    await expect(appendEventsIdempotentAcknowledged(rating('action-2'))).resolves.toBe(true);
+    await expect(appendEventsIdempotentAcknowledged(rating('action-2'))).resolves.toBe(true);
+
+    const events = journal.rows.get('ja:hash') ?? [];
+    expect(events.filter((event) => event.kind === 'rating').map((event) => event.attemptId)).toEqual(['action-1', 'action-2']);
+    expect(events.filter((event) => event.kind === 'retraction')).toHaveLength(1);
+    expect(journal.append).toHaveBeenCalledTimes(3);
   });
 
-  it('appends through the bridge, bumps the version, and broadcasts cross-tab', async () => {
-    const svc = await importService();
-    await svc.appendEvents({ 'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
-    expect(appendKnowledgeEvents).toHaveBeenCalledWith({ 'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
-    expect(onKnowledgeEventsChanged).toHaveBeenCalled();
+  it('does not publish cache invalidation for a refused append, then invalidates on retry success', async () => {
+    const { appendEventsAcknowledged, eventsVersion, getEvents } = await import('./knowledgeEvents');
+    const key = 'ja:hash';
+    await getEvents([key]);
+    const versionBefore = eventsVersion();
+    journal.append.mockResolvedValueOnce(false);
+
+    await expect(appendEventsAcknowledged({
+      [key]: [{ t: 1, kind: 'status', source: 'manual', toStatus: 'known' }],
+    })).resolves.toBe(false);
+    expect(eventsVersion()).toBe(versionBefore);
+
+    await expect(appendEventsAcknowledged({
+      [key]: [{ t: 2, kind: 'status', source: 'manual', toStatus: 'known' }],
+    })).resolves.toBe(true);
+    expect(eventsVersion()).toBe(versionBefore + 1);
+    await expect(getEvents([key])).resolves.toMatchObject([{ t: 2, toStatus: 'known' }]);
   });
 
-  it('keeps lexical projections stable for grammar-only appends and invalidates them for word evidence', async () => {
-    const svc = await importService();
-    const initialWordVersion = svc.wordEventsVersion();
-    const initialAllVersion = svc.eventsVersion();
-    await svc.appendEvents({ 'ja:grammar:example:grammar-recognition': [{ t: 1, kind: 'rating', source: 'grammar', quality: 'fluent' }] });
-    expect(svc.eventsVersion()).toBeGreaterThan(initialAllVersion);
-    expect(svc.wordEventsVersion()).toBe(initialWordVersion);
-    await svc.appendEvents({ 'ja:word-hash': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }] });
-    expect(svc.wordEventsVersion()).toBeGreaterThan(initialWordVersion);
-  });
-
-  it('reports a refused durable append without publishing an events-version change', async () => {
-    appendKnowledgeEvents.mockResolvedValue(false);
-    const svc = await importService();
-    const accepted = await svc.appendEventsAcknowledged({
-      'ja:h2': [{ t: 2, kind: 'rollup', source: 'passiveTracking', timesSeenDelta: 1 }],
+  it('keeps word projections cached for grammar-only appends and invalidates them for word evidence', async () => {
+    const { appendEventsAcknowledged, eventsVersion, wordEventsVersion } = await import('./knowledgeEvents');
+    const allBefore = eventsVersion();
+    const wordsBefore = wordEventsVersion();
+    await appendEventsAcknowledged({
+      'ja:grammar:tense:recognition': [{ t: 1, kind: 'rating', source: 'grammar', quality: 'fluent' }],
     });
-    expect(accepted).toBe(false);
-    expect(onKnowledgeEventsChanged).toHaveBeenCalledTimes(1); // listener registration only; no bump broadcast
+    expect(eventsVersion()).toBe(allBefore + 1);
+    expect(wordEventsVersion()).toBe(wordsBefore);
+
+    await appendEventsAcknowledged({
+      'ja:hash': [{ t: 2, kind: 'rating', source: 'manual', quality: 'fluent', attemptId: 'word-action' }],
+    });
+    expect(wordEventsVersion()).toBe(wordsBefore + 1);
   });
 
-  it('treats a retried stable attempt id as already accepted without appending it twice', async () => {
-    queryKnowledgeEvents.mockResolvedValue({
-      'ja:h2': [{ t: 1, kind: 'rating', source: 'grammar', attemptId: 'stable-attempt', easeAfter: 1.8 }],
+  it('does not let an invalidated in-flight query repopulate the cache with an older log', async () => {
+    let finishStaleQuery!: (log: Awaited<ReturnType<typeof journal.query>>) => void;
+    journal.query.mockImplementationOnce(() => new Promise((resolve) => {
+      finishStaleQuery = resolve;
+    }));
+
+    const { appendEventsAcknowledged, getEvents } = await import('./knowledgeEvents');
+    const staleRead = getEvents(['ja:hash']);
+    await Promise.resolve();
+    expect(finishStaleQuery).toBeTypeOf('function');
+
+    await appendEventsAcknowledged({
+      'ja:hash': [{ t: 2, kind: 'status', source: 'manual', toStatus: 'known' }],
     });
-    const svc = await importService();
-    const accepted = await svc.appendEventsIdempotentAcknowledged({
-      'ja:h2': [{ t: 1, kind: 'rating', source: 'grammar', attemptId: 'stable-attempt', easeAfter: 1.8 }],
+    await expect(getEvents(['ja:hash'])).resolves.toMatchObject([{ t: 2, toStatus: 'known' }]);
+
+    finishStaleQuery({
+      'ja:hash': [{ t: 1, kind: 'status', source: 'manual', toStatus: 'unknown' }],
     });
-    expect(accepted).toBe(true);
-    expect(appendKnowledgeEvents).not.toHaveBeenCalled();
+    await expect(staleRead).resolves.toMatchObject([{ t: 1, toStatus: 'unknown' }]);
+    await expect(getEvents(['ja:hash'])).resolves.toMatchObject([{ t: 2, toStatus: 'known' }]);
+    expect(journal.query).toHaveBeenCalledTimes(2);
   });
 });

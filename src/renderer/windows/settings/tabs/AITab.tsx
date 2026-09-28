@@ -5,10 +5,7 @@
 
 import { Component, Show, For, createSignal, createEffect, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import {
-  SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, ToggleSwitch, ConnectionStatus,
-  BotIcon
-} from '../../../components/common';
+import { Button, SettingRow, SettingGroup, Select, Input, TabContent, HintText, ToggleSwitch, ConnectionStatus, BotIcon } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../../shared/backends';
@@ -361,14 +358,14 @@ export const AITab: Component = () => {
                 }))}
               />
               <Show when={getBridge().llm.llmGetSystemMemory}>
-                <Btn
+                <Button
                   size="sm"
                   onClick={() => void runAutoselect()}
                   disabled={autoselecting()}
                   loading={autoselecting()}
                 >
                   Autoselect
-                </Btn>
+                </Button>
               </Show>
             </div>
             <Show when={settings.builtinModel}>
@@ -413,9 +410,9 @@ export const AITab: Component = () => {
 
               <Show when={!modelStatus().downloading && isBuiltinModelReady()}>
                 <span class="ai-status-ok">{t('mlearn.AI.ModelReady')}</span>
-                <Btn size="sm" onClick={handleDownloadModel}>
+                <Button size="sm" onClick={handleDownloadModel}>
                   {t('mlearn.AI.Settings.BuiltinModel.Redownload')}
-                </Btn>
+                </Button>
               </Show>
 
               <Show when={!modelStatus().downloading && modelStatus().downloaded && !isBuiltinModelReady()}>
@@ -426,9 +423,9 @@ export const AITab: Component = () => {
 
               <Show when={!modelStatus().downloading && !modelStatus().downloaded}>
                 <span class="ai-status-missing">{t('mlearn.AI.ModelNotDownloaded')}</span>
-                <Btn size="sm" variant="primary" onClick={handleDownloadModel}>
+                <Button size="sm" variant="primary" onClick={handleDownloadModel}>
                   {t('mlearn.AI.DownloadModel')}
-                </Btn>
+                </Button>
               </Show>
 
               <Show when={modelStatus().error}>
@@ -453,7 +450,7 @@ export const AITab: Component = () => {
                     label={modelConfig.displayName}
                     description={formatBytes(item.sizeBytes)}
                   >
-                    <Btn
+                    <Button
                       size="sm"
                       variant="danger"
                       onClick={() => void handleDeleteModel(item.modelFile)}
@@ -461,7 +458,7 @@ export const AITab: Component = () => {
                       loading={deletingModel() === item.modelFile}
                     >
                       Delete
-                    </Btn>
+                    </Button>
                   </SettingRow>
                 );
               }}
@@ -530,7 +527,7 @@ export const AITab: Component = () => {
             label={t('mlearn.AI.Settings.OllamaConfig.TestConnection')}
             description=""
           >
-            <Btn
+            <Button
               size="sm"
               variant={ollamaConnected() === true ? 'success' : ollamaConnected() === false ? 'danger' : 'default'}
               onClick={handleTestOllama}
@@ -544,7 +541,7 @@ export const AITab: Component = () => {
                   ? t('mlearn.Connection.Unreachable')
                   : t('mlearn.AI.Settings.OllamaConfig.TestConnection')
               }
-            </Btn>
+            </Button>
           </SettingRow>
 
           <SettingRow
@@ -583,7 +580,7 @@ export const AITab: Component = () => {
             label={t('mlearn.AI.Settings.CloudConfig.TestConnection')}
             description=""
           >
-            <Btn
+            <Button
               size="sm"
               variant={cloudLLMStatus() === 'success' ? 'success' : cloudLLMStatus() === 'error' ? 'danger' : 'default'}
               onClick={handleTestCloudLLM}
@@ -599,7 +596,7 @@ export const AITab: Component = () => {
                   ? t('mlearn.Connection.Unreachable')
                   : t('mlearn.AI.Settings.CloudConfig.TestConnection')
               }
-            </Btn>
+            </Button>
           </SettingRow>
 
           <HintText>

@@ -9,38 +9,7 @@
  */
 
 import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
-import {
-  Btn,
-  Input,
-  Select,
-  EmptyState,
-  PillLabel,
-  ProgressBar,
-  ToggleSwitch,
-  SparklesIcon,
-  SearchIcon,
-  TrashIcon,
-  PlusIcon,
-  CheckIcon,
-  EyeOffIcon,
-  Tooltip,
-  SelectableCard,
-  CollapsibleStickyHeader,
-  FilterBuilder,
-  buildEmptyPreset,
-  buildSuggestedFlashcardFields,
-  validateTokens,
-  parseTokens,
-  evaluateAst,
-  type FilterToken,
-  type FieldConfig,
-  type PaletteItem,
-  type FieldResolver,
-  type ExprNode,
-  type ValidationError,
-  ImageIcon,
-  SkeletonCard,
-} from '../../components/common';
+import { Button, Input, Select, EmptyState, PillLabel, ProgressBar, ToggleSwitch, SparklesIcon, SearchIcon, TrashIcon, PlusIcon, CheckIcon, EyeOffIcon, Tooltip, SelectableCard, CollapsibleStickyHeader, FilterBuilder, buildEmptyPreset, buildSuggestedFlashcardFields, validateTokens, parseTokens, evaluateAst, type FilterToken, type FieldConfig, type PaletteItem, type FieldResolver, type ExprNode, type ValidationError, ImageIcon, SkeletonCard } from '../../components/common';
 import { WordStatusPill } from '../../components/common/Smart';
 import { FlashcardWordTitle } from '../../components/flashcard';
 import { useFlashcards, useLocalization, useLanguage, useSettings } from '../../context';
@@ -533,11 +502,11 @@ export const FlashcardsSuggested: Component = () => {
 
           <div class="flashcards-suggested-bulkbar">
             <div class="flashcards-suggested-bulkbar-left">
-              <Btn size="sm" variant="secondary" onClick={toggleSelectAllFiltered}>
+              <Button size="sm" variant="secondary" onClick={toggleSelectAllFiltered}>
                 {allFilteredSelected()
                   ? t('mlearn.Flashcards.Suggested.DeselectAll')
                   : t('mlearn.Flashcards.Suggested.SelectAll')}
-              </Btn>
+              </Button>
               <span class="flashcards-suggested-selected-count">
                 {t('mlearn.Flashcards.Suggested.SelectedCount', { count: String(selected().size) })}
               </span>
@@ -557,7 +526,7 @@ export const FlashcardsSuggested: Component = () => {
                   label={t('mlearn.Flashcards.Suggested.UseTTS')}
                 />
               </div>
-              <Btn
+              <Button
                 size="sm"
                 variant="secondary"
                 disabled={selected().size === 0 || !!promoting()}
@@ -566,8 +535,8 @@ export const FlashcardsSuggested: Component = () => {
                 iconPosition="left"
               >
                 {t('mlearn.Flashcards.Suggested.DeleteSelected')}
-              </Btn>
-              <Btn
+              </Button>
+              <Button
                 size="sm"
                 variant="primary"
                 disabled={selected().size === 0 || !!promoting()}
@@ -576,7 +545,7 @@ export const FlashcardsSuggested: Component = () => {
                 iconPosition="left"
               >
                 {t('mlearn.Flashcards.Suggested.PromoteSelected')}
-              </Btn>
+              </Button>
             </div>
           </div>
 
@@ -706,21 +675,21 @@ export const FlashcardsSuggested: Component = () => {
                                   <WordStatusPill word={s.word} language={s.language} onStatusChange={(status) => handleSuggestedStatusChange(s, status)} />
                                 </div>
                                 <div class="flashcard-actions">
-                                  <Btn
+                                  <Button
                                     size="xs"
                                     variant="ghost"
                                     onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
                                     icon={<TrashIcon size={14} />}
                                     title={t('mlearn.Global.Delete')}
                                   />
-                                  <Btn
+                                  <Button
                                     size="xs"
                                     variant="ghost"
                                     onClick={(e) => { e.stopPropagation(); handleIgnoreOne(s); }}
                                     icon={<EyeOffIcon size={14} />}
                                     title={t('mlearn.Global.Ignore')}
                                   />
-                                  <Btn
+                                  <Button
                                     size="xs"
                                     variant="primary"
                                     onClick={(e) => { e.stopPropagation(); handlePromoteOne(s.id); }}
@@ -729,7 +698,7 @@ export const FlashcardsSuggested: Component = () => {
                                     title={t('mlearn.Flashcards.Suggested.Promote')}
                                   >
                                     {t('mlearn.Flashcards.Suggested.Promote')}
-                                  </Btn>
+                                  </Button>
                                 </div>
                               </div>
                             </SelectableCard>

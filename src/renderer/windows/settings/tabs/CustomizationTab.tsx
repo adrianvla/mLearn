@@ -5,16 +5,7 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import {
-  SettingRow,
-  SettingGroup,
-  TabContent,
-  Select,
-  Btn,
-  RangeInput,
-  ToggleSwitch,
-  ColorInput,
-} from '../../../components/common';
+import { Button, SettingRow, SettingGroup, TabContent, Select, RangeInput, ToggleSwitch, ColorInput } from '../../../components/common';
 import Icon from '../../../components/common/Icons/Icon';
 import type { SubtitleTheme } from '@shared/constants';
 import '../SettingsForm.css';
@@ -502,13 +493,13 @@ export const CustomizationTab: Component = () => {
                         onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value || null)}
                       />
                       <Show when={entry.userColor}>
-                        <Btn
+                        <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => updatePosColor(entry.pos, null)}
                         >
                           {t('mlearn.Settings.WordStatus.PosColors.Reset')}
-                        </Btn>
+                        </Button>
                       </Show>
                     </div>
                   </div>
@@ -519,9 +510,9 @@ export const CustomizationTab: Component = () => {
 
           <Show when={hasPosColorOverrides()}>
             <div class="pos-colors__reset-row">
-              <Btn variant="ghost" size="sm" onClick={resetAllPosColors}>
+              <Button variant="ghost" size="sm" onClick={resetAllPosColors}>
                 {t('mlearn.Settings.WordStatus.PosColors.ResetAll')}
-              </Btn>
+              </Button>
             </div>
           </Show>
         </SettingGroup>
@@ -614,9 +605,9 @@ export const CustomizationTab: Component = () => {
                             onChange={(event) => updateProsodyColor(paletteKey, event.currentTarget.value || null)}
                           />
                           <Show when={userColor()}>
-                            <Btn variant="ghost" size="sm" onClick={() => updateProsodyColor(paletteKey, null)}>
+                            <Button variant="ghost" size="sm" onClick={() => updateProsodyColor(paletteKey, null)}>
                               {t('mlearn.Settings.WordStatus.PosColors.Reset')}
-                            </Btn>
+                            </Button>
                           </Show>
                         </div>
                       </div>
@@ -626,9 +617,9 @@ export const CustomizationTab: Component = () => {
               </div>
               <Show when={settings.coloredProsodyPalettes?.[config().paletteId]}>
                 <div class="pos-colors__reset-row">
-                  <Btn variant="ghost" size="sm" onClick={resetProsodyPalette}>
+                  <Button variant="ghost" size="sm" onClick={resetProsodyPalette}>
                     {t('mlearn.Settings.ColoredProsody.Palette.ResetAll')}
-                  </Btn>
+                  </Button>
                 </div>
               </Show>
             </Show>
@@ -664,13 +655,13 @@ export const CustomizationTab: Component = () => {
                     onChange={(e) => updateCustomColor(varName as keyof CustomColorOverrides, e.currentTarget.value || null)}
                   />
                   <Show when={currentValue()}>
-                    <Btn
+                    <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => updateCustomColor(varName as keyof CustomColorOverrides, null)}
                     >
                       {t('mlearn.Settings.CustomColors.Reset')}
-                    </Btn>
+                    </Button>
                   </Show>
                 </div>
               </SettingRow>
@@ -680,9 +671,9 @@ export const CustomizationTab: Component = () => {
 
         <Show when={hasCustomColors()}>
           <div class="custom-colors__reset-row">
-            <Btn variant="ghost" size="sm" onClick={resetAllCustomColors}>
+            <Button variant="ghost" size="sm" onClick={resetAllCustomColors}>
               {t('mlearn.Settings.CustomColors.ResetAll')}
-            </Btn>
+            </Button>
           </div>
         </Show>
       </SettingGroup>

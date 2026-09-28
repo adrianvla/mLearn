@@ -18,8 +18,8 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../components/common', () => ({
-  Btn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
-  NavBtn: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  Button: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  Panel: (props: { children?: JSX.Element; class?: string }) => <div class={props.class}>{props.children}</div>,
   ArrowLeftIcon: () => <span />,
   TabContainer: (props: {
     tabs: Array<{ id: string; label: string; icon?: JSX.Element }>;
@@ -53,7 +53,7 @@ vi.mock('../../components/common', () => ({
 }));
 
 vi.mock('../wordSync/App', () => ({
-  WordSyncContent: () => <div>Word Sync Content</div>,
+  WordSyncContent: (props: { mode?: string }) => <div data-testid="word-sync-content" data-mode={props.mode}>Word Sync Content</div>,
 }));
 
 vi.mock('../characterGrid/App', () => ({
@@ -120,6 +120,20 @@ describe('LevelStudyContent', () => {
     expect(container.textContent).toContain('Character Grid');
     expect(container.textContent).toContain('Level Study');
 
+    dispose();
+  });
+
+  it('routes Assess Current Level into Word Sync assessment mode', async () => {
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent />, container);
+    const assess = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.LearningPlan.Assess');
+    expect(assess).toBeDefined();
+    assess!.click();
+
+    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-mode')).toBe('assessment');
+    expect(container.textContent).toContain('Word Sync Content');
+    expect(container.textContent).not.toContain('Plan controls');
     dispose();
   });
 

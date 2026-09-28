@@ -124,6 +124,13 @@ describe('Popover', () => {
     setOpen(true);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(onCloseMock).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(anchorEl);
+  });
+
+  it('moves focus into the panel when it opens', () => {
+    mount();
+    setOpen(true);
+    expect(document.activeElement?.textContent).toBe('panel content');
   });
 
   it('does not call onClose on Escape while closed', () => {

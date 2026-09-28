@@ -68,8 +68,11 @@ vi.mock('./tabs', () => ({
   ConnectionTab: () => 'connection tab',
   PluginsTab: () => 'plugins tab',
   ComponentsTab: () => 'components tab',
-  BrowserExtensionTab: () => 'browser extension tab',
   AboutTab: () => 'about tab',
+}));
+
+vi.mock('../../components/settings/BrowserExtensionSettings', () => ({
+  BrowserExtensionSettings: () => 'browser extension tab',
 }));
 
 describe('SettingsContent', () => {

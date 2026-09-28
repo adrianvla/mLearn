@@ -1,5 +1,5 @@
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
-import { Modal, Btn, ProgressBar, Spinner, CheckIcon, CrossIcon } from '../../components/common';
+import { Button, Modal, ProgressBar, Spinner, CheckIcon, CrossIcon } from '../../components/common';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
@@ -373,9 +373,9 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
           <div class="sync-error">
             <div class="error-icon"><CrossIcon size={24} /></div>
             <p>{error()}</p>
-            <Btn onClick={startAsSender}>
+            <Button onClick={startAsSender}>
               {t('mlearn.Global.TryAgain')}
-            </Btn>
+            </Button>
           </div>
         </Show>}
       </div>

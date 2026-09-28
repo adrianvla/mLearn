@@ -6,7 +6,7 @@
 import { Component, Show, createSignal, createMemo } from 'solid-js';
 import type { useVideo, useSubtitles } from '../../hooks';
 import { useSettings, useLocalization } from '../../context';
-import { Panel, IconBtn, RangeInput, Select, ProgressBar, SubtitleIcon } from '../common';
+import { Button, Panel, RangeInput, Select, ProgressBar, SubtitleIcon } from '../common';
 import type { SelectOption } from '../common/Select/Select';
 import './VideoControls.css';
 
@@ -182,7 +182,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                     {/* Left controls */}
                     <div class="video-controls-left">
                         {/* Play/Pause */}
-                        <IconBtn
+                        <Button buttonType="icon"
                             variant="ghost"
                             onClick={() => props.video.togglePlay()}
                             aria-label={state.isPlaying ? t('mlearn.Global.Aria.Pause') : t('mlearn.Global.Aria.Play')}
@@ -191,13 +191,13 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
 
                         {/* Volume */}
                         <div class="video-volume-control">
-                            <IconBtn
+                            <Button buttonType="icon"
                                 variant="ghost"
                                 onClick={() => props.video.toggleMute()}
                                 aria-label={state.isMuted ? t('mlearn.Video.Controls.Unmute') : t('mlearn.Video.Controls.Mute')}
                             >
                                 <VolumeIcon level={volumeIconLevel()} />
-                            </IconBtn>
+                            </Button>
                             <RangeInput
                                 min={0}
                                 max={1}
@@ -227,19 +227,19 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         />
 
                         <Show when={props.onOpenSubtitles}>
-                            <IconBtn
+                            <Button buttonType="icon"
                                 variant="ghost"
                                 onClick={props.onOpenSubtitles}
                                 aria-label={t('mlearn.Video.UI.OpenSubtitles')}
                                 title={t('mlearn.Video.UI.OpenSubtitles')}
                             >
                                 <SubtitleIcon />
-                            </IconBtn>
+                            </Button>
                         </Show>
 
                         <Show when={state.textTracks.length > 0 || props.detectedSubtitleTracks?.length || props.hasExternalSubtitles}>
                             <Show when={state.textTracks.length === 0 && !props.detectedSubtitleTracks?.length && props.hasExternalSubtitles}>
-                                <IconBtn
+                                <Button buttonType="icon"
                                     variant="ghost"
                                     active={settings.showSubtitles && props.subtitles.subtitles().length > 0}
                                     class={settings.showSubtitles && props.subtitles.subtitles().length > 0 ? '' : 'inactive'}
@@ -258,7 +258,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                                     aria-label={t('mlearn.Video.Controls.SubtitleTrack')}
                                 >
                                     <SubtitleIcon />
-                                </IconBtn>
+                                </Button>
                             </Show>
 
                             <Show when={state.textTracks.length > 0 || props.detectedSubtitleTracks?.length}>
@@ -339,7 +339,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
 
                         {/* Word sidebar toggle */}
                         <Show when={props.onToggleWordSidebar}>
-                            <IconBtn
+                            <Button buttonType="icon"
                                 variant="ghost"
                                 active={props.showWordSidebar}
                                 class={props.showWordSidebar ? '' : 'inactive'}
@@ -347,12 +347,12 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                                 aria-label={t('mlearn.Video.UI.ToggleWordSidebar')}
                             >
                                 <WordListIcon />
-                            </IconBtn>
+                            </Button>
                         </Show>
 
                         {/* PiP — shown on Electron desktop or when Web PiP API is available */}
                         <Show when={!isTethered() || document.pictureInPictureEnabled}>
-                            <IconBtn
+                            <Button buttonType="icon"
                                 variant="ghost"
                                 active={state.isPiP}
                                 class={state.isPiP ? '' : 'inactive'}
@@ -360,17 +360,17 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                                 aria-label={t('mlearn.Global.Aria.PictureInPicture')}
                             >
                                 <PiPIcon />
-                            </IconBtn>
+                            </Button>
                         </Show>
 
                         {/* Fullscreen */}
-                        <IconBtn
+                        <Button buttonType="icon"
                             variant="ghost"
                             onClick={() => props.video.toggleFullscreen()}
                             aria-label={state.isFullscreen ? t('mlearn.Global.Aria.ExitFullscreen') : t('mlearn.Global.Aria.Fullscreen')}
                         >
                             <FullscreenIcon isFullscreen={state.isFullscreen} />
-                        </IconBtn>
+                        </Button>
                     </div>
                 </div>
             </Panel>

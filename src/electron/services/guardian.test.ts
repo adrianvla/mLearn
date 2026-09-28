@@ -155,6 +155,30 @@ describe('Guardian direct integrity boundary', () => {
     await expect(new Guardian(temp.tmpDir).preflight()).resolves.toBeUndefined();
   });
 
+  it('allows Undo to restore exactly one review count on its card', async () => {
+    writeProfile(['a', 'b']);
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const restored = {
+      version: 3,
+      flashcards: { a: { ...card('a'), reviews: 1 }, b: card('b') },
+      wordKnowledge: {},
+      grammarKnowledge: {},
+    };
+    expect(() => guardian.checkFlashcardWrite(restored)).toThrow('review history decreased');
+    expect(() => guardian.checkFlashcardWrite(restored, [], false, {
+      kind: 'undo-review', cardId: 'a', restoredReviews: 1,
+    })).not.toThrow();
+
+    const unrelatedDecrease = {
+      ...restored,
+      flashcards: { ...restored.flashcards, b: { ...card('b'), reviews: 1 } },
+    };
+    expect(() => guardian.checkFlashcardWrite(unrelatedDecrease, [], false, {
+      kind: 'undo-review', cardId: 'a', restoredReviews: 1,
+    })).toThrow('review history decreased');
+  });
+
   it('restores valid evidence while quarantining corruption and resumes an interrupted restore', async () => {
     writeProfile(['a']);
     const guardian = new Guardian(temp.tmpDir);

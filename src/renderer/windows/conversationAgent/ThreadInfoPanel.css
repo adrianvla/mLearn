@@ -145,7 +145,7 @@
 }
 
 .ca-thread-world-run-status {
-  color: var(--text);
+  color: var(--text-primary);
   font-size: var(--font-size-sm);
   font-weight: 600;
 }

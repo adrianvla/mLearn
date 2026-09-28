@@ -32,6 +32,7 @@ const updateWordAppearanceCleanup = vi.fn();
 const updateAttemptCleanup = vi.fn();
 const updateCreateCleanup = vi.fn();
 const updateLastWatchedCleanup = vi.fn();
+const mockIsElectron = vi.hoisted(() => vi.fn(() => true));
 const mockStreamChat = vi.hoisted(() => vi.fn());
 const mockBackend = vi.hoisted(() => ({
   ping: vi.fn().mockResolvedValue(true),
@@ -207,7 +208,7 @@ vi.mock('../services/knowledgeRollup', () => ({
 }));
 
 vi.mock('../../shared/platform', () => ({
-  isElectron: () => true,
+  isElectron: mockIsElectron,
   isCapacitor: () => false,
   isMobile: () => false,
   isDesktop: () => true,
@@ -378,7 +379,16 @@ type FlashcardCtx = {
   suspendCard: (id: string) => void;
   unsuspendCard: (id: string) => void;
   buryCard: (id: string) => void;
-  answerCard: (rating: Rating, cardId?: string, timeSpentMs?: number, attempt?: { attemptId: AttemptId }) => boolean;
+  submitRating: (word: string, observations: readonly { capability: CapabilityKind; quality: AttemptQuality; method?: 'recall' | 'inference' }[], options?: {
+    language?: string;
+    attemptId?: AttemptId;
+    timing?: { activeLatencyMs: number; wallLatencyMs: number; interruptionCount: number; interrupted: boolean; stalled: boolean };
+    origin?: string;
+    taskType?: AttemptTaskType;
+    scaffolds?: AttemptScaffolds;
+    sourceVersions?: EventSourceVersions;
+    scheduler?: { cardId: string; rating: Rating; timeSpentMs?: number; tested?: readonly CapabilityKind[] };
+  }) => Promise<{ attemptId: AttemptId; completed: boolean }>;
   getCurrentCard: () => Flashcard | null;
   getAllCards: () => Flashcard[];
   getCardById: (id: string) => Flashcard | null;
@@ -401,8 +411,8 @@ type FlashcardCtx = {
     options?: { onProgress?: (done: number, total: number) => void; preserveExistingStatus?: boolean },
   ) => Promise<{ created: number; promoted: number; skipped: number }>;
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
-  pushUndoState: (options?: { type?: string; restore?: () => void | Promise<void> }) => void;
-  undoLastAction: () => void;
+  pushUndoState: (options: { type: string; cardId: string }) => void;
+  undoLastAction: () => Promise<string | null>;
   canUndo: () => boolean;
   trackWordAppearance: (word: string, reading?: string) => Promise<void>;
   ignoreWordForLanguage: (word: string, reading?: string, language?: string) => Promise<void>;
@@ -424,21 +434,6 @@ type FlashcardCtx = {
   getAccessStatus: (word: string, capability: CapabilityKind, language?: string) => AccessStatusResult;
   setAccessClaim: (word: string, capability: CapabilityKind, status: 'unknown' | 'learning' | 'known', language?: string) => void;
   clearAccessClaim: (word: string, capability: CapabilityKind, language?: string) => void;
-  recordAttempt: (
-    word: string,
-    capability: CapabilityKind,
-    quality: AttemptQuality,
-    options?: {
-      language?: string;
-      method?: 'recall' | 'inference';
-      timing?: { activeLatencyMs: number; wallLatencyMs: number; interruptionCount: number; interrupted: boolean; stalled: boolean };
-      attemptId?: AttemptId;
-      origin?: string;
-      taskType?: AttemptTaskType;
-      scaffolds?: AttemptScaffolds;
-      sourceVersions?: EventSourceVersions;
-    },
-  ) => { attemptId: AttemptId };
   recomputeWordKnowledgeFromEvidence: (word: string, language?: string) => Promise<void>;
   // setWordKnowledgeEase is intentionally not public — attempt evidence only.
   markWordSyncSeen: (word: string, language?: string) => void;
@@ -459,6 +454,33 @@ type FlashcardCtx = {
   promoteSuggestedFlashcards: (ids: string[], options?: { useLLM?: boolean; useTts?: boolean; onProgress?: (done: number, total: number) => void }) => Promise<number>;
   generateExampleSentenceWithLLM: (word: string, definition: string, language: string) => Promise<{ sentence: string; meaning: string }>;
   translateExampleSentence: (sentence: string, sourceLanguage: string, language?: string) => Promise<string>;
+};
+
+type AttemptSubmissionOptions = NonNullable<Parameters<FlashcardCtx['submitRating']>[2]> & {
+  method?: 'recall' | 'inference';
+};
+const submitObservation = (
+  ctx: FlashcardCtx,
+  word: string,
+  capability: CapabilityKind,
+  quality: AttemptQuality,
+  options?: AttemptSubmissionOptions,
+) => {
+  const { method, ...ratingOptions } = options ?? {};
+  return ctx.submitRating(word, [{ capability, quality, ...(method ? { method } : {}) }], ratingOptions);
+};
+const submitSchedulerRating = (
+  ctx: FlashcardCtx,
+  cardId: string,
+  rating: Rating,
+  timeSpentMs?: number,
+) => {
+  const card = ctx.store.flashcards[cardId];
+  if (!card) throw new Error(`Missing test card ${cardId}`);
+  return ctx.submitRating(card.content.front, [], {
+    language: card.language,
+    scheduler: { cardId, rating, timeSpentMs },
+  });
 };
 
 // ── Mount helper ─────────────────────────────────────────────────────
@@ -562,6 +584,9 @@ describe('FlashcardProvider', () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    mockIsElectron.mockReturnValue(true);
+    mockBridge.flashcards.saveFlashcards.mockReset().mockResolvedValue(undefined);
+    mockBridge.kvStore.kvGet.mockResolvedValue(null);
     mockBackend.ping.mockResolvedValue(true);
     mockBackend.translate.mockResolvedValue({ data: [] });
     mockBackend.getAnkiWordStatuses.mockResolvedValue([]);
@@ -583,6 +608,318 @@ describe('FlashcardProvider', () => {
     mockAccumulateWordSeen.mockClear();
     mockFlushKnowledgeRollup.mockClear();
     setupMockImplementations();
+  });
+
+  it('publishes a scheduler rating only after the flashcard write is acknowledged', async () => {
+    mockSettings.language = 'ja2';
+    let acknowledgeSave!: () => void;
+    mockBridge.flashcards.saveFlashcards.mockImplementation(() => new Promise((resolve) => {
+      acknowledgeSave = () => resolve(1);
+    }));
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'card-acknowledged-rating',
+      language: 'ja2',
+      content: { type: 'word', front: '学校', back: 'school' },
+      state: 'review',
+      reviews: 3,
+      interval: 86_400_000,
+      dueDate: Date.now() - 1000,
+    });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const previousReviews = ctx.store.flashcards[card.id].reviews;
+    let settled = false;
+
+    const submission = ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja2',
+      attemptId: 'stable-review-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    }).then((result) => {
+      settled = true;
+      return result;
+    });
+
+    await vi.waitFor(() => expect(mockBridge.flashcards.saveFlashcards).toHaveBeenCalled());
+    expect(ctx.store.flashcards[card.id].reviews).toBe(previousReviews);
+    expect(settled).toBe(false);
+
+    acknowledgeSave();
+    const result = await submission;
+
+    expect(ctx.store.flashcards[card.id].reviews).toBe(previousReviews + 1);
+    expect(result.completed).toBe(true);
+    expect(result.attemptId).toBe('stable-review-attempt');
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('persists the next authoritative revision in mobile KV storage', async () => {
+    mockIsElectron.mockReturnValue(false);
+    const card = makeCard({ id: 'mobile-revision', language: 'ja', content: { type: 'word', front: '学校', back: 'school' } });
+    const initialStore = makeEmptyStore({ rev: 8, flashcards: { [card.id]: card } });
+    mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify(initialStore));
+    const { ctx, dispose } = await mountProvider();
+    await vi.waitFor(() => expect(ctx.store.rev).toBe(8));
+
+    await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja',
+      attemptId: 'mobile-revision-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+
+    const persisted = JSON.parse(mockBridge.kvStore.kvSet.mock.calls.at(-1)?.[1] ?? 'null') as FlashcardStore;
+    expect(persisted.rev).toBe(9);
+    expect(ctx.store.rev).toBe(9);
+    dispose();
+  });
+
+  it('awaits the real Undo command after a scheduler rating', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'card-undo-command',
+      language: 'ja2',
+      content: { type: 'word', front: '学校', back: 'school' },
+      state: 'review',
+      reviews: 3,
+      interval: 86_400_000,
+      dueDate: Date.now() - 1000,
+    });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const { attemptId } = await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja2',
+      attemptId: 'undoable-review-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+
+    const undo = ctx.undoLastAction();
+    expect(undo).toBeInstanceOf(Promise);
+    await undo;
+
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    expect(mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)?.[3]).toEqual({
+      kind: 'undo-review', cardId: card.id, restoredReviews: 3,
+    });
+    const events = mockAppendEvents.mock.calls.flatMap(([byKey]) => Object.values(byKey as Record<string, Array<Record<string, unknown>>>).flat());
+    expect(events.some((event) => event.kind === 'retraction' && event.retracts === attemptId)).toBe(true);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('creates a fresh attempt when the same rating is submitted after Undo', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'card-repeat-rating',
+      language: 'ja2',
+      content: { type: 'word', front: '学校', back: 'school' },
+      state: 'review',
+      reviews: 3,
+      interval: 86_400_000,
+      dueDate: Date.now() - 1000,
+    });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+
+    const first = await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja2',
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+    await ctx.undoLastAction();
+    const second = await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja2',
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+
+    expect(second.attemptId).not.toBe(first.attemptId);
+    const reviewEvents = mockAppendEvents.mock.calls.flatMap(([byKey]) =>
+      Object.values(byKey as Record<string, KnowledgeEvent[]>).flat(),
+    ).filter((event) => event.kind === 'review');
+    expect(reviewEvents.map((event) => event.attemptId)).toEqual([first.attemptId, second.attemptId]);
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('preserves an unrelated local mutation while a scheduler write is pending', async () => {
+    let acknowledgeSave!: () => void;
+    mockBridge.flashcards.saveFlashcards.mockImplementation(() => new Promise((resolve) => {
+      acknowledgeSave = () => resolve(1);
+    }));
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'card-concurrent-rating' });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const submission = ctx.submitRating(card.content.front, [], {
+      attemptId: 'concurrent-rating-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' },
+    });
+    await vi.waitFor(() => expect(mockBridge.flashcards.saveFlashcards).toHaveBeenCalled());
+
+    ctx.updateMeta({ maxReviewsPerDay: 37 });
+    acknowledgeSave();
+    await submission;
+
+    expect(ctx.store.meta.maxReviewsPerDay).toBe(37);
+    dispose();
+  });
+
+  it('preserves a newer incoming broadcast while a scheduler write is pending', async () => {
+    const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
+    function MockBroadcastChannel() {
+      return {
+        postMessage: vi.fn(),
+        close: vi.fn(),
+        set onmessage(fn: ((event: MessageEvent) => void) | null) { state.handler = fn; },
+        get onmessage() { return state.handler; },
+      };
+    }
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
+    let acknowledgeSave!: () => void;
+    mockBridge.flashcards.saveFlashcards.mockImplementation(() => new Promise((resolve) => {
+      acknowledgeSave = () => resolve(1);
+    }));
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'card-broadcast-rating' });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const submission = ctx.submitRating(card.content.front, [], {
+      attemptId: 'broadcast-rating-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' },
+    });
+    await vi.waitFor(() => expect(mockBridge.flashcards.saveFlashcards).toHaveBeenCalled());
+
+    const remoteCandidate = { count: 2, lastSeen: Date.now(), word: '別の語', language: 'ja' };
+    state.handler!({ data: { type: 'update', store: makeEmptyStore({ wordCandidates: { 'ja:別の語': remoteCandidate } }) } } as MessageEvent);
+    acknowledgeSave();
+    await submission;
+
+    expect(ctx.store.wordCandidates['ja:別の語']).toEqual(remoteCandidate);
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
+  it('persists rating Undo through navigation and a provider restart', async () => {
+    mockSettings.language = 'ja2';
+    let persistedStore: FlashcardStore | null = null;
+    mockBridge.flashcards.saveFlashcards.mockImplementation((serialized: FlashcardStore) => {
+      persistedStore = structuredClone(serialized);
+      return Promise.resolve(1);
+    });
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'card-undo-restart',
+      language: 'ja2',
+      content: { type: 'word', front: '学校', back: 'school' },
+      state: 'review',
+      reviews: 3,
+      interval: 86_400_000,
+      dueDate: Date.now() - 1000,
+    });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const wordKey = `ja2:${SRS.hashWordSync('学校')}`;
+    const beforeReviewsToday = ctx.store.meta.perLanguage.ja2?.reviewsToday ?? 0;
+
+    await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja2',
+      attemptId: 'undo-restart-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+    expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+    expect(ctx.queue().scheduledQueue).not.toContain(card.id);
+
+    await ctx.undoLastAction();
+    expect(persistedStore?.flashcards[card.id].reviews).toBe(3);
+    dispose();
+
+    const remounted = await mountProvider();
+    flashcardsCb(persistedStore);
+    expect(remounted.ctx.store.flashcards[card.id].reviews).toBe(3);
+    expect(remounted.ctx.queue().scheduledQueue).toContain(card.id);
+    expect(remounted.ctx.store.meta.perLanguage.ja2?.reviewsToday ?? 0).toBe(beforeReviewsToday);
+    expect(knowledgeJournal.allRows()[wordKey]?.some((event) => event.kind === 'retraction' && event.retracts === 'undo-restart-attempt')).toBe(true);
+    const replayed = await knowledgeJournal.getKnowledgeStates([wordKey]);
+    expect(replayed[wordKey]?.projection).toBeNull();
+
+    remounted.dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('finishes an interrupted Undo from its durable recovery record after remount', async () => {
+    mockSettings.language = 'ja2';
+    mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => Promise.resolve((saved.rev ?? 0) + 1));
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'card-undo-recovery',
+      language: 'ja2',
+      content: { type: 'word', front: '学校', back: 'school' },
+      state: 'review',
+      reviews: 3,
+      interval: 86_400_000,
+      dueDate: Date.now() - 1000,
+    });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja2',
+      attemptId: 'interrupted-undo-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+    let persistedStore = structuredClone(mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)![0] as FlashcardStore);
+
+    mockBridge.flashcards.saveFlashcards
+      .mockImplementationOnce((saved: FlashcardStore) => {
+        persistedStore = structuredClone(saved);
+        return Promise.resolve((saved.rev ?? 0) + 1);
+      })
+      .mockRejectedValueOnce(new Error('process interrupted before final Undo write'));
+    await expect(ctx.undoLastAction()).rejects.toThrow('undo persistence was refused');
+    expect(persistedStore.pendingReviewUndo?.attemptId).toBe('interrupted-undo-attempt');
+    expect(persistedStore.flashcards[card.id].reviews).toBe(4);
+    expect(ctx.canUndo()).toBe(true);
+    dispose();
+
+    mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => {
+      persistedStore = structuredClone(saved);
+      return Promise.resolve((saved.rev ?? 0) + 1);
+    });
+    const remounted = await mountProvider();
+    flashcardsCb(persistedStore);
+    await vi.waitFor(() => {
+      expect(remounted.ctx.store.flashcards[card.id].reviews).toBe(3);
+      expect(remounted.ctx.store.pendingReviewUndo).toBeUndefined();
+    });
+    remounted.dispose();
+    mockSettings.language = 'ja';
+  });
+
+  it('keeps a failed Undo on the stack until the scheduler restore is durable', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'card-retry-undo',
+      language: 'ja2',
+      content: { type: 'word', front: '学校', back: 'school' },
+      state: 'review',
+      reviews: 3,
+      interval: 86_400_000,
+      dueDate: Date.now() - 1000,
+    });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja2',
+      attemptId: 'retryable-undo-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+    mockBridge.flashcards.saveFlashcards
+      .mockImplementationOnce((saved: FlashcardStore) => Promise.resolve((saved.rev ?? 0) + 1))
+      .mockRejectedValueOnce(new Error('disk full'));
+
+    await expect(ctx.undoLastAction()).rejects.toThrow('undo persistence was refused');
+    expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+    expect(ctx.canUndo()).toBe(true);
+
+    mockBridge.flashcards.saveFlashcards.mockResolvedValue(undefined);
+    await expect(ctx.undoLastAction()).resolves.toBe('answer');
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    expect(ctx.canUndo()).toBe(false);
+    dispose();
+    mockSettings.language = 'ja';
   });
 
   describe('package-declared surface capability writes', () => {
@@ -618,7 +955,7 @@ describe('FlashcardProvider', () => {
       const { ctx, dispose } = await mountProvider();
       try {
         flashcardsCb(makeEmptyStore());
-        ctx.recordAttempt(word, capability, 'fluent', { language });
+        await submitObservation(ctx, word, capability, 'fluent', { language });
         expect(ctx.store.wordKnowledge[key]?.access?.[capability]?.status).toBe('known');
         expect(ctx.store.wordKnowledge[primaryKey]?.access?.[capability]).toBeUndefined();
         expect(ctx.store.wordKnowledge[variantKey]?.access?.[capability]).toBeUndefined();
@@ -1050,8 +1387,8 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  // ─── Priority 1: answerCard ───────────────────────────────────────
-  it('answerCard updates card SRS fields for "good" rating', async () => {
+  // ─── Canonical scheduler rating command ───────────────────────────
+  it('submitRating updates card SRS fields for a scheduler rating', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'ans-1', state: 'new' });
     const SRS = await import('../services/srsAlgorithm');
@@ -1066,7 +1403,7 @@ describe('FlashcardProvider', () => {
     const beforeState = ctx.store.flashcards['ans-1'].state;
     expect(beforeState).toBe('new');
 
-    ctx.answerCard('good');
+    await submitSchedulerRating(ctx, 'ans-1', 'good');
 
     const after = ctx.store.flashcards['ans-1'];
     expect(after).toBeDefined();
@@ -1074,7 +1411,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('answerCard increments newCardsToday when answering a new card', async () => {
+  it('submitRating increments newCardsToday when rating a new card', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'ans-new-1', state: 'new' });
     const SRS = await import('../services/srsAlgorithm');
@@ -1087,12 +1424,12 @@ describe('FlashcardProvider', () => {
     ctx.refreshQueue();
 
     const before = ctx.store.meta.perLanguage.ja?.newCardsToday ?? 0;
-    ctx.answerCard('good');
+    await submitSchedulerRating(ctx, 'ans-new-1', 'good');
     expect(ctx.store.meta.perLanguage.ja?.newCardsToday).toBe(before + 1);
     dispose();
   });
 
-  it('answerCard increments reviewsToday when answering a review card', async () => {
+  it('submitRating increments reviewsToday when rating a review card', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({
       id: 'ans-rev-1',
@@ -1111,12 +1448,12 @@ describe('FlashcardProvider', () => {
     ctx.refreshQueue();
 
     const before = ctx.store.meta.perLanguage.ja?.reviewsToday ?? 0;
-    ctx.answerCard('good');
+    await submitSchedulerRating(ctx, 'ans-rev-1', 'good');
     expect(ctx.store.meta.perLanguage.ja?.reviewsToday).toBe(before + 1);
     dispose();
   });
 
-  it('answerCard pushes undo entry', async () => {
+  it('submitRating pushes an acknowledged undo entry', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'ans-undo' });
     const SRS = await import('../services/srsAlgorithm');
@@ -1129,12 +1466,12 @@ describe('FlashcardProvider', () => {
     ctx.refreshQueue();
 
     expect(ctx.canUndo()).toBe(false);
-    ctx.answerCard('good');
+    await submitSchedulerRating(ctx, 'ans-undo', 'good');
     expect(ctx.canUndo()).toBe(true);
     dispose();
   });
 
-  it('answerCard updates dailyStats', async () => {
+  it('submitRating updates dailyStats', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'daily-1', state: 'new' });
     const SRS = await import('../services/srsAlgorithm');
@@ -1146,7 +1483,7 @@ describe('FlashcardProvider', () => {
     }));
     ctx.refreshQueue();
 
-    ctx.answerCard('good');
+    await submitSchedulerRating(ctx, 'daily-1', 'good');
     const today = SRS.getTodayDateString(4);
     const langStats = ctx.store.dailyStats[today];
     expect(langStats).toBeDefined();
@@ -1156,7 +1493,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('answerCard appends a review event with ease/interval before→after', async () => {
+  it('submitRating appends an acknowledged review event with ease before and after', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'evt-1', state: 'new', content: { type: 'word', front: 'テスト', back: 'test' } });
     const SRS = await import('../services/srsAlgorithm');
@@ -1169,7 +1506,7 @@ describe('FlashcardProvider', () => {
     ctx.refreshQueue();
 
     const easeBefore = ctx.store.flashcards['evt-1'].ease;
-    ctx.answerCard('good');
+    await submitSchedulerRating(ctx, 'evt-1', 'good');
     const easeAfter = ctx.store.flashcards['evt-1'].ease;
 
     const reviewCalls = mockAppendEvents.mock.calls.filter(([byKey]) =>
@@ -1216,9 +1553,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('answerCard with explicit cardId answers the specified card, not whatever getNextCard() returns', async () => {
-    // Regression: without cardId, answerCard calls getCurrentCard() fresh which uses Math.random()
-    // and may return a different card than the one displayed, leaving the displayed card in the queue.
+  it('submitRating targets the supplied card even when another card is next in the queue', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const hashNew = await SRS.hashWord('新しい');
@@ -1243,7 +1578,7 @@ describe('FlashcardProvider', () => {
     // Force Math.random to always pick review cards so getNextCard() without cardId would answer reviewCard
     vi.spyOn(Math, 'random').mockReturnValue(0.99);
     // But we explicitly pass newCard.id — so newCard should be answered
-    ctx.answerCard('good', 'card-new');
+    await submitSchedulerRating(ctx, 'card-new', 'good');
     vi.restoreAllMocks();
 
     const answeredNew = ctx.store.flashcards['card-new'];
@@ -1253,7 +1588,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('answerCard recalculates explicit non-active language stats with that language primary form', async () => {
+  it('submitRating recalculates non-active language stats with that language primary form', async () => {
     mockSettings.language = 'ja';
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
       language === 'ar' && word === 'يكتب' ? 'كتب' : word
@@ -1290,7 +1625,7 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    ctx.answerCard('good', cardId);
+    await submitSchedulerRating(ctx, cardId, 'good');
     // The word-stats recompute is a fire-and-forget async IIFE whose hashWord
     // round-trips through a worker — a single setTimeout(0) tick races it under
     // load. Poll until the recompute lands instead.
@@ -1494,11 +1829,11 @@ describe('FlashcardProvider', () => {
     const card = makeCard({ id: 'undo-1', ease: 2.5 });
     flashcardsCb(makeEmptyStore({ flashcards: { 'undo-1': card } }));
 
-    ctx.pushUndoState({ type: 'test' });
+    ctx.pushUndoState({ type: 'test', cardId: 'undo-1' });
     ctx.updateFlashcard('undo-1', { ease: 4.0 });
     expect(ctx.store.flashcards['undo-1'].ease).toBe(4.0);
 
-    ctx.undoLastAction();
+    await ctx.undoLastAction();
     expect(ctx.store.flashcards['undo-1'].ease).toBe(2.5);
     dispose();
   });
@@ -1507,7 +1842,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.undoLastAction();
+    await ctx.undoLastAction();
     expect(ctx.canUndo()).toBe(false);
     dispose();
   });
@@ -3149,6 +3484,53 @@ describe('FlashcardProvider', () => {
   });
 
   // ─── Priority 2: BroadcastChannel ─────────────────────────────────
+  it('adopts a newer authoritative Undo and ignores an older scheduler snapshot', async () => {
+    const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
+    function MockBroadcastChannel() {
+      return {
+        postMessage: vi.fn(),
+        close: vi.fn(),
+        set onmessage(fn: ((event: MessageEvent) => void) | null) { state.handler = fn; },
+        get onmessage() { return state.handler; },
+      };
+    }
+    vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'card-window-undo', state: 'review', reviews: 4 });
+    const today = SRS.getTodayDateString(4);
+    flashcardsCb(makeEmptyStore({
+      rev: 8,
+      flashcards: { [card.id]: card },
+      meta: { ...makeEmptyStore().meta, perLanguage: { ja: { newCardsToday: 0, reviewsToday: 6, newCardsDate: today } } },
+      dailyStats: { [today]: { ja: { date: today, newCardsStudied: 0, reviewCardsStudied: 6, lapses: 0, timeSpent: 10, graduated: 0 } } },
+    }));
+
+    const undone = makeEmptyStore({
+      rev: 9,
+      flashcards: { [card.id]: { ...card, reviews: 3, interval: 0, dueDate: Date.now() - 1000 } },
+      meta: { ...makeEmptyStore().meta, perLanguage: { ja: { newCardsToday: 0, reviewsToday: 5, newCardsDate: today } } },
+      dailyStats: { [today]: { ja: { date: today, newCardsStudied: 0, reviewCardsStudied: 5, lapses: 0, timeSpent: 10, graduated: 0 } } },
+    });
+    state.handler!({ data: { type: 'update', store: undone } } as MessageEvent);
+
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    expect(ctx.store.meta.perLanguage.ja.reviewsToday).toBe(5);
+    expect(ctx.store.dailyStats[today].ja.reviewCardsStudied).toBe(5);
+
+    state.handler!({ data: { type: 'update', store: makeEmptyStore({
+      rev: 8,
+      flashcards: { [card.id]: card },
+      meta: { ...makeEmptyStore().meta, perLanguage: { ja: { newCardsToday: 0, reviewsToday: 6, newCardsDate: today } } },
+      dailyStats: { [today]: { ja: { date: today, newCardsStudied: 0, reviewCardsStudied: 6, lapses: 0, timeSpent: 10, graduated: 0 } } },
+    }) } } as MessageEvent);
+
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    expect(ctx.store.meta.perLanguage.ja.reviewsToday).toBe(5);
+    expect(ctx.store.dailyStats[today].ja.reviewCardsStudied).toBe(5);
+    dispose();
+    vi.unstubAllGlobals();
+  });
+
   it('BroadcastChannel merges knowledge entries per-key LWW by claim recency', async () => {
     const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
     const closeFn = vi.fn();
@@ -3205,7 +3587,7 @@ describe('FlashcardProvider', () => {
     vi.unstubAllGlobals();
   });
 
-  it('BroadcastChannel merges wordCandidates, grammarKnowledge, suggestedFlashcards, and dailyStats per-entry', async () => {
+  it('BroadcastChannel merges reversible knowledge collections without max-merging daily counters', async () => {
     const state: { handler: ((event: MessageEvent) => void) | null } = { handler: null };
     const closeFn = vi.fn();
     function MockBroadcastChannel() {
@@ -3247,7 +3629,7 @@ describe('FlashcardProvider', () => {
     expect(ctx.store.grammarKnowledge[grammarKey]?.timesEncountered).toBe(4);
     expect(ctx.store.suggestedFlashcards[suggestionKey]?.lastSeen).toBe(300);
     expect(ctx.store.dailyStats[today]?.ja).toEqual({
-      date: today, newCardsStudied: 3, reviewCardsStudied: 2, lapses: 1, timeSpent: 500, graduated: 1,
+      date: today, newCardsStudied: 3, reviewCardsStudied: 1, lapses: 0, timeSpent: 100, graduated: 0,
     });
 
     // Incoming STALE entries must not revert the newer local writes.
@@ -3267,7 +3649,7 @@ describe('FlashcardProvider', () => {
     expect(ctx.store.grammarKnowledge[grammarKey]?.timesEncountered).toBe(4);
     expect(ctx.store.suggestedFlashcards[suggestionKey]?.lastSeen).toBe(300);
     expect(ctx.store.dailyStats[today]?.ja).toEqual({
-      date: today, newCardsStudied: 3, reviewCardsStudied: 2, lapses: 1, timeSpent: 500, graduated: 1,
+      date: today, newCardsStudied: 3, reviewCardsStudied: 1, lapses: 0, timeSpent: 100, graduated: 0,
     });
     dispose();
     vi.unstubAllGlobals();
@@ -3460,7 +3842,7 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('recordAttempt writes active evidence under a non-active language primary form key', async () => {
+  it('submitRating writes active evidence under a non-active language primary form key', async () => {
     mockSettings.language = 'ja';
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
       language === 'ar' && word === 'يكتب' ? 'كتب' : word
@@ -3475,7 +3857,7 @@ describe('FlashcardProvider', () => {
 
     // setWordKnowledgeEase is no longer public — attempt ratings are the only
     // evidence writer. A fluent sense-recognition rating anchors at the known threshold.
-    ctx.recordAttempt('يكتب', 'sense-recognition', 'fluent', { language: 'ar' });
+    await submitObservation(ctx, 'يكتب', 'sense-recognition', 'fluent', { language: 'ar' });
 
     const arKey = `ar:${SRS.hashWordSync('كتب')}`;
     const jaKey = `ja:${SRS.hashWordSync('يكتب')}`;
@@ -3497,7 +3879,7 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore());
     mockAppendEvents.mockClear();
 
-    ctx.recordAttempt('苗字', 'surface-reading', 'fluent', {});
+    await submitObservation(ctx, '苗字', 'surface-reading', 'fluent', {});
 
     const events = mockAppendEvents.mock.calls.flatMap(([batch]) => Object.values(batch).flat());
     expect(events).toHaveLength(1);
@@ -3507,19 +3889,21 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('keeps an attributed reading review scheduler-only', async () => {
+  it('writes reading evidence and scheduler review in one acknowledged command', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'reading-review', state: 'new' });
     flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
-    const attempt = ctx.recordAttempt(card.content.front, 'surface-reading', 'fluent');
     mockAppendEvents.mockClear();
 
-    ctx.answerCard('good', card.id, undefined, attempt);
+    await ctx.submitRating(card.content.front, [{ capability: 'surface-reading', quality: 'fluent' }], {
+      scheduler: { cardId: card.id, rating: 'good', tested: ['surface-reading'] },
+    });
 
     const events = mockAppendEvents.mock.calls.flatMap(([batch]) => Object.values(batch).flat());
-    expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ kind: 'review', schedulerCardId: card.id });
-    expect(events[0].aspect).toBeUndefined();
+    expect(events).toHaveLength(2);
+    expect(events.find((event) => event.kind === 'review')).toMatchObject({ kind: 'review', schedulerCardId: card.id });
+    expect(events.find((event) => event.kind === 'review')?.aspect).toBeUndefined();
+    expect(events.every((event) => event.attemptId === events[0].attemptId)).toBe(true);
     expect(ctx.store.wordKnowledge[`ja:${SRS.hashWordSync(card.content.front)}`]?.ease).toBe(SRS.MIN_EASE);
     dispose();
   });
@@ -3527,8 +3911,8 @@ describe('FlashcardProvider', () => {
   it('rebuilds independent access evidence and claims during replay', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-    ctx.recordAttempt('苗字', 'sense-recognition', 'fluent');
-    ctx.recordAttempt('苗字', 'surface-reading', 'missed');
+    await submitObservation(ctx, '苗字', 'sense-recognition', 'fluent');
+    await submitObservation(ctx, '苗字', 'surface-reading', 'missed');
     ctx.setAccessClaim('苗字', 'surface-reading', 'known');
     await ctx.recomputeWordKnowledgeFromEvidence('苗字');
     const entry = ctx.store.wordKnowledge[`ja:${SRS.hashWordSync('苗字')}`];
@@ -3584,9 +3968,9 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-    ctx.recordAttempt('会う', 'sense-recognition', 'fluent');
-    ctx.recordAttempt('会う', 'surface-reading', 'missed');
-    ctx.recordAttempt('会う', 'prosodic-pattern', 'missed');
+    await submitObservation(ctx, '会う', 'sense-recognition', 'fluent');
+    await submitObservation(ctx, '会う', 'surface-reading', 'missed');
+    await submitObservation(ctx, '会う', 'prosodic-pattern', 'missed');
     await ctx.recomputeWordKnowledgeFromEvidence('会う', 'ja');
     // A meaning task queries its directed access, without aggregating unrelated failures.
     expect(ctx.getAccessStatus('会う', 'sense-recognition', 'ja').status).toBe('known');
@@ -3598,8 +3982,8 @@ describe('FlashcardProvider', () => {
   it('does not infer meaning from recognizing the written or spoken identity', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
-    ctx.recordAttempt('会う', 'surface-recognition', 'fluent');
-    ctx.recordAttempt('会う', 'spoken-recognition', 'fluent');
+    await submitObservation(ctx, '会う', 'surface-recognition', 'fluent');
+    await submitObservation(ctx, '会う', 'spoken-recognition', 'fluent');
     expect(ctx.getComprehensiveWordStatusSync('会う')).toBe('known');
     expect(ctx.getAccessStatus('会う', 'sense-recognition').status).toBe('unknown');
     expect(ctx.getAccessStatus('会う', 'sense-recognition').untracked).toBe(true);
@@ -3624,14 +4008,14 @@ describe('FlashcardProvider', () => {
     mockSettings.use_anki = previous;
   });
 
-  it('recordAttempt refuses evidence for a scaffold-supplied access (acceptance B)', async () => {
+  it('submitRating refuses evidence for a scaffold-supplied access (acceptance B)', async () => {
     mockSettings.language = 'ja';
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     flashcardsCb(makeEmptyStore());
 
     // Furigana was visible: a "fluent reading" rating is cued recognition.
-    const { attemptId } = ctx.recordAttempt('苗字', 'surface-reading', 'fluent', {
+    const { attemptId } = await submitObservation(ctx, '苗字', 'surface-reading', 'fluent', {
       scaffolds: { reading: true },
     });
 
@@ -3641,7 +4025,7 @@ describe('FlashcardProvider', () => {
     expect(typeof attemptId).toBe('string');
 
     // Same rating with reading explicitly hidden measures normally.
-    ctx.recordAttempt('苗字', 'surface-reading', 'fluent', { scaffolds: { reading: false } });
+    await submitObservation(ctx, '苗字', 'surface-reading', 'fluent', { scaffolds: { reading: false } });
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.status).toBe('known');
     dispose();
   });
@@ -4692,7 +5076,7 @@ describe('FlashcardProvider', () => {
   });
 });
 
-describe('recordAttempt quality semantics', () => {
+describe('acknowledged rating command semantics', () => {
   it('acknowledges a profile batch before changing local knowledge and retries the same attempt', async () => {
     const SRS = await import('../services/srsAlgorithm');
     const key = `ja2:${await SRS.hashWord('学校')}`;
@@ -4705,14 +5089,14 @@ describe('recordAttempt quality semantics', () => {
       { capability: 'surface-reading', quality: 'missed' },
     ] as const;
 
-    await expect(ctx.recordAttemptsAcknowledged('学校', observations, {
+    await expect(ctx.submitRating('学校', observations, {
       language: 'ja2', attemptId: 'word-sync-retry-1', origin: 'word-sync',
     })).rejects.toThrow('journal unavailable');
     expect(ctx.store.wordKnowledge[key]).toBeUndefined();
 
-    await expect(ctx.recordAttemptsAcknowledged('学校', observations, {
+    await expect(ctx.submitRating('学校', observations, {
       language: 'ja2', attemptId: 'word-sync-retry-1', origin: 'word-sync',
-    })).resolves.toEqual({ attemptId: 'word-sync-retry-1' });
+    })).resolves.toEqual({ attemptId: 'word-sync-retry-1', completed: true });
     expect(mockAppendEvents).toHaveBeenCalledTimes(2);
     const accepted = mockAppendEvents.mock.calls[1][0] as Record<string, KnowledgeEvent[]>;
     expect(accepted[key]).toHaveLength(2);
@@ -4733,7 +5117,7 @@ describe('recordAttempt quality semantics', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'sense-recognition', 'struggled', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'sense-recognition', 'struggled', { language: 'ja2' });
 
     expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(mockSettings.easeThresholdLearning, 5);
     dispose();
@@ -4947,7 +5331,7 @@ describe('recordAttempt quality semantics', () => {
 
     // Real activity provenance: EXACTLY what the Word Sync/encounter writer
     // passes for a cardless word self-assessment.
-    ctx.recordAttempt(word, 'surface-recognition', 'fluent', {
+    await submitObservation(ctx, word, 'surface-recognition', 'fluent', {
       language: 'zh',
       origin: 'word-sync',
       taskType: 'word-sync',
@@ -5007,7 +5391,7 @@ describe('recordAttempt quality semantics', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'sense-recognition', 'fluent', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'sense-recognition', 'fluent', { language: 'ja2' });
 
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
     dispose();
@@ -5021,7 +5405,7 @@ describe('recordAttempt quality semantics', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('学校', 'surface-reading', 'fluent', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'surface-reading', 'fluent', { language: 'ja2' });
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.status).toBe('known');
 
     const withKnown = makeEmptyStore({
@@ -5033,7 +5417,7 @@ describe('recordAttempt quality semantics', () => {
       },
     });
     flashcardsCb(withKnown);
-    ctx.recordAttempt('学校', 'surface-reading', 'fluent', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'surface-reading', 'fluent', { language: 'ja2' });
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.ease).toBe(2.2);
     dispose();
     mockSettings.language = 'ja';
@@ -5044,7 +5428,7 @@ describe('recordAttempt quality semantics', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('学校', 'prosodic-pattern', 'struggled', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'prosodic-pattern', 'struggled', { language: 'ja2' });
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
     const entry = ctx.store.wordKnowledge[lk];
@@ -5060,7 +5444,7 @@ describe('recordAttempt quality semantics', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('学校', 'sense-recognition', 'fluent', {
+    await submitObservation(ctx, '学校', 'sense-recognition', 'fluent', {
       language: 'ja2',
       method: 'inference',
       timing: { activeLatencyMs: 1100, wallLatencyMs: 1234, interruptionCount: 1, interrupted: true, stalled: false },
@@ -5093,7 +5477,7 @@ describe('recordAttempt quality semantics', () => {
   });
 });
 
-describe('recordAttempt missed (attribution semantics)', () => {
+describe('submitRating missed (attribution semantics)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -5108,7 +5492,7 @@ describe('recordAttempt missed (attribution semantics)', () => {
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
 
-    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['prosodic-pattern']?.status).toBe('unknown');
@@ -5125,7 +5509,7 @@ describe('recordAttempt missed (attribution semantics)', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('学校', 'surface-reading', 'missed', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'surface-reading', 'missed', { language: 'ja2' });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
@@ -5151,7 +5535,7 @@ describe('recordAttempt missed (attribution semantics)', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['surface-reading']?.status).toBe('known');
@@ -5174,7 +5558,7 @@ describe('recordAttempt missed (attribution semantics)', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.access?.['surface-reading']).toBeUndefined();
@@ -5185,7 +5569,7 @@ describe('recordAttempt missed (attribution semantics)', () => {
   });
 });
 
-describe('recordAttempt missed with orthogonal accesses', () => {
+describe('submitRating missed with orthogonal accesses', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -5204,7 +5588,7 @@ describe('recordAttempt missed with orthogonal accesses', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('школа', 'prosodic-pattern', 'missed', { language: 'ru2x' });
+    await submitObservation(ctx, 'школа', 'prosodic-pattern', 'missed', { language: 'ru2x' });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ru2x:${await SRS.hashWord('школа')}`;
@@ -5223,7 +5607,7 @@ describe('recordAttempt missed with orthogonal accesses', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.recordAttempt('школа', 'x-ru::noun-class', 'missed', { language: 'ru2' });
+    await submitObservation(ctx, 'школа', 'x-ru::noun-class', 'missed', { language: 'ru2' });
 
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ru2:${await SRS.hashWord('школа')}`;
@@ -5267,9 +5651,13 @@ describe('attempt undo integrity (P0)', () => {
       wordToCardMap: { [lk]: ['card-1'] },
     }));
 
-    const { attemptId } = ctx.recordAttempt('学校', 'sense-recognition', 'struggled', { language: 'ja2' });
+    const attemptId = (await import('../../shared/knowledgeEvents')).nextAttemptId();
     expect(typeof attemptId).toBe('string');
-    ctx.answerCard('hard', 'card-1', 1000, { attemptId });
+    await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'struggled' }], {
+      language: 'ja2',
+      attemptId,
+      scheduler: { cardId: 'card-1', rating: 'hard', timeSpentMs: 1000, tested: ['sense-recognition'] },
+    });
     // Attributed reviews change retention; the observed struggle remains the evidence.
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(mockSettings.easeThresholdLearning + mockSettings.manualStatusEaseBuffer);
     expect(ctx.store.wordKnowledge[lk]?.hasActiveEvidence).toBe(true);
@@ -5278,8 +5666,7 @@ describe('attempt undo integrity (P0)', () => {
     // Undo appends the tombstone and lets the projection REPLAY rebuild state —
     // no knowledge snapshots involved. Run the idempotent replay explicitly and
     // assert convergence onto the prior evidence.
-    ctx.undoLastAction();
-    await ctx.recomputeWordKnowledgeFromEvidence('学校', 'ja2');
+    await ctx.undoLastAction();
     const replayed = replayKeyProjection((knowledgeJournal.allRows()[lk] ?? []) as KnowledgeEvent[]);
     expect(replayed?.ease).toBe(2.5);
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
@@ -5310,8 +5697,8 @@ describe('attempt undo integrity (P0)', () => {
     flashcardsCb(makeEmptyStore());
 
     const attemptId = (await import('../../shared/knowledgeEvents')).nextAttemptId();
-    const a = ctx.recordAttempt('学校', 'surface-reading', 'fluent', { language: 'ja2', attemptId });
-    const b = ctx.recordAttempt('学校', 'prosodic-pattern', 'fluent', { language: 'ja2', attemptId });
+    const a = await submitObservation(ctx, '学校', 'surface-reading', 'fluent', { language: 'ja2', attemptId });
+    const b = await submitObservation(ctx, '学校', 'prosodic-pattern', 'fluent', { language: 'ja2', attemptId });
     expect(a.attemptId).toBe(attemptId);
     expect(b.attemptId).toBe(attemptId);
 
@@ -5321,7 +5708,7 @@ describe('attempt undo integrity (P0)', () => {
   });
 });
 
-describe('recordAttempt logs no-transition submissions', () => {
+describe('submitRating logs no-transition submissions', () => {
   it('fluent sense-recognition on an already-known word logs one observation and writes nothing', async () => {
     mockSettings.language = 'ja2';
     const lk = `ja2:${SRS.hashWordSync('学校')}`;
@@ -5337,7 +5724,7 @@ describe('recordAttempt logs no-transition submissions', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'sense-recognition', 'fluent', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'sense-recognition', 'fluent', { language: 'ja2' });
     await Promise.resolve();
     // The legacy migration may append a kind:'rollup' backfill for this key —
     // the no-transition contract is about the rating observation, so count those.
@@ -5372,7 +5759,7 @@ describe('recordAttempt logs no-transition submissions', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'surface-reading', 'fluent', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'surface-reading', 'fluent', { language: 'ja2' });
     await Promise.resolve();
     // The legacy migration may append a kind:'rollup' backfill — count the rating observation.
     const events = mockAppendEvents.mock.calls
@@ -5411,7 +5798,7 @@ describe('recordAttempt logs no-transition submissions', () => {
       },
     }));
 
-    ctx.recordAttempt('学校', 'sense-recognition', 'missed', { language: 'ja2' });
+    await submitObservation(ctx, '学校', 'sense-recognition', 'missed', { language: 'ja2' });
     await Promise.resolve();
     // The legacy migration may append a kind:'rollup' backfill — count the rating observation.
     const events = mockAppendEvents.mock.calls
@@ -5515,12 +5902,12 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
     vi.clearAllMocks();
     setupMockImplementations();
   });
-  it('recordAttempt writes taskType/scaffolds/sourceVersions onto the observation and replay round-trips them', async () => {
+  it('submitRating writes taskType/scaffolds/sourceVersions onto the observation and replay round-trips them', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     mockAppendEvents.mockClear();
-    ctx.recordAttempt('学校', 'sense-recognition', 'fluent', {
+    await submitObservation(ctx, '学校', 'sense-recognition', 'fluent', {
       language: 'ja2',
       taskType: 'word-sync',
       // Reading scaffold on a SENSE-addressed rating supplies nothing the
@@ -5563,7 +5950,7 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     mockAppendEvents.mockClear();
-    ctx.recordAttempt('学校', 'sense-recognition', 'struggled', { language: 'ja2', origin: 'word-sync' });
+    await submitObservation(ctx, '学校', 'sense-recognition', 'struggled', { language: 'ja2', origin: 'word-sync' });
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
 
     const observation = mockAppendEvents.mock.calls
@@ -5575,7 +5962,7 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
     mockSettings.language = 'ja';
   });
 
-  it('answerCard tags SRS reviews with the srs-review task type', async () => {
+  it('submitRating tags SRS reviews with the srs-review task type', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'task-card', state: 'new', language: 'ja2' });
@@ -5584,7 +5971,7 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
       wordToCardMap: { [`ja2:${SRS.hashWordSync('テスト')}`]: ['task-card'] },
     }));
     mockAppendEvents.mockClear();
-    ctx.answerCard('good', 'task-card');
+    await submitSchedulerRating(ctx, 'task-card', 'good');
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
 
     const review = mockAppendEvents.mock.calls

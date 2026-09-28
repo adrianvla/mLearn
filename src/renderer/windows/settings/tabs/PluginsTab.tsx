@@ -1,5 +1,5 @@
 import { Component, For, Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
-import { Btn } from '../../../components/common/Button';
+import { Button } from '../../../components/common/Button';
 import { Badge } from '../../../components/common/Label/Label';
 import { EmptyState } from '../../../components/common/Feedback';
 import { TabContent } from '../../../components/common/Tabs';
@@ -174,9 +174,9 @@ export const PluginsTab: Component = () => {
       class="plugins-tab"
     >
       <div class="plugins-tab__toolbar">
-        <Btn onClick={handleInstall} loading={installing()}>
+        <Button onClick={handleInstall} loading={installing()}>
           {t('mlearn.Settings.Plugins.Install')}
-        </Btn>
+        </Button>
       </div>
 
       <Show when={errorMessage()}>
@@ -250,50 +250,50 @@ export const PluginsTab: Component = () => {
 
                   <div class="plugins-tab__actions">
                     <Show when={needsPermissions()}>
-                      <Btn
+                      <Button
                         onClick={() => handlePluginAction(plugin().id, () => bridge.plugins.pluginGrantPermissions(plugin().id))}
                         disabled={isBusy()}
                       >
                         {t('mlearn.Settings.Plugins.GrantPermissions')}
-                      </Btn>
+                      </Button>
                     </Show>
 
                     <Show when={canEnable()}>
-                      <Btn
+                      <Button
                         onClick={() => handlePluginAction(plugin().id, () => bridge.plugins.pluginEnable(plugin().id))}
                         disabled={isBusy()}
                       >
                         {t('mlearn.Settings.Plugins.Enable')}
-                      </Btn>
+                      </Button>
                     </Show>
 
                     <Show when={plugin().status === 'active'}>
-                      <Btn
+                      <Button
                         variant="default"
                         onClick={() => handlePluginAction(plugin().id, () => bridge.plugins.pluginDisable(plugin().id))}
                         disabled={isBusy()}
                       >
                         {t('mlearn.Settings.Plugins.Disable')}
-                      </Btn>
+                      </Button>
                     </Show>
 
                     <Show when={canOpenWindow()}>
-                      <Btn
+                      <Button
                         variant="primary"
                         onClick={() => handleOpenWindow(plugin().id)}
                         disabled={isBusy()}
                       >
                         {t('mlearn.Settings.Plugins.OpenWindow')}
-                      </Btn>
+                      </Button>
                     </Show>
 
-                    <Btn
+                    <Button
                       variant="danger"
                       onClick={() => handleUninstall(plugin().id)}
                       disabled={isBusy()}
                     >
                       {t('mlearn.Settings.Plugins.Uninstall')}
-                    </Btn>
+                    </Button>
                   </div>
                 </section>
               );

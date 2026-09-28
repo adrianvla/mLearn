@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from 'vitest';
-import { isRatingKeyIgnored, isUndoShortcut } from './ratingShortcuts';
+import { isNativeActivationTarget, isRatingKeyIgnored, isUndoShortcut } from './ratingShortcuts';
 
 describe('isRatingKeyIgnored', () => {
   it('ignores held-down OS auto-repeat keydowns but not fresh presses', () => {
@@ -30,6 +30,22 @@ describe('isRatingKeyIgnored', () => {
     e = new KeyboardEvent('keydown', { key: '1', bubbles: true });
     textbox.dispatchEvent(e);
     expect(isRatingKeyIgnored(e)).toBe(true);
+  });
+
+  it('blocks editable shortcuts and leaves native button activation to the button', () => {
+    const button = document.createElement('button');
+    const buttonEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true });
+    button.dispatchEvent(buttonEvent);
+    expect(isRatingKeyIgnored(buttonEvent)).toBe(false);
+    expect(isNativeActivationTarget(buttonEvent)).toBe(true);
+
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    const dialogEvent = new KeyboardEvent('keydown', { key: 'z', metaKey: true, bubbles: true });
+    dialog.dispatchEvent(dialogEvent);
+    document.body.append(dialog);
+    expect(isRatingKeyIgnored(dialogEvent)).toBe(true);
+    document.body.removeChild(dialog);
   });
 
   it('does not ignore presses on the plain document', () => {

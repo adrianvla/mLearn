@@ -72,7 +72,7 @@ vi.mock('../../../context', () => ({
 }));
 
 vi.mock('../../../components/common', () => ({
-  Btn: (props: { children?: JSX.Element }) => <button>{props.children}</button>,
+  Button: (props: { children?: JSX.Element }) => <button>{props.children}</button>,
   SettingRow: (props: { children?: JSX.Element; settingKey?: string }) => <div data-setting-key={props.settingKey}>{props.children}</div>,
   SettingGroup: (props: { children?: JSX.Element }) => <section>{props.children}</section>,
   ToggleSwitch: () => <div />,

@@ -2,7 +2,7 @@ import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGa
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createSignal, For, Show, untrack } from 'solid-js';
-import { Modal, Btn, PillBtn, SkeletonLine, SkeletonPill, SkeletonRows } from '../../components/common';
+import { Button, Modal, SkeletonLine, SkeletonPill, SkeletonRows } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
@@ -199,7 +199,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
             <span class="level-detail-footer-count">
               {selectedWords().length} {t('mlearn.LevelStudy.DetailModal.Selected')}
             </span>
-            <Btn
+            <Button
               size="sm"
               variant="primary"
               onClick={handleAddFlashcards}
@@ -208,7 +208,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
               {isAdding()
                 ? t('mlearn.LevelStudy.DetailModal.Adding')
                 : t('mlearn.LevelStudy.DetailModal.AddFlashcards', { count: String(selectedWords().length) })}
-            </Btn>
+            </Button>
           </div>
         </div>
         </Show>
@@ -217,7 +217,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
       <Show when={!projected.failed()} fallback={
         <div role="alert">
           <p>{t('mlearn.Knowledge.LoadError')}</p>
-          <Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn>
+          <Button onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Button>
         </div>
       }>
       <KnowledgeGate ready={projected.ready()} fallback={
@@ -236,7 +236,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
           <div class="level-detail-status-pills">
             <For each={SLIDER_LABELS}>
               {(label, idx) => (
-                <PillBtn
+                <Button buttonType="pill"
                   variant={SLIDER_PILL_VARIANTS[idx()]}
                   label={t(`mlearn.LevelStudy.LevelCard.${label}` as const)}
                   badge={idx() === 0

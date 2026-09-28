@@ -7,7 +7,7 @@
 
 import { Component, Show, createSignal, JSX, mergeProps } from 'solid-js';
 import { Modal } from './Modal';
-import { Btn } from '../Button';
+import { Button } from '../Button';
 import { ErrorIcon, WarningIcon } from '../Misc/Icons';
 import { useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
@@ -122,7 +122,7 @@ export const ErrorModal: Component<ErrorModalProps> = (props) => {
 
   const footer = (
     <div class="error-modal-actions">
-      <Btn
+      <Button
         variant="ghost"
         size="sm"
         onClick={handleCopyError}
@@ -131,27 +131,27 @@ export const ErrorModal: Component<ErrorModalProps> = (props) => {
           ? t('mlearn.ErrorModal.Copied')
           : t('mlearn.ErrorModal.CopyError')
         }
-      </Btn>
+      </Button>
       
       <div class="error-modal-actions-primary">
         {merged.actions}
         
         <Show when={merged.showRetry && merged.onRetry}>
-          <Btn
+          <Button
             variant="primary"
             onClick={handleRetry}
           >
             {t('mlearn.Global.TryAgain')}
-          </Btn>
+          </Button>
         </Show>
         
         <Show when={merged.showQuit}>
-          <Btn
+          <Button
             variant={merged.severity === 'fatal' ? 'danger' : 'ghost'}
             onClick={handleQuit}
           >
             {t('mlearn.ErrorModal.Quit')}
-          </Btn>
+          </Button>
         </Show>
       </div>
     </div>

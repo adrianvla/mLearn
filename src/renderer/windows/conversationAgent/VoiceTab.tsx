@@ -7,17 +7,7 @@
 import { Component, Show, batch, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import {
-  Btn,
-  IconBtn,
-  ProgressBar,
-  RangeInput,
-  EmptyState,
-  AlertBanner,
-  Spinner,
-  Select,
-  MicrophoneIcon,
-} from '../../components/common';
+import { Button, ProgressBar, RangeInput, EmptyState, AlertBanner, Spinner, Select, MicrophoneIcon } from '../../components/common';
 import type { SelectOption } from '../../components/common';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { ChatBubble } from './ChatBubble';
@@ -1692,13 +1682,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             title={t('mlearn.ConversationAgent.Voice.DownloadModels')}
             description={t('mlearn.ConversationAgent.Voice.ModelsRequired')}
           />
-          <Btn
+          <Button
             variant="primary"
             onClick={handleDownloadModels}
             disabled={!props.isConnected}
           >
             {t('mlearn.ConversationAgent.Voice.DownloadModels')}
-          </Btn>
+          </Button>
         </div>
       </Show>
 
@@ -1781,14 +1771,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                       when={isCallActive()}
                       fallback={
                         <div class="voice-start-panel voice-start-panel--call">
-                          <Btn
+                          <Button
                             variant="primary"
                             icon={<PhoneIcon />}
                             onClick={startCall}
                             disabled={!props.isConnected}
                           >
                             {t('mlearn.ConversationAgent.Voice.StartCall')}
-                          </Btn>
+                          </Button>
                           <div class="voice-start-selectors">
                             <Select
                               options={ttsChoiceOptions()}
@@ -1810,26 +1800,26 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                     >
                       <Show when={!isInitializing()}>
                         <div class="voice-mode-toggle voice-mode-toggle--call">
-                          <Btn
+                          <Button
                             size="sm"
                             variant={voiceMode() === 'vad' ? 'primary' : 'ghost'}
                             onClick={() => setVoiceMode('vad')}
                             class="voice-mode-btn"
                           >
                             {t('mlearn.ConversationAgent.Voice.HandsFree')}
-                          </Btn>
-                          <Btn
+                          </Button>
+                          <Button
                             size="sm"
                             variant={voiceMode() === 'push-to-talk' ? 'primary' : 'ghost'}
                             onClick={() => setVoiceMode('push-to-talk')}
                             class="voice-mode-btn"
                           >
                             {t('mlearn.ConversationAgent.Voice.PushToTalk')}
-                          </Btn>
+                          </Button>
                         </div>
                       </Show>
 
-                      <IconBtn
+                      <Button buttonType="icon"
                         variant="danger"
                         size="lg"
                         icon={<PhoneOffIcon />}
@@ -1944,14 +1934,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 when={isCallActive()}
                 fallback={
                   <div class="voice-start-panel">
-                    <Btn
+                    <Button
                       variant="primary"
                       icon={<PhoneIcon />}
                       onClick={startCall}
                       disabled={!props.isConnected}
                     >
                       {t('mlearn.ConversationAgent.Voice.StartCall')}
-                    </Btn>
+                    </Button>
                     <div class="voice-start-selectors">
                       <Select
                         options={ttsChoiceOptions()}
@@ -1974,27 +1964,27 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 {/* Mode toggle */}
                 <Show when={!isInitializing()}>
                   <div class="voice-mode-toggle">
-                    <Btn
+                    <Button
                       size="sm"
                       variant={voiceMode() === 'vad' ? 'primary' : 'ghost'}
                       onClick={() => setVoiceMode('vad')}
                       class="voice-mode-btn"
                     >
                       {t('mlearn.ConversationAgent.Voice.HandsFree')}
-                    </Btn>
-                    <Btn
+                    </Button>
+                    <Button
                       size="sm"
                       variant={voiceMode() === 'push-to-talk' ? 'primary' : 'ghost'}
                       onClick={() => setVoiceMode('push-to-talk')}
                       class="voice-mode-btn"
                     >
                       {t('mlearn.ConversationAgent.Voice.PushToTalk')}
-                    </Btn>
+                    </Button>
                   </div>
                 </Show>
 
                 {/* End call */}
-                <IconBtn
+                <Button buttonType="icon"
                   variant="danger"
                   size="lg"
                   icon={<PhoneOffIcon />}
@@ -2007,7 +1997,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
             {/* PTT button (only in push-to-talk mode during active call) */}
             <Show when={isCallActive() && !isInitializing() && voiceMode() === 'push-to-talk'}>
-              <IconBtn
+              <Button buttonType="icon"
                 icon={<MicIcon />}
                 variant={pttActive() ? 'primary' : 'ghost'}
                 class={`voice-ptt-btn ${pttActive() ? 'active' : ''}`}

@@ -4,20 +4,7 @@
 
 import { Component, createSignal, Show, createMemo, createEffect, on } from 'solid-js';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
-import {
-  SettingRow,
-  SettingGroup,
-  ToggleSwitch,
-  TabContent,
-  Btn,
-  Select,
-  Input,
-  Textarea,
-  Modal,
-  ModalFooter,
-  VoiceSamplePicker,
-  SafeHtml
-} from '../../../components/common';
+import { Button, SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, Input, Textarea, Modal, ModalFooter, VoiceSamplePicker, SafeHtml } from '../../../components/common';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { useAnki, type AnkiNoteInfo } from '../../../hooks/useAnki';
 import { importAnkiReviewHistory } from '../../../services/ankiReviewImport';
@@ -272,9 +259,9 @@ export const SRSTab: Component = () => {
             label={t('mlearn.Settings.SRS.AnkiIntegration.ConnectionStatus.Label')}
             description={t('mlearn.Settings.SRS.AnkiIntegration.ConnectionStatus.Description')}
           >
-            <Btn size="sm" onClick={checkAnkiConnection}>
+            <Button size="sm" onClick={checkAnkiConnection}>
               {t('mlearn.Settings.SRS.AnkiIntegration.Test')}
-            </Btn>
+            </Button>
             <Show when={ankiStatus() === 'connected'}>
               <span class="anki-status-text--connected">{t('mlearn.Settings.SRS.AnkiIntegration.Connected')}</span>
             </Show>
@@ -287,11 +274,11 @@ export const SRSTab: Component = () => {
             label={t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Label')}
             description={t('mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Description')}
           >
-            <Btn size="sm" disabled={importingHistory()} onClick={importReviewHistory}>
+            <Button size="sm" disabled={importingHistory()} onClick={importReviewHistory}>
               {t(importingHistory()
                 ? 'mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Running'
                 : 'mlearn.Settings.SRS.AnkiIntegration.ImportHistory.Button')}
-            </Btn>
+            </Button>
           </SettingRow>
 
           <SettingRow
@@ -692,17 +679,17 @@ export const SRSTab: Component = () => {
           label={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Label')}
           description={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Description')}
         >
-          <Btn size="sm" variant="danger" onClick={() => setShowResetModal(true)}>
+          <Button size="sm" variant="danger" onClick={() => setShowResetModal(true)}>
             {t('mlearn.Settings.SRS.DataManagement.ResetButton')}
-          </Btn>
+          </Button>
         </SettingRow>
         <SettingRow
           label={t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.Label')}
           description={t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.Description')}
         >
-          <Btn size="sm" variant="danger" onClick={() => setShowNukeModal(true)}>
+          <Button size="sm" variant="danger" onClick={() => setShowNukeModal(true)}>
             {t('mlearn.Settings.SRS.DataManagement.NukeButton')}
-          </Btn>
+          </Button>
         </SettingRow>
       </SettingGroup>
 

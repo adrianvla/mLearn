@@ -1,6 +1,6 @@
 import { Component, createSignal, createMemo, Show, onCleanup } from 'solid-js';
 import { useLocalization } from '../../context';
-import { IconBtn, Panel, SubtitleIcon, FileIcon, ResizeIcon, AutoPositionIcon, BookIcon, ChatIcon, PeopleGroupIcon, TranslateIcon } from '../common';
+import { Button, Panel, SubtitleIcon, FileIcon, ResizeIcon, AutoPositionIcon, BookIcon, ChatIcon, PeopleGroupIcon, TranslateIcon } from '../common';
 import { findPreviousSubForSync, findNextSub } from '../subtitle/SubtitleSync';
 import './OverlayControls.css';
 
@@ -246,7 +246,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
             <div class="overlay-controls-inner">
               <div class="overlay-controls-left">
                 <div class="overlay-offset-control">
-                  <IconBtn
+                  <Button buttonType="icon"
                       variant="ghost"
                       size="xs"
                       onClick={handleOffsetDecrease}
@@ -264,7 +264,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                       onBlur={applyOffsetInputValue}
                       title={t('mlearn.Overlay.OffsetTooltip')}
                   />
-                  <IconBtn
+                  <Button buttonType="icon"
                       variant="ghost"
                       size="xs"
                       onClick={handleOffsetIncrease}
@@ -291,7 +291,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                   role="status"
               />
 
-                <IconBtn
+                <Button buttonType="icon"
                     variant="ghost"
                     size="sm"
                     active={props.showSubtitles ?? true}
@@ -301,7 +301,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                     title={t('mlearn.Overlay.ToggleSubtitles')}
                 >
                   <SubtitleIcon />
-                </IconBtn>
+                </Button>
 
                 <Show when={props.onSubtitleFontSizeChange}>
                   <div class="overlay-fontsize-control">
@@ -326,7 +326,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                   </div>
                 </Show>
 
-                <IconBtn
+                <Button buttonType="icon"
                     variant="ghost"
                     size="sm"
                     onClick={props.onLoadSubtitles}
@@ -334,10 +334,10 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                     title={t('mlearn.Overlay.LoadSubtitles')}
                 >
                   <FileIcon />
-                </IconBtn>
+                </Button>
 
                 <Show when={props.onToggleWatchTogether}>
-                  <IconBtn
+                  <Button buttonType="icon"
                       variant="ghost"
                       size="sm"
                       onClick={() => props.onToggleWatchTogether?.()}
@@ -346,11 +346,11 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                       classList={{ active: props.isWatchTogetherActive }}
                   >
                     <PeopleGroupIcon size={16} />
-                  </IconBtn>
+                  </Button>
                 </Show>
 
                 <Show when={props.onToggleLiveTranslator}>
-                  <IconBtn
+                  <Button buttonType="icon"
                       variant="ghost"
                       size="sm"
                       active={props.showLiveTranslator !== false}
@@ -360,11 +360,11 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                       title={t('mlearn.Overlay.ToggleLiveTranslator')}
                   >
                     <TranslateIcon size={16} active={props.showLiveTranslator !== false} />
-                  </IconBtn>
+                  </Button>
                 </Show>
 
                 <Show when={props.onToggleWordSidebar}>
-                  <IconBtn
+                  <Button buttonType="icon"
                       variant="ghost"
                       size="sm"
                       onClick={() => props.onToggleWordSidebar?.()}
@@ -373,11 +373,11 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                       classList={{ active: props.showWordSidebar }}
                   >
                     <BookIcon size={16} />
-                  </IconBtn>
+                  </Button>
                 </Show>
 
                 <Show when={props.onOpenConversationAgent}>
-                  <IconBtn
+                  <Button buttonType="icon"
                       variant="ghost"
                       size="sm"
                       onClick={() => props.onOpenConversationAgent?.()}
@@ -385,11 +385,11 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                       title={t('mlearn.Overlay.OpenConversationAgent')}
                   >
                     <ChatIcon size={16} />
-                  </IconBtn>
+                  </Button>
                 </Show>
 
                 <Show when={props.onToggleAutoPosition}>
-                  <IconBtn
+                  <Button buttonType="icon"
                       variant="ghost"
                       size="sm"
                       onClick={() => props.onToggleAutoPosition?.()}
@@ -397,7 +397,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                       title={props.autoPositionEnabled ? t('mlearn.Overlay.DisableAutoPosition') : t('mlearn.Overlay.EnableAutoPosition')}
                   >
                     <AutoPositionIcon enabled={props.autoPositionEnabled ?? true} />
-                  </IconBtn>
+                  </Button>
                 </Show>
 
                 <Show when={props.onResizeStart}>
@@ -410,7 +410,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                   </div>
                 </Show>
 
-                <IconBtn
+                <Button buttonType="icon"
                     variant="ghost"
                     size="sm"
                     onClick={props.onClose}

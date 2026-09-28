@@ -7,7 +7,7 @@ vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => 
 vi.mock('../../context/LanguageContext', () => ({ useLanguage: () => ({ supportsGrammar: () => true }) }));
 vi.mock('../common', () => ({
   Modal: (props: { children?: JSX.Element; footer?: JSX.Element }) => <div>{props.children}{props.footer}</div>,
-  Btn: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
+  Button: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
   Textarea: (props: JSX.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />,
   RadioChoice: (props: { name: string; label: string; checked: boolean; onChange: () => void }) => (
     <label><input type="radio" name={props.name} checked={props.checked} onChange={props.onChange} />{props.label}</label>

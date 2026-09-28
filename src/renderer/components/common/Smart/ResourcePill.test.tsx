@@ -52,7 +52,7 @@ vi.mock('../FlashcardHoverPreview', () => ({
 }));
 
 vi.mock('../Button', () => ({
-  PillBtn: (props: { label?: string; children?: JSX.Element; onClick?: (event?: MouseEvent) => void; disabled?: boolean }) => (
+  Button: (props: { label?: string; children?: JSX.Element; onClick?: (event?: MouseEvent) => void; disabled?: boolean }) => (
     <button type="button" disabled={props.disabled} onClick={props.onClick}>
       {props.label ?? props.children}
     </button>

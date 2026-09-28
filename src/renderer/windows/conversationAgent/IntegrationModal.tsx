@@ -15,7 +15,7 @@ import type {
   Room,
   Thread,
 } from '../../../shared/world';
-import { Btn, HintText, ModalForm, Tag } from '../../components/common';
+import { Button, HintText, ModalForm, Tag } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import { WORLD_CONTINUITY_ID } from '../../../shared/world';
 import './IntegrationModal.css';
@@ -149,19 +149,19 @@ export const IntegrationModal: Component<IntegrationModalProps> = (props) => {
       closeOnEscape={!busy()}
       footer={
         <div class="integration-actions">
-          <Btn variant="ghost" onClick={props.onClose}>{t('mlearn.ConversationAgent.Integration.Close')}</Btn>
+          <Button variant="ghost" onClick={props.onClose}>{t('mlearn.ConversationAgent.Integration.Close')}</Button>
           <Show when={!committed()}>
             {/* Admission extends the persistent world; confirm stays blocked
                 until Living World is enabled. */}
             <Show when={!settings.livingWorldEnabled}>
               <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
-              <Btn variant="ghost" onClick={() => updateSettings({ livingWorldEnabled: true })}>
+              <Button variant="ghost" onClick={() => updateSettings({ livingWorldEnabled: true })}>
                 {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
-              </Btn>
+              </Button>
             </Show>
-            <Btn variant="primary" disabled={!canConfirm()} onClick={() => { void confirm(); }}>
+            <Button variant="primary" disabled={!canConfirm()} onClick={() => { void confirm(); }}>
               {busy() ? t('mlearn.ConversationAgent.Integration.Committing') : t('mlearn.ConversationAgent.Integration.Confirm')}
-            </Btn>
+            </Button>
           </Show>
         </div>
       }
@@ -172,7 +172,7 @@ export const IntegrationModal: Component<IntegrationModalProps> = (props) => {
         <Show when={!committed()} fallback={
           <div class="integration-done">
             <p>{t('mlearn.ConversationAgent.Integration.Done', { count: String(committed()?.appended.filter(event => event.type === 'memory.belief').length ?? 0) })}</p>
-            <Btn variant="primary" onClick={props.onClose}>{t('mlearn.ConversationAgent.Integration.Close')}</Btn>
+            <Button variant="primary" onClick={props.onClose}>{t('mlearn.ConversationAgent.Integration.Close')}</Button>
           </div>
         }>
             <fieldset class="integration-section">
@@ -198,7 +198,7 @@ export const IntegrationModal: Component<IntegrationModalProps> = (props) => {
                       <p>{t(record.status === 'pending' ? 'mlearn.ConversationAgent.Integration.Pending' : 'mlearn.ConversationAgent.Integration.Interrupted')}</p>
                       <p>{record.note}</p>
                       <Show when={record.status === 'pending'}>
-                        <Btn disabled={busy()} onClick={async () => {
+                        <Button disabled={busy()} onClick={async () => {
                           setBusy(true);
                           try {
                             setError(null);
@@ -210,7 +210,7 @@ export const IntegrationModal: Component<IntegrationModalProps> = (props) => {
                             await props.onIntegrated();
                           } catch (err) { setError(String(err)); }
                           finally { setBusy(false); setRefresh(value => value + 1); }
-                        }}>{t('mlearn.ConversationAgent.Integration.Retry')}</Btn>
+                        }}>{t('mlearn.ConversationAgent.Integration.Retry')}</Button>
                       </Show>
                     </div>}
                   </For>

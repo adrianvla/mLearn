@@ -7,7 +7,7 @@ import type { EffectiveThresholds } from '../shared/knowledge/effectiveKnowledge
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
+import type { Settings, FlashcardStore, FlashcardWriteAuthorization, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
@@ -107,7 +107,8 @@ const mLearnIPC = {
 
   // ========== Flashcards ==========
   getFlashcards: (knownRev?: number) => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARDS, knownRev),
-  saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean) => ipcRenderer.send(IPC_CHANNELS.SAVE_FLASHCARDS, flashcards, removedCardIds, resetReviewProgress),
+  saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization): Promise<number> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SAVE_FLASHCARDS, flashcards, removedCardIds, resetReviewProgress, authorization),
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) =>
     ipcOn(IPC_CHANNELS.FLASHCARDS_LOADED, (_event, flashcards) => callback(flashcards)),
   onNewDayFlashcards: (callback: () => void) =>

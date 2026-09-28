@@ -12,7 +12,7 @@ import type { RatedCapability } from '../../../utils/accessKnowledge';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { useOptionalGraph } from '../../../context/GraphContext';
 import { KnowledgeHistoryTimeline, type HistoryEvent } from '../KnowledgeHistoryTimeline';
-import { Btn, PillBtn } from '../Button';
+import { Button } from '../Button';
 import { KnowledgeSkeleton } from '../KnowledgeGate/KnowledgeGate';
 import { TabContainer } from '../Tabs';
 import { SkeletonRows, SkeletonText } from '../Skeleton';
@@ -168,7 +168,7 @@ const KnowledgeClaimControls: Component<{
   return (
     <span class="knowledge-claim-controls" role="group">
     <For each={CLAIM_STATUSES}>{(status) => (
-      <PillBtn
+      <Button buttonType="pill"
         size="sm"
         variant={props.claim === status ? 'blue' : 'gray'}
         label={t(statusLabelKey(status))}
@@ -177,7 +177,7 @@ const KnowledgeClaimControls: Component<{
       />
     )}</For>
     <Show when={props.claim}>
-      <PillBtn
+      <Button buttonType="pill"
         size="sm"
         variant="gray"
         label={t('mlearn.Knowledge.Actions.ClearOverride')}
@@ -549,7 +549,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const projectionFallback = () => <Show when={model().projection !== undefined} fallback={<KnowledgeSkeleton />}>
     <div role="status">
       <p>{t(model().projection?.status === 'not-installed' ? 'mlearn.Knowledge.UnavailableHint' : 'mlearn.Knowledge.LoadError')}</p>
-      <Show when={model().projection?.status === 'error' && props.onRetryProjection}><Btn onClick={props.onRetryProjection}>{t('mlearn.Knowledge.Retry')}</Btn></Show>
+      <Show when={model().projection?.status === 'error' && props.onRetryProjection}><Button onClick={props.onRetryProjection}>{t('mlearn.Knowledge.Retry')}</Button></Show>
     </div>
   </Show>;
 
@@ -739,7 +739,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
             <Show when={!props.historyFailed} fallback={
               <div role="alert">
                 <p>{t('mlearn.Knowledge.LoadError')}</p>
-                <Show when={props.onRetryHistory}><Btn onClick={props.onRetryHistory}>{t('mlearn.Knowledge.Retry')}</Btn></Show>
+                <Show when={props.onRetryHistory}><Button onClick={props.onRetryHistory}>{t('mlearn.Knowledge.Retry')}</Button></Show>
               </div>
             }>
             <Show when={model().events !== undefined} fallback={<KnowledgeSkeleton />}>

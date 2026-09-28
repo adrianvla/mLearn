@@ -8,7 +8,7 @@ import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 's
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
 import { ErrorModal } from '../../../components/common/Modal/ErrorModal';
 import { Modal } from '../../../components/common/Modal/Modal';
-import { Btn } from '../../../components/common/Button/Button';
+import { Button } from '../../../components/common/Button/Button';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getBridge } from '../../../../shared/bridges';
 import { WINDOW_TYPES } from '../../../../shared/constants';
@@ -269,12 +269,12 @@ export const LoadingOverlay: Component = () => {
             showRetry={!isInstallerRequired()}
             showQuit={true}
             actions={isInstallerRequired() && (
-              <Btn
+              <Button
                 variant="primary"
                 onClick={handleInstallComponents}
               >
                 {t('mlearn.Installer.Buttons.InstallRequiredComponents')}
-              </Btn>
+              </Button>
             )}
           />
         )}
@@ -292,12 +292,12 @@ export const LoadingOverlay: Component = () => {
               showRetry={false}
               showQuit={false}
               actions={(
-                <Btn
+                <Button
                   variant="primary"
                   onClick={handleOpenLanguageSetup}
                 >
                   {t('mlearn.LanguageSetup.OpenSetup')}
-                </Btn>
+                </Button>
               )}
             />
           )}
@@ -312,7 +312,7 @@ export const LoadingOverlay: Component = () => {
             showCloseButton={false}
             headerDraggable
             footer={(
-              <Btn
+              <Button
                 variant="primary"
                 onClick={handleLanguageDataUpdate}
                 loading={isLanguageDataUpdating()}
@@ -320,7 +320,7 @@ export const LoadingOverlay: Component = () => {
                 {isLanguageDataUpdating()
                   ? t('mlearn.LanguageSetup.Updating')
                   : t('mlearn.LanguageSetup.UpdateNow')}
-              </Btn>
+              </Button>
             )}
           >
             <div class="language-data-update-modal__body">

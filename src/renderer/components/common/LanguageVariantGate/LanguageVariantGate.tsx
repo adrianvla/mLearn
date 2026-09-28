@@ -2,7 +2,7 @@ import { Component, For, Show, createMemo } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { canonicalLanguage, resolveActiveVariantId } from '../../../../shared/languageVariants';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
-import { Btn } from '../Button';
+import { Button } from '../Button';
 import { Modal } from '../Modal';
 import './LanguageVariantGate.css';
 
@@ -34,7 +34,7 @@ export const LanguageVariantGate: Component = () => {
           <legend>{t('mlearn.Settings.Variant.Choose')}</legend>
           <For each={Object.entries(variants() ?? {})}>
             {([variantId, variant]) => (
-              <Btn
+              <Button
                 variant="secondary"
                 onClick={() => updateSetting('languageVariants', {
                   ...(settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants),
@@ -42,7 +42,7 @@ export const LanguageVariantGate: Component = () => {
                 })}
               >
                 {variant.name_translated ?? variant.name}
-              </Btn>
+              </Button>
             )}
           </For>
         </fieldset>

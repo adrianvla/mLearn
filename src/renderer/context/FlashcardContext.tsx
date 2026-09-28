@@ -8,7 +8,7 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, batch } from 'solid-js';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData } from '../../shared/types';
+import { DEFAULT_SETTINGS, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PendingReviewUndo } from '../../shared/types';
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
@@ -141,9 +141,11 @@ function getDefaultStore(): FlashcardStore {
 
 // Undo stack entry
 interface UndoEntry {
-  state?: FlashcardStore;
   type: string;
-  restore?: () => void | Promise<void>;
+  cardId?: string;
+  restoreCard?: Flashcard;
+  reviewUndo?: PendingReviewUndo;
+  reviewUndoAuthorization?: FlashcardWriteAuthorization;
 }
 
 const MAX_UNDO_STACK_SIZE = 50;
@@ -194,6 +196,13 @@ type AttemptOptions = {
 };
 
 type AttemptObservation = { capability: CapabilityKey; quality: AttemptQuality; method?: 'recall' | 'inference' };
+type SchedulerRating = {
+  cardId: string;
+  rating: SRS.Rating;
+  timeSpentMs?: number;
+  tested?: readonly CapabilityKey[];
+};
+type RatingSubmissionOptions = Omit<AttemptOptions, 'method'> & { scheduler?: SchedulerRating };
 
 interface FlashcardContextValue {
   // Store access
@@ -223,12 +232,6 @@ interface FlashcardContextValue {
   buryCard: (id: string) => void;
 
   // Review operations
-  answerCard: (
-    rating: SRS.Rating,
-    cardId?: string,
-    timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType; tested?: readonly CapabilityKey[] },
-  ) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
 
@@ -263,8 +266,8 @@ interface FlashcardContextValue {
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
 
   // Undo support
-  pushUndoState: (options?: { type?: string; restore?: () => void | Promise<void> }) => void;
-  undoLastAction: () => string | null;
+  pushUndoState: (options: { type: string; cardId: string }) => void;
+  undoLastAction: () => Promise<string | null>;
   canUndo: () => boolean;
 
   // Word tracking
@@ -331,26 +334,14 @@ interface FlashcardContextValue {
   setAccessClaim: (word: string, capability: CapabilityKey, status: WordStatus, language?: string, entity?: { kind: string; id: string }) => void;
   /** Withdraw an access claim; evidence classification resumes. */
   clearAccessClaim: (word: string, capability: CapabilityKey, language?: string) => void;
-  /**
-   * Canonical attempt-rating evidence interpreter. `attemptId` groups the
-   * observation events of one logical learner response (profile submits pass a
-   * shared id; absent = standalone attempt). Undo retracts the attempt and the
-   * projection replay rebuilds state — no knowledge snapshots.
-   */
-  recordAttempt: (
-    word: string,
-    capability: CapabilityKey,
-    quality: AttemptQuality,
-    options?: AttemptOptions,
-  ) => { attemptId: AttemptId };
-  /** The same canonical word-attempt writer, with one acknowledged journal batch for a profile rating. */
-  recordAttemptsAcknowledged: (
+  /** Acknowledged rating command; scheduler consequences are part of the same attempt. */
+  submitRating: (
     word: string,
     observations: readonly AttemptObservation[],
-    options?: Omit<AttemptOptions, 'method'>,
-  ) => Promise<{ attemptId: AttemptId }>;
+    options?: RatingSubmissionOptions,
+  ) => Promise<{ attemptId: AttemptId; completed: boolean }>;
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
-  appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => void;
+  appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => Promise<boolean>;
 
   // Word sync seen tracking
 
@@ -407,6 +398,31 @@ const FlashcardContext = createContext<FlashcardContextValue>();
 
 const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 
+function cloneFlashcardStore(store: FlashcardStore): FlashcardStore {
+  return JSON.parse(JSON.stringify(store)) as FlashcardStore;
+}
+
+function isStoreRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function applyStoreDelta(target: Record<string, unknown>, base: Record<string, unknown>, next: Record<string, unknown>): void {
+  for (const key of new Set([...Object.keys(base), ...Object.keys(next)])) {
+    const before = base[key];
+    const after = next[key];
+    if (Object.is(before, after)) continue;
+    if (!(key in next)) {
+      delete target[key];
+    } else if (isStoreRecord(before) && isStoreRecord(after)) {
+      if (!isStoreRecord(target[key])) target[key] = {};
+      applyStoreDelta(target[key] as Record<string, unknown>, before, after);
+    } else {
+      if (JSON.stringify(before) === JSON.stringify(after)) continue;
+      target[key] = after === undefined ? undefined : JSON.parse(JSON.stringify(after)) as unknown;
+    }
+  }
+}
+
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
@@ -427,6 +443,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const [isLoading, setIsLoading] = createSignal(true);
   const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [] });
   const [undoStack, setUndoStack] = createSignal<UndoEntry[]>([]);
+  let ratingCommandInFlight = false;
+  let pendingRecoveryRequested = false;
+  let persistenceQueue: Promise<void> = Promise.resolve();
+  let authoritativeStore: FlashcardStore | undefined;
   // Used for tracking session start time (could be used for session stats)
   const [, setSessionStartTime] = createSignal<number>(0);
 
@@ -497,11 +517,18 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (!loaded) return;
     const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
     if (storeHydrated && checked.rev != null && checked.rev === store.rev) return;
-    if (!storeHydrated) setIsKnowledgeReady(false);
+    const firstHydration = !storeHydrated;
+    if (firstHydration) setIsKnowledgeReady(false);
+    authoritativeStore = cloneFlashcardStore(checked);
     setStore(reconcile(checked));
-    if (!storeHydrated) {
+    if (firstHydration) {
       void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
-      void migrateLegacyEpistemicState().finally(() => setIsKnowledgeReady(true));
+      void migrateLegacyEpistemicState().finally(() => {
+        setIsKnowledgeReady(true);
+        if (checked.pendingReviewUndo) void recoverPendingReviewUndo();
+      });
+    } else if (checked.pendingReviewUndo) {
+      void recoverPendingReviewUndo();
     }
     storeHydrated = true;
     refreshQueue();
@@ -540,9 +567,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
             const parsed = JSON.parse(stored);
             setIsKnowledgeReady(false);
             const checked = ensureStoreFields(parsed);
+            authoritativeStore = cloneFlashcardStore(checked);
             setStore(reconcile(checked));
             void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
-            void migrateLegacyEpistemicState().finally(() => setIsKnowledgeReady(true));
+            void migrateLegacyEpistemicState().finally(() => {
+              setIsKnowledgeReady(true);
+              if (checked.pendingReviewUndo) void recoverPendingReviewUndo();
+            });
             refreshQueue();
           } catch (e) {
             log.error('Failed to parse flashcards from KV store:', e);
@@ -642,6 +673,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       meta,
       dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},
       suggestedFlashcards: partial.suggestedFlashcards || {},
+      ...(partial.pendingReviewUndo ? { pendingReviewUndo: partial.pendingReviewUndo } : {}),
       ...(partial.rev !== undefined ? { rev: partial.rev } : {}),
       version: CURRENT_VERSION,
   };
@@ -653,10 +685,8 @@ function knowledgeEntryRecency(entry: PassiveWordKnowledge): number {
 }
 
 /**
- * Cross-window convergence for knowledge collections: per-entry LWW instead of
- * whole-store replace. A stale snapshot can no longer revert a newer claim,
- * evidence write, candidate count, suggestion, or day stat made in another
- * window.
+ * Unversioned legacy broadcasts only merge knowledge collections. Revisioned
+ * snapshots use the persisted store as authority, including reversible stats.
  */
 
 /** wordCandidates LWW: the higher encounter count wins; ties break on lastSeen. */
@@ -695,26 +725,6 @@ function mergeSuggestedFlashcards(local: FlashcardStore, incoming: FlashcardStor
   }
 }
 
-/** dailyStats: union per day+language, max per counter (concurrent windows each increment their own copy). */
-function mergeDailyStats(local: FlashcardStore, incoming: FlashcardStore): void {
-  for (const [date, perLanguage] of Object.entries(incoming.dailyStats)) {
-    if (local.dailyStats[date] === undefined) local.dailyStats[date] = {};
-    for (const [lang, stats] of Object.entries(perLanguage)) {
-      const current = local.dailyStats[date][lang];
-      local.dailyStats[date][lang] = current
-        ? {
-            date: stats.date || current.date,
-            newCardsStudied: Math.max(current.newCardsStudied, stats.newCardsStudied),
-            reviewCardsStudied: Math.max(current.reviewCardsStudied, stats.reviewCardsStudied),
-            lapses: Math.max(current.lapses, stats.lapses),
-            timeSpent: Math.max(current.timeSpent, stats.timeSpent),
-            graduated: Math.max(current.graduated, stats.graduated),
-          }
-        : stats;
-    }
-  }
-}
-
 function mergeKnowledgeMaps(local: FlashcardStore, incoming: FlashcardStore): void {
   for (const [lk, entry] of Object.entries(incoming.wordKnowledge)) {
     const current = local.wordKnowledge[lk];
@@ -733,7 +743,6 @@ function mergeKnowledgeMaps(local: FlashcardStore, incoming: FlashcardStore): vo
   mergeWordCandidates(local, incoming);
   mergeGrammarKnowledge(local, incoming);
   mergeSuggestedFlashcards(local, incoming);
-  mergeDailyStats(local, incoming);
 }
 
 /**
@@ -919,32 +928,58 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const saveFlashcards = () => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      saveFlashcardsImmediate();
+      saveTimer = null;
+      void saveFlashcardsImmediate();
     }, SAVE_DEBOUNCE_MS);
   };
 
-  // Immediate save (used by debounced save and cleanup)
-  const saveFlashcardsImmediate = () => {
-    // unwrap() exposes the raw (non-reactive) store tree; ipcRenderer.send and
-    // postMessage serialize it synchronously at call time. An explicit
-    // structuredClone here would double the clone of the full store on every
-    // debounced write (hover tracking included) on the Reader's main thread.
-    const serializedStore: FlashcardStore = unwrap(store) as FlashcardStore;
+  // Immediate acknowledged save (used by debounced persistence and commands
+  // whose visible result depends on the durable scheduler state). A transform
+  // is applied to the current store when this write reaches the local queue.
+  const saveFlashcardsImmediate = async (
+    transform?: (target: FlashcardStore) => void,
+    authorization?: FlashcardWriteAuthorization,
+  ): Promise<boolean> => {
+    const write = persistenceQueue.then(async () => {
+      const base = cloneFlashcardStore(unwrap(store) as FlashcardStore);
+      const candidate = cloneFlashcardStore(base);
+      transform?.(candidate);
+      const removals = [...pendingCardRemovals];
+      const resetReviewProgress = pendingReviewReset;
+      let committedRevision: number;
+      try {
+        if (isElectron()) {
+          const revision = await getBridge().flashcards.saveFlashcards(candidate, removals, resetReviewProgress, authorization);
+          committedRevision = typeof revision === 'number' ? revision : (candidate.rev ?? 0) + 1;
+          for (const id of removals) pendingCardRemovals.delete(id);
+          if (resetReviewProgress) pendingReviewReset = false;
+        } else {
+          committedRevision = (candidate.rev ?? 0) + 1;
+          candidate.rev = committedRevision;
+          await getBridge().kvStore.kvSet('mlearn-flashcards', JSON.stringify(candidate));
+        }
+      } catch (error) {
+        log.error('Failed to persist flashcards:', error);
+        return false;
+      }
+      candidate.rev = committedRevision;
 
-    if (isElectron()) {
-      getBridge().flashcards.saveFlashcards(serializedStore, [...pendingCardRemovals], pendingReviewReset);
-      pendingCardRemovals.clear();
-      pendingReviewReset = false;
-    } else {
-      getBridge().kvStore.kvSet('mlearn-flashcards', JSON.stringify(serializedStore));
-    }
+      if ((authoritativeStore?.rev ?? base.rev ?? 0) <= committedRevision) {
+        authoritativeStore = cloneFlashcardStore(candidate);
+        batch(() => setStore(produce((current) => {
+          applyStoreDelta(current as unknown as Record<string, unknown>, base as unknown as Record<string, unknown>, candidate as unknown as Record<string, unknown>);
+        })));
+      }
 
-    // Broadcast to other windows
-    try {
-      broadcastChannel?.postMessage({ type: 'update', store: serializedStore });
-    } catch (e) {
-      log.error('Failed to broadcast flashcard update:', e);
-    }
+      try {
+        broadcastChannel?.postMessage({ type: 'update', store: candidate });
+      } catch (e) {
+        log.error('Failed to broadcast flashcard update:', e);
+      }
+      return true;
+    });
+    persistenceQueue = write.then(() => undefined, () => undefined);
+    return write;
   };
 
   // Refresh the review queue
@@ -1023,10 +1058,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   // Push undo state
-  const pushUndoState = (options: { type?: string; restore?: () => void | Promise<void> } = {}) => {
-    const snapshot = JSON.parse(JSON.stringify(store)) as FlashcardStore;
+  const pushUndoState = (options: { type: string; cardId: string }) => {
+    const card = store.flashcards[options.cardId];
+    if (!card) return;
     setUndoStack((prev) => {
-      const newStack = [...prev, { state: snapshot, type: options.type || 'unknown', restore: options.restore }];
+      const newStack = [...prev, {
+        type: options.type,
+        cardId: options.cardId,
+        restoreCard: { ...card, content: { ...card.content } },
+      }];
       if (newStack.length > MAX_UNDO_STACK_SIZE) {
         newStack.shift();
       }
@@ -1035,31 +1075,48 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   // Undo last action
-  const undoLastAction = () => {
+  const undoLastAction = async (): Promise<string | null> => {
     const stack = undoStack();
-    if (stack.length === 0) return null;
-
     const entry = stack[stack.length - 1];
-    setUndoStack((prev) => prev.slice(0, -1));
+    const pendingUndo = store.pendingReviewUndo ?? entry?.reviewUndo;
+    if (!entry && !pendingUndo) return null;
+    if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
+    ratingCommandInFlight = true;
+    try {
+      if (pendingUndo) {
+        return await completePendingReviewUndo(pendingUndo, entry);
+      }
 
-    if (entry.state) {
-      setStore(reconcile(entry.state));
-    }
-
-    if (entry.restore) {
-      const result = entry.restore();
-      if (result && typeof (result as Promise<void>).then === 'function') {
-        (result as Promise<void>).catch((err) => log.error("unhandled promise rejection", err));
+      const base = cloneFlashcardStore(unwrap(store) as FlashcardStore);
+      const candidate = cloneFlashcardStore(base);
+      if (entry?.cardId && entry.restoreCard) {
+        candidate.flashcards[entry.cardId] = { ...entry.restoreCard, content: { ...entry.restoreCard.content } };
+      }
+      if (!await saveFlashcardsImmediate((target) => {
+        applyStoreDelta(
+          target as unknown as Record<string, unknown>,
+          base as unknown as Record<string, unknown>,
+          candidate as unknown as Record<string, unknown>,
+        );
+      }, entry?.reviewUndoAuthorization)) {
+        throw new Error('undo persistence was refused');
+      }
+      if (entry) setUndoStack((previous) => {
+        const index = previous.lastIndexOf(entry);
+        return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
+      });
+      refreshQueue();
+      return entry?.type ?? null;
+    } finally {
+      ratingCommandInFlight = false;
+      if (pendingRecoveryRequested && store.pendingReviewUndo) {
+        pendingRecoveryRequested = false;
+        void recoverPendingReviewUndo();
       }
     }
-
-    refreshQueue();
-    saveFlashcards();
-
-    return entry.type;
   };
 
-  const canUndo = () => undoStack().length > 0;
+  const canUndo = () => undoStack().length > 0 || store.pendingReviewUndo !== undefined;
 
   // Add new flashcard - now supports multiple cards per word
   // When use_anki is enabled, shows a choice modal (SRS vs Anki) before creation
@@ -1503,7 +1560,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const suspendCard = (id: string) => {
     if (!store.flashcards[id]) return;
 
-    pushUndoState({ type: 'suspend' });
+    pushUndoState({ type: 'suspend', cardId: id });
 
     setStore(produce((s) => {
       s.flashcards[id] = SRS.suspendCard(s.flashcards[id]);
@@ -1530,7 +1587,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const buryCard = (id: string) => {
     if (!store.flashcards[id]) return;
 
-    pushUndoState({ type: 'bury' });
+    pushUndoState({ type: 'bury', cardId: id });
 
     setStore(produce((s) => {
       s.flashcards[id] = SRS.buryCard(s.flashcards[id]);
@@ -1540,211 +1597,130 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     saveFlashcards();
   };
 
-  // Answer current card
-  // cardId should always be passed from the UI to avoid a second getNextCard() call
-  // (which uses Math.random() and may return a different card than the one displayed).
-  // `attempt` ties the review event to the logical attempt and lets undo restore
-  // the knowledge recordAttempt wrote plus retract the attempt's events.
-  // `tested` states the accesses the presented card interaction tested, so the
-  // scheduler input can be conditioned on what the presentation actually left
-  // measurable: an assisted success must not be scheduled like unassisted
-  // recall, and a fully supplied one is exposure, not retrieval. The learner's
-  // rating stays untouched on the event for replay/undo.
-  const answerCard = (
-    rating: SRS.Rating,
-    cardId?: string,
-    timeSpentMs?: number,
-    attempt?: { attemptId: AttemptId; scaffolds?: AttemptScaffolds; taskType?: AttemptTaskType; tested?: readonly CapabilityKey[] },
-  ): boolean => {
-    const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
-    if (!card) return false;
+  const applySchedulerRating = (
+    target: FlashcardStore,
+    startingQueue: ReviewQueue,
+    scheduler: SchedulerRating,
+    attemptId: AttemptId,
+    options: RatingSubmissionOptions,
+    hasObservations: boolean,
+  ): { completed: boolean; nextQueue: ReviewQueue; event: KnowledgeEvent; undo: UndoEntry; updated: Flashcard } => {
+    const card = target.flashcards[scheduler.cardId];
+    if (!card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
 
     const wasNew = card.state === 'new';
     const wasReview = card.state === 'review';
-    const retentionCondition = attempt?.tested
-      ? retentionConditionFor(attempt.tested, attempt.scaffolds)
+    const retentionCondition = scheduler.tested
+      ? retentionConditionFor(scheduler.tested, options.scaffolds)
       : 'unassisted' as const;
-    const updated = SRS.answerCard(card, rating, store.meta, retentionCondition);
-    const cardLang = card.language || settings.language;
-    const cardForm = getPrimaryWordFormForLanguage(card.content.front, cardLang);
+    const updated = SRS.answerCard(card, scheduler.rating, target.meta, retentionCondition);
+    const language = card.language || options.language || settings.language;
+    const storageWord = getPrimaryWordFormForLanguage(card.content.front, language);
     const now = Date.now();
-    const cardLk = langKey(cardLang, SRS.hashWordSync(cardForm));
-    appendEvents({
-      [cardLk]: [{
-        t: now,
-        kind: 'review',
-        source: 'srs',
-        ...(attempt ? {} : { aspect: 'meaning' as const }),
-        rating,
-        presentedSurface: card.content.front,
-        easeBefore: card.ease,
-        easeAfter: updated.ease,
-        intervalBefore: card.interval,
-        intervalAfter: updated.interval,
-        schedulerCardId: card.id,
-        ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
-        // REQ3/REQ52: an SRS review is a known task type. Scaffolds record
-        // what the retrieval actually saw; read paths (replay, projection)
-        // exclude scaffold-invalidated events from knowledge while retention
-        // still consumes the occurrence — conditioned by retentionCondition.
-        taskType: attempt?.taskType ?? 'srs-review',
-        ...(attempt?.scaffolds ? { scaffolds: attempt.scaffolds } : {}),
-        ...(retentionCondition !== 'unassisted' ? { retentionCondition } : {}),
-      }],
-    }).catch((e) => log.warn('knowledge event append failed:', e));
+    const key = langKey(language, SRS.hashWordSync(storageWord));
+    const event: KnowledgeEvent = {
+      t: now,
+      kind: 'review',
+      source: 'srs',
+      ...(!hasObservations ? { aspect: 'meaning' as const } : {}),
+      rating: scheduler.rating,
+      presentedSurface: card.content.front,
+      easeBefore: card.ease,
+      easeAfter: updated.ease,
+      intervalBefore: card.interval,
+      intervalAfter: updated.interval,
+      schedulerCardId: card.id,
+      attemptId,
+      taskType: options.taskType ?? 'srs-review',
+      ...(options.scaffolds ? { scaffolds: options.scaffolds } : {}),
+      ...(retentionCondition !== 'unassisted' ? { retentionCondition } : {}),
+    };
 
-    // SRS reviews are ACTIVE evidence and must be visible in the projection
-    // immediately — the resolver no longer reads card state as a knowledge
-    // source, so the materialized entry carries the review outcome. A
-    // scaffold-invalidated review is not knowledge: the materialized cache
-    // must match what replay derives, so only familiarity markers update.
-    const meaningMeasured = attempt === undefined;
-    setStore(produce((s) => {
-      if (!s.wordKnowledge[cardLk]) {
-        if (!meaningMeasured) return;
-        s.wordKnowledge[cardLk] = {
+    // Scheduler reviews remain active retention evidence. When explicit
+    // observations accompany this review, their rating owns knowledge status.
+    const meaningMeasured = !hasObservations;
+    if (!target.wordKnowledge[key]) {
+      if (meaningMeasured) {
+        target.wordKnowledge[key] = {
           ease: updated.ease,
           lastSeen: now,
           firstSeen: now,
           timesSeen: 0,
           timesHovered: 0,
-          word: cardForm,
-          language: cardLang,
+          word: storageWord,
+          language,
+          lastEvidenceSource: 'srs',
+          hasActiveEvidence: true,
         };
-      } else {
-        if (meaningMeasured) s.wordKnowledge[cardLk].ease = updated.ease;
-        s.wordKnowledge[cardLk].lastSeen = now;
       }
+    } else {
+      if (meaningMeasured) target.wordKnowledge[key].ease = updated.ease;
+      target.wordKnowledge[key].lastSeen = now;
       if (meaningMeasured) {
-        s.wordKnowledge[cardLk].lastEvidenceSource = 'srs';
-        s.wordKnowledge[cardLk].hasActiveEvidence = true;
+        target.wordKnowledge[key].lastEvidenceSource = 'srs';
+        target.wordKnowledge[key].hasActiveEvidence = true;
       }
-    }));
-
-    // Update queue - remove from current position, may need to re-add if still learning
-    let newQueue = SRS.removeFromQueue(queue(), card.id);
-
-    // If card is still in learning/relearning, keep it in the queue so the review
-    // session continues with same-day cards instead of dropping them.
-    if (updated.state === 'learning' || updated.state === 'relearning') {
-      newQueue = SRS.addToQueue(newQueue, updated, newDayHour());
     }
 
-    const remainsQueued = newQueue.newQueue.includes(card.id) || newQueue.scheduledQueue.includes(card.id);
-
-    // Lightweight undo: snapshot only the affected card and meta (avoids expensive full store clone).
-    // When an attempt id is supplied, undo also restores the knowledge recordAttempt
-    // wrote and appends retraction tombstones so replay/analytics drop the attempt.
-    const cardSnapshot: Flashcard = { ...card, content: { ...card.content } };
-    const metaSnapshot = { ...store.meta };
-    const undoToday = SRS.getTodayDateString(newDayHour());
-    const lang = card.language || settings.language;
-    const dailyStatSnapshot = store.dailyStats[undoToday]?.[lang]
-      ? { ...store.dailyStats[undoToday][lang] }
-      : null;
-
-    setUndoStack((prev) => {
-      const newStack = [...prev, {
-        type: remainsQueued ? 'answer-requeued' : 'answer',
-        restore: () => {
-          setStore(produce((s) => {
-            s.flashcards[card.id] = cardSnapshot;
-            Object.assign(s.meta, metaSnapshot);
-            if (dailyStatSnapshot) {
-              if (!s.dailyStats[undoToday]) s.dailyStats[undoToday] = {};
-              s.dailyStats[undoToday][lang] = dailyStatSnapshot;
-            } else {
-              if (s.dailyStats[undoToday]) {
-                delete s.dailyStats[undoToday][lang];
-              }
-            }
-          }));
-          if (attempt?.attemptId !== undefined) {
-            appendRetractions(card.content.front, cardLang, [attempt.attemptId]);
-            // Epistemic state is evidence-derived: retractions + replay restore
-            // the projection. No knowledge snapshots.
-            void recomputeWordKnowledgeFromEvidence(cardLang, card.content.front);
-          }
-        },
-      }];
-      if (newStack.length > MAX_UNDO_STACK_SIZE) newStack.shift();
-      return newStack;
-    });
-
-    setStore(produce((s) => {
-      s.flashcards[card.id] = updated;
-
-      const today = SRS.getTodayDateString(newDayHour());
-      const lang = card.language || settings.language;
-      const plm = s.meta.perLanguage[lang] || { newCardsToday: 0, reviewsToday: 0, newCardsDate: today };
-      if (wasNew) {
-        plm.newCardsToday++;
+    const nextQueue = (() => {
+      let next = SRS.removeFromQueue(startingQueue, card.id);
+      if (updated.state === 'learning' || updated.state === 'relearning') {
+        next = SRS.addToQueue(next, updated, newDayHour());
       }
-      if (wasReview) {
-        plm.reviewsToday++;
-      }
-      s.meta.perLanguage[lang] = plm;
-
-      // Update daily stats
-      if (!s.dailyStats[today]) {
-        s.dailyStats[today] = {};
-      }
-      if (!s.dailyStats[today][lang]) {
-        s.dailyStats[today][lang] = {
-          date: today,
-          newCardsStudied: 0,
-          reviewCardsStudied: 0,
-          lapses: 0,
-          timeSpent: 0,
-          graduated: 0,
-        };
-      }
-
-      if (wasNew) {
-        s.dailyStats[today][lang].newCardsStudied++;
-      } else {
-        s.dailyStats[today][lang].reviewCardsStudied++;
-      }
-
-      if (rating === 'again' && card.state === 'review') {
-        s.dailyStats[today][lang].lapses++;
-      }
-
-      if ((card.state === 'learning' || card.state === 'new') && updated.state === 'review') {
-        s.dailyStats[today][lang].graduated++;
-      }
-
-      // Track study time
-      if (timeSpentMs && timeSpentMs > 0) {
-        s.dailyStats[today][lang].timeSpent += timeSpentMs;
-      }
-    }));
-
-    setQueue(newQueue);
-
-    // Leech detection: notify when a card's lapses reach the threshold
-    const threshold = settings.leechThreshold ?? DEFAULT_SETTINGS.leechThreshold;
-    if (threshold > 0 && updated.lapses >= threshold && updated.lapses % threshold === 0) {
-      showToast({
-        variant: 'warning',
-        title: t('mlearn.Flashcards.Leech.Title'),
-        message: t('mlearn.Flashcards.Leech.Message', { word: card.content.front, count: String(updated.lapses) }),
-        duration: 8000,
-      });
-    }
-    
-    // Recalculate word stats after answering (async)
-    (async () => {
-      const cardLanguage = card.language || settings.language;
-      const storageWord = getPrimaryWordFormForLanguage(card.content.front, cardLanguage);
-      const wordHash = await SRS.hashWord(storageWord);
-      const lk = langKey(cardLanguage, wordHash);
-      recalculateWordStats(lk);
+      return next;
     })();
-    
-    saveFlashcards();
+    const remainsQueued = nextQueue.newQueue.includes(card.id) || nextQueue.scheduledQueue.includes(card.id);
+    const priorCard: Flashcard = { ...card, content: { ...card.content } };
+    const today = SRS.getTodayDateString(newDayHour());
+    const priorPerLanguage = target.meta.perLanguage[language]
+      ? { ...target.meta.perLanguage[language] }
+      : null;
+    const dailyBefore = target.dailyStats[today]?.[language]
+      ? { ...target.dailyStats[today][language] }
+      : null;
+    target.flashcards[card.id] = updated;
+    const perLanguage = target.meta.perLanguage[language] ?? {
+      newCardsToday: 0, reviewsToday: 0, newCardsDate: today,
+    };
+    if (wasNew) perLanguage.newCardsToday++;
+    if (wasReview) perLanguage.reviewsToday++;
+    target.meta.perLanguage[language] = perLanguage;
+    target.dailyStats[today] ??= {};
+    target.dailyStats[today][language] ??= {
+      date: today,
+      newCardsStudied: 0,
+      reviewCardsStudied: 0,
+      lapses: 0,
+      timeSpent: 0,
+      graduated: 0,
+    };
+    if (wasNew) target.dailyStats[today][language].newCardsStudied++;
+    else target.dailyStats[today][language].reviewCardsStudied++;
+    if (scheduler.rating === 'again' && card.state === 'review') target.dailyStats[today][language].lapses++;
+    if ((card.state === 'learning' || card.state === 'new') && updated.state === 'review') {
+      target.dailyStats[today][language].graduated++;
+    }
+    if (scheduler.timeSpentMs && scheduler.timeSpentMs > 0) {
+      target.dailyStats[today][language].timeSpent += scheduler.timeSpentMs;
+    }
 
-    return !remainsQueued;
+    const undo: UndoEntry = {
+      type: remainsQueued ? 'answer-requeued' : 'answer',
+      cardId: card.id,
+      reviewUndoAuthorization: { kind: 'undo-review', cardId: card.id, restoredReviews: priorCard.reviews },
+      reviewUndo: {
+        attemptId,
+        type: remainsQueued ? 'answer-requeued' : 'answer',
+        cardId: card.id,
+        restoreCard: priorCard,
+        word: card.content.front,
+        language,
+        restorePerLanguage: priorPerLanguage,
+        today,
+        restoreDailyStats: dailyBefore,
+      },
+    };
+    return { completed: !remainsQueued, nextQueue, event, undo, updated };
   };
 
   // Get all cards
@@ -3297,7 +3273,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     capability: CapabilityKey,
     quality: AttemptQuality,
     options?: AttemptOptions,
-  ): { attemptId: AttemptId; event?: { key: string; value: KnowledgeEvent }; applyMaterialized?: () => void } => {
+  ): { attemptId: AttemptId; event?: { key: string; value: KnowledgeEvent }; applyMaterialized?: (target: FlashcardStore) => void } => {
     const language = options?.language ?? settings.language;
     const attemptId = options?.attemptId ?? nextAttemptId();
     // Scaffold-aware evidence invariant: when the caller reports the actual
@@ -3318,26 +3294,24 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const forms = capability === 'sense-recognition'
       ? getWordFormsForLanguage(word, language)
       : isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, language);
-    const applyMaterialized = () => {
-      setStore(produce((s) => {
-        for (const form of forms) {
-          const key = langKey(language, SRS.hashWordSync(form));
-          const entry = s.wordKnowledge[key] ?? (s.wordKnowledge[key] = {
-            word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
-          });
-          if (capability === 'sense-recognition') {
-            if (entry.ease !== ease) entry.lastStatusChange = now;
-            entry.ease = ease;
-            entry.lastSeen = now;
-            entry.hasActiveEvidence = true;
-            entry.lastEvidenceSource = 'manual';
-          } else {
-            entry.access = { ...entry.access, [capability]: {
-              ...entry.access?.[capability], status, ease, source: 'Manual', lastStatusChange: now, updatedAt: now,
-            } };
-          }
+    const applyMaterialized = (target: FlashcardStore) => {
+      for (const form of forms) {
+        const key = langKey(language, SRS.hashWordSync(form));
+        const entry = target.wordKnowledge[key] ?? (target.wordKnowledge[key] = {
+          word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
+        });
+        if (capability === 'sense-recognition') {
+          if (entry.ease !== ease) entry.lastStatusChange = now;
+          entry.ease = ease;
+          entry.lastSeen = now;
+          entry.hasActiveEvidence = true;
+          entry.lastEvidenceSource = 'manual';
+        } else {
+          entry.access = { ...entry.access, [capability]: {
+            ...entry.access?.[capability], status, ease, source: 'Manual', lastStatusChange: now, updatedAt: now,
+          } };
         }
-      }));
+      }
     };
 
     // One observation event per attempt — quality/method/latency provenance
@@ -3380,48 +3354,106 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     return { attemptId, event: { key: langKey(language, SRS.hashWordSync(storageWord)), value: observation }, applyMaterialized };
   };
 
-  /** Existing synchronous caller contract, backed by the same observation preparation. */
-  const recordAttempt = (word: string, capability: CapabilityKey, quality: AttemptQuality, options?: AttemptOptions): { attemptId: AttemptId } => {
-    const prepared = prepareAttempt(word, capability, quality, options);
-    if (prepared.event) {
-      prepared.applyMaterialized?.();
-      saveFlashcards();
-      appendEvents({ [prepared.event.key]: [prepared.event.value] })
-        .catch((e) => log.warn('knowledge event append failed:', e));
-    }
-    return { attemptId: prepared.attemptId };
-  };
-
-  /** One journal batch for a profile response; local knowledge changes only after acknowledgement. */
-  const recordAttemptsAcknowledged = async (
+  const submitRating = async (
     word: string,
     observations: readonly AttemptObservation[],
-    options?: Omit<AttemptOptions, 'method'>,
-  ): Promise<{ attemptId: AttemptId }> => {
-    const attemptId = options?.attemptId ?? nextAttemptId();
-    const prepared = observations.map(({ capability, quality, method }) =>
-      prepareAttempt(word, capability, quality, { ...options, method, attemptId }));
-    const eventsByKey: KnowledgeEventLog = {};
-    for (const entry of prepared) {
-      if (!entry.event) continue;
-      (eventsByKey[entry.event.key] ??= []).push(entry.event.value);
+    options?: RatingSubmissionOptions,
+  ): Promise<{ attemptId: AttemptId; completed: boolean }> => {
+    if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
+    ratingCommandInFlight = true;
+    try {
+      const scheduler = options?.scheduler;
+      const card = scheduler ? store.flashcards[scheduler.cardId] : undefined;
+      if (scheduler && !card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
+      const attemptId = options?.attemptId ?? nextAttemptId();
+      const prepared = observations.map(({ capability, quality, method }) =>
+        prepareAttempt(word, capability, quality, { ...options, method, attemptId }));
+      const commandBase = cloneFlashcardStore(unwrap(store) as FlashcardStore);
+      const candidate = cloneFlashcardStore(commandBase);
+      for (const entry of prepared) entry.applyMaterialized?.(candidate);
+
+      const eventsByKey: KnowledgeEventLog = {};
+      for (const entry of prepared) {
+        if (!entry.event) continue;
+        (eventsByKey[entry.event.key] ??= []).push(entry.event.value);
+      }
+
+      let schedulerResult: ReturnType<typeof applySchedulerRating> | undefined;
+      if (scheduler) {
+        schedulerResult = applySchedulerRating(candidate, queue(), scheduler, attemptId, options ?? {}, observations.length > 0);
+        const cardLanguage = card!.language || options?.language || settings.language;
+        const reviewKey = langKey(
+          cardLanguage,
+          SRS.hashWordSync(getPrimaryWordFormForLanguage(card!.content.front, cardLanguage)),
+        );
+        (eventsByKey[reviewKey] ??= []).push(schedulerResult.event);
+      }
+
+      if (Object.keys(eventsByKey).length > 0 && !await appendEventsIdempotentAcknowledged(eventsByKey)) {
+        throw new Error('rating journal append was refused');
+      }
+
+      if (schedulerResult) {
+        if (!await saveFlashcardsImmediate((target) => {
+          if (scheduler && JSON.stringify(target.flashcards[scheduler.cardId]) !== JSON.stringify(commandBase.flashcards[scheduler.cardId])) {
+            throw new Error('Flashcard changed while the rating was being persisted');
+          }
+          applyStoreDelta(
+            target as unknown as Record<string, unknown>,
+            commandBase as unknown as Record<string, unknown>,
+            candidate as unknown as Record<string, unknown>,
+          );
+        })) {
+          throw new Error('scheduler persistence was refused');
+        }
+        batch(() => {
+          refreshQueue();
+          setUndoStack((previous) => {
+            const next = [...previous, schedulerResult!.undo];
+            if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
+            return next;
+          });
+        });
+
+        const threshold = settings.leechThreshold ?? DEFAULT_SETTINGS.leechThreshold;
+        if (threshold > 0 && schedulerResult.updated.lapses >= threshold && schedulerResult.updated.lapses % threshold === 0) {
+          showToast({
+            variant: 'warning',
+            title: t('mlearn.Flashcards.Leech.Title'),
+            message: t('mlearn.Flashcards.Leech.Message', { word: card!.content.front, count: String(schedulerResult.updated.lapses) }),
+            duration: 8000,
+          });
+        }
+        const schedulerLanguage = card!.language || settings.language;
+        const wordHash = SRS.hashWordSync(getPrimaryWordFormForLanguage(card!.content.front, schedulerLanguage));
+        recalculateWordStats(langKey(schedulerLanguage, wordHash));
+      } else if (Object.keys(eventsByKey).length > 0) {
+        setStore(produce((current) => {
+          applyStoreDelta(
+            current as unknown as Record<string, unknown>,
+            commandBase as unknown as Record<string, unknown>,
+            candidate as unknown as Record<string, unknown>,
+          );
+        }));
+        saveFlashcards();
+      }
+      return { attemptId, completed: schedulerResult?.completed ?? true };
+    } finally {
+      ratingCommandInFlight = false;
+      if (pendingRecoveryRequested && store.pendingReviewUndo) {
+        pendingRecoveryRequested = false;
+        void recoverPendingReviewUndo();
+      }
     }
-    if (Object.keys(eventsByKey).length > 0 && !await appendEventsIdempotentAcknowledged(eventsByKey)) {
-      throw new Error('word attempt journal append was refused');
-    }
-    batch(() => {
-      for (const entry of prepared) entry.applyMaterialized?.();
-      if (Object.keys(eventsByKey).length > 0) saveFlashcards();
-    });
-    return { attemptId };
   };
+
   /**
    * Undo bookkeeping: append a retraction tombstone for each attemptId to every
    * form-family key of the word. Projections drop retracted events via
    * stripRetractions; the raw log stays append-only.
    */
-  const appendRetractions = (word: string, language: string, attemptIds: readonly AttemptId[]) => {
-    if (attemptIds.length === 0) return;
+  const appendRetractions = async (word: string, language: string, attemptIds: readonly AttemptId[]): Promise<boolean> => {
+    if (attemptIds.length === 0) return true;
     const now = Date.now();
     const eventsByKey: KnowledgeEventLog = {};
     for (const form of new Set([word, ...getWordFormsForLanguage(word, language)])) {
@@ -3432,7 +3464,86 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         t: now, kind: 'retraction', source: 'manual', retracts,
       }));
     }
-    appendEvents(eventsByKey).catch((e) => log.warn('knowledge event retraction failed:', e));
+    return appendEventsIdempotentAcknowledged(eventsByKey);
+  };
+
+  const applyPendingReviewUndo = (target: FlashcardStore, pending: PendingReviewUndo): void => {
+    target.flashcards[pending.cardId] = { ...pending.restoreCard, content: { ...pending.restoreCard.content } };
+    if (pending.restorePerLanguage) {
+      target.meta.perLanguage[pending.language] = { ...pending.restorePerLanguage };
+    } else {
+      delete target.meta.perLanguage[pending.language];
+    }
+    if (pending.restoreDailyStats) {
+      (target.dailyStats[pending.today] ??= {})[pending.language] = { ...pending.restoreDailyStats };
+    } else if (target.dailyStats[pending.today]) {
+      delete target.dailyStats[pending.today][pending.language];
+      if (Object.keys(target.dailyStats[pending.today]).length === 0) delete target.dailyStats[pending.today];
+    }
+    delete target.pendingReviewUndo;
+  };
+
+  const completePendingReviewUndo = async (pending: PendingReviewUndo, entry?: UndoEntry): Promise<string> => {
+    if (store.pendingReviewUndo && store.pendingReviewUndo.attemptId !== pending.attemptId) {
+      throw new Error('A different review Undo is awaiting recovery');
+    }
+
+    if (!store.pendingReviewUndo) {
+      if (!await saveFlashcardsImmediate((target) => {
+        if (target.pendingReviewUndo && target.pendingReviewUndo.attemptId !== pending.attemptId) {
+          throw new Error('A different review Undo is awaiting recovery');
+        }
+        target.pendingReviewUndo = structuredClone(pending);
+      })) {
+        throw new Error('undo recovery record persistence was refused');
+      }
+    }
+
+    if (!await appendRetractions(pending.word, pending.language, [pending.attemptId as AttemptId])) {
+      throw new Error('knowledge retraction was refused');
+    }
+    const forms = [...new Set([pending.word, ...getWordFormsForLanguage(pending.word, pending.language)])];
+    const seeds = forms.map((form) => ({
+      key: langKey(pending.language, SRS.hashWordSync(form)), word: form, language: pending.language,
+    }));
+    const states = await getKnowledgeStates(seeds.map((seed) => seed.key));
+    const authorization: FlashcardWriteAuthorization = {
+      kind: 'undo-review', cardId: pending.cardId, restoredReviews: pending.restoreCard.reviews,
+    };
+    if (!await saveFlashcardsImmediate((target) => {
+      const durable = target.pendingReviewUndo;
+      if (!durable || durable.attemptId !== pending.attemptId) {
+        throw new Error('The pending review Undo changed before it could be completed');
+      }
+      applyPendingReviewUndo(target, durable);
+      materializeCapabilityStatesInto(target, seeds, states);
+    }, authorization)) {
+      throw new Error('undo persistence was refused');
+    }
+
+    if (entry) setUndoStack((previous) => {
+      const index = previous.lastIndexOf(entry);
+      return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
+    });
+    refreshQueue();
+    return pending.type;
+  };
+
+  const recoverPendingReviewUndo = async (): Promise<void> => {
+    const pending = store.pendingReviewUndo;
+    if (!pending) return;
+    if (ratingCommandInFlight) {
+      pendingRecoveryRequested = true;
+      return;
+    }
+    ratingCommandInFlight = true;
+    try {
+      await completePendingReviewUndo(pending);
+    } catch (error) {
+      log.warn('Interrupted review Undo recovery failed:', error);
+    } finally {
+      ratingCommandInFlight = false;
+    }
   };
 
   /**
@@ -3459,60 +3570,66 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     seeds: readonly { key: string; word: string; language: string }[],
     states: Record<string, KeyKnowledgeState>,
   ): void => {
-    setStore(produce((s) => {
-      for (const { key: lk, word, language } of seeds) {
-        const capabilities = states[lk]?.capabilities ?? {};
-        const meaning = capabilities['sense-recognition'];
-        if (Object.keys(capabilities).length === 0) {
-          delete s.wordKnowledge[lk];
-          continue;
-        }
-        const existing = s.wordKnowledge[lk];
-        const next: PassiveWordKnowledge = {
-          ...existing,
-          word: existing?.word ?? word,
-          language,
-          ease: meaning?.ease ?? SRS.MIN_EASE,
-          timesSeen: meaning?.timesSeen ?? 0,
-          timesHovered: meaning?.timesHovered ?? 0,
-          lastSeen: meaning?.lastSeen ?? Math.max(...Object.values(capabilities).map((projection) => projection.lastSeen)),
-          firstSeen: meaning?.firstSeen,
-          lastStatusChange: meaning?.lastStatusChange,
-          lastEvidenceSource: meaning?.evidenceSource,
-          hasActiveEvidence: meaning?.hasActiveEvidence ?? false,
-          access: {},
-        };
-        if (meaning?.claim !== undefined) {
-          next.claim = meaning.claim;
-          next.claimAt = meaning.claimAt;
-        } else {
-          delete next.claim;
-          delete next.claimAt;
-        }
-        for (const [capability, projected] of Object.entries(capabilities)) {
-          if (capability === 'sense-recognition') continue;
-          const source = projected.evidenceSource;
-          const record: NonNullable<PassiveWordKnowledge['access']>[string] = {
-            ...existing?.access?.[capability],
-            status: evidenceStatusFromEase(projected.ease, {
-              known: passiveKnownEaseThreshold(), learning: passiveLearningEaseThreshold(),
-            }),
-            ease: projected.ease,
-            source: source === 'manual' || source === 'srs' || source === 'anki' || source === 'passiveTracking'
-              || source === 'knownWordsList' || source === 'ignoredWords' ? aspectSourceToDisplay(source) : 'None',
-            lastStatusChange: projected.lastStatusChange ?? projected.lastSeen,
-            updatedAt: projected.lastSeen,
-            ...(projected.claim !== undefined ? { claim: projected.claim, claimAt: projected.claimAt } : {}),
-          };
-          if (projected.claim === undefined) {
-            delete record.claim;
-            delete record.claimAt;
-          }
-          next.access = { ...next.access, [capability]: record };
-        }
-        s.wordKnowledge[lk] = next;
+    setStore(produce((s) => materializeCapabilityStatesInto(s as FlashcardStore, seeds, states)));
+  };
+
+  const materializeCapabilityStatesInto = (
+    target: FlashcardStore,
+    seeds: readonly { key: string; word: string; language: string }[],
+    states: Record<string, KeyKnowledgeState>,
+  ): void => {
+    for (const { key: lk, word, language } of seeds) {
+      const capabilities = states[lk]?.capabilities ?? {};
+      const meaning = capabilities['sense-recognition'];
+      if (Object.keys(capabilities).length === 0) {
+        delete target.wordKnowledge[lk];
+        continue;
       }
-    }));
+      const existing = target.wordKnowledge[lk];
+      const next: PassiveWordKnowledge = {
+        ...existing,
+        word: existing?.word ?? word,
+        language,
+        ease: meaning?.ease ?? SRS.MIN_EASE,
+        timesSeen: meaning?.timesSeen ?? 0,
+        timesHovered: meaning?.timesHovered ?? 0,
+        lastSeen: meaning?.lastSeen ?? Math.max(...Object.values(capabilities).map((projection) => projection.lastSeen)),
+        firstSeen: meaning?.firstSeen,
+        lastStatusChange: meaning?.lastStatusChange,
+        lastEvidenceSource: meaning?.evidenceSource,
+        hasActiveEvidence: meaning?.hasActiveEvidence ?? false,
+        access: {},
+      };
+      if (meaning?.claim !== undefined) {
+        next.claim = meaning.claim;
+        next.claimAt = meaning.claimAt;
+      } else {
+        delete next.claim;
+        delete next.claimAt;
+      }
+      for (const [capability, projected] of Object.entries(capabilities)) {
+        if (capability === 'sense-recognition') continue;
+        const source = projected.evidenceSource;
+        const record: NonNullable<PassiveWordKnowledge['access']>[string] = {
+          ...existing?.access?.[capability],
+          status: evidenceStatusFromEase(projected.ease, {
+            known: passiveKnownEaseThreshold(), learning: passiveLearningEaseThreshold(),
+          }),
+          ease: projected.ease,
+          source: source === 'manual' || source === 'srs' || source === 'anki' || source === 'passiveTracking'
+            || source === 'knownWordsList' || source === 'ignoredWords' ? aspectSourceToDisplay(source) : 'None',
+          lastStatusChange: projected.lastStatusChange ?? projected.lastSeen,
+          updatedAt: projected.lastSeen,
+          ...(projected.claim !== undefined ? { claim: projected.claim, claimAt: projected.claimAt } : {}),
+        };
+        if (projected.claim === undefined) {
+          delete record.claim;
+          delete record.claimAt;
+        }
+        next.access = { ...next.access, [capability]: record };
+      }
+      target.wordKnowledge[lk] = next;
+    }
   };
 
   const repairCapabilityProjection = async (): Promise<void> => {
@@ -4132,6 +4249,22 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.store) {
       const incoming = ensureStoreFields(event.data.store);
+      if (typeof incoming.rev === 'number') {
+        const currentRevision = authoritativeStore?.rev ?? store.rev ?? 0;
+        if (incoming.rev <= currentRevision) return;
+        const base = authoritativeStore ?? cloneFlashcardStore(unwrap(store) as FlashcardStore);
+        authoritativeStore = cloneFlashcardStore(incoming);
+        setStore(produce((current) => {
+          applyStoreDelta(
+            current as unknown as Record<string, unknown>,
+            base as unknown as Record<string, unknown>,
+            incoming as unknown as Record<string, unknown>,
+          );
+        }));
+        refreshQueue();
+        if (incoming.pendingReviewUndo) void recoverPendingReviewUndo();
+        return;
+      }
       setStore(produce((s) => {
         mergeKnowledgeMaps(s, incoming);
       }));
@@ -4419,7 +4552,6 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     suspendCard,
     unsuspendCard,
     buryCard,
-    answerCard,
     getCurrentCard,
     getPreviewDueDates,
     getAllCards,
@@ -4472,8 +4604,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     appendRetractions,
     recomputeWordKnowledgeFromEvidence,
     setWordClaim,
-    recordAttempt,
-    recordAttemptsAcknowledged,
+    submitRating,
     trackGrammarEncountered,
     trackGrammarFailed,
     recordGrammarAttempt,

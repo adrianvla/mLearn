@@ -8,7 +8,7 @@
 import { Component, For, Show, createSignal } from 'solid-js';
 import type { ConversationAgentContext } from '../../../shared/types';
 import type { AutonomyJobRecord, ContactRecord, Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
-import { Btn, FormField, Input, Tag } from '../../components/common';
+import { Button, FormField, Input, Tag } from '../../components/common';
 import { useLocalization } from '../../context';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
 import './ThreadInfoPanel.css';
@@ -130,7 +130,7 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
             <div class="ca-thread-title-row">
               <span class="ca-thread-info-title">{props.thread ? props.thread.title || t('mlearn.ConversationAgent.Details.UntitledThread') : props.roomTitle}</span>
               <Show when={props.thread}>
-                <Btn variant="ghost" size="sm" onClick={startRename}>{t('mlearn.ConversationAgent.Details.Rename')}</Btn>
+                <Button variant="ghost" size="sm" onClick={startRename}>{t('mlearn.ConversationAgent.Details.Rename')}</Button>
               </Show>
             </div>
           }
@@ -140,8 +140,8 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
               <Input value={titleDraft()} onInput={(event) => setTitleDraft(event.currentTarget.value)} />
             </FormField>
             <div class="ca-thread-rename-actions">
-              <Btn variant="ghost" size="sm" onClick={() => setRenaming(false)}>{t('mlearn.ConversationAgent.Details.Cancel')}</Btn>
-              <Btn variant="primary" size="sm" onClick={() => { void commitRename(); }}>{t('mlearn.ConversationAgent.Details.Save')}</Btn>
+              <Button variant="ghost" size="sm" onClick={() => setRenaming(false)}>{t('mlearn.ConversationAgent.Details.Cancel')}</Button>
+              <Button variant="primary" size="sm" onClick={() => { void commitRename(); }}>{t('mlearn.ConversationAgent.Details.Save')}</Button>
             </div>
           </div>
         </Show>
@@ -163,12 +163,12 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
                 <span class="ca-thread-world-run-status">{statusLabel(run)}</span>
                 <Show when={run.error}><p class="ca-thread-world-run-error">{run.error}</p></Show>
                 <Show when={run.status === 'failed' && props.onRetryMaintenance}>
-                  <Btn
+                  <Button
                     variant="ghost"
                     size="sm"
                     disabled={retryingRunId() === run.reflectionId}
                     onClick={() => { void retryMaintenance(run.reflectionId); }}
-                  >{t('mlearn.ConversationAgent.Details.RetryWorldActivity')}</Btn>
+                  >{t('mlearn.ConversationAgent.Details.RetryWorldActivity')}</Button>
                 </Show>
               </article>
             )}
@@ -181,11 +181,11 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
           <div class="ca-thread-title-row">
             <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.Autonomy')}</span>
             <Show when={props.onSetAutonomyEnabled}>
-              <Btn variant="ghost" size="sm" onClick={() => { void props.onSetAutonomyEnabled?.(!(props.autonomyEnabled ?? true)); }}>
+              <Button variant="ghost" size="sm" onClick={() => { void props.onSetAutonomyEnabled?.(!(props.autonomyEnabled ?? true)); }}>
                 {t((props.autonomyEnabled ?? true)
                   ? 'mlearn.ConversationAgent.Details.PauseAutonomy'
                   : 'mlearn.ConversationAgent.Details.ResumeAutonomy')}
-              </Btn>
+              </Button>
             </Show>
           </div>
           <p>{t((props.autonomyEnabled ?? true)
@@ -209,30 +209,30 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
           <div class="ca-thread-title-row">
             <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.Contact')}</span>
             <Show when={props.onSetContactEnabled}>
-              <Btn variant="ghost" size="sm" onClick={() => { void props.onSetContactEnabled?.(!(props.contactEnabled ?? true)); }}>
+              <Button variant="ghost" size="sm" onClick={() => { void props.onSetContactEnabled?.(!(props.contactEnabled ?? true)); }}>
                 {t((props.contactEnabled ?? true)
                   ? 'mlearn.ConversationAgent.Details.PauseContact'
                   : 'mlearn.ConversationAgent.Details.ResumeContact')}
-              </Btn>
+              </Button>
             </Show>
           </div>
           <p>{t((props.contactEnabled ?? true)
             ? 'mlearn.ConversationAgent.Details.ContactEnabled'
             : 'mlearn.ConversationAgent.Details.ContactPaused')}</p>
           <Show when={props.roomId && props.onSetRoomContactMuted}>
-            <Btn variant="ghost" size="sm" onClick={() => { void props.onSetRoomContactMuted?.(!(props.roomContactMuted ?? false)); }}>
+            <Button variant="ghost" size="sm" onClick={() => { void props.onSetRoomContactMuted?.(!(props.roomContactMuted ?? false)); }}>
               {t((props.roomContactMuted ?? false)
                 ? 'mlearn.ConversationAgent.Details.UnmuteRoomContact'
                 : 'mlearn.ConversationAgent.Details.MuteRoomContact')}
-            </Btn>
+            </Button>
           </Show>
           <Show when={props.onSetQuietHours}>
             <div class="ca-contact-controls">
-              <Btn variant="ghost" size="sm" onClick={() => { void props.onSetQuietHours?.({ enabled: !(props.quietHoursEnabled ?? false) }); }}>
+              <Button variant="ghost" size="sm" onClick={() => { void props.onSetQuietHours?.({ enabled: !(props.quietHoursEnabled ?? false) }); }}>
                 {t((props.quietHoursEnabled ?? false)
                   ? 'mlearn.ConversationAgent.Details.DisableQuietHours'
                   : 'mlearn.ConversationAgent.Details.EnableQuietHours')}
-              </Btn>
+              </Button>
               <Show when={props.quietHoursEnabled}>
                 <label>{t('mlearn.ConversationAgent.Details.QuietHoursStart')}
                   <input type="time" value={props.quietHoursStart ?? ''} onInput={event => { void props.onSetQuietHours?.({ start: event.currentTarget.value }); }} />
@@ -287,24 +287,24 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
                     <span class="ca-thread-participant-name">{participant.displayName}</span>
                     <Tag class="ca-thread-participant-kind" headless size="sm">{kindLabel(participant)}</Tag>
                   </div>
-                  <Btn variant="ghost" size="sm" onClick={() => setEditingParticipant(participant)}>{t('mlearn.ConversationAgent.Details.Edit')}</Btn>
+                  <Button variant="ghost" size="sm" onClick={() => setEditingParticipant(participant)}>{t('mlearn.ConversationAgent.Details.Edit')}</Button>
                 </div>
                 <Show when={participant.personaText.trim()}>
                   <p class="ca-thread-participant-persona">{participant.personaText}</p>
                 </Show>
                 <Show when={!props.thread?.sandbox && props.onSetParticipantMuted}>
                   <div class="ca-contact-controls">
-                    <Btn variant="ghost" size="sm" onClick={() => { void props.onSetParticipantMuted?.(participant.id, !(props.mutedParticipantIds ?? []).includes(participant.id)); }}>
+                    <Button variant="ghost" size="sm" onClick={() => { void props.onSetParticipantMuted?.(participant.id, !(props.mutedParticipantIds ?? []).includes(participant.id)); }}>
                       {t((props.mutedParticipantIds ?? []).includes(participant.id)
                         ? 'mlearn.ConversationAgent.Details.UnmutePersonContact'
                         : 'mlearn.ConversationAgent.Details.MutePersonContact')}
-                    </Btn>
+                    </Button>
                     <Show when={props.onSetParticipantCallsAllowed}>
-                      <Btn variant="ghost" size="sm" onClick={() => { void props.onSetParticipantCallsAllowed?.(participant.id, (props.callMutedParticipantIds ?? []).includes(participant.id)); }}>
+                      <Button variant="ghost" size="sm" onClick={() => { void props.onSetParticipantCallsAllowed?.(participant.id, (props.callMutedParticipantIds ?? []).includes(participant.id)); }}>
                         {t((props.callMutedParticipantIds ?? []).includes(participant.id)
                           ? 'mlearn.ConversationAgent.Details.AllowCalls'
                           : 'mlearn.ConversationAgent.Details.MuteCalls')}
-                      </Btn>
+                      </Button>
                     </Show>
                   </div>
                 </Show>
@@ -318,7 +318,7 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
         <section class="ca-thread-section ca-thread-actions">
           <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Integration.Title')}</span>
           <p class="ca-thread-integration-hint">{t('mlearn.ConversationAgent.Integration.PanelHint')}</p>
-          <Btn variant="primary" onClick={() => { void props.onIntegrate?.(); }}>{t('mlearn.ConversationAgent.Integration.Open')}</Btn>
+          <Button variant="primary" onClick={() => { void props.onIntegrate?.(); }}>{t('mlearn.ConversationAgent.Integration.Open')}</Button>
         </section>
       </Show>
       <Show when={props.thread}>
@@ -326,12 +326,12 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
           <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.DangerZone')}</span>
           <Show
             when={confirmingDelete()}
-            fallback={<Btn variant="danger" onClick={() => setConfirmingDelete(true)}>{t('mlearn.ConversationAgent.Details.DeleteThread')}</Btn>}
+            fallback={<Button variant="danger" onClick={() => setConfirmingDelete(true)}>{t('mlearn.ConversationAgent.Details.DeleteThread')}</Button>}
           >
             <div class="ca-thread-delete-confirm">
               <span>{t('mlearn.ConversationAgent.Details.DeleteThreadConfirm')}</span>
-              <Btn variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>{t('mlearn.ConversationAgent.Details.Cancel')}</Btn>
-              <Btn variant="danger" size="sm" onClick={() => { void props.onDeleteThread(); }}>{t('mlearn.ConversationAgent.Details.ConfirmDelete')}</Btn>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>{t('mlearn.ConversationAgent.Details.Cancel')}</Button>
+              <Button variant="danger" size="sm" onClick={() => { void props.onDeleteThread(); }}>{t('mlearn.ConversationAgent.Details.ConfirmDelete')}</Button>
             </div>
           </Show>
         </section>

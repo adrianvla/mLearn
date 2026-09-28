@@ -10,7 +10,7 @@ import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, getLanguagePromptN
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { resolveWordSelectorLanguageData } from './wordSelectorLanguage';
 
-import { Input, LevelPillsFilter, EmptyState, HintText, Btn, SparklesIcon, CollapsibleStickyHeader } from '../common';
+import { Button, Input, LevelPillsFilter, EmptyState, HintText, SparklesIcon, CollapsibleStickyHeader } from '../common';
 import type {
   TutorWordSelection,
   PassiveWordKnowledge,
@@ -510,7 +510,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
                 placeholder={t('mlearn.AITutorSetup.GenerateTopicPlaceholder')}
                 disabled={isGenerating()}
               />
-              <Btn
+              <Button
                 variant="default"
                 size="sm"
                 onClick={generateVocabulary}
@@ -519,7 +519,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
                 loading={isGenerating()}
               >
                 {t('mlearn.AITutorSetup.GenerateBtn')}
-              </Btn>
+              </Button>
             </div>
             <Show when={generationError()}>
               <span class="word-selector__generate-error">{generationError()}</span>

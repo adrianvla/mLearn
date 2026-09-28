@@ -5,7 +5,7 @@
 
 import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { Modal, SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch, CheckboxCard } from '../../../components/common';
+import { Button, Modal, SettingRow, SettingGroup, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch, CheckboxCard } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import {
@@ -310,19 +310,19 @@ export const ConnectionTab: Component = () => {
             <Show
               when={settings.cloudAuthStatus === 'signed-in' && !!(settings.cloudAuthAccessToken || settings.cloudAuthToken)}
               fallback={(
-                <Btn onClick={handleSignInClick} disabled={cloudLoginPending()}>
+                <Button onClick={handleSignInClick} disabled={cloudLoginPending()}>
                   {cloudLoginPending()
                     ? (t('mlearn.Connection.SigningIn') || 'Signing in...')
                     : (t('mlearn.Connection.SignIn') || 'Sign in')}
-                </Btn>
+                </Button>
               )}
             >
-              <Btn onClick={handleOpenDashboard}>
+              <Button onClick={handleOpenDashboard}>
                 {t('mlearn.Connection.OpenDashboard') || 'Open Dashboard'}
-              </Btn>
-              <Btn onClick={handleCloudSignOut}>
+              </Button>
+              <Button onClick={handleCloudSignOut}>
                 {t('mlearn.Connection.SignOut') || 'Sign out'}
-              </Btn>
+              </Button>
             </Show>
             <Show when={settings.cloudAuthStatus === 'signed-in' && settings.cloudAuthUserEmail}>
               <span class="connection-status-ok">{settings.cloudAuthUserEmail}</span>
@@ -337,9 +337,9 @@ export const ConnectionTab: Component = () => {
                 onInput={(e) => setManualDesktopCode(e.currentTarget.value)}
                 placeholder={t('mlearn.Connection.DesktopCode') || 'Desktop one-time code'}
               />
-              <Btn onClick={handleCompleteManualSignIn} disabled={!manualDesktopCode().trim()}>
+              <Button onClick={handleCompleteManualSignIn} disabled={!manualDesktopCode().trim()}>
                 {t('mlearn.Connection.CompleteSignIn') || 'Complete sign in'}
-              </Btn>
+              </Button>
             </div>
           </SettingRow>
         </Show>
@@ -351,7 +351,7 @@ export const ConnectionTab: Component = () => {
         {/* Test connection button */}
         <Show when={settings.backendMode !== 'local'}>
           <SettingRow label="">
-            <Btn
+            <Button
               onClick={handleTestBackend}
               loading={testingBackend()}
               variant={backendStatus() === 'success' ? 'success' : backendStatus() === 'error' ? 'danger' : 'default'}
@@ -365,7 +365,7 @@ export const ConnectionTab: Component = () => {
                   ? (t('mlearn.Connection.Unreachable') || 'Unreachable')
                   : (t('mlearn.Connection.TestConnection') || 'Test Connection')
               }
-            </Btn>
+            </Button>
           </SettingRow>
         </Show>
       </SettingGroup>
@@ -420,7 +420,7 @@ export const ConnectionTab: Component = () => {
             />
           </SettingRow>
           <SettingRow label="">
-            <Btn
+            <Button
               onClick={handleTestNodeServer}
               loading={testingNode()}
               variant={nodeStatus() === 'success' ? 'success' : nodeStatus() === 'error' ? 'danger' : 'default'}
@@ -432,7 +432,7 @@ export const ConnectionTab: Component = () => {
                   ? (t('mlearn.Connection.Unreachable') || 'Unreachable')
                   : (t('mlearn.Connection.TestConnection') || 'Test Connection')
               }
-            </Btn>
+            </Button>
           </SettingRow>
         </SettingGroup>
       </Show>
@@ -460,16 +460,16 @@ export const ConnectionTab: Component = () => {
         size="sm"
         footer={
           <>
-            <Btn variant="ghost" onClick={() => setShowTosModal(false)}>
+            <Button variant="ghost" onClick={() => setShowTosModal(false)}>
               Cancel
-            </Btn>
-            <Btn
+            </Button>
+            <Button
               variant="primary"
               disabled={!tosChecked() || !privacyChecked()}
               onClick={handleAcceptAndSignIn}
             >
               Accept & Sign In
-            </Btn>
+            </Button>
           </>
         }
       >
@@ -482,7 +482,7 @@ export const ConnectionTab: Component = () => {
             onChange={setTosChecked}
             title="I agree to the Terms of Service"
           >
-            <Btn
+            <Button
               variant="ghost"
               size="sm"
               onClick={(e: MouseEvent) => {
@@ -491,14 +491,14 @@ export const ConnectionTab: Component = () => {
               }}
             >
               View Terms of Service
-            </Btn>
+            </Button>
           </CheckboxCard>
           <CheckboxCard
             checked={privacyChecked()}
             onChange={setPrivacyChecked}
             title="I agree to the Privacy Policy"
           >
-            <Btn
+            <Button
               variant="ghost"
               size="sm"
               onClick={(e: MouseEvent) => {
@@ -507,7 +507,7 @@ export const ConnectionTab: Component = () => {
               }}
             >
               View Privacy Policy
-            </Btn>
+            </Button>
           </CheckboxCard>
         </div>
       </Modal>

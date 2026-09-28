@@ -9,7 +9,7 @@ import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { DEFAULT_SETTINGS, type Settings, type InstallOptions, type InstallStartedPayload, type InstallerState, type LanguageDataCatalogStatus, type LanguageDataMap, type PipProgress, type PythonComponentId, type PythonComponentInfo } from '../../../shared/types';
-import { Panel, Btn, AlertBanner, LogConsole, CheckboxCard, ProgressBar, Select } from '../../components/common';
+import { Button, Panel, AlertBanner, LogConsole, CheckboxCard, ProgressBar, Select } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 import './welcome.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -852,26 +852,26 @@ const WelcomeContent: Component = () => {
         </Show>
 
         <Show when={restartCountdown() !== null}>
-          <Btn
+          <Button
             variant="secondary"
             onClick={handleCancelRestart}
             class="welcome-window__action"
           >
             {t('mlearn.Installer.Buttons.CancelRestart')} ({restartCountdown()})
-          </Btn>
+          </Button>
         </Show>
         <Show when={restartCountdown() === null}>
           <Show when={installationStarted() && !installationCompleted()}>
-            <Btn
+            <Button
               variant="secondary"
               onClick={handleCancelInstall}
               class="welcome-window__action"
             >
               {t('mlearn.Installer.Buttons.CancelInstall')}
-            </Btn>
+            </Button>
           </Show>
           <Show when={!installationStarted() || installationCompleted()}>
-            <Btn
+            <Button
               variant="primary"
               onClick={() => {
                 if (installationCompleted()) {
@@ -891,7 +891,7 @@ const WelcomeContent: Component = () => {
               class="welcome-window__action"
             >
               {primaryActionLabel()}
-            </Btn>
+            </Button>
           </Show>
         </Show>
       </Panel>

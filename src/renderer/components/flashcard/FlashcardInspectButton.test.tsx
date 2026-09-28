@@ -7,7 +7,7 @@ import { closeKnowledgeInspector, knowledgeInspection } from '../../services/ope
 import { surfaceEntityId } from '../../../shared/graph/load';
 import { hashWordSync } from '../../services/srsAlgorithm';
 vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }) }));
-vi.mock('../common/Button', () => ({ Btn: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} /> }));
+vi.mock('../common/Button', () => ({ Button: (props: JSX.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} /> }));
 it('opens the canonical card-language identity without toggling card selection', () => {
   const host = document.createElement('div'); document.body.append(host);
   const select = vi.fn();

@@ -18,17 +18,7 @@ import {
   ensureCloudAccessToken,
   handleCloudSessionError,
 } from '../../services/cloudSessionManager';
-import {
-  Btn,
-  IconBtn,
-  Modal,
-  EmptyState,
-  ConnectionStatus,
-  Popover,
-  Textarea,
-  Tag,
-  ChatIcon,
-} from '../../components/common';
+import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, Tag, ChatIcon } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
 import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTranslation } from '../../hooks';
@@ -1484,7 +1474,7 @@ export const ConversationContent: Component = () => {
   };
 
   const ConnectionInfo = () => (
-    <Btn
+    <Button
           variant="ghost"
           class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
           onClick={handleConnectionStatusClick}
@@ -1500,7 +1490,7 @@ export const ConversationContent: Component = () => {
           <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
             <span class="ca-header-status">{t('mlearn.Global.Status.StartingBackend')}</span>
           </Show>
-        </Btn>
+        </Button>
   );
 
   return (
@@ -1521,7 +1511,7 @@ export const ConversationContent: Component = () => {
             </details>
           </Show>
           <Show when={record.status === 'pending'}>
-            <Btn onClick={async () => {
+            <Button onClick={async () => {
               try {
                 await getBridge().world.integrateThread({ integrationId: record.integrationId,
                   threadId: record.sourceThreadId, destinationRoomId: record.destinationRoomId,
@@ -1529,7 +1519,7 @@ export const ConversationContent: Component = () => {
                   includeScenario: record.includeScenario });
               } catch (error) { setIntegrationRecoveryError(String(error)); }
               finally { setWorld(await getBridge().world.getWorldState()); }
-            }}>{t('mlearn.ConversationAgent.Integration.Retry')}</Btn>
+            }}>{t('mlearn.ConversationAgent.Integration.Retry')}</Button>
           </Show>
         </div>}
       </For>
@@ -1545,9 +1535,9 @@ export const ConversationContent: Component = () => {
         showCloseButton={false}
         size="md"
         footer={
-          <Btn variant="primary" size="lg" onClick={() => setShowDisclaimer(false)}>
+          <Button variant="primary" size="lg" onClick={() => setShowDisclaimer(false)}>
             {t('mlearn.ConversationAgent.AgeVerification.ContinueButton')}
-          </Btn>
+          </Button>
         }
       >
         <div class="ca-disclaimer">
@@ -1565,17 +1555,17 @@ export const ConversationContent: Component = () => {
             </Show>
           </p>
           <div class="ca-disclaimer__links">
-            <Btn variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>
+            <Button variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>
               {t('mlearn.ConversationAgent.Banner.SettingsLink')}
-            </Btn>
-            <Btn variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'memory-browser' })}>
+            </Button>
+            <Button variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'memory-browser' })}>
               {t('mlearn.MemoryBrowser.OpenInAgent')}
-            </Btn>
+            </Button>
           </div>
         </div>
       </Modal>
       <div class="ca-header">
-        <Show when={!callSurfaceOpen()}><IconBtn
+        <Show when={!callSurfaceOpen()}><Button buttonType="icon"
           variant="ghost"
           icon="sidebar"
           onClick={() => setSidebarVisible((visible) => !visible)}
@@ -1588,15 +1578,15 @@ export const ConversationContent: Component = () => {
           </Show>
           <Show when={!callSurfaceOpen() && (activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined))} keyed>
             {(media) => (
-              <Btn variant="ghost" class="ca-media-chip" onClick={openDetails}>
+              <Button variant="ghost" class="ca-media-chip" onClick={openDetails}>
                 {media.mediaName}
-              </Btn>
+              </Button>
             )}
           </Show>
         </div>
         <div class="ca-header-spacer" />
         <Show when={!callSurfaceOpen()}><ConnectionInfo /></Show>
-        <Show when={!callSurfaceOpen()}><IconBtn
+        <Show when={!callSurfaceOpen()}><Button buttonType="icon"
           variant="ghost"
           icon={<PhoneIcon />}
           disabled={rosterParticipants().length === 0}
@@ -1604,12 +1594,12 @@ export const ConversationContent: Component = () => {
           aria-label={t('mlearn.ConversationAgent.Call.StartAria')}
         /></Show>
         <div class="ca-overflow-anchor">
-          <IconBtn
+          <Button buttonType="icon"
             ref={(el: HTMLButtonElement) => { overflowAnchorRef = el; }}
             variant="ghost"
             onClick={() => setShowOverflowMenu((open) => !open)}
             aria-label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
-          >…</IconBtn>
+          >…</Button>
           <Popover
             open={showOverflowMenu}
             anchor={() => overflowAnchorRef}
@@ -1618,10 +1608,10 @@ export const ConversationContent: Component = () => {
             class="ca-overflow-menu"
           >
             <Show when={callSurfaceOpen()}><div class="ca-provider-details"><ConnectionInfo /></div></Show>
-            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { setShowNewConversationModal(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Btn>
-            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Btn>
-            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Btn>
-            <Btn variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Btn>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { setShowNewConversationModal(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
           </Popover>
         </div>
       </div>
@@ -1742,7 +1732,7 @@ export const ConversationContent: Component = () => {
             <div class="ca-input-area">
               <div class="ca-input-row">
                 <Show when={settings.speechEnabled}>
-                  <IconBtn
+                  <Button buttonType="icon"
                     icon={<MicIcon />}
                     variant={isRecording() ? 'danger' : 'ghost'}
                     class={`ca-mic-btn ${isRecording() ? 'recording' : ''}`}
@@ -1778,7 +1768,7 @@ export const ConversationContent: Component = () => {
                   <Show
                     when={!isStreaming()}
                     fallback={
-                      <IconBtn
+                      <Button buttonType="icon"
                         icon={<StopIcon />}
                         variant="danger"
                         onClick={handleAbort}
@@ -1786,7 +1776,7 @@ export const ConversationContent: Component = () => {
                       />
                     }
                   >
-                    <IconBtn
+                    <Button buttonType="icon"
                       icon={<SendIcon />}
                       variant="default"
                       onClick={handleSend}
@@ -1817,8 +1807,8 @@ export const ConversationContent: Component = () => {
               <strong>{t('mlearn.ConversationAgent.IncomingCall.Title')}</strong>
               <span>{t('mlearn.ConversationAgent.IncomingCall.From', { name: caller() })}</span>
             </div>
-            <Btn variant="ghost" onClick={() => { void respondToIncomingCall('decline'); }}>{t('mlearn.ConversationAgent.IncomingCall.Decline')}</Btn>
-            <Btn variant="primary" onClick={() => { void respondToIncomingCall('accept'); }}>{t('mlearn.ConversationAgent.IncomingCall.Accept')}</Btn>
+            <Button variant="ghost" onClick={() => { void respondToIncomingCall('decline'); }}>{t('mlearn.ConversationAgent.IncomingCall.Decline')}</Button>
+            <Button variant="primary" onClick={() => { void respondToIncomingCall('accept'); }}>{t('mlearn.ConversationAgent.IncomingCall.Accept')}</Button>
           </section>;
         }}
       </Show>
@@ -1897,7 +1887,7 @@ export const ConversationContent: Component = () => {
         <button type="button" class="ca-details-backdrop" aria-label="Close conversation details" onClick={() => setShowDetailsDrawer(false)} />
         <aside class="ca-details-drawer">
           <div class="ca-details-actions">
-            <Btn variant="ghost" onClick={() => setShowDetailsDrawer(false)}>{t('mlearn.ConversationAgent.Integration.Close')}</Btn>
+            <Button variant="ghost" onClick={() => setShowDetailsDrawer(false)}>{t('mlearn.ConversationAgent.Integration.Close')}</Button>
           </div>
           <ThreadInfoPanel roomTitle={activeRoom()?.title}
             roomId={activeThread()?.sandbox ? activeThread()?.id : activeRoom()?.id}
@@ -1987,12 +1977,12 @@ export const ConversationContent: Component = () => {
             size="sm"
             footer={
               <div style={{ display: 'flex', 'justify-content': 'flex-end', gap: 'var(--spacing-2)' }}>
-                <Btn variant="ghost" onClick={() => setLivingWorldPrompt(null)}>
+                <Button variant="ghost" onClick={() => setLivingWorldPrompt(null)}>
                   {t('mlearn.ConversationAgent.LivingWorld.NotNow')}
-                </Btn>
-                <Btn variant="primary" onClick={() => { void enableLivingWorldAndEnter(); }}>
+                </Button>
+                <Button variant="primary" onClick={() => { void enableLivingWorldAndEnter(); }}>
                   {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
-                </Btn>
+                </Button>
               </div>
             }
           >

@@ -5,7 +5,7 @@
 
 import { Component, createSignal, createEffect, Show } from 'solid-js';
 import { useSettings, useLocalization } from '../../context';
-import { Panel, PanelHeader, IconBtn } from '../common';
+import { Button, Panel, PanelHeader } from '../common';
 import './SubtitleSync.css';
 
 export interface SubtitleSyncProps {
@@ -165,7 +165,7 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
         >
           <PanelHeader onClose={hide} />
           <div class="subtitle-sync-controls">
-            <IconBtn
+            <Button buttonType="icon"
                 class="subtitle-sync-btn backward"
                 onClick={handleBackward}
                 title={t('mlearn.SubtitleSync.PreviousTooltip')}
@@ -179,7 +179,7 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
                 onKeyDown={handleKeyDown}
                 onBlur={applyInputValue}
             />
-            <IconBtn
+            <Button buttonType="icon"
                 class="subtitle-sync-btn"
                 onClick={handleForward}
                 title={t('mlearn.SubtitleSync.NextTooltip')}

@@ -1,6 +1,6 @@
 import { Component } from 'solid-js';
 import { useLocalization } from '../../context';
-import { Btn, Panel } from '../../components/common';
+import { Button, Panel } from '../../components/common';
 import './AgeVerificationModal.css';
 
 interface AgeVerificationModalProps {
@@ -42,14 +42,14 @@ export const AgeVerificationModal: Component<AgeVerificationModalProps> = (props
         </div>
 
         <div class="avm-actions">
-          <Btn
+          <Button
             variant="primary"
             size="lg"
             onClick={props.onAccept}
             class="avm-continue-btn"
           >
             {t('mlearn.ConversationAgent.AgeVerification.ContinueButton')}
-          </Btn>
+          </Button>
         </div>
       </Panel>
     </div>

@@ -32,6 +32,13 @@ export const Popover: Component<PopoverProps> = (props) => {
   const [position, setPosition] = createSignal({ left: 0, top: 0 });
   let panelRef: HTMLDivElement | undefined;
 
+  const focusPanel = () => {
+    const target = panelRef?.querySelector<HTMLElement>(
+      'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    );
+    (target ?? panelRef)?.focus();
+  };
+
   createEffect(() => {
     if (!isOpen()) return;
 
@@ -59,7 +66,10 @@ export const Popover: Component<PopoverProps> = (props) => {
     if (!isOpen()) return;
 
     const handleKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose();
+      if (e.key === 'Escape') {
+        props.onClose();
+        props.anchor()?.focus();
+      }
     };
     const handlePointerDown = (e: PointerEvent) => {
       const target = e.target as Node;
@@ -80,10 +90,11 @@ export const Popover: Component<PopoverProps> = (props) => {
     <Show when={isOpen()}>
       <Portal mount={document.body}>
         <div
-          ref={panelRef}
+          ref={(element) => { panelRef = element; focusPanel(); }}
           class={`popover-panel${props.class ? ` ${props.class}` : ''}`}
           role="dialog"
           aria-label={props.label}
+          tabIndex={-1}
           style={{ left: `${position().left}px`, top: `${position().top}px` }}
         >
           {props.children}

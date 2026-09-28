@@ -3,7 +3,7 @@
  */
 
 import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
-import { TabContent, Btn, ProgressBar, ToggleSwitch } from '../../../components/common';
+import { Button, TabContent, ProgressBar, ToggleSwitch } from '../../../components/common';
 import { KeyboardShortcut } from '../../../components/common/Misc/KeyboardShortcut';
 import { useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
@@ -133,7 +133,7 @@ export const AboutTab: Component = () => {
       <div class="about-logo"><AppLogo/></div>
       
       <div class="about-version">
-        <h2>{t('mlearn.About.Title')}</h2>
+        <h2>{t('mlearn.Global.AppName')}</h2>
         <span>{t('mlearn.About.VersionLabel', { version: version() })}</span>
       </div>
 
@@ -173,39 +173,39 @@ export const AboutTab: Component = () => {
         </Show>
         <div class="about-updates__actions">
           <Show when={showCheckAction()}>
-            <Btn
+            <Button
               size="sm"
               variant="secondary"
               loading={updateState()?.status === 'checking'}
               onClick={() => void runUpdateAction('check')}
             >
               {t('mlearn.About.Updates.Check')}
-            </Btn>
+            </Button>
           </Show>
           <Show when={updateState()?.status === 'available' && updateState()?.canAutoUpdate}>
-            <Btn size="sm" variant="primary" onClick={() => void runUpdateAction('download')}>
+            <Button size="sm" variant="primary" onClick={() => void runUpdateAction('download')}>
               {t('mlearn.About.Updates.Download')}
-            </Btn>
+            </Button>
           </Show>
           <Show when={updateErrorOperation() === 'download'}>
-            <Btn size="sm" variant="primary" onClick={() => void runUpdateAction('download')}>
+            <Button size="sm" variant="primary" onClick={() => void runUpdateAction('download')}>
               {t('mlearn.About.Updates.Download')}
-            </Btn>
+            </Button>
           </Show>
           <Show when={updateErrorOperation() === 'install'}>
-            <Btn size="sm" variant="primary" onClick={() => void runUpdateAction('install')}>
+            <Button size="sm" variant="primary" onClick={() => void runUpdateAction('install')}>
               {t('mlearn.About.Updates.Restart')}
-            </Btn>
+            </Button>
           </Show>
           <Show when={updateState()?.status === 'available' && !updateState()?.canAutoUpdate}>
-            <Btn size="sm" variant="primary" onClick={openDownloadPage}>
+            <Button size="sm" variant="primary" onClick={openDownloadPage}>
               {t('mlearn.About.Updates.DownloadPage')}
-            </Btn>
+            </Button>
           </Show>
           <Show when={updateState()?.status === 'downloaded'}>
-            <Btn size="sm" variant="primary" onClick={() => void runUpdateAction('install')}>
+            <Button size="sm" variant="primary" onClick={() => void runUpdateAction('install')}>
               {t('mlearn.About.Updates.Restart')}
-            </Btn>
+            </Button>
           </Show>
         </div>
         <Show when={updateState()?.canAutoUpdate}>
@@ -225,29 +225,29 @@ export const AboutTab: Component = () => {
       </Show>
 
       <div class="about-links">
-        <Btn variant="ghost" onClick={openContact}>
+        <Button variant="ghost" onClick={openContact}>
           {t('mlearn.About.Website')}
-        </Btn>
-        <Btn variant="ghost" onClick={openLicenses}>
+        </Button>
+        <Button variant="ghost" onClick={openLicenses}>
           {t('mlearn.About.Licenses')}
-        </Btn>
+        </Button>
         <Show when={settings.devMode}>
-          <Btn variant="ghost" onClick={openDiagnostics}>
+          <Button variant="ghost" onClick={openDiagnostics}>
             Run Diagnostics
-          </Btn>
+          </Button>
         </Show>
       </div>
 
       <div class="about-legal">
-        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/eula')}>
+        <Button variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/eula')}>
           End User License Agreement
-        </Btn>
-        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/terms')}>
+        </Button>
+        <Button variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/terms')}>
           Terms of Service
-        </Btn>
-        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/privacy')}>
+        </Button>
+        <Button variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.kikan.net/privacy')}>
           Privacy Policy
-        </Btn>
+        </Button>
       </div>
 
       <div class="about-shortcuts">

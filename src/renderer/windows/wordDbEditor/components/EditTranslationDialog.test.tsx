@@ -74,7 +74,7 @@ vi.mock('../../../hooks/useTranslation', () => ({
 
 vi.mock('../../../components/common', () => ({
   AlertBanner: (props: { message: string }) => <div role="alert">{props.message}</div>,
-  Btn: (props: { children?: JSX.Element; onClick?: () => void }) => (
+  Button: (props: { children?: JSX.Element; onClick?: () => void }) => (
     <button type="button" onClick={props.onClick}>{props.children}</button>
   ),
   SkeletonRows: (props: { rows?: number; rowHeight?: string }) => <div data-testid="skeleton-rows" data-rows={props.rows} />,

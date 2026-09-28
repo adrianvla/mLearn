@@ -1,5 +1,5 @@
 import { Component, For, Show, createEffect, createSignal, onCleanup } from 'solid-js';
-import { Btn, Modal } from '../common';
+import { Button, Modal } from '../common';
 import { useLocalization } from '../../context/LocalizationContext';
 import { useSettings } from '../../context/SettingsContext';
 import {
@@ -95,7 +95,7 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
     <Show when={props.groups.length > 1}>
       <Show when={props.showSwitchTrigger && activeGroup()}>
         {(group) => (
-          <Btn
+          <Button
             class="active-group-trigger"
             variant="secondary"
             size="sm"
@@ -111,7 +111,7 @@ export const ActiveGroupSelector: Component<ActiveGroupSelectorProps> = (props) 
               <path d="M14 8h7M18 4l3 4-3 4" />
             </svg>
             <span>{group().name}</span>
-          </Btn>
+          </Button>
         )}
       </Show>
 
@@ -230,9 +230,9 @@ export const ActiveGroupGate: Component<{ showSwitchTrigger?: boolean }> = (prop
       <Show when={loadError()}>
         <div class="active-group-load-error" role="alert">
           <span>{loadError()}</span>
-          <Btn size="sm" variant="secondary" onClick={() => setReloadGeneration((value) => value + 1)}>
+          <Button size="sm" variant="secondary" onClick={() => setReloadGeneration((value) => value + 1)}>
             {t('mlearn.Management.Retry')}
-          </Btn>
+          </Button>
         </div>
       </Show>
     </>

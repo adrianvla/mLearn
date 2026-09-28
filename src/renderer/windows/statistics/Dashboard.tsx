@@ -6,7 +6,7 @@ import { useEvidenceLinkedProjections } from '../../hooks/useEvidenceLinkedProje
 
 import { Component, createMemo, createResource, createSignal, For, onMount, onCleanup, Show } from 'solid-js';
 import { useFlashcards, useSettings, useLanguage, useLocalization } from '../../context';
-import { StatCard, Panel, Btn, BookIcon, KnowledgeGate, KnowledgeSkeleton, SkeletonCard, SkeletonStatGrid } from '../../components/common';
+import { Button, StatCard, Panel, BookIcon, KnowledgeGate, KnowledgeSkeleton, SkeletonCard, SkeletonStatGrid } from '../../components/common';
 import { BarChart, Heatmap, LineChart } from './charts';
 import type { BarChartDataPoint } from './charts';
 import { WordSearchPanel } from './components/WordSearchPanel';
@@ -363,7 +363,7 @@ export const Dashboard: Component = () => {
       </header>
       <p class="analytics-caption">{t(`mlearn.Statistics.Sections.${section()}Description`)}</p>
       <Show when={section() === 'knowledge'}>
-        <Show when={projected.failed()}><div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <Btn onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Btn></div></Show>
+        <Show when={projected.failed()}><div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <Button onClick={projected.retry}>{t('mlearn.Knowledge.Retry')}</Button></div></Show>
         <KnowledgeGate ready={projected.ready()} fallback={<KnowledgeSkeleton variant="lines" />}>
           <div class="dashboard-stats-row analytics-summary">
             <StatCard label={t('mlearn.Statistics.Legend.Learned')} value={wordStats().allEncountered.known} />

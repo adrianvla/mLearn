@@ -8,7 +8,7 @@ import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings } from '../../context/SettingsContext';
 import { useLocalization } from '../../context/LocalizationContext';
 import { getBridge } from '../../../shared/bridges';
-import { Modal, Btn, Input, HintText, WarningIcon } from '../common';
+import { Button, Modal, Input, HintText, WarningIcon } from '../common';
 import {
   startCloudDesktopLogin,
   exchangeCloudDesktopCode,
@@ -127,23 +127,23 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
 
   const footer = (
     <div class="modal-footer-actions">
-      <Btn variant="ghost" onClick={handleClose}>
+      <Button variant="ghost" onClick={handleClose}>
         {t('mlearn.Global.Cancel')}
-      </Btn>
+      </Button>
       <Show when={!loginPending()}>
-        <Btn variant="primary" onClick={handleStartLogin}>
+        <Button variant="primary" onClick={handleStartLogin}>
           {t('mlearn.Connection.SignIn')}
-        </Btn>
+        </Button>
       </Show>
       <Show when={loginPending()}>
-        <Btn
+        <Button
           variant="primary"
           onClick={handleCompleteLogin}
           disabled={!manualCode().trim() || exchanging()}
           loading={exchanging()}
         >
           {t('mlearn.Connection.CompleteSignIn')}
-        </Btn>
+        </Button>
       </Show>
     </div>
   );

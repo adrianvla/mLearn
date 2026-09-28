@@ -4,7 +4,7 @@
 
 import { Component, Show, For } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input, Btn } from '../../../components/common';
+import { Button, SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, Input } from '../../../components/common';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { getPassiveHoverDelayMs } from '@shared/utils/passiveWordTracking';
@@ -36,7 +36,7 @@ export const BehaviourTab: Component = () => {
 
       <SettingGroup title={t('mlearn.LevelStudy.Title')}>
         <p>{t('mlearn.LearningPlan.SettingsHint')}</p>
-        <Btn onClick={() => getBridge().window.openWindow({ type: 'level-study' })}>{t('mlearn.LearningPlan.Open')}</Btn>
+        <Button onClick={() => getBridge().window.openWindow({ type: 'level-study' })}>{t('mlearn.LearningPlan.Open')}</Button>
       </SettingGroup>
       <SettingGroup title={t('mlearn.Settings.Groups.WordKnowledge')}>
         <details>

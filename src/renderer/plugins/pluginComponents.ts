@@ -1,9 +1,6 @@
+import { createComponent, mergeProps, type Component } from 'solid-js';
+import { Button, type ButtonProps, type ButtonType } from '../components/common/Button';
 import {
-  Btn,
-  PillBtn,
-  IconBtn,
-  NavBtn,
-  TabBtn,
   Modal,
   ConfirmDialog,
   WindowOverlay,
@@ -111,6 +108,16 @@ import {
   StealthIcon,
   AnkiIcon,
 } from '../components/common';
+
+// These names are part of the shipped plugin host contract. Keep the adapter
+// here so renderer code uses only the canonical Button API.
+const pluginButton = (buttonType?: ButtonType): Component<Omit<ButtonProps, 'buttonType'>> => (props) =>
+  createComponent(Button, buttonType ? mergeProps(props, { buttonType }) : props);
+const Btn = pluginButton();
+const PillBtn = pluginButton('pill');
+const IconBtn = pluginButton('icon');
+const NavBtn = pluginButton('nav');
+const TabBtn = pluginButton('tab');
 
 export type {
   ButtonProps,

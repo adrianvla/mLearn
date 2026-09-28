@@ -141,5 +141,5 @@
   box-sizing: border-box;
   display:block;
   padding:0;
-  box-shadow: var(--shadow-2xl);
+  box-shadow: var(--shadow-md);
 }

@@ -15,9 +15,9 @@ import {
   PluginsTab,
   AboutTab,
   VideoPlayerTab,
-  BrowserExtensionTab,
   ComponentsTab,
 } from './tabs';
+import { BrowserExtensionSettings } from '../../components/settings/BrowserExtensionSettings';
 import Icon from '../../components/common/Icons/Icon';
 import { EventAuditPanel } from './EventAuditPanel';
 import './SettingsLayout.css';
@@ -182,7 +182,7 @@ export const SettingsContent: Component = () => {
             <TabPanel tabId="connection"><ConnectionTab /></TabPanel>
             <TabPanel tabId="plugins"><PluginsTab /></TabPanel>
             <TabPanel tabId="components"><ComponentsTab /></TabPanel>
-            <TabPanel tabId="browser-extension"><BrowserExtensionTab /></TabPanel>
+            <TabPanel tabId="browser-extension"><BrowserExtensionSettings /></TabPanel>
             <Show when={settings.devMode}>
               <TabPanel tabId="event-audit"><EventAuditPanel /></TabPanel>
             </Show>

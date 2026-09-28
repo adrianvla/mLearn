@@ -1,6 +1,6 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import type { Participant, Room, Thread, WorldSnapshot } from '../../../shared/world';
-import { Badge, Btn, PlusIcon, SearchIcon } from '../../components/common';
+import { Button, Badge, PlusIcon, SearchIcon } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import './RoomSidebar.css';
 
@@ -66,11 +66,11 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
     <aside class="room-sidebar">
       <div class="room-sidebar-header">
         <h3 class="room-sidebar-title">{t('mlearn.ConversationAgent.Sidebar.Title')}</h3>
-        <Btn variant="ghost" class="room-sidebar-new-conversation" onClick={props.onNewConversation}
+        <Button variant="ghost" class="room-sidebar-new-conversation" onClick={props.onNewConversation}
           title={t('mlearn.ConversationAgent.Sidebar.NewConversation')}>
           <PlusIcon size={18} />
           <span>{t('mlearn.ConversationAgent.Sidebar.NewConversation')}</span>
-        </Btn>
+        </Button>
       </div>
       <label class="room-sidebar-search">
         <SearchIcon size={16} />
@@ -80,7 +80,7 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
       <div class="room-sidebar-list">
         <For each={rooms()}>
           {({ room, participant, latestThread }) => (
-            <Btn variant="ghost" class={`room-sidebar-room ${room.id === props.roomId ? 'room-sidebar-room--active' : ''}`}
+            <Button variant="ghost" class={`room-sidebar-room ${room.id === props.roomId ? 'room-sidebar-room--active' : ''}`}
               aria-current={room.id === props.roomId ? 'true' : undefined}
               onClick={() => latestThread ? props.onSelectThread(latestThread.id) : props.onSelectRoom(room.id)}>
               {avatar(participant, room.title)}
@@ -89,14 +89,14 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
                 <span class="room-sidebar-row-context">{threadContext(latestThread) || started(room.createdAt)}</span>
               </span>
               <Show when={(room.unreadCount ?? 0) > 0}><Badge>{room.unreadCount}</Badge></Show>
-            </Btn>
+            </Button>
           )}
         </For>
         <Show when={temporaryThreads().length > 0}>
           <div class="room-sidebar-thread-header">{t('mlearn.ConversationAgent.Sidebar.TemporaryPractice')}</div>
           <For each={temporaryThreads()}>
             {({ thread, title, participant }) => (
-              <Btn variant="ghost" class={`room-sidebar-thread ${thread.id === props.threadId ? 'room-sidebar-thread--active' : ''}`}
+              <Button variant="ghost" class={`room-sidebar-thread ${thread.id === props.threadId ? 'room-sidebar-thread--active' : ''}`}
                 aria-current={thread.id === props.threadId ? 'true' : undefined}
                 onClick={() => props.onSelectThread(thread.id)}>
                 {avatar(participant, title)}
@@ -104,7 +104,7 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
                   <span class="room-sidebar-row-title">{title}</span>
                   <span class="room-sidebar-row-context">{threadContext(thread) !== title ? threadContext(thread) : ''}{threadContext(thread) !== title && threadContext(thread) ? ' · ' : ''}{started(thread.createdAt)}</span>
                 </span>
-              </Btn>
+              </Button>
             )}
           </For>
         </Show>
@@ -112,14 +112,14 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
           <div class="room-sidebar-thread-header">{selectedRoom()!.title}</div>
           <For each={threads()}>
             {(thread) => (
-              <Btn variant="ghost" class={`room-sidebar-thread ${thread.id === props.threadId ? 'room-sidebar-thread--active' : ''}`}
+              <Button variant="ghost" class={`room-sidebar-thread ${thread.id === props.threadId ? 'room-sidebar-thread--active' : ''}`}
                 aria-current={thread.id === props.threadId ? 'true' : undefined}
                 onClick={() => props.onSelectThread(thread.id)}>
                 <span class="room-sidebar-row-copy">
                   <span class="room-sidebar-row-title">{thread.title || threadContext(thread) || t('mlearn.ConversationAgent.Sidebar.UntitledThread')}</span>
                   <span class="room-sidebar-row-context">{started(thread.createdAt)}</span>
                 </span>
-              </Btn>
+              </Button>
             )}
           </For>
         </Show>

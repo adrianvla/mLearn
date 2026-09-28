@@ -54,7 +54,7 @@ vi.mock('../../components/common', () => ({
   RadioChoice: (props: { name: string; label: string; checked: boolean; disabled?: boolean; onChange: () => void }) => (
     <label><input type="radio" role="radio" name={props.name} aria-label={props.label} checked={props.checked} disabled={props.disabled} onChange={props.onChange} />{props.label}</label>
   ),
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; 'aria-pressed'?: boolean; 'aria-checked'?: boolean; role?: 'radio'; class?: string }) => (
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; 'aria-pressed'?: boolean; 'aria-checked'?: boolean; role?: 'radio'; class?: string }) => (
     <button type="button" role={props.role} aria-label={props['aria-label']} aria-pressed={props['aria-pressed']} aria-checked={props['aria-checked']} class={props.class} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   HintText: (props: { children?: JSX.Element }) => <span>{props.children}</span>,

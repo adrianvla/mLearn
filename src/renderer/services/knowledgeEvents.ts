@@ -4,7 +4,7 @@ import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEv
 
 const [eventsVersion, setEventsVersion] = createSignal(0);
 const [wordEventsVersion, setWordEventsVersion] = createSignal(0);
-const queryCache = new Map<string, KnowledgeEventLog>();
+const queryCache = new Map<string, Promise<KnowledgeEventLog>>();
 
 let channel: BroadcastChannel | null | undefined;
 let bridgeListenerRegistered = false;
@@ -43,10 +43,19 @@ export async function getEvents(keys: readonly string[]): Promise<KnowledgeEvent
   ensureInitialized();
   const uniqueKeys = [...new Set(keys)].sort();
   const cacheKey = uniqueKeys.join('|');
-  let log = queryCache.get(cacheKey);
-  if (!log) {
-    log = await getBridge().knowledgeEvents.queryKnowledgeEvents(uniqueKeys);
-    queryCache.set(cacheKey, log);
+  let request = queryCache.get(cacheKey);
+  if (!request) {
+    request = Promise.resolve().then(() => getBridge().knowledgeEvents.queryKnowledgeEvents(uniqueKeys));
+    queryCache.set(cacheKey, request);
+  }
+  let log: KnowledgeEventLog;
+  try {
+    log = await request;
+  } catch (error) {
+    // A failed request must not poison future reads. An invalidation may have
+    // already replaced this entry with a newer request for the same keys.
+    if (queryCache.get(cacheKey) === request) queryCache.delete(cacheKey);
+    throw error;
   }
   return Object.values(log).flat().sort((a, b) => a.t - b.t);
 }
@@ -98,10 +107,14 @@ export async function appendEventsIdempotentAcknowledged(eventsByKey: KnowledgeE
   const pending: KnowledgeEventLog = {};
   for (const key of keys) {
     const existingAttemptIds = new Set(
-      (existing[key] ?? []).flatMap((event) => event.attemptId === undefined ? [] : [`${event.attemptId}`]),
+      (existing[key] ?? []).flatMap((event) => event.kind === 'retraction' && event.retracts !== undefined
+        ? [`retraction:${event.retracts}`]
+        : event.attemptId === undefined ? [] : [`attempt:${event.attemptId}`]),
     );
     const events = (eventsByKey[key] ?? []).filter(
-      (event) => event.attemptId === undefined || !existingAttemptIds.has(`${event.attemptId}`),
+      (event) => event.kind === 'retraction'
+        ? event.retracts === undefined || !existingAttemptIds.has(`retraction:${event.retracts}`)
+        : event.attemptId === undefined || !existingAttemptIds.has(`attempt:${event.attemptId}`),
     );
     if (events.length > 0) pending[key] = events;
   }

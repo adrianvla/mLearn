@@ -41,20 +41,10 @@ let mockSettings: Record<string, unknown> = {
 };
 
 vi.mock('../common', () => ({
-  Btn: (props: { label?: string; onClick?: () => void; disabled?: boolean }) => (
-    <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.label}</button>
+  Button: (props: { label?: string; children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-pressed'?: boolean }) => (
+    <button type="button" aria-pressed={props['aria-pressed']} disabled={props.disabled} onClick={props.onClick}>{props.label ?? props.children}</button>
   ),
   CollapsibleStickyHeader: (props: { children?: JSX.Element; class?: string }) => <div class={props.class}>{props.children}</div>,
-  PillBtn: (props: { label?: string; children?: JSX.Element; onClick?: () => void; disabled?: boolean; ['aria-pressed']?: boolean }) => (
-    <button
-      type="button"
-      aria-pressed={props['aria-pressed']}
-      disabled={props.disabled}
-      onClick={props.onClick}
-    >
-      {props.label ?? props.children}
-    </button>
-  ),
   PillLabel: (props: { children?: JSX.Element; class?: string }) => <span class={props.class}>{props.children}</span>,
   Select: (props: { value: string; onChange?: (event: Event & { currentTarget: HTMLSelectElement }) => void; options: Array<{ value: string; label: string }> }) => (
     <select value={props.value} onChange={props.onChange}>

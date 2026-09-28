@@ -317,8 +317,7 @@ describe('Sharding helpers (via flashcard bridge)', () => {
         '10abcd': ['card3'],
       },
     });
-    bridge.flashcards.saveFlashcards(store as never);
-    await new Promise(r => setTimeout(r, 20));
+    await bridge.flashcards.saveFlashcards(store as never);
     // Check that meta was written
     const meta = localStorage.getItem('flashcards_meta');
     expect(meta).not.toBeNull();
@@ -332,8 +331,7 @@ describe('Sharding helpers (via flashcard bridge)', () => {
       entries[`${i.toString(16).padStart(2, '0')}aaaaaa`] = [`card${i}`];
     }
     const store = makeStore({ wordToCardMap: entries });
-    bridge.flashcards.saveFlashcards(store as never);
-    await new Promise(r => setTimeout(r, 20));
+    await bridge.flashcards.saveFlashcards(store as never);
     // 16 card shards written
     for (let i = 0; i < 16; i++) {
       expect(localStorage.getItem(`flashcards_cards_shard_${i}`)).not.toBeNull();
@@ -344,8 +342,7 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
     const store = makeStore({ version: 4, flashcards: { 'card1': { id: 'card1' } as never } });
-    bridge.flashcards.saveFlashcards(store as never);
-    await new Promise(r => setTimeout(r, 20));
+    await bridge.flashcards.saveFlashcards(store as never);
     const metaRaw = localStorage.getItem('flashcards_meta');
     expect(metaRaw).not.toBeNull();
     const meta = JSON.parse(metaRaw!);

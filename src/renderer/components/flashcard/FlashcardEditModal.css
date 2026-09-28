@@ -15,7 +15,7 @@
   border-radius: 6px;
   color: var(--text-primary);
   font-size: var(--font-size-xs);
-  font-family: var(--font-mono);
+  font-family: var(--font-family-mono);
   line-height: 1.4;
   min-height: 2rem;
   resize: vertical;

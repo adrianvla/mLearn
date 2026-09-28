@@ -154,7 +154,7 @@ describe('createEncounterTimer', () => {
   });
 
   it('the no-options production seam reads the real document, not window globals', () => {
-    // Production callers (FlashcardReview, PlacementSession, WelcomeRoute,
+    // Production callers (FlashcardReview, Word Sync, WelcomeRoute,
     // WordSync) create the timer with NO options. In a renderer `globalThis`
     // is the window — `window.hidden` is undefined and `window.hasFocus`
     // does not exist — so the default must resolve `globalThis.document`.

@@ -19,8 +19,8 @@
 }
 
 .word-status-knowledge__close { margin-left: auto; padding: var(--spacing-1); }
-.word-status-knowledge__source { color: var(--text-secondary); font-size: var(--font-size-2xs); }
-.word-status-knowledge__status { font-size: var(--font-size-2xs); font-weight: var(--font-weight-semibold); }
+.word-status-knowledge__source { color: var(--text-secondary); font-size: var(--font-size-xs); }
+.word-status-knowledge__status { font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); }
 .word-status-knowledge__status--unknown { color: var(--color-danger); }
 .word-status-knowledge__status--learning { color: var(--color-warning); }
 .word-status-knowledge__status--known { color: var(--color-success); }

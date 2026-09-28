@@ -6,18 +6,19 @@ import { surfaceEntityId } from '../../../../shared/graph/load';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 const inspect = vi.hoisted(() => vi.fn());
 const recordAttempt = vi.hoisted(() => vi.fn());
+const submitRating = vi.hoisted(() => vi.fn());
 vi.mock('../../../services/openKnowledgeInspector', () => ({ openKnowledgeInspector: inspect }));
 vi.mock('../../../context', () => ({
   useSettings: () => ({ settings: { language: 'ja', ratingKeyboardMode: 'mnemonic' } }),
   useLocalization: () => ({ t: (key: string) => key }),
-  useFlashcards: () => ({ getComprehensiveWordStatusWithSourceSync: () => ({ status: 'known', basis: 'evidence' }), recordAttempt }),
+  useFlashcards: () => ({ getComprehensiveWordStatusWithSourceSync: () => ({ status: 'known', basis: 'evidence' }), recordAttempt, submitRating }),
 }));
 vi.mock('../../../hooks/useKnowledgeProjection', () => ({ useKnowledgeProjection: () => ({
   projection: () => undefined,
   capabilities: () => ['sense-recognition', 'surface-recognition'],
 }) }));
 let dispose: (() => void) | undefined;
-afterEach(() => { dispose?.(); document.body.replaceChildren(); vi.clearAllMocks(); });
+afterEach(() => { dispose?.(); document.body.replaceChildren(); vi.clearAllMocks(); submitRating.mockReset(); });
 describe('knowledge hover', () => {
   it('opens the canonical target inspector and rates explicit rows through the restored matrix', () => {
     const container = document.createElement('div'); document.body.append(container);
@@ -52,20 +53,50 @@ describe('knowledge hover', () => {
     // word completes as one attempt.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
-    expect(recordAttempt).toHaveBeenCalledTimes(2);
-    expect(recordAttempt).toHaveBeenCalledWith('犬', 'surface-recognition', 'missed', expect.objectContaining({ language: 'ja' }));
-    expect(recordAttempt).toHaveBeenCalledWith('犬', 'sense-recognition', 'missed', expect.objectContaining({ language: 'ja' }));
+    expect(submitRating).toHaveBeenCalledOnce();
+    expect(submitRating).toHaveBeenCalledWith('犬', [
+      { capability: 'sense-recognition', quality: 'missed' },
+      { capability: 'surface-recognition', quality: 'missed' },
+    ], expect.objectContaining({ language: 'ja', attemptId: expect.any(String) }));
   });
 
-  it('returns to the summary after an attempt so Rate can start another attempt', () => {
+  it('returns to the summary after an acknowledged attempt so Rate can start another attempt', async () => {
     const container = document.createElement('div'); document.body.append(container);
     dispose = render(() => <WordStatusPillKnowledge word="犬" language="ja" />, container);
     const rateButton = Array.from(container.querySelectorAll('button')).find(item => item.textContent === 'mlearn.Knowledge.Popup.Rate')!;
     rateButton.click();
     container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
-    expect(recordAttempt).toHaveBeenCalled();
+    expect(submitRating).toHaveBeenCalled();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(container.querySelector('.rating-matrix')).toBeNull();
     rateButton.click();
     expect(container.querySelector('.rating-matrix__quality')).not.toBeNull();
+  });
+
+  it('keeps the matrix open until the rating is acknowledged and retries the same command after failure', async () => {
+    let resolveFirst!: () => void;
+    submitRating.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      resolveFirst = () => reject(new Error('disk unavailable'));
+    })).mockResolvedValueOnce({ attemptId: 'attempt-1', completed: true });
+    const container = document.createElement('div'); document.body.append(container);
+    dispose = render(() => <WordStatusPillKnowledge word="犬" language="ja" />, container);
+    container.querySelector<HTMLButtonElement>('.word-status-knowledge__actions button')!.click();
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+
+    expect(submitRating).toHaveBeenCalledOnce();
+    expect(container.querySelector('.rating-matrix')).not.toBeNull();
+    resolveFirst();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Retry');
+    expect(retry).toBeDefined();
+    retry!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(submitRating).toHaveBeenCalledTimes(2);
+    expect(submitRating.mock.calls[1]).toEqual(submitRating.mock.calls[0]);
+    expect(container.querySelector('.rating-matrix')).toBeNull();
   });
 });

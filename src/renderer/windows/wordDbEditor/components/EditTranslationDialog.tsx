@@ -7,17 +7,7 @@ import { Component, createMemo, createSignal, onMount, Show } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
-import {
-  Input,
-  Modal,
-  ModalFooter,
-  SkeletonRows,
-  FormField,
-  Textarea,
-  ContentEditable,
-  AlertBanner,
-  Btn,
-} from '../../../components/common';
+import { Button, Input, Modal, ModalFooter, SkeletonRows, FormField, Textarea, ContentEditable, AlertBanner } from '../../../components/common';
 import { ProsodyOverlay } from '../../../components/language-specific';
 import type { FlashcardProsody, TranslationResponse } from '@shared/types';
 import { extractProsodyFromTranslationData } from '../../../utils/readingProsody';
@@ -241,9 +231,9 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
   const footer = () => (
     <ModalFooter
       leftContent={
-        <Btn variant="danger" size="sm" onClick={handleRevert}>
+        <Button variant="danger" size="sm" onClick={handleRevert}>
           {t('mlearn.WordDbEditor.EditTranslation.RemoveOverride')}
-        </Btn>
+        </Button>
       }
       cancelText={t('mlearn.Global.Cancel')}
       onCancel={props.onClose}

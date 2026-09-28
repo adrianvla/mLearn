@@ -6,7 +6,7 @@
 import { Component, createSignal, Show, For } from 'solid-js';
 import { useLocalization } from '../../context';
 import { useLanguage } from '../../context/LanguageContext';
-import { Modal, Btn, Textarea, HintText, TabContainer, RadioChoice } from '../common';
+import { Button, Modal, Textarea, HintText, TabContainer, RadioChoice } from '../common';
 import type { TabItem } from '../common/Tabs/TabContainer';
 import type { TutorSessionConfig, TutorGrammarSelection, TutorWordSelection, TutorMediaSelection } from '../../../shared/types';
 import { GrammarSelector } from './GrammarSelector';
@@ -89,12 +89,12 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
 
   const footer = (
     <div class="ai-tutor-setup-modal__footer">
-      <Btn variant="ghost" onClick={advanced() ? () => setAdvanced(false) : handleClose}>
+      <Button variant="ghost" onClick={advanced() ? () => setAdvanced(false) : handleClose}>
         {t(advanced() ? 'mlearn.Global.Back' : 'mlearn.Global.Cancel')}
-      </Btn>
-      <Btn variant="primary" onClick={handleStart}>
+      </Button>
+      <Button variant="primary" onClick={handleStart}>
         {t('mlearn.AITutorSetup.StartSession')}
-      </Btn>
+      </Button>
     </div>
   );
 
@@ -141,7 +141,7 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
           <label for="tutor-session-request">{t('mlearn.AITutorSetup.InstructionsLabel')}</label>
           <Textarea id="tutor-session-request" value={customInstructions()} onInput={e => setCustomInstructions(e.currentTarget.value)} placeholder={t('mlearn.AITutorSetup.InstructionsPlaceholder')} rows={2} />
         </div>
-        <Btn variant="default" class="ai-tutor-setup-modal__material-trigger" onClick={() => setAdvanced(true)}>{t('mlearn.AITutorSetup.Advanced')}</Btn>
+        <Button variant="default" class="ai-tutor-setup-modal__material-trigger" onClick={() => setAdvanced(true)}>{t('mlearn.AITutorSetup.Advanced')}</Button>
         </Show>
       </div>
     </Modal>

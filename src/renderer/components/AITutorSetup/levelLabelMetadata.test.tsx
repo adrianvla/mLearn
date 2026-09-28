@@ -153,7 +153,7 @@ vi.mock('../../services/llmProvider', () => ({
 }));
 
 vi.mock('../common', () => ({
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   CollapsibleStickyHeader: (props: { children?: JSX.Element }) => <div>{props.children}</div>,

@@ -28,8 +28,8 @@ describe('getNestedValue', () => {
   });
 
   it('returns string value at a dot-separated nested path', () => {
-    const obj = { mlearn: { Home: { UI: { Title: 'My App' } } } };
-    expect(getNestedValue(obj, 'mlearn.Home.UI.Title')).toBe('My App');
+    const obj = { mlearn: { Global: { AppName: 'My App' } } };
+    expect(getNestedValue(obj, 'mlearn.Global.AppName')).toBe('My App');
   });
 
   it('returns null for a missing top-level key', () => {

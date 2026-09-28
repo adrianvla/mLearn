@@ -197,7 +197,7 @@ vi.mock('../../hooks', () => ({
 vi.mock('../../components/common', () => ({
   PlusIcon: () => <span aria-hidden="true" />,
   SearchIcon: () => <span aria-hidden="true" />,
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; variant?: string; size?: string; class?: string; 'aria-label'?: string; 'aria-disabled'?: boolean }) => (
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; variant?: string; size?: string; class?: string; 'aria-label'?: string; 'aria-disabled'?: boolean }) => (
     <button type="button" class={props.class} aria-label={props['aria-label']} aria-disabled={props['aria-disabled']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   Badge: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
@@ -278,7 +278,7 @@ vi.mock('../../components/common', () => ({
 }));
 
 vi.mock('../../components', () => ({
-  Btn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
     <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   Input: (props: { value?: string; onInput?: (e: InputEvent) => void; type?: string }) => (

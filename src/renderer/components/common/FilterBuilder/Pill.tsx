@@ -4,6 +4,7 @@
  */
 
 import { Component, createSignal } from 'solid-js';
+import { Button } from '../Button/Button';
 
 export interface PillProps {
   label: string;
@@ -20,13 +21,6 @@ export const Pill: Component<PillProps> = (props) => {
     props.onDragStart(e);
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      props.onClick?.();
-    }
-  };
-
   const classes = () => {
     const parts = ['filter-builder-palette-pill'];
     if (isDragging()) parts.push('dragging');
@@ -35,19 +29,20 @@ export const Pill: Component<PillProps> = (props) => {
   };
 
   return (
-    <div
+    <Button
+      type="button"
+      buttonType="default"
+      variant="ghost"
+      size="sm"
       class={classes()}
       draggable={true}
-      role="button"
-      tabIndex={0}
       aria-label={props.label}
       onDragStart={handleDragStart}
       onDragEnd={() => setDragging(false)}
       onClick={() => props.onClick?.()}
-      onKeyDown={handleKeyDown}
     >
       {props.label}
-    </div>
+    </Button>
   );
 };
 

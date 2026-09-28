@@ -12,7 +12,7 @@ import { CloudReLoginModal } from '../../../components/cloud';
 import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../../components/watchTogether';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
-import { Panel, Btn, NavBtn, VideoIcon, Spinner } from '../../../components/common';
+import { Button, Panel, VideoIcon, Spinner } from '../../../components/common';
 import { isLLMReady } from '../../../services/llmProvider';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
@@ -1400,28 +1400,28 @@ export const VideoRoute: Component = () => {
 
       {/* Back button */}
       <div class="video-nav">
-        <NavBtn class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
+        <Button buttonType="nav" class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
           {t('mlearn.Video.UI.GoHome')}
-        </NavBtn>
+        </Button>
 
         <Show when={!showDropZone()}>
-          <NavBtn
+          <Button buttonType="nav"
             class="conversation-agent-button"
             onClick={openConversationAgent}
             title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
           >
             {t('mlearn.Video.UI.OpenConversationAgent')}
-          </NavBtn>
+          </Button>
         </Show>
 
         <Show when={watchTogether.isRoomMode()}>
-          <NavBtn
+          <Button buttonType="nav"
             class="watch-together-room-button"
             onClick={openWatchTogetherCodeModal}
             title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
           >
             {`${t('mlearn.WatchTogether.Code.OpenRoomPanel')}: ${watchTogether.roomSession()?.room.roomCode ?? ''} • ${watchTogether.peerCount()} ${t('mlearn.WatchTogether.Code.Peers')}`}
-          </NavBtn>
+          </Button>
         </Show>
       </div>
 
@@ -1439,15 +1439,15 @@ export const VideoRoute: Component = () => {
               <h2>{t('mlearn.Video.UI.DropVideoHere')}</h2>
               <p>{t('mlearn.Video.UI.OrClickToBrowse')}</p>
               <div class="drop-actions">
-                <Btn variant="primary" onClick={handleSelectVideo}>
+                <Button variant="primary" onClick={handleSelectVideo}>
                   {t('mlearn.Video.UI.OpenVideo')}
-                </Btn>
-                <Btn onClick={handleSelectSubtitle}>
+                </Button>
+                <Button onClick={handleSelectSubtitle}>
                   {t('mlearn.Video.UI.OpenSubtitles')}
-                </Btn>
-                <Btn onClick={openWatchTogetherCodeModal}>
+                </Button>
+                <Button onClick={openWatchTogetherCodeModal}>
                   {t('mlearn.Video.WatchTogether')}
-                </Btn>
+                </Button>
               </div>
             </Panel>
           </div>
