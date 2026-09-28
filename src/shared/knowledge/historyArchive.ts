@@ -10,7 +10,7 @@ import {
   outcomeEase,
   type FoldState,
 } from '../utils/projectionReplay';
-import { scheduleAfterAnswer, type RetentionEvidence, type RetentionPolicy } from '../srs/retentionScheduler';
+import { deriveRetentionSchedule, type RetentionEvidence, type RetentionPolicy } from '../srs/retentionScheduler';
 
 /**
  * Multi-resolution knowledge-history archive.
@@ -736,21 +736,10 @@ export function computeRetention(
     if (archiveFold.firstSeen !== undefined && archiveFold.firstSeen < firstEvidenceT) firstEvidenceT = archiveFold.firstSeen;
   }
   const template = { createdAt: Number.isFinite(firstEvidenceT) ? firstEvidenceT : now, initialEase: 2.5 };
-  let schedule: RetentionScheduleCache = {
-    state: 'new',
-    ease: template.initialEase,
-    interval: 0,
-    dueAt: template.createdAt,
-    reviews: 0,
-    lapses: 0,
-    learningStep: 0,
-    lastReviewed: 0,
-    provenance: 'derived-scheduler-cache',
-  };
-  for (const evidence of [...preArchive, ...postArchive]) {
-    schedule = scheduleAfterAnswer(schedule, evidence.rating, policy, evidence.t, evidence.condition ?? 'unassisted');
-  }
-  return { ...schedule, pressure: Math.max(0, (now - schedule.dueAt) / Math.max(1, schedule.interval || 24 * 60 * 60 * 1000)) };
+  // The two halves are individually ordered and non-overlapping (pre-archive is
+  // at/below the frontier, post-archive above it), so the concatenation is
+  // already the full evidence order the scheduler replays.
+  return deriveRetentionSchedule(template, [...preArchive, ...postArchive], policy, now);
 }
 
 // ─── Row records: the packed reducer-input projection of archived rows ───

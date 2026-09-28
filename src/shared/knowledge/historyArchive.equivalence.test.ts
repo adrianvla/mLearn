@@ -13,7 +13,6 @@ import { assembleTargetExplanation, type JournalRow } from '../graph/explanation
 import type { RetentionPolicy } from '../srs/retentionScheduler';
 import { deriveRetentionSchedule } from '../srs/retentionScheduler';
 
-
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 7, 15, 12);
 const POLICY: RetentionPolicy = {
@@ -278,9 +277,12 @@ describe('history archive — projection equivalence', () => {
     const keptRatings = compact.kept.filter(({ event }) => event.rating !== undefined).length;
     expect(archivedRatings + keptRatings).toBe(events.filter((event) => event.rating !== undefined).length);
 
+    // The two sides receive DIFFERENT evidence: the raw journal rows versus
+    // the archive-frontier merge (bucket residues + kept rows). Both then run
+    // the SAME scheduler fold, so equality proves compaction is
+    // retention-lossless — no rating dropped, duplicated or reordered.
     const raw = deriveRetentionSchedule({ createdAt: events[0]!.t, initialEase: 2.5 }, rows.flatMap(({ event }) => event.rating ? [{ t: event.t, rating: event.rating }] : []), POLICY, NOW);
     const compacted = computeRetention(archive, compact.kept, POLICY, NOW, () => true);
-    // FSM inputs identical ⇒ schedule identical.
     expect(compacted).toEqual({ ...raw, pressure: compacted?.pressure });
     expect(compacted?.ease).toBe(raw.ease);
     expect(compacted?.dueAt).toBe(raw.dueAt);
