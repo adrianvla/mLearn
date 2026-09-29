@@ -179,7 +179,9 @@ export const Dashboard: Component = () => {
           : d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
 
       last30.push({
-        label: i % 6 === 0 ? dayLabel : '',
+        // BarChart decides which labels the rendered width can carry, so
+        // every day offers its label and none is dropped by a fixed stride.
+        label: dayLabel,
         value: stat?.reviewCardsStudied ?? 0,
         color: 'var(--color-primary)',
         secondaryValue: stat?.newCardsStudied ?? 0,

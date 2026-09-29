@@ -4,44 +4,58 @@ import { selectAxisTicks } from './barChartTicks';
 /** Fixed-width measurer: every glyph is `perChar` wide. */
 const fixed = (perChar: number) => (text: string) => text.length * perChar;
 
+/** Thirty day-of-month labels, the densest axis the app actually renders. */
+const dayAxis = Array.from({ length: 30 }, (_, index) => String(index + 1));
+
 describe('selectAxisTicks', () => {
   it('keeps every label when the axis is sparse enough', () => {
     const labels = ['A', 'B', 'C', 'D'];
     const ticks = selectAxisTicks(labels, 40, fixed(8));
-    expect(ticks.map(t => t.index)).toEqual([0, 1, 2, 3]);
+    expect(ticks.map(tick => tick.index)).toEqual([0, 1, 2, 3]);
     // Interior labels centre; the endpoints anchor inward so they are not clipped.
-    expect(ticks.map(t => t.align)).toEqual(['left', 'center', 'center', 'right']);
+    expect(ticks.map(tick => tick.align)).toEqual(['left', 'center', 'center', 'right']);
   });
 
-  it('drops labels that cannot fit at their natural width', () => {
-    const labels = Array.from({ length: 30 }, (_, i) => String(i + 1));
-    // ~6px per bar slot: a 2-character label needs 12px, so it never fits.
-    const ticks = selectAxisTicks(labels, 6, fixed(6));
-    expect(ticks.map(t => t.index)).toEqual([0, 29]);
+  it('keeps every label on a dense axis that still has room between ticks', () => {
+    // 2-char labels are 12px; adjacent ticks at 26px leave 24.7px of gap.
+    expect(selectAxisTicks(dayAxis, 26, fixed(6))).toHaveLength(30);
   });
 
   it('thins the axis by striding instead of dropping it entirely', () => {
-    const labels = Array.from({ length: 30 }, (_, i) => String(i + 1));
-    // 2-char labels are 12px wide; at a 28px slot every other tick fits.
-    const ticks = selectAxisTicks(labels, 28, fixed(6));
+    // At 14px slots only every third pair of labels clears its neighbour.
+    const ticks = selectAxisTicks(dayAxis, 14, fixed(6));
     expect(ticks.length).toBeGreaterThan(5);
     expect(ticks.length).toBeLessThan(30);
-    // Stride must be even enough that retained labels do not collide.
-    const indices = ticks.map(t => t.index);
+    // Retained labels must never be closer than one skipped tick.
+    const indices = ticks.map(tick => tick.index);
     for (let i = 1; i < indices.length; i++) {
       expect(indices[i] - indices[i - 1]).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it('always retains the last label so the window end is readable', () => {
-    const labels = Array.from({ length: 12 }, (_, i) => `d${i + 1}`);
-    const ticks = selectAxisTicks(labels, 10, fixed(6));
-    expect(ticks.map(t => t.index)).toContain(labels.length - 1);
+  it('never lets two retained labels overlap', () => {
+    for (const slot of [6, 8, 10, 12, 14, 16, 20, 24, 26, 30, 40]) {
+      const indices = selectAxisTicks(dayAxis, slot, fixed(6)).map(tick => tick.index);
+      for (let i = 1; i < indices.length; i++) {
+        const gap = (indices[i] - indices[i - 1]) * slot;
+        expect(12).toBeLessThanOrEqual(gap);
+      }
+    }
   });
 
-  it('anchors the edge labels inward so they are not clipped by the canvas', () => {
-    const labels = Array.from({ length: 30 }, (_, i) => String(i + 1));
-    const ticks = selectAxisTicks(labels, 6, fixed(6));
+  it('falls back to the range endpoints when nothing can fit', () => {
+    // 30 labels of 12px in slots of 1px: even the endpoints collide.
+    const ticks = selectAxisTicks(dayAxis, 1, fixed(6));
+    expect(ticks.map(tick => tick.index)).toEqual([0, 29]);
+  });
+
+  it('always retains the last label so the window end is readable', () => {
+    const ticks = selectAxisTicks(dayAxis, 6, fixed(6));
+    expect(ticks.map(tick => tick.index)).toContain(29);
+  });
+
+  it('anchors the edge labels inward so they are not clipped by the chart', () => {
+    const ticks = selectAxisTicks(dayAxis, 4, fixed(6));
     expect(ticks[0].align).toBe('left');
     expect(ticks[ticks.length - 1].align).toBe('right');
   });
@@ -52,10 +66,8 @@ describe('selectAxisTicks', () => {
   });
 
   it('centres a single-label axis, which cannot be clipped', () => {
-    // With one bar the label is centred over it; the edge-anchor rules that
-    // exist to stop clipping at the canvas border do not apply.
     const ticks = selectAxisTicks(['abcdefgh'], 20, fixed(4));
-    expect(ticks.map(t => t.index)).toEqual([0]);
+    expect(ticks.map(tick => tick.index)).toEqual([0]);
     expect(ticks[0].align).toBe('center');
   });
 });

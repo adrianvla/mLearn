@@ -1,14 +1,14 @@
 /**
- * Axis label placement policy for canvas bar charts.
+ * Axis label placement policy for canvas and DOM bar charts.
  *
  * A dense axis (for example 30 days in a narrow card) cannot show every
  * label. Squeezing them with a `fillText` maxWidth produces an unreadable
- * smear, and simply centring every label makes neighbours overlap. The
- * renderer therefore asks this module which ticks are actually drawable, and
- * `drawBarChart` drops the rest.
+ * smear, and simply centring every label makes neighbours overlap. Both
+ * renderers therefore ask this module which ticks are actually drawable and
+ * drop the rest.
  */
 
-/** Largest fraction of a label's slot that the glyphs may occupy. */
+/** Largest fraction of the gap between ticks that the glyphs may occupy. */
 const LABEL_FILL_RATIO = 0.95;
 
 export interface BarChartTick {
@@ -18,7 +18,7 @@ export interface BarChartTick {
   text: string;
   /**
    * Horizontal anchoring. `left`/`right` pull the first and last labels inward
-   * so a centred label would not be clipped by the canvas edge.
+   * so a centred label would not be clipped by the chart's edge.
    */
   align: 'center' | 'left' | 'right';
 }
@@ -31,15 +31,24 @@ function alignFor(index: number, last: number): BarChartTick['align'] {
   return 'center';
 }
 
+const toTicks = (labels: readonly string[], indices: readonly number[]): BarChartTick[] => {
+  const last = labels.length - 1;
+  return indices.map(index => ({
+    index,
+    text: labels[index],
+    align: alignFor(index, last),
+  }));
+};
+
 /**
  * Choose which bar labels to draw.
  *
- * A label is kept when the widest label in the set still fits the distance to
- * its neighbour. When nothing fits, the first and last bars are labelled so
- * the axis still communicates the range it covers.
+ * A label is kept when it and its retained neighbour leave at least
+ * `slotWidth * gap` between their glyphs. When nothing fits, the first and
+ * last bars are labelled so the axis still communicates its range.
  *
  * @param labels    Candidate label per bar, in bar order.
- * @param slotWidth Width available to each label, in CSS pixels.
+ * @param slotWidth Width available to each bar, in CSS pixels.
  * @param measure   Natural width of a label, in CSS pixels.
  */
 export function selectAxisTicks(
@@ -50,50 +59,30 @@ export function selectAxisTicks(
   if (labels.length === 0 || slotWidth <= 0) return [];
 
   const last = labels.length - 1;
-  // The first and last labels are anchored inward, so they overhang their own
-  // slot by half a slot and must be budgeted for it.
-  const widthOf = (index: number): number =>
-    measure(labels[index]) + (index === 0 || index === last ? slotWidth / 2 : 0);
+  const widthOf = (index: number): number => measure(labels[index]);
 
-  /** Do the given ticks leave at least `slotWidth * gap` between glyphs? */
-  const fits = (indices: readonly number[]): boolean =>
-    indices.every((index, position) => {
-      if (position === 0) return widthOf(index) <= slotWidth * LABEL_FILL_RATIO;
+  /** Do the given ticks leave room for their glyphs in the gaps they span? */
+  const fits = (indices: readonly number[]): boolean => {
+    for (let position = 1; position < indices.length; position++) {
       const previous = indices[position - 1];
-      const gap = index - previous;
-      const next = indices[position + 1];
-      // A middle label shares the free space with both neighbours.
-      const neighbours = next === undefined ? 1 : 2;
-      return (widthOf(previous) + widthOf(index)) / neighbours <= slotWidth * gap * LABEL_FILL_RATIO;
-    });
+      const index = indices[position];
+      const gap = (index - previous) * slotWidth * LABEL_FILL_RATIO;
+      if (widthOf(previous) + widthOf(index) > gap) return false;
+    }
+    return true;
+  };
 
-  if (fits(labels.map((_label, index) => index))) {
-    return labels.map((_label, index) => ({
-      index,
-      text: labels[index],
-      align: alignFor(index, last),
-    }));
-  }
+  const every = labels.map((_label, index) => index);
+  if (fits(every)) return toTicks(labels, every);
 
   // Stride down until the retained labels stop colliding.
-  for (let stride = 2; stride <= labels.length; stride++) {
+  for (let stride = 2; stride <= last; stride++) {
     const indices: number[] = [];
     for (let index = 0; index <= last; index += stride) indices.push(index);
     if (indices[indices.length - 1] !== last) indices.push(last);
-    if (fits(indices)) {
-      return indices.map(index => ({
-        index,
-        text: labels[index],
-        align: alignFor(index, last),
-      }));
-    }
+    if (fits(indices)) return toTicks(labels, indices);
   }
 
   // Nothing fits even at full stride: keep only the range endpoints.
-  const endpoints = last === 0 ? [0] : [0, last];
-  return endpoints.map(index => ({
-    index,
-    text: labels[index],
-    align: alignFor(index, last),
-  }));
+  return toTicks(labels, last === 0 ? [0] : [0, last]);
 }
