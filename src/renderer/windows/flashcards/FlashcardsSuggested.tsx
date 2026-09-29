@@ -15,6 +15,7 @@ import { FlashcardWordTitle } from '../../components/flashcard';
 import { useFlashcards, useLocalization, useLanguage, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { cacheVersion, getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
+import { useItemSelection } from '../../hooks/useItemSelection';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
@@ -57,7 +58,6 @@ export const FlashcardsSuggested: Component = () => {
   const [levelFilter, setLevelFilter] = createSignal<string>('all');
   const [sortBy, setSortBy] = createSignal('default');
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
-  const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples);
   const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
@@ -71,6 +71,13 @@ export const FlashcardsSuggested: Component = () => {
 
   // Keyed by the per-language suggestion list so Solid re-reads on store update.
   const suggestions = createMemo(() => getSuggestedFlashcardsSync());
+
+  // The selection is owned by the hook, which keeps it equal to the suggestions
+  // that still exist. A suggestion can leave this list on its own - promoted,
+  // removed, or dropped by the garbage collector on mount - and a count that
+  // kept naming it would arm the bulk bar over rows that are not there.
+  const selection = useItemSelection(() => suggestions().map((s) => s.id));
+  const selected = selection.selected;
 
   onMount(() => {
     void garbageCollectSuggestedFlashcards()
@@ -320,39 +327,17 @@ export const FlashcardsSuggested: Component = () => {
     return content;
   });
 
-  const allFilteredSelected = createMemo(() => {
-    const ids = filtered().map((s) => s.id);
-    if (ids.length === 0) return false;
-    const sel = selected();
-    return ids.every((id) => sel.has(id));
-  });
+  const allFilteredSelected = createMemo(() => selection.allSelected(filtered().map((s) => s.id)));
 
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  const toggleSelect = (id: string) => selection.toggle(id);
 
   const toggleSelectAllFiltered = () => {
     const ids = filtered().map((s) => s.id);
-    if (allFilteredSelected()) {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.delete(id);
-        return next;
-      });
-    } else {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.add(id);
-        return next;
-      });
-    }
+    if (allFilteredSelected()) selection.deselect(ids);
+    else selection.select(ids);
   };
 
-  const clearSelection = () => setSelected(new Set<string>());
+  const clearSelection = () => selection.clear();
 
   const promoteSelected = async () => {
     const ids = Array.from(selected());

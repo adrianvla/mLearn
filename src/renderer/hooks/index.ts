@@ -31,6 +31,10 @@ export { useWatchTogether } from './useWatchTogether';
 export { createVirtualizer } from './useVirtualizer';
 export type { VirtualItem, VirtualizerOptions, Virtualizer, VirtualizerScrollOptions } from './useVirtualizer';
 
+// Selection over a list of ids, kept equal to what is actually there
+export { useItemSelection } from './useItemSelection';
+export type { ItemSelection } from './useItemSelection';
+
 // Policy (R20 encounter decision pin)
 export { useDecisionPin } from './useDecisionPin';
 export type { DecisionPin } from './useDecisionPin';

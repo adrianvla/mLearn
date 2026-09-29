@@ -20,6 +20,7 @@ import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
+import { useItemSelection } from '../../hooks/useItemSelection';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
 import { isLLMReady } from '../../services/llmProvider';
 import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider } from '../../../shared/types';
@@ -118,9 +119,6 @@ export const FlashcardsContent: Component = () => {
     }
     return langs.size === 1 ? [...langs][0] : null;
   };
-
-  // Multi-select state
-  const [selected, setSelected] = createSignal<Set<string>>(new Set());
 
   // Bulk operation state
   const [bulkProgress, setBulkProgress] = createSignal<{ current: number; total: number; label: string; startTime: number } | null>(null);
@@ -410,6 +408,12 @@ export const FlashcardsContent: Component = () => {
   // Get flashcards from store (now it's a Record)
   const flashcards = createMemo(() => getAllCards());
 
+  // Multi-select state. The hook keeps the selection equal to the cards that
+  // still exist, so a card deleted from its own row - or by another window's
+  // commit - leaves the list without leaving the count behind.
+  const selection = useItemSelection(() => flashcards().map((card) => card.id));
+  const selected = selection.selected;
+
   const filterFields = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() => {
     const languageNames: Record<string, string> = {};
     for (const [code, data] of Object.entries(langData)) {
@@ -507,51 +511,30 @@ export const FlashcardsContent: Component = () => {
   const counts = createMemo(() => queueCounts());
   const suggestedCount = createMemo(() => getSuggestedFlashcardBadgeCount(getSuggestedFlashcardsSync));
 
-  const allFilteredSelected = createMemo(() => {
-    const ids = filteredFlashcards().map((card) => card.id);
-    if (ids.length === 0) return false;
-    const sel = selected();
-    return ids.every((id) => sel.has(id));
-  });
+  const allFilteredSelected = createMemo(() => selection.allSelected(filteredFlashcards().map((card) => card.id)));
 
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  const toggleSelect = (id: string) => selection.toggle(id);
 
   const toggleSelectAllFiltered = () => {
     const ids = filteredFlashcards().map((card) => card.id);
-    if (allFilteredSelected()) {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.delete(id);
-        return next;
-      });
-    } else {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.add(id);
-        return next;
-      });
-    }
+    if (allFilteredSelected()) selection.deselect(ids);
+    else selection.select(ids);
   };
-
-  const clearSelection = () => setSelected(new Set<string>());
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selected());
     if (ids.length === 0) return;
 
+    // The selection is narrowed, not cleared: a removal that did not land is
+    // still the learner's to retry and its row is still on screen, so sweeping
+    // it out of the selection would leave the bar reading as armed over rows
+    // it will not act on. The hook drops the ids the delete did claim on its
+    // own, because those rows are gone.
     let deleted = 0;
     for (const id of ids) {
-      const removed = await removeFlashcard(id, false);
-      if (removed) deleted += 1;
+      if (await removeFlashcard(id, false)) deleted += 1;
     }
 
-    clearSelection();
     showToast({ message: t('mlearn.Flashcards.Browse.DeletedCount', { count: String(deleted) }), variant: 'success' });
   };
 
