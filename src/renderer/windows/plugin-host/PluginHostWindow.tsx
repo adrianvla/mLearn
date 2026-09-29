@@ -1,12 +1,31 @@
-import { Component, Match, Show, Switch, createSignal, onCleanup, onMount } from 'solid-js';
+import { Component, Match, Switch, createSignal, onCleanup, onMount } from 'solid-js';
 import { WindowWrapper, useLocalization } from '../../context';
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { getBridge } from '../../../shared/bridges';
 import type { PluginHostContext } from '../../../shared/plugins/types';
 import { PluginHost } from '../../plugins/PluginHost';
 
-export const PluginHostWindow: Component = () => {
+/**
+ * Rendered INSIDE WindowWrapper: that component *provides* LocalizationProvider,
+ * so a sibling of it — this window's own body — cannot read `t()`.
+ */
+const PluginContextBody: Component<{ hostContext: PluginHostContext | null }> = (props) => {
   const { t } = useLocalization();
+  return (
+    <div class="plugin-host-window">
+      <Switch>
+        <Match when={props.hostContext}>
+          {(resolvedContext) => <PluginHost hostContext={resolvedContext()} />}
+        </Match>
+        <Match when={!props.hostContext}>
+          <p>{t('mlearn.Plugin.Loading')}</p>
+        </Match>
+      </Switch>
+    </div>
+  );
+};
+
+export const PluginHostWindow: Component = () => {
   const [hostContext, setHostContext] = createSignal<PluginHostContext | null>(null);
 
   onMount(() => {
@@ -25,18 +44,7 @@ export const PluginHostWindow: Component = () => {
 
   return (
     <WindowWrapper showDragRegion={true}>
-      <div class="plugin-host-window">
-        <Switch>
-          <Match when={hostContext()}>
-            {(resolvedContext) => <PluginHost hostContext={resolvedContext()} />}
-          </Match>
-          <Match when={!hostContext()}>
-            <Show when={true}>
-              <p>{t('mlearn.Plugin.Loading')}</p>
-            </Show>
-          </Match>
-        </Switch>
-      </div>
+      <PluginContextBody hostContext={hostContext()} />
     </WindowWrapper>
   );
 };
