@@ -40,6 +40,8 @@ vi.mock('../../context', async () => {
     clearAccessClaim: mockClearAccessClaim,
     submitRating: mockSubmitRating,
     appendRetractions: mockAppendRetractions,
+    retractAttempts: mockRetractAttempts,
+    wordRetractionTarget: mockWordRetractionTarget,
     recordPendingRetraction: mockRecordPendingRetraction,
     completePendingRetraction: mockCompletePendingRetraction,
     recoverPendingRetraction: mockRecoverPendingRetraction,
@@ -118,6 +120,34 @@ const mockSubmitRating = vi.fn(async (
 const mockShowToast = vi.hoisted(() => vi.fn());
 const isReadingScriptTextFn = vi.hoisted(() => vi.fn((_surface?: unknown, _data?: unknown) => false));
 const mockAppendRetractions = vi.fn(async (_word?: string, _language?: string, _attemptIds?: string[]): Promise<boolean> => true);
+// The real lifecycle routes a retraction by the keys the attempt was written
+// to, not by re-deriving the subject. Modelling that here is what makes these
+// tests able to catch a surface recording a target it never wrote to.
+type MockRetractionTarget = {
+  keys: string[];
+  replay: { kind: 'word'; word: string; language: string } | { kind: 'grammar'; language: string; patterns: string[] };
+};
+const mockRetractAttempts = vi.fn(async (_target: MockRetractionTarget | undefined, _attemptIds?: string[]): Promise<boolean> => true);
+
+/**
+ * What a retraction is routed by: the keys the attempt was actually written to.
+ *
+ * Asserting the word string instead proved only that a label was passed; the
+ * routing is the contract that makes a recovery land on real evidence, so that
+ * is what the tests pin.
+ */
+const expectRetracted = (attemptIds: string[]): void => {
+  expect(mockRetractAttempts).toHaveBeenCalledTimes(1);
+  const [target, ids] = mockRetractAttempts.mock.calls.at(-1)!;
+  expect(target?.keys.length).toBeGreaterThan(0);
+  expect(target?.replay).toEqual({ kind: 'word', word: expect.any(String), language: 'ja' });
+  expect(ids).toEqual(attemptIds);
+};
+// Mirrors the context's word target: a word is stored under one key per form.
+const mockWordRetractionTarget = vi.fn((word: string, language: string): MockRetractionTarget => ({
+  keys: [`${language}:hash:${word}`],
+  replay: { kind: 'word', word, language },
+}));
 // The durable Undo record, modelled on the real shared protocol: a record is
 // written before the retraction and cleared by completing it, so a window that
 // reloads mid-undo can still find and finish it. `pendingRecord` is what a
@@ -128,6 +158,7 @@ type MockUndoRecord = {
   word: string;
   language: string;
   attemptIds: string[];
+  target?: MockRetractionTarget;
   restore: Record<string, unknown>;
 };
 let pendingRecord: MockUndoRecord | null = null;
@@ -139,7 +170,10 @@ const completeMockRecord = async (
   project?: (record: MockUndoRecord) => void,
 ): Promise<'completed' | 'retraction-refused' | 'stale' | 'store-refused'> => {
   if (pendingRecord?.attemptId !== record.attemptId) return 'stale';
-  if (!await mockAppendRetractions(record.word, record.language, record.attemptIds)) return 'retraction-refused';
+  // A record written before targets existed has none; it recovers under the
+  // word-form routing it was originally recorded with, never by being dropped.
+  const target = record.target ?? mockWordRetractionTarget(record.word, record.language);
+  if (!await mockRetractAttempts(target, record.attemptIds)) return 'retraction-refused';
   project?.(record);
   pendingRecord = null;
   return 'completed';
@@ -677,9 +711,9 @@ beforeEach(() => {
     mockRatingObservation.mockClear();
     mockSubmitRating.mockClear();
     mockShowToast.mockClear();
-    mockAppendRetractions.mockClear();
-    mockAppendRetractions.mockResolvedValue(true);
-    pendingRecord = null;
+    mockRetractAttempts.mockClear();
+    mockRetractAttempts.mockResolvedValue(true);
+        pendingRecord = null;
     mockRecordPendingRetraction.mockClear();
     mockRecordPendingRetraction.mockImplementation(async (record: MockUndoRecord) => { pendingRecord = record; return true; });
     mockCompletePendingRetraction.mockClear();
@@ -915,7 +949,7 @@ beforeEach(() => {
     expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 1');
     expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
     press('z', { ctrlKey: true });
-    expect(mockAppendRetractions).not.toHaveBeenCalled();
+    expect(mockRetractAttempts).not.toHaveBeenCalled();
     press(' '); await settle(); press('3'); await settle();
     expect(mockRatingObservation.mock.calls.at(-1)?.[3]).toMatchObject({ language: 'third-party' });
   });
@@ -1514,7 +1548,7 @@ beforeEach(() => {
     // …and completing it appends the retraction and clears the record, so a
     // later load finds nothing left to redo.
     expect(mockCompletePendingRetraction).toHaveBeenCalledTimes(1);
-    expect(mockAppendRetractions).toHaveBeenCalledWith('赤い', 'ja', [attemptId]);
+    expectRetracted([attemptId]);
     expect(pendingRecord).toBeNull();
 
     dispose();
@@ -1566,7 +1600,11 @@ beforeEach(() => {
     // Recovery runs on its own: the learner already asked for this undo, so
     // finishing it completes their request rather than starting new work.
     expect(mockRecoverPendingRetraction).toHaveBeenCalled();
-    expect(mockAppendRetractions).toHaveBeenCalledWith('赤い', 'ja', ['interrupted-attempt']);
+    expectRetracted(['interrupted-attempt']);
+    // This record predates retraction targets, so it carries none. It must
+    // still be routed rather than dropped: discarding it mid-undo is exactly
+    // the stranded rating the record was written to prevent.
+    expect(pendingRecord).toBeNull();
     // The record is cleared only once the retraction is durable.
     expect(pendingRecord).toBeNull();
 
@@ -1592,7 +1630,7 @@ beforeEach(() => {
     await settle();
     const attemptId = attemptIdOf(0);
 
-    mockAppendRetractions.mockResolvedValue(false);
+    mockRetractAttempts.mockResolvedValue(false);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await settle();
     await settle();
@@ -1601,10 +1639,10 @@ beforeEach(() => {
     expect(container.textContent).toContain('mlearn.WordSync.UndoSaveFailed');
     // Recorded, not cleared: the retry must be able to finish this exact undo.
     expect(pendingRecord).not.toBeNull();
-    expect(mockAppendRetractions).toHaveBeenCalledWith(expect.any(String), 'ja', [attemptId]);
+    expect(mockRetractAttempts).toHaveBeenCalledWith(expect.objectContaining({ keys: expect.any(Array) }), [attemptId]);
 
     // Retrying after storage recovers completes the same undo.
-    mockAppendRetractions.mockResolvedValue(true);
+    mockRetractAttempts.mockResolvedValue(true);
     const retry = Array.from(container.querySelectorAll('button'))
       .find((b) => b.textContent?.includes('mlearn.Global.TryAgain'));
     expect(retry).toBeDefined();
@@ -1614,7 +1652,7 @@ beforeEach(() => {
     await settle();
 
     expect(pendingRecord).toBeNull();
-    expect(mockAppendRetractions.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockRetractAttempts.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(container.textContent).not.toContain('mlearn.WordSync.UndoSaveFailed');
 
     dispose();
@@ -1642,8 +1680,7 @@ beforeEach(() => {
     await settle();
 
     // The attempt's events are retracted before re-presenting the probe.
-    expect(mockAppendRetractions).toHaveBeenCalledTimes(1);
-    expect(mockAppendRetractions).toHaveBeenLastCalledWith('赤い', 'ja', [attemptId]);
+    expectRetracted([attemptId]);
     expect(container.textContent).toContain('赤い:あかい');
     expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
 
@@ -1700,7 +1737,7 @@ beforeEach(() => {
     await settle();
     await settle();
 
-    expect(mockAppendRetractions).toHaveBeenLastCalledWith('赤い', 'ja', [attemptId]);
+    expectRetracted([attemptId]);
     expect(container.textContent).toContain('赤い:あかい');
     dispose();
   });
@@ -2529,7 +2566,7 @@ beforeEach(() => {
     };
     // Retractions succeed for the rating path's own bookkeeping, then the
     // storage layer starts refusing (the quota / private-storage failure).
-    mockAppendRetractions.mockResolvedValue(false);
+    mockRetractAttempts.mockResolvedValue(false);
     const { WordSyncContent } = await import('./App');
 
     const dispose = mountContent(WordSyncContent);
@@ -2566,7 +2603,7 @@ beforeEach(() => {
     retry!.click();
     await settle();
     await settle();
-    expect(mockAppendRetractions.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(mockRetractAttempts.mock.calls.length).toBeGreaterThanOrEqual(2);
     dispose();
   });
 

@@ -152,6 +152,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     recoverPendingRetraction,
     registerRetractionProjection,
     recomputeWordKnowledgeFromEvidence,
+    wordRetractionTarget,
     setAccessClaim,
     setWordClaim,
     clearAccessClaim,
@@ -981,6 +982,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     word: undoEntry.word.word,
     language: undoEntry.language,
     attemptIds: [...undoEntry.attemptIds],
+    // Taken from the context rather than re-derived here, so a window finishing
+    // an interrupted Undo writes its tombstones to the same form-family keys
+    // this attempt actually landed under.
+    target: wordRetractionTarget(undoEntry.word.word, undoEntry.language),
     restore: {
       session: undoEntry.previousSession,
       ratedCount: undoEntry.previousRatedCount,

@@ -20,6 +20,37 @@
  * back without core learning anything about its projection.
  */
 
+/**
+ * Which journal keys a retraction must land on, and what has to be replayed
+ * once they do.
+ *
+ * A tombstone is routed by KEY: the reading projection only un-counts an
+ * attempt where it later finds the tombstone, so writing one to the wrong key
+ * retracts nothing while still looking like a completed Undo. Deriving those
+ * keys therefore belongs to whoever wrote the attempt, not to the shared Undo
+ * protocol — a surface must say where its evidence lives.
+ *
+ * The kinds are open descriptors rather than an enum of subject types. Core
+ * routes by descriptor and replays the named projection; it does not know
+ * what a "pattern" is, and a surface for a subject kind core has never seen
+ * adds no branch here.
+ */
+export interface RetractionTarget {
+  /**
+   * Exact journal keys the attempt being retracted was written to. These are
+   * the keys the surface's own writer used — not keys re-derived from the
+   * subject — so a retracted attempt is always reachable at the place it
+   * actually landed.
+ */
+  keys: readonly string[];
+  /**
+   * Which derived projection to replay afterwards, so the retracted attempt
+   * stops counting in what the learner sees rather than lingering until the
+   * next unrelated write happens to refresh it.
+ */
+  replay: { kind: 'word'; word: string; language: string } | { kind: 'grammar'; language: string; patterns: readonly string[] };
+}
+
 /** The stable identity of the retraction a record belongs to. */
 export interface PendingRetraction {
   /**
@@ -39,6 +70,15 @@ export interface PendingRetraction {
   language: string;
   /** The attempt ids whose journal events must be retracted. */
   attemptIds: string[];
+  /**
+   * Where the retracted attempts were written, so a window finishing an
+   * interrupted Undo routes the tombstones exactly where the original did.
+   *
+   * Optional because records written before this field existed must still
+   * recover: an absent target falls back to the word-form routing those
+   * records were written under, rather than being discarded mid-undo.
+   */
+  target?: RetractionTarget;
   /** The surface's own projection state, opaque to core and to this store. */
   restore: unknown;
 }

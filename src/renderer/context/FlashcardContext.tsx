@@ -13,7 +13,7 @@ import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type Flashca
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
-import { clonePendingRetraction, readPendingRetraction, type PendingRetraction } from '../../shared/retractionRecovery';
+import { clonePendingRetraction, readPendingRetraction, type PendingRetraction, type RetractionTarget } from '../../shared/retractionRecovery';
 import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
 import { evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
@@ -386,6 +386,29 @@ interface FlashcardContextValue {
   ) => Promise<{ attemptId: AttemptId; completed: boolean }>;
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => Promise<boolean>;
+  /**
+   * The journal keys a word's attempts live under, and the projection they feed.
+   *
+   * A retraction has to be written to the keys the attempt actually landed on,
+   * and those are derived from the word's whole form family. Exposed so a
+   * surface records that location on its Undo instead of re-deriving it and
+   * risking a recovery that routes somewhere the attempt never was.
+   */
+  wordRetractionTarget: (word: string, language: string) => RetractionTarget;
+  /**
+   * Append retraction tombstones to the keys an attempt was actually written
+   * to, and replay whatever projection those keys feed.
+   *
+   * The durable Undo lifecycle needs this because a retraction is routed by
+   * KEY, not by attempt id alone: a tombstone only un-counts an attempt where
+   * the reading projection later finds it. Deriving those keys was hardcoded
+   * to a word's form family, which silently made every non-word study surface
+   * un-retractable — an Undo there would append nothing and still look done.
+   * Targets are open descriptors rather than an enum of subject kinds, so a
+   * surface for any new subject kind states its own keys instead of needing a
+   * new branch in core.
+   */
+  retractAttempts: (target: RetractionTarget, attemptIds: readonly AttemptId[]) => Promise<boolean>;
   /**
    * The durable Undo lifecycle, shared by every study surface.
    *
@@ -3510,6 +3533,20 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   /**
+   * Where a word's attempts live in the journal.
+   *
+   * A word is stored under one key per form it can appear as, so a retraction
+   * has to name all of them or the attempt stays counted under the forms the
+   * learner will actually meet it by. Stated once here so the word surfaces
+   * and the pre-target records that predate routing both resolve identically.
+   */
+  const wordRetractionTarget = (word: string, language: string): RetractionTarget => ({
+    keys: [...new Set([word, ...getWordFormsForLanguage(word, language)])]
+      .map((form) => langKey(language, SRS.hashWordSync(form))),
+    replay: { kind: 'word', word, language },
+  });
+
+  /**
    * Undo bookkeeping: append a retraction tombstone for each attemptId to every
    * form-family key of the word. Projections drop retracted events via
    * stripRetractions; the raw log stays append-only.
@@ -3527,6 +3564,42 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }));
     }
     return appendEventsIdempotentAcknowledged(eventsByKey);
+  };
+
+  /**
+   * The routing-aware half of a retraction: tombstone the keys the attempt was
+   * actually written to, then replay the projection those keys feed.
+   *
+   * The replay is what makes an Undo visible. Appending the tombstone only
+   * changes the journal; the materialised projection still counts the attempt
+   * until something re-reads it, so without the replay the learner watches
+   * their rating stand while the evidence behind it is gone.
+   */
+  const retractAttempts = async (target: RetractionTarget, attemptIds: readonly AttemptId[]): Promise<boolean> => {
+    if (attemptIds.length === 0) return true;
+    // A target with no keys cannot be routed anywhere, and reporting success
+    // would be the silent-no-op this exists to prevent.
+    if (target.keys.length === 0) return false;
+    const now = Date.now();
+    // Tombstones carry no epistemic address: routing is attemptId-only, so no
+    // aspect/capability lie is needed (projection readers skip address-less
+    // events for capability routing).
+    const eventsByKey: KnowledgeEventLog = {};
+    for (const key of new Set(target.keys)) {
+      eventsByKey[key] = attemptIds.map((retracts) => ({
+        t: now, kind: 'retraction', source: 'manual', retracts,
+      }));
+    }
+    if (!await appendEventsIdempotentAcknowledged(eventsByKey)) return false;
+    if (target.replay.kind === 'word') {
+      await recomputeWordKnowledgeFromEvidence(target.replay.word, target.replay.language);
+    } else {
+      await materializeGrammarKnowledge(
+        target.replay.language,
+        target.replay.patterns.map((pattern) => ({ pattern })),
+      );
+    }
+    return true;
   };
 
   /**
@@ -3592,7 +3665,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // the outcome.
     if (!durable || durable.attemptId !== record.attemptId) return 'stale';
 
-    if (!await appendRetractions(record.word, record.language, record.attemptIds as AttemptId[])) {
+    // Routed by the record, not by re-deriving the subject: a tombstone only
+    // un-counts an attempt where the reading projection later finds it, so the
+    // keys must be the ones the attempt was actually written to. Records
+    // written before targets existed fall back to the word-form routing they
+    // were recorded under rather than being stranded mid-undo.
+    const target: RetractionTarget = durable.target ?? wordRetractionTarget(durable.word, durable.language);
+    if (!await retractAttempts(target, durable.attemptIds as AttemptId[])) {
       return 'retraction-refused';
     }
     // Built only now, after the tombstones are in the journal: a projection
@@ -4835,6 +4914,8 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     isWordKnownComprehensiveSync,
     isWordSettledSync,
     appendRetractions,
+    retractAttempts,
+    wordRetractionTarget,
     recordPendingRetraction,
     completePendingRetraction,
     recoverPendingRetraction,
