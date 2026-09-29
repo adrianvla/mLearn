@@ -1,5 +1,6 @@
 import { Component, JSX, Show, createEffect, createSignal, on, onCleanup } from 'solid-js';
 import { Portal } from 'solid-js/web';
+import { useDismiss } from '../../../hooks/useDismiss';
 import './Tooltip.css';
 
 export interface TooltipProps {
@@ -132,20 +133,14 @@ export const Tooltip: Component<TooltipProps> = (props) => {
     }
   }, { defer: true }));
 
-  createEffect(() => {
-    if (!props.pinned) return;
-    const close = (event: KeyboardEvent | PointerEvent) => {
-      if (event instanceof KeyboardEvent && event.key === 'Escape') props.onRequestClose?.();
-      if (event instanceof PointerEvent && !triggerRef?.contains(event.target as Node) && !contentRef?.contains(event.target as Node)) {
-        props.onRequestClose?.();
-      }
-    };
-    document.addEventListener('keydown', close);
-    document.addEventListener('pointerdown', close);
-    onCleanup(() => {
-      document.removeEventListener('keydown', close);
-      document.removeEventListener('pointerdown', close);
-    });
+  // A pinned tooltip is a transient surface: Escape or a click outside the
+  // trigger and its content dismisses it. Unpinned tooltips are hover-driven
+  // and are not dismissed this way.
+  useDismiss({
+    active: () => !!props.pinned,
+    onDismiss: () => props.onRequestClose?.(),
+    inside: () => [triggerRef, contentRef],
+    closeOnOutsidePointer: true,
   });
 
   return (

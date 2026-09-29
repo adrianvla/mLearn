@@ -22,6 +22,8 @@ export { useMediaStats } from './useMediaStats';
 
 // UI
 export { useCursorVisibility } from './useCursorVisibility';
+export { useDismiss } from './useDismiss';
+export type { DismissOptions } from './useDismiss';
 
 // Collaboration
 export { useWatchTogether } from './useWatchTogether';

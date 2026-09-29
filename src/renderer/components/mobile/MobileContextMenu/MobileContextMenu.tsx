@@ -4,8 +4,9 @@
  * Triggered by long-press; slides up from bottom with action items.
  */
 
-import { Component, For, Show, onCleanup } from 'solid-js';
+import { Component, For, Show } from 'solid-js';
 import { Portal } from 'solid-js/web';
+import { useDismiss } from '../../../hooks/useDismiss';
 import './MobileContextMenu.css';
 
 export interface ContextMenuItem {
@@ -35,16 +36,11 @@ export const MobileContextMenu: Component<MobileContextMenuProps> = (props) => {
     props.onSelect(id);
   };
 
-  // Close on Escape key
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') props.onClose();
-  };
-
-  // Attach/detach keyboard listener
-  if (typeof document !== 'undefined') {
-    document.addEventListener('keydown', handleKeyDown);
-    onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
-  }
+  // Escape dismisses via the shared transient-surface policy.
+  useDismiss({
+    active: () => props.open,
+    onDismiss: () => props.onClose(),
+  });
 
   return (
     <Show when={props.open}>

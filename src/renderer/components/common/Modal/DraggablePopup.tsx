@@ -10,6 +10,7 @@ import { Panel } from '../Panel';
 import { Button } from '../Button';
 import { CloseIcon } from '../Misc/Icons';
 import { useLocalization } from '../../../context';
+import { useDismiss } from '../../../hooks/useDismiss';
 import './DraggablePopup.css';
 
 export interface DraggablePopupProps {
@@ -101,18 +102,11 @@ export const DraggablePopup: Component<DraggablePopupProps> = (props) => {
     }
   });
 
-  // Handle escape key
-  createEffect(() => {
-    if (!local.isOpen || !local.closeOnEscape) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        local.onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    onCleanup(() => document.removeEventListener('keydown', handleEscape));
+  // Escape dismisses, via the shared transient-surface policy.
+  useDismiss({
+    active: () => !!local.isOpen,
+    closeOnEscape: local.closeOnEscape,
+    onDismiss: () => local.onClose(),
   });
 
   // Drag handlers
