@@ -162,12 +162,6 @@ vi.mock('../../hooks/useTranslation', () => ({
 vi.mock('../subtitle/wordHoverHelpers', () => ({
   extractReadingFromEntries: (entries: Array<{ reading?: string }>) => entries.find((entry) => entry.reading)?.reading ?? '',
   resolveProsodyForHover: mockResolveProsodyForHover,
-  getAnkiWordKnowledgeStatus: (cards: Array<{ factor?: number }> | null | undefined) => cards && cards.length > 0 ? 'learning' : null,
-  numericToWordStatus: (status: number) => {
-    if (status === 1) return 'learning';
-    if (status === 2) return 'known';
-    return 'unknown';
-  },
 }));
 
 vi.mock('../../utils/readingProsody', () => ({

@@ -1,10 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  getAnkiWordKnowledgeStatus,
-  numericToWordStatus,
   wordStatusToNumeric,
   getEaseFromWordStatus,
-  getAnkiEaseForStatus,
   extractReadingFromEntries,
   resolveWordHoverContent,
   resolveProsodyForHover,

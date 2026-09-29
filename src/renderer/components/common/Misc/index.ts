@@ -77,5 +77,4 @@ export { ModalFooter, type ModalFooterProps } from './ModalFooter';
 import './LegendItem.css';
 import './KeyboardShortcut.css';
 import './ModalFooter.css';
-import './StatsGrid.css';
 import './HoverReveal.css';

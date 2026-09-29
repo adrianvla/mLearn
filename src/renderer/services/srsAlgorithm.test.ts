@@ -787,7 +787,7 @@ describe('answerCard: relearning state', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ease changes (calculateNewEase)
+// ease changes on the scheduler (answerCard -> scheduleAfterAnswer)
 // ---------------------------------------------------------------------------
 
 describe('ease changes on review cards', () => {
