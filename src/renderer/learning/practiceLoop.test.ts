@@ -19,7 +19,7 @@ import {
   effectiveThresholds,
   type EffectiveThresholds,
 } from '../../shared/knowledge/effectiveKnowledge';
-import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
+import { getDictionaryTargetLanguageForSettings, installedDictionaryTargetLanguages } from '../utils/dictionaryTargetLanguage';
 import type { LanguageData } from '../../shared/types';
 
 /** Mirrors getGrammarProjections: the journal owner folds keys into the read model. */
@@ -276,11 +276,46 @@ describe('practice loop invariants across the three languages', () => {
     });
   });
 
-  it('display×learning pairs resolve through the shared per-language override with UI fallback', () => {
-    // Spanish UI learning German; Japanese UI learning Russian (no override → UI fallback).
-    expect(getDictionaryTargetLanguageForSettings({ language: 'de', uiLanguage: 'es', dictionaryTargetLanguages: {} })).toBe('es');
-    expect(getDictionaryTargetLanguageForSettings({ language: 'ru', uiLanguage: 'ja', dictionaryTargetLanguages: {} })).toBe('ja');
-    // Explicit per-learning-language override wins over the UI language.
-    expect(getDictionaryTargetLanguageForSettings({ language: 'ja', uiLanguage: 'es', dictionaryTargetLanguages: { ja: 'en' } })).toBe('en');
+  it('names a dictionary target only when that pack is installed', () => {
+    // The UI locale is a display preference, not a dictionary target: with no
+    // pack installed for it, the lookup must fall through to the package
+    // default rather than ask for a database that is not on disk.
+    expect(getDictionaryTargetLanguageForSettings(
+      { language: 'de', uiLanguage: 'es', dictionaryTargetLanguages: {} },
+      'de',
+      ['en'],
+    )).toBeUndefined();
+    expect(getDictionaryTargetLanguageForSettings(
+      { language: 'ru', uiLanguage: 'ja', dictionaryTargetLanguages: {} },
+      'ru',
+      ['ja', 'en'],
+    )).toBe('ja');
+    // Explicit per-learning-language override wins over the UI language, but
+    // only while its pack is installed.
+    expect(getDictionaryTargetLanguageForSettings(
+      { language: 'ja', uiLanguage: 'es', dictionaryTargetLanguages: { ja: 'en' } },
+      'ja',
+      ['de', 'en'],
+    )).toBe('en');
+    // Configured but uninstalled: the backend honors the target literally and
+    // answers with nothing, so the uninstalled target must be dropped.
+    expect(getDictionaryTargetLanguageForSettings(
+      { language: 'ja', uiLanguage: 'es', dictionaryTargetLanguages: { ja: 'en' } },
+      'ja',
+      ['de'],
+    )).toBeUndefined();
+  });
+
+  it('lists only installed dictionary packs for a learning language', () => {
+    const catalog = [{
+      language: 'ja',
+      dictionaryPacks: [
+        { targetLanguage: 'de', installed: false },
+        { targetLanguage: 'en', installed: true },
+      ],
+    }] as unknown as Parameters<typeof installedDictionaryTargetLanguages>[0];
+    expect(installedDictionaryTargetLanguages(catalog, 'ja')).toEqual(['en']);
+    expect(installedDictionaryTargetLanguages(catalog, 'ru')).toEqual([]);
+    expect(installedDictionaryTargetLanguages(undefined, 'ja')).toEqual([]);
   });
 });

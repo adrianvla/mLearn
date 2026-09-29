@@ -30,7 +30,7 @@ import { projectionStateForCapability } from '../../components/common/WordStatus
 import { KnowledgeSkeleton } from '../../components/common';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { extractDefinitionValues } from '../../utils/translationCacheParsers';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from '../../utils/ratingShortcuts';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
@@ -199,7 +199,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     setFilterOpen(false);
     filterTriggerRef?.focus();
   };
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
 
   const [undoStack, setUndoStack] = createSignal<WordSyncUndoEntry[]>([]);
 

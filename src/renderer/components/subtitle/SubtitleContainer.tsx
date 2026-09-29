@@ -13,7 +13,7 @@ import { ExplainerPopup } from './ExplainerPopup';
 import { initWordLookupBridge } from '../../services/wordLookupService';
 import { tokensToPlainText } from '../../../shared/languageFeatures';
 import { getTokenLookupWord } from '../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
 import { sanitizeHtml } from '../../utils/sanitizeHtml';
 import { getLanguageCssDirection, getSubtitleFontFamily, getTokenJoinSeparator } from '../../../shared/languageFeatures';
@@ -54,7 +54,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { isTokenTranslatable, detectGrammarInText, supportsGrammar, getCanonicalForm, getWordVariants, getReadingVariants, currentLangData, getLanguageFeatures } = useLanguage();
   const flashcardCtx = useFlashcards();
   const { hoverData, isVisible, showHover, hideHover, cancelHide, forceHide } = useWordHover();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { lookup } = useDictionary({ language: settings.language, ...lookupOptions });
   const { translateWord } = useTranslation({ immediate: true, language: settings.language, ...lookupOptions });

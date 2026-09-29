@@ -23,7 +23,7 @@ import {
 } from '../../utils/japanesePitchAccent';
 import { cacheVersion, getCachedTranslation, type WordLookupCandidateOptions } from '../../hooks/useTranslation';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { PillLabel } from '../common/Label';
 import type { LanguageData } from '../../../shared/types';
 import './JapanesePitchAccent.css';
@@ -100,9 +100,7 @@ export const JapanesePitchAccentOverlay: Component<JapanesePitchAccentOverlayPro
         : language.currentLangData?.() ?? null
   );
   const lookupLanguage = () => props.language ?? settings.language;
-  const dictionaryTargetLanguage = createMemo(() => (
-    getDictionaryTargetLanguageForSettings(settings, lookupLanguage())
-  ));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage(lookupLanguage);
   const lookupOptions = () => ({
     getCanonicalForm: (word: string) => language.getCanonicalFormForLanguage(lookupLanguage(), word),
     getWordVariants: (word: string) => language.getWordVariantsForLanguage(lookupLanguage(), word),

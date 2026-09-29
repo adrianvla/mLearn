@@ -21,7 +21,7 @@ import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { buildWordHoverFlashcardContent } from '../../components/subtitle/wordHoverHelpers';
 import { bulkAddWords } from '../../utils/bulkAddWords';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoom, isShareableWatchTogetherUrl } from '../../services/watchTogetherRoomService';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../services/cloudSessionManager';
 import { showToast } from '../../components/common/Feedback/Toast';
@@ -101,7 +101,7 @@ export const App: Component = () => {
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = {
     getCanonicalForm: langCtx.getCanonicalForm,
     getWordVariants: langCtx.getWordVariants,

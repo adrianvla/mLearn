@@ -62,7 +62,7 @@ export const FlashcardsSuggested: Component = () => {
   const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
   const [garbageCollecting, setGarbageCollecting] = createSignal(true);
-  const wordLookupOptionsForLanguage = (language: string) => buildSuggestedWordLookupOptions(settings, language, langCtx);
+  const wordLookupOptionsForLanguage = (language: string) => buildSuggestedWordLookupOptions(settings, language, langCtx, langCtx.languageDataCatalog);
   const languageDataFor = (language: string) => (
     langCtx.langData[language] ?? (language === settings.language ? langCtx.currentLangData() : null)
   );

@@ -47,7 +47,7 @@ import { collectDroppedMediaFiles, resolveSubtitleForVideoLoad, type ExternalSub
 import { detectMediaTracks, extractSubtitleTrack } from '../../../services/mediaTrackService';
 import { clipVideo } from '../../../services/videoClipService';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { formatFrequencyLevelLabel } from '../../../utils/levelLabels';
 import './video.css';
@@ -166,7 +166,7 @@ export const VideoRoute: Component = () => {
 
 
   const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = {
     getCanonicalForm: langCtx.getCanonicalForm,
     getWordVariants: langCtx.getWordVariants,

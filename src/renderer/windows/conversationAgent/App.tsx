@@ -11,7 +11,7 @@ import { getBridge } from '../../../shared/bridges';
 import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../shared/backends';
 import { getTokenLookupWord } from '../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import {
   CloudSessionCancelledError,
   CloudUnreachableError,
@@ -243,7 +243,7 @@ export const ConversationContent: Component = () => {
 
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,

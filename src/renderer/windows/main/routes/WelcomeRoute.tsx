@@ -35,7 +35,7 @@ import { qualityToSrsRating, type AttemptQuality } from '../../../../shared/cons
 import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../../../shared/languageFeatures';
 import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
 import { fetchTranslation } from '../../../hooks/useTranslation';
-import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { ankiCacheVersion, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { policyContextFromSettings } from '../../../learning/policyContext';
 import Icon from '../../../components/common/Icons/Icon';
@@ -403,6 +403,7 @@ export const WelcomeRoute: Component = () => {
     const timer = setTimeout(() => setDictLookupWord(draft), 300);
     onCleanup(() => clearTimeout(timer));
   });
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const [dictResponse] = createResource(
     () => dictLookupWord() || undefined,
     async (word) => {
@@ -410,7 +411,7 @@ export const WelcomeRoute: Component = () => {
       return fetchTranslation(word, settings.language, {
         getCanonicalForm: language.getCanonicalForm,
         getWordVariants: language.getWordVariants,
-        dictionaryTargetLanguage: getDictionaryTargetLanguageForSettings(settings),
+        dictionaryTargetLanguage,
         languageData: language.currentLangData,
       });
     },

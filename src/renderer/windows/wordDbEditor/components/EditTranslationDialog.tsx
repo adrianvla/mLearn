@@ -6,7 +6,7 @@
 import { Component, createMemo, createSignal, onMount, Show } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
-import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { Button, Input, Modal, ModalFooter, SkeletonRows, FormField, Textarea, ContentEditable, AlertBanner } from '../../../components/common';
 import { ProsodyOverlay } from '../../../components/language-specific';
 import type { FlashcardProsody, TranslationResponse } from '@shared/types';
@@ -49,7 +49,7 @@ export interface TranslationOverride {
 export const EditTranslationDialog: Component<EditTranslationDialogProps> = (props) => {
   const { settings } = useSettings();
   const { getCanonicalForm, getWordVariants, getReadingVariants, currentLangData } = useLanguage();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const { translateWord, setOverride } = useTranslation({
     language: settings.language,
     getCanonicalForm,

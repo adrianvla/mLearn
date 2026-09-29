@@ -28,7 +28,7 @@ import { clipVideo } from '../../services/videoClipService';
 import { getBridge } from '../../../shared/bridges';
 import { showToast } from '../common/Feedback/Toast';
 import { getTokenDisplayForms, getTokenWordFormCandidates } from '../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { compoundSplitterConfig, getContentFontFamily, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 import type { LanguageCompoundSplittingConfig } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -174,7 +174,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const [wordUuid, setWordUuid] = createSignal<string>('');
   // Flag to prevent effect from overwriting local isInSRS state during flashcard creation
   const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);

@@ -1,9 +1,9 @@
-import type { FlashcardContent, LanguageData, Settings, TranslationResponse, WordFrequencyEntry } from '../../../shared/types';
+import type { FlashcardContent, LanguageData, LanguageDataCatalogStatus, Settings, TranslationResponse, WordFrequencyEntry } from '../../../shared/types';
 import type { WordLookupCandidateOptions } from '../../hooks/useTranslation';
 import type { SuggestedFlashcard } from '../../../shared/types';
 import { extractFirstDefinition } from '../../utils/translationCacheParsers';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { getDictionaryTargetLanguageForSettings, installedDictionaryTargetLanguages } from '../../utils/dictionaryTargetLanguage';
 import { getFrequencyLevelLabel, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { getLocalizedLanguageName, type TranslateLanguageName } from '../../utils/languageDisplayName';
 
@@ -155,12 +155,19 @@ export function buildSuggestedWordLookupOptions(
   settings: Pick<Settings, 'dictionaryTargetLanguages' | 'language' | 'uiLanguage'>,
   language: string,
   tools: SuggestedLookupLanguageTools,
+  languageDataCatalog: () => readonly LanguageDataCatalogStatus[],
 ): WordLookupCandidateOptions {
   return {
     getCanonicalForm: (word: string) => tools.getCanonicalFormForLanguage(language, word),
     getWordVariants: (word: string) => tools.getWordVariantsForLanguage(language, word),
     getReadingVariants: (reading: string) => tools.getReadingVariantsForLanguage(language, reading),
-    dictionaryTargetLanguage: () => getDictionaryTargetLanguageForSettings(settings, language),
+    // Reactive: reading the catalog here keeps a pack that finishes installing
+    // mid-session from leaving this surface pinned to the package default.
+    dictionaryTargetLanguage: () => getDictionaryTargetLanguageForSettings(
+      settings,
+      language,
+      installedDictionaryTargetLanguages(languageDataCatalog(), language),
+    ),
     languageData: () => tools.langData[language] ?? (language === settings.language ? tools.currentLangData() : null),
   };
 }

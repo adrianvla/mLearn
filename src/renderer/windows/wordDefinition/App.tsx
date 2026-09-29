@@ -15,7 +15,7 @@ import {
   type WordHoverTranslationData,
 } from '../../components/subtitle/wordHoverHelpers';
 import { openWordLookup } from '../../services/wordLookupService';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
 import { getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -33,7 +33,7 @@ const WordDefinitionContent: Component = () => {
   const { getFrequency, getFreqLevelNames, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
 
   const [word, setWord] = createSignal('');

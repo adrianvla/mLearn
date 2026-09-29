@@ -292,8 +292,15 @@ vi.mock('./LanguageContext', () => ({
     getFrequencyForLanguage: mockGetFrequencyForLanguage,
     getEffectiveLanguageData: (language: string) => mockLangData[language as keyof typeof mockLangData] ?? null,
     currentLangData: () => mockLangData[mockSettings.language as keyof typeof mockLangData] ?? null,
+    // Lookups may only name an INSTALLED dictionary pack.
+    languageDataCatalog: () => mockLanguageDataCatalog,
   }),
 }));
+
+// Mutable so a test can change which dictionary packs are on disk.
+let mockLanguageDataCatalog: Array<{ language: string; dictionaryPacks: Array<{ targetLanguage: string; installed: boolean }> }> = [
+  { language: 'ja', dictionaryPacks: [{ targetLanguage: 'en', installed: true }] },
+];
 
 const mockSettings: Settings = {
   ...DEFAULT_SETTINGS,
@@ -588,6 +595,7 @@ describe('FlashcardProvider', () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    mockLanguageDataCatalog = [{ language: 'ja', dictionaryPacks: [{ targetLanguage: 'en', installed: true }] }];
     mockIsElectron.mockReturnValue(true);
     mockBridge.flashcards.saveFlashcards.mockReset().mockResolvedValue(undefined);
     mockBridge.kvStore.kvGet.mockResolvedValue(null);
@@ -4209,6 +4217,7 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore());
     mockSettings.autoSuggestUnknownWords = false;
     mockSettings.dictionaryTargetLanguages = { ja: 'fr' };
+    mockLanguageDataCatalog = [{ language: 'ja', dictionaryPacks: [{ targetLanguage: 'fr', installed: true }] }];
     mockSettings.learningLanguageLevels = { ja: null };
     mockBackend.translate.mockImplementation(async (_word: string, _language?: string, options?: { dictionaryTargetLanguage?: string }) => (
       options?.dictionaryTargetLanguage === 'fr'

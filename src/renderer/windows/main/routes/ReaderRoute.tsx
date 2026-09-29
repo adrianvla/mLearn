@@ -85,7 +85,7 @@ import { createGrammarEncounterRecorder, journalGrammarEncountersForTokenGroups 
 import { createReaderPageVisits } from './readerPageVisits';
 import { locationForPage, pageForLocation, parseSavedReaderLocation, progressForLocation, type ReaderSourceLocation } from './readerResume';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { getColoredProsodyConfig, coloredProsodyNeedsDictionaryLookup } from '../../../utils/coloredProsody';
 import { coloredProsodyAllowedOnSurface } from '../../../../shared/prosodySettings';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
@@ -235,7 +235,7 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const { settings } = useSettings();
   const { currentLangData, getLanguageFeatures } = useLanguage();
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const text = () => props.page.text ?? '';
   const textBlocks = () => text().split(/\n{2,}/u).map((block) => block.trim()).filter(Boolean);
   const headingText = () => {
@@ -569,7 +569,7 @@ export const ReaderRoute: Component = () => {
       setCloudOcrAuthCancelled(false);
     }
   });
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,

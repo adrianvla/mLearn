@@ -13,7 +13,7 @@ import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components
 import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../../context';
 import { useOptionalGraph } from '../../../context/GraphContext';
 import { cacheVersion, getCachedTranslation, getCachedReading, fetchTranslation, type WordLookupCandidateOptions } from '../../../hooks/useTranslation';
-import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { ankiCacheVersion, findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import { getProsodyOverlayRenderer } from '../../../utils/prosodyPresentation';
@@ -151,7 +151,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const graph = useOptionalGraph();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const prosodyOverlayRenderer = createMemo(() => (
     getProsodyOverlayRenderer(currentLangData(), props.entry.prosody?.type)

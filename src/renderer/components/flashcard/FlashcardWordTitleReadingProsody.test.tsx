@@ -42,6 +42,11 @@ vi.mock('../../context', () => ({
     getCanonicalFormForLanguage: mockGetCanonicalFormForLanguage,
     getWordVariantsForLanguage: mockGetWordVariantsForLanguage,
     getReadingVariantsForLanguage: (language: string, reading: string) => [`${language}:${reading}:variant`],
+    // A lookup may only name an INSTALLED pack; `fr` is the one installed here.
+    languageDataCatalog: () => ([
+      { language: 'de', dictionaryPacks: [{ targetLanguage: 'en', installed: true }] },
+      { language: 'ja', dictionaryPacks: [{ targetLanguage: 'fr', installed: true }] },
+    ]),
   }),
   useLocalization: () => ({
     t: (key: string) => {

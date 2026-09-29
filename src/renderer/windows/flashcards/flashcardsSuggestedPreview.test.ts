@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LanguageData, SuggestedFlashcard, TranslationResponse } from '../../../shared/types';
+import type { LanguageData, LanguageDataCatalogStatus, SuggestedFlashcard, TranslationResponse } from '../../../shared/types';
 import {
   buildSuggestedLevelFilterOptions,
   buildSuggestedFlashcardPreviewContent,
@@ -40,13 +40,36 @@ describe('buildSuggestedFlashcardPreviewContent', () => {
         de: 'en',
         ar: 'fr',
       },
-    }, 'ar', tools);
+    }, 'ar', tools, () => ([
+      { language: 'ar', dictionaryPacks: [{ targetLanguage: 'fr', installed: true }] },
+    ] as unknown as LanguageDataCatalogStatus[]));
 
     expect(options.getCanonicalForm?.('سلام')).toBe('ar:سلام:canonical');
     expect(options.getWordVariants?.('سلام')).toEqual(['ar:سلام:variant']);
     expect(options.getReadingVariants?.('salaam')).toEqual(['ar:salaam:reading']);
     expect(options.dictionaryTargetLanguage?.()).toBe('fr');
     expect(options.languageData?.()).toEqual({ name: 'Arabic', targetLanguage: 'ar' });
+  });
+
+  it('drops a configured dictionary target whose pack is not installed', () => {
+    // A configured target the user never installed resolves to no target at
+    // all: the backend honors an explicit target literally, so naming an
+    // uninstalled pack would answer every lookup with nothing.
+    const options = buildSuggestedWordLookupOptions({
+      language: 'de',
+      uiLanguage: 'en',
+      dictionaryTargetLanguages: { ar: 'fr' },
+    }, 'ar', {
+      getCanonicalFormForLanguage: vi.fn((language: string, word: string) => word),
+      getWordVariantsForLanguage: vi.fn(() => []),
+      getReadingVariantsForLanguage: vi.fn((_l: string, reading: string) => reading),
+      langData: {},
+      currentLangData: vi.fn(() => null),
+    }, () => ([
+      { language: 'ar', dictionaryPacks: [{ targetLanguage: 'fr', installed: false }] },
+    ] as unknown as LanguageDataCatalogStatus[]));
+
+    expect(options.dictionaryTargetLanguage?.()).toBeUndefined();
   });
 
   it('uses the suggestion language for cache lookup and metadata extraction', () => {

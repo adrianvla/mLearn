@@ -51,7 +51,7 @@ import type { AttemptTiming } from '../../shared/encounterTiming';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
 import { selectRankedEncounters } from '../learning/engine';
 import { getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
-import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
+import { getDictionaryPromptTargetForSettings, getDictionaryTargetLanguageForSettings, installedDictionaryTargetLanguages } from '../utils/dictionaryTargetLanguage';
 import { extractReadingValue } from '../utils/translationCacheParsers';
 import { parseExampleBlocksFromLLM, type LLMExampleJob, type LLMExampleResult } from '../utils/llmExampleBatch';
 
@@ -426,7 +426,14 @@ function applyStoreDelta(target: Record<string, unknown>, base: Record<string, u
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { currentLangData, getFrequencyForLanguage, getCanonicalForm, getWordVariants, getCanonicalFormForLanguage, getWordVariantsForLanguage, getEffectiveLanguageData } = useLanguage();
+  const { currentLangData, getFrequencyForLanguage, getCanonicalForm, getWordVariants, getCanonicalFormForLanguage, getWordVariantsForLanguage, getEffectiveLanguageData, languageDataCatalog } = useLanguage();
+  // Dictionary lookups may only name a pack that is actually installed; an
+  // uninstalled target returns empty definitions for every word.
+  const dictionaryTargetFor = (learningLanguage: string) => getDictionaryTargetLanguageForSettings(
+    settings,
+    learningLanguage,
+    installedDictionaryTargetLanguages(languageDataCatalog?.() ?? [], learningLanguage),
+  );
   // Knowledge readiness: closed until the store hydrates AND the legacy
   // epistemic migration settles (that migration can legitimately flip rows —
   // e.g. passive Known → Learning under the REQ13 honesty cap — so any state
@@ -2025,7 +2032,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
     const comprehensiveStatus = getComprehensiveWordStatusWithSourceSync(word, lang).status;
     const suggestionLanguageData = languageDataFor(lang);
-    const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? getDictionaryTargetLanguageForSettings(settings, lang);
+    const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? dictionaryTargetFor(lang);
     const keepSuggestion = shouldKeepSuggestion(
       {
         word: storageWord,
@@ -2145,7 +2152,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const comprehensiveStatus = getComprehensiveWordStatusWithSourceSync(s.word, lang).status;
         const level = getSuggestedFlashcardLevel(s);
         const suggestionLanguageData = languageDataFor(lang);
-        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
+        const dictionaryTargetLanguage = dictionaryTargetFor(lang);
         const keep = shouldKeepSuggestion(
           {
             word: s.word,
@@ -2325,7 +2332,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const lang = settings.language;
     const suggestions = Object.values(store.suggestedFlashcards).filter((suggestion) => suggestion.language === lang);
     const suggestionLanguageData = languageDataFor(lang);
-    const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
+    const dictionaryTargetLanguage = dictionaryTargetFor(lang);
 
     if (!(settings.autoSuggestUnknownWords ?? DEFAULT_SETTINGS.autoSuggestUnknownWords)) {
       await warmDictionaryStatus(
@@ -2412,7 +2419,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const suggestion = store.suggestedFlashcards[key];
         if (!suggestion) continue;
         try {
-          const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, suggestion.language);
+          const dictionaryTargetLanguage = dictionaryTargetFor(suggestion.language);
           const translationResponse = await backend.translate(
             suggestion.word,
             suggestion.language,
@@ -2449,7 +2456,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (!suggestion) { done++; onProgress?.(done, total); continue; }
 
       try {
-        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, suggestion.language);
+        const dictionaryTargetLanguage = dictionaryTargetFor(suggestion.language);
         const translationResponse = await backend.translate(
           suggestion.word,
           suggestion.language,
@@ -3936,7 +3943,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
       try {
         // Get translation data from backend
-        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, settings.language);
+        const dictionaryTargetLanguage = dictionaryTargetFor(settings.language);
         const translationResponse = await backend.translate(
           candidate.word,
           settings.language,
@@ -4045,7 +4052,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       return await new Promise((resolve, reject) => {
         const displayLocale = settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage;
         const sourceLanguageData = languageDataFor(language);
-        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, language) || displayLocale;
+        const dictionaryTargetLanguage = (getDictionaryPromptTargetForSettings(settings, language) ?? displayLocale);
         const targetLanguageData = languageDataFor(dictionaryTargetLanguage);
         const sourceLang = getLanguagePromptName(language, sourceLanguageData);
         const targetLang = getLanguagePromptName(dictionaryTargetLanguage, targetLanguageData);
@@ -4107,7 +4114,7 @@ Translation: [${targetLang} translation]`;
     const groups = new Map<string, Array<{ index: number; job: LLMExampleJob; sourceLang: string; targetLang: string }>>();
 
     jobs.forEach((job, index) => {
-      const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, job.language) || displayLocale;
+      const dictionaryTargetLanguage = (getDictionaryPromptTargetForSettings(settings, job.language) ?? displayLocale);
       const sourceLang = getLanguagePromptName(job.language, languageDataFor(job.language));
       const targetLang = getLanguagePromptName(dictionaryTargetLanguage, languageDataFor(dictionaryTargetLanguage));
       const key = `${sourceLang}\u0000${targetLang}`;
@@ -4177,7 +4184,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
 
     const displayLocale = settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage;
     const cardLanguage = language || settings.language;
-    const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, cardLanguage) || displayLocale;
+    const dictionaryTargetLanguage = (getDictionaryPromptTargetForSettings(settings, cardLanguage) ?? displayLocale);
     const sourceLang = getLanguagePromptName(sourceLanguageCode, languageDataFor(sourceLanguageCode));
     const targetLang = getLanguagePromptName(dictionaryTargetLanguage, languageDataFor(dictionaryTargetLanguage));
 

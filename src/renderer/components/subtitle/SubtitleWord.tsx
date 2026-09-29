@@ -29,7 +29,7 @@ import { WordWithReading } from '../language-specific';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
 import { getTokenLookupWord } from '../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import '../language-specific/RubyText.css';
 import './SubtitleWord.css';
@@ -100,7 +100,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const displayWord = () => props.token.surface ?? props.token.word;
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const lookupWord = createMemo(() => getTokenLookupWord(props.token, tokenizerCapabilities()) || displayWord());
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
 
   // Get the part of speech
