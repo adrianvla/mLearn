@@ -31,6 +31,7 @@ import { RatingMatrix, type ProfileObservation, type RateOptions } from '../comm
 import type { AttemptQuality } from '../../../shared/constants';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
+import { studySessionState } from '../../learning/studySession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 import { isNativeActivationTarget, isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
 import './FlashcardReview.css';
@@ -280,7 +281,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const handleBulkRate = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     const card = currentCard();
-    if (!card || !showAnswer() || observations.length === 0 || ratingWrite() !== null) return;
+    if (!card || !canRate() || observations.length === 0) return;
     const timing = stopTiming();
     // A mixed profile schedules on its weakest evidence, matching the
     // whole-word semantics: missed dominates struggled dominates fluent.
@@ -306,6 +307,21 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Counts
   const counts = createMemo(() => queueCounts());
 
+  // Single owner for "what phase is the encounter in", shared with the other
+  // study surfaces. The review queue is studyable work plus this session's
+ // already-answered cards, so completion is expressed against that total.
+  const presentation = createMemo(() => studySessionState({
+    ready: true,
+    index: cardsAnswered(),
+    total: cardsAnswered() + counts().total,
+    revealed: showAnswer(),
+    write: ratingWrite()?.phase ?? null,
+  }));
+
+  /** A rating may only be committed from a revealed, idle encounter. */
+  const canRate = createMemo(() =>
+    presentation().canRate && undoWrite() === null);
+
   const sessionTotal = createMemo(() => cardsAnswered() + counts().total);
   // Calculate session progress percentage
   const sessionProgress = createMemo(() => {
@@ -323,7 +339,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         if (isNativeActivationTarget(e)) return;
         e.preventDefault();
         e.stopPropagation();
-        if (!isComplete() && currentCard() && !showAnswer() && ratingWrite() === null && undoWrite() === null) setShowAnswer(true);
+        if (presentation().phase === 'question' && currentCard()) setShowAnswer(true);
         return;
       }
 
@@ -761,7 +777,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   return [capability, label];
                 }).filter((entry): entry is [string, string] => entry[1] !== undefined))}
                 keyboardMode={settings.ratingKeyboardMode}
-                armed={showAnswer() && !!currentCard() && !isComplete() && ratingWrite() === null && undoWrite() === null}
+                armed={canRate() && !!currentCard()}
                 resetKey={currentCard()?.id}
                 onSubmit={handleBulkRate}
               />
