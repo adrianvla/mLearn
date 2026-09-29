@@ -1252,6 +1252,7 @@
         "Promoted": "{count} carte(s) créée(s)",
         "PromoteFailed": "Échec de la promotion des suggestions.",
         "Removed": "{count} suggestion(s) supprimée(s)",
+        "IgnoreFailed": "Impossible d’ignorer ce mot. Il figure toujours dans vos suggestions ; réessayez.",
         "SeenCount": "Vu {count}x",
         "NoPreviewImage": "Aucune image de prévisualisation",
         "SortDefault": "Par défaut",
@@ -3253,6 +3254,7 @@
         "SignInCodeHint": "Si vous avez reçu un code d'appareil, entrez-le ci-dessous",
         "PeerJoinedSingular": "Un participant a rejoint votre salle",
         "PeerJoinedPlural": "{count} participants ont rejoint votre salle",
+        "PeerCount": "{count} en train de regarder",
         "AnticipatingPing": "Anticipation du ping..."
       },
       "Extension": {},

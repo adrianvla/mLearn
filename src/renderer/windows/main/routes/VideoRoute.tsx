@@ -1420,7 +1420,7 @@ export const VideoRoute: Component = () => {
             onClick={openWatchTogetherCodeModal}
             title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
           >
-            {`${t('mlearn.WatchTogether.Code.OpenRoomPanel')}: ${watchTogether.roomSession()?.room.roomCode ?? ''} • ${watchTogether.peerCount()} ${t('mlearn.WatchTogether.Code.Peers')}`}
+            {`${t('mlearn.WatchTogether.Code.OpenRoomPanel')}: ${watchTogether.roomSession()?.room.roomCode ?? ''} • ${t('mlearn.WatchTogether.Code.PeerCount', { count: String(watchTogether.peerCount()) })}`}
           </Button>
         </Show>
       </div>
@@ -1492,7 +1492,7 @@ export const VideoRoute: Component = () => {
           />
           <Show when={watchTogether.isAnticipatingPing()}>
             <div class="watch-together-anticipation-overlay">
-              <Spinner size={32} text={t('mlearn.WatchTogether.AnticipatingPing')} />
+              <Spinner size={32} text={t('mlearn.WatchTogether.Code.AnticipatingPing')} />
             </div>
           </Show>
         </div>

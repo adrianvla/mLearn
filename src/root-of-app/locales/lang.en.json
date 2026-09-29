@@ -1252,6 +1252,7 @@
         "Promoted": "{count} flashcard(s) created",
         "PromoteFailed": "Failed to promote suggestions.",
         "Removed": "{count} suggestion(s) removed",
+        "IgnoreFailed": "Could not ignore this word. It is still in your suggestions; try again.",
         "SeenCount": "Seen {count}x",
         "NoPreviewImage": "No preview image",
         "SortDefault": "Default",
@@ -3253,6 +3254,7 @@
         "SignInCodeHint": "If you received a device code, enter it below",
         "PeerJoinedSingular": "A participant joined your room",
         "PeerJoinedPlural": "{count} participants joined your room",
+        "PeerCount": "{count} watching",
         "AnticipatingPing": "Anticipating ping..."
       },
       "Extension": {},

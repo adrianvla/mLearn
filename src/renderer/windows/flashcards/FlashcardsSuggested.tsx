@@ -435,7 +435,10 @@ export const FlashcardsSuggested: Component = () => {
       showToast({ message: t('mlearn.Global.Ignore'), variant: 'info' });
     } catch (e) {
       log.error("error", e);
-      showToast({ message: t('mlearn.Global.Error'), variant: 'error' });
+      // Ignoring writes to the flashcard store. When that write is refused the
+      // suggestion is still listed, so say which action failed rather than
+      // surfacing a generic error the learner cannot act on.
+      showToast({ message: t('mlearn.Flashcards.Suggested.IgnoreFailed'), variant: 'error' });
     }
   };
 

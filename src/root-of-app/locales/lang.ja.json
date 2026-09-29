@@ -1252,6 +1252,7 @@
         "Promoted": "{count} 枚のカードを作成しました",
         "PromoteFailed": "候補の昇格に失敗しました。",
         "Removed": "{count} 件の候補を削除しました",
+        "IgnoreFailed": "この単語を無視できませんでした。提案にはまだ残っています。もう一度お試しください。",
         "SeenCount": "{count} 回表示",
         "NoPreviewImage": "プレビュー画像なし",
         "SortDefault": "デフォルト",
@@ -3253,6 +3254,7 @@
         "SignInCodeHint": "デバイスコードを受け取った場合は、以下に入力してください",
         "PeerJoinedSingular": "参加者がルームに参加しました",
         "PeerJoinedPlural": "{count}人の参加者がルームに参加しました",
+        "PeerCount": "{count}人が視聴中",
         "AnticipatingPing": "pingを待機中..."
       },
       "Extension": {},

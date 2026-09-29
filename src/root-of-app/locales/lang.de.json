@@ -1252,6 +1252,7 @@
         "Promoted": "{count} Karte(n) erstellt",
         "PromoteFailed": "Vorschläge konnten nicht befördert werden.",
         "Removed": "{count} Vorschlag/Vorschläge entfernt",
+        "IgnoreFailed": "Dieses Wort konnte nicht ignoriert werden. Es steht weiterhin in deinen Vorschlägen; versuche es erneut.",
         "SeenCount": "{count}x gesehen",
         "NoPreviewImage": "Kein Vorschaubild",
         "SortDefault": "Standard",
@@ -3253,6 +3254,7 @@
         "SignInCodeHint": "Falls du einen Gerätecode erhalten hast, gib ihn unten ein",
         "PeerJoinedSingular": "Ein Teilnehmer ist deinem Raum beigetreten",
         "PeerJoinedPlural": "{count} Teilnehmer sind deinem Raum beigetreten",
+        "PeerCount": "{count} schauen zu",
         "AnticipatingPing": "Ping wird antizipiert..."
       },
       "Extension": {},

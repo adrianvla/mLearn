@@ -1252,6 +1252,7 @@
         "Promoted": "已创建 {count} 张闪卡",
         "PromoteFailed": "升级推荐失败。",
         "Removed": "已移除 {count} 条推荐",
+        "IgnoreFailed": "无法忽略这个单词。它仍在您的建议中；请重试。",
         "SeenCount": "已见 {count} 次",
         "NoPreviewImage": "无预览图片",
         "SortDefault": "默认",
@@ -3253,6 +3254,7 @@
         "SignInCodeHint": "如果您收到设备码，请在下方输入",
         "PeerJoinedSingular": "有对等端加入了您的房间",
         "PeerJoinedPlural": "{count} 个对等端加入了您的房间",
+        "PeerCount": "{count} 人正在观看",
         "AnticipatingPing": "等待 ping…"
       },
       "Extension": {},
