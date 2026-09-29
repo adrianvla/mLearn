@@ -123,6 +123,16 @@ vi.mock('../../../components/common', () => ({
     void props;
     return null;
   },
+  // Stands in for the canonical knowledge-failure owner so this file can
+  // assert that the row *routes* its graph-read failure through it. The real
+  // owner's own behavior is covered by KnowledgeLoadError.test.tsx; what
+  // matters here is that the row does not hand-roll a second copy.
+  KnowledgeLoadError: (props: { message?: string; onRetry?: () => void; role?: 'alert' | 'status'; class?: string }) => (
+    <div class={`knowledge-load-error ${props.class ?? ''}`} role={props.role ?? 'alert'}>
+      <p class="knowledge-load-error__message">{props.message ?? 'mlearn.Knowledge.LoadError'}</p>
+      <button type="button" onClick={() => props.onRetry?.()}>mlearn.Knowledge.Retry</button>
+    </div>
+  ),
 }));
 
 
@@ -1611,6 +1621,54 @@ describe('WordEntryRow', () => {
     expect(document.body.textContent).toContain('mlearn.GraphInspector.Neighborhood.NotInGraph');
     expect(document.body.textContent).not.toContain('mlearn.GraphInspector.Neighborhood.Loading');
     expect(document.body.querySelector('[data-testid="skeleton-rows"]')).toBeNull();
+
+    dispose();
+  });
+
+  it('reports a failed graph-neighborhood read through the one knowledge-failure owner, and retries through it', async () => {
+    // The same graph-neighborhood read fails identically in the graph
+    // inspector window and inline here. It used to be reported two ways — a
+    // hand-rolled alert/button pair here that said "Retry" while the inspector
+    // said "Try again" — so a fix to "this knowledge read failed" had to be
+    // made twice. Both go through the declared owner now.
+    getNeighborhoodMock.mockRejectedValue(new Error('graph unavailable'));
+
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('殖える')}
+        levelNames={{ 0: 'JLPT N5' }}
+        onStatusChange={() => undefined}
+        onAddFlashcard={() => undefined}
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    await flushAsync();
+    const toggle = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.Toggle');
+    expect(toggle).not.toBeUndefined();
+    toggle!.click();
+    await flushAsync();
+    await flushAsync();
+    await flushAsync();
+
+    const owner = document.body.querySelector('.knowledge-load-error');
+    expect(owner).not.toBeNull();
+    expect(owner!.getAttribute('role')).toBe('alert');
+    expect(owner!.textContent).toContain('mlearn.GraphInspector.Explore.LoadFailed');
+    // The owner's own retry wording, not a second hand-rolled label.
+    expect(owner!.textContent).toContain('mlearn.Knowledge.Retry');
+    expect(owner!.textContent).not.toContain('mlearn.GraphInspector.Explore.Retry');
+
+    // The retry the owner renders must re-drive the same read.
+    getNeighborhoodMock.mockClear();
+    getNeighborhoodMock.mockResolvedValue({ center: { id: `ja:surface:${hashFor('殖える')}`, label: '殖える' }, relations: [] });
+    (owner!.querySelector('button') as HTMLButtonElement).click();
+    await flushAsync();
+    await flushAsync();
+
+    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashFor('殖える')}`, depth: 1 }));
+    expect(document.body.querySelector('.knowledge-load-error')).toBeNull();
 
     dispose();
   });

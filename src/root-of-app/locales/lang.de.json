@@ -105,7 +105,6 @@
         "Role": "Rolle",
         "ConnectedTo": "verbunden mit {label}",
         "LoadFailed": "Der Graph konnte nicht geladen werden.",
-        "Retry": "Erneut versuchen",
         "All": "Alle Verbindungen",
         "TapToSee": "Alle anzeigen"
       }

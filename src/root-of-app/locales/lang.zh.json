@@ -105,7 +105,6 @@
         "Role": "角色",
         "ConnectedTo": "与 {label} 相连",
         "LoadFailed": "无法加载图谱。",
-        "Retry": "重试",
         "All": "所有连接",
         "TapToSee": "轻点查看全部"
       }

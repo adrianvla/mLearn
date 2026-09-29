@@ -105,7 +105,6 @@
         "Role": "Rôle",
         "ConnectedTo": "lié à {label}",
         "LoadFailed": "Impossible de charger le graphe.",
-        "Retry": "Réessayer",
         "All": "Tous les liens",
         "TapToSee": "Tout afficher"
       }

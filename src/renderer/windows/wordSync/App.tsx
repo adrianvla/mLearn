@@ -27,7 +27,7 @@ import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
-import { KnowledgeSkeleton } from '../../components/common';
+import { KnowledgeLoadError, KnowledgeSkeleton } from '../../components/common';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { extractDefinitionValues } from '../../utils/translationCacheParsers';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
@@ -1420,10 +1420,11 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             <p role="alert">{t('mlearn.WordSync.InvalidFilter')}</p>
           </Show>
         }>
-          <div class="word-sync-projection-error" role="alert">
-            <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
-            <Button variant="primary" onClick={retryKnowledgeProjections}>{t('mlearn.Global.TryAgain')}</Button>
-          </div>
+          <KnowledgeLoadError
+            message={t('mlearn.WordSync.ProjectionUnavailable')}
+            onRetry={retryKnowledgeProjections}
+            class="word-sync-projection-error"
+          />
         </Show>
       }>
         <div class="word-sync-projection-error" role="alert">

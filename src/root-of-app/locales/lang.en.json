@@ -105,7 +105,6 @@
         "Role": "Role",
         "ConnectedTo": "connected to {label}",
         "LoadFailed": "The graph could not be loaded.",
-        "Retry": "Retry",
         "All": "All connections",
         "TapToSee": "Tap to see all"
       }

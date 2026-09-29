@@ -213,6 +213,9 @@ vi.mock('../../components/common', async (importOriginal) => {
   WriteStatusBanner: actual.WriteStatusBanner,
   KeyboardShortcut: actual.KeyboardShortcut,
   KnowledgeSkeleton: actual.KnowledgeSkeleton,
+  // Real: the shared projection-failure assertions read the canonical
+  // knowledge-failure owner's role/retry contract, same as the banner above.
+  KnowledgeLoadError: actual.KnowledgeLoadError,
   EmptyState: (props: { title?: string }) => <div>{props.title}</div>,
   Popover: (props: {
     open?: boolean | (() => boolean);
@@ -874,7 +877,7 @@ beforeEach(() => {
     await settle(); await settle();
     expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
     expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
-    buttonByText('mlearn.Global.TryAgain').click();
+    buttonByText('mlearn.Knowledge.Retry').click();
     expect(mockRetryKnowledgeProjection).toHaveBeenCalledOnce();
     expect(mockRatingObservation).not.toHaveBeenCalled();
   });
@@ -885,7 +888,7 @@ beforeEach(() => {
     mountContent(WordSyncContent);
     await settle(); await settle();
     expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
-    buttonByText('mlearn.Global.TryAgain').click();
+    buttonByText('mlearn.Knowledge.Retry').click();
     await settle(); await settle();
     expect(container.querySelector('.word-sync-word')).not.toBeNull();
     expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
@@ -932,7 +935,7 @@ beforeEach(() => {
     await settle();
 
     expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
-    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Global.TryAgain'));
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Knowledge.Retry'));
     expect(retry).toBeDefined();
     retry!.click();
     expect(mockRetryKnowledgeProjection).toHaveBeenCalledTimes(1);
@@ -948,7 +951,7 @@ beforeEach(() => {
     await settle();
     await vi.waitFor(() => expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable'));
 
-    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Global.TryAgain'));
+    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.Knowledge.Retry'));
     expect(retry).toBeDefined();
     retry!.click();
     await vi.waitFor(() => expect(mockQueryLanguageKeys).toHaveBeenCalledTimes(2));

@@ -105,7 +105,6 @@
         "Role": "役割",
         "ConnectedTo": "{label} とのつながり",
         "LoadFailed": "グラフを読み込めませんでした。",
-        "Retry": "再試行",
         "All": "すべてのつながり",
         "TapToSee": "タップしてすべて表示"
       }

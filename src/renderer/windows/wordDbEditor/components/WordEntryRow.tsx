@@ -6,7 +6,7 @@ import { useGraphNeighborhood } from '../../../hooks/useGraphNeighborhood';
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Button, GraphNeighborhoodViz, Modal, PillLabel, AnkiHoverPreview, ReadinessGate, deriveReadiness, SkeletonRows } from '../../../components/common';
+import { Button, GraphNeighborhoodViz, KnowledgeLoadError, Modal, PillLabel, AnkiHoverPreview, ReadinessGate, deriveReadiness, SkeletonRows } from '../../../components/common';
 import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
@@ -559,7 +559,12 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           {/* Pending ≠ not-in-graph: the skeleton holds only while the
               lookup is in flight; absence resolves to the explicit note. */}
           <ReadinessGate when={deriveReadiness({ pending: () => neighborhoodPending() && !neighborhood() })} instant fallback={<SkeletonRows rows={2} />}>
-          <Show when={neighborhoodFailed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Button size="sm" onClick={retryNeighborhood}>{t('mlearn.GraphInspector.Explore.Retry')}</Button></p></Show>
+          {/* The neighborhood read is the same knowledge read the graph
+              inspector presents, and it failed the same way, so it is
+              reported the same way — one owner for "this knowledge read
+              failed", not two hand-rolled alert/retry pairs that drifted
+              apart in wording and emphasis. */}
+          <Show when={neighborhoodFailed()}><KnowledgeLoadError message={t('mlearn.GraphInspector.Explore.LoadFailed')} onRetry={retryNeighborhood} /></Show>
           <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
             {(value) => (
               <GraphNeighborhoodViz

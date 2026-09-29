@@ -35,15 +35,20 @@ function tsxFiles(dir: string): string[] {
  * WindowWrapper's `retry` comes from useInstallProgress (a language-data
  * install), and its failure genuinely is not a knowledge read.
  */
-const KNOWLEDGE_QUERY = /useKnowledgeHistory|useWordEaseHistory|useKnowledgeProjection|projected\b/;
+const KNOWLEDGE_QUERY =
+  /useKnowledgeHistory|useWordEaseHistory|useKnowledgeProjection|useGraphNeighborhood|projected\b/;
 
 /**
- * A knowledge query's retry, in either of the two shapes it can reach markup:
- * handed to the canonical owner (`onRetry={...}`) or wired straight to a raw
- * element (`onClick={history.retry}`). The second is the copy this guards.
+ * A knowledge query's retry wired STRAIGHT to a raw element, which is the copy
+ * this guards. The binding is a bare identifier or member expression
+ * (`onClick={retry}`, `onClick={history.retry}`, `onClick={retryNeighborhood}`)
+ * — the shape a query hook's own retry takes when a surface hands it to markup
+ * directly. A retry wrapped in an arrow body (`onClick={() => retrySession()}`)
+ * belongs to whatever that closure does (a session write, a form submit) and is
+ * deliberately out of scope: only the bare form is "this knowledge read's own
+ * retry, rendered by hand".
  */
-const KNOWLEDGE_RETRY_BINDING =
-  /(onRetry|onClick)=\{\{?[^{}]*\b(retry|projected\.retry|history\.retry|model\.retry)\b/;
+const RAW_RETRY_BINDING = /onClick=\{\s*(?:[A-Za-z_$][\w$]*\.)*retry\w*\s*\}/i;
 
 describe('knowledge failure presentation has one owner', () => {
   it('no surface renders a knowledge-query retry outside KnowledgeLoadError', () => {
@@ -52,11 +57,13 @@ describe('knowledge failure presentation has one owner', () => {
       if (file.endsWith(OWNER)) continue;
       const src = readFileSync(file, 'utf8');
       if (!KNOWLEDGE_QUERY.test(src)) continue;
-      if (!KNOWLEDGE_RETRY_BINDING.test(src)) continue;
-      // Renders the canonical owner — not merely imports it, which a file can
-      // do while still wiring some retry straight to a raw element.
-      const rendersOwner = /<KnowledgeLoadError[\s/>]/.test(src);
-      if (!rendersOwner) offenders.push(file.replace(RENDERER, ''));
+      if (!RAW_RETRY_BINDING.test(src)) continue;
+      // A raw retry wired next to a knowledge query is the copy this guards.
+      // Rendering the canonical owner elsewhere in the file does NOT excuse
+      // it — a file can import and use the owner for one read while hand-rolling
+      // the alert for a second read of the same family, which is exactly the
+      // split this exists to prevent.
+      offenders.push(file.replace(RENDERER, ''));
     }
     expect(offenders).toEqual([]);
   });
