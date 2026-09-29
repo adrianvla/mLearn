@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal } from 'solid-js';
-import { GrammarCoverage } from './GrammarCoverage';
+import { GrammarCoverage, type GrammarUndoLifecycle } from './GrammarCoverage';
 import { itemContentVersion } from '../../learning/questionBank';
 import { loadQuestionValidationRecords } from '../../learning/questionValidation';
 import type { StudySessionLocks } from '../../learning/studySessionController';
@@ -14,6 +14,51 @@ import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEv
 import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
 import type { LanguageData } from '../../../shared/types';
 import type { AttemptQuality } from '../../../shared/constants';
+
+
+// ── The shared durable Undo lifecycle ────────────────────────────
+// Modelled on the real protocol: the record is written BEFORE the retraction
+// and cleared by completing it, so a window that reloads mid-undo can still
+// find and finish it. Tests drive refusals through `retract` exactly as the
+// other study surfaces' harnesses do.
+import type { PendingRetraction } from '../../../shared/retractionRecovery';
+import type { RetractionCompletion, RetractionProjection } from '../../context/FlashcardContext';
+type UndoRecord = PendingRetraction;
+let pendingRecord: UndoRecord | null = null;
+const undoHarness: {
+  retract: Mock<(record: UndoRecord, ids: string[]) => Promise<boolean>>;
+  record: Mock<(record: UndoRecord) => Promise<boolean>>;
+  recover: Mock<() => Promise<void>>;
+  projections: Map<string, (record: UndoRecord) => Promise<RetractionProjection>>;
+  register: (surface: string, build: (record: UndoRecord) => Promise<RetractionProjection>) => void;
+  complete: (record: UndoRecord, build?: (record: UndoRecord) => Promise<RetractionProjection>) => Promise<RetractionCompletion>;
+  lifecycle: () => GrammarUndoLifecycle;
+} = {
+  retract: vi.fn(async (_record: UndoRecord, _ids: string[]): Promise<boolean> => true),
+  record: vi.fn(async (record: UndoRecord) => { pendingRecord = record; return true; }),
+  recover: vi.fn(async () => {}),
+  projections: new Map<string, (record: UndoRecord) => Promise<RetractionProjection>>(),
+  register: (surface: string, build: (record: UndoRecord) => Promise<RetractionProjection>) => {
+    undoHarness.projections.set(surface, build);
+  },
+  complete: async (
+    record: UndoRecord,
+    build?: (record: UndoRecord) => Promise<RetractionProjection>,
+  ): Promise<RetractionCompletion> => {
+    if (pendingRecord?.attemptId !== record.attemptId) return 'stale';
+    if (!await undoHarness.retract(record, record.attemptIds)) return 'retraction-refused';
+    const project = build ? await build(record) : undefined;
+    void project;
+    pendingRecord = null;
+    return 'completed';
+  },
+  lifecycle: () => ({
+    record: undoHarness.record,
+    complete: undoHarness.complete,
+    recover: undoHarness.recover,
+    register: undoHarness.register,
+  }),
+};
 
 let settingsUiLanguage = 'en';
 let settingsLlmProvider = 'builtin';
@@ -151,9 +196,13 @@ function mount(
         projections={projectionsOf('ja', eventLog)}
         summary={summaryOverride ?? summary}
         onProbe={async (...args) => {
+          // Echo the controller's reserved attempt id, as the real owner does:
+          // the id the pass allocated is the identity the journal is written
+          // under, so the mount helper must not substitute its own.
           await onProbe(...args);
-          return 'fixture-grammar-attempt';
+          return (args[4] as { attemptId?: string } | undefined)?.attemptId ?? 'fixture-grammar-attempt';
         }}
+        undoLifecycle={undoHarness.lifecycle()}
         onValidated={onValidated}
         repairRequest={repairRequest?.()}
         onRepairRequestHandled={onRepairRequestHandled}
@@ -634,6 +683,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
         projections={{}}
         summary={liveSummary()}
         onProbe={async () => 'fixture-grammar-attempt'}
+        undoLifecycle={undoHarness.lifecycle()}
         locks={passThroughLocks}
       />
     ), container);
@@ -785,6 +835,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       eventLog: {} as KnowledgeEventLog,
       projections: {},
       onProbe: async () => 'fixture-grammar-attempt',
+      undoLifecycle: undoHarness.lifecycle(),
     }), container);
 
     // The stored de cursor is ACTIVE on load (cursor 0 restored).
@@ -950,6 +1001,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       eventLog: {} as KnowledgeEventLog,
       projections: {},
       onProbe: async () => 'fixture-grammar-attempt',
+      undoLifecycle: undoHarness.lifecycle(),
     }), container);
 
     // Active under the original package.
@@ -1027,6 +1079,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
         eventLog={{} as KnowledgeEventLog}
         projections={{}}
         onProbe={onProbe}
+        undoLifecycle={undoHarness.lifecycle()}
       />
     ), container);
 
@@ -1066,6 +1119,176 @@ describe('GrammarCoverage policy-selected practice session', () => {
     dispose();
     container.remove();
     globalThis.localStorage?.removeItem('mlearn-study-grammar:ja');
+  });
+});
+
+describe('GrammarCoverage durable Undo', () => {
+  // The retraction harness is module-level (it stands in for the shared
+  // provider), so its state is reset per test rather than per mount.
+  beforeEach(() => {
+    localStorage.clear();
+    settingsUiLanguage = 'en';
+    pendingRecord = null;
+    undoHarness.projections.clear();
+    undoHarness.record.mockClear();
+    undoHarness.recover.mockClear();
+    undoHarness.retract.mockClear();
+    undoHarness.retract.mockImplementation(async () => true);
+    undoHarness.record.mockImplementation(async (record: UndoRecord) => { pendingRecord = record; return true; });
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    const lockStubHost = globalThis.navigator as { locks?: unknown };
+    delete lockStubHost.locks;
+    pendingRecord = null;
+  });
+
+  const undoButton = (container: HTMLElement, level: number) =>
+    levelBlock(container, level).querySelector<HTMLButtonElement>('.grammar-coverage__session-undo');
+  const promptedPattern = (container: HTMLElement, level: number) =>
+    levelBlock(container, level).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+  /** Rates the revealed prompt fluent and waits for the journal write to land. */
+  const rateRevealed = async (onProbe: Mock, container: HTMLElement, level: number) => {
+    const buttons = levelBlock(container, level).querySelectorAll('.grammar-coverage__session-probe .rating-matrix__quality');
+    (buttons[2] as HTMLButtonElement).click(); // fluent
+    await beat();
+    // The pass only advances once the write for that attempt is accepted, so
+    // the identity the Undo must use is the one the pass actually probed.
+    const attemptId = (onProbe.mock.calls[0]?.[4] as { attemptId: string } | undefined)?.attemptId;
+    expect(typeof attemptId).toBe('string');
+    return attemptId as string;
+  };
+  /** A live pass with one rating already acknowledged: the only state in
+   *  which an Undo is a meaningful offer. */
+  const mountRatedPass = async (level = 2) => {
+    const onProbe = vi.fn();
+    const mounted = mount(onProbe);
+    await startPass(mounted.container, level);
+    revealCurrent(mounted.container, level);
+    await tick();
+    const rated = promptedPattern(mounted.container, level) as string;
+    const attemptId = await rateRevealed(onProbe, mounted.container, level);
+    return { ...mounted, onProbe, rated, attemptId };
+  };
+
+  it('offers no Undo before anything is rated, then one exactly where a rating can be taken back', async () => {
+    const onProbe = vi.fn();
+    const { container, dispose } = mount(onProbe);
+    await startPass(container, 2);
+    // Nothing rated: the control is absent, not disabled — there is nothing to
+    // take back, and a visible-but-dead affordance would lie about that.
+    expect(undoButton(container, 2)).toBeNull();
+
+    revealCurrent(container, 2);
+    await tick();
+    expect(undoButton(container, 2)).toBeNull();
+
+    const rated = promptedPattern(container, 2);
+    await rateRevealed(onProbe, container, 2);
+    expect(undoButton(container, 2)?.disabled).toBe(false);
+    // The pass advanced past the rated step, and the prompt on screen is now a
+    // different construction — not the one the learner just answered.
+    expect(promptedPattern(container, 2)).not.toBe(rated);
+    dispose();
+    container.remove();
+  });
+
+  it('takes a rating back through the shared protocol: record first, retract the grammar key, rewind the pass', async () => {
+    const { container, dispose, rated, attemptId } = await mountRatedPass();
+
+    undoButton(container, 2)!.click();
+    await beat();
+
+    // The decision is durably recorded BEFORE the retraction: an interrupted
+    // Undo has to be finishable by a reloaded window, not only by this one.
+    expect(undoHarness.record).toHaveBeenCalledTimes(1);
+    const record = undoHarness.record.mock.calls[0][0];
+    expect(record.surface).toBe('grammar');
+    expect(record.word).toBe(rated);
+    expect(record.attemptId).toBe(attemptId);
+    expect(record.attemptIds).toEqual([attemptId]);
+    // Routed to the key this surface's evidence actually lands on, and named
+    // for replay, rather than re-derived through a word-form helper.
+    expect(record.target?.keys).toEqual([grammarEvidenceKey('ja', rated, 'grammar-recognition')]);
+    expect(record.target?.replay).toEqual({ kind: 'grammar', language: 'ja', patterns: [rated] });
+    expect(undoHarness.retract).toHaveBeenCalledWith(record, [attemptId]);
+
+    // The pass is back on the rated step, revealed — a rating can only be made
+    // on a revealed prompt, so restoring the position without the reveal would
+    // silently re-arm a rating the learner never made.
+    expect(promptedPattern(container, 2)).toBe(rated);
+    expect(levelBlock(container, 2).querySelector('.grammar-coverage__reveal')).toBeNull();
+    expect(levelBlock(container, 2).querySelector('[data-testid="grammar-session-answer"]')).toBeTruthy();
+    // And the affordance withdraws: there is nothing left to take back.
+    expect(undoButton(container, 2)).toBeNull();
+    dispose();
+    container.remove();
+  });
+
+  it('a refused retraction keeps the rating, the record and the control, and reports a retryable failure', async () => {
+    undoHarness.retract.mockImplementation(async () => false);
+    const { container, dispose, attemptId } = await mountRatedPass();
+    const advancedTo = promptedPattern(container, 2);
+
+    undoButton(container, 2)!.click();
+    await beat();
+
+    // The rating is still applied and the pass still advanced — an Undo that
+    // did not land must not look like it did.
+    expect(promptedPattern(container, 2)).toBe(advancedTo);
+    // The record survives, so the retry finishes THIS Undo rather than
+    // starting a new one, and the control is still offered.
+    expect(pendingRecord).not.toBeNull();
+    expect(undoButton(container, 2)?.disabled).toBe(false);
+    const alert = levelBlock(container, 2).querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('mlearn.LevelStudy.Grammar.UndoSaveFailed');
+
+    undoHarness.retract.mockImplementation(async () => true);
+    (alert!.querySelector('button') as HTMLButtonElement).click();
+    await beat();
+    expect(undoHarness.retract).toHaveBeenCalledTimes(2);
+    expect(undoHarness.retract.mock.calls.every((call) => call[0].attemptId === attemptId)).toBe(true);
+    expect(pendingRecord).toBeNull();
+    dispose();
+    container.remove();
+  });
+
+  it('a reloaded window finishes an interrupted Undo through the projection this surface registered', async () => {
+    // The retraction never answers: the learner asked, the decision was
+    // recorded, and the window goes away before it could be applied. That is
+    // exactly the case the durable record exists for.
+    let answer: ((accepted: boolean) => void) | undefined;
+    undoHarness.retract.mockImplementation(() => new Promise<boolean>((resolve) => { answer = resolve; }));
+    const first = await mountRatedPass();
+    undoButton(first.container, 2)!.click();
+    await beat();
+    const interrupted = pendingRecord;
+    expect(interrupted).not.toBeNull();
+    first.dispose();
+    first.container.remove();
+    answer?.(true);
+    await tick();
+
+    // The reloaded window never saw the learner's click, but the record
+    // outlived the window it was decided in, so the projection this surface
+    // registered under its own tag is what can finish it.
+    const second = mount(vi.fn());
+    expect(undoHarness.recover).toHaveBeenCalled();
+    const projection = undoHarness.projections.get('grammar');
+    expect(projection).toBeTypeOf('function');
+    // The projection is a commit callback the shared protocol invokes once the
+    // retraction is durable; here it is invoked directly with a stand-in store,
+    // since the durable store is the owner's, not this suite's.
+    const restored = await projection!(interrupted!);
+    restored(interrupted!, {} as never);
+    await beat();
+    expect(second.container.querySelector('[role="alert"]')).toBeNull();
+    second.dispose();
+    second.container.remove();
+    pendingRecord = null;
   });
 });
 

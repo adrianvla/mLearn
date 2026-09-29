@@ -5215,6 +5215,14 @@ describe('acknowledged rating command semantics', () => {
         onProbe: (pattern, quality, level) => {
           ctx.recordGrammarAttempt(pattern, quality, { language, level });
         },
+        // LevelStudyTab's real wiring: the drill hands the provider's shared
+        // durable Undo lifecycle to the component.
+        undoLifecycle: {
+          record: ctx.recordPendingRetraction,
+          complete: ctx.completePendingRetraction,
+          recover: ctx.recoverPendingRetraction,
+          register: ctx.registerRetractionProjection,
+        },
       }), container);
 
       // Expand the chosen construction's level and start the policy pass.
@@ -5312,6 +5320,14 @@ describe('acknowledged rating command semantics', () => {
       get projections() { return projectionsSignal(); },
       get summary() { return summarizeGrammarCurriculum('zh', zhPackage, projectionsSignal(), effectiveThresholds()); },
       onProbe: (pattern, quality, level) => { ctx.recordGrammarAttempt(pattern, quality, { language: 'zh', level }); },
+      // LevelStudyTab's real wiring: the drill hands the provider's shared
+      // durable Undo lifecycle to the component.
+      undoLifecycle: {
+        record: ctx.recordPendingRetraction,
+        complete: ctx.completePendingRetraction,
+        recover: ctx.recoverPendingRetraction,
+        register: ctx.registerRetractionProjection,
+      },
     }), container);
 
     const level = point!.level as number;

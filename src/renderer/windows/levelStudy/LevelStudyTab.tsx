@@ -457,6 +457,12 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
               setMockRepairRequest((request) => request?.requestedAt === requestedAt ? null : request);
             }}
             onValidated={() => setValidationsVersion((version) => version + 1)}
+            undoLifecycle={{
+              record: flashcards.recordPendingRetraction,
+              complete: flashcards.completePendingRetraction,
+              recover: flashcards.recoverPendingRetraction,
+              register: flashcards.registerRetractionProjection,
+            }}
             onProbe={(pattern, quality, level, scaffolds, attempt) => {
               return flashcards.recordGrammarAttemptAcknowledged(pattern, quality, {
                 language: resolvedLanguageData().language,
