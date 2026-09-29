@@ -912,6 +912,66 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('lands a refused whole-snapshot write by diffing the durable baseline, not replaying nothing', async () => {
+    // Most writes are not scheduler ratings. A knowledge-only rating - the word
+    // sync drill and the grammar drill both go through this one - applies its
+    // decision to the in-memory store and then asks for that whole state to be
+    // persisted, with no transform to describe what it decided.
+    //
+    // So the decision this window is persisting is everything between the last
+    // store the authority confirmed and the store as it now stands. Recording
+    // no intent for it meant a refused write rebased onto an empty delta: the
+    // authority's store was written straight back and the learner's rating was
+    // dropped - the one loss the rebase exists to prevent.
+    answerProbesFromAuthority();
+    const mine = makeCard({ id: 'snap-mine', state: 'review', interval: 86_400_000, dueDate: Date.now() - 1000, reviews: 2 });
+    const theirs = makeCard({ id: 'snap-theirs', reviews: 7 });
+    const startingStore = makeEmptyStore({ flashcards: { [mine.id]: mine, [theirs.id]: theirs }, rev: 5 });
+    const { ctx, dispose } = await mountProvider();
+    seed(startingStore);
+    ctx.refreshQueue();
+    expect(ctx.store.rev).toBe(5);
+
+    // The other window commits first, from a snapshot taken before this window
+    // rated anything. This is the ordinary race: it moves the authority on
+    // while this window is still holding the revision it will write from.
+    const otherWindow = JSON.parse(JSON.stringify(startingStore)) as FlashcardStore;
+    otherWindow.flashcards[theirs.id].reviews = 8;
+    otherWindow.rev = 5;
+    await mockBridge.flashcards.saveFlashcards(otherWindow, [], false, undefined);
+    expect(revision).toBe(6);
+
+    // Now this window rates, with no scheduler: the debounced whole-snapshot
+    // path is what carries it. The window is deliberately not re-synced first,
+    // so the write it composes carries the revision the authority has already
+    // moved past and is refused.
+    await ctx.submitRating(mine.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      attemptId: 'snap-mine-attempt' as AttemptId,
+      language: mine.language,
+    });
+    const knowledgeKeys = Object.keys(ctx.store.wordKnowledge);
+    expect(knowledgeKeys).toHaveLength(1);
+    expect(ctx.store.rev).toBe(5);
+
+    // The refused write is replayed onto what the other window committed, which
+    // is a second accepted write. Waiting only on the committed store would be
+    // satisfied by the other window's write, so the rebased revision is what
+    // this waits on.
+    await vi.waitFor(() => {
+      expect(committed?.rev).toBe(7);
+      // The rating's own evidence is in the file...
+      expect(Object.keys(committed?.wordKnowledge ?? {})).toEqual(knowledgeKeys);
+      // ...and the other window's work survived the replay, which is what
+      // makes the replay a decision rather than a snapshot.
+      expect(committed?.flashcards[theirs.id].reviews).toBe(8);
+    }, { timeout: 5000 });
+
+    // And this window renders what was written.
+    expect(ctx.store.flashcards[theirs.id].reviews).toBe(8);
+    expect(Object.keys(ctx.store.wordKnowledge)).toEqual(knowledgeKeys);
+    dispose();
+  });
+
   it('preserves an unrelated local mutation while a scheduler write is pending', async () => {
     let acknowledgeSave!: () => void;
     mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => new Promise((resolve, reject) => {

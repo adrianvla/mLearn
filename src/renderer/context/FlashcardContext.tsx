@@ -1277,7 +1277,28 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const composedOverRebase = storeSupersededByRebase;
       // What this window decided, as a delta. See `saveFlashcardsImmediate`.
       const intent: Record<string, unknown> = {};
-      transform?.(candidate, intent);
+      if (transform) {
+        transform(candidate, intent);
+      } else {
+        // A write with no transform is a whole-snapshot save: the caller
+        // already applied its decision to the in-memory store and is asking
+        // for that exact state to reach the authority. The decision this
+        // window is persisting is therefore everything between the last store
+        // the authority confirmed and the store as it now stands.
+        //
+        // Recording nothing here would be the same mistake as recording a
+        // transform that changed nothing: on a refusal the rebase would replay
+        // an empty delta, write the authority's store back unchanged, and drop
+        // the learner's action - the one loss the rebase exists to prevent.
+        // Diffing against the durable baseline rather than against the current
+        // store is what keeps the replay a decision instead of a snapshot: the
+        // other window's committed keys are absent from the delta and survive.
+        recordStoreDelta(
+          intent,
+          (authoritativeStore ?? base) as unknown as Record<string, unknown>,
+          candidate as unknown as Record<string, unknown>,
+        );
+      }
       const removals = [...pendingCardRemovals];
       const resetReviewProgress = pendingReviewReset;
       let committedRevision: number;
