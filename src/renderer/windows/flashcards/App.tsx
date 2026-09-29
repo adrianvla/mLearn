@@ -86,6 +86,8 @@ export const FlashcardsContent: Component = () => {
   const { langData, currentLangData } = useLanguage();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
+  // Distinguishes "no work was ever due" from "the session just drained".
+  const [hasReviewedInSession, setHasReviewedInSession] = createSignal(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
@@ -856,8 +858,12 @@ export const FlashcardsContent: Component = () => {
           {/* Review Tab */}
           <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review" hidden={activeTab() !== 'review'}>
           <Show when={activeTab() === 'review'}>
+            {/* "Nothing is due" and "this session finished" are different
+                product states: only the second is a completed session with a
+                way back into reviewing. The review surface owns that
+                distinction, so it stays mounted once work has been seen. */}
             <Show
-              when={counts().total > 0}
+              when={counts().total > 0 || hasReviewedInSession()}
               fallback={
                 <div class="flashcards-empty-container">
                   <EmptyState
@@ -871,7 +877,7 @@ export const FlashcardsContent: Component = () => {
                 </div>
               }
             >
-              <FlashcardReview />
+              <FlashcardReview onComplete={() => setHasReviewedInSession(true)} />
             </Show>
           </Show>
           </div>

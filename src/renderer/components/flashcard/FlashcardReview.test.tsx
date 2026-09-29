@@ -18,6 +18,15 @@ let setMockCard: (card: Flashcard | null) => void = () => {};
 let mockLangMap: Record<string, LanguageData> = {};
 let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
+let mockQueueTotal: Accessor<number> = () => 1;
+// What the async knowledge projection currently reports: pending lookups and
+// unmeasured surfaces must not be able to strip a card of its rating rows.
+const ALL_CAPABILITIES = ['sense-recognition', 'surface-reading', 'prosodic-pattern'];
+let mockKnowledgeLoading: Accessor<boolean> = () => false;
+let setMockKnowledgeLoading: (loading: boolean) => void = () => {};
+let mockKnowledgeMeasured: Accessor<string[]> = () => ALL_CAPABILITIES;
+let setMockKnowledgeMeasured: (measured: string[]) => void = () => {};
+let setMockQueueTotal: (total: number) => void = () => {};
 let mockTtsAvailable = true;
 const mockSetAccessStatus = vi.fn();
 const mockBuryCard = vi.fn();
@@ -59,7 +68,10 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
 };
 
 vi.mock('../../hooks/useKnowledgeProjection', () => ({
-  useKnowledgeProjection: () => ({ loading: () => false, capabilities: () => ['sense-recognition', 'surface-reading', 'prosodic-pattern'] }),
+  useKnowledgeProjection: () => ({
+    loading: () => mockKnowledgeLoading(),
+    capabilities: () => mockKnowledgeMeasured(),
+  }),
 }));
 
 vi.mock('../../context', () => ({
@@ -67,7 +79,7 @@ vi.mock('../../context', () => ({
     isKnowledgeReady: () => true,
     store: { flashcards: {} },
     queue: () => ({ newQueue: [], scheduledQueue: [] }),
-    queueCounts: () => ({ new: 1, learning: 0, review: 0, total: 1 }),
+    queueCounts: () => ({ new: mockQueueTotal(), learning: 0, review: 0, total: mockQueueTotal() }),
     getCurrentCard: () => mockCard(),
     getPreviewDueDates: () => ({ again: 1, hard: 2, good: 3, easy: 4 }),
     buryCard: mockBuryCard,
@@ -285,6 +297,15 @@ describe('FlashcardReview', () => {
     mockCard = card;
     setMockCard = setCard;
     setMockCard(makeCard());
+    const [queueTotal, setQueueTotal] = createSignal(1);
+    mockQueueTotal = queueTotal;
+    setMockQueueTotal = setQueueTotal;
+    const [knowledgeLoading, setKnowledgeLoading] = createSignal(false);
+    mockKnowledgeLoading = knowledgeLoading;
+    setMockKnowledgeLoading = setKnowledgeLoading;
+    const [knowledgeMeasured, setKnowledgeMeasured] = createSignal<string[]>([...ALL_CAPABILITIES]);
+    mockKnowledgeMeasured = knowledgeMeasured;
+    setMockKnowledgeMeasured = setKnowledgeMeasured;
   });
 
   afterEach(() => {
@@ -370,6 +391,15 @@ describe('FlashcardReview failure attribution', () => {
     mockCard = card;
     setMockCard = setCard;
     setMockCard(makeCard());
+    const [queueTotal, setQueueTotal] = createSignal(1);
+    mockQueueTotal = queueTotal;
+    setMockQueueTotal = setQueueTotal;
+    const [knowledgeLoading, setKnowledgeLoading] = createSignal(false);
+    mockKnowledgeLoading = knowledgeLoading;
+    setMockKnowledgeLoading = setKnowledgeLoading;
+    const [knowledgeMeasured, setKnowledgeMeasured] = createSignal<string[]>([...ALL_CAPABILITIES]);
+    mockKnowledgeMeasured = knowledgeMeasured;
+    setMockKnowledgeMeasured = setKnowledgeMeasured;
   });
 
   afterEach(() => {
@@ -428,6 +458,57 @@ describe('FlashcardReview failure attribution', () => {
     expect(compactActions().every((action) => action.disabled)).toBe(false);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     expect(mockSubmitRating).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('reports completion once the queue drains, and resumes a studyable face when work returns', async () => {
+    const onComplete = vi.fn();
+    const dispose = render(() => <FlashcardReview onComplete={onComplete} />, container);
+    expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    // Draining the last card empties the reviewable queue: the shared study
+    // contract reports `complete` and the surface hands completion upward.
+    setMockCard(null);
+    setMockQueueTotal(0);
+    await flushEffects();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.flashcard-show-answer-btn')).toBeNull();
+
+    // Completion is derived, not latched: new work restores a normal review.
+    setMockCard(makeCard());
+    setMockQueueTotal(1);
+    await flushEffects();
+    expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+    dispose();
+  });
+
+  it('keeps a revealed card rateable while its knowledge projection is pending or unmeasured', async () => {
+    // An unmeasured/pending projection must not empty the rating rows: doing so
+    // renders a revealed card with no way to record an outcome.
+    setMockKnowledgeLoading(true);
+    setMockKnowledgeMeasured([]);
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    await flushEffects();
+    const quality = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality'));
+    expect(quality().length).toBeGreaterThan(0);
+    expect(quality().every((button) => !button.disabled)).toBe(true);
+
+    // A resolved projection still narrows what the submission records: the
+    // collapsed bar is unchanged, but only the measured capability is rated.
+    setMockKnowledgeLoading(false);
+    setMockKnowledgeMeasured(['sense-recognition']);
+    await flushEffects();
+    expect(quality().length).toBe(4);
+    expect(quality().every((button) => !button.disabled)).toBe(true);
+
+    quality()[2].click();
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating.mock.calls[0][1]).toEqual([
+      { capability: 'sense-recognition', quality: 'fluent' },
+    ]);
     dispose();
   });
 

@@ -88,7 +88,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // attempt's evidence so an audio-cued reading rating stays cued
   // recognition instead of fabricating unassisted recall evidence.
   const [wordAudioPreReveal, setWordAudioPreReveal] = createSignal(false);
-  const [isComplete, setIsComplete] = createSignal(false);
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
@@ -232,16 +231,23 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   });
 
   // Matrix rows: capabilities THIS card interaction tests (shared tested/supplied gate).
+  // The knowledge projection narrows what this surface may record; it does not
+  // decide what the card tests. That makes it an asynchronous refinement, so a
+  // pending or unmeasured projection must not collapse the rows to nothing: an
+  // empty row set renders a revealed card with no way to rate it.
   const testedAccesses = createMemo<readonly CapabilityKey[]>(() => {
     const card = currentCard();
     if (!card) return ['sense-recognition'] as const;
-    return getTestedAccesses({
+    const tested = getTestedAccesses({
       languageData: languageDataForCard(card),
       surface: card.content.front,
       hasReadingData: cardHasReadingData(card),
       hasProsodyData: cardHasProsodyData(card),
       taskType: 'srs-review',
-    }).filter(capability => knowledge.capabilities().includes(capability));
+    });
+    if (knowledge.loading()) return tested;
+    const measured = knowledge.capabilities();
+    return measured.length === 0 ? tested : tested.filter((capability) => measured.includes(capability));
   });
 
   // Explicit whole-word / matrix submissions rate every tested capability —
@@ -352,7 +358,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
       if (isNativeActivationTarget(e)) return;
 
-      if (isComplete()) return;
+      if (presentation().phase === 'complete') return;
 
       if (!currentCard()) return;
 
@@ -374,18 +380,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
   });
 
-  // Check if session is complete
+  // The session is over when the queue has drained: the contract already
+  // reports that as `complete`, so completion is not tracked twice.
   createEffect(() => {
-    const card = currentCard();
-    const total = counts().total;
-
-    if (!card && total === 0) {
-      setIsComplete(true);
-      props.onComplete?.();
-      return;
-    }
-
-    setIsComplete(false);
+    if (presentation().phase === 'complete') props.onComplete?.();
   });
 
   // Per-card scaffold reset: the audio scaffold reflects THIS card's prompt.
@@ -547,7 +545,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleStartOver = () => {
     refreshQueue();
     setShowAnswer(false);
-    setIsComplete(false);
     setCardsAnswered(0);
     resetReviewScroll();
   };
@@ -637,7 +634,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               class="flashcard-rating-write"
               failedClass="flashcard-rating-write--failed"
             />
-            <Show when={!isComplete() && currentCard()}>
+            <Show when={presentation().phase !== 'complete' && currentCard()}>
               <Button
                 ref={(element) => { cardActionsAnchor = element; }}
                 variant="ghost"
@@ -697,7 +694,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
         {/* Card or completion screen */}
         <Show
-            when={!isComplete() && currentCard()}
+            when={presentation().phase !== 'complete' && currentCard()}
             fallback={
               <Panel
                   variant="default"
@@ -757,14 +754,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         {/* Buttons container */}
         <div class="flashcard-buttons-container">
           {/* Show answer button */}
-          <Show when={!isComplete() && currentCard() && !showAnswer()}>
+          <Show when={presentation().phase !== 'complete' && currentCard() && !showAnswer()}>
             <Button buttonType="default" variant="primary" size="lg" class="flashcard-show-answer-btn" onClick={handleFlip}>
               {t('mlearn.Flashcards.Review.ShowAnswer')}
             </Button>
           </Show>
 
           {/* Rating buttons */}
-          <Show when={!isComplete() && currentCard() && showAnswer()}>
+          <Show when={presentation().phase !== 'complete' && currentCard() && showAnswer()}>
             <div class="flashcard-rating-buttons">
               <RatingMatrix
                 capabilities={testedAccesses()}
