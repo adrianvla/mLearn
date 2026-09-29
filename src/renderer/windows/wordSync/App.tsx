@@ -1465,8 +1465,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 {t('mlearn.LevelStudy.Placement.Prompt', { word: word().word })}
               </p>
               <WriteStatusBanner
-                status={sessionPresentation().phase === 'saving' ? 'pending'
-                  : sessionPresentation().phase === 'save-failed' ? 'failed' : null}
+                status={sessionPresentation().write}
                 savingLabelKey="mlearn.WordSync.SavingRating"
                 failedLabelKey="mlearn.WordSync.SaveFailed"
                 canRetry={ratingWrite() !== null}
@@ -1576,8 +1575,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         </Show>
         <div class="word-sync-actions">
           <WriteStatusBanner
-            status={sessionPresentation().phase === 'saving' ? 'pending'
-              : sessionPresentation().phase === 'save-failed' ? 'failed' : null}
+            status={sessionPresentation().write}
             savingLabelKey="mlearn.WordSync.SavingRating"
             failedLabelKey="mlearn.WordSync.SaveFailed"
             canRetry={ratingWrite() !== null}

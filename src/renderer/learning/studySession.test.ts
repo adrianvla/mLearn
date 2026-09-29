@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { studySessionState } from './studySession';
+import { studySessionState, studySessionWriteStatus, type StudySessionPhase } from './studySession';
 
 describe('study session presentation contract', () => {
   it('gates rating on reveal and blocks it throughout write failure and retry', () => {
@@ -9,6 +9,33 @@ describe('study session presentation contract', () => {
     expect(studySessionState({ ...base, revealed: true, write: 'pending' })).toMatchObject({ phase: 'saving', canRate: false });
     expect(studySessionState({ ...base, revealed: true, write: 'failed' })).toMatchObject({ phase: 'save-failed', canRate: false });
     expect(studySessionState({ ...base, answered: true })).toMatchObject({ phase: 'answered', canAdvance: true });
+  });
+
+  it('projects write reporting for exactly the write phases', () => {
+    // Only a durable write reports status. Every other phase — including
+    // completion, which arrives after a write settles — reports no write.
+    const reporting: Record<StudySessionPhase, 'pending' | 'failed' | null> = {
+      loading: null,
+      question: null,
+      revealed: null,
+      saving: 'pending',
+      'save-failed': 'failed',
+      answered: null,
+      complete: null,
+    };
+    for (const [phase, expected] of Object.entries(reporting) as [StudySessionPhase, 'pending' | 'failed' | null][]) {
+      expect(studySessionWriteStatus(phase)).toBe(expected);
+    }
+  });
+
+  it('derives write reporting from the same phase the surface renders', () => {
+    const base = { ready: true, index: 1, total: 3, revealed: true } as const;
+    expect(studySessionState({ ...base, write: null }).write).toBeNull();
+    expect(studySessionState({ ...base, write: 'pending' }).write).toBe('pending');
+    expect(studySessionState({ ...base, write: 'failed' }).write).toBe('failed');
+    // Completion outranks the write in the phase order, so a settled session
+    // reports no write even though the snapshot still describes one.
+    expect(studySessionState({ ready: true, index: 3, total: 3, revealed: true, write: 'pending' }).write).toBeNull();
   });
 
   it('bounds cursor and completion without inventing a question', () => {

@@ -775,7 +775,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 onSubmit={handleBulkRate}
               />
               <WriteStatusBanner
-                status={ratingWrite()?.phase ?? null}
+                status={presentation().write}
                 savingLabelKey="mlearn.Flashcards.Review.SavingRating"
                 failedLabelKey="mlearn.Flashcards.Review.SaveFailed"
                 canRetry={ratingWrite()?.phase === 'failed'}
