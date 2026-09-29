@@ -14,6 +14,7 @@ import { Component, JSX, Show, createMemo, createSignal, createEffect, createCom
 import type { Flashcard } from '../../../shared/types';
 import { Button, Panel, PillLabel, HoverReveal, AnkiIcon, SafeHtml } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
+import { formatDate } from '../../utils/timeFormatting';
 import { FlashcardWordTitle } from './FlashcardWordTitle';
 import { FlashcardImage } from './FlashcardImage';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
@@ -431,7 +432,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
           <Show when={settings.devMode && props.ttsMetadata}>
             <div class="flashcard-tts-meta">
-              TTS: {props.ttsMetadata!.provider} · {new Date(props.ttsMetadata!.generatedAt).toLocaleDateString()}
+              TTS: {props.ttsMetadata!.provider} · {formatDate(props.ttsMetadata!.generatedAt, settings.uiLanguage)}
             </div>
           </Show>
 

@@ -7,6 +7,13 @@ import {
   formatDueDate,
   formatClockTime,
   formatLogTimestamp,
+  formatDate,
+  formatDateMedium,
+  formatDateShort,
+  formatDateNumeric,
+  formatWeekday,
+  formatWeekdayLong,
+  formatMonthShort,
 } from '@renderer/utils/timeFormatting';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
@@ -310,5 +317,82 @@ describe('formatLogTimestamp', () => {
     expect(() => formatLogTimestamp(date, 'ja')).not.toThrow();
     expect(() => formatLogTimestamp(date, 'de')).not.toThrow();
     expect(() => formatLogTimestamp(date, 'fr')).not.toThrow();
+  });
+});
+
+// ============================================================================
+// Date formatters
+// ============================================================================
+
+/** A Saturday, chosen because en-US and de disagree on its abbreviation. */
+const SATURDAY = new Date(2026, 2, 14, 12, 0, 0);
+
+describe('locale-aware date formatters', () => {
+  it('formatDate matches the explicit-locale Intl output', () => {
+    expect(formatDate(SATURDAY, 'de')).toBe(SATURDAY.toLocaleDateString('de'));
+    expect(formatDate(SATURDAY, 'ja')).toBe(SATURDAY.toLocaleDateString('ja'));
+  });
+
+  it('formatDateMedium matches dateStyle: medium', () => {
+    expect(formatDateMedium(SATURDAY, 'en-US')).toBe(
+      SATURDAY.toLocaleDateString('en-US', { dateStyle: 'medium' }),
+    );
+  });
+
+  it('formatDateShort includes the day and an abbreviated month', () => {
+    const result = formatDateShort(SATURDAY, 'en-US');
+    expect(result).toBe(SATURDAY.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+    expect(result).toContain('14');
+  });
+
+  it('formatDateNumeric renders bare month and day numbers', () => {
+    expect(formatDateNumeric(SATURDAY, 'en-US')).toBe(
+      SATURDAY.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
+    );
+    expect(formatDateNumeric(SATURDAY, 'en-US')).toBe('3/14');
+  });
+
+  it('formatWeekday shortens the weekday name', () => {
+    expect(formatWeekday(SATURDAY, 'en-US')).toBe('Sat');
+    expect(formatWeekday(SATURDAY, 'de')).toBe('Sa');
+  });
+
+  it('formatWeekdayLong spells the weekday out', () => {
+    expect(formatWeekdayLong(SATURDAY, 'en-US')).toBe('Saturday');
+    expect(formatWeekdayLong(SATURDAY, 'de')).toBe('Samstag');
+  });
+
+  it('formatMonthShort abbreviates the month', () => {
+    expect(formatMonthShort(SATURDAY, 'en-US')).toBe('Mar');
+    expect(formatMonthShort(SATURDAY, 'de')).toBe('Mär');
+  });
+
+  it('follows the requested locale rather than the host locale', () => {
+    // The bug these helpers exist to prevent: an OS pinned to en-US rendered
+    // "Sat" even when the user picked German as the UI language.
+    expect(formatWeekday(SATURDAY, 'de')).not.toBe(formatWeekday(SATURDAY, 'en-US'));
+    expect(formatWeekdayLong(SATURDAY, 'de')).not.toBe(formatWeekdayLong(SATURDAY, 'en-US'));
+    expect(formatMonthShort(SATURDAY, 'de')).not.toBe(formatMonthShort(SATURDAY, 'en-US'));
+  });
+
+  it('accepts ISO date strings, which is how timestamps are persisted', () => {
+    const iso = SATURDAY.toISOString();
+    expect(formatDate(iso, 'en-US')).toBe(formatDate(SATURDAY, 'en-US'));
+    expect(formatWeekday(iso, 'en-US')).toBe('Sat');
+  });
+
+  it('accepts both Date objects and epoch milliseconds', () => {
+    const ms = SATURDAY.getTime();
+    expect(formatDate(ms, 'en-US')).toBe(formatDate(SATURDAY, 'en-US'));
+    expect(formatWeekday(ms, 'en-US')).toBe(formatWeekday(SATURDAY, 'en-US'));
+  });
+
+  it('handles every supported UI language without throwing', () => {
+    for (const locale of ['en', 'ja', 'de', 'es', 'fr']) {
+      expect(() => formatDate(SATURDAY, locale)).not.toThrow();
+      expect(() => formatDateShort(SATURDAY, locale)).not.toThrow();
+      expect(() => formatWeekday(SATURDAY, locale)).not.toThrow();
+      expect(() => formatMonthShort(SATURDAY, locale)).not.toThrow();
+    }
   });
 });

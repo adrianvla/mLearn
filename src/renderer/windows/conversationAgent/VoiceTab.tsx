@@ -6,6 +6,7 @@
 
 import { Component, Show, batch, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
+import { formatLogTimestamp } from '../../utils/timeFormatting';
 import { getBridge } from '../../../shared/bridges';
 import { Button, ProgressBar, RangeInput, EmptyState, AlertBanner, Spinner, Select, MicrophoneIcon } from '../../components/common';
 import type { SelectOption } from '../../components/common';
@@ -281,11 +282,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   });
 
   const addDebugEvent = (label: string, detail: string, tone: VoiceDebugTone = 'info') => {
-    const time = new Date().toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    const time = formatLogTimestamp(Date.now(), settings.uiLanguage);
     const event = { id: debugEventId++, time, label, detail, tone };
     setDebugEvents(events => [event, ...events].slice(0, 30));
   };

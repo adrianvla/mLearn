@@ -4,6 +4,7 @@ import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, SRS_EASE } from '../../../../shared/con
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import { eventCapability } from '../../../../shared/knowledgeEvents';
 import { useLocalization, useSettings } from '../../../context';
+import { formatDate } from '../../../utils/timeFormatting';
 import { useWordEaseHistory } from '../../../hooks/useKnowledgeHistory';
 import { Button } from '../Button';
 import { SkeletonRows } from '../Skeleton';
@@ -95,15 +96,15 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
             <For each={paths()}>{(d) => <path class="knowledge-trajectory__line" d={d} />}</For>
             <Show when={compressed().length}><text x="54" y="193">{t('mlearn.Knowledge.Projection.TrajectoryArchive')}</text></Show>
             <For each={compressed()}>{(range) => <rect class="knowledge-trajectory__compressed" x={x(range.from) - 2} y="199" width={Math.max(4, x(range.to) - x(range.from))} height="12">
-              <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {new Date(range.from).toLocaleDateString()} – {new Date(range.to).toLocaleDateString()}</title>
+              <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {formatDate(range.from, settings.uiLanguage)} – {formatDate(range.to, settings.uiLanguage)}</title>
             </rect>}</For>
             <For each={points()}>{(point) => <g classList={{ 'knowledge-trajectory__point': true, 'knowledge-trajectory__point--claim': point.event.kind === 'claim', 'knowledge-trajectory__point--passive': point.event.source === 'passiveTracking' }}>
               <circle cx={x(point.t)} cy={point.ease === undefined ? 205 : y(point.ease)} r="4" tabindex="0" role="button" aria-label={label(point)}
                 onMouseEnter={() => setInspected(point)} onFocus={() => setInspected(point)} onClick={() => setInspected(point)}
                 onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspected(point); } }}><title>{label(point)}</title></circle>
             </g>}</For>
-            <text x="54" y="237">{new Date(start()).toLocaleDateString()}</text>
-            <text x={right()} y="237" text-anchor="end">{new Date(end()).toLocaleDateString()}</text>
+            <text x="54" y="237">{formatDate(start(), settings.uiLanguage)}</text>
+            <text x={right()} y="237" text-anchor="end">{formatDate(end(), settings.uiLanguage)}</text>
           </svg>
           <div class="knowledge-trajectory__legend">
             <span class="knowledge-trajectory__legend-evidence">{t('mlearn.Knowledge.Basis.Evidence')}</span>

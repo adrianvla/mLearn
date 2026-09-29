@@ -6,6 +6,7 @@
 import { Component, For, createMemo } from 'solid-js';
 import { Tooltip } from '../../../components/common';
 import { useLocalization } from '../../../context';
+import { formatMonthShort } from '../../../utils/timeFormatting';
 import './Heatmap.css';
 
 interface HeatmapDay {
@@ -22,6 +23,8 @@ interface HeatmapProps {
   formatTooltip?: (date: string, value: number) => string;
   /** Formatter for the legend max-value caption. Defaults to "Max: {count}". */
   formatMax?: (max: number) => string;
+  /** BCP-47 locale for the month captions. Defaults to the host locale. */
+  locale?: string;
 }
 
 export const Heatmap: Component<HeatmapProps> = (props) => {
@@ -76,7 +79,7 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
       const firstOfMonth = week.find((d) => d.date.endsWith('-01'));
       monthLabels.push(
         firstOfMonth
-          ? new Date(firstOfMonth.date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' })
+          ? formatMonthShort(new Date(firstOfMonth.date + 'T00:00:00'), props.locale)
           : '',
       );
     }

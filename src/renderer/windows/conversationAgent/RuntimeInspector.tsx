@@ -4,6 +4,7 @@ import type { RuntimeTraceEntry, RuntimeTraceList } from '../../../shared/runtim
 import { WORLD_CONTINUITY_ID, threadContextId, type JournalEvent, type WorldSnapshot } from '../../../shared/world';
 import { Button, Disclosure, EmptyState, HintText, Input, ListRow, Select, TabContainer, Tag } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
+import { formatClockTime } from '../../utils/timeFormatting';
 import './RuntimeInspector.css';
 
 const json = (value: unknown): string => JSON.stringify(value, null, 2) ?? 'null';
@@ -128,7 +129,7 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
               <div class="runtime-inspector-split">
                 <div class="runtime-inspector-call-list">
                   <For each={visibleTraces()}>{entry => <ListRow selected={entry.id === traceId()} headline={entry.context.source}
-                    description={`${entry.kind} · ${entry.provider ?? ''} ${entry.model ?? entry.tier ?? ''} · ${new Date(entry.startedAt).toLocaleTimeString()}`}
+                    description={`${entry.kind} · ${entry.provider ?? ''} ${entry.model ?? entry.tier ?? ''} · ${formatClockTime(entry.startedAt, settings.uiLanguage)}`}
                     trailing={<Tag size="sm">{entry.status}</Tag>} onClick={() => setTraceId(entry.id)} />}</For>
                   <Show when={visibleTraces().length === 0}><HintText>{label('NoCalls')}</HintText></Show>
                 </div>

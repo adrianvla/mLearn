@@ -4,7 +4,8 @@ import { LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS, KNOWLEDGE_SOURCE_DISPLAY_NAMES } fr
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { EvidenceAspect, EvidenceSource, KnowledgeEvent, KnowledgeEventKind } from '../../../../shared/knowledgeEvents';
 import { eventCapability } from '../../../../shared/knowledgeEvents';
-import { useLocalization } from '../../../context';
+import { useLocalization, useSettings } from '../../../context';
+import { formatClockTime, formatDate } from '../../../utils/timeFormatting';
 import './KnowledgeHistoryTimeline.css';
 
 /** The canonical journal read path already strips retractions; assert that at the type level. */
@@ -68,6 +69,7 @@ interface DayGroup {
  */
 export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent[] }> = (props) => {
   const { t } = useLocalization();
+  const { settings } = useSettings();
   const [expanded, setExpanded] = createSignal(new Set<string>());
 
   /** Legacy events keep their aspect label; capability-addressed events label via their access. */
@@ -110,7 +112,7 @@ export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent
     const diffDays = Math.round((dayStart(today) - dayStart(day)) / DAY_MS);
     if (diffDays <= 0) return t('mlearn.Knowledge.History.Today');
     if (diffDays === 1) return t('mlearn.Knowledge.History.Yesterday');
-    return day.toLocaleDateString();
+    return formatDate(day, settings.uiLanguage);
   };
 
   const dayGroups = createMemo<DayGroup[]>(() => {
@@ -143,7 +145,7 @@ export const KnowledgeHistoryTimeline: Component<{ events: readonly HistoryEvent
     });
   };
 
-  const time = (t: number): string => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const time = (t: number): string => formatClockTime(t, settings.uiLanguage);
 
   return (
     <Show when={props.events.length > 0}>

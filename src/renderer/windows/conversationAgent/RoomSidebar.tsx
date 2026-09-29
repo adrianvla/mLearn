@@ -2,6 +2,7 @@ import { For, Show, createMemo, createSignal, type Component } from 'solid-js';
 import { threadContextId, type Participant, type Thread, type WorldSnapshot } from '../../../shared/world';
 import { Avatar, Badge, Button, Disclosure, Input, ListRow, PlusIcon, SearchIcon, TabContainer } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
+import { formatClockTime, formatDateShort } from '../../utils/timeFormatting';
 import type { ConversationPreviews } from './conversationPreviews';
 import './RoomSidebar.css';
 
@@ -68,8 +69,8 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
     const date = new Date(value);
     const today = new Date();
     return date.toDateString() === today.toDateString()
-      ? date.toLocaleTimeString(settings.uiLanguage, { hour: '2-digit', minute: '2-digit' })
-      : date.toLocaleDateString(settings.uiLanguage, { month: 'short', day: 'numeric' });
+      ? formatClockTime(date.getTime(), settings.uiLanguage)
+      : formatDateShort(date, settings.uiLanguage);
   };
   const selectThread = (thread: Thread): void => props.onSelectThread(thread.id);
 

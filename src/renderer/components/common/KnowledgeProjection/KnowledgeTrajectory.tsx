@@ -5,6 +5,7 @@ import type { CapabilityKey } from '../../../../shared/graph/types';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource } from '../../../../shared/constants';
 import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 import { useLocalization, useSettings } from '../../../context';
+import { formatDate } from '../../../utils/timeFormatting';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
 import { WordEaseTrajectory } from './WordEaseTrajectory';
 import { SkeletonRows } from '../Skeleton';
@@ -89,7 +90,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
           <For each={paths()}>{(d) => <path class="knowledge-trajectory__line" d={d} />}</For>
           <For each={compressed()}>{(range) => <g>
             <rect class="knowledge-trajectory__compressed" x={x(range.from) - 2} y="181" width={Math.max(4, x(range.to) - x(range.from))} height="12">
-              <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {new Date(range.from).toLocaleDateString()} – {new Date(range.to).toLocaleDateString()}</title>
+              <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {formatDate(range.from, settings.uiLanguage)} – {formatDate(range.to, settings.uiLanguage)}</title>
             </rect>
           </g>}</For>
           <Show when={compressed().length}><text x={LEFT - 12} y="191" text-anchor="end">{t('mlearn.Knowledge.Projection.TrajectoryArchive')}</text></Show>
@@ -100,8 +101,8 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
               <title>{label(point)}</title>
             </circle>
           </g>}</For>
-          <text x={LEFT} y="221">{new Date(start()).toLocaleDateString()}</text>
-          <text x={right()} y="221" text-anchor="end">{new Date(end()).toLocaleDateString()}</text>
+          <text x={LEFT} y="221">{formatDate(start(), settings.uiLanguage)}</text>
+          <text x={right()} y="221" text-anchor="end">{formatDate(end(), settings.uiLanguage)}</text>
         </svg>
         <div class="knowledge-trajectory__legend">
           <span class="knowledge-trajectory__legend-evidence">{t('mlearn.Knowledge.Basis.Evidence')}</span>

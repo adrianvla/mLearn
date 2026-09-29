@@ -7,6 +7,7 @@ import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedPr
 import { Component, createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
+import { formatDate } from '../../../utils/timeFormatting';
 import type { Flashcard } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
@@ -495,7 +496,7 @@ export const WelcomeRoute: Component = () => {
       const days = Math.round((timestamp - Date.now()) / 86_400_000);
       return new Intl.RelativeTimeFormat(settings.uiLanguage, { numeric: 'auto' }).format(days, 'day');
     } catch {
-      return new Date(timestamp).toLocaleDateString(settings.uiLanguage);
+      return formatDate(timestamp, settings.uiLanguage);
     }
   };
 
