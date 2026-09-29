@@ -1,4 +1,5 @@
 import { projectedWordStatus } from '../../../shared/graph/targets';
+import { pushUndo } from '../../learning/undoHistory';
 import { surfaceEntityId } from '../../../shared/graph/load';
 import { getLogger } from '../../../shared/utils/logger';
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
@@ -114,8 +115,6 @@ interface WordSyncUndoEntry {
   previousSession?: WordSession;
 }
 
-// Bounded undo history mirroring flashcard review (MAX_UNDO_STACK_SIZE there is also 50).
-const MAX_UNDO_STACK_SIZE = 50;
 
 export interface WordSyncContentProps {
   mode?: 'study' | 'assessment';
@@ -607,20 +606,16 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       onAcknowledged: (before, _after, pending) => {
         const word = entryByWord.get(before.queue[before.index].id);
         if (!word) return;
-        setUndoStack((previous) => {
-          const next = [...previous, {
-            word,
-            language: pending.payload.language,
-            attemptIds: [pending.attemptId],
-            previousRatedCount: before.rated,
-            previousLastRating: before.meta.lastRating,
-            previousSamplingLevel: before.meta.samplingLevel,
-            previousLevelCursors: new Map(levelCursors),
-            previousSession: { ...before, pending: undefined, revealed: false },
-          }];
-          if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-          return next;
-        });
+        setUndoStack((previous) => pushUndo(previous, {
+          word,
+          language: pending.payload.language,
+          attemptIds: [pending.attemptId],
+          previousRatedCount: before.rated,
+          previousLastRating: before.meta.lastRating,
+          previousSamplingLevel: before.meta.samplingLevel,
+          previousLevelCursors: new Map(levelCursors),
+          previousSession: { ...before, pending: undefined, revealed: false },
+        }));
       },
     });
   }

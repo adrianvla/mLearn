@@ -6,6 +6,7 @@
  */
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, batch } from 'solid-js';
+import { pushUndo } from '../learning/undoHistory';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
 import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PendingReviewUndo } from '../../shared/types';
@@ -148,7 +149,6 @@ interface UndoEntry {
   reviewUndoAuthorization?: FlashcardWriteAuthorization;
 }
 
-const MAX_UNDO_STACK_SIZE = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Pending flashcard creation requesting user choice between SRS and Anki */
@@ -1067,15 +1067,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const card = store.flashcards[options.cardId];
     if (!card) return;
     setUndoStack((prev) => {
-      const newStack = [...prev, {
+      return pushUndo(prev, {
         type: options.type,
         cardId: options.cardId,
         restoreCard: { ...card, content: { ...card.content } },
-      }];
-      if (newStack.length > MAX_UNDO_STACK_SIZE) {
-        newStack.shift();
-      }
-      return newStack;
+      });
     });
   };
 
@@ -3407,11 +3403,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         }
         batch(() => {
           refreshQueue();
-          setUndoStack((previous) => {
-            const next = [...previous, schedulerResult!.undo];
-            if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-            return next;
-          });
+          setUndoStack((previous) => pushUndo(previous, schedulerResult!.undo));
         });
 
         const threshold = settings.leechThreshold ?? DEFAULT_SETTINGS.leechThreshold;
