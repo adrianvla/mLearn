@@ -27,7 +27,7 @@ import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQuer
 import { nextAttemptId, type AttemptId, type AttemptScaffolds, type KnowledgeEvent, type KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { StudySessionLocks } from '../../learning/studySessionController';
 import { loadQuestionValidationRecords, questionValidationRecordKey, validateQuestionItemsWithLLM } from '../../learning/questionValidation';
-import { studySessionState } from '../../learning/studySession';
+import { studySessionState, type StudySessionWriteStatus } from '../../learning/studySession';
 import { createStudySessionController, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
 import './GrammarCoverage.css';
 
@@ -371,7 +371,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     quality: AttemptQuality;
     scaffolds?: AttemptScaffolds;
     attemptId: AttemptId;
-    state: 'pending' | 'failed';
+    state: StudySessionWriteStatus;
   } | null>(null);
   const submitReviewProbe = async (
     pattern: string,

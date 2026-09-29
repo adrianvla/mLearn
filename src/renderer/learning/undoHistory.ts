@@ -8,6 +8,8 @@
  * it, so undo depth does not grow with session length.
  */
 
+import type { StudySessionWriteStatus } from './studySession';
+
 /** How many undoable actions a study surface remembers. */
 export const MAX_UNDO_STACK_SIZE = 50;
 
@@ -34,7 +36,7 @@ export function pushUndo<T>(stack: readonly T[], entry: T): T[] {
  * The state deliberately matches the study-session write vocabulary — the
  * banner and the interaction guards are then one concept, not two.
  */
-export type RetractionWriteState = 'pending' | 'failed' | null;
+export type RetractionWriteState = StudySessionWriteStatus;
 
 /**
  * Whether a retraction write in the given state should block study actions.

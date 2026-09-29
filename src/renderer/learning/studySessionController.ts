@@ -1,5 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js';
 import { nextAttemptId, type AttemptId } from '../../shared/knowledgeEvents';
+import type { StudyWriteState } from './studySession';
 
 export interface StudyQueueItem {
   id: string;
@@ -12,7 +13,9 @@ export interface StudyPending<Payload, Answer> {
   payload: Payload;
   outcome: 'advance' | 'answer';
   answer?: Answer;
-  state: 'pending' | 'failed';
+  /** Non-nullable by design: this record exists only while a write is in
+   *  flight or was refused; idle is the absence of the record. */
+  state: StudyWriteState;
 }
 
 export interface StudySessionRecord<Item extends StudyQueueItem, Payload, Answer, Meta> {

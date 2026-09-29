@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { studySessionState, studySessionWriteStatus, type StudySessionPhase } from './studySession';
+import {
+  studySessionState,
+  studySessionWriteStatus,
+  type StudySessionPhase,
+  type StudySessionWriteStatus,
+  type StudyWriteState,
+} from './studySession';
 
 describe('study session presentation contract', () => {
   it('gates rating on reveal and blocks it throughout write failure and retry', () => {
@@ -41,5 +47,21 @@ describe('study session presentation contract', () => {
   it('bounds cursor and completion without inventing a question', () => {
     expect(studySessionState({ ready: true, index: 3, total: 3, revealed: false, write: null }))
       .toMatchObject({ phase: 'complete', completed: 3, current: 3, canRate: false });
+  });
+});
+
+describe('durable write vocabulary', () => {
+  it('is declared once and every surface spelling derives from it', () => {
+    // These used to be five independent inline unions that happened to match.
+    // They are one concept, so the banner, the rating write, the retraction
+    // write, the pending journal record and the review probe all name it.
+    const states: StudyWriteState[] = ['pending', 'failed'];
+    expect(states).toEqual<StudyWriteState[]>(['pending', 'failed']);
+    // Idle is per-surface: nullable status, or the absence of a record.
+    const idle: StudySessionWriteStatus = null;
+    expect(idle).toBeNull();
+    expect(studySessionWriteStatus('saving')).toBe<StudyWriteState>('pending');
+    expect(studySessionWriteStatus('save-failed')).toBe<StudyWriteState>('failed');
+    expect(studySessionWriteStatus('complete')).toBeNull();
   });
 });

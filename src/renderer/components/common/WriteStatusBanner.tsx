@@ -9,8 +9,9 @@
 import { Component, Show } from 'solid-js';
 import { Button } from './Button';
 import { useLocalization } from '../../context';
+import type { StudyWriteState } from '../../learning/studySession';
 
-export type WriteStatus = 'pending' | 'failed';
+export type WriteStatus = StudyWriteState;
 
 export interface WriteStatusBannerProps {
   /** The write's state, or null when no write is in flight. */

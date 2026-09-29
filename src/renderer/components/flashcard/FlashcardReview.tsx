@@ -31,7 +31,7 @@ import { RatingMatrix, type ProfileObservation, type RateOptions } from '../comm
 import type { AttemptQuality } from '../../../shared/constants';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
-import { studySessionState } from '../../learning/studySession';
+import { studySessionState, type StudySessionWriteStatus } from '../../learning/studySession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from '../../utils/ratingShortcuts';
 import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
@@ -41,7 +41,8 @@ import { getLogger } from '../../../shared/utils/logger';
 const log = getLogger("renderer.components.flashcardReview");
 
 interface ReviewRatingWrite {
-  phase: 'pending' | 'failed';
+  /** The durable rating write's state; the encounter is idle when null. */
+  phase: StudySessionWriteStatus;
   attemptId: AttemptId;
   card: Flashcard;
   observations: readonly ProfileObservation[];

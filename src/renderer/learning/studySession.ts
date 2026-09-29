@@ -10,6 +10,18 @@ export type StudySessionPhase = 'loading' | 'question' | 'revealed' | 'saving' |
  */
 export type StudySessionWriteStatus = 'pending' | 'failed' | null;
 
+/**
+ * The two states a durable write can be observed in, without the idle case.
+ *
+ * Surfaces spell this union inline in several places — a rating write, a
+ * retraction write, a pending journal record, a review probe. They are all the
+ * same two states of the same concept (a study write that either still has not
+ * landed or was refused), so the vocabulary is declared once here and derived
+ * everywhere else. Whether a surface encodes "idle" as `null` or as the absence
+ * of a record is a per-surface decision and is deliberately left alone.
+ */
+export type StudyWriteState = Exclude<StudySessionWriteStatus, null>;
+
 /** Projects the write-reporting status from a session phase. */
 export function studySessionWriteStatus(phase: StudySessionPhase): StudySessionWriteStatus {
   return phase === 'saving' ? 'pending' : phase === 'save-failed' ? 'failed' : null;
@@ -20,7 +32,7 @@ export interface StudySessionSnapshot {
   index: number;
   total: number;
   revealed: boolean;
-  write: 'pending' | 'failed' | null;
+  write: StudySessionWriteStatus;
   answered?: boolean;
 }
 
