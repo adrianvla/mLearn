@@ -613,6 +613,7 @@ beforeEach(() => {
     mockSubmitRating.mockClear();
     mockShowToast.mockClear();
     mockAppendRetractions.mockClear();
+    mockAppendRetractions.mockResolvedValue(true);
     mockRecomputeProjection.mockClear();
     mockUpdateSettings.mockClear();
     mockWordSyncState.projection = undefined;
@@ -2105,6 +2106,58 @@ beforeEach(() => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await settle();
     expect(container.textContent).toContain('赤い:あかい');
+    dispose();
+  });
+
+  it('reports a refused undo and offers a retry instead of failing silently', async () => {
+    // Regression: a refused retraction used to return early through a
+    // `finally` that only cleared a boolean, so undo looked exactly like it had
+    // worked. The learner got no evidence and no way back. Undo is a durable
+    // write and must be reported as one, the same as flashcard review does.
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    // Retractions succeed for the rating path's own bookkeeping, then the
+    // storage layer starts refusing (the quota / private-storage failure).
+    mockAppendRetractions.mockResolvedValue(false);
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    await settle();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await settle();
+    buttonByText('mlearn.Rating.Matrix.Fluent').click();
+    await settle();
+    await settle();
+
+    // Storage refuses the retraction.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await settle();
+    await settle();
+
+    // The failure is reported, and it is retryable.
+    expect(container.textContent).toContain('mlearn.WordSync.UndoSaveFailed');
+    const retry = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('mlearn.Global.TryAgain'));
+    expect(retry).toBeDefined();
+
+    // A settled failure must not strand the surface. Rating is gated by the
+    // session contract (revealed encounter), never by the retraction: revealing
+    // the next word must arm rating again even though the undo is still failed.
+    expect(buttonByText('mlearn.Rating.Matrix.Fluent').disabled).toBe(true);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await settle();
+    expect(buttonByText('mlearn.Rating.Matrix.Fluent').disabled).toBe(false);
+    expect(container.textContent).toContain('mlearn.WordSync.UndoSaveFailed');
+
+    // Retrying re-runs the same retraction.
+    retry!.click();
+    await settle();
+    await settle();
+    expect(mockAppendRetractions.mock.calls.length).toBeGreaterThanOrEqual(2);
     dispose();
   });
 

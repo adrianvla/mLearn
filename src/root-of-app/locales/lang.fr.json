@@ -3434,6 +3434,8 @@
       "AnswerUnavailable": "Aucune réponse disponible pour ce mot. Réessayez la recherche ou choisissez un autre filtre. Aucune évaluation enregistrée.",
       "SkipWord": "Passer ce mot",
       "SaveFailed": "Cette évaluation n’a pas pu être enregistrée. Le mot reste affiché ; réessayez.",
+      "SavingUndo": "Enregistrement de l’annulation…",
+      "UndoSaveFailed": "Impossible d’enregistrer cette annulation. Le mot reste évalué ; réessayez.",
       "Statement": {},
       "FinishedTitle": "Terminé !",
       "FinishedDescription": "Vérifications enregistrées : {count}. Ces réponses font désormais partie de votre historique d’apprentissage.",

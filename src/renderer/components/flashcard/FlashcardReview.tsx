@@ -34,6 +34,7 @@ import { getSessionProgress } from './flashcardReviewSession';
 import { studySessionState } from '../../learning/studySession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from '../../utils/ratingShortcuts';
+import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
 import './FlashcardReview.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -92,7 +93,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [showTtsModal, setShowTtsModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
   const [ratingWrite, setRatingWrite] = createSignal<ReviewRatingWrite | null>(null);
-  const [undoWrite, setUndoWrite] = createSignal<'pending' | 'failed' | null>(null);
+  // Undo is a durable write (it appends a retraction), reported through the
+  // same owner Word Sync uses so the two surfaces cannot disagree about it.
+  const [retractionWrite, setRetractionWrite] = createSignal<RetractionWriteState>(null);
   const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
   let reviewScrollContainer: HTMLDivElement | undefined;
@@ -326,7 +329,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   /** A rating may only be committed from a revealed, idle encounter. */
   const canRate = createMemo(() =>
-    presentation().canRate && undoWrite() === null);
+    presentation().canRate && !isRetractionWriteBlocking(retractionWrite()));
 
   const sessionTotal = createMemo(() => cardsAnswered() + counts().total);
   // Calculate session progress percentage
@@ -351,7 +354,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       // Undo rewrites the journal a pending write is appending to, so it waits
       // for the write to land. Other shortcuts are unaffected by that write.
       if (isUndoShortcut(e)) {
-        if (isBlockedByPendingWrite('undo', ratingWrite() !== null || undoWrite() !== null)) { e.preventDefault(); return; }
+        if (isBlockedByPendingWrite('undo', ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite()))) { e.preventDefault(); return; }
         if (canUndo()) { e.preventDefault(); void handleUndo(); }
         return;
       }
@@ -436,26 +439,26 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   ));
 
   const handleUndo = async () => {
-    if (ratingWrite() !== null || undoWrite() === 'pending') return;
-    setUndoWrite('pending');
+    if (ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
+    setRetractionWrite('pending');
     try {
       const actionType = await undoLastAction();
       if (actionType === 'answer') {
         setCardsAnswered(prev => Math.max(0, prev - 1));
       }
-      setUndoWrite(null);
+      setRetractionWrite(null);
       setShowAnswer(false);
       // The undo restored prior pool state: re-select afresh (R20 pin repair).
       decisionPin.advance();
       resetReviewScroll();
     } catch (error) {
       log.warn('Failed to persist flashcard Undo:', error);
-      setUndoWrite('failed');
+      setRetractionWrite('failed');
     }
   };
 
   const handleBury = () => {
-    if (ratingWrite() !== null || undoWrite() !== null) return;
+    if (ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
     const card = currentCard();
     if (!card) return;
     stopTiming();
@@ -469,7 +472,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleRemove = async () => {
-    if (ratingWrite() !== null || undoWrite() !== null) return;
+    if (ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
     const card = currentCard();
     if (!card) return;
     stopTiming();
@@ -621,15 +624,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               thumbIcon={<VolumeOffIcon size={12} />}
             />
             <Show when={canUndo()}>
-              <Button buttonType="default" variant="ghost" size="xs" disabled={ratingWrite() !== null || undoWrite() === 'pending'} onClick={() => { void handleUndo(); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+              <Button buttonType="default" variant="ghost" size="xs" disabled={ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { void handleUndo(); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
                 {t('mlearn.Flashcards.Review.Undo')}
               </Button>
             </Show>
             <WriteStatusBanner
-              status={undoWrite()}
+              status={retractionWrite()}
               savingLabelKey="mlearn.Flashcards.Review.SavingUndo"
               failedLabelKey="mlearn.Flashcards.Review.UndoSaveFailed"
-              canRetry={true}
+              canRetry={canRetryRetraction(retractionWrite())}
               onRetry={() => { void handleUndo(); }}
               class="flashcard-rating-write"
               failedClass="flashcard-rating-write--failed"
@@ -640,7 +643,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 variant="ghost"
                 size="xs"
                 class="flashcard-actions-trigger"
-                disabled={ratingWrite() !== null || undoWrite() !== null}
+                disabled={ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())}
                 aria-haspopup="dialog"
                 aria-expanded={showCardActions()}
                 onClick={() => setShowCardActions((open) => !open)}
@@ -655,10 +658,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 class="flashcard-actions-popover"
               >
                 <div class="flashcard-action-buttons">
-                  <Button variant="ghost" size="xs" disabled={ratingWrite() !== null || undoWrite() !== null} onClick={() => { setShowCardActions(false); handleBury(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'b' })}>
+                  <Button variant="ghost" size="xs" disabled={ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { setShowCardActions(false); handleBury(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'b' })}>
                     {t('mlearn.Flashcards.Review.Bury')}
                   </Button>
-                  <Button variant="danger" size="xs" disabled={ratingWrite() !== null || undoWrite() !== null} onClick={() => { setShowCardActions(false); handleRemove(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}>
+                  <Button variant="danger" size="xs" disabled={ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { setShowCardActions(false); handleRemove(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}>
                     {t('mlearn.Flashcards.Review.Remove')}
                   </Button>
                   <Button variant="ghost" size="xs" icon={<EyeIcon size={14} />} onClick={() => {

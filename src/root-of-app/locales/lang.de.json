@@ -3434,6 +3434,8 @@
       "AnswerUnavailable": "Für dieses Wort ist keine Antwort verfügbar. Wiederhole die Wörterbuchsuche oder wähle einen anderen Filter. Es wurde keine Bewertung gespeichert.",
       "SkipWord": "Dieses Wort überspringen",
       "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Das Wort bleibt hier; versuche es erneut.",
+      "SavingUndo": "Rückgängigmachung wird gespeichert…",
+      "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Das Wort bleibt bewertet; versuche es erneut.",
       "Statement": {},
       "FinishedTitle": "Fertig!",
       "FinishedDescription": "Gespeicherte Überprüfungen: {count}. Diese Antworten gehören jetzt zu deinem Lernverlauf.",

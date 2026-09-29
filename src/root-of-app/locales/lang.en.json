@@ -3434,6 +3434,8 @@
       "AnswerUnavailable": "No answer is available for this word. Retry the dictionary lookup or choose another filter. No rating has been recorded.",
       "SkipWord": "Skip this word",
       "SaveFailed": "This rating could not be saved. The word is still here; try again.",
+      "SavingUndo": "Saving undo…",
+      "UndoSaveFailed": "This undo could not be saved. The word is still rated; try again.",
       "Statement": {},
       "FinishedTitle": "All done!",
       "FinishedDescription": "Recorded checks: {count}. These responses are now part of your learning history.",
