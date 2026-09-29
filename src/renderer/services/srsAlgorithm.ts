@@ -534,9 +534,74 @@ export function addToQueue(queue: ReviewQueue, card: Flashcard, newDayHour: numb
     return cleanQueue;
 }
 /**
- * Get queue counts for display.
- * Learning and relearning cards both stay counted while they are queued for
- * the current SRS day, and review cards share the same scheduled queue.
+ * Cards due for the current SRS day, bucketed by scheduler state.
+ *
+ * This is the single owner of "how much is left to study today". The review
+ * queue and the statistics surfaces both read it, so a rating that moves a
+ * card out of today's set is reflected identically everywhere.
+ *
+ * `relearning` is a scheduler state in its own right; the review header folds
+ * it into `learning` at the point of display, not here.
+ */
+export interface DueCardCounts {
+    new: number;
+    learning: number;
+    review: number;
+    relearning: number;
+    total: number;
+}
+
+/**
+ * Count the cards that are due for the current SRS day.
+ *
+ * A card is due when it is neither suspended nor buried and either has never
+ * been studied (`new`) or its due date has passed the SRS day boundary.
+ * `language` scopes the result to a single language; omit it to count across
+ * every language in the collection.
+ */
+export function countDueCards(
+    cards: Iterable<Flashcard>,
+    newDayHour: number = DEFAULT_SETTINGS.newDayHour,
+    language?: string
+): DueCardCounts {
+    const dayEnd = getEndOfSRSDay(newDayHour);
+    let newCards = 0;
+    let learning = 0;
+    let review = 0;
+    let relearning = 0;
+
+    for (const card of cards) {
+        if (language && card.language !== language && card.language) continue;
+        if (card.suspended || card.buried) continue;
+
+        if (card.state === 'new') {
+            newCards++;
+            continue;
+        }
+        if (card.dueDate > dayEnd) continue;
+
+        if (card.state === 'learning') learning++;
+        else if (card.state === 'review') review++;
+        else if (card.state === 'relearning') relearning++;
+    }
+
+    return {
+        new: newCards,
+        learning,
+        review,
+        relearning,
+        total: newCards + learning + review + relearning,
+    };
+}
+
+/**
+ * Counts for the cards the review queue will actually serve.
+ *
+ * The queue is the studyable set: it applies the daily new-card and review
+ * caps, so it can be smaller than the raw due total. The per-state buckets
+ * are counted off the queue itself so the header always describes the session
+ * the learner is in, and `relearning` is reported under `learning` because the
+ * header shows a single "Learning" badge for both.
  */
 export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashcard>, newDayHour: number = 4): {
     new: number;

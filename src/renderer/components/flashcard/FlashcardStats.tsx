@@ -320,7 +320,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
     return [
       { label: t('mlearn.Flashcards.Statistics.New'), value: dist.new, color: colors.new },
       { label: t('mlearn.Flashcards.Statistics.Learning'), value: dist.learning, color: colors.learning },
-      { label: t('mlearn.Flashcards.Statistics.Review'), value: dist.review, color: colors.review },
+      { label: t('mlearn.Flashcards.Statistics.ReviewState'), value: dist.review, color: colors.review },
       { label: t('mlearn.Flashcards.Statistics.Suspended'), value: dist.suspended, color: colors.suspended },
     ];
   });
@@ -336,7 +336,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
       drawPieChart(stateChartRef, [
         { label: t('mlearn.Flashcards.Statistics.New'), value: dist.new, color: colors.new },
         { label: t('mlearn.Flashcards.Statistics.Learning'), value: dist.learning, color: colors.learning },
-        { label: t('mlearn.Flashcards.Statistics.Review'), value: dist.review, color: colors.review },
+        { label: t('mlearn.Flashcards.Statistics.ReviewState'), value: dist.review, color: colors.review },
         { label: t('mlearn.Flashcards.Statistics.Suspended'), value: dist.suspended, color: colors.suspended },
       ], {
         donut: true,

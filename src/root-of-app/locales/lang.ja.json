@@ -1184,6 +1184,7 @@
         "New": "新規",
         "NewCardsStudied": "学習した新規カード",
         "Review": "復習",
+        "ReviewState": "復習中",
         "ReviewsCompleted": "完了した復習",
         "Suspended": "停止中",
         "TodayProgress": "本日の進捗",
