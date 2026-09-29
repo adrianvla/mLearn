@@ -3436,6 +3436,8 @@
       "SaveFailed": "无法保存这次评分。当前词语仍会显示，请重试。",
       "SavingUndo": "正在保存撤销操作…",
       "UndoSaveFailed": "无法保存撤销操作。当前词语仍保持已评分状态，请重试。",
+      "SessionStartFailed": "无法保存本次学习会话，因此未能开始会话。已记录的答案保持不变；请重试。",
+      "DismissFailed": "无法关闭本次会话。没有丢弃任何内容；请重试。",
       "Statement": {},
       "FinishedTitle": "全部完成！",
       "FinishedDescription": "已记录的检查：{count}次。这些回答现已保存到学习历史中。",

@@ -677,6 +677,71 @@ beforeEach(() => {
     expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null').id).toBe(saved.id);
   });
 
+  it('reports a refused session start as a session failure, not as a failed rating', async () => {
+    // A refused session start has nothing to do with a rating: nothing was
+    // rated and no word was shown. It used to render `WordSync.SaveFailed`
+    // ("This rating could not be saved. The word is still here"), which
+    // described an action the learner never took.
+    const setItem = localStorage.setItem.bind(localStorage);
+    let refuse = true;
+    const setItemSpy = vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === 'mlearn-study-word-sync:ja' && refuse) throw new DOMException('quota exceeded', 'QuotaExceededError');
+      setItem(key, value);
+    });
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.SessionStartFailed');
+    expect(container.textContent).not.toContain('mlearn.WordSync.SaveFailed');
+    setItemSpy.mockRestore();
+  });
+
+  it('reports a refused assessment dismissal where the learner pressed it', async () => {
+    // A finished assessment keeps the study shell gate satisfied, so the
+    // session-failure fallback never renders and a refused dismissal used to
+    // be completely silent: the button did nothing and said nothing.
+    mockWordSyncState.wordFrequency = {
+      'high-a': { reading: 'high-a', raw_level: 5, level: 'High' },
+      'high-b': { reading: 'high-b', raw_level: 5, level: 'High' },
+      'low-a': { reading: 'low-a', raw_level: 2, level: 'Low' },
+    };
+    mockWordSyncState.levelNames = { 5: 'High', 2: 'Low' };
+
+    const { WordSyncContent } = await import('./App');
+    const dispose = render(() => <WordSyncContent mode="assessment" />, container);
+    disposals.push(dispose);
+    await settle(); await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Placement.Start').click();
+    await settle(); await settle();
+    for (let sample = 0; sample < 5; sample += 1) {
+      await settle();
+      press('3');
+      await settle(); await settle();
+    }
+    expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')).not.toBeNull();
+
+    const removeItem = localStorage.removeItem.bind(localStorage);
+    const removeItemSpy = vi.spyOn(localStorage, 'removeItem').mockImplementation((key) => {
+      if (key === 'mlearn-study-word-sync-assessment:ja') throw new DOMException('quota exceeded', 'QuotaExceededError');
+      removeItem(key);
+    });
+    buttonByText('mlearn.LevelStudy.Placement.Dismiss').click();
+    await settle(); await settle();
+
+    // Reported, in the assessment layout, with a retry that is the same action.
+    expect(container.textContent).toContain('mlearn.WordSync.DismissFailed');
+    expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')).not.toBeNull();
+    const retry = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('mlearn.Global.TryAgain'));
+    expect(retry).toBeDefined();
+
+    removeItemSpy.mockRestore();
+    retry!.click();
+    await settle(); await settle();
+    expect(container.textContent).not.toContain('mlearn.WordSync.DismissFailed');
+    dispose();
+  });
+
   it('offers retry when the initial session cannot be persisted', async () => {
     const setItem = localStorage.setItem.bind(localStorage);
     let refuse = true;
@@ -687,7 +752,7 @@ beforeEach(() => {
     const { WordSyncContent } = await import('./App');
     mountContent(WordSyncContent);
     await settle();
-    expect(container.textContent).toContain('mlearn.WordSync.SaveFailed');
+    expect(container.textContent).toContain('mlearn.WordSync.SessionStartFailed');
     expect(container.querySelector('.word-sync-word')).toBeNull();
 
     refuse = false;

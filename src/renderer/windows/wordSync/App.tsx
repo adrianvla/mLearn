@@ -169,7 +169,18 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   // evidence and no retry.
   const [retractionWrite, setRetractionWrite] = createSignal<RetractionWriteState>(null);
   const [sessionController, setSessionController] = createSignal<WordController | null>(null);
-  const [sessionStartFailed, setSessionStartFailed] = createSignal(false);
+  /**
+   * Why the durable session write was refused, or null when it is fine.
+   *
+   * This used to be a bare boolean rendered as `WordSync.SaveFailed` — copy
+   * for a *rating* that could not be saved. A refused session start has
+   * nothing to do with a rating, so the learner was told "this rating could
+   * not be saved" before answering anything. It is also set when a refused
+   * assessment dismissal cannot be reported by the study fallback at all,
+   * because a finished assessment keeps the shell gate true. One state, two
+   * named reasons, each rendered where it actually happens.
+   */
+  const [sessionWriteFailure, setSessionWriteFailure] = createSignal<'start' | 'dismiss' | null>(null);
   const [assessmentReady, setAssessmentReady] = createSignal(false);
   const [assessmentPlan, setAssessmentPlan] = createSignal<WordSyncAssessmentPool[]>([]);
   let retrySessionStart: (() => void) | null = null;
@@ -792,7 +803,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     if (controller && record && !await controller.clear(record)) return;
     controller?.dispose();
     setSessionController(null);
-    setSessionStartFailed(false);
+    setSessionWriteFailure(null);
     retrySessionStart = null;
     stopWordTiming();
     setRatingWrite(null);
@@ -908,7 +919,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   createEffect(on(() => [settings.language, langCtx.getWordFrequency(), langCtx.currentLangData(), getLearningLanguageLevelForLanguage(settings, settings.language)] as const, () => batch(() => {
     sessionController()?.dispose();
     setSessionController(null);
-    setSessionStartFailed(false);
+    setSessionWriteFailure(null);
     retrySessionStart = null;
     stopWordTiming();
     setRatingWrite(null);
@@ -941,7 +952,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         trace('projection not ready');
         sessionController()?.dispose();
         setSessionController(null);
-        setSessionStartFailed(false);
+        setSessionWriteFailure(null);
         retrySessionStart = null;
         setRatingWrite(null);
         setSessionQueue(undefined);
@@ -1035,7 +1046,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       const controller = createWordController(identity, storageKey, entryByWord, true);
       setSessionController(controller);
       setAssessmentReady(true);
-      setSessionStartFailed(false);
+      setSessionWriteFailure(null);
       retrySessionStart = null;
       setQueueSummary({ ignored: 0, filtered: 0, noPrompt: 0 });
       const existing = controller.current();
@@ -1067,7 +1078,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           lastRating: null,
           assessment: state,
         }).then((accepted) => {
-          setSessionStartFailed(!accepted && !activeController.current());
+          setSessionWriteFailure(!accepted && !activeController.current() ? 'start' : null);
           if (activeController.current()) pickNext();
         });
       };
@@ -1101,7 +1112,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           samplingLevel: sortedLevels()[0] ?? 0,
           lastRating: null,
         }).then((accepted) => {
-          setSessionStartFailed(!accepted && !controller.current());
+          setSessionWriteFailure(!accepted && !controller.current() ? 'start' : null);
           if (controller.current()) pickNext();
         });
       };
@@ -1290,7 +1301,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     const controller = sessionController();
     const record = controller?.current();
     if (controller && record && !await controller.clear(record)) {
-      setSessionStartFailed(true);
+      // A refused clear discards nothing, so say so where the learner is
+      // looking (the summary they just pressed Dismiss on) instead of
+      // silently doing nothing.
+      setSessionWriteFailure('dismiss');
       return;
     }
     setUndoStack([]);
@@ -1299,7 +1313,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     setRatedCount(0);
     setShowAnswer(false);
     setShowTranslation(false);
-    setSessionStartFailed(false);
+    setSessionWriteFailure(null);
   };
 
   return (
@@ -1350,7 +1364,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 controller?.dispose();
                 batch(() => {
                   setSessionController(null);
-                  setSessionStartFailed(false);
+                  setSessionWriteFailure(null);
                   retrySessionStart = null;
                   setRatingWrite(null);
                   setSessionQueue(undefined);
@@ -1400,7 +1414,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     {/* Keep the session shell mounted while the next prompt materializes. */}
     <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue()
       && (assessmentMode() ? assessmentReady() : !!sessionController()?.current()) && !projectionUnavailable()} fallback={
-      <Show when={sessionStartFailed()} fallback={
+      <Show when={sessionWriteFailure() === 'start'} fallback={
         <Show when={projectionUnavailable()} fallback={
           <Show when={!assessmentMode() && !filterValidation().ok} fallback={<KnowledgeSkeleton variant="word-sync" />}>
             <p role="alert">{t('mlearn.WordSync.InvalidFilter')}</p>
@@ -1413,7 +1427,9 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         </Show>
       }>
         <div class="word-sync-projection-error" role="alert">
-          <p>{t('mlearn.WordSync.SaveFailed')}</p>
+          {/* Session start is not a rating: the saved answers are untouched
+              and no word was ever shown, so the rating copy would be a lie. */}
+          <p>{t('mlearn.WordSync.SessionStartFailed')}</p>
           <Button variant="primary" onClick={() => retrySessionStart?.()}>{t('mlearn.Global.TryAgain')}</Button>
         </div>
       </Show>
@@ -1469,6 +1485,18 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
               </For>
             </ul>
             <p>{t('mlearn.LevelStudy.Placement.EvidenceNote', { count: result().sampledCount })}</p>
+            {/* A refused dismissal keeps this summary mounted, so the study
+                layout's fallback never renders and the refusal would be
+                invisible. It is reported here, next to the button that caused
+                it, with a retry that is the same button. */}
+            <Show when={sessionWriteFailure() === 'dismiss'}>
+              <div class="word-sync-projection-error" role="alert">
+                <p>{t('mlearn.WordSync.DismissFailed')}</p>
+                <Button variant="primary" onClick={() => void dismissAssessment()}>
+                  {t('mlearn.Global.TryAgain')}
+                </Button>
+              </div>
+            </Show>
             <div class="word-sync-assessment-summary__actions">
               <Show when={assessmentLevel() !== null}>
                 <Button variant="primary" onClick={applyAssessmentRecommendation}>
