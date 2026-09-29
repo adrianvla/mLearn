@@ -3435,6 +3435,8 @@
       "SaveFailed": "Cette évaluation n’a pas pu être enregistrée. Le mot reste affiché ; réessayez.",
       "SavingUndo": "Enregistrement de l’annulation…",
       "UndoSaveFailed": "Impossible d’enregistrer cette annulation. Le mot reste évalué ; réessayez.",
+      "Undo": "↩",
+      "UndoTooltip": "Annuler",
       "SessionStartFailed": "Cette session d'étude n'a pas pu être enregistrée, aucune session n'a donc pu démarrer. Vos réponses restent inchangées ; réessayez.",
       "DismissFailed": "Cette session n'a pas pu être fermée. Rien n'a été abandonné ; réessayez.",
       "Statement": {},

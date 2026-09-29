@@ -165,6 +165,21 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
    *  only route forward stays open. */
   const undoBlocking = () => isRetractionWriteBlocking(retractionWrite());
 
+  /**
+   * Whether there is a rating this surface could still take back.
+   *
+   * The stack is the memory signal, and `undoLastWordSyncRating` additionally
+   * requires a live session and a prompt on screen, so the visible control
+   * asks the same question the command does rather than a looser one. A
+   * button that appears where the command would decline is a worse lie than
+   * no button: the review surface gates on the same reason.
+   */
+  const canUndo = () => {
+    if (undoStack().length === 0) return false;
+    const controller = sessionController();
+    return !!controller?.current() && !controller.current()?.pending && currentWord() !== null;
+  };
+
   // ─── State ───────────────────────────────────────────
   const [currentWord, setCurrentWord] = createSignal<PoolEntry | null>(null);
   // Bumped on every word presentation (pickNext), not merely on word changes:
@@ -1679,6 +1694,18 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 canRetry={ratingWrite() !== null}
                 onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
               />
+              <Show when={canUndo()}>
+                <Button
+                  buttonType="default"
+                  variant="ghost"
+                  size="xs"
+                  disabled={ratingWrite() !== null || undoBlocking()}
+                  onClick={() => { void undoLastWordSyncRating(); }}
+                  title={t('mlearn.WordSync.UndoTooltip')}
+                >
+                  {t('mlearn.WordSync.Undo')}
+                </Button>
+              </Show>
               {/* Undo is reachable in assessment mode too (it shares the undo
                   stack), so its write must be reported here as well. */}
               <WriteStatusBanner
@@ -1797,6 +1824,22 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           )}
         </Show>
         <div class="word-sync-actions">
+          {/* One rating model, one visible way to take it back. The review
+              surface has always shown this; Word Sync had the machinery and
+              only the keyboard, so the same action read as absent. */}
+          <Show when={canUndo()}>
+            <Button
+              buttonType="default"
+              variant="ghost"
+              size="xs"
+              class="word-sync-undo"
+              disabled={ratingWrite() !== null || undoBlocking()}
+              onClick={() => { void undoLastWordSyncRating(); }}
+              title={t('mlearn.WordSync.UndoTooltip')}
+            >
+              {t('mlearn.WordSync.Undo')}
+            </Button>
+          </Show>
           <WriteStatusBanner
             status={sessionPresentation().write}
             savingLabelKey="mlearn.WordSync.SavingRating"

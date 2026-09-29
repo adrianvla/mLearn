@@ -3435,6 +3435,8 @@
       "SaveFailed": "This rating could not be saved. The word is still here; try again.",
       "SavingUndo": "Saving undo…",
       "UndoSaveFailed": "This undo could not be saved. The word is still rated; try again.",
+      "Undo": "↩",
+      "UndoTooltip": "Undo",
       "SessionStartFailed": "This study session could not be saved, so no session could be started. Your recorded answers are unchanged; try again.",
       "DismissFailed": "This session could not be closed. Nothing was discarded; try again.",
       "Statement": {},

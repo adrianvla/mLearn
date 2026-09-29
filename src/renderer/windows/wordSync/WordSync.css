@@ -156,6 +156,12 @@
   color: var(--color-error);
 }
 
+/* The actions column is `align-items: stretch`, so the Undo control is pulled
+   back to the start of the row instead of being stretched across it. */
+.word-sync-undo {
+  align-self: flex-start;
+}
+
 .word-sync-inspect {
   align-self: flex-end;
 }

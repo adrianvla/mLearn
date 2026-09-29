@@ -3435,6 +3435,8 @@
       "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Das Wort bleibt hier; versuche es erneut.",
       "SavingUndo": "Rückgängigmachung wird gespeichert…",
       "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Das Wort bleibt bewertet; versuche es erneut.",
+      "Undo": "↩",
+      "UndoTooltip": "Rückgängigmachung",
       "SessionStartFailed": "Diese Lernsitzung konnte nicht gespeichert werden, daher konnte keine Sitzung gestartet werden. Deine erfassten Antworten bleiben unverändert; versuche es erneut.",
       "DismissFailed": "Diese Sitzung konnte nicht geschlossen werden. Es wurde nichts verworfen; versuche es erneut.",
       "Statement": {},

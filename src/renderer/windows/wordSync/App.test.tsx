@@ -2373,6 +2373,115 @@ beforeEach(() => {
     dispose();
   });
 
+  it('offers the same visible Undo the review surface offers, and takes the rating back', async () => {
+    // Word Sync shares the review surface's rating model and its retraction
+    // protocol, but for a long time offered no visible way to take a rating
+    // back — only Cmd+Z. The same action then read as absent on one study
+    // surface and present on the other, and a learner without a keyboard had
+    // no route at all. The button must appear exactly when there is something
+    // to undo, and clicking it must run the shared path, not a second one.
+    const { hashWordSync } = await import('../../services/srsAlgorithm');
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    mockWordSyncState.wordKnowledge = {
+      [`ja:${hashWordSync('赤い')}`]: {
+        ease: 0.2, lastSeen: 100, timesSeen: 2, timesHovered: 0,
+        word: '赤い', reading: 'あかい', language: 'ja', lastStatusChange: 100,
+      },
+      [`ja:${hashWordSync('青い')}`]: {
+        ease: 0.3, lastSeen: 200, timesSeen: 1, timesHovered: 0,
+        word: '青い', reading: 'あおい', language: 'ja', lastStatusChange: 200,
+      },
+    };
+    const { WordSyncContent } = await import('./App');
+
+    const hasUndoButton = () => Array.from(container.querySelectorAll('button'))
+      .some((button) => (button.textContent ?? '').includes('mlearn.WordSync.Undo'));
+
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    await settle();
+
+    const firstWord = container.textContent!.includes('赤い:あかい') ? '赤い' : '青い';
+    const secondWord = firstWord === '赤い' ? '青い' : '赤い';
+
+    // Nothing has been rated yet, so there is nothing to take back.
+    expect(hasUndoButton()).toBe(false);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await settle();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await settle();
+    await settle();
+
+    // A durable rating is on the record, so the control must now be there.
+    expect(hasUndoButton()).toBe(true);
+
+    buttonByText('mlearn.WordSync.Undo').click();
+    await settle();
+    await settle();
+
+    // Same outcome as Cmd+Z: the retracted word is back, the other is not.
+    expect(container.textContent).toContain(`${firstWord}:`);
+    expect(container.textContent).not.toContain(`${secondWord}:`);
+    // And the stack is empty again, so the control withdraws itself.
+    expect(hasUndoButton()).toBe(false);
+    dispose();
+  });
+
+  it('records the visible Undo through the same retraction record the keyboard Undo writes', async () => {
+    // A second, private undo path behind the new button would defeat the point
+    // of the control: the durable record exists so an interrupted undo can be
+    // finished after a reload, and a click that skipped it would leave the
+    // rating un-retractable again. Both routes must file the same record.
+    const { hashWordSync } = await import('../../services/srsAlgorithm');
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    mockWordSyncState.wordKnowledge = {
+      [`ja:${hashWordSync('赤い')}`]: {
+        ease: 0.2, lastSeen: 100, timesSeen: 2, timesHovered: 0,
+        word: '赤い', reading: 'あかい', language: 'ja', lastStatusChange: 100,
+      },
+      [`ja:${hashWordSync('青い')}`]: {
+        ease: 0.3, lastSeen: 200, timesSeen: 1, timesHovered: 0,
+        word: '青い', reading: 'あおい', language: 'ja', lastStatusChange: 200,
+      },
+    };
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    await settle();
+
+    const firstWord = container.textContent!.includes('赤い:あかい') ? '赤い' : '青い';
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await settle();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await settle();
+    await settle();
+
+    const attemptIds = allAttemptIds();
+    buttonByText('mlearn.WordSync.Undo').click();
+    await settle();
+    await settle();
+
+    // The click filed a retraction for the attempt the rating wrote, under
+    // this surface's tag — the identical protocol the keyboard shortcut uses.
+    expect(mockRecordPendingRetraction).toHaveBeenCalled();
+    const record = mockRecordPendingRetraction.mock.calls.at(-1)![0] as { surface: string; attemptIds: string[] };
+    expect(record.surface).toBe('word-sync');
+    expect(record.attemptIds.length).toBeGreaterThan(0);
+    for (const attemptId of record.attemptIds) expect(attemptIds.has(attemptId)).toBe(true);
+
+    expect(container.textContent).toContain(`${firstWord}:`);
+    dispose();
+  });
+
   it('undoes the last word sync rating with Cmd+Z', async () => {
     const { hashWordSync } = await import('../../services/srsAlgorithm');
     const previousKnowledge = {
