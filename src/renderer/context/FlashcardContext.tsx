@@ -616,6 +616,18 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (!loaded) return;
     const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
     if (storeHydrated && checked.rev != null && checked.rev === store.rev) return;
+    // This window's view of the store only ever moves forward. The store is
+    // whole-snapshot and revision-checked, so adopting a snapshot older than
+    // one already adopted here does not just render stale data: it rewinds the
+    // revision this window writes with, and the main process then refuses every
+    // write it makes as stale - including the Undo a learner is trying to take
+    // back, which is reported to them as a failed save.
+    //
+    // Older snapshots do arrive. Two probes can be in flight at once and settle
+    // out of order, and a write this window made is answered before the
+    // delivery that preceded it. Ignoring them costs nothing: the next probe
+    // ships the current snapshot anyway.
+    if (storeHydrated && typeof checked.rev === 'number' && checked.rev < (store.rev ?? 0)) return;
     const firstHydration = !storeHydrated;
     if (firstHydration) setIsKnowledgeReady(false);
     authoritativeStore = cloneFlashcardStore(checked);

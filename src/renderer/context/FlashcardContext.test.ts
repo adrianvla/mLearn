@@ -86,6 +86,55 @@ const mockBridge = {
   },
 };
 
+/**
+ * The main process's flashcard authority: the committed revision, the
+ * snapshot `onFlashcards` answers with, and the revision check that refuses
+ * any write not carrying the revision it holds.
+ *
+ * The two halves matter separately. A DELIVERED store is the window's starting
+ * state — a store it is rendering when a write is composed. A COMMITTED
+ * revision is what the authority will accept next; only an accepted write
+ * moves it, which is exactly why a stale-snapshot write disappears without
+ * anything retrying it.
+ */
+let committed: FlashcardStore | null = null;
+let revision = 0;
+let delivered: FlashcardStore | null = null;
+
+const acceptedSaves: FlashcardStore[] = [];
+
+/** Seeds the authority and delivers the snapshot to the window. */
+function seed(store: FlashcardStore): void {
+  committed = structuredClone(store);
+  revision = store.rev ?? 0;
+}
+
+/**
+ * Hands the window a store the way the main process answers a `getFlashcards`
+ * request, without implying the authority moved.
+ */
+function deliver(store: FlashcardStore | null): void {
+  if (store) delivered = structuredClone(store);
+  flashcardsCb(store);
+}
+
+/**
+ * Answers flashcard saves the way the main process does: a write that does not
+ * carry the committed revision is refused, and only an accepted write moves
+ * the revision on. A refused write changed nothing.
+ */
+function installStrictSaveRevision(): void {
+  mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => {
+    if ((saved.rev ?? 0) !== revision) {
+      return Promise.reject(new Error(`Stale flashcard store revision: expected ${revision}, received ${saved.rev ?? 0}`));
+    }
+    revision += 1;
+    committed = structuredClone(saved);
+    acceptedSaves.push(structuredClone(saved));
+    return Promise.resolve(revision);
+  });
+}
+
 function setupMockImplementations() {
   mockBridge.flashcards.onFlashcards.mockImplementation((cb: (s: FlashcardStore | null) => void) => {
     flashcardsCb = cb;
@@ -619,14 +668,27 @@ describe('FlashcardProvider', () => {
     mockAppendEvents.mockClear();
     mockAccumulateWordSeen.mockClear();
     mockFlushKnowledgeRollup.mockClear();
+    committed = null;
+    revision = 0;
+    delivered = null;
+    acceptedSaves.length = 0;
     setupMockImplementations();
+    // Revision checking, as flashcardStorage does it. A test that needs a
+    // different ordering (the stale-write regression) replaces this wholesale.
+    installStrictSaveRevision();
   });
 
   it('publishes a scheduler rating only after the flashcard write is acknowledged', async () => {
     mockSettings.language = 'ja2';
     let acknowledgeSave!: () => void;
-    mockBridge.flashcards.saveFlashcards.mockImplementation(() => new Promise((resolve) => {
-      acknowledgeSave = () => resolve(1);
+    mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => new Promise((resolve, reject) => {
+      if ((saved.rev ?? 0) !== revision) {
+        return reject(new Error(`Stale flashcard store revision: expected ${revision}, received ${saved.rev ?? 0}`));
+      }
+      revision += 1;
+      committed = structuredClone(saved);
+      acceptedSaves.push(structuredClone(saved));
+      acknowledgeSave = () => resolve(revision);
     }));
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({
@@ -753,12 +815,19 @@ describe('FlashcardProvider', () => {
 
   it('preserves an unrelated local mutation while a scheduler write is pending', async () => {
     let acknowledgeSave!: () => void;
-    mockBridge.flashcards.saveFlashcards.mockImplementation(() => new Promise((resolve) => {
-      acknowledgeSave = () => resolve(1);
+    mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => new Promise((resolve, reject) => {
+      if ((saved.rev ?? 0) !== revision) {
+        return reject(new Error(`Stale flashcard store revision: expected ${revision}, received ${saved.rev ?? 0}`));
+      }
+      revision += 1;
+      committed = structuredClone(saved);
+      acceptedSaves.push(structuredClone(saved));
+      acknowledgeSave = () => resolve(revision);
     }));
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'card-concurrent-rating' });
-    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    deliver(committed);
     const submission = ctx.submitRating(card.content.front, [], {
       attemptId: 'concurrent-rating-attempt' as AttemptId,
       scheduler: { cardId: card.id, rating: 'good' },
@@ -770,6 +839,31 @@ describe('FlashcardProvider', () => {
     await submission;
 
     expect(ctx.store.meta.maxReviewsPerDay).toBe(37);
+    dispose();
+  });
+
+  it('composes the next write over the authority, not a stale redelivery', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'stale-redelivery-card', reviews: 3 });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card }, rev: 10 }));
+    deliver(committed);
+    expect(ctx.store.rev).toBe(10);
+
+    // A focus/visibility sync can redeliver a snapshot that predates what this
+    // window has already adopted - two probes settling out of order, or a reply
+    // to a write this window made. Adopting it would rewind the revision the
+    // window writes with, and the main process then refuses every write as
+    // stale: the learner sees their Undo come back as a failed save for a save
+    // they never saw fail.
+    deliver(makeEmptyStore({ flashcards: { [card.id]: card }, rev: 7 }));
+    expect(ctx.store.rev).toBe(10);
+
+    ctx.pushUndoState({ type: 'answer', cardId: card.id });
+    await expect(ctx.undoLastAction()).resolves.toBe('answer');
+
+    expect(acceptedSaves.length).toBe(1);
+    expect(ctx.store.rev).toBe(11);
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
     dispose();
   });
 
@@ -785,12 +879,19 @@ describe('FlashcardProvider', () => {
     }
     vi.stubGlobal('BroadcastChannel', MockBroadcastChannel);
     let acknowledgeSave!: () => void;
-    mockBridge.flashcards.saveFlashcards.mockImplementation(() => new Promise((resolve) => {
-      acknowledgeSave = () => resolve(1);
+    mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => new Promise((resolve, reject) => {
+      if ((saved.rev ?? 0) !== revision) {
+        return reject(new Error(`Stale flashcard store revision: expected ${revision}, received ${saved.rev ?? 0}`));
+      }
+      revision += 1;
+      committed = structuredClone(saved);
+      acceptedSaves.push(structuredClone(saved));
+      acknowledgeSave = () => resolve(revision);
     }));
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'card-broadcast-rating' });
-    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    deliver(committed);
     const submission = ctx.submitRating(card.content.front, [], {
       attemptId: 'broadcast-rating-attempt' as AttemptId,
       scheduler: { cardId: card.id, rating: 'good' },
@@ -798,7 +899,7 @@ describe('FlashcardProvider', () => {
     await vi.waitFor(() => expect(mockBridge.flashcards.saveFlashcards).toHaveBeenCalled());
 
     const remoteCandidate = { count: 2, lastSeen: Date.now(), word: '別の語', language: 'ja' };
-    state.handler!({ data: { type: 'update', store: makeEmptyStore({ wordCandidates: { 'ja:別の語': remoteCandidate } }) } } as MessageEvent);
+    state.handler!({ data: { type: 'update', store: makeEmptyStore({ rev: revision, wordCandidates: { 'ja:別の語': remoteCandidate } }) } } as MessageEvent);
     acknowledgeSave();
     await submission;
 
@@ -1188,9 +1289,10 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('空');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       knownUntracked: { [lk]: true },
     }));
+    deliver(committed);
 
     const id = await ctx.addFlashcard({ front: '空', back: 'sky' }, undefined, true);
 
@@ -1410,10 +1512,11 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('テスト');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { 'ans-1': card },
       wordToCardMap: { [lk]: ['ans-1'] },
     }));
+    deliver(committed);
     ctx.refreshQueue();
 
     const beforeState = ctx.store.flashcards['ans-1'].state;
@@ -1433,10 +1536,11 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('テスト');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { 'ans-new-1': card },
       wordToCardMap: { [lk]: ['ans-new-1'] },
     }));
+    deliver(committed);
     ctx.refreshQueue();
 
     const before = ctx.store.meta.perLanguage.ja?.newCardsToday ?? 0;
@@ -1457,10 +1561,11 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('テスト');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { 'ans-rev-1': card },
       wordToCardMap: { [lk]: ['ans-rev-1'] },
     }));
+    deliver(committed);
     ctx.refreshQueue();
 
     const before = ctx.store.meta.perLanguage.ja?.reviewsToday ?? 0;
@@ -1475,10 +1580,11 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('テスト');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { 'ans-undo': card },
       wordToCardMap: { [lk]: ['ans-undo'] },
     }));
+    deliver(committed);
     ctx.refreshQueue();
 
     expect(ctx.canUndo()).toBe(false);
@@ -1493,10 +1599,11 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('テスト');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { 'daily-1': card },
       wordToCardMap: { [lk]: ['daily-1'] },
     }));
+    deliver(committed);
     ctx.refreshQueue();
 
     await submitSchedulerRating(ctx, 'daily-1', 'good');
@@ -1515,10 +1622,11 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('テスト');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { 'evt-1': card },
       wordToCardMap: { [lk]: ['evt-1'] },
     }));
+    deliver(committed);
     ctx.refreshQueue();
 
     const easeBefore = ctx.store.flashcards['evt-1'].ease;
@@ -1585,10 +1693,11 @@ describe('FlashcardProvider', () => {
       reviews: 5,
       content: { type: 'word', front: '復習', back: 'review' },
     });
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { 'card-new': newCard, 'card-review': reviewCard },
       wordToCardMap: { [lkNew]: ['card-new'], [lkReview]: ['card-review'] },
     }));
+    deliver(committed);
     ctx.refreshQueue();
 
     // Force Math.random to always pick review cards so getNextCard() without cardId would answer reviewCard
@@ -1625,7 +1734,7 @@ describe('FlashcardProvider', () => {
       dueDate: Date.now() - 1000,
       reviews: 5,
     });
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { [cardId]: card },
       wordToCardMap: { [primaryKey]: [cardId] },
       wordStatsMap: {
@@ -1640,6 +1749,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     await submitSchedulerRating(ctx, cardId, 'good');
     // The word-stats recompute is a fire-and-forget async IIFE whose hashWord
@@ -1677,13 +1787,14 @@ describe('FlashcardProvider', () => {
 
   it('getDueCount excludes suspended and buried cards', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: {
         'due-ok': makeCard({ id: 'due-ok', state: 'review', interval: 86400000, dueDate: Date.now() - 1000 }),
         'due-sus': makeCard({ id: 'due-sus', state: 'review', interval: 86400000, dueDate: Date.now() - 1000, suspended: true }),
         'due-bur': makeCard({ id: 'due-bur', state: 'review', interval: 86400000, dueDate: Date.now() - 1000, buried: true }),
       },
     }));
+    deliver(committed);
 
     expect(ctx.getDueCount()).toBe(1);
     dispose();
@@ -2270,7 +2381,7 @@ describe('FlashcardProvider', () => {
     const mixedLk = `ja:${SRS.hashWordSync('猫')}`;
     const seedOnlyLk = `ja:${SRS.hashWordSync('犬')}`;
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [mixedLk]: {
           word: '猫', language: 'ja', ease: 2.0, lastSeen: 1, timesSeen: 1, timesHovered: 0,
@@ -2287,6 +2398,7 @@ describe('FlashcardProvider', () => {
         } as PassiveWordKnowledge,
       },
     }));
+    deliver(committed);
 
     // Explicit evidence survives the legacy→access re-key (reading →
     // surface-reading); the seeded inherited projection is gone.
@@ -2357,7 +2469,7 @@ describe('FlashcardProvider', () => {
         toStatus: 'learning', easeAfter: 1.7, rating: 'struggled', attemptId: 'ev-1',
       }],
     }]);
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           word: 'いぬ', language: 'ja', ease: 1.7, lastSeen: 1, firstSeen: 1, timesSeen: 2, timesHovered: 0,
@@ -2366,6 +2478,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     // The learner overrides the evidence with an explicit Known claim…
     ctx.setAccessClaim('いぬ', 'surface-reading', 'known', 'ja');
@@ -2399,7 +2512,7 @@ describe('FlashcardProvider', () => {
     const sasugaLk = `ja:${SRS.hashWordSync('さすが')}`;
     const sasugaKanjiLk = `ja:${SRS.hashWordSync('流石')}`;
     const siblingEase = mockSettings.easeThresholdKnown + 0.2;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [sasugaKanjiLk]: {
           word: '流石',
@@ -2412,6 +2525,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     // Passive-only sibling ease (no active evidence) is untracked — the REQ13
     // honesty rule — and the claim must still win over it on every form hash.
@@ -2468,7 +2582,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja:${SRS.hashWordSync('さすが')}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           word: 'さすが',
@@ -2481,6 +2595,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     ctx.setWordClaim('さすが', 'known');
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
@@ -2522,7 +2637,7 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
     const SRS = await import('../services/srsAlgorithm');
     const arKey = `ar:${SRS.hashWordSync('سلام')}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [arKey]: {
           word: 'سلام',
@@ -2536,6 +2651,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     expect(ctx.getComprehensiveWordStatusSync('سلام')).toBe('unknown');
     expect(ctx.getComprehensiveWordStatusSync('سلام', 'ar')).toBe('known');
@@ -2749,11 +2865,12 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: { claim: 'learning', claimAt: 5, ease: SRS.MIN_EASE, lastSeen: 1, timesSeen: 0, timesHovered: 0, word: '学校', language: 'ja' },
       },
     }));
+    deliver(committed);
 
     ctx.setWordClaim('学校', 'unknown');
     // 'unknown' is an explicit claim written over the previous one — the
@@ -2820,11 +2937,12 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '学校', language: 'ja' },
       },
     }));
+    deliver(committed);
 
     ctx.setWordClaim('学校', 'unknown');
     // 'unknown' is an explicit claim, not entry deletion; ease stays untouched.
@@ -3094,7 +3212,7 @@ describe('FlashcardProvider', () => {
     const cardId = 'card-inflected-hover';
     const prevAction = mockSettings.passiveHoverFailAction;
     mockSettings.passiveHoverFailAction = 'decrease-ease-and-flashcard';
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: {
         [cardId]: {
           id: cardId,
@@ -3114,6 +3232,7 @@ describe('FlashcardProvider', () => {
       },
       wordToCardMap: { [primaryKey]: [cardId] },
     }));
+    deliver(committed);
 
     ctx.trackWordHovered('يكتب');
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
@@ -3136,7 +3255,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('下限');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 1.35,
@@ -3148,6 +3267,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     const prevDecrease = mockSettings.passiveHoverEaseDecrease;
     mockSettings.passiveHoverEaseDecrease = 0.2;
@@ -3306,7 +3426,7 @@ describe('FlashcardProvider', () => {
   it('getGrammarKnowledge can read a non-active stored language explicitly', async () => {
     mockSettings.language = 'ja';
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       grammarKnowledge: {
         'ar:idafa': {
           pattern: 'idafa',
@@ -3319,6 +3439,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     expect(ctx.getGrammarKnowledge('idafa', 'ar')?.language).toBe('ar');
     expect(ctx.getGrammarKnowledge('idafa')).toBeUndefined();
@@ -3328,7 +3449,7 @@ describe('FlashcardProvider', () => {
   it('migrates legacy grammar ease into recognition-only evidence', async () => {
     const { ctx, dispose } = await mountProvider();
     mockAppendEvents.mockClear();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       grammarKnowledge: {
         'ja:ている': {
           pattern: 'ている', ease: 2.8, timesEncountered: 6, timesFailed: 2,
@@ -3336,6 +3457,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     await vi.waitFor(() => expect(mockAppendEvents).toHaveBeenCalledTimes(1));
     const [[events]] = mockAppendEvents.mock.calls;
@@ -3356,7 +3478,7 @@ describe('FlashcardProvider', () => {
   it('does not promote journal-less legacy passive grammar rows to active evidence', async () => {
     const { ctx, dispose } = await mountProvider();
     mockAppendEvents.mockClear();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       grammarKnowledge: {
         'ja:たら': {
           pattern: 'たら', ease: 2.6, timesEncountered: 10, timesFailed: 0,
@@ -3364,6 +3486,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     await vi.waitFor(() => expect(mockAppendEvents).toHaveBeenCalledTimes(1));
     const [[events]] = mockAppendEvents.mock.calls;
@@ -3388,7 +3511,7 @@ describe('FlashcardProvider', () => {
     mockAppendEvents.mockClear();
     // Materialized passive-only row (a crash lost its rollup): seen/hovered,
     // tiny ease, no active markers, no claim, no linked cards.
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 0.05, lastSeen: 1, firstSeen: 1, timesSeen: 3, timesHovered: 1,
@@ -3396,6 +3519,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     // The store load runs the legacy epistemic migration against the empty journal.
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
@@ -3431,7 +3555,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja:${SRS.hashWordSync('能動')}`;
     mockAppendEvents.mockClear();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 2.2, lastSeen: 1, timesSeen: 2, timesHovered: 0,
@@ -3440,6 +3564,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
     const backfillCall = mockAppendEvents.mock.calls.find(([byKey]) =>
@@ -3537,12 +3662,13 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'card-window-undo', state: 'review', reviews: 4 });
     const today = SRS.getTodayDateString(4);
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       rev: 8,
       flashcards: { [card.id]: card },
       meta: { ...makeEmptyStore().meta, perLanguage: { ja: { newCardsToday: 0, reviewsToday: 6, newCardsDate: today } } },
       dailyStats: { [today]: { ja: { date: today, newCardsStudied: 0, reviewCardsStudied: 6, lapses: 0, timeSpent: 10, graduated: 0 } } },
     }));
+    deliver(committed);
 
     const undone = makeEmptyStore({
       rev: 9,
@@ -3586,7 +3712,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const lk = `ja:${SRS.hashWordSync('学校')}`;
     const seenKey = `${lk}:seen`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: SRS.MIN_EASE, lastSeen: 1, timesSeen: 0, timesHovered: 0,
@@ -3594,6 +3720,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     // Incoming NEWER claim entry wins over the local entry.
     const remoteNewer = makeEmptyStore({
@@ -3644,7 +3771,7 @@ describe('FlashcardProvider', () => {
     const grammarKey = 'ja:てform';
     const suggestionKey = 'ja:候補';
     const today = '2026-08-30';
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordCandidates: { [candidateKey]: { count: 5, lastSeen: 200, word: '学校', language: 'ja' } },
       grammarKnowledge: {
         [grammarKey]: { pattern: 'てform', ease: 1.31, timesEncountered: 3, timesFailed: 0, lastSeen: 200, level: 1, language: 'ja' },
@@ -3652,6 +3779,7 @@ describe('FlashcardProvider', () => {
       suggestedFlashcards: { [suggestionKey]: { id: 's1', word: '候補', language: 'ja', createdAt: 100, lastSeen: 200, count: 1 } },
       dailyStats: { [today]: { ja: { date: today, newCardsStudied: 3, reviewCardsStudied: 1, lapses: 0, timeSpent: 100, graduated: 0 } } },
     }));
+    deliver(committed);
 
     // Incoming NEWER entries win per collection.
     const remoteNewer = makeEmptyStore({
@@ -3784,7 +3912,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('上手');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 4.5,
@@ -3796,6 +3924,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     // REQ13: high passive ease is familiarity, never epistemic Known.
     expect(ctx.isWordKnownByText('上手')).toBe(false);
@@ -3807,7 +3936,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('上手');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 4.5,
@@ -3821,6 +3950,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     expect(ctx.isWordKnownByText('上手')).toBe(true);
     dispose();
@@ -3831,7 +3961,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('難しい');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 2.0,
@@ -3843,6 +3973,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     expect(ctx.isWordKnownByText('難しい')).toBe(false);
     dispose();
@@ -3859,7 +3990,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const arKey = `ar:${SRS.hashWordSync('كتب')}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [arKey]: {
           ease: 4.5,
@@ -3875,6 +4006,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     expect(ctx.isWordKnownByText('يكتب', 'ar')).toBe(true);
     expect(ctx.isWordKnownByText('يكتب')).toBe(false);
@@ -4080,7 +4212,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const arKey = `ar:${SRS.hashWordSync('كتب')}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [arKey]: {
           word: 'كتب',
@@ -4095,6 +4227,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     expect(ctx.isWordKnownComprehensiveSync('يكتب')).toBe(false);
     expect(ctx.isWordKnownComprehensiveSync('يكتب', 'ar')).toBe(true);
@@ -4104,13 +4237,14 @@ describe('FlashcardProvider', () => {
   // ─── Priority 2: getIgnoredWordsSync ──────────────────────────────
   it('getIgnoredWordsSync returns only current language entries', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       ignoredWords: {
         'ja:hash1': { word: '犬', language: 'ja', ignoredAt: 1000 },
         'de:hash2': { word: 'Hund', language: 'de', ignoredAt: 2000 },
         'ja:hash3': { word: '猫', language: 'ja', ignoredAt: 3000 },
       },
     }));
+    deliver(committed);
 
     const ignored = ctx.getIgnoredWordsSync();
     expect(ignored).toHaveLength(2);
@@ -4139,7 +4273,7 @@ describe('FlashcardProvider', () => {
     }
     const hash = await SRS.hashWord('テスト');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: cards,
       wordToCardMap: { [lk]: Object.keys(cards) },
       meta: {
@@ -4152,6 +4286,7 @@ describe('FlashcardProvider', () => {
         newCardsToday: 2,
       },
     }));
+    deliver(committed);
 
     ctx.refreshQueue();
 
@@ -4421,7 +4556,7 @@ describe('FlashcardProvider', () => {
 
   it('getSuggestedFlashcardsSync filters existing suggestions by level', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash1': { id: 's1', word: 'N1単語', level: 1, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:hash2': { id: 's2', word: 'N2単語', level: 2, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
@@ -4429,6 +4564,7 @@ describe('FlashcardProvider', () => {
         'ja:hash4': { id: 's4', word: '無レベル', level: null, language: 'ja', createdAt: 4, lastSeen: 4, count: 1 },
       },
     }));
+    deliver(committed);
     mockSettings.learningLanguageLevels = { ja: 3 };
 
     const suggestions = ctx.getSuggestedFlashcardsSync();
@@ -4439,12 +4575,13 @@ describe('FlashcardProvider', () => {
 
   it('getSuggestedFlashcardsSync derives missing suggestion levels from installed language frequency data', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash-derived': { id: 's-derived', word: '派生レベル', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:hash-missing': { id: 's-missing', word: '無レベル', level: null, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
       },
     }));
+    deliver(committed);
     mockSettings.learningLanguageLevels = { ja: 3 };
     mockGetFrequencyForLanguage.mockImplementation((language: string, word: string) => (
       language === 'ja' && word === '派生レベル'
@@ -4461,12 +4598,13 @@ describe('FlashcardProvider', () => {
 
   it('getSuggestedFlashcardsSync returns all when no level is set', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash1': { id: 's1', word: 'N1単語', level: 1, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:hash2': { id: 's2', word: 'N3単語', level: 3, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
       },
     }));
+    deliver(committed);
     mockSettings.learningLanguageLevel = null;
     mockSettings.learningLanguageLevels = { ja: null };
 
@@ -4481,7 +4619,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('既知単語');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: {
         'fc-1': {
           id: 'fc-1',
@@ -4515,6 +4653,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     await ctx.captureSuggestedFlashcard({ word: '既知単語', level: 5 });
 
@@ -4527,7 +4666,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('passive既知');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 4.5,
@@ -4539,6 +4678,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     await ctx.captureSuggestedFlashcard({ word: 'passive既知', level: 5 });
 
@@ -4554,9 +4694,10 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = await SRS.hashWord('手動既知');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       knownUntracked: { [lk]: true },
     }));
+    deliver(committed);
 
     await ctx.captureSuggestedFlashcard({ word: '手動既知', level: 5 });
 
@@ -4632,7 +4773,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('後付既知');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         [lk]: { id: 's-known', word: '後付既知', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:hash2': { id: 's-ok', word: '未知単語', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
@@ -4650,6 +4791,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     const suggestions = ctx.getSuggestedFlashcardsSync();
     expect(suggestions).toHaveLength(1);
@@ -4660,13 +4802,14 @@ describe('FlashcardProvider', () => {
   // ─── Priority 2: Batched suggested flashcard removal ──────────────
   it('removeSuggestedFlashcards deletes multiple suggestions in one batch', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:hash2': { id: 's2', word: '単語2', level: 4, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
         'ja:hash3': { id: 's3', word: '単語3', level: 3, language: 'ja', createdAt: 3, lastSeen: 3, count: 1 },
       },
     }));
+    deliver(committed);
 
     ctx.removeSuggestedFlashcards(['s1', 's3']);
 
@@ -4678,11 +4821,12 @@ describe('FlashcardProvider', () => {
 
   it('removeSuggestedFlashcards is no-op for empty array', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
+    deliver(committed);
 
     ctx.removeSuggestedFlashcards([]);
 
@@ -4695,13 +4839,14 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('手動既知');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         [lk]: { id: 's-known', word: '手動既知', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:hash2': { id: 's-ok', word: '未知単語', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
       },
       knownUntracked: { [lk]: true },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(1);
@@ -4716,13 +4861,14 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
     const germanHash = SRS.hashWordSync('Haus');
     const germanKey = `de:${germanHash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         [germanKey]: { id: 's-de-known', word: 'Haus', level: 1, language: 'de', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:hash-ok': { id: 's-ja-ok', word: '未知単語', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
       },
       knownUntracked: { [germanKey]: true },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -4737,7 +4883,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('既知単語');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         [lk]: { id: 's-known', word: '既知単語', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:hash2': { id: 's-ok', word: '未知単語', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
@@ -4761,6 +4907,7 @@ describe('FlashcardProvider', () => {
       },
       wordToCardMap: { [lk]: ['fc-1'] },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(1);
@@ -4771,11 +4918,12 @@ describe('FlashcardProvider', () => {
 
   it('cleanupKnownSuggestions keeps suggestions for unknown words', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash1': { id: 's1', word: '未知単語', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(0);
@@ -4788,7 +4936,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('見ただけ');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         [lk]: { id: 's-passive', word: '見ただけ', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
@@ -4803,6 +4951,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -4817,7 +4966,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('評価済み');
     const lk = `ja:${hash}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         [lk]: { id: 's-rated', word: '評価済み', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
@@ -4835,6 +4984,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -4847,11 +4997,12 @@ describe('FlashcardProvider', () => {
     mockSettings.autoSuggestUnknownWords = false;
     mockBackend.translate.mockResolvedValue({ data: [] });
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash-nuu': { id: 's-nuu', word: 'ヌウ', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -4866,11 +5017,12 @@ describe('FlashcardProvider', () => {
   it('getSuggestedFlashcardsSync keeps stored suggestions visible when capture is disabled', async () => {
     mockSettings.autoSuggestFlashcards = false;
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash-preserved': { id: 's-preserved', word: '保存', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -4884,12 +5036,13 @@ describe('FlashcardProvider', () => {
   it('garbageCollectSuggestedFlashcards removes entries made ineligible by current settings', async () => {
     mockSettings.learningLanguageLevels = { ja: 3 };
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:eligible': { id: 's-eligible', word: '適切', level: 3, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
         'ja:too-hard': { id: 's-too-hard', word: '困難', level: 1, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
       },
     }));
+    deliver(committed);
 
     const removed = await ctx.garbageCollectSuggestedFlashcards();
 
@@ -4904,11 +5057,12 @@ describe('FlashcardProvider', () => {
       data: [{ reading: 'たんご', definitions: 'word; vocabulary' }, { reading: 'たんご', definitions: '<ul data-content="glossary"><li>word</li></ul>' }, {}],
     });
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash-dict': { id: 's-dict', word: '単語', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
+    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -4921,12 +5075,13 @@ describe('FlashcardProvider', () => {
 
   it('removeSuggestedFlashcards does not delete shared images when only one owner is removed', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1, imageUrl: 'flashcard-image://shared.png' },
         'ja:hash2': { id: 's2', word: '単語2', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1, imageUrl: 'flashcard-image://shared.png' },
       },
     }));
+    deliver(committed);
 
     ctx.removeSuggestedFlashcards(['s1']);
 
@@ -4937,12 +5092,13 @@ describe('FlashcardProvider', () => {
 
   it('removeSuggestedFlashcards deletes orphaned images when all owners are removed', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       suggestedFlashcards: {
         'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1, imageUrl: 'flashcard-image://shared.png' },
         'ja:hash2': { id: 's2', word: '単語2', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1, imageUrl: 'flashcard-image://shared.png' },
       },
     }));
+    deliver(committed);
 
     ctx.removeSuggestedFlashcards(['s1', 's2']);
 
@@ -5055,7 +5211,7 @@ describe('FlashcardProvider', () => {
     it('skips already-tracked words when preserveExistingStatus is set', async () => {
       const { ctx, dispose } = await mountProvider();
       const lk = `ja:${SRS.hashWordSync('テスト')}`;
-      flashcardsCb(makeEmptyStore({
+      seed(makeEmptyStore({
         wordKnowledge: {
           [lk]: {
             // A Tier-2 known claim (no knownUntracked — that bank is legacy residue).
@@ -5070,6 +5226,7 @@ describe('FlashcardProvider', () => {
           },
         },
       }));
+      deliver(committed);
       mockBridge.flashcards.saveFlashcards.mockClear();
       mockBackend.translate.mockClear();
 
@@ -5151,11 +5308,12 @@ describe('acknowledged rating command semantics', () => {
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
       },
     }));
+    deliver(committed);
 
     await submitObservation(ctx, '学校', 'sense-recognition', 'struggled', { language: 'ja2' });
 
@@ -5452,11 +5610,12 @@ describe('acknowledged rating command semantics', () => {
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
       },
     }));
+    deliver(committed);
 
     await submitObservation(ctx, '学校', 'sense-recognition', 'fluent', { language: 'ja2' });
 
@@ -5593,7 +5752,7 @@ describe('submitRating missed (attribution semantics)', () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2',
@@ -5601,6 +5760,7 @@ describe('submitRating missed (attribution semantics)', () => {
         },
       },
     }));
+    deliver(committed);
 
     await submitObservation(ctx, '学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
@@ -5619,11 +5779,12 @@ describe('submitRating missed (attribution semantics)', () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja2:${await SRS.hashWord('学校')}`;
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: { ease: 2.0, lastSeen: 1, timesSeen: 2, timesHovered: 0, word: '学校', language: 'ja2' },
       },
     }));
+    deliver(committed);
 
     await submitObservation(ctx, '学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
@@ -5711,7 +5872,7 @@ describe('attempt undo integrity (P0)', () => {
       [lk]: [{ t: priorT, kind: 'rating', source: 'manual', aspect: 'meaning', quality: 'fluent', easeAfter: 2.5, toStatus: 'known' }],
     });
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: {
         'card-1': makeCard({
           id: 'card-1',
@@ -5724,6 +5885,7 @@ describe('attempt undo integrity (P0)', () => {
       },
       wordToCardMap: { [lk]: ['card-1'] },
     }));
+    deliver(committed);
 
     const attemptId = (await import('../../shared/knowledgeEvents')).nextAttemptId();
     expect(typeof attemptId).toBe('string');
@@ -5788,7 +5950,7 @@ describe('submitRating logs no-transition submissions', () => {
     const lk = `ja2:${SRS.hashWordSync('学校')}`;
     mockAppendEvents.mockClear();
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         // Evidence-backed Known requires active evidence (manual rating here).
         [lk]: {
@@ -5797,6 +5959,7 @@ describe('submitRating logs no-transition submissions', () => {
         },
       },
     }));
+    deliver(committed);
 
     await submitObservation(ctx, '学校', 'sense-recognition', 'fluent', { language: 'ja2' });
     await Promise.resolve();
@@ -5822,7 +5985,7 @@ describe('submitRating logs no-transition submissions', () => {
     const lk = `ja2:${SRS.hashWordSync('学校')}`;
     mockAppendEvents.mockClear();
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         // Active evidence marks the entry honest; the surface-reading access carries the known status.
         [lk]: {
@@ -5832,6 +5995,7 @@ describe('submitRating logs no-transition submissions', () => {
         },
       },
     }));
+    deliver(committed);
 
     await submitObservation(ctx, '学校', 'surface-reading', 'fluent', { language: 'ja2' });
     await Promise.resolve();
@@ -5856,7 +6020,7 @@ describe('submitRating logs no-transition submissions', () => {
     const lk = `ja2:${await SRS.hashWord('学校')}`;
     mockAppendEvents.mockClear();
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           // A Tier-2 known claim governs the effective status (knownUntracked is legacy residue).
@@ -5871,6 +6035,7 @@ describe('submitRating logs no-transition submissions', () => {
         },
       },
     }));
+    deliver(committed);
 
     await submitObservation(ctx, '学校', 'sense-recognition', 'missed', { language: 'ja2' });
     await Promise.resolve();
@@ -5909,7 +6074,7 @@ describe('claim override persistence (REQ15)', () => {
     await mockAppendEvents({
       [lk]: [{ t: 1, kind: 'review', source: 'srs', aspect: 'meaning', rating: 'good', easeAfter: 2.6 }],
     });
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       wordKnowledge: {
         [lk]: {
           ease: 2.6, lastSeen: 1, timesSeen: 4, timesHovered: 0, word, language: 'ja',
@@ -5917,6 +6082,7 @@ describe('claim override persistence (REQ15)', () => {
         },
       },
     }));
+    deliver(committed);
 
     // 1. Claim Learning over evidence Known: effective Learning, basis claim,
     //    evidence classification stays visible.
@@ -6040,10 +6206,11 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'task-card', state: 'new', language: 'ja2' });
-    flashcardsCb(makeEmptyStore({
+    seed(makeEmptyStore({
       flashcards: { 'task-card': card },
       wordToCardMap: { [`ja2:${SRS.hashWordSync('テスト')}`]: ['task-card'] },
     }));
+    deliver(committed);
     mockAppendEvents.mockClear();
     await submitSchedulerRating(ctx, 'task-card', 'good');
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
