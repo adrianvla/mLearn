@@ -1,6 +1,7 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
 import { Panel } from '../../components/common';
+import { formatDateTime } from '../../utils/timeFormatting';
 import {
   MOCK_PER_ITEM_SECONDS,
   abandonMockSession,
@@ -863,7 +864,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
                   <Show when={summary.abandoned}>
                     <span class="mock-exam__abandoned">{t('mlearn.LevelStudy.Mock.Abandoned')}</span>
                   </Show>
-                  <span>{new Date(summary.startedAt).toLocaleString()}</span>
+                  <span>{formatDateTime(summary.startedAt, settings.uiLanguage)}</span>
                 </div>
               )}
             </For>

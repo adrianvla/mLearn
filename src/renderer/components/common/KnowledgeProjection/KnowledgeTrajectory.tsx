@@ -5,7 +5,7 @@ import type { CapabilityKey } from '../../../../shared/graph/types';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource } from '../../../../shared/constants';
 import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 import { useLocalization, useSettings } from '../../../context';
-import { formatDate } from '../../../utils/timeFormatting';
+import { formatDate, formatDateTime } from '../../../utils/timeFormatting';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
 import { WordEaseTrajectory } from './WordEaseTrajectory';
 import { SkeletonRows } from '../Skeleton';
@@ -62,7 +62,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
     const kind = event.kind === 'status' && event.source === 'anki' ? 'SourceSnapshot' : event.kind[0].toUpperCase() + event.kind.slice(1);
     const source = t(`mlearn.Knowledge.History.Source.${KNOWLEDGE_SOURCE_DISPLAY_NAMES[event.source as KnowledgeSource]}`);
     const outcome = event.quality ? t(`mlearn.Rating.Matrix.${event.quality[0].toUpperCase()}${event.quality.slice(1)}`) : event.rating ?? '';
-    return [new Date(point.t).toLocaleString(), t(event.kind === 'claim' && !event.toStatus ? 'mlearn.Knowledge.Projection.Evidence.ClaimCleared' : `mlearn.Knowledge.History.Kind.${kind}`), source, outcome,
+    return [formatDateTime(point.t, settings.uiLanguage), t(event.kind === 'claim' && !event.toStatus ? 'mlearn.Knowledge.Projection.Evidence.ClaimCleared' : `mlearn.Knowledge.History.Kind.${kind}`), source, outcome,
       point.state ? [stateLabel(point.state), point.claim ? t('mlearn.Knowledge.Basis.Claim') : ''].filter(Boolean).join(' · ') : t('mlearn.Knowledge.Projection.TrajectoryGap')].filter(Boolean).join(' · ');
   };
   const paths = createMemo(() => points().slice(1).flatMap((point, index) => {

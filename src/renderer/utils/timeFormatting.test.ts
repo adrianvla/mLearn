@@ -8,6 +8,7 @@ import {
   formatClockTime,
   formatLogTimestamp,
   formatDate,
+  formatDateTime,
   formatDateMedium,
   formatDateShort,
   formatDateNumeric,
@@ -373,6 +374,26 @@ describe('locale-aware date formatters', () => {
     expect(formatWeekday(SATURDAY, 'de')).not.toBe(formatWeekday(SATURDAY, 'en-US'));
     expect(formatWeekdayLong(SATURDAY, 'de')).not.toBe(formatWeekdayLong(SATURDAY, 'en-US'));
     expect(formatMonthShort(SATURDAY, 'de')).not.toBe(formatMonthShort(SATURDAY, 'en-US'));
+  });
+
+  it('formatDateTime matches the explicit-locale date+time output', () => {
+    expect(formatDateTime(SATURDAY, 'de')).toBe(SATURDAY.toLocaleString('de'));
+    expect(formatDateTime(SATURDAY, 'ja')).toBe(SATURDAY.toLocaleString('ja'));
+  });
+
+  it('formatDateTime renders both the date and the time', () => {
+    const result = formatDateTime(SATURDAY, 'en-US');
+    expect(result).toContain('14');
+    expect(result).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it('formatDateTime follows the requested locale rather than the host locale', () => {
+    expect(formatDateTime(SATURDAY, 'de')).not.toBe(formatDateTime(SATURDAY, 'en-US'));
+  });
+
+  it('formatDateTime accepts ISO strings and epoch milliseconds like the date helpers', () => {
+    expect(formatDateTime(SATURDAY.toISOString(), 'en-US')).toBe(formatDateTime(SATURDAY, 'en-US'));
+    expect(formatDateTime(SATURDAY.getTime(), 'en-US')).toBe(formatDateTime(SATURDAY, 'en-US'));
   });
 
   it('accepts ISO date strings, which is how timestamps are persisted', () => {

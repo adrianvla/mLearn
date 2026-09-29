@@ -4,7 +4,7 @@ import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, SRS_EASE } from '../../../../shared/con
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import { eventCapability } from '../../../../shared/knowledgeEvents';
 import { useLocalization, useSettings } from '../../../context';
-import { formatDate } from '../../../utils/timeFormatting';
+import { formatDate, formatDateTime } from '../../../utils/timeFormatting';
 import { useWordEaseHistory } from '../../../hooks/useKnowledgeHistory';
 import { Button } from '../Button';
 import { SkeletonRows } from '../Skeleton';
@@ -61,7 +61,7 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
     const previous = data().points[(indices().get(point) ?? 0) - 1];
     const delta = previous?.ease !== undefined && point.ease !== undefined && !data().compressed.some((range) => range.from < point.t && range.to > previous.t) ? point.ease - previous.ease : undefined;
     const value = point.ease === undefined ? t('mlearn.Knowledge.Projection.TrajectoryGap') : t('mlearn.Knowledge.Projection.EaseValue', { value: point.ease.toFixed(2) });
-    return [new Date(point.t).toLocaleString(), t(kind), t(`mlearn.Knowledge.History.Source.${source}`),
+    return [formatDateTime(point.t, settings.uiLanguage), t(kind), t(`mlearn.Knowledge.History.Source.${source}`),
       capability ? t(CAPABILITY_LABEL_KEYS[capability] ?? capability) : '', point.word,
       event.quality ? t(`mlearn.Rating.Matrix.${event.quality[0].toUpperCase()}${event.quality.slice(1)}`) : event.rating,
       value, delta === undefined ? '' : `${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`,

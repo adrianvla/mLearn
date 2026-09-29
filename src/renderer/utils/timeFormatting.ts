@@ -138,6 +138,22 @@ export function formatDateMedium(value: Date | number | string, locale?: string)
 }
 
 /**
+ * Date and time together in the app locale — the default shape produced by
+ * `Date.prototype.toLocaleString()`.
+ *
+ * Owned here so the handful of surfaces that genuinely need a combined
+ * date+time render (export/import summaries, log and event timelines, exam
+ * attempt headers) follow the same locale as the date-only and time-only
+ * helpers instead of each falling back to the host-locale default.
+ *
+ * Accepts ISO date strings as well as `Date`/epoch values, because persisted
+ * records store timestamps as strings.
+ */
+export function formatDateTime(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleString(locale);
+}
+
+/**
  * Day and month with a short month name — "Mar 14".
  */
 export function formatDateShort(value: Date | number | string, locale?: string): string {
