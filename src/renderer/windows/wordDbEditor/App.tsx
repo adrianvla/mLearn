@@ -9,12 +9,13 @@ import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createSignal, For, Show, onMount, createEffect, createMemo, createResource, on, onCleanup } from 'solid-js';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
+import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../flashcards/bulkDestructiveConfirm';
 import type { WordStatus } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
 import './WordDbEditorLayout.css';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
-import { Button, KnowledgeLoadError, ModalLoadingOverlay, SkeletonRows, CollapsibleStickyHeader, buildEmptyPreset, buildWordDbEditorFields, validateTokens, evaluateAst, parseTokens, type FieldResolver, type FilterToken, type ValidationError } from '../../components/common';
+import { Button, KnowledgeLoadError, ModalLoadingOverlay, SkeletonRows, CollapsibleStickyHeader, buildEmptyPreset, buildWordDbEditorFields, useConfirmDialog, validateTokens, evaluateAst, parseTokens, type FieldResolver, type FilterToken, type ValidationError } from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
 import { getWordFormCandidates } from '../../utils/wordForms';
@@ -31,6 +32,7 @@ export const WordDbEditorContent: Component = () => {
   const { getWordFrequency, currentLangData, getFreqLevelNames, getCanonicalForm, getWordVariants } = useLanguage();
   const { addFlashcard, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync, store: flashcardStore } = useFlashcards();
   const { t } = useLocalization();
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const { settings } = useSettings();
   const anki = useAnki();
   const [searchQuery, setSearchQuery] = createSignal('');
@@ -454,9 +456,21 @@ export const WordDbEditorContent: Component = () => {
       // Find flashcard by word (async now)
       const card = await getCardByWord(entry.word, settings.language);
 
-      if (card) {
-        await removeFlashcard(card.id, true);
+      if (!card) return;
+
+      // Same irreversible act, same prompt: the danger button here used to
+      // destroy the card outright while the equivalent control in Browse and
+      // Review asked first.
+      if (requiresDestructiveConfirmation(1)) {
+        const confirmed = await showConfirm(buildDestructiveConfirmOptions({
+          count: 1,
+          titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
+          messageKey: 'mlearn.Flashcards.Modals.DeleteCard.Confirm',
+        }, t));
+        if (!confirmed) return;
       }
+
+      await removeFlashcard(card.id, true);
 
       log.info(`%cRemoved flashcard for word "${entry.word}"`, 'color: orange;');
     } catch (e) {
@@ -784,6 +798,8 @@ export const WordDbEditorContent: Component = () => {
             onSave={handleEditFlashcardSave}
           />
         </Show>
+
+        <ConfirmDialogElement />
       </div>
   );
 };

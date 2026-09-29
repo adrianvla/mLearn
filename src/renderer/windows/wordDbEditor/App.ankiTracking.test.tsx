@@ -10,6 +10,9 @@ import { clearAnkiWordsCache } from '../../services/ankiWordsCache';
 
 const mockGetAnkiWordStatuses = vi.fn<() => Promise<AnkiWordStatusRecord[]>>(() => Promise.resolve([]));
 const mockGetCard = vi.fn(async () => ({ error: true, poor: false, cards: [] }));
+const mockRemoveFlashcard = vi.fn(async (_id: string, _neverShowAgain?: boolean) => true);
+const mockGetCardByWord = vi.fn(async () => null as unknown);
+let mockCardByWordSync: () => unknown = () => null;
 const mockShowToast = vi.fn();
 const mockSearchBarProps: { current?: { setFilterTokens?: (tokens: FilterToken[]) => void } } = {};
 const [mockUseAnkiEnabled, setMockUseAnkiEnabled] = createSignal(false);
@@ -66,9 +69,9 @@ vi.mock('../../context', async () => {
       },
       addFlashcard: vi.fn(),
       hasWordSync: () => false,
-      removeFlashcard: vi.fn(),
-      getCardByWord: vi.fn(async () => null),
-      getCardByWordSync: () => null,
+      removeFlashcard: mockRemoveFlashcard,
+      getCardByWord: mockGetCardByWord,
+      getCardByWordSync: () => mockCardByWordSync(),
       updateFlashcardContent: vi.fn(),
       updateFlashcard: vi.fn(),
       isLoading: () => false,
@@ -140,6 +143,29 @@ vi.mock('../../components/common', async () => {
     validateTokens: expr.validateTokens,
     evaluateAst: expr.evaluateAst,
     parseTokens: expr.parseTokens,
+    // The editor now asks before it destroys a card. A local prompt with the
+    // same promise-and-element contract keeps the assertion about *whether the
+    // editor asks*; pulling the real Modal in here would drag the whole
+    // common barrel into this test for styling we are not asserting on.
+    useConfirmDialog: () => {
+      const [request, setRequest] = createSignal<{ message: string; title: string; resolve: (ok: boolean) => void } | null>(null);
+      return {
+        showConfirm: (options: { message: string; title: string }) =>
+          new Promise<boolean>((resolve) => setRequest({ ...options, resolve })),
+        ConfirmDialogElement: () => (
+          <Show when={request()}>
+            {(r) => (
+              <div role="dialog">
+                <span>{r().title}</span>
+                <p>{r().message}</p>
+                <button type="button" onClick={() => { r().resolve(true); setRequest(null); }}>Confirm</button>
+                <button type="button" onClick={() => { r().resolve(false); setRequest(null); }}>Cancel</button>
+              </div>
+            )}
+          </Show>
+        ),
+      };
+    },
   };
 });
 
@@ -269,6 +295,95 @@ describe('WordDbEditorContent Anki tracking', () => {
     expect(integrationCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Integrations.Anki');
 
     dispose();
+  });
+});
+
+/**
+ * The editor's danger Remove button destroys a flashcard outright: the card,
+ * its word mapping, its stats and any media it was built from are gone, and
+ * nothing in the app can put them back. The same act asks first in Browse and
+ * (as of this change) in Review, so whether a card could be destroyed without
+ * warning depended on which window the learner was in.
+ *
+ * These tests assert the editor stops and asks, using the same decision the
+ * other surfaces route through. An implementation that removes and asks
+ * afterwards fails here.
+ */
+describe('WordDbEditorContent Remove asks before it destroys the card', () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    setMockUseAnkiEnabled(false);
+    mockGetAnkiWordStatuses.mockReset();
+    mockGetAnkiWordStatuses.mockResolvedValue([]);
+    mockGetCard.mockReset();
+    mockRemoveFlashcard.mockClear();
+    mockGetCardByWord.mockReset();
+    mockGetCardByWord.mockResolvedValue({ id: 'card-1' });
+    mockCardByWordSync = () => ({ id: 'card-1' });
+  });
+
+  afterEach(() => {
+    document.querySelectorAll('[role=dialog]').forEach((node) => node.remove());
+    mockCardByWordSync = () => null;
+    container.remove();
+  });
+
+  const clickRemove = async () => {
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+    await flush();
+    await flush();
+
+    const remove = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Global.Remove');
+    expect(remove, 'the Remove control is missing').toBeDefined();
+    remove!.click();
+    await flush();
+    await flush();
+    return dispose;
+  };
+
+  const confirmDialog = () => Array.from(document.querySelectorAll('[role=dialog]'))
+    .find((node) => node.textContent?.includes('mlearn.Flashcards.Modals.DeleteCard.Confirm')) ?? null;
+  const confirmButton = () => Array.from(confirmDialog()?.querySelectorAll('button') ?? [])
+    .find((button) => button.textContent === 'Confirm') ?? null;
+  const cancelButton = () => Array.from(confirmDialog()?.querySelectorAll('button') ?? [])
+    .find((button) => button.textContent === 'Cancel') ?? null;
+
+  it('keeps the card and shows the shared deletion prompt', async () => {
+    await clickRemove();
+
+    expect(mockRemoveFlashcard, 'the card was removed without asking').not.toHaveBeenCalled();
+    expect(confirmDialog()).not.toBeNull();
+    expect(confirmDialog()?.textContent).toContain('mlearn.Flashcards.Modals.DeleteCard.Title');
+  });
+
+  it('removes the card only once the prompt is confirmed', async () => {
+    await clickRemove();
+
+    const confirm = confirmButton();
+    expect(confirm, 'the prompt has no confirm control').not.toBeNull();
+    confirm!.click();
+    await flush();
+    await flush();
+
+    expect(mockRemoveFlashcard).toHaveBeenCalledTimes(1);
+    expect(mockRemoveFlashcard.mock.calls[0]?.[0]).toBe('card-1');
+  });
+
+  it('cancelling leaves the card in place', async () => {
+    await clickRemove();
+
+    const cancel = cancelButton();
+    expect(cancel, 'the prompt has no cancel control').not.toBeNull();
+    cancel!.click();
+    await flush();
+    await flush();
+
+    expect(mockRemoveFlashcard).not.toHaveBeenCalled();
   });
 });
 

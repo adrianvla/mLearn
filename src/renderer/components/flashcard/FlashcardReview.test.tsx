@@ -34,6 +34,7 @@ const mockSubmitRating = vi.fn(async (..._callArgs: unknown[]) => ({ attemptId: 
 const mockAppendRetractions = vi.fn();
 const mockUndoLastAction = vi.fn<() => Promise<string | null>>();
 const mockCanUndo = vi.fn(() => false);
+const mockRemoveFlashcard = vi.fn(async (_id: string, _neverShowAgain?: boolean) => true);
 
 const flushEffects = () => new Promise<void>((resolve) => {
   const channel = new MessageChannel();
@@ -63,6 +64,10 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Flashcards.Review.Ok': return 'Ok';
     case 'mlearn.Flashcards.Review.ShowAnswer': return 'Show Answer';
     case 'mlearn.Flashcards.Review.PressKeyTooltip': return `Press ${String(params?.key ?? '')}`;
+    case 'mlearn.Flashcards.Modals.DeleteCard.Title': return 'Delete Flashcard';
+    case 'mlearn.Flashcards.Modals.DeleteCard.Confirm': return 'Are you sure you want to delete this flashcard? This action cannot be undone.';
+    case 'mlearn.Global.Delete': return 'Delete';
+    case 'mlearn.Global.Cancel': return 'Cancel';
     default: return key;
   }
 };
@@ -83,7 +88,7 @@ vi.mock('../../context', () => ({
     getCurrentCard: () => mockCard(),
     getPreviewDueDates: () => ({ again: 1, hard: 2, good: 3, easy: 4 }),
     buryCard: mockBuryCard,
-    removeFlashcard: vi.fn(),
+    removeFlashcard: mockRemoveFlashcard,
     undoLastAction: mockUndoLastAction,
     canUndo: mockCanUndo,
     refreshQueue: vi.fn(),
@@ -224,6 +229,9 @@ vi.mock('../common', async (importOriginal) => {
     Popover: actual.Popover,
     // Real banner: the save-failure tests read its role/label contract.
     WriteStatusBanner: actual.WriteStatusBanner,
+    // Real confirm dialog: the removal tests assert the prompt is actually in
+    // the way, which a stubbed prompt would make impossible to observe.
+    useConfirmDialog: actual.useConfirmDialog,
   };
 });
 
@@ -630,5 +638,114 @@ describe('FlashcardReview failure attribution', () => {
     expect(document.body.querySelector('.flashcard-actions-popover')).not.toBeNull();
     expect(document.body.textContent).toContain('mlearn.Flashcards.Review.Bury');
     dispose();
+  });
+});
+
+/**
+ * Remove in Review is the same irreversible act as Delete in Browse: the card,
+ * its word mapping, its stats and any media it was built from are gone, and
+ * nothing in the app can put them back.
+ *
+ * Observed in the running app: pressing Remove here took the store from 450 to
+ * 449 with no dialog and no undo, while the Browse row action two windows over
+ * opened a confirmation. Whether a flashcard could be destroyed without
+ * warning depended on which surface the learner happened to be in.
+ *
+ * These tests drive the real review surface and the real confirm dialog, so an
+ * implementation that removes and asks afterwards — or asks on one entry point
+ * but not the other — fails here.
+ */
+describe('FlashcardReview Remove asks before it destroys the card', () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    vi.clearAllMocks();
+    mockTtsAvailable = true;
+    mockSettings = {
+      ...DEFAULT_SETTINGS,
+      language: 'ja',
+      flashcardAutoTts: false,
+      flashcardFlipAnimation: false,
+      use_anki: false,
+      flashcardStealthMode: false,
+      flashcardMuteAudio: false,
+    };
+    mockLangMap = { ja: jaLanguageData };
+    mockLanguageData = jaLanguageData;
+    const [card, setCard] = createSignal<Flashcard | null>(null);
+    mockCard = card;
+    setMockCard = setCard;
+    setMockCard(makeCard());
+    const [queueTotal, setQueueTotal] = createSignal(1);
+    mockQueueTotal = queueTotal;
+    setMockQueueTotal = setQueueTotal;
+    const [knowledgeLoading] = createSignal(false);
+    mockKnowledgeLoading = knowledgeLoading;
+    const [knowledgeMeasured] = createSignal<string[]>([...ALL_CAPABILITIES]);
+    mockKnowledgeMeasured = knowledgeMeasured;
+  });
+
+  afterEach(() => {
+    closeKnowledgeInspector();
+    document.querySelectorAll('[role=dialog]').forEach((node) => node.remove());
+    container.remove();
+  });
+
+  const openRemove = async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    const actions = Array.from(document.body.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Flashcards.Review.CardActions');
+    expect(actions, 'card actions control is missing').toBeDefined();
+    actions!.click();
+    const remove = Array.from(document.body.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Flashcards.Review.Remove');
+    expect(remove, 'Remove control is missing').toBeDefined();
+    remove!.click();
+    await flushEffects();
+    return dispose;
+  };
+
+  // The card-actions popover is also a dialog, so the confirm is located by
+  // the one string only it can contain.
+  const dialog = () => Array.from(document.querySelectorAll('[role=dialog]'))
+    .find((node) => node.textContent?.includes('Are you sure you want to delete this flashcard?')
+      || node.textContent?.includes('mlearn.Flashcards.Modals.DeleteCard.Confirm'))
+    ?? null;
+  const dialogText = () => dialog()?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+  const dialogButton = (label: string) =>
+    Array.from(dialog()?.querySelectorAll('button') ?? [])
+      .find((button) => button.textContent?.trim() === label) ?? null;
+
+  it('keeps the card and shows the same prompt Browse uses', async () => {
+    await openRemove();
+
+    expect(mockRemoveFlashcard, 'the card was removed without asking').not.toHaveBeenCalled();
+    expect(dialogText()).toContain('Delete Flashcard');
+    expect(dialogText()).toContain('Are you sure you want to delete this flashcard?');
+  });
+
+  it('removes the card only once the prompt is confirmed', async () => {
+    await openRemove();
+
+    const confirm = dialogButton('Delete');
+    expect(confirm, 'the prompt has no confirm control').not.toBeNull();
+    confirm!.click();
+    await flushEffects();
+
+    expect(mockRemoveFlashcard).toHaveBeenCalledTimes(1);
+    expect(mockRemoveFlashcard.mock.calls[0]?.[0]).toBe(mockCard()?.id);
+  });
+
+  it('cancelling leaves the card in place', async () => {
+    await openRemove();
+
+    const cancel = dialogButton('Cancel');
+    expect(cancel, 'the prompt has no cancel control').not.toBeNull();
+    cancel!.click();
+    await flushEffects();
+
+    expect(mockRemoveFlashcard).not.toHaveBeenCalled();
   });
 });

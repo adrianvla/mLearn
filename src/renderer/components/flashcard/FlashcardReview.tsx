@@ -13,7 +13,7 @@ import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
   Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
-  EyeIcon, Popover, WriteStatusBanner
+  EyeIcon, Popover, WriteStatusBanner, useConfirmDialog
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
@@ -36,6 +36,7 @@ import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from '../../utils/ratingShortcuts';
 import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
 import './FlashcardReview.css';
+import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../../windows/flashcards/bulkDestructiveConfirm';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.components.flashcardReview");
@@ -60,6 +61,7 @@ export interface FlashcardReviewProps {
 
 export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const { t } = useLocalization();
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const {
     store,
     queueCounts,
@@ -476,6 +478,19 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
     const card = currentCard();
     if (!card) return;
+    // Removal is the same irreversible act as the Delete on Browse, so it asks
+    // the same question in the same words. Observed in the running app: Remove
+    // here deleted the card outright (450 -> 449) while the Browse row action
+    // two windows over opened a dialog, so whether a card could be destroyed
+    // without warning depended on which surface the learner was in.
+    if (requiresDestructiveConfirmation(1)) {
+      const confirmed = await showConfirm(buildDestructiveConfirmOptions({
+        count: 1,
+        titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
+        messageKey: 'mlearn.Flashcards.Modals.DeleteCard.Confirm',
+      }, t));
+      if (!confirmed) return;
+    }
     stopTiming();
     setShowAnswer(false);
     await removeFlashcard(card.id, true);
@@ -811,6 +826,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           onClose={handleEditCardClose}
           onSave={handleEditCardSave}
         />
+
+        <ConfirmDialogElement />
       </div>
   );
 };
