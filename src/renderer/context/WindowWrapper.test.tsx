@@ -210,4 +210,20 @@ describe('WindowWrapper', () => {
     expect(activeGroupGateMock).toHaveBeenCalledWith({ showSwitchTrigger: true });
     dispose();
   });
+
+  it('renders the boot indicator with the shared Spinner instead of a private copy', async () => {
+    // The boot screen is on-screen before any palette is applied. It used to
+    // ship its own square-dash <svg> and a duplicate `square-dash` keyframe,
+    // so its color came from --text-primary — near-black on the hardcoded
+    // black overlay, i.e. an invisible loading indicator.
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper>content</WindowWrapper>, container);
+
+    const overlay = container.querySelector('.window-loading-overlay');
+    expect(overlay).not.toBeNull();
+    // The canonical Loader owns the indicator geometry and animation.
+    expect(overlay!.querySelector('.loader-spinner-square-bar')).not.toBeNull();
+    expect(overlay!.querySelector('.window-loading-spinner-dash')).toBeNull();
+    dispose();
+  });
 });

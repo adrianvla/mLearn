@@ -15,7 +15,7 @@ import { hashWord } from '../services/srsAlgorithm';
 import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
-import { Button, ErrorModal, EulaModal, Modal, ProgressBar } from '../components/common';
+import { Button, ErrorModal, EulaModal, Modal, ProgressBar, Spinner } from '../components/common';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
@@ -60,7 +60,12 @@ const LanguageProviderBridge: Component<{ children?: JSX.Element }> = (props) =>
 /**
  * Loading screen shown during initial window load.
  * Prevents light theme flash before settings/theme are applied.
- * Uses pure CSS spinner to avoid component dependencies.
+ *
+ * The overlay is hardcoded black because no palette has been applied yet, so
+ * the spinner must state its own foreground rather than inherit
+ * `--text-primary` (which resolves to near-black until the theme loads, and
+ * rendered the indicator invisibly). `--text-on-strong` is the
+ * theme-independent always-light token.
  */
 const WindowLoadingScreen: Component<{ transparent?: boolean }> = (props) => {
   const { isLoading } = useSettings();
@@ -78,11 +83,7 @@ const WindowLoadingScreen: Component<{ transparent?: boolean }> = (props) => {
   return (
       <Show when={visible()}>
       <div class={`window-loading-overlay ${fadeOut() ? 'fade-out' : ''} ${props.transparent ? 'transparent-bg' : ''}`}>
-        <svg width="40" height="40" viewBox="0 0 48 48" aria-label="Loading">
-          <title>Loading</title>
-          <rect x="2" y="2" width="44" height="44" fill="none" stroke="currentColor" stroke-opacity="0.1" stroke-width="8"/>
-          <rect x="2" y="2" width="44" height="44" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="square" stroke-dasharray="44 132" class="window-loading-spinner-dash"/>
-        </svg>
+        <Spinner size={40} shape="square" strokeWidth={8} cornerRadius={0} class="window-loading-spinner" />
       </div>
     </Show>
   );

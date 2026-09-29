@@ -3,11 +3,6 @@
  * Theme-aware overlay shown during initial window load.
  */
 
-@keyframes square-dash {
-  0% { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: -176; }
-}
-
 .window-chrome-inset-provider {
   display: contents;
 }
@@ -21,7 +16,9 @@
   justify-content: center;
   /*background: var(--bg-opaque);*/
   background:#000; /*DO NOT REMOVE. Since CSS Variables' themes get loaded later, the user will get flash banged by a light theme. DO NOT TOUCH THIS, THIS MUST BE HARDCODED*/
-  color: var(--text-primary);
+  /* No palette is applied yet, so the shared Spinner cannot inherit a theme
+     foreground here; the overlay is always this hardcoded black. */
+  color: var(--text-on-strong);
   transition: opacity 0.3s ease;
 }
 
@@ -34,8 +31,17 @@
   pointer-events: none;
 }
 
-.window-loading-spinner-dash {
-  animation: square-dash 1.2s linear infinite;
+/* The indicator is the shared Loader Spinner; only its track/bar colors are
+   restated here, because the boot overlay is not themed. Two classes are used
+   since the shared Loader stylesheet declares these same single-class rules
+   and may be ordered after this file. */
+.window-loading-overlay .window-loading-spinner .loader-spinner-square-track {
+  stroke: var(--text-on-strong);
+  stroke-opacity: 0.1;
+}
+
+.window-loading-overlay .window-loading-spinner .loader-spinner-square-bar {
+  stroke: var(--text-on-strong);
 }
 
 .window-layout-with-titlebar {
