@@ -20,6 +20,10 @@ const flashcardFixture = vi.hoisted(() => ({
   submitRating: vi.fn(),
 }));
 
+const flashcardPreviewState = vi.hoisted(() => ({
+  // Holds the live Solid props proxy: assertions read current values.
+  last: null as null | { ratingWrite?: string | null; onRetryRating?: () => void },
+}));
 const settingsState = vi.hoisted(() => ({
   settings: {
     language: 'ja',
@@ -112,11 +116,25 @@ vi.mock('./components', () => {
     ),
     WelcomeVideoPreview: Preview,
     WelcomeReaderPreview: Preview,
-    WelcomeFlashcardPreview: (props: { loading?: boolean; emptyLabel: string; onRate?: (quality: 'fluent') => void }) => (
-      <div data-testid="flashcard-preview" data-loading={String(props.loading)} data-empty-label={props.emptyLabel}>
-        <button type="button" data-testid="welcome-rate" onClick={() => props.onRate?.('fluent')}>Rate</button>
-      </div>
-    ),
+    WelcomeFlashcardPreview: (props: {
+      loading?: boolean;
+      emptyLabel: string;
+      onRate?: (quality: 'fluent') => void;
+      ratingWrite?: string | null;
+      onRetryRating?: () => void;
+    }) => {
+      flashcardPreviewState.last = props;
+      return (
+        <div data-testid="flashcard-preview" data-loading={String(props.loading)} data-empty-label={props.emptyLabel}>
+          <button type="button" data-testid="welcome-rate" onClick={() => props.onRate?.('fluent')}>Rate</button>
+          {props.ratingWrite === 'failed' && (
+            <div role="alert" data-testid="welcome-write-failed">
+              <button type="button" onClick={() => props.onRetryRating?.()}>Retry</button>
+            </div>
+          )}
+        </div>
+      );
+    },
     WelcomeSettingsPreview: Preview,
     WelcomeStatsPreview: Preview,
     WelcomeLookupPreview: Preview,
@@ -143,6 +161,7 @@ describe('WelcomeRoute localization', () => {
     flashcardFixture.store.flashcards = {};
     flashcardFixture.currentCard = null;
     flashcardFixture.submitRating.mockReset();
+    flashcardPreviewState.last = null;
     localization.translate = (key) => key;
   });
 
@@ -232,8 +251,11 @@ describe('WelcomeRoute localization', () => {
     await Promise.resolve();
 
     expect(flashcardFixture.submitRating).toHaveBeenCalledOnce();
-    const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Retry');
-    expect(retry).toBeDefined();
+    // The failure is owned by the study session contract and reported by the
+    // card's own preview, not by a detached button in the page gutter.
+    expect(flashcardPreviewState.last?.ratingWrite).toBe('failed');
+    const retry = container.querySelector<HTMLButtonElement>('[data-testid="welcome-write-failed"] button');
+    expect(retry).not.toBeNull();
     retry!.click();
     await Promise.resolve();
     await Promise.resolve();
@@ -244,6 +266,47 @@ describe('WelcomeRoute localization', () => {
       taskType: 'welcome-review',
       scheduler: { cardId: 'card-1', rating: 'good', tested: ['sense-recognition'] },
     });
+    // A landed retry returns the write to its resting state, so the preview
+    // stops advertising a failure.
+    expect(flashcardPreviewState.last?.ratingWrite ?? null).toBe(null);
+    dispose();
+  });
+
+  it('drives the rating write through the study session vocabulary', async () => {
+    let releaseRating: (() => void) | undefined;
+    flashcardFixture.currentCard = { id: 'card-1', content: { front: '犬' }, language: 'ja' };
+    flashcardFixture.submitRating.mockImplementation(
+      () => new Promise((resolve) => { releaseRating = () => resolve({ attemptId: 'attempt-1', completed: true }); }),
+    );
+    const dispose = render(() => <WelcomeRoute />, container);
+    container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(flashcardPreviewState.last?.ratingWrite).toBe('pending');
+
+    // A second rating cannot be filed while the first is still in flight.
+    container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
+    await Promise.resolve();
+    expect(flashcardFixture.submitRating).toHaveBeenCalledOnce();
+
+    releaseRating?.();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(flashcardPreviewState.last?.ratingWrite ?? null).toBe(null);
+    dispose();
+  });
+
+  it('never renders the untranslated rating-save keys the route used to invent', async () => {
+    flashcardFixture.currentCard = { id: 'card-1', content: { front: '犬' }, language: 'ja' };
+    flashcardFixture.submitRating.mockRejectedValue(new Error('disk unavailable'));
+    const dispose = render(() => <WelcomeRoute />, container);
+    container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(container.textContent).not.toContain('mlearn.Flashcards.SavingRating');
+    expect(container.textContent).not.toContain('mlearn.Flashcards.SaveFailed');
     dispose();
   });
 });

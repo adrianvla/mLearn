@@ -11,7 +11,7 @@ import { formatDate } from '../../../utils/timeFormatting';
 import type { Flashcard } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, Button } from '../../../components/common';
+import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate } from '../../../components/common';
 import {
   WelcomeFeatureCard,
   WelcomeVideoPreview,
@@ -38,6 +38,7 @@ import { fetchTranslation } from '../../../hooks/useTranslation';
 import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { ankiCacheVersion, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { policyContextFromSettings } from '../../../learning/policyContext';
+import type { StudyWriteState } from '../../../learning/studySession';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../../shared/encounterTiming';
@@ -73,7 +74,13 @@ export const WelcomeRoute: Component = () => {
   const [showTutorModal, setShowTutorModal] = createSignal(false);
   const [lookupDraft, setLookupDraft] = createSignal('');
   const [tutorDraft, setTutorDraft] = createSignal('');
-  const [ratingSaveState, setRatingSaveState] = createSignal<'idle' | 'saving' | 'failed'>('idle');
+  // Same acknowledged-write lifecycle as every other surface that files a
+  // study write: the study session owns the vocabulary, WriteStatusBanner
+  // owns the wording and the retry affordance. This route used to keep a
+  // private 'idle' | 'saving' | 'failed' machine whose translation keys were
+  // never added to any locale, so a failed rating surfaced a raw key in the
+  // page gutter and a retry button detached from the card that failed.
+  const [ratingWrite, setRatingWrite] = createSignal<StudyWriteState | null>(null);
   type WelcomeRatingCommand = {
     cardId: string;
     word: string;
@@ -324,7 +331,7 @@ export const WelcomeRoute: Component = () => {
     },
   ));
   const saveWelcomeRating = async (command: WelcomeRatingCommand) => {
-    setRatingSaveState('saving');
+    setRatingWrite('pending');
     try {
       await flashcards.submitRating(command.word, command.observations, {
         ...command.options,
@@ -336,18 +343,18 @@ export const WelcomeRoute: Component = () => {
         },
       });
       pendingWelcomeRating = undefined;
-      setRatingSaveState('idle');
+      setRatingWrite(null);
       // The answer changed the pool: end the encounter so the next displayed
       // card re-selects instead of replaying the just-rated pick (R20 repair).
       decisionPin.advance();
     } catch (error) {
       log.error('Failed to save welcome card rating:', error);
       pendingWelcomeRating = command;
-      setRatingSaveState('failed');
+      setRatingWrite('failed');
     }
   };
   const rateCard = (quality: AttemptQuality, easy?: boolean) => {
-    if (ratingSaveState() !== 'idle') return;
+    if (ratingWrite() !== null) return;
     const card = currentCard();
     if (!card) return;
     const language = card.language || settings.language;
@@ -600,18 +607,11 @@ export const WelcomeRoute: Component = () => {
               keyboardMode={settings.ratingKeyboardMode}
               onOpen={openFlashcards}
               onRate={rateCard}
+              ratingWrite={ratingWrite()}
+              onRetryRating={() => { if (pendingWelcomeRating) void saveWelcomeRating(pendingWelcomeRating); }}
             />
           }
         />
-        <Show when={ratingSaveState() === 'saving'}>
-          <small role="status">{t('mlearn.Flashcards.SavingRating')}</small>
-        </Show>
-        <Show when={ratingSaveState() === 'failed'}>
-          <small role="alert">{t('mlearn.Flashcards.SaveFailed')}</small>
-          <Button variant="ghost" size="sm" onClick={() => {
-            if (pendingWelcomeRating) void saveWelcomeRating(pendingWelcomeRating);
-          }}>{t('mlearn.Knowledge.Popup.Retry')}</Button>
-        </Show>
 
         <WelcomeFeatureCard
           icon={<BarChartIcon size={24} />}

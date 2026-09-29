@@ -16,6 +16,7 @@ import {
 import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
 import type { LevelStats } from '../../../../utils/wordLevelStats';
+import type { StudyWriteState } from '../../../../learning/studySession';
 
 vi.mock('../../../../context', () => ({
   useLocalization: () => ({ t: (key: string) => key === 'mlearn.Rating.Matrix.Missed' ? 'Missed' : key }),
@@ -410,6 +411,130 @@ describe('WelcomeFlashcardPreview', () => {
     (container.querySelector('button.next-card') as HTMLButtonElement).click();
     expect(container.querySelector('.wfv-flashcard-inner')?.classList.contains('flipped')).toBe(false);
     expect(container.querySelector('.wfv-flashcard-front .wfv-flashcard-text')?.textContent).toBe('next');
+
+    dispose();
+  });
+
+  it('disarms the matrix while a rating write is unresolved', () => {
+    const [write, setWrite] = createSignal<StudyWriteState | null>(null);
+    const onRate = vi.fn();
+    const dispose = render(
+      () => (
+        <WelcomeFlashcardPreview
+          card={makeCard('front', 'back')}
+          loading={false}
+          dueCount={3}
+          dueLabel="Due"
+          emptyLabel="None"
+          loadingLabel="Loading"
+          openLabel="Open"
+          keyboardMode="mnemonic"
+          onOpen={() => {}}
+          onRate={onRate}
+          ratingWrite={write()}
+          onRetryRating={() => {}}
+        />
+      ),
+      container,
+    );
+
+    container.querySelector<HTMLButtonElement>('button.wfv-flashcard-stage')?.click();
+    const armed = () => container.querySelector<HTMLButtonElement>('.rating-matrix__quality')?.disabled;
+    expect(armed()).toBe(false);
+
+    // A pending write and a failed one both mean the rating is not yet
+    // acknowledged, so the matrix must not accept a second attempt.
+    setWrite('pending');
+    expect(armed()).toBe(true);
+
+    setWrite('failed');
+    expect(armed()).toBe(true);
+
+    setWrite(null);
+    expect(armed()).toBe(false);
+
+    dispose();
+  });
+
+  it('reports the write inside the card that failed, through the shared banner', () => {
+    const onRetryRating = vi.fn();
+    const [write, setWrite] = createSignal<StudyWriteState | null>(null);
+    const dispose = render(
+      () => (
+        <WelcomeFlashcardPreview
+          card={makeCard('front', 'back')}
+          loading={false}
+          dueCount={3}
+          dueLabel="Due"
+          emptyLabel="None"
+          loadingLabel="Loading"
+          openLabel="Open"
+          keyboardMode="mnemonic"
+          onOpen={() => {}}
+          onRate={() => {}}
+          ratingWrite={write()}
+          onRetryRating={onRetryRating}
+        />
+      ),
+      container,
+    );
+
+    container.querySelector<HTMLButtonElement>('button.wfv-flashcard-stage')?.click();
+
+    setWrite('pending');
+    const status = container.querySelector('.wfv-flashcard-write[role="status"]');
+    expect(status).not.toBeNull();
+    expect(status?.getAttribute('aria-live')).toBe('polite');
+    expect(status?.textContent).toBe('mlearn.Flashcards.Review.SavingRating');
+    // The banner belongs to the flashcard preview, not to a detached page
+    // gutter next to the whole feature grid.
+    expect(status?.closest('.wfv-flashcard')).not.toBeNull();
+
+    setWrite('failed');
+    const alert = container.querySelector('.wfv-flashcard-write[role="alert"]');
+    expect(alert).not.toBeNull();
+    expect(alert?.textContent).toContain('mlearn.Flashcards.Review.SaveFailed');
+    expect(alert?.closest('.wfv-flashcard')).not.toBeNull();
+
+    const retry = alert?.querySelector<HTMLButtonElement>('button');
+    expect(retry?.classList.contains('btn-primary')).toBe(true);
+    retry?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onRetryRating).toHaveBeenCalledTimes(1);
+
+    setWrite(null);
+    expect(container.querySelector('.wfv-flashcard-write')).toBeNull();
+
+    dispose();
+  });
+
+  it('never renders the removed untranslated rating keys', () => {
+    const [write, setWrite] = createSignal<StudyWriteState | null>(null);
+    const dispose = render(
+      () => (
+        <WelcomeFlashcardPreview
+          card={makeCard('front', 'back')}
+          loading={false}
+          dueCount={3}
+          dueLabel="Due"
+          emptyLabel="None"
+          loadingLabel="Loading"
+          openLabel="Open"
+          keyboardMode="mnemonic"
+          onOpen={() => {}}
+          onRate={() => {}}
+          ratingWrite={write()}
+          onRetryRating={() => {}}
+        />
+      ),
+      container,
+    );
+
+    container.querySelector<HTMLButtonElement>('button.wfv-flashcard-stage')?.click();
+    for (const state of ['pending', 'failed'] as StudyWriteState[]) {
+      setWrite(state);
+      expect(container.textContent).not.toContain('mlearn.Flashcards.SavingRating');
+      expect(container.textContent).not.toContain('mlearn.Flashcards.SaveFailed');
+    }
 
     dispose();
   });
