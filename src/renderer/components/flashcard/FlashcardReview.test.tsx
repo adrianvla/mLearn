@@ -210,6 +210,8 @@ vi.mock('../common', async (importOriginal) => {
     SafeHtml,
     RatingMatrix: actual.RatingMatrix,
     Popover: actual.Popover,
+    // Real banner: the save-failure tests read its role/label contract.
+    WriteStatusBanner: actual.WriteStatusBanner,
   };
 });
 

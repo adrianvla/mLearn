@@ -47,7 +47,7 @@ import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter } from '../../learning/engine';
 import { studySessionState } from '../../learning/studySession';
-import { RatingWriteStatus } from './RatingWriteStatus';
+import { WriteStatusBanner } from '../../components/common';
 import { createStudySessionController, inProcessStudySessionLocks, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
 import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
@@ -1467,9 +1467,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
               <p class="word-sync-assessment-card__prompt" data-word={word().word}>
                 {t('mlearn.LevelStudy.Placement.Prompt', { word: word().word })}
               </p>
-              <RatingWriteStatus
-                presentation={sessionPresentation()}
-                retry={ratingWrite()}
+              <WriteStatusBanner
+                status={sessionPresentation().phase === 'saving' ? 'pending'
+                  : sessionPresentation().phase === 'save-failed' ? 'failed' : null}
+                savingLabelKey="mlearn.WordSync.SavingRating"
+                failedLabelKey="mlearn.WordSync.SaveFailed"
+                canRetry={ratingWrite() !== null}
                 onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
               />
               <RatingMatrix
@@ -1575,9 +1578,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           )}
         </Show>
         <div class="word-sync-actions">
-          <RatingWriteStatus
-            presentation={sessionPresentation()}
-            retry={ratingWrite()}
+          <WriteStatusBanner
+            status={sessionPresentation().phase === 'saving' ? 'pending'
+              : sessionPresentation().phase === 'save-failed' ? 'failed' : null}
+            savingLabelKey="mlearn.WordSync.SavingRating"
+            failedLabelKey="mlearn.WordSync.SaveFailed"
+            canRetry={ratingWrite() !== null}
             onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
             class="word-sync-rating-write"
             failedClass="word-sync-rating-write--failed"

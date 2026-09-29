@@ -209,6 +209,8 @@ vi.mock('../../components/common', async (importOriginal) => {
   Button: actual.Button,
   Panel: actual.Panel,
   RatingMatrix: actual.RatingMatrix,
+  // Real banner: the save-failure assertions read its role/label contract.
+  WriteStatusBanner: actual.WriteStatusBanner,
   KeyboardShortcut: actual.KeyboardShortcut,
   KnowledgeSkeleton: actual.KnowledgeSkeleton,
   EmptyState: (props: { title?: string }) => <div>{props.title}</div>,

@@ -35,6 +35,12 @@ export {
 
 // Readiness contract + gates (loading as a first-class state)
 export {
+  WriteStatusBanner,
+  type WriteStatus,
+  type WriteStatusBannerProps,
+} from './WriteStatusBanner';
+
+export {
   ReadinessGate,
   deriveReadiness,
   isSettledReadiness,

@@ -1,6 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { Button, Panel, RatingMatrix } from '../../components/common';
+import { Button, Panel, RatingMatrix, WriteStatusBanner } from '../../components/common';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import {
@@ -1104,7 +1104,13 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                       </Show>
                     </Show>
                     <Show when={sessionActiveFor(level) && session()?.pending !== undefined && !storageUnavailable()}>
-                      <span role="status">{t('mlearn.LevelStudy.Grammar.SavingAnswer')}</span>
+                      <WriteStatusBanner
+                        status="pending"
+                        savingLabelKey="mlearn.LevelStudy.Grammar.SavingAnswer"
+                        failedLabelKey="mlearn.LevelStudy.Grammar.StorageUnavailable"
+                        canRetry={false}
+                        onRetry={() => {}}
+                      />
                     </Show>
                     <Show when={sessionActiveFor(level)} fallback={
                       <>
@@ -1397,18 +1403,23 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                               {t('mlearn.Rating.Matrix.Fluent')}
                             </Button>
                           </span>
-                          <Show when={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
-                            <span class="grammar-coverage__review-error" role="status">{t('mlearn.LevelStudy.Grammar.SavingAnswer')}</span>
-                          </Show>
-                          <Show when={reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
-                            <span class="grammar-coverage__review-error" role="alert">
-                              {t('mlearn.LevelStudy.Grammar.StorageUnavailable')}
-                              <Button size="sm" data-testid="grammar-row-retry" onClick={() => {
-                                const failed = reviewProbe();
-                                if (failed?.state === 'failed' && failed.language === props.language) void submitReviewProbe(failed.pattern, failed.quality, failed.level, failed.scaffolds, failed);
-                              }}>{t('mlearn.Knowledge.Retry')}</Button>
-                            </span>
-                          </Show>
+                          <WriteStatusBanner
+                            status={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language
+                              && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern ? 'pending'
+                              : reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language
+                                && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern ? 'failed'
+                                : null}
+                            savingLabelKey="mlearn.LevelStudy.Grammar.SavingAnswer"
+                            failedLabelKey="mlearn.LevelStudy.Grammar.StorageUnavailable"
+                            canRetry={reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language}
+                            onRetry={() => {
+                              const failed = reviewProbe();
+                              if (failed?.state === 'failed' && failed.language === props.language) void submitReviewProbe(failed.pattern, failed.quality, failed.level, failed.scaffolds, failed);
+                            }}
+                            class="grammar-coverage__review-error"
+                            retryTestId="grammar-row-retry"
+                            retryLabelKey="mlearn.Knowledge.Retry"
+                          />
                         </li>
                       )}
                     </For>

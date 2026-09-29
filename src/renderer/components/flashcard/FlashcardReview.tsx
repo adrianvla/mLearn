@@ -13,7 +13,7 @@ import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
   Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
-  EyeIcon, Popover
+  EyeIcon, Popover, WriteStatusBanner
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
@@ -628,19 +628,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 {t('mlearn.Flashcards.Review.Undo')}
               </Button>
             </Show>
-            <Show when={undoWrite() === 'pending'}>
-              <div class="flashcard-rating-write" role="status" aria-live="polite">
-                {t('mlearn.Flashcards.Review.SavingUndo')}
-              </div>
-            </Show>
-            <Show when={undoWrite() === 'failed'}>
-              <div class="flashcard-rating-write flashcard-rating-write--failed" role="alert">
-                <span>{t('mlearn.Flashcards.Review.UndoSaveFailed')}</span>
-                <Button size="sm" variant="primary" onClick={() => { void handleUndo(); }}>
-                  {t('mlearn.Global.TryAgain')}
-                </Button>
-              </div>
-            </Show>
+            <WriteStatusBanner
+              status={undoWrite()}
+              savingLabelKey="mlearn.Flashcards.Review.SavingUndo"
+              failedLabelKey="mlearn.Flashcards.Review.UndoSaveFailed"
+              canRetry={true}
+              onRetry={() => { void handleUndo(); }}
+              class="flashcard-rating-write"
+              failedClass="flashcard-rating-write--failed"
+            />
             <Show when={!isComplete() && currentCard()}>
               <Button
                 ref={(element) => { cardActionsAnchor = element; }}
@@ -781,22 +777,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 resetKey={currentCard()?.id}
                 onSubmit={handleBulkRate}
               />
-              <Show when={ratingWrite()?.phase === 'pending'}>
-                <div class="flashcard-rating-write" role="status" aria-live="polite">
-                  {t('mlearn.Flashcards.Review.SavingRating')}
-                </div>
-              </Show>
-              <Show when={ratingWrite()?.phase === 'failed'}>
-                <div class="flashcard-rating-write flashcard-rating-write--failed" role="alert">
-                  <span>{t('mlearn.Flashcards.Review.SaveFailed')}</span>
-                  <Button size="sm" variant="primary" onClick={() => {
-                    const failed = ratingWrite();
-                    if (failed?.phase === 'failed') void commitRating(failed);
-                  }}>
-                    {t('mlearn.Global.TryAgain')}
-                  </Button>
-                </div>
-              </Show>
+              <WriteStatusBanner
+                status={ratingWrite()?.phase ?? null}
+                savingLabelKey="mlearn.Flashcards.Review.SavingRating"
+                failedLabelKey="mlearn.Flashcards.Review.SaveFailed"
+                canRetry={ratingWrite()?.phase === 'failed'}
+                onRetry={() => { const failed = ratingWrite(); if (failed) void commitRating(failed); }}
+                class="flashcard-rating-write"
+                failedClass="flashcard-rating-write--failed"
+              />
             </div>
           </Show>
         </div>
