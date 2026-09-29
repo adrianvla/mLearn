@@ -20,6 +20,7 @@ import { GrammarCoverage } from '../windows/levelStudy/GrammarCoverage';
 import fs from 'fs';
 import path from 'path';
 import { UNMEASURED_LABEL_KEY, knowledgeStatusLabelKey } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
+import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevision';
 
 // ── IPC callback captures ────────────────────────────────────────────
 let flashcardsCb: (store: FlashcardStore | null) => void;
@@ -103,15 +104,26 @@ let delivered: FlashcardStore | null = null;
 
 const acceptedSaves: FlashcardStore[] = [];
 
-/** Seeds the authority and delivers the snapshot to the window. */
+/**
+ * Seeds the authority and delivers the snapshot to the window.
+ *
+ * `seed` also opens the window ON the authority's revision. A test that wants
+ * the window holding something older says so by delivering that explicitly.
+ */
 function seed(store: FlashcardStore): void {
   committed = structuredClone(store);
   revision = store.rev ?? 0;
+  delivered = structuredClone(store);
+  flashcardsCb(committed);
 }
 
 /**
  * Hands the window a store the way the main process answers a `getFlashcards`
  * request, without implying the authority moved.
+ *
+ * The store is delivered as given. A window is normally only ever handed the
+ * revision the authority can accept a write from, so a test that has not
+ * deliberately shows the window a stale snapshot says so by passing one.
  */
 function deliver(store: FlashcardStore | null): void {
   if (store) delivered = structuredClone(store);
@@ -126,12 +138,37 @@ function deliver(store: FlashcardStore | null): void {
 function installStrictSaveRevision(): void {
   mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => {
     if ((saved.rev ?? 0) !== revision) {
-      return Promise.reject(new Error(`Stale flashcard store revision: expected ${revision}, received ${saved.rev ?? 0}`));
+      return Promise.reject(new Error(staleFlashcardRevisionMessage(revision, saved.rev ?? 0)));
     }
     revision += 1;
+    // The authority stamps the store it persists, as flashcardStorage does. A
+    // probe answered from a snapshot that has not been stamped would offer the
+    // caller a revision the authority has already moved past, and its next
+    // write would be refused for a reason that has nothing to do with any race.
     committed = structuredClone(saved);
-    acceptedSaves.push(structuredClone(saved));
+    committed.rev = revision;
+    acceptedSaves.push(structuredClone(committed));
     return Promise.resolve(revision);
+  });
+}
+
+/**
+ * Answers `getFlashcards` probes the way the main process does: with the store
+ * it currently holds, or with nothing when the caller already holds that
+ * revision.
+ *
+ * A refused write re-reads the authority before it can be replayed onto it, so
+ * a harness that never answers leaves the window waiting on a delivery that is
+ * never coming - and every later write serialised behind it. Tests opt in
+ * rather than having this installed suite-wide: a probe answered on every call
+ * is a delivery injected into tests that never asked for one.
+ */
+function answerProbesFromAuthority(): void {
+  mockBridge.flashcards.getFlashcards.mockImplementation((knownRev?: number) => {
+    const answer = knownRev != null && knownRev === revision ? null : committed;
+    queueMicrotask(() => {
+      if (flashcardsCb) deliver(answer);
+    });
   });
 }
 
@@ -140,6 +177,12 @@ function setupMockImplementations() {
     flashcardsCb = cb;
     return flashcardsCleanup;
   });
+  // The main process answers a `getFlashcards` probe with no delivery at all;
+  // a bare `vi.fn()` does that by having no implementation. It is re-stated
+  // every test because `answerProbesFromAuthority` installs one, and
+  // `vi.clearAllMocks` clears calls without removing implementations. A
+  // surviving answerer would answer - and DELIVER - for every later test.
+  mockBridge.flashcards.getFlashcards.mockReset();
   mockBridge.flashcards.onNewDayFlashcards.mockImplementation((_cb: () => void) => {
     return newDayCleanup;
   });
@@ -577,6 +620,7 @@ async function mountProvider() {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 const CURRENT_VERSION = 3;
+const CAPABILITY_PROJECTION_VERSION = 3;
 
 function makeEmptyStore(overrides?: Partial<FlashcardStore>): FlashcardStore {
   return {
@@ -590,7 +634,14 @@ function makeEmptyStore(overrides?: Partial<FlashcardStore>): FlashcardStore {
     grammarKnowledge: {},
     suggestedFlashcards: {},
     meta: {
-      capabilityProjectionVersion: 3,
+      // Matches the version the provider stamps on a current store. A store
+      // left behind it is a LEGACY store, and loading one runs
+      // repairCapabilityProjection - which rematerializes wordKnowledge
+      // straight from the evidence journal and so discards any seeded ease
+      // the journal has no row for. Tests that seed rows directly and want the
+      // repair say so explicitly; the rest are not exercising a repair they
+      // cannot observe.
+      capabilityProjectionVersion: CAPABILITY_PROJECTION_VERSION,
       perLanguage: {
         ja: { newCardsToday: 0, reviewsToday: 0, newCardsDate: '' },
       },
@@ -683,7 +734,7 @@ describe('FlashcardProvider', () => {
     let acknowledgeSave!: () => void;
     mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => new Promise((resolve, reject) => {
       if ((saved.rev ?? 0) !== revision) {
-        return reject(new Error(`Stale flashcard store revision: expected ${revision}, received ${saved.rev ?? 0}`));
+        return reject(new Error(staleFlashcardRevisionMessage(revision, saved.rev ?? 0)));
       }
       revision += 1;
       committed = structuredClone(saved);
@@ -813,11 +864,59 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
   });
 
+  it('lands a refused write by replaying it onto what the other window committed', async () => {
+    // Every window holds the same provider over the same whole-snapshot store,
+    // so two of them writing at once is ordinary rather than exceptional. The
+    // loser's write used to be refused outright and dropped, taking the
+    // learner's rating with it - and the window's rendered store was left
+    // disagreeing with the file in the other direction.
+    answerProbesFromAuthority();
+    const mine = makeCard({ id: 'race-mine', state: 'review', interval: 86_400_000, dueDate: Date.now() - 1000, reviews: 2 });
+    const theirs = makeCard({ id: 'race-theirs', reviews: 7 });
+    const { ctx, dispose } = await mountProvider();
+    seed(makeEmptyStore({ flashcards: { [mine.id]: mine, [theirs.id]: theirs }, rev: 5 }));
+    expect(ctx.store.rev).toBe(5);
+
+    // The rating is real: giving it is what records the Undo, and the Undo
+    // restores the card to the state captured here.
+    await ctx.submitRating(mine.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      attemptId: 'race-mine-attempt' as AttemptId,
+      language: mine.language,
+      scheduler: { cardId: mine.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+    expect(ctx.store.flashcards[mine.id].reviews).toBe(mine.reviews + 1);
+    expect(ctx.canUndo()).toBe(true);
+
+    // The other window commits while this one is not looking. This window is
+    // still holding the revision before its own rating, and so is the Undo it
+    // is about to make - two windows writing the whole store, which is the
+    // ordinary case, not an edge case.
+    const beforeRace = ctx.store.rev;
+    const otherWindow = JSON.parse(JSON.stringify(ctx.store)) as FlashcardStore;
+    otherWindow.flashcards[theirs.id].reviews = 8;
+    otherWindow.rev = beforeRace;
+    await mockBridge.flashcards.saveFlashcards(otherWindow, [], false, undefined);
+    expect(revision).toBe(beforeRace + 1);
+
+    await expect(ctx.undoLastAction()).resolves.toBe('answer');
+    await vi.waitFor(() => expect(ctx.store.rev).toBe(revision));
+
+    // Both windows' work is in the file. The refused write was replayed onto
+    // what the other window committed rather than overwriting it.
+    expect(committed?.flashcards[mine.id].reviews).toBe(mine.reviews);
+    expect(committed?.flashcards[theirs.id].reviews).toBe(8);
+    expect(committed?.rev).toBe(revision);
+    // And this window renders what was written, not the snapshot it lost.
+    expect(ctx.store.flashcards[theirs.id].reviews).toBe(8);
+    expect(ctx.store.flashcards[mine.id].reviews).toBe(mine.reviews);
+    dispose();
+  });
+
   it('preserves an unrelated local mutation while a scheduler write is pending', async () => {
     let acknowledgeSave!: () => void;
     mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => new Promise((resolve, reject) => {
       if ((saved.rev ?? 0) !== revision) {
-        return reject(new Error(`Stale flashcard store revision: expected ${revision}, received ${saved.rev ?? 0}`));
+        return reject(new Error(staleFlashcardRevisionMessage(revision, saved.rev ?? 0)));
       }
       revision += 1;
       committed = structuredClone(saved);
@@ -827,7 +926,6 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'card-concurrent-rating' });
     seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
-    deliver(committed);
     const submission = ctx.submitRating(card.content.front, [], {
       attemptId: 'concurrent-rating-attempt' as AttemptId,
       scheduler: { cardId: card.id, rating: 'good' },
@@ -846,7 +944,6 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'stale-redelivery-card', reviews: 3 });
     seed(makeEmptyStore({ flashcards: { [card.id]: card }, rev: 10 }));
-    deliver(committed);
     expect(ctx.store.rev).toBe(10);
 
     // A focus/visibility sync can redeliver a snapshot that predates what this
@@ -855,7 +952,7 @@ describe('FlashcardProvider', () => {
     // window writes with, and the main process then refuses every write as
     // stale: the learner sees their Undo come back as a failed save for a save
     // they never saw fail.
-    deliver(makeEmptyStore({ flashcards: { [card.id]: card }, rev: 7 }));
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card }, rev: 7 }));
     expect(ctx.store.rev).toBe(10);
 
     ctx.pushUndoState({ type: 'answer', cardId: card.id });
@@ -881,7 +978,7 @@ describe('FlashcardProvider', () => {
     let acknowledgeSave!: () => void;
     mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => new Promise((resolve, reject) => {
       if ((saved.rev ?? 0) !== revision) {
-        return reject(new Error(`Stale flashcard store revision: expected ${revision}, received ${saved.rev ?? 0}`));
+        return reject(new Error(staleFlashcardRevisionMessage(revision, saved.rev ?? 0)));
       }
       revision += 1;
       committed = structuredClone(saved);
@@ -891,7 +988,6 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'card-broadcast-rating' });
     seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
-    deliver(committed);
     const submission = ctx.submitRating(card.content.front, [], {
       attemptId: 'broadcast-rating-attempt' as AttemptId,
       scheduler: { cardId: card.id, rating: 'good' },
@@ -1292,7 +1388,6 @@ describe('FlashcardProvider', () => {
     seed(makeEmptyStore({
       knownUntracked: { [lk]: true },
     }));
-    deliver(committed);
 
     const id = await ctx.addFlashcard({ front: '空', back: 'sky' }, undefined, true);
 
@@ -1516,7 +1611,6 @@ describe('FlashcardProvider', () => {
       flashcards: { 'ans-1': card },
       wordToCardMap: { [lk]: ['ans-1'] },
     }));
-    deliver(committed);
     ctx.refreshQueue();
 
     const beforeState = ctx.store.flashcards['ans-1'].state;
@@ -1540,7 +1634,6 @@ describe('FlashcardProvider', () => {
       flashcards: { 'ans-new-1': card },
       wordToCardMap: { [lk]: ['ans-new-1'] },
     }));
-    deliver(committed);
     ctx.refreshQueue();
 
     const before = ctx.store.meta.perLanguage.ja?.newCardsToday ?? 0;
@@ -1565,7 +1658,6 @@ describe('FlashcardProvider', () => {
       flashcards: { 'ans-rev-1': card },
       wordToCardMap: { [lk]: ['ans-rev-1'] },
     }));
-    deliver(committed);
     ctx.refreshQueue();
 
     const before = ctx.store.meta.perLanguage.ja?.reviewsToday ?? 0;
@@ -1584,7 +1676,6 @@ describe('FlashcardProvider', () => {
       flashcards: { 'ans-undo': card },
       wordToCardMap: { [lk]: ['ans-undo'] },
     }));
-    deliver(committed);
     ctx.refreshQueue();
 
     expect(ctx.canUndo()).toBe(false);
@@ -1603,7 +1694,6 @@ describe('FlashcardProvider', () => {
       flashcards: { 'daily-1': card },
       wordToCardMap: { [lk]: ['daily-1'] },
     }));
-    deliver(committed);
     ctx.refreshQueue();
 
     await submitSchedulerRating(ctx, 'daily-1', 'good');
@@ -1626,7 +1716,6 @@ describe('FlashcardProvider', () => {
       flashcards: { 'evt-1': card },
       wordToCardMap: { [lk]: ['evt-1'] },
     }));
-    deliver(committed);
     ctx.refreshQueue();
 
     const easeBefore = ctx.store.flashcards['evt-1'].ease;
@@ -1697,7 +1786,6 @@ describe('FlashcardProvider', () => {
       flashcards: { 'card-new': newCard, 'card-review': reviewCard },
       wordToCardMap: { [lkNew]: ['card-new'], [lkReview]: ['card-review'] },
     }));
-    deliver(committed);
     ctx.refreshQueue();
 
     // Force Math.random to always pick review cards so getNextCard() without cardId would answer reviewCard
@@ -1749,7 +1837,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     await submitSchedulerRating(ctx, cardId, 'good');
     // The word-stats recompute is a fire-and-forget async IIFE whose hashWord
@@ -1794,7 +1881,6 @@ describe('FlashcardProvider', () => {
         'due-bur': makeCard({ id: 'due-bur', state: 'review', interval: 86400000, dueDate: Date.now() - 1000, buried: true }),
       },
     }));
-    deliver(committed);
 
     expect(ctx.getDueCount()).toBe(1);
     dispose();
@@ -2398,7 +2484,6 @@ describe('FlashcardProvider', () => {
         } as PassiveWordKnowledge,
       },
     }));
-    deliver(committed);
 
     // Explicit evidence survives the legacy→access re-key (reading →
     // surface-reading); the seeded inherited projection is gone.
@@ -2478,7 +2563,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     // The learner overrides the evidence with an explicit Known claim…
     ctx.setAccessClaim('いぬ', 'surface-reading', 'known', 'ja');
@@ -2525,7 +2609,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     // Passive-only sibling ease (no active evidence) is untracked — the REQ13
     // honesty rule — and the claim must still win over it on every form hash.
@@ -2595,7 +2678,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     ctx.setWordClaim('さすが', 'known');
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
@@ -2651,7 +2733,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     expect(ctx.getComprehensiveWordStatusSync('سلام')).toBe('unknown');
     expect(ctx.getComprehensiveWordStatusSync('سلام', 'ar')).toBe('known');
@@ -2870,7 +2951,6 @@ describe('FlashcardProvider', () => {
         [lk]: { claim: 'learning', claimAt: 5, ease: SRS.MIN_EASE, lastSeen: 1, timesSeen: 0, timesHovered: 0, word: '学校', language: 'ja' },
       },
     }));
-    deliver(committed);
 
     ctx.setWordClaim('学校', 'unknown');
     // 'unknown' is an explicit claim written over the previous one — the
@@ -2942,7 +3022,6 @@ describe('FlashcardProvider', () => {
         [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '学校', language: 'ja' },
       },
     }));
-    deliver(committed);
 
     ctx.setWordClaim('学校', 'unknown');
     // 'unknown' is an explicit claim, not entry deletion; ease stays untouched.
@@ -3232,7 +3311,6 @@ describe('FlashcardProvider', () => {
       },
       wordToCardMap: { [primaryKey]: [cardId] },
     }));
-    deliver(committed);
 
     ctx.trackWordHovered('يكتب');
     await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
@@ -3267,7 +3345,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     const prevDecrease = mockSettings.passiveHoverEaseDecrease;
     mockSettings.passiveHoverEaseDecrease = 0.2;
@@ -3439,7 +3516,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     expect(ctx.getGrammarKnowledge('idafa', 'ar')?.language).toBe('ar');
     expect(ctx.getGrammarKnowledge('idafa')).toBeUndefined();
@@ -3457,7 +3533,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     await vi.waitFor(() => expect(mockAppendEvents).toHaveBeenCalledTimes(1));
     const [[events]] = mockAppendEvents.mock.calls;
@@ -3486,7 +3561,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     await vi.waitFor(() => expect(mockAppendEvents).toHaveBeenCalledTimes(1));
     const [[events]] = mockAppendEvents.mock.calls;
@@ -3519,7 +3593,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     // The store load runs the legacy epistemic migration against the empty journal.
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
@@ -3564,7 +3637,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));
     const backfillCall = mockAppendEvents.mock.calls.find(([byKey]) =>
@@ -3668,7 +3740,6 @@ describe('FlashcardProvider', () => {
       meta: { ...makeEmptyStore().meta, perLanguage: { ja: { newCardsToday: 0, reviewsToday: 6, newCardsDate: today } } },
       dailyStats: { [today]: { ja: { date: today, newCardsStudied: 0, reviewCardsStudied: 6, lapses: 0, timeSpent: 10, graduated: 0 } } },
     }));
-    deliver(committed);
 
     const undone = makeEmptyStore({
       rev: 9,
@@ -3720,7 +3791,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     // Incoming NEWER claim entry wins over the local entry.
     const remoteNewer = makeEmptyStore({
@@ -3779,7 +3849,6 @@ describe('FlashcardProvider', () => {
       suggestedFlashcards: { [suggestionKey]: { id: 's1', word: '候補', language: 'ja', createdAt: 100, lastSeen: 200, count: 1 } },
       dailyStats: { [today]: { ja: { date: today, newCardsStudied: 3, reviewCardsStudied: 1, lapses: 0, timeSpent: 100, graduated: 0 } } },
     }));
-    deliver(committed);
 
     // Incoming NEWER entries win per collection.
     const remoteNewer = makeEmptyStore({
@@ -3924,7 +3993,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     // REQ13: high passive ease is familiarity, never epistemic Known.
     expect(ctx.isWordKnownByText('上手')).toBe(false);
@@ -3950,7 +4018,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     expect(ctx.isWordKnownByText('上手')).toBe(true);
     dispose();
@@ -3973,7 +4040,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     expect(ctx.isWordKnownByText('難しい')).toBe(false);
     dispose();
@@ -4006,7 +4072,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
+    flashcardsCb(committed);
 
     expect(ctx.isWordKnownByText('يكتب', 'ar')).toBe(true);
     expect(ctx.isWordKnownByText('يكتب')).toBe(false);
@@ -4227,7 +4293,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     expect(ctx.isWordKnownComprehensiveSync('يكتب')).toBe(false);
     expect(ctx.isWordKnownComprehensiveSync('يكتب', 'ar')).toBe(true);
@@ -4244,7 +4309,6 @@ describe('FlashcardProvider', () => {
         'ja:hash3': { word: '猫', language: 'ja', ignoredAt: 3000 },
       },
     }));
-    deliver(committed);
 
     const ignored = ctx.getIgnoredWordsSync();
     expect(ignored).toHaveLength(2);
@@ -4286,7 +4350,7 @@ describe('FlashcardProvider', () => {
         newCardsToday: 2,
       },
     }));
-    deliver(committed);
+    flashcardsCb(committed);
 
     ctx.refreshQueue();
 
@@ -4564,7 +4628,6 @@ describe('FlashcardProvider', () => {
         'ja:hash4': { id: 's4', word: '無レベル', level: null, language: 'ja', createdAt: 4, lastSeen: 4, count: 1 },
       },
     }));
-    deliver(committed);
     mockSettings.learningLanguageLevels = { ja: 3 };
 
     const suggestions = ctx.getSuggestedFlashcardsSync();
@@ -4581,7 +4644,6 @@ describe('FlashcardProvider', () => {
         'ja:hash-missing': { id: 's-missing', word: '無レベル', level: null, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
       },
     }));
-    deliver(committed);
     mockSettings.learningLanguageLevels = { ja: 3 };
     mockGetFrequencyForLanguage.mockImplementation((language: string, word: string) => (
       language === 'ja' && word === '派生レベル'
@@ -4604,7 +4666,6 @@ describe('FlashcardProvider', () => {
         'ja:hash2': { id: 's2', word: 'N3単語', level: 3, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
       },
     }));
-    deliver(committed);
     mockSettings.learningLanguageLevel = null;
     mockSettings.learningLanguageLevels = { ja: null };
 
@@ -4653,7 +4714,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     await ctx.captureSuggestedFlashcard({ word: '既知単語', level: 5 });
 
@@ -4678,7 +4738,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     await ctx.captureSuggestedFlashcard({ word: 'passive既知', level: 5 });
 
@@ -4697,7 +4756,6 @@ describe('FlashcardProvider', () => {
     seed(makeEmptyStore({
       knownUntracked: { [lk]: true },
     }));
-    deliver(committed);
 
     await ctx.captureSuggestedFlashcard({ word: '手動既知', level: 5 });
 
@@ -4791,7 +4849,7 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
+    flashcardsCb(committed);
 
     const suggestions = ctx.getSuggestedFlashcardsSync();
     expect(suggestions).toHaveLength(1);
@@ -4809,7 +4867,6 @@ describe('FlashcardProvider', () => {
         'ja:hash3': { id: 's3', word: '単語3', level: 3, language: 'ja', createdAt: 3, lastSeen: 3, count: 1 },
       },
     }));
-    deliver(committed);
 
     ctx.removeSuggestedFlashcards(['s1', 's3']);
 
@@ -4826,7 +4883,6 @@ describe('FlashcardProvider', () => {
         'ja:hash1': { id: 's1', word: '単語1', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
-    deliver(committed);
 
     ctx.removeSuggestedFlashcards([]);
 
@@ -4846,7 +4902,6 @@ describe('FlashcardProvider', () => {
       },
       knownUntracked: { [lk]: true },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(1);
@@ -4868,7 +4923,6 @@ describe('FlashcardProvider', () => {
       },
       knownUntracked: { [germanKey]: true },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -4907,7 +4961,6 @@ describe('FlashcardProvider', () => {
       },
       wordToCardMap: { [lk]: ['fc-1'] },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(1);
@@ -4923,7 +4976,6 @@ describe('FlashcardProvider', () => {
         'ja:hash1': { id: 's1', word: '未知単語', level: 5, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
     expect(removed).toBe(0);
@@ -4951,7 +5003,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -4984,7 +5035,6 @@ describe('FlashcardProvider', () => {
         },
       },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -5002,7 +5052,6 @@ describe('FlashcardProvider', () => {
         'ja:hash-nuu': { id: 's-nuu', word: 'ヌウ', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -5022,7 +5071,6 @@ describe('FlashcardProvider', () => {
         'ja:hash-preserved': { id: 's-preserved', word: '保存', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -5042,7 +5090,6 @@ describe('FlashcardProvider', () => {
         'ja:too-hard': { id: 's-too-hard', word: '困難', level: 1, language: 'ja', createdAt: 2, lastSeen: 2, count: 1 },
       },
     }));
-    deliver(committed);
 
     const removed = await ctx.garbageCollectSuggestedFlashcards();
 
@@ -5062,7 +5109,6 @@ describe('FlashcardProvider', () => {
         'ja:hash-dict': { id: 's-dict', word: '単語', level: null, language: 'ja', createdAt: 1, lastSeen: 1, count: 1 },
       },
     }));
-    deliver(committed);
 
     const removed = await ctx.cleanupKnownSuggestions();
 
@@ -5081,7 +5127,6 @@ describe('FlashcardProvider', () => {
         'ja:hash2': { id: 's2', word: '単語2', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1, imageUrl: 'flashcard-image://shared.png' },
       },
     }));
-    deliver(committed);
 
     ctx.removeSuggestedFlashcards(['s1']);
 
@@ -5098,7 +5143,6 @@ describe('FlashcardProvider', () => {
         'ja:hash2': { id: 's2', word: '単語2', level: 5, language: 'ja', createdAt: 2, lastSeen: 2, count: 1, imageUrl: 'flashcard-image://shared.png' },
       },
     }));
-    deliver(committed);
 
     ctx.removeSuggestedFlashcards(['s1', 's2']);
 
@@ -5139,13 +5183,14 @@ describe('FlashcardProvider', () => {
     it('creates a large batch in one saveFlashcards call and reports wall time', async () => {
       const N = 2000;
       const { ctx, dispose } = await mountProvider();
-      flashcardsCb(makeEmptyStore());
 
-      // Deferred saves from other tests' un-awaited migration continuations can
-      // land inside this test's waitFor window (debounced at 300ms). Let them
-      // settle before opening the measurement window — the one-save assertion
-      // below stays strict.
+      // Deferred saves from this window's own hydration — and from other
+      // tests' un-awaited migration continuations — are debounced at 300ms and
+      // would otherwise land inside the measurement window. Let them settle
+      // before opening it, so the one-save assertion below counts only the
+      // bulk add's own write.
       await new Promise((r) => setTimeout(r, 550));
+      seed(makeEmptyStore());
       mockBridge.flashcards.saveFlashcards.mockClear();
       mockBackend.translate.mockClear();
 
@@ -5226,7 +5271,6 @@ describe('FlashcardProvider', () => {
           },
         },
       }));
-      deliver(committed);
       mockBridge.flashcards.saveFlashcards.mockClear();
       mockBackend.translate.mockClear();
 
@@ -5313,7 +5357,6 @@ describe('acknowledged rating command semantics', () => {
         [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
       },
     }));
-    deliver(committed);
 
     await submitObservation(ctx, '学校', 'sense-recognition', 'struggled', { language: 'ja2' });
 
@@ -5615,7 +5658,6 @@ describe('acknowledged rating command semantics', () => {
         [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 3, timesHovered: 0, word: '学校', language: 'ja2', lastStatusChange: 5 },
       },
     }));
-    deliver(committed);
 
     await submitObservation(ctx, '学校', 'sense-recognition', 'fluent', { language: 'ja2' });
 
@@ -5760,7 +5802,6 @@ describe('submitRating missed (attribution semantics)', () => {
         },
       },
     }));
-    deliver(committed);
 
     await submitObservation(ctx, '学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
@@ -5784,7 +5825,6 @@ describe('submitRating missed (attribution semantics)', () => {
         [lk]: { ease: 2.0, lastSeen: 1, timesSeen: 2, timesHovered: 0, word: '学校', language: 'ja2' },
       },
     }));
-    deliver(committed);
 
     await submitObservation(ctx, '学校', 'prosodic-pattern', 'missed', { language: 'ja2' });
 
@@ -5885,7 +5925,6 @@ describe('attempt undo integrity (P0)', () => {
       },
       wordToCardMap: { [lk]: ['card-1'] },
     }));
-    deliver(committed);
 
     const attemptId = (await import('../../shared/knowledgeEvents')).nextAttemptId();
     expect(typeof attemptId).toBe('string');
@@ -5959,7 +5998,6 @@ describe('submitRating logs no-transition submissions', () => {
         },
       },
     }));
-    deliver(committed);
 
     await submitObservation(ctx, '学校', 'sense-recognition', 'fluent', { language: 'ja2' });
     await Promise.resolve();
@@ -5995,7 +6033,7 @@ describe('submitRating logs no-transition submissions', () => {
         },
       },
     }));
-    deliver(committed);
+    flashcardsCb(committed);
 
     await submitObservation(ctx, '学校', 'surface-reading', 'fluent', { language: 'ja2' });
     await Promise.resolve();
@@ -6035,7 +6073,6 @@ describe('submitRating logs no-transition submissions', () => {
         },
       },
     }));
-    deliver(committed);
 
     await submitObservation(ctx, '学校', 'sense-recognition', 'missed', { language: 'ja2' });
     await Promise.resolve();
@@ -6082,7 +6119,6 @@ describe('claim override persistence (REQ15)', () => {
         },
       },
     }));
-    deliver(committed);
 
     // 1. Claim Learning over evidence Known: effective Learning, basis claim,
     //    evidence classification stays visible.
@@ -6210,7 +6246,6 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
       flashcards: { 'task-card': card },
       wordToCardMap: { [`ja2:${SRS.hashWordSync('テスト')}`]: ['task-card'] },
     }));
-    deliver(committed);
     mockAppendEvents.mockClear();
     await submitSchedulerRating(ctx, 'task-card', 'good');
     await vi.waitFor(() => expect(mockAppendEvents.mock.calls.length).toBeGreaterThan(0));

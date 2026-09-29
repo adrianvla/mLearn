@@ -14,6 +14,7 @@ import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/c
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
 import { clonePendingRetraction, readPendingRetraction, type PendingRetraction, type RetractionTarget } from '../../shared/retractionRecovery';
+import { isStaleFlashcardRevision } from '../../shared/flashcardWriteRevision';
 import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
 import { evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
@@ -515,6 +516,70 @@ function applyStoreDelta(target: Record<string, unknown>, base: Record<string, u
   }
 }
 
+/**
+ * Replays a recorded decision (a delta) onto a store, leaving every key the
+ * decision did not mention exactly as the store already had it.
+ *
+ * `applyStoreDelta` computes changes between two whole snapshots, so a delta
+ * cannot be replayed with it: every key absent from the delta would be read as
+ * a deletion. This walks the delta's own branches instead, so a decision about
+ * one card cannot rewrite the rest of the store around it.
+ */
+function mergeIntentOnto(target: Record<string, unknown>, intent: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(intent)) {
+    if (isStoreRecord(value)) {
+      if (Object.keys(value).length === 0) {
+        // Every key under here was removed; the parent map is what the removal
+        // was recorded against.
+        if (Array.isArray(target[key])) target[key] = [];
+        else delete target[key];
+        continue;
+      }
+      if (!isStoreRecord(target[key])) target[key] = {};
+      mergeIntentOnto(target[key] as Record<string, unknown>, value);
+      continue;
+    }
+    if (value === undefined) {
+      // A key the decision removed. `applyStoreDelta` records a removal by
+      // omitting the key, and the store's own shape says how to read that: an
+      // array emptied, anything else deleted.
+      const existing = target[key];
+      if (Array.isArray(existing)) target[key] = [];
+      else delete target[key];
+      continue;
+    }
+    target[key] = JSON.parse(JSON.stringify(value)) as unknown;
+  }
+}
+
+/**
+ * Records what changed between two whole snapshots as a delta that can be
+ * replayed elsewhere.
+ *
+ * `applyStoreDelta` expresses a removal by omitting the key, which is right
+ * for applying onto the very snapshot it was computed from. A replayed delta
+ * has no such context: an absent key would be indistinguishable from one the
+ * decision never touched, so a removal would be silently dropped. Removals are
+ * therefore recorded explicitly, and `mergeIntentOnto` reads them back.
+ */
+function recordStoreDelta(target: Record<string, unknown>, base: Record<string, unknown>, next: Record<string, unknown>): void {
+  for (const key of new Set([...Object.keys(base), ...Object.keys(next)])) {
+    const before = base[key];
+    const after = next[key];
+    if (Object.is(before, after)) continue;
+    if (!(key in next)) {
+      target[key] = undefined;
+    } else if (isStoreRecord(before) && isStoreRecord(after)) {
+      if (!isStoreRecord(target[key])) target[key] = {};
+      recordStoreDelta(target[key] as Record<string, unknown>, before, after);
+      if (Object.keys(target[key] as Record<string, unknown>).length === 0) delete target[key];
+    } else {
+      if (JSON.stringify(before) === JSON.stringify(after)) continue;
+      target[key] = after === undefined ? undefined : JSON.parse(JSON.stringify(after)) as unknown;
+    }
+  }
+}
+
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
@@ -585,6 +650,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const pendingCardRemovals = new Set<string>();
   let pendingReviewReset = false;
   const SAVE_DEBOUNCE_MS = 300;
+  // How long a refused write waits for the authority to answer before giving
+  // up and reporting the write as failed. Generous enough to cover a busy main
+  // process and a multi-megabyte store transfer, short enough that a lost
+  // answer surfaces to the learner instead of stalling their next action.
+  const AUTHORITY_REBASE_TIMEOUT_MS = 5_000;
   const ipcCleanups: Array<() => void> = [];
 
   // Queue counts memo
@@ -608,12 +678,61 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // not unmount every gated pill/hover (the "refocus recomputes everything"
   // jank).
   let storeHydrated = false;
+  /**
+   * Set while a rebase is waiting for the authority to ship its current store.
+   *
+   * A refused write must rebase onto what the main process actually holds, and
+   * that store can only be had by asking for it. The provider already has one
+   * listener for that answer, so the rebase arms a request here instead of
+   * registering a second listener that would race the first: a focus or
+   * visibility probe in flight answers the same channel, and a competing
+   * one-shot would either steal a delivery it did not ask for or miss the one
+   * it did. Whoever accepts a delivery while this is armed resolves it.
+   */
+  let authorityRequest: ((store: FlashcardStore) => void) | null = null;
+  /**
+   * Set when the window goes away while a rebase is waiting.
+   *
+   * A rebase holds a write open across a round trip to the authority, so a
+   * window that unmounts mid-flight has to call it off. Left armed, it would
+   * answer a delivery no window is listening for and push a write for a
+   * surface that no longer exists - one more writer racing the windows that
+   * are still open.
+   */
+  let disposed = false;
+  /**
+   * Whether the store this window renders has been superseded by a rebase, so
+   * the store itself no longer carries the revision the authority holds.
+   *
+   * A write queued behind a rebase must not compose its next candidate over the
+   * pre-rebase snapshot: that write carries the same refused revision, so the
+   * authority refuses it too, and the learner's action is lost the same way.
+   * The rebase's own store carries the revision that will be accepted, so
+   * composing there ends the refusal instead of repeating it.
+   */
+  let storeSupersededByRebase = false;
+  const markSuperseded = () => {
+    storeSupersededByRebase = true;
+  };
   // Handle loaded flashcards (used by IPC listener registered once in onMount;
   // sync/visibility can re-deliver the store later).
   const handleFlashcardsLoaded = (loaded: FlashcardStore | null) => {
     // Unchanged-rev probe reply: the main process already holds this exact
     // store — nothing to reconcile, nothing to re-render.
-    if (!loaded) return;
+    if (!loaded) {
+      // A rebase is waiting to learn what the authority holds. A null answer
+      // to its probe means the authority is already at the revision this
+      // window holds, so the store in hand is the authority's own — resolving
+      // with it lets the rebase go. Ignoring the reply would leave the rebase
+      // waiting for a delivery that is never coming, and with it this window's
+      // whole write queue, which is serialised behind it.
+      const waiting = authorityRequest;
+      if (waiting) {
+        authorityRequest = null;
+        waiting(cloneFlashcardStore(unwrap(store) as FlashcardStore));
+      }
+      return;
+    }
     const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
     if (storeHydrated && checked.rev != null && checked.rev === store.rev) return;
     // This window's view of the store only ever moves forward. The store is
@@ -628,6 +747,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // delivery that preceded it. Ignoring them costs nothing: the next probe
     // ships the current snapshot anyway.
     if (storeHydrated && typeof checked.rev === 'number' && checked.rev < (store.rev ?? 0)) return;
+    const request = authorityRequest;
+    if (request) {
+      authorityRequest = null;
+      request(cloneFlashcardStore(checked));
+    }
     const firstHydration = !storeHydrated;
     if (firstHydration) setIsKnowledgeReady(false);
     authoritativeStore = cloneFlashcardStore(checked);
@@ -1052,43 +1176,181 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }, SAVE_DEBOUNCE_MS);
   };
 
-  // Immediate acknowledged save (used by debounced persistence and commands
-  // whose visible result depends on the durable scheduler state). A transform
-  // is applied to the current store when this write reaches the local queue.
+  /**
+   * Re-plays a refused write onto the store the authority actually holds.
+   *
+   * Returns the store as committed, or null when the retry could not be
+   * attempted. The authority is asked for rather than assumed: a broadcast or
+   * a focus probe may have already moved it, and only the store the main
+   * process holds carries the revision it will accept.
+   *
+   * The decision being replayed is a delta, not a snapshot, so whatever the
+   * other window committed in the meantime survives. Overwriting it with this
+   * window's older copy is exactly the loss being repaired: a rating or an Undo
+   * in one window used to erase the other window's work whenever they raced.
+   */
+  const rebaseOntoAuthority = async (
+    intent: Record<string, unknown>,
+    removals: string[],
+    resetReviewProgress: boolean,
+    authorization?: FlashcardWriteAuthorization,
+  ): Promise<FlashcardStore | null> => {
+    if (!isElectron()) return null;
+    // Bounded: this window's whole write queue is serialised behind this
+    // write, so an authority that never answers must not hold it open. The
+    // window going away ends the wait too — a rebase is a repair for a live
+    // surface, not something to finish for one that is already gone.
+    const current = await new Promise<FlashcardStore | null>((resolve) => {
+      if (disposed) {
+        resolve(null);
+        return;
+      }
+      const settle = (answer: FlashcardStore | null) => {
+        clearTimeout(timer);
+        resolve(answer);
+      };
+      const timer = setTimeout(() => {
+        if (authorityRequest === settle) authorityRequest = null;
+        resolve(null);
+      }, AUTHORITY_REBASE_TIMEOUT_MS);
+      // Waiting for the authority already implies this window has moved past
+      // the snapshot that was refused, so any write still queued behind this
+      // one composes over the store the rebase produces rather than over the
+      // stale copy it was going to write and be refused for again.
+      markSuperseded();
+      authorityRequest = settle;
+      getBridge().flashcards.getFlashcards();
+    });
+    if (!current) return null;
+    const rebased = ensureStoreFields(current as Partial<FlashcardStore>);
+    // The intent is a delta, not a snapshot: it names the keys this window
+    // changed and their new values, and says nothing about the keys it never
+    // looked at. Merging it as "the next store" would replace every collection
+    // it merely touched with a fragment of itself, so the replay walks the
+    // intent's own branches against what the authority already holds.
+    mergeIntentOnto(rebased as unknown as Record<string, unknown>, intent);
+    try {
+      const revision = await getBridge().flashcards.saveFlashcards(rebased, removals, resetReviewProgress, authorization);
+      // The main process owns the revision it accepted; mirror it so this
+      // window writes against what is durable rather than what it sent.
+      const committed = cloneFlashcardStore(rebased);
+      committed.rev = typeof revision === 'number' ? revision : (rebased.rev ?? 0) + 1;
+      authoritativeStore = cloneFlashcardStore(committed);
+      return committed;
+    } catch (retryError) {
+      // The retry can be refused too - another window can commit between the
+      // read and the write, and the store is large enough that this is not
+      // hypothetical. Handled here rather than allowed to escape: the caller
+      // is already holding the original refusal and reports that, and a
+      // rejection escaping this call would reach the window's write queue as
+      // an error with nothing waiting on it.
+      log.warn('Rebased flashcard write was refused too:', retryError);
+      return null;
+    }
+  };
+
+  /**
+   * Immediate acknowledged save (used by debounced persistence and commands
+   * whose visible result depends on the durable scheduler state).
+   *
+   * `transform` is applied to the current store when this write reaches the
+   * local queue. It is also handed the record of what it decided - the keys it
+   * changed and their new values - because a write can be refused and has to
+   * be replayed onto whatever the store holds at that later moment. Every other
+   * window holds the same provider over the same whole-snapshot store, so two of
+   * them writing at once is ordinary rather than exceptional, and the loser's
+   * write used to be dropped with nothing retrying it.
+   *
+   * The decision has to be stated where it is made. A caller restoring a known
+   * card state may leave both snapshots it could be diffed between unchanged,
+   * and an inferred decision would come back empty - turning the refusal into a
+   * re-write of the very snapshot that was just rejected, erasing whatever the
+   * other window committed in between.
+   */
   const saveFlashcardsImmediate = async (
-    transform?: (target: FlashcardStore) => void,
+    transform?: (target: FlashcardStore, intent: Record<string, unknown>) => void,
     authorization?: FlashcardWriteAuthorization,
   ): Promise<boolean> => {
     const write = persistenceQueue.then(async () => {
       const base = cloneFlashcardStore(unwrap(store) as FlashcardStore);
       const candidate = cloneFlashcardStore(base);
-      transform?.(candidate);
+      const composedOverRebase = storeSupersededByRebase;
+      // What this window decided, as a delta. See `saveFlashcardsImmediate`.
+      const intent: Record<string, unknown> = {};
+      transform?.(candidate, intent);
       const removals = [...pendingCardRemovals];
       const resetReviewProgress = pendingReviewReset;
       let committedRevision: number;
       try {
         if (isElectron()) {
           const revision = await getBridge().flashcards.saveFlashcards(candidate, removals, resetReviewProgress, authorization);
+          // A bridge that acknowledges without reporting a revision leaves the
+          // store carrying the one it was written under; the durable revision
+          // is whatever the authority stamped, one past that.
           committedRevision = typeof revision === 'number' ? revision : (candidate.rev ?? 0) + 1;
-          for (const id of removals) pendingCardRemovals.delete(id);
-          if (resetReviewProgress) pendingReviewReset = false;
         } else {
           committedRevision = (candidate.rev ?? 0) + 1;
           candidate.rev = committedRevision;
           await getBridge().kvStore.kvSet('mlearn-flashcards', JSON.stringify(candidate));
         }
       } catch (error) {
+        // A refusal here means another window committed first: the write
+        // carried a revision the authority has already moved past, while the
+        // decision itself is still perfectly good. Rebase it onto the store
+        // the authority left behind and write again, so the learner's action
+        // survives instead of being dropped with nothing retrying it. Only a
+        // write carrying the current revision can succeed, so this settles
+        // rather than spinning.
+        //
+        // A write that failed for any other reason - a full disk, a torn file,
+        // an interrupted process - did not happen, and re-reading the
+        // authority cannot change that. Those are reported, not retried.
+        if (isStaleFlashcardRevision(error)) {
+          // What this window renders afterwards is the store that was actually
+          // written - the authority's, with this decision replayed onto it -
+          // not the pre-refusal snapshot. Rebuilding from that snapshot would
+          // drop the other window's committed state from the view while the
+          // file held it, so the next probe would undo the render again.
+          const rebased = await rebaseOntoAuthority(intent, removals, resetReviewProgress, authorization);
+          if (rebased) {
+            setStore(reconcile(rebased));
+            // The rendered store now IS what the authority holds, so a write
+            // queued behind this one composes over it rather than over the
+            // snapshot the authority has already refused.
+            storeSupersededByRebase = false;
+            refreshQueue();
+            for (const id of removals) pendingCardRemovals.delete(id);
+            if (resetReviewProgress) pendingReviewReset = false;
+            try {
+              broadcastChannel?.postMessage({ type: 'update', store: rebased });
+            } catch (broadcastError) {
+              log.error('Failed to broadcast flashcard update:', broadcastError);
+            }
+            return true;
+          }
+        }
+        authorityRequest = null;
         log.error('Failed to persist flashcards:', error);
         return false;
       }
       candidate.rev = committedRevision;
+      for (const id of removals) pendingCardRemovals.delete(id);
+      if (resetReviewProgress) pendingReviewReset = false;
 
       if ((authoritativeStore?.rev ?? base.rev ?? 0) <= committedRevision) {
         authoritativeStore = cloneFlashcardStore(candidate);
         batch(() => setStore(produce((current) => {
+          // A write composed over a rebased store still diffs against what was
+          // on screen when it was composed, so the view keeps the authority's
+          // cards and gains this window's decision on top of them.
+          if (composedOverRebase) {
+            mergeIntentOnto(current as unknown as Record<string, unknown>, intent);
+            return;
+          }
           applyStoreDelta(current as unknown as Record<string, unknown>, base as unknown as Record<string, unknown>, candidate as unknown as Record<string, unknown>);
         })));
       }
+      storeSupersededByRebase = false;
 
       try {
         broadcastChannel?.postMessage({ type: 'update', store: candidate });
@@ -1207,17 +1469,22 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         return await finishReviewRetraction(pendingUndo, entry);
       }
 
-      const base = cloneFlashcardStore(unwrap(store) as FlashcardStore);
-      const candidate = cloneFlashcardStore(base);
-      if (entry?.cardId && entry.restoreCard) {
-        candidate.flashcards[entry.cardId] = { ...entry.restoreCard, content: { ...entry.restoreCard.content } };
-      }
-      if (!await saveFlashcardsImmediate((target) => {
-        applyStoreDelta(
-          target as unknown as Record<string, unknown>,
-          base as unknown as Record<string, unknown>,
-          candidate as unknown as Record<string, unknown>,
-        );
+      // `restoreCard` was captured out of the live store, so it is a proxy: a
+      // shallow copy leaves its nested branches proxy-backed, and the write
+      // boundary cannot serialize one. The decision crosses the bridge, so it
+      // is detached into plain data on the way in.
+      const restoreId = entry?.cardId ?? null;
+      const restoreCard = entry?.restoreCard
+        ? JSON.parse(JSON.stringify(entry.restoreCard)) as Flashcard
+        : null;
+      if (!await saveFlashcardsImmediate((target, intent) => {
+        if (!restoreId || !restoreCard) return;
+        const plain = JSON.parse(JSON.stringify(restoreCard)) as Flashcard;
+        target.flashcards[restoreId] = plain;
+        // The decision is this one card restored, not a rewritten store: the
+        // record to replay says so, so a refusal can put the card back on top
+        // of what another window committed instead of replacing it.
+        intent.flashcards = { [restoreId]: plain };
       }, entry?.reviewUndoAuthorization)) {
         throw new Error('undo persistence was refused');
       }
@@ -3498,12 +3765,17 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
 
       if (schedulerResult) {
-        if (!await saveFlashcardsImmediate((target) => {
+        if (!await saveFlashcardsImmediate((target, intent) => {
           if (scheduler && JSON.stringify(target.flashcards[scheduler.cardId]) !== JSON.stringify(commandBase.flashcards[scheduler.cardId])) {
             throw new Error('Flashcard changed while the rating was being persisted');
           }
           applyStoreDelta(
             target as unknown as Record<string, unknown>,
+            commandBase as unknown as Record<string, unknown>,
+            candidate as unknown as Record<string, unknown>,
+          );
+          recordStoreDelta(
+            intent,
             commandBase as unknown as Record<string, unknown>,
             candidate as unknown as Record<string, unknown>,
           );
@@ -3646,12 +3918,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * not happen rather than letting them believe it landed.
    */
   const recordPendingRetraction = async (record: PendingRetraction): Promise<boolean> =>
-    saveFlashcardsImmediate((target) => {
+    saveFlashcardsImmediate((target, intent) => {
       const existing = readPendingRetraction(target.pendingRetraction);
       if (existing && existing.attemptId !== record.attemptId) {
         throw new Error('A different Undo is already awaiting recovery');
       }
-      target.pendingRetraction = clonePendingRetraction(record);
+      const recorded = clonePendingRetraction(record);
+      target.pendingRetraction = recorded;
+      intent.pendingRetraction = JSON.parse(JSON.stringify(recorded)) as unknown;
     });
 
   /**
@@ -3690,7 +3964,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // that reads the replayed evidence before the retraction would restore
     // state that still counts the attempt being taken back.
     const project = build ? await build(durable) : undefined;
-    if (!await saveFlashcardsImmediate((target) => {
+    if (!await saveFlashcardsImmediate((target, intent) => {
       const current = readPendingRetraction(target.pendingRetraction);
       if (!current || current.attemptId !== record.attemptId) {
         throw new Error('The pending Undo changed before it could be completed');
@@ -3705,6 +3979,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       // saw one", and any other window's ordinary save would be free to delete
       // a record the learner is relying on.
       target.retractionCompleted = record.attemptId;
+      // What to replay onto whatever the store holds if this write is refused:
+      // the restored projection, the cleared record, and the marker that keeps
+      // any other window's save from deleting it again.
+      recordStoreDelta(
+        intent,
+        cloneFlashcardStore(unwrap(store) as FlashcardStore) as unknown as Record<string, unknown>,
+        target as unknown as Record<string, unknown>,
+      );
     }, project?.authorization)) {
       return 'store-refused';
     }
@@ -4846,6 +5128,11 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   });
 
   onCleanup(() => {
+    // Call off a rebase before anything else: the flush below can itself be
+    // refused and rebase, and a window that is going away must not come back
+    // for a second write.
+    disposed = true;
+    authorityRequest = null;
     // Apply coalesced passive-seen rows FIRST so the immediate save below
     // (and the debounced save it flushes) includes them.
     flushPendingSeen();

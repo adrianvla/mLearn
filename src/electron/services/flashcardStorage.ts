@@ -10,6 +10,7 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable, buildLexemeIndex, buildWordFrequencyMapFromLanguageData, getFrequencyForLexeme, resolveLanguageFrequencyPayload } from '../../shared/languageFeatures';
 import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
 import { readPendingRetraction, readRetractionCompletionClaim } from '../../shared/retractionRecovery';
+import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevision';
 import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { calculateWordStats } from '../../shared/utils/wordStats';
@@ -831,7 +832,7 @@ export async function saveFlashcards(store: FlashcardStore, removedCardIds: read
     }
     const expectedRevision = store.rev ?? 0;
     if (expectedRevision !== currentRevision) {
-      throw new Error(`Stale flashcard store revision: expected ${currentRevision}, received ${expectedRevision}`);
+      throw new Error(staleFlashcardRevisionMessage(currentRevision, expectedRevision));
     }
 
     // A decided-but-unfinished Undo must not be undone by an unrelated write.
