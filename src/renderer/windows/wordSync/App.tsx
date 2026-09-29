@@ -47,6 +47,7 @@ import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter } from '../../learning/engine';
 import { studySessionState } from '../../learning/studySession';
+import { RatingWriteStatus } from './RatingWriteStatus';
 import { createStudySessionController, inProcessStudySessionLocks, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
 import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
@@ -99,7 +100,6 @@ interface RatingWrite {
   observations: readonly ProfileObservation[];
   timing: AttemptTiming | null;
   scaffolds: AttemptScaffolds;
-  phase: 'pending' | 'failed';
 }
 
 interface WordSyncUndoEntry {
@@ -662,7 +662,6 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       observations: pending.payload.observations,
       timing: pending.payload.timing,
       scaffolds: pending.payload.scaffolds,
-      phase: pending.state,
     });
   }));
 
@@ -1468,18 +1467,11 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
               <p class="word-sync-assessment-card__prompt" data-word={word().word}>
                 {t('mlearn.LevelStudy.Placement.Prompt', { word: word().word })}
               </p>
-              <Show when={ratingWrite()?.phase === 'pending'}>
-                <div role="status" aria-live="polite">{t('mlearn.WordSync.SavingRating')}</div>
-              </Show>
-              <Show when={ratingWrite()?.phase === 'failed'}>
-                <div role="alert">
-                  <span>{t('mlearn.WordSync.SaveFailed')}</span>
-                  <Button variant="primary" size="sm" onClick={() => {
-                    const failed = ratingWrite();
-                    if (failed?.phase === 'failed') void commitProfileRating(failed);
-                  }}>{t('mlearn.Global.TryAgain')}</Button>
-                </div>
-              </Show>
+              <RatingWriteStatus
+                presentation={sessionPresentation()}
+                retry={ratingWrite()}
+                onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
+              />
               <RatingMatrix
                 capabilities={testedAccesses()}
                 capabilityLabels={{}}
@@ -1583,18 +1575,13 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           )}
         </Show>
         <div class="word-sync-actions">
-          <Show when={ratingWrite()?.phase === 'pending'}>
-            <div class="word-sync-rating-write" role="status" aria-live="polite">{t('mlearn.WordSync.SavingRating')}</div>
-          </Show>
-          <Show when={ratingWrite()?.phase === 'failed'}>
-            <div class="word-sync-rating-write word-sync-rating-write--failed" role="alert">
-              <span>{t('mlearn.WordSync.SaveFailed')}</span>
-              <Button variant="primary" size="sm" onClick={() => {
-                const failed = ratingWrite();
-                if (failed?.phase === 'failed') void commitProfileRating(failed);
-              }}>{t('mlearn.Global.TryAgain')}</Button>
-            </div>
-          </Show>
+          <RatingWriteStatus
+            presentation={sessionPresentation()}
+            retry={ratingWrite()}
+            onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
+            class="word-sync-rating-write"
+            failedClass="word-sync-rating-write--failed"
+          />
           <RatingMatrix
             capabilities={testedAccesses()}
             capabilityLabels={Object.fromEntries(testedAccesses().map((capability) => {
