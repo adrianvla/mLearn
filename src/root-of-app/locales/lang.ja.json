@@ -1068,6 +1068,7 @@
         },
         "DeleteCard": {
           "Confirm": "このフラッシュカードを削除してもよろしいですか？この操作は取り消せません。",
+          "ConfirmMany": "選択したフラッシュカード {count} 枚を削除してもよろしいですか？この操作は取り消せません。",
           "Title": "フラッシュカードを削除"
         },
         "EditCard": {
@@ -1246,6 +1247,7 @@
         "UseTTS": "音声を生成",
         "PromoteSelected": "選択を昇格",
         "DeleteSelected": "選択を削除",
+        "DeleteSelectedConfirm": "選択した候補 {count} 件を削除しますか？ 取得元の文とともに破棄されます。",
         "Promote": "昇格",
         "Delete": "削除",
         "Promoting": "{current}/{total} を生成中…",

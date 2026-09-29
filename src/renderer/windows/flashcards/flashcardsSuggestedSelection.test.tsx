@@ -82,7 +82,14 @@ vi.mock('../../context', () => ({
   }),
 }));
 
-vi.mock('../../components/common', () => {
+vi.mock('../../components/common/Modal', async () => {
+  const actual = await vi.importActual<typeof import('../../components/common/Modal/ConfirmDialog')>(
+    '../../components/common/Modal/ConfirmDialog',
+  );
+  return { useConfirmDialog: actual.useConfirmDialog, ConfirmDialog: actual.ConfirmDialog };
+});
+
+vi.mock('../../components/common', async () => {
   // Renders children without imposing a shape the real component must match.
   const passthrough = () => {
     const C: Component<Record<string, unknown>> = (props) =>
@@ -104,7 +111,9 @@ vi.mock('../../components/common', () => {
       </button>
     </div>
   );
+  const modal = await vi.importActual<typeof import('../../components/common/Modal')>('../../components/common/Modal');
   return {
+    useConfirmDialog: modal.useConfirmDialog,
     Button,
     SelectableCard,
     Input: passthrough,
@@ -195,6 +204,55 @@ describe('Suggested bulk selection survives a refused promotion', () => {
 
     expect(flashcards.promoteSuggestedFlashcards).toHaveBeenCalledOnce();
     // The rows are all still listed, so the selection must be too.
+    expect(selectedCount(container)).toBe('2 selected');
+  });
+
+  it('asks before removing a hand-built selection, and removes nothing until confirmed', async () => {
+    // A bulk delete of a selection the learner built by hand is destructive
+    // and, in the product, is not undoable — every other removal in this
+    // window asks first. Observed in the running app: selecting all 30
+    // suggestions and pressing Delete removed all 30 with no dialog at all.
+    flashcards.removeSuggestedFlashcards.mockClear();
+    render(() => <FlashcardsSuggested />, container);
+    await flush();
+
+    clickKey(container, 'Suggested.SelectAll');
+    await flush();
+    expect(selectedCount(container)).toBe('2 selected');
+
+    clickKey(container, 'Suggested.DeleteSelected');
+    await flush();
+
+    // The removal must NOT have happened yet: a confirm stands in front of it.
+    expect(flashcards.removeSuggestedFlashcards).not.toHaveBeenCalled();
+    const confirmButton = Array.from(document.querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').trim() === 'mlearn.Global.Delete');
+    expect(confirmButton, 'no confirmation was put in front of the bulk delete').toBeTruthy();
+
+    confirmButton!.click();
+    await flush();
+
+    expect(flashcards.removeSuggestedFlashcards).toHaveBeenCalledOnce();
+    expect(flashcards.removeSuggestedFlashcards.mock.calls[0][0].sort()).toEqual(['a', 'b']);
+  });
+
+  it('cancelling the confirmation removes nothing and keeps the selection', async () => {
+    flashcards.removeSuggestedFlashcards.mockClear();
+    render(() => <FlashcardsSuggested />, container);
+    await flush();
+
+    clickKey(container, 'Suggested.SelectAll');
+    await flush();
+    clickKey(container, 'Suggested.DeleteSelected');
+    await flush();
+
+    const cancelButton = Array.from(document.querySelectorAll('button'))
+      .find((b) => (b.textContent ?? '').trim() === 'mlearn.Global.Cancel');
+    expect(cancelButton, 'the confirmation offered no way out').toBeTruthy();
+    cancelButton!.click();
+    await flush();
+
+    expect(flashcards.removeSuggestedFlashcards).not.toHaveBeenCalled();
     expect(selectedCount(container)).toBe('2 selected');
   });
 

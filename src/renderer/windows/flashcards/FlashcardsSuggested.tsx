@@ -9,13 +9,14 @@
  */
 
 import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
-import { Button, Input, Select, EmptyState, PillLabel, ProgressBar, ToggleSwitch, SparklesIcon, SearchIcon, TrashIcon, PlusIcon, CheckIcon, EyeOffIcon, Tooltip, SelectableCard, CollapsibleStickyHeader, FilterBuilder, buildEmptyPreset, buildSuggestedFlashcardFields, validateTokens, parseTokens, evaluateAst, type FilterToken, type FieldConfig, type PaletteItem, type FieldResolver, type ExprNode, type ValidationError, ImageIcon, SkeletonCard } from '../../components/common';
+import { Button, Input, Select, EmptyState, useConfirmDialog, PillLabel, ProgressBar, ToggleSwitch, SparklesIcon, SearchIcon, TrashIcon, PlusIcon, CheckIcon, EyeOffIcon, Tooltip, SelectableCard, CollapsibleStickyHeader, FilterBuilder, buildEmptyPreset, buildSuggestedFlashcardFields, validateTokens, parseTokens, evaluateAst, type FilterToken, type FieldConfig, type PaletteItem, type FieldResolver, type ExprNode, type ValidationError, ImageIcon, SkeletonCard } from '../../components/common';
 import { WordStatusPill } from '../../components/common/Smart';
 import { FlashcardWordTitle } from '../../components/flashcard';
 import { useFlashcards, useLocalization, useLanguage, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { cacheVersion, getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
 import { useItemSelection } from '../../hooks/useItemSelection';
+import { buildDestructiveConfirmOptions, requiresDestructiveConfirmation } from './bulkDestructiveConfirm';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
@@ -61,6 +62,7 @@ export const FlashcardsSuggested: Component = () => {
   const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples);
   const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const [garbageCollecting, setGarbageCollecting] = createSignal(true);
   const wordLookupOptionsForLanguage = (language: string) => buildSuggestedWordLookupOptions(settings, language, langCtx, langCtx.languageDataCatalog);
   const languageDataFor = (language: string) => (
@@ -368,8 +370,23 @@ export const FlashcardsSuggested: Component = () => {
     }
   };
 
-  const removeSelected = () => {
+  /**
+   * Bulk removal of a selection the learner built by hand. Removing a
+   * suggestion discards the sentences it was captured from, and nothing here
+   * can put it back, so the removal asks first — the same way the single-card
+   * row action does. This used to fire straight from the button: selecting all
+   * 30 suggestions in the running app and pressing Delete removed all 30 with
+   * no dialog, while the Browse window's own bulk delete asked.
+   */
+  const removeSelected = async () => {
     const ids = Array.from(selected());
+    if (!requiresDestructiveConfirmation(ids.length)) return;
+    const confirmed = await showConfirm(buildDestructiveConfirmOptions({
+      count: ids.length,
+      titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
+      messageKey: 'mlearn.Flashcards.Suggested.DeleteSelectedConfirm',
+    }, t));
+    if (!confirmed) return;
     removeSuggestedFlashcards(ids);
     clearSelection();
     showToast({ message: t('mlearn.Flashcards.Suggested.Removed', { count: String(ids.length) }), variant: 'info' });
@@ -717,6 +734,7 @@ export const FlashcardsSuggested: Component = () => {
         </div>
       </Show>
       </Show>
+      <ConfirmDialogElement />
     </div>
   );
 };

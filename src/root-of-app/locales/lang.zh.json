@@ -1068,6 +1068,7 @@
         },
         "DeleteCard": {
           "Confirm": "确定要删除此闪卡吗？此操作无法撤销。",
+          "ConfirmMany": "确定要删除所选的 {count} 张闪卡吗？此操作无法撤销。",
           "Title": "删除闪卡"
         },
         "EditCard": {
@@ -1246,6 +1247,7 @@
         "UseTTS": "生成音频",
         "PromoteSelected": "升级所选",
         "DeleteSelected": "删除所选",
+        "DeleteSelectedConfirm": "删除所选的 {count} 条推荐？它们将连同捕获它们的句子一起被丢弃。",
         "Promote": "升级",
         "Delete": "删除",
         "Promoting": "正在生成 {current}/{total}…",

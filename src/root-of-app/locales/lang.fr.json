@@ -1068,6 +1068,7 @@
         },
         "DeleteCard": {
           "Confirm": "Êtes-vous sûr de vouloir supprimer cette carte mémoire ? Cette action est irréversible.",
+          "ConfirmMany": "Supprimer {count} carte(s) mémoire sélectionnée(s) ? Cette action est irréversible.",
           "Title": "Supprimer la carte mémoire"
         },
         "EditCard": {
@@ -1246,6 +1247,7 @@
         "UseTTS": "Générer l'audio",
         "PromoteSelected": "Promouvoir la sélection",
         "DeleteSelected": "Supprimer la sélection",
+        "DeleteSelectedConfirm": "Supprimer {count} suggestion(s) sélectionnée(s) ? Elles seront abandonnées avec les phrases dont elles ont été extraites.",
         "Promote": "Promouvoir",
         "Delete": "Supprimer",
         "Promoting": "Génération {current}/{total}…",

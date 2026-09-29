@@ -1,4 +1,5 @@
 import { FlashcardCreateModal } from '../../components/flashcard/FlashcardCreateModal';
+import { buildDestructiveConfirmOptions, requiresDestructiveConfirmation } from './bulkDestructiveConfirm';
 import { FlashcardInspectButton } from '../../components/flashcard/FlashcardInspectButton';
 import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGate';
 /**
@@ -11,7 +12,7 @@ import { Component, Show, For, createSignal, createMemo, createEffect, on, onCle
 import { WindowWrapper, useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle, OtherLanguageDueHint } from '../../components/flashcard';
-import { Button, Modal, Input, Badge, EmptyState, SearchIcon, TabContainer, Select, EditIcon, BookIcon, BarChartIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
+import { Button, Modal, Input, Badge, useConfirmDialog, EmptyState, SearchIcon, TabContainer, Select, EditIcon, BookIcon, BarChartIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
 import { getLanguageDisplayName, stripHtmlForTts } from '../../../shared/utils/textUtils';
 import { getBridge } from '../../../shared/bridges';
@@ -94,6 +95,7 @@ export const FlashcardsContent: Component = () => {
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const [showAddModal, setShowAddModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
   const [showSyncModal, setShowSyncModal] = createSignal(false);
@@ -521,9 +523,23 @@ export const FlashcardsContent: Component = () => {
     else selection.select(ids);
   };
 
+  /**
+   * Bulk removal of a hand-built selection. Deleting a card destroys the
+   * sentences and audio it was built from and there is no undo for it, so the
+   * bar asks first — the same way the single-row Delete does two buttons
+   * further down. This used to fire straight from the button: selecting all
+   * 449 cards in the running app and pressing Delete removed all 449 with no
+   * dialog, while the row action next to it asked.
+   */
   const handleBulkDelete = async () => {
     const ids = Array.from(selected());
-    if (ids.length === 0) return;
+    if (!requiresDestructiveConfirmation(ids.length)) return;
+    const confirmed = await showConfirm(buildDestructiveConfirmOptions({
+      count: ids.length,
+      titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
+      messageKey: 'mlearn.Flashcards.Modals.DeleteCard.ConfirmMany',
+    }, t));
+    if (!confirmed) return;
 
     // The selection is narrowed, not cleared: a removal that did not land is
     // still the learner's to retry and its row is still on screen, so sweeping
@@ -1234,6 +1250,7 @@ export const FlashcardsContent: Component = () => {
           <p role="alert">{t('mlearn.CardEditor.NoCloudAuth')}</p>
         </Show>
       </Modal>
+      <ConfirmDialogElement />
     </div>
   );
 };

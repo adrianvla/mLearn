@@ -1068,6 +1068,7 @@
         },
         "DeleteCard": {
           "Confirm": "Möchten Sie diese Lernkarte wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
+          "ConfirmMany": "{count} ausgewählte Lernkarte(n) löschen? Dies kann nicht rückgängig gemacht werden.",
           "Title": "Lernkarte löschen"
         },
         "EditCard": {
@@ -1246,6 +1247,7 @@
         "UseTTS": "Audio generieren",
         "PromoteSelected": "Ausgewählte befördern",
         "DeleteSelected": "Ausgewählte löschen",
+        "DeleteSelectedConfirm": "{count} ausgewählte Vorschlag/Vorschläge löschen? Sie werden zusammen mit den Sätzen verworfen, aus denen sie erfasst wurden.",
         "Promote": "Befördern",
         "Delete": "Löschen",
         "Promoting": "Erzeuge {current}/{total}…",
