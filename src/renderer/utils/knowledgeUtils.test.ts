@@ -1,226 +1,100 @@
 import { describe, it, expect } from 'vitest';
-import { buildKnownWordSet, isWordKnown, buildKnownWordSetFromStore } from './knowledgeUtils';
-import type { Flashcard, FlashcardStore, PassiveWordKnowledge, IgnoredWordEntry } from '../../shared/types';
+import { buildKnownWordSet, buildKnownWordSetFromStore, buildTrackedWordSet } from './knowledgeUtils';
+import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
+import type { FlashcardStore, PassiveWordKnowledge } from '../../shared/types';
 
-function makeCard(overrides?: Partial<Flashcard>): Flashcard {
-  const now = Date.now();
-  return {
-    id: 'c1',
-    content: { type: 'word', front: 'テスト', back: 'test' },
-    state: 'new',
-    ease: 2.5,
-    interval: 0,
-    dueDate: now,
-    reviews: 0,
-    lapses: 0,
-    learningStep: 0,
-    createdAt: now,
-    lastReviewed: now,
-    lastUpdated: now,
-    language: 'ja',
-    ...overrides,
-  };
-}
+const thresholds = effectiveThresholds();
+// The band the production caller uses, raised so the test distinguishes
+// "classified at the configured threshold" from "classified at the default".
+const strict = effectiveThresholds({ easeThresholdKnown: 4.0, easeThresholdLearning: 3.0 });
 
-describe('buildKnownWordSet', () => {
-  it('lets a current unknown claim override a legacy known marker', () => {
-    const wordKnowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h1': { word: 'entry', language: 'ja', ease: 4.5, claim: 'unknown', lastSeen: 1, timesSeen: 0, timesHovered: 0, hasActiveEvidence: true },
-    };
-    const known = buildKnownWordSet({}, {}, { 'ja:h1': true, 'ja:false': false }, {}, wordKnowledge, 4000);
-    expect(known.has('ja:h1')).toBe(false);
-    expect(known.has('ja:false')).toBe(false);
-  });
-
-  it('does not treat unmigrated legacy residue as evidence', () => {
-    const set = buildKnownWordSet(
-      {}, {}, { 'ja:h1': true }, {}, {}, 4000
-    );
-    expect(set.has('ja:h1')).toBe(false);
-  });
-
-  it('excludes ignoredWords: exclusion is teaching policy, not knowledge', () => {
-    const ignored: Record<string, IgnoredWordEntry> = {
-      'ja:h2': { word: '猫', language: 'ja', ignoredAt: Date.now() },
-    };
-    const set = buildKnownWordSet({}, {}, {}, ignored, {}, 4000);
-    expect(set.has('ja:h2')).toBe(false);
-  });
-
-  it('review-state flashcards alone are NOT knowledge: the co-located wordKnowledge projection decides', () => {
-    const cards: Record<string, Flashcard> = {
-      'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
-    };
-    const set = buildKnownWordSet(cards, { 'ja:h3': ['fc-1'] }, {}, {}, {}, 4000);
-    expect(set.has('ja:h3')).toBe(false);
-  });
-
-  it('counts review-state words when the co-located entry has active evidence at/above threshold', () => {
-    const cards: Record<string, Flashcard> = {
-      'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
-    };
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 10, timesHovered: 0, word: '猫', language: 'ja', hasActiveEvidence: true },
-    };
-    const set = buildKnownWordSet(cards, { 'ja:h3': ['fc-1'] }, {}, {}, knowledge, 4000);
-    expect(set.has('ja:h3')).toBe(true);
-  });
-
-  it('excludes review-state words whose ease is below threshold even with active evidence', () => {
-    const cards: Record<string, Flashcard> = {
-      'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
-    };
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h3': { ease: 3.0, lastSeen: Date.now(), timesSeen: 10, timesHovered: 0, word: '猫', language: 'ja', hasActiveEvidence: true },
-    };
-    const set = buildKnownWordSet(cards, { 'ja:h3': ['fc-1'] }, {}, {}, knowledge, 4000);
-    expect(set.has('ja:h3')).toBe(false);
-  });
-
-  it('excludes words with non-review flashcards', () => {
-    const cards: Record<string, Flashcard> = {
-      'fc-1': makeCard({ id: 'fc-1', state: 'learning' }),
-    };
-    const set = buildKnownWordSet(cards, { 'ja:h4': ['fc-1'] }, {}, {}, {}, 4000);
-    expect(set.has('ja:h4')).toBe(false);
-  });
-
-  it('passive-only ease never reaches Known; active evidence at/above threshold does (projection parity)', () => {
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h5': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '犬', language: 'ja' },
-      'ja:h5b': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '猫', language: 'ja', hasActiveEvidence: true },
-    };
-    const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
-    expect(set.has('ja:h5')).toBe(false);
-    expect(set.has('ja:h5b')).toBe(true);
-  });
-
-  it('accepts an explicit claim === known regardless of ease', () => {
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h7': { ease: 1.2, lastSeen: Date.now(), timesSeen: 3, timesHovered: 0, word: '空', language: 'ja', claim: 'known', claimAt: Date.now() },
-    };
-    const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
-    expect(set.has('ja:h7')).toBe(true);
-  });
-
-  it('an active claim of learning/unknown keeps the word out even with high ease', () => {
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h7': { ease: 4.5, lastSeen: Date.now(), timesSeen: 3, timesHovered: 0, word: '空', language: 'ja', claim: 'learning', claimAt: Date.now(), hasActiveEvidence: true },
-    };
-    const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
-    expect(set.has('ja:h7')).toBe(false);
-  });
-
-  it('excludes words with low passive knowledge ease even with active evidence', () => {
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h6': { ease: 2.0, lastSeen: Date.now(), timesSeen: 5, timesHovered: 10, word: '難', language: 'ja', hasActiveEvidence: true },
-    };
-    const set = buildKnownWordSet({}, {}, {}, {}, knowledge, 4000);
-    expect(set.has('ja:h6')).toBe(false);
-  });
-
-  it('combines all sources', () => {
-    const cards: Record<string, Flashcard> = {
-      'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
-    };
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h7': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '鳥', language: 'ja', hasActiveEvidence: true },
-      'ja:h8': { ease: 1.5, lastSeen: Date.now(), timesSeen: 10, timesHovered: 0, word: '山', language: 'ja', claim: 'known', claimAt: Date.now() },
-    };
-    const set = buildKnownWordSet(
-      cards,
-      { 'ja:h7': ['fc-1'] },
-      { 'ja:h9': true },
-      {},
-      knowledge,
-      4000
-    );
-    expect(set.has('ja:h7')).toBe(true);
-    expect(set.has('ja:h8')).toBe(true);
-    expect(set.has('ja:h9')).toBe(false);
-    expect(set.size).toBe(2);
-  });
+const entry = (overrides: Partial<PassiveWordKnowledge> = {}): PassiveWordKnowledge => ({
+  word: 'x', language: 'ja', ease: 1.3, lastSeen: 1, timesSeen: 0, timesHovered: 0, ...overrides,
 });
 
-describe('isWordKnown', () => {
-  it('returns true for words in the Set', () => {
-    const set = new Set(['ja:h1']);
-    expect(isWordKnown('ja:h1', set, {}, 4000)).toBe(true);
+describe('buildKnownWordSet', () => {
+  it('counts an entry with active evidence at the known threshold', () => {
+    const knowledge = { 'ja:h1': entry({ ease: 2.0, timesSeen: 3, hasActiveEvidence: true }) };
+    expect(buildKnownWordSet(knowledge, thresholds).has('ja:h1')).toBe(true);
   });
 
-  it('returns false for words not in the Set with no knowledge', () => {
-    const set = new Set<string>();
-    expect(isWordKnown('ja:h2', set, {}, 4000)).toBe(false);
+  it('never counts passive-only exposure however high the ease', () => {
+    // The honesty rule: familiarity is not demonstration.
+    const knowledge = { 'ja:h1': entry({ ease: 5, timesSeen: 50 }) };
+    expect(buildKnownWordSet(knowledge, thresholds).has('ja:h1')).toBe(false);
   });
 
-  it('falls back to wordKnowledge when not in Set: active evidence at/above threshold', () => {
-    const set = new Set<string>();
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '魚', language: 'ja', hasActiveEvidence: true },
-    };
-    expect(isWordKnown('ja:h3', set, knowledge, 4000)).toBe(true);
+  it('accepts an explicit known claim at any ease', () => {
+    const knowledge = { 'ja:h1': entry({ ease: 1.3, claim: 'known', claimAt: 5 }) };
+    expect(buildKnownWordSet(knowledge, thresholds).has('ja:h1')).toBe(true);
   });
 
-  it('fallback rejects passive-only high ease', () => {
-    const set = new Set<string>();
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '魚', language: 'ja' },
-    };
-    expect(isWordKnown('ja:h3', set, knowledge, 4000)).toBe(false);
+  it('lets a current unknown claim override high evidence', () => {
+    const knowledge = { 'ja:h1': entry({ ease: 4.5, claim: 'unknown', claimAt: 5, hasActiveEvidence: true }) };
+    expect(buildKnownWordSet(knowledge, thresholds).has('ja:h1')).toBe(false);
   });
 
-  it('fallback accepts an explicit known claim at any ease', () => {
-    const set = new Set<string>();
-    const knowledge: Record<string, PassiveWordKnowledge> = {
-      'ja:h3': { ease: 1.0, lastSeen: Date.now(), timesSeen: 2, timesHovered: 0, word: '魚', language: 'ja', claim: 'known', claimAt: Date.now() },
-    };
-    expect(isWordKnown('ja:h3', set, knowledge, 4000)).toBe(true);
+  it('classifies against the caller-supplied thresholds, not a hardcoded band', () => {
+    // This is the contract that replaced the `knownEaseThreshold / 1000`
+    // signature: the configured band decides, on the same scale the rest of
+    // the app uses.
+    const knowledge = { 'ja:h1': entry({ ease: 2.5, timesSeen: 4, hasActiveEvidence: true }) };
+    expect(buildKnownWordSet(knowledge, thresholds).has('ja:h1')).toBe(true);
+    expect(buildKnownWordSet(knowledge, strict).has('ja:h1')).toBe(false);
+  });
+
+  it('resolves the whole surface-form family through keysForEntry', () => {
+    const knowledge = { 'ja:h1': entry({ ease: 2.0, timesSeen: 3, hasActiveEvidence: true }) };
+    const set = buildKnownWordSet(knowledge, thresholds, () => ['ja:h1', 'ja:variant']);
+    expect(set.has('ja:h1')).toBe(true);
   });
 });
 
 describe('buildKnownWordSetFromStore', () => {
-  it('builds from full store', () => {
-    const store: FlashcardStore = {
-      flashcards: {
-        'fc-1': makeCard({ id: 'fc-1', state: 'review' }),
-      },
-      wordToCardMap: { 'ja:h1': ['fc-1'] },
-      wordStatsMap: {},
+  it('reads wordKnowledge and nothing else', () => {
+    const store = {
+      flashcards: { 'fc-1': {} },
+      wordToCardMap: { 'ja:h9': ['fc-1'] },
+      knownUntracked: { 'ja:h9': true },
+      ignoredWords: {},
       wordCandidates: {},
-      knownUntracked: { 'ja:h2': true },
-      ignoredWords: { 'ja:h10': { word: 'x', language: 'ja', ignoredAt: 1 } },
-      wordKnowledge: {
-        'ja:h1': { ease: 4.5, lastSeen: Date.now(), timesSeen: 10, timesHovered: 0, word: '花', language: 'ja', hasActiveEvidence: true },
-        'ja:h3': { ease: 4.5, lastSeen: Date.now(), timesSeen: 100, timesHovered: 0, word: '花', language: 'ja', hasActiveEvidence: true },
-      },
-      grammarKnowledge: {},
-      suggestedFlashcards: {},
-      meta: {
-        perLanguage: {},
-        newCardsToday: 0,
-        reviewsToday: 0,
-        newCardsDate: '',
-        maxNewCardsPerDay: 20,
-        maxNewCardsPerDayLearning: -1,
-        maxReviewsPerDay: -1,
-        learningSteps: [1, 10],
-        relearnSteps: [10],
-        graduatingInterval: 1,
-        easyInterval: 4,
-        newIntervalModifier: 100,
-        reviewIntervalModifier: 100,
-        maxInterval: 365,
-      },
-      dailyStats: {},
-      version: 6,
-    };
-
-    const set = buildKnownWordSetFromStore(store, 4000);
+      wordKnowledge: { 'ja:h1': entry({ ease: 2.0, timesSeen: 3, hasActiveEvidence: true }) },
+    } as unknown as FlashcardStore;
+    const set = buildKnownWordSetFromStore(store, thresholds);
     expect(set.has('ja:h1')).toBe(true);
-    expect(set.has('ja:h2')).toBe(false);
-    expect(set.has('ja:h3')).toBe(true);
-    // Ignored words are policy exclusions, not knowledge.
-    expect(set.has('ja:h10')).toBe(false);
-    expect(set.size).toBe(2);
+    // A card and a legacy known marker are not evidence.
+    expect(set.has('ja:h9')).toBe(false);
+  });
+});
+
+describe('buildTrackedWordSet', () => {
+  it('tracks every evidence, candidate and claim key for the language', () => {
+    const store = {
+      wordToCardMap: { 'ja:card': ['fc-1'], 'de:card': ['fc-2'] },
+      wordKnowledge: { 'ja:claim': entry({ claim: 'known', claimAt: 1 }), 'de:x': entry() },
+      wordCandidates: { 'ja:cand': { word: 'a', count: 1, language: 'ja' } },
+      ignoredWords: { 'ja:ignored': { word: 'b' } },
+
+    } as unknown as FlashcardStore;
+    const tracked = buildTrackedWordSet(store, 'ja');
+    expect([...tracked].sort()).toEqual(['ja:cand', 'ja:card', 'ja:claim', 'ja:ignored']);
+  });
+});
+
+describe('configured thresholds reach every consumer', () => {
+  // The old signature took `knownEaseThreshold / 1000` while hardcoding
+  // `learning: DEFAULT_SETTINGS.easeThresholdLearning`, and the callers
+  // multiplied by 1000 to compensate. That mixed two scales for one concept
+  // and let a caller pass 1.8 where 1800 was expected (silently classifying
+  // nothing as known). All consumers now take the same object.
+  const knowledge = { 'ja:h1': entry({ ease: 2.5, timesSeen: 4, hasActiveEvidence: true }) };
+  const store = { wordKnowledge: knowledge } as unknown as FlashcardStore;
+  const configured = effectiveThresholds({ easeThresholdKnown: 3.0, easeThresholdLearning: 2.0 });
+
+  it('buildKnownWordSet and buildKnownWordSetFromStore agree on the configured band', () => {
+    expect(buildKnownWordSet(knowledge, configured).has('ja:h1')).toBe(false);
+    expect(buildKnownWordSetFromStore(store, configured).has('ja:h1')).toBe(false);
+    expect(buildKnownWordSet(knowledge, thresholds).has('ja:h1')).toBe(true);
+    expect(buildKnownWordSetFromStore(store, thresholds).has('ja:h1')).toBe(true);
   });
 });

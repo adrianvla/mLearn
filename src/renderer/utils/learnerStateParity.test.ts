@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type FlashcardStore, type PassiveWordKnowledge } from '../../shared/types';
+import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import { getComprehensiveWordStatusWithSource } from './comprehensiveKnowledge';
 import { getAccessStatusSync } from './accessKnowledge';
@@ -12,6 +13,8 @@ const word = 'sample';
 const key = `xx:${hashWordSync(word)}`;
 const known = DEFAULT_SETTINGS.easeThresholdKnown;
 const learning = DEFAULT_SETTINGS.easeThresholdLearning;
+// The one configured threshold pair every consumer classifies against.
+const thresholds = effectiveThresholds({ easeThresholdKnown: known, easeThresholdLearning: learning });
 const entry = (fields: Partial<PassiveWordKnowledge> = {}): PassiveWordKnowledge => ({
   word, language: 'xx', ease: 1.3, timesSeen: 0, timesHovered: 0, lastSeen: 1, ...fields,
 });
@@ -31,13 +34,13 @@ function assertParity(data: FlashcardStore, expected: 'untracked' | 'unknown' | 
   const state = getComprehensiveWordStatusWithSource(word, deps(data));
   expect(getWordLevelStatus(state)).toBe(expected);
   expect(wordSyncPoolStatus(state.status, state.basis)).toBe({ untracked: 'untracked', unknown: '0', learning: '1', known: '2' }[expected]);
-  const [level] = computeLevelStats(data, frequency, 'xx', known * 1000, learning * 1000, levelNames);
+  const [level] = computeLevelStats(data, frequency, 'xx', thresholds, levelNames);
   expect(level[expected]).toBe(1);
   expect(level.known + level.learning + level.unknown + level.untracked).toBe(1);
-  const stats = computeWordLevelStats(data, frequency, 'xx', known * 1000, learning * 1000, levelNames);
+  const stats = computeWordLevelStats(data, frequency, 'xx', thresholds, levelNames);
   expect(stats.byLevel[0][expected]).toBe(1);
   expect(stats.allEncountered[expected]).toBe(1);
-  expect(buildKnownWordSetFromStore(data, known * 1000).has(key)).toBe(expected === 'known');
+  expect(buildKnownWordSetFromStore(data, thresholds).has(key)).toBe(expected === 'known');
   return state;
 }
 
@@ -104,7 +107,7 @@ describe('canonical learner state across consumers', () => {
       ...deps(data), getWordForms: () => [word, 'variant'],
     });
     expect(resolve(word).basis).toBe('evidence');
-    const [level] = computeLevelStats(data, frequency, 'xx', known * 1000, learning * 1000, levelNames,
+    const [level] = computeLevelStats(data, frequency, 'xx', thresholds, levelNames,
       undefined, undefined, resolve);
     expect(level.unknown).toBe(1);
     expect(wordSyncPoolStatus(resolve(word).status, resolve(word).basis)).toBe('0');

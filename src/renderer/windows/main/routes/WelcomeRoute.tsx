@@ -46,6 +46,7 @@ import { getLogger } from '../../../../shared/utils/logger';
 import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
 import { selectNextEncounter } from '../../../learning/engine';
 import { useDecisionPin } from '../../../hooks/useDecisionPin';
+import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 
 const log = getLogger("renderer.welcome");
 
@@ -448,8 +449,7 @@ export const WelcomeRoute: Component = () => {
       flashcards.store,
       source.freq,
       settings.language,
-      settings.easeThresholdKnown * 1000,
-      settings.easeThresholdLearning * 1000,
+      effectiveThresholds(settings),
       source.levelNames,
       source.langData,
       undefined,

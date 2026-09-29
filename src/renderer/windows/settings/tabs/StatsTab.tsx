@@ -15,6 +15,7 @@ import {
 } from '../../../services/statsService';
 import { computeWordLevelStats } from '../../../utils/wordLevelStats';
 import './StatsTab.css';
+import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
@@ -36,8 +37,7 @@ export const StatsTab: Component = () => {
       store,
       getWordFrequency(),
       settings.language,
-      settings.easeThresholdKnown * 1000,
-      settings.easeThresholdLearning * 1000,
+      effectiveThresholds(settings),
       getFreqLevelNames(),
       currentLangData(),
       undefined,

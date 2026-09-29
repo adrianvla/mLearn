@@ -22,6 +22,7 @@ import {
 import { hashWordSync } from '../services/srsAlgorithm';
 import { buildTrackedWordSet } from './knowledgeUtils';
 import { getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys, type ComprehensiveWordStatusResult } from './comprehensiveKnowledge';
+import type { EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 
 
 export { buildWordFrequencyMapFromLanguageData };
@@ -96,8 +97,7 @@ function buildStateSets(
   store: FlashcardStore,
   wordFrequency: WordFrequencyMap,
   language: string,
-  knownThreshold: number,
-  learningThreshold: number,
+  thresholds: EffectiveThresholds,
   canonicalizeWord?: CanonicalizeWordForLanguage,
   resolveState?: ResolveLearnerState,
 ) {
@@ -115,13 +115,13 @@ function buildStateSets(
   const resolve = resolveState ?? ((word: string) => getComprehensiveWordStatusWithSource(word, {
     getCanonicalForm: value => canonicalizeWord?.(language, value) ?? value,
     hashWordSync, langKey, language, wordKnowledge: store.wordKnowledge, ignoredWords: store.ignoredWords,
-    knownEaseThreshold: knownThreshold / 1000, learningThreshold: learningThreshold / 1000,
+    knownEaseThreshold: thresholds.known, learningThreshold: thresholds.learning,
   }));
   for (const key of buildTrackedWordSet(store, language)) {
     const word = store.wordKnowledge[key]?.word;
     add(key, resolveState
       ? (word ? resolve(word, language) : { status: 'unknown', basis: 'unmeasured' })
-      : getEffectiveWordStateForKeys([key], store.wordKnowledge, { known: knownThreshold / 1000, learning: learningThreshold / 1000 }));
+      : getEffectiveWordStateForKeys([key], store.wordKnowledge, thresholds));
   }
   for (const word of Object.keys(wordFrequency)) add(wordKey(language, word, canonicalizeWord), resolve(word, language));
   return { known, learning, measured };
@@ -255,8 +255,7 @@ export function computeLevelStats(
   store: FlashcardStore,
   wordFrequency: WordFrequencyMap,
   language: string,
-  knownThreshold: number,
-  learningThreshold: number,
+  thresholds: EffectiveThresholds,
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
@@ -266,7 +265,7 @@ export function computeLevelStats(
   if (levelBuckets.size === 0) return [];
 
   const { known: knownSet, learning: learningSet, measured: measuredSet } = buildStateSets(
-    store, wordFrequency, language, knownThreshold, learningThreshold, canonicalizeWord, resolveState,
+    store, wordFrequency, language, thresholds, canonicalizeWord, resolveState,
   );
 
   return [...levelBuckets.entries()]
@@ -313,23 +312,21 @@ export function computeLevelStats(
  * @param store          The full FlashcardStore
  * @param wordFrequency  Language frequency map from LanguageContext
  * @param language       Current language code
- * @param knownThreshold known_ease_threshold setting (integer 0-5000)
- * @param learningThreshold srsLearningThreshold setting (integer 0-5000)
+ * @param thresholds     Configured ease bands from effectiveThresholds(settings)
  * @param levelNames     Record<levelString, levelName> from LanguageContext
  */
 export function computeWordLevelStats(
   store: FlashcardStore,
   wordFrequency: WordFrequencyMap,
   language: string,
-  knownThreshold: number,
-  learningThreshold: number,
+  thresholds: EffectiveThresholds,
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
   resolveState?: ResolveLearnerState,
 ): ComprehensiveWordStats {
   const { known: knownSet, learning: learningSet, measured: measuredSet } = buildStateSets(
-    store, wordFrequency, language, knownThreshold, learningThreshold, canonicalizeWord, resolveState,
+    store, wordFrequency, language, thresholds, canonicalizeWord, resolveState,
   );
   const freqHashSet = buildFrequencyHashSet(wordFrequency, language, canonicalizeWord);
 
@@ -427,15 +424,14 @@ export function computeBeyondExamLevelStats(
   store: FlashcardStore,
   wordFrequency: WordFrequencyMap,
   language: string,
-  knownThreshold: number,
-  learningThreshold: number,
+  thresholds: EffectiveThresholds,
   levelNames: Record<string, string>,
   languageData?: LanguageData | null,
   canonicalizeWord?: CanonicalizeWordForLanguage,
   resolveState?: ResolveLearnerState,
 ): LevelStats | null {
   const { known: knownSet, learning: learningSet, measured: measuredSet } = buildStateSets(
-    store, wordFrequency, language, knownThreshold, learningThreshold, canonicalizeWord, resolveState,
+    store, wordFrequency, language, thresholds, canonicalizeWord, resolveState,
   );
 
   let known = 0;
@@ -475,55 +471,4 @@ export function computeBeyondExamLevelStats(
     unknownPct: roundPct(unknown, total),
     untrackedPct: roundPct(untracked, total),
   };
-}
-
-/**
- * Lightweight variant that only computes per-level totals and known counts.
- * Useful for quick coverage percentages without full breakdown.
- */
-export function computeLevelCoverage(
-  store: FlashcardStore,
-  wordFrequency: WordFrequencyMap,
-  language: string,
-  knownThreshold: number,
-  levelNames: Record<string, string>,
-  languageData?: LanguageData | null,
-  canonicalizeWord?: CanonicalizeWordForLanguage,
-  resolveState?: ResolveLearnerState,
-): Array<{ level: number; name: string; total: number; known: number; pct: number }> {
-  const { known: knownSet } = buildStateSets(
-    store, wordFrequency, language, knownThreshold, knownThreshold, canonicalizeWord, resolveState,
-  );
-
-  const levelTotals = new Map<number, number>();
-  const levelKnown = new Map<number, number>();
-  const sortedLevels = getSortedFrequencyLevels(wordFrequency, levelNames, languageData);
-
-  for (const level of sortedLevels) {
-    levelTotals.set(level, 0);
-    levelKnown.set(level, 0);
-  }
-
-  for (const [word, entry] of Object.entries(wordFrequency)) {
-    const lk = wordKey(language, word, canonicalizeWord);
-    const total = levelTotals.get(entry.raw_level);
-    if (total === undefined) continue;
-
-    levelTotals.set(entry.raw_level, total + 1);
-    if (knownSet.has(lk)) {
-      levelKnown.set(entry.raw_level, (levelKnown.get(entry.raw_level) ?? 0) + 1);
-    }
-  }
-
-  return sortedLevels.map((level) => {
-    const total = levelTotals.get(level) ?? 0;
-    const known = levelKnown.get(level) ?? 0;
-    return {
-      level,
-      name: getFrequencyLevelLabel(level, levelNames, languageData),
-      total,
-      known,
-      pct: progressPct(known, total),
-    };
-  });
 }

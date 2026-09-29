@@ -4,7 +4,6 @@ import {
   buildWordFrequencyMapFromLanguageData,
   computeBeyondExamLevelStats,
   computeWordLevelStats,
-  computeLevelCoverage,
   computeLevelStats,
   getWordLevelStatus,
   resolveLevelStudyWordFrequency,
@@ -13,6 +12,10 @@ import {
   roundPct,
 } from './wordLevelStats';
 import { hashWordSync } from '../services/srsAlgorithm';
+import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
+
+// The band every call site below was hand-multiplying into the old milli API.
+const bands = effectiveThresholds({ easeThresholdKnown: 1.8, easeThresholdLearning: 1.55 });
 import type { FlashcardStore, LanguageData, WordFrequencyMap } from '../../shared/types';
 
 it('formats the shared 559/639 knowledge count as 87.5 percent', () => {
@@ -137,7 +140,7 @@ describe('computeWordLevelStats', () => {
 
   it('does not count orphan legacy markers as extra vocabulary or learning history', () => {
     const store = makeStore({ knownUntracked: { [lk('en', 'orphan')]: true } });
-    const result = computeWordLevelStats(store, makeFreq(), 'en', 1800, 1550, { 5: 'Beginner', 3: 'Intermediate', 1: 'Advanced' });
+    const result = computeWordLevelStats(store, makeFreq(), 'en', bands, { 5: 'Beginner', 3: 'Intermediate', 1: 'Advanced' });
     expect(result.outsideLevels.total).toBe(0);
     expect(result.allEncountered.total).toBe(4);
     expect(store.knownUntracked[lk('en', 'orphan')]).toBe(true);
@@ -146,7 +149,7 @@ describe('computeWordLevelStats', () => {
   it('returns empty stats when no data', () => {
     const store = makeStore();
     const freq = makeFreq();
-    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+    const result = computeWordLevelStats(store, freq, 'en', bands, {
       5: 'Beginner',
       3: 'Intermediate',
       1: 'Advanced',
@@ -176,8 +179,7 @@ describe('computeWordLevelStats', () => {
       makeStore(),
       freq,
       'xx',
-      1800,
-      1550,
+      bands,
       { 1: 'A1', 2: 'A2', 3: 'B1' },
       ascendingDifficultyLanguage,
     );
@@ -194,8 +196,7 @@ describe('computeWordLevelStats', () => {
       makeStore(),
       freq,
       'xx',
-      1800,
-      1550,
+      bands,
       {},
       ascendingDifficultyLanguage,
     );
@@ -222,8 +223,7 @@ describe('computeWordLevelStats', () => {
       makeStore(),
       freq,
       'xx',
-      1800,
-      1550,
+      bands,
       {},
       languageData,
     );
@@ -241,7 +241,7 @@ describe('computeWordLevelStats', () => {
       },
     });
     const freq = makeFreq();
-    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+    const result = computeWordLevelStats(store, freq, 'en', bands, {
       5: 'Beginner',
     });
 
@@ -257,7 +257,7 @@ describe('computeWordLevelStats', () => {
       },
     });
     const freq = makeFreq();
-    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+    const result = computeWordLevelStats(store, freq, 'en', bands, {
       5: 'Beginner',
     });
 
@@ -283,8 +283,7 @@ describe('computeWordLevelStats', () => {
       store,
       freq,
       'ja',
-      1800,
-      1550,
+      bands,
       { 5: 'N5' },
       undefined,
       (_language, word) => word === '会います' ? '会う' : word,
@@ -301,7 +300,7 @@ describe('computeWordLevelStats', () => {
       },
     });
     const freq = makeFreq();
-    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+    const result = computeWordLevelStats(store, freq, 'en', bands, {
       5: 'Beginner',
     });
 
@@ -317,7 +316,7 @@ describe('computeWordLevelStats', () => {
       },
     });
     const freq = makeFreq();
-    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+    const result = computeWordLevelStats(store, freq, 'en', bands, {
       1: 'Advanced',
     });
 
@@ -352,7 +351,7 @@ describe('computeWordLevelStats', () => {
       wordToCardMap: { [lk('en', 'medium')]: ['c1'] },
     });
     const freq = makeFreq();
-    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+    const result = computeWordLevelStats(store, freq, 'en', bands, {
       3: 'Intermediate',
     });
 
@@ -363,7 +362,7 @@ describe('computeWordLevelStats', () => {
 
   it('does not infer learning from a candidate selected for future study', () => {
     const store = makeStore({ wordCandidates: { [lk('en', 'hello')]: { word: 'hello', language: 'en', count: 20, lastSeen: 1 } } });
-    const result = computeWordLevelStats(store, makeFreq(), 'en', 1800, 1550, { 5: 'Beginner' });
+    const result = computeWordLevelStats(store, makeFreq(), 'en', bands, { 5: 'Beginner' });
     expect(result.byLevel[0].known).toBe(0);
     expect(result.byLevel[0].learning).toBe(0);
   });
@@ -372,7 +371,7 @@ describe('computeWordLevelStats', () => {
     const store = makeStore({ wordKnowledge: {
       [lk('en', 'outside')]: { word: 'outside', ease: 0, lastSeen: 1, timesSeen: 1, timesHovered: 0, lastStatusChange: 1 },
     } });
-    const result = computeWordLevelStats(store, {}, 'en', 1800, 1550, {}, undefined, undefined,
+    const result = computeWordLevelStats(store, {}, 'en', bands, {}, undefined, undefined,
       word => word === 'outside' ? { status: 'known', basis: 'evidence' } : { status: 'unknown', basis: 'unmeasured' });
     expect(result.outsideLevels).toEqual({ known: 1, learning: 0, unknown: 0, untracked: 0, total: 1 });
   });
@@ -384,7 +383,7 @@ describe('computeWordLevelStats', () => {
       },
     });
     const freq = makeFreq();
-    const result = computeWordLevelStats(store, freq, 'en', 1800, 1550, {
+    const result = computeWordLevelStats(store, freq, 'en', bands, {
       5: 'Beginner',
     });
 
@@ -403,7 +402,7 @@ describe('computeLevelStats', () => {
   };
 
   it('returns empty array when wordFrequency is empty', () => {
-    const result = computeLevelStats(makeStore(), {}, 'ja', 1800, 1550, levelNames);
+    const result = computeLevelStats(makeStore(), {}, 'ja', bands, levelNames);
 
     expect(result).toEqual([]);
   });
@@ -416,8 +415,7 @@ describe('computeLevelStats', () => {
         犬: { reading: 'いぬ', level: 'N5', raw_level: 5 },
       },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -446,8 +444,7 @@ describe('computeLevelStats', () => {
         猫: { reading: 'ねこ', level: 'N5', raw_level: 5 },
       },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -464,8 +461,7 @@ describe('computeLevelStats', () => {
         a1: { reading: 'a1', level: 'A1', raw_level: 1 },
       },
       'xx',
-      1800,
-      1550,
+      bands,
       { 0: 'Starter', 1: 'A1' },
       {
         name: 'Declared Zero Level Language',
@@ -516,8 +512,7 @@ describe('computeLevelStats', () => {
       store,
       { 猫: { reading: 'ねこ', level: 'N5', raw_level: 5 } },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -553,8 +548,7 @@ describe('computeLevelStats', () => {
       store,
       { 犬: { reading: 'いぬ', level: 'N5', raw_level: 5 } },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -599,8 +593,7 @@ describe('computeLevelStats', () => {
         犬: { reading: 'いぬ', level: 'N5', raw_level: 5 },
       },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -620,8 +613,7 @@ describe('computeLevelStats', () => {
       store,
       { 猫: { reading: 'ねこ', level: 'N5', raw_level: 5 } },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -642,8 +634,7 @@ describe('computeLevelStats', () => {
       store,
       { 猫: { reading: 'ねこ', level: 'N5', raw_level: 5 } },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -663,8 +654,7 @@ describe('computeLevelStats', () => {
       store,
       { 会います: { reading: 'あいます', level: 'N5', raw_level: 5 } },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
       undefined,
       (_language, word) => word === '会います' ? '会う' : word,
@@ -685,8 +675,7 @@ describe('computeLevelStats', () => {
       store,
       { 会います: { reading: 'あいます', level: 'N5', raw_level: 5 } },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
       undefined,
       (_language, word) => word === '会います' ? '会う' : word,
@@ -710,8 +699,7 @@ describe('computeLevelStats', () => {
         犬: { reading: 'いぬ', level: 'N5', raw_level: 5 },
       },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -760,8 +748,7 @@ describe('computeLevelStats', () => {
         魚: { reading: 'さかな', level: 'N5', raw_level: 5 },
       },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -778,8 +765,7 @@ describe('computeLevelStats', () => {
         中級: { reading: 'ちゅうきゅう', level: 'N3', raw_level: 3 },
       },
       'ja',
-      1800,
-      1550,
+      bands,
       levelNames,
     );
 
@@ -876,52 +862,13 @@ describe('resolveLevelStudyWordFrequency', () => {
   });
 });
 
-describe('computeLevelCoverage', () => {
-  it('returns coverage percentages', () => {
-    const store = makeStore();
-    const freq = makeFreq();
-    const result = computeLevelCoverage(store, freq, 'en', 1800, {
-      5: 'Beginner',
-      1: 'Advanced',
-    });
-
-    expect(result).toHaveLength(3);
-    expect(result[0]).toMatchObject({ level: 5, total: 2, known: 0, pct: 0 });
-    expect(result[1]).toMatchObject({ level: 3, name: 'Level 3', total: 1, known: 0, pct: 0 });
-    expect(result[2]).toMatchObject({ level: 1, total: 1, known: 0, pct: 0 });
-  });
-
-  it('derives coverage buckets from frequency entries when level names are missing', () => {
-    const ascendingDifficultyLanguage: LanguageData = {
-      name: 'Ascending Difficulty Language',
-      colour_codes: {},
-      settings: { fixed: {} },
-      frequencyLevels: {
-        difficulty: 'higher-is-harder',
-      },
-    };
-    const freq: WordFrequencyMap = {
-      a1: { reading: 'a1', level: 'A1', raw_level: 1 },
-      b2: { reading: 'b2', level: 'B2', raw_level: 4 },
-    };
-
-    const result = computeLevelCoverage(makeStore(), freq, 'xx', 1800, {}, ascendingDifficultyLanguage);
-
-    expect(result.map((entry) => [entry.level, entry.name, entry.total])).toEqual([
-      [1, 'Level 1', 1],
-      [4, 'Level 4', 1],
-    ]);
-  });
-});
-
 describe('computeBeyondExamLevelStats', () => {
   it('returns null when no frequency rows are beyond the exam levels', () => {
     const result = computeBeyondExamLevelStats(
       makeStore(),
       { 猫: { reading: 'ねこ', level: 'N5', raw_level: 5 } },
       'ja',
-      1800,
-      1550,
+      bands,
       { '5': 'N5' },
     );
 
@@ -936,8 +883,7 @@ describe('computeBeyondExamLevelStats', () => {
         赤い: { reading: 'あかい', level: '', raw_level: -1 },
       },
       'ja',
-      1800,
-      1550,
+      bands,
       { '5': 'N5' },
     );
 
@@ -962,8 +908,7 @@ describe('computeBeyondExamLevelStats', () => {
       store,
       { 赤い: { reading: 'あかい', level: '', raw_level: -1 } },
       'ja',
-      1800,
-      1550,
+      bands,
       { '5': 'N5' },
     );
 

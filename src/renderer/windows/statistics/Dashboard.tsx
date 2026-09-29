@@ -32,6 +32,7 @@ import {
   computeDueForecast,
 } from '../../services/flashcardStats';
 import './Dashboard.css';
+import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 
 /** Merge overlapping [start,end] intervals and return total non-overlapping duration. */
 function scanlineMerge(intervals: Array<{ start: number; end: number }>): number {
@@ -221,8 +222,7 @@ export const Dashboard: Component = () => {
       store,
       getWordFrequency(),
       settings.language,
-      settings.easeThresholdKnown * 1000,
-      settings.easeThresholdLearning * 1000,
+      effectiveThresholds(settings),
       getFreqLevelNames(),
       currentLangData(),
       undefined,

@@ -1,44 +1,21 @@
-import type { Flashcard, FlashcardStore, PassiveWordKnowledge, IgnoredWordEntry } from '../../shared/types';
-
-import { DEFAULT_SETTINGS } from '../../shared/types';
+import type { FlashcardStore, PassiveWordKnowledge } from '../../shared/types';
+import type { EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { getEffectiveWordStateForKeys } from './comprehensiveKnowledge';
 
 /** Index canonical lexical state; card ownership and legacy markers are not evidence. */
 export function buildKnownWordSet(
-  _flashcards: Record<string, Flashcard>,
-  _wordToCardMap: Record<string, string[]>,
-  _knownUntracked: Record<string, boolean>,
-  _ignoredWords: Record<string, IgnoredWordEntry>,
   wordKnowledge: Record<string, PassiveWordKnowledge>,
-  knownEaseThreshold: number,
+  thresholds: EffectiveThresholds,
   keysForEntry?: (key: string, entry: PassiveWordKnowledge) => readonly string[],
 ): Set<string> {
   const known = new Set<string>();
   for (const lk of Object.keys(wordKnowledge)) {
-    if (getEffectiveWordStateForKeys(keysForEntry?.(lk, wordKnowledge[lk]) ?? [lk], wordKnowledge, {
-      known: knownEaseThreshold / 1000, learning: DEFAULT_SETTINGS.easeThresholdLearning,
-    }).status === 'known') known.add(lk);
+    if (getEffectiveWordStateForKeys(keysForEntry?.(lk, wordKnowledge[lk]) ?? [lk], wordKnowledge, thresholds).status === 'known') {
+      known.add(lk);
+    }
   }
 
   return known;
-}
-
-/**
- * Quick check if a language-prefixed word key is known using a pre-built Set.
- * Falls back to individual store checks (same Tier-2 rule as the Set builder)
- * for keys not in the Set.
- */
-export function isWordKnown(
-  lk: string,
-  knownSet: Set<string>,
-  wordKnowledge: Record<string, PassiveWordKnowledge>,
-  knownEaseThreshold: number,
-): boolean {
-  if (knownSet.has(lk)) return true;
-
-  return getEffectiveWordStateForKeys([lk], wordKnowledge, {
-    known: knownEaseThreshold / 1000, learning: DEFAULT_SETTINGS.easeThresholdLearning,
-  }).status === 'known';
 }
 
 /**
@@ -46,18 +23,10 @@ export function isWordKnown(
  */
 export function buildKnownWordSetFromStore(
   store: FlashcardStore,
-  knownEaseThreshold: number,
+  thresholds: EffectiveThresholds,
   keysForEntry?: (key: string, entry: PassiveWordKnowledge) => readonly string[],
 ): Set<string> {
-  return buildKnownWordSet(
-    store.flashcards,
-    store.wordToCardMap,
-    store.knownUntracked,
-    store.ignoredWords,
-    store.wordKnowledge,
-    knownEaseThreshold,
-    keysForEntry,
-  );
+  return buildKnownWordSet(store.wordKnowledge, thresholds, keysForEntry);
 }
 
 export function buildTrackedWordSet(store: FlashcardStore, language: string): Set<string> {

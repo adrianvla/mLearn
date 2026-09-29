@@ -19,6 +19,7 @@ import { prosodyVisible } from '../../../shared/prosodySettings';
 import { selectEncounterBatch } from '../../learning/engine';
 import type { WordProsodyOverlayData } from '../../utils/wordRenderText';
 import type { LanguageData } from '../../../shared/types';
+import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 
 interface LevelDetailModalProps {
   level: number;
@@ -97,8 +98,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
     props.level;
     activeLanguage();
     activeLanguageData();
-    settings.easeThresholdKnown * 1000;
-    settings.easeThresholdLearning * 1000;
+    effectiveThresholds(settings);
     flashcards.isLoading();
     projected.projections();
     setWordsForLevel(knowledgeReady() ? buildWordsForLevelSnapshot() : []);

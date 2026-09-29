@@ -1832,7 +1832,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     perfCount('knowledge.knownWordSet.rebuilds');
     return buildKnownWordSetFromStore(
       store,
-      settings.easeThresholdKnown * 1000,
+      effectiveThresholds(settings),
       (key, entry) => {
         const language = entry.language ?? key.split(':')[0];
         return [...new Set([key, ...getWordFormsForLanguage(entry.word, language)
