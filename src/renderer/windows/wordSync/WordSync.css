@@ -115,6 +115,12 @@
   font-size: var(--font-size-sm);
 }
 
+.word-sync-unavailable-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  justify-content: center;
+}
+
 .word-sync-answer-options {
   display: flex;
   flex-direction: column;

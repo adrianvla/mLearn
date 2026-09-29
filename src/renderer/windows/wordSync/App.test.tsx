@@ -1708,6 +1708,42 @@ beforeEach(() => {
     expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 1');
   });
 
+  it('lets the session skip past a revealed word with no answer, so an unanswerable word cannot block the run', async () => {
+    // A word with no dictionary entry cannot be graded, and retrying the
+    // lookup does not recover it. Without an escape hatch the whole drill
+    // session parks on it forever.
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    mockWordSyncState.wordFrequency = {
+      '紫い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '蓝い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    // Leave only the first-shown word unanswerable; whichever word the queue
+    // starts on gets no definitions, the other resolves normally. The shown
+    // word is read lazily because the queue order is not fixed.
+    let blocked = '';
+    mockFetchTranslation.mockImplementation(async (word?: string) => {
+      if (!blocked && word) blocked = word;
+      return word === blocked ? { data: [] } : { data: [{ definitions: ['answer'] }] };
+    });
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle(); await settle();
+    press(' ');
+    await settle();
+    expect(blocked).not.toBe('');
+    expect(container.textContent).toContain('mlearn.WordSync.AnswerUnavailable');
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 2');
+
+    const other = blocked === '紫い' ? '蓝い' : '紫い';
+    buttonByText('mlearn.WordSync.SkipWord').click();
+    await settle(); await settle();
+
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 1');
+    expect(container.textContent).not.toContain('mlearn.WordSync.AnswerUnavailable');
+    expect(container.textContent).toContain(`${other}:`);
+    dispose();
+  });
+
   it('uses a valid secondary dictionary answer when the primary entry is empty', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: [] }, { definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');

@@ -1541,7 +1541,13 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
               <Show when={showAnswer() && translation.state === 'ready' && !translationText()}>
                 <div role="alert">
                   <p>{t('mlearn.WordSync.AnswerUnavailable')}</p>
-                  <Button onClick={() => refetchTranslation()}>{t('mlearn.Global.TryAgain')}</Button>
+                  {/* An unanswerable word cannot be rated, so retrying alone
+                      leaves the session parked on it. Skipping is the way out,
+                      the same escape the assessment surface offers. */}
+                  <div class="word-sync-unavailable-actions">
+                    <Button onClick={() => refetchTranslation()}>{t('mlearn.Global.TryAgain')}</Button>
+                    <Button variant="ghost" onClick={skipCurrentWord}>{t('mlearn.WordSync.SkipWord')}</Button>
+                  </div>
                 </div>
               </Show>
               <div class="word-sync-answer-options">

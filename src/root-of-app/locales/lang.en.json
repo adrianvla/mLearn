@@ -3432,6 +3432,7 @@
       "ProjectionUnavailable": "Knowledge data could not be loaded. Try again.",
       "SavingRating": "Saving rating…",
       "AnswerUnavailable": "No answer is available for this word. Retry the dictionary lookup or choose another filter. No rating has been recorded.",
+      "SkipWord": "Skip this word",
       "SaveFailed": "This rating could not be saved. The word is still here; try again.",
       "Statement": {},
       "FinishedTitle": "All done!",

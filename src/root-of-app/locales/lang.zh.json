@@ -3432,6 +3432,7 @@
       "ProjectionUnavailable": "无法加载知识数据。请重试。",
       "SavingRating": "正在保存评分…",
       "AnswerUnavailable": "此词暂无答案。请重试词典查询或选择其他筛选条件。尚未记录评分。",
+      "SkipWord": "跳过这个词",
       "SaveFailed": "无法保存这次评分。当前词语仍会显示，请重试。",
       "Statement": {},
       "FinishedTitle": "全部完成！",

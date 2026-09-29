@@ -3432,6 +3432,7 @@
       "ProjectionUnavailable": "Les données de connaissances n’ont pas pu être chargées. Réessayez.",
       "SavingRating": "Enregistrement de l’évaluation…",
       "AnswerUnavailable": "Aucune réponse disponible pour ce mot. Réessayez la recherche ou choisissez un autre filtre. Aucune évaluation enregistrée.",
+      "SkipWord": "Passer ce mot",
       "SaveFailed": "Cette évaluation n’a pas pu être enregistrée. Le mot reste affiché ; réessayez.",
       "Statement": {},
       "FinishedTitle": "Terminé !",

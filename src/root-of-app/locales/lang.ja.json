@@ -3432,6 +3432,7 @@
       "ProjectionUnavailable": "学習データを読み込めませんでした。もう一度お試しください。",
       "SavingRating": "評価を保存中…",
       "AnswerUnavailable": "この単語の解答がありません。辞書検索を再試行するか、別のフィルターを選んでください。評価は記録されていません。",
+      "SkipWord": "この単語をスキップ",
       "SaveFailed": "評価を保存できませんでした。この単語は表示されたままです。もう一度お試しください。",
       "Statement": {},
       "FinishedTitle": "完了！",
