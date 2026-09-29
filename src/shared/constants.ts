@@ -564,13 +564,52 @@ export type RatingKeyboardMode = typeof RATING_KEYBOARD_MODES[number];
 
 // (Mnemonic chord letters moved to CAPABILITY_MNEMONIC_KEYS in shared/graph/access.ts.)
 
-// Spatial matrix keyboard columns: quality → keys, row index = displayed row.
-// Keys mean "quality × current matrix row", never a permanent aspect binding.
-export const SPATIAL_QUALITY_KEYS: Record<AttemptQuality, readonly string[]> = {
-  missed: ['1', 'q', 'a', 'z'],
-  struggled: ['2', 'w', 's', 'x'],
-  fluent: ['3', 'e', 'd', 'c'],
+// Spatial matrix keyboard columns: quality → keys, indexed by DISPLAYED ROW.
+// Row 0 is the All row; capability rows follow. Keys mean "quality × the row
+// currently on screen", never a permanent aspect binding — reordering the
+// rows reorders the keys, which is the whole point of the spatial mode.
+//
+// This is the one spatial contract. The rating control used to keep a second,
+// longer copy of this table, while a shorter copy here was read by nothing at
+// all — the hint a key showed and the key the control actually honoured were
+// two independent lists that happened to agree.
+export const SPATIAL_MATRIX_ROWS = 5;
+
+export type SpatialRatingAction = AttemptQuality | 'easy';
+
+export const SPATIAL_ACTION_ROWS: Record<SpatialRatingAction, readonly string[]> = {
+  missed: ['1', 'q', 'a', 'z', '7'],
+  struggled: ['2', 'w', 's', 'x', '8'],
+  fluent: ['3', 'e', 'd', 'c', '9'],
+  easy: ['4', 'r', 'f', 'v', '0'],
 };
+
+/**
+ * The key that rates `row` (0 = the All row) at `action`, or undefined when
+ * that row is click-only. Row 0 is always keyed; capability rows past the
+ * table have no key by design.
+ */
+export function spatialMatrixKey(action: SpatialRatingAction, row: number): string | undefined {
+  if (row < 0) return undefined;
+  return SPATIAL_ACTION_ROWS[action][row];
+}
+
+/** The action a pressed key means at `row`, or undefined for a click-only row. */
+export function spatialMatrixAction(key: string, row: number): SpatialRatingAction | undefined {
+  for (const action of Object.keys(SPATIAL_ACTION_ROWS) as SpatialRatingAction[]) {
+    if (SPATIAL_ACTION_ROWS[action][row] === key) return action;
+  }
+  return undefined;
+}
+
+/** The displayed row (0 = All) a pressed key names, across every action column. */
+export function spatialMatrixRow(key: string): number | undefined {
+  for (const action of Object.keys(SPATIAL_ACTION_ROWS) as SpatialRatingAction[]) {
+    const row = SPATIAL_ACTION_ROWS[action].indexOf(key);
+    if (row >= 0) return row;
+  }
+  return undefined;
+}
 
 // Central performance → SRS scheduling grade. Evidence-wise fluent+easy are
 // IDENTICAL; easy only adjusts scheduling. Consumed by SRS surfaces, never by
