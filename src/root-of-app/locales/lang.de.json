@@ -1510,6 +1510,10 @@
         "AllRow": "Alle"
       }
     },
+    "Plugin": {
+      "UiFailed": "Plugin-Oberfläche konnte nicht geladen werden",
+      "Loading": "Plugin-Oberfläche wird geladen..."
+    },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "Bedeutung",

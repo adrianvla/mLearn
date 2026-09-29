@@ -1510,6 +1510,10 @@
         "AllRow": "All"
       }
     },
+    "Plugin": {
+      "UiFailed": "Plugin UI failed to load",
+      "Loading": "Loading plugin UI..."
+    },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "Meaning",

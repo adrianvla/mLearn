@@ -1,11 +1,12 @@
 import { Component, Match, Show, Switch, createSignal, onCleanup, onMount } from 'solid-js';
-import { WindowWrapper } from '../../context';
+import { WindowWrapper, useLocalization } from '../../context';
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { getBridge } from '../../../shared/bridges';
 import type { PluginHostContext } from '../../../shared/plugins/types';
 import { PluginHost } from '../../plugins/PluginHost';
 
 export const PluginHostWindow: Component = () => {
+  const { t } = useLocalization();
   const [hostContext, setHostContext] = createSignal<PluginHostContext | null>(null);
 
   onMount(() => {
@@ -31,7 +32,7 @@ export const PluginHostWindow: Component = () => {
           </Match>
           <Match when={!hostContext()}>
             <Show when={true}>
-              <p>Loading plugin UI...</p>
+              <p>{t('mlearn.Plugin.Loading')}</p>
             </Show>
           </Match>
         </Switch>

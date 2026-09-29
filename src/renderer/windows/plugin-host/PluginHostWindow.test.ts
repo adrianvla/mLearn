@@ -9,6 +9,7 @@ const mockPluginKVGet = vi.fn<(pluginId: string, key: string) => Promise<{ value
 
 vi.mock('../../context', () => ({
   WindowWrapper: (props: { children: unknown }) => props.children,
+  useLocalization: () => ({ t: (key: string) => key }),
 }));
 
 vi.mock('../../../shared/bridges', () => ({
@@ -54,7 +55,9 @@ describe('PluginHostWindow', () => {
     render(() => PluginHostWindow({}), container);
 
     expect(mockGetWindowContext).toHaveBeenCalledWith(WINDOW_TYPES.PLUGIN_HOST);
-    expect(container.textContent).toContain('Loading plugin UI');
+    // The context mock echoes keys, so this asserts the localized lookup
+    // rather than a hardcoded English string.
+    expect(container.textContent).toContain('mlearn.Plugin.Loading');
 
     emitContext?.({
       pluginId: 'demo.plugin',

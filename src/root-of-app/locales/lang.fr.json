@@ -1510,6 +1510,10 @@
         "AllRow": "Tout"
       }
     },
+    "Plugin": {
+      "UiFailed": "L’interface du plugin n’a pas pu être chargée",
+      "Loading": "Chargement de l’interface du plugin..."
+    },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "Sens",

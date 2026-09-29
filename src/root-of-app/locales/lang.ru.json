@@ -1510,6 +1510,10 @@
         "AllRow": "Всё"
       }
     },
+    "Plugin": {
+      "UiFailed": "Не удалось загрузить интерфейс плагина",
+      "Loading": "Загрузка интерфейса плагина..."
+    },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "Значение",

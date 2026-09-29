@@ -27,6 +27,10 @@ vi.mock('../../shared/backends', () => ({
   }),
 }));
 
+vi.mock('../context', () => ({
+  useLocalization: () => ({ t: (key: string) => key }),
+}));
+
 async function waitFor(check: () => boolean, attempts = 20) {
   for (let index = 0; index < attempts; index += 1) {
     if (check()) {

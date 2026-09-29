@@ -1510,6 +1510,10 @@
         "AllRow": "全部"
       }
     },
+    "Plugin": {
+      "UiFailed": "无法加载插件界面",
+      "Loading": "正在加载插件界面..."
+    },
     "Knowledge": {
       "Capability": {
         "sense-recognition": "意思",
