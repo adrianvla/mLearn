@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, it } from 'vitest';
-import { isNativeActivationTarget, isRatingKeyIgnored, isUndoShortcut } from './ratingShortcuts';
+import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from './ratingShortcuts';
 
 describe('isRatingKeyIgnored', () => {
   it('ignores held-down OS auto-repeat keydowns but not fresh presses', () => {
@@ -67,5 +67,40 @@ describe('isUndoShortcut', () => {
     expect(isUndoShortcut(new KeyboardEvent('keydown', { key: 'z', metaKey: true, shiftKey: true }))).toBe(false);
     expect(isUndoShortcut(new KeyboardEvent('keydown', { key: 'z', metaKey: true, altKey: true }))).toBe(false);
     expect(isUndoShortcut(new KeyboardEvent('keydown', { key: 'x', metaKey: true }))).toBe(false);
+  });
+});
+
+describe('study shortcut policy', () => {
+  const keyOn = (target: HTMLElement, key: string, init: KeyboardEventInit = {}) => {
+    const e = new KeyboardEvent('keydown', { key, bubbles: true, ...init });
+    target.dispatchEvent(e);
+    return e;
+  };
+
+  it('treats Space and Enter as the reveal key on plain content', () => {
+    const plain = document.createElement('div');
+    document.body.appendChild(plain);
+    expect(isRevealKey(keyOn(plain, ' '))).toBe(true);
+    expect(isRevealKey(keyOn(plain, 'Enter'))).toBe(true);
+    expect(isRevealKey(keyOn(plain, 'a'))).toBe(false);
+    plain.remove();
+  });
+
+  it('leaves Space and Enter to a focused control that natively activates', () => {
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    expect(isRevealKey(keyOn(button, 'Enter'))).toBe(false);
+    expect(isRevealKey(keyOn(button, ' '))).toBe(false);
+    button.remove();
+  });
+
+  it('blocks undo while a write is in flight', () => {
+    expect(isBlockedByPendingWrite('undo', true)).toBe(true);
+    expect(isBlockedByPendingWrite('undo', false)).toBe(false);
+  });
+
+  it('does not let a pending write swallow unrelated shortcuts', () => {
+    // Bury/remove/skip still mean something while a rating is being filed.
+    expect(isBlockedByPendingWrite('other', true)).toBe(false);
   });
 });

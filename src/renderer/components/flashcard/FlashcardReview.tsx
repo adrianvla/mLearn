@@ -33,7 +33,7 @@ import { OtherLanguageDueHint } from './OtherLanguageDueHint';
 import { getSessionProgress } from './flashcardReviewSession';
 import { studySessionState } from '../../learning/studySession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
-import { isNativeActivationTarget, isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
+import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from '../../utils/ratingShortcuts';
 import './FlashcardReview.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -335,17 +335,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
       // Native controls own Space/Enter. The study surface owns those keys
       // only while focus remains on non-interactive prompt content.
-      if (e.key === ' ' || e.key === 'Enter') {
-        if (isNativeActivationTarget(e)) return;
+      if (isRevealKey(e)) {
         e.preventDefault();
         e.stopPropagation();
         if (presentation().phase === 'question' && currentCard()) setShowAnswer(true);
         return;
       }
 
-      // Check for Ctrl+Z / Cmd+Z for undo
+      // Undo rewrites the journal a pending write is appending to, so it waits
+      // for the write to land. Other shortcuts are unaffected by that write.
       if (isUndoShortcut(e)) {
-        if (ratingWrite() !== null || undoWrite() !== null) { e.preventDefault(); return; }
+        if (isBlockedByPendingWrite('undo', ratingWrite() !== null || undoWrite() !== null)) { e.preventDefault(); return; }
         if (canUndo()) { e.preventDefault(); void handleUndo(); }
         return;
       }

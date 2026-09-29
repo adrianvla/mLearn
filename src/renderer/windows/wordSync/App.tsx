@@ -31,7 +31,7 @@ import { fetchTranslation } from '../../hooks/useTranslation';
 import { extractDefinitionValues } from '../../utils/translationCacheParsers';
 import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
-import { isNativeActivationTarget, isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
+import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from '../../utils/ratingShortcuts';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import {
   getFrequencyLevelLabel,
@@ -847,19 +847,21 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
 
   // ─── Keyboard shortcuts ─────────────────────────────
   function handleKeyDown(e: KeyboardEvent) {
-    if (isRatingKeyIgnored(e) || ratingWrite() !== null || undoPending()) return;
+    if (isRatingKeyIgnored(e)) return;
+    // A pending write blocks undo only; the rest of the surface stays live.
     if (isUndoShortcut(e)) {
       e.preventDefault();
+      if (isBlockedByPendingWrite('undo', ratingWrite() !== null || undoPending())) return;
       void undoLastWordSyncRating();
       return;
     }
-    if (e.key === ' ' || e.key === 'Enter') {
-      if (isNativeActivationTarget(e)) return;
+    if (isRevealKey(e)) {
       e.preventDefault();
       e.stopImmediatePropagation();
       if (!finished() && currentWord() && !showAnswer()) reveal();
       return;
     }
+    if (ratingWrite() !== null || undoPending()) return;
     if (isNativeActivationTarget(e)) return;
 
     if (finished()) return;
