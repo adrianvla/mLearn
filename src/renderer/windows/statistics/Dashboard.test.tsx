@@ -74,7 +74,6 @@ vi.mock('../../components/common', async (importOriginal) => {
   Panel: (props: { children?: JSX.Element; class?: string }) => <div class={`mock-panel ${props.class ?? ''}`}>{props.children}</div>,
   BookIcon: () => <span>book</span>,
   Input: (props: { placeholder?: string }) => <input placeholder={props.placeholder} />,
-  KnowledgeHistoryGraph: () => <div data-testid="mock-knowledge-history-graph" />,
   });
 });
 

@@ -436,11 +436,6 @@ export {
 
 export { default as TitleBar } from './TitleBar/TitleBar';
 
-// KnowledgeHistoryGraph
-export {
-  KnowledgeHistoryGraph,
-  type KnowledgeHistoryGraphProps,
-} from './KnowledgeHistoryGraph';
 export { KnowledgeHistoryTimeline, type HistoryEvent } from './KnowledgeHistoryTimeline';
 
 // WordStatusPillKnowledge
