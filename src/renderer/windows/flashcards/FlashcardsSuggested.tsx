@@ -369,10 +369,15 @@ export const FlashcardsSuggested: Component = () => {
           message: t('mlearn.Flashcards.Suggested.Promoted', { count: String(created) }),
           variant: 'success',
         });
+        // Only a write that actually landed may drop the selection. Promoted
+        // rows leave the list on their own, so clearing here also sweeps up
+        // whatever was promoted alongside them. When the write was refused the
+        // rows are all still listed, and clearing left the learner looking at
+        // an empty selection over suggestions they had just picked out.
+        clearSelection();
       } else {
         showToast({ message: t('mlearn.Flashcards.Suggested.PromoteFailed'), variant: 'warning' });
       }
-      clearSelection();
     } finally {
       setPromoting(null);
     }
