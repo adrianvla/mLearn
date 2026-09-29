@@ -3,6 +3,7 @@ import type { OcrBox } from '../../../../components/reader/OcrOverlay';
 import { UnknownWordsSidebar, type SidebarWordEntry } from '../../../../components/sidebar';
 import { useLocalization } from '../../../../context';
 import { AddAllFlashcardsModal } from './AddAllFlashcardsModal';
+import { addAllFlashcardsLabels } from './addAllFlashcardsLabels';
 import './ReaderUnknownWordsSidebar.css';
 
 export interface ReaderUnknownWordEntry extends SidebarWordEntry {
@@ -28,6 +29,7 @@ interface ReaderUnknownWordsSidebarProps {
 
 export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps> = (props) => {
   const { t } = useLocalization();
+  const addAllLabels = createMemo(() => addAllFlashcardsLabels(t, 'reader'));
   const [isModalOpen, setIsModalOpen] = createSignal(false);
   const [modalEntries, setModalEntries] = createSignal<SidebarWordEntry[]>([]);
   const [modalDictEntries, setModalDictEntries] = createSignal<SidebarWordEntry[]>([]);
@@ -68,9 +70,10 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
       <AddAllFlashcardsModal
         isOpen={isModalOpen()}
         onClose={() => setIsModalOpen(false)}
-        allEntries={modalEntries() as ReaderUnknownWordEntry[]}
-        dictionaryEntries={modalDictEntries() as ReaderUnknownWordEntry[]}
-        onAdd={(entries) => props.onAddAll(entries)}
+        allEntries={modalEntries()}
+        dictionaryEntries={modalDictEntries()}
+        labels={addAllLabels()}
+        onAdd={(entries) => props.onAddAll(entries as ReaderUnknownWordEntry[])}
       />
     </>
   );

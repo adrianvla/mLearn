@@ -398,6 +398,34 @@
       "VersionLabel": "版本 {version}",
       "Website": "网站"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "从本书添加闪卡",
+        "WordListTitle": "要从此书添加的单词",
+        "LevelFilter": "低于等级阈值",
+        "LevelFilterDescription": "添加发现等级处于或低于所选阈值的单词",
+        "DictionaryFilter": "在词典中找到",
+        "DictionaryFilterDescription": "添加所有在词典中找到的单词",
+        "AddAll": "全部添加（{count}）",
+        "AddSelected": "添加所选（{count}）",
+        "SelectAll": "全选",
+        "DeselectAll": "取消全选",
+        "AddChecked": "添加已选（{count}）"
+      },
+      "video": {
+        "Title": "从本视频添加闪卡",
+        "WordListTitle": "要从此视频添加的单词",
+        "LevelFilter": "低于等级阈值",
+        "LevelFilterDescription": "添加发现等级处于或低于所选阈值的单词",
+        "DictionaryFilter": "在词典中找到",
+        "DictionaryFilterDescription": "添加所有在词典中找到的单词",
+        "AddAll": "全部添加（{count}）",
+        "AddSelected": "添加所选（{count}）",
+        "SelectAll": "全选",
+        "DeselectAll": "取消全选",
+        "AddChecked": "添加已选（{count}）"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "音频不可用。使用重新生成按钮生成。",
       "TtsMissing": "未找到 {field}。请从卡片编辑器重新生成。",

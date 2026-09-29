@@ -398,6 +398,34 @@
       "VersionLabel": "Version {version}",
       "Website": "Site web"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "Ajouter des fiches depuis ce livre",
+        "WordListTitle": "Mots à ajouter depuis ce livre",
+        "LevelFilter": "Sous le seuil de niveau",
+        "LevelFilterDescription": "Ajouter les mots dont le niveau est au seuil sélectionné ou en dessous",
+        "DictionaryFilter": "Trouvé dans le dictionnaire",
+        "DictionaryFilterDescription": "Ajouter tous les mots trouvés dans le dictionnaire",
+        "AddAll": "Tout ajouter ({count})",
+        "AddSelected": "Ajouter la sélection ({count})",
+        "SelectAll": "Tout sélectionner",
+        "DeselectAll": "Tout désélectionner",
+        "AddChecked": "Ajouter sélectionnés ({count})"
+      },
+      "video": {
+        "Title": "Ajouter des fiches depuis cette vidéo",
+        "WordListTitle": "Mots à ajouter depuis cette vidéo",
+        "LevelFilter": "Sous le seuil de niveau",
+        "LevelFilterDescription": "Ajouter les mots dont le niveau est au seuil sélectionné ou en dessous",
+        "DictionaryFilter": "Trouvé dans le dictionnaire",
+        "DictionaryFilterDescription": "Ajouter tous les mots trouvés dans le dictionnaire",
+        "AddAll": "Tout ajouter ({count})",
+        "AddSelected": "Ajouter la sélection ({count})",
+        "SelectAll": "Tout sélectionner",
+        "DeselectAll": "Tout désélectionner",
+        "AddChecked": "Ajouter sélectionnés ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "Audio non disponible. Utilisez le bouton de régénération pour le générer.",
       "TtsMissing": "{field} introuvable. Régénérez-le depuis l'éditeur de carte.",

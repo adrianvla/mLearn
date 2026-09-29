@@ -398,6 +398,34 @@
       "VersionLabel": "バージョン {version}",
       "Website": "ウェブサイト"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "この本からフラッシュカードを追加",
+        "WordListTitle": "この本から追加する単語",
+        "LevelFilter": "レベル閾値以下",
+        "LevelFilterDescription": "選択した閾値以下のレベルの単語を追加",
+        "DictionaryFilter": "辞書で見つかった単語",
+        "DictionaryFilterDescription": "辞書で見つかったすべての単語を追加",
+        "AddAll": "すべて追加（{count}）",
+        "AddSelected": "選択を追加（{count}）",
+        "SelectAll": "すべて選択",
+        "DeselectAll": "すべて解除",
+        "AddChecked": "選択したものを追加 ({count})"
+      },
+      "video": {
+        "Title": "この動画からフラッシュカードを追加",
+        "WordListTitle": "この動画から追加する単語",
+        "LevelFilter": "レベル閾値以下",
+        "LevelFilterDescription": "選択した閾値以下のレベルの単語を追加",
+        "DictionaryFilter": "辞書で見つかった単語",
+        "DictionaryFilterDescription": "辞書で見つかったすべての単語を追加",
+        "AddAll": "すべて追加（{count}）",
+        "AddSelected": "選択を追加（{count}）",
+        "SelectAll": "すべて選択",
+        "DeselectAll": "すべて解除",
+        "AddChecked": "選択したものを追加 ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "音声が利用できません。再生成ボタンを使用して生成してください。",
       "TtsMissing": "{field}が見つかりません。カードエディターから再生成してください。",

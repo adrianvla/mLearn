@@ -398,6 +398,34 @@
       "VersionLabel": "Version {version}",
       "Website": "Webseite"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "Blitzkarten aus diesem Buch hinzufügen",
+        "WordListTitle": "Wörter, die aus diesem Buch hinzugefügt werden",
+        "LevelFilter": "Unter Niveauschwelle",
+        "LevelFilterDescription": "Wörter hinzufügen, deren Niveau auf oder unter der ausgewählten Schwelle liegt",
+        "DictionaryFilter": "Im Wörterbuch gefunden",
+        "DictionaryFilterDescription": "Alle Wörter hinzufügen, die im Wörterbuch gefunden wurden",
+        "AddAll": "Alle hinzufügen ({count})",
+        "AddSelected": "Ausgewählte hinzufügen ({count})",
+        "SelectAll": "Alle auswählen",
+        "DeselectAll": "Alle abwählen",
+        "AddChecked": "Ausgewählte hinzufügen ({count})"
+      },
+      "video": {
+        "Title": "Blitzkarten aus diesem Video hinzufügen",
+        "WordListTitle": "Wörter, die aus diesem Video hinzugefügt werden",
+        "LevelFilter": "Unter Niveauschwelle",
+        "LevelFilterDescription": "Wörter hinzufügen, deren Niveau auf oder unter der ausgewählten Schwelle liegt",
+        "DictionaryFilter": "Im Wörterbuch gefunden",
+        "DictionaryFilterDescription": "Alle Wörter hinzufügen, die im Wörterbuch gefunden wurden",
+        "AddAll": "Alle hinzufügen ({count})",
+        "AddSelected": "Ausgewählte hinzufügen ({count})",
+        "SelectAll": "Alle auswählen",
+        "DeselectAll": "Alle abwählen",
+        "AddChecked": "Ausgewählte hinzufügen ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "Audio nicht verfügbar. Verwende die Regenerieren-Schaltfläche, um es zu generieren.",
       "TtsMissing": "{field} nicht gefunden. Regeneriere es im Karten-Editor.",

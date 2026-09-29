@@ -398,6 +398,34 @@
       "VersionLabel": "Version {version}",
       "Website": "Website"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "Add Flashcards from This Book",
+        "WordListTitle": "Words to add from this book",
+        "LevelFilter": "Below level threshold",
+        "LevelFilterDescription": "Add words with a discovered level at the selected threshold or easier",
+        "DictionaryFilter": "Found in dictionary",
+        "DictionaryFilterDescription": "Add all words that were found in the dictionary",
+        "AddAll": "Add All ({count})",
+        "AddSelected": "Add Selected ({count})",
+        "SelectAll": "Select all",
+        "DeselectAll": "Deselect all",
+        "AddChecked": "Add Checked ({count})"
+      },
+      "video": {
+        "Title": "Add Flashcards from This Video",
+        "WordListTitle": "Words to add from this video",
+        "LevelFilter": "Below level threshold",
+        "LevelFilterDescription": "Add words with a discovered level at the selected threshold or easier",
+        "DictionaryFilter": "Found in dictionary",
+        "DictionaryFilterDescription": "Add all words that were found in the dictionary",
+        "AddAll": "Add All ({count})",
+        "AddSelected": "Add Selected ({count})",
+        "SelectAll": "Select all",
+        "DeselectAll": "Deselect all",
+        "AddChecked": "Add Checked ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "Audio not available. Use the regenerate button to generate it.",
       "TtsMissing": "{field} not found. Regenerate it from the card editor.",

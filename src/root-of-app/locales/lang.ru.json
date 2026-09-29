@@ -398,6 +398,34 @@
       "VersionLabel": "Версия {version}",
       "Website": "Веб-сайт"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "Добавить карточки из этой книги",
+        "WordListTitle": "Слова для добавления из этой книги",
+        "LevelFilter": "Ниже порога уровня",
+        "LevelFilterDescription": "Добавить слова с обнаруженным уровнем на выбранном пороге или ниже",
+        "DictionaryFilter": "Найдено в словаре",
+        "DictionaryFilterDescription": "Добавить все слова, найденные в словаре",
+        "AddAll": "Добавить все ({count})",
+        "AddSelected": "Добавить выбранное ({count})",
+        "SelectAll": "Выбрать все",
+        "DeselectAll": "Снять выбор",
+        "AddChecked": "Добавить выбранные ({count})"
+      },
+      "video": {
+        "Title": "Добавить карточки из этого видео",
+        "WordListTitle": "Слова для добавления из этого видео",
+        "LevelFilter": "Ниже порога уровня",
+        "LevelFilterDescription": "Добавить слова с обнаруженным уровнем на выбранном пороге или ниже",
+        "DictionaryFilter": "Найдено в словаре",
+        "DictionaryFilterDescription": "Добавить все слова, найденные в словаре",
+        "AddAll": "Добавить все ({count})",
+        "AddSelected": "Добавить выбранное ({count})",
+        "SelectAll": "Выбрать все",
+        "DeselectAll": "Снять выбор",
+        "AddChecked": "Добавить выбранные ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "Аудио недоступно. Используйте кнопку регенерации для его создания.",
       "TtsMissing": "{field} не найдено. Перегенерируйте в редакторе карточки.",
