@@ -9,10 +9,11 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { pushUndo } from '../learning/undoHistory';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
-import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PendingReviewUndo } from '../../shared/types';
+import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta } from '../../shared/types';
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
+import { clonePendingRetraction, readPendingRetraction, type PendingRetraction } from '../../shared/retractionRecovery';
 import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
 import { evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
@@ -140,12 +141,55 @@ function getDefaultStore(): FlashcardStore {
   };
 }
 
+/**
+ * The projection a flashcard review Undo puts back. Opaque to the store; this
+ * is the review surface's own vocabulary, carried inside the shared retraction
+ * record so a reloaded window can finish the Undo without one.
+ */
+/**
+ * A study surface's policy for putting its own state back, applied inside the
+ * one durable write that clears the retraction record.
+ *
+ * Synchronous by design: it runs against the candidate store while that write
+ * is being composed, so the projection and the clear either both land or
+ * neither does. A projection that had to await storage of its own would leave a
+ * window where the record is cleared but the projection is not applied — the
+ * learner's Undo would look finished while their state still reflected it.
+ *
+ * `authorization` is the one write this store permits to restore scheduling
+ * state, so a surface that owns a scheduler can name the write it needs.
+ */
+/** How finishing a recorded retraction ended. */
+export type RetractionCompletion =
+  /** The retraction is durable, the projection is applied, the record is gone. */
+  | 'completed'
+  /** The journal refused the tombstone. The record survives; the retry is the same Undo. */
+  | 'retraction-refused'
+  /** The record this call owns is no longer the one on disk. A newer Undo replaced it. */
+  | 'stale'
+  /** The retraction landed but the store refused the write that clears the record. */
+  | 'store-refused';
+
+export type RetractionProjection = ((
+  record: PendingRetraction,
+  target: FlashcardStore,
+) => void) & { authorization?: FlashcardWriteAuthorization };
+
+interface ReviewUndoProjection {
+  cardId: string;
+  type: string;
+  restoreCard: Flashcard;
+  restorePerLanguage: PerLanguageMeta | null;
+  today: string;
+  restoreDailyStats: DailyStudyStats | null;
+}
+
 // Undo stack entry
 interface UndoEntry {
   type: string;
   cardId?: string;
   restoreCard?: Flashcard;
-  reviewUndo?: PendingReviewUndo;
+  reviewUndo?: PendingRetraction;
   reviewUndoAuthorization?: FlashcardWriteAuthorization;
 }
 
@@ -342,6 +386,31 @@ interface FlashcardContextValue {
   ) => Promise<{ attemptId: AttemptId; completed: boolean }>;
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => Promise<boolean>;
+  /**
+   * The durable Undo lifecycle, shared by every study surface.
+   *
+   * A study surface records the Undo it has decided, finishes it (retracting
+   * the attempt and putting its own projection back), and lets a reloaded
+   * window finish one a previous window left behind. What the projection is
+   * stays the surface's own business, passed as policy — so adding a study
+   * surface does not add another copy of this protocol here.
+   */
+  recordPendingRetraction: (record: PendingRetraction) => Promise<boolean>;
+  completePendingRetraction: (
+    record: PendingRetraction,
+    build?: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ) => Promise<RetractionCompletion>;
+  recoverPendingRetraction: () => Promise<void>;
+  /**
+   * Registers how a study surface puts its own state back, so an Undo it
+   * decided can be finished by a window that never made the decision. Keyed by
+   * the `surface` tag on the record; a surface only registers while it is
+   * mounted, and core never inspects what the projection restores.
+   */
+  registerRetractionProjection: (
+    surface: string,
+    build: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ) => void;
 
   // Word sync seen tracking
 
@@ -532,10 +601,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
       void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
       void migrateLegacyEpistemicState().finally(() => {
         setIsKnowledgeReady(true);
-        if (checked.pendingReviewUndo) void recoverPendingReviewUndo();
+        if (checked.pendingRetraction) void recoverPendingRetraction();
       });
-    } else if (checked.pendingReviewUndo) {
-      void recoverPendingReviewUndo();
+    } else if (checked.pendingRetraction) {
+      void recoverPendingRetraction();
     }
     storeHydrated = true;
     refreshQueue();
@@ -579,7 +648,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
             void migrateLegacyEpistemicState().finally(() => {
               setIsKnowledgeReady(true);
-              if (checked.pendingReviewUndo) void recoverPendingReviewUndo();
+              if (checked.pendingRetraction) void recoverPendingRetraction();
             });
             refreshQueue();
           } catch (e) {
@@ -599,6 +668,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   function ensureStoreFields(partial: StoredFlashcardStore): FlashcardStore {
+    // A decided-but-unfinished Undo must survive every path that rebuilds the
+    // store, or a reload would strand the rating the learner tried to take
+    // back. Read it through the one normalizer so a pre-envelope record is
+    // upgraded here instead of being dropped as unrecognized.
+    const storedRetraction = readPendingRetraction(
+      (partial as { pendingRetraction?: unknown }).pendingRetraction
+      ?? (partial as { pendingReviewUndo?: unknown }).pendingReviewUndo,
+    );
     const hour = newDayHour();
     const today = SRS.getTodayDateString(hour);
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
@@ -680,7 +757,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       meta,
       dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},
       suggestedFlashcards: partial.suggestedFlashcards || {},
-      ...(partial.pendingReviewUndo ? { pendingReviewUndo: partial.pendingReviewUndo } : {}),
+      ...(storedRetraction ? { pendingRetraction: storedRetraction } : {}),
       ...(partial.rev !== undefined ? { rev: partial.rev } : {}),
       version: CURRENT_VERSION,
   };
@@ -1086,13 +1163,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const undoLastAction = async (): Promise<string | null> => {
     const stack = undoStack();
     const entry = stack[stack.length - 1];
-    const pendingUndo = store.pendingReviewUndo ?? entry?.reviewUndo;
+    const pendingUndo = readPendingRetraction(store.pendingRetraction) ?? entry?.reviewUndo;
     if (!entry && !pendingUndo) return null;
     if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
     ratingCommandInFlight = true;
     try {
       if (pendingUndo) {
-        return await completePendingReviewUndo(pendingUndo, entry);
+        return await finishReviewRetraction(pendingUndo, entry);
       }
 
       const base = cloneFlashcardStore(unwrap(store) as FlashcardStore);
@@ -1117,14 +1194,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       return entry?.type ?? null;
     } finally {
       ratingCommandInFlight = false;
-      if (pendingRecoveryRequested && store.pendingReviewUndo) {
-        pendingRecoveryRequested = false;
-        void recoverPendingReviewUndo();
-      }
+      drainPendingRecovery();
     }
   };
 
-  const canUndo = () => undoStack().length > 0 || store.pendingReviewUndo !== undefined;
+  const canUndo = () => undoStack().length > 0 || store.pendingRetraction !== undefined;
 
   // Add new flashcard - now supports multiple cards per word
   // When use_anki is enabled, shows a choice modal (SRS vs Anki) before creation
@@ -1716,17 +1790,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       type: remainsQueued ? 'answer-requeued' : 'answer',
       cardId: card.id,
       reviewUndoAuthorization: { kind: 'undo-review', cardId: card.id, restoredReviews: priorCard.reviews },
-      reviewUndo: {
-        attemptId,
-        type: remainsQueued ? 'answer-requeued' : 'answer',
-        cardId: card.id,
-        restoreCard: priorCard,
-        word: card.content.front,
-        language,
-        restorePerLanguage: priorPerLanguage,
-        today,
-        restoreDailyStats: dailyBefore,
-      },
+      reviewUndo: reviewRetraction(
+        attemptId, card, priorCard, priorPerLanguage, today, dailyBefore,
+        remainsQueued ? 'answer-requeued' : 'answer',
+      ),
     };
     return { completed: !remainsQueued, nextQueue, event, undo, updated };
   };
@@ -3438,10 +3505,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       return { attemptId, completed: schedulerResult?.completed ?? true };
     } finally {
       ratingCommandInFlight = false;
-      if (pendingRecoveryRequested && store.pendingReviewUndo) {
-        pendingRecoveryRequested = false;
-        void recoverPendingReviewUndo();
-      }
+      drainPendingRecovery();
     }
   };
 
@@ -3465,70 +3529,108 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     return appendEventsIdempotentAcknowledged(eventsByKey);
   };
 
-  const applyPendingReviewUndo = (target: FlashcardStore, pending: PendingReviewUndo): void => {
-    target.flashcards[pending.cardId] = { ...pending.restoreCard, content: { ...pending.restoreCard.content } };
-    if (pending.restorePerLanguage) {
-      target.meta.perLanguage[pending.language] = { ...pending.restorePerLanguage };
-    } else {
-      delete target.meta.perLanguage[pending.language];
-    }
-    if (pending.restoreDailyStats) {
-      (target.dailyStats[pending.today] ??= {})[pending.language] = { ...pending.restoreDailyStats };
-    } else if (target.dailyStats[pending.today]) {
-      delete target.dailyStats[pending.today][pending.language];
-      if (Object.keys(target.dailyStats[pending.today]).length === 0) delete target.dailyStats[pending.today];
-    }
-    delete target.pendingReviewUndo;
-  };
+  /**
+   * ── Durable retraction recovery ──────────────────────────────────
+   *
+   * Taking a rating back is one operation, not one per study surface: a
+   * retraction is appended to the knowledge journal, and the surface that
+   * started it puts its own projection back. Both halves can be interrupted —
+   * the window reloads, the machine closes — between the decision and its
+   * completion, and the in-memory undo entry is gone when that happens. The
+   * rating the learner tried to take back stays applied, and no surface can
+   * take it back again.
+   *
+   * The record is the promise that this cannot happen. It is written BEFORE
+   * the retraction, so a window that disappears mid-undo leaves behind enough
+   * to finish the undo without it. This block is the only owner of that
+   * lifecycle:
+   *
+   *     record → append retraction → surface restores its projection → clear
+   *
+   * Both study surfaces go through here. What legitimately varies is only the
+   * projection, and that is supplied by the caller as policy — flashcard
+   * review restores a card's scheduling state, word sync restores a position in
+   * a word queue. Core never interprets either one.
+   */
 
-  const completePendingReviewUndo = async (pending: PendingReviewUndo, entry?: UndoEntry): Promise<string> => {
-    if (store.pendingReviewUndo && store.pendingReviewUndo.attemptId !== pending.attemptId) {
-      throw new Error('A different review Undo is awaiting recovery');
-    }
-
-    if (!store.pendingReviewUndo) {
-      if (!await saveFlashcardsImmediate((target) => {
-        if (target.pendingReviewUndo && target.pendingReviewUndo.attemptId !== pending.attemptId) {
-          throw new Error('A different review Undo is awaiting recovery');
-        }
-        target.pendingReviewUndo = structuredClone(pending);
-      })) {
-        throw new Error('undo recovery record persistence was refused');
+  /**
+   * Writes the decision so it survives the window that made it.
+   *
+   * Refusing this write is the safe failure: nothing has been retracted yet, so
+   * the rating is untouched and the surface can tell the learner their Undo did
+   * not happen rather than letting them believe it landed.
+   */
+  const recordPendingRetraction = async (record: PendingRetraction): Promise<boolean> =>
+    saveFlashcardsImmediate((target) => {
+      const existing = readPendingRetraction(target.pendingRetraction);
+      if (existing && existing.attemptId !== record.attemptId) {
+        throw new Error('A different Undo is already awaiting recovery');
       }
-    }
-
-    if (!await appendRetractions(pending.word, pending.language, [pending.attemptId as AttemptId])) {
-      throw new Error('knowledge retraction was refused');
-    }
-    const forms = [...new Set([pending.word, ...getWordFormsForLanguage(pending.word, pending.language)])];
-    const seeds = forms.map((form) => ({
-      key: langKey(pending.language, SRS.hashWordSync(form)), word: form, language: pending.language,
-    }));
-    const states = await getKnowledgeStates(seeds.map((seed) => seed.key));
-    const authorization: FlashcardWriteAuthorization = {
-      kind: 'undo-review', cardId: pending.cardId, restoredReviews: pending.restoreCard.reviews,
-    };
-    if (!await saveFlashcardsImmediate((target) => {
-      const durable = target.pendingReviewUndo;
-      if (!durable || durable.attemptId !== pending.attemptId) {
-        throw new Error('The pending review Undo changed before it could be completed');
-      }
-      applyPendingReviewUndo(target, durable);
-      materializeCapabilityStatesInto(target, seeds, states);
-    }, authorization)) {
-      throw new Error('undo persistence was refused');
-    }
-
-    if (entry) setUndoStack((previous) => {
-      const index = previous.lastIndexOf(entry);
-      return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
+      target.pendingRetraction = clonePendingRetraction(record);
     });
-    refreshQueue();
-    return pending.type;
+
+  /**
+   * Finishes a recorded retraction: appends the journal tombstones, then lets
+   * the owning surface restore its projection, then clears the record.
+   *
+   * The clear happens only after both halves are durable. A refusal anywhere
+   * leaves the record in place, so a retry — or the next load — finishes the
+   * exact Undo the learner asked for rather than a different one.
+   *
+   * `restore` is the caller's projection policy. It runs after the retraction
+   * is durable because that is the half that changes what the learner knows;
+   * if the projection cannot be put back, the attempt is still retracted and
+   * only the position is left where it is.
+   */
+  const completePendingRetraction = async (
+    record: PendingRetraction,
+    build?: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ): Promise<RetractionCompletion> => {
+    const durable = readPendingRetraction(store.pendingRetraction);
+    // Recovery may only finish the retraction it recorded. A record replaced
+    // while this one was in flight belongs to a newer Undo, and that one owns
+    // the outcome.
+    if (!durable || durable.attemptId !== record.attemptId) return 'stale';
+
+    if (!await appendRetractions(record.word, record.language, record.attemptIds as AttemptId[])) {
+      return 'retraction-refused';
+    }
+    // Built only now, after the tombstones are in the journal: a projection
+    // that reads the replayed evidence before the retraction would restore
+    // state that still counts the attempt being taken back.
+    const project = build ? await build(durable) : undefined;
+    if (!await saveFlashcardsImmediate((target) => {
+      const current = readPendingRetraction(target.pendingRetraction);
+      if (!current || current.attemptId !== record.attemptId) {
+        throw new Error('The pending Undo changed before it could be completed');
+      }
+      // The projection is applied in the same write that clears the record, so
+      // an Undo is either fully undone or still recorded — a surface can never
+      // come back to find its projection restored but the Undo still pending.
+      void project?.(current, target);
+      delete target.pendingRetraction;
+      // Name the Undo this write finishes. Without it, "this snapshot has no
+      // pending retraction" would be indistinguishable from "this window never
+      // saw one", and any other window's ordinary save would be free to delete
+      // a record the learner is relying on.
+      target.retractionCompleted = record.attemptId;
+    }, project?.authorization)) {
+      return 'store-refused';
+    }
+    return 'completed';
   };
 
-  const recoverPendingReviewUndo = async (): Promise<void> => {
-    const pending = store.pendingReviewUndo;
+  /**
+   * Finishes an Undo a previous window decided but did not complete. Runs on
+   * hydration, so a rating the learner already tried to take back is not
+   * stranded by a reload.
+   *
+   * Deferred behind the rating-command guard rather than run alongside it: a
+   * retraction rewrites the journal that a rating is appending to, and the
+   * surface projection it restores is the one the in-flight rating is moving.
+   */
+  const recoverPendingRetraction = async (): Promise<void> => {
+    const pending = readPendingRetraction(store.pendingRetraction);
     if (!pending) return;
     if (ratingCommandInFlight) {
       pendingRecoveryRequested = true;
@@ -3536,13 +3638,152 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }
     ratingCommandInFlight = true;
     try {
-      await completePendingReviewUndo(pending);
+      await completePendingRetraction(pending, async (current) => await projectionFor(current) ?? noProjection);
     } catch (error) {
-      log.warn('Interrupted review Undo recovery failed:', error);
+      log.warn(`Interrupted ${pending.surface} Undo recovery failed:`, error);
     } finally {
       ratingCommandInFlight = false;
     }
   };
+
+  /**
+   * Drains a recovery that was deferred behind an in-flight rating.
+   *
+   * Owned here so it is surface-agnostic: the flag is set by any deferred
+   * recovery, and draining it must not presume which surface asked.
+   */
+  const drainPendingRecovery = (): void => {
+    if (!pendingRecoveryRequested) return;
+    pendingRecoveryRequested = false;
+    if (store.pendingRetraction) void recoverPendingRetraction();
+  };
+
+  /**
+   * Applies the flashcard review projection to the store.
+   *
+   * This is the review surface's policy inside the shared retraction
+   * lifecycle: it puts a card's scheduling state, its per-language meta, and
+   * its daily stats back, and drops the capability projections that the
+   * retracted attempt had already materialized.
+   */
+  const applyReviewProjection = (
+    target: FlashcardStore,
+    record: PendingRetraction,
+    states: Record<string, KeyKnowledgeState>,
+  ): void => {
+    const restore = record.restore as ReviewUndoProjection | null;
+    if (!restore?.restoreCard) throw new Error('The pending review Undo has no card to restore');
+    target.flashcards[restore.cardId] = { ...restore.restoreCard, content: { ...restore.restoreCard.content } };
+    if (restore.restorePerLanguage) {
+      target.meta.perLanguage[record.language] = { ...restore.restorePerLanguage };
+    } else {
+      delete target.meta.perLanguage[record.language];
+    }
+    const today = restore.today;
+    if (restore.restoreDailyStats) {
+      (target.dailyStats[today] ??= {})[record.language] = { ...restore.restoreDailyStats };
+    } else if (target.dailyStats[today]) {
+      delete target.dailyStats[today][record.language];
+      if (Object.keys(target.dailyStats[today]).length === 0) delete target.dailyStats[today];
+    }
+    // The retracted attempt had already been materialized into these
+    // projections, so restoring the card without them would leave the card
+    // scheduling an answer that no longer counts.
+    const forms = [...new Set([record.word, ...getWordFormsForLanguage(record.word, record.language)])];
+    materializeCapabilityStatesInto(target, forms.map((form) => ({
+      key: langKey(record.language, SRS.hashWordSync(form)), word: form, language: record.language,
+    })), states);
+  };
+
+  /**
+   * How each study surface restores its own projection, keyed by the `surface`
+   * tag on the record.
+   *
+   * This is the whole extension point. A surface registers a projection when
+   * it decides an Undo; recovery on a later load looks the owner up by tag, so
+   * finishing an interrupted Undo never needs to know which surface it came
+   * from. A surface with no live window simply never registers, and its record
+   * is left for a window that does.
+   */
+  const projectionBuilders = new Map<string, (record: PendingRetraction) => Promise<RetractionProjection>>();
+
+  /** Registers a surface's projection so its interrupted Undos can finish. */
+  const registerRetractionProjection = (
+    surface: string,
+    build: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ): void => {
+    projectionBuilders.set(surface, build);
+  };
+
+  /** A surface with no live window: the retraction still completes, nothing local is restored. */
+  const noProjection: RetractionProjection = () => {};
+
+  /** The projection for a record's owner, if that surface has registered one. */
+  const projectionFor = async (record: PendingRetraction): Promise<RetractionProjection | undefined> => {
+    const build = projectionBuilders.get(record.surface);
+    return build ? build(record) : undefined;
+  };
+
+  /**
+   * The review surface's projection.
+   *
+   * Its knowledge read happens before the write rather than inside it, so the
+   * projection itself can stay synchronous and land in the same durable write
+   * that clears the record: the card, its meta, its daily stats, and the
+   * retracted attempt's projections all commit together, or none of them do.
+   */
+  const reviewProjection = async (record: PendingRetraction): Promise<RetractionProjection> => {
+    const restore = record.restore as ReviewUndoProjection;
+    const forms = [...new Set([record.word, ...getWordFormsForLanguage(record.word, record.language)])];
+    const states = await getKnowledgeStates(forms.map((form) => langKey(record.language, SRS.hashWordSync(form))));
+    const project: RetractionProjection = (current, target) => {
+      applyReviewProjection(target, current, states);
+    };
+    project.authorization = {
+      kind: 'undo-review', cardId: restore.cardId, restoredReviews: restore.restoreCard.reviews,
+    };
+    return project;
+  };
+  registerRetractionProjection('flashcard-review', reviewProjection);
+
+  /**
+   * Finishes a review Undo: the shared retraction lifecycle plus the review
+   * surface's projection. The card write and the record clear are one durable
+   * step, so an interrupted Undo is either fully undone or still recorded.
+   */
+  const finishReviewRetraction = async (record: PendingRetraction, entry?: UndoEntry): Promise<string> => {
+    if (!await recordPendingRetraction(record)) {
+      throw new Error('undo recovery record persistence was refused');
+    }
+    const outcome = await completePendingRetraction(record, reviewProjection);
+    if (outcome === 'retraction-refused') throw new Error('knowledge retraction was refused');
+    if (outcome === 'store-refused') throw new Error('undo persistence was refused');
+    if (outcome === 'stale') throw new Error('A different Undo is already awaiting recovery');
+    if (entry) setUndoStack((previous) => {
+      const index = previous.lastIndexOf(entry);
+      return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
+    });
+    refreshQueue();
+    return (record.restore as ReviewUndoProjection).type;
+  };
+
+  /** Builds the review surface's record for a decided Undo. */
+  const reviewRetraction = (
+    attemptId: string,
+    card: Flashcard,
+    priorCard: Flashcard,
+    priorPerLanguage: PerLanguageMeta | null,
+    today: string,
+    dailyBefore: DailyStudyStats | null,
+    type: string,
+  ): PendingRetraction => ({
+    attemptId,
+    surface: 'flashcard-review',
+    word: card.content.front,
+    language: card.language ?? settings.language,
+    attemptIds: [attemptId],
+    restore: { cardId: card.id, type, restoreCard: priorCard, restorePerLanguage: priorPerLanguage, today, restoreDailyStats: dailyBefore } satisfies ReviewUndoProjection,
+  });
 
   /**
    * Recompute the materialized wordKnowledge entries for a word's family keys
@@ -4254,7 +4495,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
           );
         }));
         refreshQueue();
-        if (incoming.pendingReviewUndo) void recoverPendingReviewUndo();
+        if (incoming.pendingRetraction) void recoverPendingRetraction();
         return;
       }
       setStore(produce((s) => {
@@ -4594,6 +4835,10 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     isWordKnownComprehensiveSync,
     isWordSettledSync,
     appendRetractions,
+    recordPendingRetraction,
+    completePendingRetraction,
+    recoverPendingRetraction,
+    registerRetractionProjection,
     recomputeWordKnowledgeFromEvidence,
     setWordClaim,
     submitRating,

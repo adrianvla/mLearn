@@ -21,6 +21,8 @@ import type { WordStatus } from '../../../shared/constants';
 import { ATTEMPT_QUALITIES, type AttemptQuality } from '../../../shared/constants';
 import type { CapabilityKey } from '../../../shared/graph/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
+import type { PendingRetraction } from '../../../shared/retractionRecovery';
+import type { RetractionProjection } from '../../context/FlashcardContext';
 import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
@@ -104,6 +106,22 @@ interface RatingWrite {
   scaffolds: AttemptScaffolds;
 }
 
+/**
+ * The projection a Word Sync Undo puts back: the learner returned to the
+ * position they were at before the rating being taken back.
+ *
+ * Opaque to the store and to the shared retraction protocol — this is
+ * Word Sync's own vocabulary, carried inside the shared record so a reloaded
+ * window can finish the Undo without one.
+ */
+interface WordSyncProjection {
+  session: WordSession;
+  ratedCount: number;
+  lastRating: AttemptQuality | null;
+  samplingLevel: number;
+  levelCursors: [number, number][];
+}
+
 interface WordSyncUndoEntry {
   word: PoolEntry;
   language: string;
@@ -129,7 +147,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const {
     store,
     isLoading,
-    appendRetractions,
+    recordPendingRetraction,
+    completePendingRetraction,
+    recoverPendingRetraction,
+    registerRetractionProjection,
     recomputeWordKnowledgeFromEvidence,
     setAccessClaim,
     setWordClaim,
@@ -841,11 +862,37 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       // try again. This write used to fall through a `finally` that simply
       // cleared a boolean, so a failed undo looked identical to a successful
       // one — the keystroke did nothing and said nothing.
-      if (!await appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds)) {
+      // Record the decision BEFORE retracting, so a reload between here and
+      // completion can finish it. The undo stack is a memory signal: without
+      // this the retraction was reachable only from the window that decided
+      // it, and reloading left the rating applied with nothing able to take it
+      // back — the retraction looked like it had simply never happened.
+      const previousSession = undoEntry.previousSession;
+      const record = wordSyncRetraction({ ...undoEntry, previousSession });
+      if (!await recordPendingRetraction(record)) {
+        // The record itself was refused: nothing has been retracted yet, so the
+        // rating is untouched and the learner must be told rather than left
+        // believing the undo landed.
         setRetractionWrite('failed');
         return;
       }
-      if (!await controller.undo(current, undoEntry.previousSession)) {
+      // The session rewind is this surface's projection, and it goes through
+      // the same protocol the recovery path uses — one owner, so an interactive
+      // Undo and a recovered one cannot drift apart.
+      const outcome = await completePendingRetraction(
+        record,
+        () => wordSyncProjection(controller, {
+          session: previousSession,
+          ratedCount: undoEntry.previousRatedCount,
+          lastRating: undoEntry.previousLastRating,
+          samplingLevel: undoEntry.previousSamplingLevel,
+          levelCursors: [...undoEntry.previousLevelCursors.entries()],
+        }),
+      );
+      if (outcome !== 'completed') {
+        // Refused or superseded. Either way the rating is still applied and the
+        // record is still there, so the learner is told and can try again —
+        // which finishes this exact Undo, not a new one.
         setRetractionWrite('failed');
         return;
       }
@@ -877,6 +924,111 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       setRetractionWrite('failed');
     }
   }
+
+  /**
+   * This surface's projection: the learner goes back to where they were before
+   * the rating being taken back.
+   *
+   * One definition, used by the interactive Undo and by a reloaded window
+   * finishing an interrupted one. Building it is where the session rewind
+   * happens — before the retraction record is cleared — so a rewind that
+   * cannot be applied leaves the record standing and the next load retries,
+   * rather than the Undo looking finished with the learner somewhere they
+   * never chose.
+   */
+  const wordSyncProjection = async (
+    controller: WordController,
+    projection: WordSyncProjection,
+  ): Promise<RetractionProjection> => {
+    const session = controller.current();
+    if (!session || !await controller.undo(session, projection.session)) {
+      throw new Error('Word Sync undo could not restore the session position');
+    }
+    return () => {
+      batch(() => {
+        setRatedCount(projection.ratedCount);
+        setLastRating(projection.lastRating);
+        setSamplingLevel(projection.samplingLevel);
+        levelCursors = new Map(projection.levelCursors);
+        setFinished(false);
+        setShowAnswer(false);
+        setShowTranslation(false);
+        setTranslationSeenAtPrompt(false);
+        setPresentationCount((c) => c + 1);
+      });
+    };
+  };
+
+  /** This surface's record for a decided Undo. */
+  const wordSyncRetraction = (undoEntry: WordSyncUndoEntry & { previousSession: WordSession }): PendingRetraction => ({
+    attemptId: undoEntry.attemptIds.join(','),
+    surface: 'word-sync',
+    word: undoEntry.word.word,
+    language: undoEntry.language,
+    attemptIds: [...undoEntry.attemptIds],
+    restore: {
+      session: undoEntry.previousSession,
+      ratedCount: undoEntry.previousRatedCount,
+      lastRating: undoEntry.previousLastRating,
+      samplingLevel: undoEntry.previousSamplingLevel,
+      levelCursors: [...undoEntry.previousLevelCursors.entries()],
+    } satisfies WordSyncProjection,
+  });
+
+  /**
+   * Finish an Undo that a previous window decided but did not complete.
+   *
+   * The undo stack is a memory signal, so a window that reloaded mid-undo used
+   * to lose the ability to take that rating back entirely — the attempt stayed
+   * in the journal and no surface could retract it. The durable record written
+   * before the retraction is what makes the promise hold across a reload: the
+   * retraction is completed here, and the session is put back where the learner
+   * left it.
+   *
+   * It waits for the controller because restoring a session position is the
+   * controller's write, and it is deliberately not offered as a choice — the
+   * learner already asked for this undo; finishing it is completing their
+   * request, not starting new work.
+   */
+  // How this surface puts its own state back. Registered rather than passed to
+  // recovery so a reloaded window finishes an interrupted Undo by claiming the
+  // record under its own tag, exactly as the review surface does — the shared
+  // protocol does not need to know which surface an Undo came from.
+  createEffect(() => {
+    const controller = sessionController();
+    if (!controller) return;
+    registerRetractionProjection('word-sync', async (record) => {
+      const projection = record.restore as WordSyncProjection;
+      // Rewinding the session is this surface's own durable write, so it
+      // happens while the projection is being built — before the retraction
+      // record is cleared. A refusal here throws, the record survives, and the
+      // next load tries again, rather than the Undo looking finished with the
+      // learner left somewhere they never chose.
+      const session = controller.current();
+      if (!session || !await controller.undo(session, projection.session)) {
+        throw new Error('Word Sync undo recovery could not restore the session position');
+      }
+      return () => {
+        batch(() => {
+          setRatedCount(projection.ratedCount);
+          setLastRating(projection.lastRating);
+          setSamplingLevel(projection.samplingLevel);
+          levelCursors = new Map(projection.levelCursors);
+          setFinished(false);
+          setShowAnswer(false);
+          setShowTranslation(false);
+          setTranslationSeenAtPrompt(false);
+          setPresentationCount((c) => c + 1);
+        });
+      };
+    });
+  });
+
+  // Finish an Undo a previous window decided but did not complete.
+  createEffect(on(() => [isKnowledgeReady(), sessionController()] as const, ([ready, controller]) => {
+    if (!ready || !controller) return;
+    void recoverPendingRetraction();
+  }));
 
   // ─── Keyboard shortcuts ─────────────────────────────
   function handleKeyDown(e: KeyboardEvent) {

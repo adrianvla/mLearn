@@ -874,6 +874,10 @@ describe('FlashcardProvider', () => {
     });
     let persistedStore = structuredClone(mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)![0] as FlashcardStore);
 
+    // The record is written first; the retraction and the projection land
+    // together in the second write. Interrupting that second write is the
+    // window this record exists for: the decision is on disk, the card is
+    // still scheduled, and the store shows nothing wrong.
     mockBridge.flashcards.saveFlashcards
       .mockImplementationOnce((saved: FlashcardStore) => {
         persistedStore = structuredClone(saved);
@@ -881,7 +885,7 @@ describe('FlashcardProvider', () => {
       })
       .mockRejectedValueOnce(new Error('process interrupted before final Undo write'));
     await expect(ctx.undoLastAction()).rejects.toThrow('undo persistence was refused');
-    expect(persistedStore.pendingReviewUndo?.attemptId).toBe('interrupted-undo-attempt');
+    expect(persistedStore.pendingRetraction?.attemptId).toBe('interrupted-undo-attempt');
     expect(persistedStore.flashcards[card.id].reviews).toBe(4);
     expect(ctx.canUndo()).toBe(true);
     dispose();
@@ -894,7 +898,7 @@ describe('FlashcardProvider', () => {
     flashcardsCb(persistedStore);
     await vi.waitFor(() => {
       expect(remounted.ctx.store.flashcards[card.id].reviews).toBe(3);
-      expect(remounted.ctx.store.pendingReviewUndo).toBeUndefined();
+      expect(remounted.ctx.store.pendingRetraction).toBeUndefined();
     });
     remounted.dispose();
     mockSettings.language = 'ja';
@@ -5671,6 +5675,13 @@ describe('submitRating missed with orthogonal accesses', () => {
 
 
 describe('attempt undo integrity (P0)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    setupMockImplementations();
+    mockSettings.language = 'ja';
+  });
+
   it('undo restores knowledge state and retracts every event of the attempt', async () => {
     mockSettings.language = 'ja2';
     const lk = `ja2:${SRS.hashWordSync('学校')}`;

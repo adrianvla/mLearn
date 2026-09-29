@@ -386,6 +386,79 @@ describe('flashcardStorage', () => {
     });
   });
 
+  it('carries a pending Undo record forward when an unrelated window saves without it', async () => {
+    // The store is a whole snapshot and every window saves all of it, so a
+    // window whose snapshot predates the record has no `pendingRetraction` key
+    // at all. Persisting that snapshot verbatim deleted the record and left
+    // the rating the learner tried to take back applied with nothing able to
+    // take it back — the one outcome the record exists to prevent.
+    const retraction = {
+      attemptId: 'attempt-1',
+      surface: 'word-sync',
+      word: '赤い',
+      language: 'ja',
+      attemptIds: ['attempt-1'],
+      restore: { ratedCount: 3 },
+    };
+    const recording = makeStore({
+      rev: 0,
+      flashcards: { 'card-1': makeFlashcard('card-1', { state: 'review', reviews: 4 }) },
+      pendingRetraction: retraction,
+    } as Partial<FlashcardStore>);
+    await saveFlashcards(recording);
+    expect((await loadFlashcards()).pendingRetraction).toMatchObject({ attemptId: 'attempt-1' });
+
+    // An unrelated window at the new revision, built before it knew about the
+    // Undo, saving its own change.
+    const unrelated = makeStore({
+      rev: 1,
+      flashcards: { 'card-1': makeFlashcard('card-1', { state: 'review', reviews: 4 }) },
+      wordStatsMap: { '赤い': { attempts: 2 } },
+    } as Partial<FlashcardStore>);
+    await saveFlashcards(unrelated);
+
+    const stored = await loadFlashcards();
+    // Its own change landed...
+    expect(stored.wordStatsMap['赤い']).toEqual({ attempts: 2 });
+    // ...and the record the learner is relying on survived it.
+    expect(stored.pendingRetraction).toMatchObject({ attemptId: 'attempt-1', surface: 'word-sync' });
+  });
+
+  it('lets the window that recorded a pending Undo clear it', async () => {
+    // Preserving the record must not make it permanent: finishing the Undo is
+    // exactly a write that omits the field on purpose.
+    const recording = makeStore({
+      rev: 0,
+      pendingRetraction: {
+        attemptId: 'attempt-1',
+        surface: 'word-sync',
+        word: '赤い',
+        language: 'ja',
+        attemptIds: ['attempt-1'],
+        restore: { ratedCount: 3 },
+      },
+    } as Partial<FlashcardStore>);
+    await saveFlashcards(recording);
+
+    const finishing = makeStore({ rev: 1, retractionCompleted: 'attempt-1' } as Partial<FlashcardStore>);
+    await saveFlashcards(finishing);
+
+    expect((await loadFlashcards()).pendingRetraction).toBeUndefined();
+  });
+
+  it('never persists a retraction completion claim', async () => {
+    // The claim exists to disambiguate one write from another. Persisted, it
+    // would let a much later unrelated write look like it was finishing an Undo
+    // that had long since been resolved.
+    await saveFlashcards(makeStore({
+      rev: 0,
+      retractionCompleted: 'attempt-1',
+    } as Partial<FlashcardStore>));
+
+    const stored = await loadFlashcards();
+    expect(stored.retractionCompleted).toBeUndefined();
+  });
+
   it('rejects a stale renderer snapshot after another window commits a newer revision', async () => {
     const original = makeStore({
       rev: 0,

@@ -40,6 +40,10 @@ vi.mock('../../context', async () => {
     clearAccessClaim: mockClearAccessClaim,
     submitRating: mockSubmitRating,
     appendRetractions: mockAppendRetractions,
+    recordPendingRetraction: mockRecordPendingRetraction,
+    completePendingRetraction: mockCompletePendingRetraction,
+    recoverPendingRetraction: mockRecoverPendingRetraction,
+    registerRetractionProjection: mockRegisterRetractionProjection,
     recomputeWordKnowledgeFromEvidence: mockRecomputeProjection,
     getWordKnowledge: mockGetWordKnowledge,
     getAccessStatus: mockGetAccessStatus,
@@ -113,7 +117,49 @@ const mockSubmitRating = vi.fn(async (
 });
 const mockShowToast = vi.hoisted(() => vi.fn());
 const isReadingScriptTextFn = vi.hoisted(() => vi.fn((_surface?: unknown, _data?: unknown) => false));
-const mockAppendRetractions = vi.fn(async () => true);
+const mockAppendRetractions = vi.fn(async (_word?: string, _language?: string, _attemptIds?: string[]): Promise<boolean> => true);
+// The durable Undo record, modelled on the real shared protocol: a record is
+// written before the retraction and cleared by completing it, so a window that
+// reloads mid-undo can still find and finish it. `pendingRecord` is what a
+// reloaded window would read back.
+type MockUndoRecord = {
+  attemptId: string;
+  surface: string;
+  word: string;
+  language: string;
+  attemptIds: string[];
+  restore: Record<string, unknown>;
+};
+let pendingRecord: MockUndoRecord | null = null;
+const mockRecordPendingRetraction = vi.fn(async (record: MockUndoRecord) => { pendingRecord = record; return true; });
+// Mirrors the real `RetractionCompletion` union: callers branch on the specific
+// refusal so a failed persistence is not reported as a refused retraction.
+const completeMockRecord = async (
+  record: MockUndoRecord,
+  project?: (record: MockUndoRecord) => void,
+): Promise<'completed' | 'retraction-refused' | 'stale' | 'store-refused'> => {
+  if (pendingRecord?.attemptId !== record.attemptId) return 'stale';
+  if (!await mockAppendRetractions(record.word, record.language, record.attemptIds)) return 'retraction-refused';
+  project?.(record);
+  pendingRecord = null;
+  return 'completed';
+};
+const mockCompletePendingRetraction = vi.fn(completeMockRecord);
+// A surface registers how it puts its own state back; recovery finds the owner
+// by the record's tag, so it never needs to know which surface asked.
+const projectionBuilders = new Map<string, (record: MockUndoRecord) => Promise<(record: MockUndoRecord) => void>>();
+const mockRegisterRetractionProjection = vi.fn((surface: string, build: (record: MockUndoRecord) => Promise<(record: MockUndoRecord) => void>) => {
+  projectionBuilders.set(surface, build);
+});
+const mockRecoverPendingRetraction = vi.fn(async () => {
+  const pending = pendingRecord;
+  if (!pending) return;
+  const build = projectionBuilders.get(pending.surface);
+  if (!build) return;
+  const project = await build(pending);
+  if (await completeMockRecord(pending, project) === 'completed') return;
+  pendingRecord = null;
+});
 const mockRecomputeProjection = vi.fn(async () => {});
 const mockUpdateSettings = vi.fn();
 const mockFetchTranslation = vi.hoisted(() => vi.fn(async (_word?: string): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
@@ -549,6 +595,22 @@ describe('WordSyncContent', () => {
   // test's Space/Enter reveal (stopImmediatePropagation) and cascade failures
   // far from the real cause.
   const disposals: Array<() => void> = [];
+  /**
+   * The session record the surface's real controller has persisted.
+   *
+   * Read from storage rather than hand-written, because the recorded projection
+   * is only rewound against a session with the same id and identity — which is
+   * exactly what a real reload hands the recovering window. Reading it back
+   * also exercises the round trip a reload performs.
+   */
+  const lastControllerSession = (): Record<string, unknown> | null => {
+    const raw = localStorage.getItem('mlearn-study-word-sync:ja');
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch { return null; }
+  };
+
   const mountContent = (Component: Component): (() => void) => {
     const dispose = render(() => <Component />, container);
     disposals.push(dispose);
@@ -617,6 +679,23 @@ beforeEach(() => {
     mockShowToast.mockClear();
     mockAppendRetractions.mockClear();
     mockAppendRetractions.mockResolvedValue(true);
+    pendingRecord = null;
+    mockRecordPendingRetraction.mockClear();
+    mockRecordPendingRetraction.mockImplementation(async (record: MockUndoRecord) => { pendingRecord = record; return true; });
+    mockCompletePendingRetraction.mockClear();
+    mockCompletePendingRetraction.mockImplementation(completeMockRecord);
+    mockRegisterRetractionProjection.mockClear();
+    projectionBuilders.clear();
+    mockRecoverPendingRetraction.mockClear();
+    mockRecoverPendingRetraction.mockImplementation(async () => {
+      const pending = pendingRecord;
+      if (!pending) return;
+      const build = projectionBuilders.get(pending.surface);
+      if (!build) return;
+      const project = await build(pending);
+      if (await completeMockRecord(pending, project) === 'completed') return;
+      pendingRecord = null;
+    });
     mockRecomputeProjection.mockClear();
     mockUpdateSettings.mockClear();
     mockWordSyncState.projection = undefined;
@@ -877,7 +956,10 @@ beforeEach(() => {
     await settle(); await settle();
     expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
     expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
-    buttonByText('mlearn.Knowledge.Retry').click();
+    const retry = Array.from(container.querySelectorAll('button'))
+      .find((b) => b.textContent?.includes('mlearn.Knowledge.Retry'));
+    expect(retry).toBeDefined();
+    retry!.click();
     expect(mockRetryKnowledgeProjection).toHaveBeenCalledOnce();
     expect(mockRatingObservation).not.toHaveBeenCalled();
   });
@@ -888,7 +970,10 @@ beforeEach(() => {
     mountContent(WordSyncContent);
     await settle(); await settle();
     expect(container.textContent).toContain('mlearn.WordSync.ProjectionUnavailable');
-    buttonByText('mlearn.Knowledge.Retry').click();
+    const retry = Array.from(container.querySelectorAll('button'))
+      .find((b) => b.textContent?.includes('mlearn.Knowledge.Retry'));
+    expect(retry).toBeDefined();
+    retry!.click();
     await settle(); await settle();
     expect(container.querySelector('.word-sync-word')).not.toBeNull();
     expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
@@ -1385,6 +1470,153 @@ beforeEach(() => {
     await settle();
     await settle();
     expect(mockRatingObservation).toHaveBeenCalledTimes(2);
+    dispose();
+  });
+
+  it('records the undo before retracting, so a reload mid-undo can still finish it', async () => {
+    // The bug this owns: the undo stack is a memory signal. A window that
+    // reloaded after deciding to undo lost the ability to take that rating
+    // back entirely — the attempt stayed in the journal and no surface could
+    // retract it, with nothing shown to the learner. The record written BEFORE
+    // the retraction is what makes the promise hold across a reload.
+    const { WordSyncContent } = await import('./App');
+
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    await settle();
+
+    press(' ');
+    await settle();
+    await settle();
+    press('3');
+    await settle();
+    await settle();
+    const attemptId = attemptIdOf(0);
+
+    press('z', { metaKey: true });
+    await settle();
+    await settle();
+    await settle();
+
+    // The decision is recorded before anything is retracted, carrying enough to
+    // finish it without the window that made it.
+    expect(mockRecordPendingRetraction).toHaveBeenCalledTimes(1);
+    expect(mockRecordPendingRetraction.mock.calls[0][0]).toMatchObject({
+      surface: 'word-sync',
+      word: '赤い',
+      language: 'ja',
+      attemptIds: [attemptId],
+      // The projection is carried opaquely for the store; only this surface
+      // knows what it means.
+      restore: expect.objectContaining({ ratedCount: 0, lastRating: null }),
+    });
+
+    // …and completing it appends the retraction and clears the record, so a
+    // later load finds nothing left to redo.
+    expect(mockCompletePendingRetraction).toHaveBeenCalledTimes(1);
+    expect(mockAppendRetractions).toHaveBeenCalledWith('赤い', 'ja', [attemptId]);
+    expect(pendingRecord).toBeNull();
+
+    dispose();
+  });
+
+  it('finishes an undo that a previous window decided but did not complete', async () => {
+    // The failure this fixes, measured in the running app: rating a word,
+    // reloading, and pressing undo did nothing at all — no retraction, no
+    // error, nothing — because the undo stack was memory-only. A window that
+    // loads with a record left behind must finish that undo on its own.
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    await settle();
+
+    // The record a reloaded window reads back. Its projection is the session
+    // the previous window was sitting in, and the rewind is only valid
+    // against a session with the same id and identity — so the live one is
+    // captured here rather than invented, which is what a real reload
+    // produces.
+    const liveSession = lastControllerSession();
+    expect(liveSession).not.toBeNull();
+    pendingRecord = {
+      attemptId: 'interrupted-attempt',
+      surface: 'word-sync',
+      word: '赤い',
+      language: 'ja',
+      attemptIds: ['interrupted-attempt'],
+      restore: {
+        session: liveSession,
+        ratedCount: 0,
+        lastRating: null,
+        samplingLevel: 5,
+        levelCursors: [],
+      },
+    };
+    // Recovery is driven by the surface registering and then re-running it, as
+    // it does when a real window finishes loading with a record in the store.
+    await mountContent(WordSyncContent);
+    await settle();
+    await settle();
+    await settle();
+
+    // Recovery runs on its own: the learner already asked for this undo, so
+    // finishing it completes their request rather than starting new work.
+    expect(mockRecoverPendingRetraction).toHaveBeenCalled();
+    expect(mockAppendRetractions).toHaveBeenCalledWith('赤い', 'ja', ['interrupted-attempt']);
+    // The record is cleared only once the retraction is durable.
+    expect(pendingRecord).toBeNull();
+
+    dispose();
+  });
+
+  it('a refused retraction keeps its record so the retry is still the same undo', async () => {
+    // A refusal is not a lost undo: the record has to survive it, or the retry
+    // would be a different operation from the one the learner asked for.
+    const { WordSyncContent } = await import('./App');
+
+    mockWordSyncState.wordFrequency = {
+      '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' },
+      '青い': { reading: 'あおい', raw_level: 5, level: 'N5' },
+    };
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    await settle();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+    await settle();
+    buttonByText('mlearn.Rating.Matrix.Fluent').click();
+    await settle();
+    await settle();
+    const attemptId = attemptIdOf(0);
+
+    mockAppendRetractions.mockResolvedValue(false);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await settle();
+    await settle();
+    await settle();
+
+    expect(container.textContent).toContain('mlearn.WordSync.UndoSaveFailed');
+    // Recorded, not cleared: the retry must be able to finish this exact undo.
+    expect(pendingRecord).not.toBeNull();
+    expect(mockAppendRetractions).toHaveBeenCalledWith(expect.any(String), 'ja', [attemptId]);
+
+    // Retrying after storage recovers completes the same undo.
+    mockAppendRetractions.mockResolvedValue(true);
+    const retry = Array.from(container.querySelectorAll('button'))
+      .find((b) => b.textContent?.includes('mlearn.Global.TryAgain'));
+    expect(retry).toBeDefined();
+    retry!.click();
+    await settle();
+    await settle();
+    await settle();
+
+    expect(pendingRecord).toBeNull();
+    expect(mockAppendRetractions.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(container.textContent).not.toContain('mlearn.WordSync.UndoSaveFailed');
+
     dispose();
   });
 
