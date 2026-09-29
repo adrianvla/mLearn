@@ -34,15 +34,6 @@ export function statusToStrength(status: WordStatus): number {
   return 0;
 }
 
-/**
- * Derivable event outcome: the representative ease a status maps back to.
- * (The former easeToStatus reader is superseded by
- * knowledge/effectiveKnowledge: evidenceStatusFromEase with configured
- * thresholds — grammar curriculum coverage now routes through it. Removed
- * per the no-deprecated-leftovers rule after migrating its only caller; its
- * hardcoded-anchor behavior reproduced FINAL review major #2.)
- */
-
 /** Derivable event outcome: the representative ease a status maps back to. */
 export function statusToEase(status: WordStatus): number {
   if (status === 'known') return SRS_EASE.DEFAULT_KNOWN;

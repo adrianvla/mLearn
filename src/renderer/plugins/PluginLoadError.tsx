@@ -26,5 +26,3 @@ export const PluginLoadError: Component<PluginLoadErrorProps> = (props) => (
     <p>{props.message}</p>
   </div>
 );
-
-export default PluginLoadError;

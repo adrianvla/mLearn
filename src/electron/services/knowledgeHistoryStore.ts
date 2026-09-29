@@ -1,6 +1,6 @@
 import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
-import { createGrammarRecognitionFold } from '../../shared/grammar/evidence';
+import { createGrammarRecognitionFold, grammarPatternFromEvidenceKey } from '../../shared/grammar/evidence';
 import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../../shared/knowledge/historyQueries';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { eventCapability } from '../../shared/knowledgeEvents';
@@ -702,7 +702,7 @@ export class KnowledgeHistoryStore {
     const rows = this.db.prepare('SELECT json FROM rows WHERE key = ? ORDER BY t, seq');
     const tombstones = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json LIKE '%\"retracts\"%'");
     for (const key of this.queryLanguageKeys(language, 'grammar:')) {
-      if (!key.endsWith(':grammar-recognition')) continue;
+      if (grammarPatternFromEvidenceKey(language, key) === null) continue;
       const retracted = new Set<string>();
       for (const row of tombstones.iterate(key) as Iterable<{ json: string }>) {
         const event = JSON.parse(row.json) as KnowledgeEvent;
