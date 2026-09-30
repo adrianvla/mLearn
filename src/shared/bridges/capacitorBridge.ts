@@ -60,6 +60,7 @@ import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, eventCapabili
 import { emptyTransitions, applyTransitions } from '../knowledge/historyArchive';
 import type { KeyHistorySummary, KeyKnowledgeState } from '../knowledge/historyQueries';
 import { replayKeyProjection } from '../utils/projectionReplay';
+import { applyStorePatch, type StorePatch } from '../utils/storePatch';
 import { grammarPatternFromEvidenceKey, replayGrammarRecognition } from '../grammar/evidence';
 import type { AppUpdateState } from '../appUpdate';
 import type { IntegrateThreadResult, IntegrationPreview, JournalEvent, MembershipChangeResult, Participant, Room, Thread, WorldSnapshot } from '../world';
@@ -593,6 +594,12 @@ async function saveShardedFlashcards(store: FlashcardStore): Promise<void> {
 // ============================================================================
 
 const flashcardBridge: FlashcardBridge = {
+  async enqueueFlashcardRating(command) {
+    if (!await knowledgeEventsBridge.appendKnowledgeEvents(command.events)) throw new Error('Rating journal append refused');
+    return this.saveFlashcardPatch(command.patch);
+  },
+  async flushFlashcardRatings() {},
+  onFlashcardRatingsCommitted() { return () => {}; },
   getFlashcards(_knownRev?: number) {
     loadShardedFlashcards()
       .then(async data => {
@@ -614,6 +621,15 @@ const flashcardBridge: FlashcardBridge = {
     flashcards.rev = revision;
     await saveShardedFlashcards(flashcards);
     return revision;
+  },
+
+  async saveFlashcardPatch(patch: StorePatch): Promise<number> {
+    // Mobile keeps no authoritative in-memory copy, so the patch is applied to
+    // a freshly loaded store. saveShardedFlashcards then writes only the shards
+    // that actually changed, so the patch still avoids rewriting everything.
+    const store = await loadShardedFlashcards();
+    applyStorePatch(store as unknown as Record<string, unknown>, patch);
+    return this.saveFlashcards(store);
   },
 
   onFlashcards(callback) {

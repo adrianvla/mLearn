@@ -3,7 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
-import { Guardian, inspectGuardianData } from './guardian';
+import { Guardian, inspectGuardianData, needsEvidenceRebase, type GuardianMetrics } from './guardian';
 import AdmZip from 'adm-zip';
 import { KnowledgeHistoryStore } from './knowledgeHistoryStore';
 
@@ -288,5 +288,160 @@ describe('Guardian direct integrity boundary', () => {
     await new Guardian(temp.tmpDir).preflight();
     expect(new Guardian(temp.tmpDir).listRecoveryPoints()).toHaveLength(2);
     expect(JSON.parse(fs.readFileSync(file('guardian/snapshot-00000001/flashcards.json'), 'utf8')).flashcards.old).toBeDefined();
+  });
+});
+
+describe('Guardian evidence rebase for undos', () => {
+  /**
+   * The real shape of a learner who reviewed and then undid: a schema-1 ledger
+   * whose evidence total was only ever incremented, sitting 3 above the true
+   * count because three attempts were retracted.
+   */
+  const preRetractionLedger = (evidence: number): GuardianMetrics => ({
+    flashcardSchema: 3, knowledgeSchema: 2,
+    cards: ['a', 'b'], cardReviews: { a: 2, b: 1 },
+    wordKnowledge: [], grammarKnowledge: [],
+    rooms: [], threads: [], participants: [],
+    journalRecords: {}, knowledgeSequence: 1706761, knowledgeKeys: 3,
+    knowledgeKeyIds: ['k1', 'k2', 'k3'],
+    knowledgeEvidenceCount: evidence,
+    legacyKnowledgeKeys: [], legacyKnowledgeEvents: 0, legacyEvidence: {},
+  } as GuardianMetrics);
+
+  const inspected = (over: Partial<GuardianMetrics> = {}): GuardianMetrics => ({
+    ...preRetractionLedger(1706758),
+    knowledgeRetractedCount: 50,
+    ...over,
+  } as GuardianMetrics);
+
+  it('rebases a pre-retraction ledger that is high only because of undos', () => {
+    expect(needsEvidenceRebase(preRetractionLedger(1706761), inspected())).toBe(true);
+  });
+
+  it('still blocks a loss far larger than the retractions can explain', () => {
+    expect(needsEvidenceRebase(preRetractionLedger(1706761), inspected({ knowledgeEvidenceCount: 1705761 }))).toBe(false);
+  });
+
+  it('still blocks when no retraction could account for the gap', () => {
+    expect(needsEvidenceRebase(preRetractionLedger(1706761), inspected({ knowledgeRetractedCount: 0 }))).toBe(false);
+  });
+
+  it('never rebases a ledger that is too low', () => {
+    expect(needsEvidenceRebase(preRetractionLedger(1706000), inspected())).toBe(false);
+  });
+
+  it('never rebases once the ledger already tracks retractions', () => {
+    const modern = { ...preRetractionLedger(1706761), knowledgeRetractedCount: 0 } as GuardianMetrics;
+    expect(needsEvidenceRebase(modern, inspected())).toBe(false);
+  });
+
+  it('does not rebase away missing cards, reviews, keys, or journal records', () => {
+    expect(needsEvidenceRebase(preRetractionLedger(1706761), inspected({ cards: ['a'] }))).toBe(false);
+    expect(needsEvidenceRebase(preRetractionLedger(1706761), inspected({ cardReviews: { a: 2 } }))).toBe(false);
+    expect(needsEvidenceRebase(preRetractionLedger(1706761), inspected({ knowledgeKeyIds: ['k1'] }))).toBe(false);
+    expect(needsEvidenceRebase(
+      { ...preRetractionLedger(1706761), journalRecords: { 'journal/sea.ndjson': 5 } },
+      inspected({ journalRecords: {} }),
+    )).toBe(false);
+    expect(needsEvidenceRebase(preRetractionLedger(1706761), inspected({ knowledgeSequence: 1600000 }))).toBe(false);
+  });
+
+  /** A profile whose DB holds one exact event plus a retraction of another. */
+  function writeRetractedProfile(): void {
+    // The shared `writeProfile` stub creates a minimal `rows` table that the
+    // real schema cannot migrate, so this fixture writes the flashcard and
+    // world files directly and lets `KnowledgeHistoryStore` own the database.
+    fs.writeFileSync(file('flashcards.json'), JSON.stringify({
+      version: 3, flashcards: { a: card('a') }, wordKnowledge: {}, grammarKnowledge: {},
+    }));
+    fs.writeFileSync(file('world.json'), JSON.stringify({ rooms: [{ id: 'room-1' }], threads: [], participants: [] }));
+    const store = KnowledgeHistoryStore.open(file('knowledge-history.sqlite3'));
+    store.appendEvents({ 'xx:key': [
+      { t: Date.now(), kind: 'review', source: 'srs', aspect: 'meaning', attemptId: 'keep', rating: 'good', easeAfter: 2.5 },
+      { t: Date.now(), kind: 'review', source: 'srs', aspect: 'meaning', attemptId: 'undo', rating: 'again', easeAfter: 2.5 },
+    ] });
+    store.appendEvents({ 'xx:key': [
+      { t: Date.now(), kind: 'retraction', source: 'srs', retracts: 'undo' },
+    ] });
+    store.close();
+  }
+
+  /** Turn a healthy ledger into the pre-fix, undo-blocked ledger a learner really has. */
+  async function blockOnEvidenceAlone(): Promise<string> {
+    writeRetractedProfile();
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const ledgerPath = file('guardian/ledger.json');
+    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+    // Pre-retraction-accounting: the total was only ever incremented, so undoing
+    // one attempt left it above the truth. `block` copies `previous.metrics`, so
+    // the raised total survives into the blocked ledger exactly as it did. The
+    // sequence also sits below the truth, because the block is what stopped the
+    // app from ever recording the retraction's own sequence.
+    ledger.state = 'blocked';
+    const truth = inspectGuardianData(temp.tmpDir);
+    ledger.reason = 'Unexplained learner data loss: knowledge evidence count decreased by 1 beyond 0 retracted';
+    ledger.metrics.knowledgeEvidenceCount = truth.knowledgeEvidenceCount + 1;
+    ledger.metrics.knowledgeSequence = truth.knowledgeSequence - 1;
+    delete ledger.metrics.knowledgeRetractedCount;
+    fs.writeFileSync(ledgerPath, JSON.stringify(ledger));
+    return ledgerPath;
+  }
+
+  it('accepts a live acknowledged retraction after restart without inventing evidence loss', async () => {
+    writeRetractedProfile();
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const store = KnowledgeHistoryStore.open(file('knowledge-history.sqlite3'));
+    store.appendEvents({ 'xx:key': [{ t: Date.now(), kind: 'retraction', source: 'manual', retracts: 'keep' }] });
+    guardian.recordKnowledgeSequence(store.sequenceCounter, 1, ['xx:key']);
+    store.close();
+    const truth = inspectGuardianData(temp.tmpDir);
+    expect(truth.knowledgeEvidenceCount).toBe(guardian.status.metrics!.knowledgeEvidenceCount);
+    await expect(new Guardian(temp.tmpDir).preflight()).resolves.toBeUndefined();
+  });
+
+  it('rechecks an evidence-only post-migration block with modern retraction accounting', async () => {
+    writeRetractedProfile();
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const ledgerPath = file('guardian/ledger.json');
+    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+    ledger.state = 'blocked';
+    ledger.reason = 'Post-migration learner data loss: knowledge evidence count decreased by 1 beyond 1 retracted';
+    ledger.metrics.knowledgeRetractedCount = 0;
+    fs.writeFileSync(ledgerPath, JSON.stringify(ledger));
+    await expect(new Guardian(temp.tmpDir).preflight()).resolves.toBeUndefined();
+  });
+
+  it('re-evaluates a ledger blocked on the evidence total alone instead of demanding a restore', async () => {
+    await blockOnEvidenceAlone();
+    const reopened = new Guardian(temp.tmpDir);
+    await expect(reopened.preflight()).resolves.toBeUndefined();
+    expect(reopened.status.state).toBe('ready');
+    // Rebased onto inspected truth, not back onto the ledger's stale total.
+    expect(reopened.status.metrics?.knowledgeEvidenceCount)
+      .toBe(inspectGuardianData(temp.tmpDir).knowledgeEvidenceCount);
+    expect(reopened.status.metrics?.knowledgeRetractedCount).toBe(1);
+  });
+
+  it('still demands recovery when the block reported more than the evidence total', async () => {
+    await blockOnEvidenceAlone();
+    const ledgerPath = file('guardian/ledger.json');
+    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+    ledger.reason = 'Unexplained learner data loss: cards: 2 missing; knowledge evidence count decreased';
+    fs.writeFileSync(ledgerPath, JSON.stringify(ledger));
+    await expect(new Guardian(temp.tmpDir).preflight()).rejects.toThrow('Guardian needs recovery');
+  });
+
+  it('still blocks when the evidence gap is still unexplained after re-inspection', async () => {
+    await blockOnEvidenceAlone();
+    const ledgerPath = file('guardian/ledger.json');
+    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+    ledger.metrics.knowledgeEvidenceCount = 9;
+    fs.writeFileSync(ledgerPath, JSON.stringify(ledger));
+    const reopened = new Guardian(temp.tmpDir);
+    await expect(reopened.preflight()).rejects.toThrow('Unexplained learner data loss');
+    expect(reopened.status.state).toBe('blocked');
   });
 });

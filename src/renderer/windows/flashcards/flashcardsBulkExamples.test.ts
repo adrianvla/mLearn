@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Flashcard, LanguageData, Settings } from '../../../shared/types';
-import { buildBulkExampleUpdate, buildBulkExampleUpdates, getCardsNeedingBulkExamples, resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
+import { buildBulkExampleUpdate, buildBulkExampleUpdates, resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 
 function makeCard(overrides: Partial<Flashcard> = {}): Flashcard {
   const { content: contentOverride, ...cardOverrides } = overrides;
@@ -103,17 +103,6 @@ describe('flashcards bulk examples', () => {
       language: 'ja',
       targetWord: '雨',
     }));
-  });
-
-  it('selects the same cards as the existing bulk-example modes', () => {
-    const withExample = makeCard({ id: 'with-example', content: { type: 'word', front: 'A', back: 'a', example: 'already' } });
-    const withoutExample = makeCard({ id: 'without-example', content: { type: 'word', front: 'B', back: 'b', example: '' } });
-    const shell = makeCard({ id: 'shell', content: { type: 'word', front: '-', back: '-' } });
-
-    expect(getCardsNeedingBulkExamples([withExample, withoutExample, shell], 'onlyEmpty').map(card => card.id))
-      .toEqual(['without-example', 'shell']);
-    expect(getCardsNeedingBulkExamples([withExample, withoutExample, shell], 'replaceAll').map(card => card.id))
-      .toEqual(['with-example', 'without-example']);
   });
 
   it('falls back to language colour codes when settings do not define any', () => {

@@ -3,11 +3,16 @@ import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import path from 'path';
 import fs from 'fs';
 import type { FlashcardStore, Flashcard } from '../../shared/types';
+import type { StorePatch } from '../../shared/utils/storePatch';
+import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
+import { IPC_CHANNELS } from '../../shared/constants';
 
 const mockIpcListeners = new Map<string, Function[]>();
 const mockIpcHandlers = new Map<string, Function>();
+const ratingCommit = vi.fn();
 
 vi.mock('electron', () => ({
+  BrowserWindow: { getAllWindows: () => [{ isDestroyed: () => false, webContents: { send: ratingCommit } }] },
   ipcMain: {
     on: vi.fn((channel: string, handler: Function) => {
       const existing = mockIpcListeners.get(channel) || [];
@@ -23,6 +28,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => '/tmp/test'),
     on: vi.fn(),
+    quit: vi.fn(),
     isPackaged: false,
   },
   protocol: {
@@ -117,6 +123,7 @@ describe('flashcardStorage', () => {
   let getFlashcardEaseMap: () => Promise<Record<string, number>>;
   let setupFlashcardIPC: () => void;
   let invalidateFlashcardsCache: () => void;
+  let saveFlashcardPatch: (patch: StorePatch) => Promise<number>;
 
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-fc-test-');
@@ -130,10 +137,83 @@ describe('flashcardStorage', () => {
     getFlashcardEaseMap = mod.getFlashcardEaseMap;
     setupFlashcardIPC = mod.setupFlashcardIPC;
     invalidateFlashcardsCache = mod.invalidateFlashcardsCache;
+    saveFlashcardPatch = mod.saveFlashcardPatch;
   });
 
   afterEach(() => {
     tempDir.cleanup();
+  });
+
+  const ratingCommand = (card: Flashcard, reviews: number, count: number): FlashcardRatingCommand => ({
+    attemptId: `attempt-${card.id}-${reviews}`,
+    patch: { baseRev: 1, entries: [
+      { path: ['flashcards', card.id], before: card, after: { ...card, state: 'review', reviews, lastUpdated: Date.now() } },
+      { path: ['meta', 'perLanguage', 'ja', 'reviewsToday'], before: count - 1, after: count },
+    ] },
+    events: { 'ja:rating-key': [{ t: Date.now(), kind: 'review', source: 'srs', rating: 'good',
+      schedulerCardId: card.id, attemptId: `attempt-${card.id}-${reviews}` }] },
+    counterDeltas: [
+      { path: ['flashcards', card.id, 'reviews'], delta: reviews - card.reviews },
+      { path: ['meta', 'perLanguage', 'ja', 'reviewsToday'], delta: 1 },
+    ],
+  });
+
+  it('persists rapid ratings as one latest-state write and one committed patch', async () => {
+    const storage = await import('./flashcardStorage');
+    const first = makeFlashcard('batch-first');
+    const second = makeFlashcard('batch-second');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [first.id]: first, [second.id]: second } }));
+    const writes = vi.spyOn(fs.promises, 'writeFile');
+    ratingCommit.mockClear();
+    // Two windows can submit against the same counter baseline.
+    const promises = [storage.enqueueFlashcardRating(ratingCommand(first, 1, 1)), storage.enqueueFlashcardRating(ratingCommand(second, 1, 1))];
+    expect(writes).not.toHaveBeenCalled();
+    await storage.flushFlashcardRatings();
+    expect(await Promise.all(promises)).toEqual([2, 2]);
+    expect(writes).toHaveBeenCalledTimes(1);
+    const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf8')) as FlashcardStore;
+    expect(persisted.meta.perLanguage.ja.reviewsToday).toBe(2);
+    expect(persisted.flashcards[first.id].reviews).toBe(1);
+    expect(persisted.flashcards[second.id].reviews).toBe(1);
+    expect(ratingCommit.mock.calls.filter(([channel]) => channel === IPC_CHANNELS.FLASHCARD_RATINGS_COMMITTED)).toHaveLength(1);
+    const journal = await import('./knowledgeEvents');
+    expect(journal.getKnowledgeEvents(['ja:rating-key'])['ja:rating-key']).toHaveLength(2);
+    writes.mockRestore();
+  });
+
+  it('retries a failed batch without duplicating durable journal evidence', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('retry-batch');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const writes = vi.spyOn(fs.promises, 'writeFile').mockRejectedValueOnce(new Error('disk full'));
+    const command = ratingCommand(card, 1, 1);
+    const failed = storage.enqueueFlashcardRating(command);
+    const rejected = expect(failed).rejects.toThrow('disk full');
+    await expect(storage.flushFlashcardRatings()).rejects.toThrow('disk full');
+    await rejected;
+    expect((await loadFlashcards()).flashcards[card.id].reviews).toBe(0);
+    const retry = storage.enqueueFlashcardRating(command);
+    await storage.flushFlashcardRatings();
+    expect(await retry).toBe(2);
+    const journal = await import('./knowledgeEvents');
+    expect(journal.getKnowledgeEvents(['ja:rating-key'])['ja:rating-key']).toHaveLength(1);
+    writes.mockRestore();
+  });
+
+  it('flushes accepted ratings before quitting even when the review renderer has gone away', async () => {
+    const storage = await import('./flashcardStorage');
+    const electron = await import('electron');
+    const card = makeFlashcard('quit-batch');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    setupFlashcardIPC();
+    const command = storage.enqueueFlashcardRating(ratingCommand(card, 1, 1));
+    const quitHandler = vi.mocked(electron.app.on).mock.calls.filter(([event]) => event === 'before-quit').at(-1)![1];
+    const event = { preventDefault: vi.fn() };
+    quitHandler(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(await command).toBe(2);
+    await vi.waitFor(() => expect(electron.app.quit).toHaveBeenCalled());
+    expect((await loadFlashcards()).flashcards[card.id].reviews).toBe(1);
   });
 
   describe('loadFlashcards', () => {
@@ -714,5 +794,107 @@ describe('flashcardStorage', () => {
       expect(fourth).not.toBe(first);
       expect(fourth.flashcards['ext']).toBeDefined();
     });
+  });
+  describe('saveFlashcardPatch', () => {
+    const patchFor = (entries: StorePatch['entries'], baseRev = 0): StorePatch => ({ baseRev, entries });
+
+    /**
+     * Regression: saveFlashcardPatch runs inside the write queue, so it must not
+     * call the queued saveFlashcards — that re-enters the same queue and awaits
+     * the write that is already awaiting it. The write then never settles, the
+     * renderer hangs, and the rating surfaces as "could not be saved".
+     * A timeout here is the deadlock, not a slow test.
+     */
+    it('settles instead of deadlocking on the write queue', async () => {
+      const card = makeFlashcard('card-patch', { reviews: 1 });
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ flashcards: { 'card-patch': card }, version: 3 }));
+      const store = await loadFlashcards();
+
+      const patch = patchFor([{ path: ['flashcards', 'card-patch'], before: card, after: { ...card, reviews: 2 } }], store.rev ?? 0);
+      const revision = await saveFlashcardPatch(patch);
+
+      // The write advances the authoritative revision exactly once.
+      const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8')) as FlashcardStore;
+      // The revision main reports is the one it wrote.
+      expect(persisted.rev).toBe(revision);
+      expect(persisted.flashcards['card-patch'].reviews).toBe(2);
+    }, 10_000);
+
+    it('falls back to a full save when the patch targets a stale revision', async () => {
+      const card = makeFlashcard('card-stale', { reviews: 1 });
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ flashcards: { 'card-stale': card }, version: 3 }));
+      const store = await loadFlashcards();
+      await saveFlashcardPatch(patchFor([], store.rev ?? 0));
+
+      // A patch computed against the previous revision must still be applied to
+      // the CURRENT store rather than rejected or applied to a stale snapshot.
+      const stale = patchFor(
+        [{ path: ['flashcards', 'card-stale'], before: card, after: { ...card, reviews: 7 } }],
+        (store.rev ?? 0),
+      );
+      await saveFlashcardPatch(stale);
+
+      const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8')) as FlashcardStore;
+      expect(persisted.flashcards['card-stale'].reviews).toBe(7);
+    }, 10_000);
+
+    it('applies to a cold cache by loading the store from disk first', async () => {
+      const card = makeFlashcard('card-cold', { reviews: 1 });
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ flashcards: { 'card-cold': card }, version: 3 }));
+      invalidateFlashcardsCache();
+
+      const patch = patchFor([{ path: ['flashcards', 'card-cold'], before: card, after: { ...card, reviews: 3 } }], 0);
+      await saveFlashcardPatch(patch);
+
+      const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8')) as FlashcardStore;
+      expect(persisted.flashcards['card-cold'].reviews).toBe(3);
+    }, 10_000);
+
+    it('keeps the authoritative cache unchanged on disk failure and permits the same patch to retry', async () => {
+      const card = makeFlashcard('retry-card', { reviews: 1 });
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ flashcards: { [card.id]: card }, version: 3 }));
+      const before = structuredClone(await loadFlashcards());
+      const patch = patchFor([{ path: ['flashcards', card.id], before: card, after: { ...card, reviews: 2 } }], before.rev ?? 0);
+      vi.spyOn(fs.promises, 'writeFile').mockRejectedValueOnce(new Error('disk full'));
+      await expect(saveFlashcardPatch(patch)).rejects.toThrow('disk full');
+      expect(await loadFlashcards()).toEqual(before);
+      await expect(saveFlashcardPatch(patch)).resolves.toBe((before.rev ?? 0) + 1);
+      invalidateFlashcardsCache();
+      expect((await loadFlashcards()).flashcards[card.id].reviews).toBe(2);
+    });
+
+    it('rebases a queued patch onto the full-store write that finishes ahead of it', async () => {
+      const card = makeFlashcard('queued-card', { reviews: 1 });
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ flashcards: { [card.id]: card }, version: 3 }));
+      const before = structuredClone(await loadFlashcards());
+      const next = structuredClone(before);
+      next.meta.maxReviewsPerDay = 37;
+      const first = saveFlashcards(next);
+      const second = saveFlashcardPatch(patchFor([
+        { path: ['flashcards', card.id], before: card, after: { ...card, reviews: 2 } },
+      ], before.rev ?? 0));
+      await expect(Promise.all([first, second])).resolves.toEqual([(before.rev ?? 0) + 1, (before.rev ?? 0) + 2]);
+      const result = await loadFlashcards();
+      expect(result.meta.maxReviewsPerDay).toBe(37);
+      expect(result.flashcards[card.id].reviews).toBe(2);
+    });
+
+    it('serializes concurrent patches without losing any of them', async () => {
+      const card = makeFlashcard('card-serial', { reviews: 0 });
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ flashcards: { 'card-serial': card }, version: 3 }));
+      const store = await loadFlashcards();
+
+      const first = saveFlashcardPatch(patchFor(
+        [{ path: ['flashcards', 'card-serial'], before: card, after: { ...card, reviews: 1 } }], store.rev ?? 0,
+      ));
+      const second = saveFlashcardPatch(patchFor(
+        [{ path: ['flashcards', 'card-serial'], before: { ...card, reviews: 1 }, after: { ...card, reviews: 2 } }],
+        (store.rev ?? 0) + 1,
+      ));
+      await Promise.all([first, second]);
+
+      const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8')) as FlashcardStore;
+      expect(persisted.flashcards['card-serial'].reviews).toBe(2);
+    }, 10_000);
   });
 });

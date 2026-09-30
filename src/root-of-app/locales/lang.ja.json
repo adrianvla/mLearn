@@ -1107,7 +1107,7 @@
         "LLMToastTitle": "不足している例文翻訳を生成中…",
         "LLMDone": "{count}枚のカードの翻訳を生成しました",
         "LLMDoneWithErrors": "{count}枚のカードの翻訳を生成、{failed}件失敗",
-        "RepairButton": "修復",
+        "RepairButton": "修復", "ContentDescription": "{count}枚のカードにまだ意味がありません。辞書から補完しますか？", "ContentToastTitle": "カードの不足内容を作成中…", "ContentDone": "{count}枚のカードに内容を補完しました", "ContentDoneWithErrors": "{count}枚のカードに内容を補完しました（{failed}枚は失敗）", "ContentFailed": "カードの内容を補完できませんでした",
         "Title": "フラッシュカードデータの不足",
         "ToastTitle": "フラッシュカード音声を修復中…"
       },
@@ -1147,6 +1147,7 @@
         },
         "SavingRating": "評価を保存しています…",
         "SaveFailed": "評価を保存できませんでした。カードは残っています。もう一度お試しください。",
+        "PendingRatingsSaveFailed": "最近の評価を保存できませんでした。もう一度お試しください。",
         "SavingUndo": "取り消しを保存しています…",
         "UndoSaveFailed": "取り消しを保存できませんでした。カードは評価済みのままです。もう一度お試しください。"
       },

@@ -255,8 +255,15 @@ export function setupKnowledgeEventsIPC(): void {
   void loadKnowledgeEvents();
 
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, async (_event, eventsByKey: KnowledgeEventLog) => {
+    // TEMP DIAGNOSTIC: opt-in via the mlearn.ratingTrace file flag, since the
+    // main process has no localStorage. `touch <userData>/ratingTrace.flag`.
+    const traceOn = fs.existsSync(path.join(getUserDataPath(), 'ratingTrace.flag'));
+    const t0 = Date.now();
     await whenKnowledgeEventsReady();
+    if (traceOn) console.log(`[MAIN append] ready=${(Date.now() - t0).toFixed(1)}ms`);
+    const t1 = Date.now();
     await appendKnowledgeEvents(eventsByKey);
+    if (traceOn) console.log(`[MAIN append] appendKnowledgeEvents=${(Date.now() - t1).toFixed(1)}ms`);
     return true;
   });
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, async (_event, keys: string[]) => {

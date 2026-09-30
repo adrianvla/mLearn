@@ -1107,7 +1107,7 @@
         "LLMToastTitle": "Fehlende Beispielübersetzungen werden generiert…",
         "LLMDone": "Übersetzungen für {count} Lernkarte(n) generiert",
         "LLMDoneWithErrors": "Übersetzungen für {count} Lernkarte(n) generiert, {failed} fehlgeschlagen",
-        "RepairButton": "Reparieren",
+        "RepairButton": "Reparieren", "ContentDescription": "{count} Karteikarte(n) haben noch keine Bedeutung. Möchtest du sie aus dem Wörterbuch ergänzen?", "ContentToastTitle": "Fehlende Karteninhalte werden ergänzt…", "ContentDone": "{count} Karteikarte(n) ergänzt", "ContentDoneWithErrors": "{count} Karteikarte(n) ergänzt, {failed} konnten nicht ergänzt werden", "ContentFailed": "Karteninhalte konnten nicht ergänzt werden",
         "Title": "Fehlende Lernkartendaten",
         "ToastTitle": "Lernkarten-Audio wird repariert…"
       },
@@ -1147,6 +1147,7 @@
         },
         "SavingRating": "Bewertung wird gespeichert…",
         "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Die Karte ist noch da; versuche es erneut.",
+        "PendingRatingsSaveFailed": "Die letzten Bewertungen konnten nicht gespeichert werden. Versuche es erneut.",
         "SavingUndo": "Rückgängigmachung wird gespeichert…",
         "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Die Karte bleibt bewertet; versuche es erneut."
       },

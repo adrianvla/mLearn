@@ -46,6 +46,7 @@ interface ReviewRatingWrite {
   quality: AttemptQuality;
   easy: boolean;
   timing: AttemptTiming | null;
+  origin: string;
   scaffolds?: AttemptScaffolds;
 }
 
@@ -70,6 +71,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     updateFlashcardContent,
     updateFlashcard,
     submitRating,
+    ratingPersistenceState,
+    retryRatingPersistence,
     queue,
   } = useFlashcards();
 
@@ -230,30 +233,57 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return card ? { language: languageForCard(card), surface: card.content.front } : undefined;
   });
 
-  // Matrix rows: capabilities THIS card interaction tests (shared tested/supplied gate).
+  // The authored prompt defines the task when its surface is absent from the
+  // installed graph. Observations still use the exact surface address; this
+  // does not create graph entities or attest relationships to dictionary entries.
   const testedAccesses = createMemo<readonly CapabilityKey[]>(() => {
     const card = currentCard();
     if (!card) return ['sense-recognition'] as const;
-    return getTestedAccesses({
+    const candidates = getTestedAccesses({
       languageData: languageDataForCard(card),
       surface: card.content.front,
       hasReadingData: cardHasReadingData(card),
       hasProsodyData: cardHasProsodyData(card),
       taskType: 'srs-review',
-    }).filter(capability => knowledge.capabilities().includes(capability));
+    });
+    const projection = knowledge.projection();
+    if (projection?.status !== 'ready') return [];
+    return projection.surfaceKnown === false
+      ? candidates
+      : candidates.filter(capability => knowledge.capabilities().includes(capability));
   });
+  const capabilityQueryFailed = () => {
+    const status = knowledge.projection()?.status;
+    return status === 'error' || status === 'not-installed' || status === 'unavailable';
+  };
+
+  // Event handlers read this prop too. Own the computation in the component,
+  // rather than creating a JSX expression memo when a handler reads its getter.
+  const ratingArmed = createMemo(() => showAnswer() && !!currentCard() && !isComplete()
+    && ratingWrite() === null && undoWrite() === null && ratingPersistenceState() !== 'failed');
 
   // Explicit whole-word / matrix submissions rate every tested capability —
   // revealed cues change the evidence condition, not the rating surface.
   // Scaffold provenance still travels on each observation (see below).
   const commitRating = async (write: ReviewRatingWrite) => {
     setRatingWrite({ ...write, phase: 'pending' });
+    // TEMP DIAGNOSTIC: see FlashcardContext's rating tracer. Enable with
+    // `window.__mlearnTrace = true` in the DevTools console.
+    const traceOn = (() => {
+      try {
+        return (window as unknown as { __mlearnTrace?: boolean }).__mlearnTrace === true
+          || localStorage.getItem('mlearn.ratingTrace') === '1';
+      } catch { return false; }
+    })();
+    const t0 = performance.now();
     try {
       const result = await submitRating(write.card.content.front, write.observations, {
         language: languageForCard(write.card),
         attemptId: write.attemptId,
         ...(write.timing ? { timing: write.timing } : {}),
         taskType: 'srs-review',
+        origin: write.origin,
+        persistence: 'background',
         ...(write.scaffolds ? { scaffolds: write.scaffolds } : {}),
         scheduler: {
           cardId: write.card.id,
@@ -262,11 +292,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           tested: write.observations.map((observation) => observation.capability),
         },
       });
+      const afterAwait = performance.now();
       batch(() => {
         setShowAnswer(false);
         setRatingWrite(null);
         if (result.completed) setCardsAnswered((previous) => previous + 1);
       });
+      if (traceOn) {
+        // eslint-disable-next-line no-console
+        console.log(`%c[REVIEW] await submitRating=${(afterAwait - t0).toFixed(1)}ms  localApply=${(performance.now() - afterAwait).toFixed(1)}ms`,
+          'color:#f80; font-weight:bold');
+      }
       setWordAudioPreReveal(false);
       // The answer changed the pool: end the encounter so the next read
       // re-selects instead of replaying the just-rated pick through the pin.
@@ -299,6 +335,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       quality,
       easy: opts?.easy === true,
       timing,
+      origin: knowledge.projection()?.surfaceKnown === false ? 'flashcard-review:unmapped' : 'flashcard-review',
       ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
     });
   };
@@ -593,6 +630,16 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </div>
 
           <div class="flashcard-header-actions">
+            <Show when={ratingPersistenceState() === 'failed'}>
+              <div class="flashcard-rating-write flashcard-rating-write--failed" role="alert">
+                <span>{t('mlearn.Flashcards.Review.PendingRatingsSaveFailed')}</span>
+                <Button size="sm" variant="primary" onClick={() => {
+                  void retryRatingPersistence().catch(error => log.warn('Rating persistence retry failed:', error));
+                }}>
+                  {t('mlearn.Global.TryAgain')}
+                </Button>
+              </div>
+            </Show>
             <ToggleSwitch
               checked={settings.flashcardStealthMode}
               onChange={(checked) => updateSetting('flashcardStealthMode', checked)}
@@ -761,10 +808,23 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   return [capability, label];
                 }).filter((entry): entry is [string, string] => entry[1] !== undefined))}
                 keyboardMode={settings.ratingKeyboardMode}
-                armed={showAnswer() && !!currentCard() && !isComplete() && ratingWrite() === null && undoWrite() === null}
+                armed={ratingArmed()}
                 resetKey={currentCard()?.id}
                 onSubmit={handleBulkRate}
               />
+              <Show when={knowledge.loading()}>
+                <div class="flashcard-rating-write" role="status" aria-live="polite">
+                  {t('mlearn.Knowledge.Loading')}
+                </div>
+              </Show>
+              <Show when={capabilityQueryFailed()}>
+                <div class="flashcard-rating-write flashcard-rating-write--failed" role="alert">
+                  <span>{t(knowledge.projection()?.status === 'error' ? 'mlearn.Knowledge.LoadError' : 'mlearn.Knowledge.UnavailableHint')}</span>
+                  <Button size="sm" variant="primary" onClick={() => knowledge.retry()}>
+                    {t('mlearn.Global.TryAgain')}
+                  </Button>
+                </div>
+              </Show>
               <Show when={ratingWrite()?.phase === 'pending'}>
                 <div class="flashcard-rating-write" role="status" aria-live="polite">
                   {t('mlearn.Flashcards.Review.SavingRating')}

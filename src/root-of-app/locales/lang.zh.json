@@ -1107,7 +1107,7 @@
         "LLMToastTitle": "正在生成缺失的例句翻译…",
         "LLMDone": "为 {count} 张闪卡生成了翻译",
         "LLMDoneWithErrors": "为 {count} 张闪卡生成了翻译，{failed} 个失败",
-        "RepairButton": "修复",
+        "RepairButton": "修复", "ContentDescription": "{count} 张卡片还没有释义。要用词典补全吗？", "ContentToastTitle": "正在补全卡片内容…", "ContentDone": "已补全 {count} 张卡片", "ContentDoneWithErrors": "已补全 {count} 张卡片，{failed} 张失败", "ContentFailed": "无法补全卡片内容",
         "Title": "闪卡数据缺失",
         "ToastTitle": "正在修复闪卡音频…"
       },
@@ -1147,6 +1147,7 @@
         },
         "SavingRating": "正在保存评分…",
         "SaveFailed": "评分未能保存。卡片仍在这里，请重试。",
+        "PendingRatingsSaveFailed": "无法保存最近的评分。请重试。",
         "SavingUndo": "正在保存撤销操作…",
         "UndoSaveFailed": "无法保存撤销操作。卡片仍保持已评分状态，请重试。"
       },

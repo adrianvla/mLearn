@@ -31,7 +31,6 @@ import { getBackend, resolveCloudApiUrl } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { getPassiveHoverDelayMs } from '../../shared/utils/passiveWordTracking';
 import { registerAnkiReviewSync, refreshAnkiWordsCache } from '../services/ankiWordsCache';
-import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { getWordFormCandidates } from '../utils/wordForms';
 import { legacyCasingCandidates } from '../../shared/utils/normalizationVersion';
 import { streamChat, isLLMReady } from '../services/llmProvider';
@@ -39,7 +38,8 @@ import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
-import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
+import { createKnownWordSet } from '../utils/knowledgeUtils';
+import { applyFlashcardRatingCommand, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys } from '../utils/comprehensiveKnowledge';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
 import { appendEvents, appendEventsIdempotentAcknowledged, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
@@ -48,11 +48,21 @@ import { nextAttemptId, retentionConditionFor, type AttemptId, type AttemptScaff
 import { reconcileQuestionItems, type DeclaredItemState } from '../learning/questionBank';
 import type { AttemptTiming } from '../../shared/encounterTiming';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
+import { enrichWord } from '../services/wordEnrichment';
 import { selectRankedEncounters } from '../learning/engine';
 import { getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
-import { extractReadingValue } from '../utils/translationCacheParsers';
 import { parseExampleBlocksFromLLM, type LLMExampleJob, type LLMExampleResult } from '../utils/llmExampleBatch';
+import {
+  applyStorePatchInPlace,
+  copyStoreWithPatch,
+  getStorePath,
+  setStorePath,
+  snapshotStorePaths,
+  storePatchRecorder,
+  type StorePatch,
+  type StorePatchRecorder,
+} from '../../shared/utils/storePatch';
 
 
 const log = getLogger("renderer.context.flashcard");
@@ -202,7 +212,11 @@ type SchedulerRating = {
   timeSpentMs?: number;
   tested?: readonly CapabilityKey[];
 };
-type RatingSubmissionOptions = Omit<AttemptOptions, 'method'> & { scheduler?: SchedulerRating };
+type RatingSubmissionOptions = Omit<AttemptOptions, 'method'> & {
+  scheduler?: SchedulerRating;
+  /** Review advances locally while main owns and batches the durable write. */
+  persistence?: 'immediate' | 'background';
+};
 
 interface FlashcardContextValue {
   // Store access
@@ -232,6 +246,8 @@ interface FlashcardContextValue {
   buryCard: (id: string) => void;
 
   // Review operations
+  ratingPersistenceState: () => 'idle' | 'pending' | 'failed';
+  retryRatingPersistence: () => Promise<void>;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
 
@@ -396,10 +412,35 @@ interface FlashcardContextValue {
 // Create context
 const FlashcardContext = createContext<FlashcardContextValue>();
 
+type RatingStore = Pick<FlashcardStore, 'flashcards' | 'wordKnowledge' | 'meta' | 'dailyStats' | 'rev'>;
+
 const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 
-function cloneFlashcardStore(store: FlashcardStore): FlashcardStore {
-  return JSON.parse(JSON.stringify(store)) as FlashcardStore;
+
+// TEMP DIAGNOSTIC: opt-in rating phase tracer. Enable from the DevTools console
+// with `window.__mlearnTrace = true`, disable with `false`. Remove this block
+// together with the trace marks once the flush is resolved.
+type RatingTraceMark = { label: string; ms: number };
+const ratingTraceOn = (): boolean => {
+  try {
+    return (globalThis as unknown as { __mlearnTrace?: boolean }).__mlearnTrace === true
+      || localStorage.getItem('mlearn.ratingTrace') === '1';
+  } catch { return false; }
+};
+const emitRatingTrace = (rows: RatingTraceMark[], total: number): void => {
+  // eslint-disable-next-line no-console
+  console.log(`%c[RATING] total=${total.toFixed(1)}ms  ${rows.map((r) => `${r.label}=${r.ms.toFixed(1)}`).join('  ')}`,
+    'color:#c0f; font-weight:bold');
+};
+
+
+/**
+ * Deep copy of the whole store. A JSON round-trip is used rather than
+ * `structuredClone` because call sites pass Solid's reactive store: its proxies
+ * are not cloneable, and unwrapping is only shallow.
+ */
+function cloneFlashcardStore<T extends object>(store: T): T {
+  return JSON.parse(JSON.stringify(store)) as T;
 }
 
 function isStoreRecord(value: unknown): value is Record<string, unknown> {
@@ -447,6 +488,68 @@ export const FlashcardProvider: ParentComponent = (props) => {
   let pendingRecoveryRequested = false;
   let persistenceQueue: Promise<void> = Promise.resolve();
   let authoritativeStore: FlashcardStore | undefined;
+  const pendingRatings = new Map<string, FlashcardRatingCommand>();
+  const ratingAcknowledgements = new Set<Promise<void>>();
+  const [ratingPersistenceState, setRatingPersistenceState] = createSignal<'idle' | 'pending' | 'failed'>('idle');
+
+  const overlayPendingRatings = (target: FlashcardStore): void => {
+    // Reset only pending additive counters to the durable baseline before
+    // replaying local commands; a peer patch may not touch these paths.
+    for (const command of pendingRatings.values()) for (const { path } of command.counterDeltas ?? []) {
+      setStorePath(target as unknown as Record<string, unknown>, path,
+        getStorePath((authoritativeStore ?? getDefaultStore()) as unknown as Record<string, unknown>, path) ?? 0);
+    }
+    for (const command of pendingRatings.values()) applyFlashcardRatingCommand(target, command, true);
+  };
+
+  const sendBackgroundRating = (command: FlashcardRatingCommand): void => {
+    pendingRatings.set(command.attemptId, command);
+    setRatingPersistenceState('pending');
+    // Send before returning to the UI. Main owns this work even if the review
+    // window closes before the 300ms batch is written.
+    const acknowledgement = getBridge().flashcards.enqueueFlashcardRating(command).then(revision => {
+      pendingRatings.delete(command.attemptId);
+      setStore('rev', Math.max(store.rev ?? 0, revision));
+      if (pendingRatings.size === 0) setRatingPersistenceState('idle');
+    }, error => {
+      // Retain the command and its attempt id; retry cannot duplicate evidence
+      // or reconstruct a different scheduler result from a later card state.
+      setRatingPersistenceState('failed');
+      log.error('Failed to save queued flashcard ratings:', error);
+    });
+    ratingAcknowledgements.add(acknowledgement);
+    void acknowledgement.finally(() => ratingAcknowledgements.delete(acknowledgement));
+  };
+
+  const flushBackgroundRatings = async (): Promise<void> => {
+    if (pendingRatings.size === 0) return;
+    if (ratingPersistenceState() === 'failed') {
+      for (const command of pendingRatings.values()) sendBackgroundRating(command);
+    }
+    await getBridge().flashcards.flushFlashcardRatings();
+    await Promise.all([...ratingAcknowledgements]);
+    if (pendingRatings.size > 0) throw new Error('Pending flashcard ratings could not be saved');
+  };
+
+  const handleRatingCommit = ({ patch, rev, attemptIds }: FlashcardRatingCommit): void => {
+    const currentRevision = authoritativeStore?.rev ?? store.rev ?? 0;
+    if (rev < currentRevision) return;
+    for (const attemptId of attemptIds) pendingRatings.delete(attemptId);
+    if (pendingRatings.size === 0) setRatingPersistenceState('idle');
+    if (!authoritativeStore || rev > currentRevision + 1) loadFlashcards();
+    if (authoritativeStore) {
+      authoritativeStore = copyStoreWithPatch(authoritativeStore, patch);
+      authoritativeStore.rev = rev;
+    }
+    batch(() => {
+      setStore(produce(current => {
+        applyStorePatchInPlace(current as unknown as Record<string, unknown>, patch);
+        overlayPendingRatings(current as FlashcardStore);
+        current.rev = rev;
+      }));
+      refreshQueue();
+    });
+  };
   // Used for tracking session start time (could be used for session stats)
   const [, setSessionStartTime] = createSignal<number>(0);
 
@@ -520,7 +623,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const firstHydration = !storeHydrated;
     if (firstHydration) setIsKnowledgeReady(false);
     authoritativeStore = cloneFlashcardStore(checked);
-    setStore(reconcile(checked));
+    batch(() => {
+      setStore(reconcile(checked));
+      if (pendingRatings.size > 0) setStore(produce(current => overlayPendingRatings(current as FlashcardStore)));
+    });
     if (firstHydration) {
       void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
       void migrateLegacyEpistemicState().finally(() => {
@@ -939,17 +1045,44 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const saveFlashcardsImmediate = async (
     transform?: (target: FlashcardStore) => void,
     authorization?: FlashcardWriteAuthorization,
+    /** A command's detached pre-image and declared writes. */
+    prebuilt?: {
+      base: RatingStore;
+      guardCardIds?: readonly string[];
+      patch: StorePatch;
+    },
   ): Promise<boolean> => {
+    await flushBackgroundRatings();
     const write = persistenceQueue.then(async () => {
-      const base = cloneFlashcardStore(unwrap(store) as FlashcardStore);
-      const candidate = cloneFlashcardStore(base);
-      transform?.(candidate);
+      // TEMP DIAGNOSTIC: opt-in via window.__mlearnTrace / localStorage mlearn.ratingTrace=1.
+      const __tw = performance.now();
+      const __wrows: RatingTraceMark[] = [];
+      const __wmark = (label: string): void => { __wrows.push({ label, ms: performance.now() - __tw }); };
+      const base = prebuilt?.base ?? cloneFlashcardStore(unwrap(store) as FlashcardStore);
+      let candidate: FlashcardStore;
+      if (prebuilt?.patch) {
+        for (const id of prebuilt.guardCardIds ?? []) {
+          if (JSON.stringify(unwrap(store.flashcards[id])) !== JSON.stringify(base.flashcards[id])) {
+            throw new Error(`Flashcard ${id} changed while the rating was being persisted`);
+          }
+        }
+        __wmark('guard');
+        candidate = copyStoreWithPatch(authoritativeStore ?? getDefaultStore(), prebuilt.patch);
+        __wmark('deltaApply');
+      } else {
+        candidate = cloneFlashcardStore(base as FlashcardStore);
+        transform?.(candidate);
+      }
       const removals = [...pendingCardRemovals];
       const resetReviewProgress = pendingReviewReset;
       let committedRevision: number;
       try {
         if (isElectron()) {
-          const revision = await getBridge().flashcards.saveFlashcards(candidate, removals, resetReviewProgress, authorization);
+          const __tipc = performance.now();
+          const revision = prebuilt?.patch
+            ? await getBridge().flashcards.saveFlashcardPatch(prebuilt.patch, removals, resetReviewProgress, authorization)
+            : await getBridge().flashcards.saveFlashcards(candidate, removals, resetReviewProgress, authorization);
+          __wmark(`ipc(${((performance.now() - __tipc)).toFixed(0)}ms)`);
           committedRevision = typeof revision === 'number' ? revision : (candidate.rev ?? 0) + 1;
           for (const id of removals) pendingCardRemovals.delete(id);
           if (resetReviewProgress) pendingReviewReset = false;
@@ -965,17 +1098,34 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       candidate.rev = committedRevision;
 
       if ((authoritativeStore?.rev ?? base.rev ?? 0) <= committedRevision) {
-        authoritativeStore = cloneFlashcardStore(candidate);
+        // The candidate's changed branches are private and unchanged branches
+        // share the previous immutable snapshot. Retain it as the authority
+        // without another whole-store copy.
+        authoritativeStore = candidate;
+        __wmark('preSetStore');
         batch(() => setStore(produce((current) => {
-          applyStoreDelta(current as unknown as Record<string, unknown>, base as unknown as Record<string, unknown>, candidate as unknown as Record<string, unknown>);
+          if (prebuilt?.patch) {
+            applyStorePatchInPlace(current as unknown as Record<string, unknown>, prebuilt.patch);
+            // The committed revision is not part of the command's patch: it is
+            // the store's own acknowledgement counter, assigned by the writer.
+            (current as unknown as Record<string, unknown>).rev = committedRevision;
+          } else {
+            applyStoreDelta(current as unknown as Record<string, unknown>, base as unknown as Record<string, unknown>, candidate as unknown as Record<string, unknown>);
+          }
         })));
+        __wmark('setStore');
       }
 
+      const __tbc = performance.now();
       try {
-        broadcastChannel?.postMessage({ type: 'update', store: candidate });
+        broadcastChannel?.postMessage(prebuilt?.patch
+          ? { type: 'patch', patch: prebuilt.patch, rev: committedRevision }
+          : { type: 'update', store: candidate });
       } catch (e) {
         log.error('Failed to broadcast flashcard update:', e);
       }
+      __wmark(`broadcast(${((performance.now() - __tbc)).toFixed(0)}ms)`);
+      if (ratingTraceOn()) emitRatingTrace(__wrows, performance.now() - __tw);
       return true;
     });
     persistenceQueue = write.then(() => undefined, () => undefined);
@@ -1088,6 +1238,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
     ratingCommandInFlight = true;
     try {
+      await flushBackgroundRatings();
       if (pendingUndo) {
         return await completePendingReviewUndo(pendingUndo, entry);
       }
@@ -1603,12 +1754,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   const applySchedulerRating = (
-    target: FlashcardStore,
+    target: RatingStore,
     startingQueue: ReviewQueue,
     scheduler: SchedulerRating,
     attemptId: AttemptId,
     options: RatingSubmissionOptions,
     hasObservations: boolean,
+    /** Declares each entry this command writes, as it writes it. */
+    patch?: StorePatchRecorder,
   ): { completed: boolean; nextQueue: ReviewQueue; event: KnowledgeEvent; undo: UndoEntry; updated: Flashcard } => {
     const card = target.flashcards[scheduler.cardId];
     if (!card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
@@ -1637,6 +1790,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       schedulerCardId: card.id,
       attemptId,
       taskType: options.taskType ?? 'srs-review',
+      ...(options.origin ? { origin: options.origin } : {}),
       ...(options.scaffolds ? { scaffolds: options.scaffolds } : {}),
       ...(retentionCondition !== 'unassisted' ? { retentionCondition } : {}),
     };
@@ -1666,7 +1820,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         target.wordKnowledge[key].hasActiveEvidence = true;
       }
     }
-
+    patch?.set(['wordKnowledge', key], target.wordKnowledge[key]);
     const nextQueue = (() => {
       let next = SRS.removeFromQueue(startingQueue, card.id);
       if (updated.state === 'learning' || updated.state === 'relearning') {
@@ -1708,7 +1862,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (scheduler.timeSpentMs && scheduler.timeSpentMs > 0) {
       target.dailyStats[today][language].timeSpent += scheduler.timeSpentMs;
     }
-
+    // The complete set of entries this command writes. Declaring them here is
+    // what lets the write skip a structural diff of the whole store.
+    patch?.set(['flashcards', card.id], target.flashcards[card.id]);
+    patch?.set(['meta', 'perLanguage', language], perLanguage);
+    patch?.set(['dailyStats', today, language], target.dailyStats[today][language]);
     const undo: UndoEntry = {
       type: remainsQueued ? 'answer-requeued' : 'answer',
       cardId: card.id,
@@ -1828,18 +1986,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     )
   );
 
-  const knownWordSet = createMemo(() => {
-    perfCount('knowledge.knownWordSet.rebuilds');
-    return buildKnownWordSetFromStore(
-      store,
-      effectiveThresholds(settings),
-      (key, entry) => {
-        const language = entry.language ?? key.split(':')[0];
-        return [...new Set([key, ...getWordFormsForLanguage(entry.word, language)
-          .map(form => langKey(language, SRS.hashWordSync(form)))])];
-      },
-    );
-  });
+  const knownWordSet = createKnownWordSet(
+    () => store.wordKnowledge,
+    () => effectiveThresholds(settings),
+    (key, entry) => {
+      const language = entry.language ?? key.split(':')[0];
+      return [...new Set([key, ...getWordFormsForLanguage(entry.word, language)
+        .map(form => langKey(language, SRS.hashWordSync(form)))])];
+    },
+  );
   /** Teaching-policy exclusions (ignoredWords): never select/teach/test these. */
   const excludedWordKeys = createMemo(() => new Set(Object.keys(store.ignoredWords)));
   const getPrimaryWordFormForLanguage = (word: string, language = settings.language): string => (
@@ -1972,6 +2127,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }
     return filtered;
   };
+
 
   // Update metadata
   const updateMeta = (updates: Partial<FlashcardMeta>) => {
@@ -2453,32 +2609,19 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (!suggestion) { done++; onProgress?.(done, total); continue; }
 
       try {
-        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, suggestion.language);
-        const translationResponse = await backend.translate(
-          suggestion.word,
-          suggestion.language,
-          dictionaryTargetLanguage ? { dictionaryTargetLanguage } : undefined,
-        );
-        const data = translationResponse?.data;
-        if (!data || !Array.isArray(data)) { done++; onProgress?.(done, total); continue; }
-
-        const firstEntry = data[0] as TranslationEntry | undefined;
-        const secondEntry = data[1] as TranslationEntry | undefined;
-        let backText = '';
-        if (firstEntry?.definitions) {
-          backText = Array.isArray(firstEntry.definitions) ? firstEntry.definitions.join('; ') : String(firstEntry.definitions);
-        }
-        if (!backText) { done++; onProgress?.(done, total); continue; }
-
         const suggestionLanguageData = languageDataFor(suggestion.language);
-        const reading = suggestion.reading || extractReadingValue(firstEntry, suggestionLanguageData) || '';
-        const prosody = extractProsodyFromTranslationData(translationResponse, suggestionLanguageData, reading);
-        let definitionArr: string[] | undefined;
-        if (secondEntry?.definitions) {
-          definitionArr = Array.isArray(secondEntry.definitions)
-            ? secondEntry.definitions
-            : [String(secondEntry.definitions)];
-        }
+        // One enrichment owner: the dictionary lookup, the dictionary target
+        // language, and the package-declared reading/prosody extraction.
+        const enriched = await enrichWord({
+          word: suggestion.word,
+          language: suggestion.language,
+          languageData: suggestionLanguageData,
+          settings,
+          currentContent: { reading: suggestion.reading },
+        });
+        if (!enriched) { done++; onProgress?.(done, total); continue; }
+
+        const { back: backText, reading, prosody, definition: definitionArr } = enriched;
 
         let exampleSentence = suggestion.contextHtml || suggestion.contextPhrase || '';
         let exampleMeaning = '';
@@ -3272,7 +3415,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     capability: CapabilityKey,
     quality: AttemptQuality,
     options?: AttemptOptions,
-  ): { attemptId: AttemptId; event?: { key: string; value: KnowledgeEvent }; applyMaterialized?: (target: FlashcardStore) => void } => {
+  ): { attemptId: AttemptId; event?: { key: string; value: KnowledgeEvent }; materializedKeys?: readonly string[]; applyMaterialized?: (target: RatingStore, patch?: StorePatchRecorder) => void } => {
     const language = options?.language ?? settings.language;
     const attemptId = options?.attemptId ?? nextAttemptId();
     // Scaffold-aware evidence invariant: when the caller reports the actual
@@ -3293,9 +3436,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const forms = capability === 'sense-recognition'
       ? getWordFormsForLanguage(word, language)
       : isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, language);
-    const applyMaterialized = (target: FlashcardStore) => {
-      for (const form of forms) {
-        const key = langKey(language, SRS.hashWordSync(form));
+    const materializedKeys = forms.map(form => langKey(language, SRS.hashWordSync(form)));
+    const applyMaterialized = (target: RatingStore, patch?: StorePatchRecorder) => {
+      for (let index = 0; index < forms.length; index++) {
+        const form = forms[index];
+        const key = materializedKeys[index];
         const entry = target.wordKnowledge[key] ?? (target.wordKnowledge[key] = {
           word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
         });
@@ -3310,6 +3455,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             ...entry.access?.[capability], status, ease, source: 'Manual', lastStatusChange: now, updatedAt: now,
           } };
         }
+        patch?.set(['wordKnowledge', key], entry);
       }
     };
 
@@ -3350,7 +3496,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       toStatus: status,
       easeAfter: ease,
     };
-    return { attemptId, event: { key: langKey(language, SRS.hashWordSync(storageWord)), value: observation }, applyMaterialized };
+    return { attemptId, event: { key: langKey(language, SRS.hashWordSync(storageWord)), value: observation }, materializedKeys, applyMaterialized };
   };
 
   const submitRating = async (
@@ -3359,6 +3505,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     options?: RatingSubmissionOptions,
   ): Promise<{ attemptId: AttemptId; completed: boolean }> => {
     if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
+    if (ratingPersistenceState() === 'failed') throw new Error('Pending ratings need persistence retry');
     ratingCommandInFlight = true;
     try {
       const scheduler = options?.scheduler;
@@ -3367,19 +3514,45 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const attemptId = options?.attemptId ?? nextAttemptId();
       const prepared = observations.map(({ capability, quality, method }) =>
         prepareAttempt(word, capability, quality, { ...options, method, attemptId }));
-      const commandBase = cloneFlashcardStore(unwrap(store) as FlashcardStore);
+      const __t0 = performance.now();
+      const __rows: RatingTraceMark[] = [];
+      const __mark = (label: string): void => { __rows.push({ label, ms: performance.now() - __t0 }); };
+      const paths: string[][] = [
+        ['rev'], ['meta'],
+        ...prepared.flatMap(entry => (entry.materializedKeys ?? []).map(key => ['wordKnowledge', key])),
+      ];
+      if (scheduler && card) {
+        const language = card.language || options?.language || settings.language;
+        const key = langKey(language, SRS.hashWordSync(getPrimaryWordFormForLanguage(card.content.front, language)));
+        paths.push(['flashcards', card.id], ['wordKnowledge', key], ['wordStatsMap', key], ['dailyStats', SRS.getTodayDateString(newDayHour()), language]);
+      }
+      // Private, sparse pre/post images contain only the entries this command
+      // reads or writes. The library's unrelated cards and knowledge stay out.
+      const commandBase = snapshotStorePaths(unwrap(store) as unknown as Record<string, unknown>, paths) as RatingStore;
       const candidate = cloneFlashcardStore(commandBase);
-      for (const entry of prepared) entry.applyMaterialized?.(candidate);
+      candidate.flashcards ??= {};
+      candidate.wordKnowledge ??= {};
+      candidate.dailyStats ??= {};
+      // The command declares the entries it writes as it writes them. That
+      // declared set replaces a structural diff of the two clones, which had to
+      // walk every card in the collection twice per rating.
+      const patchRecorder = storePatchRecorder(commandBase as unknown as Record<string, unknown>);
+      __mark('snapshot');
+      for (const entry of prepared) entry.applyMaterialized?.(candidate, patchRecorder);
 
       const eventsByKey: KnowledgeEventLog = {};
       for (const entry of prepared) {
         if (!entry.event) continue;
+        // An authored card can address an unmapped surface without claiming
+        // that a dictionary node exists. Preserve the producing card identity
+        // alongside its exact presented surface and explicit origin.
+        if (scheduler) entry.event.value.schedulerCardId = scheduler.cardId;
         (eventsByKey[entry.event.key] ??= []).push(entry.event.value);
       }
 
       let schedulerResult: ReturnType<typeof applySchedulerRating> | undefined;
       if (scheduler) {
-        schedulerResult = applySchedulerRating(candidate, queue(), scheduler, attemptId, options ?? {}, observations.length > 0);
+        schedulerResult = applySchedulerRating(candidate, queue(), scheduler, attemptId, options ?? {}, observations.length > 0, patchRecorder);
         const cardLanguage = card!.language || options?.language || settings.language;
         const reviewKey = langKey(
           cardLanguage,
@@ -3388,30 +3561,61 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         (eventsByKey[reviewKey] ??= []).push(schedulerResult.event);
       }
 
-      if (Object.keys(eventsByKey).length > 0 && !await appendEventsIdempotentAcknowledged(eventsByKey)) {
+      __mark('prepare');
+      const background = options?.persistence === 'background' && isElectron() && schedulerResult !== undefined;
+      if (!background && Object.keys(eventsByKey).length > 0 && !await appendEventsIdempotentAcknowledged(eventsByKey)) {
         throw new Error('rating journal append was refused');
       }
+      __mark('journal');
 
       if (schedulerResult) {
-        if (!await saveFlashcardsImmediate((target) => {
-          if (scheduler && JSON.stringify(target.flashcards[scheduler.cardId]) !== JSON.stringify(commandBase.flashcards[scheduler.cardId])) {
-            throw new Error('Flashcard changed while the rating was being persisted');
-          }
-          applyStoreDelta(
-            target as unknown as Record<string, unknown>,
-            commandBase as unknown as Record<string, unknown>,
-            candidate as unknown as Record<string, unknown>,
-          );
+        // Persistence applies the declared entries to its current snapshot.
+        if (!background && !await saveFlashcardsImmediate(undefined, undefined, {
+          base: commandBase,
+          guardCardIds: scheduler ? [scheduler.cardId] : undefined,
+          patch: patchRecorder.build(commandBase.rev ?? 0),
         })) {
           throw new Error('scheduler persistence was refused');
         }
+        __mark('storeWrite');
+        const schedulerLanguage = card!.language || settings.language;
+        const statsKey = langKey(schedulerLanguage, SRS.hashWordSync(getPrimaryWordFormForLanguage(card!.content.front, schedulerLanguage)));
         batch(() => {
+          if (background) setStore(produce(current => {
+            applyStorePatchInPlace(current as unknown as Record<string, unknown>, patchRecorder.build(commandBase.rev ?? 0));
+          }));
           refreshQueue();
+          if (ratingTraceOn()) __rows.push({ label: 'refreshQueue', ms: performance.now() - __t0 });
           setUndoStack((previous) => {
             const next = [...previous, schedulerResult!.undo];
             if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
             return next;
           });
+          if (background) {
+            recalculateWordStats(statsKey);
+            patchRecorder.set(['wordStatsMap', statsKey], unwrap(store.wordStatsMap[statsKey]));
+            const patch = patchRecorder.build(commandBase.rev ?? 0);
+            const counterDeltas: NonNullable<FlashcardRatingCommand['counterDeltas']>[number][] = [];
+            for (const entry of patch.entries) {
+              const fields = entry.path[0] === 'flashcards' ? ['reviews', 'lapses']
+                : entry.path[0] === 'meta' ? ['newCardsToday', 'reviewsToday']
+                  : entry.path[0] === 'dailyStats' ? ['newCardsStudied', 'reviewCardsStudied', 'lapses', 'timeSpent', 'graduated'] : [];
+              for (const field of fields) {
+                const changedDate = entry.path[0] === 'meta' &&
+                  (entry.before as Record<string, unknown> | undefined)?.newCardsDate !==
+                  (entry.after as Record<string, unknown> | undefined)?.newCardsDate;
+                const before = changedDate ? 0 : (entry.before as Record<string, unknown> | undefined)?.[field] ?? 0;
+                const after = (entry.after as Record<string, unknown> | undefined)?.[field];
+                if (typeof before === 'number' && typeof after === 'number' && before !== after) {
+                  counterDeltas.push({ path: [...entry.path, field], delta: after - before,
+                    ...(entry.path[0] === 'meta' ? { scope: { path: [...entry.path, 'newCardsDate'],
+                      value: (entry.after as Record<string, unknown>).newCardsDate } } : {}),
+                  });
+                }
+              }
+            }
+            sendBackgroundRating({ attemptId, events: eventsByKey, patch, counterDeltas });
+          }
         });
 
         const threshold = settings.leechThreshold ?? DEFAULT_SETTINGS.leechThreshold;
@@ -3423,19 +3627,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             duration: 8000,
           });
         }
-        const schedulerLanguage = card!.language || settings.language;
-        const wordHash = SRS.hashWordSync(getPrimaryWordFormForLanguage(card!.content.front, schedulerLanguage));
-        recalculateWordStats(langKey(schedulerLanguage, wordHash));
+        if (!background) recalculateWordStats(statsKey);
+        __mark('wordStats');
       } else if (Object.keys(eventsByKey).length > 0) {
         setStore(produce((current) => {
-          applyStoreDelta(
-            current as unknown as Record<string, unknown>,
-            commandBase as unknown as Record<string, unknown>,
-            candidate as unknown as Record<string, unknown>,
-          );
+          applyStorePatchInPlace(current as unknown as Record<string, unknown>, patchRecorder.build(commandBase.rev ?? 0));
         }));
         saveFlashcards();
       }
+      if (ratingTraceOn()) __rows.push({ label: 'rest', ms: performance.now() - __t0 });
+      if (ratingTraceOn()) emitRatingTrace(__rows, performance.now() - __t0);
       return { attemptId, completed: schedulerResult?.completed ?? true };
     } finally {
       ratingCommandInFlight = false;
@@ -3943,44 +4144,24 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (isKnownClaimed(compositeKey)) continue;
 
       try {
-        // Get translation data from backend
-        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, settings.language);
-        const translationResponse = await backend.translate(
-          candidate.word,
-          settings.language,
-          dictionaryTargetLanguage ? { dictionaryTargetLanguage } : undefined,
-        );
-        const data = translationResponse?.data;
+        // One enrichment owner (see wordEnrichment). The dictionary reading wins
+        // here, with the tracked candidate reading as the fallback.
+        const enriched = await enrichWord({
+          word: candidate.word,
+          language: settings.language,
+          languageData: languageDataFor(settings.language),
+          settings,
+        });
+        if (!enriched) continue; // Skip words with no translation
 
-        if (!data || !Array.isArray(data)) continue;
-
-        const firstEntry = data[0] as TranslationEntry | undefined;
-        const secondEntry = data[1] as TranslationEntry | undefined;
-
-        // Build back text from definitions
-        let backText = '';
-        if (firstEntry?.definitions) {
-          if (Array.isArray(firstEntry.definitions)) {
-            backText = firstEntry.definitions.join('; ');
-          } else {
-            backText = String(firstEntry.definitions);
-          }
-        }
-
-        if (!backText) continue; // Skip words with no translation
-
-        const currentLanguageData = languageDataFor(settings.language);
-        const reading = extractReadingValue(firstEntry, currentLanguageData) || candidate.reading || '';
-        const prosody = extractProsodyFromTranslationData(translationResponse, currentLanguageData, reading);
-        // Get definition HTML from the second entry
-        let definitionArr: string[] | undefined;
-        if (secondEntry?.definitions) {
-          definitionArr = Array.isArray(secondEntry.definitions)
-            ? secondEntry.definitions
-            : [String(secondEntry.definitions)];
-        }
-
-        prepared.push({ compositeKey, candidate, backText, reading, prosody, definitionArr });
+        prepared.push({
+          compositeKey,
+          candidate,
+          backText: enriched.back,
+          reading: enriched.reading || candidate.reading || '',
+          prosody: enriched.prosody,
+          definitionArr: enriched.definition,
+        });
       } catch (e) {
         log.warn(`Failed to auto-create flashcard for "${candidate.word}":`, e);
       }
@@ -4240,6 +4421,28 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   // bug). Per-collection LWW merge instead — entries win by their own
   // recency, so concurrent windows converge on the newest epistemic state.
   const handleBroadcast = (event: MessageEvent) => {
+    if (event.data?.type === 'patch' && event.data.patch && typeof event.data.rev === 'number') {
+      const revision = event.data.rev as number;
+      const currentRevision = authoritativeStore?.rev ?? store.rev ?? 0;
+      if (revision <= currentRevision) return;
+      if (!authoritativeStore || revision !== currentRevision + 1) {
+        // A peer missed a revision: ask the durable owner for the full state.
+        loadFlashcards();
+        return;
+      }
+      const patch = event.data.patch as StorePatch;
+      authoritativeStore = copyStoreWithPatch(authoritativeStore, patch);
+      authoritativeStore.rev = revision;
+      batch(() => {
+        setStore(produce(current => {
+          applyStorePatchInPlace(current as unknown as Record<string, unknown>, patch);
+          overlayPendingRatings(current as FlashcardStore);
+          current.rev = revision;
+        }));
+        refreshQueue();
+      });
+      return;
+    }
     if (event.data?.type === 'update' && event.data.store) {
       const incoming = ensureStoreFields(event.data.store);
       if (typeof incoming.rev === 'number') {
@@ -4253,6 +4456,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
             base as unknown as Record<string, unknown>,
             incoming as unknown as Record<string, unknown>,
           );
+          overlayPendingRatings(current as FlashcardStore);
         }));
         refreshQueue();
         if (incoming.pendingReviewUndo) void recoverPendingReviewUndo();
@@ -4405,6 +4609,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
       const bridge = getBridge();
       // Flashcards loaded listener (single registration — reused by loadFlashcards and visibility sync)
       ipcCleanups.push(bridge.flashcards.onFlashcards(handleFlashcardsLoaded));
+      ipcCleanups.push(bridge.flashcards.onFlashcardRatingsCommitted(handleRatingCommit));
 
       // Migration listener
       ipcCleanups.push(bridge.migration.onFlashcardMigrationComplete((info) => handleMigrationComplete(info)));
@@ -4502,7 +4707,10 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     const flushSeenOnHide = () => {
       if (document.visibilityState === 'hidden') flushPendingSeen();
     };
-    const flushSeenOnUnload = () => { flushPendingSeen(); };
+    const flushSeenOnUnload = () => {
+      flushPendingSeen();
+      if (pendingRatings.size > 0) void flushBackgroundRatings().catch(error => log.error('Rating flush on unload failed:', error));
+    };
     document.addEventListener('visibilitychange', flushSeenOnHide);
     window.addEventListener('beforeunload', flushSeenOnUnload);
     ipcCleanups.push(() => {
@@ -4598,6 +4806,8 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     recomputeWordKnowledgeFromEvidence,
     setWordClaim,
     submitRating,
+    ratingPersistenceState,
+    retryRatingPersistence: flushBackgroundRatings,
     trackGrammarEncountered,
     trackGrammarFailed,
     recordGrammarAttempt,

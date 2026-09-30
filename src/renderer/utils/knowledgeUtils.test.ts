@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { buildKnownWordSet, buildKnownWordSetFromStore, buildTrackedWordSet } from './knowledgeUtils';
+import { describe, it, expect, vi } from 'vitest';
+import { createRoot, createSignal } from 'solid-js';
+import { createStore, produce, reconcile } from 'solid-js/store';
+import { buildKnownWordSet, buildKnownWordSetFromStore, buildTrackedWordSet, createKnownWordSet } from './knowledgeUtils';
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { FlashcardStore, PassiveWordKnowledge } from '../../shared/types';
 
@@ -96,5 +98,48 @@ describe('configured thresholds reach every consumer', () => {
     expect(buildKnownWordSetFromStore(store, configured).has('ja:h1')).toBe(false);
     expect(buildKnownWordSet(knowledge, thresholds).has('ja:h1')).toBe(true);
     expect(buildKnownWordSetFromStore(store, thresholds).has('ja:h1')).toBe(true);
+  });
+});
+
+
+describe('reactive known-word index', () => {
+  it('matches canonical family resolution through edits, additions, removals, thresholds and package changes', () => {
+    const [knowledge, setKnowledge] = createStore<Record<string, PassiveWordKnowledge>>({
+      'x:one': entry({ word: 'one', language: 'x', ease: 2.5, hasActiveEvidence: true }),
+      'x:two': entry({ word: 'two', language: 'x', ease: 1.3 }),
+      'x:other': entry({ word: 'other', language: 'x', claim: 'known', claimAt: 1 }),
+    });
+    const [band, setBand] = createSignal(thresholds);
+    const [linked, setLinked] = createSignal(true);
+    const keysForEntry = vi.fn((key: string) => key === 'x:one' && linked() ? ['x:one', 'x:two'] : [key]);
+    let known!: () => Set<string>;
+    const dispose = createRoot(dispose => {
+      known = createKnownWordSet(() => knowledge, band, keysForEntry);
+      return dispose;
+    });
+    const parity = () => expect([...known()].sort()).toEqual([...buildKnownWordSet(knowledge, band(), keysForEntry)].sort());
+    parity();
+    keysForEntry.mockClear();
+    setKnowledge('x:two', 'claim', 'unknown');
+    setKnowledge('x:two', 'claimAt', 2);
+    expect(keysForEntry.mock.calls.some(([key]) => key === 'x:other')).toBe(false);
+    expect(known().has('x:one')).toBe(false);
+    parity();
+    setLinked(false);
+    expect(known().has('x:one')).toBe(true);
+    parity();
+    setBand(strict);
+    expect(known().has('x:one')).toBe(false);
+    parity();
+    setKnowledge('x:new', entry({ language: 'x', claim: 'known' }));
+    expect(known().has('x:new')).toBe(true);
+    parity();
+    setKnowledge(produce(state => { delete state['x:other']; }));
+    expect(known().has('x:other')).toBe(false);
+    parity();
+    setKnowledge(reconcile({ 'future:any': entry({ language: 'future', claim: 'known' }) }));
+    expect([...known()]).toEqual(['future:any']);
+    parity();
+    dispose();
   });
 });

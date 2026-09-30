@@ -1,4 +1,5 @@
 import type { EffectiveThresholds } from './knowledge/effectiveKnowledge';
+import type { FlashcardRatingCommand, FlashcardRatingCommit } from './flashcardRating';
 /**
  * Global Type Declarations
  * Extends Window interface with mLearn IPC API
@@ -9,11 +10,15 @@ import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowP
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
 import type { KnowledgeEventLog } from './knowledgeEvents';
+import type { StorePatch } from './utils/storePatch';
 import type { JournalEvent, JournalEventDraft } from './world';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from './graph/ipc';
 import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
+  enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
+  flushFlashcardRatings: () => Promise<void>;
+  onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;
   getRuntimeTraces: () => Promise<import('./runtimeInspection').RuntimeTraceList>;
   getRuntimeTrace: (id: string) => Promise<import('./runtimeInspection').RuntimeTraceEntry | null>;
   clearRuntimeTraces: () => Promise<void>;
@@ -32,6 +37,7 @@ export interface MLearnIPC {
   // Flashcards
   getFlashcards: (knownRev?: number) => void;
   saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
+  saveFlashcardPatch: (patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;

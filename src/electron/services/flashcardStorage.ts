@@ -5,12 +5,16 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable, buildLexemeIndex, buildWordFrequencyMapFromLanguageData, getFrequencyForLexeme, resolveLanguageFrequencyPayload } from '../../shared/languageFeatures';
 import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
 import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
+import { copyStoreWithPatch, getStorePath, storePatchRecorder, type StorePatch } from '../../shared/utils/storePatch';
+import { applyFlashcardRatingCommand, type FlashcardRatingCommand } from '../../shared/flashcardRating';
+import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { RatingWriteQueue } from './ratingWriteQueue';
 import { calculateWordStats } from '../../shared/utils/wordStats';
 import { createWordFormDeriver } from '../../shared/utils/wordForms';
 import { getUserDataPath } from '../utils/platform';
@@ -20,6 +24,53 @@ import { getLogger } from '../../shared/utils/logger';
 import { guardianForWrites } from './guardian';
 
 const log = getLogger('electron.flashcardStorage');
+const ratingWrites = new RatingWriteQueue(persistRatingCommands);
+
+export const enqueueFlashcardRating = (command: FlashcardRatingCommand): Promise<number> => ratingWrites.enqueue(command);
+export const flushFlashcardRatings = (): Promise<void> => ratingWrites.flush();
+
+function persistRatingCommands(commands: readonly FlashcardRatingCommand[]): Promise<number> {
+  return enqueueWrite(async () => {
+    const journal = await import('./knowledgeEvents');
+    const { isKnowledgeEvent } = await import('./knowledgeHistoryStore');
+    await journal.whenKnowledgeEventsReady();
+    const events: KnowledgeEventLog = {};
+    for (const command of commands) for (const [key, rows] of Object.entries(command.events)) {
+      if (rows.some(row => !isKnowledgeEvent(row) || row.attemptId !== command.attemptId)) {
+        throw new Error('Invalid flashcard rating evidence');
+      }
+      (events[key] ??= []).push(...rows);
+    }
+    const existing = journal.getKnowledgeEvents(Object.keys(events));
+    const additions: KnowledgeEventLog = {};
+    for (const [key, rows] of Object.entries(events)) {
+      const recorded = new Set((existing[key] ?? []).map(row => row.attemptId));
+      additions[key] = rows.filter(row => !recorded.has(row.attemptId));
+    }
+    await journal.appendKnowledgeEvents(additions);
+
+    const filePath = getFlashcardsPath();
+    const current = cachedStorePath === filePath && cachedStore
+      ? cachedStore : await loadFlashcardsFromDisk(filePath, loaded => writeStore(loaded, [], false));
+    let candidate = current;
+    const paths = new Map<string, readonly string[]>();
+    for (const command of commands) {
+      const { patch } = command;
+      candidate = applyFlashcardRatingCommand(candidate, command);
+      for (const entry of patch.entries) paths.set(JSON.stringify(entry.path), entry.path);
+    }
+    const recorder = storePatchRecorder(current as unknown as Record<string, unknown>);
+    for (const path of paths.values()) recorder.set(path, getStorePath(candidate as unknown as Record<string, unknown>, path));
+    const patch = recorder.build(current.rev ?? 0);
+    const rev = await writeStore(candidate, [], false);
+    for (const window of BrowserWindow.getAllWindows()) {
+      try {
+        if (!window.isDestroyed()) window.webContents.send(IPC_CHANNELS.FLASHCARD_RATINGS_COMMITTED, { patch, rev, attemptIds: commands.map(command => command.attemptId) });
+      } catch (error) { log.warn('Failed to notify a window about saved ratings:', error); }
+    }
+    return rev;
+  });
+}
 
 const CURRENT_VERSION = 3;
 
@@ -755,14 +806,24 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
   const filePath = getFlashcardsPath();
   if (cachedStore && cachedStorePath === filePath) return cachedStore;
   if (inflightLoad) return inflightLoad;
-  const load = loadFlashcardsFromDisk(filePath).finally(() => {
+  const load = loadFlashcardsFromDisk(filePath, saveFlashcards).finally(() => {
     if (inflightLoad === load) inflightLoad = undefined;
   });
   inflightLoad = load;
   return load;
 }
 
-async function loadFlashcardsFromDisk(filePath: string): Promise<FlashcardStore> {
+/**
+ * Reads the store from disk, migrating and re-saving as needed.
+ *
+ * `write` is injected rather than calling saveFlashcards directly because this
+ * runs under whatever lock the caller holds: loadFlashcardsFromDisk called from
+ * inside enqueueWrite would re-enter the queue and wait on itself.
+ */
+async function loadFlashcardsFromDisk(
+  filePath: string,
+  write: (store: FlashcardStore) => Promise<number>,
+): Promise<FlashcardStore> {
   try {
     try {
       await fs.promises.access(filePath);
@@ -789,11 +850,11 @@ async function loadFlashcardsFromDisk(filePath: string): Promise<FlashcardStore>
     const storeJson = JSON.stringify(store);
 
     if (storeJson !== parsedJson) {
-      await saveFlashcards(store);
+      await write(store);
     }
 
     if (extractBase64Images(store)) {
-      await saveFlashcards(store);
+      await write(store);
     }
 
     cachedStore = store;
@@ -806,7 +867,22 @@ async function loadFlashcardsFromDisk(filePath: string): Promise<FlashcardStore>
 }
 
 export async function saveFlashcards(store: FlashcardStore, removedCardIds: readonly string[] = [], resetReviewProgress = false, authorization?: FlashcardWriteAuthorization): Promise<number> {
-  return enqueueWrite(async () => {
+  await flushFlashcardRatings();
+  return enqueueWrite(() => writeStore(store, removedCardIds, resetReviewProgress, authorization));
+}
+
+/**
+ * The body of a flashcard write, WITHOUT the queue.
+ *
+ * Callers that are already inside `enqueueWrite` (saveFlashcardPatch) must use
+ * this directly: re-entering the queue from within a queued write would await
+ * the very write that is awaiting it, and the write would never settle.
+ */
+async function writeStore(store: FlashcardStore, removedCardIds: readonly string[], resetReviewProgress: boolean, authorization?: FlashcardWriteAuthorization): Promise<number> {
+    // TEMP DIAGNOSTIC: opt-in via the mlearn.ratingTrace file flag, since the
+    // main process has no localStorage. `touch <userData>/ratingTrace.flag`.
+    const traceOn = fs.existsSync(path.join(getUserDataPath(), 'ratingTrace.flag'));
+    const t0 = Date.now();
     const filePath = getFlashcardsPath();
     let currentRevision = cachedStorePath === filePath ? cachedStore?.rev : undefined;
     if (currentRevision === undefined) {
@@ -837,9 +913,14 @@ export async function saveFlashcards(store: FlashcardStore, removedCardIds: read
         log.error("error", e);
         await fs.promises.mkdir(dir, { recursive: true });
       }
-      await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));
+      const tSerialize = Date.now();
+      const encoded = JSON.stringify(store, null, 2);
+      const tWrite = Date.now();
+      await fs.promises.writeFile(tmpPath, encoded);
       await fs.promises.rename(tmpPath, filePath);
+      const tRename = Date.now();
       guardian?.recordFlashcardWrite(store);
+      if (traceOn) console.log(`[MAIN save] start=${(tSerialize - t0).toFixed(1)}ms serialize=${(tWrite - tSerialize).toFixed(1)}ms write+rename=${(tRename - tWrite).toFixed(1)}ms ledger=${(Date.now() - tRename).toFixed(1)}ms total=${(Date.now() - t0).toFixed(1)}ms`);
       cachedStore = store;
       cachedStorePath = filePath;
       return store.rev;
@@ -847,6 +928,37 @@ export async function saveFlashcards(store: FlashcardStore, removedCardIds: read
       log.error('Failed to save flashcards:', error);
       throw error;
     }
+}
+
+/**
+ * Applies a declared set of entry changes to the authoritative store and
+ * persists it. The renderer sends a patch rather than a whole store because it
+ * already knows which entries a command touched, and shipping the full store
+ * through IPC cost more than the disk write it preceded. The result is
+ * identical: the same entries end up in the same file.
+ *
+ * Resolve the current store inside the write queue, loading on a cold cache.
+ * Leaf pre-images preserve concurrent sibling edits when rebasing a patch.
+ * The candidate becomes authoritative only after persistence succeeds.
+ */
+export async function saveFlashcardPatch(
+  patch: StorePatch,
+  removedCardIds: readonly string[] = [],
+  resetReviewProgress = false,
+  authorization?: FlashcardWriteAuthorization,
+): Promise<number> {
+  await flushFlashcardRatings();
+  return enqueueWrite(async () => {
+    const filePath = getFlashcardsPath();
+    // Resolve the current snapshot AFTER earlier writes finish. Capturing it
+    // before entering the queue loses edits or targets an obsolete revision.
+    const current = cachedStorePath === filePath && cachedStore
+      ? cachedStore
+      : await loadFlashcardsFromDisk(filePath, loaded => writeStore(loaded, [], false));
+    // Publish only after the atomic disk write succeeds. Patching cachedStore
+    // in place poisoned its data and revision when a write failed.
+    const candidate = copyStoreWithPatch(current, patch);
+    return writeStore(candidate, removedCardIds, resetReviewProgress, authorization);
   });
 }
 
@@ -864,6 +976,20 @@ export async function getFlashcardEaseMap(): Promise<Record<string, number>> {
 }
 
 export function setupFlashcardIPC(): void {
+  let quitAfterFlush = false;
+  let flushingForQuit = false;
+  app.on('before-quit', event => {
+    if (quitAfterFlush || !ratingWrites.hasPending) return;
+    event.preventDefault();
+    if (flushingForQuit) return;
+    flushingForQuit = true;
+    void flushFlashcardRatings().then(() => { quitAfterFlush = true; app.quit(); }, error => {
+      flushingForQuit = false;
+      log.error('Failed to save pending ratings before quit:', error);
+    });
+  });
+  ipcMain.handle(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, (_event, command: FlashcardRatingCommand) => enqueueFlashcardRating(command));
+  ipcMain.handle(IPC_CHANNELS.FLUSH_FLASHCARD_RATINGS, () => flushFlashcardRatings());
   ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, async (event, knownRev?: number) => {
     const flashcards = await loadFlashcards();
     // Focus/visibility sync: an unchanged rev skips the multi-MB store ship.
@@ -879,6 +1005,10 @@ export function setupFlashcardIPC(): void {
 
   ipcMain.handle(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => {
     return saveFlashcards(store, removedCardIds, resetReviewProgress, authorization);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SAVE_FLASHCARD_PATCH, (_event, patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => {
+    return saveFlashcardPatch(patch, removedCardIds, resetReviewProgress, authorization);
   });
 
 }

@@ -94,6 +94,10 @@ export const IPC_CHANNELS = {
   // Flashcards
   GET_FLASHCARDS: 'get-flashcards',
   SAVE_FLASHCARDS: 'save-flashcards',
+  SAVE_FLASHCARD_PATCH: 'save-flashcard-patch',
+  ENQUEUE_FLASHCARD_RATING: 'enqueue-flashcard-rating',
+  FLUSH_FLASHCARD_RATINGS: 'flush-flashcard-ratings',
+  FLASHCARD_RATINGS_COMMITTED: 'flashcard-ratings-committed',
   GUARDIAN_STATUS: 'guardian-status',
   GUARDIAN_RECOVERY_POINTS: 'guardian-recovery-points',
   GUARDIAN_RESTORE: 'guardian-restore',

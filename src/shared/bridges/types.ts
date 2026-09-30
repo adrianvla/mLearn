@@ -1,4 +1,5 @@
 import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
+import type { FlashcardRatingCommand, FlashcardRatingCommit } from '../flashcardRating';
 /**
  * PlatformBridge Interface
  *
@@ -51,6 +52,7 @@ import type {
   PluginWindowPayload,
 } from '../plugins/types';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../knowledgeEvents';
+import type { StorePatch } from '../utils/storePatch';
 import type { GraphLookupInput, GraphMeta, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../graph/ipc';
 import type { GraphRelationType } from '../graph/types';
 import type { IntegrateThreadInput, IntegrateThreadResult, IntegrationPreview, JournalEvent, JournalEventDraft, MembershipChangeResult, Participant, PreviewIntegrationInput, RememberThisInput, Room, Thread, WorldSnapshot } from '../world';
@@ -68,8 +70,17 @@ export interface SettingsBridge {
 }
 
 export interface FlashcardBridge {
+  enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
+  flushFlashcardRatings: () => Promise<void>;
+  onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;
   getFlashcards: (knownRev?: number) => void;
   saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
+  /**
+   * Persists only the entries a command actually changed. Equivalent to saving
+   * the resulting store, but the renderer does not ship the whole collection
+   * over IPC to say "this one card moved".
+   */
+  saveFlashcardPatch: (patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;

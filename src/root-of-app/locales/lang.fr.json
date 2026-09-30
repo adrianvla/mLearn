@@ -1107,7 +1107,7 @@
         "LLMToastTitle": "Génération des traductions d'exemples manquantes…",
         "LLMDone": "Traductions générées pour {count} carte(s)",
         "LLMDoneWithErrors": "Traductions générées pour {count} carte(s), {failed} échoué(s)",
-        "RepairButton": "Réparer",
+        "RepairButton": "Réparer", "ContentDescription": "{count} carte(s) n'ont pas encore de sens. Les compléter à partir du dictionnaire ?", "ContentToastTitle": "Complétion du contenu manquant des cartes…", "ContentDone": "{count} carte(s) complétée(s)", "ContentDoneWithErrors": "{count} carte(s) complétée(s), {failed} impossible(s)", "ContentFailed": "Impossible de compléter le contenu des cartes",
         "Title": "Données de cartes manquantes",
         "ToastTitle": "Réparation de l'audio des cartes…"
       },
@@ -1147,6 +1147,7 @@
         },
         "SavingRating": "Enregistrement de l’évaluation…",
         "SaveFailed": "Impossible d’enregistrer cette évaluation. La carte est toujours là ; réessayez.",
+        "PendingRatingsSaveFailed": "Les dernières évaluations n’ont pas pu être enregistrées. Réessayez.",
         "SavingUndo": "Enregistrement de l’annulation…",
         "UndoSaveFailed": "Impossible d’enregistrer cette annulation. La carte reste évaluée ; réessayez."
       },

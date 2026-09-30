@@ -11,6 +11,8 @@ import type { Settings, FlashcardStore, FlashcardWriteAuthorization, InstallOpti
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
+import type { StorePatch } from '../shared/utils/storePatch';
+import type { FlashcardRatingCommand, FlashcardRatingCommit } from '../shared/flashcardRating';
 import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../shared/knowledge/historyQueries';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../shared/graph/ipc';
 import type { GraphRelationType } from '../shared/graph/types';
@@ -107,9 +109,16 @@ const mLearnIPC = {
   changeUILanguage: (langCode: string) => ipcRenderer.send(IPC_CHANNELS.CHANGE_UI_LANGUAGE, langCode),
 
   // ========== Flashcards ==========
+  enqueueFlashcardRating: (command: FlashcardRatingCommand): Promise<number> =>
+    ipcRenderer.invoke(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, command),
+  flushFlashcardRatings: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.FLUSH_FLASHCARD_RATINGS),
+  onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) =>
+    ipcOn(IPC_CHANNELS.FLASHCARD_RATINGS_COMMITTED, (_event, commit) => callback(commit)),
   getFlashcards: (knownRev?: number) => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARDS, knownRev),
   saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization): Promise<number> =>
     ipcRenderer.invoke(IPC_CHANNELS.SAVE_FLASHCARDS, flashcards, removedCardIds, resetReviewProgress, authorization),
+  saveFlashcardPatch: (patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization): Promise<number> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SAVE_FLASHCARD_PATCH, patch, removedCardIds, resetReviewProgress, authorization),
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) =>
     ipcOn(IPC_CHANNELS.FLASHCARDS_LOADED, (_event, flashcards) => callback(flashcards)),
   onNewDayFlashcards: (callback: () => void) =>

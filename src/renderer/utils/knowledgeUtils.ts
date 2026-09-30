@@ -1,3 +1,4 @@
+import { createComputed, createMemo, createSignal, mapArray, onCleanup, type Accessor } from 'solid-js';
 import type { FlashcardStore, PassiveWordKnowledge } from '../../shared/types';
 import type { EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { getEffectiveWordStateForKeys } from './comprehensiveKnowledge';
@@ -27,6 +28,39 @@ export function buildKnownWordSetFromStore(
   keysForEntry?: (key: string, entry: PassiveWordKnowledge) => readonly string[],
 ): Set<string> {
   return buildKnownWordSet(store.wordKnowledge, thresholds, keysForEntry);
+}
+
+/** Keep each family's dependencies separate so one rating resolves only that family. */
+export function createKnownWordSet(
+  wordKnowledge: Accessor<Record<string, PassiveWordKnowledge>>,
+  thresholds: Accessor<EffectiveThresholds>,
+  keysForEntry: (key: string, entry: PassiveWordKnowledge) => readonly string[],
+): Accessor<Set<string>> {
+  const members = new Set<string>();
+  const [revision, setRevision] = createSignal(0);
+  const setMembership = (key: string, known: boolean): void => {
+    if (members.has(key) === known) return;
+    if (known) members.add(key);
+    else members.delete(key);
+    setRevision(value => value + 1);
+  };
+  const entries = mapArray(() => Object.keys(wordKnowledge()), (key) => {
+    createComputed(() => {
+      const knowledge = wordKnowledge();
+      const entry = knowledge[key];
+      setMembership(key, entry !== undefined
+        && getEffectiveWordStateForKeys(keysForEntry(key, entry), knowledge, thresholds()).status === 'known');
+    });
+    onCleanup(() => setMembership(key, false));
+    return key;
+  });
+  // Drive key ownership once, rather than giving the aggregate memo a reactive
+  // dependency on every row. A changed family updates only its Set membership.
+  createComputed(() => entries());
+  return createMemo(() => {
+    revision();
+    return new Set(members);
+  });
 }
 
 export function buildTrackedWordSet(store: FlashcardStore, language: string): Set<string> {

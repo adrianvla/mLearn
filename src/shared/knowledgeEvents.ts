@@ -244,6 +244,9 @@ export interface KnowledgeEvent {
    * spoken-recognition claim resolves to); graph-aware readers derive it
    * when absent. Absent targetRef = legacy word-hash addressing (routed by
    * the legacy `aspect` projection).
+   * A surface id may be a stable authored address absent from the installed
+   * graph; the reference does not attest a node or dictionary relationship.
+   * Card-authored observations retain their origin and schedulerCardId.
    */
   targetRef?: { kind: string; id: string; capability?: CapabilityKey; to?: string };
   /**

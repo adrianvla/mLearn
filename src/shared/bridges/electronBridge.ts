@@ -53,10 +53,16 @@ const settingsBridge: SettingsBridge = {
 };
 
 const flashcardBridge: FlashcardBridge = {
+  enqueueFlashcardRating: command => getIPC().enqueueFlashcardRating(command),
+  flushFlashcardRatings: () => getIPC().flushFlashcardRatings(),
+  onFlashcardRatingsCommitted: callback => getIPC().onFlashcardRatingsCommitted(callback),
   getFlashcards: (knownRev?: number) => getIPC().getFlashcards(knownRev),
   saveFlashcards: (fc, removedCardIds, resetReviewProgress, authorization) => removedCardIds === undefined && resetReviewProgress === undefined && authorization === undefined
     ? getIPC().saveFlashcards(fc)
     : getIPC().saveFlashcards(fc, removedCardIds, resetReviewProgress, authorization),
+  saveFlashcardPatch: (patch, removedCardIds, resetReviewProgress, authorization) => removedCardIds === undefined && resetReviewProgress === undefined && authorization === undefined
+    ? getIPC().saveFlashcardPatch(patch)
+    : getIPC().saveFlashcardPatch(patch, removedCardIds, resetReviewProgress, authorization),
   onFlashcards: (cb) => getIPC().onFlashcards(cb),
   onNewDayFlashcards: (cb) => getIPC().onNewDayFlashcards(cb),
   onFlashcardConnectOpen: (cb) => getIPC().onFlashcardConnectOpen(cb),

@@ -46,7 +46,7 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  max-width: 800px;
+  max-width: max-content;
   flex-wrap: wrap;
   padding: 0.5rem 1rem;
   background: var(--bg);

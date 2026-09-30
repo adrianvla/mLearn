@@ -32,6 +32,17 @@ export interface GuardianMetrics {
   knowledgeSequence: number;
   knowledgeKeys: number;
   knowledgeKeyIds: string[];
+  /**
+   * Events removed by an explicit learner retraction (undo).
+   *
+   * `knowledgeEvidenceCount` is `rows + SUM(archivedEventCount)`, which is
+   * maintained by INCREMENT on append. It therefore cannot represent a
+   * deletion, and a retraction legitimately deletes evidence: undo removes the
+   * retracted attempt so the learner is not shown knowledge they just took
+   * back. Those removals are counted here and deducted from the loss check, so
+   * an undo is not mistaken for data loss while any OTHER decrease still is.
+   */
+  knowledgeRetractedCount: number;
   knowledgeEvidenceCount: number;
   legacyKnowledgeKeys: string[];
   legacyKnowledgeEvents: number;
@@ -313,6 +324,7 @@ export function inspectGuardianData(root: string): GuardianMetrics {
     knowledgeSequence: 0,
     knowledgeKeys: 0,
     knowledgeKeyIds: [],
+    knowledgeRetractedCount: 0,
     knowledgeEvidenceCount: 0,
     legacyKnowledgeKeys: legacyJournal.keys,
     legacyKnowledgeEvents: legacyJournal.events,
@@ -348,6 +360,13 @@ export function inspectGuardianData(root: string): GuardianMetrics {
         const exact = db.prepare('SELECT COUNT(*) AS n FROM rows').get() as { n: number };
         const archived = db.prepare("SELECT COALESCE(SUM(CAST(json_extract(json, '$.archivedEventCount') AS INTEGER)), 0) AS n FROM archives").get() as { n: number };
         metrics.knowledgeEvidenceCount = exact.n + archived.n;
+        // Retraction ROWS are the durable record that an attempt was taken back.
+        // Each one accounts for the deletion of the attempt it retracts, whether
+        // that attempt was still an exact row or already folded into a bucket's
+        // archivedEventCount. Counting the retraction rows themselves is what
+        // lets the loss check tell an undo apart from unexplained loss.
+        const liveRetractions = db.prepare("SELECT COUNT(*) AS n FROM rows WHERE json_extract(json, '$.kind') = 'retraction'").get() as { n: number };
+        metrics.knowledgeRetractedCount = liveRetractions.n;
       }
       if (!Number.isSafeInteger(metrics.knowledgeSequence) || metrics.knowledgeSequence < 0) throw new Error('invalid knowledge sequence');
       startupMark('Guardian inspection SQLite evidence queries complete', phase);
@@ -361,6 +380,52 @@ export function inspectGuardianData(root: string): GuardianMetrics {
 function missing(before: readonly string[], after: readonly string[]): string[] {
   const present = new Set(after);
   return before.filter((id) => !present.has(id));
+}
+
+/**
+ * Matches a startup block whose ONLY complaint is the evidence total. The reason
+ * is `Unexplained learner data loss: <problems joined by '; '>`, so requiring the
+ * entire string means a block that also reported missing cards, reviews or keys
+ * keeps demanding a real recovery.
+ */
+const EVIDENCE_ONLY_BLOCK = /^(?:Unexplained|Post-migration) learner data loss: knowledge evidence count decreased(?: by .+)?$/;
+
+/**
+ * True when a pre-retraction-accounting ledger disagrees with inspected data on
+ * the evidence total ALONE, and only by being too high.
+ *
+ * The evidence sum could only ever be incremented, so undoing a review left it
+ * permanently above the true count; comparing it directly turned every undo
+ * into a startup block. A ledger from before retraction accounting is
+ * recognised by the ABSENCE of `knowledgeRetractedCount`, and the retractions
+ * it never saw are the reason its total is high — so the retraction count on
+ * disk is exactly what makes the gap explainable, not a reason to refuse.
+ * Rebasing is allowed only when every other signal is intact — so a real loss
+ * of cards, keys, sequence, journal records or legacy evidence still blocks —
+ * and only when the ledger is too high. A ledger that is too LOW is never
+ * rebased: that is real loss or a bug.
+ */
+export function needsEvidenceRebase(before: GuardianMetrics, after: GuardianMetrics): boolean {
+  if (before.knowledgeRetractedCount !== undefined) return false;
+  if (after.knowledgeEvidenceCount > before.knowledgeEvidenceCount) return false;
+  // Every OTHER integrity signal must already be intact, otherwise this would
+  // mask real loss of cards, review history, knowledge keys, sequence, journal
+  // records or legacy evidence behind an evidence rebase. Evidence and the
+  // retraction count are both pinned to the ledger's own view, so the evidence
+  // rule cannot reject the rebase and is asked about the gap separately below.
+  const pinnedLedger = { ...before, knowledgeRetractedCount: 0 };
+  const pinnedInspected = { ...after, knowledgeEvidenceCount: before.knowledgeEvidenceCount, knowledgeRetractedCount: 0 };
+  if (loss(pinnedLedger, pinnedInspected, []).length > 0) return false;
+  // `loss` only flags a review count that is present but LOWER, and a journal
+  // that is present but shorter. A count or journal record that has vanished
+  // outright is equally real loss, so those are checked explicitly here.
+  if (Object.keys(before.cardReviews).some((id) => !(id in after.cardReviews))) return false;
+  if (Object.keys(before.journalRecords).some((file) => !(file in after.journalRecords))) return false;
+  // The gap must be explainable by retractions: at least one exists, and the
+  // shortfall is not larger than the number of retractions that could each
+  // have removed one event.
+  return after.knowledgeRetractedCount > 0
+    && before.knowledgeEvidenceCount - after.knowledgeEvidenceCount <= after.knowledgeRetractedCount;
 }
 
 function loss(before: GuardianMetrics, after: GuardianMetrics, pendingJournalErases: readonly string[] = []): string[] {
@@ -378,7 +443,17 @@ function loss(before: GuardianMetrics, after: GuardianMetrics, pendingJournalEra
     if ((after.journalRecords[file] ?? 0) < count && !pendingJournalErases.includes(file)) problems.push(`${file}: journal shortened`);
   }
   if (after.knowledgeSequence < before.knowledgeSequence) problems.push('knowledge history sequence decreased');
-  if (after.knowledgeEvidenceCount < before.knowledgeEvidenceCount) problems.push('knowledge evidence count decreased');
+  // Evidence may legitimately SHRINK when the learner retracts (undo): the
+  // retracted attempt is deleted on purpose, so the evidence it contributed
+  // goes with it. The ledger records how many events were retracted, and those
+  // are deducted here — an accounted undo is not data loss, while any
+  // REMAINING decrease is unexplained and still blocks. Adding this allowance
+  // instead demanded extra evidence even when the durable count was unchanged.
+  const retracted = (after.knowledgeRetractedCount ?? 0) - (before.knowledgeRetractedCount ?? 0);
+  const accountedFloor = before.knowledgeEvidenceCount - retracted;
+  if (after.knowledgeEvidenceCount < accountedFloor) {
+    problems.push(`knowledge evidence count decreased by ${accountedFloor - after.knowledgeEvidenceCount} beyond ${retracted} retracted`);
+  }
   if (missing(before.knowledgeKeyIds, after.knowledgeKeyIds).length) problems.push('knowledge history keys disappeared');
   if (after.legacyKnowledgeEvents < before.legacyKnowledgeEvents) problems.push('legacy knowledge events decreased');
   if (missing(before.legacyKnowledgeKeys, after.legacyKnowledgeKeys).length) problems.push('legacy knowledge keys disappeared');
@@ -422,7 +497,14 @@ export class Guardian {
       this.finishRestore();
     }
     const previous = readJson(path.join(this.dir, 'ledger.json')) as GuardianLedger | undefined;
-    if (previous && (previous.schema !== SCHEMA || previous.state === 'blocked')) {
+    // Recheck evidence-only blocks from startup or checkpoint: incorrect
+    // retraction accounting could report loss even when durable totals agreed.
+    // Every integrity signal is checked again below; other blocked reasons
+    // still require recovery.
+    const blockedOnEvidenceAlone = previous?.state === 'blocked'
+      && typeof previous.reason === 'string'
+      && EVIDENCE_ONLY_BLOCK.test(previous.reason);
+    if (previous && (previous.schema !== SCHEMA || (previous.state === 'blocked' && !blockedOnEvidenceAlone))) {
       this.ledger = previous;
       throw new Error(`Guardian needs recovery: ${previous.reason ?? 'unsupported or blocked ledger'}`);
     }
@@ -445,7 +527,28 @@ export class Guardian {
     if (current.flashcardSchema > 3 || current.knowledgeSchema > 2) {
       return this.block('Current app cannot read this learner data schema; install a compatible release', previous);
     }
-    const problems = previous ? loss(previous.metrics, current, previous.pendingJournalErases) : [];
+    // Schema-1 ledgers recorded `knowledgeEvidenceCount` as a sum that was only
+    // ever INCREMENTED on append, so it could not represent evidence removed by
+    // a learner retraction (undo). Such a ledger is therefore expected to sit
+    // slightly ABOVE the true count, and comparing it directly reports an undo
+    // as data loss. When evidence is the ONLY signal that disagrees — sequence,
+    // keys, cards, reviews, journals and legacy evidence all intact, and the
+    // ledger is a pre-retraction-accounting one — the two evidence numbers are
+    // rebased onto the inspected truth. Every other integrity check still runs
+    // and still blocks, so this cannot mask real loss.
+    // Both evidence numbers are pinned to the ledger's own view so the evidence
+    // rule sees the two totals as equal. Pinning only the ledger would ADD the
+    // inspected retractions as an allowance and re-block the very undo being
+    // rebased; `needsEvidenceRebase` already proved the gap is retraction-sized
+    // and that every other signal is intact.
+    const rebased = previous && needsEvidenceRebase(previous.metrics, current);
+    const compared = rebased
+      ? { ...previous, metrics: { ...previous.metrics, knowledgeEvidenceCount: current.knowledgeEvidenceCount, knowledgeRetractedCount: 0 } }
+      : previous;
+    const inspectedForLoss = rebased
+      ? { ...current, knowledgeEvidenceCount: compared!.metrics.knowledgeEvidenceCount, knowledgeRetractedCount: 0 }
+      : current;
+    const problems = compared ? loss(compared.metrics, inspectedForLoss, compared.pendingJournalErases) : [];
     if (problems.length) return this.block(`Unexplained learner data loss: ${problems.join('; ')}`, previous);
     onProgress?.('inspection-complete');
     const latestSnapshotGeneration = this.listRecoveryPoints().reduce((max, name) => Math.max(max, Number(name.slice('snapshot-'.length))), 0);
@@ -619,7 +722,8 @@ export class Guardian {
     this.ledger = { schema: SCHEMA, generation: previous?.generation ?? 0,
       state: 'blocked', reason, snapshotStamp: previous?.snapshotStamp, pendingJournalErases: previous?.pendingJournalErases, metrics: previous?.metrics ?? {
         cards: [], cardReviews: {}, wordKnowledge: [], grammarKnowledge: [], rooms: [], threads: [], participants: [],
-        journalRecords: {}, knowledgeSequence: 0, knowledgeKeys: 0, knowledgeKeyIds: [], knowledgeEvidenceCount: 0,
+        journalRecords: {}, knowledgeSequence: 0, knowledgeKeys: 0, knowledgeKeyIds: [],
+        knowledgeRetractedCount: 0, knowledgeEvidenceCount: 0,
         legacyKnowledgeKeys: [], legacyKnowledgeEvents: 0, flashcardSchema: 0, knowledgeSchema: 0, legacyEvidence: {},
       }, lastGoodSnapshot: previous?.lastGoodSnapshot };
     writeAtomic(path.join(this.dir, 'ledger.json'), this.ledger);

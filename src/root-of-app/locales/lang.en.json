@@ -1107,7 +1107,7 @@
         "LLMToastTitle": "Generating missing example translations…",
         "LLMDone": "Generated translations for {count} flashcard(s)",
         "LLMDoneWithErrors": "Generated translations for {count} flashcard(s), {failed} failed",
-        "RepairButton": "Repair",
+        "RepairButton": "Repair", "ContentDescription": "{count} flashcard(s) have no meaning yet. Repair fills them in from the dictionary?", "ContentToastTitle": "Filling in missing flashcard content…", "ContentDone": "Filled in {count} flashcard(s)", "ContentDoneWithErrors": "Filled in {count} flashcard(s), {failed} could not be filled", "ContentFailed": "Could not fill in flashcard content",
         "Title": "Missing flashcard data",
         "ToastTitle": "Repairing flashcard audio…"
       },
@@ -1147,6 +1147,7 @@
         },
         "SavingRating": "Saving rating…",
         "SaveFailed": "This rating could not be saved. The card is still here; try again.",
+        "PendingRatingsSaveFailed": "Recent ratings could not be saved. Try again.",
         "SavingUndo": "Saving undo…",
         "UndoSaveFailed": "This undo could not be saved. The card remains rated; try again."
       },

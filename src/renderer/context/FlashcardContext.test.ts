@@ -16,6 +16,7 @@ import type { GrammarProjectionMap } from '../../shared/knowledge/historyQueries
 import { itemContentVersion, retractionEventsForItem, type DeclaredItemState } from '../learning/questionBank';
 import { summarizeGrammarCurriculum, classifyGrammarMeasurements } from '../utils/curriculumCoverage';
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
+import { applyStorePatch, type StorePatch } from '../../shared/utils/storePatch';
 import { GrammarCoverage } from '../windows/levelStudy/GrammarCoverage';
 import fs from 'fs';
 import path from 'path';
@@ -47,6 +48,10 @@ const mockBridge = {
     onFlashcards: vi.fn(),
     getFlashcards: vi.fn(),
     saveFlashcards: vi.fn(),
+    saveFlashcardPatch: vi.fn(),
+    enqueueFlashcardRating: vi.fn().mockResolvedValue(1),
+    flushFlashcardRatings: vi.fn().mockResolvedValue(undefined),
+    onFlashcardRatingsCommitted: vi.fn(() => () => {}),
     onNewDayFlashcards: vi.fn(),
     onFlashcardConnectOpen: vi.fn(),
     onReviewFlashcardRequest: vi.fn(),
@@ -391,9 +396,12 @@ type FlashcardCtx = {
     taskType?: AttemptTaskType;
     scaffolds?: AttemptScaffolds;
     sourceVersions?: EventSourceVersions;
+    persistence?: 'immediate' | 'background';
     scheduler?: { cardId: string; rating: Rating; timeSpentMs?: number; tested?: readonly CapabilityKind[] };
   }) => Promise<{ attemptId: AttemptId; completed: boolean }>;
   getCurrentCard: () => Flashcard | null;
+  ratingPersistenceState: () => 'idle' | 'pending' | 'failed';
+  retryRatingPersistence: () => Promise<void>;
   getAllCards: () => Flashcard[];
   getCardById: (id: string) => Flashcard | null;
   getCardsByWord: (word: string, language?: string) => Promise<Flashcard[]>;
@@ -589,7 +597,20 @@ describe('FlashcardProvider', () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     mockIsElectron.mockReturnValue(true);
-    mockBridge.flashcards.saveFlashcards.mockReset().mockResolvedValue(undefined);
+    mockBridge.flashcards.saveFlashcards.mockReset().mockImplementation((saved: FlashcardStore) =>
+      Promise.resolve((saved?.rev ?? 0) + 1));
+    mockBridge.flashcards.enqueueFlashcardRating.mockReset().mockResolvedValue(1);
+    mockBridge.flashcards.flushFlashcardRatings.mockReset().mockResolvedValue(undefined);
+    // A rating now persists its declared patch instead of a whole-store
+    // post-image. Mirroring the main process, the mock applies the patch to the
+    // last store it was handed and records the RESULT as a saveFlashcards call,
+    // so assertions about what was persisted keep working unchanged.
+    mockBridge.flashcards.saveFlashcardPatch.mockReset().mockImplementation((patch: StorePatch) => {
+      const last = mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)?.[0] as FlashcardStore | undefined;
+      const target = last ? structuredClone(last) : ({} as FlashcardStore);
+      applyStorePatch(target as unknown as Record<string, unknown>, patch);
+      return mockBridge.flashcards.saveFlashcards(target);
+    });
     mockBridge.kvStore.kvGet.mockResolvedValue(null);
     mockBackend.ping.mockResolvedValue(true);
     mockBackend.translate.mockResolvedValue({ data: [] });
@@ -655,6 +676,126 @@ describe('FlashcardProvider', () => {
     expect(result.attemptId).toBe('stable-review-attempt');
     dispose();
     mockSettings.language = 'ja';
+  });
+
+  it('advances repeated background ratings before persistence acknowledges and preserves unmapped-card provenance', async () => {
+    const acknowledgements: Array<(revision: number) => void> = [];
+    mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(() => new Promise<number>(resolve => acknowledgements.push(resolve)));
+    const { ctx, dispose } = await mountProvider();
+    const first = makeCard({ id: 'background-first', state: 'review', reviews: 2, dueDate: Date.now() - 1000 });
+    const second = makeCard({ id: 'background-second', state: 'review', reviews: 4, dueDate: Date.now() - 1000 });
+    flashcardsCb(makeEmptyStore({ flashcards: { [first.id]: first, [second.id]: second } }));
+    mockAppendEvents.mockClear();
+    const options = (cardId: string) => ({ persistence: 'background' as const,
+      origin: 'flashcard-review:unmapped', taskType: 'srs-review' as const,
+      scheduler: { cardId, rating: 'good' as const, tested: ['sense-recognition' as const] } });
+    const result = await ctx.submitRating(first.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], options(first.id));
+    expect(ctx.store.flashcards[first.id].reviews).toBe(3);
+    expect(ctx.getCurrentCard()?.id).toBe(second.id);
+    expect(ctx.ratingPersistenceState()).toBe('pending');
+    expect(mockAppendEvents).not.toHaveBeenCalled();
+    await ctx.submitRating(second.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], options(second.id));
+    expect(ctx.store.flashcards[second.id].reviews).toBe(5);
+    const firstCommand = mockBridge.flashcards.enqueueFlashcardRating.mock.calls[0][0];
+    expect(Object.values(firstCommand.events as Record<string, KnowledgeEvent[]>).flat().find(event => event.kind === 'review')).toMatchObject({
+      attemptId: result.attemptId, schedulerCardId: first.id, presentedSurface: first.content.front,
+      origin: 'flashcard-review:unmapped', taskType: 'srs-review',
+    });
+    expect(Object.values(firstCommand.events as Record<string, KnowledgeEvent[]>).flat().find(event => event.kind === 'rating')).toMatchObject({
+      attemptId: result.attemptId, schedulerCardId: first.id, presentedSurface: first.content.front,
+      origin: 'flashcard-review:unmapped', taskType: 'srs-review',
+      targetRef: { kind: 'surface', id: expect.stringMatching(/^ja:surface:[a-f0-9]{64}$/), capability: 'sense-recognition' },
+    });
+    // A stale focus snapshot must not erase either optimistic rating.
+    flashcardsCb(makeEmptyStore({ rev: 0, flashcards: { [first.id]: first, [second.id]: second } }));
+    expect(ctx.store.flashcards[first.id].reviews).toBe(3);
+    expect(ctx.store.flashcards[second.id].reviews).toBe(5);
+    acknowledgements.forEach(resolve => resolve(1));
+    await vi.waitFor(() => expect(ctx.ratingPersistenceState()).toBe('idle'));
+    expect(ctx.store.flashcards[first.id].reviews).toBe(3);
+    expect(ctx.store.flashcards[second.id].reviews).toBe(5);
+    dispose();
+  });
+
+  it('retains a failed background command and retries the same attempt without rerating', async () => {
+    mockBridge.flashcards.enqueueFlashcardRating.mockRejectedValueOnce(new Error('disk full')).mockResolvedValue(1);
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'background-retry', state: 'review', reviews: 2, dueDate: Date.now() - 1000 });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [], { persistence: 'background', scheduler: { cardId: card.id, rating: 'good' } });
+    await vi.waitFor(() => expect(ctx.ratingPersistenceState()).toBe('failed'));
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    await ctx.retryRatingPersistence();
+    expect(mockBridge.flashcards.enqueueFlashcardRating.mock.calls[0]).toEqual(mockBridge.flashcards.enqueueFlashcardRating.mock.calls[1]);
+    expect(ctx.ratingPersistenceState()).toBe('idle');
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    dispose();
+  });
+
+  it('flushes background ratings before the existing durable Undo transaction', async () => {
+    let acknowledge!: (revision: number) => void;
+    mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(command => new Promise<number>(resolve => {
+      acknowledge = revision => {
+        void mockAppendEvents(command.events).then(() => resolve(revision));
+      };
+    }));
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'background-undo', state: 'review', reviews: 2, dueDate: Date.now() - 1000 });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [], { persistence: 'background', scheduler: { cardId: card.id, rating: 'good' } });
+    expect(ctx.canUndo()).toBe(true);
+    let undone = false;
+    const undo = ctx.undoLastAction().then(result => { undone = true; return result; });
+    await vi.waitFor(() => expect(mockBridge.flashcards.flushFlashcardRatings).toHaveBeenCalled());
+    expect(undone).toBe(false);
+    acknowledge(1);
+    expect(await undo).toBe('answer');
+    expect(ctx.store.flashcards[card.id].reviews).toBe(2);
+    expect(ctx.store.pendingReviewUndo).toBeUndefined();
+    expect(ctx.ratingPersistenceState()).toBe('idle');
+    dispose();
+  });
+
+  it('overlays later local ratings onto a committed batch from another window', async () => {
+    let acknowledge!: (revision: number) => void;
+    mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(() => new Promise<number>(resolve => { acknowledge = resolve; }));
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'background-peer', state: 'review', reviews: 2, dueDate: Date.now() - 1000 });
+    flashcardsCb(makeEmptyStore({ rev: 1, flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [], { persistence: 'background', scheduler: { cardId: card.id, rating: 'good' } });
+    const committed = mockBridge.flashcards.onFlashcardRatingsCommitted.mock.calls.at(-1)![0] as (commit: { patch: StorePatch; rev: number; attemptIds: string[] }) => void;
+    committed({ rev: 2, attemptIds: [], patch: { baseRev: 1, entries: [
+      { path: ['flashcards', card.id], before: card, after: { ...card, content: { ...card.content, back: 'peer edited answer' } } },
+    ] } });
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    expect(ctx.store.flashcards[card.id].content.back).toBe('peer edited answer');
+    acknowledge(3);
+    await vi.waitFor(() => expect(ctx.ratingPersistenceState()).toBe('idle'));
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    expect(ctx.store.flashcards[card.id].content.back).toBe('peer edited answer');
+    dispose();
+  });
+
+  it('replays only later pending commands after a partial batch commits', async () => {
+    const acknowledgements: Array<(revision: number) => void> = [];
+    mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(() => new Promise<number>(resolve => acknowledgements.push(resolve)));
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'partial-batch', state: 'review', reviews: 2, dueDate: Date.now() - 1000 });
+    flashcardsCb(makeEmptyStore({ rev: 1, flashcards: { [card.id]: card } }));
+    const options = { persistence: 'background' as const, scheduler: { cardId: card.id, rating: 'good' as const } };
+    await ctx.submitRating(card.content.front, [], options);
+    await ctx.submitRating(card.content.front, [], options);
+    expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+    const commands = mockBridge.flashcards.enqueueFlashcardRating.mock.calls.map(([command]) => command);
+    const committed = mockBridge.flashcards.onFlashcardRatingsCommitted.mock.calls.at(-1)![0];
+    committed({ rev: 2, patch: commands[0].patch, attemptIds: [commands[0].attemptId] });
+    expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+    expect(ctx.ratingPersistenceState()).toBe('pending');
+    committed({ rev: 3, patch: commands[1].patch, attemptIds: [commands[1].attemptId] });
+    expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+    expect(ctx.ratingPersistenceState()).toBe('idle');
+    acknowledgements.forEach((resolve, index) => resolve(index + 2));
+    dispose();
   });
 
   it('persists the next authoritative revision in mobile KV storage', async () => {
@@ -797,6 +938,48 @@ describe('FlashcardProvider', () => {
     expect(ctx.store.wordCandidates['ja:別の語']).toEqual(remoteCandidate);
     dispose();
     vi.unstubAllGlobals();
+  });
+
+  it('broadcasts ratings as small patches and reloads peers that missed a revision', async () => {
+    let receive!: (event: MessageEvent) => void;
+    const postMessage = vi.fn();
+    vi.stubGlobal('BroadcastChannel', class {
+      postMessage = postMessage;
+      close() {}
+      set onmessage(handler: (event: MessageEvent) => void) { receive = handler; }
+    });
+    let dispose: (() => void) | undefined;
+    try {
+      const mounted = await mountProvider();
+      const ctx = mounted.ctx;
+      dispose = mounted.dispose;
+      const card = makeCard({ id: 'peer-card', content: { type: 'word', front: '学校', back: 'school' } });
+      flashcardsCb(makeEmptyStore({ rev: 0, flashcards: { [card.id]: card } }));
+      await ctx.submitRating(card.content.front, [], { scheduler: { cardId: card.id, rating: 'good' } });
+      const message = postMessage.mock.calls.at(-1)?.[0];
+      expect(message.type).toBe('patch');
+      expect(message.store).toBeUndefined();
+      expect(message.patch.entries.every((entry: StorePatch['entries'][number]) => entry.path.length >= 2)).toBe(true);
+
+      const before = JSON.parse(JSON.stringify(ctx.store.flashcards[card.id]));
+      const peerPatch = { baseRev: ctx.store.rev, entries: [
+        { path: ['flashcards', card.id], before, after: { ...before, suspended: true } },
+      ] };
+      const revision = (ctx.store.rev ?? 0) + 1;
+      receive({ data: { type: 'patch', patch: peerPatch, rev: revision } } as MessageEvent);
+      expect(ctx.store.flashcards[card.id].suspended).toBe(true);
+      expect(ctx.store.rev).toBe(revision);
+      expect(ctx.queue().newQueue).not.toContain(card.id);
+      receive({ data: { type: 'patch', patch: peerPatch, rev: revision } } as MessageEvent);
+      expect(ctx.store.rev).toBe(revision);
+      mockBridge.flashcards.getFlashcards.mockClear();
+      receive({ data: { type: 'patch', patch: peerPatch, rev: revision + 2 } } as MessageEvent);
+      expect(mockBridge.flashcards.getFlashcards).toHaveBeenCalledOnce();
+      expect(ctx.store.rev).toBe(revision);
+    } finally {
+      dispose?.();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('persists rating Undo through navigation and a provider restart', async () => {
@@ -5100,6 +5283,91 @@ describe('FlashcardProvider', () => {
       expect(mockBackend.translate).not.toHaveBeenCalled();
       dispose();
     });
+  });
+
+  it('resolves only changed word families when a rating updates a large knowledge map', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'indexed-rating', content: { type: 'word', front: '学校', back: 'school' } });
+    const wordKnowledge: FlashcardStore['wordKnowledge'] = {};
+    for (let i = 0; i < 1000; i++) {
+      const word = `word-${i}`;
+      wordKnowledge[`ja:${SRS.hashWordSync(word)}`] = {
+        word, language: 'ja', ease: 2.5, lastSeen: 1, timesSeen: 1, timesHovered: 0, hasActiveEvidence: true,
+      };
+    }
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card }, wordKnowledge }));
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    mockGetCanonicalForm.mockClear();
+    await ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'struggled' }], {
+      scheduler: { cardId: card.id, rating: 'again', tested: ['sense-recognition'] },
+    });
+    expect(mockGetCanonicalForm.mock.calls.length).toBeLessThan(50);
+    expect(ctx.store.wordKnowledge[`ja:${SRS.hashWordSync(card.content.front)}`].hasActiveEvidence).toBe(true);
+    dispose();
+  });
+
+  it('does not deep-copy the whole store during a rating', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'perf-card', language: 'ja',
+      content: { type: 'word', front: '学校', back: 'school' },
+      state: 'review', reviews: 1, interval: 86_400_000, dueDate: Date.now() - 1000,
+    });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+
+    // Count whole-store deep copies during one rating. The regression this
+    // guards: submitRating built a base+candidate pair and then handed a
+    // TRANSFORM to saveFlashcardsImmediate, which deep-copied the entire store
+    // twice more, plus a third copy for the authoritative snapshot. Cost scaled
+    // with total card count, not with the one card being rated.
+    const realClone = JSON.parse;
+    let storeCopies = 0;
+    const spy = vi.spyOn(JSON, 'parse').mockImplementation((text: string, reviver?: any) => {
+      if (typeof text === 'string' && text.includes('"flashcards"') && text.includes('"wordToCardMap"')) storeCopies++;
+      return (realClone as any)(text, reviver);
+    });
+    try {
+      await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'struggled' }], {
+        language: 'ja', scheduler: { cardId: card.id, rating: 'again', tested: ['sense-recognition'] },
+      });
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(storeCopies).toBe(0);
+    // The rating still took effect.
+    expect(ctx.store.flashcards[card.id].state).toBe('relearning');
+    dispose();
+  });
+
+  it('persists a rating as a declared patch instead of shipping the whole store', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'patch-card', language: 'ja',
+      content: { type: 'word', front: '学校', back: 'school' },
+      state: 'review', reviews: 1, interval: 86_400_000, dueDate: Date.now() - 1000,
+    });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    mockBridge.flashcards.saveFlashcardPatch.mockClear();
+    mockBridge.flashcards.saveFlashcards.mockClear();
+
+    await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'struggled' }], {
+      language: 'ja', scheduler: { cardId: card.id, rating: 'again', tested: ['sense-recognition'] },
+    });
+
+    // The whole-collection post-image must not cross the IPC boundary; only the
+    // entries the command actually wrote. (The mock applies the patch and then
+    // records a saveFlashcards call, so only the patch call is asserted here.)
+    const patch = mockBridge.flashcards.saveFlashcardPatch.mock.calls.at(-1)?.[0] as StorePatch;
+    expect(patch).toBeDefined();
+    const roots = patch.entries.map((entry) => entry.path[0]);
+    expect(roots).toContain('flashcards');
+    // Unrelated maps are untouched, so they are neither sent nor rewritten.
+    expect(roots).not.toContain('wordToCardMap');
+    expect(roots).not.toContain('wordCandidates');
+    // The rating itself still took effect.
+    expect(ctx.store.flashcards[card.id].state).toBe('relearning');
+    dispose();
   });
 });
 

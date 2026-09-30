@@ -10,6 +10,7 @@ import { FlashcardReview } from './FlashcardReview';
 import { knowledgeInspection, closeKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceEntityId } from '../../../shared/graph/load';
 import { hashWordSync } from '../../services/srsAlgorithm';
+import type { KnowledgeProjection } from '../../../shared/graph/ipc';
 
 const toastMocks = vi.hoisted(() => ({ showToast: vi.fn(() => 0) }));
 
@@ -25,6 +26,15 @@ const mockSubmitRating = vi.fn(async (..._callArgs: unknown[]) => ({ attemptId: 
 const mockAppendRetractions = vi.fn();
 const mockUndoLastAction = vi.fn<() => Promise<string | null>>();
 const mockCanUndo = vi.fn(() => false);
+const defaultProjection: KnowledgeProjection = {
+  status: 'ready', surfaceKnown: true,
+  targets: [{ targetRef: { kind: 'surface', id: 'card-surface' },
+    applicableCapabilities: ['sense-recognition', 'surface-reading', 'prosodic-pattern'], states: [] }],
+};
+let mockProjection: Accessor<KnowledgeProjection | undefined> = () => defaultProjection;
+const mockProjectionRetry = vi.fn();
+let mockRatingPersistenceState: Accessor<'idle' | 'pending' | 'failed'> = () => 'idle';
+const mockRetryRatingPersistence = vi.fn().mockResolvedValue(undefined);
 
 const flushEffects = () => new Promise<void>((resolve) => {
   const channel = new MessageChannel();
@@ -59,7 +69,12 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
 };
 
 vi.mock('../../hooks/useKnowledgeProjection', () => ({
-  useKnowledgeProjection: () => ({ loading: () => false, capabilities: () => ['sense-recognition', 'surface-reading', 'prosodic-pattern'] }),
+  useKnowledgeProjection: () => ({
+    projection: () => mockProjection(),
+    loading: () => mockProjection() === undefined,
+    capabilities: () => mockProjection()?.targets.flatMap(target => target.applicableCapabilities) ?? [],
+    retry: mockProjectionRetry,
+  }),
 }));
 
 vi.mock('../../context', () => ({
@@ -81,6 +96,8 @@ vi.mock('../../context', () => ({
     updateFlashcard: vi.fn(),
     setAccessStatus: mockSetAccessStatus,
     submitRating: mockSubmitRating,
+    ratingPersistenceState: () => mockRatingPersistenceState(),
+    retryRatingPersistence: mockRetryRatingPersistence,
     appendRetractions: mockAppendRetractions,
     recomputeWordKnowledgeFromEvidence: mockAppendRetractions,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown', source: 'None', timesSeen: 0, ease: 0 }),
@@ -267,6 +284,8 @@ describe('FlashcardReview', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     vi.clearAllMocks();
+    mockProjection = () => defaultProjection;
+    mockRatingPersistenceState = () => 'idle';
     mockTtsAvailable = true;
     mockSettings = {
       ...DEFAULT_SETTINGS,
@@ -352,6 +371,8 @@ describe('FlashcardReview failure attribution', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     vi.clearAllMocks();
+    mockProjection = () => defaultProjection;
+    mockRatingPersistenceState = () => 'idle';
     mockTtsAvailable = true;
     mockSettings = {
       ...DEFAULT_SETTINGS,
@@ -372,6 +393,97 @@ describe('FlashcardReview failure attribution', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('rates an authored card missing from the installed graph, including package-defined tested accesses', async () => {
+    mockProjection = () => ({ status: 'ready', surfaceKnown: false, targets: [] });
+    mockLanguageData = { ...jaLanguageData, learning: { capabilities: {
+      'future-package::novel-access': { label: 'Novel access', testableIn: ['srs-review'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    setMockCard(makeCard({ content: { type: 'word', front: 'おかげさま', back: "(someone's) assistance, help, aid" } }));
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    const rate = container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!;
+    expect(rate.disabled).toBe(false);
+    rate.click();
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledWith('おかげさま', [
+      { capability: 'sense-recognition', quality: 'missed' },
+      { capability: 'surface-recognition', quality: 'missed' },
+      { capability: 'future-package::novel-access', quality: 'missed' },
+    ], expect.objectContaining({ origin: 'flashcard-review:unmapped', scheduler: expect.objectContaining({ cardId: 'card-1' }) }));
+    dispose();
+  });
+
+  it('continues to intersect mapped cards with graph-attested capabilities', async () => {
+    mockProjection = () => ({ status: 'ready', surfaceKnown: true, targets: [{
+      targetRef: { kind: 'surface', id: 'mapped' }, applicableCapabilities: ['surface-recognition'], states: [],
+    }] });
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    await flushEffects();
+    expect(mockSubmitRating.mock.calls[0][1]).toEqual([{ capability: 'surface-recognition', quality: 'missed' }]);
+    dispose();
+  });
+
+  it('explains a pending or failed capability query and permits retry without submitting a rating', async () => {
+    const [projection, setProjection] = createSignal<KnowledgeProjection>();
+    mockProjection = projection;
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(true);
+    expect(container.querySelector('[role="status"]')?.textContent).toContain('mlearn.Knowledge.Loading');
+    setProjection({ status: 'error', surfaceKnown: false, targets: [{
+      targetRef: { kind: 'surface', id: 'stale-target' }, applicableCapabilities: ['sense-recognition'], states: [],
+    }] });
+    await flushEffects();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Knowledge.LoadError');
+    expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(true);
+    const retry = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.TryAgain');
+    expect(retry).toBeDefined();
+    retry!.click();
+    expect(mockProjectionRetry).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    setProjection({ status: 'ready', surfaceKnown: false, targets: [] });
+    await flushEffects();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(false);
+    dispose();
+  });
+
+  it('keeps rating computations owned when click and keyboard handlers read the armed state', async () => {
+    const warn = vi.spyOn(console, 'warn');
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    await flushEffects();
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+    await flushEffects();
+    expect(warn.mock.calls.filter(([message]) => String(message).includes('will never be disposed'))).toEqual([]);
+    dispose();
+  });
+
+  it('allows pending persistence and visibly blocks a failed background batch until retry', async () => {
+    const [state, setState] = createSignal<'idle' | 'pending' | 'failed'>('pending');
+    mockRatingPersistenceState = state;
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(false);
+    setState('failed');
+    await flushEffects();
+    expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(true);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Flashcards.Review.PendingRatingsSaveFailed');
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.TryAgain')!.click();
+    expect(mockRetryRatingPersistence).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    setState('pending');
+    await flushEffects();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(false);
+    dispose();
   });
 
   it('persists every tested capability as one acknowledged whole-word attempt', async () => {

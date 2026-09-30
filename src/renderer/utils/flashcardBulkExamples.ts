@@ -6,8 +6,6 @@ type BackendSettings = Pick<
   'backendMode' | 'backendUrl' | 'cloudAuthAccessToken' | 'cloudAuthToken'
 >;
 
-export type BulkExampleMode = 'onlyEmpty' | 'replaceAll' | 'olderThan';
-
 export interface BulkExampleDeps {
   activeLanguage: string;
   settings: BackendSettings;
@@ -39,16 +37,6 @@ export function resolveFlashcardColourCodes(
     return packageColors;
   }
   return settingsColourCodes ?? {};
-}
-
-export function getCardsNeedingBulkExamples(cards: readonly Flashcard[], mode: BulkExampleMode): Flashcard[] {
-  if (mode === 'replaceAll') {
-    return cards.filter(card => card.content.front && card.content.front !== '-');
-  }
-
-  return cards.filter(card =>
-    !card.content.example || card.content.example === '-' || card.content.example.trim() === ''
-  );
 }
 
 export async function buildBulkExampleUpdate(
