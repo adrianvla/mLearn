@@ -1045,6 +1045,7 @@
         "ExamplesDoneWithErrors": "Generated examples for {count} cards, {failed} failed",
         "ExamplesProgress": "Generating examples…",
         "ExamplesTooltip": "Generate example sentences using LLM for cards without examples",
+        "ExamplesReplaceAllTooltip": "Regenerate the example sentence on every card, replacing the one already there",
         "GenerateDescription": "Bulk generate audio and example sentences for your flashcards",
         "ModeChoice": "Generation mode",
         "ModeOlderThan": "Regenerate older than date",
@@ -1056,7 +1057,11 @@
         "TtsDone": "Generated TTS for {count} items",
         "TtsDoneWithErrors": "Generated TTS for {count} items, {failed} failed",
         "TtsProgress": "Generating TTS…",
-        "TtsTooltip": "Generate TTS audio for all flashcard words and examples"
+        "TtsTooltip": "Generate TTS audio for all flashcard words and examples",
+        "ReplaceAllTitle": "Replace existing content?",
+        "ReplaceAllExamplesConfirm": "Regenerating replaces the existing example on {count} flashcard(s). Any example you edited yourself will be overwritten. This action cannot be undone.",
+        "ReplaceAllTtsConfirm": "Regenerating replaces the existing audio on {count} flashcard(s). This action cannot be undone.",
+        "ReplaceAllConfirmAction": "Regenerate"
       },
       "Card": {
         "Due": "Due:",

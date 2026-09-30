@@ -1045,6 +1045,7 @@
         "ExamplesDoneWithErrors": "{count}枚のカードに例文を生成、{failed}件失敗",
         "ExamplesProgress": "例文を生成中…",
         "ExamplesTooltip": "例文のないカードにLLMで例文を生成",
+        "ExamplesReplaceAllTooltip": "すべてのカードの例文を再生成し、既存の例文を置き換えます",
         "GenerateDescription": "フラッシュカードの音声と例文を一括生成します",
         "ModeChoice": "生成モード",
         "ModeOlderThan": "指定日より古いものを再生成",
@@ -1056,7 +1057,11 @@
         "TtsDone": "{count}件のTTSを生成しました",
         "TtsDoneWithErrors": "{count}件のTTSを生成、{failed}件失敗",
         "TtsProgress": "TTS生成中…",
-        "TtsTooltip": "すべてのフラッシュカードの単語と例文にTTS音声を生成"
+        "TtsTooltip": "すべてのフラッシュカードの単語と例文にTTS音声を生成",
+        "ReplaceAllTitle": "既存のデータを置き換えますか？",
+        "ReplaceAllExamplesConfirm": "再生成すると、{count} 枚のフラッシュカードの既存の例が置き換えられます。手動で編集した例も上書きされます。この操作は取り消せません。",
+        "ReplaceAllTtsConfirm": "再生成すると、{count} 枚のフラッシュカードの既存の音声が置き換えられます。この操作は取り消せません。",
+        "ReplaceAllConfirmAction": "再生成"
       },
       "Card": {
         "Due": "期限:",

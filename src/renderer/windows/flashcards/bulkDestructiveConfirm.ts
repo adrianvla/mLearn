@@ -25,6 +25,17 @@ export interface DestructiveConfirmOptions {
   variant: 'danger';
   title: string;
   message: string;
+  /**
+   * The verb on the button that carries the decision out.
+   *
+   * Left off, the dialog falls back to its per-variant default, which for
+   * `danger` is "Delete". That is right for the actions this owner was built
+   * for — removing a card takes the card away — and wrong for an action that
+   * destroys content in order to write something else over it. A regeneration
+   * confirmed by a button reading "Delete" tells the learner the run removes
+   * things, which is the opposite of what it does.
+   */
+  confirmText?: string;
 }
 
 export interface DestructiveConfirmRequest {
@@ -37,6 +48,11 @@ export interface DestructiveConfirmRequest {
    */
   messageKey: string;
   titleKey: string;
+  /**
+   * The key for the button that goes ahead, when the action is not a removal
+   * and the default verb would misdescribe it.
+   */
+  confirmTextKey?: string;
 }
 
 /**
@@ -60,5 +76,6 @@ export function buildDestructiveConfirmOptions(
     variant: 'danger',
     title: t(request.titleKey),
     message: t(request.messageKey, { count: String(request.count) }),
+    ...(request.confirmTextKey ? { confirmText: t(request.confirmTextKey) } : {}),
   };
 }

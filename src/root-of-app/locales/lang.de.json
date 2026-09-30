@@ -1045,6 +1045,7 @@
         "ExamplesDoneWithErrors": "Beispiele für {count} Karten generiert, {failed} fehlgeschlagen",
         "ExamplesProgress": "Beispiele werden generiert…",
         "ExamplesTooltip": "Beispielsätze per LLM für Karten ohne Beispiele generieren",
+        "ExamplesReplaceAllTooltip": "Den Beispielsatz jeder Karte neu erzeugen und den vorhandenen ersetzen",
         "GenerateDescription": "Audio und Beispielsätze für Ihre Lernkarten stapelweise generieren",
         "ModeChoice": "Generierungsmodus",
         "ModeOlderThan": "Älter als Datum neu generieren",
@@ -1056,7 +1057,11 @@
         "TtsDone": "TTS für {count} Einträge generiert",
         "TtsDoneWithErrors": "TTS für {count} Einträge generiert, {failed} fehlgeschlagen",
         "TtsProgress": "TTS wird generiert…",
-        "TtsTooltip": "TTS-Audio für alle Lernkarten-Wörter und Beispiele generieren"
+        "TtsTooltip": "TTS-Audio für alle Lernkarten-Wörter und Beispiele generieren",
+        "ReplaceAllTitle": "Vorhandene Inhalte ersetzen?",
+        "ReplaceAllExamplesConfirm": "Die Neuerstellung ersetzt das vorhandene Beispiel bei {count} Lernkarte(n). Selbst bearbeitete Beispiele werden überschrieben. Dies kann nicht rückgängig gemacht werden.",
+        "ReplaceAllTtsConfirm": "Die Neuerstellung ersetzt das vorhandene Audio bei {count} Lernkarte(n). Dies kann nicht rückgängig gemacht werden.",
+        "ReplaceAllConfirmAction": "Neu erzeugen"
       },
       "Card": {
         "Due": "Fällig:",

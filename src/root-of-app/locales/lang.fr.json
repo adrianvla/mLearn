@@ -1045,6 +1045,7 @@
         "ExamplesDoneWithErrors": "Exemples générés pour {count} cartes, {failed} échoué(s)",
         "ExamplesProgress": "Génération des exemples…",
         "ExamplesTooltip": "Générer des phrases d'exemple par LLM pour les cartes sans exemples",
+        "ExamplesReplaceAllTooltip": "Régénérer la phrase d'exemple de chaque carte, en remplaçant celle existante",
         "GenerateDescription": "Générer en lot l'audio et les phrases d'exemple pour vos cartes mémoire",
         "ModeChoice": "Mode de génération",
         "ModeOlderThan": "Régénérer antérieur à une date",
@@ -1056,7 +1057,11 @@
         "TtsDone": "TTS généré pour {count} éléments",
         "TtsDoneWithErrors": "TTS généré pour {count} éléments, {failed} échoué(s)",
         "TtsProgress": "Génération TTS en cours…",
-        "TtsTooltip": "Générer l'audio TTS pour tous les mots et exemples des cartes"
+        "TtsTooltip": "Générer l'audio TTS pour tous les mots et exemples des cartes",
+        "ReplaceAllTitle": "Remplacer le contenu existant ?",
+        "ReplaceAllExamplesConfirm": "La régénération remplace l'exemple existant de {count} carte(s) mémoire. Tout exemple que vous avez modifié sera écrasé. Cette action est irréversible.",
+        "ReplaceAllTtsConfirm": "La régénération remplace l'audio existant de {count} carte(s) mémoire. Cette action est irréversible.",
+        "ReplaceAllConfirmAction": "Régénérer"
       },
       "Card": {
         "Due": "Échéance :",

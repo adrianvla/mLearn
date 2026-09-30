@@ -6,7 +6,19 @@ type BackendSettings = Pick<
   'backendMode' | 'backendUrl' | 'cloudAuthAccessToken' | 'cloudAuthToken'
 >;
 
-export type BulkExampleMode = 'onlyEmpty' | 'replaceAll' | 'olderThan';
+/**
+ * The modes the examples run can honour.
+ *
+ * There is deliberately no `olderThan`. The TTS run can compare against a
+ * stored generation timestamp, but an example is plain card content with no
+ * generation stamp, so a date filter had nothing to compare. It used to be
+ * offered anyway by a picker shared with the TTS section, and
+ * `getCardsNeedingBulkExamples` only ever branched on `replaceAll` — so
+ * choosing it ran the "only empty" selection while the screen claimed a date
+ * filter had been applied. A mode that cannot be honoured is not offered;
+ * see `bulkGenerationPlan.ts` for the shared vocabulary.
+ */
+export type BulkExampleMode = 'onlyEmpty' | 'replaceAll';
 
 export interface BulkExampleDeps {
   activeLanguage: string;

@@ -30,6 +30,7 @@ import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActi
 import { getSuggestedFlashcardBadgeCount } from './flashcardsSuggestedCount';
 import { runTtsRepairJobs } from './repairTtsJobs';
 import { buildBulkExampleUpdates, getCardsNeedingBulkExamples } from '../../utils/flashcardBulkExamples';
+import { planBulkGeneration, type BulkGenerationMode, type BulkGenerationModeFor } from './bulkGenerationPlan';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
@@ -128,10 +129,17 @@ export const FlashcardsContent: Component = () => {
   // TTS provider override for bulk generation (defaults to settings value)
   const [bulkTtsProvider, setBulkTtsProvider] = createSignal<TTSProvider>(settings.flashcardTtsProvider);
 
-  // Bulk mode: generate only for empty fields, replace all, or regenerate older than date
-  const [bulkMode, setBulkMode] = createSignal<'onlyEmpty' | 'replaceAll' | 'olderThan'>('onlyEmpty');
+  // Each bulk button picks its own mode. They used to share one "Generation
+  // mode" picker above both, which is why the Examples button could offer
+  // "Regenerate older than date": TTS records a generation timestamp per field
+  // and can honour a cutoff, while an example is plain card content with no
+  // generation stamp, so that mode was accepted by the picker and then
+  // silently ignored by the run. One picker for two operations with different
+  // capabilities is what made the option look available when it was not.
+  const [bulkTtsMode, setBulkTtsMode] = createSignal<BulkGenerationModeFor<'tts'>>('onlyEmpty');
+  const [bulkExampleMode, setBulkExampleMode] = createSignal<BulkGenerationModeFor<'examples'>>('onlyEmpty');
 
-  // Cutoff date for 'olderThan' mode (default: today in YYYY-MM-DD)
+  // Cutoff date for the TTS 'olderThan' mode (default: today in YYYY-MM-DD)
   const [bulkOlderThanDate, setBulkOlderThanDate] = createSignal(
     new Date().toISOString().slice(0, 10)
   );
@@ -597,8 +605,8 @@ export const FlashcardsContent: Component = () => {
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
     const cloudApiUrl = resolveCloudApiUrl(settings);
 
-    const replaceAll = bulkMode() === 'replaceAll';
-    const olderThan = bulkMode() === 'olderThan';
+    const replaceAll = bulkTtsMode() === 'replaceAll';
+    const olderThan = bulkTtsMode() === 'olderThan';
     const cutoffDate = olderThan ? new Date(bulkOlderThanDate() + 'T23:59:59').getTime() : 0;
 
     // Collect items that need TTS generation
@@ -641,6 +649,14 @@ export const FlashcardsContent: Component = () => {
     if (items.length === 0) {
       showToast({ message: t('mlearn.Flashcards.Bulk.TtsAllDone'), variant: 'success' });
       return;
+    }
+
+    // Same one-click-to-discard shape as the Examples button, so it asks
+    // through the same owner. What is being thrown away is named per subject,
+    // so the prompt cannot claim sentences are at stake when they are not.
+    const plan = planBulkGeneration({ subject: 'tts', mode: bulkTtsMode(), cards }, t);
+    if (plan.requiresConfirmation && plan.confirmOptions) {
+      if (!await showConfirm(plan.confirmOptions)) return;
     }
 
     const startTime = Date.now();
@@ -693,11 +709,28 @@ export const FlashcardsContent: Component = () => {
     const cards = flashcards();
     const colourCodes = settings.colour_codes || {};
 
-    const needExamples = getCardsNeedingBulkExamples(cards, bulkMode());
+    const needExamples = getCardsNeedingBulkExamples(cards, bulkExampleMode());
 
     if (needExamples.length === 0) {
       showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesAllDone'), variant: 'success' });
       return;
+    }
+
+    // "Regenerate all" rewrites examples that are already there, and an
+    // example is authored content: the card editor exposes it as editable rich
+    // text and the store remembers which fields the learner touched. In a real
+    // profile this button was one click away from overwriting 448 of 449
+    // cards, 9 of which carried a hand-edited meaning, with no prompt and no
+    // count on screen. The decision and its wording live in one owner so this
+    // button, the TTS button and any future bulk writer cannot each invent
+    // their own.
+    const plan = planBulkGeneration({
+      subject: 'examples',
+      mode: bulkExampleMode(),
+      cards: needExamples,
+    }, t);
+    if (plan.requiresConfirmation && plan.confirmOptions) {
+      if (!await showConfirm(plan.confirmOptions)) return;
     }
 
     const startTime = Date.now();
@@ -753,12 +786,20 @@ export const FlashcardsContent: Component = () => {
     { value: 'cloud', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Cloud') },
   ]);
 
-  // Bulk mode options
-  const bulkModeOptions = createMemo(() => [
-    { value: 'onlyEmpty', label: t('mlearn.Flashcards.Bulk.ModeOnlyEmpty') },
-    { value: 'replaceAll', label: t('mlearn.Flashcards.Bulk.ModeReplaceAll') },
-    { value: 'olderThan', label: t('mlearn.Flashcards.Bulk.ModeOlderThan') },
-  ]);
+  // One vocabulary of modes, narrowed to the ones a subject can actually
+  // honour. The label is shared so "replace everything" cannot come to mean
+  // two different things in the two sections.
+  const bulkModeLabel = (mode: BulkGenerationMode): string => {
+    if (mode === 'onlyEmpty') return t('mlearn.Flashcards.Bulk.ModeOnlyEmpty');
+    if (mode === 'replaceAll') return t('mlearn.Flashcards.Bulk.ModeReplaceAll');
+    return t('mlearn.Flashcards.Bulk.ModeOlderThan');
+  };
+  const bulkModeOptionsFor = <M extends BulkGenerationMode>(modes: readonly M[]) =>
+    modes.map((mode) => ({ value: mode as string, label: bulkModeLabel(mode) }));
+  const ttsBulkModeOptions = createMemo(() =>
+    bulkModeOptionsFor(['onlyEmpty', 'replaceAll', 'olderThan'] as const));
+  const exampleBulkModeOptions = createMemo(() =>
+    bulkModeOptionsFor(['onlyEmpty', 'replaceAll'] as const));
 
   // Tab items for vertical navigation
   const tabs = createMemo<TabItem[]>(() => [
@@ -1055,30 +1096,6 @@ export const FlashcardsContent: Component = () => {
               <h2 class="flashcards-generate-title">{t('mlearn.Flashcards.UI.Tabs.Generate')}</h2>
               <p class="flashcards-generate-description">{t('mlearn.Flashcards.Bulk.GenerateDescription')}</p>
 
-              <div class="flashcards-generate-option">
-                <label class="flashcards-generate-label" for="flashcards-generate-mode">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
-                <Select
-                  id="flashcards-generate-mode"
-                  options={bulkModeOptions()}
-                  value={bulkMode()}
-                  onChange={(e) => setBulkMode(e.currentTarget.value as 'onlyEmpty' | 'replaceAll' | 'olderThan')}
-                  class="flashcards-generate-select"
-                />
-              </div>
-
-              <Show when={bulkMode() === 'olderThan'}>
-                <div class="flashcards-generate-option">
-                  <label class="flashcards-generate-label" for="flashcards-generate-older-than">{t('mlearn.Flashcards.Bulk.OlderThanDate')}</label>
-                  <Input
-                    id="flashcards-generate-older-than"
-                    type="date"
-                    value={bulkOlderThanDate()}
-                    onInput={(e) => setBulkOlderThanDate(e.currentTarget.value)}
-                    class="flashcards-generate-select"
-                  />
-                </div>
-              </Show>
-
               <div class="flashcards-generate-actions">
                 <Show when={isElectron()}>
                   <div class="flashcards-generate-section">
@@ -1087,6 +1104,30 @@ export const FlashcardsContent: Component = () => {
                       <h3>{t('mlearn.Flashcards.Bulk.TtsButton')}</h3>
                     </div>
                     <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.TtsTooltip')}</p>
+
+                    <div class="flashcards-generate-option">
+                      <label class="flashcards-generate-label" for="flashcards-generate-tts-mode">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
+                      <Select
+                        id="flashcards-generate-tts-mode"
+                        options={ttsBulkModeOptions()}
+                        value={bulkTtsMode()}
+                        onChange={(e) => setBulkTtsMode(e.currentTarget.value as BulkGenerationModeFor<'tts'>)}
+                        class="flashcards-generate-select"
+                      />
+                    </div>
+
+                    <Show when={bulkTtsMode() === 'olderThan'}>
+                      <div class="flashcards-generate-option">
+                        <label class="flashcards-generate-label" for="flashcards-generate-tts-older-than">{t('mlearn.Flashcards.Bulk.OlderThanDate')}</label>
+                        <Input
+                          id="flashcards-generate-tts-older-than"
+                          type="date"
+                          value={bulkOlderThanDate()}
+                          onInput={(e) => setBulkOlderThanDate(e.currentTarget.value)}
+                          class="flashcards-generate-select"
+                        />
+                      </div>
+                    </Show>
 
                     <div class="flashcards-generate-option">
                       <label class="flashcards-generate-label" for="flashcards-generate-tts-provider">{t('mlearn.AI.Settings.FlashcardTTS.Provider.Label')}</label>
@@ -1129,7 +1170,22 @@ export const FlashcardsContent: Component = () => {
                     <SparklesIcon size={18} />
                     <h3>{t('mlearn.Flashcards.Bulk.ExamplesButton')}</h3>
                   </div>
-                  <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.ExamplesTooltip')}</p>
+                  <p class="flashcards-generate-section-desc">
+                    <Show when={bulkExampleMode() === 'replaceAll'} fallback={t('mlearn.Flashcards.Bulk.ExamplesTooltip')}>
+                      {t('mlearn.Flashcards.Bulk.ExamplesReplaceAllTooltip')}
+                    </Show>
+                  </p>
+
+                  <div class="flashcards-generate-option">
+                    <label class="flashcards-generate-label" for="flashcards-generate-examples-mode">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
+                    <Select
+                      id="flashcards-generate-examples-mode"
+                      options={exampleBulkModeOptions()}
+                      value={bulkExampleMode()}
+                      onChange={(e) => setBulkExampleMode(e.currentTarget.value as BulkGenerationModeFor<'examples'>)}
+                      class="flashcards-generate-select"
+                    />
+                  </div>
 
                   <Button
                     size="md"

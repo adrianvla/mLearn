@@ -1045,6 +1045,7 @@
         "ExamplesDoneWithErrors": "为 {count} 张卡片生成了例句，{failed} 张失败",
         "ExamplesProgress": "正在生成例句…",
         "ExamplesTooltip": "为没有例句的卡片使用 LLM 生成例句",
+        "ExamplesReplaceAllTooltip": "重新生成每张闪卡的例句，替换现有例句",
         "GenerateDescription": "批量生成闪卡的音频和例句",
         "ModeChoice": "生成模式",
         "ModeOlderThan": "重新生成早于指定日期的",
@@ -1056,7 +1057,11 @@
         "TtsDone": "为 {count} 个项目生成了 TTS",
         "TtsDoneWithErrors": "为 {count} 个项目生成了 TTS，{failed} 个失败",
         "TtsProgress": "正在生成 TTS…",
-        "TtsTooltip": "为所有闪卡单词和例句生成 TTS 音频"
+        "TtsTooltip": "为所有闪卡单词和例句生成 TTS 音频",
+        "ReplaceAllTitle": "替换现有内容？",
+        "ReplaceAllExamplesConfirm": "重新生成将替换 {count} 张闪卡上的现有例句。你自己编辑过的例句也会被覆盖。此操作无法撤销。",
+        "ReplaceAllTtsConfirm": "重新生成将替换 {count} 张闪卡上的现有音频。此操作无法撤销。",
+        "ReplaceAllConfirmAction": "重新生成"
       },
       "Card": {
         "Due": "到期：",
