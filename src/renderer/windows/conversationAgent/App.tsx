@@ -19,7 +19,7 @@ import {
   probeProvider,
   type ProviderFailure,
 } from '../../services/providerFailure';
-import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, Tag, ChatIcon, Avatar, ResponsiveSidebar } from '../../components/common';
+import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, Tag, ChatIcon, Avatar, ResponsiveSidebar, SkeletonCard } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
 import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTranslation } from '../../hooks';
@@ -37,7 +37,7 @@ import { RoomSidebar } from './RoomSidebar';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
 import { ContactProfileModal } from './ContactProfileModal';
 import { useConversationPreviews } from './useConversationPreviews';
-import { createMessagePreparationQueue } from './messagePreparation';
+import { createMessagePreparationQueue, messagePreparations } from './messagePreparation';
 import { warmTranslationCache } from '../../hooks/useTranslation';
 import { RuntimeInspector } from './RuntimeInspector';
 import { NewConversationModal } from './NewConversationModal';
@@ -257,6 +257,10 @@ export const ConversationContent: Component = () => {
 
   const [integrationRecoveryError, setIntegrationRecoveryError] = createSignal<string | null>(null);
   const [world, setWorld] = createSignal<WorldSnapshot | null>(null);
+  const [initializingConversations, setInitializingConversations] = createSignal(true);
+  const [selectingConversation, setSelectingConversation] = createSignal(false);
+  const [conversationLoadError, setConversationLoadError] = createSignal(false);
+  const conversationsLoading = () => initializingConversations() || selectingConversation();
   const [selection, setSelection] = createSignal<{ roomId: string; threadId: string | null } | null>(null);
   // Pending first entry into a persistent Room while Living World is off;
   // the inline confirm routes the user to consent instead of selecting.
@@ -485,9 +489,20 @@ export const ConversationContent: Component = () => {
   };
   const preparation = createMessagePreparationQueue({
     tokenize: tokenizeCached,
-    apply: (id, text, tokens) => {
+    apply: (id, text, tokens, widgetIndex) => {
       const message = displayMessages().find(item => (item as EventMessage).eventId === id);
-      if (message?.content === text && message.tokens !== tokens) updateMessageOverride(id, current => ({ ...current, tokens }));
+      if (!message) return;
+      if (widgetIndex === undefined) {
+        if (message.content === text && message.tokens !== tokens) updateMessageOverride(id, current => ({ ...current, tokens }));
+      } else {
+        updateMessageOverride(id, current => {
+          const widgets = [...(current.widgets ?? (current.widget ? [current.widget] : []))];
+          const widget = widgets[widgetIndex];
+          if (!widget || !messagePreparations(current as EventMessage).some(item => item.widgetIndex === widgetIndex && item.text === text)) return current;
+          widgets[widgetIndex] = { ...widget, data: { ...widget.data, tokens } };
+          return { ...current, widgets, widget: widgets.at(-1) };
+        });
+      }
     },
     warm: async tokens => {
       const capabilities = getLanguageFeatures().tokenizerCapabilities;
@@ -520,9 +535,9 @@ export const ConversationContent: Component = () => {
     // viewport plus overscan. Loading a long archive never queues every word.
     const candidates = displayed.filter((message, index) => (index >= displayed.length - HISTORY_WINDOW || visibleIds.has(message.eventId))
       && message.eventId !== (liveOverlay() as EventMessage | null)?.eventId
-      && (message.role === 'assistant' || message.role === 'user')
-      && shouldTokenizeTextForLanguage(message.content, settings.language, languageData));
-    preparation.enqueue(candidates.slice().reverse().map(message => ({ id: message.eventId, text: message.content })));
+      && (message.role === 'assistant' || message.role === 'user'));
+    preparation.enqueue(candidates.slice().reverse().flatMap(messagePreparations)
+      .filter(item => shouldTokenizeTextForLanguage(item.text, settings.language, languageData)));
   });
 
   const providerLabel = () => {
@@ -723,27 +738,38 @@ export const ConversationContent: Component = () => {
 
   let initialSelection: Promise<void> = Promise.resolve();
   let contextIngress: Promise<void> = Promise.resolve();
-  onMount(() => {
-    initialSelection = (async () => {
+  const loadConversations = async (): Promise<void> => {
+    setInitializingConversations(true);
+    setConversationLoadError(false);
     const session = selectionSession;
-    const snapshot = await getBridge().world.getWorldState();
-    if (session !== selectionSession) return;
-    setWorld(snapshot);
-    let saved: { roomId?: string; threadId?: string } | null = null;
     try {
-      const raw = await getBridge().kvStore.kvGet(SELECTION_KEY);
-      if (raw) saved = JSON.parse(raw);
-    } catch (error) { log.warn('Unable to restore conversation selection', error); }
-    if (session !== selectionSession) return;
-    const savedThread = snapshot.threads.find(thread => thread.id === saved?.threadId && threadContextId(thread) === saved?.roomId);
-    const eligibleSavedThread = settings.livingWorldEnabled || savedThread?.sandbox ? savedThread : undefined;
-    const roomId = settings.livingWorldEnabled
-      ? (eligibleSavedThread ? threadContextId(eligibleSavedThread) : (snapshot.rooms.find(room => room.id === saved?.roomId)?.id ?? snapshot.rooms[0]?.id ?? snapshot.threads.find(thread => thread.sandbox)?.id))
-      : (eligibleSavedThread?.id ?? snapshot.threads.find(thread => thread.sandbox && thread.state !== 'archived')?.id);
-    if (roomId) await selectRoom(roomId, eligibleSavedThread?.id);
-    })();
-    void initialSelection.catch(error => log.error('Unable to load conversations', error));
-  });
+      const snapshot = await getBridge().world.getWorldState();
+      if (session !== selectionSession) return;
+      setWorld(snapshot);
+      let saved: { roomId?: string; threadId?: string } | null = null;
+      try {
+        const raw = await getBridge().kvStore.kvGet(SELECTION_KEY);
+        if (raw) saved = JSON.parse(raw);
+      } catch (error) { log.warn('Unable to restore conversation selection', error); }
+      if (session !== selectionSession) return;
+      const savedThread = snapshot.threads.find(thread => thread.id === saved?.threadId
+        && threadContextId(thread) === saved?.roomId);
+      const eligibleSavedThread = settings.livingWorldEnabled || savedThread?.sandbox ? savedThread : undefined;
+      const sandboxes = snapshot.threads.filter(thread => thread.sandbox && thread.state !== 'archived')
+        .sort((a, b) => b.createdAt - a.createdAt);
+      const roomId = settings.livingWorldEnabled
+        ? (eligibleSavedThread ? threadContextId(eligibleSavedThread) : (snapshot.rooms.find(room => room.id === saved?.roomId)?.id
+          ?? snapshot.rooms.slice().sort((a, b) => b.createdAt - a.createdAt)[0]?.id ?? sandboxes[0]?.id))
+        : (eligibleSavedThread?.id ?? sandboxes[0]?.id);
+      if (roomId) await selectRoom(roomId, eligibleSavedThread?.id);
+    } catch (error) {
+      if (session === selectionSession) setConversationLoadError(true);
+      log.error('Unable to load conversations', error);
+    } finally {
+      setInitializingConversations(false);
+    }
+  };
+  onMount(() => { initialSelection = loadConversations(); });
 
   onMount(() => {
     let stopped = false, frame: number | undefined, revision = 0;
@@ -765,63 +791,78 @@ export const ConversationContent: Component = () => {
 
   const draftBySelection = new Map<string, string>();
   const scrollBySelection = new Map<string, number>();
+  let pendingScrollKey: string | null = null;
   const selectionKey = (roomId: string, threadId: string | null) => `${roomId}:${threadId ?? ''}`;
   const selectRoom = async (roomId: string, requestedThreadId?: string): Promise<void> => {
-    const mySession = ++selectionSession;
-    for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
-    reviewOperations.clear();
-    restrictedUserEventIds.clear(); pendingMemoryWrites.clear(); approvedMemoryWrites.clear();
-    const previous = selection();
-    if (previous) {
-      const key = selectionKey(previous.roomId, previous.threadId);
-      draftBySelection.set(key, inputText());
-      if (messagesRef) scrollBySelection.set(key, messagesRef.scrollTop);
-    }
-    const snapshot = await getBridge().world.getWorldState();
-    if (mySession !== selectionSession) return;
-    setWorld(snapshot);
-    const selectedSandbox = snapshot.threads.find(thread => thread.sandbox && thread.id === roomId && (!requestedThreadId || thread.id === requestedThreadId));
-    const room = snapshot.rooms.find((candidate) => candidate.id === roomId) ?? (selectedSandbox ? sandboxContext(selectedSandbox) : undefined);
-    if (!room) return;
-    const requestedThread = requestedThreadId ? snapshot.threads.find(thread => thread.id === requestedThreadId && threadContextId(thread) === roomId) : undefined;
-    if (requestedThreadId && !requestedThread) throw new Error('Conversation is unavailable');
-    // First entry into a persistent Room (non-sandbox) requires Living World
-    // consent; disposable sandboxes are exempt. Declining selects nothing.
-    if (!selectedSandbox && !settings.livingWorldEnabled) {
-      setLivingWorldPrompt({ roomId, threadId: requestedThreadId });
+    const current = selection();
+    const targetThreadId = requestedThreadId ?? (activeThread()?.sandbox && current?.roomId === roomId ? current.threadId : null);
+    if (current?.roomId === roomId && current.threadId === targetThreadId && !selectingConversation() && !conversationLoadError()) {
+      // Opening the current chat/call must not tear down its pending reply.
+      await journal.refresh();
+      setSidebarVisible(false);
       return;
     }
-    const threadId = selectedSandbox?.id ?? requestedThread?.id ?? null;
-    cancelVoiceScheduledNudge();
-    setMediaContext(null);
-    translatedInstructions = null;
-    pendingCheckerSocial = null;
-    turnHeuristicSocial = null;
-    for (const runtime of participantAgents.values()) runtime.abortStream();
-    agent.abortStream();
-    clearAssistantStreamState();
-    agent.unlockSafety();
-    setIsSafetyLockedState(false);
-    setLiveOverlay(null);
-    setMessageOverrides(new Map());
-    setAnnotationFailed(false);
-    participantAgents.clear();
-    setSelection({ roomId, threadId });
-    const key = selectionKey(roomId, threadId);
-    // The first selection can finish while a learner has already begun typing
-    // in the visible composer. Do not erase that draft on initial hydration.
-    if (previous || !inputText()) setInputText(draftBySelection.get(key) ?? '');
-    await journal.select({ roomId, threadId, continuityRoomIds: selectedSandbox ? Object.keys(selectedSandbox.sandbox!.baselineHeads) : snapshot.rooms.map(item => item.id), baselineHeads: selectedSandbox?.sandbox?.baselineHeads });
-    if (mySession !== selectionSession) return;
-    requestAnimationFrame(() => {
-      if (mySession === selectionSession && messagesRef && scrollBySelection.has(key)) {
-        messagesRef.scrollTop = scrollBySelection.get(key)!;
+    const mySession = ++selectionSession;
+    setConversationLoadError(false);
+    try {
+      for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
+      reviewOperations.clear();
+      restrictedUserEventIds.clear(); pendingMemoryWrites.clear(); approvedMemoryWrites.clear();
+      const previous = selection();
+      if (previous) {
+        const key = selectionKey(previous.roomId, previous.threadId);
+        draftBySelection.set(key, inputText());
+        if (messagesRef) scrollBySelection.set(key, messagesRef.scrollTop);
       }
-    });
-    await getBridge().kvStore.kvSet(SELECTION_KEY, JSON.stringify({ roomId, threadId }));
-    if (!selectedSandbox) await getBridge().world.clearRoomUnread(roomId);
-    setWorld((current) => current ? { ...current, rooms: current.rooms.map((item) => item.id === roomId ? { ...item, unreadCount: 0 } : item) } : current);
-    setSidebarVisible(false);
+      setSelectingConversation(true);
+      const snapshot = await getBridge().world.getWorldState();
+      if (mySession !== selectionSession) return;
+      setWorld(snapshot);
+      const selectedSandbox = snapshot.threads.find(thread => thread.sandbox && thread.id === roomId && (!requestedThreadId || thread.id === requestedThreadId));
+      const room = snapshot.rooms.find((candidate) => candidate.id === roomId) ?? (selectedSandbox ? sandboxContext(selectedSandbox) : undefined);
+      if (!room) return;
+      const requestedThread = requestedThreadId ? snapshot.threads.find(thread => thread.id === requestedThreadId && threadContextId(thread) === roomId) : undefined;
+      if (requestedThreadId && !requestedThread) throw new Error('Conversation is unavailable');
+      // First entry into a persistent Room (non-sandbox) requires Living World
+      // consent; disposable sandboxes are exempt. Declining selects nothing.
+      if (!selectedSandbox && !settings.livingWorldEnabled) {
+        setLivingWorldPrompt({ roomId, threadId: requestedThreadId });
+        return;
+      }
+      const threadId = selectedSandbox?.id ?? requestedThread?.id ?? null;
+      cancelVoiceScheduledNudge();
+      setMediaContext(null);
+      translatedInstructions = null;
+      pendingCheckerSocial = null;
+      turnHeuristicSocial = null;
+      for (const runtime of participantAgents.values()) runtime.abortStream();
+      agent.abortStream();
+      clearAssistantStreamState();
+      agent.unlockSafety();
+      setIsSafetyLockedState(false);
+      setLiveOverlay(null);
+      setMessageOverrides(new Map());
+      setAnnotationFailed(false);
+      participantAgents.clear();
+      setSidebarView(selectedSandbox ? 'practice' : 'chats');
+      const key = selectionKey(roomId, threadId);
+      pendingScrollKey = scrollBySelection.has(key) ? key : null;
+      setSelection({ roomId, threadId });
+      // The first selection can finish while a learner has already begun typing
+      // in the visible composer. Do not erase that draft on initial hydration.
+      if (previous || !inputText()) setInputText(draftBySelection.get(key) ?? '');
+      await journal.select({ roomId, threadId, continuityRoomIds: selectedSandbox ? Object.keys(selectedSandbox.sandbox!.baselineHeads) : snapshot.rooms.map(item => item.id), baselineHeads: selectedSandbox?.sandbox?.baselineHeads });
+      if (mySession !== selectionSession) return;
+      await getBridge().kvStore.kvSet(SELECTION_KEY, JSON.stringify({ roomId, threadId }));
+      if (!selectedSandbox) await getBridge().world.clearRoomUnread(roomId);
+      setWorld((current) => current ? { ...current, rooms: current.rooms.map((item) => item.id === roomId ? { ...item, unreadCount: 0 } : item) } : current);
+      setSidebarVisible(false);
+    } catch (error) {
+      if (mySession === selectionSession) setConversationLoadError(true);
+      throw error;
+    } finally {
+      if (mySession === selectionSession) setSelectingConversation(false);
+    }
   };
 
   // Creation runs only through the canonical New Conversation boundary; the
@@ -1008,11 +1049,20 @@ export const ConversationContent: Component = () => {
   };
   createEffect(() => {
     messages();
-    if (!untrack(followingTail)) return;
     if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame);
+    if (conversationsLoading()) return;
+    const restoreKey = pendingScrollKey;
+    const session = selectionSession;
+    if (!restoreKey && !untrack(followingTail)) return;
     scrollFrame = requestAnimationFrame(() => {
       scrollFrame = undefined;
-      if (followingTail() && messagesRef) messagesRef.scrollTop = messagesRef.scrollHeight;
+      if (session !== selectionSession || !messagesRef) return;
+      if (restoreKey && pendingScrollKey === restoreKey) {
+        // Restore only after real messages replace the loading skeletons.
+        pendingScrollKey = null;
+        messagesRef.scrollTop = scrollBySelection.get(restoreKey)!;
+        setFollowingTail(messagesRef.scrollHeight - messagesRef.clientHeight - messagesRef.scrollTop < 80);
+      } else if (followingTail()) messagesRef.scrollTop = messagesRef.scrollHeight;
     });
   });
   onCleanup(() => { if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame); });
@@ -1169,10 +1219,17 @@ export const ConversationContent: Component = () => {
   };
 
   const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void, keepStreaming = false): StreamCallbacks => {
+    const session = selectionSession;
     let streamTokenizeId = 0;
     let streamTokenizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const finishAnnotation = (): void => {
+      if (streamTokenizeTimer) clearTimeout(streamTokenizeTimer);
+      streamTokenizeTimer = null;
+      streamTokenizeId++;
+    };
     return {
       onChunk: (accumulated) => {
+        if (session !== selectionSession) return;
         setIsWaiting(false);
         const visibleContent = stripPartialToolCall(accumulated);
         setLiveOverlay((overlay) => overlay ? { ...overlay, content: visibleContent } : overlay);
@@ -1182,13 +1239,14 @@ export const ConversationContent: Component = () => {
           streamTokenizeTimer = setTimeout(() => {
             const tokenizeId = ++streamTokenizeId;
             agent.tokenize(visibleContent).then((tokens) => {
-              if (tokenizeId !== streamTokenizeId) return;
+              if (session !== selectionSession || tokenizeId !== streamTokenizeId) return;
               if (tokens.length > 0) setLiveOverlay((overlay) => overlay ? { ...overlay, tokens } : overlay);
-            });
+            }).catch(error => log.warn('Stream annotation unavailable', error));
           }, 300);
         }
       },
       onToolCall: (widget: ChatWidget) => {
+        if (session !== selectionSession) return;
         setIsWaiting(false);
         setLiveOverlay((overlay) => {
           if (!overlay) return overlay;
@@ -1197,10 +1255,13 @@ export const ConversationContent: Component = () => {
         });
       },
       onDone: (finalContent, tokens, widgets, streamStats) => {
+        finishAnnotation();
         onDone?.(finalContent, tokens, widgets, streamStats);
         if (!keepStreaming) clearAssistantStreamState();
       },
       onError: (error) => {
+        finishAnnotation();
+        if (session !== selectionSession) return;
         log.error('Conversation response failed', error);
         clearAssistantStreamState();
         setLiveOverlay({ role: 'assistant', content: describeProviderFailure(error, t, settings.llmProvider), timestamp: Date.now(), isError: true });
@@ -1772,8 +1833,8 @@ export const ConversationContent: Component = () => {
       <div class="ca-chat-panel">
           <ResponsiveSidebar id="conversation-sidebar" label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
             title={t('mlearn.ConversationAgent.Sidebar.Title')} open={sidebarVisible()} onOpenChange={setSidebarVisible} class="ca-history-sidebar">
-            <RoomSidebar world={world()} roomId={selection()?.roomId ?? null} threadId={selection()?.threadId ?? null}
-              previews={conversationPreviews.previews()} previewsError={conversationPreviews.error()}
+            <RoomSidebar world={world()} loading={initializingConversations() && !world()} loadError={conversationLoadError() && !world()} view={sidebarView()} roomId={selection()?.roomId ?? null} threadId={selection()?.threadId ?? null}
+              previews={conversationPreviews.previews()} previewsError={conversationPreviews.error()} previewLoading={conversationPreviews.isLoading}
               onSelectRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
               onSelectThread={threadId => { const thread = world()?.threads.find(item => item.id === threadId); if (thread) void selectRoom(threadContextId(thread), threadId).catch(error => setContactIngressError(String(error))); }}
               onNewConversation={() => openComposer('message')} onPractice={() => openComposer('practice')} onAddContact={() => setAddingContact(true)}
@@ -1796,7 +1857,22 @@ export const ConversationContent: Component = () => {
             </Show>
 
             {/* Messages */}
-            <div class="ca-messages" ref={messagesRef} onScroll={event => { const element = event.currentTarget; setFollowingTail(element.scrollHeight - element.clientHeight - element.scrollTop < 80); }}>
+            <div class="ca-messages" aria-busy={conversationsLoading()} ref={messagesRef} onScroll={event => { const element = event.currentTarget; setFollowingTail(element.scrollHeight - element.clientHeight - element.scrollTop < 80); }}>
+              <Show when={!conversationsLoading()} fallback={
+                <div class="ca-history-loading" role="status" aria-label={t('mlearn.Global.Loading')}>
+                  <SkeletonCard title={false} lines={2} animate={false} class="ca-history-placeholder user" />
+                  <SkeletonCard title={false} lines={4} animate={false} class="ca-history-placeholder" />
+                  <SkeletonCard title={false} lines={2} animate={false} class="ca-history-placeholder user" />
+                </div>
+              }>
+              <Show when={!conversationLoadError()} fallback={
+                <EmptyState icon={<ChatIcon size={24} />} title={t('mlearn.ConversationAgent.ErrorTitle')}
+                  action={{ label: t('mlearn.Global.Retry'), onClick: () => {
+                    const selected = selection();
+                    if (selected) void selectRoom(selected.roomId, selected.threadId ?? undefined).catch(error => log.error('Unable to retry conversation', error));
+                    else initialSelection = loadConversations();
+                  }, variant: 'primary' }} class="ca-empty ca-history-error" />
+              }>
               <Show
                 when={messages().length > 0}
                 fallback={
@@ -1838,6 +1914,8 @@ export const ConversationContent: Component = () => {
                     </Show>
                   )}
                 </Index>
+              </Show>
+              </Show>
               </Show>
             </div>
 
@@ -1914,7 +1992,7 @@ export const ConversationContent: Component = () => {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     resize="none"
-                    disabled={!hasActiveRoomSelection() || rosterParticipants().length === 0 || isStreaming() || isCompactingContext() || !isConnected() || isSafetyLockedState()}
+                    disabled={conversationsLoading() || conversationLoadError() || !hasActiveRoomSelection() || rosterParticipants().length === 0 || isStreaming() || isCompactingContext() || !isConnected() || isSafetyLockedState()}
                     ghost
                   />
 
@@ -1933,7 +2011,7 @@ export const ConversationContent: Component = () => {
                       icon={<SendIcon />}
                       variant="default"
                       onClick={handleSend}
-                      disabled={!hasActiveRoomSelection() || rosterParticipants().length === 0 || !inputText().trim() || !isConnected() || isCompactingContext() || isSafetyLockedState()}
+                      disabled={conversationsLoading() || conversationLoadError() || !hasActiveRoomSelection() || rosterParticipants().length === 0 || !inputText().trim() || !isConnected() || isCompactingContext() || isSafetyLockedState()}
                       aria-label={t('mlearn.ConversationAgent.Send')}
                     />
                   </Show>

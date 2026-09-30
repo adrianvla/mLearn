@@ -1,9 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createMessagePreparationQueue } from './messagePreparation';
+import { createMessagePreparationQueue, messagePreparations } from './messagePreparation';
 import type { Token } from '../../../shared/types';
 const token = (word: string): Token => ({ word, actual_word: word, type: 'NOUN' });
 
 describe('message preparation before hover', () => {
+  it('prepares restored quiz text independently from the surrounding message and preserves the widget target', async () => {
+    const apply = vi.fn();
+    const queue = createMessagePreparationQueue({ tokenize: async text => [token(text)], warm: async () => {}, apply, onError: vi.fn() });
+    const work = messagePreparations({ eventId: 'reply', role: 'assistant', content: 'Question', timestamp: 0,
+      widgets: [{ type: 'quiz', data: { question: 'Question' } }] });
+    queue.enqueue(work);
+    await vi.waitFor(() => expect(apply).toHaveBeenCalledTimes(2));
+    expect(apply).toHaveBeenCalledWith('reply', 'Question', [token('Question')]);
+    expect(apply).toHaveBeenCalledWith('reply', 'Question', [token('Question')], 0);
+    queue.dispose();
+  });
   it('tokenizes a restored message and warms shared reading/dictionary data without pointer input', async () => {
     const apply = vi.fn(), warm = vi.fn(async () => {}), tokenize = vi.fn(async () => [token('word')]);
     const queue = createMessagePreparationQueue({ tokenize, warm, apply, onError: vi.fn() });

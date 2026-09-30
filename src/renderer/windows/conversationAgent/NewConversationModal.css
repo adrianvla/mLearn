@@ -2,7 +2,12 @@
 .new-conversation-media-context { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
 .new-conversation-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--spacing-2); }
 .new-conversation-people { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
-.new-conversation-people-list { max-height: 15rem; overflow-y: auto; min-width: 0; }
+.new-conversation-people-list {
+    max-height: 15rem; overflow-y: auto; min-width: 0;
+    display:flex;
+    flex-direction: column;
+    gap:var(--spacing-1);
+}
 .new-conversation-people-list .list-row { border-radius: var(--radius-md); }
 .new-conversation-add .list-row-title { color: var(--color-primary); }
 .new-conversation-scope { border: 0; padding: 0; margin: 0; min-width: 0; }

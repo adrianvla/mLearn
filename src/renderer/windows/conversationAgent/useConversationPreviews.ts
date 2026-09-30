@@ -8,11 +8,16 @@ import { latestConversationPreview, type ConversationPreviews } from './conversa
 export function useConversationPreviews(world: Accessor<WorldSnapshot | null>) {
   const [previews, setPreviews] = createSignal<ConversationPreviews>({});
   const [error, setError] = createSignal('');
+  const [loading, setLoading] = createSignal<ReadonlySet<string>>(new Set());
   const loaded = new Set<string>();
   const pending = new Set<string>();
   const inFlight = new Set<string>();
   let disposed = false, active = 0;
   let scopes = new Map<string, { roomId: string; threadId?: string }>();
+  const queue = (key: string): void => {
+    pending.add(key);
+    setLoading(current => current.has(key) ? current : new Set(current).add(key));
+  };
   onCleanup(() => { disposed = true; pending.clear(); });
   const drain = (): void => {
     while (!disposed && active < 4 && pending.size) {
@@ -26,7 +31,11 @@ export function useConversationPreviews(world: Accessor<WorldSnapshot | null>) {
         if (!disposed && scopes.has(key)) {
           setPreviews(current => ({ ...current, [key]: latestConversationPreview(events) })); loaded.add(key);
         }
-      }).catch(err => { if (!disposed) setError(String(err)); }).finally(() => { active--; inFlight.delete(key); drain(); });
+      }).catch(err => { if (!disposed) setError(String(err)); }).finally(() => {
+        active--; inFlight.delete(key);
+        if (!disposed && !pending.has(key)) setLoading(current => { const next = new Set(current); next.delete(key); return next; });
+        drain();
+      });
     }
   };
   const refresh = (notice?: WorldChangeNotice): void => {
@@ -36,7 +45,7 @@ export function useConversationPreviews(world: Accessor<WorldSnapshot | null>) {
     if (notice?.kind === 'world') return;
     setError('');
     for (const [key, scope] of scopes) {
-      if (!notice || (scope.roomId === notice.roomId && (!notice.threadId || scope.threadId === notice.threadId))) pending.add(key);
+      if (!notice || (scope.roomId === notice.roomId && (!notice.threadId || scope.threadId === notice.threadId))) queue(key);
     }
     drain();
   };
@@ -49,8 +58,8 @@ export function useConversationPreviews(world: Accessor<WorldSnapshot | null>) {
       }),
     ]);
     for (const key of loaded) if (!scopes.has(key)) loaded.delete(key);
-    for (const key of scopes.keys()) if (!loaded.has(key)) pending.add(key);
+    for (const key of scopes.keys()) if (!loaded.has(key)) queue(key);
     drain();
   });
-  return { previews, error, refresh };
+  return { previews, error, refresh, isLoading: (key: string) => loading().has(key) };
 }

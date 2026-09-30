@@ -818,7 +818,7 @@ describe('createConversationAgent', () => {
       sendChunk('resp1');
       sendDone();
 
-      await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalled());
+      await Promise.resolve();
 
       vi.clearAllMocks();
       mockBridge.llm.onLLMStreamChunk.mockImplementation((cb: (chunk: LLMStreamChunk) => void) => {
@@ -886,7 +886,7 @@ describe('createConversationAgent', () => {
       sendChunk('response');
       sendDone();
 
-      await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalled());
+      await Promise.resolve();
 
       vi.clearAllMocks();
       mockBridge.llm.onLLMStreamChunk.mockImplementation((cb: (chunk: LLMStreamChunk) => void) => {
@@ -914,7 +914,7 @@ describe('createConversationAgent', () => {
       sendChunk('first response');
       sendDone();
 
-      await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalled());
+      await Promise.resolve();
 
       vi.clearAllMocks();
       mockBridge.llm.onLLMStreamChunk.mockImplementation((cb: (chunk: LLMStreamChunk) => void) => {
@@ -964,7 +964,7 @@ describe('createConversationAgent', () => {
       sendChunk('こんにちは、今日はどうですか');
       sendDone();
 
-      await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalled());
+      await Promise.resolve();
 
       agent.markInterrupted('こんにちは');
 
@@ -984,7 +984,7 @@ describe('createConversationAgent', () => {
       sendChunk('こんにちは、今日はどうですか');
       sendDone();
 
-      await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalled());
+      await Promise.resolve();
 
       agent.markInterrupted('こんにちは', '今日はどうですか');
 
@@ -1006,6 +1006,17 @@ describe('createConversationAgent', () => {
   // ==========================================================================
   // tokenize
   // ==========================================================================
+
+  it('publishes a completed reply before annotation so aborting or restoring cannot discard it', async () => {
+    mockBackend.tokenize.mockImplementation(() => new Promise(() => {}));
+    const agent = createConversationAgent(createMockDeps());
+    const { callbacks, onDone } = createCallbacks();
+    agent.processMessage('Hello', [], callbacks);
+    sendChunk('A completed reply');
+    sendDone();
+    agent.abortStream();
+    expect(onDone).toHaveBeenCalledWith('A completed reply', undefined, undefined, expect.any(Object));
+  });
 
   describe('tokenize', () => {
     it('calls getBackend().tokenize with the text and language', async () => {

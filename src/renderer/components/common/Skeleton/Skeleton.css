@@ -19,7 +19,7 @@
 }
 
 .skeleton-line,
-.skeleton-pill,
+.skeleton-pill {
   display: inline-block;
   vertical-align: middle;
 }

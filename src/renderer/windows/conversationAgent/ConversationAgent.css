@@ -257,6 +257,24 @@
 }
 
 /* Empty state positioning inside messages */
+.ca-history-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  width: 100%;
+}
+
+.ca-history-placeholder {
+  width: min(75%, 32rem);
+  box-sizing: border-box;
+  align-self: flex-start;
+}
+
+.ca-history-placeholder.user {
+  width: min(50%, 20rem);
+  align-self: flex-end;
+}
+
 .ca-empty {
   flex: 1;
   display: flex;

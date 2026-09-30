@@ -749,47 +749,6 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
 }
 
 // ============================================================================
-// Tokenization
-// ============================================================================
-
-function extractWidgetText(widget: ChatWidget): string | undefined {
-  switch (widget.type) {
-    case 'quiz': {
-      const data = widget.data as unknown as QuizWidgetData;
-      return data.question || data.textWithBlanks;
-    }
-    case 'mistake': {
-      const data = widget.data as unknown as MistakeWidgetData;
-      return data.correction || data.errorSpan;
-    }
-    default:
-      return undefined;
-  }
-}
-
-async function tokenizeWidgets(widgets: ChatWidget[], tokenize: (text: string) => Promise<Token[]>): Promise<ChatWidget[]> {
-  if (widgets.length === 0) return widgets;
-
-  return Promise.all(
-    widgets.map(async (widget) => {
-      const text = extractWidgetText(widget);
-      if (!text) return widget;
-
-      const tokens = await tokenize(text).catch(() => [] as Token[]);
-      if (tokens.length === 0) return widget;
-
-      return {
-        ...widget,
-        data: {
-          ...widget.data,
-          tokens,
-        },
-      };
-    }),
-  );
-}
-
-// ============================================================================
 // Content-based Tool Call Parsing
 // ============================================================================
 
@@ -1089,11 +1048,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     getBridge().llm.llmStreamAbort();
   }
 
-  /**
-   * After the LLM produces its final content, check if level adaptation is needed.
-   * If target level is set and difficult words are found, iteratively reformulate.
-   * Then tokenize and call the done callback.
-   */
+  /** Publish completion without waiting for presentation annotations. */
   async function finalizeResponse(
     content: string,
     _language: string,
@@ -1106,13 +1061,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     const finalContent = content;
 
-    const [contentTokens, widgetsWithTokens] = await Promise.all([
-      deps.tokenize(finalContent).catch(() => [] as Token[]),
-      tokenizeWidgets(widgets, deps.tokenize),
-    ]);
-    if (aborted) return;
-    const finalTokens = contentTokens.length > 0 ? contentTokens : undefined;
-    callbacks.onDone(finalContent, finalTokens, widgetsWithTokens.length > 0 ? widgetsWithTokens : undefined, streamStats);
+    // Completion belongs to the durable conversation path. Annotation is a
+    // view concern handled by the message preparation queue after commit;
+    // waiting for NLP here lets call teardown discard a finished response.
+    callbacks.onDone(finalContent, undefined, widgets.length > 0 ? widgets : undefined, streamStats);
   }
 
   /**
@@ -1417,7 +1369,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
         const finalVisibleContent = contentPrefix + accumulated;
 
-        // Finalize with level adaptation and tokenization
+        // Publish the completed response
         finalizeResponse(finalVisibleContent, language, langName, widgets, callbacks, streamStats).catch(() => {
           if (!aborted) {
             callbacks.onDone(finalVisibleContent, undefined, widgets.length > 0 ? widgets : undefined, streamStats);

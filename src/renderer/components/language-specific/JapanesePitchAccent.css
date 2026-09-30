@@ -136,7 +136,7 @@
 
 /* Variant sizes for pitch accent */
 .prosody-overlay-wrapper--reading > .pitch-accent {
-  --pitch-accent-height: 5px;
+  --pitch-accent-height: var(--prosody-surface-line-width);
 }
 
 rt .prosody-overlay-wrapper--reading > .pitch-accent,

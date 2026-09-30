@@ -120,7 +120,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     }
     if (persistent) {
       if (ids.length === 1 && mode() === 'message') {
-        const existing = props.world?.rooms.find(room => room.participantIds.length === 1 && room.participantIds[0] === ids[0]);
+        const existing = props.world?.rooms.filter(room => room.participantIds.length === 1 && room.participantIds[0] === ids[0])
+          .sort((a, b) => b.createdAt - a.createdAt)[0];
         if (existing) { await props.onCreated({ roomId: existing.id, threadId: null }); return; }
       }
       const room = await bridge.createPersistentRoom(request);

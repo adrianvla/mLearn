@@ -5,7 +5,11 @@
 .room-sidebar-tabs { min-height: 0; flex: 1; }
 .room-sidebar-tabs > .tab-list { margin-inline: var(--spacing-3); flex: 0 0 auto; }
 .room-sidebar-tabs > .tab-content { min-height: 0; padding: 0; overflow: hidden; }
-.room-sidebar-list { min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; padding-inline: var(--spacing-2); padding-top: var(--spacing-2); box-sizing: border-box; }
+.room-sidebar-list { min-height: 0; height: 100%; overflow-y: auto; overflow-x: hidden; padding-inline: var(--spacing-2); padding-top: var(--spacing-2); box-sizing: border-box;
+    display:flex;
+    flex-direction: column;
+    gap:var(--spacing-1);
+}
 .room-sidebar-list .list-row { border-radius: var(--radius-md); }
 .room-sidebar-scope { font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .room-sidebar-empty { padding: var(--spacing-4); text-align: center; color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--line-height-relaxed); }

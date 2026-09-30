@@ -16,7 +16,7 @@
 .btn.list-row > .btn-content { display: flex; align-items: center; gap: var(--spacing-3); width: 100%; min-width: 0; }
 .btn.list-row:hover:not(:disabled) { background: var(--bg-secondary); }
 .btn.list-row:active:not(:disabled) { transform: none; }
-.btn.list-row--selected, .btn.list-row--selected:hover:not(:disabled) { background: color-mix(in srgb, var(--color-primary) 12%, var(--bg-secondary)); }
+.btn.list-row--selected, .btn.list-row--selected:hover:not(:disabled) { background: var(--bg) !important; border: 1px solid var(--border-color) !important; }
 .list-row__leading { display: flex; flex: 0 0 auto; align-items: center; }
 .list-row__copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: var(--spacing-1); }
 .list-row__headline, .list-row__description { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: var(--line-height-normal); }

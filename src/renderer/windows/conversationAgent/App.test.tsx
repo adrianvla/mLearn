@@ -11,6 +11,7 @@ import type { JSX } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { LLMModelStatus, LLMStreamChunk } from '../../../shared/types';
 import type { JournalEvent, JournalEventDraft, WorldSnapshot } from '../../../shared/world';
+import type { TurnReviewRequest, TurnReviewResult } from '../../../shared/conversationReview';
 
 const mockCloudToken = vi.hoisted(() => vi.fn(async () => 'fresh-token'));
 let desktopRuntime = false;
@@ -84,6 +85,10 @@ const mockBridge = {
   },
   world: {
     onChanged: vi.fn(() => () => {}),
+    reviewConversationTurn: vi.fn(async (request: TurnReviewRequest): Promise<TurnReviewResult> => ({
+      status: 'approved', text: request.assistantText, reason: 'none', restrictUserContext: false, reviewId: request.operationId,
+    })),
+    cancelConversationReview: vi.fn(async () => {}),
     getWorldState: vi.fn(async () => currentWorld),
     prepareScenario: vi.fn(async (request: { operationId: string; intent?: string; participantIds: string[] }) => ({
       operationId: request.operationId, status: 'ready', request, bindings: [],
@@ -404,7 +409,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     mockBridge.world.createPersistentRoom.mockClear();
     mockBridge.world.updateThread.mockClear();
     mockBridge.llm.llmStream.mockClear();
-    mockBackend.tokenize.mockClear();
+    mockBackend.tokenize.mockReset().mockImplementation(async text => [{ actual_word: text, word: text, type: 'NOUN' }]);
+    mockBridge.world.getWorldState.mockReset().mockImplementation(async () => currentWorld);
+    mockBridge.journal.readSeaProjection.mockReset().mockImplementation(async roomId => journalEvents.filter(event => event.roomId === roomId && event.scope.kind === 'sea'));
+    mockBridge.journal.readThread.mockReset().mockImplementation(async (_roomId, threadId) => journalEvents.filter(event => event.scope.kind === 'thread' && event.scope.threadId === threadId));
     settledWords = new Set();
   });
 
@@ -421,6 +429,65 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await Promise.resolve();
 
     expect(mockBridge.llm.llmCheckModel).not.toHaveBeenCalled();
+  });
+
+  it('shows shared skeletons until the world and saved conversation have loaded', async () => {
+    const worldRead = deferred<WorldSnapshot>();
+    mockBridge.world.getWorldState.mockImplementationOnce(() => worldRead.promise);
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    expect(container.querySelectorAll('.ca-history-loading .skeleton-card')).toHaveLength(3);
+    expect(container.querySelector('.room-sidebar-list .skeleton-rows')).not.toBeNull();
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.Empty.Title');
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
+    expect((container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement).disabled).toBe(true);
+    worldRead.resolve(currentWorld);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    expect(container.querySelector('.room-sidebar-list .skeleton-rows')).toBeNull();
+    expect(mockBridge.kvStore.kvSet).toHaveBeenCalledWith('conversation-selection', JSON.stringify({ roomId: 'room-a', threadId: 'thread-a' }));
+  });
+
+  it('keeps skeletons while saved history is pending, then shows that history without a new-practice dialog', async () => {
+    const historyRead = deferred<JournalEvent[]>();
+    mockBridge.journal.readThread.mockImplementation(() => historyRead.promise);
+    const savedMessage = appendJournalEvent({ roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' },
+      type: 'message.character', actorId: 'agent-a', witnesses: ['user'], payload: { text: 'Welcome back' } });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalled());
+    expect(container.querySelector('.ca-history-loading')).not.toBeNull();
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.Empty.Title');
+    historyRead.resolve([savedMessage]);
+    await vi.waitFor(() => expect(container.querySelector('.chat-bubble')?.textContent).toContain('Welcome back'));
+    expect(container.querySelector('.ca-history-loading')).toBeNull();
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
+  });
+
+  it('ends a failed load with a retry action and restores the saved conversation on retry', async () => {
+    mockBridge.world.getWorldState.mockRejectedValueOnce(new Error('Read unavailable'));
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    expect(container.querySelector('.ca-messages')?.textContent).toContain('mlearn.ConversationAgent.ErrorTitle');
+    expect(container.querySelector('.ca-messages')?.textContent).not.toContain('mlearn.ConversationAgent.Empty.Title');
+    const retry = Array.from(container.querySelectorAll('.ca-messages button')).find(button => button.textContent === 'mlearn.Global.Retry')!;
+    (retry as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.kvStore.kvSet).toHaveBeenCalledWith('conversation-selection', JSON.stringify({ roomId: 'room-a', threadId: 'thread-a' })));
+    expect(container.querySelector('.ca-history-loading')).toBeNull();
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
+  });
+
+  it('returns to a saved practice conversation and selects its sidebar tab', async () => {
+    testSettings.livingWorldEnabled = false;
+    currentWorld = { rooms: [], participants: [], threads: [{ id: 'practice-a', state: 'active', createdAt: 2,
+      sandbox: { operationId: 'practice', requestHash: 'hash', bindings: [{ baseline: worldFixture.participants[0] }], baselineHeads: {} } }] };
+    mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'practice-a', threadId: 'practice-a' }));
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(mockBridge.kvStore.kvSet).toHaveBeenCalledWith('conversation-selection', JSON.stringify({ roomId: 'practice-a', threadId: 'practice-a' })));
+    expect(container.querySelector('.room-sidebar-title')?.textContent).toBe('mlearn.ConversationAgent.Contacts.Practice');
+    expect(container.querySelectorAll('.room-sidebar-thread')).toHaveLength(1);
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
   });
 
   it('boots rooms and renders journal messages for the selected room', async () => {
@@ -571,6 +638,51 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
     emitChunk({ content: 'Reply', done: true });
     await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
+  });
+
+  it('reopens the current conversation without aborting its response', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'Hello'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    emitChunk({ content: 'A pending reply' });
+    mockBridge.llm.llmStreamAbort.mockClear();
+    const readCount = mockBridge.journal.readThread.mock.calls.length;
+    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
+    await vi.waitFor(() => expect(mockBridge.journal.readThread.mock.calls.length).toBeGreaterThan(readCount));
+    expect(mockBridge.llm.llmStreamAbort).not.toHaveBeenCalled();
+    emitChunk({ done: true });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
+    expect(chatText(container)).toContain('A pending reply');
+  });
+
+  it('commits a completed reply across call teardown while annotation is pending and restores it after reopening', async () => {
+    desktopRuntime = true;
+    const review = deferred<TurnReviewResult>();
+    mockBridge.world.reviewConversationTurn.mockImplementationOnce(() => review.promise);
+    const annotation = deferred<import('../../../shared/types').Token[]>();
+    mockBackend.tokenize.mockImplementation(() => annotation.promise);
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'Hello'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    emitChunk({ content: 'The latest completed reply', done: true });
+    await vi.waitFor(() => expect(mockBridge.world.reviewConversationTurn).toHaveBeenCalledOnce());
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]') as HTMLButtonElement).click();
+    const abort = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Abort call response')!;
+    (abort as HTMLButtonElement).click();
+    review.resolve({ status: 'approved', text: 'The latest completed reply', reason: 'none', restrictUserContext: false, reviewId: 'review-complete' });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character' && (event.payload as { text: string }).text === 'The latest completed reply')).toBe(true));
+    dispose();
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(chatText(container)).toContain('The latest completed reply'));
+    annotation.resolve([]);
   });
 
   it('opens persistent Room history and commits replies directly to Sea without creating a Thread', async () => {

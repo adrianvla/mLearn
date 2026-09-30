@@ -52,6 +52,35 @@ describe('Contacts are independent from conversations', () => {
     expect(selectThread).not.toHaveBeenCalled();
   });
 
+  it('groups old and new direct rooms by contact identity while retaining both histories', () => {
+    const selectRoom = vi.fn(); const selectThread = vi.fn();
+    const person: Participant = { id: 'p1', displayName: 'Katsuki Bakugo', kind: 'persistent', personaText: '', setupComplete: true };
+    const el = mount(() => <RoomSidebar world={{ participants: [person], rooms: [
+      { id: 'legacy', title: person.displayName, participantIds: [person.id], createdAt: 1 },
+      { id: 'current', title: person.displayName, participantIds: [person.id], createdAt: 10 }],
+      threads: [{ id: 'old-session', roomId: 'legacy', title: 'Old conversation', state: 'archived', createdAt: 2 }] }}
+      roomId="current" threadId={null} previews={{ current: { text: 'Latest reply', timestamp: 20, actorId: person.id, eventId: 'latest' } }}
+      onSelectRoom={selectRoom} onSelectThread={selectThread} onNewConversation={vi.fn()} onPractice={vi.fn()}
+      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+    expect(el.querySelectorAll('.room-sidebar-room')).toHaveLength(1);
+    expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('Latest reply');
+    (el.querySelector('.room-sidebar-room') as HTMLButtonElement).click();
+    expect(selectRoom).toHaveBeenCalledWith('current');
+    (el.querySelector('.room-sidebar-sessions summary') as HTMLElement).click();
+    const oldSession = Array.from(el.querySelectorAll('.room-sidebar-sessions button')).find(button => button.textContent?.includes('Old conversation'));
+    expect(oldSession).toBeDefined();
+    (oldSession as HTMLButtonElement).click();
+    expect(selectThread).toHaveBeenCalledWith('old-session');
+  });
+
+  it('keeps separate contacts with identical display names separate', () => {
+    const people: Participant[] = ['p1', 'p2'].map(id => ({ id, displayName: 'Same name', kind: 'persistent', personaText: '', setupComplete: true }));
+    const el = mount(() => <RoomSidebar world={{ participants: people, rooms: people.map(person => ({ id: person.id, title: person.displayName, participantIds: [person.id], createdAt: 1 })), threads: [] }}
+      roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
+      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+    expect(el.querySelectorAll('.room-sidebar-room')).toHaveLength(2);
+  });
+
   it('offers Add contact from an empty messenger and a Contacts tab', () => {
     const add = vi.fn();
     const el = mount(() => <RoomSidebar world={{ rooms: [], threads: [], participants: [] }} roomId={null} threadId={null}

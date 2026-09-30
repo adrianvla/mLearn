@@ -24,7 +24,6 @@ import {
   WelcomeContinueRow,
 } from './components';
 import { ActionCard } from '../../../components/common/Card/ActionCard';
-import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { nextAttemptId, type AttemptId } from '../../../../shared/knowledgeEvents';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
@@ -73,7 +72,6 @@ export const WelcomeRoute: Component = () => {
   const flashcards = useFlashcards();
 
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
-  const [showTutorModal, setShowTutorModal] = createSignal(false);
   const [lookupDraft, setLookupDraft] = createSignal('');
   const [tutorDraft, setTutorDraft] = createSignal('');
   // Same acknowledged-write lifecycle as every other surface that files a
@@ -161,7 +159,11 @@ export const WelcomeRoute: Component = () => {
       openCapabilitySettings('llm');
       return;
     }
-    setShowTutorModal(true);
+    if (isMobile()) {
+      navigate('/conversation-agent');
+    } else {
+      getBridge().window.openWindow({ type: 'conversation-agent' });
+    }
   };
 
   const handleTutorSubmit = () => {
@@ -184,18 +186,6 @@ export const WelcomeRoute: Component = () => {
       return;
     }
     openAITutor();
-  };
-
-  const handleStartTutor = (config: TutorSessionConfig) => {
-    if (!isLLMReady(settings)) {
-      openAITutor();
-      return;
-    }
-    setShowTutorModal(false);
-    getBridge().window.openWindow({
-      type: 'conversation-agent',
-      context: { tutorConfig: config } as unknown as Record<string, unknown>,
-    });
   };
 
 
@@ -746,12 +736,6 @@ export const WelcomeRoute: Component = () => {
           />
         </section>
       </Show>
-
-      <AITutorSetupModal
-        isOpen={showTutorModal()}
-        onClose={() => setShowTutorModal(false)}
-        onStart={handleStartTutor}
-      />
 
       {/* Recent items: continue rows */}
       <Show when={recentItems().length > 0}>

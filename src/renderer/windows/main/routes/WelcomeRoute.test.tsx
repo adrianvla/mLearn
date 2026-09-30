@@ -5,6 +5,8 @@ import { render } from 'solid-js/web';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Flashcard, ReviewQueue } from '../../../../shared/types';
 
+const tutorLaunch = vi.hoisted(() => ({ ready: false, mobile: false, openWindow: vi.fn(), navigate: vi.fn() }));
+
 const localization = vi.hoisted(() => ({
   translate: (key: string) => key,
 }));
@@ -36,7 +38,7 @@ const settingsState = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@solidjs/router', () => ({ useNavigate: () => vi.fn() }));
+vi.mock('@solidjs/router', () => ({ useNavigate: () => tutorLaunch.navigate }));
 
 vi.mock('../../../context', () => ({
   useSettings: () => ({
@@ -65,15 +67,15 @@ vi.mock('../../../context', () => ({
 }));
 
 vi.mock('../../../../shared/bridges', () => ({
-  getBridge: () => ({ window: { openWindow: vi.fn() } }),
+  getBridge: () => ({ window: { openWindow: tutorLaunch.openWindow } }),
 }));
 
 vi.mock('../../../../shared/platform', async (importOriginal) => ({
   ...await importOriginal<typeof import('../../../../shared/platform')>(),
-  isMobile: () => false,
+  isMobile: () => tutorLaunch.mobile,
 }));
 vi.mock('../../../services/thumbnailService', () => ({ getRecentItems: async () => [] }));
-vi.mock('../../../services/llmProvider', () => ({ isLLMReady: () => false }));
+vi.mock('../../../services/llmProvider', () => ({ isLLMReady: () => tutorLaunch.ready }));
 vi.mock('../../../services/wordLookupService', () => ({ openWordLookup: vi.fn() }));
 vi.mock('../../../components/utils/WindowDragRegion', () => ({ WindowDragRegion: () => null }));
 vi.mock('../../../components/AITutorSetup', () => ({ AITutorSetupModal: () => null }));
@@ -98,8 +100,8 @@ vi.mock('../../../components/common', () => {
 });
 
 vi.mock('../../../components/common/Card/ActionCard', () => ({
-  ActionCard: (props: { title: string; description: string; disabled?: boolean }) => (
-    <button type="button" disabled={props.disabled}>
+  ActionCard: (props: { title: string; description: string; disabled?: boolean; onClick?: () => void }) => (
+    <button type="button" disabled={props.disabled} onClick={props.onClick}>
       <h3>{props.title}</h3>
       <p>{props.description}</p>
     </button>
@@ -109,8 +111,8 @@ vi.mock('../../../components/common/Card/ActionCard', () => ({
 vi.mock('./components', () => {
   const Preview: Component = () => <div />;
   return {
-    WelcomeFeatureCard: (props: { title: string; description: string; preview?: JSX.Element }) => (
-      <article>
+    WelcomeFeatureCard: (props: { title: string; description: string; preview?: JSX.Element; onClick?: () => void }) => (
+      <article onClick={props.onClick}>
         <h3>{props.title}</h3>
         <p>{props.description}</p>
         {props.preview}
@@ -157,6 +159,7 @@ describe('WelcomeRoute localization', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    tutorLaunch.ready = false; tutorLaunch.mobile = false; tutorLaunch.openWindow.mockClear(); tutorLaunch.navigate.mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
     setKnowledgeReady(true);
@@ -172,6 +175,16 @@ describe('WelcomeRoute localization', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it.each([false, true])('opens saved conversations directly from home (mobile=%s)', mobile => {
+    tutorLaunch.ready = true; tutorLaunch.mobile = mobile;
+    const dispose = render(() => <WelcomeRoute />, container);
+    const card = Array.from(container.querySelectorAll('article, button')).find(node => node.textContent?.includes('mlearn.Home.Cards.AITutor.Title')) as HTMLElement;
+    card.click();
+    if (mobile) expect(tutorLaunch.navigate).toHaveBeenCalledWith('/conversation-agent');
+    else expect(tutorLaunch.openWindow).toHaveBeenCalledWith({ type: 'conversation-agent' });
+    dispose();
   });
 
   it('updates route-owned labels when the localization function changes after mount', async () => {

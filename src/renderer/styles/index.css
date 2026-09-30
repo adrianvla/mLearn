@@ -188,6 +188,7 @@
   --subtitle-text: #ffffff;
   --word-blur-amount: 5px;
   --prosody-overlay-height: 2px;
+  --prosody-surface-line-width: 5px;
 
   /* ========== Part of Speech Colors ========== */
   --pos-noun: #4a90d9;

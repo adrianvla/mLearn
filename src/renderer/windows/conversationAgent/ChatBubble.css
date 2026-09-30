@@ -87,12 +87,15 @@
 /* ============ Tokenized text in bubbles ============ */
 
 .chat-token {
+  --prosody-surface-line-width: 1.5px;
   cursor: pointer;
   transition: background var(--transition-fast);
   border-radius: 2px;
   padding: 0 1px;
-  /* Package POS colors can be hard to read on the chat surface. */
-  color: var(--text-primary) !important;
+}
+
+.chat-token .prosody-overlay-wrapper {
+  --prosody-overlay-height: var(--prosody-surface-line-width);
 }
 
 .chat-token:hover {
@@ -103,16 +106,6 @@
   text-decoration: underline;
   text-decoration-style: dotted;
   text-decoration-color: var(--color-warning);
-}
-
-.chat-token ruby rt,
-.chat-token ruby rt .subtitle-word__reading-overlay,
-.chat-token ruby rt .prosody-overlay-wrapper {
-  color: var(--text-secondary);
-}
-
-.chat-token .frequency {
-  display: none;
 }
 
 /* ============ Blinking cursor (waiting for first token) ============ */

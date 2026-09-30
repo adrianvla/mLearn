@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'solid-js/web';
 import { SubtitleWord } from './SubtitleWord';
+import { ChatBubble } from '../../windows/conversationAgent/ChatBubble';
 import type { AccessStatusResult } from '../../utils/accessKnowledge';
 import type { CapabilityKey, LanguageData, Token } from '../../../shared/types';
 import type { ComprehensiveWordStatusResult } from '../../utils/comprehensiveKnowledge';
@@ -62,6 +63,7 @@ let mockLanguageData: LanguageData = {
 };
 
 vi.mock('../../context', () => ({
+  useLocalization: () => ({ t: (key: string) => key, locale: () => 'en' }),
   useSettings: () => ({ settings: mockSettings }),
   useLanguage: () => ({
     currentLangData: () => mockLanguageData,
@@ -171,7 +173,21 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     dispose();
   });
 
-  it('keeps reading annotations but omits prosody overlays in compact chat layout', () => {
+  it.each(['user', 'assistant'] as const)('renders %s chat through the shared annotated word without stars', role => {
+    mockSettings.colour_codes = { '名詞': '#ff0000' };
+    const token: Token = { word: '何時', surface: '何時', actual_word: '何時', reading: 'いつ', type: '名詞', partOfSpeech: '名詞' };
+    const dispose = render(() => <ChatBubble message={{ role, content: '何時', tokens: [token], timestamp: 0 }} />, container);
+    const word = container.querySelector('.chat-token.subtitle-word') as HTMLElement;
+    expect(word).not.toBeNull();
+    expect(word.style.color).toBe('#ff0000');
+    expect(word.querySelector('rt')?.textContent).toBe('いつ');
+    expect(word.querySelector('rt .pitch-accent')).not.toBeNull();
+    expect(word.querySelector('.frequency')).toBeNull();
+    dispose();
+  });
+
+  it('keeps word colors, reading annotations and prosody but omits stars in compact layout', () => {
+    mockSettings.colour_codes = { '名詞': '#ff0000' };
     const token: Token = {
       word: '何時', surface: '何時', actual_word: '何時', reading: 'いつ', type: '名詞', partOfSpeech: '名詞',
     };
@@ -181,7 +197,8 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     ), container);
 
     expect(container.querySelector('ruby rt')?.textContent).toBe('いつ');
-    expect(container.querySelector('.prosody-overlay-wrapper')).toBeNull();
+    expect(container.querySelector('rt .pitch-accent')).not.toBeNull();
+    expect((container.querySelector('.subtitle-word') as HTMLElement).style.color).toBe('#ff0000');
     expect(container.querySelector('.frequency')).toBeNull();
 
     dispose();

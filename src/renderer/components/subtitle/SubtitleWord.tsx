@@ -49,6 +49,7 @@ function toPosClass(pos: string): string | null {
 export interface SubtitleWordProps {
   token: Token;
   class?: string;
+  /** Dense text keeps word colors/readings/prosody, but omits frequency stars. */
   compact?: boolean;
   index: number;
   lookAheadPos?: string; // POS of the next token (for prosody rendering)
@@ -219,7 +220,6 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Get color from user overrides or package POS metadata.
   const getWordColor = createMemo((): string | undefined => {
-    if (props.compact) return undefined;
     if (!flashcardCtx.isKnowledgeReady()) return undefined;
     if (!settings.enableWordColoring) return undefined;
     if (!settings.colorKnownWords && wordIsKnown()) return undefined;
@@ -303,8 +303,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const wordUsesReadingScript = createMemo(() => isReadingScriptText(displayWord(), currentLangData()));
 
   const canRenderProsodyOverlay = createMemo(() => (
-    !props.compact
-    && getProsodyOverlayRenderer(currentLangData(), getLanguageFeatures().prosodyRenderer) !== null
+    getProsodyOverlayRenderer(currentLangData(), getLanguageFeatures().prosodyRenderer) !== null
     && prosodyVisible(settings)
   ));
 
@@ -373,7 +372,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       language={settings.language}
       languageData={currentLangData()}
       forceShowReadingAnnotation={showReadingAnnotation()}
-      coloredProsody={props.compact ? null : coloredProsodyCtx}
+      coloredProsody={coloredProsodyCtx}
       prosodyOverlay={prosodyOverlayData()}
       surfaceWord={actualWord()}
       readingClass="subtitle-word__reading-overlay"
