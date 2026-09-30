@@ -1406,13 +1406,13 @@ export async function startPythonInstall(options: InstallOptions): Promise<void>
             log.error('Installation verification failed');
             waitingForInstallChoice = true;
             sendStatusUpdate('ERROR: Installation verification failed');
-            getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+            //getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
           }
         } else {
           log.error('pip install failed with code:', code);
           waitingForInstallChoice = true;
           sendStatusUpdate(`ERROR: pip exited with code ${code}`);
-          getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
+          //getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
         }
       });
     } catch (error) {
