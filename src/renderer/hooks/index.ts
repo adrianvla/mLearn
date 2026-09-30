@@ -22,12 +22,18 @@ export { useMediaStats } from './useMediaStats';
 
 // UI
 export { useCursorVisibility } from './useCursorVisibility';
+export { useDismiss } from './useDismiss';
+export type { DismissOptions } from './useDismiss';
 
 // Collaboration
 export { useWatchTogether } from './useWatchTogether';
 
 export { createVirtualizer } from './useVirtualizer';
 export type { VirtualItem, VirtualizerOptions, Virtualizer, VirtualizerScrollOptions } from './useVirtualizer';
+
+// Selection over a list of ids, kept equal to what is actually there
+export { useItemSelection } from './useItemSelection';
+export type { ItemSelection } from './useItemSelection';
 
 // Policy (R20 encounter decision pin)
 export { useDecisionPin } from './useDecisionPin';

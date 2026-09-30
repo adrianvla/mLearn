@@ -7,6 +7,7 @@ import { KnowledgeHistoryTimeline, type HistoryEvent } from './KnowledgeHistoryT
 
 vi.mock('../../../context', () => ({
   useLocalization: () => ({ t: (key: string) => key }),
+  useSettings: () => ({ settings: { uiLanguage: 'en-US' } }),
 }));
 
 const DAY = 24 * 3600_000;

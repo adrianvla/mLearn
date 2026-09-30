@@ -11,11 +11,11 @@ import { Button, DraggablePopup } from '../common';
 import { RefreshIcon, BotIcon } from '../common/Misc/Icons';
 import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../../context';
 import { streamExplanation, getCachedExplanation, requiresSetup, type ExplainerMode } from '../../services/llmProvider';
-import { CloudSessionCancelledError, CloudUnreachableError } from '../../services/cloudSessionManager';
+import { classifyProviderFailure, describeProviderFailure } from '../../services/providerFailure';
 import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
 import { ExplainerCards } from './ExplainerCards';
 import { buildExplainerGeneratedByLabel } from './explainerProviderLabel';
-import { hasExplainerGenerationOutput, isQuotaError, normalizeExplainerErrorMessage } from './explainerPopupState';
+import { hasExplainerGenerationOutput } from './explainerPopupState';
 import { Spinner } from '../common';
 import './ExplainerPopup.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -97,16 +97,16 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const [errorKind, setErrorKind] = createSignal<'generic' | 'cancelled' | 'unreachable' | 'quota' | null>(null);
+  /**
+   * Whether the learner stopped the request themselves, which is the only
+   * distinction that changes what the error renders: it is the one failure
+   * that retrying might fix, so it is the one that offers a retry. Classifying
+   * it comes from the shared failure owner rather than from predicates local
+   * to this component.
+   */
+  const [retryOffered, setRetryOffered] = createSignal(false);
   const [abortFn, setAbortFn] = createSignal<(() => void) | null>(null);
 
-  const isCancelledCloudError = (value: unknown): boolean => value instanceof CloudSessionCancelledError
-    || (typeof value === 'object' && value !== null && 'code' in value && (value as { code?: unknown }).code === 'cloud_session_cancelled')
-    || (value instanceof Error && value.name === 'CloudSessionCancelledError');
-
-  const isUnreachableCloudError = (value: unknown): boolean => value instanceof CloudUnreachableError
-    || (typeof value === 'object' && value !== null && 'code' in value && (value as { code?: unknown }).code === 'cloud_unreachable')
-    || (value instanceof Error && value.name === 'CloudUnreachableError');
 
   // Build ParsedExplainer from accumulated tool calls
   const parsedContent = createMemo<ParsedExplainer>(() => {
@@ -172,7 +172,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     setIsLoading(true);
     setIsComplete(false);
     setError(null);
-    setErrorKind(null);
+    setRetryOffered(false);
 
     // Snapshot reactive settings values so reads below don't leak into any
     // outer tracking context (the calling createEffect uses untrack, but
@@ -262,22 +262,8 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
               return;
             }
 
-            if (isCancelledCloudError(err)) {
-              setError(t('mlearn.CloudReLogin.SignInCanceled'));
-              setErrorKind('cancelled');
-            } else if (isUnreachableCloudError(err)) {
-              setError(t('mlearn.AI.CloudUnreachable'));
-              setErrorKind('unreachable');
-            } else {
-              const normalized = normalizeExplainerErrorMessage(typeof err === 'string' ? err : err instanceof Error ? err.message : null, getExplainerFailureMessage());
-              if (isQuotaError(normalized)) {
-                setError(t('mlearn.AI.QuotaExceeded'));
-                setErrorKind('quota');
-              } else {
-                setError(normalized);
-                setErrorKind('generic');
-              }
-            }
+            setError(describeProviderFailure(err, t, settings.llmProvider) || getExplainerFailureMessage());
+            setRetryOffered(classifyProviderFailure(err, settings.llmProvider).recovery === 'retry');
             setIsLoading(false);
             setIsComplete(true);
           },
@@ -295,22 +281,8 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       // Safety net: ensure isLoading is always reset even on unexpected errors
       log.error('[ExplainerPopup] startStreaming error:', err);
       if (requestId === activeStreamRequestId) {
-        if (isCancelledCloudError(err)) {
-          setError(t('mlearn.CloudReLogin.SignInCanceled'));
-          setErrorKind('cancelled');
-        } else if (isUnreachableCloudError(err)) {
-          setError(t('mlearn.AI.CloudUnreachable'));
-          setErrorKind('unreachable');
-        } else {
-          const normalized = normalizeExplainerErrorMessage(typeof err === 'string' ? err : err instanceof Error ? err.message : null, getExplainerFailureMessage());
-          if (isQuotaError(normalized)) {
-            setError(t('mlearn.AI.QuotaExceeded'));
-            setErrorKind('quota');
-          } else {
-            setError(normalized);
-            setErrorKind('generic');
-          }
-        }
+        setError(describeProviderFailure(err, t, settings.llmProvider) || getExplainerFailureMessage());
+        setRetryOffered(classifyProviderFailure(err, settings.llmProvider).recovery === 'retry');
         setIsLoading(false);
         setIsComplete(true);
       }
@@ -376,7 +348,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
         <Show when={error()}>
           <div class="explainer-popup__error">
             <p>{error()}</p>
-            <Show when={errorKind() === 'cancelled'}>
+            <Show when={retryOffered()}>
               <div class="explainer-popup__error-action-row">
                 <Button size="sm" variant="primary" onClick={handleRegenerate}>
                   {t('mlearn.CloudReLogin.RetryAction')}

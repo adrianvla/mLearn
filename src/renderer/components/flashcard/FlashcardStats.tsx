@@ -23,6 +23,7 @@ import {
 } from '../../services/flashcardStats';
 import { Card, StatCard, BookIcon, CalendarIcon, StarIcon, BreakdownRow } from '../common';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
+import { selectAxisTicks } from './barChartTicks';
 import './FlashcardStats.css';
 
 // ============================================================================
@@ -152,6 +153,18 @@ function drawBarChart(
   const barWidth = Math.max(2, (chartW - barGap * (bars.length - 1)) / bars.length);
   const barRadius = opts.barRadius ?? Math.min(3, barWidth / 2);
 
+  const ctxFont = '10px sans-serif';
+  const axisTicks = opts.showLabels
+    ? selectAxisTicks(
+        bars.map(b => b.label),
+        barWidth + barGap,
+        text => {
+          ctx.font = ctxFont;
+          return ctx.measureText(text).width;
+        }
+      )
+    : [];
+
   for (let i = 0; i < bars.length; i++) {
     const bar = bars[i];
     const barH = Math.max(1, (bar.value / maxVal) * chartH);
@@ -161,13 +174,27 @@ function drawBarChart(
     ctx.fillStyle = bar.color;
     roundedRect(ctx, x, y, barWidth, barH, barRadius);
     ctx.fill();
+  }
 
-    if (opts.showLabels && bar.label) {
-      ctx.fillStyle = getComputedCSSVar('--text-tertiary');
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(bar.label, x + barWidth / 2, padding.top + chartH + 4, barWidth + barGap);
+  // Labels are drawn in a second pass so each tick can measure its own text
+  // against the final slot geometry. Passing a maxWidth to fillText would
+  // squeeze glyphs instead of dropping them and turn a dense axis into a
+  // smear, so overflowing labels are skipped by `selectAxisTicks` instead.
+  if (axisTicks.length > 0) {
+    ctx.font = ctxFont;
+    ctx.fillStyle = getComputedCSSVar('--text-tertiary');
+    ctx.textBaseline = 'top';
+    const labelY = padding.top + chartH + 4;
+    for (const tick of axisTicks) {
+      ctx.textAlign = tick.align === 'center' ? 'center' : tick.align;
+      const barX = padding.left + tick.index * (barWidth + barGap);
+      const x =
+        tick.align === 'left'
+          ? barX
+          : tick.align === 'right'
+            ? barX + barWidth
+            : barX + barWidth / 2;
+      ctx.fillText(tick.text, x, labelY);
     }
   }
 }
@@ -295,7 +322,13 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
 
   // Format day label (DD)
   const formatDayLabel = (dateStr: string): string => {
-    return dateStr.split('-')[2];
+    // `YYYY-MM-DD`. Showing only the day-of-month is ambiguous wherever the
+    // window spans a month change, so the month is qualified when it differs
+    // from the first day in the window.
+    const [, month, day] = dateStr.split('-');
+    const windowStart = dailyActivity()[0]?.date;
+    const startMonth = windowStart?.split('-')[1];
+    return month === startMonth ? String(day) : `${day}/${month}`;
   };
 
   const intervalLabel = (bucket: { key: string }): string =>
@@ -320,7 +353,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
     return [
       { label: t('mlearn.Flashcards.Statistics.New'), value: dist.new, color: colors.new },
       { label: t('mlearn.Flashcards.Statistics.Learning'), value: dist.learning, color: colors.learning },
-      { label: t('mlearn.Flashcards.Statistics.Review'), value: dist.review, color: colors.review },
+      { label: t('mlearn.Flashcards.Statistics.ReviewState'), value: dist.review, color: colors.review },
       { label: t('mlearn.Flashcards.Statistics.Suspended'), value: dist.suspended, color: colors.suspended },
     ];
   });
@@ -336,7 +369,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
       drawPieChart(stateChartRef, [
         { label: t('mlearn.Flashcards.Statistics.New'), value: dist.new, color: colors.new },
         { label: t('mlearn.Flashcards.Statistics.Learning'), value: dist.learning, color: colors.learning },
-        { label: t('mlearn.Flashcards.Statistics.Review'), value: dist.review, color: colors.review },
+        { label: t('mlearn.Flashcards.Statistics.ReviewState'), value: dist.review, color: colors.review },
         { label: t('mlearn.Flashcards.Statistics.Suspended'), value: dist.suspended, color: colors.suspended },
       ], {
         donut: true,

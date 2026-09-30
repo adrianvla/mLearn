@@ -105,7 +105,6 @@
         "Role": "Role",
         "ConnectedTo": "connected to {label}",
         "LoadFailed": "The graph could not be loaded.",
-        "Retry": "Retry",
         "All": "All connections",
         "TapToSee": "Tap to see all"
       }
@@ -341,7 +340,6 @@
       "InstructionsPlaceholder": "Describe a scenario, roleplay, or specific topic you want to practice. For example: 'Let's practice ordering food at a restaurant' or 'Roleplay as a job interviewer'.",
       "InstructionsTab": "Instructions",
       "ItemsSelected": "{count} selected",
-      "LLMNotConfigured": "AI is not configured. Set it up in Settings first.",
       "MediaTab": "Media",
       "NoGrammarSupport": "Grammar points are not available for this language yet.",
       "NoMediaYet": "No saved media yet. Watch videos or read books to track your progress.",
@@ -413,6 +411,34 @@
       "VersionLabel": "Version {version}",
       "Website": "Website"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "Add Flashcards from This Book",
+        "WordListTitle": "Words to add from this book",
+        "LevelFilter": "Below level threshold",
+        "LevelFilterDescription": "Add words with a discovered level at the selected threshold or easier",
+        "DictionaryFilter": "Found in dictionary",
+        "DictionaryFilterDescription": "Add all words that were found in the dictionary",
+        "AddAll": "Add All ({count})",
+        "AddSelected": "Add Selected ({count})",
+        "SelectAll": "Select all",
+        "DeselectAll": "Deselect all",
+        "AddChecked": "Add Checked ({count})"
+      },
+      "video": {
+        "Title": "Add Flashcards from This Video",
+        "WordListTitle": "Words to add from this video",
+        "LevelFilter": "Below level threshold",
+        "LevelFilterDescription": "Add words with a discovered level at the selected threshold or easier",
+        "DictionaryFilter": "Found in dictionary",
+        "DictionaryFilterDescription": "Add all words that were found in the dictionary",
+        "AddAll": "Add All ({count})",
+        "AddSelected": "Add Selected ({count})",
+        "SelectAll": "Select all",
+        "DeselectAll": "Deselect all",
+        "AddChecked": "Add Checked ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "Audio not available. Use the regenerate button to generate it.",
       "TtsMissing": "{field} not found. Regenerate it from the card editor.",
@@ -475,6 +501,13 @@
         "ClearTooltip": "Clear logs",
         "DefaultTitle": "Console",
         "NoLogs": "No logs to display"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "Open AI settings",
+      "Llm": {
+        "NotConfigured": "This feature needs an AI model. Choose one in AI settings, then try again.",
+        "Unreachable": "The AI service could not be reached. Check your connection, then try again."
       }
     },
     "ConfirmDialog": {
@@ -1032,6 +1065,7 @@
         "ExamplesDoneWithErrors": "Generated examples for {count} cards, {failed} failed",
         "ExamplesProgress": "Generating examples…",
         "ExamplesTooltip": "Generate example sentences using LLM for cards without examples",
+        "ExamplesReplaceAllTooltip": "Regenerate the example sentence on every card, replacing the one already there",
         "GenerateDescription": "Bulk generate audio and example sentences for your flashcards",
         "ModeChoice": "Generation mode",
         "ModeOlderThan": "Regenerate older than date",
@@ -1043,7 +1077,11 @@
         "TtsDone": "Generated TTS for {count} items",
         "TtsDoneWithErrors": "Generated TTS for {count} items, {failed} failed",
         "TtsProgress": "Generating TTS…",
-        "TtsTooltip": "Generate TTS audio for all flashcard words and examples"
+        "TtsTooltip": "Generate TTS audio for all flashcard words and examples",
+        "ReplaceAllTitle": "Replace existing content?",
+        "ReplaceAllExamplesConfirm": "Regenerating replaces the existing example on {count} flashcard(s). Any example you edited yourself will be overwritten. This action cannot be undone.",
+        "ReplaceAllTtsConfirm": "Regenerating replaces the existing audio on {count} flashcard(s). This action cannot be undone.",
+        "ReplaceAllConfirmAction": "Regenerate"
       },
       "Card": {
         "Due": "Due:",
@@ -1083,6 +1121,7 @@
         },
         "DeleteCard": {
           "Confirm": "Are you sure you want to delete this flashcard? This action cannot be undone.",
+          "ConfirmMany": "Delete {count} selected flashcard(s)? This action cannot be undone.",
           "Title": "Delete Flashcard"
         },
         "EditCard": {
@@ -1206,6 +1245,7 @@
         "New": "New",
         "NewCardsStudied": "New Cards Studied",
         "Review": "Review",
+        "ReviewState": "In Review",
         "ReviewsCompleted": "Reviews Completed",
         "Suspended": "Suspended",
         "TodayProgress": "Today's Progress",
@@ -1268,12 +1308,14 @@
         "UseTTS": "Generate audio",
         "PromoteSelected": "Promote selected",
         "DeleteSelected": "Delete selected",
+        "DeleteSelectedConfirm": "Delete {count} selected suggestion(s)? They will be discarded along with the sentences they were captured from.",
         "Promote": "Promote",
         "Delete": "Delete",
         "Promoting": "Generating {current}/{total}…",
         "Promoted": "{count} flashcard(s) created",
         "PromoteFailed": "Failed to promote suggestions.",
         "Removed": "{count} suggestion(s) removed",
+        "IgnoreFailed": "Could not ignore this word. It is still in your suggestions; try again.",
         "SeenCount": "Seen {count}x",
         "NoPreviewImage": "No preview image",
         "SortDefault": "Default",
@@ -1329,7 +1371,6 @@
         "LoadingSettings": "Loading settings...",
         "StartingBackend": "Preparing your learning tools…"
       },
-      "Success": "Success",
       "Time": {
         "HoursMinutes": "{hours}h {minutes}m",
         "LessThanMinute": "< 1m",
@@ -1767,6 +1808,10 @@
         "Incorrect": "Not quite — the answer is: {answer}",
         "Next": "Next",
         "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again.",
+        "Undo": "↩",
+        "UndoTooltip": "Undo",
+        "SavingUndo": "Saving undo…",
+        "UndoSaveFailed": "This undo could not be saved. The rating stands; try again.",
         "SavingAnswer": "Saving answer…",
         "ModeLabel": "Answer format",
         "ModeMcq": "Choose",
@@ -2188,9 +2233,8 @@
           "RestoreError": "Could not start recovery. Check data protection before restarting.",
           "ConfirmTitle": "Restore mLearn data",
           "ConfirmMessage": "Restore the recovery point from {date}?",
-          "ConfirmDetail": "mLearn will restart. Your current data will be kept in a separate recovery folder.",
-          "Cancel": "Cancel",
-          "ConfirmRestore": "Restore and restart"
+          "ConfirmRestore": "Restore and restart",
+          "RestoreQueued": "mLearn will restart and restore this recovery point."
         },
         "ExportAllData": {
           "Description": "Export all learning data (flashcards, media stats, audio, images) as a ZIP archive",
@@ -2201,17 +2245,20 @@
           "Label": "Export Settings"
         },
         "ImportAllData": {
-          "Confirm": "This will overwrite all your current data (flashcards, media stats, audio, images). The app will restart after import. Continue?",
-          "Description": "Import all learning data from a ZIP archive. This will overwrite existing data.",
+          "Confirm": "mLearn will restart and replace your flashcards, media, language data and settings with the contents of this archive. Your current data is kept as a recovery point, so you can restore it from this window afterwards.",
+          "ConfirmAction": "Import and restart",
+          "Description": "Replace all learning data from a ZIP archive. Your current data is kept as a recovery point.",
           "Label": "Import All Data",
           "Success": "Import prepared. The app will restart to validate and apply it."
         },
         "ImportSettings": {
           "Description": "Import settings from a JSON file",
-          "Label": "Import Settings"
+          "Label": "Import Settings",
+          "Success": "Settings imported."
         },
         "ResetSettings": {
-          "Description": "Reset all settings to their default values",
+          "Confirm": "Every setting on every tab will go back to its default. Your flashcards, media and learning history are not affected, and you can change any value back.",
+          "Description": "Set every setting on every tab back to its default",
           "Label": "Reset Settings"
         }
       },
@@ -2758,19 +2805,17 @@
         "DataManagement": {
           "NukeButton": "Delete All",
           "NukeFlashcards": {
-            "Description": "Permanently delete all flashcards and reset everything (cannot be undone!)",
+            "Confirm": "Every flashcard will be deleted, along with all word tracking, grammar knowledge, daily statistics and learning progress. Nothing can bring them back, and mLearn will behave as if it had just been installed.",
+            "Description": "Permanently delete all flashcards and all learning progress",
             "Label": "Delete All Flashcards",
-            "ModalWarning": "This will permanently delete all your flashcards, word tracking data, grammar knowledge, daily statistics, and all learning progress. This is irreversible and will restore the flashcard system to its initial empty state, as if the app was freshly installed.",
-            "Success": "All flashcards have been deleted.",
-            "TypePhrase": "Type \"{phrase}\" to confirm this action."
+            "Success": "All flashcards have been deleted."
           },
           "ResetButton": "Reset SRS",
           "ResetSRS": {
-            "Description": "Clear all flashcard progress (cannot be undone!)",
+            "Confirm": "All scheduling will be cleared: intervals, ease, review counts and daily progress. Every card returns to \"new\". Your card content, images and audio are kept, and the original schedule is kept in a recovery point.",
+            "Description": "Clear all flashcard progress, keeping your cards",
             "Label": "Reset SRS Data",
-            "ModalWarning": "This will reset all flashcard scheduling data including intervals, ease factors, review counts, and learning progress. Your flashcard content will be preserved, but all cards will return to the 'new' state.",
-            "Success": "All SRS data has been reset.",
-            "TypePhrase": "Type \"{phrase}\" to confirm this action."
+            "Success": "All SRS data has been reset."
           },
           "Title": "Data Management"
         },
@@ -2846,7 +2891,6 @@
       },
       "UI": {
         "Description": "Configure mLearn to your preferences",
-        "ResetConfirm": "Are you sure you want to reset all settings to defaults? This cannot be undone.",
         "ResetSuccess": "Settings reset to defaults",
         "SaveError": "Failed to save settings",
         "Title": "Settings"
@@ -3271,6 +3315,7 @@
         "SignInCodeHint": "If you received a device code, enter it below",
         "PeerJoinedSingular": "A participant joined your room",
         "PeerJoinedPlural": "{count} participants joined your room",
+        "PeerCount": "{count} watching",
         "AnticipatingPing": "Anticipating ping..."
       },
       "Extension": {},
@@ -3378,9 +3423,6 @@
       "InText": "In text: {form}",
       "AddToAnki": "Add to Anki",
       "AddToBuiltInSrs": "Click to add to built-in SRS",
-      "Alerts": {
-        "ExplainRequiresLlm": "The explain feature requires the local AI language model. Please enable LLM in settings and restart the app."
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "Add anyway",
         "DontRemind": "Don't remind me again",
@@ -3388,7 +3430,8 @@
         "Title": "Duplicate Flashcard"
       },
       "Errors": {
-        "FailedToAddFlashcard": "Failed to add flashcard: {error}"
+        "FailedToAddFlashcardForWord": "Failed to add flashcard for \"{word}\": {error}",
+        "FailedToAddFlashcards": "Could not add flashcards ({count}): {error}"
       },
       "Explain": "Explain",
       "InAnki": "In Anki",
@@ -3415,8 +3458,7 @@
       "AnkiUpdateSuccess": "Updated {count} Anki card(s)",
       "AnkiUpdateRepositioned": "Updated {count} card(s), repositioned {repositioned} new card(s)",
       "AnkiUpdateFailed": "Failed to update Anki cards",
-      "CardScheduling": "Card scheduling",
-      "FlashcardAddFailed": "Failed to add flashcard"
+      "CardScheduling": "Card scheduling"
     },
     "ConnectionStatus": {
       "Connected": "Connected",
@@ -3453,7 +3495,14 @@
       "ProjectionUnavailable": "Knowledge data could not be loaded. Try again.",
       "SavingRating": "Saving rating…",
       "AnswerUnavailable": "No answer is available for this word. Retry the dictionary lookup or choose another filter. No rating has been recorded.",
+      "SkipWord": "Skip this word",
       "SaveFailed": "This rating could not be saved. The word is still here; try again.",
+      "SavingUndo": "Saving undo…",
+      "UndoSaveFailed": "This undo could not be saved. The word is still rated; try again.",
+      "Undo": "↩",
+      "UndoTooltip": "Undo",
+      "SessionStartFailed": "This study session could not be saved, so no session could be started. Your recorded answers are unchanged; try again.",
+      "DismissFailed": "This session could not be closed. Nothing was discarded; try again.",
       "Statement": {},
       "FinishedTitle": "All done!",
       "FinishedDescription": "Recorded checks: {count}. These responses are now part of your learning history.",

@@ -93,6 +93,13 @@ vi.mock('../../context', () => ({
     // Canonical knowledge writer (LevelStudyTab recordMockAttempt /
     // GrammarCoverage onProbe): the mock/mocks integration drives it.
     recordGrammarAttemptAcknowledged: recordGrammarAttemptMock,
+    // Grammar-coverage Undo lifecycle: the tab hands these to the drill as
+    // one object, so the stub answers all four members even though this
+    // suite never drives a retraction.
+    recordPendingRetraction: async () => true,
+    completePendingRetraction: async () => 'completed' as const,
+    recoverPendingRetraction: async () => {},
+    registerRetractionProjection: () => {},
   }),
   useSettings: () => ({
     settings: {

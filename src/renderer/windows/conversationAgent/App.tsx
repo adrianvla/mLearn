@@ -8,17 +8,17 @@ import { For, Component, Show, Index, batch, createSignal, createEffect, createM
 import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
-import { resolveCloudApiUrl } from '../../../shared/backends';
 import { getTokenLookupWord } from '../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import {
   CloudSessionCancelledError,
-  CloudUnreachableError,
   ensureCloudAccessToken,
-  handleCloudSessionError,
-  isCloudSessionError,
 } from '../../services/cloudSessionManager';
+import {
+  describeProviderFailure,
+  probeProvider,
+  type ProviderFailure,
+} from '../../services/providerFailure';
 import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, Tag, ChatIcon, Avatar, ResponsiveSidebar } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
@@ -51,7 +51,6 @@ import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, DictionaryEntry, TranslationResponse, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, StreamStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS, isRemoteLLMProvider } from '../../../shared/types';
 import { isElectron } from '../../../shared/platform';
-import { conversationRecoveryKey } from './errorUtils';
 import { shouldHideAssistantBubble } from './messageState';
 import { createJournalThreadStore, eventsToDisplayMessages, buildLLMHistory } from './journalRuntime';
 import { runRoomTurn } from '../../../shared/roomOrchestrator';
@@ -199,10 +198,6 @@ export const ConversationContent: Component = () => {
       speechSynthesisVoice: ttsRuntime?.webSpeechVoice,
     });
   };
-  const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
-  const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
   const isValidVoiceMistake = (mistake: VoiceMistake): boolean => {
     const word = mistake.word.trim();
     const context = mistake.context.trim();
@@ -223,16 +218,19 @@ export const ConversationContent: Component = () => {
   const [isWaiting, setIsWaiting] = createSignal(false);
   const [isConnected, setIsConnected] = createSignal(false);
   const [isCheckingConnection, setIsCheckingConnection] = createSignal(true);
+  /**
+   * Why the provider cannot be used, when it cannot.
+   *
+   * `null` while the provider is usable *and* before the first probe resolves,
+   * so this is only consulted once `isCheckingConnection` is false - at which
+   * point a non-null value is the reason the composer is disabled.
+   */
+  const [connectionFailure, setConnectionFailure] = createSignal<ProviderFailure | null>(null);
   const [isRecording, setIsRecording] = createSignal(false);
   const [isSpeaking, setIsSpeaking] = createSignal(false);
 
   const [showSplash, setShowSplash] = createSignal(true);
   const [showDisclaimer, setShowDisclaimer] = createSignal(true);
-  const canOpenCloudSignIn = () => (
-    settings.llmProvider === 'cloud'
-    && !isCheckingConnection()
-    && !isConnected()
-  );
 
   // Voice mode state
   const [isVoiceCallActive, setIsVoiceCallActive] = createSignal(false);
@@ -243,7 +241,7 @@ export const ConversationContent: Component = () => {
 
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,
@@ -908,7 +906,6 @@ export const ConversationContent: Component = () => {
       return;
     }
     // Track reactive dependencies so the effect re-runs on change
-    const provider = settings.llmProvider;
     void settings.ollamaUrl;
     void settings.ollamaModel;
     void settings.cloudAuthAccessToken;
@@ -923,39 +920,16 @@ export const ConversationContent: Component = () => {
     setIsCheckingConnection(true);
 
     (async () => {
-      try {
-        if (provider === 'cloud') {
-          const accessToken = await ensureCloudAccessToken({ openModalOnExpiry: false });
-          if (!accessToken) {
-            setIsConnected(false);
-            return;
-          }
-
-          const cloudApiUrl = resolveCloudApiUrl(settings);
-          const adapter = new CloudLLMAdapter(
-            cloudApiUrl,
-            accessToken,
-          );
-          const reachable = await adapter.checkAvailability();
-          setIsConnected(reachable);
-        } else if (provider === 'openai-compatible') {
-          const adapter = new OpenAICompatibleLLMAdapter(settings.compatibleApiBaseUrl,
-            settings.compatibleApiKey, settings.compatibleModel);
-          setIsConnected(await adapter.checkAvailability());
-        } else if (provider === 'ollama') {
-          const connected = await getBridge().llm.ollamaCheck();
-          setIsConnected(connected ?? false);
-        } else {
-          const status = await getBridge().llm.llmCheckModel(settings.builtinModel);
-          setIsConnected(status?.ready ?? false);
-        }
-      } catch (e) {
-        log.error("error", e);
-        if (provider === 'cloud') handleCloudSessionError(e, false);
-        setIsConnected(false);
-      } finally {
-        setIsCheckingConnection(false);
-      }
+      // One probe, one classification. This effect used to dispatch a
+      // reachability check per provider inline and collapse every outcome -
+      // including a thrown one - into a boolean, so the window could only say
+      // "Disconnected" and never what was wrong. The classified record is kept
+      // so the status chip can name the failure and the send button can be
+      // disabled for the reason the learner has to fix.
+      const classified = await probeProvider(settings);
+      setConnectionFailure(classified);
+      setIsConnected(!classified);
+      setIsCheckingConnection(false);
     })();
   });
 
@@ -1229,12 +1203,7 @@ export const ConversationContent: Component = () => {
       onError: (error) => {
         log.error('Conversation response failed', error);
         clearAssistantStreamState();
-        const message = settings.llmProvider === 'openai-compatible' && isCloudSessionError(error)
-          ? t('mlearn.AI.Settings.CompatibleConfig.AuthenticationFailed')
-          : isCloudSessionCancelled(error) ? t('mlearn.CloudReLogin.SignInCanceled')
-          : settings.llmProvider === 'cloud' && handleCloudSessionError(error, true) ? t('mlearn.CloudReLogin.SessionExpired')
-          : isCloudUnreachable(error) ? t('mlearn.AI.CloudUnreachable') : t(conversationRecoveryKey(error));
-        setLiveOverlay({ role: 'assistant', content: message, timestamp: Date.now(), isError: true });
+        setLiveOverlay({ role: 'assistant', content: describeProviderFailure(error, t, settings.llmProvider), timestamp: Date.now(), isError: true });
       },
     };
   };
@@ -1265,9 +1234,7 @@ export const ConversationContent: Component = () => {
         }
         if (isElectron()) await getBridge().settings.awaitSettingsSaved();
       } catch (error) {
-        const message = isCloudSessionCancelled(error) ? t('mlearn.CloudReLogin.SignInCanceled')
-          : isCloudUnreachable(error) ? t('mlearn.AI.CloudUnreachable') : t(conversationRecoveryKey(error));
-        setLiveOverlay({ role: 'assistant', content: message, timestamp: Date.now(), isError: true });
+        setLiveOverlay({ role: 'assistant', content: describeProviderFailure(error, t, settings.llmProvider), timestamp: Date.now(), isError: true });
         return;
       }
     }
@@ -1389,12 +1356,7 @@ export const ConversationContent: Component = () => {
     } catch (error) {
       log.error('Conversation turn failed', error);
       if (session === selectionSession) {
-        const message = settings.llmProvider === 'openai-compatible' && isCloudSessionError(error)
-          ? t('mlearn.AI.Settings.CompatibleConfig.AuthenticationFailed')
-          : isCloudSessionCancelled(error) ? t('mlearn.CloudReLogin.SignInCanceled')
-          : settings.llmProvider === 'cloud' && handleCloudSessionError(error, true) ? t('mlearn.CloudReLogin.SessionExpired')
-          : isCloudUnreachable(error) ? t('mlearn.AI.CloudUnreachable') : t(conversationRecoveryKey(error));
-        setLiveOverlay({ role: 'assistant', content: message, timestamp: Date.now(), isError: true });
+        setLiveOverlay({ role: 'assistant', content: describeProviderFailure(error, t, settings.llmProvider), timestamp: Date.now(), isError: true });
       }
     } finally {
       if (session === selectionSession) {
@@ -1438,8 +1400,15 @@ export const ConversationContent: Component = () => {
   };
 
   const handleConnectionStatusClick = () => {
-    if (!canOpenCloudSignIn()) return;
-    openCloudReLoginModal();
+    if (!canActOnConnection()) return;
+    const failure = connectionFailure();
+    if (failure?.recovery === 'settings' && settings.llmProvider === 'cloud') {
+      openCloudReLoginModal();
+      return;
+    }
+    // Every other unusable provider is repaired where it is configured, not
+    // in a re-authentication flow that only the cloud provider has.
+    getBridge().window.openWindow({ type: 'settings' });
   };
 
   const handleSend = async () => {
@@ -1608,17 +1577,44 @@ export const ConversationContent: Component = () => {
     return shouldHideAssistantBubble(messages(), index, isStreaming(), streamingMessageIndex());
   };
 
+  /**
+   * The label for a provider that cannot be used.
+   *
+   * This used to be a fixed "Disconnected", which is a statement about the
+   * socket rather than about the learner's situation: a wrong API key, an
+   * unselected model, an expired cloud session and an unreachable host all
+   * render the same word, and the only one of them with a next step available
+   * in the window (re-authentication) was reachable from a chip that looked
+   * identical to the three dead ends. The classified failure carries both the
+   * sentence and the recovery, so the chip can offer the right one.
+   */
+  const connectionLabel = (): string => {
+    if (isCheckingConnection()) return t('mlearn.ConnectionStatus.Connecting');
+    if (isConnected()) return t('mlearn.ConnectionStatus.Connected');
+    return t(connectionFailure()?.key ?? 'mlearn.ConnectionStatus.Disconnected');
+  };
+
+  /**
+   * What clicking the status chip should do.
+   *
+   * Driven by the failure's recovery rather than by the provider, so a cloud
+   * session that expired offers sign-in and every other unusable provider
+   * offers the AI settings where its fix lives. A failure with no recovery the
+   * window can offer keeps the chip inert rather than pretending otherwise.
+   */
+  const canActOnConnection = (): boolean => (
+    !isCheckingConnection()
+    && !isConnected()
+    && connectionFailure()?.recovery === 'settings'
+  );
+
   const ConnectionInfo = () => (
     <Button
           variant="ghost"
-          class={`ca-connection-info ${canOpenCloudSignIn() ? 'is-actionable' : ''}`}
+          class={`ca-connection-info ${canActOnConnection() ? 'is-actionable' : ''}`}
           onClick={handleConnectionStatusClick}
-          aria-disabled={!canOpenCloudSignIn()}
-          aria-label={canOpenCloudSignIn()
-            ? t('mlearn.Connection.SignIn')
-            : `${providerLabel()} · ${t(isCheckingConnection()
-              ? 'mlearn.ConnectionStatus.Connecting'
-              : isConnected() ? 'mlearn.ConnectionStatus.Connected' : 'mlearn.ConnectionStatus.Disconnected')}`}
+          aria-disabled={!canActOnConnection()}
+          aria-label={`${providerLabel()} · ${connectionLabel()}`}
         >
           <Tag class="ca-provider-label" headless size="sm">{providerLabel()}</Tag>
           <ConnectionStatus
@@ -1626,6 +1622,9 @@ export const ConversationContent: Component = () => {
             showLabel={isCheckingConnection() || !isConnected()}
             size="sm"
           />
+          <Show when={!isCheckingConnection() && !isConnected()}>
+            <span class="ca-connection-reason">{connectionLabel()}</span>
+          </Show>
           <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
             <span class="ca-header-status">{t('mlearn.Global.Status.StartingBackend')}</span>
           </Show>

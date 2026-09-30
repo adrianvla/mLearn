@@ -22,6 +22,9 @@ import {
   type AttemptQuality,
   type WordStatus,
   type RatingKeyboardMode,
+  spatialMatrixAction,
+  spatialMatrixKey,
+  spatialMatrixRow,
 } from '../../../../shared/constants';
 import type { CapabilityKey, CapabilityKind } from '../../../../shared/graph/types';
 import { CAPABILITY_LABEL_KEYS, CAPABILITY_MNEMONIC_KEYS } from '../../../../shared/graph/access';
@@ -91,15 +94,6 @@ const ACTION_VARIANTS: Record<RatingAction, 'danger' | 'warning' | 'success' | '
   struggled: 'warning',
   fluent: 'success',
   easy: 'primary',
-};
-
-// Local spatial table: the All row is row 0 (digits), capability rows follow
-// on QWER/ASDF/ZXCV/7890. Rows beyond the table are click-only.
-const SPATIAL_ACTION_ROWS: Record<RatingAction, readonly string[]> = {
-  missed: ['1', 'q', 'a', 'z', '7'],
-  struggled: ['2', 'w', 's', 'x', '8'],
-  fluent: ['3', 'e', 'd', 'c', '9'],
-  easy: ['4', 'r', 'f', 'v', '0'],
 };
 
 interface AccessDraft {
@@ -268,7 +262,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
       return pendingQuality() === action ? [ACTION_KEYS[action], mnemonic] : [ACTION_KEYS[action]];
     }
     const rowIndex = props.capabilities.indexOf(capability) + 1; // row 0 is the All row
-    return [SPATIAL_ACTION_ROWS[action][rowIndex]?.toUpperCase() ?? '·'];
+    return [spatialMatrixKey(action, rowIndex)?.toUpperCase() ?? '·'];
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -322,15 +316,20 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     }
 
     // Spatial: key = quality column × displayed row; row 0 is the All row,
-    // rows beyond the last keyed row are click-only.
-    for (const candidate of RATING_ACTIONS) {
-      const rowIndex = SPATIAL_ACTION_ROWS[candidate].indexOf(key);
-      if (rowIndex < 0) continue;
-      e.preventDefault();
-      if (rowIndex === 0) fillAll(candidate, e.altKey);
-      else if (rowIndex <= props.capabilities.length) draftAccess(props.capabilities[rowIndex - 1], candidate, e.altKey);
+    // rows beyond the keyed table are click-only.
+    const rowIndex = spatialMatrixRow(key);
+    if (rowIndex === undefined) return;
+    e.preventDefault();
+    // The action and the row are read from the same table entry, so a key can
+    // never resolve to a different action than the one its cell advertises.
+    const spatialAction = spatialMatrixAction(key, rowIndex);
+    if (!spatialAction) return;
+    if (rowIndex === 0) {
+      fillAll(spatialAction, e.altKey);
       return;
     }
+    const capability = props.capabilities[rowIndex - 1];
+    if (capability) draftAccess(capability, spatialAction, e.altKey);
   };
 
   onMount(() => {

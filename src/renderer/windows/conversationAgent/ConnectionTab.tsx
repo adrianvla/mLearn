@@ -12,6 +12,12 @@ import type { OllamaModel } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './ConnectionTab.css';
 import { getLogger } from '../../../shared/utils/logger';
+import {
+  probeProvider,
+  providerTestLabel,
+  providerTestVariant,
+  type ProviderFailure,
+} from '../../services/providerFailure';
 
 const log = getLogger("renderer.conversationAgent.connection");
 
@@ -21,7 +27,22 @@ export const ConnectionTab: Component = () => {
 
   const [serverUrl, setServerUrl] = createSignal(settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl);
   const [model, setModel] = createSignal(settings.ollamaModel || 'llama3.2');
-  const [testStatus, setTestStatus] = createSignal<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  /**
+   * The last connection-test outcome, as a classification.
+   *
+   * This tab carried the fourth private copy of the same test-button state
+   * machine the AI settings tab had three of, with its own `testBtnLabel` and
+   * `testBtnVariant` switches. It is the one place a learner configures a
+   * local endpoint, so "Connection failed" here was the least actionable
+   * message in the app for the problem most likely to be a typo in the URL
+   * they just typed.
+   *
+   * `testing` stays local: it is a property of the request in flight, not an
+   * outcome, and no other surface needs to know about it.
+   */
+  const [testFailure, setTestFailure] = createSignal<ProviderFailure | null>(null);
+  const [tested, setTested] = createSignal(false);
+  const [testing, setTesting] = createSignal(false);
   const [availableModels, setAvailableModels] = createSignal<OllamaModel[]>([]);
   const [loadingModels, setLoadingModels] = createSignal(false);
   const [saveStatus, setSaveStatus] = createSignal<'idle' | 'saved'>('idle');
@@ -32,19 +53,22 @@ export const ConnectionTab: Component = () => {
   });
 
   const resetFormStatus = () => {
-    setTestStatus('idle');
+    setTestFailure(null);
+    setTested(false);
     setSaveStatus('idle');
   };
 
   const handleTestConnection = async () => {
-    setTestStatus('testing');
+    setTesting(true);
+    setTestFailure(null);
+    setTested(false);
     try {
       updateSetting('ollamaUrl', serverUrl());
-      const connected = await getBridge().llm.ollamaCheck();
-      setTestStatus(connected ? 'success' : 'failed');
-    } catch (e) {
-      log.error("error", e);
-      setTestStatus('failed');
+      const classified = await probeProvider({ ...settings, llmProvider: 'ollama' });
+      setTestFailure(classified);
+      setTested(true);
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -82,29 +106,19 @@ export const ConnectionTab: Component = () => {
       label: `${m.name} (${(m.size / 1_073_741_824).toFixed(1)} GB)`,
     }));
 
+  // While the request is in flight the button reports that, because there is
+  // no outcome yet. Once it resolves, the classified failure names the problem
+  // instead of collapsing every cause into "Connection failed".
   const testBtnLabel = () => {
-    switch (testStatus()) {
-      case 'testing':
-        return t('mlearn.ConversationAgent.Connection.Testing');
-      case 'success':
-        return t('mlearn.ConversationAgent.Connection.ConnectionSuccess');
-      case 'failed':
-        return t('mlearn.ConversationAgent.Connection.ConnectionFailed');
-      default:
-        return t('mlearn.ConversationAgent.Connection.TestConnection');
-    }
+    if (testing()) return t('mlearn.ConversationAgent.Connection.Testing');
+    return providerTestLabel(tested(), testFailure(), t,
+      'mlearn.ConversationAgent.Connection.ConnectionSuccess',
+      'mlearn.ConversationAgent.Connection.TestConnection');
   };
 
-  const testBtnVariant = (): 'default' | 'success' | 'danger' => {
-    switch (testStatus()) {
-      case 'success':
-        return 'success';
-      case 'failed':
-        return 'danger';
-      default:
-        return 'default';
-    }
-  };
+  const testBtnVariant = () => (testing()
+    ? 'default'
+    : providerTestVariant(tested(), testFailure()));
 
   return (
     <div class="ca-connection-tab">
@@ -147,8 +161,8 @@ export const ConnectionTab: Component = () => {
         <Button
           variant={testBtnVariant()}
           onClick={handleTestConnection}
-          disabled={testStatus() === 'testing'}
-          loading={testStatus() === 'testing'}
+          disabled={testing()}
+          loading={testing()}
         >
           {testBtnLabel()}
         </Button>

@@ -105,7 +105,6 @@
         "Role": "役割",
         "ConnectedTo": "{label} とのつながり",
         "LoadFailed": "グラフを読み込めませんでした。",
-        "Retry": "再試行",
         "All": "すべてのつながり",
         "TapToSee": "タップしてすべて表示"
       }
@@ -341,7 +340,6 @@
       "InstructionsPlaceholder": "練習したいシナリオ、ロールプレイ、または特定のトピックを説明してください。例：「レストランでの注文を練習しましょう」や「面接官の役をしてください」。",
       "InstructionsTab": "指示",
       "ItemsSelected": "{count}件選択中",
-      "LLMNotConfigured": "AIが設定されていません。先に設定で構成してください。",
       "MediaTab": "メディア",
       "NoGrammarSupport": "この言語の文法ポイントはまだ利用できません。",
       "NoMediaYet": "保存されたメディアがありません。動画を視聴したり本を読んだりして進捗を記録しましょう。",
@@ -413,6 +411,34 @@
       "VersionLabel": "バージョン {version}",
       "Website": "ウェブサイト"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "この本からフラッシュカードを追加",
+        "WordListTitle": "この本から追加する単語",
+        "LevelFilter": "レベル閾値以下",
+        "LevelFilterDescription": "選択した閾値以下のレベルの単語を追加",
+        "DictionaryFilter": "辞書で見つかった単語",
+        "DictionaryFilterDescription": "辞書で見つかったすべての単語を追加",
+        "AddAll": "すべて追加（{count}）",
+        "AddSelected": "選択を追加（{count}）",
+        "SelectAll": "すべて選択",
+        "DeselectAll": "すべて解除",
+        "AddChecked": "選択したものを追加 ({count})"
+      },
+      "video": {
+        "Title": "この動画からフラッシュカードを追加",
+        "WordListTitle": "この動画から追加する単語",
+        "LevelFilter": "レベル閾値以下",
+        "LevelFilterDescription": "選択した閾値以下のレベルの単語を追加",
+        "DictionaryFilter": "辞書で見つかった単語",
+        "DictionaryFilterDescription": "辞書で見つかったすべての単語を追加",
+        "AddAll": "すべて追加（{count}）",
+        "AddSelected": "選択を追加（{count}）",
+        "SelectAll": "すべて選択",
+        "DeselectAll": "すべて解除",
+        "AddChecked": "選択したものを追加 ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "音声が利用できません。再生成ボタンを使用して生成してください。",
       "TtsMissing": "{field}が見つかりません。カードエディターから再生成してください。",
@@ -475,6 +501,13 @@
         "ClearTooltip": "ログをクリア",
         "DefaultTitle": "コンソール",
         "NoLogs": "表示するログがありません"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "AI 設定を開く",
+      "Llm": {
+        "NotConfigured": "この機能には AI モデルが必要です。AI 設定でモデルを選んでから、もう一度お試しください。",
+        "Unreachable": "AI サービスに接続できませんでした。接続を確認してから、もう一度お試しください。"
       }
     },
     "ConfirmDialog": {
@@ -1032,6 +1065,7 @@
         "ExamplesDoneWithErrors": "{count}枚のカードに例文を生成、{failed}件失敗",
         "ExamplesProgress": "例文を生成中…",
         "ExamplesTooltip": "例文のないカードにLLMで例文を生成",
+        "ExamplesReplaceAllTooltip": "すべてのカードの例文を再生成し、既存の例文を置き換えます",
         "GenerateDescription": "フラッシュカードの音声と例文を一括生成します",
         "ModeChoice": "生成モード",
         "ModeOlderThan": "指定日より古いものを再生成",
@@ -1043,7 +1077,11 @@
         "TtsDone": "{count}件のTTSを生成しました",
         "TtsDoneWithErrors": "{count}件のTTSを生成、{failed}件失敗",
         "TtsProgress": "TTS生成中…",
-        "TtsTooltip": "すべてのフラッシュカードの単語と例文にTTS音声を生成"
+        "TtsTooltip": "すべてのフラッシュカードの単語と例文にTTS音声を生成",
+        "ReplaceAllTitle": "既存のデータを置き換えますか？",
+        "ReplaceAllExamplesConfirm": "再生成すると、{count} 枚のフラッシュカードの既存の例が置き換えられます。手動で編集した例も上書きされます。この操作は取り消せません。",
+        "ReplaceAllTtsConfirm": "再生成すると、{count} 枚のフラッシュカードの既存の音声が置き換えられます。この操作は取り消せません。",
+        "ReplaceAllConfirmAction": "再生成"
       },
       "Card": {
         "Due": "期限:",
@@ -1083,6 +1121,7 @@
         },
         "DeleteCard": {
           "Confirm": "このフラッシュカードを削除してもよろしいですか？この操作は取り消せません。",
+          "ConfirmMany": "選択したフラッシュカード {count} 枚を削除してもよろしいですか？この操作は取り消せません。",
           "Title": "フラッシュカードを削除"
         },
         "EditCard": {
@@ -1206,6 +1245,7 @@
         "New": "新規",
         "NewCardsStudied": "学習した新規カード",
         "Review": "復習",
+        "ReviewState": "復習中",
         "ReviewsCompleted": "完了した復習",
         "Suspended": "停止中",
         "TodayProgress": "本日の進捗",
@@ -1268,12 +1308,14 @@
         "UseTTS": "音声を生成",
         "PromoteSelected": "選択を昇格",
         "DeleteSelected": "選択を削除",
+        "DeleteSelectedConfirm": "選択した候補 {count} 件を削除しますか？ 取得元の文とともに破棄されます。",
         "Promote": "昇格",
         "Delete": "削除",
         "Promoting": "{current}/{total} を生成中…",
         "Promoted": "{count} 枚のカードを作成しました",
         "PromoteFailed": "候補の昇格に失敗しました。",
         "Removed": "{count} 件の候補を削除しました",
+        "IgnoreFailed": "この単語を無視できませんでした。提案にはまだ残っています。もう一度お試しください。",
         "SeenCount": "{count} 回表示",
         "NoPreviewImage": "プレビュー画像なし",
         "SortDefault": "デフォルト",
@@ -1329,7 +1371,6 @@
         "LoadingSettings": "設定を読み込み中...",
         "StartingBackend": "学習ツールを準備しています…"
       },
-      "Success": "成功",
       "Time": {
         "HoursMinutes": "{hours}時間{minutes}分",
         "LessThanMinute": "< 1分",
@@ -1767,6 +1808,10 @@
         "Incorrect": "惜しい — 答えは: {answer}",
         "Next": "次へ",
         "StorageUnavailable": "回答を保存できませんでした。保存領域が利用できるか確認してから、もう一度お試しください。",
+        "Undo": "↩",
+        "UndoTooltip": "取り消す",
+        "SavingUndo": "取り消しを保存しています…",
+        "UndoSaveFailed": "取り消しを保存できませんでした。評価はそのままです。もう一度お試しください。",
         "SavingAnswer": "回答を保存中…",
         "ModeLabel": "回答形式",
         "ModeMcq": "選ぶ",
@@ -2188,9 +2233,8 @@
           "RestoreError": "復元を開始できませんでした。再起動する前にデータ保護の状態を確認してください。",
           "ConfirmTitle": "mLearn のデータを復元",
           "ConfirmMessage": "{date} の復元ポイントを復元しますか？",
-          "ConfirmDetail": "mLearn が再起動します。現在のデータは別の復元フォルダーに保存されます。",
-          "Cancel": "キャンセル",
-          "ConfirmRestore": "復元して再起動"
+          "ConfirmRestore": "復元して再起動",
+          "RestoreQueued": "mLearn が再起動し、この復元ポイントを復元します。"
         },
         "ExportAllData": {
           "Description": "すべての学習データ（フラッシュカード、メディア統計、音声、画像）をZIPアーカイブとしてエクスポート",
@@ -2201,17 +2245,20 @@
           "Label": "設定をエクスポート"
         },
         "ImportAllData": {
-          "Confirm": "現在のすべてのデータ（フラッシュカード、メディア統計、音声、画像）が上書きされます。インポート後にアプリが再起動します。続行しますか？",
-          "Description": "ZIPアーカイブからすべての学習データをインポートします。既存のデータは上書きされます。",
+          "Confirm": "mLearn が再起動し、フラッシュカード・メディア・言語データ・設定をこのアーカイブの内容で置き換えます。現在のデータは復元ポイントとして保存されるため、あとからこのウィンドウで復元できます。",
+          "ConfirmAction": "インポートして再起動",
+          "Description": "ZIPアーカイブからすべての学習データを置き換えます。現在のデータは復元ポイントとして保存されます。",
           "Label": "すべてのデータをインポート",
           "Success": "データが正常にインポートされました。変更を適用するためにアプリを再起動します。"
         },
         "ImportSettings": {
           "Description": "JSONファイルから設定をインポート",
-          "Label": "設定をインポート"
+          "Label": "設定をインポート",
+          "Success": "設定をインポートしました。"
         },
         "ResetSettings": {
-          "Description": "すべての設定をデフォルト値にリセット",
+          "Confirm": "すべてのタブのすべての設定がデフォルト値に戻ります。フラッシュカード・メディア・学習履歴は影響を受けないため、任意の値は変更し直せます。",
+          "Description": "すべてのタブの設定をデフォルト値に戻す",
           "Label": "設定をリセット"
         }
       },
@@ -2705,19 +2752,17 @@
         "DataManagement": {
           "NukeButton": "すべて削除",
           "NukeFlashcards": {
-            "Description": "すべてのフラッシュカードを完全に削除し、すべてをリセット（取り消し不可！）",
+            "Confirm": "すべてのフラッシュカードが、単語追跡・文法知識・日別統計・学習進捗とともに削除されます。取り消す方法はなく、mLearn は、インストールした直後と同じように動作します。",
+            "Description": "すべてのフラッシュカードとすべての学習進捗を完全に削除",
             "Label": "すべてのフラッシュカードを削除",
-            "ModalWarning": "すべてのフラッシュカード、単語追跡データ、文法知識、日別統計、すべての学習進捗が完全に削除されます。この操作は取り消せず、アプリを新しくインストールしたときのようにフラッシュカードシステムが初期状態に戻ります。",
-            "Success": "すべてのフラッシュカードが削除されました。",
-            "TypePhrase": "この操作を確認するには「{phrase}」と入力してください。"
+            "Success": "すべてのフラッシュカードが削除されました。"
           },
           "ResetButton": "SRSをリセット",
           "ResetSRS": {
-            "Description": "すべてのフラッシュカードの進捗をクリア（取り消し不可！）",
+            "Confirm": "すべてのスケジューリングが削除されます：間隔、容易さ、復習回数、1日の進捗です。すべてのカードは「新規」に戻ります。カードの内容・画像・音声は保持され、元のスケジュールは復元ポイントに保存されます。",
+            "Description": "すべてのフラッシュカードの進捗をクリアし、カード自体は残す",
             "Label": "SRSデータをリセット",
-            "ModalWarning": "間隔、容易さ係数、復習回数、学習進捗を含むすべてのSRSスケジューリングデータがリセットされます。フラッシュカードの内容は保持されますが、すべてのカードは「新規」状態に戻ります。",
-            "Success": "すべてのSRSデータがリセットされました。",
-            "TypePhrase": "この操作を確認するには「{phrase}」と入力してください。"
+            "Success": "すべてのSRSデータがリセットされました。"
           },
           "Title": "データ管理"
         },
@@ -2793,7 +2838,6 @@
       },
       "UI": {
         "Description": "mLearnをカスタマイズ",
-        "ResetConfirm": "すべての設定をデフォルトにリセットしてもよろしいですか？この操作は取り消せません。",
         "ResetSuccess": "設定をデフォルトにリセットしました",
         "SaveError": "設定の保存に失敗しました",
         "Title": "設定"
@@ -3271,6 +3315,7 @@
         "SignInCodeHint": "デバイスコードを受け取った場合は、以下に入力してください",
         "PeerJoinedSingular": "参加者がルームに参加しました",
         "PeerJoinedPlural": "{count}人の参加者がルームに参加しました",
+        "PeerCount": "{count}人が視聴中",
         "AnticipatingPing": "pingを待機中..."
       },
       "Extension": {},
@@ -3378,9 +3423,6 @@
       "InText": "本文中: {form}",
       "AddToAnki": "Ankiに追加",
       "AddToBuiltInSrs": "クリックして内蔵SRSに追加",
-      "Alerts": {
-        "ExplainRequiresLlm": "解説機能にはローカルAI言語モデルが必要です。設定でLLMを有効にしてアプリを再起動してください。"
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "追加する",
         "DontRemind": "今後表示しない",
@@ -3388,7 +3430,8 @@
         "Title": "重複カード"
       },
       "Errors": {
-        "FailedToAddFlashcard": "フラッシュカードの追加に失敗しました: {error}"
+        "FailedToAddFlashcardForWord": "「{word}」のフラッシュカードの追加に失敗しました: {error}",
+        "FailedToAddFlashcards": "フラッシュカードの追加に失敗しました ({count}件): {error}"
       },
       "Explain": "解説",
       "InAnki": "Anki内",
@@ -3415,8 +3458,7 @@
       "AnkiUpdateSuccess": "{count}枚のAnkiカードを更新しました",
       "AnkiUpdateRepositioned": "{count}枚のカードを更新、{repositioned}枚の新しいカードを再配置しました",
       "AnkiUpdateFailed": "Ankiカードの更新に失敗しました",
-      "CardScheduling": "カードのスケジュール",
-      "FlashcardAddFailed": "単語カードを追加できませんでした"
+      "CardScheduling": "カードのスケジュール"
     },
     "ConnectionStatus": {
       "Connected": "接続済み",
@@ -3453,7 +3495,14 @@
       "ProjectionUnavailable": "学習データを読み込めませんでした。もう一度お試しください。",
       "SavingRating": "評価を保存中…",
       "AnswerUnavailable": "この単語の解答がありません。辞書検索を再試行するか、別のフィルターを選んでください。評価は記録されていません。",
+      "SkipWord": "この単語をスキップ",
       "SaveFailed": "評価を保存できませんでした。この単語は表示されたままです。もう一度お試しください。",
+      "SavingUndo": "取り消しを保存しています…",
+      "UndoSaveFailed": "取り消しを保存できませんでした。この単語は評価済みのままです。もう一度お試しください。",
+      "Undo": "↩",
+      "UndoTooltip": "取り消す",
+      "SessionStartFailed": "この学習セッションを保存できなかったため、セッションを開始できませんでした。記録した回答はそのままです。もう一度お試しください。",
+      "DismissFailed": "このセッションを閉じられませんでした。何も破棄されていません。もう一度お試しください。",
       "Statement": {},
       "FinishedTitle": "完了！",
       "FinishedDescription": "記録した確認：{count}件。回答は学習履歴に保存されました。",

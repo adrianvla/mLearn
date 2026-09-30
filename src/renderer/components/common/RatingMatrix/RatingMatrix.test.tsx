@@ -301,6 +301,55 @@ describe('RatingMatrix (canonical rating control)', () => {
     expect(observations[3]).toMatchObject({ capability: 'spoken-recognition', quality: 'missed' });
   });
 
+  it('every advertised spatial key is the key the control actually honours', () => {
+    // The regression this guards: the control kept its own copy of the spatial
+    // table while shared/constants kept a shorter, different one. A cell could
+    // therefore advertise a key that routed somewhere else, or that routed
+    // nowhere. Read the hint off the rendered cell, press exactly that key, and
+    // require that same cell to be the one that lights up or completes.
+    const capabilities = ['sense-recognition', 'surface-reading', 'prosodic-pattern', 'surface-recognition', 'spoken-recognition'] as const;
+    renderMatrix('spatial', capabilities);
+    adjust();
+    const allRow = rows()[0];
+    // The All row completes the word outright, so its key must submit rather
+    // than select. Read each of its hints, then prove one of them does submit.
+    const allHints = Array.from(allRow.querySelectorAll('.rating-matrix__hint kbd')).map((k) => k.textContent?.trim());
+    expect(allHints).toEqual(['1', '2', '3', '4']);
+    key('4');
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const [observations] = onSubmit.mock.calls[0];
+    expect(observations.every((o: { quality: string }) => o.quality === 'fluent')).toBe(true);
+    expect(observations.every((o: { easy?: boolean }) => o.easy === true)).toBe(true);
+
+    onSubmit.mockClear();
+    renderMatrix('spatial', capabilities);
+    adjust();
+    // Every capability row: the advertised key must select that row's own cell.
+    for (const row of rows().slice(1)) {
+      const cells = Array.from(row.querySelectorAll<HTMLElement>('.rating-matrix__cell'));
+      const label = row.querySelector('.rating-matrix__label')?.textContent?.trim() ?? '';
+      const hint = cells[0]?.querySelector('kbd')?.textContent?.trim() ?? '';
+      if (!hint || hint === '·') {
+        expect(hint, `${label} advertises no key and must stay click-only`).toBe('·');
+        continue;
+      }
+      const before = onSubmit.mock.calls.length;
+      key(hint.toLowerCase());
+      const selectedRow = row.querySelectorAll('.rating-matrix__cell--selected').length > 0;
+      const submitted = onSubmit.mock.calls.length > before;
+      expect(selectedRow || submitted, `${label} hint "${hint}" selected nothing`).toBe(true);
+    }
+  });
+
+  it('the All row and every capability row advertise keys from one contract', () => {
+    renderMatrix('spatial', CAPABILITIES);
+    adjust();
+    const allHints = Array.from(rows()[0].querySelectorAll('.rating-matrix__hint kbd')).map((k) => k.textContent?.trim());
+    expect(allHints).toEqual(['1', '2', '3', '4']);
+    const firstCapabilityHints = Array.from(rows()[1].querySelectorAll('.rating-matrix__hint kbd')).map((k) => k.textContent?.trim());
+    expect(firstCapabilityHints).toEqual(['Q', 'W', 'E', 'R']);
+  });
+
   it('Escape clears a pending chord first and folds only on the second press', () => {
     renderMatrix();
     adjust();

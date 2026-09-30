@@ -14,7 +14,7 @@ import { languageDataWithStoredQuestionValidations } from '../../learning/questi
 import type { MockJournalPayload } from '../../learning/mockExam';
 import type { AttemptId, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
-import { isLLMReady } from '../../services/llmProvider';
+import { openCapabilitySettings, requireCapability } from '../../services/capabilityUnavailable';
 import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 import { eventsVersion, queryLanguageKeys } from '../../services/knowledgeEvents';
 import { createResource } from 'solid-js';
@@ -290,13 +290,14 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
   /** Targeted output (R14): the missed constructions pass into the SAME
    *  conversation agent experience. An unconfigured LLM routes to Settings
    *  → AI instead of opening an agent that cannot run (same gate as the
-   *  home tutor). */
+   *  home tutor).
+   *
+   *  The redirect used to happen in silence, so the Settings window appeared
+   *  with no explanation of why. The refusal now names itself on the way out,
+   *  through the same owner every other surface uses. */
   const openTargetedOutput = (targets: readonly { pattern: string; meaning: string; level: number }[]) => {
-    if (!isLLMReady(settings)) {
-      getBridge().window.openWindow({
-        type: 'settings',
-        context: { section: 'ai' } as unknown as Record<string, unknown>,
-      });
+    if (!requireCapability('llm', settings, t, 'notConfigured')) {
+      openCapabilitySettings('llm');
       return;
     }
     getBridge().window.openWindow({
@@ -457,6 +458,12 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
               setMockRepairRequest((request) => request?.requestedAt === requestedAt ? null : request);
             }}
             onValidated={() => setValidationsVersion((version) => version + 1)}
+            undoLifecycle={{
+              record: flashcards.recordPendingRetraction,
+              complete: flashcards.completePendingRetraction,
+              recover: flashcards.recoverPendingRetraction,
+              register: flashcards.registerRetractionProjection,
+            }}
             onProbe={(pattern, quality, level, scaffolds, attempt) => {
               return flashcards.recordGrammarAttemptAcknowledged(pattern, quality, {
                 language: resolvedLanguageData().language,

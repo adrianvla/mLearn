@@ -105,7 +105,6 @@
         "Role": "Rolle",
         "ConnectedTo": "verbunden mit {label}",
         "LoadFailed": "Der Graph konnte nicht geladen werden.",
-        "Retry": "Erneut versuchen",
         "All": "Alle Verbindungen",
         "TapToSee": "Alle anzeigen"
       }
@@ -341,7 +340,6 @@
       "InstructionsPlaceholder": "Beschreibe ein Szenario, Rollenspiel oder ein bestimmtes Thema, das du üben möchtest. Zum Beispiel: 'Lass uns das Bestellen im Restaurant üben' oder 'Spiele einen Vorstellungsgesprächsleiter'.",
       "InstructionsTab": "Anweisungen",
       "ItemsSelected": "{count} ausgewählt",
-      "LLMNotConfigured": "KI ist nicht konfiguriert. Richte sie zuerst in den Einstellungen ein.",
       "MediaTab": "Medien",
       "NoGrammarSupport": "Grammatikpunkte sind für diese Sprache noch nicht verfügbar.",
       "NoMediaYet": "Noch keine gespeicherten Medien. Schaue Videos oder lies Bücher, um deinen Fortschritt zu verfolgen.",
@@ -413,6 +411,34 @@
       "VersionLabel": "Version {version}",
       "Website": "Webseite"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "Blitzkarten aus diesem Buch hinzufügen",
+        "WordListTitle": "Wörter, die aus diesem Buch hinzugefügt werden",
+        "LevelFilter": "Unter Niveauschwelle",
+        "LevelFilterDescription": "Wörter hinzufügen, deren Niveau auf oder unter der ausgewählten Schwelle liegt",
+        "DictionaryFilter": "Im Wörterbuch gefunden",
+        "DictionaryFilterDescription": "Alle Wörter hinzufügen, die im Wörterbuch gefunden wurden",
+        "AddAll": "Alle hinzufügen ({count})",
+        "AddSelected": "Ausgewählte hinzufügen ({count})",
+        "SelectAll": "Alle auswählen",
+        "DeselectAll": "Alle abwählen",
+        "AddChecked": "Ausgewählte hinzufügen ({count})"
+      },
+      "video": {
+        "Title": "Blitzkarten aus diesem Video hinzufügen",
+        "WordListTitle": "Wörter, die aus diesem Video hinzugefügt werden",
+        "LevelFilter": "Unter Niveauschwelle",
+        "LevelFilterDescription": "Wörter hinzufügen, deren Niveau auf oder unter der ausgewählten Schwelle liegt",
+        "DictionaryFilter": "Im Wörterbuch gefunden",
+        "DictionaryFilterDescription": "Alle Wörter hinzufügen, die im Wörterbuch gefunden wurden",
+        "AddAll": "Alle hinzufügen ({count})",
+        "AddSelected": "Ausgewählte hinzufügen ({count})",
+        "SelectAll": "Alle auswählen",
+        "DeselectAll": "Alle abwählen",
+        "AddChecked": "Ausgewählte hinzufügen ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "Audio nicht verfügbar. Verwende die Regenerieren-Schaltfläche, um es zu generieren.",
       "TtsMissing": "{field} nicht gefunden. Regeneriere es im Karten-Editor.",
@@ -475,6 +501,13 @@
         "ClearTooltip": "Protokoll löschen",
         "DefaultTitle": "Konsole",
         "NoLogs": "Keine Einträge vorhanden"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "KI-Einstellungen öffnen",
+      "Llm": {
+        "NotConfigured": "Diese Funktion benötigt ein KI-Modell. Wählen Sie eines in den KI-Einstellungen aus und versuchen Sie es erneut.",
+        "Unreachable": "Der KI-Dienst ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
       }
     },
     "ConfirmDialog": {
@@ -1032,6 +1065,7 @@
         "ExamplesDoneWithErrors": "Beispiele für {count} Karten generiert, {failed} fehlgeschlagen",
         "ExamplesProgress": "Beispiele werden generiert…",
         "ExamplesTooltip": "Beispielsätze per LLM für Karten ohne Beispiele generieren",
+        "ExamplesReplaceAllTooltip": "Den Beispielsatz jeder Karte neu erzeugen und den vorhandenen ersetzen",
         "GenerateDescription": "Audio und Beispielsätze für Ihre Lernkarten stapelweise generieren",
         "ModeChoice": "Generierungsmodus",
         "ModeOlderThan": "Älter als Datum neu generieren",
@@ -1043,7 +1077,11 @@
         "TtsDone": "TTS für {count} Einträge generiert",
         "TtsDoneWithErrors": "TTS für {count} Einträge generiert, {failed} fehlgeschlagen",
         "TtsProgress": "TTS wird generiert…",
-        "TtsTooltip": "TTS-Audio für alle Lernkarten-Wörter und Beispiele generieren"
+        "TtsTooltip": "TTS-Audio für alle Lernkarten-Wörter und Beispiele generieren",
+        "ReplaceAllTitle": "Vorhandene Inhalte ersetzen?",
+        "ReplaceAllExamplesConfirm": "Die Neuerstellung ersetzt das vorhandene Beispiel bei {count} Lernkarte(n). Selbst bearbeitete Beispiele werden überschrieben. Dies kann nicht rückgängig gemacht werden.",
+        "ReplaceAllTtsConfirm": "Die Neuerstellung ersetzt das vorhandene Audio bei {count} Lernkarte(n). Dies kann nicht rückgängig gemacht werden.",
+        "ReplaceAllConfirmAction": "Neu erzeugen"
       },
       "Card": {
         "Due": "Fällig:",
@@ -1083,6 +1121,7 @@
         },
         "DeleteCard": {
           "Confirm": "Möchten Sie diese Lernkarte wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
+          "ConfirmMany": "{count} ausgewählte Lernkarte(n) löschen? Dies kann nicht rückgängig gemacht werden.",
           "Title": "Lernkarte löschen"
         },
         "EditCard": {
@@ -1206,6 +1245,7 @@
         "New": "Neu",
         "NewCardsStudied": "Neue Karten gelernt",
         "Review": "Wiederholung",
+        "ReviewState": "In Wiederholung",
         "ReviewsCompleted": "Wiederholungen abgeschlossen",
         "Suspended": "Ausgesetzt",
         "TodayProgress": "Fortschritt heute",
@@ -1268,12 +1308,14 @@
         "UseTTS": "Audio generieren",
         "PromoteSelected": "Ausgewählte befördern",
         "DeleteSelected": "Ausgewählte löschen",
+        "DeleteSelectedConfirm": "{count} ausgewählte Vorschlag/Vorschläge löschen? Sie werden zusammen mit den Sätzen verworfen, aus denen sie erfasst wurden.",
         "Promote": "Befördern",
         "Delete": "Löschen",
         "Promoting": "Erzeuge {current}/{total}…",
         "Promoted": "{count} Karte(n) erstellt",
         "PromoteFailed": "Vorschläge konnten nicht befördert werden.",
         "Removed": "{count} Vorschlag/Vorschläge entfernt",
+        "IgnoreFailed": "Dieses Wort konnte nicht ignoriert werden. Es steht weiterhin in deinen Vorschlägen; versuche es erneut.",
         "SeenCount": "{count}x gesehen",
         "NoPreviewImage": "Kein Vorschaubild",
         "SortDefault": "Standard",
@@ -1329,7 +1371,6 @@
         "LoadingSettings": "Einstellungen werden geladen...",
         "StartingBackend": "Deine Lernwerkzeuge werden vorbereitet…"
       },
-      "Success": "Erfolg",
       "Time": {
         "HoursMinutes": "{hours}h {minutes}m",
         "LessThanMinute": "< 1m",
@@ -1767,6 +1808,10 @@
         "Incorrect": "Nicht ganz — die Antwort ist: {answer}",
         "Next": "Weiter",
         "StorageUnavailable": "Deine Antwort konnte nicht gespeichert werden. Prüfe den verfügbaren Speicherplatz und versuche es erneut.",
+        "Undo": "↩",
+        "UndoTooltip": "Rückgängigmachung",
+        "SavingUndo": "Rückgängigmachung wird gespeichert…",
+        "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Die Bewertung bleibt bestehen; versuche es erneut.",
         "SavingAnswer": "Antwort wird gespeichert…",
         "ModeLabel": "Antwortformat",
         "ModeMcq": "Auswählen",
@@ -2188,9 +2233,8 @@
           "RestoreError": "Die Wiederherstellung konnte nicht gestartet werden. Prüfen Sie den Datenschutz vor dem nächsten Neustart.",
           "ConfirmTitle": "mLearn-Daten wiederherstellen",
           "ConfirmMessage": "Wiederherstellungspunkt vom {date} wiederherstellen?",
-          "ConfirmDetail": "mLearn wird neu gestartet. Ihre aktuellen Daten bleiben in einem separaten Wiederherstellungsordner erhalten.",
-          "Cancel": "Abbrechen",
-          "ConfirmRestore": "Wiederherstellen und neu starten"
+          "ConfirmRestore": "Wiederherstellen und neu starten",
+          "RestoreQueued": "mLearn wird neu gestartet und stellt diesen Wiederherstellungspunkt wieder her."
         },
         "ExportAllData": {
           "Description": "Alle Lerndaten (Lernkarten, Medienstatistiken, Audio, Bilder) als ZIP-Archiv exportieren",
@@ -2201,17 +2245,20 @@
           "Label": "Einstellungen exportieren"
         },
         "ImportAllData": {
-          "Confirm": "Alle aktuellen Daten (Lernkarten, Medienstatistiken, Audio, Bilder) werden überschrieben. Die App wird nach dem Import neu gestartet. Fortfahren?",
-          "Description": "Alle Lerndaten aus einem ZIP-Archiv importieren. Vorhandene Daten werden überschrieben.",
+          "Confirm": "mLearn wird neu gestartet und Ihre Lernkarten, Medien, Sprachdaten und Einstellungen durch den Inhalt dieses Archivs ersetzen. Ihre aktuellen Daten bleiben als Wiederherstellungspunkt erhalten, den Sie danach in diesem Fenster wiederherstellen können.",
+          "ConfirmAction": "Importieren und neu starten",
+          "Description": "Alle Lerndaten aus einem ZIP-Archiv ersetzen. Ihre aktuellen Daten bleiben als Wiederherstellungspunkt erhalten.",
           "Label": "Alle Daten importieren",
           "Success": "Daten erfolgreich importiert. Die App wird jetzt neu gestartet."
         },
         "ImportSettings": {
           "Description": "Einstellungen aus einer JSON-Datei importieren",
-          "Label": "Einstellungen importieren"
+          "Label": "Einstellungen importieren",
+          "Success": "Einstellungen importiert."
         },
         "ResetSettings": {
-          "Description": "Alle Einstellungen auf Standardwerte zurücksetzen",
+          "Confirm": "Alle Einstellungen in allen Tabs werden auf ihre Standardwerte zurückgesetzt. Ihre Lernkarten, Medien und Ihr Lernverlauf sind nicht betroffen, und Sie können jeden Wert wieder ändern.",
+          "Description": "Alle Einstellungen in allen Tabs auf ihre Standardwerte zurücksetzen",
           "Label": "Einstellungen zurücksetzen"
         }
       },
@@ -2705,19 +2752,17 @@
         "DataManagement": {
           "NukeButton": "Alle löschen",
           "NukeFlashcards": {
-            "Description": "Alle Lernkarten dauerhaft löschen und alles zurücksetzen (nicht rückgängig machbar!)",
+            "Confirm": "Alle Lernkarten werden gelöscht, zusammen mit der gesamten Wortverfolgung, den Grammatikkenntnissen, den Tagesstatistiken und dem Lernfortschritt. Nichts davon kann zurückgeholt werden, und mLearn verhält sich, als wäre es gerade erst installiert worden.",
+            "Description": "Alle Lernkarten und den gesamten Lernfortschritt dauerhaft löschen",
             "Label": "Alle Lernkarten löschen",
-            "ModalWarning": "Alle Ihre Lernkarten, Wortverfolgungsdaten, Grammatikkenntnisse, Tagesstatistiken und der gesamte Lernfortschritt werden dauerhaft gelöscht. Dies ist nicht rückgängig zu machen und setzt das Lernkartensystem auf den leeren Anfangszustand zurück, als wäre die App gerade installiert worden.",
-            "Success": "Alle Lernkarten wurden gelöscht.",
-            "TypePhrase": "Geben Sie \"{phrase}\" ein, um diese Aktion zu bestätigen."
+            "Success": "Alle Lernkarten wurden gelöscht."
           },
           "ResetButton": "SRS zurücksetzen",
           "ResetSRS": {
-            "Description": "Gesamten Lernkartenfortschritt löschen (nicht rückgängig machbar!)",
+            "Confirm": "Die gesamte Planung wird gelöscht: Intervalle, Leichtigkeit, Wiederholungszähler und Tagesfortschritt. Jede Karte kehrt auf \"Neu\" zurück. Inhalt, Bilder und Audio Ihrer Karten bleiben erhalten, und die ursprüngliche Planung wird in einem Wiederherstellungspunkt aufbewahrt.",
+            "Description": "Gesamten Lernkartenfortschritt löschen, Lernkarten behalten",
             "Label": "SRS-Daten zurücksetzen",
-            "ModalWarning": "Alle SRS-Planungsdaten werden zurückgesetzt, einschließlich Intervalle, Leichtigkeitsfaktoren, Wiederholungszähler und Lernfortschritt. Der Inhalt der Lernkarten bleibt erhalten, aber alle Karten kehren in den Status 'Neu' zurück.",
-            "Success": "Alle SRS-Daten wurden zurückgesetzt.",
-            "TypePhrase": "Geben Sie \"{phrase}\" ein, um diese Aktion zu bestätigen."
+            "Success": "Alle SRS-Daten wurden zurückgesetzt."
           },
           "Title": "Datenverwaltung"
         },
@@ -2793,7 +2838,6 @@
       },
       "UI": {
         "Description": "mLearn anpassen",
-        "ResetConfirm": "Möchten Sie wirklich alle Einstellungen auf die Standardwerte zurücksetzen? Dies kann nicht rückgängig gemacht werden.",
         "ResetSuccess": "Einstellungen auf Standardwerte zurückgesetzt",
         "SaveError": "Einstellungen konnten nicht gespeichert werden",
         "Title": "Einstellungen"
@@ -3271,6 +3315,7 @@
         "SignInCodeHint": "Falls du einen Gerätecode erhalten hast, gib ihn unten ein",
         "PeerJoinedSingular": "Ein Teilnehmer ist deinem Raum beigetreten",
         "PeerJoinedPlural": "{count} Teilnehmer sind deinem Raum beigetreten",
+        "PeerCount": "{count} schauen zu",
         "AnticipatingPing": "Ping wird antizipiert..."
       },
       "Extension": {},
@@ -3378,9 +3423,6 @@
       "InText": "Im Text: {form}",
       "AddToAnki": "Zu Anki hinzufügen",
       "AddToBuiltInSrs": "Klicken, um zum eingebauten SRS hinzuzufügen",
-      "Alerts": {
-        "ExplainRequiresLlm": "Die Erklärungsfunktion erfordert ein lokales KI-Sprachmodell. Aktivieren Sie LLM in den Einstellungen und starten Sie die App neu."
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "Trotzdem hinzufügen",
         "DontRemind": "Nicht mehr erinnern",
@@ -3388,7 +3430,8 @@
         "Title": "Doppelte Lernkarte"
       },
       "Errors": {
-        "FailedToAddFlashcard": "Lernkarte konnte nicht hinzugefügt werden: {error}"
+        "FailedToAddFlashcardForWord": "Lernkarte für \"{word}\" konnte nicht hinzugefügt werden: {error}",
+        "FailedToAddFlashcards": "Lernkarten konnten nicht hinzugefügt werden ({count}): {error}"
       },
       "Explain": "Erklären",
       "InAnki": "In Anki",
@@ -3415,8 +3458,7 @@
       "AnkiUpdateSuccess": "{count} Anki-Karte(n) aktualisiert",
       "AnkiUpdateRepositioned": "{count} Karte(n) aktualisiert, {repositioned} neue Karte(n) umpositioniert",
       "AnkiUpdateFailed": "Anki-Karten konnten nicht aktualisiert werden",
-      "CardScheduling": "Kartenplanung",
-      "FlashcardAddFailed": "Karteikarte konnte nicht hinzugefügt werden"
+      "CardScheduling": "Kartenplanung"
     },
     "ConnectionStatus": {
       "Connected": "Verbunden",
@@ -3453,7 +3495,14 @@
       "ProjectionUnavailable": "Wissensdaten konnten nicht geladen werden. Versuche es erneut.",
       "SavingRating": "Bewertung wird gespeichert…",
       "AnswerUnavailable": "Für dieses Wort ist keine Antwort verfügbar. Wiederhole die Wörterbuchsuche oder wähle einen anderen Filter. Es wurde keine Bewertung gespeichert.",
+      "SkipWord": "Dieses Wort überspringen",
       "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Das Wort bleibt hier; versuche es erneut.",
+      "SavingUndo": "Rückgängigmachung wird gespeichert…",
+      "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Das Wort bleibt bewertet; versuche es erneut.",
+      "Undo": "↩",
+      "UndoTooltip": "Rückgängigmachung",
+      "SessionStartFailed": "Diese Lernsitzung konnte nicht gespeichert werden, daher konnte keine Sitzung gestartet werden. Deine erfassten Antworten bleiben unverändert; versuche es erneut.",
+      "DismissFailed": "Diese Sitzung konnte nicht geschlossen werden. Es wurde nichts verworfen; versuche es erneut.",
       "Statement": {},
       "FinishedTitle": "Fertig!",
       "FinishedDescription": "Gespeicherte Überprüfungen: {count}. Diese Antworten gehören jetzt zu deinem Lernverlauf.",

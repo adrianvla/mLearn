@@ -105,7 +105,6 @@
         "Role": "Rôle",
         "ConnectedTo": "lié à {label}",
         "LoadFailed": "Impossible de charger le graphe.",
-        "Retry": "Réessayer",
         "All": "Tous les liens",
         "TapToSee": "Tout afficher"
       }
@@ -341,7 +340,6 @@
       "InstructionsPlaceholder": "Décrivez un scénario, un jeu de rôle ou un sujet que vous souhaitez pratiquer. Par exemple : 'Pratiquons la commande au restaurant' ou 'Jouez le rôle d'un recruteur'.",
       "InstructionsTab": "Instructions",
       "ItemsSelected": "{count} sélectionné(s)",
-      "LLMNotConfigured": "L'IA n'est pas configurée. Configurez-la d'abord dans les paramètres.",
       "MediaTab": "Médias",
       "NoGrammarSupport": "Les points de grammaire ne sont pas encore disponibles pour cette langue.",
       "NoMediaYet": "Aucun média enregistré. Regardez des vidéos ou lisez des livres pour suivre vos progrès.",
@@ -413,6 +411,34 @@
       "VersionLabel": "Version {version}",
       "Website": "Site web"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "Ajouter des fiches depuis ce livre",
+        "WordListTitle": "Mots à ajouter depuis ce livre",
+        "LevelFilter": "Sous le seuil de niveau",
+        "LevelFilterDescription": "Ajouter les mots dont le niveau est au seuil sélectionné ou en dessous",
+        "DictionaryFilter": "Trouvé dans le dictionnaire",
+        "DictionaryFilterDescription": "Ajouter tous les mots trouvés dans le dictionnaire",
+        "AddAll": "Tout ajouter ({count})",
+        "AddSelected": "Ajouter la sélection ({count})",
+        "SelectAll": "Tout sélectionner",
+        "DeselectAll": "Tout désélectionner",
+        "AddChecked": "Ajouter sélectionnés ({count})"
+      },
+      "video": {
+        "Title": "Ajouter des fiches depuis cette vidéo",
+        "WordListTitle": "Mots à ajouter depuis cette vidéo",
+        "LevelFilter": "Sous le seuil de niveau",
+        "LevelFilterDescription": "Ajouter les mots dont le niveau est au seuil sélectionné ou en dessous",
+        "DictionaryFilter": "Trouvé dans le dictionnaire",
+        "DictionaryFilterDescription": "Ajouter tous les mots trouvés dans le dictionnaire",
+        "AddAll": "Tout ajouter ({count})",
+        "AddSelected": "Ajouter la sélection ({count})",
+        "SelectAll": "Tout sélectionner",
+        "DeselectAll": "Tout désélectionner",
+        "AddChecked": "Ajouter sélectionnés ({count})"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "Audio non disponible. Utilisez le bouton de régénération pour le générer.",
       "TtsMissing": "{field} introuvable. Régénérez-le depuis l'éditeur de carte.",
@@ -475,6 +501,13 @@
         "ClearTooltip": "Effacer les journaux",
         "DefaultTitle": "Console",
         "NoLogs": "Aucun journal à afficher"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "Ouvrir les paramètres IA",
+      "Llm": {
+        "NotConfigured": "Cette fonction nécessite un modèle IA. Choisissez-en un dans les paramètres IA, puis réessayez.",
+        "Unreachable": "Le service IA est injoignable. Vérifiez votre connexion, puis réessayez."
       }
     },
     "ConfirmDialog": {
@@ -1032,6 +1065,7 @@
         "ExamplesDoneWithErrors": "Exemples générés pour {count} cartes, {failed} échoué(s)",
         "ExamplesProgress": "Génération des exemples…",
         "ExamplesTooltip": "Générer des phrases d'exemple par LLM pour les cartes sans exemples",
+        "ExamplesReplaceAllTooltip": "Régénérer la phrase d'exemple de chaque carte, en remplaçant celle existante",
         "GenerateDescription": "Générer en lot l'audio et les phrases d'exemple pour vos cartes mémoire",
         "ModeChoice": "Mode de génération",
         "ModeOlderThan": "Régénérer antérieur à une date",
@@ -1043,7 +1077,11 @@
         "TtsDone": "TTS généré pour {count} éléments",
         "TtsDoneWithErrors": "TTS généré pour {count} éléments, {failed} échoué(s)",
         "TtsProgress": "Génération TTS en cours…",
-        "TtsTooltip": "Générer l'audio TTS pour tous les mots et exemples des cartes"
+        "TtsTooltip": "Générer l'audio TTS pour tous les mots et exemples des cartes",
+        "ReplaceAllTitle": "Remplacer le contenu existant ?",
+        "ReplaceAllExamplesConfirm": "La régénération remplace l'exemple existant de {count} carte(s) mémoire. Tout exemple que vous avez modifié sera écrasé. Cette action est irréversible.",
+        "ReplaceAllTtsConfirm": "La régénération remplace l'audio existant de {count} carte(s) mémoire. Cette action est irréversible.",
+        "ReplaceAllConfirmAction": "Régénérer"
       },
       "Card": {
         "Due": "Échéance :",
@@ -1083,6 +1121,7 @@
         },
         "DeleteCard": {
           "Confirm": "Êtes-vous sûr de vouloir supprimer cette carte mémoire ? Cette action est irréversible.",
+          "ConfirmMany": "Supprimer {count} carte(s) mémoire sélectionnée(s) ? Cette action est irréversible.",
           "Title": "Supprimer la carte mémoire"
         },
         "EditCard": {
@@ -1206,6 +1245,7 @@
         "New": "Nouvelles",
         "NewCardsStudied": "Nouvelles cartes étudiées",
         "Review": "Révision",
+        "ReviewState": "En révision",
         "ReviewsCompleted": "Révisions terminées",
         "Suspended": "Suspendues",
         "TodayProgress": "Progrès du jour",
@@ -1268,12 +1308,14 @@
         "UseTTS": "Générer l'audio",
         "PromoteSelected": "Promouvoir la sélection",
         "DeleteSelected": "Supprimer la sélection",
+        "DeleteSelectedConfirm": "Supprimer {count} suggestion(s) sélectionnée(s) ? Elles seront abandonnées avec les phrases dont elles ont été extraites.",
         "Promote": "Promouvoir",
         "Delete": "Supprimer",
         "Promoting": "Génération {current}/{total}…",
         "Promoted": "{count} carte(s) créée(s)",
         "PromoteFailed": "Échec de la promotion des suggestions.",
         "Removed": "{count} suggestion(s) supprimée(s)",
+        "IgnoreFailed": "Impossible d’ignorer ce mot. Il figure toujours dans vos suggestions ; réessayez.",
         "SeenCount": "Vu {count}x",
         "NoPreviewImage": "Aucune image de prévisualisation",
         "SortDefault": "Par défaut",
@@ -1329,7 +1371,6 @@
         "LoadingSettings": "Chargement des paramètres...",
         "StartingBackend": "Préparation de vos outils d’apprentissage…"
       },
-      "Success": "Succès",
       "Time": {
         "HoursMinutes": "{hours}h {minutes}m",
         "LessThanMinute": "< 1m",
@@ -1767,6 +1808,10 @@
         "Incorrect": "Pas tout à fait — la réponse est : {answer}",
         "Next": "Suivant",
         "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez.",
+        "Undo": "↩",
+        "UndoTooltip": "Annuler",
+        "SavingUndo": "Enregistrement de l’annulation…",
+        "UndoSaveFailed": "Impossible d’enregistrer cette annulation. L’évaluation reste appliquée ; réessayez.",
         "SavingAnswer": "Enregistrement de la réponse…",
         "ModeLabel": "Format de réponse",
         "ModeMcq": "Choisir",
@@ -2188,9 +2233,8 @@
           "RestoreError": "Impossible de lancer la restauration. Vérifiez la protection des données avant de redémarrer.",
           "ConfirmTitle": "Restaurer les données mLearn",
           "ConfirmMessage": "Restaurer le point du {date} ?",
-          "ConfirmDetail": "mLearn redémarrera. Vos données actuelles seront conservées dans un dossier de récupération séparé.",
-          "Cancel": "Annuler",
-          "ConfirmRestore": "Restaurer et redémarrer"
+          "ConfirmRestore": "Restaurer et redémarrer",
+          "RestoreQueued": "mLearn va redémarrer et restaurer ce point de restauration."
         },
         "ExportAllData": {
           "Description": "Exporter toutes les données d'apprentissage (cartes, statistiques, audio, images) en archive ZIP",
@@ -2201,17 +2245,20 @@
           "Label": "Exporter les paramètres"
         },
         "ImportAllData": {
-          "Confirm": "Toutes vos données actuelles (cartes, statistiques, audio, images) seront écrasées. L'application redémarrera après l'importation. Continuer ?",
-          "Description": "Importer toutes les données d'apprentissage depuis une archive ZIP. Les données existantes seront écrasées.",
+          "Confirm": "mLearn va redémarrer et remplacer vos cartes, vos médias, vos données de langue et vos paramètres par le contenu de cette archive. Vos données actuelles sont conservées comme point de restauration, que vous pourrez réappliquer depuis cette fenêtre ensuite.",
+          "ConfirmAction": "Importer et redémarrer",
+          "Description": "Remplacer toutes les données d'apprentissage depuis une archive ZIP. Vos données actuelles sont conservées comme point de restauration.",
           "Label": "Importer toutes les données",
           "Success": "Importation préparée. L'application va redémarrer pour la valider et l'appliquer."
         },
         "ImportSettings": {
           "Description": "Importer les paramètres depuis un fichier JSON",
-          "Label": "Importer les paramètres"
+          "Label": "Importer les paramètres",
+          "Success": "Paramètres importés."
         },
         "ResetSettings": {
-          "Description": "Remettre tous les paramètres aux valeurs par défaut",
+          "Confirm": "Tous les paramètres de tous les onglets reviennent à leur valeur par défaut. Vos cartes, vos médias et votre historique d'apprentissage ne sont pas affectés, et vous pourrez modifier à nouveau n'importe quelle valeur.",
+          "Description": "Rétablir la valeur par défaut de tous les paramètres de tous les onglets",
           "Label": "Réinitialiser les paramètres"
         }
       },
@@ -2705,19 +2752,17 @@
         "DataManagement": {
           "NukeButton": "Tout supprimer",
           "NukeFlashcards": {
-            "Description": "Supprimer définitivement toutes les cartes et tout réinitialiser (irréversible !)",
+            "Confirm": "Toutes les cartes seront supprimées, ainsi que le suivi des mots, les connaissances grammaticales, les statistiques quotidiennes et la progression d'apprentissage. Rien ne pourra les ramener, et mLearn se comportera comme s'il venait d'être installé.",
+            "Description": "Supprimer définitivement toutes les cartes et toute la progression d'apprentissage",
             "Label": "Supprimer toutes les cartes",
-            "ModalWarning": "Toutes vos cartes, données de suivi des mots, connaissances grammaticales, statistiques quotidiennes et toute la progression d'apprentissage seront définitivement supprimées. Cette action est irréversible et restaurera le système de cartes à son état initial vide, comme si l'application venait d'être installée.",
-            "Success": "Toutes les cartes ont été supprimées.",
-            "TypePhrase": "Tapez \"{phrase}\" pour confirmer cette action."
+            "Success": "Toutes les cartes ont été supprimées."
           },
           "ResetButton": "Réinitialiser le SRS",
           "ResetSRS": {
-            "Description": "Effacer toute la progression des cartes (irréversible !)",
+            "Confirm": "Toute la planification sera effacée : intervalles, facilité, compteurs de révision et progression quotidienne. Chaque carte repasse à \"nouveau\". Le contenu de vos cartes, les images et l'audio sont conservés, et la planification d'origine est conservée dans un point de restauration.",
+            "Description": "Effacer toute la progression des cartes en les conservant",
             "Label": "Réinitialiser les données SRS",
-            "ModalWarning": "Toutes les données de planification SRS seront réinitialisées, y compris les intervalles, les facteurs de facilité, les compteurs de révision et la progression d'apprentissage. Le contenu des cartes sera conservé, mais toutes les cartes reviendront à l'état 'nouveau'.",
-            "Success": "Toutes les données SRS ont été réinitialisées.",
-            "TypePhrase": "Tapez \"{phrase}\" pour confirmer cette action."
+            "Success": "Toutes les données SRS ont été réinitialisées."
           },
           "Title": "Gestion des données"
         },
@@ -2793,7 +2838,6 @@
       },
       "UI": {
         "Description": "Personnalisez mLearn",
-        "ResetConfirm": "Êtes-vous sûr de vouloir réinitialiser tous les paramètres ? Cette action est irréversible.",
         "ResetSuccess": "Paramètres réinitialisés aux valeurs par défaut",
         "SaveError": "Échec de l'enregistrement des paramètres",
         "Title": "Paramètres"
@@ -3271,6 +3315,7 @@
         "SignInCodeHint": "Si vous avez reçu un code d'appareil, entrez-le ci-dessous",
         "PeerJoinedSingular": "Un participant a rejoint votre salle",
         "PeerJoinedPlural": "{count} participants ont rejoint votre salle",
+        "PeerCount": "{count} en train de regarder",
         "AnticipatingPing": "Anticipation du ping..."
       },
       "Extension": {},
@@ -3378,9 +3423,6 @@
       "InText": "Dans le texte : {form}",
       "AddToAnki": "Ajouter à Anki",
       "AddToBuiltInSrs": "Cliquer pour ajouter au SRS intégré",
-      "Alerts": {
-        "ExplainRequiresLlm": "La fonction d'explication nécessite un modèle IA local. Activez le LLM dans les paramètres et redémarrez l'application."
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "Ajouter quand même",
         "DontRemind": "Ne plus me rappeler",
@@ -3388,7 +3430,8 @@
         "Title": "Carte en double"
       },
       "Errors": {
-        "FailedToAddFlashcard": "Échec de l'ajout de la carte : {error}"
+        "FailedToAddFlashcardForWord": "Échec de l'ajout de la carte pour « {word} » : {error}",
+        "FailedToAddFlashcards": "Impossible d'ajouter les cartes ({count}) : {error}"
       },
       "Explain": "Expliquer",
       "InAnki": "Dans Anki",
@@ -3415,8 +3458,7 @@
       "AnkiUpdateSuccess": "{count} carte(s) Anki mise(s) à jour",
       "AnkiUpdateRepositioned": "{count} carte(s) mise(s) à jour, {repositioned} nouvelle(s) carte(s) repositionnée(s)",
       "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki",
-      "CardScheduling": "Planification de la carte",
-      "FlashcardAddFailed": "Impossible d’ajouter la carte"
+      "CardScheduling": "Planification de la carte"
     },
     "ConnectionStatus": {
       "Connected": "Connecté",
@@ -3453,7 +3495,14 @@
       "ProjectionUnavailable": "Les données de connaissances n’ont pas pu être chargées. Réessayez.",
       "SavingRating": "Enregistrement de l’évaluation…",
       "AnswerUnavailable": "Aucune réponse disponible pour ce mot. Réessayez la recherche ou choisissez un autre filtre. Aucune évaluation enregistrée.",
+      "SkipWord": "Passer ce mot",
       "SaveFailed": "Cette évaluation n’a pas pu être enregistrée. Le mot reste affiché ; réessayez.",
+      "SavingUndo": "Enregistrement de l’annulation…",
+      "UndoSaveFailed": "Impossible d’enregistrer cette annulation. Le mot reste évalué ; réessayez.",
+      "Undo": "↩",
+      "UndoTooltip": "Annuler",
+      "SessionStartFailed": "Cette session d'étude n'a pas pu être enregistrée, aucune session n'a donc pu démarrer. Vos réponses restent inchangées ; réessayez.",
+      "DismissFailed": "Cette session n'a pas pu être fermée. Rien n'a été abandonné ; réessayez.",
       "Statement": {},
       "FinishedTitle": "Terminé !",
       "FinishedDescription": "Vérifications enregistrées : {count}. Ces réponses font désormais partie de votre historique d’apprentissage.",

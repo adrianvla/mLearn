@@ -7,6 +7,8 @@ import { nextAttemptId, type AttemptId } from '../../../../shared/knowledgeEvent
 import { useKnowledgeProjection } from '../../../hooks/useKnowledgeProjection';
 import { Button } from '../Button';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../RatingMatrix';
+import { WriteStatusBanner } from '../WriteStatusBanner';
+import type { StudyWriteState } from '../../../learning/studySession';
 import { KnowledgeCapabilitySummary } from './KnowledgeCapabilitySummary';
 import { isUnmeasuredKnowledge, knowledgeStatusLabelKey } from './knowledgeSummary';
 import './WordStatusPillKnowledge.css';
@@ -28,26 +30,32 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   const knowledge = useKnowledgeProjection(() => ({ language: language(), surface: props.word }));
   const overall = createMemo(() => projectedWordStatus(knowledge.projection()));
   const [showRate, setShowRate] = createSignal(false);
-  const [ratingStatus, setRatingStatus] = createSignal<'idle' | 'saving' | 'failed'>('idle');
+  // The acknowledged-write lifecycle is owned by the study session
+  // contract, like every other surface that files a study write. This
+  // surface used to keep its own 'idle' | 'saving' | 'failed' vocabulary
+  // and hand-rolled the banner, which is how a rating failure ended up
+  // worded and retried differently here than in flashcard review, word
+  // sync and grammar coverage.
+  const [ratingWrite, setRatingWrite] = createSignal<StudyWriteState | null>(null);
   type RatingCommand = {
     observations: readonly { capability: ProfileObservation['capability']; quality: ProfileObservation['quality']; method?: ProfileObservation['method'] }[];
     options: { language: string; attemptId: AttemptId };
   };
   let failedCommand: RatingCommand | undefined;
   const runRating = async (command: RatingCommand) => {
-    setRatingStatus('saving');
+    setRatingWrite('pending');
     try {
       await submitRating(props.word, command.observations, command.options);
       failedCommand = undefined;
-      setRatingStatus('idle');
+      setRatingWrite(null);
       setShowRate(false);
     } catch {
       failedCommand = command;
-      setRatingStatus('failed');
+      setRatingWrite('failed');
     }
   };
   const submit = (observations: readonly ProfileObservation[], options?: RateOptions) => {
-    if (observations.length === 0 || ratingStatus() !== 'idle') return;
+    if (observations.length === 0 || ratingWrite() !== null) return;
     const command: RatingCommand = {
       observations: observations.map(({ capability, quality, method }) => ({
         capability,
@@ -78,24 +86,25 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
       <RatingMatrix
         capabilities={knowledge.capabilities()}
         keyboardMode={settings.ratingKeyboardMode}
-        armed={ratingStatus() === 'idle'}
+        armed={ratingWrite() === null}
         resetKey={`${language()}:${props.word}`}
         onSubmit={submit}
       />
-      <Show when={ratingStatus() === 'saving'}><small role="status">{t('mlearn.Knowledge.Popup.Saving')}</small></Show>
-      <Show when={ratingStatus() === 'failed'}>
-        <small role="alert">{t('mlearn.Knowledge.Popup.SaveFailed')}</small>
-        <Button variant="ghost" size="sm" onClick={() => { if (failedCommand) void runRating(failedCommand); }}>
-          {t('mlearn.Knowledge.Popup.Retry')}
-        </Button>
-      </Show>
+      <WriteStatusBanner
+        status={ratingWrite()}
+        savingLabelKey="mlearn.Knowledge.Popup.Saving"
+        failedLabelKey="mlearn.Knowledge.Popup.SaveFailed"
+        canRetry={ratingWrite() === 'failed' && failedCommand !== undefined}
+        onRetry={() => { if (failedCommand) void runRating(failedCommand); }}
+        retryLabelKey="mlearn.Knowledge.Popup.Retry"
+      />
     </Show>
     <div class="word-status-knowledge__actions">
       <Button
         variant="ghost"
         size="sm"
         aria-expanded={showRate()}
-        onClick={() => { if (ratingStatus() !== 'idle') return; props.onPin?.(); setShowRate((shown) => !shown); }}
+        onClick={() => { if (ratingWrite() !== null) return; props.onPin?.(); setShowRate((shown) => !shown); }}
       >
         {t('mlearn.Knowledge.Popup.Rate')}
       </Button>

@@ -53,6 +53,27 @@ describe('useKnowledgeProjection', () => {
     root.dispose();
   });
 
+  it('keeps the last resolved capabilities visible while the next surface is still loading', async () => {
+    let resolveNext: (value: KnowledgeProjection) => void = () => undefined;
+    query.mockClear();
+    query.mockResolvedValueOnce(payload).mockImplementationOnce(() => new Promise<KnowledgeProjection>((resolve) => { resolveNext = resolve; }));
+    const root = createRoot((dispose) => {
+      const [surface, setSurface] = createSignal('first');
+      return { dispose, setSurface, state: useKnowledgeProjection(() => ({ language: 'test', surface: surface() })) };
+    });
+    await vi.waitFor(() => expect(root.state.capabilities()).toEqual(['x-test::novel']));
+
+    root.setSurface('second');
+    await vi.waitFor(() => expect(root.state.loading()).toBe(true));
+    // Capabilities describe what the surface may record; a pending lookup must
+    // not report "none" for a surface whose capabilities are already known.
+    expect(root.state.capabilities()).toEqual(['x-test::novel']);
+
+    resolveNext({ status: 'ready', targets: [{ targetRef: { kind: 'surface', id: 'surface-b' }, applicableCapabilities: ['x-test::known'], states: [] }] });
+    await vi.waitFor(() => expect(root.state.capabilities()).toEqual(['x-test::known']));
+    root.dispose();
+  });
+
   it('preserves a failed query and retries the same canonical identity', async () => {
     query.mockClear();
     query.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(payload);

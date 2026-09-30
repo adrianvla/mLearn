@@ -9,6 +9,8 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable, buildLexemeIndex, buildWordFrequencyMapFromLanguageData, getFrequencyForLexeme, resolveLanguageFrequencyPayload } from '../../shared/languageFeatures';
 import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
+import { readPendingRetraction, readRetractionCompletionClaim } from '../../shared/retractionRecovery';
+import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevision';
 import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { copyStoreWithPatch, getStorePath, storePatchRecorder, type StorePatch } from '../../shared/utils/storePatch';
@@ -762,6 +764,15 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     return finalizeStore(migrateV2ToV3(fc_to_check, zhMetadata, backupPath));
   }
 
+  // A decided-but-unfinished Undo survives a reload, so the record must survive
+  // too. The pre-envelope field is read as well so an in-flight review Undo is
+  // upgraded rather than dropped.
+  const pendingRetraction = readPendingRetraction(
+    fc_to_check.pendingRetraction
+    // Pre-envelope stores kept the review record under its own field.
+    ?? (fc_to_check as { pendingReviewUndo?: unknown }).pendingReviewUndo,
+  );
+
   const result: FlashcardStore = {
     flashcards: fc_to_check.flashcards || {},
     wordCandidates: fc_to_check.wordCandidates || {},
@@ -775,9 +786,11 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
     version: fc_to_check.version < CURRENT_VERSION ? CURRENT_VERSION : fc_to_check.version,
-    ...(fc_to_check.pendingReviewUndo ? { pendingReviewUndo: fc_to_check.pendingReviewUndo } : {}),
+    ...(pendingRetraction ? { pendingRetraction } : {}),
     rev: fc_to_check.rev,
   };
+  // A completion claim describes one write rather than the store, so it is not
+  // carried through here and never survives a reload.
 
   return finalizeStore(result);
 }
@@ -895,8 +908,40 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
     }
     const expectedRevision = store.rev ?? 0;
     if (expectedRevision !== currentRevision) {
-      throw new Error(`Stale flashcard store revision: expected ${currentRevision}, received ${expectedRevision}`);
+      throw new Error(staleFlashcardRevisionMessage(currentRevision, expectedRevision));
     }
+
+    // A decided-but-unfinished Undo must not be undone by an unrelated write.
+    // The store is whole-snapshot: every window saves all of it, and a window
+    // whose snapshot predates the record simply has no `pendingRetraction` key.
+    // Writing that snapshot as-is silently deleted the record — the rating the
+    // learner tried to take back stayed applied with nothing left able to take
+    // it back, which is the exact loss the record exists to prevent.
+    //
+    // Only the window that decided the Undo clears it, and it does so by
+    // writing the store without the field on purpose. So an incoming snapshot
+    // that omits a record the last persisted store still holds means "this
+    // writer has not seen it", never "this Undo was cancelled": carrying the
+    // authoritative one forward is the only reading that cannot lose it. The
+    // decision to finish still belongs to whoever recorded it.
+    const authoritativeRetraction = cachedStorePath === filePath
+      ? readPendingRetraction((cachedStore as FlashcardStore | undefined)?.pendingRetraction)
+      : null;
+    const claim = readRetractionCompletionClaim(store as { pendingRetraction?: unknown; retractionCompleted?: unknown });
+    const incomingRetraction = readPendingRetraction(store.pendingRetraction);
+    if (authoritativeRetraction && incomingRetraction && authoritativeRetraction.attemptId !== incomingRetraction.attemptId) {
+      throw new Error('Another pending Undo must be completed before it can be replaced');
+    }
+    if (authoritativeRetraction && !readPendingRetraction(store.pendingRetraction)) {
+      // Finishing an Undo is the one write that deliberately drops the record,
+      // and it names the retraction it is completing. Any other snapshot that
+      // lacks the record simply has not seen the decision yet.
+      if (!claim || claim.attemptId !== authoritativeRetraction.attemptId) {
+        store.pendingRetraction = authoritativeRetraction;
+      }
+    }
+    // The claim is a statement about this write, not part of the store.
+    delete (store as { retractionCompleted?: unknown }).retractionCompleted;
 
     const guardian = guardianForWrites();
     guardian?.checkFlashcardWrite(store, removedCardIds, resetReviewProgress, authorization);

@@ -13,6 +13,7 @@ import { ProsodyOverlay } from '../language-specific';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
+import { formatDateTime } from '../../utils/timeFormatting';
 import {
   clearProsodyPosition,
   createProsodyForPosition,
@@ -233,8 +234,8 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
       reviews: fc.reviews,
       lapses: fc.lapses,
       state: fc.state,
-      lastReviewed: fc.lastReviewed ? new Date(fc.lastReviewed).toLocaleString() : '—',
-      dueDate: fc.dueDate ? new Date(fc.dueDate).toLocaleString() : '—',
+      lastReviewed: fc.lastReviewed ? formatDateTime(fc.lastReviewed, settings.uiLanguage) : '—',
+      dueDate: fc.dueDate ? formatDateTime(fc.dueDate, settings.uiLanguage) : '—',
       interval: fc.interval > 0 ? intervalToString(fc.interval) : '—',
     };
   });

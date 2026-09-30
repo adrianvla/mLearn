@@ -2,6 +2,7 @@ import { flashcardAudioProvider } from '../../../shared/utils/flashcardAudioPres
 import { FlashcardAudioPresetSelect } from '../../components/flashcard/FlashcardAudioPresetSelect';
 import { FlashcardRepairOptions } from '../../components/flashcard/FlashcardRepairOptions';
 import { FlashcardCreateModal } from '../../components/flashcard/FlashcardCreateModal';
+import { buildDestructiveConfirmOptions, requiresDestructiveConfirmation } from './bulkDestructiveConfirm';
 import { FlashcardInspectButton } from '../../components/flashcard/FlashcardInspectButton';
 import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGate';
 /**
@@ -14,7 +15,7 @@ import { Component, Show, For, createSignal, createMemo, createEffect, on, onCle
 import { WindowWrapper, useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle, OtherLanguageDueHint } from '../../components/flashcard';
-import { Button, Modal, Input, Badge, EmptyState, SearchIcon, TabContainer, Select, EditIcon, BookIcon, BarChartIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
+import { Button, Modal, Input, Badge, useConfirmDialog, EmptyState, SearchIcon, TabContainer, Select, EditIcon, BookIcon, BarChartIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
 import { getLanguageDisplayName, stripHtmlForTts } from '../../../shared/utils/textUtils';
 import { getBridge } from '../../../shared/bridges';
@@ -23,7 +24,9 @@ import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
-import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
+import { useItemSelection } from '../../hooks/useItemSelection';
+import { withCloudAuth } from '../../services/cloudSessionManager';
+import { absorbProviderFailure, classifyProviderFailure } from '../../services/providerFailure';
 import { isLLMReady } from '../../services/llmProvider';
 import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider, type FlashcardAudioPreset } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
@@ -32,6 +35,7 @@ import { getSuggestedFlashcardBadgeCount } from './flashcardsSuggestedCount';
 import { buildBulkExampleUpdates } from '../../utils/flashcardBulkExamples';
 import { DEFAULT_REPAIR_SELECTION, selectRepairFindings, repairAspect, planFlashcardRepair, type ExampleFinding, type RepairFinding, type RepairSelection, type ScanOptions } from '../../utils/flashcardRepairPlan';
 import { runFlashcardRepair, runMissingFlashcardRepair, type RepairRunResult } from '../../utils/flashcardRepairRunner';
+import { planBulkGeneration, type BulkGenerationMode, type BulkGenerationModeFor } from './bulkGenerationPlan';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
@@ -93,11 +97,14 @@ export const FlashcardsContent: Component = () => {
   const { langData, currentLangData } = useLanguage();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
+  // Distinguishes "no work was ever due" from "the session just drained".
+  const [hasReviewedInSession, setHasReviewedInSession] = createSignal(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const [showAddModal, setShowAddModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
   const [showSyncModal, setShowSyncModal] = createSignal(false);
@@ -124,9 +131,6 @@ export const FlashcardsContent: Component = () => {
     return langs.size === 1 ? [...langs][0] : null;
   };
 
-  // Multi-select state
-  const [selected, setSelected] = createSignal<Set<string>>(new Set());
-
   // Bulk operation state
   const [bulkProgress, setBulkProgress] = createSignal<{ current: number; total: number; label: string; startTime: number } | null>(null);
 
@@ -138,10 +142,17 @@ export const FlashcardsContent: Component = () => {
     setBulkAudioPreset(preset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset);
   }));
 
-  // Bulk mode: generate only for empty fields, replace all, or regenerate older than date
-  const [bulkMode, setBulkMode] = createSignal<'onlyEmpty' | 'replaceAll' | 'olderThan'>('onlyEmpty');
+  // Each bulk button picks its own mode. They used to share one "Generation
+  // mode" picker above both, which is why the Examples button could offer
+  // "Regenerate older than date": TTS records a generation timestamp per field
+  // and can honour a cutoff, while an example is plain card content with no
+  // generation stamp, so that mode was accepted by the picker and then
+  // silently ignored by the run. One picker for two operations with different
+  // capabilities is what made the option look available when it was not.
+  const [bulkTtsMode, setBulkTtsMode] = createSignal<BulkGenerationModeFor<'tts'>>('onlyEmpty');
+  const [bulkExampleMode, setBulkExampleMode] = createSignal<BulkGenerationModeFor<'examples'>>('onlyEmpty');
 
-  // Cutoff date for 'olderThan' mode (default: today in YYYY-MM-DD)
+  // Cutoff date for the TTS 'olderThan' mode (default: today in YYYY-MM-DD)
   const [bulkOlderThanDate, setBulkOlderThanDate] = createSignal(
     new Date().toISOString().slice(0, 10)
   );
@@ -174,25 +185,6 @@ export const FlashcardsContent: Component = () => {
     void refreshRepairFindings();
   };
 
-  const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
-
-  const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
-
-  const handleCloudOperationFallback = (error: unknown): boolean => {
-    if (isCloudSessionCancelled(error)) {
-      showToast({ message: t('mlearn.CloudReLogin.SignInCanceled'), variant: 'warning', duration: 5000 });
-      return true;
-    }
-
-    if (isCloudUnreachable(error)) {
-      showToast({ message: t('mlearn.AI.CloudUnreachable'), variant: 'error', duration: 6000 });
-      return true;
-    }
-
-    return false;
-  };
 
   const languageForCard = (card: Flashcard): string => card.language || settings.language;
   const languageDataForCard = (card: Flashcard) => {
@@ -323,7 +315,7 @@ export const FlashcardsContent: Component = () => {
           return await translateExampleSentence(text, sourceLanguage, language);
         },
         abortOnError: (error) => {
-          if (isCloudSessionCancelled(error) || isCloudUnreachable(error)) return true;
+          if (classifyProviderFailure(error, settings.llmProvider).yieldsNoResult) return true;
           log.error('Flashcard repair attempt failed', error);
           return false;
         },
@@ -337,7 +329,7 @@ export const FlashcardsContent: Component = () => {
         maxRetries: MAX_REPAIR_RETRIES,
       });
     } catch (error) {
-      handleCloudOperationFallback(error);
+      absorbProviderFailure(error, t, settings.llmProvider);
       removeToast(toastId);
       setRepairRunning(false);
       return;
@@ -377,6 +369,12 @@ export const FlashcardsContent: Component = () => {
 
   // Get flashcards from store (now it's a Record)
   const flashcards = createMemo(() => getAllCards());
+
+  // Multi-select state. The hook keeps the selection equal to the cards that
+  // still exist, so a card deleted from its own row - or by another window's
+  // commit - leaves the list without leaving the count behind.
+  const selection = useItemSelection(() => flashcards().map((card) => card.id));
+  const selected = selection.selected;
 
   const filterFields = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() => {
     const languageNames: Record<string, string> = {};
@@ -473,53 +471,49 @@ export const FlashcardsContent: Component = () => {
 
   // Queue counts for UI
   const counts = createMemo(() => queueCounts());
+  createEffect(() => {
+    if (counts().total > 0) setHasReviewedInSession(true);
+  });
   const suggestedCount = createMemo(() => getSuggestedFlashcardBadgeCount(getSuggestedFlashcardsSync));
 
-  const allFilteredSelected = createMemo(() => {
-    const ids = filteredFlashcards().map((card) => card.id);
-    if (ids.length === 0) return false;
-    const sel = selected();
-    return ids.every((id) => sel.has(id));
-  });
+  const allFilteredSelected = createMemo(() => selection.allSelected(filteredFlashcards().map((card) => card.id)));
 
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  const toggleSelect = (id: string) => selection.toggle(id);
 
   const toggleSelectAllFiltered = () => {
     const ids = filteredFlashcards().map((card) => card.id);
-    if (allFilteredSelected()) {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.delete(id);
-        return next;
-      });
-    } else {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.add(id);
-        return next;
-      });
-    }
+    if (allFilteredSelected()) selection.deselect(ids);
+    else selection.select(ids);
   };
 
-  const clearSelection = () => setSelected(new Set<string>());
-
+  /**
+   * Bulk removal of a hand-built selection. Deleting a card destroys the
+   * sentences and audio it was built from and there is no undo for it, so the
+   * bar asks first — the same way the single-row Delete does two buttons
+   * further down. This used to fire straight from the button: selecting all
+   * 449 cards in the running app and pressing Delete removed all 449 with no
+   * dialog, while the row action next to it asked.
+   */
   const handleBulkDelete = async () => {
     const ids = Array.from(selected());
-    if (ids.length === 0) return;
+    if (!requiresDestructiveConfirmation(ids.length)) return;
+    const confirmed = await showConfirm(buildDestructiveConfirmOptions({
+      count: ids.length,
+      titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
+      messageKey: 'mlearn.Flashcards.Modals.DeleteCard.ConfirmMany',
+    }, t));
+    if (!confirmed) return;
 
+    // The selection is narrowed, not cleared: a removal that did not land is
+    // still the learner's to retry and its row is still on screen, so sweeping
+    // it out of the selection would leave the bar reading as armed over rows
+    // it will not act on. The hook drops the ids the delete did claim on its
+    // own, because those rows are gone.
     let deleted = 0;
     for (const id of ids) {
-      const removed = await removeFlashcard(id, false);
-      if (removed) deleted += 1;
+      if (await removeFlashcard(id, false)) deleted += 1;
     }
 
-    clearSelection();
     showToast({ message: t('mlearn.Flashcards.Browse.DeletedCount', { count: String(deleted) }), variant: 'success' });
   };
 
@@ -566,7 +560,7 @@ export const FlashcardsContent: Component = () => {
     const provider = bulkAudioProvider();
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
     const cloudApiUrl = resolveCloudApiUrl(settings);
-    const cutoffDate = bulkMode() === 'olderThan'
+    const cutoffDate = bulkTtsMode() === 'olderThan'
       ? new Date(bulkOlderThanDate() + 'T23:59:59').getTime()
       : 0;
 
@@ -577,13 +571,21 @@ export const FlashcardsContent: Component = () => {
       scope: 'all',
       activeLanguage: settings.language,
       autoGenerateAudio: true,
-      ttsMode: bulkMode(),
+      ttsMode: bulkTtsMode(),
       olderThanCutoff: cutoffDate,
     }, ttsScanDeps(bridge, languageDataForCard));
 
     if (findings.length === 0) {
       showToast({ message: t('mlearn.Flashcards.Bulk.TtsAllDone'), variant: 'success' });
       return;
+    }
+
+    // Same one-click-to-discard shape as the Examples button, so it asks
+    // through the same owner. What is being thrown away is named per subject,
+    // so the prompt cannot claim sentences are at stake when they are not.
+    const plan = planBulkGeneration({ subject: 'tts', mode: bulkTtsMode(), cards }, t);
+    if (plan.requiresConfirmation && plan.confirmOptions) {
+      if (!await showConfirm(plan.confirmOptions)) return;
     }
 
     const startTime = Date.now();
@@ -608,7 +610,7 @@ export const FlashcardsContent: Component = () => {
         : await bridge.flashcards.generateFlashcardTts(
           job.cardId, job.text, job.language, job.field, provider, voiceSampleId, undefined, cloudApiUrl, preset)),
       abortOnError: (error) => {
-        if (handleCloudOperationFallback(error)) return true;
+        if (absorbProviderFailure(error, t, settings.llmProvider)) return true;
         log.error('Flashcard audio generation failed', error);
         return false;
       },
@@ -636,12 +638,29 @@ export const FlashcardsContent: Component = () => {
       include: ['example'],
       scope: 'all',
       activeLanguage: settings.language,
-      exampleMode: bulkMode() === 'replaceAll' ? 'replaceAll' : 'onlyEmpty',
+      exampleMode: bulkExampleMode() === 'replaceAll' ? 'replaceAll' : 'onlyEmpty',
     }, ttsScanDeps(getBridge(), languageDataForCard));
 
     if (findings.length === 0) {
       showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesAllDone'), variant: 'success' });
       return;
+    }
+
+    // "Regenerate all" rewrites examples that are already there, and an
+    // example is authored content: the card editor exposes it as editable rich
+    // text and the store remembers which fields the learner touched. In a real
+    // profile this button was one click away from overwriting 448 of 449
+    // cards, 9 of which carried a hand-edited meaning, with no prompt and no
+    // count on screen. The decision and its wording live in one owner so this
+    // button, the TTS button and any future bulk writer cannot each invent
+    // their own.
+    const plan = planBulkGeneration({
+      subject: 'examples',
+      mode: bulkExampleMode(),
+      cards: cards.filter((card) => findings.some((finding) => finding.card.id === card.id)),
+    }, t);
+    if (plan.requiresConfirmation && plan.confirmOptions) {
+      if (!await showConfirm(plan.confirmOptions)) return;
     }
 
     const startTime = Date.now();
@@ -684,12 +703,20 @@ export const FlashcardsContent: Component = () => {
     { value: 'cloud', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Cloud') },
   ]);
 
-  // Bulk mode options
-  const bulkModeOptions = createMemo(() => [
-    { value: 'onlyEmpty', label: t('mlearn.Flashcards.Bulk.ModeOnlyEmpty') },
-    { value: 'replaceAll', label: t('mlearn.Flashcards.Bulk.ModeReplaceAll') },
-    { value: 'olderThan', label: t('mlearn.Flashcards.Bulk.ModeOlderThan') },
-  ]);
+  // One vocabulary of modes, narrowed to the ones a subject can actually
+  // honour. The label is shared so "replace everything" cannot come to mean
+  // two different things in the two sections.
+  const bulkModeLabel = (mode: BulkGenerationMode): string => {
+    if (mode === 'onlyEmpty') return t('mlearn.Flashcards.Bulk.ModeOnlyEmpty');
+    if (mode === 'replaceAll') return t('mlearn.Flashcards.Bulk.ModeReplaceAll');
+    return t('mlearn.Flashcards.Bulk.ModeOlderThan');
+  };
+  const bulkModeOptionsFor = <M extends BulkGenerationMode>(modes: readonly M[]) =>
+    modes.map((mode) => ({ value: mode as string, label: bulkModeLabel(mode) }));
+  const ttsBulkModeOptions = createMemo(() =>
+    bulkModeOptionsFor(['onlyEmpty', 'replaceAll', 'olderThan'] as const));
+  const exampleBulkModeOptions = createMemo(() =>
+    bulkModeOptionsFor(['onlyEmpty', 'replaceAll'] as const));
 
   // Tab items for vertical navigation
   const tabs = createMemo<TabItem[]>(() => [
@@ -788,8 +815,12 @@ export const FlashcardsContent: Component = () => {
           {/* Review Tab */}
           <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review" hidden={activeTab() !== 'review'}>
           <Show when={activeTab() === 'review'}>
+            {/* "Nothing is due" and "this session finished" are different
+                product states: only the second is a completed session with a
+                way back into reviewing. The review surface owns that
+                distinction, so it stays mounted once work has been seen. */}
             <Show
-              when={counts().total > 0}
+              when={counts().total > 0 || hasReviewedInSession()}
               fallback={
                 <div class="flashcards-empty-container">
                   <EmptyState
@@ -803,7 +834,7 @@ export const FlashcardsContent: Component = () => {
                 </div>
               }
             >
-              <FlashcardReview />
+              <FlashcardReview onComplete={() => setHasReviewedInSession(true)} />
             </Show>
           </Show>
           </div>
@@ -982,30 +1013,6 @@ export const FlashcardsContent: Component = () => {
               <h2 class="flashcards-generate-title">{t('mlearn.Flashcards.UI.Tabs.Generate')}</h2>
               <p class="flashcards-generate-description">{t('mlearn.Flashcards.Bulk.GenerateDescription')}</p>
 
-              <div class="flashcards-generate-option">
-                <label class="flashcards-generate-label" for="flashcards-generate-mode">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
-                <Select
-                  id="flashcards-generate-mode"
-                  options={bulkModeOptions()}
-                  value={bulkMode()}
-                  onChange={(e) => setBulkMode(e.currentTarget.value as 'onlyEmpty' | 'replaceAll' | 'olderThan')}
-                  class="flashcards-generate-select"
-                />
-              </div>
-
-              <Show when={bulkMode() === 'olderThan'}>
-                <div class="flashcards-generate-option">
-                  <label class="flashcards-generate-label" for="flashcards-generate-older-than">{t('mlearn.Flashcards.Bulk.OlderThanDate')}</label>
-                  <Input
-                    id="flashcards-generate-older-than"
-                    type="date"
-                    value={bulkOlderThanDate()}
-                    onInput={(e) => setBulkOlderThanDate(e.currentTarget.value)}
-                    class="flashcards-generate-select"
-                  />
-                </div>
-              </Show>
-
               <div class="flashcards-generate-actions">
                 <Show when={isElectron()}>
                   <div class="flashcards-generate-section">
@@ -1015,6 +1022,29 @@ export const FlashcardsContent: Component = () => {
                     </div>
                     <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.TtsTooltip')}</p>
 
+                    <div class="flashcards-generate-option">
+                      <label class="flashcards-generate-label" for="flashcards-generate-tts-mode">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
+                      <Select
+                        id="flashcards-generate-tts-mode"
+                        options={ttsBulkModeOptions()}
+                        value={bulkTtsMode()}
+                        onChange={(e) => setBulkTtsMode(e.currentTarget.value as BulkGenerationModeFor<'tts'>)}
+                        class="flashcards-generate-select"
+                      />
+                    </div>
+
+                    <Show when={bulkTtsMode() === 'olderThan'}>
+                      <div class="flashcards-generate-option">
+                        <label class="flashcards-generate-label" for="flashcards-generate-tts-older-than">{t('mlearn.Flashcards.Bulk.OlderThanDate')}</label>
+                        <Input
+                          id="flashcards-generate-tts-older-than"
+                          type="date"
+                          value={bulkOlderThanDate()}
+                          onInput={(e) => setBulkOlderThanDate(e.currentTarget.value)}
+                          class="flashcards-generate-select"
+                        />
+                      </div>
+                    </Show>
                     <div class="flashcards-generate-option">
                       <label class="flashcards-generate-label" for="flashcards-generate-audio-preset">{t('mlearn.AI.Settings.FlashcardTTS.Preset.Label')}</label>
                       <FlashcardAudioPresetSelect id="flashcards-generate-audio-preset" value={bulkAudioPreset()} onChange={setBulkAudioPreset} />
@@ -1063,7 +1093,22 @@ export const FlashcardsContent: Component = () => {
                     <SparklesIcon size={18} />
                     <h3>{t('mlearn.Flashcards.Bulk.ExamplesButton')}</h3>
                   </div>
-                  <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.ExamplesTooltip')}</p>
+                  <p class="flashcards-generate-section-desc">
+                    <Show when={bulkExampleMode() === 'replaceAll'} fallback={t('mlearn.Flashcards.Bulk.ExamplesTooltip')}>
+                      {t('mlearn.Flashcards.Bulk.ExamplesReplaceAllTooltip')}
+                    </Show>
+                  </p>
+
+                  <div class="flashcards-generate-option">
+                    <label class="flashcards-generate-label" for="flashcards-generate-examples-mode">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
+                    <Select
+                      id="flashcards-generate-examples-mode"
+                      options={exampleBulkModeOptions()}
+                      value={bulkExampleMode()}
+                      onChange={(e) => setBulkExampleMode(e.currentTarget.value as BulkGenerationModeFor<'examples'>)}
+                      class="flashcards-generate-select"
+                    />
+                  </div>
 
                   <Button
                     size="md"
@@ -1194,6 +1239,7 @@ export const FlashcardsContent: Component = () => {
           </Show>
         </div>
       </Modal>
+      <ConfirmDialogElement />
     </div>
   );
 };

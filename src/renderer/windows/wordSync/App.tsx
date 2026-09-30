@@ -1,4 +1,5 @@
 import { projectedWordStatus } from '../../../shared/graph/targets';
+import { pushUndo } from '../../learning/undoHistory';
 import { surfaceEntityId } from '../../../shared/graph/load';
 import { getLogger } from '../../../shared/utils/logger';
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
@@ -17,21 +18,23 @@ import type { LearnerClaimOp } from '../../services/learnerClaimsInterpreter';
 import { buildClaimPromptContext } from '../../services/learnerClaimsInterpreter';
 import { CAPABILITY_LABEL_KEYS, isValidCapabilityId } from '../../../shared/graph/access';
 import type { WordStatus } from '../../../shared/constants';
-import { ATTEMPT_QUALITIES, type AttemptQuality } from '../../../shared/constants';
+import { worstAttemptQuality, type AttemptQuality } from '../../../shared/constants';
 import type { CapabilityKey } from '../../../shared/graph/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
+import type { PendingRetraction } from '../../../shared/retractionRecovery';
+import type { RetractionProjection } from '../../context/FlashcardContext';
 import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/prosodySettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
-import { KnowledgeSkeleton } from '../../components/common';
+import { KnowledgeLoadError, KnowledgeSkeleton } from '../../components/common';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { extractDefinitionValues } from '../../utils/translationCacheParsers';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
-import { isNativeActivationTarget, isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
+import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from '../../utils/ratingShortcuts';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import {
   getFrequencyLevelLabel,
@@ -47,6 +50,8 @@ import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter } from '../../learning/engine';
 import { studySessionState } from '../../learning/studySession';
+import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
+import { WriteStatusBanner } from '../../components/common';
 import { createStudySessionController, inProcessStudySessionLocks, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
 import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
@@ -99,7 +104,22 @@ interface RatingWrite {
   observations: readonly ProfileObservation[];
   timing: AttemptTiming | null;
   scaffolds: AttemptScaffolds;
-  phase: 'pending' | 'failed';
+}
+
+/**
+ * The projection a Word Sync Undo puts back: the learner returned to the
+ * position they were at before the rating being taken back.
+ *
+ * Opaque to the store and to the shared retraction protocol — this is
+ * Word Sync's own vocabulary, carried inside the shared record so a reloaded
+ * window can finish the Undo without one.
+ */
+interface WordSyncProjection {
+  session: WordSession;
+  ratedCount: number;
+  lastRating: AttemptQuality | null;
+  samplingLevel: number;
+  levelCursors: [number, number][];
 }
 
 interface WordSyncUndoEntry {
@@ -114,8 +134,6 @@ interface WordSyncUndoEntry {
   previousSession?: WordSession;
 }
 
-// Bounded undo history mirroring flashcard review (MAX_UNDO_STACK_SIZE there is also 50).
-const MAX_UNDO_STACK_SIZE = 50;
 
 export interface WordSyncContentProps {
   mode?: 'study' | 'assessment';
@@ -129,8 +147,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const {
     store,
     isLoading,
-    appendRetractions,
+    recordPendingRetraction,
+    completePendingRetraction,
+    recoverPendingRetraction,
+    registerRetractionProjection,
     recomputeWordKnowledgeFromEvidence,
+    wordRetractionTarget,
     setAccessClaim,
     setWordClaim,
     clearAccessClaim,
@@ -138,6 +160,26 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     isKnowledgeReady,
   } = useFlashcards();
 
+
+  /** A retraction that is still being filed blocks the actions that would
+   *  rewrite the same journal; a settled failure does not, so the learner's
+   *  only route forward stays open. */
+  const undoBlocking = () => isRetractionWriteBlocking(retractionWrite());
+
+  /**
+   * Whether there is a rating this surface could still take back.
+   *
+   * The stack is the memory signal, and `undoLastWordSyncRating` additionally
+   * requires a live session and a prompt on screen, so the visible control
+   * asks the same question the command does rather than a looser one. A
+   * button that appears where the command would decline is a worse lie than
+   * no button: the review surface gates on the same reason.
+   */
+  const canUndo = () => {
+    if (undoStack().length === 0) return false;
+    const controller = sessionController();
+    return !!controller?.current() && !controller.current()?.pending && currentWord() !== null;
+  };
 
   // ─── State ───────────────────────────────────────────
   const [currentWord, setCurrentWord] = createSignal<PoolEntry | null>(null);
@@ -158,9 +200,24 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const [, setSamplingLevel] = createSignal<number>(0);
   const [ratedCount, setRatedCount] = createSignal(0);
   const [ratingWrite, setRatingWrite] = createSignal<RatingWrite | null>(null);
-  const [undoPending, setUndoPending] = createSignal(false);
+  // Undo is a durable write (it appends a retraction) and is reported as
+  // one, through the same vocabulary as a rating. It previously collapsed to a
+  // boolean that reset in a `finally`, so a refused retraction vanished with no
+  // evidence and no retry.
+  const [retractionWrite, setRetractionWrite] = createSignal<RetractionWriteState>(null);
   const [sessionController, setSessionController] = createSignal<WordController | null>(null);
-  const [sessionStartFailed, setSessionStartFailed] = createSignal(false);
+  /**
+   * Why the durable session write was refused, or null when it is fine.
+   *
+   * This used to be a bare boolean rendered as `WordSync.SaveFailed` — copy
+   * for a *rating* that could not be saved. A refused session start has
+   * nothing to do with a rating, so the learner was told "this rating could
+   * not be saved" before answering anything. It is also set when a refused
+   * assessment dismissal cannot be reported by the study fallback at all,
+   * because a finished assessment keeps the shell gate true. One state, two
+   * named reasons, each rendered where it actually happens.
+   */
+  const [sessionWriteFailure, setSessionWriteFailure] = createSignal<'start' | 'dismiss' | null>(null);
   const [assessmentReady, setAssessmentReady] = createSignal(false);
   const [assessmentPlan, setAssessmentPlan] = createSignal<WordSyncAssessmentPool[]>([]);
   let retrySessionStart: (() => void) | null = null;
@@ -200,7 +257,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     setFilterOpen(false);
     filterTriggerRef?.focus();
   };
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
 
   const [undoStack, setUndoStack] = createSignal<WordSyncUndoEntry[]>([]);
 
@@ -530,10 +587,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
 
     let quality = record.meta.lastRating;
     if (outcome === 'rated' && record.pending) {
-      quality = 'fluent';
-      for (const observation of record.pending.payload.observations) {
-        if (ATTEMPT_QUALITIES.indexOf(observation.quality) < ATTEMPT_QUALITIES.indexOf(quality)) quality = observation.quality;
-      }
+      quality = worstAttemptQuality(record.pending.payload.observations.map((observation) => observation.quality));
       const previousLevel = levels.indexOf(lvl);
       if (quality === 'missed' && previousLevel > 0) lvl = levels[previousLevel - 1];
       else if (quality === 'fluent' && previousLevel < levels.length - 1) lvl = levels[previousLevel + 1];
@@ -607,20 +661,16 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       onAcknowledged: (before, _after, pending) => {
         const word = entryByWord.get(before.queue[before.index].id);
         if (!word) return;
-        setUndoStack((previous) => {
-          const next = [...previous, {
-            word,
-            language: pending.payload.language,
-            attemptIds: [pending.attemptId],
-            previousRatedCount: before.rated,
-            previousLastRating: before.meta.lastRating,
-            previousSamplingLevel: before.meta.samplingLevel,
-            previousLevelCursors: new Map(levelCursors),
-            previousSession: { ...before, pending: undefined, revealed: false },
-          }];
-          if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-          return next;
-        });
+        setUndoStack((previous) => pushUndo(previous, {
+          word,
+          language: pending.payload.language,
+          attemptIds: [pending.attemptId],
+          previousRatedCount: before.rated,
+          previousLastRating: before.meta.lastRating,
+          previousSamplingLevel: before.meta.samplingLevel,
+          previousLevelCursors: new Map(levelCursors),
+          previousSession: { ...before, pending: undefined, revealed: false },
+        }));
       },
     });
   }
@@ -628,7 +678,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   // One logical attempt and one reactive update: row writes must not repeatedly
   // rebuild knowledge consumers before the next word can render.
   const commitProfileRating = async (write: Pick<RatingWrite, 'word' | 'language' | 'observations' | 'timing' | 'scaffolds'>): Promise<void> => {
-    if (undoPending()) return;
+    if (undoBlocking()) return;
     const controller = sessionController();
     const current = controller?.current();
     if (!controller || !current || current.queue[current.index]?.id !== write.word.word) return;
@@ -662,7 +712,6 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       observations: pending.payload.observations,
       timing: pending.payload.timing,
       scaffolds: pending.payload.scaffolds,
-      phase: pending.state,
     });
   }));
 
@@ -788,7 +837,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     if (controller && record && !await controller.clear(record)) return;
     controller?.dispose();
     setSessionController(null);
-    setSessionStartFailed(false);
+    setSessionWriteFailure(null);
     retrySessionStart = null;
     stopWordTiming();
     setRatingWrite(null);
@@ -810,18 +859,57 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   }
 
   async function undoLastWordSyncRating() {
-    if (ratingWrite() !== null || undoPending()) return;
+    if (ratingWrite() !== null || undoBlocking()) return;
     const stack = undoStack();
     const undoEntry = stack[stack.length - 1];
     const controller = sessionController();
     const current = controller?.current();
     if (!undoEntry?.previousSession || !controller || !current || current.pending) return;
-    setUndoPending(true);
+    setRetractionWrite('pending');
     try {
       // The observation is durable first; retrying uses the same persisted
       // attempt ids and the journal append is idempotent.
-      if (!await appendRetractions(undoEntry.word.word, undoEntry.language, undoEntry.attemptIds)) return;
-      if (!await controller.undo(current, undoEntry.previousSession)) return;
+      //
+      // A refusal here is a real, recoverable outcome, not an early return:
+      // the rating stays applied and the learner must be able to see that and
+      // try again. This write used to fall through a `finally` that simply
+      // cleared a boolean, so a failed undo looked identical to a successful
+      // one — the keystroke did nothing and said nothing.
+      // Record the decision BEFORE retracting, so a reload between here and
+      // completion can finish it. The undo stack is a memory signal: without
+      // this the retraction was reachable only from the window that decided
+      // it, and reloading left the rating applied with nothing able to take it
+      // back — the retraction looked like it had simply never happened.
+      const previousSession = undoEntry.previousSession;
+      const record = wordSyncRetraction({ ...undoEntry, previousSession });
+      if (!await recordPendingRetraction(record)) {
+        // The record itself was refused: nothing has been retracted yet, so the
+        // rating is untouched and the learner must be told rather than left
+        // believing the undo landed.
+        setRetractionWrite('failed');
+        return;
+      }
+      // The session rewind is this surface's projection, and it goes through
+      // the same protocol the recovery path uses — one owner, so an interactive
+      // Undo and a recovered one cannot drift apart.
+      const outcome = await completePendingRetraction(
+        record,
+        () => wordSyncProjection(controller, {
+          session: previousSession,
+          ratedCount: undoEntry.previousRatedCount,
+          lastRating: undoEntry.previousLastRating,
+          samplingLevel: undoEntry.previousSamplingLevel,
+          levelCursors: [...undoEntry.previousLevelCursors.entries()],
+        }),
+      );
+      if (outcome !== 'completed') {
+        // Refused or superseded. Either way the rating is still applied and the
+        // record is still there, so the learner is told and can try again —
+        // which finishes this exact Undo, not a new one.
+        setRetractionWrite('failed');
+        return;
+      }
+      setRetractionWrite(null);
 
       setUndoStack((prev) => prev.slice(0, -1));
 
@@ -841,26 +929,142 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         // comes back collapsed with no stale drafts from the retracted attempt.
         setPresentationCount((c) => c + 1);
       });
-    } finally {
-      setUndoPending(false);
+    } catch (error) {
+      // Reported, not thrown: the failure is already durable state the banner
+      // renders and can retry. Rethrowing would only add an unhandled rejection
+      // on top of the same information.
+      log.warn('Failed to persist Word Sync undo:', error);
+      setRetractionWrite('failed');
     }
   }
 
+  /**
+   * This surface's projection: the learner goes back to where they were before
+   * the rating being taken back.
+   *
+   * One definition, used by the interactive Undo and by a reloaded window
+   * finishing an interrupted one. Building it is where the session rewind
+   * happens — before the retraction record is cleared — so a rewind that
+   * cannot be applied leaves the record standing and the next load retries,
+   * rather than the Undo looking finished with the learner somewhere they
+   * never chose.
+   */
+  const wordSyncProjection = async (
+    controller: WordController,
+    projection: WordSyncProjection,
+  ): Promise<RetractionProjection> => {
+    const session = controller.current();
+    if (!session || !await controller.undo(session, projection.session)) {
+      throw new Error('Word Sync undo could not restore the session position');
+    }
+    return () => {
+      batch(() => {
+        setRatedCount(projection.ratedCount);
+        setLastRating(projection.lastRating);
+        setSamplingLevel(projection.samplingLevel);
+        levelCursors = new Map(projection.levelCursors);
+        setFinished(false);
+        setShowAnswer(false);
+        setShowTranslation(false);
+        setTranslationSeenAtPrompt(false);
+        setPresentationCount((c) => c + 1);
+      });
+    };
+  };
+
+  /** This surface's record for a decided Undo. */
+  const wordSyncRetraction = (undoEntry: WordSyncUndoEntry & { previousSession: WordSession }): PendingRetraction => ({
+    attemptId: undoEntry.attemptIds.join(','),
+    surface: 'word-sync',
+    word: undoEntry.word.word,
+    language: undoEntry.language,
+    attemptIds: [...undoEntry.attemptIds],
+    // Taken from the context rather than re-derived here, so a window finishing
+    // an interrupted Undo writes its tombstones to the same form-family keys
+    // this attempt actually landed under.
+    target: wordRetractionTarget(undoEntry.word.word, undoEntry.language),
+    restore: {
+      session: undoEntry.previousSession,
+      ratedCount: undoEntry.previousRatedCount,
+      lastRating: undoEntry.previousLastRating,
+      samplingLevel: undoEntry.previousSamplingLevel,
+      levelCursors: [...undoEntry.previousLevelCursors.entries()],
+    } satisfies WordSyncProjection,
+  });
+
+  /**
+   * Finish an Undo that a previous window decided but did not complete.
+   *
+   * The undo stack is a memory signal, so a window that reloaded mid-undo used
+   * to lose the ability to take that rating back entirely — the attempt stayed
+   * in the journal and no surface could retract it. The durable record written
+   * before the retraction is what makes the promise hold across a reload: the
+   * retraction is completed here, and the session is put back where the learner
+   * left it.
+   *
+   * It waits for the controller because restoring a session position is the
+   * controller's write, and it is deliberately not offered as a choice — the
+   * learner already asked for this undo; finishing it is completing their
+   * request, not starting new work.
+   */
+  // How this surface puts its own state back. Registered rather than passed to
+  // recovery so a reloaded window finishes an interrupted Undo by claiming the
+  // record under its own tag, exactly as the review surface does — the shared
+  // protocol does not need to know which surface an Undo came from.
+  createEffect(() => {
+    const controller = sessionController();
+    if (!controller) return;
+    const unregister = registerRetractionProjection('word-sync', async (record) => {
+      const projection = record.restore as WordSyncProjection;
+      // Rewinding the session is this surface's own durable write, so it
+      // happens while the projection is being built — before the retraction
+      // record is cleared. A refusal here throws, the record survives, and the
+      // next load tries again, rather than the Undo looking finished with the
+      // learner left somewhere they never chose.
+      const session = controller.current();
+      if (!session || !await controller.undo(session, projection.session)) {
+        throw new Error('Word Sync undo recovery could not restore the session position');
+      }
+      return () => {
+        batch(() => {
+          setRatedCount(projection.ratedCount);
+          setLastRating(projection.lastRating);
+          setSamplingLevel(projection.samplingLevel);
+          levelCursors = new Map(projection.levelCursors);
+          setFinished(false);
+          setShowAnswer(false);
+          setShowTranslation(false);
+          setTranslationSeenAtPrompt(false);
+          setPresentationCount((c) => c + 1);
+        });
+      };
+    });
+    if (unregister) onCleanup(unregister);
+  });
+
+  // Finish an Undo a previous window decided but did not complete.
+  createEffect(on(() => [isKnowledgeReady(), sessionController()] as const, ([ready, controller]) => {
+    if (!ready || !controller) return;
+    void recoverPendingRetraction();
+  }));
+
   // ─── Keyboard shortcuts ─────────────────────────────
   function handleKeyDown(e: KeyboardEvent) {
-    if (isRatingKeyIgnored(e) || ratingWrite() !== null || undoPending()) return;
+    if (isRatingKeyIgnored(e)) return;
+    // A pending write blocks undo only; the rest of the surface stays live.
     if (isUndoShortcut(e)) {
       e.preventDefault();
+      if (isBlockedByPendingWrite('undo', ratingWrite() !== null || undoBlocking())) return;
       void undoLastWordSyncRating();
       return;
     }
-    if (e.key === ' ' || e.key === 'Enter') {
-      if (isNativeActivationTarget(e)) return;
+    if (isRevealKey(e)) {
       e.preventDefault();
       e.stopImmediatePropagation();
       if (!finished() && currentWord() && !showAnswer()) reveal();
       return;
     }
+    if (ratingWrite() !== null || undoBlocking()) return;
     if (isNativeActivationTarget(e)) return;
 
     if (finished()) return;
@@ -885,7 +1089,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   createEffect(on(() => [settings.language, langCtx.getWordFrequency(), langCtx.currentLangData(), getLearningLanguageLevelForLanguage(settings, settings.language)] as const, () => batch(() => {
     sessionController()?.dispose();
     setSessionController(null);
-    setSessionStartFailed(false);
+    setSessionWriteFailure(null);
     retrySessionStart = null;
     stopWordTiming();
     setRatingWrite(null);
@@ -918,7 +1122,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         trace('projection not ready');
         sessionController()?.dispose();
         setSessionController(null);
-        setSessionStartFailed(false);
+        setSessionWriteFailure(null);
         retrySessionStart = null;
         setRatingWrite(null);
         setSessionQueue(undefined);
@@ -1012,7 +1216,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       const controller = createWordController(identity, storageKey, entryByWord, true);
       setSessionController(controller);
       setAssessmentReady(true);
-      setSessionStartFailed(false);
+      setSessionWriteFailure(null);
       retrySessionStart = null;
       setQueueSummary({ ignored: 0, filtered: 0, noPrompt: 0 });
       const existing = controller.current();
@@ -1044,7 +1248,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           lastRating: null,
           assessment: state,
         }).then((accepted) => {
-          setSessionStartFailed(!accepted && !activeController.current());
+          setSessionWriteFailure(!accepted && !activeController.current() ? 'start' : null);
           if (activeController.current()) pickNext();
         });
       };
@@ -1078,7 +1282,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           samplingLevel: sortedLevels()[0] ?? 0,
           lastRating: null,
         }).then((accepted) => {
-          setSessionStartFailed(!accepted && !controller.current());
+          setSessionWriteFailure(!accepted && !controller.current() ? 'start' : null);
           if (controller.current()) pickNext();
         });
       };
@@ -1267,7 +1471,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     const controller = sessionController();
     const record = controller?.current();
     if (controller && record && !await controller.clear(record)) {
-      setSessionStartFailed(true);
+      // A refused clear discards nothing, so say so where the learner is
+      // looking (the summary they just pressed Dismiss on) instead of
+      // silently doing nothing.
+      setSessionWriteFailure('dismiss');
       return;
     }
     setUndoStack([]);
@@ -1276,7 +1483,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     setRatedCount(0);
     setShowAnswer(false);
     setShowTranslation(false);
-    setSessionStartFailed(false);
+    setSessionWriteFailure(null);
   };
 
   return (
@@ -1327,7 +1534,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 controller?.dispose();
                 batch(() => {
                   setSessionController(null);
-                  setSessionStartFailed(false);
+                  setSessionWriteFailure(null);
                   retrySessionStart = null;
                   setRatingWrite(null);
                   setSessionQueue(undefined);
@@ -1377,20 +1584,23 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     {/* Keep the session shell mounted while the next prompt materializes. */}
     <Show when={!langCtx.isLoading() && !isLoading() && isKnowledgeReady() && !!sessionQueue()
       && (assessmentMode() ? assessmentReady() : !!sessionController()?.current()) && !projectionUnavailable()} fallback={
-      <Show when={sessionStartFailed()} fallback={
+      <Show when={sessionWriteFailure() === 'start'} fallback={
         <Show when={projectionUnavailable()} fallback={
           <Show when={!assessmentMode() && !filterValidation().ok} fallback={<KnowledgeSkeleton variant="word-sync" />}>
             <p role="alert">{t('mlearn.WordSync.InvalidFilter')}</p>
           </Show>
         }>
-          <div class="word-sync-projection-error" role="alert">
-            <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
-            <Button variant="primary" onClick={retryKnowledgeProjections}>{t('mlearn.Global.TryAgain')}</Button>
-          </div>
+          <KnowledgeLoadError
+            message={t('mlearn.WordSync.ProjectionUnavailable')}
+            onRetry={retryKnowledgeProjections}
+            class="word-sync-projection-error"
+          />
         </Show>
       }>
         <div class="word-sync-projection-error" role="alert">
-          <p>{t('mlearn.WordSync.SaveFailed')}</p>
+          {/* Session start is not a rating: the saved answers are untouched
+              and no word was ever shown, so the rating copy would be a lie. */}
+          <p>{t('mlearn.WordSync.SessionStartFailed')}</p>
           <Button variant="primary" onClick={() => retrySessionStart?.()}>{t('mlearn.Global.TryAgain')}</Button>
         </div>
       </Show>
@@ -1446,6 +1656,18 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
               </For>
             </ul>
             <p>{t('mlearn.LevelStudy.Placement.EvidenceNote', { count: result().sampledCount })}</p>
+            {/* A refused dismissal keeps this summary mounted, so the study
+                layout's fallback never renders and the refusal would be
+                invisible. It is reported here, next to the button that caused
+                it, with a retry that is the same button. */}
+            <Show when={sessionWriteFailure() === 'dismiss'}>
+              <div class="word-sync-projection-error" role="alert">
+                <p>{t('mlearn.WordSync.DismissFailed')}</p>
+                <Button variant="primary" onClick={() => void dismissAssessment()}>
+                  {t('mlearn.Global.TryAgain')}
+                </Button>
+              </div>
+            </Show>
             <div class="word-sync-assessment-summary__actions">
               <Show when={assessmentLevel() !== null}>
                 <Button variant="primary" onClick={applyAssessmentRecommendation}>
@@ -1468,30 +1690,46 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
               <p class="word-sync-assessment-card__prompt" data-word={word().word}>
                 {t('mlearn.LevelStudy.Placement.Prompt', { word: word().word })}
               </p>
-              <Show when={ratingWrite()?.phase === 'pending'}>
-                <div role="status" aria-live="polite">{t('mlearn.WordSync.SavingRating')}</div>
+              <WriteStatusBanner
+                status={sessionPresentation().write}
+                savingLabelKey="mlearn.WordSync.SavingRating"
+                failedLabelKey="mlearn.WordSync.SaveFailed"
+                canRetry={ratingWrite() !== null}
+                onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
+              />
+              <Show when={canUndo()}>
+                <Button
+                  buttonType="default"
+                  variant="ghost"
+                  size="xs"
+                  disabled={ratingWrite() !== null || undoBlocking()}
+                  onClick={() => { void undoLastWordSyncRating(); }}
+                  title={t('mlearn.WordSync.UndoTooltip')}
+                >
+                  {t('mlearn.WordSync.Undo')}
+                </Button>
               </Show>
-              <Show when={ratingWrite()?.phase === 'failed'}>
-                <div role="alert">
-                  <span>{t('mlearn.WordSync.SaveFailed')}</span>
-                  <Button variant="primary" size="sm" onClick={() => {
-                    const failed = ratingWrite();
-                    if (failed?.phase === 'failed') void commitProfileRating(failed);
-                  }}>{t('mlearn.Global.TryAgain')}</Button>
-                </div>
-              </Show>
+              {/* Undo is reachable in assessment mode too (it shares the undo
+                  stack), so its write must be reported here as well. */}
+              <WriteStatusBanner
+                status={retractionWrite()}
+                savingLabelKey="mlearn.WordSync.SavingUndo"
+                failedLabelKey="mlearn.WordSync.UndoSaveFailed"
+                canRetry={canRetryRetraction(retractionWrite())}
+                onRetry={() => { void undoLastWordSyncRating(); }}
+              />
               <RatingMatrix
                 capabilities={testedAccesses()}
                 capabilityLabels={{}}
                 keyboardMode={settings.ratingKeyboardMode}
                 resetKey={`${word().word}:${presentationCount()}`}
                 armed={sessionPresentation().canRate && !!currentWord() && !finished()
-                  && ratingWrite() === null && !undoPending()
+                  && ratingWrite() === null && !undoBlocking()
                   && (currentProjection.projection()?.status === 'ready'
                     || (currentProjection.projection() === undefined && !currentProjection.loading()))}
                 onSubmit={handleSubmitProfile}
               />
-              <Button variant="ghost" disabled={!sessionPresentation().canRate || ratingWrite() !== null || undoPending()} onClick={skipCurrentWord}>
+              <Button variant="ghost" disabled={!sessionPresentation().canRate || ratingWrite() !== null || undoBlocking()} onClick={skipCurrentWord}>
                 {t('mlearn.LevelStudy.Placement.Skip')}
               </Button>
             </section>
@@ -1550,7 +1788,13 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
               <Show when={showAnswer() && translation.state === 'ready' && !translationText()}>
                 <div role="alert">
                   <p>{t('mlearn.WordSync.AnswerUnavailable')}</p>
-                  <Button onClick={() => refetchTranslation()}>{t('mlearn.Global.TryAgain')}</Button>
+                  {/* An unanswerable word cannot be rated, so retrying alone
+                      leaves the session parked on it. Skipping is the way out,
+                      the same escape the assessment surface offers. */}
+                  <div class="word-sync-unavailable-actions">
+                    <Button onClick={() => refetchTranslation()}>{t('mlearn.Global.TryAgain')}</Button>
+                    <Button variant="ghost" onClick={skipCurrentWord}>{t('mlearn.WordSync.SkipWord')}</Button>
+                  </div>
                 </div>
               </Show>
               <div class="word-sync-answer-options">
@@ -1583,18 +1827,40 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           )}
         </Show>
         <div class="word-sync-actions">
-          <Show when={ratingWrite()?.phase === 'pending'}>
-            <div class="word-sync-rating-write" role="status" aria-live="polite">{t('mlearn.WordSync.SavingRating')}</div>
+          {/* One rating model, one visible way to take it back. The review
+              surface has always shown this; Word Sync had the machinery and
+              only the keyboard, so the same action read as absent. */}
+          <Show when={canUndo()}>
+            <Button
+              buttonType="default"
+              variant="ghost"
+              size="xs"
+              class="word-sync-undo"
+              disabled={ratingWrite() !== null || undoBlocking()}
+              onClick={() => { void undoLastWordSyncRating(); }}
+              title={t('mlearn.WordSync.UndoTooltip')}
+            >
+              {t('mlearn.WordSync.Undo')}
+            </Button>
           </Show>
-          <Show when={ratingWrite()?.phase === 'failed'}>
-            <div class="word-sync-rating-write word-sync-rating-write--failed" role="alert">
-              <span>{t('mlearn.WordSync.SaveFailed')}</span>
-              <Button variant="primary" size="sm" onClick={() => {
-                const failed = ratingWrite();
-                if (failed?.phase === 'failed') void commitProfileRating(failed);
-              }}>{t('mlearn.Global.TryAgain')}</Button>
-            </div>
-          </Show>
+          <WriteStatusBanner
+            status={sessionPresentation().write}
+            savingLabelKey="mlearn.WordSync.SavingRating"
+            failedLabelKey="mlearn.WordSync.SaveFailed"
+            canRetry={ratingWrite() !== null}
+            onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
+            class="word-sync-rating-write"
+            failedClass="word-sync-rating-write--failed"
+          />
+          <WriteStatusBanner
+            status={retractionWrite()}
+            savingLabelKey="mlearn.WordSync.SavingUndo"
+            failedLabelKey="mlearn.WordSync.UndoSaveFailed"
+            canRetry={canRetryRetraction(retractionWrite())}
+            onRetry={() => { void undoLastWordSyncRating(); }}
+            class="word-sync-rating-write"
+            failedClass="word-sync-rating-write--failed"
+          />
           <RatingMatrix
             capabilities={testedAccesses()}
             capabilityLabels={Object.fromEntries(testedAccesses().map((capability) => {
@@ -1609,7 +1875,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
             armed={sessionPresentation().canRate && translation.state === 'ready' && !!translationText() && !!currentWord() && !finished()
-              && ratingWrite() === null && !undoPending()
+              && ratingWrite() === null && !undoBlocking()
               && (currentProjection.projection()?.status === 'ready'
                 || (currentProjection.projection() === undefined && !currentProjection.loading()))}
             onSubmit={handleSubmitProfile}

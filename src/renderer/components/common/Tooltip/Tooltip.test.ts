@@ -95,6 +95,28 @@ describe('Tooltip', () => {
     dispose();
   });
 
+  // Regression: an inline `transform: translateX(-50%)` overrode the
+  // `.tooltip-content--top { transform: translateX(-50%) translateY(-100%) }`
+  // class rule, so a "top" tooltip rendered AT its trigger's top edge instead
+  // of above it. An interactive tooltip then hung down over its own trigger
+  // and swallowed the pointer events for its own buttons (the knowledge pill
+  // became unclickable with a real mouse).
+  //
+  // Placement is owned entirely by the position modifier class; the component
+  // must not restate a transform inline that silently wins over it.
+  it('leaves transform placement to the position class', async () => {
+    for (const position of ['top', 'bottom'] as const) {
+      const { dispose } = await renderTooltip({ position, interactive: true });
+      const trigger = container.querySelector('.tooltip-trigger')!;
+      trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      const content = document.body.querySelector('.tooltip-content') as HTMLElement;
+      expect(content.style.transform, `${position} must not inline transform`).toBe('');
+      dispose();
+      container = document.createElement('div');
+      document.body.appendChild(container);
+    }
+  });
+
   it('applies position class bottom when specified', async () => {
     const { dispose } = await renderTooltip({ position: 'bottom' });
     const trigger = container.querySelector('.tooltip-trigger')!;

@@ -14,7 +14,12 @@ import '../SettingsForm.css';
 import { getLogger } from '../../../../shared/utils/logger';
 import { isElectron } from '../../../../shared/platform';
 import type { ProtectionStatus, RecoveryPointSummary } from '../../../../shared/guardian';
-import { LanguageVariantGate } from '../../../components/common';
+import { LanguageVariantGate, useConfirmDialog } from '../../../components/common';
+import { showToast } from '../../../components/common/Feedback/Toast';
+import {
+  buildDestructiveDataConfirm,
+  destructiveDataAction,
+} from '../destructiveDataAction';
 import { getBilingualLanguageName, getNativeLanguageName } from '../../../utils/languageDisplayName';
 
 const log = getLogger("renderer.settings.general");
@@ -68,6 +73,7 @@ function languageDataActionLabel(status: InstallableDataStatus, installing: bool
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings, saveSettings } = useSettings();
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const { t } = useLocalization();
   const {
     langData,
@@ -88,6 +94,10 @@ export const GeneralTab: Component = () => {
   const [recoveryPoints, setRecoveryPoints] = createSignal<RecoveryPointSummary[] | null>(null);
   const [recoveryBusy, setRecoveryBusy] = createSignal(false);
   const [recoveryError, setRecoveryError] = createSignal<'LoadError' | 'RestoreError' | null>(null);
+  // One format for the point's date, so the row and the prompt that names the
+  // same point cannot show two different dates for it.
+  const formatRecoveryPointDate = (createdAt: string | number) =>
+    new Intl.DateTimeFormat(settings.uiLanguage, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(createdAt));
   const showRecoveryPoints = async () => {
     setRecoveryBusy(true);
     setRecoveryError(null);
@@ -95,12 +105,23 @@ export const GeneralTab: Component = () => {
     catch (error) { log.warn('Failed to list recovery points', error); setRecoveryError('LoadError'); }
     finally { setRecoveryBusy(false); }
   };
-  const restoreRecoveryPoint = async (id: string) => {
+  /**
+   * Restoring a recovery point replaces the live profile, so it is confirmed
+   * here rather than by a dialog the main process opens behind the window's
+   * back: the copy that reads the date lives next to the list of points it
+   * applies to, and the one-click `showMessageBox` it used to raise appeared
+   * with no context about which point had been picked.
+   */
+  const restoreRecoveryPoint = async (point: RecoveryPointSummary) => {
+    const action = destructiveDataAction('restoreRecoveryPoint');
+    const params = { date: formatRecoveryPointDate(point.createdAt) };
+    if (!await showConfirm(buildDestructiveDataConfirm({ ...action, params }, t))) return;
     setRecoveryBusy(true);
     setRecoveryError(null);
     try {
-      const result = await getBridge().data.restoreRecoveryPoint(id);
+      const result = await getBridge().data.restoreRecoveryPoint(point.id);
       if (result.error) { log.warn('Failed to prepare recovery point', result.error); setRecoveryError('RestoreError'); }
+      else showToast({ message: t(action.successKey), variant: 'success' });
     } catch (error) { log.warn('Failed to prepare recovery point', error); setRecoveryError('RestoreError'); }
     finally { setRecoveryBusy(false); }
   };
@@ -232,7 +253,7 @@ export const GeneralTab: Component = () => {
         updateSettings(filteredSettings);
         saveSettings();
         
-        alert(t('mlearn.Global.Success'));
+        showToast({ message: t('mlearn.Settings.Data.ImportSettings.Success'), variant: 'success' });
       } catch (e) {
         log.error('Failed to import settings:', e);
         setImportError(t('mlearn.Settings.UI.SaveError'));
@@ -261,12 +282,13 @@ export const GeneralTab: Component = () => {
 
   const handleImportData = async () => {
     setDataImportError(null);
-    if (!confirm(t('mlearn.Settings.Data.ImportAllData.Confirm'))) return;
+    const action = destructiveDataAction('importAllData');
+    if (!await showConfirm(buildDestructiveDataConfirm(action, t))) return;
     setDataImporting(true);
     try {
       const result = await getBridge().data.dataImport();
       if (result.success) {
-        alert(t('mlearn.Settings.Data.ImportAllData.Success'));
+        showToast({ message: t(action.successKey), variant: 'success' });
         // Restart to reload all imported data
         getBridge().server.restartApp();
       } else if (result.error) {
@@ -280,12 +302,12 @@ export const GeneralTab: Component = () => {
     }
   };
 
-  const handleResetSettings = () => {
-    if (confirm(t('mlearn.Settings.UI.ResetConfirm'))) {
-      updateSettings(DEFAULT_SETTINGS);
-      saveSettings();
-      alert(t('mlearn.Settings.UI.ResetSuccess'));
-    }
+  const handleResetSettings = async () => {
+    const action = destructiveDataAction('resetSettings');
+    if (!await showConfirm(buildDestructiveDataConfirm(action, t))) return;
+    updateSettings(DEFAULT_SETTINGS);
+    saveSettings();
+    showToast({ message: t(action.successKey), variant: 'success' });
   };
 
   return (
@@ -557,12 +579,12 @@ export const GeneralTab: Component = () => {
                 <For each={points()}>
                   {(point) => <div class="setting-recovery-point">
                     <div>
-                      <strong>{new Intl.DateTimeFormat(settings.uiLanguage, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(point.createdAt))}</strong>
+                      <strong>{formatRecoveryPointDate(point.createdAt)}</strong>
                       <span>{t('mlearn.Settings.Data.Guardian.PointSummary', {
                         cards: point.cards, rooms: point.rooms, participants: point.participants,
                       })}</span>
                     </div>
-                    <Button size="sm" variant="danger" onClick={() => { void restoreRecoveryPoint(point.id); }} disabled={recoveryBusy()}>
+                    <Button size="sm" variant="danger" onClick={() => { void restoreRecoveryPoint(point); }} disabled={recoveryBusy()}>
                       {t('mlearn.Settings.Data.Guardian.Restore')}
                     </Button>
                   </div>}
@@ -591,6 +613,7 @@ export const GeneralTab: Component = () => {
             {dataImportError() && <span class="setting-error">{dataImportError()}</span>}
           </SettingRow>
         </SettingGroup>
+      <ConfirmDialogElement />
     </TabContent>
   );
 };

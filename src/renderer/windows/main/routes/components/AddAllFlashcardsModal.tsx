@@ -2,15 +2,50 @@ import { Component, For, Show, createEffect, createMemo, createSignal } from 'so
 import { Button, CheckboxCard, LEVEL_VALUE_BEYOND_EXAM, Modal, PillLabel, Select, type SelectOption } from '../../../../components/common';
 import { useLanguage, useLocalization } from '../../../../context';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, isDisplayableFrequencyLevel, isFrequencyLevelAtOrEasierThanTarget, sortFrequencyLevelsForDisplay } from '../../../../../shared/languageFeatures';
-import type { ReaderUnknownWordEntry } from './ReaderUnknownWordsSidebar';
 import './AddAllFlashcardsModal.css';
+
+/**
+ * The confirm step for "Add all" in an unknown-words sidebar.
+ *
+ * Creating a flashcard is easy to repeat and hard to undo, so the same button
+ * in the Reader and in the Video has to stop and show what is about to happen.
+ * Observed in the running app: the Reader's button opened this modal, the
+ * Video's created a card the moment it was pressed, with no dialog at all. Both
+ * buttons are the same control on the same sidebar component.
+ *
+ * Step one narrows by level and by whether a dictionary found the word. Step two
+ * lists the exact words that will be created, each individually tickable, so
+ * the count on the button is never a black box.
+ *
+ * The surface supplies its own wording keys, because the list of entries is
+ * built differently upstream but the decision being confirmed is the same.
+ */
+export interface AddAllFlashcardsEntry {
+  key: string;
+  word: string;
+}
+
+export interface AddAllFlashcardsModalLabels {
+  title: string;
+  wordListTitle: string;
+  levelFilter: string;
+  levelFilterDescription: string;
+  dictionaryFilter: string;
+  dictionaryFilterDescription: string;
+  deselectAll: string;
+  selectAll: string;
+  addSelected: (count: number) => string;
+  addAll: (count: number) => string;
+  addChecked: (count: number) => string;
+}
 
 interface AddAllFlashcardsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  allEntries: ReaderUnknownWordEntry[];
-  dictionaryEntries: ReaderUnknownWordEntry[];
-  onAdd: (entries: ReaderUnknownWordEntry[]) => void;
+  allEntries: AddAllFlashcardsEntry[];
+  dictionaryEntries: AddAllFlashcardsEntry[];
+  labels: AddAllFlashcardsModalLabels;
+  onAdd: (entries: AddAllFlashcardsEntry[]) => void;
 }
 
 export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (props) => {
@@ -84,9 +119,9 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
     if (!useLevel && !useDict) return [];
 
     const seen = new Set<string>();
-    const result: ReaderUnknownWordEntry[] = [];
+    const result: AddAllFlashcardsEntry[] = [];
 
-    const collect = (entries: ReaderUnknownWordEntry[]) => {
+    const collect = (entries: AddAllFlashcardsEntry[]) => {
       for (const entry of entries) {
         if (!seen.has(entry.key)) {
           seen.add(entry.key);
@@ -161,7 +196,7 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
     <Modal
       isOpen={props.isOpen}
       onClose={props.onClose}
-      title={showWordList() ? t('mlearn.Reader.Sidebar.AddModal.WordListTitle') : t('mlearn.Reader.Sidebar.AddModal.Title')}
+      title={showWordList() ? props.labels.wordListTitle : props.labels.title}
       size="lg"
       footer={
         <Show when={showWordList()} fallback={
@@ -174,8 +209,8 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
             <Button
               variant="primary"
               label={anyFilterEnabled()
-                ? t('mlearn.Reader.Sidebar.AddModal.AddSelected', { count: selectedEntries().length })
-                : t('mlearn.Reader.Sidebar.AddModal.AddAll', { count: props.allEntries.length })
+                ? props.labels.addSelected(selectedEntries().length)
+                : props.labels.addAll(props.allEntries.length)
               }
               onClick={handleProceedToConfirm}
               disabled={anyFilterEnabled() ? selectedEntries().length === 0 : props.allEntries.length === 0}
@@ -190,7 +225,7 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
             />
             <Button
               variant="primary"
-              label={t('mlearn.Reader.Sidebar.AddModal.AddChecked', { count: checkedEntries().length })}
+              label={props.labels.addChecked(checkedEntries().length)}
               onClick={handleAddChecked}
               disabled={checkedEntries().length === 0}
             />
@@ -204,8 +239,8 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
             <CheckboxCard
               checked={levelFilterEnabled()}
               onChange={setLevelFilterEnabled}
-              title={t('mlearn.Reader.Sidebar.AddModal.LevelFilter')}
-              description={t('mlearn.Reader.Sidebar.AddModal.LevelFilterDescription')}
+              title={props.labels.levelFilter}
+              description={props.labels.levelFilterDescription}
             >
               <Select
                 options={selectOptions()}
@@ -218,8 +253,8 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
           <CheckboxCard
             checked={dictionaryFilterEnabled()}
             onChange={setDictionaryFilterEnabled}
-            title={t('mlearn.Reader.Sidebar.AddModal.DictionaryFilter')}
-            description={t('mlearn.Reader.Sidebar.AddModal.DictionaryFilterDescription')}
+            title={props.labels.dictionaryFilter}
+            description={props.labels.dictionaryFilterDescription}
           />
         </div>
       }>
@@ -228,7 +263,7 @@ export const AddAllFlashcardsModal: Component<AddAllFlashcardsModalProps> = (pro
             <Button
               variant="ghost"
               size="sm"
-              label={allChecked() ? t('mlearn.Reader.Sidebar.AddModal.DeselectAll') : t('mlearn.Reader.Sidebar.AddModal.SelectAll')}
+              label={allChecked() ? props.labels.deselectAll : props.labels.selectAll}
               onClick={toggleAll}
             />
           </div>

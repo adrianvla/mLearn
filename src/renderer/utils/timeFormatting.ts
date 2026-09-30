@@ -105,3 +105,85 @@ export function formatLogTimestamp(
     second: '2-digit',
   });
 }
+
+// ============================================================================
+// Date formatters
+// ============================================================================
+//
+// `Date.prototype.toLocaleDateString(undefined)` follows the *host* locale, not
+// the user's chosen UI language. On a machine set to en-US, that renders
+// "Sat" even when the app's `settings.uiLanguage` is "de" (which expects "Sa").
+// Every date render therefore goes through these helpers, which require an
+// explicit locale from `settings.uiLanguage`.
+
+/**
+ * Full date in the app locale — "3/14/2026", "14.03.2026".
+ *
+ * Accepts ISO date strings as well as `Date`/epoch values, because persisted
+ * records store timestamps as strings.
+ *
+ * `locale` is optional only so generic components can fall back to the host
+ * locale when no UI language is in scope. Callers that render for a user
+ * should always pass `settings.uiLanguage`.
+ */
+export function formatDate(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleDateString(locale);
+}
+
+/**
+ * Medium date with an explicit month/day — "Mar 14", "14. März".
+ */
+export function formatDateMedium(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleDateString(locale, { dateStyle: 'medium' });
+}
+
+/**
+ * Date and time together in the app locale — the default shape produced by
+ * `Date.prototype.toLocaleString()`.
+ *
+ * Owned here so the handful of surfaces that genuinely need a combined
+ * date+time render (export/import summaries, log and event timelines, exam
+ * attempt headers) follow the same locale as the date-only and time-only
+ * helpers instead of each falling back to the host-locale default.
+ *
+ * Accepts ISO date strings as well as `Date`/epoch values, because persisted
+ * records store timestamps as strings.
+ */
+export function formatDateTime(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleString(locale);
+}
+
+/**
+ * Day and month with a short month name — "Mar 14".
+ */
+export function formatDateShort(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Day and month as bare numbers — "3/14".
+ */
+export function formatDateNumeric(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleDateString(locale, { month: 'numeric', day: 'numeric' });
+}
+
+/**
+ * Abbreviated weekday — "Sat", "Sa".
+ */
+export function formatWeekday(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleDateString(locale, { weekday: 'short' });
+}
+
+/**
+ * Full weekday — "Saturday", "Samstag".
+ */
+export function formatWeekdayLong(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleDateString(locale, { weekday: 'long' });
+}
+
+/**
+ * Abbreviated month — "Mar", "März".
+ */
+export function formatMonthShort(value: Date | number | string, locale?: string): string {
+  return new Date(value).toLocaleDateString(locale, { month: 'short' });
+}

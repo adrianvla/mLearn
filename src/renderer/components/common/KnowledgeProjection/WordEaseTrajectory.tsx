@@ -4,9 +4,11 @@ import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, SRS_EASE } from '../../../../shared/con
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import { eventCapability } from '../../../../shared/knowledgeEvents';
 import { useLocalization, useSettings } from '../../../context';
+import { formatDate, formatDateTime } from '../../../utils/timeFormatting';
 import { useWordEaseHistory } from '../../../hooks/useKnowledgeHistory';
 import { Button } from '../Button';
 import { SkeletonRows } from '../Skeleton';
+import { KnowledgeLoadError } from '../Feedback/KnowledgeLoadError';
 import { wordEaseTrajectoryData, type WordEasePoint } from './wordEaseTrajectoryData';
 
 export const WordEaseTrajectory: Component<{ surface: string; language: string; selector: JSX.Element; currentEase?: number }> = (props) => {
@@ -60,7 +62,7 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
     const previous = data().points[(indices().get(point) ?? 0) - 1];
     const delta = previous?.ease !== undefined && point.ease !== undefined && !data().compressed.some((range) => range.from < point.t && range.to > previous.t) ? point.ease - previous.ease : undefined;
     const value = point.ease === undefined ? t('mlearn.Knowledge.Projection.TrajectoryGap') : t('mlearn.Knowledge.Projection.EaseValue', { value: point.ease.toFixed(2) });
-    return [new Date(point.t).toLocaleString(), t(kind), t(`mlearn.Knowledge.History.Source.${source}`),
+    return [formatDateTime(point.t, settings.uiLanguage), t(kind), t(`mlearn.Knowledge.History.Source.${source}`),
       capability ? t(CAPABILITY_LABEL_KEYS[capability] ?? capability) : '', point.word,
       event.quality ? t(`mlearn.Rating.Matrix.${event.quality[0].toUpperCase()}${event.quality.slice(1)}`) : event.rating,
       value, delta === undefined ? '' : `${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`,
@@ -79,7 +81,7 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
       <Show when={props.currentEase !== undefined}><strong>{t('mlearn.Knowledge.Projection.EaseCurrent', { value: props.currentEase!.toFixed(2) })}</strong></Show>
     </div>
     <Show when={!history.loading()} fallback={<SkeletonRows rows={3} />}>
-      <Show when={!history.error()} fallback={<div class="knowledge-drawer__degraded"><p>{t('mlearn.Knowledge.Projection.TrajectoryUnavailable')}</p><button class="knowledge-card__done" onClick={history.retry}>{t('mlearn.Global.TryAgain')}</button></div>}>
+      <Show when={!history.error()} fallback={<KnowledgeLoadError message={t('mlearn.Knowledge.Projection.TrajectoryUnavailable')} onRetry={history.retry} />}>
         <Show when={times().length} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>
           <svg class="knowledge-trajectory__svg knowledge-ease__svg" viewBox={`0 0 ${width()} 244`} role="group" aria-label={t('mlearn.Knowledge.Projection.EaseOverall')}>
             <For each={scale().ticks}>{(tick) => <g>
@@ -95,15 +97,15 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
             <For each={paths()}>{(d) => <path class="knowledge-trajectory__line" d={d} />}</For>
             <Show when={compressed().length}><text x="54" y="193">{t('mlearn.Knowledge.Projection.TrajectoryArchive')}</text></Show>
             <For each={compressed()}>{(range) => <rect class="knowledge-trajectory__compressed" x={x(range.from) - 2} y="199" width={Math.max(4, x(range.to) - x(range.from))} height="12">
-              <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {new Date(range.from).toLocaleDateString()} – {new Date(range.to).toLocaleDateString()}</title>
+              <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {formatDate(range.from, settings.uiLanguage)} – {formatDate(range.to, settings.uiLanguage)}</title>
             </rect>}</For>
             <For each={points()}>{(point) => <g classList={{ 'knowledge-trajectory__point': true, 'knowledge-trajectory__point--claim': point.event.kind === 'claim', 'knowledge-trajectory__point--passive': point.event.source === 'passiveTracking' }}>
               <circle cx={x(point.t)} cy={point.ease === undefined ? 205 : y(point.ease)} r="4" tabindex="0" role="button" aria-label={label(point)}
                 onMouseEnter={() => setInspected(point)} onFocus={() => setInspected(point)} onClick={() => setInspected(point)}
                 onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspected(point); } }}><title>{label(point)}</title></circle>
             </g>}</For>
-            <text x="54" y="237">{new Date(start()).toLocaleDateString()}</text>
-            <text x={right()} y="237" text-anchor="end">{new Date(end()).toLocaleDateString()}</text>
+            <text x="54" y="237">{formatDate(start(), settings.uiLanguage)}</text>
+            <text x={right()} y="237" text-anchor="end">{formatDate(end(), settings.uiLanguage)}</text>
           </svg>
           <div class="knowledge-trajectory__legend">
             <span class="knowledge-trajectory__legend-evidence">{t('mlearn.Knowledge.Basis.Evidence')}</span>

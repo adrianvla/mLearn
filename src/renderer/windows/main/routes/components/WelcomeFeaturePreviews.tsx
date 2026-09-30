@@ -8,9 +8,10 @@ import { Component, createEffect, createSignal, For, Show } from 'solid-js';
 import type { Flashcard } from '../../../../../shared/types';
 import type { RecentItem } from '../../../../services/thumbnailService';
 import { progressPct, type LevelProgressSummary, type LevelStats } from '../../../../utils/wordLevelStats';
-import { RatingMatrix, SkeletonLine, SkeletonPill } from '../../../../components/common';
+import { RatingMatrix, SkeletonLine, SkeletonPill, WriteStatusBanner } from '../../../../components/common';
 import type { RecentWordRow, WeekStatDay } from '../welcomeSelectors';
 import type { AttemptQuality, RatingKeyboardMode } from '../../../../../shared/constants';
+import type { StudyWriteState } from '../../../../learning/studySession';
 import './WelcomeFeaturePreviews.css';
 
 export interface WelcomeMediaPreviewProps {
@@ -102,6 +103,15 @@ export interface WelcomeFlashcardPreviewProps {
   keyboardMode: RatingKeyboardMode;
   onOpen: () => void;
   onRate: (quality: AttemptQuality, easy?: boolean) => void;
+  /**
+   * The rating write's lifecycle, owned by the route through the study
+   * session contract. The preview renders the shared banner next to the card
+   * that failed, so a save failure is reported where the rating happened
+   * rather than detached in the page gutter.
+   */
+  ratingWrite?: StudyWriteState | null;
+  /** Replays the last refused rating; only offered while one can be retried. */
+  onRetryRating?: () => void;
 }
 
 /** Compact reviewer: click flips the real due card, then rate it to advance; empty/loading keeps a deck shell. */
@@ -168,7 +178,7 @@ export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = 
           <RatingMatrix
             capabilities={['sense-recognition']}
             keyboardMode={props.keyboardMode}
-            armed
+            armed={(props.ratingWrite ?? null) === null}
             resetKey={`${props.card?.id ?? ''}:${attemptSequence()}`}
             onSubmit={(observations, options) => {
               const observation = observations.find((entry) => entry.capability === 'sense-recognition');
@@ -180,6 +190,14 @@ export const WelcomeFlashcardPreview: Component<WelcomeFlashcardPreviewProps> = 
           />
         </fieldset>
       </Show>
+      <WriteStatusBanner
+        status={props.ratingWrite ?? null}
+        savingLabelKey="mlearn.Flashcards.Review.SavingRating"
+        failedLabelKey="mlearn.Flashcards.Review.SaveFailed"
+        canRetry={props.ratingWrite === 'failed'}
+        onRetry={() => props.onRetryRating?.()}
+        class="wfv-flashcard-write"
+      />
       {/* Footer swaps with the ratings fieldset while flipped: the 240px card
           row cannot fit stage + ratings + footer, so only one occupies the slot. */}
       <Show when={!flipped() || !props.card}>

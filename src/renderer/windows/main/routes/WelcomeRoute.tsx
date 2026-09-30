@@ -7,10 +7,11 @@ import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedPr
 import { Component, createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
+import { formatDate } from '../../../utils/timeFormatting';
 import type { Flashcard } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate, Button } from '../../../components/common';
+import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate } from '../../../components/common';
 import {
   WelcomeFeatureCard,
   WelcomeVideoPreview,
@@ -28,15 +29,18 @@ import type { TutorSessionConfig } from '../../../../shared/types';
 import { nextAttemptId, type AttemptId } from '../../../../shared/knowledgeEvents';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
+import { showToast } from '../../../components/common/Feedback/Toast';
+import { notifyCapabilityUnavailable, openCapabilitySettings } from '../../../services/capabilityUnavailable';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelProgress } from '../../../utils/wordLevelStats';
 import { qualityToSrsRating, type AttemptQuality } from '../../../../shared/constants';
 import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../../../shared/languageFeatures';
 import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
 import { fetchTranslation } from '../../../hooks/useTranslation';
-import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { ankiCacheVersion, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { policyContextFromSettings } from '../../../learning/policyContext';
+import type { StudyWriteState } from '../../../learning/studySession';
 import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../../shared/encounterTiming';
@@ -72,7 +76,13 @@ export const WelcomeRoute: Component = () => {
   const [showTutorModal, setShowTutorModal] = createSignal(false);
   const [lookupDraft, setLookupDraft] = createSignal('');
   const [tutorDraft, setTutorDraft] = createSignal('');
-  const [ratingSaveState, setRatingSaveState] = createSignal<'idle' | 'saving' | 'failed'>('idle');
+  // Same acknowledged-write lifecycle as every other surface that files a
+  // study write: the study session owns the vocabulary, WriteStatusBanner
+  // owns the wording and the retry affordance. This route used to keep a
+  // private 'idle' | 'saving' | 'failed' machine whose translation keys were
+  // never added to any locale, so a failed rating surfaced a raw key in the
+  // page gutter and a retry button detached from the card that failed.
+  const [ratingWrite, setRatingWrite] = createSignal<StudyWriteState | null>(null);
   type WelcomeRatingCommand = {
     cardId: string;
     word: string;
@@ -145,10 +155,10 @@ export const WelcomeRoute: Component = () => {
     // disabled button swallows clicks (and even hover tooltips), which read as
     // a broken sidebar item rather than a setup requirement.
     if (!isLLMReady(settings)) {
-      getBridge().window.openWindow({
-        type: 'settings',
-        context: { section: 'ai' } as unknown as Record<string, unknown>,
-      });
+      // Say why on the way out: the Settings window used to appear with no
+      // explanation of what the click had done.
+      notifyCapabilityUnavailable('llm', 'notConfigured', t);
+      openCapabilitySettings('llm');
       return;
     }
     setShowTutorModal(true);
@@ -193,8 +203,11 @@ export const WelcomeRoute: Component = () => {
     // Don't try to open items with no path (legacy items or failed saves)
     if (!item.path || !item.path.trim()) {
       log.warn('[Welcome] Cannot open recent item - no path saved:', item.name);
-      // Show alert and navigate to the appropriate route - user can then drag/drop
-      alert(t('mlearn.Home.Errors.UnableToOpen'));
+      // Explain, then navigate to the route that can accept the file. The
+      // toast host sits above the route outlet, so the message survives the
+      // navigation - which an `alert` was only doing by blocking the window
+      // until it was dismissed.
+      showToast({ message: t('mlearn.Home.Errors.UnableToOpen'), variant: 'error' });
       if (item.type === 'video') {
         navigate('/video');
       } else {
@@ -328,7 +341,7 @@ export const WelcomeRoute: Component = () => {
     },
   ));
   const saveWelcomeRating = async (command: WelcomeRatingCommand) => {
-    setRatingSaveState('saving');
+    setRatingWrite('pending');
     try {
       await flashcards.submitRating(command.word, command.observations, {
         ...command.options,
@@ -340,18 +353,18 @@ export const WelcomeRoute: Component = () => {
         },
       });
       pendingWelcomeRating = undefined;
-      setRatingSaveState('idle');
+      setRatingWrite(null);
       // The answer changed the pool: end the encounter so the next displayed
       // card re-selects instead of replaying the just-rated pick (R20 repair).
       decisionPin.advance();
     } catch (error) {
       log.error('Failed to save welcome card rating:', error);
       pendingWelcomeRating = command;
-      setRatingSaveState('failed');
+      setRatingWrite('failed');
     }
   };
   const rateCard = (quality: AttemptQuality, easy?: boolean) => {
-    if (ratingSaveState() !== 'idle') return;
+    if (ratingWrite() !== null) return;
     const card = currentCard();
     if (!card) return;
     const language = card.language || settings.language;
@@ -407,6 +420,7 @@ export const WelcomeRoute: Component = () => {
     const timer = setTimeout(() => setDictLookupWord(draft), 300);
     onCleanup(() => clearTimeout(timer));
   });
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const [dictResponse] = createResource(
     () => dictLookupWord() || undefined,
     async (word) => {
@@ -414,7 +428,7 @@ export const WelcomeRoute: Component = () => {
       return fetchTranslation(word, settings.language, {
         getCanonicalForm: language.getCanonicalForm,
         getWordVariants: language.getWordVariants,
-        dictionaryTargetLanguage: getDictionaryTargetLanguageForSettings(settings),
+        dictionaryTargetLanguage,
         languageData: language.currentLangData,
       });
     },
@@ -500,7 +514,7 @@ export const WelcomeRoute: Component = () => {
       const days = Math.round((timestamp - Date.now()) / 86_400_000);
       return new Intl.RelativeTimeFormat(settings.uiLanguage, { numeric: 'auto' }).format(days, 'day');
     } catch {
-      return new Date(timestamp).toLocaleDateString(settings.uiLanguage);
+      return formatDate(timestamp, settings.uiLanguage);
     }
   };
 
@@ -603,18 +617,11 @@ export const WelcomeRoute: Component = () => {
               keyboardMode={settings.ratingKeyboardMode}
               onOpen={openFlashcards}
               onRate={rateCard}
+              ratingWrite={ratingWrite()}
+              onRetryRating={() => { if (pendingWelcomeRating) void saveWelcomeRating(pendingWelcomeRating); }}
             />
           }
         />
-        <Show when={ratingSaveState() === 'saving'}>
-          <small role="status">{t('mlearn.Flashcards.SavingRating')}</small>
-        </Show>
-        <Show when={ratingSaveState() === 'failed'}>
-          <small role="alert">{t('mlearn.Flashcards.SaveFailed')}</small>
-          <Button variant="ghost" size="sm" onClick={() => {
-            if (pendingWelcomeRating) void saveWelcomeRating(pendingWelcomeRating);
-          }}>{t('mlearn.Knowledge.Popup.Retry')}</Button>
-        </Show>
 
         <WelcomeFeatureCard
           icon={<BarChartIcon size={24} />}

@@ -1,6 +1,7 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import { KnowledgeTrajectory } from './KnowledgeTrajectory';
 import { retentionPresentation } from './retentionPresentation';
+import { formatDate } from '../../../utils/timeFormatting';
 import { Modal } from '../Modal';
 import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
 import type { GraphRelatedNode, GraphWordLookup, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
@@ -333,7 +334,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     return [...(word?.entries ?? []), ...(word?.lexemes ?? []), ...(word?.senses ?? []), ...(word?.pronunciations ?? [])].find((node) => node.id === id)?.label ?? labelFor(id) ?? id;
   };
   const retentionText = (retention: NonNullable<KnowledgeProjectionState['retention']>) => {
-    const display = retentionPresentation(retention, Date.now());
+    const display = retentionPresentation(retention, Date.now(), settings.uiLanguage);
     return t(display.key, display.params);
   };
 
@@ -759,7 +760,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
                 <h3>{t('mlearn.Knowledge.Projection.RetentionTitle')}</h3>
                 <ul>
                   <For each={retentionRows()}>{(row, index) => (
-                    <li title={`${row.target.id} · ${new Date(row.state.retention!.dueAt).toLocaleDateString()}`}>
+                    <li title={`${row.target.id} · ${formatDate(row.state.retention!.dueAt, settings.uiLanguage)}`}>
                       <span>{t(CAPABILITY_LABEL_KEYS[row.state.capability] ?? row.state.capability)} · {targetLabel(row.target.id)} <small>({index() + 1})</small></span>
                       <span>{retentionText(row.state.retention!)}</span>
                     </li>

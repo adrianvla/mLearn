@@ -5,9 +5,11 @@ import type { CapabilityKey } from '../../../../shared/graph/types';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource } from '../../../../shared/constants';
 import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 import { useLocalization, useSettings } from '../../../context';
+import { formatDate, formatDateTime } from '../../../utils/timeFormatting';
 import { useKnowledgeHistory } from '../../../hooks/useKnowledgeHistory';
 import { WordEaseTrajectory } from './WordEaseTrajectory';
 import { SkeletonRows } from '../Skeleton';
+import { KnowledgeLoadError } from '../Feedback/KnowledgeLoadError';
 import { Button } from '../Button';
 import { knowledgeTrajectoryData, type TrajectoryPoint, type TrajectoryState } from './knowledgeTrajectoryData';
 
@@ -61,7 +63,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
     const kind = event.kind === 'status' && event.source === 'anki' ? 'SourceSnapshot' : event.kind[0].toUpperCase() + event.kind.slice(1);
     const source = t(`mlearn.Knowledge.History.Source.${KNOWLEDGE_SOURCE_DISPLAY_NAMES[event.source as KnowledgeSource]}`);
     const outcome = event.quality ? t(`mlearn.Rating.Matrix.${event.quality[0].toUpperCase()}${event.quality.slice(1)}`) : event.rating ?? '';
-    return [new Date(point.t).toLocaleString(), t(event.kind === 'claim' && !event.toStatus ? 'mlearn.Knowledge.Projection.Evidence.ClaimCleared' : `mlearn.Knowledge.History.Kind.${kind}`), source, outcome,
+    return [formatDateTime(point.t, settings.uiLanguage), t(event.kind === 'claim' && !event.toStatus ? 'mlearn.Knowledge.Projection.Evidence.ClaimCleared' : `mlearn.Knowledge.History.Kind.${kind}`), source, outcome,
       point.state ? [stateLabel(point.state), point.claim ? t('mlearn.Knowledge.Basis.Claim') : ''].filter(Boolean).join(' · ') : t('mlearn.Knowledge.Projection.TrajectoryGap')].filter(Boolean).join(' · ');
   };
   const paths = createMemo(() => points().slice(1).flatMap((point, index) => {
@@ -79,7 +81,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
     </div>
     <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.TrajectoryDescription')}</p>
     <Show when={!history.loading()} fallback={<SkeletonRows rows={3} />}>
-      <Show when={!history.error()} fallback={<div class="knowledge-drawer__degraded"><p>{t('mlearn.Knowledge.Projection.TrajectoryUnavailable')}</p><button class="knowledge-card__done" onClick={history.retry}>{t('mlearn.Global.TryAgain')}</button></div>}>
+      <Show when={!history.error()} fallback={<KnowledgeLoadError message={t('mlearn.Knowledge.Projection.TrajectoryUnavailable')} onRetry={history.retry} />}>
       <Show when={times().length} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>
         <svg class="knowledge-trajectory__svg" viewBox={`0 0 ${width()} 228`} role="group" aria-label={t('mlearn.Knowledge.Projection.Tabs.Graph')}>
           <For each={STATES}>{(state) => <g>
@@ -89,7 +91,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
           <For each={paths()}>{(d) => <path class="knowledge-trajectory__line" d={d} />}</For>
           <For each={compressed()}>{(range) => <g>
             <rect class="knowledge-trajectory__compressed" x={x(range.from) - 2} y="181" width={Math.max(4, x(range.to) - x(range.from))} height="12">
-              <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {new Date(range.from).toLocaleDateString()} – {new Date(range.to).toLocaleDateString()}</title>
+              <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {formatDate(range.from, settings.uiLanguage)} – {formatDate(range.to, settings.uiLanguage)}</title>
             </rect>
           </g>}</For>
           <Show when={compressed().length}><text x={LEFT - 12} y="191" text-anchor="end">{t('mlearn.Knowledge.Projection.TrajectoryArchive')}</text></Show>
@@ -100,8 +102,8 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
               <title>{label(point)}</title>
             </circle>
           </g>}</For>
-          <text x={LEFT} y="221">{new Date(start()).toLocaleDateString()}</text>
-          <text x={right()} y="221" text-anchor="end">{new Date(end()).toLocaleDateString()}</text>
+          <text x={LEFT} y="221">{formatDate(start(), settings.uiLanguage)}</text>
+          <text x={right()} y="221" text-anchor="end">{formatDate(end(), settings.uiLanguage)}</text>
         </svg>
         <div class="knowledge-trajectory__legend">
           <span class="knowledge-trajectory__legend-evidence">{t('mlearn.Knowledge.Basis.Evidence')}</span>

@@ -23,8 +23,7 @@ export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefin
     const input = query();
     const version = eventsVersion();
     const thresholds = effectiveThresholds(settings);
-    setProjection(undefined);
-    if (!input?.surface) { setLoading(false); return; }
+    if (!input?.surface) { setProjection(undefined); setLoading(false); return; }
     let disposed = false;
     setLoading(true);
     const key = JSON.stringify([input.language, input.surface, version, thresholds.learning, thresholds.known]);
@@ -41,6 +40,10 @@ export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefin
     });
     onCleanup(() => { disposed = true; });
   });
+  // The last resolved projection stays visible while a new surface is looked
+  // up. Clearing it per query made `capabilities` transiently empty, which any
+  // consumer gating an action on "has capabilities" reads as a permanent loss
+  // of affordance rather than a pending lookup.
   const capabilities = createMemo(() => [...new Set(
     projection()?.targets.flatMap((target) => target.applicableCapabilities) ?? [],
   )]);

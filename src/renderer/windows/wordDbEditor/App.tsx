@@ -9,18 +9,21 @@ import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createSignal, For, Show, onMount, createEffect, createMemo, createResource, on, onCleanup } from 'solid-js';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
-import type { WordStatus } from '../../../shared/constants';
+import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../flashcards/bulkDestructiveConfirm';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
 import './WordDbEditorLayout.css';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
-import { Button, KnowledgeLoadError, ModalLoadingOverlay, SkeletonRows, CollapsibleStickyHeader, buildEmptyPreset, buildWordDbEditorFields, validateTokens, evaluateAst, parseTokens, type FieldResolver, type FilterToken, type ValidationError } from '../../components/common';
+import { Button, KnowledgeLoadError, ModalLoadingOverlay, SkeletonRows, CollapsibleStickyHeader, buildEmptyPreset, buildWordDbEditorFields, useConfirmDialog, validateTokens, evaluateAst, parseTokens, type FieldResolver, type FilterToken, type ValidationError } from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import { isAnkiCacheFetched, refreshAnkiWordsCache, findAnkiWordMatchInCache } from '../../services/ankiWordsCache';
-import { wordStatusToNumeric } from '../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, wordStatusToNumeric } from '../../components/subtitle/wordHoverHelpers';
+import { useTokenizer, getCachedTranslation, fetchTranslation } from '../../hooks/useTranslation';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { getLogger } from '../../../shared/utils/logger';
+import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { getLearningLanguageLevelForLanguage } from '../../../shared/languageFeatures';
 import { sortByStudyScope } from './studyOrder';
 import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEvents';
@@ -28,10 +31,14 @@ import { queryLanguageKeys, wordEventsVersion } from '../../services/knowledgeEv
 const log = getLogger("renderer.wordDbEditor.app");
 
 export const WordDbEditorContent: Component = () => {
-  const { getWordFrequency, currentLangData, getFreqLevelNames, getCanonicalForm, getWordVariants } = useLanguage();
+  const { getWordFrequency, currentLangData, getFreqLevelNames, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   const { addFlashcard, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync, store: flashcardStore } = useFlashcards();
   const { t } = useLocalization();
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const { settings } = useSettings();
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
+  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const anki = useAnki();
   const [searchQuery, setSearchQuery] = createSignal('');
   const [entries, setEntries] = createSignal<WordEntry[]>([]);
@@ -77,6 +84,7 @@ export const WordDbEditorContent: Component = () => {
   const [hasLoadedWords, setHasLoadedWords] = createSignal(false);
   const ankiEnabled = createMemo(() => settings.use_anki);
 
+  const [pendingCardAdds, setPendingCardAdds] = createSignal<ReadonlySet<string>>(new Set());
   const [editDialogOpen, setEditDialogOpen] = createSignal(false);
   const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
 
@@ -421,30 +429,56 @@ export const WordDbEditorContent: Component = () => {
 
   };
 
-  // Change word status
-  const handleStatusChange = (entry: WordEntry, newStatus: WordStatus) => {
-    log.info(`%cUpdated status for word "${entry.word}" to ${newStatus}`, 'color: lime;');
-  };
-
-  // Add flashcard for word
+  // Add flashcard for word.
+  // The card is built by the same owner every other word surface uses, so a
+  // word added from here gets the translation, reading, prosody and initial
+  // ease that the row it was added from is already displaying. Reading
+  // entry.translation alone silently produced untranslated cards here,
+  // because rows display a lazily cached translation instead.
+  //
+  // The build awaits a translation fetch before it writes, so a second click
+  // used to start while the first was still in flight and both wrote a card
+  // for the same word. The other capture surfaces refuse a repeat request
+  // while one is pending; this row now does the same, keyed per word so
+  // adding two different rows at once is still allowed.
   const handleAddFlashcard = async (entry: WordEntry) => {
+    if (pendingCardAdds().has(entry.word)) return;
+    setPendingCardAdds((previous) => new Set(previous).add(entry.word));
     try {
-      // Create a flashcard for this word using new format
-      const content = {
-        type: 'word' as const,
-        front: entry.word,
-        back: entry.translation || entry.fullTranslation || entry.word,
-        reading: entry.reading || undefined,
-        pos: '',
-        level: entry.level ?? undefined,
-      };
+      const translationData = getCachedTranslation(entry.word, settings.language, wordLookupOptions)
+        ?? await fetchTranslation(entry.word, settings.language, wordLookupOptions);
 
-      // Add to flashcard store using context
-      await addFlashcard(content);
+      const { content, ease } = await buildWordHoverFlashcardContent({
+        token: { word: entry.word, surface: entry.word, actual_word: entry.word, type: '' },
+        word: entry.word,
+        translationData,
+        contextPhrase: undefined,
+        isOcr: false,
+        wordUuid: entry.uuid,
+        level: entry.level,
+        wordStatus: projectedWordStatus(projected.projections().get(entry.word)).status,
+        colourCodes: settings.colour_codes || {},
+        languageData: currentLangData(),
+        tokenize,
+        srsLearningEase: settings.srsLearningThreshold / 1000,
+        srsKnownEase: settings.known_ease_threshold / 1000,
+      });
+
+      await addFlashcard(content, ease, undefined, settings.language);
 
       log.info(`%cAdded flashcard for word "${entry.word}"`, 'color: cyan;');
     } catch (e) {
-      log.error('Failed to add flashcard:', e);
+      // The vocabulary browser used to swallow this: the row simply returned to
+      // offering "Add mLearn card", so a word that never became a card looked
+      // like it had. Five sibling capture surfaces report it, and the decision
+      // now belongs to one owner.
+      reportCaptureFailure(e, { word: entry.word }, { translate: t, log: log.error });
+    } finally {
+      setPendingCardAdds((previous) => {
+        const next = new Set(previous);
+        next.delete(entry.word);
+        return next;
+      });
     }
   };
 
@@ -454,9 +488,21 @@ export const WordDbEditorContent: Component = () => {
       // Find flashcard by word (async now)
       const card = await getCardByWord(entry.word, settings.language);
 
-      if (card) {
-        await removeFlashcard(card.id, true);
+      if (!card) return;
+
+      // Same irreversible act, same prompt: the danger button here used to
+      // destroy the card outright while the equivalent control in Browse and
+      // Review asked first.
+      if (requiresDestructiveConfirmation(1)) {
+        const confirmed = await showConfirm(buildDestructiveConfirmOptions({
+          count: 1,
+          titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
+          messageKey: 'mlearn.Flashcards.Modals.DeleteCard.Confirm',
+        }, t));
+        if (!confirmed) return;
       }
+
+      await removeFlashcard(card.id, true);
 
       log.info(`%cRemoved flashcard for word "${entry.word}"`, 'color: orange;');
     } catch (e) {
@@ -711,8 +757,8 @@ export const WordDbEditorContent: Component = () => {
                         <WordEntryRow
                             entry={entry}
                             levelNames={levelNames()}
-                            onStatusChange={handleStatusChange}
                             onAddFlashcard={handleAddFlashcard}
+                            isAddingFlashcard={pendingCardAdds().has(entry.word)}
                             onRemoveFlashcard={handleRemoveFlashcard}
                             onUnignore={handleUnignore}
                             onEditFlashcard={handleEditFlashcard}
@@ -784,6 +830,8 @@ export const WordDbEditorContent: Component = () => {
             onSave={handleEditFlashcardSave}
           />
         </Show>
+
+        <ConfirmDialogElement />
       </div>
   );
 };

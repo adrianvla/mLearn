@@ -9,16 +9,12 @@ import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Se
 import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
 import { CloudLLMAdapter, OpenAICompatibleLLMAdapter, validCompatibleApiBaseUrl } from '../../shared/backends/cloudLLMAdapter';
-import { resolveCloudApiUrl } from '../../shared/backends';
 import { getLanguagePromptName } from '../../shared/languageFeatures';
 import {
-  CloudSessionCancelledError,
-  CloudUnreachableError,
-  ensureCloudAccessToken,
   getCloudSessionSettings,
-  isCloudSessionError,
   withCloudAuth,
 } from './cloudSessionManager';
+import { probeProvider } from './providerFailure';
 import { hasCompleteStructuredExplainerOutput } from '../components/subtitle/explainerPopupState';
 import { builtinModelReady } from '../context/llmModelSignals';
 import { getLogger } from '../../shared/utils/logger';
@@ -344,74 +340,26 @@ function streamChatMobile(
 // ============================================================================
 
 /**
- * Diagnostics only. Real cloud operations should use withCloudAuth, not preflight via checkAvailability.
- * Check if the LLM is ready to use (provider-specific checks).
+ * Diagnostics only. Real cloud operations should use withCloudAuth, not a
+ * preflight probe.
+ *
+ * Whether the provider can be reached is one question with one owner, and that
+ * owner is `probeProvider` in `providerFailure` - the module that also decides
+ * what a failure *means*. This used to answer with a private vocabulary of
+ * reason strings (`compatible_unreachable`, `auth_required`,
+ * `cloud_unreachable`, `ollama_unreachable`, `model_not_downloaded`,
+ * `runtime_unavailable`, `model_check_failed`) that no caller outside this file
+ * could interpret, so a surface that wanted to tell the user *what* was wrong
+ * had to invent its own probe instead. Four did.
+ *
+ * The classification is returned so those surfaces can present it in their own
+ * idiom rather than a boolean. The reason string is kept for the diagnostics
+ * that already log it, where a short stable token is more useful than prose.
  */
 export async function checkAvailability(settings: Settings): Promise<{ available: boolean; reason?: string }> {
-  const bridge = getBridge();
-
-  if (settings.llmProvider === 'openai-compatible') {
-    const adapter = new OpenAICompatibleLLMAdapter(settings.compatibleApiBaseUrl,
-      settings.compatibleApiKey, settings.compatibleModel);
-    return await adapter.checkAvailability()
-      ? { available: true } : { available: false, reason: 'compatible_unreachable' };
-  }
-
-  if (settings.llmProvider === 'cloud') {
-    try {
-      const accessToken = await ensureCloudAccessToken({ interactive: false, openModalOnExpiry: false });
-      if (!accessToken) {
-        return { available: false, reason: 'auth_required' };
-      }
-
-      const cloudApiUrl = resolveCloudApiUrl(settings);
-      const adapter = new CloudLLMAdapter(
-        cloudApiUrl,
-        accessToken,
-      );
-      const reachable = await adapter.checkAvailability();
-      return reachable
-        ? { available: true }
-        : { available: false, reason: 'cloud_unreachable' };
-    } catch (error) {
-      log.error("error", error);
-      if (error instanceof CloudSessionCancelledError || isCloudSessionError(error)) {
-        return { available: false, reason: 'auth_required' };
-      }
-      if (error instanceof CloudUnreachableError) {
-        return { available: false, reason: 'cloud_unreachable' };
-      }
-      return { available: false, reason: 'cloud_unreachable' };
-    }
-  }
-
-  if (settings.llmProvider === 'ollama') {
-    try {
-      const connected = await bridge.llm.ollamaCheck();
-      if (!connected) {
-        return { available: false, reason: 'ollama_unreachable' };
-      }
-      return { available: true };
-    } catch (e) {
-      log.error("error", e);
-      return { available: false, reason: 'ollama_unreachable' };
-    }
-  }
-
-  // Built-in: require both the model file and the native runtime binary.
-  try {
-    const status = await bridge.llm.llmCheckModel(settings.builtinModel);
-    if (!status.downloaded) {
-      return { available: false, reason: 'model_not_downloaded' };
-    }
-    if (!status.ready) {
-      return { available: false, reason: 'runtime_unavailable' };
-    }
-    return { available: true };
-  } catch (e) {
-    log.error("error", e);
-    return { available: false, reason: 'model_check_failed' };
-  }
+  const classified = await probeProvider(settings);
+  if (!classified) return { available: true };
+  return { available: false, reason: classified.id };
 }
 
 /**

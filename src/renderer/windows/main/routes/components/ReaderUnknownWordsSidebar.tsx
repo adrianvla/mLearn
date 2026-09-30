@@ -1,8 +1,8 @@
-import { Component, createMemo, createSignal } from 'solid-js';
+import { Component, createMemo } from 'solid-js';
 import type { OcrBox } from '../../../../components/reader/OcrOverlay';
-import { UnknownWordsSidebar, type SidebarWordEntry } from '../../../../components/sidebar';
+import { AddAllFlashcardsHost, UnknownWordsSidebar, type SidebarWordEntry } from '../../../../components/sidebar';
 import { useLocalization } from '../../../../context';
-import { AddAllFlashcardsModal } from './AddAllFlashcardsModal';
+import { addAllFlashcardsLabels } from './addAllFlashcardsLabels';
 import './ReaderUnknownWordsSidebar.css';
 
 export interface ReaderUnknownWordEntry extends SidebarWordEntry {
@@ -28,9 +28,7 @@ interface ReaderUnknownWordsSidebarProps {
 
 export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps> = (props) => {
   const { t } = useLocalization();
-  const [isModalOpen, setIsModalOpen] = createSignal(false);
-  const [modalEntries, setModalEntries] = createSignal<SidebarWordEntry[]>([]);
-  const [modalDictEntries, setModalDictEntries] = createSignal<SidebarWordEntry[]>([]);
+  const addAllLabels = createMemo(() => addAllFlashcardsLabels(t, 'reader'));
 
   const sortOptions = createMemo(() => [
     { value: 'ocr', label: t('mlearn.Reader.Sidebar.SortBy.OCROrder') },
@@ -38,40 +36,39 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
     { value: 'word', label: t('mlearn.Sidebar.SortBy.Word') },
   ]);
 
+  // The reader offers words found by OCR and names them in its own wording.
+  // Everything about opening the confirmation and carrying its two entry lists
+  // is shared with the video sidebar, and is owned once.
   return (
-    <>
-      <UnknownWordsSidebar
-        words={props.words}
-        addingWordKeys={props.addingWordKeys}
-        isAddingAll={props.isAddingAll}
-        failedWordSet={props.failedWordSet}
-        failedEmptyMessage={t('mlearn.ConversationAgent.Stats.NoHoveredWords')}
-        onAddWord={(entry) => props.onAddWord(entry as ReaderUnknownWordEntry)}
-        onIgnoreWord={(entry) => props.onIgnoreWord(entry as ReaderUnknownWordEntry)}
-        onWordHover={props.onWordHover ? (entry) => props.onWordHover!(entry as ReaderUnknownWordEntry) : undefined}
-        onWordLeave={props.onWordLeave}
-        sortOptions={sortOptions}
-        defaultSort="ocr"
-        emptyMessage={props.blockedMessage?.()
-          ?? (props.isProcessing?.()
-            ? t('mlearn.Reader.Status.Recognizing')
-            : t('mlearn.Reader.Sidebar.UnknownWordsEmpty'))}
-        hideEmptyCount={Boolean(props.blockedMessage?.() || props.isProcessing?.())}
-        class="reader-unknown-words-sidebar"
-        onClose={props.onClose}
-        onAddAllClick={(addable, dictAddable) => {
-          setModalEntries(addable);
-          setModalDictEntries(dictAddable);
-          setIsModalOpen(true);
-        }}
-      />
-      <AddAllFlashcardsModal
-        isOpen={isModalOpen()}
-        onClose={() => setIsModalOpen(false)}
-        allEntries={modalEntries() as ReaderUnknownWordEntry[]}
-        dictionaryEntries={modalDictEntries() as ReaderUnknownWordEntry[]}
-        onAdd={(entries) => props.onAddAll(entries)}
-      />
-    </>
+    <AddAllFlashcardsHost
+      labels={addAllLabels()}
+      onAdd={(entries) => props.onAddAll(entries as ReaderUnknownWordEntry[])}
+    >
+      {(addAll) => (
+        <UnknownWordsSidebar
+          words={props.words}
+          addingWordKeys={props.addingWordKeys}
+          isAddingAll={props.isAddingAll}
+          failedWordSet={props.failedWordSet}
+          failedEmptyMessage={t('mlearn.ConversationAgent.Stats.NoHoveredWords')}
+          onAddWord={(entry) => props.onAddWord(entry as ReaderUnknownWordEntry)}
+          onIgnoreWord={(entry) => props.onIgnoreWord(entry as ReaderUnknownWordEntry)}
+          onWordHover={props.onWordHover ? (entry) => props.onWordHover!(entry as ReaderUnknownWordEntry) : undefined}
+          onWordLeave={props.onWordLeave}
+          sortOptions={sortOptions}
+          defaultSort="ocr"
+          emptyMessage={props.blockedMessage?.()
+            ?? (props.isProcessing?.()
+              ? t('mlearn.Reader.Status.Recognizing')
+              : t('mlearn.Reader.Sidebar.UnknownWordsEmpty'))}
+          hideEmptyCount={Boolean(props.blockedMessage?.() || props.isProcessing?.())}
+          class="reader-unknown-words-sidebar"
+          onClose={props.onClose}
+          onAddAllClick={(addable, dictAddable) => {
+            addAll.open(addable, dictAddable);
+          }}
+        />
+      )}
+    </AddAllFlashcardsHost>
   );
 };

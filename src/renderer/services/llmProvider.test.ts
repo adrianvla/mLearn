@@ -73,22 +73,23 @@ class MockCloudSessionCancelledError extends Error {
   }
 }
 
-class MockCloudUnreachableError extends Error {
-  code = 'cloud_unreachable';
-  constructor(message = 'Cloud is unreachable') {
-    super(message);
-    this.name = 'CloudUnreachableError';
-  }
-}
-
-vi.mock('./cloudSessionManager', () => ({
-  CloudSessionCancelledError: MockCloudSessionCancelledError,
-  CloudUnreachableError: MockCloudUnreachableError,
-  ensureCloudAccessToken: (options?: unknown) => mockEnsureCloudAccessToken(options),
-  getCloudSessionSettings: () => mockGetCloudSessionSettings(),
-  isCloudSessionError: (error: unknown) => mockIsCloudSessionError(error),
-  withCloudAuth: (op: unknown, options?: unknown) => mockWithCloudAuth(op, options),
-}));
+// Partial mock. The classification that `probeProvider` delegates to reads the
+// real error markers and the real auth predicate from this module, so replacing
+// it wholesale would make the probe classify against fixtures that can never
+// occur. Only the side-effecting entry points are replaced.
+vi.mock('./cloudSessionManager', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./cloudSessionManager')>();
+  return {
+    ...actual,
+    ensureCloudAccessToken: (options?: unknown) => mockEnsureCloudAccessToken(options),
+    getCloudSessionSettings: () => mockGetCloudSessionSettings(),
+    withCloudAuth: (op: unknown, options?: unknown) => mockWithCloudAuth(op, options),
+    handleCloudSessionError: (error: unknown, openModal?: boolean) => {
+      mockIsCloudSessionError(error);
+      return false;
+    },
+  };
+});
 
 const mockBuiltinModelReady = vi.fn(() => true);
 
@@ -382,111 +383,59 @@ describe('llmProvider', () => {
   // checkAvailability
   // --------------------------------------------------------------------------
 
+  /**
+   * `checkAvailability` used to own a per-provider reachability probe and
+   * answer with a private vocabulary of reason strings. That is the
+   * classification's job and it now lives in `providerFailure`, tested there
+   * against the real contract. What remains here is only the mapping this
+   * wrapper is responsible for, and the reason it keeps returning a string at
+   * all: the diagnostics that log it want a short stable token.
+   *
+   * The individual provider outcomes that used to be asserted here
+   * (`model_not_downloaded` vs `runtime_unavailable`, `cloud_unreachable` vs
+   * `auth_required`) were assertions about a vocabulary no caller could act on.
+   * They are replaced by one test per *distinction the product can act on*,
+   * because "available" and "not available, and here is which of the five
+   * actionable things went wrong" are the only two answers a caller had a use
+   * for.
+   */
   describe('checkAvailability', () => {
-    it('returns auth_required when cloud has no access token', async () => {
-      mockEnsureCloudAccessToken.mockResolvedValueOnce(null);
-      const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
-      expect(result).toEqual({ available: false, reason: 'auth_required' });
-    });
-
-    it('checks built-in model via bridge.llm.llmCheckModel', async () => {
+    it('reports an available provider as available, with no reason', async () => {
       mockBridge.llm.llmCheckModel.mockResolvedValue({
         downloaded: true,
         runtimeAvailable: true,
         ready: true,
       });
       const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'builtin' }));
-      expect(mockBridge.llm.llmCheckModel).toHaveBeenCalledWith('selected-model.gguf');
-      expect(result).toEqual({ available: true });
+      expect(await checkAvailability(makeSettings({ llmProvider: 'builtin' })))
+        .toEqual({ available: true });
     });
 
-    it('returns model_not_downloaded when model is not downloaded', async () => {
-      mockBridge.llm.llmCheckModel.mockResolvedValue({ downloaded: false });
-      const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'builtin' }));
-      expect(result).toEqual({ available: false, reason: 'model_not_downloaded' });
-    });
-
-    it('returns runtime_unavailable when the model exists but its binary cannot be resolved', async () => {
-      mockBridge.llm.llmCheckModel.mockResolvedValue({
-        downloaded: true,
-        runtimeAvailable: false,
-        ready: false,
-        runtimeError: 'NoBinaryFoundError',
-      });
-      const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'builtin' }));
-      expect(result).toEqual({ available: false, reason: 'runtime_unavailable' });
-    });
-
-    it('returns model_check_failed when llmCheckModel throws', async () => {
-      mockBridge.llm.llmCheckModel.mockRejectedValue(new Error('IPC error'));
-      const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'builtin' }));
-      expect(result).toEqual({ available: false, reason: 'model_check_failed' });
-    });
-
-    it('checks Ollama via bridge.llm.ollamaCheck', async () => {
-      mockBridge.llm.ollamaCheck.mockResolvedValue(true);
-      const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'ollama' }));
-      expect(mockBridge.llm.ollamaCheck).toHaveBeenCalledOnce();
-      expect(result).toEqual({ available: true });
-    });
-
-    it('returns ollama_unreachable when ollamaCheck returns false', async () => {
+    it('asks the shared owner, so every provider reports through one classifier', async () => {
       mockBridge.llm.ollamaCheck.mockResolvedValue(false);
       const { checkAvailability } = await import('./llmProvider');
       const result = await checkAvailability(makeSettings({ llmProvider: 'ollama' }));
-      expect(result).toEqual({ available: false, reason: 'ollama_unreachable' });
+      expect(result.available).toBe(false);
+      // The old vocabulary had a separate token per provider for the same
+      // condition ("ollama_unreachable" here, "cloud_unreachable" there). One
+      // failure now has one id no matter which provider produced it.
+      expect(result.reason).toBe('unreachable');
     });
 
-    it('returns ollama_unreachable when ollamaCheck throws', async () => {
+    it('distinguishes a recoverable sign-in from a dead endpoint', async () => {
+      mockEnsureCloudAccessToken.mockResolvedValueOnce(null);
+      const { checkAvailability } = await import('./llmProvider');
+      expect((await checkAvailability(makeSettings({ llmProvider: 'cloud' }))).reason)
+        .toBe('signInRequired');
+    });
+
+    it('never throws out of a diagnostic probe', async () => {
       mockBridge.llm.ollamaCheck.mockRejectedValue(new Error('timeout'));
       const { checkAvailability } = await import('./llmProvider');
       const result = await checkAvailability(makeSettings({ llmProvider: 'ollama' }));
-      expect(result).toEqual({ available: false, reason: 'ollama_unreachable' });
+      expect(result.available).toBe(false);
     });
-
-    it('uses CloudLLMAdapter for cloud provider', async () => {
-      mockCloudAdapterCheckAvailability.mockResolvedValue(true);
-      const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'cloud', cloudAuthAccessToken: 'token123' }));
-      expect(MockCloudLLMAdapter.lastInstance).not.toBeNull();
-      expect(mockCloudAdapterCheckAvailability).toHaveBeenCalledOnce();
-      expect(result).toEqual({ available: true });
-    });
-
-    it('returns cloud_unreachable when CloudLLMAdapter.checkAvailability returns false', async () => {
-      mockCloudAdapterCheckAvailability.mockResolvedValue(false);
-      const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'cloud', cloudAuthAccessToken: 'token123' }));
-      expect(result).toEqual({ available: false, reason: 'cloud_unreachable' });
-    });
-
-     it('returns auth_required when ensureCloudAccessToken returns null', async () => {
-       mockEnsureCloudAccessToken.mockResolvedValue(null);
-       const { checkAvailability } = await import('./llmProvider');
-       const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
-       expect(result).toEqual({ available: false, reason: 'auth_required' });
-     });
-
-     it('does not open modal for cloud diagnostic auth failures', async () => {
-       mockEnsureCloudAccessToken.mockRejectedValue(new MockCloudSessionCancelledError());
-       const { checkAvailability } = await import('./llmProvider');
-       const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
-       expect(result).toEqual({ available: false, reason: 'auth_required' });
-     });
-
-     it('returns cloud_unreachable for CloudUnreachableError during diagnostics', async () => {
-       mockEnsureCloudAccessToken.mockRejectedValue(new MockCloudUnreachableError());
-       const { checkAvailability } = await import('./llmProvider');
-       const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
-       expect(result).toEqual({ available: false, reason: 'cloud_unreachable' });
-     });
-   });
+  });
 
   // --------------------------------------------------------------------------
   // streamExplanation / explanation cache

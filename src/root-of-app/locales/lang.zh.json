@@ -105,7 +105,6 @@
         "Role": "角色",
         "ConnectedTo": "与 {label} 相连",
         "LoadFailed": "无法加载图谱。",
-        "Retry": "重试",
         "All": "所有连接",
         "TapToSee": "轻点查看全部"
       }
@@ -341,7 +340,6 @@
       "InstructionsPlaceholder": "描述您想练习的场景、角色扮演或特定主题。例如：'让我们练习在餐厅点餐'或'扮演面试官角色'。",
       "InstructionsTab": "指令",
       "ItemsSelected": "已选 {count} 项",
-      "LLMNotConfigured": "AI 尚未配置。请先在设置中进行配置。",
       "MediaTab": "媒体",
       "NoGrammarSupport": "该语言暂无可用的语法点。",
       "NoMediaYet": "尚无保存的媒体。观看视频或阅读书籍来记录您的进度。",
@@ -413,6 +411,34 @@
       "VersionLabel": "版本 {version}",
       "Website": "网站"
     },
+    "AddAllFlashcards": {
+      "reader": {
+        "Title": "从本书添加闪卡",
+        "WordListTitle": "要从此书添加的单词",
+        "LevelFilter": "低于等级阈值",
+        "LevelFilterDescription": "添加发现等级处于或低于所选阈值的单词",
+        "DictionaryFilter": "在词典中找到",
+        "DictionaryFilterDescription": "添加所有在词典中找到的单词",
+        "AddAll": "全部添加（{count}）",
+        "AddSelected": "添加所选（{count}）",
+        "SelectAll": "全选",
+        "DeselectAll": "取消全选",
+        "AddChecked": "添加已选（{count}）"
+      },
+      "video": {
+        "Title": "从本视频添加闪卡",
+        "WordListTitle": "要从此视频添加的单词",
+        "LevelFilter": "低于等级阈值",
+        "LevelFilterDescription": "添加发现等级处于或低于所选阈值的单词",
+        "DictionaryFilter": "在词典中找到",
+        "DictionaryFilterDescription": "添加所有在词典中找到的单词",
+        "AddAll": "全部添加（{count}）",
+        "AddSelected": "添加所选（{count}）",
+        "SelectAll": "全选",
+        "DeselectAll": "取消全选",
+        "AddChecked": "添加已选（{count}）"
+      }
+    },
     "CardEditor": {
       "AudioUnavailable": "音频不可用。使用重新生成按钮生成。",
       "TtsMissing": "未找到 {field}。请从卡片编辑器重新生成。",
@@ -475,6 +501,13 @@
         "ClearTooltip": "清除日志",
         "DefaultTitle": "控制台",
         "NoLogs": "没有可显示的日志"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "打开 AI 设置",
+      "Llm": {
+        "NotConfigured": "此功能需要 AI 模型。请在 AI 设置中选择一个，然后重试。",
+        "Unreachable": "无法连接 AI 服务。请检查您的网络连接后重试。"
       }
     },
     "ConfirmDialog": {
@@ -1032,6 +1065,7 @@
         "ExamplesDoneWithErrors": "为 {count} 张卡片生成了例句，{failed} 张失败",
         "ExamplesProgress": "正在生成例句…",
         "ExamplesTooltip": "为没有例句的卡片使用 LLM 生成例句",
+        "ExamplesReplaceAllTooltip": "重新生成每张闪卡的例句，替换现有例句",
         "GenerateDescription": "批量生成闪卡的音频和例句",
         "ModeChoice": "生成模式",
         "ModeOlderThan": "重新生成早于指定日期的",
@@ -1043,7 +1077,11 @@
         "TtsDone": "为 {count} 个项目生成了 TTS",
         "TtsDoneWithErrors": "为 {count} 个项目生成了 TTS，{failed} 个失败",
         "TtsProgress": "正在生成 TTS…",
-        "TtsTooltip": "为所有闪卡单词和例句生成 TTS 音频"
+        "TtsTooltip": "为所有闪卡单词和例句生成 TTS 音频",
+        "ReplaceAllTitle": "替换现有内容？",
+        "ReplaceAllExamplesConfirm": "重新生成将替换 {count} 张闪卡上的现有例句。你自己编辑过的例句也会被覆盖。此操作无法撤销。",
+        "ReplaceAllTtsConfirm": "重新生成将替换 {count} 张闪卡上的现有音频。此操作无法撤销。",
+        "ReplaceAllConfirmAction": "重新生成"
       },
       "Card": {
         "Due": "到期：",
@@ -1083,6 +1121,7 @@
         },
         "DeleteCard": {
           "Confirm": "确定要删除此闪卡吗？此操作无法撤销。",
+          "ConfirmMany": "确定要删除所选的 {count} 张闪卡吗？此操作无法撤销。",
           "Title": "删除闪卡"
         },
         "EditCard": {
@@ -1206,6 +1245,7 @@
         "New": "新卡",
         "NewCardsStudied": "已学新卡数",
         "Review": "复习",
+        "ReviewState": "复习中",
         "ReviewsCompleted": "已完成复习",
         "Suspended": "已暂停",
         "TodayProgress": "今日进度",
@@ -1268,12 +1308,14 @@
         "UseTTS": "生成音频",
         "PromoteSelected": "升级所选",
         "DeleteSelected": "删除所选",
+        "DeleteSelectedConfirm": "删除所选的 {count} 条推荐？它们将连同捕获它们的句子一起被丢弃。",
         "Promote": "升级",
         "Delete": "删除",
         "Promoting": "正在生成 {current}/{total}…",
         "Promoted": "已创建 {count} 张闪卡",
         "PromoteFailed": "升级推荐失败。",
         "Removed": "已移除 {count} 条推荐",
+        "IgnoreFailed": "无法忽略这个单词。它仍在您的建议中；请重试。",
         "SeenCount": "已见 {count} 次",
         "NoPreviewImage": "无预览图片",
         "SortDefault": "默认",
@@ -1329,7 +1371,6 @@
         "LoadingSettings": "正在加载设置…",
         "StartingBackend": "正在准备学习工具…"
       },
-      "Success": "成功",
       "Time": {
         "HoursMinutes": "{hours}小时{minutes}分",
         "LessThanMinute": "< 1 分钟",
@@ -1767,6 +1808,10 @@
         "Incorrect": "不完全对 — 答案是：{answer}",
         "Next": "下一个",
         "StorageUnavailable": "无法保存你的答案。请检查存储空间是否可用，然后重试。",
+        "Undo": "↩",
+        "UndoTooltip": "撤销",
+        "SavingUndo": "正在保存撤销操作…",
+        "UndoSaveFailed": "无法保存撤销操作。当前评分仍然有效，请重试。",
         "SavingAnswer": "正在保存回答…",
         "ModeLabel": "作答方式",
         "ModeMcq": "选择",
@@ -2188,9 +2233,8 @@
           "RestoreError": "无法开始恢复。重新启动前请检查数据保护状态。",
           "ConfirmTitle": "恢复 mLearn 数据",
           "ConfirmMessage": "要恢复 {date} 的恢复点吗？",
-          "ConfirmDetail": "mLearn 将重新启动。当前数据会保存在单独的恢复文件夹中。",
-          "Cancel": "取消",
-          "ConfirmRestore": "恢复并重新启动"
+          "ConfirmRestore": "恢复并重新启动",
+          "RestoreQueued": "mLearn 将重新启动并恢复此恢复点。"
         },
         "ExportAllData": {
           "Description": "将所有学习数据（闪卡、媒体统计、音频、图片）导出为 ZIP 存档",
@@ -2201,17 +2245,20 @@
           "Label": "导出设置"
         },
         "ImportAllData": {
-          "Confirm": "这将覆盖您当前的所有数据（闪卡、媒体统计、音频、图片）。导入后应用将重启。是否继续？",
-          "Description": "从 ZIP 存档导入所有学习数据。这将覆盖现有数据。",
+          "Confirm": "mLearn 将重新启动，并用此存档的内容替换您的闪卡、媒体、语言数据和设置。您当前的数据会保留为恢复点，导入后可在此窗口中将其恢复。",
+          "ConfirmAction": "导入并重新启动",
+          "Description": "从 ZIP 存档替换所有学习数据。您当前的数据会保留为恢复点。",
           "Label": "导入所有数据",
           "Success": "数据导入成功。应用将重启以应用更改。"
         },
         "ImportSettings": {
           "Description": "从 JSON 文件导入设置",
-          "Label": "导入设置"
+          "Label": "导入设置",
+          "Success": "设置已导入。"
         },
         "ResetSettings": {
-          "Description": "将所有设置重置为默认值",
+          "Confirm": "所有标签页中的每项设置都会恢复为默认值。您的闪卡、媒体和学习记录不会受到影响，任何数值都可以重新更改。",
+          "Description": "将所有标签页中的每项设置恢复为默认值",
           "Label": "重置设置"
         }
       },
@@ -2758,19 +2805,17 @@
         "DataManagement": {
           "NukeButton": "删除全部",
           "NukeFlashcards": {
-            "Description": "永久删除所有闪卡并重置所有内容（无法撤销！）",
+            "Confirm": "所有闪卡将被删除，同时删除的还有单词追踪、语法知识、每日统计和所有学习进度。这些内容都无法找回，mLearn 的表现将与刚安装完成时相同。",
+            "Description": "永久删除所有闪卡和所有学习进度",
             "Label": "删除所有闪卡",
-            "ModalWarning": "这将永久删除您所有的闪卡、单词追踪数据、语法知识、每日统计和所有学习进度。此操作不可逆，闪卡系统将恢复到初始空状态，如同新安装的应用。",
-            "Success": "所有闪卡已被删除。",
-            "TypePhrase": "输入“{phrase}”确认此操作。"
+            "Success": "所有闪卡已被删除。"
           },
           "ResetButton": "重置 SRS",
           "ResetSRS": {
-            "Description": "清除所有闪卡进度（无法撤销！）",
+            "Confirm": "所有排程都将被清除：间隔、难度、复习次数和每日进度。每张卡片都会回到“新卡”状态。卡片内容、图片和音频会保留，原有排程会保存在恢复点中。",
+            "Description": "清除所有闪卡进度，同时保留卡片",
             "Label": "重置 SRS 数据",
-            "ModalWarning": "这将重置所有闪卡排程数据，包括间隔、难度系数、复习次数和学习进度。闪卡内容将被保留，但所有卡片将回到“新卡”状态。",
-            "Success": "所有 SRS 数据已被重置。",
-            "TypePhrase": "输入“{phrase}”确认此操作。"
+            "Success": "所有 SRS 数据已被重置。"
           },
           "Title": "数据管理"
         },
@@ -2846,7 +2891,6 @@
       },
       "UI": {
         "Description": "按您的偏好配置 mLearn",
-        "ResetConfirm": "确定要将所有设置重置为默认值吗？此操作无法撤销。",
         "ResetSuccess": "设置已重置为默认值",
         "SaveError": "保存设置失败",
         "Title": "设置"
@@ -3271,6 +3315,7 @@
         "SignInCodeHint": "如果您收到设备码，请在下方输入",
         "PeerJoinedSingular": "有对等端加入了您的房间",
         "PeerJoinedPlural": "{count} 个对等端加入了您的房间",
+        "PeerCount": "{count} 人正在观看",
         "AnticipatingPing": "等待 ping…"
       },
       "Extension": {},
@@ -3378,9 +3423,6 @@
       "InText": "原文中：{form}",
       "AddToAnki": "添加到 Anki",
       "AddToBuiltInSrs": "点击添加到内置 SRS",
-      "Alerts": {
-        "ExplainRequiresLlm": "解释功能需要本地 AI 语言模型。请在设置中启用 LLM 并重启应用。"
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "仍要添加",
         "DontRemind": "不再提醒",
@@ -3388,7 +3430,8 @@
         "Title": "重复闪卡"
       },
       "Errors": {
-        "FailedToAddFlashcard": "添加闪卡失败：{error}"
+        "FailedToAddFlashcardForWord": "添加「{word}」闪卡失败：{error}",
+        "FailedToAddFlashcards": "添加闪卡失败（{count} 个）：{error}"
       },
       "Explain": "解释",
       "InAnki": "在 Anki 中",
@@ -3415,8 +3458,7 @@
       "AnkiUpdateSuccess": "已更新 {count} 张 Anki 卡片",
       "AnkiUpdateRepositioned": "已更新 {count} 张卡片，重新定位了 {repositioned} 张新卡片",
       "AnkiUpdateFailed": "更新 Anki 卡片失败",
-      "CardScheduling": "卡片调度",
-      "FlashcardAddFailed": "无法添加闪卡"
+      "CardScheduling": "卡片调度"
     },
     "ConnectionStatus": {
       "Connected": "已连接",
@@ -3453,7 +3495,14 @@
       "ProjectionUnavailable": "无法加载知识数据。请重试。",
       "SavingRating": "正在保存评分…",
       "AnswerUnavailable": "此词暂无答案。请重试词典查询或选择其他筛选条件。尚未记录评分。",
+      "SkipWord": "跳过这个词",
       "SaveFailed": "无法保存这次评分。当前词语仍会显示，请重试。",
+      "SavingUndo": "正在保存撤销操作…",
+      "UndoSaveFailed": "无法保存撤销操作。当前词语仍保持已评分状态，请重试。",
+      "Undo": "↩",
+      "UndoTooltip": "撤销",
+      "SessionStartFailed": "无法保存本次学习会话，因此未能开始会话。已记录的答案保持不变；请重试。",
+      "DismissFailed": "无法关闭本次会话。没有丢弃任何内容；请重试。",
       "Statement": {},
       "FinishedTitle": "全部完成！",
       "FinishedDescription": "已记录的检查：{count}次。这些回答现已保存到学习历史中。",

@@ -6,7 +6,7 @@
  */
 
 import type { Flashcard, DailyStudyStats } from '../../shared/types';
-import { getEndOfSRSDay } from './srsAlgorithm';
+import { countDueCards, getEndOfSRSDay, type DueCardCounts } from './srsAlgorithm';
 
 const DAY = 24 * 60 * 60 * 1000;
 const MATURE_THRESHOLD_DAYS = 21;
@@ -65,14 +65,6 @@ export interface DailyActivityEntry {
   newCards: number;
   reviews: number;
   timeSpent: number;
-}
-
-export interface DueCounts {
-  new: number;
-  learning: number;
-  review: number;
-  relearning: number;
-  total: number;
 }
 
 export interface StreakInfo {
@@ -359,35 +351,13 @@ export function computeDailyActivity(
 // ============================================================================
 
 /**
- * Count how many cards are actually due by the end of the current SRS day.
- * This is NOT session-limited; it reflects the true workload.
+ * Cards due for the current SRS day, bucketed by scheduler state.
+ *
+ * Thin re-export of the canonical scheduler read model so statistics and the
+ * review queue can never disagree about what "due" means.
  */
-export function computeDueCounts(cards: Flashcard[], newDayHour: number = 4): DueCounts {
-  const dayEnd = getEndOfSRSDay(newDayHour);
-  let newCards = 0;
-  let learning = 0;
-  let review = 0;
-  let relearning = 0;
-
-  for (const card of cards) {
-    if (card.suspended || card.buried) continue;
-
-    if (card.state === 'new') {
-      newCards++;
-    } else if (card.dueDate <= dayEnd) {
-      if (card.state === 'learning') learning++;
-      else if (card.state === 'review') review++;
-      else if (card.state === 'relearning') relearning++;
-    }
-  }
-
-  return {
-    new: newCards,
-    learning,
-    review,
-    relearning,
-    total: newCards + learning + review + relearning,
-  };
+export function computeDueCounts(cards: Flashcard[], newDayHour: number = 4): DueCardCounts {
+    return countDueCards(cards, newDayHour);
 }
 
 // ============================================================================

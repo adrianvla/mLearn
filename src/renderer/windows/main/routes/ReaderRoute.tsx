@@ -1,5 +1,5 @@
-import { getWrittenComprehensionStatus } from '../../../utils/writtenComprehension';
-import { CloudSessionCancelledError, hasSignedInCloudSession, withCloudAuth } from '../../../services/cloudSessionManager';
+import { hasSignedInCloudSession, withCloudAuth } from '../../../services/cloudSessionManager';
+import { classifyProviderFailure } from '../../../services/providerFailure';
 /**
  * Reader Route
  * Manga/Image OCR reader integrated into main window via router
@@ -15,9 +15,10 @@ import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { initWordLookupBridge } from '../../../services/wordLookupService';
 import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats, warmTranslationCache, isTranslationWarming } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
-import { parseKeybind } from '../../../components/common';
+import { parseKeybind, useConfirmDialog } from '../../../components/common';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 import { isLLMReady } from '../../../services/llmProvider';
+import { requireCapability } from '../../../services/capabilityUnavailable';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, Settings, LanguageData } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
@@ -46,7 +47,10 @@ import {
   resolveLanguageContentFontOption,
 } from '../../../../shared/languageFeatures';
 import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
-import { bulkAddWords } from '../../../utils/bulkAddWords';
+import { addAllCapturedWords } from '../../../services/addAllCapturedWords';
+import { resolveCapturedWordEligibility } from '../../../services/wordCaptureEligibility';
+import { reportCaptureFailure } from '../../../services/wordCaptureFailure';
+import { ignoreWordWithConfirmation } from '../../flashcards/ignoreWordWithConfirmation';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
@@ -85,7 +89,7 @@ import { createGrammarEncounterRecorder, journalGrammarEncountersForTokenGroups 
 import { createReaderPageVisits } from './readerPageVisits';
 import { locationForPage, pageForLocation, parseSavedReaderLocation, progressForLocation, type ReaderSourceLocation } from './readerResume';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { getColoredProsodyConfig, coloredProsodyNeedsDictionaryLookup } from '../../../utils/coloredProsody';
 import { coloredProsodyAllowedOnSurface } from '../../../../shared/prosodySettings';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
@@ -235,7 +239,7 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const { settings } = useSettings();
   const { currentLangData, getLanguageFeatures } = useLanguage();
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const text = () => props.page.text ?? '';
   const textBlocks = () => text().split(/\n{2,}/u).map((block) => block.trim()).filter(Boolean);
   const headingText = () => {
@@ -561,6 +565,7 @@ export const ReaderRoute: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const langCtx = useLanguage();
   const { detectGrammarInText, supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
   const ocrEnabled = () => settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled;
@@ -569,7 +574,7 @@ export const ReaderRoute: Component = () => {
       setCloudOcrAuthCancelled(false);
     }
   });
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,
@@ -1395,7 +1400,10 @@ export const ReaderRoute: Component = () => {
       });
     } catch (error) {
       if (!request.isCurrent()) return;
-      if (error instanceof CloudSessionCancelledError) {
+      // Whether the learner stopped the sign-in themselves decides what the
+      // reader shows next, so it comes from the one failure owner rather than
+      // from a local `instanceof` that can drift from every other surface.
+      if (classifyProviderFailure(error, settings.ocrProvider === 'cloud' ? 'cloud' : 'builtin').id === 'signInCancelled') {
         setCloudOcrAuthCancelled(true);
         return;
       }
@@ -1465,7 +1473,7 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
-        if (getWrittenComprehensionStatus({ surface: entry.token.surface ?? entry.token.word, lexicalWord: entry.word, language: settings.language }, flashcardCtx.getAccessStatus) === 'known') {
+        if (flashcardCtx.isWordKnownWhenWrittenSync(entry.word, entry.token.surface ?? entry.token.word, settings.language)) {
           continue;
         }
 
@@ -1602,47 +1610,73 @@ export const ReaderRoute: Component = () => {
     }
   };
 
+  /**
+   * Whether a captured word may still become a card.
+   *
+   * The rule itself belongs to `wordCaptureEligibility`; this only supplies
+   * the reader's facts. The reader used to restate the rule here, which is how
+   * the video and overlay sidebars came to disagree about the same word.
+   */
+  const isReaderCaptureEligible = (entry: ReaderUnknownWordEntry): boolean =>
+    resolveCapturedWordEligibility(
+      entry.word,
+      settings.language,
+      Boolean(flashcardCtx.getCardByWordSync(entry.word, settings.language)),
+      flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).excluded === true,
+    ).eligible;
+
+  /**
+   * A single sidebar capture, reporting its own failure.
+   *
+   * The reader already let a rejection propagate, but nothing caught it, so a
+   * failed capture reached the click handler and stopped there: the row left
+   * its in-flight state and the learner saw nothing. The sibling video
+   * sidebars swallowed the same failure instead, which additionally made their
+   * batch error branch unreachable.
+   */
   const handleAddSidebarWord = async (entry: ReaderUnknownWordEntry) => {
-    if (
-      addingSidebarWords().has(entry.key)
-      || flashcardCtx.getCardByWordSync(entry.word, settings.language)
-      || flashcardCtx.isWordIgnoredSync(entry.word, settings.language)
-    ) {
+    if (addingSidebarWords().has(entry.key) || !isReaderCaptureEligible(entry)) {
       return;
     }
-    await addReaderWordFlashcard(entry);
-  };
-
-  const handleAddAllSidebarWords = async (entries: ReaderUnknownWordEntry[]) => {
-    if (isAddingAllSidebarWords() || entries.length === 0) {
-      return;
-    }
-
-    await processAddAll(entries);
-  };
-
-  const processAddAll = async (entries: ReaderUnknownWordEntry[]) => {
-    setIsAddingAllSidebarWords(true);
     try {
-      await bulkAddWords({
-        entries,
-        addFlashcard: addReaderWordFlashcard,
-        skip: (entry) =>
-          !!flashcardCtx.getCardByWordSync(entry.word, settings.language)
-          || flashcardCtx.isWordIgnoredSync(entry.word, settings.language),
-        onEntryError: (entry, err) => {
-          log.error(`Failed to add flashcard for "${entry.word}":`, err);
-          showToast({ message: t('mlearn.WordHover.FlashcardAddFailed'), variant: 'error' });
-        },
-      });
-    } finally {
-      setIsAddingAllSidebarWords(false);
+      await addReaderWordFlashcard(entry);
+    } catch (err) {
+      reportCaptureFailure(err, { word: entry.word }, { translate: t, log: log.error });
     }
   };
+
+  /**
+   * "Add All" for the reader's unknown words.
+   *
+   * The behaviour itself - refusing to re-enter, re-checking eligibility per
+   * entry, keeping going past a failure, and reporting the run as one batch -
+   * is owned by `addAllCapturedWords`, because the video route and the
+   * floating overlay are the same sidebar offering the same button and had
+   * already drifted from this copy. The reader supplies what it knows: how to
+   * build one card, whether that word may still become one, and its logger.
+   */
+  const handleAddAllSidebarWords = (entries: ReaderUnknownWordEntry[]) =>
+    addAllCapturedWords({
+      entries,
+      addFlashcard: addReaderWordFlashcard,
+      isEligible: isReaderCaptureEligible,
+      isInFlight: isAddingAllSidebarWords,
+      setInFlight: setIsAddingAllSidebarWords,
+      translate: t,
+      logEntryError: (entry, err) => log.error(`Failed to add flashcard for "${entry.word}":`, err),
+    });
 
 
   const handleIgnoreSidebarWord = async (entry: ReaderUnknownWordEntry) => {
-    await flashcardCtx.ignoreWordForLanguage(entry.word, entry.token.reading);
+    await ignoreWordWithConfirmation(
+      { word: entry.word, reading: entry.token.reading, language: settings.language },
+      {
+        getCardCount: (word, language) => flashcardCtx.getCardsByWordSync(word, language).length,
+        ignoreWordForLanguage: flashcardCtx.ignoreWordForLanguage,
+        showConfirm,
+        t,
+      },
+    );
   };
 
   const currentOcrReadinessError = () => getOcrLanguageDataReadinessError(settings.language, currentLangData());
@@ -1897,7 +1931,7 @@ export const ReaderRoute: Component = () => {
       return result;
     } catch (error) {
       if (!request.isCurrent()) return null;
-      if (error instanceof CloudSessionCancelledError) {
+      if (classifyProviderFailure(error, settings.ocrProvider === 'cloud' ? 'cloud' : 'builtin').id === 'signInCancelled') {
         setCloudOcrAuthCancelled(true);
         return null;
       }
@@ -2398,10 +2432,7 @@ export const ReaderRoute: Component = () => {
           break;
         }
         case 'explain-phrase':
-          if (!isLLMReady(settings)) {
-            alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
-            break;
-          }
+          if (!requireCapability('llm', settings, t)) break;
 
           if (ocrContextPhrase()) {
             handleOpenPhraseExplainer(ocrContextPhrase(), ocrContextMenuPosition());
@@ -3364,6 +3395,8 @@ export const ReaderRoute: Component = () => {
             imageElements={Object.values(imageRefs())}
             active={magnifierActive()}
         />
+
+        <ConfirmDialogElement />
       </section>
   );
 };

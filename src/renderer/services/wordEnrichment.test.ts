@@ -42,6 +42,7 @@ describe('enrichWord', () => {
       word: 'dark',
       language: 'en',
       settings: { language: 'en', uiLanguage: 'de', dictionaryTargetLanguages: { en: 'de' } },
+      installedTargetLanguages: ['de'],
     }, { translate });
     expect(translate).toHaveBeenCalledWith('dark', 'en', { dictionaryTargetLanguage: 'de' });
   });

@@ -127,6 +127,18 @@ describe('Popover', () => {
     expect(document.activeElement).toBe(anchorEl);
   });
 
+  it('does not return focus to the anchor when clicking another control', () => {
+    mount();
+    setOpen(true);
+    const other = document.createElement('button');
+    document.body.appendChild(other);
+    other.focus();
+    other.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(onCloseMock).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(other);
+    other.remove();
+  });
+
   it('moves focus into the panel when it opens', () => {
     mount();
     setOpen(true);

@@ -19,6 +19,7 @@ import {
     getNextCard,
     removeFromQueue,
     addToQueue,
+    countDueCards,
     getQueueCounts,
     buryCard,
     suspendCard,
@@ -1517,6 +1518,107 @@ describe('addToQueue', () => {
 });
 
 // ---------------------------------------------------------------------------
+// countDueCards — the canonical "what is left to study today" read model
+// ---------------------------------------------------------------------------
+
+describe('countDueCards', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('buckets each scheduler state, keeping relearning distinct from learning', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const due = new Date('2025-06-15T09:00:00').getTime();
+        const cards = [
+            createTestCard({ id: 'n', state: 'new', dueDate: due }),
+            createTestCard({ id: 'l', state: 'learning', dueDate: due }),
+            createTestCard({ id: 'rl', state: 'relearning', dueDate: due }),
+            createTestCard({ id: 'r', state: 'review', dueDate: due }),
+        ];
+
+        expect(countDueCards(cards)).toEqual({
+            new: 1,
+            learning: 1,
+            review: 1,
+            relearning: 1,
+            total: 4,
+        });
+    });
+
+    it('excludes cards scheduled beyond the current SRS day', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const tomorrow = new Date('2025-06-16T10:00:00').getTime();
+        const cards = [createTestCard({ id: 'r', state: 'review', dueDate: tomorrow })];
+
+        expect(countDueCards(cards).total).toBe(0);
+    });
+
+    it('includes a scheduled card due later today, before its exact due time', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T22:00:00'));
+        const laterToday = new Date('2025-06-15T23:00:00').getTime();
+        const cards = [createTestCard({ id: 'l', state: 'learning', dueDate: laterToday })];
+
+        expect(countDueCards(cards, 4).learning).toBe(1);
+    });
+
+    it('ignores suspended and buried cards', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const due = new Date('2025-06-15T09:00:00').getTime();
+        const cards = [
+            createTestCard({ id: 'a', state: 'review', dueDate: due, suspended: true }),
+            createTestCard({ id: 'b', state: 'review', dueDate: due, buried: true }),
+        ];
+
+        expect(countDueCards(cards).total).toBe(0);
+    });
+
+    it('scopes to a language when one is given, ignoring cards of other languages', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const due = new Date('2025-06-15T09:00:00').getTime();
+        const cards = [
+            createTestCard({ id: 'ja', state: 'review', dueDate: due, language: 'ja' }),
+            createTestCard({ id: 'de', state: 'review', dueDate: due, language: 'de' }),
+            createTestCard({ id: 'none', state: 'review', dueDate: due }),
+        ];
+
+        expect(countDueCards(cards, 4, 'ja').total).toBe(2);
+    });
+
+    // The regression this owner exists for: the review header and the
+    // statistics panel used to compute "due" separately and drift apart, so a
+    // learner saw two different numbers for the same question.
+    it('agrees with getQueueCounts for an uncapped queue', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const due = new Date('2025-06-15T09:00:00').getTime();
+        const cardList = [
+            createTestCard({ id: 'n', state: 'new', dueDate: due }),
+            createTestCard({ id: 'l', state: 'learning', dueDate: due }),
+            createTestCard({ id: 'rl', state: 'relearning', dueDate: due }),
+            createTestCard({ id: 'r', state: 'review', dueDate: due }),
+        ];
+        const cards = Object.fromEntries(cardList.map((c) => [c.id, c]));
+        const queue: ReviewQueue = {
+            newQueue: ['n'],
+            scheduledQueue: ['l', 'rl', 'r'],
+        };
+
+        const queueCounts = getQueueCounts(queue, cards, 4);
+        const dueCounts = countDueCards(cardList, 4);
+
+        expect(queueCounts.total).toBe(dueCounts.total);
+        // The header folds relearning into its single "Learning" badge.
+        expect(queueCounts.learning).toBe(dueCounts.learning + dueCounts.relearning);
+        expect(queueCounts.review).toBe(dueCounts.review);
+        expect(queueCounts.new).toBe(dueCounts.new);
+    });
+});
+
 // getQueueCounts
 // ---------------------------------------------------------------------------
 

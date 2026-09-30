@@ -19,6 +19,17 @@ const log = getLogger('electron.localMediaProtocol');
 
 const SCHEME = 'local-media';
 const PLUGIN_UI_SCHEME = 'plugin-ui';
+/**
+ * Plugin bundles load into the renderer as ES modules. Once `plugin-ui` is a
+ * standard, CORS-enabled scheme the module request is validated against the
+ * response headers, so every response — success and failure alike — has to carry
+ * them. An error response without them surfaces as an opaque
+ * "Failed to fetch dynamically imported module" rather than a usable status.
+ */
+const PLUGIN_UI_RESPONSE_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+};
 const LOCAL_MEDIA_RESPONSE_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
@@ -210,11 +221,15 @@ export function setupLocalMediaProtocol(): void {
 
 export function setupPluginUiProtocol(): void {
   protocol.handle(PLUGIN_UI_SCHEME, async (request) => {
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: PLUGIN_UI_RESPONSE_HEADERS });
+    }
+
     const requestPath = decodeURIComponent(request.url.slice(`${PLUGIN_UI_SCHEME}://`.length));
     const requestSegments = requestPath.split('/').filter((segment) => segment.length > 0);
 
     if (requestSegments.length < 2 || requestSegments.includes('..')) {
-      return new Response('Access denied', { status: 403 });
+      return new Response('Access denied', { status: 403, headers: PLUGIN_UI_RESPONSE_HEADERS });
     }
 
     const [encodedPluginId, ...relativePathSegments] = requestSegments;
@@ -225,7 +240,7 @@ export function setupPluginUiProtocol(): void {
     const resolvedPath = path.resolve(scopedPluginDir, ...relativePathSegments);
     const isAllowed = resolvedPath.startsWith(`${scopedPluginDir}${path.sep}`);
     if (!isAllowed) {
-      return new Response('Access denied', { status: 403 });
+      return new Response('Access denied', { status: 403, headers: PLUGIN_UI_RESPONSE_HEADERS });
     }
 
     try {
@@ -233,12 +248,13 @@ export function setupPluginUiProtocol(): void {
       return new Response(content, {
         status: 200,
         headers: {
+          ...PLUGIN_UI_RESPONSE_HEADERS,
           'Content-Type': getMimeType(resolvedPath),
           'Content-Length': String(content.byteLength),
         },
       });
     } catch {
-      return new Response('File not found', { status: 404 });
+      return new Response('File not found', { status: 404, headers: PLUGIN_UI_RESPONSE_HEADERS });
     }
   });
 }

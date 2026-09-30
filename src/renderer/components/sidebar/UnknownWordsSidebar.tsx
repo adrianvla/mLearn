@@ -4,6 +4,7 @@ import type { Token, TranslationEntry, TranslationResponse } from '../../../shar
 import { Button, CloseIcon, CollapsibleStickyHeader, PillLabel, Select } from '../common';
 import { WordWithReading } from '../language-specific';
 import { ResourcePill } from '../common/Smart';
+import { resolveCapturedWordEligibility, type CapturedWordIneligibility } from '../../services/wordCaptureEligibility';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
@@ -15,7 +16,7 @@ import {
 import { normalizeDictionaryReading } from '../../utils/readingProsody';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import { compareFrequencyLevelsForDisplay, getFrequencyLevelVisualRank, getPartOfSpeechColor } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -81,7 +82,7 @@ const UnknownWordRow: Component<{
   const { t } = useLocalization();
   const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData } = useLanguage();
   const { getComprehensiveWordStatusWithSourceSync, getAccessStatus, isKnowledgeReady } = useFlashcards();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
 
   const comprehensiveKnowledge = createMemo(() => (
     getComprehensiveWordStatusWithSourceSync(props.entry.word, settings.language)
@@ -252,9 +253,9 @@ const UnknownWordRow: Component<{
 export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const { getCardByWordSync, isWordIgnoredSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
+  const { getCardByWordSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { currentLangData, getFrequency, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,
@@ -296,16 +297,31 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   });
 
   /**
-   * Teaching-policy exclusions (ignored words) resolved via the canonical
-   * resolver's `excluded` flag. Exclusion is NOT knowledge: status stays
-   * honest, but excluded words must never surface as unknown-word noise.
+   * Why each captured word cannot become a card, resolved by the one owner of
+   * that rule.
+   *
+   * The two reasons are kept apart because the sidebar presents them apart: a
+   * word that is already a card is not offered, while an excluded word is shown
+   * with its add control disabled so the learner can see why it is still here.
    */
+  const ineligibilityByWord = createMemo(() => {
+    const ineligibility = new Map<string, CapturedWordIneligibility>();
+    for (const entry of props.words()) {
+      const resolved = resolveCapturedWordEligibility(
+        entry.word,
+        settings.language,
+        Boolean(getCardByWordSync(entry.word, settings.language)),
+        getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).excluded === true,
+      );
+      if (!resolved.eligible && resolved.reason) ineligibility.set(entry.word, resolved.reason);
+    }
+    return ineligibility;
+  });
+
   const excludedByWord = createMemo(() => {
     const excluded = new Set<string>();
-    for (const entry of props.words()) {
-      if (getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).excluded) {
-        excluded.add(entry.word);
-      }
+    for (const [word, reason] of ineligibilityByWord()) {
+      if (reason === 'excluded') excluded.add(word);
     }
     return excluded;
   });
@@ -313,8 +329,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   const addableEntries = createMemo(() =>
     props.words().filter((entry) =>
       !props.addingWordKeys().has(entry.key)
-      && !getCardByWordSync(entry.word, settings.language)
-      && !excludedByWord().has(entry.word)
+      && !ineligibilityByWord().has(entry.word)
     )
   );
 
@@ -482,7 +497,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
                 translation={translations[entry.word]}
                 ankiCacheReady={ankiCacheReady}
                 isAdding={props.addingWordKeys().has(entry.key)}
-                isIgnored={isWordIgnoredSync(entry.word, settings.language)}
+                isIgnored={ineligibilityByWord().get(entry.word) === 'excluded'}
                 onAddWord={props.onAddWord}
                 onIgnoreWord={props.onIgnoreWord}
                 onMouseEnter={props.onWordHover ? () => props.onWordHover!(entry) : undefined}

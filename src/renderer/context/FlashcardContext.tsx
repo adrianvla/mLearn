@@ -7,12 +7,15 @@ import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset'
  */
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, batch } from 'solid-js';
+import { pushUndo } from '../learning/undoHistory';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
-import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PendingReviewUndo } from '../../shared/types';
+import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta } from '../../shared/types';
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
+import { clonePendingRetraction, readPendingRetraction, type PendingRetraction, type RetractionTarget, type RetractionReplayDescriptor } from '../../shared/retractionRecovery';
+import { isStaleFlashcardRevision } from '../../shared/flashcardWriteRevision';
 import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
 import { evidenceStatusFromEase, effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { GrammarEncounterOptions } from '../../shared/grammar/encounters';
@@ -35,13 +38,15 @@ import { registerAnkiReviewSync, refreshAnkiWordsCache } from '../services/ankiW
 import { getWordFormCandidates } from '../utils/wordForms';
 import { legacyCasingCandidates } from '../../shared/utils/normalizationVersion';
 import { streamChat, isLLMReady } from '../services/llmProvider';
-import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../services/cloudSessionManager';
+import { withCloudAuth } from '../services/cloudSessionManager';
+import { absorbProviderFailure } from '../services/providerFailure';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { createKnownWordSet } from '../utils/knowledgeUtils';
 import { applyFlashcardRatingCommand, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys } from '../utils/comprehensiveKnowledge';
+import { getWrittenComprehensionStatus } from '../utils/writtenComprehension';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
 import { appendEvents, appendEventsIdempotentAcknowledged, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
@@ -52,7 +57,7 @@ import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFl
 import { enrichWord } from '../services/wordEnrichment';
 import { selectRankedEncounters } from '../learning/engine';
 import { getLanguagePromptName, getLearningLanguageLevelForLanguage } from '../../shared/languageFeatures';
-import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
+import { getDictionaryPromptTargetForSettings, getDictionaryTargetLanguageForSettings, installedDictionaryTargetLanguages } from '../utils/dictionaryTargetLanguage';
 import { parseExampleBlocksFromLLM, type LLMExampleJob, type LLMExampleResult } from '../utils/llmExampleBatch';
 import {
   applyStorePatchInPlace,
@@ -150,16 +155,58 @@ function getDefaultStore(): FlashcardStore {
   };
 }
 
+/**
+ * The projection a flashcard review Undo puts back. Opaque to the store; this
+ * is the review surface's own vocabulary, carried inside the shared retraction
+ * record so a reloaded window can finish the Undo without one.
+ */
+/**
+ * A study surface's policy for putting its own state back, applied inside the
+ * one durable write that clears the retraction record.
+ *
+ * Synchronous by design: it runs against the candidate store while that write
+ * is being composed, so the projection and the clear either both land or
+ * neither does. A projection that had to await storage of its own would leave a
+ * window where the record is cleared but the projection is not applied — the
+ * learner's Undo would look finished while their state still reflected it.
+ *
+ * `authorization` is the one write this store permits to restore scheduling
+ * state, so a surface that owns a scheduler can name the write it needs.
+ */
+/** How finishing a recorded retraction ended. */
+export type RetractionCompletion =
+  /** The retraction is durable, the projection is applied, the record is gone. */
+  | 'completed'
+  /** The journal refused the tombstone. The record survives; the retry is the same Undo. */
+  | 'retraction-refused'
+  /** The record this call owns is no longer the one on disk. A newer Undo replaced it. */
+  | 'stale'
+  /** The retraction landed but the store refused the write that clears the record. */
+  | 'store-refused';
+
+export type RetractionProjection = ((
+  record: PendingRetraction,
+  target: FlashcardStore,
+) => void) & { authorization?: FlashcardWriteAuthorization };
+
+interface ReviewUndoProjection {
+  cardId: string;
+  type: string;
+  restoreCard: Flashcard;
+  restorePerLanguage: PerLanguageMeta | null;
+  today: string;
+  restoreDailyStats: DailyStudyStats | null;
+}
+
 // Undo stack entry
 interface UndoEntry {
   type: string;
   cardId?: string;
   restoreCard?: Flashcard;
-  reviewUndo?: PendingReviewUndo;
+  reviewUndo?: PendingRetraction;
   reviewUndoAuthorization?: FlashcardWriteAuthorization;
 }
 
-const MAX_UNDO_STACK_SIZE = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Pending flashcard creation requesting user choice between SRS and Anki */
@@ -340,6 +387,8 @@ interface FlashcardContextValue {
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
   /** Selection predicate: evidence-backed known OR explicit exclusion (never claims knowledge). */
   isWordSettledSync: (word: string, language?: string) => boolean;
+  /** Canonical written-comprehension predicate: is this word known AS PRESENTED IN TEXT? */
+  isWordKnownWhenWrittenSync: (word: string, surface: string, language?: string) => boolean;
   /** Projection refresh: rebuild wordKnowledge for a word's family keys from ACTIVE evidence. */
   recomputeWordKnowledgeFromEvidence: (word: string, language?: string) => Promise<void>;
   /**
@@ -359,6 +408,59 @@ interface FlashcardContextValue {
   ) => Promise<{ attemptId: AttemptId; completed: boolean }>;
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => Promise<boolean>;
+  /**
+   * The journal keys a word's attempts live under, and the projection they feed.
+   *
+   * A retraction has to be written to the keys the attempt actually landed on,
+   * and those are derived from the word's whole form family. Exposed so a
+   * surface records that location on its Undo instead of re-deriving it and
+   * risking a recovery that routes somewhere the attempt never was.
+   */
+  wordRetractionTarget: (word: string, language: string) => RetractionTarget;
+  /**
+   * Append retraction tombstones to the keys an attempt was actually written
+   * to, and replay whatever projection those keys feed.
+   *
+   * The durable Undo lifecycle needs this because a retraction is routed by
+   * KEY, not by attempt id alone: a tombstone only un-counts an attempt where
+   * the reading projection later finds it. Deriving those keys was hardcoded
+   * to a word's form family, which silently made every non-word study surface
+   * un-retractable — an Undo there would append nothing and still look done.
+   * Targets are open descriptors rather than an enum of subject kinds, so a
+   * surface for any new subject kind states its own keys instead of needing a
+   * new branch in core.
+   */
+  retractAttempts: (target: RetractionTarget, attemptIds: readonly AttemptId[]) => Promise<boolean>;
+  /** Register a package-owned projection replay without extending core subject types. */
+  registerRetractionReplay: (
+    kind: string,
+    replay: (descriptor: RetractionReplayDescriptor) => Promise<void>,
+  ) => (() => void);
+  /**
+   * The durable Undo lifecycle, shared by every study surface.
+   *
+   * A study surface records the Undo it has decided, finishes it (retracting
+   * the attempt and putting its own projection back), and lets a reloaded
+   * window finish one a previous window left behind. What the projection is
+   * stays the surface's own business, passed as policy — so adding a study
+   * surface does not add another copy of this protocol here.
+   */
+  recordPendingRetraction: (record: PendingRetraction) => Promise<boolean>;
+  completePendingRetraction: (
+    record: PendingRetraction,
+    build?: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ) => Promise<RetractionCompletion>;
+  recoverPendingRetraction: () => Promise<void>;
+  /**
+   * Registers how a study surface puts its own state back, so an Undo it
+   * decided can be finished by a window that never made the decision. Keyed by
+   * the `surface` tag on the record; a surface only registers while it is
+   * mounted, and core never inspects what the projection restores.
+   */
+  registerRetractionProjection: (
+    surface: string,
+    build: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ) => (() => void);
 
   // Word sync seen tracking
 
@@ -465,10 +567,81 @@ function applyStoreDelta(target: Record<string, unknown>, base: Record<string, u
   }
 }
 
+/**
+ * Replays a recorded decision (a delta) onto a store, leaving every key the
+ * decision did not mention exactly as the store already had it.
+ *
+ * `applyStoreDelta` computes changes between two whole snapshots, so a delta
+ * cannot be replayed with it: every key absent from the delta would be read as
+ * a deletion. This walks the delta's own branches instead, so a decision about
+ * one card cannot rewrite the rest of the store around it.
+ */
+function mergeIntentOnto(target: Record<string, unknown>, intent: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(intent)) {
+    if (isStoreRecord(value)) {
+      if (Object.keys(value).length === 0) {
+        // Every key under here was removed; the parent map is what the removal
+        // was recorded against.
+        if (Array.isArray(target[key])) target[key] = [];
+        else delete target[key];
+        continue;
+      }
+      if (!isStoreRecord(target[key])) target[key] = {};
+      mergeIntentOnto(target[key] as Record<string, unknown>, value);
+      continue;
+    }
+    if (value === undefined) {
+      // A key the decision removed. `applyStoreDelta` records a removal by
+      // omitting the key, and the store's own shape says how to read that: an
+      // array emptied, anything else deleted.
+      const existing = target[key];
+      if (Array.isArray(existing)) target[key] = [];
+      else delete target[key];
+      continue;
+    }
+    target[key] = JSON.parse(JSON.stringify(value)) as unknown;
+  }
+}
+
+/**
+ * Records what changed between two whole snapshots as a delta that can be
+ * replayed elsewhere.
+ *
+ * `applyStoreDelta` expresses a removal by omitting the key, which is right
+ * for applying onto the very snapshot it was computed from. A replayed delta
+ * has no such context: an absent key would be indistinguishable from one the
+ * decision never touched, so a removal would be silently dropped. Removals are
+ * therefore recorded explicitly, and `mergeIntentOnto` reads them back.
+ */
+function recordStoreDelta(target: Record<string, unknown>, base: Record<string, unknown>, next: Record<string, unknown>): void {
+  for (const key of new Set([...Object.keys(base), ...Object.keys(next)])) {
+    const before = base[key];
+    const after = next[key];
+    if (Object.is(before, after)) continue;
+    if (!(key in next)) {
+      target[key] = undefined;
+    } else if (isStoreRecord(before) && isStoreRecord(after)) {
+      if (!isStoreRecord(target[key])) target[key] = {};
+      recordStoreDelta(target[key] as Record<string, unknown>, before, after);
+      if (Object.keys(target[key] as Record<string, unknown>).length === 0) delete target[key];
+    } else {
+      if (JSON.stringify(before) === JSON.stringify(after)) continue;
+      target[key] = after === undefined ? undefined : JSON.parse(JSON.stringify(after)) as unknown;
+    }
+  }
+}
+
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { currentLangData, getFrequencyForLanguage, getCanonicalForm, getWordVariants, getCanonicalFormForLanguage, getWordVariantsForLanguage, getEffectiveLanguageData } = useLanguage();
+  const { currentLangData, getFrequencyForLanguage, getCanonicalForm, getWordVariants, getCanonicalFormForLanguage, getWordVariantsForLanguage, getEffectiveLanguageData, languageDataCatalog } = useLanguage();
+  // Dictionary lookups may only name a pack that is actually installed; an
+  // uninstalled target returns empty definitions for every word.
+  const dictionaryTargetFor = (learningLanguage: string) => getDictionaryTargetLanguageForSettings(
+    settings,
+    learningLanguage,
+    installedDictionaryTargetLanguages(languageDataCatalog?.() ?? [], learningLanguage),
+  );
   // Knowledge readiness: closed until the store hydrates AND the legacy
   // epistemic migration settles (that migration can legitimately flip rows —
   // e.g. passive Known → Learning under the REQ13 honesty cap — so any state
@@ -537,7 +710,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (rev < currentRevision) return;
     for (const attemptId of attemptIds) pendingRatings.delete(attemptId);
     if (pendingRatings.size === 0) setRatingPersistenceState('idle');
-    if (!authoritativeStore || rev > currentRevision + 1) loadFlashcards();
+    if (!authoritativeStore || rev > currentRevision + 1) {
+      authorityRefreshRequired = true;
+      loadFlashcards();
+    }
     if (authoritativeStore) {
       authoritativeStore = copyStoreWithPatch(authoritativeStore, patch);
       authoritativeStore.rev = rev;
@@ -557,25 +733,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Pending flashcard creation choice (SRS vs Anki)
   const [pendingFlashcardChoice, setPendingFlashcardChoice] = createSignal<PendingFlashcardChoice | null>(null);
 
-  const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
-
-  const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
-
-  const handleCloudOperationFallback = (error: unknown): boolean => {
-    if (isCloudSessionCancelled(error)) {
-      showToast({ message: t('mlearn.CloudReLogin.SignInCanceled'), variant: 'warning', duration: 5000 });
-      return true;
-    }
-
-    if (isCloudUnreachable(error)) {
-      showToast({ message: t('mlearn.AI.CloudUnreachable'), variant: 'error', duration: 6000 });
-      return true;
-    }
-
-    return false;
-  };
 
   const resolvePendingFlashcardChoice = (target: 'srs' | 'anki' | 'cancel') => {
     const pending = pendingFlashcardChoice();
@@ -590,6 +747,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const pendingCardRemovals = new Set<string>();
   let pendingReviewReset = false;
   const SAVE_DEBOUNCE_MS = 300;
+  // How long a refused write waits for the authority to answer before giving
+  // up and reporting the write as failed. Generous enough to cover a busy main
+  // process and a multi-megabyte store transfer, short enough that a lost
+  // answer surfaces to the learner instead of stalling their next action.
+  const AUTHORITY_REBASE_TIMEOUT_MS = 5_000;
   const ipcCleanups: Array<() => void> = [];
 
   // Queue counts memo
@@ -613,29 +775,107 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // not unmount every gated pill/hover (the "refocus recomputes everything"
   // jank).
   let storeHydrated = false;
+  let authorityRefreshRequired = false;
+  /**
+   * Set while a rebase is waiting for the authority to ship its current store.
+   *
+   * A refused write must rebase onto what the main process actually holds, and
+   * that store can only be had by asking for it. The provider already has one
+   * listener for that answer, so the rebase arms a request here instead of
+   * registering a second listener that would race the first: a focus or
+   * visibility probe in flight answers the same channel, and a competing
+   * one-shot would either steal a delivery it did not ask for or miss the one
+   * it did. Whoever accepts a delivery while this is armed resolves it.
+   */
+  let authorityRequest: ((store: FlashcardStore) => void) | null = null;
+  /**
+   * Set when the window goes away while a rebase is waiting.
+   *
+   * A rebase holds a write open across a round trip to the authority, so a
+   * window that unmounts mid-flight has to call it off. Left armed, it would
+   * answer a delivery no window is listening for and push a write for a
+   * surface that no longer exists - one more writer racing the windows that
+   * are still open.
+   */
+  let disposed = false;
+  /**
+   * Whether the store this window renders has been superseded by a rebase, so
+   * the store itself no longer carries the revision the authority holds.
+   *
+   * A write queued behind a rebase must not compose its next candidate over the
+   * pre-rebase snapshot: that write carries the same refused revision, so the
+   * authority refuses it too, and the learner's action is lost the same way.
+   * The rebase's own store carries the revision that will be accepted, so
+   * composing there ends the refusal instead of repeating it.
+   */
+  let storeSupersededByRebase = false;
+  const markSuperseded = () => {
+    storeSupersededByRebase = true;
+  };
   // Handle loaded flashcards (used by IPC listener registered once in onMount;
   // sync/visibility can re-deliver the store later).
   const handleFlashcardsLoaded = (loaded: FlashcardStore | null) => {
     // Unchanged-rev probe reply: the main process already holds this exact
     // store — nothing to reconcile, nothing to re-render.
-    if (!loaded) return;
+    if (!loaded) {
+      if (authorityRefreshRequired) return;
+      // A rebase is waiting to learn what the authority holds. A null answer
+      // to its probe means the authority is already at the revision this
+      // window holds, so the store in hand is the authority's own — resolving
+      // with it lets the rebase go. Ignoring the reply would leave the rebase
+      // waiting for a delivery that is never coming, and with it this window's
+      // whole write queue, which is serialised behind it.
+      const waiting = authorityRequest;
+      if (waiting) {
+        authorityRequest = null;
+        waiting(cloneFlashcardStore(unwrap(store) as FlashcardStore));
+      }
+      return;
+    }
     const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
-    if (storeHydrated && checked.rev != null && checked.rev === store.rev) return;
+    if (storeHydrated && checked.rev != null && checked.rev === store.rev && !authorityRefreshRequired && !authorityRequest) return;
+    // This window's view of the store only ever moves forward. The store is
+    // whole-snapshot and revision-checked, so adopting a snapshot older than
+    // one already adopted here does not just render stale data: it rewinds the
+    // revision this window writes with, and the main process then refuses every
+    // write it makes as stale - including the Undo a learner is trying to take
+    // back, which is reported to them as a failed save.
+    //
+    // Older snapshots do arrive. Two probes can be in flight at once and settle
+    // out of order, and a write this window made is answered before the
+    // delivery that preceded it. Ignoring them costs nothing: the next probe
+    // ships the current snapshot anyway.
+    if (storeHydrated && typeof checked.rev === 'number' && checked.rev < (store.rev ?? 0)) return;
+    const request = authorityRequest;
+    if (request) {
+      authorityRequest = null;
+      request(cloneFlashcardStore(checked));
+    }
+    authorityRefreshRequired = false;
     const firstHydration = !storeHydrated;
     if (firstHydration) setIsKnowledgeReady(false);
+    const localChanges: Record<string, unknown> = {};
+    // Preserve edits queued during a requested rebase/refresh round trip.
+    if (request && storeHydrated && authoritativeStore) {
+      recordStoreDelta(localChanges, authoritativeStore as unknown as Record<string, unknown>,
+        cloneFlashcardStore(unwrap(store) as FlashcardStore) as unknown as Record<string, unknown>);
+      delete localChanges.rev;
+    }
     authoritativeStore = cloneFlashcardStore(checked);
+    const rendered = cloneFlashcardStore(checked);
+    mergeIntentOnto(rendered as unknown as Record<string, unknown>, localChanges);
     batch(() => {
-      setStore(reconcile(checked));
+      setStore(reconcile(rendered));
       if (pendingRatings.size > 0) setStore(produce(current => overlayPendingRatings(current as FlashcardStore)));
     });
     if (firstHydration) {
       void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
       void migrateLegacyEpistemicState().finally(() => {
         setIsKnowledgeReady(true);
-        if (checked.pendingReviewUndo) void recoverPendingReviewUndo();
+        if (checked.pendingRetraction) void recoverPendingRetraction();
       });
-    } else if (checked.pendingReviewUndo) {
-      void recoverPendingReviewUndo();
+    } else if (checked.pendingRetraction) {
+      void recoverPendingRetraction();
     }
     storeHydrated = true;
     refreshQueue();
@@ -679,7 +919,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
             void migrateLegacyEpistemicState().finally(() => {
               setIsKnowledgeReady(true);
-              if (checked.pendingReviewUndo) void recoverPendingReviewUndo();
+              if (checked.pendingRetraction) void recoverPendingRetraction();
             });
             refreshQueue();
           } catch (e) {
@@ -699,6 +939,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   function ensureStoreFields(partial: StoredFlashcardStore): FlashcardStore {
+    // A decided-but-unfinished Undo must survive every path that rebuilds the
+    // store, or a reload would strand the rating the learner tried to take
+    // back. Read it through the one normalizer so a pre-envelope record is
+    // upgraded here instead of being dropped as unrecognized.
+    const storedRetraction = readPendingRetraction(
+      (partial as { pendingRetraction?: unknown }).pendingRetraction
+      ?? (partial as { pendingReviewUndo?: unknown }).pendingReviewUndo,
+    );
     const hour = newDayHour();
     const today = SRS.getTodayDateString(hour);
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
@@ -780,7 +1028,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       meta,
       dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},
       suggestedFlashcards: partial.suggestedFlashcards || {},
-      ...(partial.pendingReviewUndo ? { pendingReviewUndo: partial.pendingReviewUndo } : {}),
+      ...(storedRetraction ? { pendingRetraction: storedRetraction } : {}),
       ...(partial.rev !== undefined ? { rev: partial.rev } : {}),
       version: CURRENT_VERSION,
   };
@@ -1040,11 +1288,116 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }, SAVE_DEBOUNCE_MS);
   };
 
-  // Immediate acknowledged save (used by debounced persistence and commands
-  // whose visible result depends on the durable scheduler state). A transform
-  // is applied to the current store when this write reaches the local queue.
+  const requestAuthorityStore = (): Promise<FlashcardStore | null> => {
+    return new Promise<FlashcardStore | null>((resolve) => {
+      if (disposed) {
+        resolve(null);
+        return;
+      }
+      const settle = (answer: FlashcardStore | null) => {
+        clearTimeout(timer);
+        resolve(answer);
+      };
+      const timer = setTimeout(() => {
+        if (authorityRequest === settle) authorityRequest = null;
+        resolve(null);
+      }, AUTHORITY_REBASE_TIMEOUT_MS);
+      authorityRequest = settle;
+      getBridge().flashcards.getFlashcards();
+    });
+  };
+
+  /**
+   * Re-plays a refused write onto the store the authority actually holds.
+   *
+   * Returns the store as committed, or null when the retry could not be
+   * attempted. The authority is asked for rather than assumed: a broadcast or
+   * a focus probe may have already moved it, and only the store the main
+   * process holds carries the revision it will accept.
+   *
+   * The decision being replayed is a delta, not a snapshot, so whatever the
+   * other window committed in the meantime survives. Overwriting it with this
+   * window's older copy is exactly the loss being repaired: a rating or an Undo
+   * in one window used to erase the other window's work whenever they raced.
+   */
+  const rebaseOntoAuthority = async (
+    intent: Record<string, unknown>,
+    removals: string[],
+    resetReviewProgress: boolean,
+    authorization?: FlashcardWriteAuthorization,
+  ): Promise<FlashcardStore | null> => {
+    if (!isElectron()) return null;
+    // Bounded: this window's whole write queue is serialised behind this
+    // write, so an authority that never answers must not hold it open. The
+    // window going away ends the wait too — a rebase is a repair for a live
+    // surface, not something to finish for one that is already gone.
+    markSuperseded();
+    const current = await requestAuthorityStore();
+    if (!current) return null;
+    const rebased = ensureStoreFields(current as Partial<FlashcardStore>);
+    const pending = readPendingRetraction(rebased.pendingRetraction);
+    const recorded = intent.pendingRetraction as { attemptId?: unknown } | undefined;
+    if (pending && recorded?.attemptId && recorded.attemptId !== pending.attemptId) {
+      return null;
+    }
+    if (intent.retractionCompleted && pending?.attemptId !== intent.retractionCompleted) {
+      return null;
+    }
+    // The intent is a delta, not a snapshot: it names the keys this window
+    // changed and their new values, and says nothing about the keys it never
+    // looked at. Merging it as "the next store" would replace every collection
+    // it merely touched with a fragment of itself, so the replay walks the
+    // intent's own branches against what the authority already holds.
+    mergeIntentOnto(rebased as unknown as Record<string, unknown>, intent);
+    try {
+      const revision = await getBridge().flashcards.saveFlashcards(rebased, removals, resetReviewProgress, authorization);
+      // The main process owns the revision it accepted; mirror it so this
+      // window writes against what is durable rather than what it sent.
+      const committed = cloneFlashcardStore(rebased);
+      committed.rev = typeof revision === 'number' ? revision : (rebased.rev ?? 0) + 1;
+      return committed;
+    } catch (retryError) {
+      // The retry can be refused too - another window can commit between the
+      // read and the write, and the store is large enough that this is not
+      // hypothetical. Handled here rather than allowed to escape: the caller
+      // is already holding the original refusal and reports that, and a
+      // rejection escaping this call would reach the window's write queue as
+      // an error with nothing waiting on it.
+      log.warn('Rebased flashcard write was refused too:', retryError);
+      return null;
+    }
+  };
+
+  /**
+   * Immediate acknowledged save (used by debounced persistence and commands
+   * whose visible result depends on the durable scheduler state).
+   *
+   * `transform` is applied to the current store when this write reaches the
+   * local queue. It is also handed the record of what it decided - the keys it
+   * changed and their new values - because a write can be refused and has to
+   * be replayed onto whatever the store holds at that later moment. Every other
+   * window holds the same provider over the same whole-snapshot store, so two of
+   * them writing at once is ordinary rather than exceptional, and the loser's
+   * write used to be dropped with nothing retrying it.
+   *
+   * The decision has to be stated where it is made. A caller restoring a known
+   * card state may leave both snapshots it could be diffed between unchanged,
+   * and an inferred decision would come back empty - turning the refusal into a
+   * re-write of the very snapshot that was just rejected, erasing whatever the
+   * other window committed in between.
+   */
+  /**
+   * The cause of the most recent refused write, cleared when a write lands.
+   *
+   * `saveFlashcardsImmediate` answers with a boolean because its other caller
+   * (the debounced bulk path) has nothing to report a cause to. A capture does,
+   * so the cause is kept here rather than only logged, and the capture surfaces
+   * turn it into the message the learner reads.
+   */
+  let lastPersistFailure: unknown = null;
+
   const saveFlashcardsImmediate = async (
-    transform?: (target: FlashcardStore) => void,
+    transform?: (target: FlashcardStore, intent: Record<string, unknown>) => void,
     authorization?: FlashcardWriteAuthorization,
     /** A command's detached pre-image and declared writes. */
     prebuilt?: {
@@ -1055,6 +1408,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   ): Promise<boolean> => {
     await flushBackgroundRatings();
     const write = persistenceQueue.then(async () => {
+      if (authorityRefreshRequired && !await requestAuthorityStore()) {
+        lastPersistFailure = new Error('The complete flashcard store could not be refreshed');
+        return false;
+      }
+      const composedOverRebase = storeSupersededByRebase;
+      const intent: Record<string, unknown> = {};
       // TEMP DIAGNOSTIC: opt-in via window.__mlearnTrace / localStorage mlearn.ratingTrace=1.
       const __tw = performance.now();
       const __wrows: RatingTraceMark[] = [];
@@ -1070,9 +1429,19 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         __wmark('guard');
         candidate = copyStoreWithPatch(authoritativeStore ?? getDefaultStore(), prebuilt.patch);
         __wmark('deltaApply');
+        const before: Record<string, unknown> = {};
+        const after: Record<string, unknown> = {};
+        for (const entry of prebuilt.patch.entries) {
+          setStorePath(before, entry.path, entry.before);
+          setStorePath(after, entry.path, entry.after);
+        }
+        recordStoreDelta(intent, before, after);
       } else {
         candidate = cloneFlashcardStore(base as FlashcardStore);
-        transform?.(candidate);
+        if (transform) transform(candidate, intent);
+        else recordStoreDelta(intent,
+          (authoritativeStore ?? base) as unknown as Record<string, unknown>,
+          candidate as unknown as Record<string, unknown>);
       }
       const removals = [...pendingCardRemovals];
       const resetReviewProgress = pendingReviewReset;
@@ -1085,18 +1454,75 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             : await getBridge().flashcards.saveFlashcards(candidate, removals, resetReviewProgress, authorization);
           __wmark(`ipc(${((performance.now() - __tipc)).toFixed(0)}ms)`);
           committedRevision = typeof revision === 'number' ? revision : (candidate.rev ?? 0) + 1;
-          for (const id of removals) pendingCardRemovals.delete(id);
-          if (resetReviewProgress) pendingReviewReset = false;
         } else {
           committedRevision = (candidate.rev ?? 0) + 1;
           candidate.rev = committedRevision;
           await getBridge().kvStore.kvSet('mlearn-flashcards', JSON.stringify(candidate));
         }
       } catch (error) {
+        // A refusal here means another window committed first: the write
+        // carried a revision the authority has already moved past, while the
+        // decision itself is still perfectly good. Rebase it onto the store
+        // the authority left behind and write again, so the learner's action
+        // survives instead of being dropped with nothing retrying it. Only a
+        // write carrying the current revision can succeed, so this settles
+        // rather than spinning.
+        //
+        // A write that failed for any other reason - a full disk, a torn file,
+        // an interrupted process - did not happen, and re-reading the
+        // authority cannot change that. Those are reported, not retried.
+        if (isStaleFlashcardRevision(error)) {
+          // What this window renders afterwards is the store that was actually
+          // written - the authority's, with this decision replayed onto it -
+          // not the pre-refusal snapshot. Rebuilding from that snapshot would
+          // drop the other window's committed state from the view while the
+          // file held it, so the next probe would undo the render again.
+          const rebased = await rebaseOntoAuthority(intent, removals, resetReviewProgress, authorization);
+          if (rebased) {
+            const localChanges: Record<string, unknown> = {};
+            recordStoreDelta(localChanges,
+              (authoritativeStore ?? rebased) as unknown as Record<string, unknown>,
+              cloneFlashcardStore(unwrap(store) as FlashcardStore) as unknown as Record<string, unknown>);
+            delete localChanges.rev;
+            const rendered = cloneFlashcardStore(rebased);
+            mergeIntentOnto(rendered as unknown as Record<string, unknown>, localChanges);
+            authoritativeStore = cloneFlashcardStore(rebased);
+            setStore(reconcile(rendered));
+            // Keep the committed baseline separate from newer local edits,
+            // so the next queued write can persist those edits against it.
+            storeSupersededByRebase = false;
+            lastPersistFailure = null;
+            refreshQueue();
+            for (const id of removals) pendingCardRemovals.delete(id);
+            if (resetReviewProgress) pendingReviewReset = false;
+            try {
+              broadcastChannel?.postMessage({ type: 'update', store: rebased });
+            } catch (broadcastError) {
+              log.error('Failed to broadcast flashcard update:', broadcastError);
+            }
+            return true;
+          }
+        }
+        authorityRequest = null;
         log.error('Failed to persist flashcards:', error);
+        // The cause travels with the refusal rather than staying in the log.
+        // A learner deciding whether to retry needs to know whether the disk is
+        // full or the write merely lost a race, and `reportCaptureFailure`
+        // shows whatever error it is handed.
+        lastPersistFailure = error;
         return false;
       }
+      if (prebuilt?.patch && committedRevision > (candidate.rev ?? 0) + 1) {
+        // Main applied the patch to a newer store than this window has seen.
+        // A revision alone cannot turn our partial snapshot into that store.
+        authorityRefreshRequired = true;
+        const refreshed = await requestAuthorityStore();
+        if (refreshed && (refreshed.rev ?? 0) >= committedRevision) candidate = refreshed;
+      }
+      lastPersistFailure = null;
       candidate.rev = committedRevision;
+      for (const id of removals) pendingCardRemovals.delete(id);
+      if (resetReviewProgress) pendingReviewReset = false;
 
       if ((authoritativeStore?.rev ?? base.rev ?? 0) <= committedRevision) {
         // The candidate's changed branches are private and unchanged branches
@@ -1110,12 +1536,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             // The committed revision is not part of the command's patch: it is
             // the store's own acknowledgement counter, assigned by the writer.
             (current as unknown as Record<string, unknown>).rev = committedRevision;
+          } else if (composedOverRebase) {
+            mergeIntentOnto(current as unknown as Record<string, unknown>, intent);
           } else {
             applyStoreDelta(current as unknown as Record<string, unknown>, base as unknown as Record<string, unknown>, candidate as unknown as Record<string, unknown>);
           }
         })));
         __wmark('setStore');
       }
+      storeSupersededByRebase = false;
 
       const __tbc = performance.now();
       try {
@@ -1218,15 +1647,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const card = store.flashcards[options.cardId];
     if (!card) return;
     setUndoStack((prev) => {
-      const newStack = [...prev, {
+      return pushUndo(prev, {
         type: options.type,
         cardId: options.cardId,
         restoreCard: { ...card, content: { ...card.content } },
-      }];
-      if (newStack.length > MAX_UNDO_STACK_SIZE) {
-        newStack.shift();
-      }
-      return newStack;
+      });
     });
   };
 
@@ -1234,27 +1659,32 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const undoLastAction = async (): Promise<string | null> => {
     const stack = undoStack();
     const entry = stack[stack.length - 1];
-    const pendingUndo = store.pendingReviewUndo ?? entry?.reviewUndo;
+    const pendingUndo = readPendingRetraction(store.pendingRetraction) ?? entry?.reviewUndo;
     if (!entry && !pendingUndo) return null;
     if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
     ratingCommandInFlight = true;
     try {
       await flushBackgroundRatings();
       if (pendingUndo) {
-        return await completePendingReviewUndo(pendingUndo, entry);
+        return await finishReviewRetraction(pendingUndo, entry);
       }
 
-      const base = cloneFlashcardStore(unwrap(store) as FlashcardStore);
-      const candidate = cloneFlashcardStore(base);
-      if (entry?.cardId && entry.restoreCard) {
-        candidate.flashcards[entry.cardId] = { ...entry.restoreCard, content: { ...entry.restoreCard.content } };
-      }
-      if (!await saveFlashcardsImmediate((target) => {
-        applyStoreDelta(
-          target as unknown as Record<string, unknown>,
-          base as unknown as Record<string, unknown>,
-          candidate as unknown as Record<string, unknown>,
-        );
+      // `restoreCard` was captured out of the live store, so it is a proxy: a
+      // shallow copy leaves its nested branches proxy-backed, and the write
+      // boundary cannot serialize one. The decision crosses the bridge, so it
+      // is detached into plain data on the way in.
+      const restoreId = entry?.cardId ?? null;
+      const restoreCard = entry?.restoreCard
+        ? JSON.parse(JSON.stringify(entry.restoreCard)) as Flashcard
+        : null;
+      if (!await saveFlashcardsImmediate((target, intent) => {
+        if (!restoreId || !restoreCard) return;
+        const plain = JSON.parse(JSON.stringify(restoreCard)) as Flashcard;
+        target.flashcards[restoreId] = plain;
+        // The decision is this one card restored, not a rewritten store: the
+        // record to replay says so, so a refusal can put the card back on top
+        // of what another window committed instead of replacing it.
+        intent.flashcards = { [restoreId]: plain };
       }, entry?.reviewUndoAuthorization)) {
         throw new Error('undo persistence was refused');
       }
@@ -1266,14 +1696,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       return entry?.type ?? null;
     } finally {
       ratingCommandInFlight = false;
-      if (pendingRecoveryRequested && store.pendingReviewUndo) {
-        pendingRecoveryRequested = false;
-        void recoverPendingReviewUndo();
-      }
+      drainPendingRecovery();
     }
   };
 
-  const canUndo = () => undoStack().length > 0 || store.pendingReviewUndo !== undefined;
+  const canUndo = () => undoStack().length > 0 || store.pendingRetraction !== undefined;
 
   // Add new flashcard - now supports multiple cards per word
   // When use_anki is enabled, shows a choice modal (SRS vs Anki) before creation
@@ -1387,7 +1814,55 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }));
 
     refreshQueue();
-    saveFlashcards();
+    // The card is not saved until the authority says so. `saveFlashcards()`
+    // is the debounced fire-and-forget used by the write-heavy paths (bulk
+    // edits, migrations) that have no single learner action to report on; a
+    // capture is not one of them. Every capture surface answers "did my card
+    // get saved?" by catching what this throws and routing it to
+    // `reportCaptureFailure`, so a write that never lands has to reject here
+    // rather than resolve with an id. Otherwise a card that only ever existed
+    // in memory was reported as captured, the word stayed in the
+    // unknown-words list showing as a card, and the deck was silently short
+    // the one the learner was told they had.
+    //
+    // The immediate path is not a behaviour change for the happy path: it
+    // writes the same delta, and it serializes on the same persistence queue,
+    // so a rapid burst of captures still commits in order. What it changes is
+    // that the caller learns the outcome instead of guessing.
+    const persisted = await saveFlashcardsImmediate();
+    if (!persisted) {
+      // The card is in memory but not on disk. Taking it back out leaves the
+      // rendered deck agreeing with the durable one, so a retry starts from
+      // the same state the learner last saw rather than inheriting a card they
+      // were just told was not saved. The rebase path inside
+      // `saveFlashcardsImmediate` has already run by this point, so `false`
+      // means no re-reading can help.
+      setStore(produce((s) => {
+        delete s.flashcards[id];
+        const ids = s.wordToCardMap[lk];
+        if (ids) {
+          const remaining = ids.filter((cardId) => cardId !== id);
+          if (remaining.length > 0) s.wordToCardMap[lk] = remaining;
+          else delete s.wordToCardMap[lk];
+        }
+        const cards = (s.wordToCardMap[lk] ?? []).map((cid) => s.flashcards[cid]).filter(Boolean);
+        if (cards.length > 0) s.wordStatsMap[lk] = calculateWordStats(cards);
+        else delete s.wordStatsMap[lk];
+      }));
+      refreshQueue();
+      // The cause is in the MESSAGE, not only on `cause`, because
+      // `reportCaptureFailure` announces `error.message` and that message is
+      // the only thing the learner sees. Naming the cause is what lets them
+      // tell "the disk is full" (retry will not help) from "another window got
+      // there first" (it will).
+      const cause = lastPersistFailure instanceof Error
+        ? lastPersistFailure.message
+        : lastPersistFailure != null ? String(lastPersistFailure) : 'the store could not be written';
+      throw new Error(
+        `flashcard persistence was refused for "${word}": ${cause}`,
+        { cause: lastPersistFailure },
+      );
+    }
     log.info(`Created new flashcard for word: ${word} (now has ${store.wordToCardMap[lk]?.length || 1} cards)`);
 
     // Post-creation async tasks: translate example and generate TTS
@@ -1529,7 +2004,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           updatePostCreateTask(wordLabel, 'wordTts', 'done');
         }
       } catch (err) {
-        handleCloudOperationFallback(err);
+        absorbProviderFailure(err, t, settings.llmProvider);
         log.warn('Failed to generate word TTS:', err);
         updatePostCreateTask(wordLabel, 'wordTts', 'error');
       }
@@ -1552,7 +2027,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             updatePostCreateTask(wordLabel, 'exampleTts', 'done');
           }
         } catch (err) {
-          handleCloudOperationFallback(err);
+          absorbProviderFailure(err, t, settings.llmProvider);
           log.warn('Failed to generate example TTS:', err);
           updatePostCreateTask(wordLabel, 'exampleTts', 'error');
         }
@@ -1873,17 +2348,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       type: remainsQueued ? 'answer-requeued' : 'answer',
       cardId: card.id,
       reviewUndoAuthorization: { kind: 'undo-review', cardId: card.id, restoredReviews: priorCard.reviews },
-      reviewUndo: {
-        attemptId,
-        type: remainsQueued ? 'answer-requeued' : 'answer',
-        cardId: card.id,
-        restoreCard: priorCard,
-        word: card.content.front,
-        language,
-        restorePerLanguage: priorPerLanguage,
-        today,
-        restoreDailyStats: dailyBefore,
-      },
+      reviewUndo: reviewRetraction(
+        attemptId, card, priorCard, priorPerLanguage, today, dailyBefore,
+        remainsQueued ? 'answer-requeued' : 'answer',
+      ),
     };
     return { completed: !remainsQueued, nextQueue, event, undo, updated };
   };
@@ -2187,7 +2655,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
     const comprehensiveStatus = getComprehensiveWordStatusWithSourceSync(word, lang).status;
     const suggestionLanguageData = languageDataFor(lang);
-    const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? getDictionaryTargetLanguageForSettings(settings, lang);
+    const dictionaryTargetLanguage = params.dictionaryTargetLanguage ?? dictionaryTargetFor(lang);
     const keepSuggestion = shouldKeepSuggestion(
       {
         word: storageWord,
@@ -2307,7 +2775,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const comprehensiveStatus = getComprehensiveWordStatusWithSourceSync(s.word, lang).status;
         const level = getSuggestedFlashcardLevel(s);
         const suggestionLanguageData = languageDataFor(lang);
-        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
+        const dictionaryTargetLanguage = dictionaryTargetFor(lang);
         const keep = shouldKeepSuggestion(
           {
             word: s.word,
@@ -2487,7 +2955,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const lang = settings.language;
     const suggestions = Object.values(store.suggestedFlashcards).filter((suggestion) => suggestion.language === lang);
     const suggestionLanguageData = languageDataFor(lang);
-    const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, lang);
+    const dictionaryTargetLanguage = dictionaryTargetFor(lang);
 
     if (!(settings.autoSuggestUnknownWords ?? DEFAULT_SETTINGS.autoSuggestUnknownWords)) {
       await warmDictionaryStatus(
@@ -2574,7 +3042,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const suggestion = store.suggestedFlashcards[key];
         if (!suggestion) continue;
         try {
-          const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, suggestion.language);
+          const dictionaryTargetLanguage = dictionaryTargetFor(suggestion.language);
           const translationResponse = await backend.translate(
             suggestion.word,
             suggestion.language,
@@ -2603,6 +3071,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }
 
     let created = 0;
+    let needsSave = false;
     let done = 0;
     for (const id of ids) {
       const key = findSuggestionKey(id);
@@ -2619,6 +3088,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           language: suggestion.language,
           languageData: suggestionLanguageData,
           settings,
+          dictionaryTargetLanguage: dictionaryTargetFor(suggestion.language),
           currentContent: { reading: suggestion.reading },
         });
         if (!enriched) { done++; onProgress?.(done, total); continue; }
@@ -2662,6 +3132,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           const updates = filterUserEditedUpdates(unpopulatedCard, content);
           updateFlashcardContent(unpopulatedCard.id, { ...updates, unpopulated: false }, false);
           populatedCardId = unpopulatedCard.id;
+          // Populating an existing card is an in-place edit and does not
+          // persist on its own, so it is the one path here that still needs the
+          // write at the end. A card built by `addFlashcard` already reached the
+          // authority when that call resolved.
+          needsSave = true;
         } else {
           populatedCardId = await addFlashcard(content, undefined, true, suggestion.language);
         }
@@ -2704,7 +3179,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
               );
           }
         } catch (e) {
-          handleCloudOperationFallback(e);
+          absorbProviderFailure(e, t, settings.llmProvider);
           log.warn(`Failed to generate TTS for promoted suggestion "${suggestion.word}":`, e);
         }
         }
@@ -2721,7 +3196,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
     }
 
-    if (created > 0) saveFlashcards();
+    if (created > 0 && needsSave) saveFlashcards();
     return created;
   };
 
@@ -3265,6 +3740,35 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     return resolved.status === 'known' || resolved.excluded === true;
   };
 
+  /**
+   * Canonical "would this word be hidden from the unknown-words list?" answer for
+   * every surface that captures words the learner is READING (reader pages,
+   * subtitle tracks, the floating overlay).
+   *
+   * Written comprehension is a different question from word-level knowledge: it
+   * requires the presented WRITTEN form to be recognized as well as the meaning
+   * to be known. A word imported from Anki, or claimed known by the learner, can
+   * hold a word-level `known` with no `surface-recognition` record at all - such a
+   * word is not yet known AS WRITTEN, so it still belongs in the list.
+   *
+   * This existed as two rules. The reader asked this question; the video route
+   * and the overlay asked the laxer word-level one, so the same word rendered as
+   * unknown in the subtitle track while the sidebar beside it reported the word
+   * as known and listed nothing - the video window contradicting itself on one
+   * screen. Both answers were defensible alone; the surfaces simply disagreed.
+   * Subtitle/OCR tokens already render from this rule (SubtitleWord/OcrWord), so
+   * routing the capture surfaces through it is what makes the list, the colouring
+   * and the bluring agree.
+   */
+  const isWordKnownWhenWrittenSync = (
+    word: string,
+    surface: string,
+    language = settings.language,
+  ): boolean => getWrittenComprehensionStatus(
+    { surface, lexicalWord: word, language },
+    getAccessStatus,
+  ) === 'known';
+
 
   const isWordKnownComprehensiveSync = (word: string, language = settings.language): boolean => (
     getComprehensiveWordStatusSync(word, language) === 'known'
@@ -3327,6 +3831,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           // merge recency.
           entry.claim = claim;
           entry.claimAt = now;
+
         }
         claimEvents[lk] = [{
           t: now,
@@ -3591,11 +4096,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           }));
           refreshQueue();
           if (ratingTraceOn()) __rows.push({ label: 'refreshQueue', ms: performance.now() - __t0 });
-          setUndoStack((previous) => {
-            const next = [...previous, schedulerResult!.undo];
-            if (next.length > MAX_UNDO_STACK_SIZE) next.shift();
-            return next;
-          });
+          setUndoStack((previous) => pushUndo(previous, schedulerResult!.undo));
           if (background) {
             recalculateWordStats(statsKey);
             patchRecorder.set(['wordStatsMap', statsKey], unwrap(store.wordStatsMap[statsKey]));
@@ -3645,12 +4146,23 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       return { attemptId, completed: schedulerResult?.completed ?? true };
     } finally {
       ratingCommandInFlight = false;
-      if (pendingRecoveryRequested && store.pendingReviewUndo) {
-        pendingRecoveryRequested = false;
-        void recoverPendingReviewUndo();
-      }
+      drainPendingRecovery();
     }
   };
+
+  /**
+   * Where a word's attempts live in the journal.
+   *
+   * A word is stored under one key per form it can appear as, so a retraction
+   * has to name all of them or the attempt stays counted under the forms the
+   * learner will actually meet it by. Stated once here so the word surfaces
+   * and the pre-target records that predate routing both resolve identically.
+   */
+  const wordRetractionTarget = (word: string, language: string): RetractionTarget => ({
+    keys: [...new Set([word, ...getWordFormsForLanguage(word, language)])]
+      .map((form) => langKey(language, SRS.hashWordSync(form))),
+    replay: { kind: 'word', word, language },
+  });
 
   /**
    * Undo bookkeeping: append a retraction tombstone for each attemptId to every
@@ -3672,84 +4184,328 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     return appendEventsIdempotentAcknowledged(eventsByKey);
   };
 
-  const applyPendingReviewUndo = (target: FlashcardStore, pending: PendingReviewUndo): void => {
-    target.flashcards[pending.cardId] = { ...pending.restoreCard, content: { ...pending.restoreCard.content } };
-    if (pending.restorePerLanguage) {
-      target.meta.perLanguage[pending.language] = { ...pending.restorePerLanguage };
-    } else {
-      delete target.meta.perLanguage[pending.language];
-    }
-    if (pending.restoreDailyStats) {
-      (target.dailyStats[pending.today] ??= {})[pending.language] = { ...pending.restoreDailyStats };
-    } else if (target.dailyStats[pending.today]) {
-      delete target.dailyStats[pending.today][pending.language];
-      if (Object.keys(target.dailyStats[pending.today]).length === 0) delete target.dailyStats[pending.today];
-    }
-    delete target.pendingReviewUndo;
-  };
-
-  const completePendingReviewUndo = async (pending: PendingReviewUndo, entry?: UndoEntry): Promise<string> => {
-    if (store.pendingReviewUndo && store.pendingReviewUndo.attemptId !== pending.attemptId) {
-      throw new Error('A different review Undo is awaiting recovery');
-    }
-
-    if (!store.pendingReviewUndo) {
-      if (!await saveFlashcardsImmediate((target) => {
-        if (target.pendingReviewUndo && target.pendingReviewUndo.attemptId !== pending.attemptId) {
-          throw new Error('A different review Undo is awaiting recovery');
-        }
-        target.pendingReviewUndo = structuredClone(pending);
-      })) {
-        throw new Error('undo recovery record persistence was refused');
-      }
-    }
-
-    if (!await appendRetractions(pending.word, pending.language, [pending.attemptId as AttemptId])) {
-      throw new Error('knowledge retraction was refused');
-    }
-    const forms = [...new Set([pending.word, ...getWordFormsForLanguage(pending.word, pending.language)])];
-    const seeds = forms.map((form) => ({
-      key: langKey(pending.language, SRS.hashWordSync(form)), word: form, language: pending.language,
-    }));
-    const states = await getKnowledgeStates(seeds.map((seed) => seed.key));
-    const authorization: FlashcardWriteAuthorization = {
-      kind: 'undo-review', cardId: pending.cardId, restoredReviews: pending.restoreCard.reviews,
+  const retractionReplays = new Map<string, (descriptor: RetractionReplayDescriptor) => Promise<void>>();
+  const registerRetractionReplay = (
+    kind: string,
+    replay: (descriptor: RetractionReplayDescriptor) => Promise<void>,
+  ): (() => void) => {
+    retractionReplays.set(kind, replay);
+    return () => {
+      if (retractionReplays.get(kind) === replay) retractionReplays.delete(kind);
     };
-    if (!await saveFlashcardsImmediate((target) => {
-      const durable = target.pendingReviewUndo;
-      if (!durable || durable.attemptId !== pending.attemptId) {
-        throw new Error('The pending review Undo changed before it could be completed');
-      }
-      applyPendingReviewUndo(target, durable);
-      materializeCapabilityStatesInto(target, seeds, states);
-    }, authorization)) {
-      throw new Error('undo persistence was refused');
+  };
+  // Adapters for existing durable descriptors; packages can register other kinds.
+  registerRetractionReplay('word', async ({ word, language }) => {
+    if (typeof word !== 'string' || typeof language !== 'string') throw new Error('Invalid word replay descriptor');
+    await recomputeWordKnowledgeFromEvidence(word, language);
+  });
+  registerRetractionReplay('grammar', async ({ language, patterns }) => {
+    if (typeof language !== 'string' || !Array.isArray(patterns) || !patterns.every(pattern => typeof pattern === 'string')) {
+      throw new Error('Invalid grammar replay descriptor');
     }
+    await materializeGrammarKnowledge(language, patterns.map(pattern => ({ pattern })));
+  });
 
-    if (entry) setUndoStack((previous) => {
-      const index = previous.lastIndexOf(entry);
-      return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
-    });
-    refreshQueue();
-    return pending.type;
+  /**
+   * The routing-aware half of a retraction: tombstone the keys the attempt was
+   * actually written to, then replay the projection those keys feed.
+   *
+   * The replay is what makes an Undo visible. Appending the tombstone only
+   * changes the journal; the materialised projection still counts the attempt
+   * until something re-reads it, so without the replay the learner watches
+   * their rating stand while the evidence behind it is gone.
+   */
+  const retractAttempts = async (target: RetractionTarget, attemptIds: readonly AttemptId[]): Promise<boolean> => {
+    if (attemptIds.length === 0) return true;
+    // A target with no keys cannot be routed anywhere, and reporting success
+    // would be the silent-no-op this exists to prevent.
+    if (target.keys.length === 0) return false;
+    const replay = retractionReplays.get(target.replay.kind);
+    if (!replay) return false;
+    const now = Date.now();
+    // Tombstones carry no epistemic address: routing is attemptId-only, so no
+    // aspect/capability lie is needed (projection readers skip address-less
+    // events for capability routing).
+    const eventsByKey: KnowledgeEventLog = {};
+    for (const key of new Set(target.keys)) {
+      eventsByKey[key] = attemptIds.map((retracts) => ({
+        t: now, kind: 'retraction', source: 'manual', retracts,
+      }));
+    }
+    if (!await appendEventsIdempotentAcknowledged(eventsByKey)) return false;
+    await replay(target.replay);
+    return true;
   };
 
-  const recoverPendingReviewUndo = async (): Promise<void> => {
-    const pending = store.pendingReviewUndo;
+  /**
+   * ── Durable retraction recovery ──────────────────────────────────
+   *
+   * Taking a rating back is one operation, not one per study surface: a
+   * retraction is appended to the knowledge journal, and the surface that
+   * started it puts its own projection back. Both halves can be interrupted —
+   * the window reloads, the machine closes — between the decision and its
+   * completion, and the in-memory undo entry is gone when that happens. The
+   * rating the learner tried to take back stays applied, and no surface can
+   * take it back again.
+   *
+   * The record is the promise that this cannot happen. It is written BEFORE
+   * the retraction, so a window that disappears mid-undo leaves behind enough
+   * to finish the undo without it. This block is the only owner of that
+   * lifecycle:
+   *
+   *     record → append retraction → surface restores its projection → clear
+   *
+   * Both study surfaces go through here. What legitimately varies is only the
+   * projection, and that is supplied by the caller as policy — flashcard
+   * review restores a card's scheduling state, word sync restores a position in
+   * a word queue. Core never interprets either one.
+   */
+
+  /**
+   * Writes the decision so it survives the window that made it.
+   *
+   * Refusing this write is the safe failure: nothing has been retracted yet, so
+   * the rating is untouched and the surface can tell the learner their Undo did
+   * not happen rather than letting them believe it landed.
+   */
+  const recordPendingRetraction = async (record: PendingRetraction): Promise<boolean> =>
+    saveFlashcardsImmediate((target, intent) => {
+      const existing = readPendingRetraction(target.pendingRetraction);
+      if (existing && existing.attemptId !== record.attemptId) {
+        throw new Error('A different Undo is already awaiting recovery');
+      }
+      const recorded = clonePendingRetraction(record);
+      target.pendingRetraction = recorded;
+      intent.pendingRetraction = JSON.parse(JSON.stringify(recorded)) as unknown;
+    });
+
+  /**
+   * Finishes a recorded retraction: appends the journal tombstones, then lets
+   * the owning surface restore its projection, then clears the record.
+   *
+   * The clear happens only after both halves are durable. A refusal anywhere
+   * leaves the record in place, so a retry — or the next load — finishes the
+   * exact Undo the learner asked for rather than a different one.
+   *
+   * `restore` is the caller's projection policy. It runs after the retraction
+   * is durable because that is the half that changes what the learner knows;
+   * if the projection cannot be put back, the attempt is still retracted and
+   * only the position is left where it is.
+   */
+  const completePendingRetraction = async (
+    record: PendingRetraction,
+    build?: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ): Promise<RetractionCompletion> => {
+    const durable = readPendingRetraction(store.pendingRetraction);
+    // Recovery may only finish the retraction it recorded. A record replaced
+    // while this one was in flight belongs to a newer Undo, and that one owns
+    // the outcome.
+    if (!durable || durable.attemptId !== record.attemptId) return 'stale';
+
+    // Routed by the record, not by re-deriving the subject: a tombstone only
+    // un-counts an attempt where the reading projection later finds it, so the
+    // keys must be the ones the attempt was actually written to. Records
+    // written before targets existed fall back to the word-form routing they
+    // were recorded under rather than being stranded mid-undo.
+    const target: RetractionTarget = durable.target ?? wordRetractionTarget(durable.word, durable.language);
+    if (!await retractAttempts(target, durable.attemptIds as AttemptId[])) {
+      return 'retraction-refused';
+    }
+    // Built only now, after the tombstones are in the journal: a projection
+    // that reads the replayed evidence before the retraction would restore
+    // state that still counts the attempt being taken back.
+    const project = build ? await build(durable) : undefined;
+    if (!await saveFlashcardsImmediate((target, intent) => {
+      const current = readPendingRetraction(target.pendingRetraction);
+      if (!current || current.attemptId !== record.attemptId) {
+        throw new Error('The pending Undo changed before it could be completed');
+      }
+      // The projection is applied in the same write that clears the record, so
+      // an Undo is either fully undone or still recorded — a surface can never
+      // come back to find its projection restored but the Undo still pending.
+      void project?.(current, target);
+      delete target.pendingRetraction;
+      // Name the Undo this write finishes. Without it, "this snapshot has no
+      // pending retraction" would be indistinguishable from "this window never
+      // saw one", and any other window's ordinary save would be free to delete
+      // a record the learner is relying on.
+      target.retractionCompleted = record.attemptId;
+      // What to replay onto whatever the store holds if this write is refused:
+      // the restored projection, the cleared record, and the marker that keeps
+      // any other window's save from deleting it again.
+      recordStoreDelta(
+        intent,
+        cloneFlashcardStore(unwrap(store) as FlashcardStore) as unknown as Record<string, unknown>,
+        target as unknown as Record<string, unknown>,
+      );
+    }, project?.authorization)) {
+      return 'store-refused';
+    }
+    return 'completed';
+  };
+
+  /**
+   * Finishes an Undo a previous window decided but did not complete. Runs on
+   * hydration, so a rating the learner already tried to take back is not
+   * stranded by a reload.
+   *
+   * Deferred behind the rating-command guard rather than run alongside it: a
+   * retraction rewrites the journal that a rating is appending to, and the
+   * surface projection it restores is the one the in-flight rating is moving.
+   */
+  const recoverPendingRetraction = async (): Promise<void> => {
+    const pending = readPendingRetraction(store.pendingRetraction);
     if (!pending) return;
+    const build = projectionBuilders.get(pending.surface);
+    // Another window may own this session. Keep its recovery record until
+    // that owner can restore the projection as well as retract the evidence.
+    if (!build) return;
     if (ratingCommandInFlight) {
       pendingRecoveryRequested = true;
       return;
     }
     ratingCommandInFlight = true;
     try {
-      await completePendingReviewUndo(pending);
+      await completePendingRetraction(pending, build);
     } catch (error) {
-      log.warn('Interrupted review Undo recovery failed:', error);
+      log.warn(`Interrupted ${pending.surface} Undo recovery failed:`, error);
     } finally {
       ratingCommandInFlight = false;
     }
   };
+
+  /**
+   * Drains a recovery that was deferred behind an in-flight rating.
+   *
+   * Owned here so it is surface-agnostic: the flag is set by any deferred
+   * recovery, and draining it must not presume which surface asked.
+   */
+  const drainPendingRecovery = (): void => {
+    if (!pendingRecoveryRequested) return;
+    pendingRecoveryRequested = false;
+    if (store.pendingRetraction) void recoverPendingRetraction();
+  };
+
+  /**
+   * Applies the flashcard review projection to the store.
+   *
+   * This is the review surface's policy inside the shared retraction
+   * lifecycle: it puts a card's scheduling state, its per-language meta, and
+   * its daily stats back, and drops the capability projections that the
+   * retracted attempt had already materialized.
+   */
+  const applyReviewProjection = (
+    target: FlashcardStore,
+    record: PendingRetraction,
+    states: Record<string, KeyKnowledgeState>,
+  ): void => {
+    const restore = record.restore as ReviewUndoProjection | null;
+    if (!restore?.restoreCard) throw new Error('The pending review Undo has no card to restore');
+    target.flashcards[restore.cardId] = { ...restore.restoreCard, content: { ...restore.restoreCard.content } };
+    if (restore.restorePerLanguage) {
+      target.meta.perLanguage[record.language] = { ...restore.restorePerLanguage };
+    } else {
+      delete target.meta.perLanguage[record.language];
+    }
+    const today = restore.today;
+    if (restore.restoreDailyStats) {
+      (target.dailyStats[today] ??= {})[record.language] = { ...restore.restoreDailyStats };
+    } else if (target.dailyStats[today]) {
+      delete target.dailyStats[today][record.language];
+      if (Object.keys(target.dailyStats[today]).length === 0) delete target.dailyStats[today];
+    }
+    // The retracted attempt had already been materialized into these
+    // projections, so restoring the card without them would leave the card
+    // scheduling an answer that no longer counts.
+    const forms = [...new Set([record.word, ...getWordFormsForLanguage(record.word, record.language)])];
+    materializeCapabilityStatesInto(target, forms.map((form) => ({
+      key: langKey(record.language, SRS.hashWordSync(form)), word: form, language: record.language,
+    })), states);
+  };
+
+  /**
+   * How each study surface restores its own projection, keyed by the `surface`
+   * tag on the record.
+   *
+   * This is the whole extension point. A surface registers a projection when
+   * it decides an Undo; recovery on a later load looks the owner up by tag, so
+   * finishing an interrupted Undo never needs to know which surface it came
+   * from. A surface with no live window simply never registers, and its record
+   * is left for a window that does.
+   */
+  const projectionBuilders = new Map<string, (record: PendingRetraction) => Promise<RetractionProjection>>();
+
+  /** Registers a surface's projection so its interrupted Undos can finish. */
+  const registerRetractionProjection = (
+    surface: string,
+    build: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ): (() => void) => {
+    projectionBuilders.set(surface, build);
+    return () => {
+      if (projectionBuilders.get(surface) === build) projectionBuilders.delete(surface);
+    };
+  };
+
+  /**
+   * The review surface's projection.
+   *
+   * Its knowledge read happens before the write rather than inside it, so the
+   * projection itself can stay synchronous and land in the same durable write
+   * that clears the record: the card, its meta, its daily stats, and the
+   * retracted attempt's projections all commit together, or none of them do.
+   */
+  const reviewProjection = async (record: PendingRetraction): Promise<RetractionProjection> => {
+    const restore = record.restore as ReviewUndoProjection;
+    const forms = [...new Set([record.word, ...getWordFormsForLanguage(record.word, record.language)])];
+    const states = await getKnowledgeStates(forms.map((form) => langKey(record.language, SRS.hashWordSync(form))));
+    const project: RetractionProjection = (current, target) => {
+      applyReviewProjection(target, current, states);
+    };
+    project.authorization = {
+      kind: 'undo-review', cardId: restore.cardId, restoredReviews: restore.restoreCard.reviews,
+    };
+    return project;
+  };
+  registerRetractionProjection('flashcard-review', reviewProjection);
+
+  /**
+   * Finishes a review Undo: the shared retraction lifecycle plus the review
+   * surface's projection. The card write and the record clear are one durable
+   * step, so an interrupted Undo is either fully undone or still recorded.
+   */
+  const finishReviewRetraction = async (record: PendingRetraction, entry?: UndoEntry): Promise<string> => {
+    if (!await recordPendingRetraction(record)) {
+      throw new Error('undo recovery record persistence was refused');
+    }
+    const outcome = await completePendingRetraction(record, reviewProjection);
+    if (outcome === 'retraction-refused') throw new Error('knowledge retraction was refused');
+    if (outcome === 'store-refused') throw new Error('undo persistence was refused');
+    if (outcome === 'stale') throw new Error('A different Undo is already awaiting recovery');
+    if (entry) setUndoStack((previous) => {
+      const index = previous.lastIndexOf(entry);
+      return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
+    });
+    refreshQueue();
+    return (record.restore as ReviewUndoProjection).type;
+  };
+
+  /** Builds the review surface's record for a decided Undo. */
+  const reviewRetraction = (
+    attemptId: string,
+    card: Flashcard,
+    priorCard: Flashcard,
+    priorPerLanguage: PerLanguageMeta | null,
+    today: string,
+    dailyBefore: DailyStudyStats | null,
+    type: string,
+  ): PendingRetraction => ({
+    attemptId,
+    surface: 'flashcard-review',
+    word: card.content.front,
+    language: card.language ?? settings.language,
+    attemptIds: [attemptId],
+    restore: { cardId: card.id, type, restoreCard: priorCard, restorePerLanguage: priorPerLanguage, today, restoreDailyStats: dailyBefore } satisfies ReviewUndoProjection,
+  });
 
   /**
    * Recompute the materialized wordKnowledge entries for a word's family keys
@@ -4156,6 +4912,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           language: settings.language,
           languageData: languageDataFor(settings.language),
           settings,
+          dictionaryTargetLanguage: dictionaryTargetFor(settings.language),
         });
         if (!enriched) continue; // Skip words with no translation
 
@@ -4239,7 +4996,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       return await new Promise((resolve, reject) => {
         const displayLocale = settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage;
         const sourceLanguageData = languageDataFor(language);
-        const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, language) || displayLocale;
+        const dictionaryTargetLanguage = (getDictionaryPromptTargetForSettings(settings, language) ?? displayLocale);
         const targetLanguageData = languageDataFor(dictionaryTargetLanguage);
         const sourceLang = getLanguagePromptName(language, sourceLanguageData);
         const targetLang = getLanguagePromptName(dictionaryTargetLanguage, targetLanguageData);
@@ -4280,7 +5037,7 @@ Translation: [${targetLang} translation]`;
         reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
       });
     } catch (error) {
-      if (handleCloudOperationFallback(error)) {
+      if (absorbProviderFailure(error, t, settings.llmProvider)) {
         return { sentence: '', meaning: '' };
       }
 
@@ -4301,7 +5058,7 @@ Translation: [${targetLang} translation]`;
     const groups = new Map<string, Array<{ index: number; job: LLMExampleJob; sourceLang: string; targetLang: string }>>();
 
     jobs.forEach((job, index) => {
-      const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, job.language) || displayLocale;
+      const dictionaryTargetLanguage = (getDictionaryPromptTargetForSettings(settings, job.language) ?? displayLocale);
       const sourceLang = getLanguagePromptName(job.language, languageDataFor(job.language));
       const targetLang = getLanguagePromptName(dictionaryTargetLanguage, languageDataFor(dictionaryTargetLanguage));
       const key = `${sourceLang}\u0000${targetLang}`;
@@ -4345,7 +5102,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
             });
             parsed = parseExampleBlocksFromLLM(response, chunk.length);
           } catch (error) {
-            if (!handleCloudOperationFallback(error)) throw error;
+            if (!absorbProviderFailure(error, t, settings.llmProvider)) throw error;
           }
         }
 
@@ -4371,7 +5128,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
 
     const displayLocale = settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage;
     const cardLanguage = language || settings.language;
-    const dictionaryTargetLanguage = getDictionaryTargetLanguageForSettings(settings, cardLanguage) || displayLocale;
+    const dictionaryTargetLanguage = (getDictionaryPromptTargetForSettings(settings, cardLanguage) ?? displayLocale);
     const sourceLang = getLanguagePromptName(sourceLanguageCode, languageDataFor(sourceLanguageCode));
     const targetLang = getLanguagePromptName(dictionaryTargetLanguage, languageDataFor(dictionaryTargetLanguage));
 
@@ -4412,7 +5169,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
         reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
       });
     } catch (error) {
-      if (handleCloudOperationFallback(error)) {
+      if (absorbProviderFailure(error, t, settings.llmProvider)) {
         return '';
       }
 
@@ -4464,7 +5221,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
           overlayPendingRatings(current as FlashcardStore);
         }));
         refreshQueue();
-        if (incoming.pendingReviewUndo) void recoverPendingReviewUndo();
+        if (incoming.pendingRetraction) void recoverPendingRetraction();
         return;
       }
       setStore(produce((s) => {
@@ -4673,7 +5430,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
                 example: (c.example as string) || undefined,
                 exampleMeaning: (c.exampleMeaning as string) || undefined,
                 imageUrl: (c.screenshotUrl as string) || undefined,
-              });
+              }).catch((e) => log.error(`[Tethered] Could not apply created card "${word}":`, e));
             }
           }
         } catch (e) {
@@ -4728,6 +5485,11 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   });
 
   onCleanup(() => {
+    // Call off a rebase before anything else: the flush below can itself be
+    // refused and rebase, and a window that is going away must not come back
+    // for a second write.
+    disposed = true;
+    authorityRequest = null;
     // Apply coalesced passive-seen rows FIRST so the immediate save below
     // (and the debounced save it flushes) includes them.
     flushPendingSeen();
@@ -4807,7 +5569,15 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     getComprehensiveWordStatusWithSourceSync,
     isWordKnownComprehensiveSync,
     isWordSettledSync,
+    isWordKnownWhenWrittenSync,
     appendRetractions,
+    retractAttempts,
+    registerRetractionReplay,
+    wordRetractionTarget,
+    recordPendingRetraction,
+    completePendingRetraction,
+    recoverPendingRetraction,
+    registerRetractionProjection,
     recomputeWordKnowledgeFromEvidence,
     setWordClaim,
     submitRating,

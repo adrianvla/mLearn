@@ -7,6 +7,7 @@
 
 import { Component, Accessor, JSX, Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { Portal } from 'solid-js/web';
+import { useDismiss } from '../../../hooks/useDismiss';
 import './Popover.css';
 
 export interface PopoverProps {
@@ -62,28 +63,16 @@ export const Popover: Component<PopoverProps> = (props) => {
     onCleanup(() => window.removeEventListener('resize', updatePosition));
   });
 
-  createEffect(() => {
-    if (!isOpen()) return;
-
-    const handleKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        props.onClose();
-        props.anchor()?.focus();
-      }
-    };
-    const handlePointerDown = (e: PointerEvent) => {
-      const target = e.target as Node;
-      if (props.anchor()?.contains(target)) return;
-      if (panelRef?.contains(target)) return;
+  // Escape and outside-pointer dismissal via the shared transient-surface
+  // policy; returning focus to the anchor on Escape is this surface's own.
+  useDismiss({
+    active: isOpen,
+    onDismiss: (reason) => {
       props.onClose();
-    };
-
-    document.addEventListener('keydown', handleKeydown);
-    document.addEventListener('pointerdown', handlePointerDown);
-    onCleanup(() => {
-      document.removeEventListener('keydown', handleKeydown);
-      document.removeEventListener('pointerdown', handlePointerDown);
-    });
+      if (reason === 'escape') props.anchor()?.focus();
+    },
+    inside: () => [props.anchor?.(), panelRef],
+    closeOnOutsidePointer: true,
   });
 
   return (

@@ -59,4 +59,18 @@ describe('BarChart', () => {
     expect(container.contains(tooltip)).toBe(false);
     dispose();
   });
+  it('thins axis labels to what the rendered width can carry', () => {
+    // happy-dom reports zero layout, so the measured column width is 0 and the
+    // policy keeps only the range endpoints rather than a fixed stride.
+    const data = Array.from({ length: 30 }, (_, index) => ({ label: `d${index + 1}`, value: index }));
+    const dispose = render(() => <BarChart data={data} />, container);
+    const labels = Array.from(container.querySelectorAll('.bar-chart-label'))
+      .map((element) => element.textContent)
+      .filter(Boolean);
+    // Every column still renders; only the labels are thinned.
+    expect(container.querySelectorAll('.bar-chart-column')).toHaveLength(30);
+    expect(labels.length).toBeLessThan(30);
+    dispose();
+  });
+
 });

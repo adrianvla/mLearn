@@ -20,18 +20,8 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 import { guardianForWrites } from './guardian';
-import { getCurrentLocaleData } from './localization';
 
 const log = getLogger('electron.dataExportImport');
-
-function recoveryText(key: string): string {
-  let value: unknown = getCurrentLocaleData().strings;
-  for (const part of ['mlearn', 'Settings', 'Data', 'Guardian', key]) {
-    if (!value || typeof value !== 'object') return key;
-    value = (value as Record<string, unknown>)[part];
-  }
-  return typeof value === 'string' ? value : key;
-}
 
 /** All user data items to include in a full export */
 const DATA_FILES = [
@@ -190,17 +180,14 @@ export function setupDataExportImportIPC(): void {
     if (typeof id !== 'string') return { success: false, error: 'Invalid recovery point' };
     const guardian = guardianForWrites();
     if (!guardian || guardian.status.state !== 'ready') return { success: false, error: 'Data protection is unavailable' };
-    const point = guardian.listRecoveryPointSummaries().find((item) => item.id === id);
-    if (!point) return { success: false, error: 'Recovery point was not found' };
-    const locale = getCurrentLocaleData().locale;
-    const date = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(point.createdAt));
-    const answer = await dialog.showMessageBox({
-      type: 'warning', title: recoveryText('ConfirmTitle'),
-      message: recoveryText('ConfirmMessage').replace('{date}', date),
-      detail: recoveryText('ConfirmDetail'),
-      buttons: [recoveryText('Cancel'), recoveryText('ConfirmRestore')], defaultId: 0, cancelId: 0,
-    });
-    if (answer.response !== 1) return { success: false };
+    if (!guardian.listRecoveryPointSummaries().some((item) => item.id === id)) {
+      return { success: false, error: 'Recovery point was not found' };
+    }
+    // The confirmation belongs to the surface that lists the recovery points:
+    // an OS message box raised from here appears as a separate window with no
+    // context about which point was chosen, and it stacked a second prompt on
+    // top of the one the renderer already shows. The renderer owns the decision
+    // and this handler owns the effect.
     let queued = false;
     try {
       guardian.queueRestore(id);

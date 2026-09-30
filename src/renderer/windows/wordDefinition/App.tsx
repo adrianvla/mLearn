@@ -3,6 +3,7 @@ import type { TranslationEntry, Token } from '../../../shared/types';
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { WindowWrapper, useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
+import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { fetchTranslation, getCachedTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
@@ -15,7 +16,7 @@ import {
   type WordHoverTranslationData,
 } from '../../components/subtitle/wordHoverHelpers';
 import { openWordLookup } from '../../services/wordLookupService';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
 import { getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -33,7 +34,7 @@ const WordDefinitionContent: Component = () => {
   const { getFrequency, getFreqLevelNames, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
 
   const [word, setWord] = createSignal('');
@@ -184,8 +185,9 @@ const WordDefinitionContent: Component = () => {
       });
       await addFlashcard(content, ease, undefined, settings.language);
     } catch (err) {
-      log.error('Failed to add flashcard:', err);
-      alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
+      // One announcement owner for every capture surface, so "did my card get
+      // saved?" is answered the same way everywhere.
+      reportCaptureFailure(err, { word: w }, { translate: t });
     } finally {
       setIsAddingFlashcard(false);
     }

@@ -8,9 +8,10 @@ import type { GraphNeighborhood } from '../../../shared/graph/ipc';
 import { getBridge } from '../../../shared/bridges';
 import { attemptActiveLatencyMs } from '../../../shared/knowledgeEvents';
 import { WindowWrapper, useFlashcards, useGraph, useLocalization, useSettings } from '../../context';
+import { formatDate, formatDateTime } from '../../utils/timeFormatting';
 import { useGraphNeighborhood } from '../../hooks/useGraphNeighborhood';
 import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
-import { Button, GraphNeighborhoodViz, SkeletonText } from '../../components/common';
+import { GraphNeighborhoodViz, KnowledgeLoadError, SkeletonText } from '../../components/common';
 import './GraphInspector.css';
 
 const targetStates: Record<TargetState, string> = {
@@ -86,7 +87,7 @@ export const GraphInspectorContent: Component = () => {
       </div>
     </Show>
     <Show when={pending() && !neighborhood()}><SkeletonText lines={4} /></Show>
-    <Show when={failed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Button size="sm" variant="secondary" onClick={retry}>{t('mlearn.GraphInspector.Explore.Retry')}</Button></p></Show>
+    <Show when={failed()}><KnowledgeLoadError message={t('mlearn.GraphInspector.Explore.LoadFailed')} onRetry={retry} /></Show>
     <Show when={graph.meta().ready && !pending() && !failed() && !neighborhood()}><p class="graph-inspector__empty">{t('mlearn.GraphInspector.SelectEntity')}</p></Show>
     <Show when={neighborhood()}>
       <section class="graph-inspector__section">
@@ -107,8 +108,8 @@ export const GraphInspectorContent: Component = () => {
     <Show when={details() && explanation()}>{(value) => <section class="graph-inspector__target">
       <h2>{t('mlearn.GraphInspector.Target')}</h2><p>{t(CAPABILITY_LABEL_KEYS[selectedCapability()!] ?? selectedCapability()!)} · <strong>{t(`mlearn.GraphInspector.State.${targetStates[value().state]}`)}</strong></p>
       <p>{value().projection ? `${t('mlearn.GraphInspector.Projection')}: ${value().projection!.ease.toFixed(2)}` : t('mlearn.GraphInspector.NoDirectEvidence')}</p>
-      <Show when={value().retention}><p>{t('mlearn.GraphInspector.Retention')}: {value().retention!.pressure.toFixed(2)} · {new Date(value().retention!.dueAt).toLocaleString()}</p></Show>
-      <h3>{t('mlearn.GraphInspector.Evidence')}</h3><For each={value().evidence}>{(event) => <p>{new Date(event.t).toLocaleDateString()} · {event.source} · {event.quality ?? event.rating ?? ''}{event.stalled ? ` · ${t('mlearn.GraphInspector.LatencyUnreliable')}` : attemptActiveLatencyMs(event) !== undefined ? ` · ${attemptActiveLatencyMs(event)}ms` : ''}</p>}</For>
+      <Show when={value().retention}><p>{t('mlearn.GraphInspector.Retention')}: {value().retention!.pressure.toFixed(2)} · {formatDateTime(value().retention!.dueAt, settings.uiLanguage)}</p></Show>
+      <h3>{t('mlearn.GraphInspector.Evidence')}</h3><For each={value().evidence}>{(event) => <p>{formatDate(event.t, settings.uiLanguage)} · {event.source} · {event.quality ?? event.rating ?? ''}{event.stalled ? ` · ${t('mlearn.GraphInspector.LatencyUnreliable')}` : attemptActiveLatencyMs(event) !== undefined ? ` · ${attemptActiveLatencyMs(event)}ms` : ''}</p>}</For>
       <Show when={value().state === 'predicted'}><p>{t('mlearn.GraphInspector.PredictionFirewall')}</p></Show>
     </section>}</Show>
     </Show>

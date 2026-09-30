@@ -22,7 +22,7 @@ import {
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import { cacheVersion, getCachedTranslation } from '../../hooks/useTranslation';
 import { extractProsodyData } from '../../utils/translationCacheParsers';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import './FlashcardWordTitle.css';
 
 export interface FlashcardWordTitleProps {
@@ -46,9 +46,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
   const storedProsodyPosition = createMemo(() => (
     props.content.prosody?.position ?? null
   ));
-  const dictionaryTargetLanguage = createMemo(() => (
-    getDictionaryTargetLanguageForSettings(settings, props.language ?? settings.language)
-  ));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage(() => props.language ?? settings.language);
   const lookupLanguage = () => props.language ?? settings.language;
   const lookupOptions = {
     getCanonicalForm: (word: string) => getCanonicalFormForLanguage(lookupLanguage(), word),

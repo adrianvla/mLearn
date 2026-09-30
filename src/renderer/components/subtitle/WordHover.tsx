@@ -9,7 +9,8 @@ import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, 
 import { isDarkColorScheme } from '../../../shared/constants';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { toUniqueIdentifier } from '../../services/statsService';
-import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
+import { getCachedExplanation } from '../../services/llmProvider';
+import { requireCapability } from '../../services/capabilityUnavailable';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
 import { Button, PillLabel, Modal, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
@@ -27,8 +28,9 @@ import {
 import { clipVideo } from '../../services/videoClipService';
 import { getBridge } from '../../../shared/bridges';
 import { showToast } from '../common/Feedback/Toast';
+import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { getTokenDisplayForms, getTokenWordFormCandidates } from '../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { compoundSplitterConfig, getContentFontFamily, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 import type { LanguageCompoundSplittingConfig } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
@@ -174,7 +176,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { t } = useLocalization();
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const [wordUuid, setWordUuid] = createSignal<string>('');
   // Flag to prevent effect from overwriting local isInSRS state during flashcard creation
   const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);
@@ -467,8 +469,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         await addFlashcard(content, ease, undefined, settings.language);
           // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
-        log.error('Failed to add flashcard:', err);
-        alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
+        // One announcement owner for every capture surface, so "did my card get
+        // saved?" is answered the same way everywhere.
+        reportCaptureFailure(err, { word: props.token.word }, { translate: t });
       } finally {
         // Always clear the adding flag when done
         setIsAddingFlashcard(false);
@@ -492,11 +495,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Check if LLM is enabled
-    if (!isLLMReady(settings)) {
-      alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
-      return;
-    }
+    if (!requireCapability('llm', settings, t)) return;
     
     // Call the callback to open the popup
     if (props.onOpenExplainer) {

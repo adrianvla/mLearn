@@ -9,8 +9,12 @@ import { Button, SettingRow, SettingGroup, Select, Input, TabContent, HintText, 
 import { getBridge } from '../../../../shared/bridges';
 import { isElectron } from '../../../../shared/platform';
 import type { LocalGuardStatus } from '../../../../shared/conversationReview';
-import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
-import { resolveCloudApiUrl } from '../../../../shared/backends';
+import {
+  probeProvider,
+  providerTestLabel,
+  providerTestVariant,
+  type ProviderFailure,
+} from '../../../services/providerFailure';
 import { BUILTIN_MODELS, autoselectBuiltinModel, getModelUrl } from '../../../../shared/builtinModels';
 import {
   DEFAULT_SETTINGS,
@@ -20,7 +24,6 @@ import {
   type OCRProvider,
   type SystemMemoryInfo,
 } from '../../../../shared/types';
-import { ensureCloudAccessToken, handleCloudSessionError } from '../../../services/cloudSessionManager';
 import '../SettingsForm.css';
 import './AITab.css';
 import { getLogger } from '../../../../shared/utils/logger';
@@ -44,7 +47,13 @@ export const AITab: Component = () => {
   });
 
   // Ollama state
-  const [ollamaConnected, setOllamaConnected] = createSignal<boolean | null>(null);
+  //
+  // Held as a classification for the same reason as the openai-compatible test
+  // above: a boolean cannot distinguish "not tested" from "tested and failed",
+  // which is why this section and that one disagreed about whether a failure
+  // should change the button's wording. Both now read the same record.
+  const [ollamaFailure, setOllamaFailure] = createSignal<ProviderFailure | null>(null);
+  const [ollamaTested, setOllamaTested] = createSignal(false);
   const [ollamaTesting, setOllamaTesting] = createSignal(false);
   const [ollamaModels, setOllamaModels] = createSignal<string[]>([]);
   const [loadingModels, setLoadingModels] = createSignal(false);
@@ -64,18 +73,42 @@ export const AITab: Component = () => {
 
   // Cloud LLM state
   const [testingCloudLLM, setTestingCloudLLM] = createSignal(false);
-  const [cloudLLMStatus, setCloudLLMStatus] = createSignal<'idle' | 'success' | 'error' | 'auth'>('idle');
-  const [compatibleStatus, setCompatibleStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
+  /**
+   * The last cloud connection-test outcome, as a classification.
+   *
+   * The third private tri-state in this tab, and the only one that had grown a
+   * fourth state ('auth') to say "sign in again" - which is exactly the
+   * distinction the shared record already makes, and exactly the one the other
+   * two sections could not make at all.
+   */
+  const [cloudLLMFailure, setCloudLLMFailure] = createSignal<ProviderFailure | null>(null);
+  const [cloudLLMTested, setCloudLLMTested] = createSignal(false);
+  /**
+   * The last connection-test outcome, kept as a classification.
+   *
+   * This was a private `'idle' | 'success' | 'error'` tri-state, which can say
+   * *that* the test failed but not *why*, and the button rendered no reason at
+   * all - it just turned red and kept saying "Test connection". A rejected API
+   * key, a model the endpoint does not serve and an unreachable host all looked
+   * identical. `probeProvider` already decides which of those it is, so the
+   * outcome is stored as the record it returns and the button labels itself
+   * from it.
+   */
+  const [compatibleFailure, setCompatibleFailure] = createSignal<ProviderFailure | null>(null);
+  const [compatibleTested, setCompatibleTested] = createSignal(false);
   const [testingCompatible, setTestingCompatible] = createSignal(false);
 
   const testCompatible = async () => {
     setTestingCompatible(true);
     try {
-      const adapter = new OpenAICompatibleLLMAdapter(settings.compatibleApiBaseUrl,
-        settings.compatibleApiKey, settings.compatibleModel);
-      setCompatibleStatus(await adapter.checkAvailability() ? 'success' : 'error');
-    } catch {
-      setCompatibleStatus('error');
+      const classified = await probeProvider({
+        ...settings,
+        // The test button is about the openai-compatible section it lives in,
+        // so it probes that provider rather than whatever is selected.
+        llmProvider: 'openai-compatible',
+      });
+      setCompatibleFailure(classified);
+      setCompatibleTested(true);
     } finally {
       setTestingCompatible(false);
     }
@@ -90,6 +123,11 @@ export const AITab: Component = () => {
   const [deletingModel, setDeletingModel] = createSignal<string | null>(null);
   const [deleteConfirmMsg, setDeleteConfirmMsg] = createSignal<string | null>(null);
 
+  const resetCompatibleTest = () => {
+    setCompatibleFailure(null);
+    setCompatibleTested(false);
+  };
+
   const isBuiltinModelReady = () => modelStatus().ready;
 
   const clearBuiltinStatusMessages = () => {
@@ -98,7 +136,8 @@ export const AITab: Component = () => {
   };
 
   const resetOllamaConnectionState = () => {
-    setOllamaConnected(null);
+    setOllamaFailure(null);
+    setOllamaTested(false);
   };
 
   // Check model status on mount
@@ -124,7 +163,8 @@ export const AITab: Component = () => {
     }
 
     if (provider !== 'cloud') {
-      setCloudLLMStatus('idle');
+      setCloudLLMFailure(null);
+      setCloudLLMTested(false);
     }
   });
 
@@ -266,11 +306,12 @@ export const AITab: Component = () => {
     setOllamaTesting(true);
     resetOllamaConnectionState();
     try {
-      const ok = await getBridge().llm.ollamaCheck();
-      setOllamaConnected(ok);
-    } catch (e) {
-      log.error("error", e);
-      setOllamaConnected(false);
+      // Probed through the shared owner so a failure here is classified by the
+      // same rules as a failure anywhere else, rather than this section
+      // deciding on its own what "not connected" means.
+      const classified = await probeProvider({ ...settings, llmProvider: 'ollama' });
+      setOllamaFailure(classified);
+      setOllamaTested(true);
     } finally {
       setOllamaTesting(false);
     }
@@ -296,25 +337,16 @@ export const AITab: Component = () => {
 
   async function handleTestCloudLLM() {
     setTestingCloudLLM(true);
-    setCloudLLMStatus('idle');
+    setCloudLLMFailure(null);
+    setCloudLLMTested(false);
     try {
-      const accessToken = await ensureCloudAccessToken();
-      if (!accessToken) {
-        setCloudLLMStatus('auth');
-        return;
-      }
-
-      const cloudApiUrl = resolveCloudApiUrl(settings);
-      const adapter = new CloudLLMAdapter(
-        cloudApiUrl,
-        accessToken,
-      );
-      const ok = await adapter.checkAvailability();
-      setCloudLLMStatus(ok ? 'success' : 'error');
-    } catch (e) {
-      log.error("error", e);
-      const requiresSignIn = handleCloudSessionError(e, true);
-      setCloudLLMStatus(requiresSignIn ? 'auth' : 'error');
+      // Probed through the shared owner, which also performs the session
+      // recovery when the session is the thing that died. The old inline catch
+      // called `handleCloudSessionError` itself - one more place that had to
+      // remember to.
+      const classified = await probeProvider({ ...settings, llmProvider: 'cloud' });
+      setCloudLLMFailure(classified);
+      setCloudLLMTested(true);
     } finally {
       setTestingCloudLLM(false);
     }
@@ -570,18 +602,15 @@ export const AITab: Component = () => {
           >
             <Button
               size="sm"
-              variant={ollamaConnected() === true ? 'success' : ollamaConnected() === false ? 'danger' : 'default'}
+              variant={providerTestVariant(ollamaTested(), ollamaFailure())}
               onClick={handleTestOllama}
               disabled={ollamaTesting()}
               loading={ollamaTesting()}
-              icon={ollamaConnected() === true ? 'check' : undefined}
+              icon={ollamaTested() && !ollamaFailure() ? 'check' : undefined}
             >
-              {ollamaConnected() === true
-                ? t('mlearn.AI.Settings.OllamaConfig.ConnectionSuccess')
-                : ollamaConnected() === false
-                  ? t('mlearn.Connection.Unreachable')
-                  : t('mlearn.AI.Settings.OllamaConfig.TestConnection')
-              }
+              {providerTestLabel(ollamaTested(), ollamaFailure(), t,
+                'mlearn.AI.Settings.OllamaConfig.ConnectionSuccess',
+                'mlearn.AI.Settings.OllamaConfig.TestConnection')}
             </Button>
           </SettingRow>
 
@@ -604,21 +633,23 @@ export const AITab: Component = () => {
         <SettingGroup title={t('mlearn.AI.Settings.CompatibleConfig.Title')}>
           <SettingRow label={t('mlearn.AI.Settings.CompatibleConfig.BaseUrl')} description="">
             <Input value={settings.compatibleApiBaseUrl} type="url" size="md"
-              onInput={(event) => { setCompatibleStatus('idle'); updateSettings({ compatibleApiBaseUrl: event.currentTarget.value }); }} />
+              onInput={(event) => { resetCompatibleTest(); updateSettings({ compatibleApiBaseUrl: event.currentTarget.value }); }} />
           </SettingRow>
           <SettingRow label={t('mlearn.AI.Settings.CompatibleConfig.ApiKey')} description="">
             <Input value={settings.compatibleApiKey} type="password" autocomplete="off" size="md"
-              onInput={(event) => { setCompatibleStatus('idle'); updateSettings({ compatibleApiKey: event.currentTarget.value }); }} />
+              onInput={(event) => { resetCompatibleTest(); updateSettings({ compatibleApiKey: event.currentTarget.value }); }} />
           </SettingRow>
           <SettingRow label={t('mlearn.AI.Settings.CompatibleConfig.Model')} description="">
             <Input value={settings.compatibleModel} size="md"
-              onInput={(event) => { setCompatibleStatus('idle'); updateSettings({ compatibleModel: event.currentTarget.value }); }} />
+              onInput={(event) => { resetCompatibleTest(); updateSettings({ compatibleModel: event.currentTarget.value }); }} />
           </SettingRow>
           <SettingRow label="" description="">
-            <Button size="sm" variant={compatibleStatus() === 'success' ? 'success' : compatibleStatus() === 'error' ? 'danger' : 'default'}
+            <Button size="sm"
+              variant={providerTestVariant(compatibleTested(), compatibleFailure())}
               disabled={testingCompatible()} loading={testingCompatible()} onClick={() => void testCompatible()}>
-              {compatibleStatus() === 'success' ? t('mlearn.AI.Settings.CompatibleConfig.ConnectionSuccess')
-                : t('mlearn.AI.Settings.CompatibleConfig.TestConnection')}
+              {providerTestLabel(compatibleTested(), compatibleFailure(), t,
+                'mlearn.AI.Settings.CompatibleConfig.ConnectionSuccess',
+                'mlearn.AI.Settings.CompatibleConfig.TestConnection')}
             </Button>
           </SettingRow>
         </SettingGroup>
@@ -647,20 +678,15 @@ export const AITab: Component = () => {
           >
             <Button
               size="sm"
-              variant={cloudLLMStatus() === 'success' ? 'success' : cloudLLMStatus() === 'error' ? 'danger' : 'default'}
+              variant={providerTestVariant(cloudLLMTested(), cloudLLMFailure())}
               onClick={handleTestCloudLLM}
               disabled={testingCloudLLM()}
               loading={testingCloudLLM()}
-              icon={cloudLLMStatus() === 'success' ? 'check' : undefined}
+              icon={cloudLLMTested() && !cloudLLMFailure() ? 'check' : undefined}
             >
-              {cloudLLMStatus() === 'success'
-                ? t('mlearn.AI.Settings.CloudConfig.ConnectionSuccess')
-                : cloudLLMStatus() === 'auth'
-                  ? (t('mlearn.Connection.SignIn') || 'Sign in')
-                : cloudLLMStatus() === 'error'
-                  ? t('mlearn.Connection.Unreachable')
-                  : t('mlearn.AI.Settings.CloudConfig.TestConnection')
-              }
+              {providerTestLabel(cloudLLMTested(), cloudLLMFailure(), t,
+                'mlearn.AI.Settings.CloudConfig.ConnectionSuccess',
+                'mlearn.AI.Settings.CloudConfig.TestConnection')}
             </Button>
           </SettingRow>
 

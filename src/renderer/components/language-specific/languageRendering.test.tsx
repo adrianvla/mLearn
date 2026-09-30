@@ -28,6 +28,11 @@ vi.mock('../../context', () => ({
     currentLangData: () => mockActiveLanguageData,
     getCanonicalFormForLanguage: mockGetCanonicalFormForLanguage,
     getWordVariantsForLanguage: mockGetWordVariantsForLanguage,
+    // Only an INSTALLED pack may be named as a lookup target; the UI locale
+    // is not one. `fr` is the pack this suite installed for `ja`.
+    languageDataCatalog: () => ([
+      { language: 'ja', dictionaryPacks: [{ targetLanguage: 'fr', installed: true }] },
+    ]),
   }),
 }));
 

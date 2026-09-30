@@ -115,6 +115,12 @@
   font-size: var(--font-size-sm);
 }
 
+.word-sync-unavailable-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  justify-content: center;
+}
+
 .word-sync-answer-options {
   display: flex;
   flex-direction: column;
@@ -148,6 +154,12 @@
 
 .word-sync-rating-write--failed {
   color: var(--color-error);
+}
+
+/* The actions column is `align-items: stretch`, so the Undo control is pulled
+   back to the start of the row instead of being stretched across it. */
+.word-sync-undo {
+  align-self: flex-start;
 }
 
 .word-sync-inspect {

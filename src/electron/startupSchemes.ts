@@ -20,9 +20,13 @@ export function registerPluginUiScheme(): void {
   protocol.registerSchemesAsPrivileged([{
     scheme: 'plugin-ui',
     privileges: {
-      standard: false,
+      // Plugin bundles load as ES modules, which Chromium validates against
+      // the scheme's CORS privileges before `protocol.handle` is consulted.
+      // `standard` + `corsEnabled` declare that scheme as fetchable cross-origin.
+      standard: true,
       secure: true,
       supportFetchAPI: true,
+      corsEnabled: true,
       stream: false,
       bypassCSP: false,
     },

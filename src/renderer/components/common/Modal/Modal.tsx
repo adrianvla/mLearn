@@ -10,6 +10,7 @@ import { Button } from '../Button';
 import { CloseIcon } from '../Misc/Icons';
 import { useLocalization } from '../../../context';
 import { isElectron } from '../../../../shared/platform';
+import { useDismiss } from '../../../hooks/useDismiss';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -67,18 +68,11 @@ export const Modal: Component<ModalProps> = (props) => {
     'onPanelKeyDown',
   ]);
 
-  // Handle escape key
-  createEffect(() => {
-    if (!local.isOpen || !local.closeOnEscape) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        local.onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    onCleanup(() => document.removeEventListener('keydown', handleEscape));
+  // Escape dismisses, via the shared transient-surface policy.
+  useDismiss({
+    active: () => !!local.isOpen,
+    get closeOnEscape() { return local.closeOnEscape; },
+    onDismiss: () => local.onClose(),
   });
 
   // Lock body scroll when open

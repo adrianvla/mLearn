@@ -17,7 +17,7 @@ import { getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
 import { extractProsodyData } from '../../utils/translationCacheParsers';
 import { getColoredProsodyConfig } from '../../utils/coloredProsody';
 import type { WordRenderTextContext } from '../../utils/wordRenderText';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { WordWithReading } from '../language-specific/WordWithReading';
 import './OcrOverlay.css';
 
@@ -71,7 +71,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
 
   const getPos = () => props.token.partOfSpeech ?? props.token.type ?? '';
 
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
 
   const comprehensionStatus = createMemo(() => getWrittenComprehensionStatus({

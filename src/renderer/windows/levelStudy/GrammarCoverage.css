@@ -243,6 +243,23 @@
   padding: 2px 6px;
 }
 
+/* Sits beside Skip in the same affordance row: taking a rating back is a
+   secondary action here, not a competing one, so it borrows Skip's shape
+   without Skip's underline — it is an action, not the way past the item. */
+.grammar-coverage__session-undo {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.grammar-coverage__session-undo:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
 /* Contrast pass (R12): validated package items rendered as MCQ steps. */
 
 .grammar-contrast {

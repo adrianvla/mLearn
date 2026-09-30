@@ -99,13 +99,24 @@ vi.mock('../../../../shared/bridges', () => ({
   }),
 }));
 
-vi.mock('../../../../shared/platform', () => ({ isElectron: () => true }));
+// Partial: the real Modal reaches the platform helpers, so a full stub of this
+// module leaves the confirm dialog without the surface it renders into.
+vi.mock('../../../../shared/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../shared/platform')>()),
+  isElectron: () => true,
+}));
 
 vi.mock('../../../../shared/bridges/bundledLanguageAssets', () => ({
   getBundledLocaleCodes: () => ['en', 'ja', 'de', 'fr', 'ru'],
 }));
 
-vi.mock('../../../components/common', () => ({
+vi.mock('../../../components/common', async () => {
+  // The real confirm dialog: GeneralTab routes every destructive control
+  // through it, so a stub would leave the gate untested.
+  const modal = await vi.importActual<typeof import('../../../components/common/Modal')>('../../../components/common/Modal');
+  return {
+  useConfirmDialog: modal.useConfirmDialog,
+  Modal: modal.Modal,
   SettingRow: (props: { children?: JSX.Element; managedControl?: JSX.Element }) => <div>{props.managedControl}{props.children}</div>,
   SettingGroup: (props: { children?: JSX.Element }) => <section>{props.children}</section>,
   ToggleSwitch: () => <div />,
@@ -119,7 +130,8 @@ vi.mock('../../../components/common', () => ({
   ),
   SettingsIcon: () => <div />,
   LanguageVariantGate: () => null,
-}));
+  };
+});
 
 describe('GeneralTab', () => {
   let container: HTMLDivElement;
@@ -188,6 +200,18 @@ describe('GeneralTab', () => {
     expect(container.textContent).toContain('mlearn.Settings.Data.Guardian.PointSummary');
     const restore = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Settings.Data.Guardian.Restore');
     restore!.click();
+    // Restoring replaces the live profile, so it now goes through the same
+    // confirm dialog as every other destructive control in this window rather
+    // than an OS dialog raised from the main process. Assert the gate holds:
+    // one click on Restore must not swap the profile.
+    await Promise.resolve();
+    expect(restoreRecoveryPointMock).not.toHaveBeenCalled();
+    const dialog = document.querySelector('[role=dialog]');
+    expect(dialog?.textContent ?? '').toContain('mlearn.Settings.Data.Guardian.ConfirmMessage');
+    const confirm = Array.from(dialog!.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Settings.Data.Guardian.ConfirmRestore');
+    confirm!.click();
+    await Promise.resolve();
     expect(restoreRecoveryPointMock).toHaveBeenCalledWith('snapshot-00000001');
     dispose();
   });

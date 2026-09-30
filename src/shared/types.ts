@@ -11,6 +11,7 @@ export type { KnowledgeAspect } from './constants';
 import type { CapabilityKey } from './graph/types';
 export type { CapabilityKey, CapabilityKind } from './graph/types';
 import type { HistoricalBackgroundRecord } from './learningBackground';
+import type { PendingRetraction } from './retractionRecovery';
 export type { HistoricalBackgroundRecord, HistoricalBackgroundKind } from './learningBackground';
 
 // Re-export WindowType
@@ -2079,19 +2080,6 @@ export interface FlashcardMeta {
   normalizationVersion?: number;
 }
 
-/** Durable recovery record for an Undo that spans the journal and card store. */
-export interface PendingReviewUndo {
-  attemptId: string;
-  type: string;
-  cardId: string;
-  restoreCard: Flashcard;
-  word: string;
-  language: string;
-  restorePerLanguage: PerLanguageMeta | null;
-  today: string;
-  restoreDailyStats: DailyStudyStats | null;
-}
-
 /**
  * Full flashcard store with UUID-keyed flashcards
  */
@@ -2126,8 +2114,29 @@ export interface FlashcardStore {
   suggestedFlashcards: Record<string, SuggestedFlashcard>;
   /** Version for migrations */
   version: number;
-  /** Recovery record while a reversible review Undo is being completed. */
-  pendingReviewUndo?: PendingReviewUndo;
+  /**
+   * The decided-but-unfinished Undo a study surface is completing, if any.
+   *
+   * There is one of these per store, not one per study surface, because
+   * taking a rating back is one operation: a retraction is appended to the
+   * journal and the owning surface's projection is restored. Two surfaces
+   * could not both hold a half-finished one anyway — only one retraction may
+   * be in flight, and whichever started last owns the outcome.
+   *
+   * The restored projection is carried opaquely; the surface that recorded it
+   * interprets it. See `PendingRetraction`.
+   */
+  pendingRetraction?: PendingRetraction;
+  /**
+   * Set only by the write that finishes a pending retraction, naming which one.
+   *
+   * The store is saved whole by every window, so a snapshot without
+   * `pendingRetraction` is ambiguous between "nothing is pending" and "this
+   * window has not seen it yet". This names the decision being completed so the
+   * difference survives the write. It is transient: never persisted, and only
+   * meaningful on a write that also drops `pendingRetraction`.
+   */
+  retractionCompleted?: string;
   /**
    * Monotonic store revision for sync conflict gating. Bumped on every
    * persisted write (flashcardStorage.saveFlashcards). Sync clients echo the

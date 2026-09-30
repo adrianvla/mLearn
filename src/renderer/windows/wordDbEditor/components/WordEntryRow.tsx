@@ -6,14 +6,14 @@ import { useGraphNeighborhood } from '../../../hooks/useGraphNeighborhood';
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Button, GraphNeighborhoodViz, Modal, PillLabel, AnkiHoverPreview, ReadinessGate, deriveReadiness, SkeletonRows } from '../../../components/common';
+import { Button, GraphNeighborhoodViz, KnowledgeLoadError, Modal, PillLabel, AnkiHoverPreview, ReadinessGate, deriveReadiness, SkeletonRows } from '../../../components/common';
 import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../../context';
 import { useOptionalGraph } from '../../../context/GraphContext';
 import { cacheVersion, getCachedTranslation, getCachedReading, fetchTranslation, type WordLookupCandidateOptions } from '../../../hooks/useTranslation';
-import { getDictionaryTargetLanguageForSettings } from '../../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { ankiCacheVersion, findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import { getProsodyOverlayRenderer } from '../../../utils/prosodyPresentation';
@@ -24,7 +24,6 @@ import {
   resolveStoredProsodyForDisplayedReading,
 } from '../../../utils/readingProsody';
 import type { FlashcardProsody, LanguageData, TranslationResponse, TranslationEntry } from '../../../../shared/types';
-import type { WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import {
   getFrequencyLevelLabel,
   getFrequencyLevelVisualRank,
@@ -132,8 +131,9 @@ export interface WordEntry {
 export interface WordEntryRowProps {
   entry: WordEntry;
   levelNames: Record<number, string>;
-  onStatusChange: (entry: WordEntry, newStatus: WordStatus) => void;
   onAddFlashcard: (entry: WordEntry) => void;
+  /** A card for this word is already being built; the Add control reports it. */
+  isAddingFlashcard?: boolean;
   onRemoveFlashcard: (entry: WordEntry) => void;
   onUnignore?: (entry: WordEntry) => void;
   onEditFlashcard?: (entry: WordEntry) => void;
@@ -151,7 +151,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const graph = useOptionalGraph();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const prosodyOverlayRenderer = createMemo(() => (
     getProsodyOverlayRenderer(currentLangData(), props.entry.prosody?.type)
@@ -448,10 +448,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={renderedLevel() === null}>-</Show>
       </div>
       <div class="col knowledge">
-        <WordStatusPill
-          word={props.entry.word}
-          onStatusChange={(status) => props.onStatusChange(props.entry, status)}
-        />
+        <WordStatusPill word={props.entry.word} />
         <div class="knowledge-actions">
           <Button variant="ghost" size="sm" onClick={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word))}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
           <Button variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Button>
@@ -501,7 +498,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.WordDbEditor.Actions.Unignore')}
           </Button>
         </Show>
-        <Show when={!hasFlashcard() && !ignored()}>
+        <Show when={props.isAddingFlashcard}>
+          {/* The same pending state every other capture surface shows: the
+              click is already in flight, so the control reports it instead of
+              offering an action that would be refused. */}
+          <Button variant="primary" size="sm" disabled>
+            {t('mlearn.Global.Status.Adding')}
+          </Button>
+        </Show>
+        <Show when={!hasFlashcard() && !ignored() && !props.isAddingFlashcard}>
           <Button
             variant="primary"
             size="sm"
@@ -559,7 +564,12 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           {/* Pending ≠ not-in-graph: the skeleton holds only while the
               lookup is in flight; absence resolves to the explicit note. */}
           <ReadinessGate when={deriveReadiness({ pending: () => neighborhoodPending() && !neighborhood() })} instant fallback={<SkeletonRows rows={2} />}>
-          <Show when={neighborhoodFailed()}><p role="alert">{t('mlearn.GraphInspector.Explore.LoadFailed')} <Button size="sm" onClick={retryNeighborhood}>{t('mlearn.GraphInspector.Explore.Retry')}</Button></p></Show>
+          {/* The neighborhood read is the same knowledge read the graph
+              inspector presents, and it failed the same way, so it is
+              reported the same way — one owner for "this knowledge read
+              failed", not two hand-rolled alert/retry pairs that drifted
+              apart in wording and emphasis. */}
+          <Show when={neighborhoodFailed()}><KnowledgeLoadError message={t('mlearn.GraphInspector.Explore.LoadFailed')} onRetry={retryNeighborhood} /></Show>
           <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
             {(value) => (
               <GraphNeighborhoodViz

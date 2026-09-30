@@ -74,6 +74,40 @@ describe('knowledge hover', () => {
     expect(container.querySelector('.rating-matrix__quality')).not.toBeNull();
   });
 
+  // The pill owns no write vocabulary of its own: it renders the same
+  // shared banner as flashcard review, word sync and grammar coverage, so a
+  // rating that fails here is worded and offered a retry identically.
+  it('surfaces the in-flight rating through the shared write banner and its pending state', async () => {
+    let resolveFirst!: () => void;
+    submitRating.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+      resolveFirst = () => reject(new Error('disk unavailable'));
+    }));
+    const container = document.createElement('div'); document.body.append(container);
+    dispose = render(() => <WordStatusPillKnowledge word="犬" language="ja" />, container);
+    container.querySelector<HTMLButtonElement>('.word-status-knowledge__actions button')!.click();
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+
+    const pending = container.querySelector('[role="status"]');
+    expect(pending?.textContent).toBe('mlearn.Knowledge.Popup.Saving');
+    // A live region, and the matrix disarmed while the write is unresolved.
+    expect(pending?.getAttribute('aria-live')).toBe('polite');
+    expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(true);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+
+    resolveFirst();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The shared banner owns the retry affordance, so a failure surfaces one
+    // primary action rather than this surface's own ghost button.
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('mlearn.Knowledge.Popup.SaveFailed');
+    const retry = alert?.querySelector('button');
+    expect(retry?.textContent).toBe('mlearn.Knowledge.Popup.Retry');
+    expect(retry?.className).toContain('btn-primary');
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
   it('keeps the matrix open until the rating is acknowledged and retries the same command after failure', async () => {
     let resolveFirst!: () => void;
     submitRating.mockImplementationOnce(() => new Promise((_resolve, reject) => {

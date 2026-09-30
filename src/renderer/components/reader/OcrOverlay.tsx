@@ -21,7 +21,7 @@ import {
   type FilterDebugZone,
 } from '../../utils/ocrUtils';
 import { getTokenLookupWord } from '../../utils/wordForms';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { OcrWord } from './OcrWord';
 import { ReadingAnnotationHider } from './ReadingAnnotationHider';
 import { getTokenJoinSeparator } from '../../../shared/languageFeatures';
@@ -134,7 +134,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const { settings } = useSettings();
   const { isTokenTranslatable, getLanguageFeatures, currentLangData } = useLanguage();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
   const [observedHeight, setObservedHeight] = createSignal(0);

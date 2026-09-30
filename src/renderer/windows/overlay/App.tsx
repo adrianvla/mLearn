@@ -20,12 +20,17 @@ import { cleanContextPhrase } from '../../utils/phraseExtraction';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { buildWordHoverFlashcardContent } from '../../components/subtitle/wordHoverHelpers';
-import { bulkAddWords } from '../../utils/bulkAddWords';
-import { getDictionaryTargetLanguageForSettings } from '../../utils/dictionaryTargetLanguage';
+import { addAllCapturedWords } from '../../services/addAllCapturedWords';
+import { resolveCapturedWordEligibility } from '../../services/wordCaptureEligibility';
+import { reportCaptureFailure } from '../../services/wordCaptureFailure';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoom, isShareableWatchTogetherUrl } from '../../services/watchTogetherRoomService';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../services/cloudSessionManager';
 import { showToast } from '../../components/common/Feedback/Toast';
+import { useConfirmDialog } from '../../components/common';
+import { ignoreWordWithConfirmation } from '../flashcards/ignoreWordWithConfirmation';
 import { isLLMReady } from '../../services/llmProvider';
+import { requireCapability } from '../../services/capabilityUnavailable';
 import { getLogger } from '../../../shared/utils/logger';
 import { clipVideo } from '../../services/videoClipService';
 
@@ -97,11 +102,12 @@ export const App: Component = () => {
   const bridge = getBridge();
   const subtitles = useSubtitles();
   const { t } = useLocalization();
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const { settings, updateSettings, updateSetting } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
-  const dictionaryTargetLanguage = createMemo(() => getDictionaryTargetLanguageForSettings(settings));
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = {
     getCanonicalForm: langCtx.getCanonicalForm,
     getWordVariants: langCtx.getWordVariants,
@@ -669,9 +675,10 @@ export const App: Component = () => {
         break;
       }
       case 'explain-phrase': {
-        if (!isLLMReady(settings)) {
-          break;
-        }
+        // Previously this case did nothing at all when the LLM was down, so
+        // the click was consumed with no feedback and read as a broken menu
+        // item. Every other surface answers the same refusal.
+        if (!requireCapability('llm', settings, t)) break;
         const phrase = currentSubtitlePhrase();
         if (phrase) {
           handleOpenPhraseExplainer(phrase, contextMenuPosition());
@@ -687,11 +694,11 @@ export const App: Component = () => {
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word, settings.language)) return false;
-      return flashcardCtx.getComprehensiveWordStatusSync(entry.word, settings.language) !== 'known';
+      return !flashcardCtx.isWordKnownWhenWrittenSync(
+        entry.word, entry.token.surface ?? entry.token.word, settings.language,
+      );
     });
   });
-
-  const failedSidebarWordSet = createMemo<ReadonlySet<string>>(() => new Set());
 
   const addVideoWordFlashcard = async (entry: VideoWordEntry) => {
     setAddingSidebarWords(prev => { const next = new Set(prev); next.add(entry.key); return next; });
@@ -743,36 +750,81 @@ export const App: Component = () => {
       }
 
       await flashcardCtx.addFlashcard(content, ease, undefined, settings.language);
-    } catch (err) {
-      log.error('Failed to add flashcard from overlay sidebar:', err);
     } finally {
       setAddingSidebarWords(prev => { const next = new Set(prev); next.delete(entry.key); return next; });
     }
   };
 
-  const addAllVideoWords = async (entries: VideoWordEntry[]) => {
-    await processAddAll(entries);
-  };
+  /**
+   * "Add All" for this sidebar's unknown words.
+   *
+   * The behaviour itself is owned by `addAllCapturedWords`: the reader, this
+   * route and the floating overlay are the same sidebar offering the same
+   * button, and each of them used to carry its own copy of the batch skeleton.
+   * They had already drifted - the video and overlay copies caught and
+   * swallowed their own capture failures, which made the batch reporting below
+   * unreachable and a bulk add through either of them silent about failing. The
+   * surface supplies what it knows: how to build one card, whether that word
+   * may still become one, and its logger.
+   */
+  const addAllVideoWords = (entries: VideoWordEntry[]) =>
+    addAllCapturedWords({
+      entries,
+      addFlashcard: addVideoWordFlashcard,
+      isEligible: isOverlayCaptureEligible,
+      isInFlight: isAddingAllSidebarWords,
+      setInFlight: setIsAddingAllSidebarWords,
+      translate: t,
+      logEntryError: (entry, err) => log.error(`Failed to add flashcard for "${entry.word}":`, err),
+    });
 
-  const processAddAll = async (entries: VideoWordEntry[]) => {
-    setIsAddingAllSidebarWords(true);
+  /**
+   * A single sidebar capture, reporting its own failure.
+   *
+   * The floating overlay is the third copy of the video sidebar and carried the same two
+   * defects: it caught and logged its own failures, so nothing reached the learner and the
+   * batch reporting was unreachable, and the sidebar was wired to the raw builder rather than
+   * through this guard, so the guard did not run for a click either.
+   * Letting the rejection propagate gives one place the decision to announce.
+   */
+  const handleAddSidebarWord = async (entry: VideoWordEntry) => {
+    if (addingSidebarWords().has(entry.key) || !isOverlayCaptureEligible(entry)) {
+      return;
+    }
     try {
-      await bulkAddWords({
-        entries,
-        addFlashcard: addVideoWordFlashcard,
-        onEntryError: (entry, err) => {
-          log.error(`Failed to add flashcard for "${entry.word}":`, err);
-          showToast({ message: t('mlearn.WordHover.FlashcardAddFailed'), variant: 'error' });
-        },
-      });
-    } finally {
-      setIsAddingAllSidebarWords(false);
+      await addVideoWordFlashcard(entry);
+    } catch (err) {
+      reportCaptureFailure(err, { word: entry.word }, { translate: t, log: log.error });
     }
   };
 
+  /**
+   * Whether a captured word may still become a card.
+   *
+   * The rule is owned by `wordCaptureEligibility`; this only supplies this
+   * surface's facts. The video sidebar previously had no guard on either add
+   * path, so a word that had become known or excluded since the list was built
+   * was still added - producing a duplicate card the reader's equivalent path
+   * would have refused.
+   */
+  const isOverlayCaptureEligible = (entry: VideoWordEntry): boolean =>
+    resolveCapturedWordEligibility(
+      entry.word,
+      settings.language,
+      Boolean(flashcardCtx.getCardByWordSync(entry.word, settings.language)),
+      flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).excluded === true,
+    ).eligible;
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
-    await flashcardCtx.ignoreWordForLanguage(entry.word);
+    await ignoreWordWithConfirmation(
+      { word: entry.word, language: settings.language },
+      {
+        getCardCount: (word, language) => flashcardCtx.getCardsByWordSync(word, language).length,
+        ignoreWordForLanguage: flashcardCtx.ignoreWordForLanguage,
+        showConfirm,
+        t,
+      },
+    );
   };
 
   const handleToggleLiveTranslator = () => {
@@ -919,7 +971,7 @@ export const App: Component = () => {
       if (seenWords.has(word)) continue;
       if (flashcardCtx.isWordIgnoredSync(word, settings.language)) continue;
 
-      if (flashcardCtx.getComprehensiveWordStatusSync(word, settings.language) === 'known') continue;
+      if (flashcardCtx.isWordKnownWhenWrittenSync(word, token.surface ?? token.word, settings.language)) continue;
 
       seenWords.add(word);
       newEntries.push({
@@ -1155,8 +1207,11 @@ export const App: Component = () => {
                 words={visibleUnknownWords}
                 addingWordKeys={() => addingSidebarWords()}
                 isAddingAll={() => isAddingAllSidebarWords()}
-                failedWordSet={failedSidebarWordSet}
-                onAddWord={addVideoWordFlashcard}
+                onAddWord={handleAddSidebarWord}
+                // No failedWordSet: the overlay accumulates no per-word encounter
+                // record, so there is no failure data to offer. It used to pass an
+                // always-empty Set, which read as "this surface has failed words"
+                // and gave the learner a filter that could only ever be empty.
                 onAddAll={addAllVideoWords}
                 onIgnoreWord={ignoreVideoWord}
                 onClose={() => setShowWordSidebar(false)}
@@ -1247,6 +1302,8 @@ export const App: Component = () => {
           }}
         />
       </Show>
+
+      <ConfirmDialogElement />
     </div>
   );
 };

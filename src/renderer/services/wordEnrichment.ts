@@ -29,6 +29,8 @@ export interface EnrichWordInput {
   languageData?: LanguageData | null;
   /** Resolves the dictionary target language. Defaults to the current settings. */
   settings?: DictionaryTargetSettings;
+  /** Installed targets from the language catalog; configuration alone cannot select a pack. */
+  installedTargetLanguages?: readonly string[];
   /** Dictionary entry index used for the meaning; the next entry holds extra definitions. */
   definitionIndex?: number;
   /** Overrides the settings-derived dictionary target language. */
@@ -74,7 +76,7 @@ export async function enrichWord(
   const translate = deps.translate ?? defaultTranslate;
   const dictionaryTargetLanguage = input.dictionaryTargetLanguage
     ?? (input.settings
-      ? getDictionaryTargetLanguageForSettings(input.settings, input.language)
+      ? getDictionaryTargetLanguageForSettings(input.settings, input.language, input.installedTargetLanguages)
       : undefined);
 
   const response = await translate(

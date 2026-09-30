@@ -21,6 +21,7 @@ import { getWordFormCandidates } from '../../utils/wordForms';
 import { initTimeWatched } from '../../services/statsService';
 import { computeWordLevelStats } from '../../utils/wordLevelStats';
 import { retentionDisplay } from '../../utils/retentionDisplay';
+import { formatDateMedium, formatDateNumeric, formatDateShort, formatWeekday } from '../../utils/timeFormatting';
 import {
   computeStateDistribution,
   computeMaturityBreakdown,
@@ -175,17 +176,19 @@ export const Dashboard: Component = () => {
       const dayLabel = i === 0
         ? t('mlearn.Statistics.Dashboard.Today')
         : i <= 6
-          ? d.toLocaleDateString(undefined, { weekday: 'short' })
-          : d.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+          ? formatWeekday(d, settings.uiLanguage)
+          : formatDateNumeric(d, settings.uiLanguage);
 
       last30.push({
-        label: i % 6 === 0 ? dayLabel : '',
+        // BarChart decides which labels the rendered width can carry, so
+        // every day offers its label and none is dropped by a fixed stride.
+        label: dayLabel,
         value: stat?.reviewCardsStudied ?? 0,
         color: 'var(--color-primary)',
         secondaryValue: stat?.newCardsStudied ?? 0,
         secondaryColor: 'var(--color-success)',
         tooltip: t('mlearn.Statistics.Dashboard.DayActivity', {
-          date: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          date: formatDateShort(d, settings.uiLanguage),
           reviews: stat?.reviewCardsStudied ?? 0,
           newCards: stat?.newCardsStudied ?? 0,
         }),
@@ -576,8 +579,9 @@ export const Dashboard: Component = () => {
           <Heatmap
             data={immersionHeatmap()}
             weeks={20}
+            locale={settings.uiLanguage}
             colorScale={immersionColorScale}
-            formatTooltip={(date, val) => `${new Date(date + 'T00:00:00').toLocaleDateString(undefined, { dateStyle: 'medium' })}: ${formatMinutes(val)}`}
+            formatTooltip={(date, val) => `${formatDateMedium(new Date(date + 'T00:00:00'), settings.uiLanguage)}: ${formatMinutes(val)}`}
             formatMax={formatMinutes}
           />
         </Panel>

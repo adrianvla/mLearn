@@ -75,18 +75,15 @@
   color: var(--text-secondary);
 }
 
-.diagnostics-spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border-color-intense);
+/* The indicator is the shared Loader Spinner, which already owns the circle
+   geometry and the 0.8s spin. Only the accent color is local: a running
+   diagnostics sweep is a live activity, so it reads as the primary color
+   rather than the default foreground. */
+/* Two classes: the shared Loader stylesheet declares these single-class rules
+   and may be ordered after this file. */
+.diagnostics-running .diagnostics-spinner .loader-spinner-circle {
+  border-color: var(--border-color-intense);
   border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: diagnostics-spin 0.8s linear infinite;
-}
-
-@keyframes diagnostics-spin {
-  to { transform: rotate(360deg); }
 }
 
 .diagnostics-progress-detail {

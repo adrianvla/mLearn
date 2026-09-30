@@ -13,9 +13,9 @@ const flashcardsByWord = new Map<string, { ease: number }>();
 const ankiMatchesByWord = new Map<string, { word: string; cards: Array<{ factor?: number; queue?: number; type?: number }> }>();
 const openKnowledgeInspectorMock = vi.fn();
 const mockHasWordSync = vi.fn((word: string) => trackedWords.has(word));
-const mockGetCardByWordSync = vi.fn((word: string) => flashcardsByWord.get(word) ?? null);
+const mockGetCardByWordSync = vi.fn((word: string, _language?: string) => flashcardsByWord.get(word) ?? null);
 const mockGetComprehensiveWordStatusSync = vi.fn(() => 'unknown');
-const mockGetComprehensiveWordStatusWithSourceSync = vi.fn<(word: string) => { status: string; source: string; timesSeen: number; excluded?: boolean }>((_word: string) => ({ status: 'unknown', source: 'None', timesSeen: 0 }));
+const mockGetComprehensiveWordStatusWithSourceSync = vi.fn<(word: string, language?: string) => { status: string; source: string; timesSeen: number; excluded?: boolean }>((_word: string, _language?: string) => ({ status: 'unknown', source: 'None', timesSeen: 0 }));
 const mockIsWordIgnoredSync = vi.fn(() => false);
 const mockResolveProsodyForHover = vi.fn(() => null as {
   renderer: 'inline-overlay' | 'label';
@@ -460,9 +460,19 @@ describe('UnknownWordsSidebar', () => {
     await Promise.resolve();
 
     expect(container.querySelector('.mock-resource-pill')?.getAttribute('data-language')).toBe('ja');
+    // Eligibility is decided by the one owner in `wordCaptureEligibility`, so
+    // the sidebar reads its two facts through the active language and asks that
+    // owner. Exclusion arrives via the canonical resolver's `excluded` flag
+    // rather than a second, independently-worded ignore lookup.
     expect(mockGetComprehensiveWordStatusWithSourceSync).toHaveBeenCalledWith('赤い', 'ja');
     expect(mockGetCardByWordSync).toHaveBeenCalledWith('赤い', 'ja');
-    expect(mockIsWordIgnoredSync).toHaveBeenCalledWith('赤い', 'ja');
+    for (const call of mockGetComprehensiveWordStatusWithSourceSync.mock.calls) {
+      expect(call[1]).toBe('ja');
+    }
+    for (const call of mockGetCardByWordSync.mock.calls) {
+      expect(call[1]).toBe('ja');
+    }
+    expect(mockIsWordIgnoredSync).not.toHaveBeenCalled();
     expect(container.querySelector('.mock-status-pill')).toBeNull();
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')?.click();
     expect(openKnowledgeInspectorMock).toHaveBeenCalledWith({

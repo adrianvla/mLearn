@@ -1,6 +1,6 @@
-import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
+import { Component, For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { Button, Panel, RatingMatrix } from '../../components/common';
+import { Button, Panel, RatingMatrix, WriteStatusBanner } from '../../components/common';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import {
@@ -23,13 +23,37 @@ import { grammarPointMeaning } from '../../../shared/languageFeatures';
 import type { AttemptQuality } from '../../../shared/constants';
 import type { GrammarPracticeItemSource, LanguageData } from '../../../shared/types';
 import type { CurriculumComponentSummary } from '../../../shared/curriculum';
+import { grammarEvidenceKey } from '../../../shared/grammar/evidence';
+import { getLogger } from '../../../shared/utils/logger';
 import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
 import { nextAttemptId, type AttemptId, type AttemptScaffolds, type KnowledgeEvent, type KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { StudySessionLocks } from '../../learning/studySessionController';
 import { loadQuestionValidationRecords, questionValidationRecordKey, validateQuestionItemsWithLLM } from '../../learning/questionValidation';
-import { studySessionState } from '../../learning/studySession';
+import { studySessionState, type StudySessionWriteStatus } from '../../learning/studySession';
+import type { PendingRetraction, RetractionTarget } from '../../../shared/retractionRecovery';
+import type { RetractionCompletion, RetractionProjection } from '../../context/FlashcardContext';
+import { canRetryRetraction, isRetractionWriteBlocking, pushUndo, type RetractionWriteState } from '../../learning/undoHistory';
 import { createStudySessionController, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
 import './GrammarCoverage.css';
+
+/**
+ * The shared durable Undo lifecycle, as this surface consumes it.
+ *
+ * Named so an owner and a test harness can satisfy the same contract instead
+ * of each inventing the shape they happen to need.
+ */
+export interface GrammarUndoLifecycle {
+  record: (record: PendingRetraction) => Promise<boolean>;
+  complete: (
+    record: PendingRetraction,
+    build: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ) => Promise<RetractionCompletion>;
+  recover: () => Promise<void>;
+  register: (
+    surface: string,
+    build: (record: PendingRetraction) => Promise<RetractionProjection>,
+  ) => void | (() => void);
+}
 
 export interface GrammarCoverageProps {
   language: string;
@@ -51,6 +75,14 @@ export interface GrammarCoverageProps {
     scaffolds?: AttemptScaffolds,
     attempt?: { itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: string; attemptId?: AttemptId },
   ) => Promise<AttemptId>;
+  /**
+   * The shared durable Undo lifecycle, supplied by the owner.
+   *
+   * Passed in for the same reason `onProbe` is: this section owns its own
+   * projection and the protocol is core's, so the component stays mountable
+   * without a provider and the owner decides where the journal lives.
+   */
+  undoLifecycle: GrammarUndoLifecycle;
   /** Signals the owner that validation records changed, so it re-resolves
    *  the language data (the record store is non-reactive localStorage). */
   onValidated?: () => void;
@@ -140,6 +172,27 @@ interface GrammarAttemptPayload {
 }
 type GrammarAnswer = NonNullable<StoredPass['answered']>;
 type GrammarRecord = StudySessionRecord<GrammarQueueItem, GrammarAttemptPayload, GrammarAnswer, GrammarSessionMeta>;
+
+/** What this surface puts back when a rating is taken back. */
+interface GrammarProjection {
+  session: GrammarRecord;
+  revealed: boolean;
+}
+
+/**
+ * Where a grammar attempt's evidence lives in the journal.
+ *
+ * Stated once and used both by the interactive Undo and by a reloaded window
+ * finishing an interrupted one, so a recovery cannot tombstone a key the
+ * attempt was never written to — which would retract nothing while reporting
+ * that the Undo completed.
+ */
+function grammarRetractionTarget(pattern: string, language: string): RetractionTarget {
+  return {
+    keys: [grammarEvidenceKey(language, pattern, 'grammar-recognition')],
+    replay: { kind: 'grammar', language, patterns: [pattern] },
+  };
+}
 type GrammarController = StudySessionController<GrammarQueueItem, GrammarAttemptPayload, GrammarAnswer, GrammarSessionMeta>;
 
 function presentGrammarRecord(record: GrammarRecord | null): StoredPass | null {
@@ -296,6 +349,7 @@ const questionItemCache = new QuestionBankCache();
  * pool and remain reachable through the regular Practise walk (G04).
  */
 export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
+  const log = getLogger('renderer.levelStudy.grammar');
   const { t } = useLocalization();
   const { settings } = useSettings();
   const grammarMeasurements = () =>
@@ -345,8 +399,60 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         );
       },
       next: (record) => ({ index: record.index + 1, meta: record.meta }),
+      // The rating is durable and the prompt has advanced. `before` is the
+      // session the learner was actually looking at, which is what an Undo
+      // has to put back — the pass cursor alone would rewind without
+      // restoring the step, and the next rating would land on a prompt the
+      // learner never saw.
+      onAcknowledged: (before, _after, pending) => {
+        setUndoStack((previous) => pushUndo(previous, {
+          level: before.meta.level,
+          pattern: pending.itemId,
+          language: props.language,
+          attemptId: pending.attemptId,
+          before: { ...before, pending: undefined },
+          revealed: before.revealed === true,
+        }));
+      },
     });
   };
+  /**
+   * One entry per rating this window could still take back.
+   *
+   * `before` is the session as it stood while the prompt was on screen, which
+   * the shared controller hands back on acknowledgement. The rest is this
+   * surface's own presentation state — a rating advances a prompt, so taking
+   * it back has to put that back too or the learner is left on a step they
+   * never rated.
+   */
+  interface GrammarUndoEntry {
+    level: number;
+    pattern: string;
+    language: string;
+    attemptId: AttemptId;
+    before: GrammarRecord;
+    revealed: boolean;
+  }
+  const [undoStack, setUndoStack] = createSignal<GrammarUndoEntry[]>([]);
+  /** A retraction that is still being filed blocks the writes that would
+   *  rewrite the same journal; a settled failure does not, so the learner's
+   *  only route forward stays open. */
+  const [retractionWrite, setRetractionWrite] = createSignal<RetractionWriteState>(null);
+  const undoBlocking = () => isRetractionWriteBlocking(retractionWrite());
+
+  /**
+   * Whether there is a rating this surface could still take back.
+   *
+   * Asks the same question the command does — a live session, no pending
+   * reservation, and something on the stack — so the control never appears
+   * where the command would decline.
+   */
+  const canUndo = (): boolean => {
+    if (undoStack().length === 0) return false;
+    const record = sessionController()?.current();
+    return !!record && !record.pending && record.index < record.queue.length;
+  };
+
   const [sessionController, setSessionController] = createSignal<GrammarController | null>(createGrammarController(props.language, props.languageData));
   const session = createMemo(() => presentGrammarRecord(sessionController()?.current() ?? null));
   /** The pass this window started with (marker feedback seeds the initial
@@ -371,7 +477,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     quality: AttemptQuality;
     scaffolds?: AttemptScaffolds;
     attemptId: AttemptId;
-    state: 'pending' | 'failed';
+    state: StudySessionWriteStatus;
   } | null>(null);
   const submitReviewProbe = async (
     pattern: string,
@@ -428,12 +534,41 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     sessionController()?.dispose();
     setStorageUnavailable(false);
     setReviewProbe(null);
+    // The controller these entries point back into is being disposed, so its
+    // ratings can no longer be taken back. The stack is one decision (see
+    // undoHistory): a pass starts empty.
+    setUndoStack([]);
     setSessionController(createGrammarController(language, data));
   }, { defer: true }));
   onCleanup(() => sessionController()?.dispose());
 
   createEffect(on(() => sessionController()?.current(), (record) => {
     adoptPresentation(presentGrammarRecord(record ?? null));
+  }));
+
+  // How this surface puts its own state back. Registered rather than passed to
+  // recovery, so a reloaded window finishes an interrupted Undo by claiming the
+  // record under its own tag — the shared protocol never needs to know which
+  // surface an Undo came from. Registered per controller because the pass this
+  // window can rewind is the one that controller owns.
+  createEffect(() => {
+    const controller = sessionController();
+    if (!controller) return;
+    const unregister = props.undoLifecycle.register('grammar', async (record) => {
+      const restore = record.restore as GrammarProjection | undefined;
+      if (!restore || typeof restore.revealed !== 'boolean' || !restore.session) {
+        throw new Error('Grammar undo record carries no usable projection');
+      }
+      return await grammarProjection(controller, restore);
+    });
+    if (unregister) onCleanup(unregister);
+  });
+
+  // Finish an Undo a previous window decided but did not complete. Runs once
+  // the controller is ready, because restoring a pass position is the
+  // controller's write. Not offered as a choice: the learner already asked.
+  createEffect(on(() => sessionController(), () => {
+    void props.undoLifecycle.recover();
   }));
   const finishAction = (controller: GrammarController, captured: GrammarRecord, action: Promise<boolean>): void => {
     void action.then((accepted) => {
@@ -557,6 +692,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       queue.push(pattern);
       recentPicks.push(decision.candidate.key);
     }
+    // A new pass starts a new take-back window. Without this the stack spans
+    // every level and every pass in the window's lifetime, which is both an
+    // unbounded growth and entries whose sessions are long gone.
+    setUndoStack([]);
     setSubmissionsLocked(false);
     clearTimeout(submissionLockTimer);
     setContrastAnswer(null);
@@ -596,6 +735,116 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     const controller = sessionController();
     const captured = controller?.current();
     if (controller && captured?.pending) finishAction(controller, captured, controller.retry(captured));
+  };
+
+  /**
+   * This surface's projection: put the pass back on the step the learner
+   * rated, with the reveal state they had reached.
+   *
+   * One definition, used by the interactive Undo and by a reloaded window
+   * finishing an interrupted one. The rewind happens BEFORE the retraction
+   * record is cleared, so a rewind that cannot be applied leaves the record
+   * standing and the next load retries rather than the Undo looking finished
+   * with the learner on a step they never chose.
+   */
+  const grammarProjection = async (
+    controller: GrammarController,
+    projection: GrammarProjection,
+  ): Promise<RetractionProjection> => {
+    const session = controller.current();
+    if (!session || !await controller.undo(session, projection.session)) {
+      throw new Error('Grammar undo could not restore the pass position');
+    }
+    return () => {
+      batch(() => {
+        setSubmissionsLocked(false);
+        clearTimeout(submissionLockTimer);
+        setRatingRetryKey((key) => key + 1);
+      });
+      // Reveal state is this surface's own presentation, not the session's
+      // durable field: the record stores it because the step is only rateable
+      // once revealed, and re-presenting an unrevealed prompt would silently
+      // re-arm a rating the learner has not made yet.
+      void revealRestoredStep(projection.revealed);
+    };
+  };
+
+  /**
+   * Re-arm the reveal for a restored step, if the learner had already reached
+   * it. The controller's own reveal is the durable path, so a reload after an
+   * interrupted Undo does not have to guess whether the answer was shown.
+   */
+  const revealRestoredStep = async (shouldReveal: boolean): Promise<void> => {
+    if (!shouldReveal) return;
+    const controller = sessionController();
+    const record = controller?.current();
+    if (controller && record) await controller.reveal(record);
+  };
+
+  /** This surface's record for a decided Undo. */
+  const grammarRetraction = (entry: GrammarUndoEntry, previousSession: GrammarRecord): PendingRetraction => ({
+    attemptId: entry.attemptId,
+    surface: 'grammar',
+    // The record's subject fields are the envelope's generic spelling; the
+    // routing below is what actually decides which keys are tombstoned.
+    word: entry.pattern,
+    language: entry.language,
+    attemptIds: [entry.attemptId],
+    // Named rather than re-derived here, so a window finishing an interrupted
+    // Undo writes its tombstone to the key this attempt actually landed on.
+    target: grammarRetractionTarget(entry.pattern, entry.language),
+    restore: {
+      session: previousSession,
+      revealed: entry.revealed,
+    } satisfies GrammarProjection,
+  });
+
+  /** Takes back the last rating on this surface. */
+  const undoLastGrammarRating = async (): Promise<void> => {
+    if (submissionsLocked() || undoBlocking()) return;
+    const stack = undoStack();
+    const entry = stack[stack.length - 1];
+    const controller = sessionController();
+    const current = controller?.current();
+    if (!entry || !controller || !current || current.pending) return;
+    setRetractionWrite('pending');
+    try {
+      // Record the decision BEFORE retracting, so a reload between here and
+      // completion can finish it. The undo stack is a memory signal: without
+      // this the retraction would be reachable only from the window that
+      // decided it, and reloading would leave the rating applied with nothing
+      // able to take it back.
+      const previousSession = entry.before;
+      const record = grammarRetraction(entry, previousSession);
+      if (!await props.undoLifecycle.record(record)) {
+        // Nothing has been retracted yet, so the rating is untouched and the
+        // learner must be told rather than left believing the Undo landed.
+        setRetractionWrite('failed');
+        return;
+      }
+      const outcome = await props.undoLifecycle.complete(
+        record,
+        () => grammarProjection(controller, {
+          session: previousSession,
+          revealed: entry.revealed,
+        }),
+      );
+      if (outcome !== 'completed') {
+        // Refused or superseded. Either way the rating is still applied and
+        // the record is still there, so the learner is told and can try again
+        // — which finishes this exact Undo, not a new one.
+        setRetractionWrite('failed');
+        return;
+      }
+      setRetractionWrite(null);
+      setUndoStack((previous) => previous.slice(0, -1));
+    } catch (error) {
+      // Reported, not thrown: the failure is durable state the banner renders
+      // and can retry. Rethrowing would only add an unhandled rejection on top
+      // of the same information.
+      log.warn('Failed to persist grammar undo:', error);
+      setRetractionWrite('failed');
+    }
   };
 
   const rateSession = (level: number, quality: AttemptQuality, presented: string | undefined) => {
@@ -1104,7 +1353,13 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                       </Show>
                     </Show>
                     <Show when={sessionActiveFor(level) && session()?.pending !== undefined && !storageUnavailable()}>
-                      <span role="status">{t('mlearn.LevelStudy.Grammar.SavingAnswer')}</span>
+                      <WriteStatusBanner
+                        status="pending"
+                        savingLabelKey="mlearn.LevelStudy.Grammar.SavingAnswer"
+                        failedLabelKey="mlearn.LevelStudy.Grammar.StorageUnavailable"
+                        canRetry={false}
+                        onRetry={() => {}}
+                      />
                     </Show>
                     <Show when={sessionActiveFor(level)} fallback={
                       <>
@@ -1223,6 +1478,29 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                         if (observation) rateSession(level, observation.quality, presented);
                                       }}
                                     />
+                                    </Show>
+                                    {/* Taking a rating back is one operation on
+                                        every study surface, so it reads the same
+                                        here as it does on review and Word Sync:
+                                        the same control, the same write banner,
+                                        the same durable recovery. */}
+                                    <WriteStatusBanner
+                                      status={retractionWrite()}
+                                      savingLabelKey="mlearn.LevelStudy.Grammar.SavingUndo"
+                                      failedLabelKey="mlearn.LevelStudy.Grammar.UndoSaveFailed"
+                                      canRetry={canRetryRetraction(retractionWrite())}
+                                      onRetry={() => { void undoLastGrammarRating(); }}
+                                    />
+                                    <Show when={canUndo()}>
+                                      <button
+                                        type="button"
+                                        class="grammar-coverage__session-undo"
+                                        disabled={session()?.pending !== undefined || submissionsLocked() || undoBlocking()}
+                                        onClick={() => { void undoLastGrammarRating(); }}
+                                        title={t('mlearn.LevelStudy.Grammar.UndoTooltip')}
+                                      >
+                                        {t('mlearn.LevelStudy.Grammar.Undo')}
+                                      </button>
                                     </Show>
                                     <button type="button" class="grammar-coverage__session-skip" disabled={session()?.pending !== undefined || submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; skipSession(level, presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
                                       {t('mlearn.LevelStudy.Grammar.SessionSkip')}
@@ -1397,18 +1675,23 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                               {t('mlearn.Rating.Matrix.Fluent')}
                             </Button>
                           </span>
-                          <Show when={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
-                            <span class="grammar-coverage__review-error" role="status">{t('mlearn.LevelStudy.Grammar.SavingAnswer')}</span>
-                          </Show>
-                          <Show when={reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
-                            <span class="grammar-coverage__review-error" role="alert">
-                              {t('mlearn.LevelStudy.Grammar.StorageUnavailable')}
-                              <Button size="sm" data-testid="grammar-row-retry" onClick={() => {
-                                const failed = reviewProbe();
-                                if (failed?.state === 'failed' && failed.language === props.language) void submitReviewProbe(failed.pattern, failed.quality, failed.level, failed.scaffolds, failed);
-                              }}>{t('mlearn.Knowledge.Retry')}</Button>
-                            </span>
-                          </Show>
+                          <WriteStatusBanner
+                            status={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language
+                              && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern ? 'pending'
+                              : reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language
+                                && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern ? 'failed'
+                                : null}
+                            savingLabelKey="mlearn.LevelStudy.Grammar.SavingAnswer"
+                            failedLabelKey="mlearn.LevelStudy.Grammar.StorageUnavailable"
+                            canRetry={reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language}
+                            onRetry={() => {
+                              const failed = reviewProbe();
+                              if (failed?.state === 'failed' && failed.language === props.language) void submitReviewProbe(failed.pattern, failed.quality, failed.level, failed.scaffolds, failed);
+                            }}
+                            class="grammar-coverage__review-error"
+                            retryTestId="grammar-row-retry"
+                            retryLabelKey="mlearn.Knowledge.Retry"
+                          />
                         </li>
                       )}
                     </For>

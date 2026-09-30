@@ -9,12 +9,15 @@
  */
 
 import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
-import { Button, Input, Select, EmptyState, PillLabel, ProgressBar, ToggleSwitch, SparklesIcon, SearchIcon, TrashIcon, PlusIcon, CheckIcon, EyeOffIcon, Tooltip, SelectableCard, CollapsibleStickyHeader, FilterBuilder, buildEmptyPreset, buildSuggestedFlashcardFields, validateTokens, parseTokens, evaluateAst, type FilterToken, type FieldConfig, type PaletteItem, type FieldResolver, type ExprNode, type ValidationError, ImageIcon, SkeletonCard } from '../../components/common';
+import { Button, Input, Select, EmptyState, useConfirmDialog, PillLabel, ProgressBar, ToggleSwitch, SparklesIcon, SearchIcon, TrashIcon, PlusIcon, CheckIcon, EyeOffIcon, Tooltip, SelectableCard, CollapsibleStickyHeader, FilterBuilder, buildEmptyPreset, buildSuggestedFlashcardFields, validateTokens, parseTokens, evaluateAst, type FilterToken, type FieldConfig, type PaletteItem, type FieldResolver, type ExprNode, type ValidationError, ImageIcon, SkeletonCard } from '../../components/common';
 import { WordStatusPill } from '../../components/common/Smart';
 import { FlashcardWordTitle } from '../../components/flashcard';
 import { useFlashcards, useLocalization, useLanguage, useSettings } from '../../context';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { cacheVersion, getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
+import { useItemSelection } from '../../hooks/useItemSelection';
+import { buildDestructiveConfirmOptions, requiresDestructiveConfirmation } from './bulkDestructiveConfirm';
+import { ignoreWordWithConfirmation } from './ignoreWordWithConfirmation';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
@@ -49,6 +52,7 @@ export const FlashcardsSuggested: Component = () => {
     promoteSuggestedFlashcards,
     garbageCollectSuggestedFlashcards,
     ignoreWordForLanguage,
+    getCardsByWordSync,
     store,
   } = useFlashcards();
 
@@ -57,12 +61,12 @@ export const FlashcardsSuggested: Component = () => {
   const [levelFilter, setLevelFilter] = createSignal<string>('all');
   const [sortBy, setSortBy] = createSignal('default');
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
-  const [selected, setSelected] = createSignal<Set<string>>(new Set());
   const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples);
   const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const [garbageCollecting, setGarbageCollecting] = createSignal(true);
-  const wordLookupOptionsForLanguage = (language: string) => buildSuggestedWordLookupOptions(settings, language, langCtx);
+  const wordLookupOptionsForLanguage = (language: string) => buildSuggestedWordLookupOptions(settings, language, langCtx, langCtx.languageDataCatalog);
   const languageDataFor = (language: string) => (
     langCtx.langData[language] ?? (language === settings.language ? langCtx.currentLangData() : null)
   );
@@ -71,6 +75,13 @@ export const FlashcardsSuggested: Component = () => {
 
   // Keyed by the per-language suggestion list so Solid re-reads on store update.
   const suggestions = createMemo(() => getSuggestedFlashcardsSync());
+
+  // The selection is owned by the hook, which keeps it equal to the suggestions
+  // that still exist. A suggestion can leave this list on its own - promoted,
+  // removed, or dropped by the garbage collector on mount - and a count that
+  // kept naming it would arm the bulk bar over rows that are not there.
+  const selection = useItemSelection(() => suggestions().map((s) => s.id));
+  const selected = selection.selected;
 
   onMount(() => {
     void garbageCollectSuggestedFlashcards()
@@ -320,39 +331,17 @@ export const FlashcardsSuggested: Component = () => {
     return content;
   });
 
-  const allFilteredSelected = createMemo(() => {
-    const ids = filtered().map((s) => s.id);
-    if (ids.length === 0) return false;
-    const sel = selected();
-    return ids.every((id) => sel.has(id));
-  });
+  const allFilteredSelected = createMemo(() => selection.allSelected(filtered().map((s) => s.id)));
 
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
+  const toggleSelect = (id: string) => selection.toggle(id);
 
   const toggleSelectAllFiltered = () => {
     const ids = filtered().map((s) => s.id);
-    if (allFilteredSelected()) {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.delete(id);
-        return next;
-      });
-    } else {
-      setSelected((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.add(id);
-        return next;
-      });
-    }
+    if (allFilteredSelected()) selection.deselect(ids);
+    else selection.select(ids);
   };
 
-  const clearSelection = () => setSelected(new Set<string>());
+  const clearSelection = () => selection.clear();
 
   const promoteSelected = async () => {
     const ids = Array.from(selected());
@@ -369,17 +358,37 @@ export const FlashcardsSuggested: Component = () => {
           message: t('mlearn.Flashcards.Suggested.Promoted', { count: String(created) }),
           variant: 'success',
         });
+        // Only a write that actually landed may drop the selection. Promoted
+        // rows leave the list on their own, so clearing here also sweeps up
+        // whatever was promoted alongside them. When the write was refused the
+        // rows are all still listed, and clearing left the learner looking at
+        // an empty selection over suggestions they had just picked out.
+        clearSelection();
       } else {
         showToast({ message: t('mlearn.Flashcards.Suggested.PromoteFailed'), variant: 'warning' });
       }
-      clearSelection();
     } finally {
       setPromoting(null);
     }
   };
 
-  const removeSelected = () => {
+  /**
+   * Bulk removal of a selection the learner built by hand. Removing a
+   * suggestion discards the sentences it was captured from, and nothing here
+   * can put it back, so the removal asks first — the same way the single-card
+   * row action does. This used to fire straight from the button: selecting all
+   * 30 suggestions in the running app and pressing Delete removed all 30 with
+   * no dialog, while the Browse window's own bulk delete asked.
+   */
+  const removeSelected = async () => {
     const ids = Array.from(selected());
+    if (!requiresDestructiveConfirmation(ids.length)) return;
+    const confirmed = await showConfirm(buildDestructiveConfirmOptions({
+      count: ids.length,
+      titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
+      messageKey: 'mlearn.Flashcards.Suggested.DeleteSelectedConfirm',
+    }, t));
+    if (!confirmed) return;
     removeSuggestedFlashcards(ids);
     clearSelection();
     showToast({ message: t('mlearn.Flashcards.Suggested.Removed', { count: String(ids.length) }), variant: 'info' });
@@ -430,12 +439,24 @@ export const FlashcardsSuggested: Component = () => {
 
   const handleIgnoreOne = async (s: SuggestedFlashcard) => {
     try {
-      await ignoreWordForLanguage(s.word, s.reading, s.language);
+      const ignored = await ignoreWordWithConfirmation(
+        { word: s.word, reading: s.reading, language: s.language },
+        {
+          getCardCount: (word, language) => getCardsByWordSync(word, language).length,
+          ignoreWordForLanguage,
+          showConfirm,
+          t,
+        },
+      );
+      if (!ignored) return;
       removeSuggestedFlashcard(s.id);
       showToast({ message: t('mlearn.Global.Ignore'), variant: 'info' });
     } catch (e) {
       log.error("error", e);
-      showToast({ message: t('mlearn.Global.Error'), variant: 'error' });
+      // Ignoring writes to the flashcard store. When that write is refused the
+      // suggestion is still listed, so say which action failed rather than
+      // surfacing a generic error the learner cannot act on.
+      showToast({ message: t('mlearn.Flashcards.Suggested.IgnoreFailed'), variant: 'error' });
     }
   };
 
@@ -724,6 +745,7 @@ export const FlashcardsSuggested: Component = () => {
         </div>
       </Show>
       </Show>
+      <ConfirmDialogElement />
     </div>
   );
 };

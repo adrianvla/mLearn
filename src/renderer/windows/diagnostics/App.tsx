@@ -7,6 +7,7 @@ import { useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 
 import type { DiagnosticsReport, DiagnosticsProgressEvent, TestSuiteResult } from '../../../shared/diagnostics/types';
+import { Spinner } from '../../components/common';
 import { SummaryHeader } from './components/SummaryHeader';
 import { TestSuiteCard } from './components/TestSuiteCard';
 import './diagnostics.css';
@@ -126,7 +127,7 @@ export const DiagnosticsApp: Component = () => {
           </Show>
           <Show when={isRunning()}>
             <div class="diagnostics-running">
-              <span class="diagnostics-spinner" />
+              <Spinner size={14} strokeWidth={2} class="diagnostics-spinner" />
               <span>{t('mlearn.Diagnostics.Running')}</span>
               <Show when={currentProgress()}>
                 <span class="diagnostics-progress-detail">

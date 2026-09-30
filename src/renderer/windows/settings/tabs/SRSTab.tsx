@@ -6,8 +6,13 @@ import { FlashcardAudioPresetSelect } from '../../../components/flashcard/Flashc
 
 import { Component, createSignal, Show, createMemo, createEffect, on } from 'solid-js';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
-import { Button, SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, Input, Textarea, Modal, ModalFooter, VoiceSamplePicker, SafeHtml } from '../../../components/common';
+import { Button, SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, Input, Textarea, VoiceSamplePicker, SafeHtml, useConfirmDialog } from '../../../components/common';
 import { showToast } from '../../../components/common/Feedback/Toast';
+import {
+  buildDestructiveDataConfirm,
+  confirmDestructiveDataAction,
+  destructiveDataAction,
+} from '../destructiveDataAction';
 import { useAnki, type AnkiNoteInfo } from '../../../hooks/useAnki';
 import { importAnkiReviewHistory } from '../../../services/ankiReviewImport';
 import '../SettingsForm.css';
@@ -26,6 +31,7 @@ export const SRSTab: Component = () => {
   const usesFastFlashcardAudio = () => (settings.flashcardCreationAudioPreset ?? DEFAULT_SETTINGS.flashcardCreationAudioPreset) === 'fast'
     || (settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset) === 'fast';
   const anki = useAnki();
+  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
 
   // Anki metadata fetched from AnkiConnect
@@ -34,14 +40,6 @@ export const SRSTab: Component = () => {
   const [ankiFields, setAnkiFields] = createSignal<string[]>([]);
   const [sampleNote, setSampleNote] = createSignal<AnkiNoteInfo | null>(null);
   const [previewLoading, setPreviewLoading] = createSignal(false);
-
-  // SRS reset modal state
-  const [showResetModal, setShowResetModal] = createSignal(false);
-  const [resetConfirmPhrase, setResetConfirmPhrase] = createSignal('');
-
-  // Nuke all flashcards modal state
-  const [showNukeModal, setShowNukeModal] = createSignal(false);
-  const [nukeConfirmPhrase, setNukeConfirmPhrase] = createSignal('');
 
   const [importingHistory, setImportingHistory] = createSignal(false);
 
@@ -78,26 +76,48 @@ export const SRSTab: Component = () => {
     }
   };
 
-  const RESET_PHRASE = 'RESET';
-  const NUKE_PHRASE = 'DELETE';
-  const canConfirmReset = () => resetConfirmPhrase().trim().toUpperCase() === RESET_PHRASE;
-  const canConfirmNuke = () => nukeConfirmPhrase().trim().toUpperCase() === NUKE_PHRASE;
-
-  const handleResetSRS = () => {
-    if (!canConfirmReset()) return;
-    resetSRS();
-    setShowResetModal(false);
-    setResetConfirmPhrase('');
-    showToast({ message: t('mlearn.Settings.SRS.DataManagement.ResetSRS.Success'), variant: 'success' });
+  /**
+   * Everything the given action would take away, not just the cards.
+   *
+   * `nukeAllFlashcards` reconciles the store back to a fresh one, so it clears
+   * the knowledge and statistics a profile accumulates from reading as well as
+   * the cards it holds. A profile that has read a year of material and built no
+   * cards still has something to lose, and skipping the prompt because
+   * `flashcards` is empty would take it away silently.
+   */
+  const destroyedCount = (id: 'resetSrs' | 'deleteAllFlashcards') => {
+    const sized = (record: unknown) => (record && typeof record === 'object' ? Object.keys(record).length : 0);
+    if (id === 'resetSrs') {
+      // Scheduling lives on the cards themselves, so cards are the subject.
+      return sized(store.flashcards);
+    }
+    return sized(store.flashcards) + sized(store.wordKnowledge) + sized(store.grammarKnowledge)
+      + sized(store.dailyStats) + sized(store.wordCandidates) + sized(store.knownUntracked)
+      + sized(store.wordStatsMap);
   };
 
-  const handleNukeFlashcards = () => {
-    if (!canConfirmNuke()) return;
-    nukeAllFlashcards();
-    setShowNukeModal(false);
-    setNukeConfirmPhrase('');
-    showToast({ message: t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.Success'), variant: 'success' });
+  /**
+   * Both controls go through the same prompt, the same severity ranking and the
+   * same success toast. The typed phrase they used to demand carried no
+   * information the body did not already state - a user who wants the action
+   * types it, and a user who does not was never going to read the list of what
+   * disappears. What protects the destructive one is that the body is still
+   * read, and the difference between the two is now expressed as severity
+   * rather than as two separately invented dialogs.
+   *
+   * The prompt is shown whenever there is something to destroy, and skipped
+   * only when the profile is empty - the rule lives in
+   * `confirmDestructiveDataAction` so a third tab cannot decide it differently.
+   */
+  const confirmThen = async (id: 'resetSrs' | 'deleteAllFlashcards', run: () => void) => {
+    const action = destructiveDataAction(id);
+    if (confirmDestructiveDataAction(destroyedCount(id)) && !await showConfirm(buildDestructiveDataConfirm(action, t))) return;
+    run();
+    showToast({ message: t(action.successKey), variant: 'success' });
   };
+
+  const handleResetSRS = () => { void confirmThen('resetSrs', resetSRS); };
+  const handleNukeFlashcards = () => { void confirmThen('deleteAllFlashcards', nukeAllFlashcards); };
 
   const hasFreqLevels = createMemo(() => getLanguageFeatures().supportsFrequencyLevels);
 
@@ -706,7 +726,7 @@ export const SRSTab: Component = () => {
           label={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Label')}
           description={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Description')}
         >
-          <Button size="sm" variant="danger" onClick={() => setShowResetModal(true)}>
+          <Button size="sm" variant="danger" onClick={handleResetSRS}>
             {t('mlearn.Settings.SRS.DataManagement.ResetButton')}
           </Button>
         </SettingRow>
@@ -714,74 +734,13 @@ export const SRSTab: Component = () => {
           label={t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.Label')}
           description={t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.Description')}
         >
-          <Button size="sm" variant="danger" onClick={() => setShowNukeModal(true)}>
+          <Button size="sm" variant="danger" onClick={handleNukeFlashcards}>
             {t('mlearn.Settings.SRS.DataManagement.NukeButton')}
           </Button>
         </SettingRow>
       </SettingGroup>
 
-      <Modal
-        isOpen={showResetModal()}
-        onClose={() => { setShowResetModal(false); setResetConfirmPhrase(''); }}
-        title={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Label')}
-        size="sm"
-        footer={
-          <ModalFooter
-            cancelText={t('mlearn.Global.Cancel')}
-            onCancel={() => { setShowResetModal(false); setResetConfirmPhrase(''); }}
-            confirmText={t('mlearn.Settings.SRS.DataManagement.ResetButton')}
-            onConfirm={handleResetSRS}
-            confirmVariant="danger"
-            confirmDisabled={!canConfirmReset()}
-          />
-        }
-      >
-        <div style={{ display: 'flex', 'flex-direction': 'column', gap: '1rem' }}>
-          <p style={{ margin: 0, color: 'var(--text-primary)' }}>
-            {t('mlearn.Settings.SRS.DataManagement.ResetSRS.ModalWarning')}
-          </p>
-          <p style={{ margin: 0, color: 'var(--text-secondary)', 'font-size': 'var(--font-size-sm)' }}>
-            {t('mlearn.Settings.SRS.DataManagement.ResetSRS.TypePhrase', { phrase: RESET_PHRASE })}
-          </p>
-          <Input
-            value={resetConfirmPhrase()}
-            onInput={(e) => setResetConfirmPhrase(e.currentTarget.value)}
-            placeholder={RESET_PHRASE}
-            onKeyDown={(e) => { if (e.key === 'Enter' && canConfirmReset()) handleResetSRS(); }}
-          />
-        </div>
-      </Modal>
-      <Modal
-        isOpen={showNukeModal()}
-        onClose={() => { setShowNukeModal(false); setNukeConfirmPhrase(''); }}
-        title={t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.Label')}
-        size="sm"
-        footer={
-          <ModalFooter
-            cancelText={t('mlearn.Global.Cancel')}
-            onCancel={() => { setShowNukeModal(false); setNukeConfirmPhrase(''); }}
-            confirmText={t('mlearn.Settings.SRS.DataManagement.NukeButton')}
-            onConfirm={handleNukeFlashcards}
-            confirmVariant="danger"
-            confirmDisabled={!canConfirmNuke()}
-          />
-        }
-      >
-        <div style={{ display: 'flex', 'flex-direction': 'column', gap: '1rem' }}>
-          <p style={{ margin: 0, color: 'var(--text-primary)' }}>
-            {t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.ModalWarning')}
-          </p>
-          <p style={{ margin: 0, color: 'var(--text-secondary)', 'font-size': 'var(--font-size-sm)' }}>
-            {t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.TypePhrase', { phrase: NUKE_PHRASE })}
-          </p>
-          <Input
-            value={nukeConfirmPhrase()}
-            onInput={(e) => setNukeConfirmPhrase(e.currentTarget.value)}
-            placeholder={NUKE_PHRASE}
-            onKeyDown={(e) => { if (e.key === 'Enter' && canConfirmNuke()) handleNukeFlashcards(); }}
-          />
-        </div>
-      </Modal>
+      <ConfirmDialogElement />
     </TabContent>
   );
 };

@@ -21,6 +21,15 @@ let mockReviewQueue: Accessor<ReviewQueue> = () => ({ newQueue: [], scheduledQue
 let mockLangMap: Record<string, LanguageData> = {};
 let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
+let mockQueueTotal: Accessor<number> = () => 1;
+// What the async knowledge projection currently reports: pending lookups and
+// unmeasured surfaces must not be able to strip a card of its rating rows.
+const ALL_CAPABILITIES = ['sense-recognition', 'surface-reading', 'prosodic-pattern'];
+let mockKnowledgeLoading: Accessor<boolean> = () => false;
+let setMockKnowledgeLoading: (loading: boolean) => void = () => {};
+let mockKnowledgeMeasured: Accessor<string[]> = () => ALL_CAPABILITIES;
+let setMockKnowledgeMeasured: (measured: string[]) => void = () => {};
+let setMockQueueTotal: (total: number) => void = () => {};
 let mockTtsAvailable = true;
 const mockSetAccessStatus = vi.fn();
 const mockBuryCard = vi.fn();
@@ -28,10 +37,11 @@ const mockSubmitRating = vi.fn(async (..._callArgs: unknown[]) => ({ attemptId: 
 const mockAppendRetractions = vi.fn();
 const mockUndoLastAction = vi.fn<() => Promise<string | null>>();
 const mockCanUndo = vi.fn(() => false);
+const mockRemoveFlashcard = vi.fn(async (_id: string, _neverShowAgain?: boolean) => true);
 const defaultProjection: KnowledgeProjection = {
   status: 'ready', surfaceKnown: true,
   targets: [{ targetRef: { kind: 'surface', id: 'card-surface' },
-    applicableCapabilities: ['sense-recognition', 'surface-reading', 'prosodic-pattern'], states: [] }],
+    applicableCapabilities: ALL_CAPABILITIES, states: [] }],
 };
 let mockProjection: Accessor<KnowledgeProjection | undefined> = () => defaultProjection;
 const mockProjectionRetry = vi.fn();
@@ -66,15 +76,19 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Flashcards.Review.Ok': return 'Ok';
     case 'mlearn.Flashcards.Review.ShowAnswer': return 'Show Answer';
     case 'mlearn.Flashcards.Review.PressKeyTooltip': return `Press ${String(params?.key ?? '')}`;
+    case 'mlearn.Flashcards.Modals.DeleteCard.Title': return 'Delete Flashcard';
+    case 'mlearn.Flashcards.Modals.DeleteCard.Confirm': return 'Are you sure you want to delete this flashcard? This action cannot be undone.';
+    case 'mlearn.Global.Delete': return 'Delete';
+    case 'mlearn.Global.Cancel': return 'Cancel';
     default: return key;
   }
 };
 
 vi.mock('../../hooks/useKnowledgeProjection', () => ({
   useKnowledgeProjection: () => ({
-    projection: () => mockProjection(),
-    loading: () => mockProjection() === undefined,
-    capabilities: () => mockProjection()?.targets.flatMap(target => target.applicableCapabilities) ?? [],
+    projection: () => mockKnowledgeLoading() ? undefined : mockProjection(),
+    loading: () => mockKnowledgeLoading() || mockProjection() === undefined,
+    capabilities: () => mockProjection() === defaultProjection ? mockKnowledgeMeasured() : [...new Set(mockProjection()?.targets?.flatMap(target => target.applicableCapabilities) ?? [])],
     retry: mockProjectionRetry,
   }),
 }));
@@ -84,11 +98,11 @@ vi.mock('../../context', () => ({
     isKnowledgeReady: () => true,
     store: { get flashcards() { return mockReviewCards; } },
     queue: () => mockReviewQueue(),
-    queueCounts: () => ({ new: 1, learning: 0, review: 0, total: 1 }),
+    queueCounts: () => ({ new: mockQueueTotal(), learning: 0, review: 0, total: mockQueueTotal() }),
     getCurrentCard: () => mockCard(),
     getPreviewDueDates: () => ({ again: 1, hard: 2, good: 3, easy: 4 }),
     buryCard: mockBuryCard,
-    removeFlashcard: vi.fn(),
+    removeFlashcard: mockRemoveFlashcard,
     undoLastAction: mockUndoLastAction,
     canUndo: mockCanUndo,
     refreshQueue: vi.fn(),
@@ -229,6 +243,11 @@ vi.mock('../common', async (importOriginal) => {
     SafeHtml,
     RatingMatrix: actual.RatingMatrix,
     Popover: actual.Popover,
+    // Real banner: the save-failure tests read its role/label contract.
+    WriteStatusBanner: actual.WriteStatusBanner,
+    // Real confirm dialog: the removal tests assert the prompt is actually in
+    // the way, which a stubbed prompt would make impossible to observe.
+    useConfirmDialog: actual.useConfirmDialog,
   };
 });
 
@@ -304,6 +323,15 @@ describe('FlashcardReview', () => {
     mockCard = card;
     setMockCard = setCard;
     setMockCard(makeCard());
+    const [queueTotal, setQueueTotal] = createSignal(1);
+    mockQueueTotal = queueTotal;
+    setMockQueueTotal = setQueueTotal;
+    const [knowledgeLoading, setKnowledgeLoading] = createSignal(false);
+    mockKnowledgeLoading = knowledgeLoading;
+    setMockKnowledgeLoading = setKnowledgeLoading;
+    const [knowledgeMeasured, setKnowledgeMeasured] = createSignal<string[]>([...ALL_CAPABILITIES]);
+    mockKnowledgeMeasured = knowledgeMeasured;
+    setMockKnowledgeMeasured = setKnowledgeMeasured;
   });
 
   afterEach(() => {
@@ -487,6 +515,15 @@ describe('FlashcardReview failure attribution', () => {
     mockCard = card;
     setMockCard = setCard;
     setMockCard(makeCard());
+    const [queueTotal, setQueueTotal] = createSignal(1);
+    mockQueueTotal = queueTotal;
+    setMockQueueTotal = setQueueTotal;
+    const [knowledgeLoading, setKnowledgeLoading] = createSignal(false);
+    mockKnowledgeLoading = knowledgeLoading;
+    setMockKnowledgeLoading = setKnowledgeLoading;
+    const [knowledgeMeasured, setKnowledgeMeasured] = createSignal<string[]>([...ALL_CAPABILITIES]);
+    mockKnowledgeMeasured = knowledgeMeasured;
+    setMockKnowledgeMeasured = setKnowledgeMeasured;
   });
 
   afterEach(() => {
@@ -639,6 +676,59 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
+  it('reports completion once the queue drains, and resumes a studyable face when work returns', async () => {
+    const onComplete = vi.fn();
+    const dispose = render(() => <FlashcardReview onComplete={onComplete} />, container);
+    expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    // Draining the last card empties the reviewable queue: the shared study
+    // contract reports `complete` and the surface hands completion upward.
+    setMockCard(null);
+    setMockQueueTotal(0);
+    await flushEffects();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.flashcard-show-answer-btn')).toBeNull();
+
+    // Completion is derived, not latched: new work restores a normal review.
+    setMockCard(makeCard());
+    setMockQueueTotal(1);
+    await flushEffects();
+    expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+    dispose();
+  });
+
+  it('keeps rating rows visible but waits for the knowledge projection before accepting a rating', async () => {
+    // An unmeasured/pending projection must not empty the rating rows: doing so
+    // renders a revealed card with no way to record an outcome.
+    setMockKnowledgeLoading(true);
+    setMockKnowledgeMeasured([]);
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    await flushEffects();
+    const quality = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality'));
+    expect(quality().length).toBeGreaterThan(0);
+    expect(quality().every((button) => button.disabled)).toBe(true);
+    quality()[2].click();
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+
+    // A resolved projection still narrows what the submission records: the
+    // collapsed bar is unchanged, but only the measured capability is rated.
+    setMockKnowledgeLoading(false);
+    setMockKnowledgeMeasured(['sense-recognition']);
+    await flushEffects();
+    expect(quality().length).toBe(4);
+    expect(quality().every((button) => !button.disabled)).toBe(true);
+
+    quality()[2].click();
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating.mock.calls[0][1]).toEqual([
+      { capability: 'sense-recognition', quality: 'fluent' },
+    ]);
+    dispose();
+  });
+
   it('keeps study shortcuts out of the card actions popover', () => {
     const dispose = render(() => <FlashcardReview />, container);
     const actions = container.querySelector<HTMLButtonElement>('.flashcard-actions-trigger')!;
@@ -757,5 +847,114 @@ describe('FlashcardReview failure attribution', () => {
     expect(document.body.querySelector('.flashcard-actions-popover')).not.toBeNull();
     expect(document.body.textContent).toContain('mlearn.Flashcards.Review.Bury');
     dispose();
+  });
+});
+
+/**
+ * Remove in Review is the same irreversible act as Delete in Browse: the card,
+ * its word mapping, its stats and any media it was built from are gone, and
+ * nothing in the app can put them back.
+ *
+ * Observed in the running app: pressing Remove here took the store from 450 to
+ * 449 with no dialog and no undo, while the Browse row action two windows over
+ * opened a confirmation. Whether a flashcard could be destroyed without
+ * warning depended on which surface the learner happened to be in.
+ *
+ * These tests drive the real review surface and the real confirm dialog, so an
+ * implementation that removes and asks afterwards — or asks on one entry point
+ * but not the other — fails here.
+ */
+describe('FlashcardReview Remove asks before it destroys the card', () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    vi.clearAllMocks();
+    mockTtsAvailable = true;
+    mockSettings = {
+      ...DEFAULT_SETTINGS,
+      language: 'ja',
+      flashcardAutoTts: false,
+      flashcardFlipAnimation: false,
+      use_anki: false,
+      flashcardStealthMode: false,
+      flashcardMuteAudio: false,
+    };
+    mockLangMap = { ja: jaLanguageData };
+    mockLanguageData = jaLanguageData;
+    const [card, setCard] = createSignal<Flashcard | null>(null);
+    mockCard = card;
+    setMockCard = setCard;
+    setMockCard(makeCard());
+    const [queueTotal, setQueueTotal] = createSignal(1);
+    mockQueueTotal = queueTotal;
+    setMockQueueTotal = setQueueTotal;
+    const [knowledgeLoading] = createSignal(false);
+    mockKnowledgeLoading = knowledgeLoading;
+    const [knowledgeMeasured] = createSignal<string[]>([...ALL_CAPABILITIES]);
+    mockKnowledgeMeasured = knowledgeMeasured;
+  });
+
+  afterEach(() => {
+    closeKnowledgeInspector();
+    document.querySelectorAll('[role=dialog]').forEach((node) => node.remove());
+    container.remove();
+  });
+
+  const openRemove = async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    const actions = Array.from(document.body.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Flashcards.Review.CardActions');
+    expect(actions, 'card actions control is missing').toBeDefined();
+    actions!.click();
+    const remove = Array.from(document.body.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Flashcards.Review.Remove');
+    expect(remove, 'Remove control is missing').toBeDefined();
+    remove!.click();
+    await flushEffects();
+    return dispose;
+  };
+
+  // The card-actions popover is also a dialog, so the confirm is located by
+  // the one string only it can contain.
+  const dialog = () => Array.from(document.querySelectorAll('[role=dialog]'))
+    .find((node) => node.textContent?.includes('Are you sure you want to delete this flashcard?')
+      || node.textContent?.includes('mlearn.Flashcards.Modals.DeleteCard.Confirm'))
+    ?? null;
+  const dialogText = () => dialog()?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+  const dialogButton = (label: string) =>
+    Array.from(dialog()?.querySelectorAll('button') ?? [])
+      .find((button) => button.textContent?.trim() === label) ?? null;
+
+  it('keeps the card and shows the same prompt Browse uses', async () => {
+    await openRemove();
+
+    expect(mockRemoveFlashcard, 'the card was removed without asking').not.toHaveBeenCalled();
+    expect(dialogText()).toContain('Delete Flashcard');
+    expect(dialogText()).toContain('Are you sure you want to delete this flashcard?');
+  });
+
+  it('removes the card only once the prompt is confirmed', async () => {
+    await openRemove();
+
+    const confirm = dialogButton('Delete');
+    expect(confirm, 'the prompt has no confirm control').not.toBeNull();
+    confirm!.click();
+    await flushEffects();
+
+    expect(mockRemoveFlashcard).toHaveBeenCalledTimes(1);
+    expect(mockRemoveFlashcard.mock.calls[0]?.[0]).toBe(mockCard()?.id);
+  });
+
+  it('cancelling leaves the card in place', async () => {
+    await openRemove();
+
+    const cancel = dialogButton('Cancel');
+    expect(cancel, 'the prompt has no cancel control').not.toBeNull();
+    cancel!.click();
+    await flushEffects();
+
+    expect(mockRemoveFlashcard).not.toHaveBeenCalled();
   });
 });
