@@ -326,7 +326,6 @@
       "InstructionsPlaceholder": "Describe a scenario, roleplay, or specific topic you want to practice. For example: 'Let's practice ordering food at a restaurant' or 'Roleplay as a job interviewer'.",
       "InstructionsTab": "Instructions",
       "ItemsSelected": "{count} selected",
-      "LLMNotConfigured": "AI is not configured. Set it up in Settings first.",
       "MediaTab": "Media",
       "NoGrammarSupport": "Grammar points are not available for this language yet.",
       "NoMediaYet": "No saved media yet. Watch videos or read books to track your progress.",
@@ -488,6 +487,13 @@
         "ClearTooltip": "Clear logs",
         "DefaultTitle": "Console",
         "NoLogs": "No logs to display"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "Open AI settings",
+      "Llm": {
+        "NotConfigured": "This feature needs an AI model. Choose one in AI settings, then try again.",
+        "Unreachable": "The AI service could not be reached. Check your connection, then try again."
       }
     },
     "ConfirmDialog": {
@@ -3395,9 +3401,6 @@
       "InText": "In text: {form}",
       "AddToAnki": "Add to Anki",
       "AddToBuiltInSrs": "Click to add to built-in SRS",
-      "Alerts": {
-        "ExplainRequiresLlm": "The explain feature requires the local AI language model. Please enable LLM in settings and restart the app."
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "Add anyway",
         "DontRemind": "Don't remind me again",

@@ -18,6 +18,7 @@ import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../
 import { parseKeybind, useConfirmDialog } from '../../../components/common';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 import { isLLMReady } from '../../../services/llmProvider';
+import { requireCapability } from '../../../services/capabilityUnavailable';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, Settings, LanguageData } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
@@ -2408,10 +2409,7 @@ export const ReaderRoute: Component = () => {
           break;
         }
         case 'explain-phrase':
-          if (!isLLMReady(settings)) {
-            alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
-            break;
-          }
+          if (!requireCapability('llm', settings, t)) break;
 
           if (ocrContextPhrase()) {
             handleOpenPhraseExplainer(ocrContextPhrase(), ocrContextMenuPosition());

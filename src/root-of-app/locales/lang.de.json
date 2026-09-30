@@ -326,7 +326,6 @@
       "InstructionsPlaceholder": "Beschreibe ein Szenario, Rollenspiel oder ein bestimmtes Thema, das du üben möchtest. Zum Beispiel: 'Lass uns das Bestellen im Restaurant üben' oder 'Spiele einen Vorstellungsgesprächsleiter'.",
       "InstructionsTab": "Anweisungen",
       "ItemsSelected": "{count} ausgewählt",
-      "LLMNotConfigured": "KI ist nicht konfiguriert. Richte sie zuerst in den Einstellungen ein.",
       "MediaTab": "Medien",
       "NoGrammarSupport": "Grammatikpunkte sind für diese Sprache noch nicht verfügbar.",
       "NoMediaYet": "Noch keine gespeicherten Medien. Schaue Videos oder lies Bücher, um deinen Fortschritt zu verfolgen.",
@@ -488,6 +487,13 @@
         "ClearTooltip": "Protokoll löschen",
         "DefaultTitle": "Konsole",
         "NoLogs": "Keine Einträge vorhanden"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "KI-Einstellungen öffnen",
+      "Llm": {
+        "NotConfigured": "Diese Funktion benötigt ein KI-Modell. Wählen Sie eines in den KI-Einstellungen aus und versuchen Sie es erneut.",
+        "Unreachable": "Der KI-Dienst ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
       }
     },
     "ConfirmDialog": {
@@ -3395,9 +3401,6 @@
       "InText": "Im Text: {form}",
       "AddToAnki": "Zu Anki hinzufügen",
       "AddToBuiltInSrs": "Klicken, um zum eingebauten SRS hinzuzufügen",
-      "Alerts": {
-        "ExplainRequiresLlm": "Die Erklärungsfunktion erfordert ein lokales KI-Sprachmodell. Aktivieren Sie LLM in den Einstellungen und starten Sie die App neu."
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "Trotzdem hinzufügen",
         "DontRemind": "Nicht mehr erinnern",

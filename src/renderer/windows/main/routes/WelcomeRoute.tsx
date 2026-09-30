@@ -29,6 +29,8 @@ import type { TutorSessionConfig } from '../../../../shared/types';
 import { nextAttemptId, type AttemptId } from '../../../../shared/knowledgeEvents';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
+import { showToast } from '../../../components/common/Feedback/Toast';
+import { notifyCapabilityUnavailable, openCapabilitySettings } from '../../../services/capabilityUnavailable';
 import { openWordLookup } from '../../../services/wordLookupService';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelProgress } from '../../../utils/wordLevelStats';
 import { qualityToSrsRating, type AttemptQuality } from '../../../../shared/constants';
@@ -153,10 +155,10 @@ export const WelcomeRoute: Component = () => {
     // disabled button swallows clicks (and even hover tooltips), which read as
     // a broken sidebar item rather than a setup requirement.
     if (!isLLMReady(settings)) {
-      getBridge().window.openWindow({
-        type: 'settings',
-        context: { section: 'ai' } as unknown as Record<string, unknown>,
-      });
+      // Say why on the way out: the Settings window used to appear with no
+      // explanation of what the click had done.
+      notifyCapabilityUnavailable('llm', 'notConfigured', t);
+      openCapabilitySettings('llm');
       return;
     }
     setShowTutorModal(true);
@@ -201,8 +203,11 @@ export const WelcomeRoute: Component = () => {
     // Don't try to open items with no path (legacy items or failed saves)
     if (!item.path || !item.path.trim()) {
       log.warn('[Welcome] Cannot open recent item - no path saved:', item.name);
-      // Show alert and navigate to the appropriate route - user can then drag/drop
-      alert(t('mlearn.Home.Errors.UnableToOpen'));
+      // Explain, then navigate to the route that can accept the file. The
+      // toast host sits above the route outlet, so the message survives the
+      // navigation - which an `alert` was only doing by blocking the window
+      // until it was dismissed.
+      showToast({ message: t('mlearn.Home.Errors.UnableToOpen'), variant: 'error' });
       if (item.type === 'video') {
         navigate('/video');
       } else {

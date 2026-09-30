@@ -326,7 +326,6 @@
       "InstructionsPlaceholder": "描述您想练习的场景、角色扮演或特定主题。例如：'让我们练习在餐厅点餐'或'扮演面试官角色'。",
       "InstructionsTab": "指令",
       "ItemsSelected": "已选 {count} 项",
-      "LLMNotConfigured": "AI 尚未配置。请先在设置中进行配置。",
       "MediaTab": "媒体",
       "NoGrammarSupport": "该语言暂无可用的语法点。",
       "NoMediaYet": "尚无保存的媒体。观看视频或阅读书籍来记录您的进度。",
@@ -488,6 +487,13 @@
         "ClearTooltip": "清除日志",
         "DefaultTitle": "控制台",
         "NoLogs": "没有可显示的日志"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "打开 AI 设置",
+      "Llm": {
+        "NotConfigured": "此功能需要 AI 模型。请在 AI 设置中选择一个，然后重试。",
+        "Unreachable": "无法连接 AI 服务。请检查您的网络连接后重试。"
       }
     },
     "ConfirmDialog": {
@@ -3395,9 +3401,6 @@
       "InText": "原文中：{form}",
       "AddToAnki": "添加到 Anki",
       "AddToBuiltInSrs": "点击添加到内置 SRS",
-      "Alerts": {
-        "ExplainRequiresLlm": "解释功能需要本地 AI 语言模型。请在设置中启用 LLM 并重启应用。"
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "仍要添加",
         "DontRemind": "不再提醒",

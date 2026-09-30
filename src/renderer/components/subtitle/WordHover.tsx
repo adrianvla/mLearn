@@ -9,7 +9,8 @@ import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, 
 import { isDarkColorScheme } from '../../../shared/constants';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { toUniqueIdentifier } from '../../services/statsService';
-import { getCachedExplanation, isLLMReady } from '../../services/llmProvider';
+import { getCachedExplanation } from '../../services/llmProvider';
+import { requireCapability } from '../../services/capabilityUnavailable';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
 import { Button, PillLabel, Modal, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
@@ -468,7 +469,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
         log.error('Failed to add flashcard:', err);
-        alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
+        showToast({ message: t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }), variant: 'error' });
       } finally {
         // Always clear the adding flag when done
         setIsAddingFlashcard(false);
@@ -492,11 +493,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Check if LLM is enabled
-    if (!isLLMReady(settings)) {
-      alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
-      return;
-    }
+    if (!requireCapability('llm', settings, t)) return;
     
     // Call the callback to open the popup
     if (props.onOpenExplainer) {

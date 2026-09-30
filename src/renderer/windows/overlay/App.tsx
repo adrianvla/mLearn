@@ -28,6 +28,7 @@ import { showToast } from '../../components/common/Feedback/Toast';
 import { useConfirmDialog } from '../../components/common';
 import { ignoreWordWithConfirmation } from '../flashcards/ignoreWordWithConfirmation';
 import { isLLMReady } from '../../services/llmProvider';
+import { requireCapability } from '../../services/capabilityUnavailable';
 import { getLogger } from '../../../shared/utils/logger';
 import { clipVideo } from '../../services/videoClipService';
 
@@ -672,9 +673,10 @@ export const App: Component = () => {
         break;
       }
       case 'explain-phrase': {
-        if (!isLLMReady(settings)) {
-          break;
-        }
+        // Previously this case did nothing at all when the LLM was down, so
+        // the click was consumed with no feedback and read as a broken menu
+        // item. Every other surface answers the same refusal.
+        if (!requireCapability('llm', settings, t)) break;
         const phrase = currentSubtitlePhrase();
         if (phrase) {
           handleOpenPhraseExplainer(phrase, contextMenuPosition());

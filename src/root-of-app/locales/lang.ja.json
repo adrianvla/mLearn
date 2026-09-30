@@ -326,7 +326,6 @@
       "InstructionsPlaceholder": "練習したいシナリオ、ロールプレイ、または特定のトピックを説明してください。例：「レストランでの注文を練習しましょう」や「面接官の役をしてください」。",
       "InstructionsTab": "指示",
       "ItemsSelected": "{count}件選択中",
-      "LLMNotConfigured": "AIが設定されていません。先に設定で構成してください。",
       "MediaTab": "メディア",
       "NoGrammarSupport": "この言語の文法ポイントはまだ利用できません。",
       "NoMediaYet": "保存されたメディアがありません。動画を視聴したり本を読んだりして進捗を記録しましょう。",
@@ -488,6 +487,13 @@
         "ClearTooltip": "ログをクリア",
         "DefaultTitle": "コンソール",
         "NoLogs": "表示するログがありません"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "AI 設定を開く",
+      "Llm": {
+        "NotConfigured": "この機能には AI モデルが必要です。AI 設定でモデルを選んでから、もう一度お試しください。",
+        "Unreachable": "AI サービスに接続できませんでした。接続を確認してから、もう一度お試しください。"
       }
     },
     "ConfirmDialog": {
@@ -3395,9 +3401,6 @@
       "InText": "本文中: {form}",
       "AddToAnki": "Ankiに追加",
       "AddToBuiltInSrs": "クリックして内蔵SRSに追加",
-      "Alerts": {
-        "ExplainRequiresLlm": "解説機能にはローカルAI言語モデルが必要です。設定でLLMを有効にしてアプリを再起動してください。"
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "追加する",
         "DontRemind": "今後表示しない",

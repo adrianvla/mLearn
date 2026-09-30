@@ -6,6 +6,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
 import { streamChat, isLLMReady } from '../../services/llmProvider';
+import { capabilityUnavailableKey } from '../../services/capabilityUnavailable';
 import { isRemoteLLMProvider } from '../../../shared/types';
 import { getFrequencyLevelLabel, getFrequencyLevelVisualRank, getLanguagePromptName, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
@@ -323,7 +324,11 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     if (!topic || isGenerating()) return;
 
     if (!isLLMReady(settings)) {
-      setGenerationError(t('mlearn.AITutorSetup.LLMNotConfigured'));
+      // An inline error beside the input is the right mechanism for a form, so
+      // this site keeps it rather than raising a toast. The wording comes from
+      // the shared owner so it cannot drift from what every other surface says
+      // about the same refusal.
+      setGenerationError(t(capabilityUnavailableKey('llm', 'notConfigured')));
       return;
     }
 

@@ -326,7 +326,6 @@
       "InstructionsPlaceholder": "Décrivez un scénario, un jeu de rôle ou un sujet que vous souhaitez pratiquer. Par exemple : 'Pratiquons la commande au restaurant' ou 'Jouez le rôle d'un recruteur'.",
       "InstructionsTab": "Instructions",
       "ItemsSelected": "{count} sélectionné(s)",
-      "LLMNotConfigured": "L'IA n'est pas configurée. Configurez-la d'abord dans les paramètres.",
       "MediaTab": "Médias",
       "NoGrammarSupport": "Les points de grammaire ne sont pas encore disponibles pour cette langue.",
       "NoMediaYet": "Aucun média enregistré. Regardez des vidéos ou lisez des livres pour suivre vos progrès.",
@@ -488,6 +487,13 @@
         "ClearTooltip": "Effacer les journaux",
         "DefaultTitle": "Console",
         "NoLogs": "Aucun journal à afficher"
+      }
+    },
+    "CapabilityUnavailable": {
+      "OpenSettings": "Ouvrir les paramètres IA",
+      "Llm": {
+        "NotConfigured": "Cette fonction nécessite un modèle IA. Choisissez-en un dans les paramètres IA, puis réessayez.",
+        "Unreachable": "Le service IA est injoignable. Vérifiez votre connexion, puis réessayez."
       }
     },
     "ConfirmDialog": {
@@ -3395,9 +3401,6 @@
       "InText": "Dans le texte : {form}",
       "AddToAnki": "Ajouter à Anki",
       "AddToBuiltInSrs": "Cliquer pour ajouter au SRS intégré",
-      "Alerts": {
-        "ExplainRequiresLlm": "La fonction d'explication nécessite un modèle IA local. Activez le LLM dans les paramètres et redémarrez l'application."
-      },
       "AnkiDuplicateWarning": {
         "Confirm": "Ajouter quand même",
         "DontRemind": "Ne plus me rappeler",

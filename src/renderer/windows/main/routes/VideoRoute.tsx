@@ -15,6 +15,7 @@ import type { VideoWordEntry } from '../../../components/video';
 import { Button, Panel, VideoIcon, Spinner, useConfirmDialog } from '../../../components/common';
 import { ignoreWordWithConfirmation } from '../../flashcards/ignoreWordWithConfirmation';
 import { isLLMReady } from '../../../services/llmProvider';
+import { requireCapability } from '../../../services/capabilityUnavailable';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
@@ -1189,10 +1190,7 @@ export const VideoRoute: Component = () => {
         break;
       }
       case 'explain-phrase': {
-        if (!isLLMReady(settings)) {
-          alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
-          break;
-        }
+        if (!requireCapability('llm', settings, t)) break;
 
         const contextPhrase = currentSubtitlePhrase();
         if (contextPhrase) {
