@@ -1,3 +1,4 @@
+import type { FlashcardAudioPreset } from '../types';
 import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from '../flashcardRating';
 /**
@@ -91,8 +92,8 @@ export interface FlashcardBridge {
   saveFlashcardVideo: (cardId: string, data: ArrayBuffer) => Promise<string | null>;
   deleteFlashcardVideo: (cardId: string) => Promise<void>;
   getFlashcardTts: (cardId: string, field: 'word' | 'example') => Promise<string | null>;
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<string | null>;
-  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<Record<string, string>>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => Promise<string | null>;
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => Promise<Record<string, string>>;
   getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example') => Promise<{ provider: string; generatedAt: string; language: string } | null>;
   deleteFlashcardTts: (cardId: string) => Promise<void>;
 }

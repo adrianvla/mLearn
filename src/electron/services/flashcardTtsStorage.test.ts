@@ -33,6 +33,7 @@ vi.mock('https', () => ({
 vi.mock('./voiceService', () => ({
   loadSamplesManifest: vi.fn(() => []),
   getVoiceSamplePath: vi.fn(() => '/tmp/sample.wav'),
+  ensureVoiceSampleTranscript: vi.fn().mockResolvedValue({ text: 'reference', language: 'en' }),
 }));
 
 let tempDir: TempDir;
@@ -413,6 +414,25 @@ describe('flashcardTtsStorage', () => {
       expect(fs.existsSync(filePath)).toBe(true);
     });
 
+    it.each(['high-quality', 'fast'] as const)('forwards %s, and fast selects Qwen even when cloud is configured', async (preset) => {
+      const fakeRes = makeFakeRes(200);
+      const fakeReq = makeFakeReq();
+      const { default: httpMod } = await import('http');
+      vi.mocked(httpMod.request).mockImplementation((_opts: unknown, cb: unknown) => {
+        (cb as (res: FakeRes) => void)(fakeRes);
+        return fakeReq as unknown as ClientRequest;
+      });
+      setupFlashcardTtsIPC();
+      const generate = mockIpcHandlers.get('flashcard-tts-generate')!;
+      const pending = generate({}, 'preset-card', 'Hello', 'en', 'word', preset === 'fast' ? 'cloud' : 'qwen3', undefined, undefined, undefined, preset);
+      expect(JSON.parse(fakeReq.write.mock.calls[0][0])).toMatchObject({ provider: 'qwen3', preset });
+      fakeRes._fire('data', Buffer.alloc(500));
+      fakeRes._fire('end');
+      expect(await pending).toBe('flashcard-audio://preset-card-word.ogg');
+      const meta = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcard-audio', 'preset-card-word.meta.json'), 'utf8'));
+      expect(meta).toMatchObject({ provider: 'qwen3', preset });
+    });
+
     it('returns null when local backend returns non-200 status', async () => {
       vi.useFakeTimers();
 
@@ -660,6 +680,7 @@ describe('flashcardTtsStorage', () => {
           { id: 'sample-1', name: 'Test Voice', filename: 'test.wav', createdAt: 0 },
         ]),
         getVoiceSamplePath: vi.fn(() => '/tmp/test.wav'),
+        ensureVoiceSampleTranscript: vi.fn().mockResolvedValue({ text: 'reference', language: 'en' }),
       }));
 
       vi.doMock('http', () => ({
@@ -677,7 +698,7 @@ describe('flashcardTtsStorage', () => {
       freshMod.setupFlashcardTtsIPC();
 
       const generatePromise = (mockIpcHandlers.get('flashcard-tts-generate') as (...args: unknown[]) => Promise<unknown>)(
-        {}, 'card-sample', 'hello', 'en', 'word', 'kokoro', 'sample-1'
+        {}, 'card-sample', 'hello', 'en', 'word', 'qwen3', 'sample-1', undefined, undefined, 'fast'
       );
 
       await new Promise(r => setTimeout(r, 5));
@@ -689,6 +710,9 @@ describe('flashcardTtsStorage', () => {
 
       const writtenPayload = JSON.parse(fakeReq.write.mock.calls[0][0] as string);
       expect(writtenPayload.voiceSamplePath).toBe('/tmp/test.wav');
+      expect(writtenPayload.preset).toBe('fast');
+      const { ensureVoiceSampleTranscript } = await import('./voiceService');
+      expect(ensureVoiceSampleTranscript).toHaveBeenCalledWith(expect.objectContaining({ id: 'sample-1' }), expect.any(Array), 'en');
     });
 
     it('does not include voiceSamplePath when voiceSampleId does not match any sample', async () => {
@@ -699,6 +723,7 @@ describe('flashcardTtsStorage', () => {
       vi.doMock('./voiceService', () => ({
         loadSamplesManifest: vi.fn(() => []),
         getVoiceSamplePath: vi.fn(() => '/tmp/sample.wav'),
+  ensureVoiceSampleTranscript: vi.fn().mockResolvedValue({ text: 'reference', language: 'en' }),
       }));
 
       vi.doMock('http', () => ({

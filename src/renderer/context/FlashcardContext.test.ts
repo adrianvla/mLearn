@@ -1,7 +1,7 @@
 import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
-import { DEFAULT_SETTINGS } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardAudioPreset } from '../../shared/types';
 import { selectNextEncounter } from '../learning/engine';
 import type { AttemptQuality } from '../../shared/constants';
 import type { CapabilityKind } from '../../shared/graph/types';
@@ -119,6 +119,7 @@ vi.mock('../../shared/bridges', () => ({
 }));
 
 vi.mock('../../shared/backends', () => ({
+  resolveCloudApiUrl: () => 'https://example.test',
   getBackend: vi.fn(() => mockBackend),
 }));
 
@@ -341,6 +342,7 @@ const mockUpdateToast = vi.fn();
 vi.mock('../components/common/Feedback/Toast', () => ({
   showToast: (opts: Record<string, unknown>) => mockShowToast(opts),
   updateToast: (id: number, opts: Record<string, unknown>) => mockUpdateToast(id, opts),
+  removeToast: vi.fn(),
 }));
 
 vi.mock('../services/statsService', () => ({
@@ -1317,6 +1319,31 @@ describe('FlashcardProvider', () => {
     expect(card.ease).toBe(2.5);
     expect(card.language).toBe('ja');
     dispose();
+  });
+
+  it.each(['high-quality', 'fast'] as FlashcardAudioPreset[])('uses the creation %s preset for word and example audio', async (preset) => {
+    const previous = {
+      flashcardAutoGenerateAudio: mockSettings.flashcardAutoGenerateAudio,
+      flashcardTtsProvider: mockSettings.flashcardTtsProvider,
+      flashcardCreationAudioPreset: mockSettings.flashcardCreationAudioPreset,
+    };
+    mockSettings.flashcardAutoGenerateAudio = true;
+    mockSettings.flashcardTtsProvider = preset === 'fast' ? 'cloud' : 'qwen3';
+    mockSettings.flashcardCreationAudioPreset = preset;
+    mockBridge.flashcards.generateFlashcardTts.mockResolvedValue('flashcard-audio://generated.ogg');
+    const { ctx, dispose } = await mountProvider();
+    try {
+      flashcardsCb(makeEmptyStore());
+      const id = await ctx.addFlashcard({ front: 'Word', back: 'Meaning', example: 'Example', exampleMeaning: 'Translated' }, undefined, false);
+      await vi.waitFor(() => expect(mockBridge.flashcards.generateFlashcardTts).toHaveBeenCalledTimes(2));
+      const calls = mockBridge.flashcards.generateFlashcardTts.mock.calls;
+      expect(calls[0]).toEqual([id, 'Word', 'ja', 'word', 'qwen3', undefined, undefined, expect.any(String), preset]);
+      expect(calls[1]).toEqual([id, 'Example', 'ja', 'example', 'qwen3', undefined, undefined, expect.any(String), preset]);
+    } finally {
+      dispose();
+      Object.assign(mockSettings, previous);
+      mockBridge.flashcards.generateFlashcardTts.mockResolvedValue(null);
+    }
   });
 
   it('addFlashcard populates wordToCardMap with language-prefixed key', async () => {

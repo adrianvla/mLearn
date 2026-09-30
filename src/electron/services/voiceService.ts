@@ -108,13 +108,14 @@ function getVoiceSampleTranscriptPath(sample: VoiceSample): string {
   return getVoiceSamplePath(sample).replace(/\.[^.]+$/, '.txt');
 }
 
-async function ensureVoiceSampleTranscript(
+export async function ensureVoiceSampleTranscript(
   sample: VoiceSample,
   samples: VoiceSample[],
   language: string,
   force = false,
 ): Promise<{ text: string; language: string }> {
   if (!force && typeof sample.transcript === 'string' && sample.transcript.trim()) {
+    fs.writeFileSync(getVoiceSampleTranscriptPath(sample), sample.transcript.trim(), 'utf-8');
     return { text: sample.transcript.trim(), language: sample.language || language };
   }
 

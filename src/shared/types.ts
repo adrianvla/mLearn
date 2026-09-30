@@ -526,6 +526,10 @@ export interface Settings {
   flashcardTtsProvider: TTSProvider;
   /** Auto-generate .ogg files for new flashcards */
   flashcardAutoGenerateAudio: boolean;
+  /** Audio preset for automatic generation after card creation. */
+  flashcardCreationAudioPreset: FlashcardAudioPreset;
+  /** Audio preset for repairs and manual/bulk regeneration. */
+  flashcardRegenerationAudioPreset: FlashcardAudioPreset;
   /** Maximum number of flashcard example jobs in one LLM request (0 disables batching). */
   llmBulkExampleBatchSize: number;
   /** Voice sample ID for flashcard TTS voice cloning (Qwen3/Remote) */
@@ -789,6 +793,8 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardAutoTts: true,
   flashcardTtsProvider: 'kokoro',
   flashcardAutoGenerateAudio: false,
+  flashcardCreationAudioPreset: 'high-quality',
+  flashcardRegenerationAudioPreset: 'fast',
   llmBulkExampleBatchSize: 25,
   flashcardVoiceSampleId: '',
   flashcardStealthMode: false,
@@ -2540,6 +2546,8 @@ export type OCRProvider = 'local' | 'cloud';
 export type AgentPersonality = 'polite' | 'casual' | 'roleplay';
 
 /** TTS backend provider for generated audio files. */
+export type FlashcardAudioPreset = 'high-quality' | 'fast';
+
 export type TTSProvider = 'kokoro' | 'qwen3' | 'cloud';
 
 /** TTS provider used by the realtime voice-call UI. */

@@ -1,0 +1,33 @@
+.flashcard-repair-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.flashcard-repair-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.flashcard-repair-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.flashcard-repair-preset label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.flashcard-repair-preset p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.flashcard-repair-options .checkbox-card:focus-within {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

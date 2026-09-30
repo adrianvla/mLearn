@@ -654,3 +654,72 @@ def test_split_into_sentences_uses_language_metadata_terminators(monkeypatch):
         "फिर मिलेंगे।",
         "Hello. Still one segment.",
     ]
+
+
+def test_flashcard_audio_presets_reuse_qwen_call_configuration(tmp_path, monkeypatch):
+    import io
+    import numpy as np
+    import soundfile as sf
+
+    audio_path = tmp_path / "sample.wav"
+    audio_path.write_bytes(b"RIFF")
+    (tmp_path / "sample.txt").write_text("reference speech", encoding="utf-8")
+    monkeypatch.setattr(voice.config, "USER_DATA_PATH", str(tmp_path))
+    monkeypatch.setattr(voice, "_tts_runtime", lambda language: {"qwen3LanguageName": "Synthetic"})
+    monkeypatch.setattr(voice, "_voice_touch", lambda: None)
+    calls = []
+
+    class Model:
+        def generate(self, text, **kwargs):
+            calls.append({"text": text, **kwargs})
+            for values in ([0.0, 0.5], [-0.5, 0.0]):
+                yield types.SimpleNamespace(audio=np.array(values), sample_rate=24000)
+
+    monkeypatch.setattr(voice, "_ensure_qwen3_tts_loaded", lambda: Model())
+    req = voice.TTSRequest(text="Hello", language="xx", provider="qwen3", voiceSamplePath=str(audio_path), preset="fast")
+    # The call route uses this exact iterator and streaming configuration.
+    list(voice._iter_qwen3_tts_chunks(req, "xx", stream=True))
+    response = asyncio.run(voice._generate_tts_qwen3(req, "xx"))
+    assert calls[0] == calls[1]
+    assert calls[1]["speed"] == 1.0
+    assert calls[1]["ref_audio"] == str(audio_path)
+    assert calls[1]["ref_text"] == "reference speech"
+    audio, sr = sf.read(io.BytesIO(response.body))
+    np.testing.assert_allclose(audio, [0.0, 0.5, -0.5, 0.0])
+    assert sr == 24000
+    req.preset = "high-quality"
+    asyncio.run(voice._generate_tts_qwen3(req, "xx"))
+    assert calls[-1] == {**calls[1], "stream": False}
+
+
+def test_fast_preset_routes_cloud_configuration_to_local_call_engine(monkeypatch):
+    calls = []
+    monkeypatch.setattr(voice, "_reload_tts_settings", lambda: None)
+    monkeypatch.setattr(voice, "_resolve_tts_engine", lambda language, provider: calls.append((language, provider)) or "qwen3")
+
+    async def generate(req, language):
+        return {"preset": req.preset, "language": language}
+
+    monkeypatch.setattr(voice, "_generate_tts_qwen3", generate)
+    result = asyncio.run(voice.voice_tts_generate(voice.TTSRequest(text="Hello", language="xx", provider="cloud", preset="fast")))
+    assert calls == [("xx", "qwen3")]
+    assert result == {"preset": "fast", "language": "xx"}
+
+
+def test_fast_torch_preset_collects_the_voice_call_iterator(monkeypatch):
+    import io
+    import numpy as np
+    import soundfile as sf
+    calls = []
+
+    def call_chunks(req, language):
+        calls.append((req.text, language))
+        yield {"audio": np.array([0.0, 0.25], dtype=np.float32), "sampleRate": 24000}
+        yield {"audio": np.array([-0.25, 0.0], dtype=np.float32), "sampleRate": 24000}
+
+    monkeypatch.setattr(voice, '_iter_qwen3_torch_tts_chunks', call_chunks)
+    response = asyncio.run(voice._generate_tts_qwen3_torch(voice.TTSRequest(text='Hello', language='xx', preset='fast'), 'xx'))
+    assert calls == [('Hello', 'xx')]
+    audio, sample_rate = sf.read(io.BytesIO(response.body))
+    np.testing.assert_allclose(audio, [0.0, 0.25, -0.25, 0.0])
+    assert sample_rate == 24000

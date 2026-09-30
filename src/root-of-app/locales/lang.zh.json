@@ -202,6 +202,20 @@
         },
         "Description": "配置用于单词解释和对话练习的 AI 功能。",
         "FlashcardTTS": {
+          "Preset": {
+            "Label": "音频预设",
+            "HighQuality": "高质量",
+            "Fast": "快速",
+            "Description": "高质量使用所选服务。快速使用语音通话的本地引擎和所选语音样本。"
+          },
+          "CreationPreset": {
+            "Label": "创建卡片时生成音频",
+            "Description": "创建卡片时生成的音频，默认使用高质量。"
+          },
+          "RegenerationPreset": {
+            "Label": "修复 / 重新生成",
+            "Description": "用于修复和重新生成（包括批量任务）的音频，默认使用快速。"
+          },
           "AutoGenerate": {
             "Description": "自动生成并缓存新闪卡的音频文件",
             "Label": "自动生成音频"
@@ -1099,17 +1113,24 @@
         "TtsFailed": "TTS 生成失败"
       },
       "Repair": {
+        "Aspects": {
+          "example": "例句（{count}）",
+          "content": "词典内容（{count}）",
+          "wordAudio": "单词音频（{count}）",
+          "exampleAudio": "例句音频（{count}）",
+          "exampleMeaning": "例句翻译（{count}）"
+        },
         "Description": "{count} 个闪卡音频文件缺失。是否重新生成？",
         "DescriptionWithLLM": "{llmCount} 张闪卡缺少例句翻译，{ttsCount} 个音频文件缺失。是否修复？",
         "DescriptionLLMOnly": "{count} 张闪卡缺少例句翻译。是否立即生成？",
-        "Done": "已修复 {count} 个闪卡音频文件",
-        "DoneWithErrors": "已修复 {count} 个音频文件（{failed} 个失败）",
+        "Done": "闪卡修复完成（{count} 项更新）",
+        "DoneWithErrors": "闪卡修复完成（{count} 项更新，{failed} 项失败）",
         "LLMToastTitle": "正在生成缺失的例句翻译…",
         "LLMDone": "为 {count} 张闪卡生成了翻译",
         "LLMDoneWithErrors": "为 {count} 张闪卡生成了翻译，{failed} 个失败",
         "RepairButton": "修复", "ContentDescription": "{count} 张卡片还没有释义。要用词典补全吗？", "ContentToastTitle": "正在补全卡片内容…", "ContentDone": "已补全 {count} 张卡片", "ContentDoneWithErrors": "已补全 {count} 张卡片，{failed} 张失败", "ContentFailed": "无法补全卡片内容",
         "Title": "闪卡数据缺失",
-        "ToastTitle": "正在修复闪卡音频…"
+        "ToastTitle": "正在修复闪卡…"
       },
       "Review": {
         "CardActions": "卡片操作",

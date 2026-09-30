@@ -236,7 +236,7 @@ export const WelcomeRoute: Component = () => {
   // One pinned decision per encounter (see useDecisionPin): unrelated
   // reactive updates re-run the selection memo, and the pin re-serves the
   // SAME decision instead of re-drawing with a fresh unseeded rng draw.
-  const decisionPin = useDecisionPin();
+  const decisionPin = useDecisionPin<{ card: Flashcard; decision: ReturnType<typeof selectNextEncounter> }>();
 
   const currentCard = createMemo(() => {
     const fallback = flashcards.getCurrentCard();
@@ -292,16 +292,21 @@ export const WelcomeRoute: Component = () => {
     // every unrelated queue/store/settings update, and the unseeded weighted
     // draw would silently replace the displayed card. The pin re-serves the
     // same decision until an explicit review action advances the epoch.
-    const decision = decisionPin.pin(fallback.id, () => selectNextEncounter({
-      preset: 'RETENTION',
-      nowMs,
-      // The goal applies only to the queue's own learning language (R07).
-      context: policyContextFromSettings(settings, language),
-      reviewQueueEntries,
-    }));
-    return decision?.action === 'DEFER'
-      ? fallback
-      : flashcards.store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
+    const availableIds = new Set(reviewQueueEntries.map((entry) => entry.id));
+    const encounter = decisionPin.pin(language, () => {
+      const decision = selectNextEncounter({
+        preset: 'RETENTION',
+        nowMs,
+        // The goal applies only to the queue's own learning language (R07).
+        context: policyContextFromSettings(settings, language),
+        reviewQueueEntries,
+      });
+      const card = decision?.action === 'DEFER'
+        ? fallback
+        : flashcards.store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
+      return { card, decision };
+    }, (selection) => availableIds.has(selection.card.id));
+    return flashcards.store.flashcards[encounter.card.id] ?? encounter.card;
   });
   // Active-engagement timing per welcome card (shared encounter
   // instrumentation): blur/hidden pauses never count as retrieval latency.

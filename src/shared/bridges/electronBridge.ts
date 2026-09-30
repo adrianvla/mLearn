@@ -73,8 +73,8 @@ const flashcardBridge: FlashcardBridge = {
   saveFlashcardVideo: (cardId, data) => getIPC().saveFlashcardVideo(cardId, data),
   deleteFlashcardVideo: (cardId) => getIPC().deleteFlashcardVideo(cardId),
   getFlashcardTts: (cardId, field) => getIPC().getFlashcardTts(cardId, field),
-  generateFlashcardTts: (cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
-  batchGenerateFlashcardTts: (items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl) => getIPC().batchGenerateFlashcardTts(items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
+  generateFlashcardTts: (cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset),
+  batchGenerateFlashcardTts: (items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset) => getIPC().batchGenerateFlashcardTts(items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset),
   getFlashcardTtsMeta: (cardId, field) => getIPC().getFlashcardTtsMeta(cardId, field),
   deleteFlashcardTts: (cardId) => getIPC().deleteFlashcardTts(cardId),
 };

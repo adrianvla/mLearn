@@ -9,10 +9,15 @@
  * audio is not synthesised from a field that is about to change.
  */
 
-import type { LanguageData } from '../../shared/types';
+import type { Flashcard, LanguageData } from '../../shared/types';
 import type { DictionaryTargetSettings } from '../services/wordEnrichment';
 import {
   buildContentUpdate,
+  planFlashcardRepair,
+  selectRepairFindings,
+  type ScanOptions,
+  type TtsScanDeps,
+  type RepairSelection,
   type ExampleFinding,
   type RepairFinding,
   type TtsField,
@@ -61,7 +66,7 @@ export function orderFindings(findings: readonly RepairFinding[]): RepairFinding
 }
 
 /**
- * Example sentences are generated up front, in one batch, because they are LLM
+ * Example sentences are generated after dictionary patches, in one batch, as LLM
  * calls. Every finding still goes through the normal per-finding accounting
  * below; only the network round trip is hoisted.
  */
@@ -92,13 +97,22 @@ export async function runFlashcardRepair(
   let succeeded = 0;
   let completed = 0;
   const maxRetries = Math.max(1, deps.maxRetries ?? 1);
-  const examples = await prefetchExamples(ordered, deps);
+  let examples: Map<string, Record<string, unknown>> | undefined;
 
   for (const finding of ordered) {
+    if (finding.kind === 'example' && !examples) {
+      try {
+        examples = await prefetchExamples(ordered, deps);
+      } catch (error) {
+        if (deps.abortOnError?.(error)) throw error;
+        // Preserve failed example jobs while allowing unrelated repairs to run.
+        examples = new Map();
+      }
+    }
     let done = false;
     for (let attempt = 0; attempt < maxRetries && !done; attempt++) {
       try {
-        done = await runOne(finding, deps, examples);
+        done = await runOne(finding, deps, examples ?? new Map());
         if (done) succeeded++;
         else failed.add(finding);
       } catch (error) {
@@ -148,4 +162,42 @@ async function runOne(
       });
     }
   }
+}
+
+/**
+ * Repair missing assets against the current store at each dependency boundary.
+ * Dictionary patches can unlock examples; new examples can unlock translation
+ * and audio. Every stage uses the same scanner and executor as regeneration.
+ */
+export async function runMissingFlashcardRepair(
+  initialFindings: readonly RepairFinding[],
+  deps: RepairRunnerDeps & {
+    getCards: () => Flashcard[];
+    scanOptions: ScanOptions;
+    tts: TtsScanDeps;
+    selection: RepairSelection;
+  },
+): Promise<RepairRunResult> {
+  const result: RepairRunResult = { attempted: 0, succeeded: 0, failed: 0, remaining: [] };
+  const cardIds = new Set(deps.getCards().map((card) => card.id));
+  let total = initialFindings.length;
+  for (const kind of ['content', 'example', 'exampleMeaning', 'tts'] as const) {
+    if (kind === 'tts' ? !deps.selection.wordAudio && !deps.selection.exampleAudio : !deps.selection[kind]) continue;
+    const findings = selectRepairFindings(await planFlashcardRepair(
+      deps.getCards().filter((card) => cardIds.has(card.id)),
+      { ...deps.scanOptions, include: [kind], ttsMode: 'onlyEmpty', exampleMode: 'onlyEmpty' },
+      deps.tts,
+    ), deps.selection);
+    total = Math.max(total, result.attempted + findings.length);
+    const stage = await runFlashcardRepair(findings, {
+      ...deps,
+      onProgress: (completed) => deps.onProgress?.(result.attempted + completed, total),
+    });
+    result.attempted += stage.attempted;
+    result.succeeded += stage.succeeded;
+    result.failed += stage.failed;
+    result.remaining.push(...stage.remaining);
+  }
+  deps.onProgress?.(result.attempted, result.attempted);
+  return result;
 }

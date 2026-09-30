@@ -4,18 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal, type Accessor } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { Flashcard, LanguageData, Settings } from '../../../shared/types';
+import type { Flashcard, LanguageData, ReviewQueue, Settings } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { FlashcardReview } from './FlashcardReview';
 import { knowledgeInspection, closeKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceEntityId } from '../../../shared/graph/load';
-import { hashWordSync } from '../../services/srsAlgorithm';
+import { getNextCard, hashWordSync } from '../../services/srsAlgorithm';
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
 
 const toastMocks = vi.hoisted(() => ({ showToast: vi.fn(() => 0) }));
 
 let mockCard: Accessor<Flashcard | null> = () => null;
 let setMockCard: (card: Flashcard | null) => void = () => {};
+let mockReviewCards: Record<string, Flashcard> = {};
+let mockReviewQueue: Accessor<ReviewQueue> = () => ({ newQueue: [], scheduledQueue: [] });
 let mockLangMap: Record<string, LanguageData> = {};
 let mockLanguageData: LanguageData | null = null;
 let mockSettings: Settings = { ...DEFAULT_SETTINGS };
@@ -80,8 +82,8 @@ vi.mock('../../hooks/useKnowledgeProjection', () => ({
 vi.mock('../../context', () => ({
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
-    store: { flashcards: {} },
-    queue: () => ({ newQueue: [], scheduledQueue: [] }),
+    store: { get flashcards() { return mockReviewCards; } },
+    queue: () => mockReviewQueue(),
     queueCounts: () => ({ new: 1, learning: 0, review: 0, total: 1 }),
     getCurrentCard: () => mockCard(),
     getPreviewDueDates: () => ({ again: 1, hard: 2, good: 3, easy: 4 }),
@@ -306,8 +308,104 @@ describe('FlashcardReview', () => {
 
   afterEach(() => {
     closeKnowledgeInspector();
+    mockReviewCards = {};
+    mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [] });
     container.remove();
   });
+
+  it('keeps the revealed encounter and rating identity when a flush changes the scheduler fallback', async () => {
+    const first = makeCard({ id: 'first', state: 'review', interval: 1, dueDate: Date.now() - 1000 });
+    const second = makeCard({ id: 'second', state: 'review', interval: 1, dueDate: Date.now() - 1000,
+      content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } });
+    mockReviewCards = { [first.id]: first, [second.id]: second };
+    const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [first.id, second.id] });
+    mockReviewQueue = queue;
+    setMockCard(first);
+    const random = vi.spyOn(Math, 'random').mockReturnValueOnce(0.9).mockReturnValueOnce(0.1);
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      clickShowAnswer(container);
+      const prompt = container.querySelector('.flashcard-front')!.textContent;
+      const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-container')!;
+      scrollRegion.scrollTop = 240;
+      // The acknowledgment rebuilds the queue; the scheduler may return a
+      // different fallback although the displayed card is still admitted.
+      random.mockReturnValueOnce(0.1).mockReturnValueOnce(0.9);
+      setMockCard(second);
+      setQueue({ newQueue: [], scheduledQueue: [first.id, second.id] });
+      await flushEffects();
+      expect(container.querySelector('.flashcard-front')!.textContent).toBe(prompt);
+      expect(container.querySelector('.flashcard-back')!.classList.contains('flashcard-face--hidden')).toBe(false);
+      expect(scrollRegion.scrollTop).toBe(240);
+      expect(random).toHaveBeenCalledTimes(2);
+      container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+      await flushEffects();
+      expect(mockSubmitRating).toHaveBeenCalledWith(first.content.front, expect.any(Array),
+        expect.objectContaining({ scheduler: expect.objectContaining({ cardId: first.id }) }));
+      expect(container.querySelector('.flashcard-front')!.textContent).toBe(second.content.front);
+      expect(container.querySelector('.flashcard-back')!.classList.contains('flashcard-face--hidden')).toBe(true);
+    } finally {
+      dispose();
+    }
+  });
+
+  it('holds the displayed card across acknowledgment with the real scheduler random interleaving', async () => {
+    const review = makeCard({ id: 'review', state: 'review', interval: 1, dueDate: Date.now() - 1000 });
+    const fresh = makeCard({ id: 'fresh', state: 'new', dueDate: Date.now() - 1000,
+      content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } });
+    mockReviewCards = { [review.id]: review, [fresh.id]: fresh };
+    const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [fresh.id], scheduledQueue: [review.id] });
+    mockReviewQueue = queue;
+    mockCard = () => getNextCard(queue(), mockReviewCards);
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+      .mockReturnValueOnce(0.5) // Scheduler fallback: review.
+      .mockReturnValueOnce(0.1).mockReturnValueOnce(0.9); // Policy: review.
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      expect(container.querySelector('.flashcard-front')!.textContent).toBe(review.content.front);
+      clickShowAnswer(container);
+      random.mockReturnValue(0.01); // Scheduler now chooses the new card.
+      expect(mockCard()?.id).toBe(fresh.id);
+      const callsBeforeAcknowledgment = random.mock.calls.length;
+      setQueue({ newQueue: [fresh.id], scheduledQueue: [review.id] });
+      await flushEffects();
+      expect(container.querySelector('.flashcard-front')!.textContent).toBe(review.content.front);
+      expect(container.querySelector('.flashcard-back')!.classList.contains('flashcard-face--hidden')).toBe(false);
+      // One scheduler read; no new policy draw for the active encounter.
+      expect(random).toHaveBeenCalledTimes(callsBeforeAcknowledgment + 1);
+    } finally {
+      dispose();
+    }
+  });
+
+  it.each(['unqueued', 'suspended', 'buried', 'deleted'] as const)(
+    'releases the displayed encounter when another window makes it %s', async (change) => {
+      const first = makeCard({ id: 'first', state: 'review', interval: 1, dueDate: Date.now() - 1000 });
+      const second = makeCard({ id: 'second', state: 'review', interval: 1, dueDate: Date.now() - 1000,
+        content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } });
+      mockReviewCards = { [first.id]: first, [second.id]: second };
+      const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [first.id, second.id] });
+      mockReviewQueue = queue;
+      setMockCard(first);
+      vi.spyOn(Math, 'random').mockReturnValueOnce(0.9).mockReturnValueOnce(0.1).mockReturnValue(0.5);
+      const dispose = render(() => <FlashcardReview />, container);
+      try {
+        clickShowAnswer(container);
+        if (change === 'deleted') delete mockReviewCards[first.id];
+        if (change === 'suspended' || change === 'buried') {
+          mockReviewCards[first.id] = { ...first, [change]: true };
+        }
+        // A peer commit updates the card store and rebuilds the workload.
+        setMockCard(second);
+        setQueue({ newQueue: [], scheduledQueue: change === 'unqueued' ? [second.id] : [first.id, second.id] });
+        await flushEffects();
+        expect(container.querySelector('.flashcard-front')!.textContent).toBe(second.content.front);
+        expect(container.querySelector('.flashcard-back')!.classList.contains('flashcard-face--hidden')).toBe(true);
+      } finally {
+        dispose();
+      }
+    },
+  );
 
   it('opens the shared inspector on the reviewed card identity without recording an outcome', () => {
     const dispose = render(() => <FlashcardReview />, container);

@@ -3,6 +3,7 @@
 import { createSignal, type Component, type JSX } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Flashcard, ReviewQueue } from '../../../../shared/types';
 
 const localization = vi.hoisted(() => ({
   translate: (key: string) => key,
@@ -10,6 +11,7 @@ const localization = vi.hoisted(() => ({
 
 const [knowledgeReady, setKnowledgeReady] = createSignal(true);
 const [languageFlag, setLanguageFlag] = createSignal<string | undefined>();
+const [reviewQueue, setReviewQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [] });
 const levelPreviewState = vi.hoisted(() => ({
   // Holds the live Solid props proxy: assertions read current values.
   last: null as null | { pending?: boolean; progress: { knownPct: number; assessedPct: number } | null },
@@ -49,7 +51,7 @@ vi.mock('../../../context', () => ({
     store: flashcardFixture.store,
     isKnowledgeReady: () => knowledgeReady(),
     isLoading: () => false,
-    queue: () => ({ newQueue: [], scheduledQueue: [] }),
+    queue: () => reviewQueue(),
     queueCounts: () => ({ total: 0 }),
     getCurrentCard: () => flashcardFixture.currentCard,
     getPreviewDueDates: () => null,
@@ -112,8 +114,9 @@ vi.mock('./components', () => {
     ),
     WelcomeVideoPreview: Preview,
     WelcomeReaderPreview: Preview,
-    WelcomeFlashcardPreview: (props: { loading?: boolean; emptyLabel: string; onRate?: (quality: 'fluent') => void }) => (
+    WelcomeFlashcardPreview: (props: { card?: Flashcard | null; loading?: boolean; emptyLabel: string; onRate?: (quality: 'fluent') => void }) => (
       <div data-testid="flashcard-preview" data-loading={String(props.loading)} data-empty-label={props.emptyLabel}>
+        <span data-testid="welcome-card">{props.card?.content.front}</span>
         <button type="button" data-testid="welcome-rate" onClick={() => props.onRate?.('fluent')}>Rate</button>
       </div>
     ),
@@ -142,6 +145,7 @@ describe('WelcomeRoute localization', () => {
     levelPreviewState.last = null;
     flashcardFixture.store.flashcards = {};
     flashcardFixture.currentCard = null;
+    setReviewQueue({ newQueue: [], scheduledQueue: [] });
     flashcardFixture.submitRating.mockReset();
     localization.translate = (key) => key;
   });
@@ -245,6 +249,39 @@ describe('WelcomeRoute localization', () => {
       scheduler: { cardId: 'card-1', rating: 'good', tested: ['sense-recognition'] },
     });
     dispose();
+  });
+
+  it('preserves the welcome encounter and rating target across a background queue refresh', async () => {
+    const card = (id: string): Flashcard => ({
+      id, language: 'ja', content: { type: 'word', front: id, back: id },
+      state: 'review', dueDate: Date.now() - 1000, interval: 1, ease: 2.5,
+      reviews: 1, lapses: 0, learningStep: 0, createdAt: Date.now(), lastReviewed: 0, lastUpdated: Date.now(),
+    });
+    const first = card('first');
+    const second = card('second');
+    flashcardFixture.store.flashcards = { first, second };
+    flashcardFixture.currentCard = first;
+    flashcardFixture.submitRating.mockResolvedValue({ attemptId: 'attempt-1', completed: true });
+    setReviewQueue({ newQueue: [], scheduledQueue: ['first', 'second'] });
+    const random = vi.spyOn(Math, 'random').mockReturnValueOnce(0.9).mockReturnValueOnce(0.1);
+    const dispose = render(() => <WelcomeRoute />, container);
+    try {
+      expect(container.querySelector('[data-testid="welcome-card"]')!.textContent).toBe('first');
+      random.mockReturnValueOnce(0.1).mockReturnValueOnce(0.9);
+      flashcardFixture.currentCard = second;
+      setReviewQueue({ newQueue: [], scheduledQueue: ['first', 'second'] });
+      await Promise.resolve();
+      expect(container.querySelector('[data-testid="welcome-card"]')!.textContent).toBe('first');
+      expect(random).toHaveBeenCalledTimes(2);
+      container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(flashcardFixture.submitRating).toHaveBeenCalledWith('first', expect.any(Array),
+        expect.objectContaining({ scheduler: expect.objectContaining({ cardId: 'first' }) }));
+      expect(container.querySelector('[data-testid="welcome-card"]')!.textContent).toBe('second');
+    } finally {
+      dispose();
+    }
   });
 });
 

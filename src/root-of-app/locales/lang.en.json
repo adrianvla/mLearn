@@ -202,6 +202,20 @@
         },
         "Description": "Configure AI features for word explanations and conversation practice.",
         "FlashcardTTS": {
+          "Preset": {
+            "Label": "Audio preset",
+            "HighQuality": "High Quality",
+            "Fast": "Fast",
+            "Description": "High Quality uses your selected provider. Fast uses the local voice-call engine and selected voice sample."
+          },
+          "CreationPreset": {
+            "Label": "Lazy flashcard generation",
+            "Description": "Audio generated when creating cards. High Quality by default."
+          },
+          "RegenerationPreset": {
+            "Label": "Repair / regeneration",
+            "Description": "Audio for repairs and regeneration, including bulk jobs. Fast by default."
+          },
           "AutoGenerate": {
             "Description": "Automatically generate and cache audio files for new flashcards",
             "Label": "Auto-generate audio"
@@ -1099,17 +1113,24 @@
         "TtsFailed": "TTS generation failed"
       },
       "Repair": {
+        "Aspects": {
+          "example": "Example sentences ({count})",
+          "content": "Dictionary content ({count})",
+          "wordAudio": "Word audio ({count})",
+          "exampleAudio": "Example audio ({count})",
+          "exampleMeaning": "Example translations ({count})"
+        },
         "Description": "{count} flashcard audio files are missing. Would you like to regenerate them?",
         "DescriptionWithLLM": "{llmCount} flashcard(s) are missing example translations, and {ttsCount} audio file(s) are missing. Would you like to repair them?",
         "DescriptionLLMOnly": "{count} flashcard(s) are missing example translations. Would you like to generate them now?",
-        "Done": "Repaired {count} flashcard audio files",
-        "DoneWithErrors": "Repaired {count} audio files ({failed} failed)",
+        "Done": "Flashcard repair complete ({count} updates)",
+        "DoneWithErrors": "Flashcard repair complete ({count} updates, {failed} failed)",
         "LLMToastTitle": "Generating missing example translations…",
         "LLMDone": "Generated translations for {count} flashcard(s)",
         "LLMDoneWithErrors": "Generated translations for {count} flashcard(s), {failed} failed",
         "RepairButton": "Repair", "ContentDescription": "{count} flashcard(s) have no meaning yet. Repair fills them in from the dictionary?", "ContentToastTitle": "Filling in missing flashcard content…", "ContentDone": "Filled in {count} flashcard(s)", "ContentDoneWithErrors": "Filled in {count} flashcard(s), {failed} could not be filled", "ContentFailed": "Could not fill in flashcard content",
         "Title": "Missing flashcard data",
-        "ToastTitle": "Repairing flashcard audio…"
+        "ToastTitle": "Repairing flashcards…"
       },
       "Review": {
         "CardActions": "Card actions",

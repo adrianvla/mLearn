@@ -2,42 +2,45 @@ import { createSignal } from 'solid-js';
 import type { PolicyDecision } from '../learning/types';
 
 /**
- * Pins one policy decision across an encounter (R20 review repair): the
+ * Pins one selection across an encounter (R20 review repair): the
  * selection memo re-runs on every unrelated reactive update (queue, card
  * store, settings subscriptions), but `selectNextEncounter` draws from an
  * unseeded rng by default — an unrelated re-run can silently replace the
  * displayed card, and after a reveal it can expose then rate a different
- * card. Each pin is keyed by `${epoch}:${fallbackId}` and re-served until an
- * explicit review action ends the encounter, so an unrelated reactive update
- * re-reads the SAME decision instead of re-drawing — including a fallback
- * that cycles A→B→A within one encounter without an action.
+ * card. The scheduler fallback can itself change on an unrelated update
+ * (including its random new/review interleaving). Pin the displayed identity
+ * and its decision within a scope such as the active language, rather than
+ * keying the encounter to that unstable fallback. Re-select only on an
+ * explicit action, a scope change, or when the selection is no longer valid.
  *
  * Every explicit review action (rate/bury/remove/undo) increments the epoch
- * and clears the pins: a pinned decision must never outlive the action that
+ * and clears the pin: a pinned decision must never outlive the action that
  * changed the pool — the displayed policy pick is often NOT the scheduler
  * fallback, so rating it must not replay it through a stale pin.
  */
-export interface DecisionPin {
-  /** Returns the pinned decision, computing it once per encounter+fallback. */
-  pin: (fallbackId: string, compute: () => PolicyDecision | null) => PolicyDecision | null;
-  /** Ends the active encounter: drops every pin so the next read selects afresh. */
+export interface DecisionPin<Selection = PolicyDecision | null> {
+  /** Retains the encounter's selection while it remains valid in this scope. */
+  pin: (scopeId: string, compute: () => Selection, isValid?: (selection: Selection) => boolean) => Selection;
+  /** Ends the active encounter so the next read selects afresh. */
   advance: () => void;
 }
 
-export function useDecisionPin(): DecisionPin {
+export function useDecisionPin<Selection = PolicyDecision | null>(): DecisionPin<Selection> {
   const [epoch, bumpEpoch] = createSignal(0);
-  const pins = new Map<string, PolicyDecision | null>();
+  let pinned: { epoch: number; scopeId: string; selection: Selection } | undefined;
   return {
-    pin(fallbackId, compute) {
+    pin(scopeId, compute, isValid) {
       // Reading the epoch signal inside the caller's memo subscribes the
-      // memo to `advance()` — an epoch bump re-runs the memo against
-      // cleared pins and forces a fresh selection.
-      const key = `${epoch()}:${fallbackId}`;
-      if (!pins.has(key)) pins.set(key, compute());
-      return pins.get(key)!;
+      // memo to `advance()` — an epoch bump forces a fresh selection.
+      const currentEpoch = epoch();
+      if (!pinned || pinned.epoch !== currentEpoch || pinned.scopeId !== scopeId
+        || (isValid && !isValid(pinned.selection))) {
+        pinned = { epoch: currentEpoch, scopeId, selection: compute() };
+      }
+      return pinned.selection;
     },
     advance() {
-      pins.clear();
+      pinned = undefined;
       bumpEpoch((current) => current + 1);
     },
   };

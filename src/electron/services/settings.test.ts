@@ -204,6 +204,8 @@ describe('loadSettings', () => {
     expect(settings.language).toBe('de');
     expect(settings.uiType).toBe('tactile');
     expect(settings.colorScheme).toBe('quartz');
+    expect(settings.flashcardCreationAudioPreset).toBe('high-quality');
+    expect(settings.flashcardRegenerationAudioPreset).toBe('fast');
   });
 
   it('migrates the legacy single-axis theme setting to uiType/colorScheme', () => {

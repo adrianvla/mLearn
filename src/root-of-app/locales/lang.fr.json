@@ -202,6 +202,20 @@
         },
         "Description": "Configurez les fonctions IA pour l'explication des mots et la pratique conversationnelle.",
         "FlashcardTTS": {
+          "Preset": {
+            "Label": "Profil audio",
+            "HighQuality": "Haute qualité",
+            "Fast": "Rapide",
+            "Description": "Haute qualité utilise le fournisseur choisi. Rapide utilise le moteur local des appels vocaux et l’échantillon de voix choisi."
+          },
+          "CreationPreset": {
+            "Label": "Génération automatique des cartes",
+            "Description": "Audio généré lors de la création des cartes. Haute qualité par défaut."
+          },
+          "RegenerationPreset": {
+            "Label": "Réparation / régénération",
+            "Description": "Audio pour les réparations et régénérations, y compris par lots. Rapide par défaut."
+          },
           "AutoGenerate": {
             "Description": "Générer et mettre en cache automatiquement les fichiers audio pour les nouvelles flashcards",
             "Label": "Génération auto de l'audio"
@@ -1099,17 +1113,24 @@
         "TtsFailed": "Échec de la génération TTS"
       },
       "Repair": {
+        "Aspects": {
+          "example": "Phrases d’exemple ({count})",
+          "content": "Contenu du dictionnaire ({count})",
+          "wordAudio": "Audio des mots ({count})",
+          "exampleAudio": "Audio des exemples ({count})",
+          "exampleMeaning": "Traductions des exemples ({count})"
+        },
         "Description": "{count} fichiers audio de cartes sont manquants. Voulez-vous les régénérer ?",
         "DescriptionWithLLM": "{llmCount} carte(s) manquent de traductions d'exemples et {ttsCount} fichier(s) audio manquent. Voulez-vous les réparer ?",
         "DescriptionLLMOnly": "{count} carte(s) manquent de traductions d'exemples. Voulez-vous les générer maintenant ?",
-        "Done": "{count} fichiers audio de cartes réparés",
-        "DoneWithErrors": "{count} fichiers audio réparés ({failed} échoués)",
+        "Done": "Réparation des cartes terminée ({count} mises à jour)",
+        "DoneWithErrors": "Réparation des cartes terminée ({count} mises à jour, {failed} échecs)",
         "LLMToastTitle": "Génération des traductions d'exemples manquantes…",
         "LLMDone": "Traductions générées pour {count} carte(s)",
         "LLMDoneWithErrors": "Traductions générées pour {count} carte(s), {failed} échoué(s)",
         "RepairButton": "Réparer", "ContentDescription": "{count} carte(s) n'ont pas encore de sens. Les compléter à partir du dictionnaire ?", "ContentToastTitle": "Complétion du contenu manquant des cartes…", "ContentDone": "{count} carte(s) complétée(s)", "ContentDoneWithErrors": "{count} carte(s) complétée(s), {failed} impossible(s)", "ContentFailed": "Impossible de compléter le contenu des cartes",
         "Title": "Données de cartes manquantes",
-        "ToastTitle": "Réparation de l'audio des cartes…"
+        "ToastTitle": "Réparation des cartes…"
       },
       "Review": {
         "CardActions": "Actions de la carte",

@@ -65,7 +65,7 @@ export interface ScanOptions {
 
 const languageOf = (card: Flashcard, activeLanguage: string): string => card.language || activeLanguage;
 
-const defaultInclude: readonly PlanKind[] = ['content', 'tts', 'exampleMeaning'];
+const defaultInclude: readonly PlanKind[] = ['content', 'example', 'tts', 'exampleMeaning'];
 
 /**
  * Scan cards for absent (or, in a re-roll mode, stale) assets.
@@ -113,16 +113,20 @@ export async function planFlashcardRepair(
     }
 
     if (include.includes('exampleMeaning')) {
-      const example = card.content.example;
+      const example = tts.getSpeakableText(card, 'example');
       if (example && !isPlaceholder(example) && options.llmReady && isPlaceholder(card.content.exampleMeaning)) {
         findings.push({ kind: 'exampleMeaning', card, language, exampleText: example });
       }
     }
 
     if (include.includes('example')) {
-      // An example can only be generated against a meaning; a shell card is the
-      // content repair's job, and the runner runs content first anyway.
-      if (hasMeaning(card) && (reRollExample || isPlaceholder(card.content.example))) {
+      // Shell cards become eligible after dictionary repair. A learner-cleared
+      // example stays blank unless they explicitly ask to replace all examples.
+      const canGenerate = options.llmReady === true
+        || (options.include?.includes('example') && options.llmReady !== false);
+      const missingExample = isPlaceholder(tts.getSpeakableText(card, 'example'));
+      const learnerCleared = (card.content.userEditedFields ?? []).includes('example');
+      if (canGenerate && hasMeaning(card) && (reRollExample || (missingExample && !learnerCleared))) {
         findings.push({ kind: 'example', card, language });
       }
     }
@@ -160,3 +164,27 @@ export async function buildContentUpdate(
 }
 
 export type { EnrichedWordContent };
+
+/** Independent repair choices, including the two audio fields. */
+export type RepairAspect = 'content' | 'example' | 'wordAudio' | 'exampleAudio' | 'exampleMeaning';
+export type RepairSelection = Record<RepairAspect, boolean>;
+export const DEFAULT_REPAIR_SELECTION: RepairSelection = {
+  content: true, example: true, wordAudio: true, exampleAudio: true, exampleMeaning: true,
+};
+
+export function repairAspect(finding: RepairFinding): RepairAspect {
+  return finding.kind === 'tts'
+    ? (finding.field === 'word' ? 'wordAudio' : 'exampleAudio')
+    : finding.kind;
+}
+
+export function selectRepairFindings(findings: readonly RepairFinding[], selection: RepairSelection): RepairFinding[] {
+  return findings.filter((finding) => {
+    const aspect = repairAspect(finding);
+    return selection[aspect];
+  });
+}
+
+export function repairFindingKey(finding: RepairFinding): string {
+  return `${finding.card.id}:${repairAspect(finding)}`;
+}

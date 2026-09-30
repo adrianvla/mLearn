@@ -7,6 +7,7 @@ import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, cre
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { selectNextEncounter } from '../../learning/engine';
+import type { PolicyDecision } from '../../learning/types';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { useDecisionPin } from '../../hooks/useDecisionPin';
 import { FlashcardEditModal } from './FlashcardEditModal';
@@ -80,7 +81,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // reactive updates re-run the selection memo, and the pin re-serves the
   // SAME decision instead of re-drawing with a fresh unseeded rng draw.
   // Explicit review actions below call advance() to re-select.
-  const decisionPin = useDecisionPin();
+  const decisionPin = useDecisionPin<{ card: Flashcard; decision: PolicyDecision | null }>();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [showCardActions, setShowCardActions] = createSignal(false);
@@ -147,7 +148,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   // Current card
-  const currentDecision = createMemo(() => {
+  const currentEncounter = createMemo(() => {
     const fallback = getCurrentCard();
     if (!fallback) return null;
     const language = languageForCard(fallback);
@@ -200,22 +201,26 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // every unrelated queue/store/settings update, and the unseeded weighted
     // draw would silently replace the displayed card. The pin re-serves the
     // same decision until an explicit review action advances the epoch.
-    return decisionPin.pin(fallback.id, () => selectNextEncounter({
-      preset: 'RETENTION',
-      nowMs,
-      // The goal applies only to the queue's own learning language (R07).
-      context: policyContextFromSettings(settings, language),
-      reviewQueueEntries,
-    }));
+    const availableIds = new Set(reviewQueueEntries.map((entry) => entry.id));
+    return decisionPin.pin(language, () => {
+      const decision = selectNextEncounter({
+        preset: 'RETENTION',
+        nowMs,
+        // The goal applies only to the queue's own learning language (R07).
+        context: policyContextFromSettings(settings, language),
+        reviewQueueEntries,
+      });
+      const card = decision?.action === 'DEFER'
+        ? fallback
+        : store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
+      return { card, decision };
+    }, (encounter) => availableIds.has(encounter.card.id));
   });
 
+  const currentDecision = () => currentEncounter()?.decision ?? null;
   const currentCard = createMemo(() => {
-    const fallback = getCurrentCard();
-    if (!fallback) return null;
-    const decision = currentDecision();
-    return decision?.action === 'DEFER'
-      ? fallback
-      : store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
+    const encounter = currentEncounter();
+    return encounter ? store.flashcards[encounter.card.id] ?? encounter.card : null;
   });
 
   const cardHasReadingData = (card: Flashcard): boolean => {
@@ -567,6 +572,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const handleStartOver = () => {
     refreshQueue();
+    decisionPin.advance();
     setShowAnswer(false);
     setIsComplete(false);
     setCardsAnswered(0);

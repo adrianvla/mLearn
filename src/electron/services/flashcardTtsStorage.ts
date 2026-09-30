@@ -1,3 +1,5 @@
+import { DEFAULT_SETTINGS, type FlashcardAudioPreset, type TTSProvider } from '../../shared/types';
+import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset';
 /**
  * Flashcard TTS Storage Service
  * Manages .ogg audio files for flashcard word and example TTS.
@@ -9,7 +11,7 @@ import path from 'path';
 import { ipcMain, protocol, net } from 'electron';
 import { IPC_CHANNELS, API_ENDPOINTS, DEFAULT_CLOUD_API_URL } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
-import { loadSamplesManifest, getVoiceSamplePath } from './voiceService';
+import { loadSamplesManifest, getVoiceSamplePath, ensureVoiceSampleTranscript } from './voiceService';
 import { getQuitToken } from './pythonBackend';
 import { limitConsecutiveDots } from '../../shared/utils/textUtils';
 import { pathToFileURL } from 'node:url';
@@ -56,9 +58,10 @@ function metaPath(cardId: string, field: 'word' | 'example'): string {
 }
 
 /** Write TTS metadata alongside the audio file */
-function writeMetadata(cardId: string, field: 'word' | 'example', provider: string, language: string): void {
+function writeMetadata(cardId: string, field: 'word' | 'example', provider: string, language: string, preset: FlashcardAudioPreset): void {
   const meta = {
     provider,
+    preset,
     generatedAt: new Date().toISOString(),
     language,
   };
@@ -111,13 +114,13 @@ function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | nu
  * Generate TTS audio via the local Python backend (Kokoro or Qwen3) and save as .ogg.
  * The `provider` field is forwarded so the backend routes to the correct engine.
  */
-async function generateViaLocal(text: string, language: string, outputPath: string, provider: string, voiceSamplePath?: string): Promise<boolean> {
+async function generateViaLocal(text: string, language: string, outputPath: string, provider: string, voiceSamplePath?: string, preset: FlashcardAudioPreset = DEFAULT_SETTINGS.flashcardCreationAudioPreset): Promise<boolean> {
   const label = `[FlashcardTTS] local (${provider})`;
   const textSnippet = text.length > 40 ? text.slice(0, 40) + '…' : text;
 
   return new Promise((resolve) => {
     const url = new URL(API_ENDPOINTS.voiceTts);
-    const payload: Record<string, unknown> = { text, language, format: 'ogg', provider };
+    const payload: Record<string, unknown> = { text, language, format: 'ogg', provider, preset };
     if (voiceSamplePath) payload.voiceSamplePath = voiceSamplePath;
     const body = JSON.stringify(payload);
     const token = getQuitToken();
@@ -382,8 +385,10 @@ async function generateFlashcardTts(
   voiceSampleId?: string,
   cloudAuthToken?: string,
   cloudApiUrl?: string,
+  preset: FlashcardAudioPreset = DEFAULT_SETTINGS.flashcardCreationAudioPreset,
 ): Promise<string | null> {
   if (!text || text === '-') return null;
+  provider = flashcardAudioProvider(preset, provider as TTSProvider);
 
   // Sanitize consecutive dots to prevent TTS backend failures
   const sanitizedText = limitConsecutiveDots(text);
@@ -394,7 +399,10 @@ async function generateFlashcardTts(
   if (voiceSampleId) {
     const samples = loadSamplesManifest();
     const sample = samples.find((s) => s.id === voiceSampleId);
-    if (sample) voiceSamplePath = getVoiceSamplePath(sample);
+    if (sample) {
+      if (provider === 'qwen3') await ensureVoiceSampleTranscript(sample, samples, language);
+      voiceSamplePath = getVoiceSamplePath(sample);
+    }
   }
 
   for (let attempt = 1; attempt <= MAX_TTS_ATTEMPTS; attempt++) {
@@ -403,11 +411,11 @@ async function generateFlashcardTts(
     if (provider === 'cloud' && cloudAuthToken) {
       success = await generateViaCloud(sanitizedText, language, output, cloudAuthToken, cloudApiUrl, provider, voiceSampleId);
     } else {
-      success = await generateViaLocal(sanitizedText, language, output, provider, voiceSamplePath);
+      success = await generateViaLocal(sanitizedText, language, output, provider, voiceSamplePath, preset);
     }
 
     if (success) {
-      writeMetadata(cardId, field, provider, language);
+      writeMetadata(cardId, field, provider, language, preset);
       return toAudioUrl(output);
     }
 
@@ -433,12 +441,13 @@ async function batchGenerateFlashcardTts(
   voiceSampleId?: string,
   cloudAuthToken?: string,
   cloudApiUrl?: string,
+  preset: FlashcardAudioPreset = DEFAULT_SETTINGS.flashcardCreationAudioPreset,
 ): Promise<Record<string, string>> {
   const results: Record<string, string> = {};
 
   // Generate one by one (cloud and local providers)
   for (const item of items) {
-    const url = await generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+    const url = await generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset);
     if (url) {
       results[`${item.cardId}-${item.field}`] = url;
     }
@@ -511,15 +520,15 @@ export function setupFlashcardTtsIPC(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.FLASHCARD_TTS_GENERATE,
-    (_event, cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => {
-      return generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+    (_event, cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => {
+      return generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset);
     },
   );
 
   ipcMain.handle(
     IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE,
-    (_event, items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => {
-      return batchGenerateFlashcardTts(items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+    (_event, items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => {
+      return batchGenerateFlashcardTts(items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset);
     },
   );
 

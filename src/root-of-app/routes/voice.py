@@ -27,7 +27,7 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from starlette.responses import Response
-from typing import Optional
+from typing import Literal, Optional
 
 import config
 from logging_utils import get_logger
@@ -660,6 +660,7 @@ class TTSRequest(BaseModel):
     voiceSamplePath: Optional[str] = None
     speed: float = 1.0
     provider: Optional[str] = None
+    preset: Literal["high-quality", "fast"] = "high-quality"
 
 
 def _requested_tts_language(req: TTSRequest) -> str:
@@ -846,7 +847,7 @@ async def voice_tts_generate(req: TTSRequest):
     _reload_tts_settings()
     try:
         # Allow per-request provider override (e.g. flashcard TTS testing)
-        provider = req.provider or _tts_provider
+        provider = "qwen3" if req.preset == "fast" else (req.provider or _tts_provider)
         requested_language = _requested_tts_language(req)
         if provider == "cloud":
             raise HTTPException(
@@ -1161,7 +1162,7 @@ async def _generate_tts_qwen3(req: TTSRequest, language: str):
     def _run_sync():
         all_audio = []
         sr = _QWEN3_TTS_SAMPLE_RATE
-        for chunk in _iter_qwen3_tts_chunks(req, language, stream=False):
+        for chunk in _iter_qwen3_tts_chunks(req, language, stream=req.preset == "fast"):
             all_audio.append(chunk["audio"])
             sr = int(chunk["sampleRate"])
 
@@ -1182,7 +1183,8 @@ async def _generate_tts_qwen3(req: TTSRequest, language: str):
         }]
         return buf.read(), sentence_boundaries, sr
 
-    content, sentence_boundaries, sr = await asyncio.to_thread(_run_sync)
+    loop = asyncio.get_running_loop()
+    content, sentence_boundaries, sr = await loop.run_in_executor(_qwen3_tts_executor, _run_sync)
 
     return Response(
         content=content,
@@ -1374,13 +1376,18 @@ async def _generate_tts_qwen3_torch(req: TTSRequest, language: str):
     """Generate a full WAV with the torch Qwen3 engine (voice cloning first-class)."""
 
     def _run_sync():
-        model = _ensure_qwen3_torch_loaded()
-        _voice_touch()
-        safe_voice_path = _qwen3_torch_voice_sample(req)
-        voice_prompt = _qwen3_torch_voice_prompt(model, safe_voice_path)
-        lang_code = _qwen3_lang_code(language)
-        wavs, sr = _qwen3_torch_generate(model, req.text, voice_prompt, lang_code)
-        audio_chunks, sr = _qwen3_torch_audio_chunks(wavs, sr)
+        if req.preset == "fast":
+            chunks = list(_iter_qwen3_torch_tts_chunks(req, language))
+            audio_chunks = [chunk["audio"] for chunk in chunks]
+            sr = chunks[0]["sampleRate"] if chunks else _QWEN3_TTS_SAMPLE_RATE
+        else:
+            model = _ensure_qwen3_torch_loaded()
+            _voice_touch()
+            safe_voice_path = _qwen3_torch_voice_sample(req)
+            voice_prompt = _qwen3_torch_voice_prompt(model, safe_voice_path)
+            lang_code = _qwen3_lang_code(language)
+            wavs, sr = _qwen3_torch_generate(model, req.text, voice_prompt, lang_code)
+            audio_chunks, sr = _qwen3_torch_audio_chunks(wavs, sr)
         if not audio_chunks or sum(chunk.size for chunk in audio_chunks) == 0:
             raise HTTPException(status_code=500, detail="No audio generated")
 

@@ -1,3 +1,5 @@
+import { flashcardAudioProvider } from '../../../../shared/utils/flashcardAudioPreset';
+import { FlashcardAudioPresetSelect } from '../../../components/flashcard/FlashcardAudioPresetSelect';
 /**
  * SRS Settings Tab
  */
@@ -21,6 +23,8 @@ export const SRSTab: Component = () => {
   const { recomputeWordKnowledgeFromEvidence } = useFlashcards();
 
   const { getLanguageFeatures, currentLangData } = useLanguage();
+  const usesFastFlashcardAudio = () => (settings.flashcardCreationAudioPreset ?? DEFAULT_SETTINGS.flashcardCreationAudioPreset) === 'fast'
+    || (settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset) === 'fast';
   const anki = useAnki();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
 
@@ -636,7 +640,7 @@ export const SRSTab: Component = () => {
           />
         </SettingRow>
 
-        <Show when={settings.flashcardTtsProvider !== 'kokoro' && settings.flashcardTtsProvider !== 'cloud'}>
+        <Show when={usesFastFlashcardAudio() || (settings.flashcardTtsProvider !== 'kokoro' && settings.flashcardTtsProvider !== 'cloud')}>
           <SettingRow
               label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}
               description={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Description')}
@@ -644,9 +648,11 @@ export const SRSTab: Component = () => {
             <VoiceSamplePicker
                 value={settings.flashcardVoiceSampleId}
                 onChange={(id) => updateSettings({ flashcardVoiceSampleId: id })}
-                ttsProvider={settings.flashcardTtsProvider}
+                ttsProvider={flashcardAudioProvider(usesFastFlashcardAudio() ? 'fast' : 'high-quality', settings.flashcardTtsProvider)}
             />
           </SettingRow>
+        </Show>
+        <Show when={settings.flashcardTtsProvider !== 'kokoro' && settings.flashcardTtsProvider !== 'cloud'}>
           <SettingRow
             label={t('mlearn.AI.Settings.FlashcardLLM.Label')}
             description={t('mlearn.AI.Settings.FlashcardLLM.Description')}
@@ -662,6 +668,27 @@ export const SRSTab: Component = () => {
             />
           </SettingRow>
         </Show>
+
+        <SettingRow
+          label={t('mlearn.AI.Settings.FlashcardTTS.CreationPreset.Label')}
+          description={t('mlearn.AI.Settings.FlashcardTTS.CreationPreset.Description')}
+        >
+          <FlashcardAudioPresetSelect
+            ariaLabel={t('mlearn.AI.Settings.FlashcardTTS.CreationPreset.Label')}
+            value={settings.flashcardCreationAudioPreset ?? DEFAULT_SETTINGS.flashcardCreationAudioPreset}
+            onChange={(value) => updateSettings({ flashcardCreationAudioPreset: value })}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('mlearn.AI.Settings.FlashcardTTS.RegenerationPreset.Label')}
+          description={t('mlearn.AI.Settings.FlashcardTTS.RegenerationPreset.Description')}
+        >
+          <FlashcardAudioPresetSelect
+            ariaLabel={t('mlearn.AI.Settings.FlashcardTTS.RegenerationPreset.Label')}
+            value={settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset}
+            onChange={(value) => updateSettings({ flashcardRegenerationAudioPreset: value })}
+          />
+        </SettingRow>
 
         <SettingRow
             label={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Label')}

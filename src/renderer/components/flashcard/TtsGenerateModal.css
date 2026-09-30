@@ -42,3 +42,9 @@
 }
 
 /* Task progress toast content now uses shared TaskProgress component styles */
+
+.tts-generate-preset-description {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}

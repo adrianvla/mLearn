@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe('useDecisionPin', () => {
-  it('computes once per fallback and re-serves the identical decision', () => {
+  it('computes once per scope and re-serves the identical decision', () => {
     const pin = useDecisionPin();
     const compute = vi.fn(() => ({ candidate: { key: 'c1' } } as unknown as PolicyDecision));
     const first = pin.pin('c1', compute);
@@ -46,20 +46,39 @@ describe('useDecisionPin', () => {
     expect(compute).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps one pin per fallback: a cycled A→B→A fallback never re-draws', () => {
+  it('reselects on a language scope change, including switching back', () => {
     const pin = useDecisionPin();
     const computeA = vi.fn(() => ({ candidate: { key: 'a' } } as unknown as PolicyDecision));
     const computeB = vi.fn(() => ({ candidate: { key: 'b' } } as unknown as PolicyDecision));
-    const firstA = pin.pin('a', computeA);
+    pin.pin('a', computeA);
     expect(pin.pin('b', computeB)?.candidate.key).toBe('b');
-    // The context's fallback can legitimately cycle back to A without an
-    // explicit action: A re-serves its OWN pin instead of re-drawing.
-    expect(pin.pin('a', computeA)).toBe(firstA);
-    expect(computeA).toHaveBeenCalledTimes(1);
+    expect(pin.pin('a', computeA)?.candidate.key).toBe('a');
+    expect(computeA).toHaveBeenCalledTimes(2);
     expect(computeB).toHaveBeenCalledTimes(1);
   });
 
-  it('drops every pin on advance so the same fallback recomputes', () => {
+  it('reselects when a pinned card is removed from the admitted workload', () => {
+    const pin = useDecisionPin<string>();
+    let available = new Set(['first', 'second']);
+    const valid = (id: string) => available.has(id);
+    expect(pin.pin('language', () => 'first', valid)).toBe('first');
+    const next = vi.fn(() => 'second');
+    expect(pin.pin('language', next, valid)).toBe('first');
+    expect(next).not.toHaveBeenCalled();
+    available = new Set(['second']);
+    expect(pin.pin('language', next, valid)).toBe('second');
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('pins the displayed fallback along with a null or deferred policy decision', () => {
+    const pin = useDecisionPin<{ cardId: string; decision: PolicyDecision | null }>();
+    const first = pin.pin('language', () => ({ cardId: 'first', decision: null }));
+    expect(pin.pin('language', () => ({ cardId: 'second', decision: null }))).toBe(first);
+    pin.advance();
+    expect(pin.pin('language', () => ({ cardId: 'second', decision: null })).cardId).toBe('second');
+  });
+
+  it('drops the selection on advance so the same scope recomputes', () => {
     const pin = useDecisionPin();
     let generation = 0;
     const compute = vi.fn(() => {
@@ -89,7 +108,7 @@ describe('useDecisionPin — surface encounter pattern (R20 repair)', () => {
       // scheduler's queue and calls the UNSEEDED policy inside the pin.
       const displayed = createMemo(() => {
         const current = fallback();
-        const decision = pin.pin(current.id, () => selectNextEncounter(policyInputs([card('c1'), card('c2')])));
+        const decision = pin.pin(current.language, () => selectNextEncounter(policyInputs([card('c1'), card('c2')])));
         return decision?.candidate.key ?? current.id;
       });
       expect(displayed()).toBe('c1');
@@ -100,6 +119,8 @@ describe('useDecisionPin — surface encounter pattern (R20 repair)', () => {
       // memo re-ran the unseeded draw; the forced second outcome (0.1, 0.9)
       // would have flipped the displayed card to c2.
       randomSpy.mockReturnValueOnce(0.1).mockReturnValueOnce(0.9);
+      setFallback(card('c1'));
+      setFallback(card('c2'));
       setFallback(card('c1'));
 
       expect(displayed()).toBe('c1');
@@ -119,7 +140,7 @@ describe('useDecisionPin — surface encounter pattern (R20 repair)', () => {
       const pin = useDecisionPin();
       const displayed = createMemo(() => {
         const current = fallback();
-        const decision = pin.pin(current.id, () => selectNextEncounter(policyInputs([card('c1'), card('c2')])));
+        const decision = pin.pin(current.language, () => selectNextEncounter(policyInputs([card('c1'), card('c2')])));
         return decision?.candidate.key ?? current.id;
       });
       expect(displayed()).toBe('c2');

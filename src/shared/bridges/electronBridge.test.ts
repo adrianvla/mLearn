@@ -372,15 +372,15 @@ describe('flashcardBridge', () => {
 
   it('generateFlashcardTts passes all arguments to ipc.generateFlashcardTts', () => {
     const bridge = createElectronBridge();
-    bridge.flashcards.generateFlashcardTts('card-1', 'hello', 'en', 'word', 'kokoro', 'sample-id', 'token', 'https://api.example.com');
-    expect(mockIPC.generateFlashcardTts).toHaveBeenCalledWith('card-1', 'hello', 'en', 'word', 'kokoro', 'sample-id', 'token', 'https://api.example.com');
+    bridge.flashcards.generateFlashcardTts('card-1', 'hello', 'en', 'word', 'kokoro', 'sample-id', 'token', 'https://api.example.com', 'fast');
+    expect(mockIPC.generateFlashcardTts).toHaveBeenCalledWith('card-1', 'hello', 'en', 'word', 'kokoro', 'sample-id', 'token', 'https://api.example.com', 'fast');
   });
 
   it('batchGenerateFlashcardTts passes all arguments to ipc.batchGenerateFlashcardTts', () => {
     const bridge = createElectronBridge();
     const items = [{ cardId: 'c1', text: 'hello', field: 'word' as const }];
-    bridge.flashcards.batchGenerateFlashcardTts(items, 'en', 'kokoro', 'sample-id', 'token', 'https://api.example.com');
-    expect(mockIPC.batchGenerateFlashcardTts).toHaveBeenCalledWith(items, 'en', 'kokoro', 'sample-id', 'token', 'https://api.example.com');
+    bridge.flashcards.batchGenerateFlashcardTts(items, 'en', 'kokoro', 'sample-id', 'token', 'https://api.example.com', 'fast');
+    expect(mockIPC.batchGenerateFlashcardTts).toHaveBeenCalledWith(items, 'en', 'kokoro', 'sample-id', 'token', 'https://api.example.com', 'fast');
   });
 
   it('getFlashcardTtsMeta passes cardId and field to ipc.getFlashcardTtsMeta', () => {

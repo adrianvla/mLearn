@@ -1,3 +1,6 @@
+import { flashcardAudioProvider } from '../../../shared/utils/flashcardAudioPreset';
+import { FlashcardAudioPresetSelect } from '../../components/flashcard/FlashcardAudioPresetSelect';
+import { FlashcardRepairOptions } from '../../components/flashcard/FlashcardRepairOptions';
 import { FlashcardCreateModal } from '../../components/flashcard/FlashcardCreateModal';
 import { FlashcardInspectButton } from '../../components/flashcard/FlashcardInspectButton';
 import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGate';
@@ -22,13 +25,13 @@ import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
 import { isLLMReady } from '../../services/llmProvider';
-import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider, type FlashcardAudioPreset } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
 import { getSuggestedFlashcardBadgeCount } from './flashcardsSuggestedCount';
 import { buildBulkExampleUpdates } from '../../utils/flashcardBulkExamples';
-import { countByKind, planFlashcardRepair, type RepairFinding } from '../../utils/flashcardRepairPlan';
-import { runFlashcardRepair, type RepairRunResult } from '../../utils/flashcardRepairRunner';
+import { DEFAULT_REPAIR_SELECTION, selectRepairFindings, repairAspect, planFlashcardRepair, type ExampleFinding, type RepairFinding, type RepairSelection, type ScanOptions } from '../../utils/flashcardRepairPlan';
+import { runFlashcardRepair, runMissingFlashcardRepair, type RepairRunResult } from '../../utils/flashcardRepairRunner';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
@@ -38,21 +41,6 @@ import { getLogger } from '../../../shared/utils/logger';
 const log = getLogger("renderer.flashcards.app");
 
 type TabId = FlashcardsTabId;
-
-interface TtsRepairJob {
-  cardId: string;
-  cardFront: string;
-  text: string;
-  field: 'word' | 'example';
-  language: string;
-}
-
-interface LlmRepairJob {
-  cardId: string;
-  cardFront: string;
-  exampleText: string;
-  language: string;
-}
 
 /** The bridge-backed probes the shared repair plan needs, in one place. */
 const ttsScanDeps = (
@@ -144,6 +132,11 @@ export const FlashcardsContent: Component = () => {
 
   // TTS provider override for bulk generation (defaults to settings value)
   const [bulkTtsProvider, setBulkTtsProvider] = createSignal<TTSProvider>(settings.flashcardTtsProvider);
+  const [bulkAudioPreset, setBulkAudioPreset] = createSignal<FlashcardAudioPreset>(settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset);
+  const bulkAudioProvider = () => flashcardAudioProvider(bulkAudioPreset(), bulkTtsProvider());
+  createEffect(on(() => settings.flashcardRegenerationAudioPreset, (preset) => {
+    setBulkAudioPreset(preset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset);
+  }));
 
   // Bulk mode: generate only for empty fields, replace all, or regenerate older than date
   const [bulkMode, setBulkMode] = createSignal<'onlyEmpty' | 'replaceAll' | 'olderThan'>('onlyEmpty');
@@ -157,14 +150,29 @@ export const FlashcardsContent: Component = () => {
   const { playTts: browseTtsPlay, playingField: browseTtsPlayingField, isGenerating: browseTtsGenerating, stop: browseTtsStop } = useFlashcardTts();
   const [browseTtsCardId, setBrowseTtsCardId] = createSignal<string | null>(null);
 
-  // TTS repair state
-  const [repairJobs, setRepairJobs] = createSignal<TtsRepairJob[]>([]);
-  const [llmRepairJobs, setLlmRepairJobs] = createSignal<LlmRepairJob[]>([]);
-  const [missingContentCount, setMissingContentCount] = createSignal(0);
-  // Cards the shared plan found to have no meaning, filled by the repair runner.
-  let missingContentCards: string[] = [];
+  // Retain the shared findings directly, including missing example sentences.
+  const [repairFindings, setRepairFindings] = createSignal<RepairFinding[]>([]);
   const [showRepairModal, setShowRepairModal] = createSignal(false);
-  const [, setRepairRunning] = createSignal(false);
+  const [repairRunning, setRepairRunning] = createSignal(false);
+  const [repairSelection, setRepairSelection] = createSignal({ ...DEFAULT_REPAIR_SELECTION });
+  const [repairAudioPreset, setRepairAudioPreset] = createSignal<FlashcardAudioPreset>(settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset);
+  const repairCounts = createMemo(() => {
+    const counts: Record<keyof RepairSelection, number> = { content: 0, example: 0, wordAudio: 0, exampleAudio: 0, exampleMeaning: 0 };
+    for (const finding of repairFindings()) counts[repairAspect(finding)]++;
+    return counts;
+  });
+  const selectedRepairCount = () => Object.entries(repairCounts()).reduce(
+    (count, [aspect, available]) => count + (repairSelection()[aspect as keyof typeof DEFAULT_REPAIR_SELECTION] ? available : 0), 0,
+  );
+  const hasSelectedRepairAudio = () => settings.flashcardAutoGenerateAudio !== false && ((repairSelection().wordAudio && repairCounts().wordAudio > 0)
+    || (repairSelection().exampleAudio && (repairCounts().exampleAudio > 0 || repairSelection().example && (repairCounts().example > 0 || repairSelection().content && repairCounts().content > 0))));
+  const repairAudioProvider = () => flashcardAudioProvider(repairAudioPreset(), settings.flashcardTtsProvider);
+  const openRepairModal = () => {
+    setRepairSelection({ ...DEFAULT_REPAIR_SELECTION });
+    setRepairAudioPreset(settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset);
+    setShowRepairModal(true);
+    void refreshRepairFindings();
+  };
 
   const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
     || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
@@ -218,73 +226,54 @@ export const FlashcardsContent: Component = () => {
     language: () => settings.language,
   });
 
-  // Scan for broken TTS after flashcards finish loading
-  let ttsRepairScanned = false;
-  createEffect(on(isLoading, (loading) => {
-    if (loading || ttsRepairScanned) return;
-    ttsRepairScanned = true;
-    if (!isElectron()) return;
-
-    (async () => {
-      const bridge = getBridge();
-      const cards = getAllCards();
-      if (cards.length === 0) return;
-
-      // ONE scan answers every maintenance question, so the Repair modal and the
-      // Generate tab can never disagree about what is missing.
-      const plan = await planFlashcardRepair(cards, {
-        scope: 'all',
-        activeLanguage: settings.language,
-        autoGenerateAudio: settings.flashcardAutoGenerateAudio,
-        llmReady: isLLMReady(settings),
-      }, ttsScanDeps(bridge, languageDataForCard));
-
-      const ttsJobs: TtsRepairJob[] = [];
-      const llmJobs: LlmRepairJob[] = [];
-      for (const finding of plan) {
-        if (finding.kind === 'tts') {
-          ttsJobs.push({ cardId: finding.card.id, cardFront: finding.card.content.front, text: finding.text, field: finding.field, language: finding.language });
-        } else if (finding.kind === 'exampleMeaning') {
-          llmJobs.push({ cardId: finding.card.id, cardFront: finding.card.content.front, exampleText: finding.exampleText, language: finding.language });
-        } else if (finding.kind === 'content') {
-          missingContentCards.push(finding.card.id);
-        }
-      }
-      setMissingContentCount(missingContentCards.length);
-
-      if (ttsJobs.length > 0 || llmJobs.length > 0 || missingContentCards.length > 0) {
-        setRepairJobs(ttsJobs);
-        setLlmRepairJobs(llmJobs);
-        // Offer repair without interrupting a learner’s review session.
-      }
-    })();
+  const repairScanOptions = (): ScanOptions => ({
+    scope: 'all',
+    activeLanguage: settings.language,
+    autoGenerateAudio: settings.flashcardAutoGenerateAudio,
+    llmReady: isLLMReady(settings),
+  });
+  const scanRepairs = () => planFlashcardRepair(getAllCards(), repairScanOptions(), ttsScanDeps(getBridge(), languageDataForCard));
+  let repairScanGeneration = 0;
+  const refreshRepairFindings = async () => {
+    const generation = ++repairScanGeneration;
+    try {
+      const findings = await scanRepairs();
+      if (generation === repairScanGeneration && !repairRunning()) setRepairFindings(findings);
+    } catch (error) {
+      log.error('Flashcard repair scan failed', error);
+    }
+  };
+  createEffect(on(() => [isLoading(), isLLMReady(settings), settings.flashcardAutoGenerateAudio], () => {
+    if (!isLoading() && isElectron() && !repairRunning()) void refreshRepairFindings();
   }));
 
-  // Handle TTS repair with retry logic for transient failures
+  const generateRepairExamples = async (exampleFindings: readonly ExampleFinding[]) => {
+    const updates = await buildBulkExampleUpdates(exampleFindings.map((finding) => getCardById(finding.card.id) ?? finding.card), {
+      activeLanguage: settings.language,
+      settings,
+      colourCodes: settings.colour_codes ?? {},
+      getLanguageData: (language) => langData[language] ?? (language === settings.language ? currentLangData() : null),
+      generateExampleSentences: generateExampleSentencesWithLLM,
+      colorizeTokenizedText,
+    });
+    return updates.map((update) => update ? { cardId: update.cardId, content: update.content as Record<string, unknown> } : null);
+  };
+
+  // Repair missing assets with retries for transient failures
   const MAX_REPAIR_RETRIES = 3;
 
   const handleRepair = async () => {
-    const findings: RepairFinding[] = [];
-    for (const id of missingContentCards) {
-      const card = getCardById(id);
-      if (card) findings.push({ kind: 'content', card, language: languageForCard(card) });
-    }
-    for (const job of llmRepairJobs()) {
-      const card = getCardById(job.cardId);
-      if (card) findings.push({ kind: 'exampleMeaning', card, language: job.language, exampleText: job.exampleText });
-    }
-    for (const job of repairJobs()) {
-      const card = getCardById(job.cardId);
-      if (card) findings.push({ kind: 'tts', card, language: job.language, field: job.field, text: job.text });
-    }
+    if (repairRunning()) return;
+    const selection = { ...repairSelection() };
+    const findings = selectRepairFindings(repairFindings(), selection);
     if (findings.length === 0) return;
 
     const bridge = getBridge();
-    const provider = settings.flashcardTtsProvider;
+    const preset = repairAudioPreset();
+    const provider = repairAudioProvider();
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
     const cloudApiUrl = resolveCloudApiUrl(settings);
-    const hasTts = findings.some((f) => f.kind === 'tts');
-    if (hasTts && provider === 'cloud' && settings.cloudAuthStatus !== 'signed-in') {
+    if (hasSelectedRepairAudio() && provider === 'cloud' && settings.cloudAuthStatus !== 'signed-in') {
       showToast({ message: t('mlearn.CardEditor.NoCloudAuth'), variant: 'warning', duration: 6000 });
       return;
     }
@@ -298,30 +287,33 @@ export const FlashcardsContent: Component = () => {
       duration: 0,
     });
 
-    if (hasTts && provider !== 'cloud') {
-      const allowed = await requestAccess('tts');
-      if (!allowed) {
-        removeToast(toastId);
-        setRepairRunning(false);
-        return;
-      }
-    }
+    let localTtsAllowed: boolean | undefined;
 
-    // One runner for every kind: content first, then example meanings, then
+    // One runner for every kind: dictionary content, examples, translations, then
     // audio, so nothing is generated against a field that is about to change.
-    const counts = countByKind(findings);
     let result: RepairRunResult;
     try {
-      result = await runFlashcardRepair(findings, {
+      result = await runMissingFlashcardRepair(findings, {
+        getCards: getAllCards,
+        scanOptions: repairScanOptions(),
+        tts: ttsScanDeps(bridge, languageDataForCard),
+        selection,
+        generateExamples: generateRepairExamples,
         activeLanguage: settings.language,
         getLanguageData: (language) => langData[language] ?? (language === settings.language ? currentLangData() : null),
         settings,
         applyContent: (cardId, content) => updateFlashcardContent(cardId, content, false),
-        generateTts: async (job) => Boolean(provider === 'cloud'
-          ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(
-            job.cardId, job.text, job.language, job.field, provider, voiceSampleId, cloudToken, cloudApiUrl))
-          : await bridge.flashcards.generateFlashcardTts(
-            job.cardId, job.text, job.language, job.field, provider, voiceSampleId, undefined, cloudApiUrl)),
+        generateTts: async (job) => {
+          if (provider !== 'cloud') {
+            localTtsAllowed ??= await requestAccess('tts');
+            if (!localTtsAllowed) return false;
+          }
+          return Boolean(provider === 'cloud'
+            ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(
+              job.cardId, job.text, job.language, job.field, provider, voiceSampleId, cloudToken, cloudApiUrl, preset))
+            : await bridge.flashcards.generateFlashcardTts(
+              job.cardId, job.text, job.language, job.field, provider, voiceSampleId, undefined, cloudApiUrl, preset));
+        },
         translateExample: async (text, language) => {
           const sourceLanguage = getLanguageDisplayName(
             language,
@@ -352,18 +344,14 @@ export const FlashcardsContent: Component = () => {
     }
 
     removeToast(toastId);
-    missingContentCards = [];
-    setMissingContentCount(0);
-    setRepairJobs([]);
-    setLlmRepairJobs([]);
     setRepairRunning(false);
+    await refreshRepairFindings();
 
     if (result.failed > 0) {
       showToast({ variant: 'warning', title: t('mlearn.Flashcards.Repair.DoneWithErrors', { count: result.succeeded, failed: result.failed }), duration: 5000 });
     } else if (result.succeeded > 0) {
       showToast({ variant: 'success', title: t('mlearn.Flashcards.Repair.Done', { count: result.succeeded }), duration: 4000 });
     }
-    void counts;
   };
 
   const handleBrowseTts = (cardId: string, text: string) => {
@@ -574,7 +562,8 @@ export const FlashcardsContent: Component = () => {
 
     const bridge = getBridge();
     const cards = flashcards();
-    const provider = bulkTtsProvider();
+    const preset = bulkAudioPreset();
+    const provider = bulkAudioProvider();
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
     const cloudApiUrl = resolveCloudApiUrl(settings);
     const cutoffDate = bulkMode() === 'olderThan'
@@ -615,9 +604,9 @@ export const FlashcardsContent: Component = () => {
       applyContent: () => {},
       generateTts: async (job) => Boolean(provider === 'cloud'
         ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(
-          job.cardId, job.text, job.language, job.field, provider, voiceSampleId, cloudToken, cloudApiUrl))
+          job.cardId, job.text, job.language, job.field, provider, voiceSampleId, cloudToken, cloudApiUrl, preset))
         : await bridge.flashcards.generateFlashcardTts(
-          job.cardId, job.text, job.language, job.field, provider, voiceSampleId, undefined, cloudApiUrl)),
+          job.cardId, job.text, job.language, job.field, provider, voiceSampleId, undefined, cloudApiUrl, preset)),
       abortOnError: (error) => {
         if (handleCloudOperationFallback(error)) return true;
         log.error('Flashcard audio generation failed', error);
@@ -640,7 +629,6 @@ export const FlashcardsContent: Component = () => {
     if (bulkProgress()) return;
 
     const cards = flashcards();
-    const colourCodes = settings.colour_codes || {};
 
     // The SAME scan as Repair and bulk audio, asked a different question:
     // re-roll the examples that already exist (or fill the empty ones).
@@ -665,17 +653,7 @@ export const FlashcardsContent: Component = () => {
       settings,
       applyContent: (cardId, content) => updateFlashcardContent(cardId, content),
       generateTts: async () => false,
-      generateExamples: async (exampleFindings) => {
-        const updates = await buildBulkExampleUpdates(exampleFindings.map((finding) => finding.card), {
-          activeLanguage: settings.language,
-          settings,
-          colourCodes,
-          getLanguageData: (language) => langData[language] ?? (language === settings.language ? currentLangData() : null),
-          generateExampleSentences: generateExampleSentencesWithLLM,
-          colorizeTokenizedText,
-        });
-        return updates.map((update) => (update ? { cardId: update.cardId, content: update.content as Record<string, unknown> } : null));
-      },
+      generateExamples: generateRepairExamples,
       onProgress: (completed, total) => {
         setBulkProgress({ current: completed, total, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });
       },
@@ -782,8 +760,8 @@ export const FlashcardsContent: Component = () => {
           </nav>
           
           <div class="flashcards-sidebar-actions">
-            <Show when={repairJobs().length + llmRepairJobs().length + missingContentCount() > 0}>
-              <Button variant="warning" size="sm" onClick={() => setShowRepairModal(true)}>{t('mlearn.Flashcards.Repair.Title')}</Button>
+            <Show when={repairFindings().length > 0}>
+              <Button variant="warning" size="sm" onClick={openRepairModal} disabled={repairRunning()}>{t('mlearn.Flashcards.Repair.Title')}</Button>
             </Show>
             <Button
               size="sm" 
@@ -1038,24 +1016,31 @@ export const FlashcardsContent: Component = () => {
                     <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.TtsTooltip')}</p>
 
                     <div class="flashcards-generate-option">
+                      <label class="flashcards-generate-label" for="flashcards-generate-audio-preset">{t('mlearn.AI.Settings.FlashcardTTS.Preset.Label')}</label>
+                      <FlashcardAudioPresetSelect id="flashcards-generate-audio-preset" value={bulkAudioPreset()} onChange={setBulkAudioPreset} />
+                    </div>
+                    <p class="flashcards-generate-section-desc">{t('mlearn.AI.Settings.FlashcardTTS.Preset.Description')}</p>
+
+                    <div class="flashcards-generate-option">
                       <label class="flashcards-generate-label" for="flashcards-generate-tts-provider">{t('mlearn.AI.Settings.FlashcardTTS.Provider.Label')}</label>
                       <Select
                         id="flashcards-generate-tts-provider"
                         options={ttsProviderOptions()}
-                        value={bulkTtsProvider()}
+                        value={bulkAudioProvider()}
+                        disabled={bulkAudioPreset() === 'fast'}
                         onChange={(e) => setBulkTtsProvider(e.currentTarget.value as TTSProvider)}
                         class="flashcards-generate-select"
                       />
                     </div>
 
-                    <Show when={bulkTtsProvider() !== 'kokoro' && bulkTtsProvider() !== 'cloud'}>
+                    <Show when={bulkAudioProvider() !== 'kokoro' && bulkAudioProvider() !== 'cloud'}>
                       <div class="flashcards-generate-option">
                         <span class="flashcards-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}</span>
                         <VoiceSamplePicker
                           value={settings.flashcardVoiceSampleId}
                           onChange={(id) => updateSettings({ flashcardVoiceSampleId: id })}
                           selectClass="flashcards-generate-select"
-                          ttsProvider={bulkTtsProvider()}
+                          ttsProvider={bulkAudioProvider()}
                         />
                       </div>
                     </Show>
@@ -1184,25 +1169,30 @@ export const FlashcardsContent: Component = () => {
         footer={
           <>
             <Button onClick={() => setShowRepairModal(false)}>{t('mlearn.Global.Close')}</Button>
-            <Button variant="primary" onClick={handleRepair}>{t('mlearn.Flashcards.Repair.RepairButton')}</Button>
+            <Button variant="primary" onClick={handleRepair} disabled={selectedRepairCount() === 0 || repairRunning()}>{t('mlearn.Flashcards.Repair.RepairButton')}</Button>
           </>
         }
       >
-        <Show when={missingContentCount() > 0}>
-          <p>{t('mlearn.Flashcards.Repair.ContentDescription', { count: missingContentCount() })}</p>
-        </Show>
-        <Show when={repairJobs().length > 0 || llmRepairJobs().length > 0}>
-          <p>
-            {llmRepairJobs().length > 0 && repairJobs().length > 0
-              ? t('mlearn.Flashcards.Repair.DescriptionWithLLM', { llmCount: llmRepairJobs().length, ttsCount: repairJobs().length })
-              : llmRepairJobs().length > 0
-                ? t('mlearn.Flashcards.Repair.DescriptionLLMOnly', { count: llmRepairJobs().length })
-                : t('mlearn.Flashcards.Repair.Description', { count: repairJobs().length })}
-          </p>
-        </Show>
-        <Show when={repairJobs().length > 0 && settings.flashcardTtsProvider === 'cloud' && settings.cloudAuthStatus !== 'signed-in'}>
-          <p role="alert">{t('mlearn.CardEditor.NoCloudAuth')}</p>
-        </Show>
+        <div class="flashcard-repair-body">
+          <FlashcardRepairOptions
+            counts={repairCounts()}
+            selection={repairSelection()}
+            onChange={(aspect, enabled) => setRepairSelection((previous) => ({ ...previous, [aspect]: enabled }))}
+          />
+          <Show when={hasSelectedRepairAudio()}>
+            <div class="flashcard-repair-preset">
+              <label for="flashcard-repair-audio-preset">{t('mlearn.AI.Settings.FlashcardTTS.Preset.Label')}</label>
+              <FlashcardAudioPresetSelect id="flashcard-repair-audio-preset" value={repairAudioPreset()} onChange={setRepairAudioPreset} />
+              <p>{t('mlearn.AI.Settings.FlashcardTTS.Preset.Description')}</p>
+            </div>
+            <Show when={repairAudioProvider() === 'qwen3'}>
+              <VoiceSamplePicker value={settings.flashcardVoiceSampleId} onChange={(id) => updateSettings({ flashcardVoiceSampleId: id })} ttsProvider="qwen3" />
+            </Show>
+          </Show>
+          <Show when={hasSelectedRepairAudio() && repairAudioProvider() === 'cloud' && settings.cloudAuthStatus !== 'signed-in'}>
+            <p role="alert">{t('mlearn.CardEditor.NoCloudAuth')}</p>
+          </Show>
+        </div>
       </Modal>
     </div>
   );

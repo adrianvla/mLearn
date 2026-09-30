@@ -202,6 +202,20 @@
         },
         "Description": "KI-Funktionen für Worterklärungen und Konversationsübungen konfigurieren.",
         "FlashcardTTS": {
+          "Preset": {
+            "Label": "Audioprofil",
+            "HighQuality": "Hohe Qualität",
+            "Fast": "Schnell",
+            "Description": "Hohe Qualität nutzt den gewählten Anbieter. Schnell nutzt die lokale Sprachanruf-Engine und die gewählte Stimmprobe."
+          },
+          "CreationPreset": {
+            "Label": "Automatische Karteikartenerstellung",
+            "Description": "Audio beim Erstellen von Karten. Standardmäßig hohe Qualität."
+          },
+          "RegenerationPreset": {
+            "Label": "Reparatur / Neugenerierung",
+            "Description": "Audio für Reparaturen und Neugenerierung, auch im Stapel. Standardmäßig schnell."
+          },
           "AutoGenerate": {
             "Description": "Audiodateien für neue Lernkarten automatisch generieren und zwischenspeichern",
             "Label": "Audio automatisch generieren"
@@ -1099,17 +1113,24 @@
         "TtsFailed": "TTS-Generierung fehlgeschlagen"
       },
       "Repair": {
+        "Aspects": {
+          "example": "Beispielsätze ({count})",
+          "content": "Wörterbuchinhalt ({count})",
+          "wordAudio": "Wortaudio ({count})",
+          "exampleAudio": "Beispielaudio ({count})",
+          "exampleMeaning": "Beispielübersetzungen ({count})"
+        },
         "Description": "{count} Lernkarten-Audiodateien fehlen. Möchten Sie diese neu generieren?",
         "DescriptionWithLLM": "{llmCount} Lernkarte(n) fehlen Beispielübersetzungen und {ttsCount} Audiodateien fehlen. Möchten Sie diese reparieren?",
         "DescriptionLLMOnly": "{count} Lernkarte(n) fehlen Beispielübersetzungen. Möchten Sie diese jetzt generieren?",
-        "Done": "{count} Lernkarten-Audiodateien repariert",
-        "DoneWithErrors": "{count} Audiodateien repariert ({failed} fehlgeschlagen)",
+        "Done": "Lernkartenreparatur abgeschlossen ({count} Aktualisierungen)",
+        "DoneWithErrors": "Lernkartenreparatur abgeschlossen ({count} Aktualisierungen, {failed} fehlgeschlagen)",
         "LLMToastTitle": "Fehlende Beispielübersetzungen werden generiert…",
         "LLMDone": "Übersetzungen für {count} Lernkarte(n) generiert",
         "LLMDoneWithErrors": "Übersetzungen für {count} Lernkarte(n) generiert, {failed} fehlgeschlagen",
         "RepairButton": "Reparieren", "ContentDescription": "{count} Karteikarte(n) haben noch keine Bedeutung. Möchtest du sie aus dem Wörterbuch ergänzen?", "ContentToastTitle": "Fehlende Karteninhalte werden ergänzt…", "ContentDone": "{count} Karteikarte(n) ergänzt", "ContentDoneWithErrors": "{count} Karteikarte(n) ergänzt, {failed} konnten nicht ergänzt werden", "ContentFailed": "Karteninhalte konnten nicht ergänzt werden",
         "Title": "Fehlende Lernkartendaten",
-        "ToastTitle": "Lernkarten-Audio wird repariert…"
+        "ToastTitle": "Lernkarten werden repariert…"
       },
       "Review": {
         "CardActions": "Kartenaktionen",

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Flashcard } from '../../shared/types';
-import { countByKind, countExamples, hasMeaning, planFlashcardRepair, type TtsScanDeps } from './flashcardRepairPlan';
+import { DEFAULT_REPAIR_SELECTION, selectRepairFindings, repairFindingKey, countByKind, countExamples, hasMeaning, planFlashcardRepair, type TtsScanDeps } from './flashcardRepairPlan';
 
 const card = (content: Partial<Flashcard['content']>, id = 'c1', language = 'ja'): Flashcard => ({
   id, language,
@@ -108,6 +108,35 @@ describe('planFlashcardRepair', () => {
   });
 });
 
+describe('missing example repair', () => {
+  it('detects missing sentences in the default repair scan when the LLM is ready', async () => {
+    const findings = await planFlashcardRepair([card({})], opts({ llmReady: true }), deps());
+    expect(findings.some((f) => f.kind === 'example')).toBe(true);
+    expect(selectRepairFindings(findings, { ...DEFAULT_REPAIR_SELECTION, example: false })
+      .some((f) => f.kind === 'example')).toBe(false);
+  });
+
+  it('does not offer sentence generation without a ready LLM', async () => {
+    const findings = await planFlashcardRepair([card({})], opts({ llmReady: false }), deps());
+    expect(findings.some((f) => f.kind === 'example')).toBe(false);
+  });
+
+  it('detects an empty formatted sentence using its visible text', async () => {
+    const findings = await planFlashcardRepair([card({ example: '<div><br></div>' })], opts({ llmReady: true }),
+      deps({ getSpeakableText: (c, field) => field === 'example' ? '' : c.content.front }));
+    expect(findings.some((f) => f.kind === 'example')).toBe(true);
+    expect(findings.some((f) => f.kind === 'exampleMeaning')).toBe(false);
+  });
+
+  it('preserves deliberately cleared sentences unless replaceAll is requested', async () => {
+    const cards = [card({ example: '', userEditedFields: ['example'] })];
+    const missing = await planFlashcardRepair(cards, opts({ llmReady: true }), deps());
+    expect(missing.some((f) => f.kind === 'example')).toBe(false);
+    const reroll = await planFlashcardRepair(cards, opts({ include: ['example'], exampleMode: 'replaceAll' }), deps());
+    expect(reroll).toHaveLength(1);
+  });
+});
+
 describe('example findings', () => {
   const exampleOpts = (o = {}) => opts({ include: ['example'], ...o });
 
@@ -138,5 +167,19 @@ describe('example findings', () => {
       [card({ back: 'dark' }), card({ back: 'dark', example: 'done' }, 'c2')], exampleOpts(), deps());
     expect(countExamples(plan)).toBe(1);
     expect(countByKind(plan).content).toBe(0);
+  });
+});
+
+describe('repair selection', () => {
+  it('selects every missing aspect by default, and audio fields independently', async () => {
+    const findings = await planFlashcardRepair([card({ back: '', example: 'sentence' })], opts({ llmReady: true }), deps());
+    expect(selectRepairFindings(findings, DEFAULT_REPAIR_SELECTION)).toEqual(findings);
+    const selected = selectRepairFindings(findings, { ...DEFAULT_REPAIR_SELECTION, content: false, wordAudio: false });
+    expect(selected.map(repairFindingKey)).toEqual(['c1:exampleAudio', 'c1:exampleMeaning']);
+  });
+
+  it('allows all aspects to be unchecked', async () => {
+    const findings = await planFlashcardRepair([card({ example: 'sentence' })], opts({ llmReady: true }), deps());
+    expect(selectRepairFindings(findings, { content: false, example: false, wordAudio: false, exampleAudio: false, exampleMeaning: false })).toEqual([]);
   });
 });

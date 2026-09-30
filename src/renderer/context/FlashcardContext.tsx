@@ -1,3 +1,4 @@
+import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset';
 /**
  * Flashcard Context
  * Manages flashcard state with Anki-like SRS algorithm
@@ -1460,7 +1461,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const postFlashcardCreation = (cardId: string, card: Flashcard) => {
     const hasExample = card.content.example && card.content.example !== '-' && card.content.example.replace(/<[^>]*>/g, '').trim().length > 0;
     const needsTranslation = hasExample && !card.content.exampleMeaning && isLLMReady(settings);
-    const needsTts = settings.flashcardAutoGenerateAudio && isElectron() && settings.flashcardTtsProvider !== DEFAULT_SETTINGS.flashcardTtsProvider;
+    const needsTts = settings.flashcardAutoGenerateAudio && isElectron() && flashcardAudioProvider(settings.flashcardCreationAudioPreset ?? DEFAULT_SETTINGS.flashcardCreationAudioPreset, settings.flashcardTtsProvider) !== DEFAULT_SETTINGS.flashcardTtsProvider;
     const skipExampleTts = card.content.skipExampleTts;
 
     if (!needsTranslation && !needsTts) return;
@@ -1504,7 +1505,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const runTts = async () => {
       if (!needsTts) return;
       const bridge = getBridge();
-      const provider = settings.flashcardTtsProvider;
+      const preset = settings.flashcardCreationAudioPreset ?? DEFAULT_SETTINGS.flashcardCreationAudioPreset;
+      const provider = flashcardAudioProvider(preset, settings.flashcardTtsProvider);
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
       const language = card.language || settings.language;
       const cardLanguageData = languageDataFor(language);
@@ -1516,8 +1518,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const cleanWord = stripHtmlForTts(card.content.front, false, cardLanguageData);
         if (cleanWord && cleanWord !== '-') {
           const result = provider === 'cloud'
-            ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudToken, cloudApiUrl))
-            : await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, undefined, cloudApiUrl);
+            ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudToken, cloudApiUrl, preset))
+            : await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, undefined, cloudApiUrl, preset);
           if (result) {
             updatePostCreateTask(wordLabel, 'wordTts', 'done');
           } else {
@@ -1539,8 +1541,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           const cleanExample = stripHtmlForTts(card.content.example!, false, cardLanguageData);
           if (cleanExample && cleanExample !== '-') {
             const result = provider === 'cloud'
-              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudToken, cloudApiUrl))
-              : await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, undefined, cloudApiUrl);
+              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudToken, cloudApiUrl, preset))
+              : await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, undefined, cloudApiUrl, preset);
             if (result) {
               updatePostCreateTask(wordLabel, 'exampleTts', 'done');
             } else {
@@ -2670,7 +2672,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         if (populatedCardId && useTts && isElectron()) {
           try {
             const bridge = getBridge();
-            const provider = settings.flashcardTtsProvider || DEFAULT_SETTINGS.flashcardTtsProvider;
+            const preset = settings.flashcardCreationAudioPreset ?? DEFAULT_SETTINGS.flashcardCreationAudioPreset;
+            const provider = flashcardAudioProvider(preset, settings.flashcardTtsProvider ?? DEFAULT_SETTINGS.flashcardTtsProvider);
             const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
              const cloudApiUrl = provider === 'cloud' ? resolveCloudApiUrl(settings) : undefined;
              const ttsItems: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [
@@ -2687,6 +2690,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
                 voiceSampleId,
                 cloudToken,
                 cloudApiUrl,
+                preset,
               ));
             } else {
               await bridge.flashcards.batchGenerateFlashcardTts(
@@ -2696,6 +2700,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
                 voiceSampleId,
                 undefined,
                 cloudApiUrl,
+                preset,
               );
           }
         } catch (e) {

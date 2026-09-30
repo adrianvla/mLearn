@@ -1,3 +1,5 @@
+import { flashcardAudioProvider } from '../../../shared/utils/flashcardAudioPreset';
+import { FlashcardAudioPresetSelect } from './FlashcardAudioPresetSelect';
 /**
  * TTS Generate Modal
  * Modal dialog for regenerating flashcard content: word TTS, example TTS,
@@ -5,7 +7,7 @@
  * A single progress toast shows per-task status with spinners.
  */
 
-import { Component, Show, createSignal, createMemo } from 'solid-js';
+import { Component, Show, createSignal, createMemo, createEffect, on } from 'solid-js';
 import { Button, Modal, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressContent, type TaskState, type TaskStatus } from '../common';
 import { ConfirmDialog } from '../common/Modal/ConfirmDialog';
 import { useSettings, useLocalization, useLanguage, useFlashcards, useLowPowerGate } from '../../context';
@@ -15,7 +17,7 @@ import { stripHtmlForTts, getLanguageDisplayName } from '../../../shared/utils/t
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
 import { colorizeTokenizedText, textToReadingText } from '../../utils/languageTokenization';
 import { withCloudAuth } from '../../services/cloudSessionManager';
-import { DEFAULT_SETTINGS, type LanguageData, type TTSProvider } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageData, type TTSProvider, type FlashcardAudioPreset } from '../../../shared/types';
 import { getReadingAnnotationScripts } from '../../../shared/languageFeatures';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 import { resolveTtsLanguageData } from './ttsLanguageData';
@@ -47,6 +49,12 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
 
   const [provider, setProvider] = createSignal<TTSProvider>(settings.flashcardTtsProvider);
   const [voiceSampleId, setVoiceSampleId] = createSignal(settings.flashcardVoiceSampleId || DEFAULT_SETTINGS.flashcardVoiceSampleId!);
+
+  const [audioPreset, setAudioPreset] = createSignal<FlashcardAudioPreset>(settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset);
+  const audioProvider = () => flashcardAudioProvider(audioPreset(), provider());
+  createEffect(on(() => props.isOpen, (isOpen) => {
+    if (isOpen) setAudioPreset(settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset);
+  }));
 
   // Task toggles
   const [doWordTts, setDoWordTts] = createSignal(true);
@@ -124,7 +132,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
     if (!hasAnySelected()) return;
 
     const bridge = getBridge();
-    const prov = provider();
+    const preset = audioPreset();
+    const prov = audioProvider();
     const sampleId = voiceSampleId() || undefined;
     const language = cardLanguage();
     const cloudApiUrl = resolveCloudApiUrl(settings);
@@ -238,8 +247,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
             hadError = true;
           } else {
             const result = prov === 'cloud'
-              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudToken, cloudApiUrl))
-              : await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, undefined, cloudApiUrl);
+              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudToken, cloudApiUrl, preset))
+              : await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, undefined, cloudApiUrl, preset);
               if (result) {
                 updateTask('wordTts', 'done');
               } else {
@@ -277,8 +286,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
             hadError = true;
           } else {
             const result = prov === 'cloud'
-              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudToken, cloudApiUrl))
-              : await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, undefined, cloudApiUrl);
+              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudToken, cloudApiUrl, preset))
+              : await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, undefined, cloudApiUrl, preset);
               if (result) {
                 updateTask('exampleTts', 'done');
               } else {
@@ -323,7 +332,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
     // Persist TTS provider/voice settings if we did any TTS
     if (doWordTts() || doExampleTts()) {
       updateSettings({
-        flashcardTtsProvider: prov,
+        flashcardTtsProvider: provider(),
         flashcardVoiceSampleId: sampleId || '',
       });
     }
@@ -358,28 +367,35 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       }
     >
       <div class="tts-generate-modal-body">
+        <div class="tts-generate-option">
+          <label class="tts-generate-label" for="tts-generate-audio-preset">{t('mlearn.AI.Settings.FlashcardTTS.Preset.Label')}</label>
+          <FlashcardAudioPresetSelect id="tts-generate-audio-preset" value={audioPreset()} onChange={setAudioPreset} />
+          <p class="tts-generate-preset-description">{t('mlearn.AI.Settings.FlashcardTTS.Preset.Description')}</p>
+        </div>
+
         {/* TTS Provider */}
         <div class="tts-generate-option">
           <label class="tts-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.Provider.Label')}</label>
           <Select
             options={providerOptions()}
-            value={provider()}
+            value={audioProvider()}
+            disabled={audioPreset() === 'fast'}
             onChange={(e) => setProvider(e.currentTarget.value as TTSProvider)}
           />
         </div>
 
-        <Show when={provider() !== 'kokoro'}>
+        <Show when={audioProvider() !== 'kokoro'}>
           <div class="tts-generate-option">
             <label class="tts-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}</label>
             <VoiceSamplePicker
               value={voiceSampleId()}
               onChange={setVoiceSampleId}
-              ttsProvider={provider()}
+              ttsProvider={audioProvider()}
             />
           </div>
         </Show>
 
-        <Show when={provider() === 'cloud' && !settings.cloudAuthAccessToken}>
+        <Show when={audioProvider() === 'cloud' && !settings.cloudAuthAccessToken}>
           <p class="tts-generate-warning">{t('mlearn.CardEditor.NoCloudAuth')}</p>
         </Show>
 

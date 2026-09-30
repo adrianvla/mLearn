@@ -1,3 +1,4 @@
+import type { FlashcardAudioPreset } from '../types';
 import { createCloudLLMRequest, OpenAICompatibleLLMAdapter } from '../backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../backends';
 import { usesManagedLlm } from '../llmTask';
@@ -674,11 +675,11 @@ const flashcardBridge: FlashcardBridge = {
     return null;
   },
 
-  async generateFlashcardTts(_cardId: string, _text: string, _language: string, _field: 'word' | 'example', _provider: string, _voiceSampleId?: string, _cloudAuthToken?: string, _cloudApiUrl?: string) {
+  async generateFlashcardTts(_cardId: string, _text: string, _language: string, _field: 'word' | 'example', _provider: string, _voiceSampleId?: string, _cloudAuthToken?: string, _cloudApiUrl?: string, _preset?: FlashcardAudioPreset) {
     return null;
   },
 
-  async batchGenerateFlashcardTts(_items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, _language: string, _provider: string, _voiceSampleId?: string, _cloudAuthToken?: string, _cloudApiUrl?: string): Promise<Record<string, string>> {
+  async batchGenerateFlashcardTts(_items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, _language: string, _provider: string, _voiceSampleId?: string, _cloudAuthToken?: string, _cloudApiUrl?: string, _preset?: FlashcardAudioPreset): Promise<Record<string, string>> {
     return {};
   },
 
