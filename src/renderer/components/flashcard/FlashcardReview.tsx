@@ -24,7 +24,7 @@ import type { CapabilityKey, Flashcard, FlashcardContent } from '../../../shared
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
-import { qualityToSrsRating } from '../../../shared/constants';
+import { qualityToSrsRating, worstAttemptQuality } from '../../../shared/constants';
 import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
@@ -295,13 +295,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const card = currentCard();
     if (!card || !canRate() || observations.length === 0) return;
     const timing = stopTiming();
-    // A mixed profile schedules on its weakest evidence, matching the
-    // whole-word semantics: missed dominates struggled dominates fluent.
-    const quality = observations.some((observation) => observation.quality === 'missed')
-      ? 'missed'
-      : observations.some((observation) => observation.quality === 'struggled')
-        ? 'struggled'
-        : 'fluent';
+    // A mixed profile schedules on its weakest evidence — the same reduction
+    // word sync applies, read from the one ordering (missed dominates
+    // struggled dominates fluent).
+    const quality = worstAttemptQuality(observations.map((observation) => observation.quality));
 
     stopTts();
     void commitRating({

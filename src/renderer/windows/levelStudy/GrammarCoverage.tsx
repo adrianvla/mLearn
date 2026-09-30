@@ -32,7 +32,7 @@ import { loadQuestionValidationRecords, questionValidationRecordKey, validateQue
 import { studySessionState, type StudySessionWriteStatus } from '../../learning/studySession';
 import type { PendingRetraction, RetractionTarget } from '../../../shared/retractionRecovery';
 import type { RetractionCompletion, RetractionProjection } from '../../context/FlashcardContext';
-import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
+import { canRetryRetraction, isRetractionWriteBlocking, pushUndo, type RetractionWriteState } from '../../learning/undoHistory';
 import { createStudySessionController, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
 import './GrammarCoverage.css';
 
@@ -405,14 +405,14 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       // restoring the step, and the next rating would land on a prompt the
       // learner never saw.
       onAcknowledged: (before, _after, pending) => {
-        setUndoStack((previous) => [...previous, {
+        setUndoStack((previous) => pushUndo(previous, {
           level: before.meta.level,
           pattern: pending.itemId,
           language: props.language,
           attemptId: pending.attemptId,
           before: { ...before, pending: undefined },
           revealed: before.revealed === true,
-        }]);
+        }));
       },
     });
   };
@@ -534,6 +534,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     sessionController()?.dispose();
     setStorageUnavailable(false);
     setReviewProbe(null);
+    // The controller these entries point back into is being disposed, so its
+    // ratings can no longer be taken back. The stack is one decision (see
+    // undoHistory): a pass starts empty.
+    setUndoStack([]);
     setSessionController(createGrammarController(language, data));
   }, { defer: true }));
   onCleanup(() => sessionController()?.dispose());
@@ -687,6 +691,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       queue.push(pattern);
       recentPicks.push(decision.candidate.key);
     }
+    // A new pass starts a new take-back window. Without this the stack spans
+    // every level and every pass in the window's lifetime, which is both an
+    // unbounded growth and entries whose sessions are long gone.
+    setUndoStack([]);
     setSubmissionsLocked(false);
     clearTimeout(submissionLockTimer);
     setContrastAnswer(null);

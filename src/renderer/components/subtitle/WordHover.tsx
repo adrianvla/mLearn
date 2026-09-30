@@ -28,6 +28,7 @@ import {
 import { clipVideo } from '../../services/videoClipService';
 import { getBridge } from '../../../shared/bridges';
 import { showToast } from '../common/Feedback/Toast';
+import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { getTokenDisplayForms, getTokenWordFormCandidates } from '../../utils/wordForms';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { compoundSplitterConfig, getContentFontFamily, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
@@ -468,8 +469,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         await addFlashcard(content, ease, undefined, settings.language);
           // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
-        log.error('Failed to add flashcard:', err);
-        showToast({ message: t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }), variant: 'error' });
+        // One announcement owner for every capture surface, so "did my card get
+        // saved?" is answered the same way everywhere.
+        reportCaptureFailure(err, { word: props.token.word }, { translate: t });
       } finally {
         // Always clear the adding flag when done
         setIsAddingFlashcard(false);

@@ -38,12 +38,14 @@ import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { getWordFormCandidates } from '../utils/wordForms';
 import { legacyCasingCandidates } from '../../shared/utils/normalizationVersion';
 import { streamChat, isLLMReady } from '../services/llmProvider';
-import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../services/cloudSessionManager';
+import { withCloudAuth } from '../services/cloudSessionManager';
+import { absorbProviderFailure } from '../services/providerFailure';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore } from '../utils/knowledgeUtils';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys } from '../utils/comprehensiveKnowledge';
+import { getWrittenComprehensionStatus } from '../utils/writtenComprehension';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
 import { appendEvents, appendEventsIdempotentAcknowledged, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
@@ -368,6 +370,8 @@ interface FlashcardContextValue {
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
   /** Selection predicate: evidence-backed known OR explicit exclusion (never claims knowledge). */
   isWordSettledSync: (word: string, language?: string) => boolean;
+  /** Canonical written-comprehension predicate: is this word known AS PRESENTED IN TEXT? */
+  isWordKnownWhenWrittenSync: (word: string, surface: string, language?: string) => boolean;
   /** Projection refresh: rebuild wordKnowledge for a word's family keys from ACTIVE evidence. */
   recomputeWordKnowledgeFromEvidence: (word: string, language?: string) => Promise<void>;
   /**
@@ -617,25 +621,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Pending flashcard creation choice (SRS vs Anki)
   const [pendingFlashcardChoice, setPendingFlashcardChoice] = createSignal<PendingFlashcardChoice | null>(null);
 
-  const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
-
-  const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
-
-  const handleCloudOperationFallback = (error: unknown): boolean => {
-    if (isCloudSessionCancelled(error)) {
-      showToast({ message: t('mlearn.CloudReLogin.SignInCanceled'), variant: 'warning', duration: 5000 });
-      return true;
-    }
-
-    if (isCloudUnreachable(error)) {
-      showToast({ message: t('mlearn.AI.CloudUnreachable'), variant: 'error', duration: 6000 });
-      return true;
-    }
-
-    return false;
-  };
 
   const resolvePendingFlashcardChoice = (target: 'srs' | 'anki' | 'cancel') => {
     const pending = pendingFlashcardChoice();
@@ -1267,6 +1252,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * re-write of the very snapshot that was just rejected, erasing whatever the
    * other window committed in between.
    */
+  /**
+   * The cause of the most recent refused write, cleared when a write lands.
+   *
+   * `saveFlashcardsImmediate` answers with a boolean because its other caller
+   * (the debounced bulk path) has nothing to report a cause to. A capture does,
+   * so the cause is kept here rather than only logged, and the capture surfaces
+   * turn it into the message the learner reads.
+   */
+  let lastPersistFailure: unknown = null;
+
   const saveFlashcardsImmediate = async (
     transform?: (target: FlashcardStore, intent: Record<string, unknown>) => void,
     authorization?: FlashcardWriteAuthorization,
@@ -1339,6 +1334,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             // queued behind this one composes over it rather than over the
             // snapshot the authority has already refused.
             storeSupersededByRebase = false;
+            lastPersistFailure = null;
             refreshQueue();
             for (const id of removals) pendingCardRemovals.delete(id);
             if (resetReviewProgress) pendingReviewReset = false;
@@ -1352,8 +1348,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         }
         authorityRequest = null;
         log.error('Failed to persist flashcards:', error);
+        // The cause travels with the refusal rather than staying in the log.
+        // A learner deciding whether to retry needs to know whether the disk is
+        // full or the write merely lost a race, and `reportCaptureFailure`
+        // shows whatever error it is handed.
+        lastPersistFailure = error;
         return false;
       }
+      lastPersistFailure = null;
       candidate.rev = committedRevision;
       for (const id of removals) pendingCardRemovals.delete(id);
       if (resetReviewProgress) pendingReviewReset = false;
@@ -1635,7 +1637,55 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }));
 
     refreshQueue();
-    saveFlashcards();
+    // The card is not saved until the authority says so. `saveFlashcards()`
+    // is the debounced fire-and-forget used by the write-heavy paths (bulk
+    // edits, migrations) that have no single learner action to report on; a
+    // capture is not one of them. Every capture surface answers "did my card
+    // get saved?" by catching what this throws and routing it to
+    // `reportCaptureFailure`, so a write that never lands has to reject here
+    // rather than resolve with an id. Otherwise a card that only ever existed
+    // in memory was reported as captured, the word stayed in the
+    // unknown-words list showing as a card, and the deck was silently short
+    // the one the learner was told they had.
+    //
+    // The immediate path is not a behaviour change for the happy path: it
+    // writes the same delta, and it serializes on the same persistence queue,
+    // so a rapid burst of captures still commits in order. What it changes is
+    // that the caller learns the outcome instead of guessing.
+    const persisted = await saveFlashcardsImmediate();
+    if (!persisted) {
+      // The card is in memory but not on disk. Taking it back out leaves the
+      // rendered deck agreeing with the durable one, so a retry starts from
+      // the same state the learner last saw rather than inheriting a card they
+      // were just told was not saved. The rebase path inside
+      // `saveFlashcardsImmediate` has already run by this point, so `false`
+      // means no re-reading can help.
+      setStore(produce((s) => {
+        delete s.flashcards[id];
+        const ids = s.wordToCardMap[lk];
+        if (ids) {
+          const remaining = ids.filter((cardId) => cardId !== id);
+          if (remaining.length > 0) s.wordToCardMap[lk] = remaining;
+          else delete s.wordToCardMap[lk];
+        }
+        const cards = (s.wordToCardMap[lk] ?? []).map((cid) => s.flashcards[cid]).filter(Boolean);
+        if (cards.length > 0) s.wordStatsMap[lk] = calculateWordStats(cards);
+        else delete s.wordStatsMap[lk];
+      }));
+      refreshQueue();
+      // The cause is in the MESSAGE, not only on `cause`, because
+      // `reportCaptureFailure` announces `error.message` and that message is
+      // the only thing the learner sees. Naming the cause is what lets them
+      // tell "the disk is full" (retry will not help) from "another window got
+      // there first" (it will).
+      const cause = lastPersistFailure instanceof Error
+        ? lastPersistFailure.message
+        : lastPersistFailure != null ? String(lastPersistFailure) : 'the store could not be written';
+      throw new Error(
+        `flashcard persistence was refused for "${word}": ${cause}`,
+        { cause: lastPersistFailure },
+      );
+    }
     log.info(`Created new flashcard for word: ${word} (now has ${store.wordToCardMap[lk]?.length || 1} cards)`);
 
     // Post-creation async tasks: translate example and generate TTS
@@ -1776,7 +1826,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           updatePostCreateTask(wordLabel, 'wordTts', 'done');
         }
       } catch (err) {
-        handleCloudOperationFallback(err);
+        absorbProviderFailure(err, t, settings.llmProvider);
         log.warn('Failed to generate word TTS:', err);
         updatePostCreateTask(wordLabel, 'wordTts', 'error');
       }
@@ -1799,7 +1849,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             updatePostCreateTask(wordLabel, 'exampleTts', 'done');
           }
         } catch (err) {
-          handleCloudOperationFallback(err);
+          absorbProviderFailure(err, t, settings.llmProvider);
           log.warn('Failed to generate example TTS:', err);
           updatePostCreateTask(wordLabel, 'exampleTts', 'error');
         }
@@ -2838,6 +2888,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }
 
     let created = 0;
+    let needsSave = false;
     let done = 0;
     for (const id of ids) {
       const key = findSuggestionKey(id);
@@ -2910,6 +2961,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           const updates = filterUserEditedUpdates(unpopulatedCard, content);
           updateFlashcardContent(unpopulatedCard.id, { ...updates, unpopulated: false }, false);
           populatedCardId = unpopulatedCard.id;
+          // Populating an existing card is an in-place edit and does not
+          // persist on its own, so it is the one path here that still needs the
+          // write at the end. A card built by `addFlashcard` already reached the
+          // authority when that call resolved.
+          needsSave = true;
         } else {
           populatedCardId = await addFlashcard(content, undefined, true, suggestion.language);
         }
@@ -2949,7 +3005,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
               );
           }
         } catch (e) {
-          handleCloudOperationFallback(e);
+          absorbProviderFailure(e, t, settings.llmProvider);
           log.warn(`Failed to generate TTS for promoted suggestion "${suggestion.word}":`, e);
         }
         }
@@ -2966,7 +3022,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
     }
 
-    if (created > 0) saveFlashcards();
+    if (created > 0 && needsSave) saveFlashcards();
     return created;
   };
 
@@ -3510,6 +3566,35 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     return resolved.status === 'known' || resolved.excluded === true;
   };
 
+  /**
+   * Canonical "would this word be hidden from the unknown-words list?" answer for
+   * every surface that captures words the learner is READING (reader pages,
+   * subtitle tracks, the floating overlay).
+   *
+   * Written comprehension is a different question from word-level knowledge: it
+   * requires the presented WRITTEN form to be recognized as well as the meaning
+   * to be known. A word imported from Anki, or claimed known by the learner, can
+   * hold a word-level `known` with no `surface-recognition` record at all - such a
+   * word is not yet known AS WRITTEN, so it still belongs in the list.
+   *
+   * This existed as two rules. The reader asked this question; the video route
+   * and the overlay asked the laxer word-level one, so the same word rendered as
+   * unknown in the subtitle track while the sidebar beside it reported the word
+   * as known and listed nothing - the video window contradicting itself on one
+   * screen. Both answers were defensible alone; the surfaces simply disagreed.
+   * Subtitle/OCR tokens already render from this rule (SubtitleWord/OcrWord), so
+   * routing the capture surfaces through it is what makes the list, the colouring
+   * and the bluring agree.
+   */
+  const isWordKnownWhenWrittenSync = (
+    word: string,
+    surface: string,
+    language = settings.language,
+  ): boolean => getWrittenComprehensionStatus(
+    { surface, lexicalWord: word, language },
+    getAccessStatus,
+  ) === 'known';
+
 
   const isWordKnownComprehensiveSync = (word: string, language = settings.language): boolean => (
     getComprehensiveWordStatusSync(word, language) === 'known'
@@ -3572,6 +3657,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           // merge recency.
           entry.claim = claim;
           entry.claimAt = now;
+
         }
         claimEvents[lk] = [{
           t: now,
@@ -4728,7 +4814,7 @@ Translation: [${targetLang} translation]`;
         reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
       });
     } catch (error) {
-      if (handleCloudOperationFallback(error)) {
+      if (absorbProviderFailure(error, t, settings.llmProvider)) {
         return { sentence: '', meaning: '' };
       }
 
@@ -4793,7 +4879,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
             });
             parsed = parseExampleBlocksFromLLM(response, chunk.length);
           } catch (error) {
-            if (!handleCloudOperationFallback(error)) throw error;
+            if (!absorbProviderFailure(error, t, settings.llmProvider)) throw error;
           }
         }
 
@@ -4860,7 +4946,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
         reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
       });
     } catch (error) {
-      if (handleCloudOperationFallback(error)) {
+      if (absorbProviderFailure(error, t, settings.llmProvider)) {
         return '';
       }
 
@@ -5097,7 +5183,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
                 example: (c.example as string) || undefined,
                 exampleMeaning: (c.exampleMeaning as string) || undefined,
                 imageUrl: (c.screenshotUrl as string) || undefined,
-              });
+              }).catch((e) => log.error(`[Tethered] Could not apply created card "${word}":`, e));
             }
           }
         } catch (e) {
@@ -5233,6 +5319,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     getComprehensiveWordStatusWithSourceSync,
     isWordKnownComprehensiveSync,
     isWordSettledSync,
+    isWordKnownWhenWrittenSync,
     appendRetractions,
     retractAttempts,
     wordRetractionTarget,

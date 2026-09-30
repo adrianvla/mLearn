@@ -3408,7 +3408,8 @@
         "Title": "Carte en double"
       },
       "Errors": {
-        "FailedToAddFlashcard": "Échec de l'ajout de la carte : {error}"
+        "FailedToAddFlashcardForWord": "Échec de l'ajout de la carte pour « {word} » : {error}",
+        "FailedToAddFlashcards": "Impossible d'ajouter les cartes ({count}) : {error}"
       },
       "Explain": "Expliquer",
       "InAnki": "Dans Anki",
@@ -3435,8 +3436,7 @@
       "AnkiUpdateSuccess": "{count} carte(s) Anki mise(s) à jour",
       "AnkiUpdateRepositioned": "{count} carte(s) mise(s) à jour, {repositioned} nouvelle(s) carte(s) repositionnée(s)",
       "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki",
-      "CardScheduling": "Planification de la carte",
-      "FlashcardAddFailed": "Impossible d’ajouter la carte"
+      "CardScheduling": "Planification de la carte"
     },
     "ConnectionStatus": {
       "Connected": "Connecté",

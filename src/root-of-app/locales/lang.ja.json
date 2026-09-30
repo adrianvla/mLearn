@@ -3408,7 +3408,8 @@
         "Title": "重複カード"
       },
       "Errors": {
-        "FailedToAddFlashcard": "フラッシュカードの追加に失敗しました: {error}"
+        "FailedToAddFlashcardForWord": "「{word}」のフラッシュカードの追加に失敗しました: {error}",
+        "FailedToAddFlashcards": "フラッシュカードの追加に失敗しました ({count}件): {error}"
       },
       "Explain": "解説",
       "InAnki": "Anki内",
@@ -3435,8 +3436,7 @@
       "AnkiUpdateSuccess": "{count}枚のAnkiカードを更新しました",
       "AnkiUpdateRepositioned": "{count}枚のカードを更新、{repositioned}枚の新しいカードを再配置しました",
       "AnkiUpdateFailed": "Ankiカードの更新に失敗しました",
-      "CardScheduling": "カードのスケジュール",
-      "FlashcardAddFailed": "単語カードを追加できませんでした"
+      "CardScheduling": "カードのスケジュール"
     },
     "ConnectionStatus": {
       "Connected": "接続済み",

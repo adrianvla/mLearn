@@ -19,6 +19,7 @@ const translations: Record<string, string> = {
   'mlearn.AI.Settings.CompatibleConfig.Model': 'Model',
   'mlearn.AI.Settings.CompatibleConfig.TestConnection': 'Test compatible connection',
   'mlearn.AI.Settings.CompatibleConfig.ConnectionSuccess': 'Compatible connection success',
+  'mlearn.AI.Settings.CompatibleConfig.AuthenticationFailed': 'Check the API key and model in AI settings, then try again.',
   'mlearn.AI.Settings.Provider.EnableLocal.Label': 'Local AI conversations',
   'mlearn.AI.Settings.Provider.EnableLocal.Description': 'Enable local AI.',
   'mlearn.AI.Settings.BuiltinModel.Title': 'Built-in model',
@@ -174,19 +175,32 @@ vi.mock('../../../../shared/backends', () => ({
   resolveCloudApiUrl: (settings: unknown) => mockResolveCloudApiUrl(settings),
 }));
 
+// Real classes, not factory arrows: the code under test constructs these with
+// `new`. An arrow-function mock is not constructible, so every probe silently
+// threw a TypeError and the failure surfaced as a generic error - which is how
+// this tab's test could pass while asserting nothing about auth handling.
 vi.mock('../../../../shared/backends/cloudLLMAdapter', () => ({
-  CloudLLMAdapter: vi.fn().mockImplementation(() => ({
-    checkAvailability: mockCloudCheckAvailability,
-  })),
-  OpenAICompatibleLLMAdapter: vi.fn().mockImplementation(() => ({
-    checkAvailability: mockCloudCheckAvailability,
-  })),
+  CloudLLMAdapter: class {
+    checkAvailability = mockCloudCheckAvailability;
+  },
+  OpenAICompatibleLLMAdapter: class {
+    checkAvailability = mockCloudCheckAvailability;
+  },
 }));
 
-vi.mock('../../../services/cloudSessionManager', () => ({
-  ensureCloudAccessToken: () => mockEnsureCloudAccessToken(),
-  handleCloudSessionError: (error: unknown, openModal?: boolean) => mockHandleCloudSessionError(error, openModal),
-}));
+// Partial mock: the classification that decides "this session is dead" lives
+// in `providerFailure`, which needs the real error types and the real auth
+// predicate from this module. Only the two side-effecting entry points are
+// replaced, so a test can observe the session being cleared without having to
+// reconstruct the classification for itself.
+vi.mock('../../../services/cloudSessionManager', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/cloudSessionManager')>();
+  return {
+    ...actual,
+    ensureCloudAccessToken: () => mockEnsureCloudAccessToken(),
+    handleCloudSessionError: (error: unknown, openModal?: boolean) => mockHandleCloudSessionError(error, openModal),
+  };
+});
 
 vi.mock('../../../../shared/builtinModels', () => ({
   BUILTIN_MODELS: builtinModels,
@@ -498,9 +512,100 @@ describe('AITab', () => {
     testButton!.click();
     await flushPromises();
 
+    // The session recovery used to be this component's own `catch`, so the
+    // test asserted on its internals. It is now performed by the shared
+    // classifier whenever a failure that needs it is reported, so the contract
+    // worth protecting is that a dead session is cleared *and* the learner is
+    // told to sign in - not which component happened to do it.
     expect(mockHandleCloudSessionError).toHaveBeenCalledWith(expect.any(Error), true);
-    expect(container.textContent).toContain('Sign in');
+    // The stub translator is the identity function, so the classified copy key
+    // is what renders. The point of the assertion is that the button says which
+    // failure occurred, not that it says "Connection failed".
+    expect(container.textContent).toContain('mlearn.CloudReLogin.SessionExpired');
 
+    dispose();
+  });
+
+  it('names the reason a connection test failed instead of keeping its idle label', async () => {
+    // The visible bug this section carried: the button turned red on a failed
+    // test and still read "Test connection", telling the learner nothing. Its
+    // status was a bare 'error' string with nowhere to put a reason, and the
+    // Ollama section beside it had grown a fourth state to say "sign in again"
+    // for the one case that had a recovery.
+    setSettingsStore?.({
+      llmProvider: 'openai-compatible',
+      compatibleApiBaseUrl: 'https://example.com/v1',
+      compatibleApiKey: 'sk-test',
+      compatibleModel: 'a-model',
+    });
+    mockCloudCheckAvailability.mockResolvedValueOnce(false);
+
+    const { dispose } = await renderAITab();
+    const testButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Test compatible connection'),
+    );
+    expect(testButton).toBeTruthy();
+    expect(testButton!.textContent).toContain('Test compatible connection');
+
+    testButton!.click();
+    await flushPromises();
+
+    // An endpoint that answers but refuses the key is a settings problem with
+    // its own copy, not the generic "unreachable" one Ollama would report.
+    expect(testButton!.textContent).not.toContain('Test compatible connection');
+    expect(testButton!.textContent).toContain('Check the API key and model');
+
+    dispose();
+  });
+
+  it('reports a successful test with its success copy, not the idle label', async () => {
+    setSettingsStore?.({
+      llmProvider: 'openai-compatible',
+      compatibleApiBaseUrl: 'https://example.com/v1',
+      compatibleApiKey: 'sk-test',
+      compatibleModel: 'a-model',
+    });
+    mockCloudCheckAvailability.mockResolvedValueOnce(true);
+
+    const { dispose } = await renderAITab();
+    const testButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Test compatible connection'),
+    )!;
+    testButton.click();
+    await flushPromises();
+
+    expect(testButton.textContent).toContain('Compatible connection success');
+    dispose();
+  });
+
+  it('returns the button to its idle label when the endpoint is edited', async () => {
+    // A stale verdict about a URL the learner has since changed is worse than
+    // no verdict: it says "Connection failed" about a server they just repaired.
+    setSettingsStore?.({
+      llmProvider: 'openai-compatible',
+      compatibleApiBaseUrl: 'https://example.com/v1',
+      compatibleApiKey: 'sk-test',
+      compatibleModel: 'a-model',
+    });
+    mockCloudCheckAvailability.mockResolvedValueOnce(false);
+
+    const { dispose } = await renderAITab();
+    const section = Array.from(container.querySelectorAll('section')).find((item) =>
+      item.textContent?.includes('OpenAI-compatible API'))!;
+    const baseUrl = section.querySelectorAll('input')[0];
+
+    const testButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Test compatible connection'),
+    )!;
+    testButton.click();
+    await flushPromises();
+    expect(testButton.textContent).not.toContain('Test compatible connection');
+
+    baseUrl.value = 'https://elsewhere.example.com/v1';
+    baseUrl.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushPromises();
+
+    expect(testButton.textContent).toContain('Test compatible connection');
     dispose();
   });
 

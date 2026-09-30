@@ -557,6 +557,26 @@ export const LEGACY_KNOWLEDGE_ASPECT_LABEL_KEYS: Record<LegacyKnowledgeAspect, s
 export const ATTEMPT_QUALITIES = ['missed', 'struggled', 'fluent'] as const;
 export type AttemptQuality = typeof ATTEMPT_QUALITIES[number];
 
+/**
+ * Reduces a set of per-interaction observations to the one quality a mixed
+ * item schedules on: its WEAKEST evidence, ordered by ATTEMPT_QUALITIES
+ * (missed dominates struggled dominates fluent).
+ *
+ * The reduction is one decision, not two. It previously lived as a hardcoded
+ * missed/struggled/fluent chain in flashcard review and as a manual
+ * `indexOf` walk in word sync — the same rule restated in the two surfaces
+ * that consume it. A surface that scheduled on the strongest evidence (or on
+ * an order the shared list did not share) would silently disagree with the
+ * other; this makes the ordering the single source of truth.
+ */
+export function worstAttemptQuality(qualities: readonly AttemptQuality[]): AttemptQuality {
+  let worst: AttemptQuality = 'fluent';
+  for (const quality of qualities) {
+    if (ATTEMPT_QUALITIES.indexOf(quality) < ATTEMPT_QUALITIES.indexOf(worst)) worst = quality;
+  }
+  return worst;
+}
+
 // Keyboard input mode for the attempt matrix. Mnemonic is the default: chords
 // are self-documenting (1+M) for users who forget spatial mappings.
 export const RATING_KEYBOARD_MODES = ['mnemonic', 'spatial'] as const;

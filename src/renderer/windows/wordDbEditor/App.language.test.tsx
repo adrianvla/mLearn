@@ -76,6 +76,16 @@ vi.mock('../../context', () => ({
   }),
 }));
 
+vi.mock('../../hooks/useDictionaryTargetLanguage', () => ({
+  useDictionaryTargetLanguage: () => 'en',
+}));
+
+vi.mock('../../hooks/useTranslation', () => ({
+  useTokenizer: () => ({ tokenize: vi.fn(async () => []) }),
+  getCachedTranslation: () => null,
+  fetchTranslation: vi.fn(async () => ({ data: [] })),
+}));
+
 vi.mock('../../hooks/useAnki', () => ({
   useAnki: () => ({
     checkConnection: vi.fn(async () => false),

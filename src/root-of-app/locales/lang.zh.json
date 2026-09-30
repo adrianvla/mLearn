@@ -3408,7 +3408,8 @@
         "Title": "重复闪卡"
       },
       "Errors": {
-        "FailedToAddFlashcard": "添加闪卡失败：{error}"
+        "FailedToAddFlashcardForWord": "添加「{word}」闪卡失败：{error}",
+        "FailedToAddFlashcards": "添加闪卡失败（{count} 个）：{error}"
       },
       "Explain": "解释",
       "InAnki": "在 Anki 中",
@@ -3435,8 +3436,7 @@
       "AnkiUpdateSuccess": "已更新 {count} 张 Anki 卡片",
       "AnkiUpdateRepositioned": "已更新 {count} 张卡片，重新定位了 {repositioned} 张新卡片",
       "AnkiUpdateFailed": "更新 Anki 卡片失败",
-      "CardScheduling": "卡片调度",
-      "FlashcardAddFailed": "无法添加闪卡"
+      "CardScheduling": "卡片调度"
     },
     "ConnectionStatus": {
       "Connected": "已连接",

@@ -28,8 +28,15 @@ export function staleFlashcardRevisionMessage(expected: number, received: number
 /**
  * Whether a failed flashcard write was refused for carrying a revision the
  * authority has already moved past - and can therefore be rebased and retried.
+ *
+ * A refusal raised in the main process does not arrive with its message
+ * intact: crossing the IPC boundary wraps it as
+ * "Error invoking remote method 'save-flashcards': Error: <message>". Matching
+ * only the start of the message therefore never recognizes a real refusal, and
+ * a repairable write gets reported as a failure instead of being rebased and
+ * retried. The message has to be found anywhere in the text.
  */
 export function isStaleFlashcardRevision(error: unknown): boolean {
   const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
-  return message.startsWith(STALE_PREFIX);
+  return message.includes(STALE_PREFIX);
 }

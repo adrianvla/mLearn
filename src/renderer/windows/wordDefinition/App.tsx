@@ -3,7 +3,7 @@ import type { TranslationEntry, Token } from '../../../shared/types';
 import { WINDOW_TYPES } from '../../../shared/constants';
 import { WindowWrapper, useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { showToast } from '../../components/common/Feedback/Toast';
+import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { fetchTranslation, getCachedTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
@@ -185,8 +185,9 @@ const WordDefinitionContent: Component = () => {
       });
       await addFlashcard(content, ease, undefined, settings.language);
     } catch (err) {
-      log.error('Failed to add flashcard:', err);
-      showToast({ message: t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }), variant: 'error' });
+      // One announcement owner for every capture surface, so "did my card get
+      // saved?" is answered the same way everywhere.
+      reportCaptureFailure(err, { word: w }, { translate: t });
     } finally {
       setIsAddingFlashcard(false);
     }

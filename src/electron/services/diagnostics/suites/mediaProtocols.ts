@@ -4,11 +4,15 @@
 
 import fs from 'fs';
 import path from 'path';
-import { net } from 'electron';
+import { BrowserWindow, net } from 'electron';
 import { SUITE_NAMES } from '../../../../shared/diagnostics/constants';
 import { registerDiagnosticSuite } from '../../../../shared/diagnostics/registry';
 import { getUserDataPath } from '../../../utils/platform';
 import { toLocalMediaUrl } from '../../localMediaProtocol';
+import { httpGet, skipTest } from '../utils';
+
+const PLUGIN_UI_PROBE_PLUGIN_ID = '__diag_plugin_ui_probe';
+const PLUGIN_UI_PROBE_BODY = 'export const ok = 1;';
 
 async function fetchProtocol(url: string, timeoutMs = 10_000): Promise<{ status: number; body: Buffer }> {
   const controller = new AbortController();
@@ -126,5 +130,62 @@ registerDiagnosticSuite({
         }
       },
     },
+    {
+      // This must load the module as an ES module from a real renderer document,
+      // not via net.fetch: a main-process fetch succeeds even when the scheme
+      // resolves to an opaque origin, and that is precisely the failure this
+      // test exists to catch (the scheme must be registered `standard`).
+      name: 'plugin-ui-module-load',
+      timeoutMs: 15_000,
+      async fn() {
+        const pluginsDir = path.join(getUserDataPath(), 'plugins');
+        const probeDir = path.join(pluginsDir, PLUGIN_UI_PROBE_PLUGIN_ID);
+        fs.mkdirSync(path.join(probeDir, 'dist'), { recursive: true });
+        const probeFile = path.join(probeDir, 'dist', 'ui.js');
+        fs.writeFileSync(probeFile, PLUGIN_UI_PROBE_BODY);
+
+        const isDev = process.env.NODE_ENV === 'development';
+        if (isDev && !(await devServerIsReachable())) {
+          fs.rmSync(probeDir, { recursive: true, force: true });
+          skipTest('Dev server (localhost:3000) is not running');
+        }
+
+        const probeWindow = new BrowserWindow({
+          show: false,
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+          },
+        });
+
+        try {
+          await probeWindow.loadURL(isDev
+            ? 'http://localhost:3000/src/html/plugin-host.html'
+            : `file://${path.resolve(__dirname, '..', '..', '..', '..', '..', 'src', 'html', 'plugin-host.html')}`);
+          // Resolve to a plain value: a module namespace object cannot cross
+          // the executeJavaScript serialization boundary.
+          await probeWindow.webContents.executeJavaScript(
+            `import('plugin-ui://${PLUGIN_UI_PROBE_PLUGIN_ID}/dist/ui.js').then((m) => m.ok)`,
+            true,
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(`plugin-ui:// module load failed: ${message}`);
+        } finally {
+          if (!probeWindow.isDestroyed()) {
+            probeWindow.destroy();
+          }
+          fs.rmSync(probeDir, { recursive: true, force: true });
+        }
+      },
+    },
   ],
 });
+
+function devServerIsReachable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const request = httpGet('http://localhost:3000/src/html/plugin-host.html', 2_000);
+    request.then((res) => resolve(res.status === 200)).catch(() => resolve(false));
+  });
+}

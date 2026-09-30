@@ -3408,7 +3408,8 @@
         "Title": "Дубликат карточки"
       },
       "Errors": {
-        "FailedToAddFlashcard": "Не удалось добавить карточку: {error}"
+        "FailedToAddFlashcardForWord": "Не удалось добавить карточку для «{word}»: {error}",
+        "FailedToAddFlashcards": "Не удалось добавить карточки ({count}): {error}"
       },
       "Explain": "Объяснить",
       "InAnki": "В Anki",
@@ -3435,8 +3436,7 @@
       "AnkiUpdateSuccess": "Обновлено {count} карточек Anki",
       "AnkiUpdateRepositioned": "Обновлено {count} карточек, перемещено {repositioned} новых",
       "AnkiUpdateFailed": "Не удалось обновить карточки Anki",
-      "CardScheduling": "Расписание карточки",
-      "FlashcardAddFailed": "Не удалось добавить карточку"
+      "CardScheduling": "Расписание карточки"
     },
     "ConnectionStatus": {
       "Connected": "Подключено",

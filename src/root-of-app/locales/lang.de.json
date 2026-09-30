@@ -3408,7 +3408,8 @@
         "Title": "Doppelte Lernkarte"
       },
       "Errors": {
-        "FailedToAddFlashcard": "Lernkarte konnte nicht hinzugefügt werden: {error}"
+        "FailedToAddFlashcardForWord": "Lernkarte für \"{word}\" konnte nicht hinzugefügt werden: {error}",
+        "FailedToAddFlashcards": "Lernkarten konnten nicht hinzugefügt werden ({count}): {error}"
       },
       "Explain": "Erklären",
       "InAnki": "In Anki",
@@ -3435,8 +3436,7 @@
       "AnkiUpdateSuccess": "{count} Anki-Karte(n) aktualisiert",
       "AnkiUpdateRepositioned": "{count} Karte(n) aktualisiert, {repositioned} neue Karte(n) umpositioniert",
       "AnkiUpdateFailed": "Anki-Karten konnten nicht aktualisiert werden",
-      "CardScheduling": "Kartenplanung",
-      "FlashcardAddFailed": "Karteikarte konnte nicht hinzugefügt werden"
+      "CardScheduling": "Kartenplanung"
     },
     "ConnectionStatus": {
       "Connected": "Verbunden",

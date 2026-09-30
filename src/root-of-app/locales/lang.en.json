@@ -3408,7 +3408,8 @@
         "Title": "Duplicate Flashcard"
       },
       "Errors": {
-        "FailedToAddFlashcard": "Failed to add flashcard: {error}"
+        "FailedToAddFlashcardForWord": "Failed to add flashcard for \"{word}\": {error}",
+        "FailedToAddFlashcards": "Could not add flashcards ({count}): {error}"
       },
       "Explain": "Explain",
       "InAnki": "In Anki",
@@ -3435,8 +3436,7 @@
       "AnkiUpdateSuccess": "Updated {count} Anki card(s)",
       "AnkiUpdateRepositioned": "Updated {count} card(s), repositioned {repositioned} new card(s)",
       "AnkiUpdateFailed": "Failed to update Anki cards",
-      "CardScheduling": "Card scheduling",
-      "FlashcardAddFailed": "Failed to add flashcard"
+      "CardScheduling": "Card scheduling"
     },
     "ConnectionStatus": {
       "Connected": "Connected",

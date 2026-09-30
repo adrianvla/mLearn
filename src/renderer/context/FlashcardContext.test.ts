@@ -105,6 +105,16 @@ let delivered: FlashcardStore | null = null;
 const acceptedSaves: FlashcardStore[] = [];
 
 /**
+ * The provider's flashcard-save debounce, restated for the harness.
+ *
+ * It has to match the provider's own constant: the gap between tests below is
+ * sized to outlast a pending debounced write, so a test that waits out this
+ * value is waiting out the real timer and not an approximation of it. If the
+ * provider's debounce changes, this must change with it.
+ */
+const SAVE_DEBOUNCE_MS_FOR_TESTS = 300;
+
+/**
  * Seeds the authority and delivers the snapshot to the window.
  *
  * `seed` also opens the window ON the authority's revision. A test that wants
@@ -729,6 +739,40 @@ describe('FlashcardProvider', () => {
     installStrictSaveRevision();
   });
 
+  afterEach(async () => {
+    // Tearing the provider down flushes whatever write is still on its
+    // debounce timer, and that flush is deliberately detached: a window
+    // closing must not wait for it. The write therefore outlives the test that
+    // scheduled it, and with nothing between tests to stop it, it lands in the
+    // NEXT test - against that test's authority, at that test's revision. The
+    // symptom is a refusal in a test that never touched persistence at all,
+    // and it moves around with scheduling order because the leak is a race.
+    //
+    // The flush has to be given a real timer turn to complete against the
+    // authority that is still its own, which is what happens in the app when
+    // the window really does close first. Draining microtasks is NOT enough:
+    // a debounced save is scheduled on a 300ms timer, so with only microtasks
+    // drained the write stays pending and fires part-way through a LATER test,
+    // against that test's authority.
+    await new Promise((resolve) => setTimeout(resolve, SAVE_DEBOUNCE_MS_FOR_TESTS));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  /**
+   * Seeds a store the strict authority will accept a write from.
+   *
+   * `makeEmptyStore` carries no `rev`, so a store seeded straight from it is
+   * written under revision 0 while the authority installed suite-wide expects
+   * the first write at 1. That refusal is correct at the IPC boundary - it is
+   * the exact mismatch `installStrictSaveRevision` exists to model - but a
+   * test about word lookup has no race to exercise, and a capture now reports
+   * the refusal rather than resolving anyway. Seeding the revision the
+   * authority is actually on is what keeps such a test testing its own subject.
+   */
+  function seedAccepted(): void {
+    seed(makeEmptyStore({ rev: revision }));
+  }
+
   it('publishes a scheduler rating only after the flashcard write is acknowledged', async () => {
     mockSettings.language = 'ja2';
     let acknowledgeSave!: () => void;
@@ -864,6 +908,52 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
   });
 
+  it('rejects addFlashcard when the write is refused for a reason a rebase cannot fix', async () => {
+    // The product question is "did my card get saved?", and every capture
+    // surface answers it by catching whatever `addFlashcard` throws and routing
+    // it to `reportCaptureFailure`. `addFlashcard` therefore has to reject when
+    // the write does not land.
+    //
+    // It used to call the debounced `saveFlashcards()`, which is fire and
+    // forget: it returns void, and the refusal is logged inside
+    // `saveFlashcardsImmediate` and swallowed. So a card that never reached
+    // disk resolved successfully, the surface showed success, the word stayed
+    // in the unknown-words list as a card, and the learner's deck was
+    // permanently one card short of what they were told it held. The
+    // capture-failure architecture could never see it, because nothing was
+    // ever thrown.
+    //
+    // A stale-revision refusal is NOT this case: that one is rebased onto the
+    // authority and replayed, and the card legitimately survives.
+    mockSettings.language = 'ja';
+    installStrictSaveRevision();
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    seed(makeEmptyStore());
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+
+    // A full disk, a torn file, an interrupted process: the write did not
+    // happen and re-reading the authority cannot change that.
+    mockBridge.flashcards.saveFlashcards.mockRejectedValueOnce(new Error('ENOSPC: no space left on device'));
+
+    await expect(ctx.addFlashcard(
+      { front: ' 保存失败', back: 'save failed', type: 'word', word: '保存失败' },
+      undefined, true, 'ja',
+    )).rejects.toThrow(/ENOSPC|no space left/i);
+
+    // A card that is not on disk must not be left in the rendered deck either.
+    // Reporting the failure while still showing the card is the same
+    // contradiction this campaign has been removing elsewhere: the surface
+    // says "that failed" and the list beside it says "mLearn card".
+    const lk2 = `ja:${SRS.hashWordSync(' 保存失败')}`;
+    const leaked = Object.values(ctx.store.flashcards).find((c) => c.word === ' 保存失败');
+    expect(leaked, 'the un-persisted card must not remain in the rendered deck').toBeUndefined();
+    expect(ctx.store.wordToCardMap[lk2] ?? []).toEqual([]);
+    expect(ctx.getCardByWordSync(' 保存失败', 'ja')).toBeFalsy();
+
+    dispose();
+  });
+
   it('lands a refused write by replaying it onto what the other window committed', async () => {
     // Every window holds the same provider over the same whole-snapshot store,
     // so two of them writing at once is ordinary rather than exceptional. The
@@ -909,6 +999,75 @@ describe('FlashcardProvider', () => {
     // And this window renders what was written, not the snapshot it lost.
     expect(ctx.store.flashcards[theirs.id].reviews).toBe(8);
     expect(ctx.store.flashcards[mine.id].reviews).toBe(mine.reviews);
+    dispose();
+  });
+
+
+  it('rebases a refused write the way the real IPC boundary delivers a refusal', async () => {
+    // Every refusal test above drives the authority through a plain
+    // `Error(message)`. The live app never delivers that: a throw raised in the
+    // main process crosses the IPC boundary as
+    // "Error invoking remote method 'save-flashcards': Error: <message>", which
+    // keeps the message and loses every other property.
+    //
+    // Matching only the start of that text therefore never recognizes a real
+    // refusal. The rebase never engaged, and a write that another window had
+    // merely won a race against - one the learner would never know had been lost
+    // - was reported as a failed save instead, dropping their rating with it.
+    answerProbesFromAuthority();
+    const mine = makeCard({ id: 'ipc-mine', state: 'review', interval: 86_400_000, dueDate: Date.now() - 1000, reviews: 2 });
+    const theirs = makeCard({ id: 'ipc-theirs', reviews: 7 });
+    const startingStore = makeEmptyStore({ flashcards: { [mine.id]: mine, [theirs.id]: theirs }, rev: 5 });
+    const { ctx, dispose } = await mountProvider();
+    seed(startingStore);
+    ctx.refreshQueue();
+    expect(ctx.store.rev).toBe(5);
+
+    // The same strict revision check, but refusing the way a real invocation
+    // refuses. Nothing else about the authority changes, so the only variable
+    // is the shape of the rejection.
+    mockBridge.flashcards.saveFlashcards.mockImplementation((saved: FlashcardStore) => {
+      if ((saved.rev ?? 0) !== revision) {
+        return Promise.reject(new Error(
+          "Error invoking remote method 'save-flashcards': Error: " +
+          staleFlashcardRevisionMessage(revision, saved.rev ?? 0),
+        ));
+      }
+      revision += 1;
+      committed = structuredClone(saved);
+      committed.rev = revision;
+      acceptedSaves.push(structuredClone(committed));
+      return Promise.resolve(revision);
+    });
+
+    // The other window commits first, from a snapshot taken before this window
+    // rated anything.
+    const otherWindow = JSON.parse(JSON.stringify(startingStore)) as FlashcardStore;
+    otherWindow.flashcards[theirs.id].reviews = 8;
+    otherWindow.rev = 5;
+    await mockBridge.flashcards.saveFlashcards(otherWindow, [], false, undefined);
+    expect(revision).toBe(6);
+
+    await ctx.submitRating(mine.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      attemptId: 'ipc-mine-attempt' as AttemptId,
+      language: mine.language,
+    });
+    const knowledgeKeys = Object.keys(ctx.store.wordKnowledge);
+    expect(knowledgeKeys).toHaveLength(1);
+
+    // The refusal arrives wrapped. A window that cannot recognize it drops the
+    // rating and reports a failed save; a window that can rebases, and the
+    // rating lands. Waiting on the committed revision - not on it having been
+    // touched at all - is what distinguishes the two: the other window's write
+    // already satisfied the weaker condition.
+    await vi.waitFor(() => {
+      expect(committed?.rev).toBe(7);
+      expect(Object.keys(committed?.wordKnowledge ?? {})).toEqual(knowledgeKeys);
+      expect(committed?.flashcards[theirs.id].reviews).toBe(8);
+    }, { timeout: 5000 });
+
+    expect(ctx.store.flashcards[theirs.id].reviews).toBe(8);
+    expect(Object.keys(ctx.store.wordKnowledge)).toEqual(knowledgeKeys);
     dispose();
   });
 
@@ -1389,7 +1548,7 @@ describe('FlashcardProvider', () => {
   // ─── Priority 1: addFlashcard ─────────────────────────────────────
   it('addFlashcard creates a card and updates store maps', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: '猫', back: 'cat' }, undefined, true);
 
@@ -1407,7 +1566,7 @@ describe('FlashcardProvider', () => {
 
   it('addFlashcard populates wordToCardMap with language-prefixed key', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: '犬', back: 'dog' }, undefined, true);
 
@@ -1420,7 +1579,7 @@ describe('FlashcardProvider', () => {
 
   it('addFlashcard updates wordStatsMap', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: '鳥', back: 'bird' }, undefined, true);
 
@@ -1432,7 +1591,7 @@ describe('FlashcardProvider', () => {
 
   it('addFlashcard with custom initialEase', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: '魚', back: 'fish' }, 3.0, true);
 
@@ -1460,7 +1619,7 @@ describe('FlashcardProvider', () => {
 
   it('addFlashcard supports multiple cards per word', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id1 = await ctx.addFlashcard({ front: '花', back: 'flower' }, undefined, true);
     const id2 = await ctx.addFlashcard({ front: '花', back: 'blossom' }, undefined, true);
@@ -1544,7 +1703,7 @@ describe('FlashcardProvider', () => {
       return { abort: vi.fn() };
     });
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard(
       { front: 'سلام', back: 'peace', example: 'السلام عليكم.' },
@@ -1587,7 +1746,7 @@ describe('FlashcardProvider', () => {
   // ─── Priority 1: removeFlashcard ──────────────────────────────────
   it('removeFlashcard deletes card from store and map', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: '山', back: 'mountain' }, undefined, true);
     expect(ctx.store.flashcards[id]).toBeDefined();
@@ -1601,7 +1760,7 @@ describe('FlashcardProvider', () => {
   it('removeFlashcard with neverShowAgain=true writes exclusion policy only — no claim, no knowledge fabrication', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: '川', back: 'river' }, undefined, true);
     const hash = await SRS.hashWord('川');
@@ -1622,7 +1781,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     mockGetCanonicalForm.mockImplementation((word: string) => `ja:${word}`);
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => `${language}:${word}`);
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: 'سلام', back: 'hello' }, undefined, true, 'ar');
     const storageWord = 'ar:سلام';
@@ -1651,7 +1810,7 @@ describe('FlashcardProvider', () => {
 
   it('removeFlashcard cleans up video file if present', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: '雨', back: 'rain', videoUrl: 'video://test.mp4' }, undefined, true);
     await ctx.removeFlashcard(id);
@@ -2047,7 +2206,7 @@ describe('FlashcardProvider', () => {
   // ─── Priority 1: Save triggers ────────────────────────────────────
   it('addFlashcard triggers save via bridge', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: '水', back: 'water' }, undefined, true);
 
@@ -2113,7 +2272,7 @@ describe('FlashcardProvider', () => {
 
   it('undoLastAction is no-op when stack is empty', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.undoLastAction();
     expect(ctx.canUndo()).toBe(false);
@@ -2183,7 +2342,7 @@ describe('FlashcardProvider', () => {
   // ─── Priority 2: Synchronous lookups ──────────────────────────────
   it('hasWordSync returns true for existing words', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: '森', back: 'forest' }, undefined, true);
     expect(ctx.hasWordSync('森')).toBe(true);
@@ -2193,7 +2352,7 @@ describe('FlashcardProvider', () => {
 
   it('getCardByWordSync returns card for existing word', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: '海', back: 'sea' }, undefined, true);
     const card = ctx.getCardByWordSync('海');
@@ -2205,7 +2364,7 @@ describe('FlashcardProvider', () => {
   it('getCardByWordSync finds cards through language-provided variants', async () => {
     mockGetWordVariants.mockImplementation((word: string) => word === 'иду' ? ['идти', 'иду'] : []);
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'идти', back: 'to go' }, undefined, true);
     const card = ctx.getCardByWordSync('иду');
@@ -2220,7 +2379,7 @@ describe('FlashcardProvider', () => {
     mockGetCanonicalForm.mockImplementation((word: string) => word === 'иду' ? 'идти' : word);
     mockGetWordVariants.mockImplementation((word: string) => word === 'иду' ? ['идти', 'иду'] : []);
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'иду', back: 'I go' }, undefined, true);
 
@@ -2242,7 +2401,7 @@ describe('FlashcardProvider', () => {
       language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
     ));
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'يكتب', back: 'he writes' }, undefined, true, 'ar');
 
@@ -2266,7 +2425,7 @@ describe('FlashcardProvider', () => {
       language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
     ));
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.ignoreWordForLanguage('كتب', undefined, 'ar');
     const createdId = await ctx.addFlashcard({ front: 'يكتب', back: 'he writes' }, undefined, true, 'ar');
@@ -2279,7 +2438,7 @@ describe('FlashcardProvider', () => {
   it('sync card lookups can target a non-active stored word language explicitly', async () => {
     mockSettings.language = 'ja';
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'سلام', back: 'hello' }, undefined, true, 'ar');
 
@@ -2300,7 +2459,7 @@ describe('FlashcardProvider', () => {
       language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
     ));
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'كتب', back: 'write', unpopulated: true }, undefined, true, 'ar');
 
@@ -2311,7 +2470,7 @@ describe('FlashcardProvider', () => {
 
   it('getCardsByWordSync returns all cards for a word', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: '石', back: 'stone' }, undefined, true);
     await ctx.addFlashcard({ front: '石', back: 'rock' }, undefined, true);
@@ -2331,7 +2490,7 @@ describe('FlashcardProvider', () => {
   // ─── Priority 2: Async word lookup ────────────────────────────────
   it('hasWord returns true after adding card', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: '星', back: 'star' }, undefined, true);
     const result = await ctx.hasWord('星');
@@ -2342,7 +2501,7 @@ describe('FlashcardProvider', () => {
   it('hasWord and getCardsByWord find cards through language-provided variants', async () => {
     mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'كتب', back: 'write' }, undefined, true);
 
@@ -2356,7 +2515,7 @@ describe('FlashcardProvider', () => {
   it('async word lookups can target a non-active stored word language explicitly', async () => {
     mockSettings.language = 'ja';
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'سلام', back: 'hello' }, undefined, true, 'ar');
 
@@ -2377,7 +2536,7 @@ describe('FlashcardProvider', () => {
       language === 'ar' && word === 'يكتب' ? ['كتب', 'يكتب'] : [word]
     ));
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'يكتب', back: 'he writes' }, undefined, true, 'ar');
 
@@ -2388,7 +2547,7 @@ describe('FlashcardProvider', () => {
 
   it('getCardsByWord returns cards for a word', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: '月', back: 'moon' }, undefined, true);
     const cards = await ctx.getCardsByWord('月');
@@ -2399,7 +2558,7 @@ describe('FlashcardProvider', () => {
 
   it('getCardByWord returns best card when multiple exist', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id1 = await ctx.addFlashcard({ front: '風', back: 'wind' }, undefined, true);
     await ctx.addFlashcard({ front: '風', back: 'breeze' }, undefined, true);
@@ -3753,7 +3912,7 @@ describe('FlashcardProvider', () => {
 
   it('trackWordAppearance skips words that already have flashcards', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: '既存', back: 'existing' }, undefined, true);
     await ctx.trackWordAppearance('既存');
@@ -3768,7 +3927,7 @@ describe('FlashcardProvider', () => {
   it('trackWordAppearance skips variants that already have flashcards', async () => {
     mockGetWordVariants.mockImplementation((word: string) => word === 'يكتب' ? ['كتب', 'يكتب'] : []);
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     await ctx.addFlashcard({ front: 'كتب', back: 'write' }, undefined, true);
     await ctx.trackWordAppearance('يكتب');
@@ -3954,17 +4113,24 @@ describe('FlashcardProvider', () => {
   // ─── Priority 2: updateMeta ───────────────────────────────────────
   it('updateMeta modifies store.meta and refreshes queue', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     ctx.updateMeta({ maxNewCardsPerDay: 50 });
     expect(ctx.store.meta.maxNewCardsPerDay).toBe(50);
+    // `updateMeta` persists on the debounced timer, so the write would still be
+    // queued when this test disposes the provider - and would then land inside
+    // whichever test ran next, against that test's authority and revision. A
+    // cross-test leak like that shows up as a refusal in an unrelated test
+    // about something else entirely. Flushing here keeps the write this
+    // test's own.
+    await vi.waitFor(() => expect(mockBridge.flashcards.saveFlashcards).toHaveBeenCalled());
     dispose();
   });
 
   // ─── Priority 2: updateFlashcardContent ───────────────────────────
   it('updateFlashcardContent modifies content fields', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: '本', back: 'book' }, undefined, true);
     ctx.updateFlashcardContent(id, { back: 'book (also: origin)' });
@@ -3978,7 +4144,7 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     mockGetCanonicalForm.mockImplementation((word: string) => `ja:${word}`);
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => `${language}:${word}`);
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
 
     const id = await ctx.addFlashcard({ front: 'سلام', back: 'hello' }, undefined, true, 'ar');
     const oldKey = `ar:${await SRS.hashWord('ar:سلام')}`;
@@ -4020,7 +4186,7 @@ describe('FlashcardProvider', () => {
   // ─── Priority 2: Canonical form integration ──────────────────────
   it('addFlashcard uses getCanonicalForm for hashing', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
     mockGetCanonicalForm.mockImplementation((w: string) => w === 'きる' ? '着る' : w);
 
     await ctx.addFlashcard({ front: 'きる', back: 'to wear' }, undefined, true);
@@ -4421,7 +4587,7 @@ describe('FlashcardProvider', () => {
   // ─── Priority 3: Anki choice flow ────────────────────────────────
   it('addFlashcard with use_anki shows pending choice', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
     const prevAnki = mockSettings.use_anki;
     mockSettings.use_anki = true;
 
@@ -4442,7 +4608,7 @@ describe('FlashcardProvider', () => {
 
   it('addFlashcard with use_anki + cancel returns empty id', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
     const prevAnki = mockSettings.use_anki;
     mockSettings.use_anki = true;
 
@@ -4579,7 +4745,7 @@ describe('FlashcardProvider', () => {
 
   it('promoteSuggestedFlashcards preserves the suggestion language when active language differs', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
     mockSettings.language = 'ja';
     mockSettings.learningLanguageLevels = { ar: null };
     mockBackend.translate.mockResolvedValue({
@@ -4606,7 +4772,7 @@ describe('FlashcardProvider', () => {
 
   it('promoteSuggestedFlashcards preserves a captured suggestion reading over backend readings', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
     mockSettings.language = 'ja';
     mockSettings.learningLanguageLevels = { zh: null };
     mockBackend.translate.mockResolvedValue({
@@ -4636,7 +4802,7 @@ describe('FlashcardProvider', () => {
 
   it('promoteSuggestedFlashcards derives missing levels from installed suggestion language frequency data', async () => {
     const { ctx, dispose } = await mountProvider();
-    flashcardsCb(makeEmptyStore());
+    seedAccepted();
     mockSettings.language = 'ja';
     mockSettings.learningLanguageLevels = { de: null };
     mockBackend.translate.mockResolvedValue({
@@ -6228,6 +6394,59 @@ describe('claim override persistence (REQ15)', () => {
     expect(windowB.getComprehensiveWordStatusWithSourceSync(word)).toMatchObject({ status: 'learning', basis: 'claim' });
     disposeB();
     vi.unstubAllGlobals();
+    dispose();
+  });
+
+  // REGRESSION (this campaign): a manual "I know this" claim is stored
+  // word-level, so `sense-recognition` folds it in but `surface-recognition`
+  // never saw it. Written comprehension requires both, so a word the learner
+  // had explicitly claimed kept being re-listed as unknown by the reader,
+  // video and overlay sidebars while the comprehensive projection reported it
+  // as `known` on the same screen.
+  it('a claimed word is not re-listed as unknown by the written-comprehension rule', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    seed(makeEmptyStore());
+
+    // The gated resolver only answers once hydration + migration have settled.
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+
+    ctx.setWordClaim('遅刻', 'known', 'ja');
+
+    // The claim is honoured by the comprehensive projection...
+    expect(ctx.getComprehensiveWordStatusSync('遅刻', 'ja')).toBe('known');
+    // ...so the capture surfaces must agree that it is not an unknown word.
+    expect(ctx.isWordKnownWhenWrittenSync('遅刻', '遅刻', 'ja')).toBe(true);
+    dispose();
+  });
+
+  // The claim only settles the word the learner spoke about. It must NOT
+  // manufacture a written-form bridge for an unmeasured surface: that rule is
+  // the entire reason this predicate exists, and a learner who has only seen
+  // a word still wants it in the list.
+  it('a claim does not turn an unmeasured bridge into evidence for an ALIAS spelling', async () => {
+    mockSettings.language = 'ja';
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const lk = `ja:${SRS.hashWordSync('遅刻')}`;
+    seed(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 2.6, lastSeen: 1, timesSeen: 4, timesHovered: 0,
+          word: '遅刻', language: 'ja', hasActiveEvidence: true, lastEvidenceSource: 'srs',
+        },
+      },
+    }));
+
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    ctx.setWordClaim('遅刻', 'known', 'ja');
+
+    // The claim settles the word itself...
+    expect(ctx.isWordKnownWhenWrittenSync('遅刻', '遅刻', 'ja')).toBe(true);
+    // ...but it must not manufacture a written-form bridge for a DIFFERENT
+    // spelling of it. An alias the learner has never been shown is still an
+    // unknown written form, which is exactly what this rule exists to catch.
+    expect(ctx.isWordKnownWhenWrittenSync('遅刻', '遅刻し', 'ja')).toBe(false);
     dispose();
   });
 });

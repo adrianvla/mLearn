@@ -163,11 +163,15 @@ export const Tooltip: Component<TooltipProps> = (props) => {
             class={`tooltip-content tooltip-content--${props.position ?? 'top'}${props.interactive ? ' tooltip-content--interactive' : ''}`}
             onMouseEnter={cancelHide}
             onMouseLeave={scheduleHide}
+            // No inline transform: vertical placement belongs to the
+            // `tooltip-content--top|bottom` modifier classes. An inline
+            // `translateX(-50%)` here silently overrode the class's
+            // `translateY(-100%)`, so "top" tooltips rendered downward over
+            // their own trigger and ate its pointer events.
             style={{
               position: 'fixed',
               left: `${pos().left}px`,
               top: `${pos().top}px`,
-              transform: 'translateX(-50%)',
               'z-index': 'var(--z-tooltip)',
             }}
           >

@@ -24,7 +24,6 @@ import {
   resolveStoredProsodyForDisplayedReading,
 } from '../../../utils/readingProsody';
 import type { FlashcardProsody, LanguageData, TranslationResponse, TranslationEntry } from '../../../../shared/types';
-import type { WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import {
   getFrequencyLevelLabel,
   getFrequencyLevelVisualRank,
@@ -132,8 +131,9 @@ export interface WordEntry {
 export interface WordEntryRowProps {
   entry: WordEntry;
   levelNames: Record<number, string>;
-  onStatusChange: (entry: WordEntry, newStatus: WordStatus) => void;
   onAddFlashcard: (entry: WordEntry) => void;
+  /** A card for this word is already being built; the Add control reports it. */
+  isAddingFlashcard?: boolean;
   onRemoveFlashcard: (entry: WordEntry) => void;
   onUnignore?: (entry: WordEntry) => void;
   onEditFlashcard?: (entry: WordEntry) => void;
@@ -448,10 +448,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={renderedLevel() === null}>-</Show>
       </div>
       <div class="col knowledge">
-        <WordStatusPill
-          word={props.entry.word}
-          onStatusChange={(status) => props.onStatusChange(props.entry, status)}
-        />
+        <WordStatusPill word={props.entry.word} />
         <div class="knowledge-actions">
           <Button variant="ghost" size="sm" onClick={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word))}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
           <Button variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Button>
@@ -501,7 +498,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.WordDbEditor.Actions.Unignore')}
           </Button>
         </Show>
-        <Show when={!hasFlashcard() && !ignored()}>
+        <Show when={props.isAddingFlashcard}>
+          {/* The same pending state every other capture surface shows: the
+              click is already in flight, so the control reports it instead of
+              offering an action that would be refused. */}
+          <Button variant="primary" size="sm" disabled>
+            {t('mlearn.Global.Status.Adding')}
+          </Button>
+        </Show>
+        <Show when={!hasFlashcard() && !ignored() && !props.isAddingFlashcard}>
           <Button
             variant="primary"
             size="sm"

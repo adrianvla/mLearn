@@ -27,7 +27,9 @@ import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMedi
 import { buildGrammarExposure } from '../../../utils/grammarExposure';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
-import { bulkAddWords } from '../../../utils/bulkAddWords';
+import { addAllCapturedWords } from '../../../services/addAllCapturedWords';
+import { resolveCapturedWordEligibility } from '../../../services/wordCaptureEligibility';
+import { reportCaptureFailure } from '../../../services/wordCaptureFailure';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords, planSubtitleCapture, recordCaptureAttempt, type SubtitleCaptureState } from '../../../utils/suggestedFlashcards';
 import { tokensToColoredHtml, parseWorkName, type ParseWorkNameOptions } from '../../../utils/subtitleParsing';
@@ -531,7 +533,7 @@ export const VideoRoute: Component = () => {
       if (!isWordInLanguageScript(word, settings.language, langCtx.currentLangData())) continue;
       if (flashcardCtx.isWordIgnoredSync(word, settings.language)) continue;
 
-      if (flashcardCtx.getComprehensiveWordStatusSync(word, settings.language) === 'known') continue;
+      if (flashcardCtx.isWordKnownWhenWrittenSync(word, token.surface ?? token.word, settings.language)) continue;
 
       gated.push({
         key: `sub:${idx}:${word}`,
@@ -619,7 +621,9 @@ export const VideoRoute: Component = () => {
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word, settings.language)) return false;
-      return flashcardCtx.getComprehensiveWordStatusSync(entry.word, settings.language) !== 'known';
+      return !flashcardCtx.isWordKnownWhenWrittenSync(
+        entry.word, entry.token.surface ?? entry.token.word, settings.language,
+      );
     });
   });
 
@@ -704,8 +708,6 @@ export const VideoRoute: Component = () => {
       }
 
       await flashcardCtx.addFlashcard(content, ease, undefined, settings.language);
-    } catch (err) {
-      log.error('Failed to add flashcard from video sidebar:', err);
     } finally {
       setAddingSidebarWords(prev => {
         const next = new Set(prev);
@@ -715,26 +717,65 @@ export const VideoRoute: Component = () => {
     }
   };
 
-  const addAllVideoWords = async (entries: VideoWordEntry[]) => {
-    await processAddAll(entries);
-  };
+  /**
+   * "Add All" for this sidebar's unknown words.
+   *
+   * The behaviour itself is owned by `addAllCapturedWords`: the reader, this
+   * route and the floating overlay are the same sidebar offering the same
+   * button, and each of them used to carry its own copy of the batch skeleton.
+   * They had already drifted - the video and overlay copies caught and
+   * swallowed their own capture failures, which made the batch reporting below
+   * unreachable and a bulk add through either of them silent about failing. The
+   * surface supplies what it knows: how to build one card, whether that word
+   * may still become one, and its logger.
+   */
+  const addAllVideoWords = (entries: VideoWordEntry[]) =>
+    addAllCapturedWords({
+      entries,
+      addFlashcard: addVideoWordFlashcard,
+      isEligible: isVideoCaptureEligible,
+      isInFlight: isAddingAllSidebarWords,
+      setInFlight: setIsAddingAllSidebarWords,
+      translate: t,
+      logEntryError: (entry, err) => log.error(`Failed to add flashcard for "${entry.word}":`, err),
+    });
 
-  const processAddAll = async (entries: VideoWordEntry[]) => {
-    setIsAddingAllSidebarWords(true);
+  /**
+   * A single sidebar capture, reporting its own failure.
+   *
+   * This used to catch and log internally, which made two things wrong at once:
+   * a failed capture was invisible, and `bulkAddWords` - which routes a rejected
+   * entry into its `onEntryError` and continues - could never see a rejection,
+   * so the batch reporting in `addAllVideoWords` was unreachable. Letting the
+   * rejection propagate gives one place the decision to announce.
+   */
+  const handleAddSidebarWord = async (entry: VideoWordEntry) => {
+    if (addingSidebarWords().has(entry.key) || !isVideoCaptureEligible(entry)) {
+      return;
+    }
     try {
-      await bulkAddWords({
-        entries,
-        addFlashcard: addVideoWordFlashcard,
-        onEntryError: (entry, err) => {
-          log.error(`Failed to add flashcard for "${entry.word}":`, err);
-          showToast({ message: t('mlearn.WordHover.FlashcardAddFailed'), variant: 'error' });
-        },
-      });
-    } finally {
-      setIsAddingAllSidebarWords(false);
+      await addVideoWordFlashcard(entry);
+    } catch (err) {
+      reportCaptureFailure(err, { word: entry.word }, { translate: t, log: log.error });
     }
   };
 
+  /**
+   * Whether a captured word may still become a card.
+   *
+   * The rule is owned by `wordCaptureEligibility`; this only supplies this
+   * surface's facts. The video sidebar previously had no guard on either add
+   * path, so a word that had become known or excluded since the list was built
+   * was still added - producing a duplicate card the reader's equivalent path
+   * would have refused.
+   */
+  const isVideoCaptureEligible = (entry: VideoWordEntry): boolean =>
+    resolveCapturedWordEligibility(
+      entry.word,
+      settings.language,
+      Boolean(flashcardCtx.getCardByWordSync(entry.word, settings.language)),
+      flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).excluded === true,
+    ).eligible;
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
     await ignoreWordWithConfirmation(
@@ -747,7 +788,7 @@ export const VideoRoute: Component = () => {
       },
     );
   };
-  
+
   let thumbnailInterval: number | null = null;
   let progressInterval: number | null = null;
   let lastThumbnailCaptureKey = '';
@@ -1533,7 +1574,7 @@ export const VideoRoute: Component = () => {
           addingWordKeys={() => addingSidebarWords()}
           isAddingAll={() => isAddingAllSidebarWords()}
           failedWordSet={failedSidebarWordSet}
-          onAddWord={addVideoWordFlashcard}
+          onAddWord={handleAddSidebarWord}
           onAddAll={addAllVideoWords}
           onIgnoreWord={ignoreVideoWord}
           onClose={() => setShowWordSidebar(false)}

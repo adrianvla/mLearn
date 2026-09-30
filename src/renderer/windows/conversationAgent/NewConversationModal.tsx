@@ -8,13 +8,14 @@
 
 import { Component, For, Show, createMemo, createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
+import { classifyProviderFailure } from '../../services/providerFailure';
+import { openCapabilitySettings } from '../../services/capabilityUnavailable';
 import { threadContextId, type Participant, type WorldSnapshot, type ScenarioCreation } from '../../../shared/world';
 import { resolveParticipant } from '../../services/participantConstruction';
 import { Avatar, Button, Disclosure, FormField, HintText, Input, ListRow, ModalForm, PlusIcon, RadioChoice, SearchIcon, Textarea } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import './NewConversationModal.css';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
-import { conversationRecoveryKey } from './errorUtils';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger('renderer.tutor.start');
@@ -54,6 +55,10 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   const [candidates, setCandidates] = createSignal<Participant[]>([]);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(saved?.error ?? null);
+  // The raw text is kept for the technical-details disclosure; what the learner
+  // reads and what they are offered come from the one failure owner, so this
+  // modal cannot report a provider failure differently from any other surface.
+  const failure = createMemo(() => (error() ? classifyProviderFailure(error(), settings.llmProvider) : null));
   let creationKey: string | undefined = saved ? JSON.stringify({ ids: saved.request.participantIds, intent: saved.request.intent?.trim() ?? '' }) : undefined;
   let creationOperationId: string | undefined = saved?.operationId;
   let generation = 0;
@@ -311,12 +316,20 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
             </div>
           )}
         </Show>
-        <Show when={error()}>
-          <div class="new-conversation-error" role="alert">
-            <p>{t(conversationRecoveryKey(error()))}</p>
-            <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings', context: { section: 'ai' } })}>{t('mlearn.ConversationAgent.Recovery.Settings')}</Button>
-            <Disclosure title={t('mlearn.Knowledge.Projection.Relations.Advanced')}><p>{error()}</p></Disclosure>
-          </div>
+        <Show when={failure()}>
+          {(classified) => (
+            <div class="new-conversation-error" role="alert">
+              <p>{t(classified().key)}</p>
+              {/* Settings is only offered when it can actually help. A
+                  connection that is down, an exhausted quota or a cancelled
+                  sign-in is not repaired by a setting, and sending the learner
+                  there to find nothing is worse than not offering it. */}
+              <Show when={classified().recovery === 'settings'}>
+                <Button variant="ghost" onClick={() => openCapabilitySettings('llm')}>{t('mlearn.ConversationAgent.Recovery.Settings')}</Button>
+              </Show>
+              <Disclosure title={t('mlearn.Knowledge.Projection.Relations.Advanced')}><p>{error()}</p></Disclosure>
+            </div>
+          )}
         </Show>
       </div>
     </ModalForm>

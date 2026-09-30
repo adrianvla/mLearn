@@ -6,6 +6,7 @@ import { createSignal } from 'solid-js';
 import { GrammarCoverage, type GrammarUndoLifecycle } from './GrammarCoverage';
 import { itemContentVersion } from '../../learning/questionBank';
 import { loadQuestionValidationRecords } from '../../learning/questionValidation';
+import { MAX_UNDO_STACK_SIZE } from '../../learning/undoHistory';
 import type { StudySessionLocks } from '../../learning/studySessionController';
 import type { GrammarItemSemanticValidation, GrammarPracticeItemSource } from '../../../shared/types';
 import type { CurriculumComponentSummary } from '../../../shared/curriculum';
@@ -237,6 +238,14 @@ async function startPass(container: HTMLElement, level: number) {
 function revealCurrent(container: HTMLElement, level: number) {
   const reveal = levelBlock(container, level).querySelector<HTMLButtonElement>('.grammar-coverage__reveal');
   reveal?.click();
+}
+
+function undoButton(container: HTMLElement, level: number) {
+  return levelBlock(container, level).querySelector<HTMLButtonElement>('.grammar-coverage__session-undo');
+}
+
+function promptedPattern(container: HTMLElement, level: number) {
+  return levelBlock(container, level).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
 }
 
 describe('GrammarCoverage policy-selected practice session', () => {
@@ -1146,10 +1155,6 @@ describe('GrammarCoverage durable Undo', () => {
     pendingRecord = null;
   });
 
-  const undoButton = (container: HTMLElement, level: number) =>
-    levelBlock(container, level).querySelector<HTMLButtonElement>('.grammar-coverage__session-undo');
-  const promptedPattern = (container: HTMLElement, level: number) =>
-    levelBlock(container, level).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
   /** Rates the revealed prompt fluent and waits for the journal write to land. */
   const rateRevealed = async (onProbe: Mock, container: HTMLElement, level: number) => {
     const buttons = levelBlock(container, level).querySelectorAll('.grammar-coverage__session-probe .rating-matrix__quality');
@@ -1289,6 +1294,127 @@ describe('GrammarCoverage durable Undo', () => {
     second.dispose();
     second.container.remove();
     pendingRecord = null;
+  });
+});
+
+describe('GrammarCoverage take-back window follows the shared retention policy', () => {
+  // The retention window is ONE decision owned by undoHistory (see that
+  // module's contract). This surface is a third study pass, so it must obey
+  // the same window as flashcard review and word sync — the bug this guards
+  // is a raw unbounded append plus no reset, which let the stack grow across
+  // every pass and every level in the window's lifetime.
+  beforeEach(() => {
+    localStorage.clear();
+    settingsUiLanguage = 'en';
+    pendingRecord = null;
+    undoHarness.projections.clear();
+    undoHarness.record.mockClear();
+    undoHarness.recover.mockClear();
+    undoHarness.retract.mockClear();
+    undoHarness.retract.mockImplementation(async () => true);
+    undoHarness.record.mockImplementation(async (record: UndoRecord) => { pendingRecord = record; return true; });
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      value: { request: (_name: string, callback: () => void) => { callback(); return Promise.resolve(); } },
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    const lockStubHost = globalThis.navigator as { locks?: unknown };
+    delete lockStubHost.locks;
+    pendingRecord = null;
+  });
+
+  /** A pass with more constructions than the retention window can hold, so
+   *  an over-long window is observable rather than theoretical. */
+  const longLanguageData = (count: number): LanguageData => ({
+    language: 'ja',
+    grammar: Array.from({ length: count }, (_v, i) => ({
+      pattern: `p${i}`, meaning: `m${i}`, level: 2,
+    })),
+    grammarLevels: { difficulty: 'lower-is-harder', names: { '2': 'N3' } },
+  } as unknown as LanguageData);
+
+  /** Rates the revealed prompt fluent and waits for the journal write. */
+  const rateOnce = async (container: HTMLElement, level = 2) => {
+    const fluent = levelBlock(container, level).querySelector(
+      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+    ) as HTMLButtonElement;
+    fluent.click();
+    await beat();
+  };
+
+  it('a pass longer than the window keeps exactly the window takeable', async () => {
+    // The window is the policy; the pass length is the learner's business. A
+    // pass longer than the window must drop the oldest take-back entries, so
+    // the number of ratings a learner can take back is the shared cap — never
+    // the length of the pass they just did.
+    const total = MAX_UNDO_STACK_SIZE + 5;
+    const onProbe = vi.fn();
+    const { container, dispose } = mount(onProbe, longLanguageData(total));
+    await startPass(container, 2);
+
+    let rated = 0;
+    while (rated < MAX_UNDO_STACK_SIZE + 2) {
+      if (container.querySelector('.grammar-coverage__session-done')) break;
+      revealCurrent(container, 2);
+      await tick();
+      const fluent = levelBlock(container, 2).querySelector(
+        '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      ) as HTMLButtonElement | null;
+      if (!fluent || fluent.disabled) break;
+      await rateOnce(container, 2);
+      rated += 1;
+    }
+    expect(rated).toBe(MAX_UNDO_STACK_SIZE + 2);
+
+    // Unwind the take-back window one entry at a time and count it. The
+    // shared window is finite, so the count is the cap however long the pass
+    // was: a stack that grew with the pass (52 entries here) would let a
+    // learner rewind every rating they had just made.
+    let undos = 0;
+    while (undoButton(container, 2) && undos < total + 5) {
+      undoButton(container, 2)!.click();
+      await tick();
+      undos += 1;
+    }
+    expect(undos).toBe(MAX_UNDO_STACK_SIZE);
+    dispose();
+    container.remove();
+    // 52 ratings + 50 undos, each gated by the presentation beat, exceeds the
+    // default 5s.
+  }, 60_000);
+
+  it('a fresh pass starts a fresh take-back window (old ratings are not takeable)', async () => {
+    const onProbe = vi.fn();
+    const { container, dispose } = mount(onProbe);
+    await startPass(container, 2);
+    revealCurrent(container, 2);
+    await tick();
+    await rateOnce(container, 2);
+    // A rating in pass 1 is live in the take-back window.
+    expect(undoButton(container, 2)?.disabled).toBe(false);
+
+    // Finish pass 1 and start a new pass over the same level.
+    revealCurrent(container, 2);
+    await tick();
+    const stillOpen = levelBlock(container, 2).querySelector(
+      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+    ) as HTMLButtonElement | null;
+    if (stillOpen && !stillOpen.disabled) await rateOnce(container, 2);
+    expect(container.querySelector('.grammar-coverage__session-done')).toBeTruthy();
+
+    const practise = levelBlock(container, 2).querySelector('.grammar-coverage__session-btn') as HTMLButtonElement;
+    practise.click();
+    await tick();
+
+    // The new pass begins with an EMPTY window: the previous pass's ratings
+    // belong to a session that is gone, so the control is absent (there is
+    // nothing to take back) rather than offering to rewind across passes.
+    revealCurrent(container, 2);
+    await tick();
+    expect(undoButton(container, 2)).toBeNull();
+    dispose();
+    container.remove();
   });
 });
 

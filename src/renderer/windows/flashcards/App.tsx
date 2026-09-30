@@ -22,7 +22,8 @@ import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { useItemSelection } from '../../hooks/useItemSelection';
-import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
+import { withCloudAuth } from '../../services/cloudSessionManager';
+import { absorbProviderFailure, classifyProviderFailure } from '../../services/providerFailure';
 import { isLLMReady } from '../../services/llmProvider';
 import { DEFAULT_SETTINGS, type Flashcard, type FlashcardContent, type LanguageData, type TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
@@ -154,25 +155,6 @@ export const FlashcardsContent: Component = () => {
   const [showRepairModal, setShowRepairModal] = createSignal(false);
   const [, setRepairRunning] = createSignal(false);
 
-  const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
-
-  const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
-    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
-
-  const handleCloudOperationFallback = (error: unknown): boolean => {
-    if (isCloudSessionCancelled(error)) {
-      showToast({ message: t('mlearn.CloudReLogin.SignInCanceled'), variant: 'warning', duration: 5000 });
-      return true;
-    }
-
-    if (isCloudUnreachable(error)) {
-      showToast({ message: t('mlearn.AI.CloudUnreachable'), variant: 'error', duration: 6000 });
-      return true;
-    }
-
-    return false;
-  };
 
   const languageForCard = (card: Flashcard): string => card.language || settings.language;
   const languageDataForCard = (card: Flashcard) => {
@@ -369,12 +351,12 @@ export const FlashcardsContent: Component = () => {
             ),
           });
         }, MAX_REPAIR_RETRIES, (error) => {
-          if (isCloudSessionCancelled(error) || isCloudUnreachable(error)) return true;
+          if (classifyProviderFailure(error, settings.llmProvider).yieldsNoResult) return true;
           log.error('Flashcard audio repair attempt failed', error);
           return false;
         });
       } catch (error) {
-        handleCloudOperationFallback(error);
+        absorbProviderFailure(error, t, settings.llmProvider);
         removeToast(toastId);
         setRepairRunning(false);
         return;
@@ -684,7 +666,7 @@ export const FlashcardsContent: Component = () => {
           failed++;
         }
       } catch (error) {
-        if (handleCloudOperationFallback(error)) {
+        if (absorbProviderFailure(error, t, settings.llmProvider)) {
           setBulkProgress(null);
           return;
         }

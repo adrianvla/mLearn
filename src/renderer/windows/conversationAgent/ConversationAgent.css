@@ -122,6 +122,10 @@
   font: inherit;
   appearance: none;
   -webkit-app-region: no-drag;
+  /* A flex item defaults to min-content width, so the reason below could not
+     shrink and ran past the window edge instead of truncating. */
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ca-connection-info.is-actionable {
@@ -139,6 +143,30 @@
 .ca-provider-label {
   -webkit-app-region: no-drag;
   color:var(--text-secondary);
+}
+
+/*
+ * The reason the provider cannot be used, next to the status dot.
+ *
+ * The dot alone said "Disconnected", which is a fact about the transport and
+ * not an answer: a rejected key, an unselected model and an unreachable host
+ * looked identical, and the composer was disabled either way. Naming the
+ * failure is what turns a dead input into something the learner can act on, so
+ * it is allowed to be long and is styled as secondary text rather than as the
+ * status itself.
+ */
+.ca-connection-reason {
+  -webkit-app-region: no-drag;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 18rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: var(--line-height-normal);
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ca-header-status {

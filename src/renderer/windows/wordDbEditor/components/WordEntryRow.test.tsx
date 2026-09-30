@@ -91,8 +91,10 @@ vi.mock('../../../components/common', () => ({
       <div data-testid="modal-stub">{props.children}{props.footer}</div>
     </Show>
   ),
-  Button: (props: { children?: JSX.Element; onClick?: () => void }) => (
-    <button type="button" onClick={props.onClick}>{props.children}</button>
+  // The stub must forward `disabled`: the pending card build is expressed as a
+  // disabled control, and a stub that drops it would let a regression through.
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; title?: string }) => (
+    <button type="button" onClick={props.onClick} disabled={props.disabled} title={props.title}>{props.children}</button>
   ),
   ReadinessGate: (props: { children?: JSX.Element }) => <>{props.children}</>,
   deriveReadiness: () => () => 'ready' as const,
@@ -280,7 +282,7 @@ describe('WordEntryRow', () => {
     const { WordEntryRow } = await import('./WordEntryRow');
     const remove = vi.fn();
     const dispose = render(() => <WordEntryRow entry={makeEntry('赤い')} levelNames={{}}
-      onStatusChange={() => undefined} onAddFlashcard={() => undefined}
+ onAddFlashcard={() => undefined}
       onRemoveFlashcard={remove} onAnkiPreview={() => undefined} />, container);
     const integrations = container.querySelector('.col.integrations');
     expect(integrations?.textContent).toContain('mlearn.WordDbEditor.Integrations.Flashcard');
@@ -296,7 +298,7 @@ describe('WordEntryRow', () => {
     const { WordEntryRow } = await import('./WordEntryRow');
     const add = vi.fn();
     const dispose = render(() => <WordEntryRow entry={makeEntry('赤い')} levelNames={{}}
-      onStatusChange={() => undefined} onAddFlashcard={add}
+ onAddFlashcard={add}
       onRemoveFlashcard={() => undefined} />, container);
     Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'mlearn.WordDbEditor.Integrations.AddFlashcard')?.click();
     expect(add).toHaveBeenCalledWith(makeEntry('赤い'));
@@ -309,7 +311,7 @@ describe('WordEntryRow', () => {
     const { WordEntryRow } = await import('./WordEntryRow');
     const unignore = vi.fn();
     const dispose = render(() => <WordEntryRow entry={makeEntry('赤い')} levelNames={{}}
-      onStatusChange={() => undefined} onAddFlashcard={() => undefined}
+ onAddFlashcard={() => undefined}
       onRemoveFlashcard={() => undefined} onUnignore={unignore} />, container);
     expect(container.textContent).toContain('mlearn.WordDbEditor.Integrations.Ignored');
     expect(container.textContent).not.toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
@@ -331,7 +333,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('赤い')}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -363,7 +365,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={entry()}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -401,7 +403,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('逢う')}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -425,7 +427,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('赤い', { reading: 'あかい' })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -445,7 +447,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('赤い', { reading: 'あかい', prosodyPosition: 2 })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -483,7 +485,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('開く', { reading: 'ひらく', prosodyPosition: 2 })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -525,7 +527,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('開く', { reading: 'ひらく', prosodyPosition: 2 })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -555,7 +557,7 @@ describe('WordEntryRow', () => {
           },
         })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -592,7 +594,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('赤い', { reading: 'あかい' })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -630,7 +632,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('開く', { reading: 'あく' })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -697,7 +699,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('開く', { reading: 'あく', alternateReadings: ['ひらく'] })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -771,7 +773,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('開く', { reading: 'あく', alternateReadings: ['ひらく'] })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -848,7 +850,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('開く', { reading: 'あく', alternateReadings: ['ひらく'] })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -897,7 +899,7 @@ describe('WordEntryRow', () => {
           },
         })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -928,7 +930,7 @@ describe('WordEntryRow', () => {
           },
         })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -964,7 +966,7 @@ describe('WordEntryRow', () => {
           },
         })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1017,7 +1019,7 @@ describe('WordEntryRow', () => {
           },
         })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1041,7 +1043,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('開く', { reading: 'あく', alternateReadings: ['ひらく'] })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1087,7 +1089,7 @@ describe('WordEntryRow', () => {
           },
         })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1109,7 +1111,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('開く', { reading: 'あく', alternateReadings: ['ひらく'] })}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1138,7 +1140,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('Haus', { reading: 'house' })}
         levelNames={{ 0: 'A1' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1175,7 +1177,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('你好', { reading: 'ni hao' })}
         levelNames={{ 0: 'HSK 1' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1212,7 +1214,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('بيت', { reading: 'bayt' })}
         levelNames={{ 0: 'A1' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1255,7 +1257,7 @@ describe('WordEntryRow', () => {
           },
         })}
         levelNames={{ 0: 'HSK 1' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1283,7 +1285,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('alpha', { level: 0 })}
         levelNames={{}}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1311,7 +1313,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('alpha', { level: 0 })}
         levelNames={{ 0: 'Band Zero' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1349,7 +1351,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('你好', { reading: 'ni hao' })}
         levelNames={{ 0: 'HSK 1' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1399,7 +1401,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('妈麻马骂吗', { reading: 'mā má mǎ mà ma' })}
         levelNames={{ 0: 'HSK 1' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1452,7 +1454,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('妈麻马骂吗', { reading: 'mā má mǎ mà ma' })}
         levelNames={{ 0: 'HSK 1' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1464,15 +1466,13 @@ describe('WordEntryRow', () => {
     dispose();
   });
 
-  it('renders the Knowledge pill as the primary knowledge control before integrations, forwarding status changes', async () => {
+  it('renders the Knowledge pill as the primary knowledge control before integrations, owning the claim itself', async () => {
     const { WordEntryRow } = await import('./WordEntryRow');
-    const onStatusChange = vi.fn();
 
     const dispose = render(() => (
       <WordEntryRow
         entry={makeEntry('赤い')}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={onStatusChange}
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1488,11 +1488,40 @@ describe('WordEntryRow', () => {
     expect(pill).not.toBeNull();
     expect(pill!.dataset.word).toBe('赤い');
 
+    // The row owns no status callback. WordStatusPill is the single claim
+    // owner and writes the claim itself, so the row cannot silently drop one.
+    // (A callback here used to be a log.info no-op that discarded the claim.)
     pill!.click();
-    expect(onStatusChange).toHaveBeenCalledWith(makeEntry('赤い'), 'known');
+    expect(pill!.dataset.word).toBe('赤い');
 
     dispose();
   });
+  it('reports a pending card build instead of offering an action that would be refused', async () => {
+    const { WordEntryRow } = await import('./WordEntryRow');
+    const onAddFlashcard = vi.fn();
+
+    const dispose = render(() => (
+      <WordEntryRow
+        entry={makeEntry('猫')}
+        levelNames={{ 0: 'JLPT N5' }}
+        onAddFlashcard={onAddFlashcard}
+        isAddingFlashcard
+        onRemoveFlashcard={() => undefined}
+      />
+    ), container);
+
+    const addLabel = 'mlearn.WordDbEditor.Integrations.AddFlashcard';
+    expect(container.textContent).not.toContain(addLabel);
+    // The pending state is the one every other capture surface renders.
+    expect(container.textContent).toContain('mlearn.Global.Status.Adding');
+    const pending = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('mlearn.Global.Status.Adding'));
+    expect(pending).toBeDefined();
+    expect(pending!.disabled).toBe(true);
+
+    dispose();
+  });
+
   it('opens the inspector drawer via the row Inspect affordance on the Overview tab', async () => {
     mockGetKnowledgeProjection.mockResolvedValue({
       status: 'ready',
@@ -1504,13 +1533,11 @@ describe('WordEntryRow', () => {
       }],
     });
     const { WordEntryRow } = await import('./WordEntryRow');
-    const onStatusChange = vi.fn();
 
     const dispose = render(() => (
       <WordEntryRow
         entry={makeEntry('猫')}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={onStatusChange}
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1547,7 +1574,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('殖える')}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1601,7 +1628,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('殖える')}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />
@@ -1638,7 +1665,7 @@ describe('WordEntryRow', () => {
       <WordEntryRow
         entry={makeEntry('殖える')}
         levelNames={{ 0: 'JLPT N5' }}
-        onStatusChange={() => undefined}
+
         onAddFlashcard={() => undefined}
         onRemoveFlashcard={() => undefined}
       />

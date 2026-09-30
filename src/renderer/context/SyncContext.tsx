@@ -18,6 +18,9 @@ import {
   type SyncCallbacks,
 } from '../services/syncService';
 import type { Settings, FlashcardStore } from '../../shared/types';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.context.sync");
 
 // ============================================================================
 // Context
@@ -64,7 +67,14 @@ export const SyncProvider: ParentComponent = (props) => {
               const existing = flashcardCtx.store.flashcards[id];
               if (!existing) {
                 // New card from remote — add via context
-                void flashcardCtx.addFlashcard(card.content, undefined, true, card.language);
+                // `addFlashcard` rejects when the card cannot be durably
+                // written, which is the honest answer to "did my card get
+                // saved?". These remote cards are applied one at a time with
+                // no learner waiting on them, so the rejection has to be
+                // caught here rather than becoming an unhandled rejection -
+                // and one card failing must not abandon the rest of the batch.
+                flashcardCtx.addFlashcard(card.content, undefined, true, card.language)
+                  .catch((e) => log.error(`[Sync] Refused to apply remote card ${id}:`, e));
               } else if ((card.lastUpdated || 0) > (existing.lastUpdated || 0)) {
                 flashcardCtx.updateFlashcard(id, card);
               }

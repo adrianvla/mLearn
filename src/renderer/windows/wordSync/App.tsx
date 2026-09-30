@@ -18,7 +18,7 @@ import type { LearnerClaimOp } from '../../services/learnerClaimsInterpreter';
 import { buildClaimPromptContext } from '../../services/learnerClaimsInterpreter';
 import { CAPABILITY_LABEL_KEYS, isValidCapabilityId } from '../../../shared/graph/access';
 import type { WordStatus } from '../../../shared/constants';
-import { ATTEMPT_QUALITIES, type AttemptQuality } from '../../../shared/constants';
+import { worstAttemptQuality, type AttemptQuality } from '../../../shared/constants';
 import type { CapabilityKey } from '../../../shared/graph/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { PendingRetraction } from '../../../shared/retractionRecovery';
@@ -587,10 +587,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
 
     let quality = record.meta.lastRating;
     if (outcome === 'rated' && record.pending) {
-      quality = 'fluent';
-      for (const observation of record.pending.payload.observations) {
-        if (ATTEMPT_QUALITIES.indexOf(observation.quality) < ATTEMPT_QUALITIES.indexOf(quality)) quality = observation.quality;
-      }
+      quality = worstAttemptQuality(record.pending.payload.observations.map((observation) => observation.quality));
       const previousLevel = levels.indexOf(lvl);
       if (quality === 'missed' && previousLevel > 0) lvl = levels[previousLevel - 1];
       else if (quality === 'fluent' && previousLevel < levels.length - 1) lvl = levels[previousLevel + 1];

@@ -196,6 +196,11 @@ vi.mock('../../hooks/useTranslation', () => ({
   getCachedTranslation: () => null,
   getCachedReading: () => null,
   fetchTranslation: vi.fn(async () => ({ data: [] })),
+  useTokenizer: () => ({ tokenize: vi.fn(async () => []) }),
+}));
+
+vi.mock('../../hooks/useDictionaryTargetLanguage', () => ({
+  useDictionaryTargetLanguage: () => 'en',
 }));
 
 vi.mock('./components', async () => {
