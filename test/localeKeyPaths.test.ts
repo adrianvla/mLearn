@@ -131,3 +131,65 @@ describe('every statically declared renderer locale key resolves', () => {
     expect(missing).toEqual([]);
   }, 60_000);
 });
+
+/**
+ * Guards the other direction: every locale must define exactly the keys every
+ * other locale defines.
+ *
+ * The test above walks the source and asks "does this key exist?", which cannot
+ * see a key that is missing from one language. `en` is the source language, so
+ * a key added there and forgotten in `ja` is invisible to every other check
+ * until a Japanese user sees a raw `mlearn.…` path. That is not hypothetical:
+ * the destructive-data prompts landed with a whole `ResetSRS` block missing from
+ * `ja`, and nothing failed until the shapes were compared directly.
+ *
+ * The second half of the rule is the stricter one: a key that exists nowhere
+ * is dead weight in six files. Removing a control has to remove its copy too.
+ */
+describe('locale files declare the same key set', () => {
+  function leafPaths(locale: Record<string, unknown>): Set<string> {
+    const paths = new Set<string>();
+    const walk = (node: unknown, prefix: string): void => {
+      if (typeof node !== 'object' || node === null) return;
+      for (const [name, value] of Object.entries(node as Record<string, unknown>)) {
+        const path = prefix ? `${prefix}.${name}` : name;
+        if (typeof value === 'object' && value !== null) walk(value, path);
+        else paths.add(path);
+      }
+    };
+    walk(locale, '');
+    return paths;
+  }
+
+  it('every locale has the same keys as en', () => {
+    const english = leafPaths(localeObject('en'));
+    const problems: string[] = [];
+    for (const code of LOCALES) {
+      if (code === 'en') continue;
+      const other = leafPaths(localeObject(code));
+      for (const key of english) {
+        if (!other.has(key)) problems.push(`${code} is missing ${key}`);
+      }
+      for (const key of other) {
+        if (!english.has(key)) problems.push(`${code} defines ${key}, which en does not`);
+      }
+    }
+    expect(problems).toEqual([]);
+  }, 60_000);
+
+  it('no locale leaves a translated value empty', () => {
+    const empty: string[] = [];
+    for (const code of LOCALES) {
+      const walk = (node: unknown, prefix: string): void => {
+        if (typeof node !== 'object' || node === null) return;
+        for (const [name, value] of Object.entries(node as Record<string, unknown>)) {
+          const path = `${prefix}.${name}`;
+          if (typeof value === 'object' && value !== null) walk(value, path);
+          else if (typeof value === 'string' && value.trim() === '') empty.push(`${code}: ${path}`);
+        }
+      };
+      walk(localeObject(code), '');
+    }
+    expect(empty).toEqual([]);
+  }, 60_000);
+});

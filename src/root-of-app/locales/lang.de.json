@@ -1343,7 +1343,6 @@
         "LoadingSettings": "Einstellungen werden geladen...",
         "StartingBackend": "Deine Lernwerkzeuge werden vorbereitet…"
       },
-      "Success": "Erfolg",
       "Time": {
         "HoursMinutes": "{hours}h {minutes}m",
         "LessThanMinute": "< 1m",
@@ -2206,9 +2205,8 @@
           "RestoreError": "Die Wiederherstellung konnte nicht gestartet werden. Prüfen Sie den Datenschutz vor dem nächsten Neustart.",
           "ConfirmTitle": "mLearn-Daten wiederherstellen",
           "ConfirmMessage": "Wiederherstellungspunkt vom {date} wiederherstellen?",
-          "ConfirmDetail": "mLearn wird neu gestartet. Ihre aktuellen Daten bleiben in einem separaten Wiederherstellungsordner erhalten.",
-          "Cancel": "Abbrechen",
-          "ConfirmRestore": "Wiederherstellen und neu starten"
+          "ConfirmRestore": "Wiederherstellen und neu starten",
+          "RestoreQueued": "mLearn wird neu gestartet und stellt diesen Wiederherstellungspunkt wieder her."
         },
         "ExportAllData": {
           "Description": "Alle Lerndaten (Lernkarten, Medienstatistiken, Audio, Bilder) als ZIP-Archiv exportieren",
@@ -2219,17 +2217,20 @@
           "Label": "Einstellungen exportieren"
         },
         "ImportAllData": {
-          "Confirm": "Alle aktuellen Daten (Lernkarten, Medienstatistiken, Audio, Bilder) werden überschrieben. Die App wird nach dem Import neu gestartet. Fortfahren?",
-          "Description": "Alle Lerndaten aus einem ZIP-Archiv importieren. Vorhandene Daten werden überschrieben.",
+          "Confirm": "mLearn wird neu gestartet und Ihre Lernkarten, Medien, Sprachdaten und Einstellungen durch den Inhalt dieses Archivs ersetzen. Ihre aktuellen Daten bleiben als Wiederherstellungspunkt erhalten, den Sie danach in diesem Fenster wiederherstellen können.",
+          "ConfirmAction": "Importieren und neu starten",
+          "Description": "Alle Lerndaten aus einem ZIP-Archiv ersetzen. Ihre aktuellen Daten bleiben als Wiederherstellungspunkt erhalten.",
           "Label": "Alle Daten importieren",
           "Success": "Daten erfolgreich importiert. Die App wird jetzt neu gestartet."
         },
         "ImportSettings": {
           "Description": "Einstellungen aus einer JSON-Datei importieren",
-          "Label": "Einstellungen importieren"
+          "Label": "Einstellungen importieren",
+          "Success": "Einstellungen importiert."
         },
         "ResetSettings": {
-          "Description": "Alle Einstellungen auf Standardwerte zurücksetzen",
+          "Confirm": "Alle Einstellungen in allen Tabs werden auf ihre Standardwerte zurückgesetzt. Ihre Lernkarten, Medien und Ihr Lernverlauf sind nicht betroffen, und Sie können jeden Wert wieder ändern.",
+          "Description": "Alle Einstellungen in allen Tabs auf ihre Standardwerte zurücksetzen",
           "Label": "Einstellungen zurücksetzen"
         }
       },
@@ -2723,19 +2724,17 @@
         "DataManagement": {
           "NukeButton": "Alle löschen",
           "NukeFlashcards": {
-            "Description": "Alle Lernkarten dauerhaft löschen und alles zurücksetzen (nicht rückgängig machbar!)",
+            "Confirm": "Alle Lernkarten werden gelöscht, zusammen mit der gesamten Wortverfolgung, den Grammatikkenntnissen, den Tagesstatistiken und dem Lernfortschritt. Nichts davon kann zurückgeholt werden, und mLearn verhält sich, als wäre es gerade erst installiert worden.",
+            "Description": "Alle Lernkarten und den gesamten Lernfortschritt dauerhaft löschen",
             "Label": "Alle Lernkarten löschen",
-            "ModalWarning": "Alle Ihre Lernkarten, Wortverfolgungsdaten, Grammatikkenntnisse, Tagesstatistiken und der gesamte Lernfortschritt werden dauerhaft gelöscht. Dies ist nicht rückgängig zu machen und setzt das Lernkartensystem auf den leeren Anfangszustand zurück, als wäre die App gerade installiert worden.",
-            "Success": "Alle Lernkarten wurden gelöscht.",
-            "TypePhrase": "Geben Sie \"{phrase}\" ein, um diese Aktion zu bestätigen."
+            "Success": "Alle Lernkarten wurden gelöscht."
           },
           "ResetButton": "SRS zurücksetzen",
           "ResetSRS": {
-            "Description": "Gesamten Lernkartenfortschritt löschen (nicht rückgängig machbar!)",
+            "Confirm": "Die gesamte Planung wird gelöscht: Intervalle, Leichtigkeit, Wiederholungszähler und Tagesfortschritt. Jede Karte kehrt auf \"Neu\" zurück. Inhalt, Bilder und Audio Ihrer Karten bleiben erhalten, und die ursprüngliche Planung wird in einem Wiederherstellungspunkt aufbewahrt.",
+            "Description": "Gesamten Lernkartenfortschritt löschen, Lernkarten behalten",
             "Label": "SRS-Daten zurücksetzen",
-            "ModalWarning": "Alle SRS-Planungsdaten werden zurückgesetzt, einschließlich Intervalle, Leichtigkeitsfaktoren, Wiederholungszähler und Lernfortschritt. Der Inhalt der Lernkarten bleibt erhalten, aber alle Karten kehren in den Status 'Neu' zurück.",
-            "Success": "Alle SRS-Daten wurden zurückgesetzt.",
-            "TypePhrase": "Geben Sie \"{phrase}\" ein, um diese Aktion zu bestätigen."
+            "Success": "Alle SRS-Daten wurden zurückgesetzt."
           },
           "Title": "Datenverwaltung"
         },
@@ -2811,7 +2810,6 @@
       },
       "UI": {
         "Description": "mLearn anpassen",
-        "ResetConfirm": "Möchten Sie wirklich alle Einstellungen auf die Standardwerte zurücksetzen? Dies kann nicht rückgängig gemacht werden.",
         "ResetSuccess": "Einstellungen auf Standardwerte zurückgesetzt",
         "SaveError": "Einstellungen konnten nicht gespeichert werden",
         "Title": "Einstellungen"

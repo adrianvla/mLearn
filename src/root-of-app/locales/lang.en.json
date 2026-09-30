@@ -1343,7 +1343,6 @@
         "LoadingSettings": "Loading settings...",
         "StartingBackend": "Preparing your learning tools…"
       },
-      "Success": "Success",
       "Time": {
         "HoursMinutes": "{hours}h {minutes}m",
         "LessThanMinute": "< 1m",
@@ -2206,9 +2205,8 @@
           "RestoreError": "Could not start recovery. Check data protection before restarting.",
           "ConfirmTitle": "Restore mLearn data",
           "ConfirmMessage": "Restore the recovery point from {date}?",
-          "ConfirmDetail": "mLearn will restart. Your current data will be kept in a separate recovery folder.",
-          "Cancel": "Cancel",
-          "ConfirmRestore": "Restore and restart"
+          "ConfirmRestore": "Restore and restart",
+          "RestoreQueued": "mLearn will restart and restore this recovery point."
         },
         "ExportAllData": {
           "Description": "Export all learning data (flashcards, media stats, audio, images) as a ZIP archive",
@@ -2219,17 +2217,20 @@
           "Label": "Export Settings"
         },
         "ImportAllData": {
-          "Confirm": "This will overwrite all your current data (flashcards, media stats, audio, images). The app will restart after import. Continue?",
-          "Description": "Import all learning data from a ZIP archive. This will overwrite existing data.",
+          "Confirm": "mLearn will restart and replace your flashcards, media, language data and settings with the contents of this archive. Your current data is kept as a recovery point, so you can restore it from this window afterwards.",
+          "ConfirmAction": "Import and restart",
+          "Description": "Replace all learning data from a ZIP archive. Your current data is kept as a recovery point.",
           "Label": "Import All Data",
           "Success": "Import prepared. The app will restart to validate and apply it."
         },
         "ImportSettings": {
           "Description": "Import settings from a JSON file",
-          "Label": "Import Settings"
+          "Label": "Import Settings",
+          "Success": "Settings imported."
         },
         "ResetSettings": {
-          "Description": "Reset all settings to their default values",
+          "Confirm": "Every setting on every tab will go back to its default. Your flashcards, media and learning history are not affected, and you can change any value back.",
+          "Description": "Set every setting on every tab back to its default",
           "Label": "Reset Settings"
         }
       },
@@ -2776,19 +2777,17 @@
         "DataManagement": {
           "NukeButton": "Delete All",
           "NukeFlashcards": {
-            "Description": "Permanently delete all flashcards and reset everything (cannot be undone!)",
+            "Confirm": "Every flashcard will be deleted, along with all word tracking, grammar knowledge, daily statistics and learning progress. Nothing can bring them back, and mLearn will behave as if it had just been installed.",
+            "Description": "Permanently delete all flashcards and all learning progress",
             "Label": "Delete All Flashcards",
-            "ModalWarning": "This will permanently delete all your flashcards, word tracking data, grammar knowledge, daily statistics, and all learning progress. This is irreversible and will restore the flashcard system to its initial empty state, as if the app was freshly installed.",
-            "Success": "All flashcards have been deleted.",
-            "TypePhrase": "Type \"{phrase}\" to confirm this action."
+            "Success": "All flashcards have been deleted."
           },
           "ResetButton": "Reset SRS",
           "ResetSRS": {
-            "Description": "Clear all flashcard progress (cannot be undone!)",
+            "Confirm": "All scheduling will be cleared: intervals, ease, review counts and daily progress. Every card returns to \"new\". Your card content, images and audio are kept, and the original schedule is kept in a recovery point.",
+            "Description": "Clear all flashcard progress, keeping your cards",
             "Label": "Reset SRS Data",
-            "ModalWarning": "This will reset all flashcard scheduling data including intervals, ease factors, review counts, and learning progress. Your flashcard content will be preserved, but all cards will return to the 'new' state.",
-            "Success": "All SRS data has been reset.",
-            "TypePhrase": "Type \"{phrase}\" to confirm this action."
+            "Success": "All SRS data has been reset."
           },
           "Title": "Data Management"
         },
@@ -2864,7 +2863,6 @@
       },
       "UI": {
         "Description": "Configure mLearn to your preferences",
-        "ResetConfirm": "Are you sure you want to reset all settings to defaults? This cannot be undone.",
         "ResetSuccess": "Settings reset to defaults",
         "SaveError": "Failed to save settings",
         "Title": "Settings"

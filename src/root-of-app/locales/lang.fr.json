@@ -1343,7 +1343,6 @@
         "LoadingSettings": "Chargement des paramètres...",
         "StartingBackend": "Préparation de vos outils d’apprentissage…"
       },
-      "Success": "Succès",
       "Time": {
         "HoursMinutes": "{hours}h {minutes}m",
         "LessThanMinute": "< 1m",
@@ -2206,9 +2205,8 @@
           "RestoreError": "Impossible de lancer la restauration. Vérifiez la protection des données avant de redémarrer.",
           "ConfirmTitle": "Restaurer les données mLearn",
           "ConfirmMessage": "Restaurer le point du {date} ?",
-          "ConfirmDetail": "mLearn redémarrera. Vos données actuelles seront conservées dans un dossier de récupération séparé.",
-          "Cancel": "Annuler",
-          "ConfirmRestore": "Restaurer et redémarrer"
+          "ConfirmRestore": "Restaurer et redémarrer",
+          "RestoreQueued": "mLearn va redémarrer et restaurer ce point de restauration."
         },
         "ExportAllData": {
           "Description": "Exporter toutes les données d'apprentissage (cartes, statistiques, audio, images) en archive ZIP",
@@ -2219,17 +2217,20 @@
           "Label": "Exporter les paramètres"
         },
         "ImportAllData": {
-          "Confirm": "Toutes vos données actuelles (cartes, statistiques, audio, images) seront écrasées. L'application redémarrera après l'importation. Continuer ?",
-          "Description": "Importer toutes les données d'apprentissage depuis une archive ZIP. Les données existantes seront écrasées.",
+          "Confirm": "mLearn va redémarrer et remplacer vos cartes, vos médias, vos données de langue et vos paramètres par le contenu de cette archive. Vos données actuelles sont conservées comme point de restauration, que vous pourrez réappliquer depuis cette fenêtre ensuite.",
+          "ConfirmAction": "Importer et redémarrer",
+          "Description": "Remplacer toutes les données d'apprentissage depuis une archive ZIP. Vos données actuelles sont conservées comme point de restauration.",
           "Label": "Importer toutes les données",
           "Success": "Importation préparée. L'application va redémarrer pour la valider et l'appliquer."
         },
         "ImportSettings": {
           "Description": "Importer les paramètres depuis un fichier JSON",
-          "Label": "Importer les paramètres"
+          "Label": "Importer les paramètres",
+          "Success": "Paramètres importés."
         },
         "ResetSettings": {
-          "Description": "Remettre tous les paramètres aux valeurs par défaut",
+          "Confirm": "Tous les paramètres de tous les onglets reviennent à leur valeur par défaut. Vos cartes, vos médias et votre historique d'apprentissage ne sont pas affectés, et vous pourrez modifier à nouveau n'importe quelle valeur.",
+          "Description": "Rétablir la valeur par défaut de tous les paramètres de tous les onglets",
           "Label": "Réinitialiser les paramètres"
         }
       },
@@ -2723,19 +2724,17 @@
         "DataManagement": {
           "NukeButton": "Tout supprimer",
           "NukeFlashcards": {
-            "Description": "Supprimer définitivement toutes les cartes et tout réinitialiser (irréversible !)",
+            "Confirm": "Toutes les cartes seront supprimées, ainsi que le suivi des mots, les connaissances grammaticales, les statistiques quotidiennes et la progression d'apprentissage. Rien ne pourra les ramener, et mLearn se comportera comme s'il venait d'être installé.",
+            "Description": "Supprimer définitivement toutes les cartes et toute la progression d'apprentissage",
             "Label": "Supprimer toutes les cartes",
-            "ModalWarning": "Toutes vos cartes, données de suivi des mots, connaissances grammaticales, statistiques quotidiennes et toute la progression d'apprentissage seront définitivement supprimées. Cette action est irréversible et restaurera le système de cartes à son état initial vide, comme si l'application venait d'être installée.",
-            "Success": "Toutes les cartes ont été supprimées.",
-            "TypePhrase": "Tapez \"{phrase}\" pour confirmer cette action."
+            "Success": "Toutes les cartes ont été supprimées."
           },
           "ResetButton": "Réinitialiser le SRS",
           "ResetSRS": {
-            "Description": "Effacer toute la progression des cartes (irréversible !)",
+            "Confirm": "Toute la planification sera effacée : intervalles, facilité, compteurs de révision et progression quotidienne. Chaque carte repasse à \"nouveau\". Le contenu de vos cartes, les images et l'audio sont conservés, et la planification d'origine est conservée dans un point de restauration.",
+            "Description": "Effacer toute la progression des cartes en les conservant",
             "Label": "Réinitialiser les données SRS",
-            "ModalWarning": "Toutes les données de planification SRS seront réinitialisées, y compris les intervalles, les facteurs de facilité, les compteurs de révision et la progression d'apprentissage. Le contenu des cartes sera conservé, mais toutes les cartes reviendront à l'état 'nouveau'.",
-            "Success": "Toutes les données SRS ont été réinitialisées.",
-            "TypePhrase": "Tapez \"{phrase}\" pour confirmer cette action."
+            "Success": "Toutes les données SRS ont été réinitialisées."
           },
           "Title": "Gestion des données"
         },
@@ -2811,7 +2810,6 @@
       },
       "UI": {
         "Description": "Personnalisez mLearn",
-        "ResetConfirm": "Êtes-vous sûr de vouloir réinitialiser tous les paramètres ? Cette action est irréversible.",
         "ResetSuccess": "Paramètres réinitialisés aux valeurs par défaut",
         "SaveError": "Échec de l'enregistrement des paramètres",
         "Title": "Paramètres"

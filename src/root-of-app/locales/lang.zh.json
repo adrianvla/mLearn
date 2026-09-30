@@ -1343,7 +1343,6 @@
         "LoadingSettings": "正在加载设置…",
         "StartingBackend": "正在准备学习工具…"
       },
-      "Success": "成功",
       "Time": {
         "HoursMinutes": "{hours}小时{minutes}分",
         "LessThanMinute": "< 1 分钟",
@@ -2206,9 +2205,8 @@
           "RestoreError": "无法开始恢复。重新启动前请检查数据保护状态。",
           "ConfirmTitle": "恢复 mLearn 数据",
           "ConfirmMessage": "要恢复 {date} 的恢复点吗？",
-          "ConfirmDetail": "mLearn 将重新启动。当前数据会保存在单独的恢复文件夹中。",
-          "Cancel": "取消",
-          "ConfirmRestore": "恢复并重新启动"
+          "ConfirmRestore": "恢复并重新启动",
+          "RestoreQueued": "mLearn 将重新启动并恢复此恢复点。"
         },
         "ExportAllData": {
           "Description": "将所有学习数据（闪卡、媒体统计、音频、图片）导出为 ZIP 存档",
@@ -2219,17 +2217,20 @@
           "Label": "导出设置"
         },
         "ImportAllData": {
-          "Confirm": "这将覆盖您当前的所有数据（闪卡、媒体统计、音频、图片）。导入后应用将重启。是否继续？",
-          "Description": "从 ZIP 存档导入所有学习数据。这将覆盖现有数据。",
+          "Confirm": "mLearn 将重新启动，并用此存档的内容替换您的闪卡、媒体、语言数据和设置。您当前的数据会保留为恢复点，导入后可在此窗口中将其恢复。",
+          "ConfirmAction": "导入并重新启动",
+          "Description": "从 ZIP 存档替换所有学习数据。您当前的数据会保留为恢复点。",
           "Label": "导入所有数据",
           "Success": "数据导入成功。应用将重启以应用更改。"
         },
         "ImportSettings": {
           "Description": "从 JSON 文件导入设置",
-          "Label": "导入设置"
+          "Label": "导入设置",
+          "Success": "设置已导入。"
         },
         "ResetSettings": {
-          "Description": "将所有设置重置为默认值",
+          "Confirm": "所有标签页中的每项设置都会恢复为默认值。您的闪卡、媒体和学习记录不会受到影响，任何数值都可以重新更改。",
+          "Description": "将所有标签页中的每项设置恢复为默认值",
           "Label": "重置设置"
         }
       },
@@ -2776,19 +2777,17 @@
         "DataManagement": {
           "NukeButton": "删除全部",
           "NukeFlashcards": {
-            "Description": "永久删除所有闪卡并重置所有内容（无法撤销！）",
+            "Confirm": "所有闪卡将被删除，同时删除的还有单词追踪、语法知识、每日统计和所有学习进度。这些内容都无法找回，mLearn 的表现将与刚安装完成时相同。",
+            "Description": "永久删除所有闪卡和所有学习进度",
             "Label": "删除所有闪卡",
-            "ModalWarning": "这将永久删除您所有的闪卡、单词追踪数据、语法知识、每日统计和所有学习进度。此操作不可逆，闪卡系统将恢复到初始空状态，如同新安装的应用。",
-            "Success": "所有闪卡已被删除。",
-            "TypePhrase": "输入“{phrase}”确认此操作。"
+            "Success": "所有闪卡已被删除。"
           },
           "ResetButton": "重置 SRS",
           "ResetSRS": {
-            "Description": "清除所有闪卡进度（无法撤销！）",
+            "Confirm": "所有排程都将被清除：间隔、难度、复习次数和每日进度。每张卡片都会回到“新卡”状态。卡片内容、图片和音频会保留，原有排程会保存在恢复点中。",
+            "Description": "清除所有闪卡进度，同时保留卡片",
             "Label": "重置 SRS 数据",
-            "ModalWarning": "这将重置所有闪卡排程数据，包括间隔、难度系数、复习次数和学习进度。闪卡内容将被保留，但所有卡片将回到“新卡”状态。",
-            "Success": "所有 SRS 数据已被重置。",
-            "TypePhrase": "输入“{phrase}”确认此操作。"
+            "Success": "所有 SRS 数据已被重置。"
           },
           "Title": "数据管理"
         },
@@ -2864,7 +2863,6 @@
       },
       "UI": {
         "Description": "按您的偏好配置 mLearn",
-        "ResetConfirm": "确定要将所有设置重置为默认值吗？此操作无法撤销。",
         "ResetSuccess": "设置已重置为默认值",
         "SaveError": "保存设置失败",
         "Title": "设置"
