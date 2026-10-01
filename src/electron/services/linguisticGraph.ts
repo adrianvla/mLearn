@@ -117,7 +117,8 @@ export class LinguisticGraphService {
       if (meanings.size) displayLabel = [labelId >= 0 ? graph.stringTable[labelId] : '', [...meanings].join('; ')].filter(Boolean).join(' — ');
     }
     const learnableCapabilities = graph.entityLearnableCapabilities?.[dense];
-    return { id, kind, ...(displayLabel ? { displayLabel } : {}), ...(domains[domainId] ? { domain: domains[domainId] } : {}), ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}), ...(learnableCapabilities?.length ? { learnableCapabilities: [...learnableCapabilities] } : {}) };
+    const features = graph.entityFeatures?.[dense];
+    return { id, kind, ...(displayLabel ? { displayLabel } : {}), ...(domains[domainId] ? { domain: domains[domainId] } : {}), ...(labelId >= 0 ? { label: graph.stringTable[labelId] } : {}), ...(learnableCapabilities?.length ? { learnableCapabilities: [...learnableCapabilities] } : {}), ...(features !== undefined ? { features: structuredClone(features) } : {}) };
   }
 
   private related(graph: RuntimeCompactGraph, id: string, relationTypes: readonly GraphRelationType[]): GraphRelatedNode[] {

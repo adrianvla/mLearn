@@ -89,3 +89,11 @@ Set `languageData.minimumAppVersion` in a source language metadata file only whe
 Generated archives are written to `../mlearn-website/release/language-data/v1`. From `../mlearn-website`, `npm run upload:language-data` uploads only archives referenced by that directory's `manifest.json`, and `npm run deploy:language-data` packages here before uploading and deploying the frontend catalog.
 
 Set `LANGUAGE_ASSET_BASE_URL` if the public archive base URL changes. The default catalog URLs use `https://mlearn.kikan.net/language-data/v1/...`; the Pages redirect sends those downloads to `https://cdn.kikan.net/mlearn/language-data/v1/...`.
+
+### Jitendex sense grouping and history
+
+The graph builder groups definitions by Jitendex source `sense-number` containers. Synonyms and inline markup form one meaning; grammatical badges, notes, examples and cross-reference text do not become senses. No three-gloss truncation applies. Sense-level POS comes from source POS codes; other source badge codes remain package-owned metadata.
+
+Rebuilt source senses use `ja:sense:v2:<sequence>:<semantic-hash>` IDs. The old `ja:sense:<sequence>:<gloss-position>` IDs must not be mapped to these automatically: old IDs represented individual text fragments or grammar labels, so a positional mapping could attach historical observations to a different meaning. Preserve the prior graph and learner journal during adoption, retain unmapped historical addresses, and review identity diffs. The separate `repair-jitendex-graph.ts` tool can conservatively remove proven bad grammar-to-meaning links while retaining historical nodes; it does not assert a sense migration.
+
+`build-graph-assets.py --languages ja` accepts original Jitendex banks, or a lossless compiled `dictionaries/ja/en/dictionary.db` with source metadata and preserved raw term/pitch rows. Missing or lossy source input fails rather than producing an empty graph. Always build into a separate source/release directory and publish through the website catalog.

@@ -20,6 +20,8 @@ export interface GraphNode {
   displayLabel?: string;
   /** Package-declared learner accesses attached to this entity. */
   learnableCapabilities?: CapabilityKey[];
+  /** Opaque structured package data, preserved without a core linguistic registry. */
+  features?: Record<string, unknown>;
 }
 
 export interface GraphRelatedNode extends GraphNode {

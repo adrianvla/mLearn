@@ -98,6 +98,7 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
   let knownNeighbors = 0;
   let supportTotal = 0;
   const supportPath: Prediction['supportPath'] = [];
+  const sourceSupport = new Map<string, { credit: number; path: Prediction['supportPath'][number] }>();
 
   // A structural edge cannot establish the learner's knowledge of its source.
   // Package rules can opt unfamiliar relations/accesses into this mechanism.
@@ -110,16 +111,27 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
       ? [{ sourceCapability: target.capability, weight: weights.transparency * boundedWeight(relation.transparency)
         + weights.predictability * boundedWeight(relation.predictability) }] : [];
     const rules = declared?.length ? declared : builtin;
-    const credit = rules.reduce((sum, rule) => {
+    for (const rule of rules) {
       const basis = input.sourceKnowledge?.({ entityId: relation.from, capability: rule.sourceCapability });
-      if (!basis) return sum;
-      return sum + boundedWeight(rule.weight) * (basis === 'claim' ? 0.5 : 1);
-    }, 0) * (relation.confidence === undefined ? 1 : boundedWeight(relation.confidence));
-    if (credit > 0) {
-      supportTotal += credit;
-      knownNeighbors += credit;
-      supportPath.push({ from: relation.from, to: relation.to, via: relation.type });
+      if (!basis) continue;
+      const credit = boundedWeight(rule.weight) * (basis === 'claim' ? 0.5 : 1)
+        * (relation.confidence === undefined ? 1 : boundedWeight(relation.confidence));
+      if (credit <= 0) continue;
+      const key = JSON.stringify([relation.from, rule.sourceCapability]);
+      const previous = sourceSupport.get(key);
+      // Multiple providers, duplicated rules and alternative paths describe the
+      // same source access; they do not establish independent learner evidence.
+      if (!previous || credit > previous.credit || (credit === previous.credit && relation.type < previous.path.via)) {
+        sourceSupport.set(key, { credit, path: { from: relation.from, to: relation.to, via: relation.type } });
+      }
     }
+  }
+  const paths = new Set<string>();
+  for (const [, support] of [...sourceSupport].sort(([a], [b]) => a.localeCompare(b))) {
+    supportTotal += support.credit;
+    knownNeighbors += support.credit;
+    const key = JSON.stringify(support.path);
+    if (!paths.has(key)) { paths.add(key); supportPath.push(support.path); }
   }
 
   // Laplace-smoothed observed transfer rate, expressed RELATIVE to the

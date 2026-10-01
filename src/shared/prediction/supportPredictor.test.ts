@@ -30,4 +30,39 @@ describe('learner-grounded support scores', () => {
     });
     expect(result.supportPath).toEqual([expect.objectContaining({ from: 'source', to: 'target', via: 'x-test::context-link' })]);
   });
+  it('does not gain confidence from duplicate edges or repeated rules for the same source access', () => {
+    const asset = {
+      schemaVersion: 1 as const, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: [{ id: 'source', kind: 'surface' }, { id: 'target', kind: 'surface' }],
+      relations: [{ from: 'source', to: 'target', type: 'future::link', confidence: 0.8 }],
+    };
+    const rule = { relation: 'future::link', sourceCapability: 'future::prior', weight: 0.4 };
+    const request = { ...input, graph: loadLinguisticGraph(asset), target: { entityId: 'target', capability: 'future::access' },
+      languageData: { name: 'Future', learning: { capabilities: { 'future::access': { supportRules: [rule] } } } },
+      sourceKnowledge: () => 'evidence' as const };
+    const single = predictTargetAccessibility(request);
+    const repeated = predictTargetAccessibility({ ...request,
+      graph: loadLinguisticGraph({ ...asset, relations: Array.from({ length: 10 }, (_, i) => ({ ...asset.relations[0], provenance: `provider-${i}` })) }),
+      languageData: { name: 'Future', learning: { capabilities: { 'future::access': { supportRules: [rule, rule] } } } },
+    });
+    expect(repeated).toEqual(single);
+  });
+  it('takes the strongest path for one source access, independent of edge ordering', () => {
+    const asset = { schemaVersion: 1 as const, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: [{ id: 'source', kind: 'surface' }, { id: 'target', kind: 'surface' }],
+      relations: [
+        { from: 'source', to: 'target', type: 'future::weak', confidence: 1 },
+        { from: 'source', to: 'target', type: 'future::strong', confidence: 1 },
+      ] };
+    const request = { ...input, graph: loadLinguisticGraph(asset), target: { entityId: 'target', capability: 'future::access' },
+      languageData: { name: 'Future', learning: { capabilities: { 'future::access': { supportRules: [
+        { relation: 'future::weak', sourceCapability: 'future::prior', weight: 0.2 },
+        { relation: 'future::strong', sourceCapability: 'future::prior', weight: 0.6 },
+      ] } } } }, sourceKnowledge: () => 'evidence' as const };
+    const result = predictTargetAccessibility(request);
+    expect(result.supportPath).toEqual([{ from: 'source', to: 'target', via: 'future::strong' }]);
+    expect(result.uncertainty).toBeCloseTo(0.4);
+    expect(predictTargetAccessibility({ ...request, graph: loadLinguisticGraph({ ...asset, relations: [...asset.relations].reverse() }) })).toEqual(result);
+  });
+
 });

@@ -15,6 +15,7 @@ import unicodedata
 import urllib.request
 import xml.etree.ElementTree as ET
 import zlib
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -91,7 +92,7 @@ class Graph:
         self.source_versions = source_versions
         self.entities: dict[str, dict[str, object]] = {}
         self.relations: dict[tuple[str, str, str, str], dict[str, str]] = {}
-    def entity(self, entity_id: str, kind: str, label: str = "", grammar: dict[str, object] | None = None, domain: str | None = None, learnable_capabilities: list[str] | None = None) -> str:
+    def entity(self, entity_id: str, kind: str, label: str = "", grammar: dict[str, object] | None = None, domain: str | None = None, learnable_capabilities: list[str] | None = None, features: dict[str, object] | None = None) -> str:
         assert kind in ENTITY_KINDS
         assert domain is None or domain in GRAPH_DOMAINS
         if entity_id not in self.entities:
@@ -104,6 +105,8 @@ class Graph:
                 entity["domain"] = domain
             if learnable_capabilities:
                 entity["learnableCapabilities"] = list(learnable_capabilities)
+            if features:
+                entity["features"] = features
             self.entities[entity_id] = entity
         return entity_id
 
@@ -187,6 +190,117 @@ def text_content(value: object, in_glossary: bool = False) -> list[str]:
     return []
 
 
+def jitendex_sense_groups(content: object) -> list[dict[str, object]]:
+    """Respect Jitendex's source sense containers, including grouped synonyms.
+
+    Presentation fragments, examples and badge labels do not become meanings.
+    Old positional gloss IDs are intentionally not reused by the new builder.
+    """
+    senses: list[dict[str, object]] = []
+    unnumbered: list[dict[str, object]] = []
+    typed_fallbacks: list[dict[str, object]] = []
+
+    def plain_text(node: object) -> str:
+        if isinstance(node, str):
+            return node
+        if isinstance(node, list):
+            return "".join(plain_text(child) for child in node)
+        if isinstance(node, dict):
+            return plain_text(node.get("content", ""))
+        return ""
+
+    def glossary_items(node: object, numbered: bool = False) -> list[str]:
+        if isinstance(node, list):
+            return [gloss for child in node for gloss in glossary_items(child, numbered)]
+        if not isinstance(node, dict):
+            return []
+        data = node.get("data")
+        if isinstance(data, dict) and data.get("content") == "glossary":
+            contents = node.get("content", [])
+            items = contents if isinstance(contents, list) else [contents]
+            return list(dict.fromkeys(gloss for item in items if (gloss := normalized(plain_text(item)))))
+        if isinstance(data, dict) and data.get("content") == "info-gloss" and (numbered or data.get("gloss-type") == "expl"):
+            contents = node.get("content", [])
+            # Jitendex stores a presentation heading before the explanation.
+            body = contents[1:] if isinstance(contents, list) and len(contents) > 1 else contents
+            gloss = normalized(plain_text(body))
+            return [gloss] if gloss else []
+        if isinstance(data, dict) and data.get("content") in {"xref", "example-sentence", "sense-note"}:
+            return []
+        return glossary_items(node.get("content", []), numbered)
+
+    def scoped_codes(local: set[str], inherited: set[str]) -> set[str]:
+        return local | (inherited - JMDICT_POS_CODES if local & JMDICT_POS_CODES else inherited)
+
+    def sense_badges(node: object) -> set[str]:
+        if isinstance(node, list):
+            return set().union(*(sense_badges(child) for child in node))
+        if not isinstance(node, dict):
+            return set()
+        data = node.get("data")
+        if isinstance(data, dict) and data.get("content") in {"glossary", "extra-info", "xref", "example-sentence", "sense-note"}:
+            return set()
+        own = {data["code"]} if isinstance(data, dict) and isinstance(data.get("code"), str) else set()
+        return own | sense_badges(node.get("content", []))
+
+    def visit(node: object, inherited_codes: set[str]) -> None:
+        if isinstance(node, list):
+            # Badges preceding an ol describe that group of source senses.
+            local_codes = {str(child["data"]["code"]) for child in node
+                if isinstance(child, dict) and isinstance(child.get("data"), dict)
+                and isinstance(child["data"].get("code"), str)}
+            for child in node:
+                visit(child, scoped_codes(local_codes, inherited_codes))
+            return
+        if not isinstance(node, dict):
+            return
+        data = node.get("data")
+        source_number = data.get("sense-number") if isinstance(data, dict) else None
+        if source_number is not None:
+            glosses = glossary_items(node, numbered=True)
+            codes = scoped_codes(sense_badges(node), inherited_codes)
+            if glosses:
+                senses.append({"sourceSenseNumber": str(source_number), "glosses": glosses,
+                    "posCodes": sorted(codes & JMDICT_POS_CODES), "badgeCodes": sorted(codes)})
+            return
+        if isinstance(data, dict) and (data.get("content") in {"glossary", "extra-info"}
+                or data.get("content") == "info-gloss"):
+            glosses = glossary_items(node)
+            if glosses:
+                unnumbered.append({"glosses": glosses,
+                    "posCodes": sorted(inherited_codes & JMDICT_POS_CODES), "badgeCodes": sorted(inherited_codes)})
+            elif fallback_glosses := glossary_items(node, numbered=True):
+                typed_fallbacks.append({"glosses": fallback_glosses,
+                    "posCodes": sorted(inherited_codes & JMDICT_POS_CODES), "badgeCodes": sorted(inherited_codes)})
+            return
+        if isinstance(data, dict) and data.get("content") in {"extra-info", "xref", "example-sentence", "sense-note"}:
+            return
+        visit(node.get("content", []), inherited_codes)
+
+    visit(content, set())
+    if senses:
+        return senses
+    if not unnumbered:
+        # A sole literal/figurative definition is still a source meaning.
+        # Supplemental typed notes beside normal definitions remain notes.
+        unnumbered = typed_fallbacks
+    # An unnumbered Jitendex sense can contain a named gloss followed by an
+    # explanatory definition. Those are one source meaning, not two targets.
+    groups: dict[tuple[str, ...], dict[str, object]] = {}
+    for fragment in unnumbered:
+        key = tuple(fragment["posCodes"])
+        group = groups.setdefault(key, {"glosses": [], "posCodes": list(key), "badgeCodes": []})
+        group["glosses"] = list(dict.fromkeys([*group["glosses"], *fragment["glosses"]]))
+        group["badgeCodes"] = sorted(set(group["badgeCodes"]) | set(fragment["badgeCodes"]))
+    return list(groups.values())
+
+
+def jitendex_sense_id(sequence: object, sense: dict[str, object]) -> str:
+    identity = json.dumps({key: sense[key] for key in ("sourceSenseNumber", "glosses", "posCodes") if key in sense},
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return f"ja:sense:v2:{sequence}:{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
+
+
 def is_name_domain(content: object) -> bool:
     """Whether a Yomitan term row's structured content carries proper-noun/name-domain
     markers: JMdict name-type misc codes (person, place, work, unclassified name, ...)
@@ -257,8 +371,8 @@ def add_grammar_from_metadata(graph: Graph) -> None:
 # JMdict short POS codes (Jitendex renders them as structured-content spans
 # carrying data.code); anything outside this set is a field/misc tag, not POS.
 JMDICT_POS_CODES = frozenset({
-    "n", "pn", "n-adv", "n-t", "n-suf", "n-pref", "pron", "ctr",
-    "adj-i", "adj-ix", "adj-na", "adj-no", "adj-pref", "adj-t", "adj-f",
+    "n", "pn", "n-adv", "n-t", "n-suf", "n-pref", "pron", "ctr", "prt", "num",
+    "adj-i", "adj-ix", "adj-na", "adj-no", "adj-pref", "adj-pn", "adj-t", "adj-f",
     "adj-kari", "adj-ku", "adj-nari", "adj-shiku", "adj-ts",
     "v1", "v1-s", "v2a-s", "v2b-s", "v2c-s", "v2d-s", "v2e-s", "v2f-s", "v2g-s",
     "v2h-s", "v2i-s", "v2j-s", "v2k-s", "v2l-s", "v2m-s", "v2n-s", "v2o-s",
@@ -422,32 +536,99 @@ def structured_pos_codes(content: object, found: set[str]) -> None:
             structured_pos_codes(value, found)
 
 
+def validate_jitendex_term_row(row: object) -> None:
+    if not isinstance(row, list) or len(row) < 7 or not isinstance(row[0], str) or not isinstance(row[1], str) or not isinstance(row[5], list) or not any(isinstance(node, dict) and "content" in node for node in row[5]):
+        raise ValueError("Jitendex row does not preserve source entry structure")
+
+
+def jitendex_source_rows():
+    banks = sorted(JITENDEX_DIR.glob("term_bank_*.json"))
+    if banks:
+        for path in banks:
+            for row in json.loads(path.read_text(encoding="utf-8")):
+                validate_jitendex_term_row(row)
+                yield row
+        return
+    dictionary = ROOT / "dictionaries" / "ja" / "en" / "dictionary.db"
+    if not dictionary.is_file():
+        raise FileNotFoundError("Jitendex source banks or lossless compiled dictionary required")
+    with closing(sqlite3.connect(f"file:{dictionary}?mode=ro", uri=True)) as connection:
+        source = connection.execute("SELECT value FROM meta WHERE key='source'").fetchone()
+        if not source or source[0] != "jitendex-yomitan":
+            raise ValueError("Expected a lossless Jitendex source dictionary")
+        for term, reading, payload in connection.execute("SELECT headword,reading,data FROM entries ORDER BY rowid"):
+            row = json.loads(zlib.decompress(payload))
+            validate_jitendex_term_row(row)
+            if row[0] != term or row[1] != reading:
+                raise ValueError("Compiled Jitendex row does not preserve source entry structure")
+            yield row
+
+
+def jitendex_pitch_rows():
+    banks = sorted(JITENDEX_DIR.glob("term_meta_bank_*.json"))
+    if banks:
+        for path in banks:
+            yield from json.loads(path.read_text(encoding="utf-8"))
+        return
+    dictionary = ROOT / "dictionaries" / "ja" / "en" / "dictionary.db"
+    if dictionary.is_file():
+        with closing(sqlite3.connect(f"file:{dictionary}?mode=ro", uri=True)) as connection:
+            if not connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pitch'").fetchone():
+                return
+            for term, reading, payload in connection.execute("SELECT headword,reading,data FROM pitch"):
+                row = json.loads(zlib.decompress(payload))
+                if not isinstance(row, list) or len(row) < 3 or row[0] != term or row[1] != "pitch" or not isinstance(row[2], dict) or row[2].get("reading") != reading:
+                    raise ValueError("Compiled Jitendex pitch row does not preserve source structure")
+                yield row
+
+
+def jitendex_version() -> str:
+    if list(JITENDEX_DIR.glob("term_bank_*.json")):
+        index = JITENDEX_DIR / "index.json"
+        revision = json.loads(index.read_text(encoding="utf-8")).get("revision") if index.is_file() else None
+        return f"jitendex-{revision or 'unversioned-source'}"
+    dictionary = ROOT / "dictionaries" / "ja" / "en" / "dictionary.db"
+    if dictionary.is_file():
+        with closing(sqlite3.connect(f"file:{dictionary}?mode=ro", uri=True)) as connection:
+            row = connection.execute("SELECT value FROM meta WHERE key='version'").fetchone()
+            if row:
+                return f"jitendex-{row[0]}"
+    return "jitendex-source-unavailable"
+
+
+def jitendex_pitch_version() -> str:
+    index = JITENDEX_DIR / "index_.json"
+    if index.is_file():
+        return str(json.loads(index.read_text(encoding="utf-8")).get("revision") or "unversioned-source")
+    return jitendex_version() if not list(JITENDEX_DIR.glob("term_meta_bank_*.json")) else "unversioned-source"
+
+
 def build_ja() -> tuple[int, int, int]:
-    graph = Graph("ja", {"dictionary": "jitendex-2024.10.07.0", "pitchAccent": "pitch1"})
+    graph = Graph("ja", {"dictionary": jitendex_version(), "pitchAccent": jitendex_pitch_version(), "senseGrouping": "jitendex-source-senses-v2"})
     add_grammar_from_metadata(graph)
     pitch_by_term_reading: dict[tuple[str, str], set[str]] = {}
-    for path in sorted(JITENDEX_DIR.glob("term_meta_bank_*.json")):
-        for term, kind, payload, *_ in json.loads(path.read_text(encoding="utf-8")):
-            if kind != "pitch" or not isinstance(payload, dict):
-                continue
-            reading = str(payload.get("reading") or "")
-            patterns = {f"p{pitch.get('position')}" for pitch in payload.get("pitches", []) if isinstance(pitch, dict) and isinstance(pitch.get("position"), int)}
-            if reading and patterns:
-                pitch_by_term_reading.setdefault((str(term), reading), set()).update(patterns)
-    surveys: list[tuple[str, str, object, object, bool]] = []
-    for path in sorted(JITENDEX_DIR.glob("term_bank_*.json")):
-        for row in json.loads(path.read_text(encoding="utf-8")):
-            if len(row) < 7 or not row[6]:
-                continue
-            surveys.append((str(row[0]), str(row[1] or row[0]), row[5], row[6], is_name_domain(row[5])))
-    # Name-domain marking is survey-based: a surface shared between a name row and
-    # a common row (e.g. レア "Rhea" / レア "rare") stays common so a name sense can
-    # never hide a common homograph, while an entry is names when any of its rows
-    # (same ent_seq) carries a name marker. Duplicate rows of a name sequence
-    # without badges (JMdict re-lists an entry per reading) do not demote it.
-    name_sequences = {sequence for _, _, _, sequence, name_domain in surveys if name_domain}
-    common_terms = {term for term, _, _, sequence, name_domain in surveys if not name_domain and sequence not in name_sequences}
-    for term, reading, glosses, sequence, _ in surveys:
+    for term, kind, payload, *_ in jitendex_pitch_rows():
+        if kind != "pitch" or not isinstance(payload, dict):
+            continue
+        reading = str(payload.get("reading") or "")
+        patterns = {f"p{pitch.get('position')}" for pitch in payload.get("pitches", []) if isinstance(pitch, dict) and isinstance(pitch.get("position"), int)}
+        if reading and patterns:
+            pitch_by_term_reading.setdefault((str(term), reading), set()).update(patterns)
+    # Retain semantic summaries, not hundreds of thousands of presentation trees.
+    surveys: list[tuple[str, str, list[dict[str, object]], set[str], object, bool]] = []
+    for row in jitendex_source_rows():
+        if len(row) < 7 or not row[6]:
+            continue
+        pos_codes: set[str] = set()
+        structured_pos_codes(row[5], pos_codes)
+        surveys.append((str(row[0]), str(row[1] or row[0]), jitendex_sense_groups(row[5]), pos_codes, row[6], is_name_domain(row[5])))
+    if not surveys:
+        raise ValueError("Jitendex source has no usable entries; existing graph remains intact")
+    # A shared name/common surface remains common. Entry provenance stays
+    # independent from learner identity even when readings share an entry.
+    name_sequences = {sequence for _, _, _, _, sequence, name_domain in surveys if name_domain}
+    common_terms = {term for term, _, _, _, sequence, name_domain in surveys if not name_domain and sequence not in name_sequences}
+    for term, reading, source_senses, pos_codes, sequence, _ in surveys:
         entry = graph.entity(f"ja:entry:{sequence}", "dictionary-entry", term, domain="names" if sequence in name_sequences else None)
         surface_domain = "names" if sequence in name_sequences and term not in common_terms else None
         surface = graph.entity(surface_id("ja", term), "surface", term, domain=surface_domain)
@@ -458,16 +639,17 @@ def build_ja() -> tuple[int, int, int]:
         for pattern in pitch_by_term_reading.get((term, reading), set()):
             prosody = graph.entity(f"ja:prosody:{pattern}", "grammar-pattern", pattern)
             graph.relation(surface, prosody, "has-prosodic-pattern", "kanjium-pitch")
-        pos_codes: set[str] = set()
-        structured_pos_codes(glosses, pos_codes)
         for code in sorted(pos_codes):
             pos_entity = graph.entity(f"ja:pos:{code}", "grammar-pattern", code)
             graph.relation(entry, pos_entity, "has-pos", "jitendex")
-        for index, gloss in enumerate(text_content(glosses)[:3], start=1):
-            gloss = normalized(gloss)
-            if gloss:
-                sense = graph.entity(f"ja:sense:{sequence}:{index}", "sense", gloss, domain="names" if sequence in name_sequences else None)
-                graph.relation(entry, sense, "has-sense", "jitendex")
+        for source_sense in source_senses:
+            sense = graph.entity(jitendex_sense_id(sequence, source_sense), "sense", "; ".join(source_sense["glosses"]),
+                domain="names" if sequence in name_sequences else None,
+                features={"ja::jitendex-sense": {"dictionarySequence": sequence, **source_sense}})
+            graph.relation(entry, sense, "has-sense", "jitendex")
+            for code in source_sense["posCodes"]:
+                pos_entity = graph.entity(f"ja:pos:{code}", "grammar-pattern", code)
+                graph.relation(sense, pos_entity, "has-pos", "jitendex")
     characters = emit_surface_characters(graph, "jitendex")
     log(f"ja: {characters} ordered has-character edges")
     return graph.write()

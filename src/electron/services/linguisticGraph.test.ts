@@ -65,6 +65,27 @@ describe('LinguisticGraphService', () => {
     await expect(service.getTargetsForSurfaces('ja', [{ surface: '猫' }, { surface: 'missing' }])).resolves.toHaveLength(2);
   });
 
+  it('preserves unknown structured package features across lookup and neighborhood IPC payloads', async () => {
+    const surface = `future:surface:${crypto.createHash('sha256').update('opaque').digest('hex')}`;
+    const features = { 'future::unheard-of': { values: ['new', { participant: 7 }], conditional: true } };
+    fs.writeFileSync(path.join(directory, 'languages', 'future.graph.json'), JSON.stringify(encodeCompact({
+      schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: [{ id: surface, kind: 'surface', label: 'opaque' },
+        { id: 'future:entry:opaque', kind: 'dictionary-entry' },
+        { id: 'future:sense:opaque', kind: 'sense', features }],
+      relations: [{ from: surface, to: 'future:entry:opaque', type: 'realizes' },
+        { from: 'future:entry:opaque', to: 'future:sense:opaque', type: 'has-sense' }],
+    })));
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory);
+    const payload = await service.lookupWord('future', { surface: 'opaque' });
+    expect(JSON.parse(JSON.stringify(payload))?.senses[0].features).toEqual(features);
+    const neighborhood = await service.getNeighborhood('future', { entityId: 'future:sense:opaque' });
+    expect(neighborhood?.center.features).toEqual(features);
+    if (payload?.senses[0].features) payload.senses[0].features['future::unheard-of'] = 'client edit';
+    expect((await service.lookupWord('future', { surface: 'opaque' }))?.senses[0].features).toEqual(features);
+  });
+
   it('keeps candidate surfaces whose authoritative sibling carries journal evidence', async () => {
     const surfaceId = (word: string) => `xx:surface:${crypto.createHash('sha256').update(word).digest('hex')}`;
     const key = (word: string) => `xx:${crypto.createHash('sha256').update(word).digest('hex')}`;
