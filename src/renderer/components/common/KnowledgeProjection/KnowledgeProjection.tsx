@@ -105,9 +105,9 @@ export interface KnowledgeProjectionDrawerProps {
   /** Tab to show when the drawer opens. */
   initialTab?: InspectorTab;
   /** Deliberate word-level claim editing. Absent = read-only. */
-  onWordClaim?: (claim: WordStatus | null) => void;
+  onWordClaim?: (claim: WordStatus | null) => void | Promise<boolean | void>;
   /** Deliberate access claim editing. Absent = read-only. */
-  onAccessClaim?: (capability: RatedCapability, claim: WordStatus | null) => void;
+  onAccessClaim?: (capability: RatedCapability, claim: WordStatus | null) => void | Promise<boolean | void>;
   /**
    * The policy decision that selected this surface (R20): rendered in the
    * SAME drawer — the brief reason plus the emitted typed trace, verbatim
@@ -165,9 +165,19 @@ const CHARACTER_RELATIONS: ReadonlySet<GraphRelationType> = new Set(['has-charac
  */
 const KnowledgeClaimControls: Component<{
   claim?: WordStatus | null;
-  onClaim: (claim: WordStatus | null) => void;
+  onClaim: (claim: WordStatus | null) => void | Promise<boolean | void>;
 }> = (props) => {
   const { t } = useLocalization();
+  const [pending, setPending] = createSignal(false);
+  const [failed, setFailed] = createSignal(false);
+  const commit = async (claim: WordStatus | null) => {
+    if (pending()) return;
+    setPending(true);
+    setFailed(false);
+    try { setFailed(await props.onClaim(claim) === false); }
+    catch { setFailed(true); }
+    finally { setPending(false); }
+  };
   return (
     <span class="knowledge-claim-controls" role="group">
     <For each={CLAIM_STATUSES}>{(status) => (
@@ -176,7 +186,8 @@ const KnowledgeClaimControls: Component<{
         variant={props.claim === status ? 'blue' : 'gray'}
         label={t(statusLabelKey(status))}
         aria-pressed={props.claim === status}
-        onClick={() => props.onClaim(status)}
+        disabled={pending()}
+        onClick={() => void commit(status)}
       />
     )}</For>
     <Show when={props.claim}>
@@ -184,9 +195,12 @@ const KnowledgeClaimControls: Component<{
         size="sm"
         variant="gray"
         label={t('mlearn.Knowledge.Actions.ClearOverride')}
-        onClick={() => props.onClaim(null)}
+        disabled={pending()}
+        onClick={() => void commit(null)}
       />
     </Show>
+    <Show when={pending()}><small role="status">{t('mlearn.Knowledge.Popup.Saving')}</small></Show>
+    <Show when={failed()}><small role="alert">{t('mlearn.Knowledge.Popup.SaveFailed')}</small></Show>
   </span>
   );
 };

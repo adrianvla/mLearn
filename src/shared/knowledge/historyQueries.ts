@@ -14,6 +14,8 @@ export interface KeyKnowledgeState {
   projection: ReplayProjection | null;
   /** Capability-scoped learner views; scheduler-only rows carry no capability evidence. */
   capabilities?: Record<string, ReplayProjection>;
+  /** Durable withdrawals must remain distinguishable from never-authored claims. */
+  claimMarkers?: ReturnType<typeof import('../knowledge/capabilityProjection').projectClaimMarkers>;
   /** Latest explicit status per source (survives archiving). */
   statusMarkers?: Record<string, { t: number; seq: number; toStatus: string }>;
   /** True when the key has an archive (aggregated old evidence exists). */

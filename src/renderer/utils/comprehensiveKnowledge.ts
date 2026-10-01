@@ -182,7 +182,7 @@ function resolveWordMatches(
       // construction. Strongest evidence wins; a weaker word-level read
       // never hides a stronger lexical access. A claim's UNDERLYING evidence
       // (record.status) still participates.
-      if (!bestEvidence || STATUS_RANK[record.status] > STATUS_RANK[bestEvidence.effective.evidenceStatus]) {
+      if (record.hasEvidence !== false && (!bestEvidence || STATUS_RANK[record.status] > STATUS_RANK[bestEvidence.effective.evidenceStatus])) {
         bestEvidence = {
           effective: {
             status: record.status,

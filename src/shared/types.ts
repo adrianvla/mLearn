@@ -2317,6 +2317,8 @@ export interface AccessKnowledge {
   source: WordKnowledgeSource;
   lastStatusChange: number;
   updatedAt: number;
+  /** Explicit evidence presence; false distinguishes a claim-only cache. Legacy records omit it. */
+  hasEvidence?: boolean;
   /** Active explicit claim on this access; overrides evidence classification until cleared. */
   claim?: WordStatus;
   claimAt?: number;

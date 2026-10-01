@@ -1612,6 +1612,7 @@
         "Title": "知识覆盖"
       },
       "Popup": {
+        "SelfAssessment": "自我评估：这是你的声明，并非已观察到的练习结果。",
         "Overall": "总体",
         "Basis": "依据",
         "Rate": "评价",

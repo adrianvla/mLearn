@@ -748,11 +748,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     unknown: 'mlearn.TellMlearn.Status.Unknown',
   };
 
-  function applyLearnerClaims(ops: readonly LearnerClaimOp[]): AppliedLearnerClaim[] {
+  async function applyLearnerClaims(ops: readonly LearnerClaimOp[]): Promise<{ applied: AppliedLearnerClaim[]; failed: boolean }> {
     const w = currentWord();
-    if (!w) return [];
+    if (!w) return { applied: [], failed: false };
     const lang = settings.language;
     const applied: AppliedLearnerClaim[] = [];
+    let failed = false;
     for (const op of ops) {
       switch (op.op) {
         case 'setAccessClaim':
@@ -765,16 +766,16 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           const before = projectedAccess(capability);
           // Undo restores the PRIOR CLAIM PRESENCE exactly — it never
           // converts evidence into a claim.
-          const restorePriorClaim = () => {
+          const restorePriorClaim = async () => {
             if (before.claim !== undefined) {
-              setAccessClaim(w.word, capability, before.claim, lang);
+              return setAccessClaim(w.word, capability, before.claim, lang);
             } else {
-              clearAccessClaim(w.word, capability, lang);
+              return clearAccessClaim(w.word, capability, lang);
             }
           };
           if (op.op === 'setAccessClaim') {
             if (before.claim === op.status) break; // no-op: already claimed exactly so
-            setAccessClaim(w.word, capability, op.status, lang);
+            if (await setAccessClaim(w.word, capability, op.status, lang) === false) { failed = true; break; }
             applied.push({
               labelKey: CAPABILITY_LABEL_KEYS[capability] ?? capability,
               statusKey: STATUS_LABEL_KEYS[op.status],
@@ -782,7 +783,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             });
           } else {
             if (before.claim === undefined) break; // nothing claimed — clearing would change nothing
-            clearAccessClaim(w.word, capability, lang);
+            if (await clearAccessClaim(w.word, capability, lang) === false) { failed = true; break; }
             applied.push({
               labelKey: CAPABILITY_LABEL_KEYS[capability] ?? capability,
               undo: restorePriorClaim,
@@ -793,7 +794,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         case 'setWordClaim': {
           const previousClaim = store.wordKnowledge[w.storageKey]?.claim ?? null;
           if (previousClaim === op.status) break; // no-op: already claimed exactly so
-          setWordClaim(w.word, op.status, lang);
+          if (await setWordClaim(w.word, op.status, lang) === false) { failed = true; break; }
           applied.push({
             labelKey: 'mlearn.TellMlearn.Word',
             statusKey: STATUS_LABEL_KEYS[op.status],
@@ -804,7 +805,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         case 'clearWordClaim': {
           const previousClaim = store.wordKnowledge[w.storageKey]?.claim ?? null;
           if (previousClaim === null) break; // nothing claimed — clearing would change nothing
-          setWordClaim(w.word, null, lang);
+          if (await setWordClaim(w.word, null, lang) === false) { failed = true; break; }
           applied.push({
             labelKey: 'mlearn.TellMlearn.Word',
             undo: () => setWordClaim(w.word, previousClaim, lang),
@@ -813,7 +814,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         }
       }
     }
-    return applied;
+    return { applied, failed };
   }
 
   function currentClaimContext(): string {

@@ -290,6 +290,23 @@ describe('KnowledgeProjectionDrawer overview', () => {
     dispose();
   });
 
+  it('keeps a claim visible while its withdrawal is pending and reports refusal', async () => {
+    let finish!: (accepted: boolean) => void;
+    const onWordClaim = vi.fn(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    const { host, dispose } = await renderDrawer({ onWordClaim });
+    (Array.from(host.querySelectorAll('.knowledge-overview__toolbar button')).find(button => button.textContent === 'mlearn.Knowledge.Projection.Adjust') as HTMLButtonElement).click();
+    const controls = host.querySelector('.knowledge-overview__claim .knowledge-claim-controls')!;
+    (Array.from(controls.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Actions.ClearOverride') as HTMLButtonElement).click();
+    expect(onWordClaim).toHaveBeenCalledWith(null);
+    expect(Array.from(controls.querySelectorAll('button')).every(button => button.disabled)).toBe(true);
+    expect(controls.textContent).toContain('mlearn.Knowledge.Popup.Saving');
+    finish(false);
+    await Promise.resolve(); await Promise.resolve();
+    expect(controls.querySelector('[role="alert"]')?.textContent).toBe('mlearn.Knowledge.Popup.SaveFailed');
+    expect(Array.from(controls.querySelectorAll('button')).some(button => button.textContent === 'mlearn.Knowledge.Actions.ClearOverride')).toBe(true);
+    dispose();
+  });
+
   it('falls back to passive familiarity, never evidence, when the graph is absent', async () => {
     const { KnowledgeProjectionDrawer } = await import('./KnowledgeProjection');
     const mountHost = document.createElement('div');

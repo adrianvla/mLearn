@@ -1612,6 +1612,7 @@
         "Title": "Wissensüberschreibung"
       },
       "Popup": {
+        "SelfAssessment": "Selbsteinschätzung: deine Angabe ohne beobachtete Übung.",
         "Overall": "Gesamt",
         "Basis": "Grundlage",
         "Rate": "Bewerten",

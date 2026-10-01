@@ -1,4 +1,4 @@
-import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
+import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
 import { createGrammarRecognitionFold, grammarPatternFromEvidenceKey } from '../../shared/grammar/evidence';
 import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../../shared/knowledge/historyQueries';
@@ -102,6 +102,8 @@ export const COMPACTION_KEY_BUDGET = 200;
 export interface KeyKnowledgeState {
   projection: ReplayProjection | null;
   capabilities?: Record<string, ReplayProjection>;
+  /** Durable withdrawals must remain distinguishable from never-authored claims. */
+  claimMarkers?: ReturnType<typeof import('../../shared/knowledge/capabilityProjection').projectClaimMarkers>;
   /** True when the key has an archive (aggregated old evidence exists). */
   hasArchive: boolean;
   /** Rows summarized by the archive. */
@@ -792,6 +794,7 @@ export class KnowledgeHistoryStore {
   getKnowledgeState(key: string): KeyKnowledgeState {
     const archive = this.readArchive(key);
     const checkpoint = this.checkpoint(key);
+    const exactRows = rowsWithSeq(this.db, key);
     let fold: FoldState | undefined;
     if (checkpoint) {
       const maxSeq = this.db.prepare('SELECT MAX(seq) AS maxSeq FROM rows WHERE key = ?').get(key) as { maxSeq: number | null };
@@ -800,7 +803,7 @@ export class KnowledgeHistoryStore {
       }
     }
     if (!fold) {
-      fold = foldRowsAndArchive(rowsWithSeq(this.db, key), archive);
+      fold = foldRowsAndArchive(exactRows, archive);
     }
     let archivedEventCount = 0;
     let archiveFirstT: number | undefined;
@@ -814,7 +817,8 @@ export class KnowledgeHistoryStore {
     }
     return {
       projection: projectKeyFold(fold),
-      capabilities: projectCapabilities(rowsWithSeq(this.db, key), archive),
+      capabilities: projectCapabilities(exactRows, archive, true),
+      claimMarkers: projectClaimMarkers(exactRows, true),
       ...(fold.statusMarkers ? { statusMarkers: fold.statusMarkers } : {}),
       hasArchive: archive !== undefined,
       archivedEventCount,

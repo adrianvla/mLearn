@@ -53,11 +53,22 @@ describe('buildKnowledgeProjection', () => {
     expect(buildKnowledgeProjection(graph, surfaceId, [claim], policy).lexical?.overall.basis).toBe('unmeasured');
   });
 
-  it('keeps a reading-only claim tracked without promoting lexical identity to Known', () => {
+  it('keeps claims in state and history without counting them as observed evidence', () => {
+    const claim = { t: 1, kind: 'claim' as const, source: 'manual' as const, quality: 'fluent' as const,
+      targetRef: { kind: 'surface' as const, id: surfaceId, capability: 'surface-reading' }, toStatus: 'known' as const };
+    const claimed = buildKnowledgeProjection(graph, surfaceId, [claim], policy, 10);
+    const state = claimed.targets.find(target => target.targetRef.id === surfaceId)!.states.find(state => state.capability === 'surface-reading')!;
+    expect(state).toMatchObject({ basis: 'claim', classification: 'known', evidence: [], evidenceSourceCounts: {} });
+    const cleared = buildKnowledgeProjection(graph, surfaceId, [claim, { ...claim, t: 2, toStatus: undefined }], policy, 10);
+    expect(cleared.targets.flatMap(target => target.states).every(state => state.evidence.length === 0 && Object.keys(state.evidenceSourceCounts ?? {}).length === 0)).toBe(true);
+    expect(cleared.lexical?.overall.basis).toBe('unmeasured');
+  });
+
+  it('keeps a reading-only claim on its access while lexical identity remains unmeasured', () => {
     const result = buildKnowledgeProjection(graph, surfaceId, [
       { t: 1, kind: 'claim', source: 'manual', aspect: 'reading', toStatus: 'known' },
     ], policy, 10);
-    expect(result.lexical?.overall).toEqual({ classification: 'unknown', basis: 'claim' });
+    expect(result.lexical?.overall).toEqual({ classification: 'unmeasured', basis: 'unmeasured' });
     expect(result.lexical?.sense.classification).not.toBe('known');
   });
 

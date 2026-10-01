@@ -238,6 +238,26 @@ function ankiStatus(t: number, toStatus: KnowledgeEvent['toStatus']): KnowledgeE
 }
 
 describe('KnowledgeHistoryStore', () => {
+  it('retains durable claim withdrawals through restart without claiming an exact entity for the whole word', () => {
+    const file = path.join(dir, 'claim-markers.sqlite3');
+    const first = KnowledgeHistoryStore.open(file);
+    const key = 'xx:word';
+    first.appendEvents({ [key]: [
+      { t: 1, kind: 'claim', source: 'manual', aspect: 'reading', toStatus: 'known' },
+      { t: 1, kind: 'claim', source: 'manual', aspect: 'reading' },
+      { t: 2, kind: 'claim', source: 'manual', toStatus: 'known', targetRef: { kind: 'x::relation', id: 'x:exact', capability: 'x::novel' } },
+    ] });
+    const state = first.getKnowledgeState(key);
+    expect(state.claimMarkers?.['surface-reading']).toMatchObject({ t: 1 });
+    expect(state.claimMarkers?.['surface-reading']).not.toHaveProperty('status');
+    expect(state.capabilities?.['x::novel']).toBeUndefined();
+    expect(first.getExactEvents([key])[key]).toHaveLength(3);
+    first.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    expect(restarted.getKnowledgeState(key)).toEqual(state);
+    restarted.close();
+  });
+
   it('accepts a finite delivered-item seed and rejects malformed seed provenance', () => {
     const event = attemptEvent({
       t: 1,

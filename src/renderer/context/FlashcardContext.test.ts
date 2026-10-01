@@ -1,11 +1,12 @@
-import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
+import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
+import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
 import { DEFAULT_SETTINGS, type FlashcardAudioPreset } from '../../shared/types';
 import { selectNextEncounter } from '../learning/engine';
 import type { AttemptQuality } from '../../shared/constants';
 import type { CapabilityKind } from '../../shared/graph/types';
-import type { AttemptId, AttemptScaffolds, AttemptTaskType, EventSourceVersions, KnowledgeEvent } from '../../shared/knowledgeEvents';
+import type { AttemptId, AttemptScaffolds, AttemptTaskType, EventSourceVersions, KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import type { AccessStatusResult } from '../utils/accessKnowledge';
 import type { Rating } from '../services/srsAlgorithm';
 import * as SRS from '../services/srsAlgorithm';
@@ -235,7 +236,14 @@ const knowledgeJournal = vi.hoisted(() => {
     const rows: Record<string, Array<Record<string, unknown>>> = {};
     for (const [byKey] of mockAppendEvents.mock.calls) {
       for (const [key, events] of Object.entries(byKey as Record<string, Array<Record<string, unknown>>>)) {
-        (rows[key] ??= []).push(...events);
+        const target = rows[key] ??= [];
+        const identities = new Set(target.map(event => knowledgeEventIdentity(event as unknown as KnowledgeEvent)).filter(Boolean));
+        for (const event of events) {
+          const identity = knowledgeEventIdentity(event as unknown as KnowledgeEvent);
+          if (identity && identities.has(identity)) continue;
+          if (identity) identities.add(identity);
+          target.push(event);
+        }
       }
     }
     return rows;
@@ -271,13 +279,14 @@ const knowledgeJournal = vi.hoisted(() => {
   });
   const getKnowledgeStates = vi.fn(async (keys: readonly string[]) => {
     const rows = allRows();
-    const out: Record<string, { projection: ReplayProjection | null; capabilities?: Record<string, ReplayProjection>; hasArchive: boolean; archivedEventCount: number }> = {};
+    const out: Record<string, { projection: ReplayProjection | null; capabilities?: Record<string, ReplayProjection>; claimMarkers?: ReturnType<typeof projectClaimMarkers>; hasArchive: boolean; archivedEventCount: number }> = {};
     for (const key of keys) {
       // Faithful to the store: the projection is the fold over the key's rows
       // (replayKeyProjection applies retractions, as the real checkpoint does).
       out[key] = {
         projection: replayKeyProjection((rows[key] ?? []) as KnowledgeEvent[]),
-        capabilities: projectCapabilities(((rows[key] ?? []) as KnowledgeEvent[]).map((event, seq) => ({ event, seq }))),
+        capabilities: projectCapabilities(((rows[key] ?? []) as KnowledgeEvent[]).map((event, seq) => ({ event, seq })), undefined, true),
+        claimMarkers: projectClaimMarkers(((rows[key] ?? []) as KnowledgeEvent[]).map((event, seq) => ({ event, seq })), true),
         hasArchive: false,
         archivedEventCount: 0,
       };
@@ -306,6 +315,7 @@ vi.mock('../services/knowledgeEvents', () => ({
     await mockAppendEvents(events);
     return true;
   },
+  getEvents: async (keys: readonly string[]) => Object.values(await knowledgeJournal.queryKnowledgeEvents(keys)).flat(),
   getKnowledgeStates: knowledgeJournal.getKnowledgeStates,
   queryKnowledgeSummaries: knowledgeJournal.queryKnowledgeSummaries,
   queryLanguageKeys: knowledgeJournal.queryLanguageKeys,
@@ -552,11 +562,11 @@ type FlashcardCtx = {
   getComprehensiveWordStatusWithSourceSync: (word: string, language?: string) => { status: 'unknown' | 'learning' | 'known'; basis: 'claim' | 'evidence' | 'unmeasured'; claim?: 'unknown' | 'learning' | 'known'; evidenceStatus: 'unknown' | 'learning' | 'known'; source: string; timesSeen: number; matchedWord?: string; ease?: number };
   isWordKnownComprehensiveSync: (word: string, language?: string) => boolean;
   trackGrammarEncountered: (pattern: string, levelOrOpts?: number | { confidence?: number; span?: { start: number; end: number }; origin?: string; encounterId?: string }, language?: string) => void;
-  setWordClaim: (word: string, claim: 'unknown' | 'learning' | 'known' | null, language?: string) => void;
+  setWordClaim: (word: string, claim: 'unknown' | 'learning' | 'known' | null, language?: string) => Promise<boolean>;
   isKnowledgeReady: () => boolean;
   getAccessStatus: (word: string, capability: CapabilityKind, language?: string) => AccessStatusResult;
-  setAccessClaim: (word: string, capability: CapabilityKind, status: 'unknown' | 'learning' | 'known', language?: string) => void;
-  clearAccessClaim: (word: string, capability: CapabilityKind, language?: string) => void;
+  setAccessClaim: (word: string, capability: CapabilityKind, status: 'unknown' | 'learning' | 'known', language?: string) => Promise<boolean>;
+  clearAccessClaim: (word: string, capability: CapabilityKind, language?: string) => Promise<boolean>;
   recomputeWordKnowledgeFromEvidence: (word: string, language?: string) => Promise<void>;
   // setWordKnowledgeEase is intentionally not public — attempt evidence only.
   markWordSyncSeen: (word: string, language?: string) => void;
@@ -1188,7 +1198,7 @@ describe('FlashcardProvider', () => {
     mockBridge.flashcards.getFlashcards.mockClear();
     const undo = ctx.undoLastAction();
     await vi.waitFor(() => expect(mockBridge.flashcards.getFlashcards).toHaveBeenCalled());
-    ctx.setAccessClaim('new edit during Undo', 'sense-recognition', 'known', 'ja');
+    await ctx.setAccessClaim('new edit during Undo', 'sense-recognition', 'known', 'ja');
     const key = `ja:${SRS.hashWordSync('new edit during Undo')}`;
     deliver(committed!);
     expect(await undo).toBe('answer');
@@ -1689,7 +1699,7 @@ describe('FlashcardProvider', () => {
       const { ctx, dispose } = await mountProvider();
       try {
         flashcardsCb(makeEmptyStore());
-        ctx.setAccessClaim(word, capability, 'known', language);
+        await ctx.setAccessClaim(word, capability, 'known', language);
         expect(ctx.store.wordKnowledge[key]?.access?.[capability]?.claim).toBe('known');
         expect(ctx.store.wordKnowledge[primaryKey]?.access?.[capability]).toBeUndefined();
         expect(ctx.store.wordKnowledge[variantKey]?.access?.[capability]).toBeUndefined();
@@ -1701,9 +1711,9 @@ describe('FlashcardProvider', () => {
       const { ctx, dispose } = await mountProvider();
       try {
         flashcardsCb(makeEmptyStore());
-        ctx.setAccessClaim(word, capability, 'known', language);
-        ctx.setAccessClaim(variant, capability, 'learning', language);
-        ctx.clearAccessClaim(word, capability, language);
+        await ctx.setAccessClaim(word, capability, 'known', language);
+        await ctx.setAccessClaim(variant, capability, 'learning', language);
+        await ctx.clearAccessClaim(word, capability, language);
         expect(ctx.store.wordKnowledge[key]?.access?.[capability]?.claim).toBeUndefined();
         expect(ctx.store.wordKnowledge[variantKey]?.access?.[capability]?.claim).toBe('learning');
         const journal = knowledgeJournal.allRows();
@@ -2978,7 +2988,7 @@ describe('FlashcardProvider', () => {
     const arKey = `ar:${hash}`;
     const jaKey = `ja:${hash}`;
 
-    ctx.setWordClaim('سلام', 'known', 'ar');
+    await ctx.setWordClaim('سلام', 'known', 'ar');
 
     expect(ctx.store.wordKnowledge[arKey]).toMatchObject({
       word: 'سلام',
@@ -3034,17 +3044,17 @@ describe('FlashcardProvider', () => {
     const sasugaKanjiLk = `ja:${SRS.hashWordSync('流石')}`;
 
     // surface-recognition evidence belongs to the exact written form presented…
-    ctx.setAccessClaim('流石', 'surface-recognition', 'unknown', 'ja');
+    await ctx.setAccessClaim('流石', 'surface-recognition', 'unknown', 'ja');
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.access?.['surface-recognition']?.status).toBe('unknown');
     expect(ctx.store.wordKnowledge[sasugaLk]?.access?.['surface-recognition']).toBeUndefined();
 
     // …while surface-reading is ALSO surface-scoped: failing to read 流石
     // says nothing about さすが, whose script supplies its own pronunciation.
-    ctx.setAccessClaim('さすが', 'surface-reading', 'unknown', 'ja');
+    await ctx.setAccessClaim('さすが', 'surface-reading', 'unknown', 'ja');
     expect(ctx.store.wordKnowledge[sasugaLk]?.access?.['surface-reading']?.status).toBe('unknown');
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.access?.['surface-reading']).toBeUndefined();
     // Lexeme-scoped accesses (prosodic-pattern) still fan out across the family (#230).
-    ctx.setAccessClaim('さすが', 'prosodic-pattern', 'unknown', 'ja');
+    await ctx.setAccessClaim('さすが', 'prosodic-pattern', 'unknown', 'ja');
     expect(ctx.store.wordKnowledge[sasugaLk]?.access?.['prosodic-pattern']?.status).toBe('unknown');
     expect(ctx.store.wordKnowledge[sasugaKanjiLk]?.access?.['prosodic-pattern']?.status).toBe('unknown');
     dispose();
@@ -3056,10 +3066,10 @@ describe('FlashcardProvider', () => {
     const SRS = await import('../services/srsAlgorithm');
     const lk = `ja:${SRS.hashWordSync('ねこ')}`;
 
-    ctx.setAccessClaim('ねこ', 'surface-reading', 'known', 'ja');
+    await ctx.setAccessClaim('ねこ', 'surface-reading', 'known', 'ja');
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.claim).toBe('known');
 
-    ctx.clearAccessClaim('ねこ', 'surface-reading', 'ja');
+    await ctx.clearAccessClaim('ねこ', 'surface-reading', 'ja');
     await vi.waitFor(() => {
       // No observation events exist under the access: the record must be gone
       // entirely instead of surviving as evidence-backed Known.
@@ -3094,14 +3104,14 @@ describe('FlashcardProvider', () => {
     }));
 
     // The learner overrides the evidence with an explicit Known claim…
-    ctx.setAccessClaim('いぬ', 'surface-reading', 'known', 'ja');
+    await ctx.setAccessClaim('いぬ', 'surface-reading', 'known', 'ja');
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.claim).toBe('known');
     // …and the underlying evidence classification AND its timestamp
     // fingerprint are preserved, not overwritten by the claim.
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.status).toBe('learning');
     expect(ctx.store.wordKnowledge[lk]?.access?.['surface-reading']?.lastStatusChange).toBe(1);
 
-    ctx.clearAccessClaim('いぬ', 'surface-reading', 'ja');
+    await ctx.clearAccessClaim('いぬ', 'surface-reading', 'ja');
     await vi.waitFor(() => {
       const record = ctx.store.wordKnowledge[lk]?.access?.['surface-reading'];
       expect(record?.claim).toBeUndefined();
@@ -3147,7 +3157,7 @@ describe('FlashcardProvider', () => {
       matchedWord: '流石',
     });
 
-    ctx.setWordClaim('さすが', 'unknown');
+    await ctx.setWordClaim('さすが', 'unknown');
 
     expect(ctx.getComprehensiveWordStatusWithSourceSync('さすが')).toMatchObject({
       status: 'unknown',
@@ -3173,11 +3183,11 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.setWordClaim('会う', 'known', 'ja');
+    await ctx.setWordClaim('会う', 'known', 'ja');
     const lk = `ja:${(await import('../services/srsAlgorithm')).hashWordSync('会う')}`;
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
 
-    ctx.setWordClaim('会う', null, 'ja');
+    await ctx.setWordClaim('会う', null, 'ja');
 
     // No evidence exists behind the claim — the cache entry must be removed,
     // not left as a fabricated negative-evidence fingerprint.
@@ -3208,10 +3218,10 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    ctx.setWordClaim('さすが', 'known');
+    await ctx.setWordClaim('さすが', 'known');
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('known');
 
-    ctx.setWordClaim('さすが', null);
+    await ctx.setWordClaim('さすが', null);
 
     const entry = ctx.store.wordKnowledge[lk];
     expect(entry?.claim).toBeUndefined();
@@ -3234,7 +3244,7 @@ describe('FlashcardProvider', () => {
     const tabetaLk = `ja:${SRS.hashWordSync('食べた')}`;
     const taberuLk = `ja:${SRS.hashWordSync('食べる')}`;
 
-    ctx.setWordClaim('食べた', 'known', 'ja');
+    await ctx.setWordClaim('食べた', 'known', 'ja');
 
     expect(ctx.store.wordKnowledge[tabetaLk]?.claim).toBe('known');
     expect(ctx.store.wordKnowledge[taberuLk]).toBeUndefined();
@@ -3459,7 +3469,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.setWordClaim('学校', 'known');
+    await ctx.setWordClaim('学校', 'known');
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
     const lk = `ja:${hash}`;
@@ -3481,7 +3491,7 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    ctx.setWordClaim('学校', 'unknown');
+    await ctx.setWordClaim('学校', 'unknown');
     // 'unknown' is an explicit claim written over the previous one — the
     // legacy bank is never touched and the entry is never deleted.
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('unknown');
@@ -3494,7 +3504,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.setWordClaim('学校', 'known');
+    await ctx.setWordClaim('学校', 'known');
     const SRS = await import('../services/srsAlgorithm');
     const hash = SRS.hashWordSync('学校');
     const lk = `ja:${hash}`;
@@ -3509,7 +3519,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.setWordClaim('يكتب', 'known');
+    await ctx.setWordClaim('يكتب', 'known');
 
     const SRS = await import('../services/srsAlgorithm');
     const primaryKey = `ja:${SRS.hashWordSync('كتب')}`;
@@ -3529,7 +3539,7 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
 
-    ctx.setWordClaim('يكتب', 'known', 'ar');
+    await ctx.setWordClaim('يكتب', 'known', 'ar');
 
     const SRS = await import('../services/srsAlgorithm');
     const arKey = `ar:${SRS.hashWordSync('كتب')}`;
@@ -3552,7 +3562,7 @@ describe('FlashcardProvider', () => {
       },
     }));
 
-    ctx.setWordClaim('学校', 'unknown');
+    await ctx.setWordClaim('学校', 'unknown');
     // 'unknown' is an explicit claim, not entry deletion; ease stays untouched.
     expect(ctx.store.wordKnowledge[lk]).toBeDefined();
     expect(ctx.store.wordKnowledge[lk]?.claim).toBe('unknown');
@@ -4686,7 +4696,7 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore());
     await submitObservation(ctx, '苗字', 'sense-recognition', 'fluent');
     await submitObservation(ctx, '苗字', 'surface-reading', 'missed');
-    ctx.setAccessClaim('苗字', 'surface-reading', 'known');
+    await ctx.setAccessClaim('苗字', 'surface-reading', 'known');
     await ctx.recomputeWordKnowledgeFromEvidence('苗字');
     const entry = ctx.store.wordKnowledge[`ja:${SRS.hashWordSync('苗字')}`];
     expect(entry?.ease).toBe(mockSettings.easeThresholdKnown + mockSettings.manualStatusEaseBuffer);
@@ -6633,7 +6643,8 @@ describe('submitRating logs no-transition submissions', () => {
     expect(events[0]).toMatchObject({ kind: 'rating', aspect: 'meaning', quality: 'fluent', fromStatus: 'known', toStatus: 'known' });
     // No state write: the raise-only rule left the known record untouched.
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(4.5);
-    expect(ctx.store.wordKnowledge[lk]?.lastStatusChange).toBe(5);
+    // The legacy aggregate does not reconstruct an observed status transition.
+    expect(ctx.store.wordKnowledge[lk]?.lastStatusChange).toBeUndefined();
     expect(ctx.store.wordKnowledge[lk]?.claim).toBeUndefined();
     dispose();
     mockSettings.language = 'ja';
@@ -6743,7 +6754,7 @@ describe('claim override persistence (REQ15)', () => {
 
     // 1. Claim Learning over evidence Known: effective Learning, basis claim,
     //    evidence classification stays visible.
-    ctx.setWordClaim(word, 'learning');
+    await ctx.setWordClaim(word, 'learning');
     const claimed = ctx.getComprehensiveWordStatusWithSourceSync(word);
     expect(claimed).toMatchObject({ status: 'learning', basis: 'claim', claim: 'learning', evidenceStatus: 'known' });
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.6);
@@ -6766,7 +6777,7 @@ describe('claim override persistence (REQ15)', () => {
     // 3. Cross-window: the persisted store arrives as a second-window update
     //    (BroadcastChannel harness) AFTER the local claim was cleared — the
     //    claim LWW merge restores it, evidence ease unchanged.
-    ctx.setWordClaim(word, null);
+    await ctx.setWordClaim(word, null);
     const cleared = ctx.getComprehensiveWordStatusWithSourceSync(word);
     expect(cleared).toMatchObject({ status: 'known', basis: 'evidence', evidenceStatus: 'known' });
     expect(cleared.claim).toBeUndefined();
@@ -6806,7 +6817,7 @@ describe('claim override persistence (REQ15)', () => {
     // The gated resolver only answers once hydration + migration have settled.
     await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
 
-    ctx.setWordClaim('遅刻', 'known', 'ja');
+    await ctx.setWordClaim('遅刻', 'known', 'ja');
 
     // The claim is honoured by the comprehensive projection...
     expect(ctx.getComprehensiveWordStatusSync('遅刻', 'ja')).toBe('known');
@@ -6834,7 +6845,7 @@ describe('claim override persistence (REQ15)', () => {
     }));
 
     await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
-    ctx.setWordClaim('遅刻', 'known', 'ja');
+    await ctx.setWordClaim('遅刻', 'known', 'ja');
 
     // The claim settles the word itself...
     expect(ctx.isWordKnownWhenWrittenSync('遅刻', '遅刻', 'ja')).toBe(true);
@@ -6852,6 +6863,42 @@ describe('attempt task metadata (REQ3/REQ52)', () => {
     vi.clearAllMocks();
     setupMockImplementations();
   });
+  it('persists popup self-assessments as claims without replacing observations or scheduler state', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    const word = '学校';
+    const key = `ja2:${SRS.hashWordSync(word)}`;
+    await mockAppendEvents({ [key]: [
+      { t: 10, kind: 'rollup', source: 'srs', aspect: 'meaning', easeAfter: 1.4, timesSeenDelta: 5 },
+      { t: 10, kind: 'rating', source: 'srs', aspect: 'reading', easeAfter: 1.6, quality: 'struggled' },
+    ] });
+    seed(makeEmptyStore({ wordKnowledge: { [key]: { word, language: 'ja2', ease: 1.4,
+      timesSeen: 5, timesHovered: 0, lastSeen: 10, hasActiveEvidence: true,
+      access: { 'surface-reading': { status: 'learning', ease: 1.6, source: 'Manual', lastStatusChange: 10 } } } } }));
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    const priorCalls = mockAppendEvents.mock.calls.length;
+    await ctx.submitRating(word, [{ capability: 'sense-recognition', quality: 'fluent' },
+      { capability: 'surface-reading', quality: 'missed' }], { language: 'ja2', attemptId: 'popup-assessment', selfAssessment: true });
+    const events = mockAppendEvents.mock.calls.slice(priorCalls).flatMap(([log]) => Object.values(log as KnowledgeEventLog).flat());
+    expect(events).toHaveLength(2);
+    expect(events.every(event => event.kind === 'claim' && event.source === 'manual')).toBe(true);
+    expect(events.find(event => event.targetRef?.capability === 'sense-recognition')).toMatchObject({ toStatus: 'known', quality: 'fluent', attemptId: 'popup-assessment' });
+    expect(events.find(event => event.targetRef?.capability === 'surface-reading')).toMatchObject({ toStatus: 'unknown', quality: 'missed' });
+    expect(events.every(event => event.easeAfter === undefined && event.taskType === undefined && event.method === undefined)).toBe(true);
+    expect(ctx.store.wordKnowledge[key]).toMatchObject({ ease: 1.4, timesSeen: 5, lastSeen: 10, claim: 'known' });
+    expect(ctx.store.wordKnowledge[key].access?.['surface-reading']).toMatchObject({ ease: 1.6, status: 'learning', claim: 'unknown' });
+    expect(ctx.getAccessStatus(word, 'surface-reading', 'ja2')).toMatchObject({ basis: 'claim', status: 'unknown' });
+    const projected = replayKeyProjection(events);
+    expect(projected?.hasActiveEvidence).toBe(false);
+    mockAppendEvents.mockClear();
+    await expect(ctx.submitRating(word, [{ capability: 'sense-recognition', quality: 'fluent' }],
+      { language: 'ja2', selfAssessment: true, scheduler: { cardId: 'any-card', rating: 'good' } }))
+      .rejects.toThrow('A self-assessment cannot advance a review schedule');
+    expect(mockAppendEvents).not.toHaveBeenCalled();
+    dispose();
+    mockSettings.language = 'ja';
+  });
+
   it('submitRating writes taskType/scaffolds/sourceVersions onto the observation and replay round-trips them', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();
@@ -7316,4 +7363,132 @@ describe('contrast-question item provenance and invalidation (R12/G03)', () => {
     dispose();
     mockSettings.language = 'ja';
   });
+});
+
+
+describe('self-assessment durable recovery', () => {
+  beforeEach(() => { vi.resetModules(); vi.clearAllMocks(); setupMockImplementations(); });
+  it('review probe: a durable claim is recovered from journal after a missed cache save and restart', async () => {
+    const first = await mountProvider();
+    seed(makeEmptyStore({ rev: 0 }));
+    const persisted = JSON.parse(JSON.stringify(first.ctx.store));
+    const word = 'restart-probe';
+    const lk = `ja:${SRS.hashWordSync(word)}`;
+    await first.ctx.submitRating(word, [{ capability: 'sense-recognition', quality: 'fluent' }], { language: 'ja', selfAssessment: true, attemptId: 'claim-restart-probe' as AttemptId });
+    expect(knowledgeJournal.allRows()[lk][0]).toMatchObject({ kind: 'claim', toStatus: 'known' });
+    mockBridge.flashcards.saveFlashcards.mockResolvedValue(null);
+    first.dispose();
+    const second = await mountProvider();
+    flashcardsCb(persisted);
+    await vi.waitFor(() => expect(second.ctx.isKnowledgeReady()).toBe(true));
+    expect(second.ctx.store.wordKnowledge[lk]).toMatchObject({ claim: 'known' });
+    expect(second.ctx.getComprehensiveWordStatusWithSourceSync(word, 'ja')).toMatchObject({ status: 'known', basis: 'claim' });
+    second.dispose();
+  });
+  it('review probe: failed clear leaves the active durable claim effective', async () => {
+    const { ctx, dispose } = await mountProvider();
+    seed(makeEmptyStore({ rev: 0 }));
+    const word = 'clear-failure-probe';
+    const lk = `ja:${SRS.hashWordSync(word)}`;
+    await ctx.submitRating(word, [{ capability: 'surface-reading', quality: 'fluent' }], { language: 'ja', selfAssessment: true, attemptId: 'claim-clear-probe' as AttemptId });
+    mockAppendEvents.mockImplementationOnce(async () => { mockAppendEvents.mock.calls.pop(); throw new Error('synthetic durable write failure'); });
+    await ctx.clearAccessClaim(word, 'surface-reading', 'ja');
+    await Promise.resolve(); await Promise.resolve();
+    expect(projectCapabilities((knowledgeJournal.allRows()[lk] as KnowledgeEvent[]).map((event, seq) => ({ event, seq })))['surface-reading'].claim).toBe('known');
+    expect(ctx.getAccessStatus(word, 'surface-reading', 'ja')).toMatchObject({ status: 'known', basis: 'claim' });
+    dispose();
+  });
+  it('review probe: idempotent retry after later claim clear keeps journal latest state', async () => {
+    const { ctx, dispose } = await mountProvider();
+    seed(makeEmptyStore({ rev: 0 }));
+    const word = 'retry-probe';
+    const lk = `ja:${SRS.hashWordSync(word)}`;
+    const options = { language: 'ja', selfAssessment: true, attemptId: 'claim-idempotent-probe' as AttemptId };
+    await ctx.submitRating(word, [{ capability: 'sense-recognition', quality: 'fluent' }], options);
+    await ctx.setWordClaim(word, null, 'ja');
+    await Promise.resolve();
+    await ctx.submitRating(word, [{ capability: 'sense-recognition', quality: 'fluent' }], options);
+    expect(replayKeyProjection(knowledgeJournal.allRows()[lk] as KnowledgeEvent[])).toBeNull();
+    expect(ctx.getComprehensiveWordStatusWithSourceSync(word, 'ja').basis).toBe('unmeasured');
+    dispose();
+  });
+  it('followup probe: root clear failure preserves active durable claim', async () => {
+    const {ctx, dispose} = await mountProvider();
+    seed(makeEmptyStore({rev:0}));
+    const word='root-clear-failure'; const lk=`ja:${SRS.hashWordSync(word)}`;
+    await ctx.submitRating(word,[{capability:'sense-recognition',quality:'fluent'}],{language:'ja',selfAssessment:true,attemptId:'root-claim-probe' as AttemptId});
+    mockAppendEvents.mockImplementationOnce(async ()=>{mockAppendEvents.mock.calls.pop(); throw new Error('synthetic root clear rejection');});
+    await ctx.setWordClaim(word,null,'ja');
+    await Promise.resolve(); await Promise.resolve();
+    expect(replayKeyProjection(knowledgeJournal.allRows()[lk] as KnowledgeEvent[])).toMatchObject({claim:'known'});
+    expect(ctx.getComprehensiveWordStatusWithSourceSync(word,'ja')).toMatchObject({status:'known',basis:'claim'});
+    dispose();
+  });
+  it('followup probe: startup retains legacy claim alongside preexisting journal evidence', async () => {
+    const word='legacy-claim-evidence'; const lk=`ja:${SRS.hashWordSync(word)}`;
+    await mockAppendEvents({[lk]:[{t:1,kind:'review',source:'srs',aspect:'meaning',easeAfter:2.6}]});
+    const {ctx,dispose}=await mountProvider();
+    seed(makeEmptyStore({rev:0,wordKnowledge:{[lk]:{word,language:'ja',ease:2.6,lastSeen:1,timesSeen:0,timesHovered:0,hasActiveEvidence:true,lastEvidenceSource:'srs',claim:'learning',claimAt:10}}}));
+    await vi.waitFor(()=>expect(ctx.isKnowledgeReady()).toBe(true));
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.6);
+    expect(ctx.getComprehensiveWordStatusWithSourceSync(word,'ja')).toMatchObject({status:'learning',basis:'claim'});
+    dispose();
+  });
+  it('followup probe: retry after reading claim clear stays unmeasured rather than evidence', async () => {
+    const {ctx,dispose}=await mountProvider();seed(makeEmptyStore({rev:0}));
+    const word='reading-noop-retry';const options={language:'ja',selfAssessment:true,attemptId:'reading-retry-probe' as AttemptId};
+    await ctx.submitRating(word,[{capability:'surface-reading',quality:'fluent'}],options);
+    await ctx.clearAccessClaim(word,'surface-reading','ja');
+    expect(ctx.getAccessStatus(word,'surface-reading','ja').untracked).toBe(true);
+    await ctx.submitRating(word,[{capability:'surface-reading',quality:'fluent'}],options);
+    expect(ctx.getAccessStatus(word,'surface-reading','ja').untracked).toBe(true);
+    dispose();
+  });
+
+  it('followup language probe: journal-only claim from another installed language is recovered', async () => {
+    mockSettings.language='ja';
+    mockLanguageDataCatalog=[{language:'ja',dictionaryPacks:[{targetLanguage:'en',installed:true}]},{language:'de',dictionaryPacks:[{targetLanguage:'en',installed:true}]}];
+    const word='anderes'; const lk=`de:${SRS.hashWordSync(word)}`;
+    await mockAppendEvents({[lk]:[{t:1,kind:'claim',source:'manual',toStatus:'known',presentedSurface:word,targetRef:{kind:'surface',id:`de:surface:${SRS.hashWordSync(word)}`,capability:'sense-recognition'}}]});
+    const {ctx,dispose}=await mountProvider();seed(makeEmptyStore({rev:0}));
+    await vi.waitFor(()=>expect(ctx.isKnowledgeReady()).toBe(true));
+    expect(ctx.getComprehensiveWordStatusWithSourceSync(word,'de')).toMatchObject({status:'known',basis:'claim'});
+    dispose();
+  });
+
+  it('marker review probe: startup does not resurrect a retracted self-assessment from stale cache', async () => {
+    const word='retracted-claim'; const lk=`ja:${SRS.hashWordSync(word)}`;
+    await mockAppendEvents({[lk]:[
+      {t:1,kind:'claim',source:'manual',toStatus:'known',attemptId:'retracted-self-claim',presentedSurface:word,targetRef:{kind:'surface',id:`ja:surface:${SRS.hashWordSync(word)}`,capability:'sense-recognition'}},
+      {t:2,kind:'retraction',source:'manual',retracts:'retracted-self-claim'}
+    ]});
+    const {ctx,dispose}=await mountProvider();
+    seed(makeEmptyStore({rev:0,wordKnowledge:{[lk]:{word,language:'ja',ease:SRS.MIN_EASE,lastSeen:1,timesSeen:0,timesHovered:0,claim:'known',claimAt:1}}}));
+    await vi.waitFor(()=>expect(ctx.isKnowledgeReady()).toBe(true));
+    expect(ctx.getComprehensiveWordStatusWithSourceSync(word,'ja').basis).toBe('unmeasured');
+    dispose();
+  });
+  it('marker review probe: claim over passive cache does not migrate passive exposure to active evidence', async () => {
+    const word='passive-claimed-cache'; const lk=`ja:${SRS.hashWordSync(word)}`;
+    const {ctx,dispose}=await mountProvider();
+    seed(makeEmptyStore({rev:0,wordKnowledge:{[lk]:{word,language:'ja',ease:1.7,lastSeen:1,timesSeen:5,timesHovered:1,hasActiveEvidence:false,lastEvidenceSource:'passiveTracking',claim:'known',claimAt:2}}}));
+    await vi.waitFor(()=>expect(ctx.isKnowledgeReady()).toBe(true));
+    expect(ctx.getComprehensiveWordStatusWithSourceSync(word,'ja').basis).toBe('claim');
+    await ctx.setWordClaim(word,null,'ja');
+    expect(ctx.getComprehensiveWordStatusWithSourceSync(word,'ja').basis).toBe('unmeasured');
+    expect(ctx.store.wordKnowledge[lk]?.hasActiveEvidence).toBe(false);
+    dispose();
+  });
+
+  it('evidence flag probe: real attempt after written claim sets evidence presence and preserves lexical measurement', async () => {
+    const {ctx,dispose}=await mountProvider();seed(makeEmptyStore({rev:0}));
+    const word='written-claim-then-attempt';const lk=`ja:${SRS.hashWordSync(word)}`;
+    await ctx.submitRating(word,[{capability:'surface-recognition',quality:'missed'}],{language:'ja',selfAssessment:true,attemptId:'written-self-probe' as AttemptId});
+    expect(ctx.store.wordKnowledge[lk]?.access?.['surface-recognition']?.hasEvidence).toBe(false);
+    await ctx.submitRating(word,[{capability:'surface-recognition',quality:'fluent',method:'recall'}],{language:'ja',attemptId:'written-active-probe' as AttemptId});
+    expect(ctx.getComprehensiveWordStatusWithSourceSync(word,'ja')).toMatchObject({status:'known',basis:'evidence'});
+    expect(ctx.store.wordKnowledge[lk]?.access?.['surface-recognition']?.hasEvidence).toBe(true);
+    dispose();
+  });
+
 });

@@ -267,14 +267,11 @@ export function buildKnowledgeProjection(
   const missingBridges: CapabilityKey[] = [];
   if (surfaceRecognition.classification !== 'known') missingBridges.push('surface-recognition');
   if (surfaceReading.classification !== 'known') missingBridges.push('surface-reading');
-  // An observed bridge is tracked even when lexical identity is unresolved.
-  // Positive reading/prosody evidence alone never promotes identity to Known.
-  const measuredBridge = groups.get(surfaceId)?.states.find(state => state.basis === 'claim' || state.basis === 'evidence');
   const lexical: KnowledgeLexicalSummary = {
     overall: [senseState, spokenState, surfaceRecognition].find(state => state.classification === 'known')
       ?? [senseState, spokenState, surfaceRecognition].find(state => state.classification === 'learning')
       ?? [senseState, spokenState, surfaceRecognition].find(state => state.basis === 'claim' || state.basis === 'evidence')
-      ?? (measuredBridge ? { classification: 'unknown', basis: measuredBridge.basis } : { classification: 'unmeasured', basis: 'unmeasured' }),
+      ?? { classification: 'unmeasured', basis: 'unmeasured' },
     entryIds,
     sense: senseState,
     spoken: spokenState,

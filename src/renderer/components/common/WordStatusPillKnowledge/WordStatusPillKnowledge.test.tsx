@@ -37,6 +37,7 @@ describe('knowledge hover', () => {
     expect(container.querySelector('.rating-matrix')).toBeNull();
     rateButton.click();
     expect(container.querySelector('.rating-matrix')).not.toBeNull();
+    expect(container.textContent).toContain('mlearn.Knowledge.Popup.SelfAssessment');
     // The capability rows stay folded behind Adjust until asked for.
     const adjust = container.querySelector<HTMLButtonElement>('.rating-matrix__adjust');
     adjust!.click();
@@ -57,7 +58,7 @@ describe('knowledge hover', () => {
     expect(submitRating).toHaveBeenCalledWith('犬', [
       { capability: 'sense-recognition', quality: 'missed' },
       { capability: 'surface-recognition', quality: 'missed' },
-    ], expect.objectContaining({ language: 'ja', attemptId: expect.any(String) }));
+    ], expect.objectContaining({ language: 'ja', attemptId: expect.any(String), selfAssessment: true }));
   });
 
   it('returns to the summary after an acknowledged attempt so Rate can start another attempt', async () => {
@@ -133,4 +134,18 @@ describe('knowledge hover', () => {
     expect(submitRating.mock.calls[1]).toEqual(submitRating.mock.calls[0]);
     expect(container.querySelector('.rating-matrix')).toBeNull();
   });
+  it('review popup probe: retry remains addressed to the original word when props change', async () => {
+    const { createSignal } = await import('solid-js');
+    const [word, setWord] = createSignal('original');
+    submitRating.mockRejectedValueOnce(new Error('synthetic write failure')).mockResolvedValueOnce(undefined);
+    const container = document.createElement('div'); document.body.append(container);
+    dispose = render(() => <WordStatusPillKnowledge word={word()} language="ja" />, container);
+    Array.from(container.querySelectorAll('button')).find(item => item.textContent === 'mlearn.Knowledge.Popup.Rate')!.click();
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    await Promise.resolve(); await Promise.resolve();
+    setWord('different');
+    Array.from(container.querySelectorAll('button')).find(item => item.textContent === 'mlearn.Knowledge.Popup.Retry')!.click();
+    expect(submitRating.mock.calls.map(call => call[0])).toEqual(['original', 'original']);
+  });
+
 });

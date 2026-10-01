@@ -48,7 +48,7 @@ import { applyFlashcardRatingCommand, type FlashcardRatingCommand, type Flashcar
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys } from '../utils/comprehensiveKnowledge';
 import { getWrittenComprehensionStatus } from '../utils/writtenComprehension';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
-import { appendEvents, appendEventsIdempotentAcknowledged, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
+import { appendEvents, appendEventsIdempotentAcknowledged, getEvents, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
 import { nextAttemptId, retentionConditionFor, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { reconcileQuestionItems, type DeclaredItemState } from '../learning/questionBank';
@@ -251,6 +251,8 @@ type AttemptOptions = {
   taskType?: AttemptTaskType;
   scaffolds?: AttemptScaffolds;
   sourceVersions?: EventSourceVersions;
+  /** Inspection without an observed task records a learner claim, never performance evidence. */
+  selfAssessment?: boolean;
 };
 
 type AttemptObservation = { capability: CapabilityKey; quality: AttemptQuality; method?: 'recall' | 'inference' };
@@ -396,10 +398,10 @@ interface FlashcardContextValue {
    * null to withdraw. Never touches evidence ease; overrides the effective
    * classification until cleared. The ONLY manual whole-word status path.
    */
-  setWordClaim: (word: string, claim: WordStatus | null, language?: string) => void;
-  setAccessClaim: (word: string, capability: CapabilityKey, status: WordStatus, language?: string, entity?: { kind: string; id: string }) => void;
+  setWordClaim: (word: string, claim: WordStatus | null, language?: string) => Promise<boolean>;
+  setAccessClaim: (word: string, capability: CapabilityKey, status: WordStatus, language?: string, entity?: { kind: string; id: string }) => Promise<boolean>;
   /** Withdraw an access claim; evidence classification resumes. */
-  clearAccessClaim: (word: string, capability: CapabilityKey, language?: string) => void;
+  clearAccessClaim: (word: string, capability: CapabilityKey, language?: string) => Promise<boolean>;
   /** Acknowledged rating command; scheduler consequences are part of the same attempt. */
   submitRating: (
     word: string,
@@ -775,6 +777,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // not unmount every gated pill/hover (the "refocus recomputes everything"
   // jank).
   let storeHydrated = false;
+  let knowledgeInitialization: Promise<void> = Promise.resolve();
   let authorityRefreshRequired = false;
   /**
    * Set while a rebase is waiting for the authority to ship its current store.
@@ -870,7 +873,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     });
     if (firstHydration) {
       void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
-      void migrateLegacyEpistemicState().finally(() => {
+      knowledgeInitialization = migrateLegacyEpistemicState().finally(() => {
         setIsKnowledgeReady(true);
         if (checked.pendingRetraction) void recoverPendingRetraction();
       });
@@ -917,7 +920,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             authoritativeStore = cloneFlashcardStore(checked);
             setStore(reconcile(checked));
             void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
-            void migrateLegacyEpistemicState().finally(() => {
+            knowledgeInitialization = migrateLegacyEpistemicState().finally(() => {
               setIsKnowledgeReady(true);
               if (checked.pendingRetraction) void recoverPendingRetraction();
             });
@@ -927,7 +930,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
             setIsKnowledgeReady(true);
           }
         } else {
-          setIsKnowledgeReady(true);
+          // A missing disposable cache does not imply an empty durable journal.
+          setIsKnowledgeReady(false);
+          knowledgeInitialization = repairCapabilityProjection().finally(() => setIsKnowledgeReady(true));
         }
         setIsLoading(false);
       }).catch((e) => {
@@ -1170,8 +1175,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         return Boolean(card) && card.state !== 'new';
       });
     const isPassiveOnlyRow = (lk: string, entry: PassiveWordKnowledge): boolean =>
-      entry.claim === undefined
-      && entry.hasActiveEvidence !== true
+      entry.hasActiveEvidence !== true
       && entry.lastStatusChange === undefined
       && (entry.lastEvidenceSource === undefined || entry.lastEvidenceSource === 'passiveTracking')
       && !hasLinkedGraduatedCards(lk);
@@ -1183,20 +1187,46 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         continue;
       }
       const prefix = `${language}:`;
+      const cachedClaimKeys = Object.entries(store.wordKnowledge).filter(([key, entry]) => key.startsWith(prefix)
+        && journalKeys.has(key) && (entry.claim !== undefined || Object.values(entry.access ?? {}).some(access => access?.claim !== undefined))).map(([key]) => key);
+      const durableClaims = await getKnowledgeStates(cachedClaimKeys);
       for (const [lk, entry] of Object.entries(store.wordKnowledge)) {
         if (!lk.startsWith(prefix)) continue;
-        if (journalKeys.has(lk)) continue;
         if (additions[lk]?.length) continue;
-        if (entry.ease <= SRS.MIN_EASE && entry.timesSeen === 0 && entry.claim === undefined) continue;
-        additions[lk] = [{
-          t: entry.lastSeen || now,
-          kind: 'rollup',
-          source: isPassiveOnlyRow(lk, entry) ? 'passiveTracking' : 'migration',
-          aspect: 'meaning',
-          origin: 'legacy-projection-backfill',
-          easeAfter: entry.ease,
-          ...(entry.timesSeen ? { timesSeenDelta: entry.timesSeen } : {}),
-        }];
+        const legacy: KnowledgeEvent[] = [];
+        if (!journalKeys.has(lk) && (entry.ease > SRS.MIN_EASE || entry.timesSeen > 0)) {
+          legacy.push({
+            t: entry.lastSeen || now, kind: 'rollup',
+            source: isPassiveOnlyRow(lk, entry) ? 'passiveTracking' : 'migration',
+            aspect: 'meaning', origin: 'legacy-projection-backfill', easeAfter: entry.ease,
+            ...(entry.timesSeen ? { timesSeenDelta: entry.timesSeen } : {}),
+            ...(entry.word ? { presentedSurface: entry.word } : {}),
+          });
+        }
+        const recoverClaim = (capability: CapabilityKey, claim: WordStatus | undefined, at?: number): void => {
+          if (claim === undefined || durableClaims[lk]?.claimMarkers?.[capability] !== undefined) return;
+          const aspect = legacyAspectFor(capability);
+          legacy.push({ t: at ?? now, kind: 'claim', source: 'manual', toStatus: claim,
+            ...(aspect !== undefined ? { aspect } : {}), origin: 'legacy-projection-backfill',
+            ...(entry.word ? { presentedSurface: entry.word } : {}),
+            targetRef: { kind: 'surface', id: surfaceEntityId(language, lk.slice(prefix.length)), capability },
+          });
+        };
+        recoverClaim('sense-recognition', entry.claim, entry.claimAt);
+        for (const [capability, access] of Object.entries(entry.access ?? {})) {
+          if (!access) continue;
+          if (!journalKeys.has(lk) && access.hasEvidence !== false && access.ease > SRS.MIN_EASE) {
+            const aspect = legacyAspectFor(capability);
+            legacy.push({ t: access.updatedAt ?? access.lastStatusChange ?? now, kind: 'rollup', source: 'migration',
+              origin: 'legacy-projection-backfill', easeAfter: access.ease,
+              ...(aspect !== undefined ? { aspect } : {}),
+              ...(entry.word ? { presentedSurface: entry.word } : {}),
+              targetRef: { kind: 'surface', id: surfaceEntityId(language, lk.slice(prefix.length)), capability },
+            });
+          }
+          recoverClaim(capability, access.claim, access.claimAt);
+        }
+        if (legacy.length > 0) additions[lk] = legacy;
       }
       // Graduated cards without journal evidence (legacy SRS-as-truth).
       for (const [lk, cardIds] of Object.entries(store.wordToCardMap)) {
@@ -3785,102 +3815,89 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * ease-overwriting (setComprehensiveWordStatus) is gone: a refocus/replay
    * can no longer disagree with the UI because both read the same claim.
    */
-  const setWordClaim = (word: string, claim: WordStatus | null, language = settings.language) => {
-    const lang = language;
-    const forms = getWordFormsForLanguage(word, lang);
+  const setWordClaim = async (word: string, claim: WordStatus | null, language = settings.language): Promise<boolean> => {
+    await knowledgeInitialization;
+    const forms = getWordFormsForLanguage(word, language);
     const now = Date.now();
-    const claimEvents: Record<string, KnowledgeEvent[]> = {};
-
-    setStore(produce((s) => {
-      for (const form of forms) {
-        const wordHash = SRS.hashWordSync(form);
-        const lk = langKey(lang, wordHash);
-        if (!s.wordKnowledge[lk]) {
-          // A claim on an unmeasured word materializes a floor-ease entry:
-          // evidence stays "unmeasured", the claim carries the classification.
-          s.wordKnowledge[lk] = {
-            ease: SRS.MIN_EASE,
-            lastSeen: now,
-            firstSeen: now,
-            timesSeen: 0,
-            timesHovered: 0,
-            word: form,
-            language: lang,
-          };
-        }
-        const entry = s.wordKnowledge[lk];
-        if (claim === null) {
-          delete entry.claim;
-          delete entry.claimAt;
-          // Clearing a claim must not fabricate evidence metadata: a
-          // claim-only entry (no observations) drops back to unmeasured by
-          // removing the materialized cache entry entirely — the journal
-          // still holds the claim history. Evidence-backed entries keep
-          // their replayed facts.
-          const hasRealEvidence = (entry.timesSeen ?? 0) > 0
-            || (entry.timesHovered ?? 0) > 0
-            || entry.hasActiveEvidence === true
-            || (entry.access !== undefined && Object.keys(entry.access).length > 0)
-            || (entry.ease !== undefined && entry.ease > SRS.MIN_EASE);
-          if (!hasRealEvidence) {
-            delete s.wordKnowledge[lk];
-          }
-        } else {
-          // A claim is not a status change: lastStatusChange (an evidence
-          // fingerprint) is never touched by the claim path; claimAt drives
-          // merge recency.
-          entry.claim = claim;
-          entry.claimAt = now;
-
-        }
-        claimEvents[lk] = [{
-          t: now,
-          kind: 'claim',
-          source: 'manual',
-          aspect: 'meaning',
-          ...(claim !== null ? { toStatus: claim } : {}),
-        }];
-      }
+    const events: KnowledgeEventLog = Object.fromEntries(forms.map(form => {
+      const hash = SRS.hashWordSync(form);
+      return [langKey(language, hash), [{ t: now, kind: 'claim', source: 'manual', aspect: 'meaning',
+        presentedSurface: form, targetRef: { kind: 'surface', id: surfaceEntityId(language, hash), capability: 'sense-recognition' },
+        ...(claim !== null ? { toStatus: claim } : {}),
+      } satisfies KnowledgeEvent]];
     }));
-    saveFlashcards();
-    if (Object.keys(claimEvents).length > 0) {
-      appendEvents(claimEvents).catch((e) => log.warn('claim event append failed:', e));
+    try {
+      if (!await appendEventsIdempotentAcknowledged(events)) return false;
+      const states = await getKnowledgeStates(Object.keys(events));
+      setStore(produce(current => {
+        for (const form of forms) {
+          const key = langKey(language, SRS.hashWordSync(form));
+          const latest = states[key]?.claimMarkers?.['sense-recognition'];
+          const status = latest?.status;
+          if (status === undefined && !current.wordKnowledge[key]) continue;
+          const entry = current.wordKnowledge[key] ?? (current.wordKnowledge[key] = {
+            word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
+          });
+          if (status !== undefined) {
+            entry.claim = status;
+            entry.claimAt = latest!.t;
+          } else {
+            delete entry.claim;
+            delete entry.claimAt;
+            if (entry.ease <= SRS.MIN_EASE && entry.timesSeen === 0 && entry.timesHovered === 0
+              && !entry.hasActiveEvidence && Object.keys(entry.access ?? {}).length === 0) delete current.wordKnowledge[key];
+          }
+        }
+      }));
+      saveFlashcards();
+      return true;
+    } catch (error) {
+      log.warn('claim write failed:', error);
+      return false;
     }
   };
 
-  const setAccessClaim = (
-    word: string,
-    capability: CapabilityKey,
-    status: WordStatus,
-    language = settings.language,
+  const setAccessClaim = async (
+    word: string, capability: CapabilityKey, status: WordStatus, language = settings.language,
     entity?: { kind: string; id: string },
-  ) => {
+  ): Promise<boolean> => {
+    await knowledgeInitialization;
     const forms = entity !== undefined || isSurfaceScopedCapability(capability, languageDataFor(language))
       ? [word] : getWordFormsForLanguage(word, language);
     const now = Date.now();
     const aspect = legacyAspectFor(capability);
-    const events: KnowledgeEventLog = {};
-    setStore(produce((s) => {
-      for (const form of forms) {
-        const key = langKey(language, SRS.hashWordSync(form));
-        const entry = s.wordKnowledge[key] ?? (s.wordKnowledge[key] = {
-          word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
-        });
-        const prior = entry.access?.[capability];
-        entry.access = { ...entry.access, [capability]: {
-          ...(prior ?? { status: 'unknown', ease: SRS.MIN_EASE, source: 'Manual', lastStatusChange: now }),
-          claim: status, claimAt: now, updatedAt: now,
-        } };
-        events[key] = [{
-          t: now, kind: 'claim', source: 'manual',
-          ...(aspect !== undefined ? { aspect } : {}),
-          targetRef: { ...(entity ?? { kind: 'surface', id: surfaceEntityId(language, SRS.hashWordSync(form)) }), capability },
-          fromStatus: prior?.status ?? 'unknown', toStatus: status,
-        }];
-      }
-    }));
-    saveFlashcards();
-    appendEvents(events).catch((error) => log.warn('claim event append failed:', error));
+    const events: KnowledgeEventLog = Object.fromEntries(forms.map(form => [langKey(language, SRS.hashWordSync(form)), [{
+      t: now, kind: 'claim', source: 'manual', presentedSurface: form,
+      ...(aspect !== undefined ? { aspect } : {}),
+      targetRef: { ...(entity ?? { kind: 'surface', id: surfaceEntityId(language, SRS.hashWordSync(form)) }), capability },
+      toStatus: status,
+    } satisfies KnowledgeEvent]]));
+    try {
+      if (!await appendEventsIdempotentAcknowledged(events)) return false;
+      // Exact non-surface claims belong to their graph target, not a word-wide cache.
+      if (entity && entity.kind !== 'surface') return true;
+      const states = await getKnowledgeStates(Object.keys(events));
+      setStore(produce(current => {
+        for (const form of forms) {
+          const key = langKey(language, SRS.hashWordSync(form));
+          const latest = states[key]?.claimMarkers?.[capability];
+          if (!latest || latest.status === undefined) continue;
+          const entry = current.wordKnowledge[key] ?? (current.wordKnowledge[key] = {
+            word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
+          });
+          const prior = entry.access?.[capability];
+          entry.access = { ...entry.access, [capability]: {
+            ...(prior ?? { status: 'unknown', ease: SRS.MIN_EASE, source: 'Manual', lastStatusChange: now, hasEvidence: false }),
+            claim: latest.status, claimAt: latest.t, updatedAt: latest.t,
+          } };
+        }
+      }));
+      saveFlashcards();
+      return true;
+    } catch (error) {
+      log.warn('access claim write failed:', error);
+      return false;
+    }
   };
 
   /**
@@ -3888,37 +3905,73 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * on every addressed form and appends a clearing claim event (toStatus
    * absent) so projections replay back to the evidence classification.
    */
-  const clearAccessClaim = (word: string, capability: CapabilityKey, language = settings.language) => {
+  const clearAccessClaim = async (word: string, capability: CapabilityKey, language = settings.language): Promise<boolean> => {
+    await knowledgeInitialization;
     const lang = language;
     const forms = isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, lang);
     const now = Date.now();
     const aspect = legacyAspectFor(capability);
     const claimEvents: Record<string, KnowledgeEvent[]> = {};
-    setStore(produce((s) => {
-      for (const form of forms) {
-        const wordHash = SRS.hashWordSync(form);
-        const lk = langKey(lang, wordHash);
-        const entry = s.wordKnowledge[lk];
-        const record = entry?.access?.[capability];
-        if (!record || record.claim === undefined) continue;
-        const next = { ...record };
-        delete next.claim;
-        delete next.claimAt;
-        entry.access = { ...entry.access, [capability]: next };
-        claimEvents[lk] = [{
-          t: now, kind: 'claim', source: 'manual',
-          ...(aspect !== undefined ? { aspect } : {}),
-          targetRef: { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)), capability },
-        }];
-      }
-    }));
-    saveFlashcards();
-    if (Object.keys(claimEvents).length > 0) {
-      appendEvents(claimEvents)
-        .then(() => recomputeWordKnowledgeFromEvidence(word, lang))
-        .catch((e) => log.warn('access claim clear recompute failed:', e));
+    for (const form of forms) {
+      const lk = langKey(lang, SRS.hashWordSync(form));
+      if (store.wordKnowledge[lk]?.access?.[capability]?.claim === undefined) continue;
+      claimEvents[lk] = [{
+        t: now, kind: 'claim', source: 'manual', presentedSurface: form,
+        ...(aspect !== undefined ? { aspect } : {}),
+        targetRef: { kind: 'surface', id: surfaceEntityId(lang, SRS.hashWordSync(form)), capability },
+      }];
+    }
+    if (Object.keys(claimEvents).length === 0) return true;
+    // The displayed claim changes only after the journal accepts its withdrawal.
+    try {
+      if (!await appendEventsIdempotentAcknowledged(claimEvents)) throw new Error('Claim withdrawal was refused');
+      const states = await getKnowledgeStates(Object.keys(claimEvents));
+      materializeCapabilityStates(forms.map(form => ({ key: langKey(lang, SRS.hashWordSync(form)), word: form, language: lang })), states);
+      saveFlashcards();
+      return true;
+    } catch (error) {
+      log.warn('access claim clear failed:', error);
+      return false;
     }
   };
+
+  /** Prepare one learner-owned claim through the same acknowledged write boundary. */
+  const prepareSelfAssessment = (word: string, capability: CapabilityKey, quality: AttemptQuality, options: AttemptOptions) => {
+    const language = options.language ?? settings.language;
+    const attemptId = options.attemptId ?? nextAttemptId();
+    const now = Date.now();
+    const status: WordStatus = quality === 'fluent' ? 'known' : quality === 'missed' ? 'unknown' : 'learning';
+    const forms = isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, language);
+    const materializedKeys = forms.map(form => langKey(language, SRS.hashWordSync(form)));
+    const aspect = legacyAspectFor(capability);
+    const storageWord = isSurfaceScopedCapability(capability, languageDataFor(language)) ? word : getPrimaryWordFormForLanguage(word, language);
+    const value: KnowledgeEvent = { t: now, kind: 'claim', source: 'manual', quality, attemptId,
+      ...(aspect !== undefined ? { aspect } : {}), toStatus: status, presentedSurface: word,
+      targetRef: { kind: 'surface', id: surfaceEntityId(language, SRS.hashWordSync(word)), capability },
+    };
+    return { attemptId, materializedKeys, event: { key: langKey(language, SRS.hashWordSync(storageWord)), value },
+      applyMaterialized: (target: RatingStore, patch?: StorePatchRecorder) => {
+        forms.forEach((form, index) => {
+          const key = materializedKeys[index];
+          const entry = target.wordKnowledge[key] ?? (target.wordKnowledge[key] = {
+            word: form, language, ease: SRS.MIN_EASE, lastSeen: now, timesSeen: 0, timesHovered: 0,
+          });
+          if (capability === 'sense-recognition') {
+            entry.claim = status;
+            entry.claimAt = now;
+          } else {
+            const prior = entry.access?.[capability];
+            entry.access = { ...entry.access, [capability]: {
+              ...(prior ?? { status: 'unknown', ease: SRS.MIN_EASE, source: 'Manual', lastStatusChange: now, hasEvidence: false }),
+              claim: status, claimAt: now, updatedAt: now,
+            } };
+          }
+          patch?.set(['wordKnowledge', key], entry);
+        });
+      },
+    };
+  };
+
   /** Prepare one canonical observation without changing the local projection. */
   const prepareAttempt = (
     word: string,
@@ -3962,7 +4015,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           entry.lastEvidenceSource = 'manual';
         } else {
           entry.access = { ...entry.access, [capability]: {
-            ...entry.access?.[capability], status, ease, source: 'Manual', lastStatusChange: now, updatedAt: now,
+            ...entry.access?.[capability], status, ease, source: 'Manual', lastStatusChange: now, updatedAt: now, hasEvidence: true,
           } };
         }
         patch?.set(['wordKnowledge', key], entry);
@@ -4018,12 +4071,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (ratingPersistenceState() === 'failed') throw new Error('Pending ratings need persistence retry');
     ratingCommandInFlight = true;
     try {
+      await knowledgeInitialization;
+      if (options?.selfAssessment && options.scheduler) throw new Error('A self-assessment cannot advance a review schedule');
       const scheduler = options?.scheduler;
       const card = scheduler ? store.flashcards[scheduler.cardId] : undefined;
       if (scheduler && !card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
       const attemptId = options?.attemptId ?? nextAttemptId();
       const prepared = observations.map(({ capability, quality, method }) =>
-        prepareAttempt(word, capability, quality, { ...options, method, attemptId }));
+        options?.selfAssessment
+          ? prepareSelfAssessment(word, capability, quality, { ...options, attemptId })
+          : prepareAttempt(word, capability, quality, { ...options, method, attemptId }));
       const __t0 = performance.now();
       const __rows: RatingTraceMark[] = [];
       const __mark = (label: string): void => { __rows.push({ label, ms: performance.now() - __t0 }); };
@@ -4078,7 +4135,41 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
       __mark('journal');
 
-      if (schedulerResult) {
+      if (options?.selfAssessment) {
+        // An acknowledged retry may be a journal no-op. Materialize the latest
+        // durable claim, including a later withdrawal, rather than the retry's
+        // newly prepared timestamp. Preserve the pre-existing observations.
+        const states = await getKnowledgeStates(Object.keys(eventsByKey));
+        for (const entry of prepared) {
+          if (!entry.event) continue;
+          const capability = entry.event.value.targetRef!.capability!;
+          const projected = states[entry.event.key]?.capabilities?.[capability];
+          for (const key of entry.materializedKeys ?? []) {
+            const record = candidate.wordKnowledge[key];
+            if (!record) continue;
+            const claimTarget = capability === 'sense-recognition' ? record : record.access?.[capability];
+            if (!claimTarget) continue;
+            if (projected?.claim !== undefined) {
+              claimTarget.claim = projected.claim;
+              claimTarget.claimAt = projected.claimAt;
+            } else {
+              delete claimTarget.claim;
+              delete claimTarget.claimAt;
+              if (capability !== 'sense-recognition' && projected === undefined) delete record.access?.[capability];
+              if (record.ease <= SRS.MIN_EASE && record.timesSeen === 0 && record.timesHovered === 0
+                && !record.hasActiveEvidence && record.claim === undefined && Object.keys(record.access ?? {}).length === 0) {
+                delete candidate.wordKnowledge[key];
+                patchRecorder.remove(['wordKnowledge', key]);
+                continue;
+              }
+            }
+            patchRecorder.set(['wordKnowledge', key], record);
+          }
+        }
+        if (!await saveFlashcardsImmediate(undefined, undefined, {
+          base: commandBase, patch: patchRecorder.build(commandBase.rev ?? 0),
+        })) throw new Error('Self-assessment projection persistence was refused');
+      } else if (schedulerResult) {
         // Persistence applies the declared entries to its current snapshot.
         if (!background && !await saveFlashcardsImmediate(undefined, undefined, {
           base: commandBase,
@@ -4551,7 +4642,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         ...existing,
         word: existing?.word ?? word,
         language,
-        ease: meaning?.ease ?? SRS.MIN_EASE,
+        ease: meaning?.hasEvidence ? meaning.ease : SRS.MIN_EASE,
         timesSeen: meaning?.timesSeen ?? 0,
         timesHovered: meaning?.timesHovered ?? 0,
         lastSeen: meaning?.lastSeen ?? Math.max(...Object.values(capabilities).map((projection) => projection.lastSeen)),
@@ -4576,7 +4667,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           status: evidenceStatusFromEase(projected.ease, {
             known: passiveKnownEaseThreshold(), learning: passiveLearningEaseThreshold(),
           }),
-          ease: projected.ease,
+          ease: projected.hasEvidence ? projected.ease : SRS.MIN_EASE,
+          hasEvidence: projected.hasEvidence,
           source: source === 'manual' || source === 'srs' || source === 'anki' || source === 'passiveTracking'
             || source === 'knownWordsList' || source === 'ignoredWords' ? aspectSourceToDisplay(source) : 'None',
           lastStatusChange: projected.lastStatusChange ?? projected.lastSeen,
@@ -4594,17 +4686,45 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   const repairCapabilityProjection = async (): Promise<void> => {
-    if (store.meta.capabilityProjectionVersion === CAPABILITY_PROJECTION_VERSION) return;
-    const seeds = Object.entries(store.wordKnowledge).flatMap(([key, entry]) => entry.word ? [{
+    const upgrading = store.meta.capabilityProjectionVersion !== CAPABILITY_PROJECTION_VERSION;
+    const seeds = new Map(Object.entries(store.wordKnowledge).flatMap(([key, entry]) => entry.word ? [[key, {
       key, word: entry.word, language: entry.language ?? key.split(':')[0],
-    }] : []);
-    for (let offset = 0; offset < seeds.length; offset += 256) {
-      const batch = seeds.slice(offset, offset + 256);
+    }] as const] : []));
+    const languages = new Set([settings.language, ...[...seeds.values()].map(seed => seed.language),
+      ...(languageDataCatalog?.() ?? []).filter(status => status.installed !== false).map(status => status.language)]);
+    const replayKeys = new Set(upgrading ? seeds.keys() : []);
+    // The journal is authoritative even when a crash missed a cache write at
+    // the current schema version. Include journal-only keys, not just cached ones.
+    for (const language of languages) {
+      for (const key of await queryLanguageKeys(language)) {
+        if (!key.startsWith(`${language}:`) || !/^[a-f0-9]{64}$/.test(key.slice(language.length + 1))) continue;
+        replayKeys.add(key);
+
+      }
+    }
+    const missing = [...replayKeys].filter(key => !seeds.has(key));
+    for (let offset = 0; offset < missing.length; offset += 256) {
+      const keys = new Set(missing.slice(offset, offset + 256));
+      for (const event of [...await getEvents([...keys])].reverse()) {
+        const encountered = event.presentedSurface;
+        if (!encountered) continue;
+        for (const language of languages) {
+          const forms = [...new Set([encountered, ...getWordFormsForLanguage(encountered, language)])];
+          for (const word of forms) {
+            const key = langKey(language, SRS.hashWordSync(word));
+            if (keys.has(key) && !seeds.has(key)) seeds.set(key, { key, word, language });
+          }
+        }
+      }
+    }
+    const pending = [...replayKeys].flatMap(key => seeds.has(key) ? [seeds.get(key)!] : []);
+    for (let offset = 0; offset < pending.length; offset += 256) {
+      const batch = pending.slice(offset, offset + 256);
       const states = await getKnowledgeStates(batch.map(({ key }) => key));
       materializeCapabilityStates(batch, states);
     }
     setStore('meta', 'capabilityProjectionVersion', CAPABILITY_PROJECTION_VERSION);
-    saveFlashcards();
+    if (upgrading || pending.length > 0) saveFlashcards();
   };
 
   // ========================
@@ -5504,6 +5624,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
     broadcastChannel?.close();
+    broadcastChannel = null;
     document.removeEventListener('visibilitychange', handleVisibilityChange);
   });
 

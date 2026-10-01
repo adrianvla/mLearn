@@ -52,8 +52,8 @@ export const KnowledgeInspectorHost: Component = () => {
     onGraph={(entityId) => openGraphInspector({ entityId })}
     onWordClaim={(claim) => setWordClaim(inspection().surface, claim, inspection().language)}
     onAccessClaim={(capability, claim) => {
-      if (claim === null) clearAccessClaim(inspection().surface, capability, inspection().language);
-      else setAccessClaim(inspection().surface, capability, claim, inspection().language);
+      if (claim === null) return clearAccessClaim(inspection().surface, capability, inspection().language);
+      return setAccessClaim(inspection().surface, capability, claim, inspection().language);
     }}
   />}</Show>;
 };

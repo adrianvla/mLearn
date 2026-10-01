@@ -3,7 +3,7 @@ import { createCloudLLMRequest, OpenAICompatibleLLMAdapter } from '../backends/c
 import { resolveCloudApiUrl } from '../backends';
 import { usesManagedLlm } from '../llmTask';
 import { getNodeServerAuthToken, getNodeServerUrl } from '../nodeServerCredentials';
-import { projectCapabilities } from '../knowledge/capabilityProjection';
+import { projectCapabilities, projectClaimMarkers } from '../knowledge/capabilityProjection';
 /**
  * Capacitor Bridge Implementation
  *
@@ -1843,7 +1843,8 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
         const active = readActiveEvidence(events);
         result[key] = {
           projection: active.length > 0 ? replayKeyProjection(active) : null,
-          capabilities: projectCapabilities(events.map((event, seq) => ({ event, seq }))),
+          capabilities: projectCapabilities(events.map((event, seq) => ({ event, seq })), undefined, true),
+          claimMarkers: projectClaimMarkers(events.map((event, seq) => ({ event, seq })), true),
           hasArchive: false,
           archivedEventCount: 0,
         };

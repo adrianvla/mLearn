@@ -1612,6 +1612,7 @@
         "Title": "Remplacement de connaissance"
       },
       "Popup": {
+        "SelfAssessment": "Auto-évaluation : votre déclaration, sans exercice observé.",
         "Overall": "Global",
         "Basis": "Base",
         "Rate": "Évaluer",

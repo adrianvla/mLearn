@@ -1612,6 +1612,7 @@
         "Title": "Knowledge override"
       },
       "Popup": {
+        "SelfAssessment": "Self-assessment: your claim, without an observed exercise.",
         "Overall": "Overall",
         "Basis": "Basis",
         "Rate": "Rate",

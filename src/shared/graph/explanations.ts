@@ -113,7 +113,7 @@ export function assembleTargetExplanation(
   const evidenceRows = active
     .filter(({ event }) => eventIsMeasurable(event) && matcher(event))
     .sort((a, b) => a.event.t - b.event.t || a.seq - b.seq);
-  const evidence = evidenceRows.map(({ event }) => event);
+  const evidence = evidenceRows.filter(({ event }) => event.kind !== 'claim').map(({ event }) => event);
   const mergedArchive = mergeArchives(archives ?? []);
   // Archived prefix: measurable bucket folds selected by the same matcher.
   const archiveFold = mergedArchive ? foldArchiveBucketsMeasurable(mergedArchive, matcher) : emptyKeyFold();

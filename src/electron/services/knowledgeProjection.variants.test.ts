@@ -199,10 +199,10 @@ describe('graph-relative learner overlay (苗字/名字 walkthrough)', () => {
     // classification is real evidence, the label falls back to the raw id,
     // and no core vocabulary entry exists for it.
     const state = stateOf(projection, NAZI, 'x-test::glyph-tone');
-    // The active claim overrides the evidence classification; both rows stay
-    // attributed (same evidence contract as core capability states).
+    // The active claim overrides classification while the retrieval remains
+    // the only observed evidence; the claim stays in the journal history.
     expect(state).toMatchObject({ classification: 'known', basis: 'claim' });
-    expect(state?.evidence).toHaveLength(2);
-    expect(state?.evidenceSourceCounts).toEqual({ srs: 1, manual: 1 });
+    expect(state?.evidence).toHaveLength(1);
+    expect(state?.evidenceSourceCounts).toEqual({ srs: 1 });
   });
 });

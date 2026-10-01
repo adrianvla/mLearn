@@ -1850,6 +1850,7 @@ beforeEach(() => {
       { id: 'meaning', name: 'set_access_claim', arguments: { capability: 'sense-recognition', status: 'known', basis: 'unassisted' } },
       { id: 'reading', name: 'set_access_claim', arguments: { capability: 'surface-reading', status: 'unknown', basis: 'unassisted' } },
     ]);
+    await settle();
     expect(mockSetAccessClaim).toHaveBeenCalledTimes(2);
     expect(mockSetAccessClaim).toHaveBeenCalledWith('赤い', 'sense-recognition', 'known', 'ja');
     expect(mockSetAccessClaim).toHaveBeenCalledWith('赤い', 'surface-reading', 'unknown', 'ja');
@@ -1865,6 +1866,7 @@ beforeEach(() => {
       'mlearn.Knowledge.Capability.surface-reading: mlearn.Rating.Matrix.Missed',
     ]);
     buttonByText('mlearn.TellMlearn.Undo').click();
+    await settle();
     expect(mockClearAccessClaim).toHaveBeenCalledTimes(2);
     expect(mockClearAccessClaim).toHaveBeenCalledWith('赤い', 'sense-recognition', 'ja');
     expect(mockClearAccessClaim).toHaveBeenCalledWith('赤い', 'surface-reading', 'ja');

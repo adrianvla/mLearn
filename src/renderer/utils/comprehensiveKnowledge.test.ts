@@ -32,6 +32,15 @@ function entry(overrides: Partial<PassiveWordKnowledge> = {}): PassiveWordKnowle
 }
 
 describe('getComprehensiveWordStatusWithSource (Tier-2 semantics)', () => {
+  it('a written-access claim does not fabricate evidence for the lexical summary', () => {
+    const deps = makeDeps({ wordKnowledge: { 'ru:hash:слово': entry({
+      ease: 0, timesSeen: 0, hasActiveEvidence: false,
+      access: { 'surface-recognition': { status: 'unknown', ease: 0, source: 'Manual',
+        lastStatusChange: 1, updatedAt: 1, hasEvidence: false, claim: 'known', claimAt: 1 } },
+    }) } });
+    expect(getComprehensiveWordStatusWithSource('слово', deps)).toMatchObject({ status: 'unknown', basis: 'unmeasured' });
+  });
+
   it('an explicit claim overrides evidence classification while evidence stays intact', () => {
     // 人権 invariant: evidence says Known, user claims Learning → effective
     // Learning, basis claim, evidence still Known.

@@ -25,7 +25,7 @@ export interface AppliedLearnerClaim {
   /** Localization key for the applied status word, when the op sets one. */
   statusKey?: string;
   /** Undo closure — applies the inverse claim through the existing model. */
-  undo: () => void;
+  undo: () => void | Promise<boolean | void>;
 }
 
 export interface TellMlearnProps {
@@ -41,7 +41,7 @@ export interface TellMlearnProps {
   /** Builds the compact learner context shown to the interpreter. */
   buildContext: () => string;
   /** Applies typed ops and returns what actually changed (with undo closures). */
-  onApply: (ops: LearnerClaimOp[]) => AppliedLearnerClaim[];
+  onApply: (ops: LearnerClaimOp[]) => AppliedLearnerClaim[] | { applied: AppliedLearnerClaim[]; failed: boolean } | Promise<AppliedLearnerClaim[] | { applied: AppliedLearnerClaim[]; failed: boolean }>;
   /** Translates localization keys for the deterministic summary. */
   translate: (key: string) => string;
 }
@@ -52,7 +52,7 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
   const [busy, setBusy] = createSignal(false);
   const [failed, setFailed] = createSignal(false);
   const [summaryKeys, setSummaryKeys] = createSignal<Array<{ labelKey: string; statusKey?: string }> | null>(null);
-  const [undoStack, setUndoStack] = createSignal<Array<() => void>>([]);
+  const [undoStack, setUndoStack] = createSignal<Array<AppliedLearnerClaim['undo']>>([]);
 
   let requestVersion = 0;
   let activeRequest: { abort: () => void } | undefined;
@@ -92,16 +92,24 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
       {
         onChunk: () => {},
         onToolCall: (toolCall) => toolCalls.push({ name: toolCall.name, arguments: toolCall.arguments ?? {} }),
-        onDone: (_finalContent, allToolCalls) => {
+        onDone: async (_finalContent, allToolCalls) => {
           if (version !== requestVersion) return;
           activeRequest = undefined;
           const ops = parseClaimToolCalls(allToolCalls);
           if (ops.length === 0) {
             setSummaryKeys([]);
           } else {
-            const applied = props.onApply(ops);
-            setUndoStack(applied.map((entry) => entry.undo));
-            setSummaryKeys(applied.map((entry) => ({ labelKey: entry.labelKey, statusKey: entry.statusKey })));
+            try {
+              const result = await props.onApply(ops);
+              if (version !== requestVersion) return;
+              const applied = Array.isArray(result) ? result : result.applied;
+              setFailed(!Array.isArray(result) && result.failed);
+              setUndoStack(applied.map((entry) => entry.undo));
+              setSummaryKeys(applied.map((entry) => ({ labelKey: entry.labelKey, statusKey: entry.statusKey })));
+            } catch {
+              if (version !== requestVersion) return;
+              setFailed(true);
+            }
           }
           setText('');
           setBusy(false);
@@ -116,10 +124,21 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
     );
   };
 
-  const undoAll = () => {
-    for (const undo of undoStack()) undo();
-    setUndoStack([]);
-    setSummaryKeys(null);
+  const undoAll = async () => {
+    if (busy()) return;
+    const version = ++requestVersion;
+    setBusy(true);
+    setFailed(false);
+    const remaining: Array<AppliedLearnerClaim['undo']> = [];
+    for (const undo of [...undoStack()].reverse()) {
+      try { if (await undo() === false) remaining.push(undo); }
+      catch { remaining.push(undo); }
+    }
+    if (version !== requestVersion) return;
+    setUndoStack(remaining.reverse());
+    setFailed(remaining.length > 0);
+    if (remaining.length === 0) setSummaryKeys(null);
+    setBusy(false);
   };
 
   return (
@@ -172,7 +191,7 @@ export const TellMlearn: Component<TellMlearnProps> = (props) => {
               {busy() ? '…' : props.sendLabel}
             </Button>
             <Show when={undoStack().length > 0}>
-              <Button buttonType="default" variant="ghost" size="sm" onClick={undoAll}>
+              <Button buttonType="default" variant="ghost" size="sm" disabled={busy()} onClick={() => void undoAll()}>
                 {props.undoLabel}
               </Button>
             </Show>

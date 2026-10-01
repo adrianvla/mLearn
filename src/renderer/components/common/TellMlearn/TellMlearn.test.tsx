@@ -211,7 +211,32 @@ describe('TellMlearn', () => {
     const undoButton = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent === 'Undo')!;
     undoButton.click();
     expect(undoSpy).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    await Promise.resolve();
     expect(document.body.textContent).not.toContain('Updated:');
+    dispose();
+  });
+
+  it('waits for durable application and reports only accepted corrections on a partial failure', async () => {
+    let finish!: (result: { applied: AppliedLearnerClaim[]; failed: boolean }) => void;
+    const undo = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    onApply.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const dispose = renderField();
+    await sendStatement('I know this', callbacks => callbacks.onDone('', [{ id: '1', name: 'set_word_claim', arguments: { status: 'known' } }]));
+    expect(document.body.querySelector('.tell-mlearn__summary')).toBeNull();
+    finish({ applied: [{ labelKey: 'accepted access', undo }], failed: true });
+    await Promise.resolve(); await Promise.resolve();
+    expect(document.body.querySelector('.tell-mlearn__summary')?.textContent).toContain('accepted access');
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toBe('Could not process that');
+    const undoButton = Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'Undo')!;
+    undoButton.click();
+    await Promise.resolve(); await Promise.resolve();
+    expect(document.body.querySelector('.tell-mlearn__summary')).not.toBeNull();
+    expect(undoButton.isConnected).toBe(true);
+    undoButton.click();
+    await Promise.resolve(); await Promise.resolve();
+    expect(document.body.querySelector('.tell-mlearn__summary')).toBeNull();
+    expect(undo).toHaveBeenCalledTimes(2);
     dispose();
   });
 
