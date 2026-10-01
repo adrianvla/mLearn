@@ -100,26 +100,10 @@ export async function appendEventsAcknowledged(eventsByKey: KnowledgeEventLog): 
  * observes the already-durable attempt and succeeds without duplicating it.
  */
 export async function appendEventsIdempotentAcknowledged(eventsByKey: KnowledgeEventLog): Promise<boolean> {
-  ensureInitialized();
-  const keys = Object.keys(eventsByKey).filter((key) => eventsByKey[key]?.length > 0);
-  if (keys.length === 0) return false;
-  const existing = await getBridge().knowledgeEvents.queryKnowledgeEvents(keys);
-  const pending: KnowledgeEventLog = {};
-  for (const key of keys) {
-    const existingAttemptIds = new Set(
-      (existing[key] ?? []).flatMap((event) => event.kind === 'retraction' && event.retracts !== undefined
-        ? [`retraction:${event.retracts}`]
-        : event.attemptId === undefined ? [] : [`attempt:${event.attemptId}`]),
-    );
-    const events = (eventsByKey[key] ?? []).filter(
-      (event) => event.kind === 'retraction'
-        ? event.retracts === undefined || !existingAttemptIds.has(`retraction:${event.retracts}`)
-        : event.attemptId === undefined || !existingAttemptIds.has(`attempt:${event.attemptId}`),
-    );
-    if (events.length > 0) pending[key] = events;
-  }
-  if (Object.keys(pending).length === 0) return true;
-  return appendEventsAcknowledged(pending);
+  // Deduplication belongs to the durable transaction. A renderer query then
+  // append races with other windows and misses compacted observations.
+  if (!Object.values(eventsByKey).some(events => events.length > 0)) return false;
+  return appendEventsAcknowledged(eventsByKey);
 }
 
 /** Legacy fire-and-forget-compatible append surface. */

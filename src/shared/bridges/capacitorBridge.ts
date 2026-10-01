@@ -57,6 +57,7 @@ import type {
   VoiceModelStatus,
   VoiceSample,
 } from '../types';
+import { knowledgeEventIdentity } from '../knowledge/eventIdentity';
 import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, eventCapability, readActiveEvidence, type KnowledgeEvent, type KnowledgeEventLog } from '../knowledgeEvents';
 import { emptyTransitions, applyTransitions } from '../knowledge/historyArchive';
 import type { KeyHistorySummary, KeyKnowledgeState } from '../knowledge/historyQueries';
@@ -1674,15 +1675,27 @@ function languageOfEventKey(key: string): string {
   const separator = key.indexOf(':');
   return separator === -1 ? key : key.slice(0, separator);
 }
-async function loadKnowledgeEventsForLanguage(language: string): Promise<KnowledgeEventLog> {
+interface KnowledgeEventsShard {
+  version: 1;
+  events: KnowledgeEventLog;
+  observationIdentities: Record<string, string[]>;
+}
+
+async function loadKnowledgeEventsShard(language: string): Promise<KnowledgeEventsShard> {
+  const empty: KnowledgeEventsShard = { version: 1, events: {}, observationIdentities: {} };
   const raw = await storageGet(knowledgeEventsStorageKey(language));
-  if (!raw) return {};
+  if (!raw) return empty;
   try {
-    return JSON.parse(raw) as KnowledgeEventLog;
+    const parsed = JSON.parse(raw) as KnowledgeEventsShard | KnowledgeEventLog;
+    return parsed.version === 1 ? parsed as KnowledgeEventsShard : { ...empty, events: parsed as KnowledgeEventLog };
   } catch (e) {
     log.error('[CapacitorBridge] Failed to parse knowledge events shard, starting empty:', language, e);
-    return {};
+    return empty;
   }
+}
+
+async function loadKnowledgeEventsForLanguage(language: string): Promise<KnowledgeEventLog> {
+  return (await loadKnowledgeEventsShard(language)).events;
 }
 
 /**
@@ -1692,12 +1705,14 @@ async function loadKnowledgeEventsForLanguage(language: string): Promise<Knowled
  */
 async function updateKnowledgeEventsForLanguage(
   language: string,
-  update: (eventLog: KnowledgeEventLog) => KnowledgeEventLog,
+  update: (eventLog: KnowledgeEventLog, identities: Record<string, string[]>) => KnowledgeEventLog,
 ): Promise<void> {
   const previous = knowledgeEventWriteQueues.get(language) ?? Promise.resolve();
   const task = previous.then(async () => {
-    const updated = update(await loadKnowledgeEventsForLanguage(language));
-    await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(updated));
+    const shard = await loadKnowledgeEventsShard(language);
+    shard.events = update(shard.events, shard.observationIdentities);
+    // Events and retry protection share one persisted value and write boundary.
+    await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(shard));
   });
   knowledgeEventWriteQueues.set(language, task.catch(() => {}));
   await task;
@@ -1727,9 +1742,25 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
     }
     if (appended === 0) return false;
     for (const [language, shard] of incomingByLanguage) {
-      await updateKnowledgeEventsForLanguage(language, (existing) => {
+      await updateKnowledgeEventsForLanguage(language, (existing, identities) => {
         for (const [key, events] of Object.entries(shard)) {
-          existing[key] = [...(existing[key] ?? []), ...events];
+          const prior = existing[key] ?? [];
+          const seen = new Set(identities[key] ?? []);
+          // Seed plain historical shards without removing their occurrences.
+          prior.forEach(event => {
+            const identity = knowledgeEventIdentity(event);
+            if (identity !== undefined) seen.add(identity);
+          });
+          const retracted = new Set(prior.flatMap(event => event.retracts === undefined ? [] : [String(event.retracts)]));
+          const fresh = events.filter(event => {
+            const identity = knowledgeEventIdentity(event);
+            if (identity === undefined) return true;
+            if (seen.has(identity)) return false;
+            seen.add(identity);
+            return event.attemptId === undefined || !retracted.has(String(event.attemptId));
+          });
+          existing[key] = [...prior, ...fresh];
+          identities[key] = [...seen];
         }
         // Identical policy to the desktop journal: consolidate stale rollups
         // and retain within the rollup budget — never drop claims/retractions.

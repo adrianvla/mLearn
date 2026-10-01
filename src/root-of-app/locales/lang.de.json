@@ -1694,7 +1694,12 @@
         },
         "FullGraph": "Vollständigen Graphen öffnen",
         "Prediction": {
-          "None": "Keine Vorhersage."
+          "None": "Keine Vorhersage.",
+          "SupportLimited": "Geringe strukturelle Unterstützung",
+          "SupportModerate": "Mittlere strukturelle Unterstützung",
+          "SupportStrong": "Starke strukturelle Unterstützung",
+          "Context": "Basiert auf deinem erfassten Wissen und den installierten Sprachbeziehungen. Nutze dieses Signal zur Auswahl einer Übung.",
+          "Limits": "Dies ist eine heuristische Einschätzung, keine Erfolgswahrscheinlichkeit und kein gemessener Fortschritt. Aufgabenkontext und Behaltenszeitraum wurden nicht bewertet."
         },
         "Adjust": "Anpassen",
         "RetentionTitle": "Wiederholungen",

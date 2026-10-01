@@ -1694,7 +1694,12 @@
         },
         "FullGraph": "Open full graph",
         "Prediction": {
-          "None": "No prediction."
+          "None": "No prediction.",
+          "SupportLimited": "Limited structural support",
+          "SupportModerate": "Moderate structural support",
+          "SupportStrong": "Strong structural support",
+          "Context": "Based on your current recorded knowledge and installed language relations. Use this signal to choose a practice attempt.",
+          "Limits": "This is a heuristic support estimate, not a success probability or measured progress. No task context or retention horizon has been evaluated."
         },
         "Adjust": "Adjust",
         "RetentionTitle": "SRS retention",

@@ -536,7 +536,7 @@ describe('KnowledgeProjectionDrawer history and prediction', () => {
     dispose();
   });
 
-  it('shows prediction confidence and support paths resolved to words, never ids', async () => {
+  it('labels predictions as heuristic support and resolves their exact target and paths', async () => {
     const projection: KnowledgeProjection = {
       ...inspectorProjection,
       targets: [{
@@ -550,7 +550,10 @@ describe('KnowledgeProjectionDrawer history and prediction', () => {
       }],
     };
     const { host, dispose } = await renderDrawer({ initialTab: 'prediction', projection });
-    expect(host.textContent).toContain('62%');
+    expect(host.textContent).not.toContain('62%');
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Prediction.SupportModerate');
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Prediction.Limits');
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Prediction.Context');
     expect(host.textContent).toContain('mlearn.GraphInspector.PredictionFirewall');
     // Both path ids resolve against the neighborhood (犬, 猫); the raw ids never render.
     expect(host.textContent).toContain('犬 → 猫');

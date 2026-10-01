@@ -136,18 +136,21 @@ describe('learner overlay: claims, evidence, and predictions stay separate', () 
     const target = { entityId: 'ja:surface:abc', capability: 'surface-reading' as const };
     const graph = makeGraph();
 
-    const neutral = predictTargetAccessibility({ graph, direct: null, target, classify: () => 'unknown' });
+    const sourceKnowledge = () => 'evidence' as const;
+    const neutral = predictTargetAccessibility({ graph, direct: null, target, classify: () => 'unknown', sourceKnowledge });
     const skilled = predictTargetAccessibility({
       graph, direct: null, target, classify: () => 'unknown',
       inferenceSuccess: { attempts: 5, successes: 5 },
+      sourceKnowledge,
     });
     const struggling = predictTargetAccessibility({
       graph, direct: null, target, classify: () => 'unknown',
       inferenceSuccess: { attempts: 5, successes: 0 },
+      sourceKnowledge,
     });
 
-    expect(skilled.pSuccess).toBeGreaterThan(neutral.pSuccess);
-    expect(struggling.pSuccess).toBeLessThan(neutral.pSuccess);
+    expect(skilled.supportScore).toBeGreaterThan(neutral.supportScore);
+    expect(struggling.supportScore).toBeLessThan(neutral.supportScore);
     // Predictions are always expectations.
     expect(neutral.kind).toBe('prediction');
   });

@@ -146,6 +146,8 @@ export function nextAttemptId(): AttemptId {
 }
 
 export interface KnowledgeEvent {
+  /** Immutable observation identity when supplied by an event producer. */
+  eventId?: string;
   t: number;
   kind: KnowledgeEventKind;
   source: EvidenceSource;

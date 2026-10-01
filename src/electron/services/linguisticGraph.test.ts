@@ -14,7 +14,10 @@ vi.mock('./settings', () => ({
 }));
 vi.mock('./languageDataService', () => ({ getLanguageDataRoot: () => '/unused' }));
 
-vi.mock('./knowledgeProjection', () => ({ buildKnowledgeProjection: vi.fn(() => ({ status: 'ready', targets: [] })) }));
+vi.mock('./knowledgeProjection', async importOriginal => ({
+  ...await importOriginal<typeof import('./knowledgeProjection')>(),
+  buildKnowledgeProjection: vi.fn(() => ({ status: 'ready', targets: [] })),
+}));
 vi.mock('./flashcardStorage', () => ({ loadFlashcards: vi.fn(async () => ({ meta: {} })) }));
 vi.mock('./knowledgeEvents', () => ({
   getKnowledgeRows: vi.fn((keys: readonly string[]) => Object.fromEntries(keys.map((key) => [key, []]))),
@@ -84,6 +87,31 @@ describe('LinguisticGraphService', () => {
       .resolves.toEqual(['form A', 'form B']);
     await expect(service.getEvidenceLinkedSurfaces('xx', ['form A', 'form B', 'unseen'], [key('unseen')]))
       .resolves.toEqual(['unseen']);
+  });
+
+  it('loads exact entity observations and a support source without turning source evidence into target knowledge', async () => {
+    const hash = (word: string) => crypto.createHash('sha256').update(word).digest('hex');
+    const id = (word: string) => `xx:surface:${hash(word)}`;
+    const sense = 'xx:sense:target';
+    fs.writeFileSync(path.join(directory, 'languages', 'xx.graph.json'), JSON.stringify(encodeCompact({
+      schemaVersion: 1, language: 'xx', generatedAt: '', sourceVersions: {},
+      entities: [{ id: id('target'), kind: 'surface' }, { id: id('source'), kind: 'surface' },
+        { id: 'xx:entry:target', kind: 'dictionary-entry' }, { id: sense, kind: 'sense' }],
+      relations: [{ from: id('target'), to: 'xx:entry:target', type: 'realizes' },
+        { from: 'xx:entry:target', to: sense, type: 'has-sense' },
+        { from: id('source'), to: sense, type: 'semantically-related', transparency: 1 }],
+    })));
+    const journal = await import('./knowledgeEvents');
+    vi.mocked(journal.getKnowledgeRows).mockImplementationOnce(keys => Object.fromEntries(keys.map(key => [key,
+      key === `xx:${hash('source')}` ? [{ seq: 1, event: { t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 3 } }] : [],
+    ])));
+    const real = await vi.importActual<typeof import('./knowledgeProjection')>('./knowledgeProjection');
+    vi.mocked(buildKnowledgeProjection).mockImplementationOnce(real.buildKnowledgeProjection);
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const result = await new LinguisticGraphService(directory).getKnowledgeProjection('xx', 'target');
+    expect(journal.getKnowledgeRows).toHaveBeenLastCalledWith(expect.arrayContaining([sense, `xx:${hash('source')}`]));
+    expect(result.targets.find(target => target.targetRef.id === sense)?.states[0]).toMatchObject({ basis: 'prediction', evidence: [] });
+    expect(result.lexical?.overall.basis).toBe('unmeasured');
   });
 
   it.each(['raw', 'archived'])('shares %s legacy sibling meaning without inventing direct written recognition', async (mode) => {

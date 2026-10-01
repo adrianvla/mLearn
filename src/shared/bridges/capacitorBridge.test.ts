@@ -1857,6 +1857,35 @@ describe('knowledgeEvents bridge (Capacitor journal)', () => {
     });
   });
 
+  it('deduplicates concurrent retries and retains distinct accesses across restart', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const reading = { t: Date.now(), kind: 'rating', source: 'srs', aspect: 'reading', quality: 'fluent', attemptId: 'mobile-response' } as const;
+    const meaning = { ...reading, aspect: 'meaning' } as const;
+    await Promise.all([
+      bridge.knowledgeEvents.appendKnowledgeEvents({ 'xx:retry': [reading] }),
+      bridge.knowledgeEvents.appendKnowledgeEvents({ 'xx:retry': [reading, meaning, meaning] }),
+    ]);
+    expect((await bridge.knowledgeEvents.queryKnowledgeEvents(['xx:retry']))['xx:retry']).toEqual([reading, meaning]);
+    vi.resetModules();
+    const restarted = (await import('./capacitorBridge')).createCapacitorBridge();
+    await restarted.knowledgeEvents.appendKnowledgeEvents({ 'xx:retry': [reading, meaning] });
+    expect((await restarted.knowledgeEvents.queryKnowledgeEvents(['xx:retry']))['xx:retry']).toEqual([reading, meaning]);
+  });
+
+  it('keeps identities when old rollups consolidate and accepts existing plain shards', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const old = { t: Date.now() - 100 * 86400000, kind: 'rollup', source: 'reader', timesSeenDelta: 1, eventId: 'mobile-old-1' } as const;
+    const later = { ...old, t: old.t + 1, eventId: 'mobile-old-2' };
+    localStorage.setItem('mlearn-knowledge-events:xx', JSON.stringify({ 'xx:legacy': [old] }));
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'xx:legacy': [old, later] });
+    const before = await bridge.knowledgeEvents.queryKnowledgeEvents(['xx:legacy']);
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'xx:legacy': [old, later] });
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['xx:legacy'])).toEqual(before);
+    expect(before['xx:legacy']?.reduce((n, row) => n + (row.timesSeenDelta ?? 0), 0)).toBe(2);
+  });
+
   it('routes shards by key prefix and isolates languages', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();

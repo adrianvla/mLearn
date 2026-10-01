@@ -1694,7 +1694,12 @@
         },
         "FullGraph": "打开完整图谱",
         "Prediction": {
-          "None": "无预测。"
+          "None": "无预测。",
+          "SupportLimited": "结构性支持较少",
+          "SupportModerate": "结构性支持适中",
+          "SupportStrong": "结构性支持较强",
+          "Context": "依据当前记录的知识和已安装的语言关系。可用此信号选择一次练习。",
+          "Limits": "这是启发式支持估计，并非成功概率或已测得的进步。尚未评估任务情境或记忆保持时长。"
         },
         "Adjust": "调整",
         "RetentionTitle": "复习",

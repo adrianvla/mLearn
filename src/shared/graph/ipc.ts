@@ -119,7 +119,7 @@ export interface KnowledgeProjectionState {
   evidence: KnowledgeProjectionEvidence[];
   evidenceSourceCounts: Record<string, number>;
   retention?: { pressure: number; dueAt: number };
-  prediction?: { value: number; reasons: string[] };
+  prediction?: { value: number; reasons: string[]; model?: string; interpretation?: 'heuristic-support' };
 }
 
 export interface KnowledgeProjectionTarget {

@@ -245,7 +245,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const { t } = useLocalization();
   const model = () => props.model;
   const { settings } = useSettings();
-  const { installLanguageData, getLanguageDataStatus } = useLanguage();
+  const { installLanguageData, getLanguageDataStatus, langData } = useLanguage();
   const graph = useOptionalGraph();
   const [tab, setTab] = createSignal<InspectorTab>('overview');
   const [lookup, setLookup] = createSignal<GraphWordLookup | null>(null);
@@ -512,7 +512,13 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     return journalEvents().filter((event) => !archived.has(event));
   });
 
-  const predictedStates = createMemo(() => (model().projection?.targets.flatMap((target) => target.states) ?? []).filter((state) => state.basis === 'prediction' && state.prediction !== undefined));
+  const predictedStates = createMemo(() => (model().projection?.targets ?? []).flatMap(target =>
+    target.states.filter(state => state.basis === 'prediction' && state.prediction !== undefined)
+      .map(state => ({ target: target.targetRef, state })),
+  ));
+  const capabilityLabel = (capability: string) => langData?.[props.language ?? settings.language]?.learning?.capabilities?.[capability]?.label
+    ?? (CAPABILITY_LABEL_KEYS[capability] ? t(CAPABILITY_LABEL_KEYS[capability]) : capability);
+  const supportLabel = (value: number) => t(`mlearn.Knowledge.Projection.Prediction.${value < 0.35 ? 'SupportLimited' : value < 0.7 ? 'SupportModerate' : 'SupportStrong'}`);
 
   // Install can only ever fix what the published package actually contains.
   // If the catalog bundle for this language ships no graph asset, the button
@@ -776,12 +782,14 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
           <div class="knowledge-prediction">
             <p class="knowledge-prediction__caption">{t('mlearn.GraphInspector.PredictionFirewall')}</p>
             <Show when={predictedStates().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Prediction.None')}</p>}>
-              <For each={predictedStates()}>{(state) => (
+              <For each={predictedStates()}>{({ target, state }) => (
                 <section class="knowledge-prediction__card">
-                  <h3>{t(CAPABILITY_LABEL_KEYS[state.capability] ?? `mlearn.Knowledge.Capability.${state.capability}`)}</h3>
+                  <h3>{capabilityLabel(state.capability)} · {targetLabel(target.id)}</h3>
                   <p class="knowledge-prediction__value">
-                    <strong>{t('mlearn.Knowledge.Projection.Predicted')} · {Math.round(state.prediction!.value * 100)}%</strong>
+                    <strong>{supportLabel(state.prediction!.value)}</strong>
                   </p>
+                  <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.Prediction.Context')}</p>
+                  <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.Prediction.Limits')}</p>
                   <p class="knowledge-prediction__why">{t(knowledgeWhyNarrative(state).key, knowledgeWhyNarrative(state).params)}</p>
                   <Show when={predictionReasonLines(state.prediction!.reasons).length > 0}>
                     <ul class="knowledge-prediction__reasons">

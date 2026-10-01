@@ -1694,7 +1694,12 @@
         },
         "FullGraph": "Ouvrir le graphe complet",
         "Prediction": {
-          "None": "Aucune prédiction."
+          "None": "Aucune prédiction.",
+          "SupportLimited": "Appui structurel limité",
+          "SupportModerate": "Appui structurel modéré",
+          "SupportStrong": "Appui structurel fort",
+          "Context": "Selon vos connaissances enregistrées et les relations linguistiques installées. Utilisez ce signal pour choisir un exercice.",
+          "Limits": "Il s’agit d’une estimation heuristique, pas d’une probabilité de réussite ni d’un progrès mesuré. Le contexte de la tâche et la durée de rétention n’ont pas été évalués."
         },
         "Adjust": "Ajuster",
         "RetentionTitle": "Révisions",

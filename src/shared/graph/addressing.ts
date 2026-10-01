@@ -26,8 +26,8 @@ import type { LanguageData } from '../types';
  *   speaks for itself — the writer could not have meant one specific entry.
  * - An explicit `targetRef.to` (writer knew the retrieved identity) overrides
  *   derivation and transfers to every surface realizing that entry.
- * - Legacy flat events (no targetRef) keep the caller's key scoping: they
- *   match capability-only and never cross surfaces.
+ * - Legacy flat events retain word/entry familiarity in their journal scope,
+ *   without inventing evidence for particular senses or component entities.
  */
 
 /**
@@ -164,7 +164,15 @@ export function eventAppliesToTarget(
 ): boolean {
   if (!eventAppliesToCapability(event, target.capability)) return false;
   const ref = event.targetRef;
-  if (!ref) return true; // legacy flat event: capability routing only, caller scoped the key
+  const targetEntity = graph.nodes.get(target.entityId);
+  if (!ref) return target.entityId === queriedSurfaceId || targetEntity?.kind === 'dictionary-entry';
+  // An explicitly addressed entity always owns its observation, including
+  // package-defined entities with capabilities the core has never seen.
+  if (ref.kind !== 'surface' && ref.id === target.entityId) return true;
+  if (targetEntity?.kind !== 'surface' && ref.to === target.entityId) return true;
+  // A word/entry rating leaves the intended sense unresolved. It can support
+  // lexical familiarity, but must never fan out into every meaning in an entry.
+  if (targetEntity?.kind === 'sense') return false;
   const packageFamily = isPackageFamilyCapability(target.capability, languageData);
   if (ENTRY_LEVEL_CAPABILITIES[target.capability] || packageFamily) {
     const context = lexicalContextEntryIds(graph, target.entityId);
@@ -173,7 +181,13 @@ export function eventAppliesToTarget(
     if (context.length === 0) return ref.kind === 'surface' && ref.to === undefined
       && ref.id === target.entityId && ref.id === queriedSurfaceId;
     if (ref.to !== undefined) return context.includes(ref.to);
-    if (ref.kind !== 'surface') return false;
+    if (ref.kind !== 'surface') {
+      if (ref.kind === 'dictionary-entry') return context.includes(ref.id);
+      if (ref.kind === 'sense' && targetEntity?.kind === 'dictionary-entry') {
+        return lexicalContextEntryIds(graph, ref.id).some((entry) => context.includes(entry));
+      }
+      return false;
+    }
     const entries = realizedEntryIds(graph, ref.id);
     if (!entries.some((entry) => context.includes(entry))) return false;
     // Unique shared entry → authoritative variant transfer. Ambiguous

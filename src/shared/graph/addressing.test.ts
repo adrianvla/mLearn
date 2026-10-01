@@ -90,8 +90,9 @@ describe('graph-relative access addressing', () => {
     const graph = buildGraph();
     // 名字 heard → recognized; speaks for the shared entry, so 苗字 sees it.
     expect(eventAppliesToTarget(graph, surfaceEvent('spoken-recognition', NAZI), MYOJI_SPOKEN, MYOJI)).toBe(true);
-    // 名字 meaning evidence transfers to the entry's sense (shared identity).
-    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', NAZI), TARGET_SENSE, MYOJI)).toBe(true);
+    // Unresolved word familiarity does not establish one particular sense.
+    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', NAZI), TARGET_SENSE, MYOJI)).toBe(false);
+    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', NAZI), { entityId: 'ja:entry:1604730', capability: 'sense-recognition' }, MYOJI)).toBe(true);
   });
 
   it('keeps surface-scoped accesses bound to the exact presented surface', () => {
@@ -115,15 +116,16 @@ describe('graph-relative access addressing', () => {
   it('honors an explicit retrieved identity (targetRef.to) over derivation', () => {
     const graph = buildGraph();
     // Writer knew the claim was about the surname entry: transfers.
-    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', 'ja:surface:hashi-hashiki', 'ja:entry:1604730'), TARGET_SENSE, MYOJI)).toBe(true);
+    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', 'ja:surface:hashi-hashiki', 'ja:entry:1604730'), TARGET_SENSE, MYOJI)).toBe(false);
+    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', MYOJI, TARGET_SENSE.entityId), TARGET_SENSE, MYOJI)).toBe(true);
   });
 
   it('lets an entry-ambiguous homograph speak only for itself', () => {
     const graph = buildGraph();
     const toru = 'ja:surface:toru';
     const toruSenseA: LearnableTarget = { entityId: 'ja:sense:toru-a:1', capability: 'sense-recognition' };
-    // Self: the presented surface's own sense targets still see its evidence.
-    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', toru), toruSenseA, toru)).toBe(true);
+    // An ambiguous surface cannot certify an unselected sense, even on itself.
+    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', toru), toruSenseA, toru)).toBe(false);
     // Sibling sharing only one of the ambiguous entries inherits nothing.
     expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', toru), { entityId: 'ja:sense:toru-b:1', capability: 'sense-recognition' }, 'ja:surface:toru-variant')).toBe(false);
     // No sibling journal keys for ambiguous surfaces.
@@ -147,7 +149,7 @@ describe('graph-relative access addressing', () => {
     expect(lexicalContextEntryIds(graph, 'ja:entry:1604730')).toEqual(['ja:entry:1604730']);
     expect(lexicalContextEntryIds(graph, 'ja:pron:はし')).toEqual([]);
     // Legacy flat events (no targetRef) keep capability-only caller scoping.
-    expect(eventAppliesToTarget(graph, { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning' }, TARGET_SENSE, MYOJI)).toBe(true);
+    expect(eventAppliesToTarget(graph, { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning' }, TARGET_SENSE, MYOJI)).toBe(false);
   });
 
   it('routes package-declared opaque accesses by their declared scope', () => {
@@ -166,5 +168,27 @@ describe('graph-relative access addressing', () => {
     expect(eventAppliesToTarget(graph, surfaceEvent('x-test::evidentiality', NAZI), familyTarget, MYOJI, languageData)).toBe(true);
     expect(eventAppliesToTarget(graph, surfaceEvent('x-test::register', NAZI), surfaceTarget, MYOJI, languageData)).toBe(false);
     expect(eventAppliesToTarget(graph, surfaceEvent('x-test::register', MYOJI), surfaceTarget, MYOJI, languageData)).toBe(true);
+  });
+
+  it('keeps exact sense observations independent within one dictionary entry', () => {
+    const graph = buildGraph();
+    const other = { id: 'ja:sense:1604730:2', kind: 'sense', label: 'family lineage' } as const;
+    graph.nodes.set(other.id, other);
+    const observed: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', quality: 'fluent',
+      targetRef: { kind: 'sense', id: TARGET_SENSE.entityId, capability: 'sense-recognition' } };
+    expect(eventAppliesToTarget(graph, observed, TARGET_SENSE, MYOJI)).toBe(true);
+    expect(eventAppliesToTarget(graph, observed, { entityId: other.id, capability: 'sense-recognition' }, MYOJI)).toBe(false);
+    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', MYOJI), TARGET_SENSE, MYOJI)).toBe(false);
+    expect(eventAppliesToTarget(graph, surfaceEvent('sense-recognition', MYOJI), { entityId: other.id, capability: 'sense-recognition' }, MYOJI)).toBe(false);
+  });
+
+  it('keeps exact package-owned entity observations addressable without registration', () => {
+    const graph = buildGraph();
+    const target = { entityId: 'x-future::discourse:7', capability: 'x-future::access' };
+    graph.nodes.set(target.entityId, { id: target.entityId, kind: 'x-future::discourse', label: 'context', learnableCapabilities: [target.capability] });
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'manual', quality: 'good',
+      targetRef: { kind: 'x-future::discourse', id: target.entityId, capability: target.capability } };
+    const packageData = { name: 'Future', learning: { capabilities: { [target.capability]: { scope: 'family' as const } } } };
+    expect(eventAppliesToTarget(graph, event, target, MYOJI, packageData)).toBe(true);
   });
 });

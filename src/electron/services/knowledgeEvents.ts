@@ -113,24 +113,21 @@ function openAndMigrate(now = Date.now()): void {
 function ensureSchemaCurrent(active: KnowledgeHistoryStore, now: number): void {
   if (active.schemaVersion >= KNOWLEDGE_STORE_SCHEMA_VERSION) return;
   const backupPath = `${getLegacyPath()}.migrated`;
-  if (fs.existsSync(backupPath)) {
-    try {
-      const backup = JSON.parse(fs.readFileSync(backupPath, 'utf-8')) as KnowledgeEventLog;
+  try {
+    const backup = fs.existsSync(backupPath)
+      ? JSON.parse(fs.readFileSync(backupPath, 'utf-8')) as KnowledgeEventLog : undefined;
+    if (active.schemaVersion < 2 && backup) {
       const result = active.reclassifyFromBackup(backup, now);
-      if (result.skipped > 0) {
-        log.warn(`[knowledgeEvents] v2 reclassification deferred ${result.skipped} keys lacking import boundaries`);
-      }
+      if (result.skipped > 0) log.warn(`[knowledgeEvents] attempt reclassification deferred ${result.skipped} keys lacking import boundaries`);
       if (!result.verified) {
-        log.error('[knowledgeEvents] v2 reclassification failed projection verification; left on v1 semantics for retry');
+        log.error('[knowledgeEvents] attempt reclassification failed verification; retrying next boot');
         return;
       }
-      log.info(`[knowledgeEvents] reclassified history for attempt compaction: ${result.keys} keys`);
-    } catch (error) {
-      log.error('[knowledgeEvents] v2 reclassification failed; retrying next boot:', error);
-      return;
     }
-  } else {
-    active.markSchemaVersion(KNOWLEDGE_STORE_SCHEMA_VERSION);
+    // Existing generation-2 history needs identity seeding, never reclassification.
+    active.backfillObservationIdentities(backup);
+  } catch (error) {
+    log.error('[knowledgeEvents] history upgrade failed; retrying next boot:', error);
   }
 }
 

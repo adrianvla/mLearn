@@ -4,6 +4,7 @@ import { createGrammarRecognitionFold, grammarPatternFromEvidenceKey } from '../
 import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../../shared/knowledge/historyQueries';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { eventCapability } from '../../shared/knowledgeEvents';
+import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 import {
   applyEventToFold,
   emptyKeyFold,
@@ -50,6 +51,7 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const event = value as Partial<KnowledgeEvent>;
   if (typeof event.t !== 'number' || !Number.isFinite(event.t)) return false;
+  if (event.eventId !== undefined && (typeof event.eventId !== 'string' || event.eventId.length === 0)) return false;
   if (!VALID_KINDS.has(event.kind as string)) return false;
   if (!VALID_SOURCES.has(event.source as string)) return false;
   // Epistemic address: every non-retraction event carries EITHER a legacy
@@ -90,8 +92,8 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   return true;
 }
 
-/** 2 = per-row contribution records (bucket_recs + attempt_index) exist. */
-export const KNOWLEDGE_STORE_SCHEMA_VERSION = 2;
+/** 3 = durable observation identities, separate from multi-access attempt ids. */
+export const KNOWLEDGE_STORE_SCHEMA_VERSION = 3;
 export const KNOWLEDGE_STORE_FOLD_VERSION = 2;
 export const STORE_FILE_NAME = 'knowledge-history.sqlite3';
 /** Maximum keys compacted per pass — bounded incremental work. */
@@ -254,6 +256,15 @@ export class KnowledgeHistoryStore {
         json TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS rows_key_t ON rows(key, t, seq);
+      CREATE INDEX IF NOT EXISTS rows_attempt ON rows(key, json_extract(json, '$.attemptId'));
+      CREATE INDEX IF NOT EXISTS rows_event_id ON rows(key, json_extract(json, '$.eventId'));
+      CREATE INDEX IF NOT EXISTS rows_anki_review ON rows(key, json_extract(json, '$.ankiReviewId'));
+      CREATE INDEX IF NOT EXISTS rows_retraction ON rows(key, json_extract(json, '$.retracts'));
+      CREATE TABLE IF NOT EXISTS observation_identities (
+        key TEXT NOT NULL,
+        identity TEXT NOT NULL,
+        PRIMARY KEY (key, identity)
+      ) WITHOUT ROWID;
       CREATE TABLE IF NOT EXISTS archives (
         key TEXT PRIMARY KEY,
         lang TEXT NOT NULL,
@@ -352,6 +363,8 @@ export class KnowledgeHistoryStore {
         const seqBase = this.seq.reserve(pending.length);
         pending.forEach((event, index) => {
           insert.run(seqBase + index + 1, key, lang, event.t, JSON.stringify(event));
+          const identity = knowledgeEventIdentity(event);
+          if (identity !== undefined) this.db.prepare('INSERT OR IGNORE INTO observation_identities (key, identity) VALUES (?, ?)').run(key, identity);
           totalEvents += 1;
         });
         const rows = rowsWithSeq(this.db, key);
@@ -387,11 +400,22 @@ export class KnowledgeHistoryStore {
    * must re-import every key against the empty store.
    */
   resetForReimport(): void {
-    this.db.exec("DELETE FROM rows; DELETE FROM archives; DELETE FROM checkpoints; DELETE FROM attempt_index; DELETE FROM bucket_recs; DELETE FROM meta WHERE key LIKE 'mig:%' OR key LIKE 'migseq:%' OR key LIKE 'v2mig:%' OR key = 'seqCounter';");
+    this.db.exec("DELETE FROM rows; DELETE FROM archives; DELETE FROM checkpoints; DELETE FROM attempt_index; DELETE FROM bucket_recs; DELETE FROM observation_identities; DELETE FROM meta WHERE key LIKE 'mig:%' OR key LIKE 'migseq:%' OR key LIKE 'v2mig:%' OR key = 'seqCounter';");
   }
 
   /** Transaction-body variant — callers own BEGIN/COMMIT. */
   private writeArchiveAndCheckpointLocked(key: string, compact: ReturnType<typeof compactKeyEvents>): void {
+    const remember = this.db.prepare('INSERT OR IGNORE INTO observation_identities (key, identity) VALUES (?, ?)');
+    for (const event of [
+      ...compact.records.bucketRecords.map(record => record.event),
+      ...compact.records.attemptRecords.flatMap(record => {
+        const decoded = decodeAttemptRecord(record.rec);
+        return decoded ? [{ ...bucketRepresentative(record.bucketKey), ...decoded.event, attemptId: record.attemptId }] : [];
+      }),
+    ]) {
+      const identity = knowledgeEventIdentity(event);
+      if (identity !== undefined) remember.run(key, identity);
+    }
     {
       const lang = this.languageOfKey(key);
       if (compact.archive) {
@@ -569,15 +593,42 @@ export class KnowledgeHistoryStore {
    */
   appendEvents(eventsByKey: KnowledgeEventLog): void {
     const insert = this.db.prepare('INSERT INTO rows (seq, key, lang, t, json) VALUES (?, ?, ?, ?, ?)');
+    const exists = this.db.prepare('SELECT 1 FROM observation_identities WHERE key = ? AND identity = ?');
+    const remember = this.db.prepare('INSERT INTO observation_identities (key, identity) VALUES (?, ?)');
+    const exactAttempt = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json_extract(json, '$.attemptId') = ?");
+    const exactEventId = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json_extract(json, '$.eventId') = ?");
+    const exactAnkiId = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json_extract(json, '$.ankiReviewId') = ?");
+    const retracted = this.db.prepare("SELECT 1 FROM rows WHERE key = ? AND json_extract(json, '$.retracts') = ? LIMIT 1");
+    const archivedAttempt = this.db.prepare('SELECT rec, bucket, attempt_id FROM attempt_index WHERE key = ? AND attempt_id = ?');
     for (const [key, events] of Object.entries(eventsByKey)) {
       if (!events.length) continue;
       const lang = this.languageOfKey(key);
       this.db.exec('BEGIN');
       try {
         const valid = events.filter((event) => {
-          if (isKnowledgeEvent(event)) return true;
-          log.warn('[knowledgeHistoryStore] dropped malformed event on append', key);
-          return false;
+          if (!isKnowledgeEvent(event)) {
+            log.warn('[knowledgeHistoryStore] dropped malformed event on append', key);
+            return false;
+          }
+          const identity = knowledgeEventIdentity(event);
+          if (identity === undefined) return true;
+          if (exists.get(key, identity)) return false;
+          // Seed old exact/archive observations lazily. Historical logs are
+          // preserved; opening the profile never guesses away existing rows.
+          const previous = [
+            ...(event.eventId === undefined ? [] : exactEventId.all(key, event.eventId) as Array<{ json: string }>).map(row => JSON.parse(row.json) as KnowledgeEvent),
+            ...(event.ankiReviewId === undefined ? [] : exactAnkiId.all(key, event.ankiReviewId) as Array<{ json: string }>).map(row => JSON.parse(row.json) as KnowledgeEvent),
+            ...(event.attemptId === undefined ? [] : [
+            ...(exactAttempt.all(key, event.attemptId) as Array<{ json: string }>).map(row => JSON.parse(row.json) as KnowledgeEvent),
+            ...(archivedAttempt.all(key, String(event.attemptId)) as Array<{ rec: Uint8Array; bucket: string; attempt_id: string }>).flatMap(row => {
+              const record = decodeAttemptRecord(row.rec);
+              return record ? [{ ...bucketRepresentative(row.bucket), ...record.event, attemptId: row.attempt_id }] : [];
+            }),
+          ]),
+          ];
+          remember.run(key, identity);
+          if (event.attemptId !== undefined && retracted.get(key, event.attemptId)) return false;
+          return !previous.some(row => knowledgeEventIdentity(row) === identity);
         });
         const seqBase = this.seq.reserve(valid.length);
         const newSeqs: number[] = [];
@@ -1057,6 +1108,34 @@ export class KnowledgeHistoryStore {
     }
     if (verified) this.markSchemaVersion(KNOWLEDGE_STORE_SCHEMA_VERSION);
     return { keys: keys.size, verified, skipped };
+  }
+
+  /** Non-destructive generation-3 upgrade; only full, verified observations seed retry identities. */
+  backfillObservationIdentities(verifiedBackup?: KnowledgeEventLog): void {
+    const remember = this.db.prepare('INSERT OR IGNORE INTO observation_identities (key, identity) VALUES (?, ?)');
+    const seed = (key: string, event: KnowledgeEvent) => {
+      if (!isKnowledgeEvent(event)) return;
+      const identity = knowledgeEventIdentity(event);
+      if (identity !== undefined) remember.run(key, identity);
+    };
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const row of this.db.prepare('SELECT key, json FROM rows').iterate() as Iterable<{ key: string; json: string }>) {
+        seed(row.key, JSON.parse(row.json) as KnowledgeEvent);
+      }
+      for (const [key, events] of Object.entries(verifiedBackup ?? {})) {
+        const marker = this.db.prepare('SELECT value FROM meta WHERE key = ?').get(`mig:${key}`) as { value?: string } | undefined;
+        if (marker?.value !== String(events.length)) continue;
+        events.forEach(event => seed(key, event));
+      }
+      // Partial archive contribution records cannot prove fields they never
+      // stored. Keep them intact; lazy attempt matching uses surviving addresses.
+      this.markSchemaVersion(KNOWLEDGE_STORE_SCHEMA_VERSION);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   /** Byte + row accounting per table (benchmark/storage diagnostics). */

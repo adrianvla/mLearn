@@ -12,6 +12,117 @@ import { COMPACTION_KEY_BUDGET, KnowledgeHistoryStore, isKnowledgeEvent } from '
 
 const DAY = 24 * 60 * 60 * 1000;
 
+describe('canonical observation idempotency', () => {
+  it('deduplicates retries while accepting distinct accesses of one attempt', () => {
+    const s = store();
+    const key = 'xx:retry';
+    const reading: KnowledgeEvent = { t: 1, kind: 'rating', source: 'manual', attemptId: 'response-1', aspect: 'reading', quality: 'fluent' };
+    const meaning: KnowledgeEvent = { ...reading, aspect: 'meaning' };
+    s.appendEvents({ [key]: [reading] });
+    s.appendEvents({ [key]: [reading, meaning, meaning] });
+    expect(s.getExactEvents([key])[key]).toEqual([reading, meaning]);
+    s.close();
+  });
+
+  it('keeps retry protection across compaction, restart, and another store connection', () => {
+    const file = path.join(dir, 'retry.sqlite3');
+    const s = KnowledgeHistoryStore.open(file);
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: 'durable-response', quality: 'fluent', easeAfter: 2.6 };
+    const older = { ...event, t: 30 * DAY, attemptId: 'archived-response' };
+    s.appendEvents({ 'xx:retry': [event, older] });
+    s.compact(365 * DAY);
+    const before = s.getKnowledgeState('xx:retry');
+    const beforeSequence = s.sequenceCounter;
+    expect(before.hasArchive).toBe(true);
+    s.close();
+    const first = KnowledgeHistoryStore.open(file);
+    const second = KnowledgeHistoryStore.open(file);
+    first.appendEvents({ 'xx:retry': [event, older] });
+    second.appendEvents({ 'xx:retry': [event, older] });
+    expect(second.getKnowledgeState('xx:retry')).toEqual(before);
+    expect(second.sequenceCounter).toBe(beforeSequence);
+    first.close(); second.close();
+  });
+
+  it('recognizes archived addressed attempts from a pre-identity-cache store', () => {
+    const file = path.join(dir, 'old-cache.sqlite3');
+    const s = KnowledgeHistoryStore.open(file);
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', targetRef: { kind: 'sense', id: 'opaque-sense', capability: 'sense-recognition' }, attemptId: 'old-durable-response', quality: 'fluent', easeAfter: 2.6 };
+    s.appendEvents({ 'xx:old': [event, { ...event, t: 30 * DAY, attemptId: 'old-second-response' }] });
+    s.compact(365 * DAY);
+    const before = s.sequenceCounter;
+    s.close();
+    const db = new DatabaseSync(file);
+    db.exec('DELETE FROM observation_identities');
+    db.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    restarted.appendEvents({ 'xx:old': [event] });
+    expect(restarted.sequenceCounter).toBe(before);
+    restarted.close();
+  });
+
+  it('seeds old archived Anki observations from the verified backup without rewriting history', () => {
+    const file = path.join(dir, 'old-anki-cache.sqlite3');
+    const s = KnowledgeHistoryStore.open(file);
+    const events: KnowledgeEvent[] = [1, 30, 60].map((day, index) => ({ t: day * DAY, kind: 'review', source: 'anki', aspect: 'meaning', ankiReviewId: index + 10, easeAfter: 2.6, rating: 'good' }));
+    const backup = { 'xx:old': events };
+    expect(s.importLegacyLog(backup, 365 * DAY).verified).toBe(true);
+    const before = s.getKnowledgeState('xx:old');
+    const sequence = s.sequenceCounter;
+    s.close();
+    const db = new DatabaseSync(file);
+    db.exec("DELETE FROM observation_identities; UPDATE meta SET value = '2' WHERE key = 'schemaVersion'");
+    db.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    restarted.backfillObservationIdentities(backup);
+    restarted.appendEvents({ 'xx:old': [events[1]] });
+    expect(restarted.sequenceCounter).toBe(sequence);
+    expect(restarted.getKnowledgeState('xx:old')).toEqual(before);
+    expect(restarted.schemaVersion).toBe(3);
+    restarted.close();
+  });
+
+  it('clears observation identities when a failed migration resets the store', () => {
+    const s = store();
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', eventId: 'reset-observation' };
+    s.appendEvents({ 'xx:reset': [event] });
+    s.resetForReimport();
+    s.appendEvents({ 'xx:reset': [event] });
+    expect(s.getExactEvents(['xx:reset'])['xx:reset']).toEqual([event]);
+    s.close();
+  });
+
+  it('protects imported event ids through compaction without dropping historical occurrences', () => {
+    const s = store();
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', eventId: 'imported-observation', quality: 'fluent', easeAfter: 2.6 };
+    s.importLegacyLog({ 'xx:import': [event, { ...event, t: 30 * DAY }] });
+    const seq = s.sequenceCounter;
+    s.appendEvents({ 'xx:import': [event] });
+    expect(s.sequenceCounter).toBe(seq);
+    s.compact(365 * DAY);
+    s.appendEvents({ 'xx:import': [event] });
+    expect(s.sequenceCounter).toBe(seq);
+    s.close();
+  });
+
+  it('retains distinct directed targets within one Anki review', () => {
+    const s = store();
+    const first: KnowledgeEvent = { t: 1, kind: 'rating', source: 'anki', ankiReviewId: 123, targetRef: { kind: 'sense', id: 'sense-a', capability: 'sense-recognition' } };
+    const second: KnowledgeEvent = { ...first, targetRef: { ...first.targetRef!, id: 'sense-b' } };
+    s.appendEvents({ 'xx:anki': [first, second, first, second] });
+    expect(s.getExactEvents(['xx:anki'])['xx:anki']).toEqual([first, second]);
+    s.close();
+  });
+
+  it('does not deduplicate ambiguous historical numeric session ids', () => {
+    const s = store();
+    const event = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: '1', quality: 'fluent' } as const;
+    s.appendEvents({ 'xx:legacy': [event, { ...event, t: 2 }] });
+    expect(s.getExactEvents(['xx:legacy'])['xx:legacy']).toHaveLength(2);
+    s.close();
+  });
+});
+
 let dir: string;
 
 beforeEach(() => {
@@ -623,7 +734,7 @@ describe('KnowledgeHistoryStore', () => {
 
     const first = s.reclassifyFromBackup(JSON.parse(JSON.stringify(backup)), now);
     expect(first.verified).toBe(true);
-    expect(s.schemaVersion).toBe(2);
+    expect(s.schemaVersion).toBe(3);
     // The old attempt compacted with a contribution record.
     expect(s.hasAttemptRecords('ja:v1', ['attempt-v1'])).toEqual([true]);
     expect(s.getKnowledgeState('ja:v1').projection).toEqual(replayKeyProjection(backup['ja:v1']));

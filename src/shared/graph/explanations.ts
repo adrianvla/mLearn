@@ -74,7 +74,7 @@ export interface TargetExplanation {
   evidence: KnowledgeEvent[];
   projection: ReturnType<typeof projectKeyFold>;
   retention: ReturnType<typeof deriveRetentionSchedule> | null;
-  prediction?: { value: number; because: string[] };
+  prediction?: { value: number; because: string[]; model?: string; interpretation?: 'heuristic-support' };
 }
 
 /**
@@ -122,7 +122,7 @@ export function assembleTargetExplanation(
     applyEventToFold(exactFold, event, seq);
   }
   const fold = mergedArchive ? mergeKeyFolds(archiveFold, exactFold) : exactFold;
-  const projection: ReplayProjection | null = evidenceRows.length > 0 || mergedArchive ? projectKeyFold(fold) : null;
+  const projection: ReplayProjection | null = evidenceRows.length > 0 || archiveFold.hasEvidence || archiveFold.claim !== undefined ? projectKeyFold(fold) : null;
   // Retention over the frontier sequence: exact rows + residue columns in one
   // (t, seq) order — true journal seq on both sides, no ordering ambiguity.
   const retention = computeRetention(mergedArchive, evidenceRows, policy, now, matcher);

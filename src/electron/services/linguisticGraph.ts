@@ -7,14 +7,15 @@ import { COMPACT_RELATION_TYPES, decodeCompact, type CompactAssetJSON, type Runt
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodCenterState, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../../shared/graph/ipc';
 import { relationCategory, type GraphRelationType } from '../../shared/graph/types';
 import type { LingualGraph } from '../../shared/graph/load';
+import { relationsOf } from '../../shared/graph/load';
 import { createCompactGraphView } from '../../shared/graph/compactView';
-import { buildKnowledgeProjection } from './knowledgeProjection';
+import { buildKnowledgeProjection, projectionEntityIds } from './knowledgeProjection';
 import { scopeSiblingArchive, scopeSiblingEvent } from './siblingKnowledgeHistory';
 import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
 import type { CompoundPart } from '../../shared/graph/morphology/compounds';
 import type { PredictionInput } from '../../shared/prediction/supportPredictor';
 import { effectiveStateFromEntry, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
-import { realizedEntryIds, siblingJournalKeys, surfacesRealizingEntry } from '../../shared/graph/addressing';
+import { journalKeyOfSurfaceEntity, realizedEntryIds, siblingJournalKeys, surfacesRealizingEntry } from '../../shared/graph/addressing';
 import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 import type { LanguageData, LanguageDataMap } from '../../shared/types';
@@ -283,15 +284,30 @@ export class LinguisticGraphService {
       // variant surface resolves to the shared lexical object, so the
       // projection consults sibling journal keys (never copies state).
       const keys = siblingJournalKeys(plain, surfaceId);
-      const rowLog = getKnowledgeRows(keys);
-      const rows = keys.flatMap((key) => (rowLog[key] ?? []).map(row => ({ ...row, event: scopeSiblingEvent(row.event, key, keys[0]) })));
-      const archives = getKnowledgeArchives(keys)
-        .map(({ key, archive }) => archive ? scopeSiblingArchive(archive, key, keys[0]) : undefined)
-        .filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
-      const compound = await this.compoundSupport(plain, language, surfaceId, thresholds);
       const languageData = Object.prototype.hasOwnProperty.call(settingsModule, 'loadLangData')
         ? this.projectionLanguageData(loaded, settingsModule.loadLangData)
         : undefined;
+      const declaredSupportRelations = new Set(Object.values(languageData?.learning?.capabilities ?? {})
+        .flatMap(declaration => declaration.supportRules?.map(rule => rule.relation) ?? []));
+      const targetIds = projectionEntityIds(plain, surfaceId);
+      // Exact entity observations and potential support sources have their own
+      // journals. Fetching them supplies inputs; address matching still decides
+      // which event applies, so a neighbor never becomes evidence for this word.
+      for (const id of targetIds) {
+        keys.push(journalKeyOfSurfaceEntity(id));
+        for (const relation of relationsOf(plain, id, { direction: 'in' })) {
+          if (relationCategory(relation.type) === 'support' || declaredSupportRelations.has(relation.type)) {
+            keys.push(...siblingJournalKeys(plain, relation.from));
+          }
+        }
+      }
+      const distinctKeys = [...new Set(keys)];
+      const rowLog = getKnowledgeRows(distinctKeys);
+      const rows = distinctKeys.flatMap((key) => (rowLog[key] ?? []).map(row => ({ ...row, event: scopeSiblingEvent(row.event, key, keys[0]) })));
+      const archives = getKnowledgeArchives(distinctKeys)
+        .map(({ key, archive }) => archive ? scopeSiblingArchive(archive, key, keys[0]) : undefined)
+        .filter((archive): archive is NonNullable<typeof archive> => archive !== undefined);
+      const compound = await this.compoundSupport(plain, language, surfaceId, thresholds);
       const projection = buildKnowledgeProjection(plain, surfaceId, rows, store.meta, undefined, undefined, { compound, archives, thresholds, languageData });
       return { ...projection, querySurface: surface, surfaceKnown: loaded.graph.has(surfaceId), compoundAnalysis: compound?.analysis ?? null };
     } catch {

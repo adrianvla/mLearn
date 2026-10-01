@@ -1,7 +1,7 @@
-import { identityNeighbors, relationsOf, type LingualGraph } from '../graph/load';
-import { CORE_GRAPH_RELATION_TYPES } from '../graph/types';
+import { relationsOf, type LingualGraph } from '../graph/load';
+import { relationCategory } from '../graph/types';
 import type { CompoundAnalysis, CompoundPart } from '../graph/morphology/compounds';
-import { isIdentityShareableCapability } from '../graph/targets';
+import type { LanguageData } from '../types';
 import type { LearnableTarget } from '../graph/types';
 import type { ReplayProjection } from '../utils/projectionReplay';
 
@@ -20,6 +20,9 @@ export interface PredictionInput {
   direct: ReplayProjection | null;
   target: LearnableTarget;
   classify(ease: number): 'known' | 'learning' | 'unknown';
+  /** Source access state, resolved from its own journal address; absence grants no support. */
+  sourceKnowledge?: (target: LearnableTarget) => 'evidence' | 'claim' | undefined;
+  languageData?: LanguageData | null;
   /** Read-only productive compound support for an unseen target. Decomposition is
    * capability-selected by the caller from the language package's declared strategy. */
   compound?: { analysis: CompoundAnalysis; isKnownPart(lemma: string): boolean };
@@ -47,7 +50,8 @@ export interface PredictionInput {
 }
 
 export interface Prediction {
-  pSuccess: number;
+  /** Heuristic structural support, never a calibrated probability of success. */
+  supportScore: number;
   uncertainty: number;
   supportPath: Array<{ from: string; to: string; via: string }>;
   /** Always true today: predictions are expectations, never evidence. */
@@ -83,43 +87,37 @@ const CHARACTER_SUPPORT: Record<string, number | undefined> = {
 export function predictTargetAccessibility(input: PredictionInput): Prediction {
   const { graph, direct, target } = input;
   if (!graph || (!graph.nodes.has(target.entityId) && !input.compound)) {
-    return { pSuccess: 0, uncertainty: 1, supportPath: [], kind: 'prediction' };
+    return { supportScore: 0, uncertainty: 1, supportPath: [], kind: 'prediction' };
   }
 
   // Direct evidence dominates: no inference needed.
   if (direct && input.classify(direct.ease) === 'known') {
-    return { pSuccess: 1, uncertainty: 0.05, supportPath: [], kind: 'prediction' };
+    return { supportScore: 1, uncertainty: 0.05, supportPath: [], kind: 'prediction' };
   }
 
-  // Lexeme-level capabilities may aggregate across IDENTITY edges — but only
-  // for capabilities that are not surface-scoped (isIdentityShareableCapability).
   let knownNeighbors = 0;
   let supportTotal = 0;
   const supportPath: Prediction['supportPath'] = [];
 
-  if (isIdentityShareableCapability(target.capability)) {
-    for (const neighbor of identityNeighbors(graph, target.entityId)) {
-      supportTotal += 0.5;
-      // Neighbor's own strength would come from its projection; unknown here →
-      // conservative credit only when caller supplies per-neighbor projections.
-      knownNeighbors += 0;
-      void neighbor;
-    }
-  }
-
-  // SUPPORT edges with measured transparency/predictability feed expectation.
+  // A structural edge cannot establish the learner's knowledge of its source.
+  // Package rules can opt unfamiliar relations/accesses into this mechanism.
   for (const relation of relationsOf(graph, target.entityId, { direction: 'in' })) {
-    // Open-world rule: namespaced extension relations are inert — they can never
-    // accidentally create support credit; only core relations participate.
-    if (!(CORE_GRAPH_RELATION_TYPES as readonly string[]).includes(relation.type)) continue;
+    const declared = input.languageData?.learning?.capabilities?.[target.capability]?.supportRules
+      ?.filter(rule => rule.relation === relation.type);
     const weights = SUPPORT_WEIGHTS[target.capability];
-    if (!weights) continue;
-    const t = relation.transparency ?? 0;
-    const p = relation.predictability ?? 0;
-    const credit = weights.transparency * t + weights.predictability * p;
+    const builtin = relationCategory(relation.type) === 'support'
+      && !['contrasts-with', 'analyzes', 'analysis-member'].includes(relation.type) && weights
+      ? [{ sourceCapability: target.capability, weight: weights.transparency * boundedWeight(relation.transparency)
+        + weights.predictability * boundedWeight(relation.predictability) }] : [];
+    const rules = declared?.length ? declared : builtin;
+    const credit = rules.reduce((sum, rule) => {
+      const basis = input.sourceKnowledge?.({ entityId: relation.from, capability: rule.sourceCapability });
+      if (!basis) return sum;
+      return sum + boundedWeight(rule.weight) * (basis === 'claim' ? 0.5 : 1);
+    }, 0) * (relation.confidence === undefined ? 1 : boundedWeight(relation.confidence));
     if (credit > 0) {
       supportTotal += credit;
-      knownNeighbors += credit; // conservative: full credit only from explicit weights
+      knownNeighbors += credit;
       supportPath.push({ from: relation.from, to: relation.to, via: relation.type });
     }
   }
@@ -178,10 +176,14 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
   }
 
   const base = direct ? input.classify(direct.ease) === 'learning' ? 0.35 : 0.1 : 0.05;
-  const pSuccess = Math.min(0.85, base + knownNeighbors / Math.max(1, supportTotal) * 0.5 * calibration);
+  const supportScore = Math.min(0.85, base + knownNeighbors / Math.max(1, supportTotal) * 0.5 * calibration);
   const uncertainty = Math.max(0.15, 1 - supportTotal);
 
-  return { pSuccess, uncertainty, supportPath, kind: 'prediction' };
+  return { supportScore, uncertainty, supportPath, kind: 'prediction' };
+}
+
+function boundedWeight(value: number | undefined): number {
+  return value !== undefined && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 }
 
 function leafLemmas(parts: readonly CompoundPart[]): string[] {

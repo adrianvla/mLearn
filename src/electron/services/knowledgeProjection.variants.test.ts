@@ -79,9 +79,9 @@ describe('graph-relative learner overlay (苗字/名字 walkthrough)', () => {
     ];
     const projection = buildKnowledgeProjection(variantGraph(), MYOJI, events, policy, 10);
 
-    // The sense state resolved through the shared entry…
-    const sense = stateOf(projection, SENSE, 'sense-recognition');
-    expect(sense).toMatchObject({ classification: 'known', basis: 'evidence' });
+    // Word familiarity resolves through the shared entry; no sense was selected.
+    expect(stateOf(projection, SENSE, 'sense-recognition')).toMatchObject({ classification: 'unmeasured', basis: 'unmeasured' });
+    expect(projection.lexical?.sense).toMatchObject({ classification: 'known', basis: 'evidence' });
     // …and the spoken claim resolved entry-level across the variant.
     const spoken = stateOf(projection, MYOJI, 'spoken-recognition');
     expect(spoken).toMatchObject({ classification: 'known', basis: 'claim' });
@@ -152,10 +152,11 @@ describe('graph-relative learner overlay (苗字/名字 walkthrough)', () => {
       // Direct retrieval: method recall.
       { t: 1, kind: 'rating', source: 'srs', targetRef: { kind: 'surface', id: NAZI, capability: 'sense-recognition' }, easeAfter: 3, attemptId: 'direct', method: 'recall', quality: 'fluent' },
       // Compositional inference on an unseen compound: method inference.
-      { t: 2, kind: 'rating', source: 'srs', targetRef: { kind: 'surface', id: NAZI, capability: 'sense-recognition' }, easeAfter: 3, attemptId: 'inferred', method: 'inference', quality: 'fluent' },
+      { t: 2, kind: 'rating', source: 'srs', targetRef: { kind: 'surface', id: NAZI, capability: 'sense-recognition' }, easeAfter: 3, attemptId: 'inferred', method: 'inference', quality: 'fluent', taskType: 'srs-review', scaffolds: {} },
     ];
     const projection = buildKnowledgeProjection(variantGraph(), MYOJI, events, policy, 10);
-    const sense = stateOf(projection, SENSE, 'sense-recognition');
+    const historical = buildKnowledgeProjection(variantGraph(), NAZI, events, policy, 10);
+    const sense = stateOf(historical, NAZI, 'sense-recognition');
     // Both events are evidence, but the projection must keep the bases apart:
     // only the recall event counts as direct retrieval success.
     expect(sense?.lastDirectSuccess).toBe(1);
@@ -164,8 +165,8 @@ describe('graph-relative learner overlay (苗字/名字 walkthrough)', () => {
     // visible as a stronger predicted bridge than without inference history.
     const calibrated = buildKnowledgeProjection(variantGraph(), MYOJI, [
       ...events,
-      { t: 3, kind: 'rating', source: 'srs', targetRef: { kind: 'surface', id: NAZI, capability: 'sense-recognition' }, easeAfter: 3, attemptId: 'inferred2', method: 'inference', quality: 'fluent' },
-      { t: 4, kind: 'rating', source: 'srs', targetRef: { kind: 'surface', id: NAZI, capability: 'sense-recognition' }, easeAfter: 3, attemptId: 'inferred3', method: 'inference', quality: 'fluent' },
+      { t: 3, kind: 'rating', source: 'srs', targetRef: { kind: 'surface', id: NAZI, capability: 'sense-recognition' }, easeAfter: 3, attemptId: 'inferred2', method: 'inference', quality: 'fluent', taskType: 'srs-review', scaffolds: {} },
+      { t: 4, kind: 'rating', source: 'srs', targetRef: { kind: 'surface', id: NAZI, capability: 'sense-recognition' }, easeAfter: 3, attemptId: 'inferred3', method: 'inference', quality: 'fluent', taskType: 'srs-review', scaffolds: {} },
     ], policy, 10);
     const uncalibrated = stateOf(projection, MYOJI, 'surface-recognition')?.prediction?.value ?? 0;
     const boosted = stateOf(calibrated, MYOJI, 'surface-recognition')?.prediction?.value ?? 0;

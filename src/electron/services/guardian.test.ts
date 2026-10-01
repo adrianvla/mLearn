@@ -219,6 +219,31 @@ describe('Guardian direct integrity boundary', () => {
     expect(guardian.newestVerifiedRecoveryPoint()).toBe(first);
   });
 
+  it('restores a current journal snapshot with its durable retry identities', async () => {
+    fs.writeFileSync(file('flashcards.json'), JSON.stringify({ version: 3, flashcards: { a: card('a') }, wordKnowledge: {}, grammarKnowledge: {} }));
+    const event = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: 'recoverable-attempt', quality: 'fluent' } as const;
+    const history = KnowledgeHistoryStore.open(file('knowledge-history.sqlite3'));
+    history.appendEvents({ 'xx:key': [event] });
+    history.close();
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const snapshot = guardian.listRecoveryPoints()[0];
+    expect(guardian.newestVerifiedRecoveryPoint()).toBe(snapshot);
+    guardian.restore(snapshot);
+    const restored = KnowledgeHistoryStore.open(file('knowledge-history.sqlite3'));
+    restored.appendEvents({ 'xx:key': [event] });
+    expect(restored.getExactEvents(['xx:key'])['xx:key']).toEqual([event]);
+    restored.close();
+  });
+
+  it('blocks a future journal schema before any learner-data mutation', async () => {
+    writeProfile(['a']);
+    const db = new DatabaseSync(file('knowledge-history.sqlite3'));
+    db.exec("UPDATE meta SET value = '99' WHERE key = 'schemaVersion'");
+    db.close();
+    await expect(new Guardian(temp.tmpDir).preflight()).rejects.toThrow('cannot read this learner data schema');
+  });
+
   it('blocks startup with a newer data schema before old code can mutate it', async () => {
     writeProfile(['a']);
     const original = JSON.parse(fs.readFileSync(file('flashcards.json'), 'utf8'));

@@ -6,7 +6,7 @@ import type { KnowledgeLexicalSummary, KnowledgeProjection, KnowledgeProjectionB
 import { relationsOf, type LingualGraph } from '../../shared/graph/load';
 import { learnableTargetsFor } from '../../shared/graph/targets';
 import { predictTargetAccessibility, type PredictionInput } from '../../shared/prediction/supportPredictor';
-import { attemptActiveLatencyMs, eventCapability, readActiveEvidence } from '../../shared/knowledgeEvents';
+import { attemptActiveLatencyMs, eventCapability, eventIsMeasurable, readActiveEvidence } from '../../shared/knowledgeEvents';
 import { evidenceStatusFromEase, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { DEFAULT_ENABLED_DOMAINS, type CapabilityKey, type GraphDomain, type GraphEntity, type LearnableTarget } from '../../shared/graph/types';
 import type { RetentionPolicy } from '../../shared/srs/retentionScheduler';
@@ -57,6 +57,7 @@ function targetExplanation(
   archives?: readonly KeyArchive[],
   thresholds: EffectiveThresholds = effectiveThresholds(),
   languageData?: LanguageData | null,
+  allowUnscoped = true,
 ): TargetExplanation {
   return assembleTargetExplanation(
     target.capability,
@@ -64,7 +65,7 @@ function targetExplanation(
     policy,
     now,
     prediction,
-    (event) => eventAppliesToTarget(graph, event, target, queriedSurfaceId, languageData),
+    (event) => (allowUnscoped || event.targetRef !== undefined) && eventAppliesToTarget(graph, event, target, queriedSurfaceId, languageData),
     archives,
     thresholds,
   );
@@ -135,17 +136,7 @@ export function buildKnowledgeProjection(
   // One entry can list the same sense/lexeme several times (bank duplication
   // in package data); visiting an entity twice would emit the same
   // (entity, capability) state twice into the projection payload.
-  const entityIds = new Set<string>([surfaceId, ...entryIds.flatMap((entryId) => relationsOf(graph, entryId)
-    .filter((relation) => relation.type === 'has-sense')
-    .map((relation) => relation.from === entryId ? relation.to : relation.from))]);
-  // Character components of the presented surface are learnable targets too
-  // (ordered has-character graph edges — builder-attested structure).
-  for (const relation of relationsOf(graph, surfaceId, { direction: 'out' })) {
-    if (relation.type === 'has-character') {
-      const character = graph.nodes.get(relation.to);
-      if (character && domainEnabled(character)) entityIds.add(relation.to);
-    }
-  }
+  const entityIds = projectionEntityIds(graph, surfaceId, enabledDomains);
   const entities = [...entityIds]
     .map((id) => graph.nodes.get(id))
     .filter((entity): entity is NonNullable<typeof entity> => entity !== undefined)
@@ -153,26 +144,10 @@ export function buildKnowledgeProjection(
   const targets = learnableTargetsFor(graph, entities);
   const groups = new Map<string, KnowledgeProjectionTarget>();
 
-  // Learner transfer calibration (acceptance D): observed method:'inference'
-  // outcomes tell the predictor whether THIS learner exploits component →
-  // whole structure. Read-only input; never written as knowledge.
-  let inferenceAttempts = 0;
-  let inferenceSuccesses = 0;
-  for (const event of readActiveEvidence(events)) {
-    if (event.method !== 'inference') continue;
-    inferenceAttempts += 1;
-    if (event.quality === 'fluent' || event.rating === 'good' || event.rating === 'easy') inferenceSuccesses += 1;
-  }
-  // Archived attempts contribute the same counts via bucket methodStats —
-  // retraction-safe: rebuilds recompute the stats from surviving records.
-  for (const archive of options?.archives ?? []) {
-    for (const bucket of Object.values(archive.buckets)) {
-      if (bucket.methodStats === undefined) continue;
-      inferenceAttempts += bucket.methodStats.inference;
-      inferenceSuccesses += bucket.methodStats.inferenceSuccess;
-    }
-  }
-  const inferenceSuccess = inferenceAttempts > 0 ? { attempts: inferenceAttempts, successes: inferenceSuccesses } : undefined;
+  // Only identifiable, explicitly unassisted physical attempts inform this
+  // heuristic. Old bucket methodStats count rows, not independent attempts;
+  // they cannot calibrate transfer and remain available as history statistics.
+  const inferenceSuccess = observedTransferHistory(events);
 
   // Entry-level lexical state feeding PREDICTION ONLY (acceptance A/B/C):
   // a synchronized lexical object (sense/spoken known through any variant)
@@ -212,6 +187,12 @@ export function buildKnowledgeProjection(
         direct,
         target,
         classify: (ease) => evidenceStatusFromEase(ease, thresholds),
+        languageData: options?.languageData,
+        sourceKnowledge: (source) => {
+          const state = classificationOf(targetExplanation(graph, rows, source, source.entityId, policy, now,
+            undefined, options?.archives, thresholds, options?.languageData, source.entityId === surfaceId).state);
+          return state.classification === 'known' && (state.basis === 'evidence' || state.basis === 'claim') ? state.basis : undefined;
+        },
         compound: options?.compound,
         ...(entrySupport ? { entry: entrySupport } : {}),
         ...(characterSupport ? { characters: characterSupport } : {}),
@@ -219,49 +200,15 @@ export function buildKnowledgeProjection(
       });
       if (predicted.supportPath.length) {
         explanation = targetExplanation(graph, rows, target, surfaceId, policy, now, {
-          value: predicted.pSuccess,
+          value: predicted.supportScore,
+          model: 'structural-support-v1',
+          interpretation: 'heuristic-support',
           because: predicted.supportPath.map((path) => `${path.from} → ${path.to} (${path.via})`),
         }, options?.archives, thresholds, options?.languageData);
       }
     }
-    const { classification, basis } = classificationOf(explanation.state);
-    const active = explanation.evidence;
-    // Archived evidence contributes the same counters through its bucket
-    // statistics, selected by the same address matcher as the exact rows.
-    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId, options?.languageData));
-    const sourceCounts = active.reduce<Record<string, number>>((counts, event) => {
-      counts[event.source] = (counts[event.source] ?? 0) + (event.timesSeenDelta ?? 1);
-      return counts;
-    }, {});
-    for (const [source, count] of Object.entries(archivedStats.sourceSeen)) {
-      sourceCounts[source] = (sourceCounts[source] ?? 0) + count;
-    }
-    const lastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
-    const state: KnowledgeProjectionState = {
-      ...(explanation.prediction ? { prediction: { value: explanation.prediction.value, reasons: explanation.prediction.because } } : {}),
-      capability: target.capability,
-      classification,
-      basis,
-      ...(direct ? { strength: { ease: direct.ease, timesSeen: direct.timesSeen, timesHovered: direct.timesHovered } } : {}),
-      ...(lastSuccess !== undefined ? { lastDirectSuccess: lastSuccess } : {}),
-      evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((event) => {
-        // THE modeling-grade latency channel: attemptActiveLatencyMs yields
-        // active-engagement time when recorded (undefined for stall-flagged
-        // rows), falling back to legacy wall latency. The journal keeps the
-        // full active/wall/stalled provenance; this projection carries only
-        // what modeling may consume.
-        const modelingLatency = attemptActiveLatencyMs(event);
-        return {
-          timestamp: event.t,
-          source: event.source,
-          ...(event.quality ?? event.rating ? { quality: event.quality ?? event.rating } : {}),
-          ...(event.stalled ? { stalled: true } : {}),
-          ...(modelingLatency !== undefined ? { latencyMs: modelingLatency } : {}),
-        };
-      }),
-      evidenceSourceCounts: sourceCounts,
-      ...(explanation.retention ? { retention: { pressure: explanation.retention.pressure, dueAt: explanation.retention.dueAt } } : {}),
-    };
+    const state = projectionState(target.capability, explanation,
+      mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId, options?.languageData)));
     const group = groups.get(entity.id) ?? {
       targetRef: { kind: entity.kind, id: entity.id },
       applicableCapabilities: [],
@@ -296,32 +243,15 @@ export function buildKnowledgeProjection(
       ?? (target.entityId === surfaceId ? { id: surfaceId, kind: 'surface' as const } : undefined);
     if (!entity || !domainEnabled(entity)) continue;
     const explanation = targetExplanation(graph, rows, target, surfaceId, policy, now, undefined, options?.archives, thresholds, options?.languageData);
-    const { classification, basis } = classificationOf(explanation.state);
+    const { basis } = classificationOf(explanation.state);
     if (basis !== 'claim' && basis !== 'evidence') continue;
-    const active = explanation.evidence;
-    const archivedStats = mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId, options?.languageData));
-    const sourceCounts: Record<string, number> = { ...archivedStats.sourceSeen };
-    for (const row of active) {
-      sourceCounts[row.source] = (sourceCounts[row.source] ?? 0) + (row.timesSeenDelta ?? 1);
-    }
     const group = groups.get(entity.id) ?? {
       targetRef: { kind: entity.kind, id: entity.id },
       applicableCapabilities: [],
       states: [],
     };
-    const lastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
-    group.states.push({
-      capability: target.capability,
-      classification,
-      basis,
-      ...(lastSuccess !== undefined ? { lastDirectSuccess: lastSuccess } : {}),
-      evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((row) => ({
-        timestamp: row.t,
-        source: row.source,
-        ...(row.quality ?? row.rating ? { quality: row.quality ?? row.rating } : {}),
-      })),
-      evidenceSourceCounts: sourceCounts,
-    });
+    group.states.push(projectionState(target.capability, explanation,
+      mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId, options?.languageData))));
     groups.set(entity.id, group);
   }
 
@@ -353,6 +283,84 @@ export function buildKnowledgeProjection(
     missingBridges,
   };
   return { status: 'ready', surfaceId, targets: [...groups.values()], lexical };
+}
+
+/** Package-declared learnable neighbors use the same discovery as built-in targets. */
+export function projectionEntityIds(graph: LingualGraph, surfaceId: string, enabledDomains: readonly GraphDomain[] = DEFAULT_ENABLED_DOMAINS): Set<string> {
+  const domainEnabled = (entity: GraphEntity | undefined): entity is GraphEntity =>
+    entity !== undefined && (!entity.domain || enabledDomains.includes(entity.domain));
+  const entryIds = realizedEntryIds(graph, surfaceId).filter(id => domainEnabled(graph.nodes.get(id)));
+  const entityIds = new Set<string>([surfaceId, ...entryIds.flatMap((entryId) => relationsOf(graph, entryId)
+    .filter((relation) => relation.type === 'has-sense')
+    .map((relation) => relation.from === entryId ? relation.to : relation.from))]);
+  // Character components of the presented surface are learnable targets too
+  // (ordered has-character graph edges — builder-attested structure).
+  for (const owner of [surfaceId, ...entryIds]) {
+    for (const relation of relationsOf(graph, owner)) {
+      const id = relation.from === owner ? relation.to : relation.from;
+      const entity = graph.nodes.get(id);
+      if (domainEnabled(entity) && (relation.type === 'has-character'
+        || entity.learnable === true || (entity.learnableCapabilities?.length ?? 0) > 0)) {
+        entityIds.add(id);
+      }
+    }
+  }
+  return entityIds;
+}
+
+/** Authored historical and graph-declared targets expose the same provenance. */
+function projectionState(capability: CapabilityKey, explanation: TargetExplanation, archivedStats: ArchiveTargetStats): KnowledgeProjectionState {
+  const direct = explanation.projection;
+  const { classification, basis } = classificationOf(explanation.state);
+  const active = explanation.evidence;
+  const sourceCounts = active.reduce<Record<string, number>>((counts, event) => {
+    counts[event.source] = (counts[event.source] ?? 0) + (event.timesSeenDelta ?? 1);
+    return counts;
+  }, {});
+  for (const [source, count] of Object.entries(archivedStats.sourceSeen)) {
+    sourceCounts[source] = (sourceCounts[source] ?? 0) + count;
+  }
+  const lastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
+  return {
+    ...(explanation.prediction ? { prediction: { value: explanation.prediction.value, reasons: explanation.prediction.because,
+      model: explanation.prediction.model, interpretation: explanation.prediction.interpretation } } : {}),
+    capability: capability,
+    classification,
+    basis,
+    ...(direct ? { strength: { ease: direct.ease, timesSeen: direct.timesSeen, timesHovered: direct.timesHovered } } : {}),
+    ...(lastSuccess !== undefined ? { lastDirectSuccess: lastSuccess } : {}),
+    evidence: [...active].sort((a, b) => b.t - a.t).slice(0, MAX_EVIDENCE).map((event) => {
+      // THE modeling-grade latency channel: attemptActiveLatencyMs yields
+      // active-engagement time when recorded (undefined for stall-flagged
+      // rows), falling back to legacy wall latency. The journal keeps the
+      // full active/wall/stalled provenance; this projection carries only
+      // what modeling may consume.
+      const modelingLatency = attemptActiveLatencyMs(event);
+      return {
+        timestamp: event.t,
+        source: event.source,
+        ...(event.quality ?? event.rating ? { quality: event.quality ?? event.rating } : {}),
+        ...(event.stalled ? { stalled: true } : {}),
+        ...(modelingLatency !== undefined ? { latencyMs: modelingLatency } : {}),
+      };
+    }),
+    evidenceSourceCounts: sourceCounts,
+    ...(explanation.retention ? { retention: { pressure: explanation.retention.pressure, dueAt: explanation.retention.dueAt } } : {}),
+  };
+}
+
+/** Count physical unassisted attempts, never duplicate accesses or uncertain legacy counters. */
+export function observedTransferHistory(events: readonly KnowledgeEvent[]): { attempts: number; successes: number } | undefined {
+  const attempts = new Map<string, boolean>();
+  for (const event of readActiveEvidence(events)) {
+    if (event.kind !== 'rating' && event.kind !== 'review') continue;
+    if (event.method !== 'inference' || !eventIsMeasurable(event) || !event.taskType
+      || event.scaffolds === undefined || Object.values(event.scaffolds).some(Boolean)
+      || !event.attemptId || /^\d+$/.test(event.attemptId)) continue;
+    const success = event.quality === 'fluent' || event.rating === 'good' || event.rating === 'easy';
+    attempts.set(event.attemptId, (attempts.get(event.attemptId) ?? true) && success);
+  }
+  return attempts.size ? { attempts: attempts.size, successes: [...attempts.values()].filter(Boolean).length } : undefined;
 }
 
 /** Matcher-scoped archived statistics merged across sibling keys. */

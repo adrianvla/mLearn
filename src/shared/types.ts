@@ -1306,6 +1306,13 @@ export interface LanguageCapabilityDeclaration {
   scope?: 'surface' | 'entity' | 'family';
   /** Whether evidence can transfer across authoritative identity variants. */
   shareAcrossIdentity?: boolean;
+  /** Read-only support rules; relation and access semantics belong to the package. */
+  supportRules?: Array<{
+    relation: string;
+    sourceCapability: string;
+    /** Relative support weight, 0..1; never a calibrated probability. */
+    weight: number;
+  }>;
 }
 
 /** Package-owned learner access declarations. Unknown ids and values survive round trips. */
